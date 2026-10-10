@@ -7,7 +7,6 @@ use App\Interfaces\Telegram\Handlers\StartHandler;
 use SergiX44\Nutgram\Nutgram;
 
 /** @var Nutgram $bot */
-
 $bot->onCommand('start', StartHandler::class);
 $bot->onCommand('menu', StartHandler::class);
 $bot->onCommand('account', AccountHandler::class);

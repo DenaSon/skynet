@@ -77,6 +77,6 @@ it('does not resolve deactivated accounts even when a Telegram mapping exists', 
 it('refuses to issue links for disabled users', function (): void {
     $user = User::factory()->create(['is_active' => false]);
 
-    $this->expectException(\Illuminate\Validation\ValidationException::class);
+    $this->expectException(ValidationException::class);
     app(IssueTelegramLinkCode::class)->handle($user->id);
 });
