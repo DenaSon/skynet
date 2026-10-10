@@ -21,3 +21,6 @@ Operations write to `identity_audit_events`, including actor, subject, event and
 
 ## Deployment safety
 Run full Pest, Larastan and Pint checks. Root allowlist changes take effect on subsequent requests after config reload. Do not rely on Telegram inline menu visibility as the sole authorization control. If a root account is lost, use a reviewed console recovery procedure rather than exposing an HTTP unlock endpoint.
+
+## Test baseline
+GitHub Actions run **38096797661** passed PHP 8.4 and PHP 8.5 with **52 tests and 209 assertions**, zero Larastan errors and a clean Pint check. This is a repository CI check, **not** proof of real Telegram account enrollment or production configuration.

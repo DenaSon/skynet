@@ -68,5 +68,5 @@ After bootstrapping the first administrator, run `php artisan telegram:link-acco
 
 Read [Telegram setup and operations](docs/006-TELEGRAM-OPERATIONS.md). The existing Laravel web login remains for backwards compatibility; new user-facing features target Telegram until a future Livewire presenter is approved.
 
-## Dynamic RBAC and protected Super Admins (F5)
+## Dynamic RBAC and protected Super Admins (F5, CI verified)
 Identity roles are DB-backed via Spatie Permission v8. `admin` and `member` records are migrated from the former enum column; new role names such as `reseller` need no PHP enum edit. One user may have several roles. **Super Admin is a special protected root**: configure at least two distinct numeric IDs in `SUPER_ADMIN_TELEGRAM_IDS` and enroll each linked active user via `php artisan identity:super-admin:promote <user_id>`. ENV alone never grants access. Ordinary admin web endpoints cannot promote, demote or disable a Super Admin; all RBAC mutations are subject to server-side authorization and recorded in an identity audit table. See [RBAC operations](docs/007-RBAC-OPERATIONS.md).

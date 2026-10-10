@@ -1,7 +1,7 @@
 # SkyNet — Current Context
 
 **Reviewed:** 2026-10-11  
-**Stage:** F5 RBAC and trusted Super Admin foundation, proposed on `feature/05-identity-rbac` (CI/merge pending)  
+**Stage:** F5 RBAC verified (PR #5, GitHub CI PHP 8.4/8.5 green; merge into `master`)  
 **Behavioral truth:** repository code and tests, not aspirational plans.
 
 ## Product direction
@@ -15,7 +15,7 @@ SkyNet is a Laravel successor to Python NVL. **Telegram-first** is the accepted 
 - Telegram and eventual Livewire use Application actions directly; an HTTP API is optional, not a dependency.
 - **No networking decision**: no server SSH, WireGuard, Outline, VPN/node/provisioning, agent, Core/Edge.
 
-## F5 proposed on this branch
+## F5 implementation
 - Role and permission tables from Spatie, with a migration mapping existing `admin`/`member` users into DB roles before removing the old column.
 - Custom roles (`reseller`, etc.) defined via a trusted Super Admin application action; multiple roles may be assigned per user.
 - Only trusted, active, Telegram-linked, allowlisted `super-admin` accounts receive special Gate privileges. At least two different numeric IDs are required in `SUPER_ADMIN_TELEGRAM_IDS`; env IDs alone do not grant any role.
@@ -34,7 +34,7 @@ SkyNet is a Laravel successor to Python NVL. **Telegram-first** is the accepted 
 Actual admin/consumer business operations, user self-registration, password reset, Livewire, Mini App, public REST API, server actions, SSH, network topology, long-running queues. Basic bot updates are processed synchronously; future heavy operations must be dispatched to durable jobs.
 
 ## Validation
-**F5 validation pending:** lock-file resolution and PHP 8.4/8.5 Pest/Larastan/Pint CI.
+**F5 passed:** GitHub Actions run **38096797661** on PHP 8.4 and 8.5: **52 Pest tests / 209 assertions**, Larastan 0 errors, Pint clean. Portable Composer lock includes Spatie v8.3.0. No BotFather/production integration was exercised.
 
 **Previous F4 passed:** GitHub Actions run **38095212533** on PHP 8.4 and 8.5: **40 tests / 158 assertions**, Larastan **0 errors**, Pint **0 issues**. Composer lock is portable and includes Nutgram Laravel 1.7.1 / Nutgram 4.50.3. This validates repository code, **not** an actual deployed Telegram webhook or BotFather credentials.
 

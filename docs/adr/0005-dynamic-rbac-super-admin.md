@@ -1,7 +1,7 @@
 # ADR 0005 — Dynamic RBAC and Protected Super Admin
 
 **Date:** 2026-10-11
-**Status:** Accepted for F5, pending CI and PR merge
+**Status:** Accepted (F5, CI verified PHP 8.4/8.5)
 
 ## Context
 The initial enum `admin/member` cannot represent custom reseller/support roles or multi-role users. SkyNet's Telegram-first interface needs privileged operator protection before building management menus.
