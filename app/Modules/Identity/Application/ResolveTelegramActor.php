@@ -19,7 +19,8 @@ final class ResolveTelegramActor
         return new TelegramActor(
             userId: (int) $user->getKey(),
             name: $user->name,
-            role: $user->role,
+            roles: $user->getRoleNames()->all(),
+            admin: $user->isAdmin(),
         );
     }
 }

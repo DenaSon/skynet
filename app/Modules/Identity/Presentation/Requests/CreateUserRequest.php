@@ -2,7 +2,6 @@
 
 namespace App\Modules\Identity\Presentation\Requests;
 
-use App\Modules\Identity\Domain\UserRole;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -24,7 +23,7 @@ final class CreateUserRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')],
             'password' => ['required', 'string', Password::min(12)],
-            'role' => ['sometimes', Rule::enum(UserRole::class)],
+            'role' => ['sometimes', 'string', Rule::exists('roles', 'name')->where('guard_name', 'web')],
         ];
     }
 

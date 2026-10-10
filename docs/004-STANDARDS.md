@@ -42,3 +42,10 @@
 
 ## Commit / PR
 Use descriptive conventional commits (e.g., `chore:`, `docs:`, `feat:`, `test:`). PR description must state tests run, documents changed, and any known limitations.
+
+## Dynamic RBAC and protected roots (F5)
+- Never treat `SUPER_ADMIN_TELEGRAM_IDS` as an authorization grant. A trusted root must be active, have the DB `super-admin` role, and be linked to an allowlisted numeric ID; require at least **two** distinct allowlisted IDs.
+- Do not expose Super Admin role assignment, removal or root account disablement via Telegram or web interfaces. Provision from the secure CLI with confirmation.
+- All permission decisions must run in Application Actions / Gates; UI-only menu checks do not count.
+- Keep audit events for role/privilege mutations, without secrets, tokens or passwords.
+- A role can be added dynamically; adding a new permission means first defining the corresponding application authorization check.

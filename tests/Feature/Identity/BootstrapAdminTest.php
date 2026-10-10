@@ -1,6 +1,5 @@
 <?php
 
-use App\Modules\Identity\Domain\UserRole;
 use App\Modules\Identity\Infrastructure\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -18,13 +17,13 @@ it('bootstraps the first administrator without a seeded account', function (): v
 
     $admin = User::query()->sole();
     expect($admin->email)->toBe('owner@example.test');
-    expect($admin->role)->toBe(UserRole::Admin);
+    expect($admin->hasRole('admin'))->toBeTrue();
     expect($admin->is_active)->toBeTrue();
     expect(Hash::check('a-very-secure-password!', $admin->password))->toBeTrue();
 });
 
 it('refuses to bootstrap a second administrator', function (): void {
-    User::factory()->create(['role' => UserRole::Admin]);
+    User::factory()->admin()->create();
 
     $this->artisan('identity:bootstrap-admin')->assertFailed();
 

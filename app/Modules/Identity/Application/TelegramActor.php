@@ -2,18 +2,20 @@
 
 namespace App\Modules\Identity\Application;
 
-use App\Modules\Identity\Domain\UserRole;
-
 final readonly class TelegramActor
 {
+    /**
+     * @param  list<string>  $roles
+     */
     public function __construct(
         public int $userId,
         public string $name,
-        public UserRole $role,
+        public array $roles,
+        public bool $admin,
     ) {}
 
     public function isAdmin(): bool
     {
-        return $this->role === UserRole::Admin;
+        return $this->admin;
     }
 }

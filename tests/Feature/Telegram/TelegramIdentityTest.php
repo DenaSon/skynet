@@ -3,7 +3,6 @@
 use App\Modules\Identity\Application\IssueTelegramLinkCode;
 use App\Modules\Identity\Application\LinkTelegramAccount;
 use App\Modules\Identity\Application\ResolveTelegramActor;
-use App\Modules\Identity\Domain\UserRole;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\TelegramLinkToken;
 use App\Modules\Identity\Infrastructure\Models\User;
@@ -13,7 +12,7 @@ use Illuminate\Validation\ValidationException;
 uses(RefreshDatabase::class);
 
 it('links an existing active user once via an expiring hashed code', function (): void {
-    $user = User::factory()->create(['role' => UserRole::Admin]);
+    $user = User::factory()->admin()->create();
     $code = app(IssueTelegramLinkCode::class)->handle($user->id);
 
     expect(strlen($code))->toBe(48);

@@ -56,3 +56,6 @@ See [ADR 0001](adr/0001-modular-monolith.md).
 
 ## Current PHP dependency compatibility
 F2 formalizes PHP >=8.4.1 in `composer.json`, with `config.platform.php=8.4.1` to resolve packages against the supported minimum. The lock file is free of workstation-only Composer mirror URLs. CI targets PHP 8.4/8.5. This is a deliberate project requirement, not Laravel's absolute minimum. See [ADR 0002](adr/0002-php-and-quality-tooling.md).
+
+## RBAC hardening (F5)
+The identity module owns dynamic roles/permissions via Spatie Permission v8 (single `web` guard). User role assignments are relational. Admin-only operations pass through Gate and application actions so future Telegram/Livewire callers share enforcement. `super-admin` remains a reserved, protected role with a **second** mandatory allowlist check against the account's linked numeric Telegram ID. ENV is not a grant of privilege and needs at least two valid unique IDs. All state changes are audited. See [ADR 0005](adr/0005-dynamic-rbac-super-admin.md).

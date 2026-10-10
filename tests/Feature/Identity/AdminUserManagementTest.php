@@ -1,6 +1,5 @@
 <?php
 
-use App\Modules\Identity\Domain\UserRole;
 use App\Modules\Identity\Infrastructure\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -22,7 +21,7 @@ it('denies user management to guests and regular members', function (): void {
 });
 
 it('allows administrators to list users without leaking secrets', function (): void {
-    $admin = User::factory()->create(['role' => UserRole::Admin]);
+    $admin = User::factory()->admin()->create();
     $this->actingAs($admin)
         ->getJson('/admin/users')
         ->assertOk()
@@ -33,7 +32,7 @@ it('allows administrators to list users without leaking secrets', function (): v
 });
 
 it('creates members through validated administrator actions', function (): void {
-    $admin = User::factory()->create(['role' => UserRole::Admin]);
+    $admin = User::factory()->admin()->create();
 
     $this->actingAs($admin)->postJson('/admin/users', [
         'name' => 'New member',
@@ -50,7 +49,7 @@ it('creates members through validated administrator actions', function (): void 
 });
 
 it('validates password and unique email when creating users', function (): void {
-    $admin = User::factory()->create(['role' => UserRole::Admin]);
+    $admin = User::factory()->admin()->create();
     $existing = User::factory()->create(['email' => 'existing@example.test']);
 
     $this->actingAs($admin)->postJson('/admin/users', [
@@ -66,21 +65,19 @@ it('validates password and unique email when creating users', function (): void 
     ])->assertUnprocessable()->assertJsonValidationErrors('email');
 });
 
-it('lets admins grant and revoke another users administrator role', function (): void {
-    $admin = User::factory()->create(['role' => UserRole::Admin]);
+it('blocks normal administrators from granting privileged roles', function (): void {
+    $admin = User::factory()->admin()->create();
     $member = User::factory()->create();
 
     $this->actingAs($admin)->patchJson("/admin/users/{$member->id}", [
         'role' => 'admin',
-    ])->assertOk()->assertJsonPath('data.role', 'admin');
+    ])->assertUnprocessable()->assertJsonValidationErrors('role');
 
-    $this->patchJson("/admin/users/{$member->id}", [
-        'role' => 'member',
-    ])->assertOk()->assertJsonPath('data.role', 'member');
+    expect($member->fresh()->hasRole('admin'))->toBeFalse();
 });
 
 it('blocks self-demotion and self-deactivation', function (): void {
-    $admin = User::factory()->create(['role' => UserRole::Admin]);
+    $admin = User::factory()->admin()->create();
 
     $this->actingAs($admin)->patchJson("/admin/users/{$admin->id}", [
         'role' => 'member',
@@ -94,23 +91,23 @@ it('blocks self-demotion and self-deactivation', function (): void {
     expect($admin->fresh()->is_active)->toBeTrue();
 });
 
-it('preserves the last active administrator', function (): void {
-    $adminA = User::factory()->create(['role' => UserRole::Admin]);
-    $adminB = User::factory()->create(['role' => UserRole::Admin]);
+it('prevents an administrator from deactivating another administrator', function (): void {
+    $adminA = User::factory()->admin()->create();
+    $adminB = User::factory()->admin()->create();
 
     $this->actingAs($adminA)->patchJson("/admin/users/{$adminB->id}", [
         'is_active' => false,
-    ])->assertOk()->assertJsonPath('data.is_active', false);
+    ])->assertUnprocessable();
 
     $this->patchJson("/admin/users/{$adminA->id}", [
         'is_active' => false,
     ])->assertUnprocessable();
 
-    expect($adminA->fresh()->is_active)->toBeTrue();
+    expect($adminB->fresh()->is_active)->toBeTrue();
 });
 
 it('rejects an empty or invalid access update', function (): void {
-    $admin = User::factory()->create(['role' => UserRole::Admin]);
+    $admin = User::factory()->admin()->create();
     $member = User::factory()->create();
 
     $this->actingAs($admin)->patchJson("/admin/users/{$member->id}", [])

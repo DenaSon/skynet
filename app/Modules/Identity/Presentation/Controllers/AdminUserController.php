@@ -3,8 +3,8 @@
 namespace App\Modules\Identity\Presentation\Controllers;
 
 use App\Modules\Identity\Application\CreateUser;
+use App\Modules\Identity\Application\SuperAdminTrust;
 use App\Modules\Identity\Application\UpdateUserAccess;
-use App\Modules\Identity\Domain\UserRole;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Identity\Presentation\Requests\CreateUserRequest;
 use App\Modules\Identity\Presentation\Requests\UpdateUserAccessRequest;
@@ -33,11 +33,20 @@ final class AdminUserController
     {
         $validated = $request->validated();
 
+        /** @var User $actor */
+        $actor = $request->user();
+        $role = $validated['role'] ?? 'member';
+
+        if ($role === 'super-admin' || ($role !== 'member' && ! app(SuperAdminTrust::class)->eligible($actor))) {
+            abort(403, 'Only a trusted Super Admin can create privileged users.');
+        }
+
         $user = $createUser->handle(
             $validated['name'],
             $validated['email'],
             $validated['password'],
-            UserRole::from($validated['role'] ?? UserRole::Member->value),
+            $validated['role'] ?? 'member',
+            $actor,
         );
 
         return response()->json(['data' => $this->present($user)], 201);
@@ -52,7 +61,7 @@ final class AdminUserController
         $updated = $update->handle(
             $actor,
             $user,
-            isset($validated['role']) ? UserRole::from($validated['role']) : null,
+            array_key_exists('roles', $validated) ? $validated['roles'] : (isset($validated['role']) ? [$validated['role']] : null),
             array_key_exists('is_active', $validated) ? (bool) $validated['is_active'] : null,
         );
 
@@ -68,7 +77,8 @@ final class AdminUserController
             'id' => $user->id,
             'name' => $user->name,
             'email' => $user->email,
-            'role' => $user->role->value,
+            'role' => $user->getRoleNames()->first(),
+            'roles' => $user->getRoleNames()->all(),
             'is_active' => $user->is_active,
             'created_at' => $user->created_at?->toIso8601String(),
         ];

@@ -3,9 +3,9 @@
 namespace App\Modules\Identity\Presentation\Console;
 
 use App\Modules\Identity\Application\CreateUser;
-use App\Modules\Identity\Domain\UserRole;
 use App\Modules\Identity\Infrastructure\Models\User;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rules\Password;
 
@@ -17,7 +17,7 @@ final class BootstrapAdmin extends Command
 
     public function handle(CreateUser $createUser): int
     {
-        if (User::query()->where('role', UserRole::Admin->value)->exists()) {
+        if (User::query()->role(['admin', 'super-admin'])->exists()) {
             $this->error('An administrator already exists. Manage users through an authenticated admin session.');
 
             return self::FAILURE;
@@ -41,7 +41,10 @@ final class BootstrapAdmin extends Command
             return self::FAILURE;
         }
 
-        $createUser->handle($name, $email, $password, UserRole::Admin);
+        DB::transaction(function () use ($createUser, $name, $email, $password): void {
+            $admin = $createUser->handle($name, $email, $password);
+            $admin->syncRoles(['admin']);
+        });
 
         $this->info('Administrator created. Sign in at /login.');
 

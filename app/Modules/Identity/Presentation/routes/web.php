@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Identity\Presentation\Controllers\AccountController;
+use App\Modules\Identity\Presentation\Controllers\AdminRoleController;
 use App\Modules\Identity\Presentation\Controllers\AdminUserController;
 use App\Modules\Identity\Presentation\Controllers\AuthenticatedSessionController;
 use Illuminate\Support\Facades\Route;
@@ -22,6 +23,8 @@ Route::middleware('web')->group(function (): void {
             Route::get('/users', [AdminUserController::class, 'index'])->name('users.index');
             Route::post('/users', [AdminUserController::class, 'store'])->name('users.store');
             Route::patch('/users/{user}', [AdminUserController::class, 'update'])->name('users.update');
+            Route::get('/roles', [AdminRoleController::class, 'index'])->name('roles.index');
+            Route::post('/roles', [AdminRoleController::class, 'store'])->name('roles.store');
         });
     });
 });
