@@ -1,21 +1,41 @@
 # Module Boundaries
 
-**Status:** Initial placeholders only. No module implements a user-facing use case.
+**Current:** Identity F3 (branch); Administration still an empty registered shell.
 
-| Module | Proposed responsibility | Implemented |
+| Module | Ownership | Implemented |
 | --- | --- | --- |
-| Identity | Users, authentication and permissions | Provider registered only; default `App\\Models\\User` still in Laravel skeleton |
-| Administration | Back-office workflows and administrative UI | Provider registered only |
+| Identity | User persistence, session authentication, role/active-state authorization, admin user-management use cases and safe bootstrap | Identity model, actions, web controllers, form requests, middleware, console command, routes and tests |
+| Administration | Future administrative interface/composition; no identity internals | Empty provider only |
 
-The two placeholder boundaries are provisional; refine ownership when the first concrete use case is selected. Avoid adding future commercial or network modules until their responsibilities are defined.
+## Identity layout
+```text
+app/Modules/Identity/
+  Domain/UserRole.php
+  Application/{CreateUser,UpdateUserAccess}.php
+  Infrastructure/Models/User.php
+  Presentation/
+    Console/BootstrapAdmin.php
+    Controllers/{AuthenticatedSessionController,AccountController,AdminUserController}.php
+    Middleware/EnsureActiveUser.php
+    Requests/
+    routes/web.php
+    views/login.blade.php
+  IdentityServiceProvider.php
+```
 
-## Conventions
-- Namespace: `App\\Modules\\<Name>\\...`.
-- Location: `app/Modules/<Name>/`.
-- Provider: `<Name>ServiceProvider.php`, explicitly registered in `bootstrap/providers.php`.
-- No cross-module access to another module's private persistence or domain internals.
-- Add application actions, DTOs, entities, routes, jobs, and migrations only when a feature needs them.
-- Shared abstractions belong in `app/Shared/` only after a real multi-module use case warrants them.
+`config/auth.php` references `App\Modules\Identity\Infrastructure\Models\User`. Its factory remains in `database/factories` for Laravel convention. This module owns login and JSON admin-user endpoints; Administration must **not** directly access Identity's infrastructure.
 
-## First acceptance check
-`tests/Feature/ModuleRegistrationTest.php` verifies both providers are loaded when Laravel boots. No login, authorization or UI behavior is implied by that test.
+## Contracts / boundaries
+- This first slice provides application Actions without introducing a generic repository/service abstraction.
+- Other modules must not import Identity's infrastructure model or internal controllers. Introduce deliberate read/use-case interfaces when there is a real cross-module consumer.
+- The roles `admin` and `member` are starting access levels, **not** a finalized business roles taxonomy (no accountant, reseller or network-specific roles yet).
+- `is_active` is enforced on protected requests, preventing disabled users from continuing existing sessions.
+
+## HTTP endpoints
+- `GET /login` (simple Blade form); `POST /login` (throttled); `POST /logout`.
+- `GET /account` (authenticated JSON identity summary).
+- `GET /admin/users`, `POST /admin/users`, `PATCH /admin/users/{user}`: session+CSRF protected; admin-only; JSON results.
+- Public registration is intentionally absent. Bootstrap: `php artisan identity:bootstrap-admin`.
+
+## Deferred
+Livewire/Mary UI presentation, full administration panel, granular permissions, additional roles, password reset / email verification / 2FA, and networking.

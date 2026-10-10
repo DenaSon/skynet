@@ -37,8 +37,11 @@ Avoid reaching into another module's persistence, internal model, or domain impl
 ## Runtime reality
 The initial repository retains Laravel's default local SQLite, database queue/cache/session settings. Production MySQL and Redis have been discussed as future environment choices but have **not** been configured or verified here.
 
+## Identity implementation (F3)
+Identity owns its Eloquent User model and session-authenticated web endpoints. Authentication, authorization and administrative user-management actions remain within Identity; Administration stays UI-only until a real composition requirement arises. No separate token API or public signup exists. See [Identity ADR](adr/0003-identity-foundation.md).
+
 ## Open decisions
-Identity ownership and feature boundaries, administrative UI, queue/cache deployment, monitoring, and all network technologies remain future work.
+Administrative UI, future cross-module Identity contracts, granular permissions, queue/cache deployment, monitoring, and all network technologies remain future work.
 
 See [ADR 0001](adr/0001-modular-monolith.md).
 

@@ -2,7 +2,7 @@
 
 SkyNet is a new Laravel-based platform being developed as a **modular monolith**. It is a clean successor to the Python NVL project, not a translation of the existing bot.
 
-> **Status:** Foundation F1 and F2 implemented (PRs #1 and #2); feature and network design remain deferred. No customer-facing feature, UI, network integration, or authentication flow has been implemented.
+> **Status:** Foundation F1 and F2 merged; F3 Identity is implemented and CI verified (PR #3); all networking remains deferred. No customer-facing feature, UI, network integration, or authentication flow has been implemented.
 
 ## Current stack
 
@@ -45,7 +45,7 @@ The repository checks these on pull requests. Architecture tests currently enfor
 
 - One Laravel application, one deployable, one primary datastore.
 - Explicit module service providers under `app/Modules`; registration in `bootstrap/providers.php`.
-- Initial module shells: `Identity` and `Administration`, **without business behavior**.
+- `Identity` implements session login/logout, an account endpoint, restricted admin user management and admin bootstrapping. `Administration` remains an empty future UI module.
 - No network architecture or technology has been chosen. WireGuard, Outline, Core/Edge, tunnels, and provisioning are out of scope.
 
 Start with [docs/000-CONTEXT.md](docs/000-CONTEXT.md), follow [AGENTS.md](AGENTS.md), and keep [docs/005-ROADMAP.md](docs/005-ROADMAP.md) current.
@@ -53,3 +53,9 @@ Start with [docs/000-CONTEXT.md](docs/000-CONTEXT.md), follow [AGENTS.md](AGENTS
 ## Contributing
 
 Make changes on a branch, include tests, update relevant docs in the **same PR**, and merge only when required checks are green. Never commit credentials or environment-specific Composer mirror URLs into `composer.lock`.
+
+## Identity foundation (F3)
+
+After `php artisan migrate`, create the **first** administrator by running `php artisan identity:bootstrap-admin` interactively. Password input is hidden and must have at least 12 characters. No admin is seeded and there is no public signup.
+
+Open `/login` to sign in. `/account` returns the authenticated user summary. Session-authenticated administrators can use JSON endpoints `GET/POST /admin/users` and `PATCH /admin/users/{user}`. The endpoints use Laravel web sessions and CSRF tokens—not API bearer tokens. The admin UI comes in F4. Account deactivation invalidates the current session on the next authenticated request; other sessions are not proactively listed or revoked. See [Identity documentation](docs/003-MODULES.md).
