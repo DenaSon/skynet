@@ -10,7 +10,7 @@
 
 ## Telegram security baseline (F4)
 - Only private Telegram chats can link or display account/admin menus; identify users by numeric Telegram ID, not username.
-- No Bot API token, webhook secret or one-time link code in the Git repository or logs.
+- No Bot API token, webhook secret or one-time link code in the Git repository or logs. Never report raw Nutgram or HTTP exceptions; log sanitized type/operation IDs because API URLs can embed the token.
 - Verify configured webhook secret (constant-time compare), fail closed when absent; bypass only web session/CSRF by using the stateless API middleware group.
 - Use DB-backed update receipts and retry on transient failures; outbound messages are not exactly-once side effects.
 - A Telegram handler cannot run a shell command or directly mutate domain persistence. Call approved Application use cases. Dispatch long-running operations through durable queues in future increments.

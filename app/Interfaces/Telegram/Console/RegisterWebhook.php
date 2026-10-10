@@ -3,6 +3,7 @@
 namespace App\Interfaces\Telegram\Console;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
 use SergiX44\Nutgram\Nutgram;
 
 final class RegisterWebhook extends Command
@@ -39,7 +40,8 @@ final class RegisterWebhook extends Command
             );
         } catch (\Throwable $e) {
             $this->error('Telegram rejected the webhook setup. Check the URL and network connectivity.');
-            report($e);
+            // Transport exceptions may contain Bot API URLs including the bot token.
+            Log::warning('Telegram webhook registration failed', ['exception_type' => $e::class]);
 
             return self::FAILURE;
         }

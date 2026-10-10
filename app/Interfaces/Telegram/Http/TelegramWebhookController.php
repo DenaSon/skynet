@@ -7,6 +7,7 @@ use App\Interfaces\Telegram\Processing\ProcessTelegramUpdate;
 use App\Interfaces\Telegram\Processing\TelegramUpdateReceipts;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 final class TelegramWebhookController
@@ -50,7 +51,11 @@ final class TelegramWebhookController
             $receipts->processed($updateId);
         } catch (Throwable $exception) {
             $receipts->failed($updateId);
-            report($exception);
+            // Do not log raw Nutgram/HTTP exception messages: they can contain secrets.
+            Log::warning('Telegram update processing failed', [
+                'update_id' => $updateId,
+                'exception_type' => $exception::class,
+            ]);
 
             return response('Update processing failed.', 500);
         }

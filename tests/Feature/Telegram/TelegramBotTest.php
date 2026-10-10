@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Identity\Application\IssueTelegramLinkCode;
 use App\Modules\Identity\Domain\UserRole;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
@@ -30,4 +31,39 @@ it('renders an admin menu only after verified account linking', function (): voi
 
     $bot->hearText('/admin')->reply()
         ->assertReplyText("🛡️ مدیریت SkyNet\n\nرابط تلگرام متصل است. عملیات مدیریتی در فازهای بعدی فعال خواهند شد.");
+});
+
+it('does not disclose the admin menu to linked members', function (): void {
+    $user = User::factory()->create(['role' => UserRole::Member]);
+    TelegramAccount::query()->create(['user_id' => $user->id, 'telegram_user_id' => 33333]);
+
+    $bot = app(Nutgram::class);
+    $bot->setCommonUser(TelegramUser::make(33333, false, 'Member'));
+    $bot->setCommonChat(Chat::make(33333, ChatType::PRIVATE));
+
+    $bot->hearText('/admin')->reply()->assertReplyText('دسترسی مجاز نیست.');
+});
+
+it('ignores Telegram commands originating in group chats', function (): void {
+    $user = User::factory()->create(['role' => UserRole::Admin]);
+    TelegramAccount::query()->create(['user_id' => $user->id, 'telegram_user_id' => 44444]);
+
+    $bot = app(Nutgram::class);
+    $bot->setCommonUser(TelegramUser::make(44444, false, 'Owner'));
+    $bot->setCommonChat(Chat::make(-44555, ChatType::GROUP));
+
+    $bot->hearText('/admin')->reply()->assertNoReply();
+});
+
+it('redeems a single-use pairing code through the bot command in a private chat', function (): void {
+    $user = User::factory()->create(['role' => UserRole::Member]);
+    $code = app(IssueTelegramLinkCode::class)->handle($user->id);
+
+    $bot = app(Nutgram::class);
+    $bot->setCommonUser(TelegramUser::make(55555, false, 'Member'));
+    $bot->setCommonChat(Chat::make(55555, ChatType::PRIVATE));
+
+    $bot->hearText('/link '.$code)->reply()->assertCalled('sendMessage');
+
+    expect(TelegramAccount::query()->where('telegram_user_id', 55555)->value('user_id'))->toBe($user->id);
 });
