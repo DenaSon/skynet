@@ -40,8 +40,17 @@ The initial repository retains Laravel's default local SQLite, database queue/ca
 ## Identity implementation (F3)
 Identity owns its Eloquent User model and session-authenticated web endpoints. Authentication, authorization and administrative user-management actions remain within Identity; Administration stays UI-only until a real composition requirement arises. No separate token API or public signup exists. See [Identity ADR](adr/0003-identity-foundation.md).
 
+## Telegram-first adapter (F4)
+`app/Interfaces/Telegram` owns transport handlers, bot presentation, webhook receipts and operational commands. Nutgram parses Telegram updates and sends replies. It calls Identity **Application actions** (`ResolveTelegramActor`, `IssueTelegramLinkCode`, `LinkTelegramAccount`), not Identity persistence models. Identity owns `telegram_accounts` and `telegram_link_tokens`.
+
+`/api/telegram/webhook` is a stateless endpoint using a constant-time check of `X-Telegram-Bot-Api-Secret-Token` against a separately configured secret. Nutgram vendor safe_mode is intentionally disabled because the project controller validates that token first; use **only** the project `telegram:webhook:set` command to register the matching token.
+
+Webhook receipts use a database unique update ID, 90-second processing lease, processed marker and retry on failure. This reduces duplicate handling but cannot provide exactly-once delivery of outbound Telegram messages. Simple commands run synchronously; time-consuming operations require durable queue design later.
+
+The future Livewire UI may call the same Application Actions directly; REST is not mandatory for an in-process presenter. See [ADR 0004](adr/0004-telegram-first.md).
+
 ## Open decisions
-Administrative UI, future cross-module Identity contracts, granular permissions, queue/cache deployment, monitoring, and all network technologies remain future work.
+Administrative UI, granular permissions, queue/cache deployment, monitoring, and all network technologies remain future work.
 
 See [ADR 0001](adr/0001-modular-monolith.md).
 
