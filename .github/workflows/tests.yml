@@ -19,8 +19,6 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        # The committed lock file currently requires PHP >= 8.4.1 (Symfony 8).
-        # Restore PHP 8.3 testing only after re-resolving dependencies accordingly.
         php: [8.4, 8.5]
 
     name: PHP ${{ matrix.php }}
@@ -38,6 +36,16 @@ jobs:
           extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite
           coverage: none
 
+      - name: Verify portable Composer lockfile
+        run: |
+          if grep -qi 'mirror-composer.runflare.com' composer.lock; then
+            echo 'ERROR: local Composer mirror URL found in composer.lock'
+            exit 1
+          fi
+
+      - name: Validate Composer metadata
+        run: composer validate --no-check-publish
+
       - name: Install Composer dependencies
         run: composer install --prefer-dist --no-interaction --no-progress
 
@@ -49,3 +57,9 @@ jobs:
 
       - name: Execute tests
         run: php artisan test
+
+      - name: Static analysis
+        run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
+
+      - name: Formatting verification
+        run: vendor/bin/pint --test

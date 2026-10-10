@@ -1,37 +1,37 @@
 # SkyNet — Current Context
 
 **Last reviewed:** 2026-10-11  
-**Stage:** Foundation / first architecture PR  
-**Source of truth for behavior:** current repository code
+**Stage:** Foundation F2 completed (PR #2; merge into `master`)  
+**Behavioral source of truth:** current repository code
 
 ## Product direction
-A clean Laravel successor to the Python NVL bot, built to support multiple interfaces eventually. The goal at this stage is a reliable *foundation*, not a working service-management product.
+A clean Laravel successor to the Python NVL bot, able to grow beyond Telegram interfaces. Current objective: a maintainable engineering foundation, not a working service-management product.
 
-## Accepted decisions
-- Laravel 13 in a **modular monolith**. Its declared PHP requirement allows 8.3, but the current committed dependencies require **PHP >=8.4.1**.
-- Domain-oriented boundaries, without heavy DDD ceremony.
-- Explicit module provider registration; no custom framework or automatic module discovery.
-- Documentation-as-code: each meaningful change updates relevant docs in the same PR.
-- Work on feature branches, review via PR before merging to `master`.
-- **Network layer is undecided.** No WireGuard, Outline, Core/Edge, agent, or VPN-specific interfaces yet.
+## Confirmed decisions
+- Laravel 13, **PHP >=8.4.1**, single Modular Monolith, one primary database and deployable.
+- Domain-oriented modules with explicit registration; avoid empty DDD layers/custom framework.
+- Pest **5**, Larastan **3** (PHPStan level 5), Laravel Pint; run checks in CI.
+- Explicit feature branches and documentation-as-code: update a relevant document with meaningful code changes.
+- **Network technology UNDECIDED.** No WireGuard, Outline, Core/Edge, agent, provisioning, VPN protocol or adapter abstractions yet.
 
-## Actual implementation (this branch)
-- Vanilla Laravel framework and skeleton routes/tests.
-- Empty `Identity` and `Administration` module boundaries with registered providers.
-- One feature test checks that both providers are registered.
-- GitHub Actions tests configured for PHP 8.4/8.5 after discovering that the existing Symfony 8 lock file cannot install on PHP 8.3.
+## Current code
+- Foundation F1 merged on `master`: provisional `Identity` and `Administration` modules with empty providers and provider-registration tests.
+- F2 branch installs Pest and its Laravel plugin via Composer with a committed portable lock file; PHPUnit is a Pest dependency, no longer directly required.
+- F2 adds Pest architecture tests in `tests/Architecture`, `tests/Pest.php`, Larastan configuration, and PHP 8.4/8.5 CI quality checks.
+- `composer.lock` URLs have been normalized from a workstation-only Runflare mirror to public package sources.
+- Laravel's default SQLite and database queue/session/cache remain local defaults; production MySQL/Redis not yet configured.
 
-## Not implemented
-Identity flows, admin dashboard, Livewire/Mary UI, business modules, provisioning, monitoring, network services, and package/tooling upgrades. PHPunit remains the current test runner; Pest and Larastan are planned. SQLite/database-backed local defaults are retained until configuration work is performed.
+## Still not implemented
+Authentication flows, dashboard, Livewire/Mary UI, business domains, integrations, networking, service provisioning, monitoring.
 
-## Next small increment
-Validate PR checks and merge; then decide whether to support PHP 8.3 by re-locking compatible Symfony 7.4 dependencies, or formally raise the application's minimum PHP requirement to 8.4.1. Continue developer tooling and local/test configuration without changing network architecture. See [005-ROADMAP.md](005-ROADMAP.md).
+## Operational validation
+Composer dependency resolution and lock normalization completed in GitHub Actions. The full F2 CI run **38092853202** passed on PHP 8.4 and 8.5: **7 Pest/PHPUnit tests (10 assertions)**, Larastan level 5 with no errors, and Laravel Pint with no style issues. CI status always applies to a specific commit; review newer runs if the branch changes.
+
+## Next steps
+1. Define the first concrete Identity use case, along with minimal acceptance criteria.
+2. Implement and test that Identity increment on a separate feature branch.
+3. Design Administration UI in a later increment.
+4. Leave all network decisions open.
 
 ## Reading order
-1. This file
-2. [001-VISION.md](001-VISION.md)
-3. [002-ARCHITECTURE.md](002-ARCHITECTURE.md)
-4. [003-MODULES.md](003-MODULES.md)
-5. [004-STANDARDS.md](004-STANDARDS.md)
-6. [005-ROADMAP.md](005-ROADMAP.md)
-7. [Architecture decisions](adr/0001-modular-monolith.md)
+[Vision](001-VISION.md) · [Architecture](002-ARCHITECTURE.md) · [Modules](003-MODULES.md) · [Standards](004-STANDARDS.md) · [Roadmap](005-ROADMAP.md) · [ADRs](adr/0001-modular-monolith.md)

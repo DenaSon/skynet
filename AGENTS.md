@@ -2,6 +2,11 @@
 
 SkyNet is a Laravel 13 application being developed as a **modular monolith**.
 
+## Current tooling
+- PHP 8.4.1+, Laravel 13, Pest 5, Larastan 3, Laravel Pint.
+- Check with `php artisan test`, `vendor/bin/phpstan analyse --no-progress`, `vendor/bin/pint --test` (or `composer quality`).
+- Never commit local Composer mirror URLs to `composer.lock`; lock files must install on GitHub-hosted CI.
+
 ## Start here
 1. Read `docs/000-CONTEXT.md` before changing code.
 2. Read the relevant architecture/module/roadmap documents.
