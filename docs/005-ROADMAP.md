@@ -8,8 +8,10 @@ All statuses reflect **code in the repository**, not intentions.
 | F1 — Architecture & Context | Module boundaries/providers, docs-as-code, registration test | Completed on `master` (PR #1) |
 | F2 — Developer Tooling | PHP >=8.4.1 and portable lock; Pest 5/Larastan 3/Pint; architecture checks and CI | Completed (PR #2; passing CI on PHP 8.4/8.5) |
 | F3 — Identity | Session auth; admin bootstrap; role/active access; JSON user management; tests | Completed (PR #3, PHP 8.4/8.5 CI green; 23 tests) |
-| F4 — Administration UI | Decide/install Livewire/Mary UI and implement first guarded admin shell | Planned |
-| F5 — Product Domains | Discover and define future business modules based on actual requirements | Undecided |
+| F4 — Telegram Foundation | Nutgram, secure webhook, deduplication, private account linking, inline menus | Completed (PR #4; 40 tests, CI PHP 8.4/8.5) |
+| F5 — Telegram Operations | Add real authorized bot workflows through reusable Application Actions | Planned; feature boundaries to decide |
+| Later — Web UI | Livewire 4 + Mary UI consuming the same Actions | Deferred |
+| Later — Product Domains | Define network/server/business capabilities based on use cases | Undecided |
 
 ## F3 acceptance criteria
 - Login/logout work through Laravel session auth with CSRF, throttling and rotation.
@@ -18,6 +20,13 @@ All statuses reflect **code in the repository**, not intentions.
 - Active-session deactivation, self-lockout and last-admin protections have feature tests.
 - Existing tests, Larastan and Pint pass on PHP 8.4/8.5.
 - Documentation matches behavior; no network features introduced.
+
+## F4 acceptance criteria
+- Portable Nutgram Composer lock resolves on PHP 8.4 / 8.5.
+- Webhook rejects missing/mismatched secrets and invalid updates; retry receipts cover duplicates, in-flight and failed updates.
+- User binding uses expiring one-time hashed codes, no public sign-up; private chat and active-role gates apply.
+- User/admin Telegram inline menus load; no simulated admin functionality.
+- Tests, static analysis and Pint checks pass; deploy steps and docs updated.
 
 ## Deferred architectural choices
 All networking: WireGuard vs Outline or other transports; Core/Edge; node/agent access; tunneling, VPN provisioning and monitoring internals.

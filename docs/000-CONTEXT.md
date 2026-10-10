@@ -1,43 +1,37 @@
 # SkyNet — Current Context
 
-**Last reviewed:** 2026-10-11
-**Stage:** F3 Identity complete (PR #3; verified on PHP 8.4/8.5)
-**Behavioral source of truth:** repository code, not planned features.
+**Reviewed:** 2026-10-11  
+**Stage:** F4 Telegram Foundation verified (PR #4; CI passed on PHP 8.4 / 8.5)  
+**Behavioral truth:** repository code and tests, not aspirational plans.
 
-## Product
-SkyNet is a new Laravel successor to Python NVL. It is a modular monolith; UI, business domains and networking are deliberately independent decisions.
+## Product direction
+SkyNet is a Laravel successor to Python NVL. **Telegram-first** is the accepted first UI channel. Later Livewire/API presenters call shared Application actions without duplicating business logic.
 
-## Fixed decisions
-- Laravel 13, PHP >=8.4.1, Pest 5, Larastan 3, Pint, PHP 8.4/8.5 CI.
-- Explicit module providers under `app/Modules`; no generic module framework or speculative DDD layers.
-- Each meaningful code change includes docs in the same PR.
-- No network/protocol/topology decisions (WireGuard, Outline, Core/Edge, agent, VPN provisioning).
-- F3 uses Laravel session authentication and two initial roles (`admin`, `member`) without a permissions package.
-- No public self-registration. First administrator is created interactively via Artisan, never a seeded password.
+## Accepted architecture
+- Laravel 13, PHP >=8.4.1, modular monolith, Pest 5, Larastan 3, Pint; CI tests PHP 8.4 / 8.5.
+- Domain/Application/Infrastructure live in modules. Transport adapters live under `app/Interfaces/`.
+- F3 Identity: session auth, `admin/member`, `is_active`, guarded user operations, first-admin Artisan bootstrap.
+- F4: `nutgram/laravel` ^1.7.1, Telegram adapter separate from Identity. Identity owns Telegram mappings, link-code issuance/redemption and lookup of an immutable `TelegramActor` DTO.
+- Telegram and eventual Livewire use Application actions directly; an HTTP API is optional, not a dependency.
+- **No networking decision**: no server SSH, WireGuard, Outline, VPN/node/provisioning, agent, Core/Edge.
 
-## Implemented
-- F0–F2 on `master` (PR #1 and #2).
-- F3 (PR #3): Identity-owned User model, role enum, active flag migration, login/logout, account endpoint, restricted JSON user management, admin bootstrap command and feature/security tests.
-- Infrastructure default remains SQLite + database sessions/cache/queues for local use. No production datastore is configured.
+## F4 implemented on this branch
+- Nutgram routing for /start, /menu, /account, /admin, /link {code} and inline menu callbacks.
+- Private-chat + Telegram numeric user-ID checks on every bot handler. Unknown/disabled accounts have no privileged menu. Admin menu is a placeholder, not user-management functionality.
+- Operator-only `telegram:link-account {user_id}` issues a random, one-time 10-minute code stored as SHA-256 hash. Redemption refuses reassignment or expired/replayed codes; no public self-signup.
+- `POST /api/telegram/webhook` validates a configured Telegram Secret Token before processing; no web session/CSRF exception.
+- Update IDs stored with processing leases and completion markers; concurrent duplicate updates request retry (503); failed updates can be retried. Outbound Telegram messaging is not transactional: *exactly-once side effects cannot be guaranteed*.
+- `telegram:webhook:set` registers secret via Bot API; `telegram:prune-updates` cleans 7-day completed receipts using scheduler.
 
-## Security properties in F3
-- Login attempts throttled by email/IP, generic credential error and session ID regeneration.
-- Session invalidated on logout and when an account becomes inactive.
-- Admin access checked on every protected request.
-- Direct role/active mass assignment is not allowed; only privileged actions can change them.
-- Self-revocation and removal of the last active admin are rejected.
-- Web routes retain Laravel's CSRF middleware.
-- No weak seeded credentials; `DatabaseSeeder` creates no users.
-
-## Not yet implemented
-Admin UI/Livewire, public registration, password reset, email verification, 2FA, per-permission RBAC, Telegram, billing, networking, monitoring. JSON management endpoints are **not** a standalone token-authenticated API.
+## Not implemented
+Actual admin/consumer business operations, user self-registration, password reset, Livewire, Mini App, public REST API, server actions, SSH, network topology, long-running queues. Basic bot updates are processed synchronously; future heavy operations must be dispatched to durable jobs.
 
 ## Validation
-GitHub Actions run **38093582537** passed on both PHP 8.4 and 8.5: **23 tests / 103 assertions**, Larastan with **0 errors**, and Pint with **0 style issues**. Keep checking CI for future code changes.
+**Passed:** GitHub Actions run **38095212533** on PHP 8.4 and 8.5: **40 tests / 158 assertions**, Larastan **0 errors**, Pint **0 issues**. Composer lock is portable and includes Nutgram Laravel 1.7.1 / Nutgram 4.50.3. This validates repository code, **not** an actual deployed Telegram webhook or BotFather credentials.
 
 ## Next
-- F4: guarded Administration interface, design system and chosen Livewire/Mary UI packages.
-- No network design until a separate, explicit decision.
+1. Configure BotFather token, separate random webhook secret, public HTTPS URL, and operator-only account link in the deployment environment (do not commit any secrets).
+2. Implement real bot user/admin use cases via Identity/other domain Actions in later increments.
+3. Add Livewire only when a web interface is required.
 
-## Reading
-[Vision](001-VISION.md) · [Architecture](002-ARCHITECTURE.md) · [Modules](003-MODULES.md) · [Standards](004-STANDARDS.md) · [Roadmap](005-ROADMAP.md) · [ADR 0003](adr/0003-identity-foundation.md)
+See [Architecture](002-ARCHITECTURE.md), [Modules](003-MODULES.md), [Telegram operations](006-TELEGRAM-OPERATIONS.md), [Roadmap](005-ROADMAP.md) and [ADR 0004](adr/0004-telegram-first.md).

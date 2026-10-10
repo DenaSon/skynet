@@ -1,6 +1,6 @@
 # Module Boundaries
 
-**Current:** Identity F3 (branch); Administration still an empty registered shell.
+**Current:** Identity F3 merged; F4 Telegram presenter introduced separately; Administration remains an empty registered shell.
 
 | Module | Ownership | Implemented |
 | --- | --- | --- |
@@ -39,3 +39,10 @@ app/Modules/Identity/
 
 ## Deferred
 Livewire/Mary UI presentation, full administration panel, granular permissions, additional roles, password reset / email verification / 2FA, and networking.
+
+## Telegram interface, not a business module (F4)
+`app/Interfaces/Telegram/` contains webhook controller, Nutgram handlers, inline-menu renderer, retry receipts, and operator commands. It only imports `App\Modules\Identity\Application\*` for account linking and actor resolution. Transport data does not become a domain model. `routes/telegram.php` registers Nutgram handlers.
+
+Within Identity, `Application/{IssueTelegramLinkCode,LinkTelegramAccount,ResolveTelegramActor,TelegramActor}` is the public use-case boundary. `Infrastructure/Models/{TelegramAccount,TelegramLinkToken}` and the new migration implement identity persistence. The link code is never stored raw. Telegram numeric IDs are immutable join keys; usernames are not authoritative. First binding requires an operator-generated one-time code.
+
+See [Telegram operations](006-TELEGRAM-OPERATIONS.md) for setup and [ADR 0004](adr/0004-telegram-first.md) for scope.

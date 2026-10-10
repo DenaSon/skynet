@@ -19,6 +19,13 @@ SkyNet is a Laravel 13 application being developed as a **modular monolith**.
 - See `docs/003-MODULES.md` and ADR 0003 before modifying user roles, access checks, or auth routes.
 - Preserve last-active-admin and active-user session guards in tests.
 
+## Telegram-first presenter (F4)
+- Telegram handlers live in `app/Interfaces/Telegram` and may call approved Identity/Application actions; never import Identity/Infrastructure models or bypass role checks.
+- Only the documented webhook route can run Nutgram in HTTP; verify its independent secret before processing any update.
+- Private Telegram ID and single-use link tokens are the only approved identity join in F4.
+- Livewire/Mary UI and REST APIs are deferred. Do not introduce speculative server/network actions in Telegram handlers.
+- See ADR 0004 and `docs/006-TELEGRAM-OPERATIONS.md` before Telegram changes.
+
 ## Fixed boundaries
 - One Laravel application, one deployment unit, and one primary database.
 - Modules are organized under `app/Modules/<Module>/`, registered explicitly in `bootstrap/providers.php`.
