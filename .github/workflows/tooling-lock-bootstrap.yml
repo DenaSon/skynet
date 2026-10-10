@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   resolve:
-    if: github.event.head_commit.message == 'build: resolve foundation tooling lock'
+    if: "github.event.head_commit.message == 'build: resolve foundation tooling lock'"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout foundation branch
