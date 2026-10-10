@@ -46,6 +46,7 @@ final class AdminUserController
             $validated['email'],
             $validated['password'],
             $validated['role'] ?? 'member',
+            $actor,
         );
 
         return response()->json(['data' => $this->present($user)], 201);

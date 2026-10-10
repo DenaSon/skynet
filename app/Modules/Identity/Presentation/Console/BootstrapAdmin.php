@@ -40,7 +40,8 @@ final class BootstrapAdmin extends Command
             return self::FAILURE;
         }
 
-        $createUser->handle($name, $email, $password, 'admin');
+        $admin = $createUser->handle($name, $email, $password);
+        $admin->syncRoles(['admin']);
 
         $this->info('Administrator created. Sign in at /login.');
 

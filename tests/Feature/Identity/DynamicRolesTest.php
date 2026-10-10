@@ -1,11 +1,13 @@
 <?php
 
 use App\Modules\Identity\Application\CreateRole;
+use App\Modules\Identity\Application\CreateUser;
 use App\Modules\Identity\Application\SuperAdminTrust;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
@@ -145,4 +147,11 @@ it('enrolls only allowlisted accounts through explicitly confirmed CLI promotion
 
     $stranger = User::factory()->create();
     $this->artisan('identity:super-admin:promote', ['user' => $stranger->id])->assertFailed();
+});
+
+it('blocks bypassing root promotion through direct CreateUser actions', function (): void {
+    $create = app(CreateUser::class);
+
+    $this->expectException(ValidationException::class);
+    $create->handle('Root', 'unsafe@example.test', 'very-long-password123', 'super-admin');
 });
