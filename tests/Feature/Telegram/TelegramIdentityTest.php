@@ -8,6 +8,7 @@ use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\TelegramLinkToken;
 use App\Modules\Identity\Infrastructure\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Validation\ValidationException;
 
 uses(RefreshDatabase::class);
 
@@ -58,7 +59,7 @@ it('does not allow one Telegram identity or one user account to be linked twice'
     expect($link->handle($firstCode, 56789))->toBeTrue()
         ->and($link->handle($secondCode, 56789))->toBeFalse();
 
-    $this->expectException(\Illuminate\Validation\ValidationException::class);
+    $this->expectException(ValidationException::class);
     $issue->handle($first->id);
 });
 

@@ -4,11 +4,12 @@ namespace App\Modules\Identity\Infrastructure\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * @property int $user_id
  * @property string $token_hash
- * @property \Illuminate\Support\Carbon $expires_at
+ * @property Carbon $expires_at
  * @property-read User $user
  */
 final class TelegramLinkToken extends Model
