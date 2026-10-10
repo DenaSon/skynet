@@ -1,8 +1,8 @@
 <?php
 
 use App\Modules\Identity\Presentation\Controllers\AccountController;
-use App\Modules\Identity\Presentation\Controllers\AdminUserController;
 use App\Modules\Identity\Presentation\Controllers\AdminRoleController;
+use App\Modules\Identity\Presentation\Controllers\AdminUserController;
 use App\Modules\Identity\Presentation\Controllers\AuthenticatedSessionController;
 use Illuminate\Support\Facades\Route;
 
