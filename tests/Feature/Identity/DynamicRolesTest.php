@@ -155,3 +155,17 @@ it('blocks bypassing root promotion through direct CreateUser actions', function
     $this->expectException(ValidationException::class);
     $create->handle('Root', 'unsafe@example.test', 'very-long-password123', 'super-admin');
 });
+
+it('records privilege-aware user creation without logging credentials', function (): void {
+    $admin = User::factory()->admin()->create();
+    $this->actingAs($admin)->postJson('/admin/users', [
+        'name' => 'Member',
+        'email' => 'audit.member@example.test',
+        'password' => 'very-secure-pass-123',
+    ])->assertCreated();
+
+    $record = DB::table('identity_audit_events')->where('event', 'identity.user.created')->first();
+    expect($record)->not->toBeNull();
+    expect($record->actor_user_id)->toBe($admin->id);
+    expect($record->details)->not->toContain('very-secure-pass-123');
+});

@@ -14,7 +14,7 @@ final class CreateUser
             throw ValidationException::withMessages(['role' => 'A trusted Super Admin is required for privileged user creation; root enrollment is CLI only.']);
         }
 
-        return DB::transaction(function () use ($name, $email, $password, $role): User {
+        return DB::transaction(function () use ($name, $email, $password, $role, $actor): User {
             $user = new User([
                 'name' => $name,
                 'email' => mb_strtolower(trim($email)),
@@ -23,6 +23,9 @@ final class CreateUser
 
             $user->forceFill(['is_active' => true])->save();
             $user->assignRole($role);
+            app(RecordIdentityAudit::class)->handle($actor, 'identity.user.created', 'user', (int) $user->getKey(), [
+                'role' => $role,
+            ]);
 
             return $user;
         });
