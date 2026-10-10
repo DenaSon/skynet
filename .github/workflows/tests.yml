@@ -36,6 +36,13 @@ jobs:
           extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite
           coverage: none
 
+      - name: Verify portable Composer lockfile
+        run: |
+          if grep -qi 'mirror-composer.runflare.com' composer.lock; then
+            echo 'ERROR: local Composer mirror URL found in composer.lock'
+            exit 1
+          fi
+
       - name: Validate Composer metadata
         run: composer validate --no-check-publish
 
