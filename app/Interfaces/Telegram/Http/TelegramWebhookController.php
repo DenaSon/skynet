@@ -25,7 +25,7 @@ final class TelegramWebhookController
 
         $provided = $request->header('X-Telegram-Bot-Api-Secret-Token', '');
 
-        if (! is_string($provided) || ! hash_equals($secret, $provided)) {
+        if (! hash_equals($secret, $provided)) {
             return response('Forbidden.', 403);
         }
 
