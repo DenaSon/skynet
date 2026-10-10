@@ -63,7 +63,7 @@ it('redeems a single-use pairing code through the bot command in a private chat'
     $bot->setCommonUser(TelegramUser::make(55555, false, 'Member'));
     $bot->setCommonChat(Chat::make(55555, ChatType::PRIVATE));
 
-    $bot->hearText('/link '.$code)->reply()->assertCalled('sendMessage');
+    $bot->hearText('/link '.$code)->reply()->assertCalled('sendMessage', 2);
 
     expect(TelegramAccount::query()->where('telegram_user_id', 55555)->value('user_id'))->toBe($user->id);
 });
