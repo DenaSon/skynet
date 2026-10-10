@@ -10,10 +10,14 @@ use Illuminate\Validation\ValidationException;
 
 final class IssueTelegramLinkCode
 {
-    public function handle(User $user): string
+    public function handle(int $userId): string
     {
-        return DB::transaction(function () use ($user): string {
-            $user = User::query()->lockForUpdate()->findOrFail($user->getKey());
+        return DB::transaction(function () use ($userId): string {
+            $user = User::query()->lockForUpdate()->find($userId);
+
+            if ($user === null) {
+                throw ValidationException::withMessages(['user' => 'User not found.']);
+            }
 
             if (! $user->is_active || TelegramAccount::query()->where('user_id', $user->getKey())->exists()) {
                 throw ValidationException::withMessages([

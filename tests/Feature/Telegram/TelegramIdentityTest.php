@@ -13,7 +13,7 @@ uses(RefreshDatabase::class);
 
 it('links an existing active user once via an expiring hashed code', function (): void {
     $user = User::factory()->create(['role' => UserRole::Admin]);
-    $code = app(IssueTelegramLinkCode::class)->handle($user);
+    $code = app(IssueTelegramLinkCode::class)->handle($user->id);
 
     expect(strlen($code))->toBe(48);
     expect(TelegramLinkToken::query()->firstOrFail()->token_hash)->toBe(hash('sha256', $code));
@@ -34,8 +34,8 @@ it('expires codes, invalidates old codes on reissue and rejects invalid ids', fu
     $issue = app(IssueTelegramLinkCode::class);
     $link = app(LinkTelegramAccount::class);
 
-    $first = $issue->handle($user);
-    $second = $issue->handle($user);
+    $first = $issue->handle($user->id);
+    $second = $issue->handle($user->id);
 
     expect($link->handle($first, 1234))->toBeFalse();
     expect($link->handle($second, -1))->toBeFalse();
@@ -52,14 +52,14 @@ it('does not allow one Telegram identity or one user account to be linked twice'
     $link = app(LinkTelegramAccount::class);
     $issue = app(IssueTelegramLinkCode::class);
 
-    $firstCode = $issue->handle($first);
-    $secondCode = $issue->handle($second);
+    $firstCode = $issue->handle($first->id);
+    $secondCode = $issue->handle($second->id);
 
     expect($link->handle($firstCode, 56789))->toBeTrue()
         ->and($link->handle($secondCode, 56789))->toBeFalse();
 
     $this->expectException(\Illuminate\Validation\ValidationException::class);
-    $issue->handle($first);
+    $issue->handle($first->id);
 });
 
 it('does not resolve deactivated accounts even when a Telegram mapping exists', function (): void {
@@ -77,5 +77,5 @@ it('refuses to issue links for disabled users', function (): void {
     $user = User::factory()->create(['is_active' => false]);
 
     $this->expectException(\Illuminate\Validation\ValidationException::class);
-    app(IssueTelegramLinkCode::class)->handle($user);
+    app(IssueTelegramLinkCode::class)->handle($user->id);
 });

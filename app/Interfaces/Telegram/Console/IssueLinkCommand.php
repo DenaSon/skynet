@@ -3,7 +3,6 @@
 namespace App\Interfaces\Telegram\Console;
 
 use App\Modules\Identity\Application\IssueTelegramLinkCode;
-use App\Modules\Identity\Infrastructure\Models\User;
 use Illuminate\Console\Command;
 use Illuminate\Validation\ValidationException;
 
@@ -15,16 +14,16 @@ final class IssueLinkCommand extends Command
 
     public function handle(IssueTelegramLinkCode $issue): int
     {
-        $user = User::query()->find($this->argument('user'));
+        $userId = (string) $this->argument('user');
 
-        if ($user === null) {
-            $this->error('User not found.');
+        if (! ctype_digit($userId) || (int) $userId < 1) {
+            $this->error('A valid internal user ID is required.');
 
             return self::FAILURE;
         }
 
         try {
-            $code = $issue->handle($user);
+            $code = $issue->handle((int) $userId);
         } catch (ValidationException $e) {
             $this->error($e->getMessage());
 
