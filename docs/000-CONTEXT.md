@@ -1,7 +1,7 @@
 # SkyNet — Current Context
 
 **Reviewed:** 2026-10-11  
-**Stage:** F4 Telegram Foundation — code proposed on `feature/04-telegram-foundation`, CI / merge pending  
+**Stage:** F4 Telegram Foundation verified (PR #4; CI passed on PHP 8.4 / 8.5)  
 **Behavioral truth:** repository code and tests, not aspirational plans.
 
 ## Product direction
@@ -27,12 +27,11 @@ SkyNet is a Laravel successor to Python NVL. **Telegram-first** is the accepted 
 Actual admin/consumer business operations, user self-registration, password reset, Livewire, Mini App, public REST API, server actions, SSH, network topology, long-running queues. Basic bot updates are processed synchronously; future heavy operations must be dispatched to durable jobs.
 
 ## Validation
-**Pending:** GitHub Actions must run with Composer-resolved portable `composer.lock`, then Pest/Larastan/Pint on PHP 8.4/8.5. Do not call F4 complete before checks.
+**Passed:** GitHub Actions run **38095212533** on PHP 8.4 and 8.5: **40 tests / 158 assertions**, Larastan **0 errors**, Pint **0 issues**. Composer lock is portable and includes Nutgram Laravel 1.7.1 / Nutgram 4.50.3. This validates repository code, **not** an actual deployed Telegram webhook or BotFather credentials.
 
 ## Next
-1. Run CI, resolve failures, merge F4 when green.
-2. Configure BotFather token, separate random webhook secret, public HTTPS URL, and operator-only account link in the deployment environment (do not commit any secrets).
-3. Implement real bot user/admin use cases via Identity/other domain Actions in later increments.
-4. Add Livewire only when a web interface is required.
+1. Configure BotFather token, separate random webhook secret, public HTTPS URL, and operator-only account link in the deployment environment (do not commit any secrets).
+2. Implement real bot user/admin use cases via Identity/other domain Actions in later increments.
+3. Add Livewire only when a web interface is required.
 
 See [Architecture](002-ARCHITECTURE.md), [Modules](003-MODULES.md), [Telegram operations](006-TELEGRAM-OPERATIONS.md), [Roadmap](005-ROADMAP.md) and [ADR 0004](adr/0004-telegram-first.md).

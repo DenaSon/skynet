@@ -2,7 +2,7 @@
 
 SkyNet is a new Laravel-based platform being developed as a **modular monolith**. It is a clean successor to the Python NVL project, not a translation of the existing bot.
 
-> **Status:** Foundation F1 and F2 merged; F3 Identity is merged. F4 Telegram-first foundation is in progress (feature branch); all networking remains deferred. No customer-facing feature, UI, network integration, or authentication flow has been implemented.
+> **Status:** Foundation F1 and F2 merged; F3 Identity is merged. F4 Telegram-first foundation is implemented and CI verified (PR #4); all networking remains deferred. No customer-facing feature, UI, network integration, or authentication flow has been implemented.
 
 ## Current stack
 

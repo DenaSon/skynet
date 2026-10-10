@@ -1,7 +1,7 @@
 # ADR 0004 — Telegram-first Presentation
 
 **Date:** 2026-10-11  
-**Status:** Accepted for F4 (CI validation pending)
+**Status:** Accepted (F4; CI validated PHP 8.4/8.5)
 
 ## Context
 SkyNet needs a fast operational interface while retaining a modular Laravel core. The initially planned Livewire administration shell is not needed for the first release. Future web/API presenters should not duplicate business logic.
