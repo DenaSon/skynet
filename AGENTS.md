@@ -14,6 +14,11 @@ SkyNet is a Laravel 13 application being developed as a **modular monolith**.
 4. Make the smallest change that solves the current task, and add or update tests.
 5. Update at least one relevant document in the **same PR** as any meaningful development change.
 
+## Identity reminder
+- The first Identity slice uses session + CSRF, no public registration or seeded admin credentials.
+- See `docs/003-MODULES.md` and ADR 0003 before modifying user roles, access checks, or auth routes.
+- Preserve last-active-admin and active-user session guards in tests.
+
 ## Fixed boundaries
 - One Laravel application, one deployment unit, and one primary database.
 - Modules are organized under `app/Modules/<Module>/`, registered explicitly in `bootstrap/providers.php`.

@@ -8,6 +8,12 @@
 5. Run `php artisan test`, `vendor/bin/phpstan analyse --no-progress`, and `vendor/bin/pint --test` (or `composer quality`) when possible; disclose what was not run.
 6. Open PR to `master`; document risks and deferred decisions.
 
+## Identity security baseline
+- No public registration or default credentials; bootstrap an admin interactively using Artisan.
+- Admin JSON endpoints use web-session auth and CSRF; never treat them as token-auth APIs.
+- Use request validation and explicit access checks; never fill role or active flags from untrusted mass-assignment.
+- Login is throttled, session ID rotated on login, session invalidated on logout/disable, and last-admin/self-lockout checks apply.
+
 ## Code
 - Follow Laravel/PHP conventions and PSR-4 naming.
 - Keep application rules outside controllers, Livewire components, and future bot adapters.
