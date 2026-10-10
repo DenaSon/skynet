@@ -41,3 +41,6 @@ The initial repository retains Laravel's default local SQLite, database queue/ca
 Identity ownership and feature boundaries, administrative UI, queue/cache deployment, monitoring, and all network technologies remain future work.
 
 See [ADR 0001](adr/0001-modular-monolith.md).
+
+## Current PHP dependency compatibility
+Although Laravel's declared PHP constraint allows PHP 8.3, the committed `composer.lock` currently selects Symfony 8 packages that require PHP >=8.4.1. CI tests 8.4/8.5 for this foundation. Re-locking for 8.3 versus raising the project minimum must be decided in F2; never mask the mismatch with `--ignore-platform-reqs`.

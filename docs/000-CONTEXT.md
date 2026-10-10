@@ -8,7 +8,7 @@
 A clean Laravel successor to the Python NVL bot, built to support multiple interfaces eventually. The goal at this stage is a reliable *foundation*, not a working service-management product.
 
 ## Accepted decisions
-- Laravel 13 (PHP 8.3+) in a **modular monolith**.
+- Laravel 13 in a **modular monolith**. Its declared PHP requirement allows 8.3, but the current committed dependencies require **PHP >=8.4.1**.
 - Domain-oriented boundaries, without heavy DDD ceremony.
 - Explicit module provider registration; no custom framework or automatic module discovery.
 - Documentation-as-code: each meaningful change updates relevant docs in the same PR.
@@ -19,13 +19,13 @@ A clean Laravel successor to the Python NVL bot, built to support multiple inter
 - Vanilla Laravel framework and skeleton routes/tests.
 - Empty `Identity` and `Administration` module boundaries with registered providers.
 - One feature test checks that both providers are registered.
-- Existing Laravel-skeleton GitHub Actions workflow (PHP 8.3/8.4/8.5).
+- GitHub Actions tests configured for PHP 8.4/8.5 after discovering that the existing Symfony 8 lock file cannot install on PHP 8.3.
 
 ## Not implemented
 Identity flows, admin dashboard, Livewire/Mary UI, business modules, provisioning, monitoring, network services, and package/tooling upgrades. PHPunit remains the current test runner; Pest and Larastan are planned. SQLite/database-backed local defaults are retained until configuration work is performed.
 
 ## Next small increment
-Validate PR checks and merge; then implement developer tooling and configure the chosen local/test services without changing network architecture. See [005-ROADMAP.md](005-ROADMAP.md).
+Validate PR checks and merge; then decide whether to support PHP 8.3 by re-locking compatible Symfony 7.4 dependencies, or formally raise the application's minimum PHP requirement to 8.4.1. Continue developer tooling and local/test configuration without changing network architecture. See [005-ROADMAP.md](005-ROADMAP.md).
 
 ## Reading order
 1. This file

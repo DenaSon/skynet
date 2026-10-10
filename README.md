@@ -6,7 +6,7 @@ A new Laravel-based platform foundation, being designed as a **modular monolith*
 
 ## Currently in the repository
 
-- Laravel 13 skeleton (PHP 8.3+).
+- Laravel 13 skeleton. Laravel's declared PHP requirement is 8.3+, but **the current committed lock file requires PHP 8.4.1+** because it selects Symfony 8 packages.
 - Explicit module service-provider registration for `Identity` and `Administration` (empty boundaries; no feature behavior).
 - Architecture/context documentation in [docs/](docs/).
 - PHPUnit smoke tests and the Laravel skeleton GitHub Actions test workflow.
@@ -15,7 +15,7 @@ A new Laravel-based platform foundation, being designed as a **modular monolith*
 
 ## Local setup
 
-Prerequisites: PHP 8.3+, Composer, and Node.js/npm.
+Prerequisites: **PHP 8.4.1+ for the current lock file**, Composer, and Node.js/npm. PHP 8.3 support requires a future dependency re-lock; do not run `composer install --ignore-platform-reqs` to bypass this.
 
 ```bash
 composer install

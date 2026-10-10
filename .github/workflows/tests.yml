@@ -19,7 +19,9 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        php: [8.3, 8.4, 8.5]
+        # The committed lock file currently requires PHP >= 8.4.1 (Symfony 8).
+        # Restore PHP 8.3 testing only after re-resolving dependencies accordingly.
+        php: [8.4, 8.5]
 
     name: PHP ${{ matrix.php }}
 
