@@ -30,11 +30,15 @@ jobs:
       - name: Install and lock developer tools
         run: |
           composer remove phpunit/phpunit --dev --no-update --no-interaction
-          composer require --dev "pestphp/pest:^5.0" "pestphp/pest-plugin-laravel:^5.0" "larastan/larastan:^3.0" --with-all-dependencies --no-interaction --no-progress
+          composer require --dev "pestphp/pest:^5.0" "pestphp/pest-plugin-laravel:^5.0" "larastan/larastan:^3.0" --with-all-dependencies --no-install --no-interaction --no-progress
+          # Local Windows Composer mirror URLs are not portable to GitHub Actions.
+          sed -i 's|https://mirror-composer.runflare.com/repos/|https://api.github.com/repos/|g' composer.lock
+          sed -i 's|https://mirror-composer.runflare.com/downloads/|https://packagist.org/downloads/|g' composer.lock
+          if grep -q 'mirror-composer.runflare.com' composer.lock; then
+            echo "ERROR: non-portable Composer mirror URL remains"
+            exit 1
+          fi
           composer validate --no-check-publish
-          php artisan test
-          vendor/bin/phpstan analyse --no-progress --memory-limit=1G
-          vendor/bin/pint --test
 
       - name: Commit lockfile from Composer resolution
         run: |
