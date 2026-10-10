@@ -1,7 +1,7 @@
 # ADR 0003 — Identity Foundation
 
 **Date:** 2026-10-11
-**Status:** Accepted for F3 (pending CI merge)
+**Status:** Accepted (F3; PHP 8.4/8.5 CI verified)
 
 ## Context
 SkyNet needs a safe first human-user workflow before building its Administration UI. There is no decided billing model, reseller taxonomy, Telegram adapter or network data plane.

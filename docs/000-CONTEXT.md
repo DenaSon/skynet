@@ -1,7 +1,7 @@
 # SkyNet — Current Context
 
 **Last reviewed:** 2026-10-11
-**Stage:** F3 Identity implementation on `feature/03-identity` (PR/CI pending)
+**Stage:** F3 Identity complete (PR #3; verified on PHP 8.4/8.5)
 **Behavioral source of truth:** repository code, not planned features.
 
 ## Product
@@ -17,7 +17,7 @@ SkyNet is a new Laravel successor to Python NVL. It is a modular monolith; UI, b
 
 ## Implemented
 - F0–F2 on `master` (PR #1 and #2).
-- F3 branch: Identity-owned User model, role enum, active flag migration, login/logout, account endpoint, restricted JSON user management, admin bootstrap command and feature/security tests.
+- F3 (PR #3): Identity-owned User model, role enum, active flag migration, login/logout, account endpoint, restricted JSON user management, admin bootstrap command and feature/security tests.
 - Infrastructure default remains SQLite + database sessions/cache/queues for local use. No production datastore is configured.
 
 ## Security properties in F3
@@ -33,10 +33,9 @@ SkyNet is a new Laravel successor to Python NVL. It is a modular monolith; UI, b
 Admin UI/Livewire, public registration, password reset, email verification, 2FA, per-permission RBAC, Telegram, billing, networking, monitoring. JSON management endpoints are **not** a standalone token-authenticated API.
 
 ## Validation
-F3 changes are not assumed passing until its GitHub CI is green. See PR checks.
+GitHub Actions run **38093582537** passed on both PHP 8.4 and 8.5: **23 tests / 103 assertions**, Larastan with **0 errors**, and Pint with **0 style issues**. Keep checking CI for future code changes.
 
 ## Next
-- Complete F3 CI and merge.
 - F4: guarded Administration interface, design system and chosen Livewire/Mary UI packages.
 - No network design until a separate, explicit decision.
 

@@ -7,7 +7,7 @@ All statuses reflect **code in the repository**, not intentions.
 | F0 — Laravel Bootstrap | Laravel 13 skeleton and initial push | Completed on `master` |
 | F1 — Architecture & Context | Module boundaries/providers, docs-as-code, registration test | Completed on `master` (PR #1) |
 | F2 — Developer Tooling | PHP >=8.4.1 and portable lock; Pest 5/Larastan 3/Pint; architecture checks and CI | Completed (PR #2; passing CI on PHP 8.4/8.5) |
-| F3 — Identity | Session auth; admin bootstrap; role/active access; JSON user management; tests | Implemented on branch `feature/03-identity`; CI/merge pending |
+| F3 — Identity | Session auth; admin bootstrap; role/active access; JSON user management; tests | Completed (PR #3, PHP 8.4/8.5 CI green; 23 tests) |
 | F4 — Administration UI | Decide/install Livewire/Mary UI and implement first guarded admin shell | Planned |
 | F5 — Product Domains | Discover and define future business modules based on actual requirements | Undecided |
 
