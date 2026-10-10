@@ -34,6 +34,7 @@ final class CreateRole
                 throw ValidationException::withMessages(['name' => 'Role already exists.']);
             }
 
+            /** @var Role $role */
             $role = Role::create(['name' => $name, 'guard_name' => 'web']);
             $approved = Permission::query()->where('guard_name', 'web')->whereIn('name', $permissions)->pluck('name')->all();
 
