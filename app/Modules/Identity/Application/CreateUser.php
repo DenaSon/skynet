@@ -2,24 +2,24 @@
 
 namespace App\Modules\Identity\Application;
 
-use App\Modules\Identity\Domain\UserRole;
 use App\Modules\Identity\Infrastructure\Models\User;
+use Illuminate\Support\Facades\DB;
 
 final class CreateUser
 {
-    public function handle(string $name, string $email, string $password, UserRole $role = UserRole::Member): User
+    public function handle(string $name, string $email, string $password, string $role = 'member'): User
     {
-        $user = new User([
-            'name' => $name,
-            'email' => mb_strtolower(trim($email)),
-            'password' => $password,
-        ]);
+        return DB::transaction(function () use ($name, $email, $password, $role): User {
+            $user = new User([
+                'name' => $name,
+                'email' => mb_strtolower(trim($email)),
+                'password' => $password,
+            ]);
 
-        $user->forceFill([
-            'role' => $role,
-            'is_active' => true,
-        ])->save();
+            $user->forceFill(['is_active' => true])->save();
+            $user->assignRole($role);
 
-        return $user;
+            return $user;
+        });
     }
 }

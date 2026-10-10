@@ -17,7 +17,8 @@ final class AccountController
             'id' => $user->id,
             'name' => $user->name,
             'email' => $user->email,
-            'role' => $user->role->value,
+            'role' => $user->getRoleNames()->first(),
+            'roles' => $user->getRoleNames()->all(),
             'is_active' => $user->is_active,
         ]]);
     }

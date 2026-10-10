@@ -43,3 +43,10 @@ SkyNet is a Laravel 13 application being developed as a **modular monolith**.
 - Prefer PRs into `master`; do not make undocumented direct changes to `master`.
 
 See `docs/004-STANDARDS.md` for coding and documentation conventions.
+
+## RBAC foundation (F5)
+- Model user roles with Spatie (web guard) instead of `UserRole` enum or a `users.role` column.
+- Only explicitly enrolled, active and linked allowlisted Telegram IDs may be trusted Super Admins; never grant root via ENV alone.
+- Gate checks are not optional for transport adapters; actions must enforce privilege checks too.
+- Protect Super Admin from untrusted HTTP assignment, deactivation and revocation. Security/audit regressions require tests.
+- See ADR 0005 and `docs/007-RBAC-OPERATIONS.md`.

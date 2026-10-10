@@ -47,3 +47,6 @@ Do not forward link codes or reuse them. Link issuance replaces previous unused 
 
 ## Future
 A real Telegram admin/user interface and server operations will invoke module Application actions; later Livewire screens can reuse those same actions. No SSH/network protocol is selected in F4.
+
+## F5 protected Super Admin setup
+Set `SUPER_ADMIN_TELEGRAM_IDS=id1,id2` (at least two **distinct** numeric user IDs; **not** usernames) in your untracked `.env`, and refresh cached configuration. First bootstrap two internal users and link each account to its own private Telegram identity. Then use `php artisan identity:super-admin:promote <internal-user-id>` for both from the trusted terminal, explicitly confirming each enrollment. If an allowlist entry is removed or its account disabled, privileges stop immediately on subsequent requests. No token or ENV entry grants rights by itself. See [RBAC operations](007-RBAC-OPERATIONS.md).

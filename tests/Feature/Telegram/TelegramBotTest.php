@@ -1,7 +1,6 @@
 <?php
 
 use App\Modules\Identity\Application\IssueTelegramLinkCode;
-use App\Modules\Identity\Domain\UserRole;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -22,7 +21,7 @@ it('responds to start for an unlinked private Telegram user', function (): void 
 });
 
 it('renders an admin menu only after verified account linking', function (): void {
-    $user = User::factory()->create(['role' => UserRole::Admin]);
+    $user = User::factory()->admin()->create();
     TelegramAccount::query()->create(['user_id' => $user->id, 'telegram_user_id' => 22222]);
 
     $bot = app(Nutgram::class);
@@ -34,7 +33,7 @@ it('renders an admin menu only after verified account linking', function (): voi
 });
 
 it('does not disclose the admin menu to linked members', function (): void {
-    $user = User::factory()->create(['role' => UserRole::Member]);
+    $user = User::factory()->create();
     TelegramAccount::query()->create(['user_id' => $user->id, 'telegram_user_id' => 33333]);
 
     $bot = app(Nutgram::class);
@@ -45,7 +44,7 @@ it('does not disclose the admin menu to linked members', function (): void {
 });
 
 it('ignores Telegram commands originating in group chats', function (): void {
-    $user = User::factory()->create(['role' => UserRole::Admin]);
+    $user = User::factory()->admin()->create();
     TelegramAccount::query()->create(['user_id' => $user->id, 'telegram_user_id' => 44444]);
 
     $bot = app(Nutgram::class);
@@ -56,7 +55,7 @@ it('ignores Telegram commands originating in group chats', function (): void {
 });
 
 it('redeems a single-use pairing code through the bot command in a private chat', function (): void {
-    $user = User::factory()->create(['role' => UserRole::Member]);
+    $user = User::factory()->create();
     $code = app(IssueTelegramLinkCode::class)->handle($user->id);
 
     $bot = app(Nutgram::class);

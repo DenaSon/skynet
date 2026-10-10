@@ -1,6 +1,5 @@
 <?php
 
-use App\Modules\Identity\Domain\UserRole;
 use App\Modules\Identity\Infrastructure\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -14,7 +13,7 @@ it('displays a public login form without offering registration', function (): vo
 });
 
 it('authenticates an active user and exposes a safe identity summary', function (): void {
-    $user = User::factory()->create(['role' => UserRole::Member, 'password' => 'some-secure-password']);
+    $user = User::factory()->create(['password' => 'some-secure-password']);
 
     $this->post('/login', [
         'email' => strtoupper($user->email),

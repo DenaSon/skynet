@@ -1,7 +1,7 @@
 # SkyNet — Current Context
 
 **Reviewed:** 2026-10-11  
-**Stage:** F4 Telegram Foundation verified (PR #4; CI passed on PHP 8.4 / 8.5)  
+**Stage:** F5 RBAC and trusted Super Admin foundation, proposed on `feature/05-identity-rbac` (CI/merge pending)  
 **Behavioral truth:** repository code and tests, not aspirational plans.
 
 ## Product direction
@@ -10,10 +10,17 @@ SkyNet is a Laravel successor to Python NVL. **Telegram-first** is the accepted 
 ## Accepted architecture
 - Laravel 13, PHP >=8.4.1, modular monolith, Pest 5, Larastan 3, Pint; CI tests PHP 8.4 / 8.5.
 - Domain/Application/Infrastructure live in modules. Transport adapters live under `app/Interfaces/`.
-- F3 Identity: session auth, `admin/member`, `is_active`, guarded user operations, first-admin Artisan bootstrap.
+- F3 Identity established session auth and the original `admin/member` enum. F5 replaces that single enum/column with Spatie Permission v8 role/permission records, while retaining session guards and user status.
 - F4: `nutgram/laravel` ^1.7.1, Telegram adapter separate from Identity. Identity owns Telegram mappings, link-code issuance/redemption and lookup of an immutable `TelegramActor` DTO.
 - Telegram and eventual Livewire use Application actions directly; an HTTP API is optional, not a dependency.
 - **No networking decision**: no server SSH, WireGuard, Outline, VPN/node/provisioning, agent, Core/Edge.
+
+## F5 proposed on this branch
+- Role and permission tables from Spatie, with a migration mapping existing `admin`/`member` users into DB roles before removing the old column.
+- Custom roles (`reseller`, etc.) defined via a trusted Super Admin application action; multiple roles may be assigned per user.
+- Only trusted, active, Telegram-linked, allowlisted `super-admin` accounts receive special Gate privileges. At least two different numeric IDs are required in `SUPER_ADMIN_TELEGRAM_IDS`; env IDs alone do not grant any role.
+- Operator-only `identity:super-admin:promote {user}` requires existing private Telegram binding, allowlist membership and explicit terminal confirmation. Neither ordinary admin routes nor role creation APIs can grant the protected role.
+- Ordinary administrators may manage member accounts but cannot elevate privileges, edit peer admins or modify protected roots. All role/status updates record audit events. Root role revocation/recovery is deliberately CLI/manual-only, not via public HTTP.
 
 ## F4 implemented on this branch
 - Nutgram routing for /start, /menu, /account, /admin, /link {code} and inline menu callbacks.
@@ -27,7 +34,9 @@ SkyNet is a Laravel successor to Python NVL. **Telegram-first** is the accepted 
 Actual admin/consumer business operations, user self-registration, password reset, Livewire, Mini App, public REST API, server actions, SSH, network topology, long-running queues. Basic bot updates are processed synchronously; future heavy operations must be dispatched to durable jobs.
 
 ## Validation
-**Passed:** GitHub Actions run **38095212533** on PHP 8.4 and 8.5: **40 tests / 158 assertions**, Larastan **0 errors**, Pint **0 issues**. Composer lock is portable and includes Nutgram Laravel 1.7.1 / Nutgram 4.50.3. This validates repository code, **not** an actual deployed Telegram webhook or BotFather credentials.
+**F5 validation pending:** lock-file resolution and PHP 8.4/8.5 Pest/Larastan/Pint CI.
+
+**Previous F4 passed:** GitHub Actions run **38095212533** on PHP 8.4 and 8.5: **40 tests / 158 assertions**, Larastan **0 errors**, Pint **0 issues**. Composer lock is portable and includes Nutgram Laravel 1.7.1 / Nutgram 4.50.3. This validates repository code, **not** an actual deployed Telegram webhook or BotFather credentials.
 
 ## Next
 1. Configure BotFather token, separate random webhook secret, public HTTPS URL, and operator-only account link in the deployment environment (do not commit any secrets).
