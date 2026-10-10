@@ -2,7 +2,7 @@
 
 SkyNet is a new Laravel-based platform being developed as a **modular monolith**. It is a clean successor to the Python NVL project, not a translation of the existing bot.
 
-> **Status:** Foundation F1 merged; F2 developer tooling in review. No customer-facing feature, UI, network integration, or authentication flow has been implemented.
+> **Status:** Foundation F1 and F2 implemented (PRs #1 and #2); feature and network design remain deferred. No customer-facing feature, UI, network integration, or authentication flow has been implemented.
 
 ## Current stack
 

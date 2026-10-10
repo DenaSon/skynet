@@ -1,7 +1,7 @@
 # SkyNet — Current Context
 
 **Last reviewed:** 2026-10-11  
-**Stage:** Foundation F2 developer tooling — implementation committed in feature branch; PR/CI review pending  
+**Stage:** Foundation F2 completed (PR #2; merge into `master`)  
 **Behavioral source of truth:** current repository code
 
 ## Product direction
@@ -25,13 +25,13 @@ A clean Laravel successor to the Python NVL bot, able to grow beyond Telegram in
 Authentication flows, dashboard, Livewire/Mary UI, business domains, integrations, networking, service provisioning, monitoring.
 
 ## Operational validation
-Composer lock was successfully resolved in a dedicated GitHub Actions environment using PHP 8.4. Full application tests/static checks in the F2 PR are **pending** until its CI completes; do not represent them as passing without verification.
+Composer dependency resolution and lock normalization completed in GitHub Actions. The full F2 CI run **38092853202** passed on PHP 8.4 and 8.5: **7 Pest/PHPUnit tests (10 assertions)**, Larastan level 5 with no errors, and Laravel Pint with no style issues. CI status always applies to a specific commit; review newer runs if the branch changes.
 
 ## Next steps
-1. Validate and merge F2 once CI succeeds.
-2. Identify first concrete Identity use case; implement only the authentication/authorization features required for that use case.
-3. Design the Administration UI increment separately.
-4. Leave network decisions open.
+1. Define the first concrete Identity use case, along with minimal acceptance criteria.
+2. Implement and test that Identity increment on a separate feature branch.
+3. Design Administration UI in a later increment.
+4. Leave all network decisions open.
 
 ## Reading order
 [Vision](001-VISION.md) · [Architecture](002-ARCHITECTURE.md) · [Modules](003-MODULES.md) · [Standards](004-STANDARDS.md) · [Roadmap](005-ROADMAP.md) · [ADRs](adr/0001-modular-monolith.md)
