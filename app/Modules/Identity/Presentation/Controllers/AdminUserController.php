@@ -9,7 +9,6 @@ use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Identity\Presentation\Requests\CreateUserRequest;
 use App\Modules\Identity\Presentation\Requests\UpdateUserAccessRequest;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 
 final class AdminUserController

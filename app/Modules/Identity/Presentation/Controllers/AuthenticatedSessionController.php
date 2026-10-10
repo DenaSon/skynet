@@ -4,10 +4,10 @@ namespace App\Modules\Identity\Presentation\Controllers;
 
 use App\Modules\Identity\Presentation\Requests\LoginRequest;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\View\View;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
+use Illuminate\View\View;
 
 final class AuthenticatedSessionController
 {
@@ -18,11 +18,11 @@ final class AuthenticatedSessionController
 
     public function store(LoginRequest $request): RedirectResponse
     {
-        if (! Auth::guard('web')->attempt([
+        if (Auth::guard('web')->attempt([
             'email' => $request->validated('email'),
             'password' => $request->validated('password'),
             'is_active' => true,
-        ])) {
+        ]) === false) {
             throw ValidationException::withMessages([
                 'email' => 'These credentials do not match an active account.',
             ]);
