@@ -22,6 +22,7 @@ final readonly class RemnawaveUserSnapshot
         public string $expireAt,
         public string $subscriptionUrl,
         public int $usedTrafficBytes,
+        public ?string $description,
     ) {}
 
     /**
@@ -38,6 +39,7 @@ final readonly class RemnawaveUserSnapshot
         $expire = $data['expireAt'] ?? null;
         $url = $data['subscriptionUrl'] ?? null;
         $usage = $data['userTraffic']['usedTrafficBytes'] ?? null;
+        $description = $data['description'] ?? null;
 
         if (! is_int($id) || $id < 1
             || ! is_string($username) || $username === ''
@@ -47,10 +49,11 @@ final readonly class RemnawaveUserSnapshot
             || ! is_string($strategy) || ! in_array($strategy, ['NO_RESET', 'DAY', 'WEEK', 'MONTH', 'MONTH_ROLLING'], true)
             || ! is_string($expire) || $expire === ''
             || ! is_string($url) || ! str_starts_with($url, 'https://')
-            || ! is_int($usage) || $usage < 0) {
+            || ! is_int($usage) || $usage < 0
+            || ($description !== null && ! is_string($description))) {
             throw new UnexpectedValueException('Invalid Remnawave user response contract.');
         }
 
-        return new self($id, $username, $shortUuid, $status, $limit, $strategy, $expire, $url, $usage);
+        return new self($id, $username, $shortUuid, $status, $limit, $strategy, $expire, $url, $usage, $description);
     }
 }
