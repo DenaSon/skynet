@@ -96,3 +96,5 @@ This increment provides **read-only** `ListProducts` and `CalculateQuote` Applic
 
 ## F09-C — Pending-payment orders
 After a price preview, **✅ ثبت سفارش** atomically creates one buyer-owned `pending_payment` order **only if the price and role still match current server catalog data**. The ephemeral 10-minute buyer-bound checkout reference and unique DB key make retries idempotent. Home **📋 سفارش‌های من** and `/orders` list the account's last ten orders; individual order details retain original price even if the operator updates tariffs later. No payment, wallet debit, balance reservation or Remnawave provisioning occurs in F09-C.
+
+**F09 completion:** B and C are tested together in PR #16: 135 passing Pest tests / 660 assertions on PHP 8.4 and 8.5 with Larastan and Pint green. This is code/fake transport verification, **not** real Telegram payment or Remnawave activation.

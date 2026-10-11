@@ -1,7 +1,7 @@
 # SkyNet — Current Context
 
 **Reviewed:** 2026-10-11  
-**Stage:** F09-B/C Telegram Subscription Builder & Orders implemented on combined `feature/09b-telegram-subscription-builder` (CI/merge pending); F09 feature completion depends on passing CI.  
+**Stage:** F09-B/C Telegram Subscription Builder & Pending Orders implemented and CI-verified (PR #16, 135 tests/660 assertions on PHP 8.4/8.5). Production Telegram/payment/provider E2E pending.  
 **Behavioral truth:** repository code and tests, not aspirational plans.
 
 ## Product direction
@@ -72,7 +72,7 @@ SkyNet is a Laravel successor to Python NVL. **Telegram-first** is the accepted 
 - A read-only preview shows public price, reseller discount when applicable and final price, all recalculated server-side through F09-A Sales Actions; none of the callback values is an authoritative price. Telegram UI rounds fractional tomans **upwards** for display (actual rial price remains exact).
 - Disabled users, forged callbacks, expired custom contexts, disabled rates/products and unauthorized group chats are rejected. No order, payment, wallet mutation or Remnawave provision occurs.
 
-## F09-C pending-payment Orders (CI pending)
+## F09-C pending-payment Orders (PR #16, CI green)
 - `sales_orders` stores an immutable-at-application, buyer-owned per-subscription snapshot of product name/slug, duration, volume, public price, discount, and final integer-rial price. All newly created orders have status `pending_payment` only.
 - Telegram price preview now offers explicit **ثبت سفارش**. It issues a short-lived, unguessable checkout token bound to the actual linked buyer and server-computed quote. On click, the `CreatePendingOrder` Sales Action re-authorizes and recalculates current pricing; rate/role/product changes require a new preview, with no order created.
 - Idempotency keys are unique in the database; replaying a successful callback returns the same order even if a catalog tariff changed later. `OrderReader` restricts individual order lookups and the latest ten orders to their owner. Home now exposes **سفارش‌های من** and `/orders`.
@@ -82,9 +82,9 @@ SkyNet is a Laravel successor to Python NVL. **Telegram-first** is the accepted 
 Full administration workflows (user creation), customer business operations, web self-registration, password reset, Livewire, Mini App, public REST API, server actions, SSH, network topology, long-running queues. Basic bot updates are processed synchronously; future heavy operations must be dispatched to durable jobs.
 
 ## Validation
-**F09-C:** Await GitHub CI; no financial/provider/BotFather live E2E is claimed.
+**F09-B/C passed:** GitHub Actions run **38105982226**, PHP 8.4 and 8.5: **135 Pest tests / 660 assertions**, Larastan 0 errors, Pint 158 files clean. No actual Telegram/payment/Remnawave E2E performed.
 
-**F09-B:** Await PHP 8.4/8.5 CI. No real BotFather E2E in this increment.
+**F09-B:** Verified alongside F09-C in PR #16.
 
 **F09-A passed:** GitHub Actions run **38104681637** on PHP 8.4 and 8.5: **115 Pest tests / 557 assertions**, Larastan 0 errors, Pint clean (149 files). No live Telegram, payment or provider E2E.
 
