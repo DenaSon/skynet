@@ -1,6 +1,6 @@
 # F10-C — Remnawave Node API and Telemetry
 
-**Status:** Internal adapters in a stacked PR; HTTP-fake contract tests added; **no live Remnawave panel test**.
+**Status:** Internal adapters merged via PR #21, with passing PHP 8.4/8.5 CI and HTTP-fake tests; **no live Remnawave panel test**.
 
 **Pinned contract:** https://docs.rw/api/ (OpenAPI v3.4.4). NodesController has 15 routes.
 
