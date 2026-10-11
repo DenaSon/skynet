@@ -224,7 +224,7 @@ final readonly class RemnawaveNodesApi
     {
         $result = $this->response($operation, $path, $body);
 
-        if (array_is_list($result) && $result !== []) {
+        if (array_is_list($result)) {
             throw new UnexpectedValueException('Expected Remnawave node object.');
         }
 
