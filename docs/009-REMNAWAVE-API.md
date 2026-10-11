@@ -1,6 +1,6 @@
 # Remnawave API Mapping (F10-A)
 
-**Status:** Contract-mapped transport foundation in this PR; **NOT** integrated with purchases or a live panel.
+**Status:** Transport mapping merged into `master` via PR #19; **NOT** integrated with purchases or verified against a live panel.
 **Pinned API:** Remnawave OpenAPI 3.4.4, 218 operations, 162 paths.
 **Source:** https://docs.rw/api/ (official documentation); reproducible spec mirror: https://raw.githubusercontent.com/Jolymmiles/remnawave-api-go/v3.4.4/specs/3.4.4.json
 

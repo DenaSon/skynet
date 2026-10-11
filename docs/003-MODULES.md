@@ -87,10 +87,10 @@ Operator setup is `sales:product:set` and `sales:rate:set` in `routes/console.ph
 `Interfaces/Telegram/Support/CheckoutTokens` is an ephemeral 10-minute user-bound preview, not financial proof. `ShopUi` exposes only an explicit order-create button and order-history navigation. There is no F09-C workflow that changes an order to paid, reserves or debits wallets, or provisions a provider.
 
 
-## F10-A/B — Remnawave transport and scoped provider discovery (stacked PRs)
+## F10-A/B — Remnawave transport and scoped provider discovery (merged PRs #19–#20)
 `Modules/Provisioning/Infrastructure/Remnawave` owns the external HTTP transport, pinned OpenAPI operation map, and read-only resource discovery. The `Presentation/Console/InspectRemnawave` operator command is the only new interface; `ProvisioningServiceProvider` registers it. The integration has **no dependency on Sales/Billing/Identity persistence**, and Telegram imports nothing from provider infrastructure.
 
 A configured operator may make five read-only GET requests to health, nodes, hosts, internal squads, and config profiles. The integration projects only minimal, safe node metadata to a typed DTO. It has no external writes, no customer/role service exposure, no webhook, no cross-module events and no order-provisioning side effects. Paid-order transition and any future `RemnawaveProvider` remain gated to a separate tested increment. See [staging runbook](010-REMNAWAVE-STAGING.md).
 
-## F10-C — Internal Nodes API and telemetry (stacked PR)
+## F10-C — Internal Nodes API and telemetry (merged PR #21)
 `RemnawaveNodesApi` provides typed method names for the 15 `NodesController` routes and basic argument verification. `RemnawaveNodeTelemetry` provides read-only node online-user and bandwidth read operations using the same HTTP transport. They are infrastructure classes, not Sales/Application actions; neither is callable from Telegram, public HTTP or any auto-provisioning workflow. Sensitive node writes cannot be enabled until an explicit Application authorization/confirmation/audit boundary is implemented. See [Node API and staging gates](011-REMNAWAVE-NODES.md).

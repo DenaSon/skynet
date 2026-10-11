@@ -1,7 +1,7 @@
 # ADR 0007 — Remnawave Contract-Mapped HTTP Client
 
 **Date:** 2026-10-11
-**Status:** Proposed in F10-A PR; live-panel contract verification pending.
+**Status:** Accepted (F10-A PR #19 merged); live-panel contract verification pending.
 
 ## Context
 SkyNetwork uses Laravel 13/PHP 8.4+ and maintains commercial orders and wallet in separate modules. Remnawave has a versioned OpenAPI contract with 218 operations (v3.4.4). SDKs for other languages would add runtime complexity without a PHP/Laravel benefit.
