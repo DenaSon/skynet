@@ -1,7 +1,7 @@
 # SkyNet — Current Context
 
 **Reviewed:** 2026-10-11  
-**Stage:** F06-C Telegram RBAC management implemented on `feature/06c-telegram-rbac` (CI/merge pending)  
+**Stage:** F06-C Telegram RBAC management completed (PR #10 merged; PHP 8.4/8.5 CI green)  
 **Behavioral truth:** repository code and tests, not aspirational plans.
 
 ## Product direction
@@ -33,7 +33,7 @@ SkyNet is a Laravel successor to Python NVL. **Telegram-first** is the accepted 
 ## F06-A implementation
 - Shared Telegram MenuRenderer: Home, Account (real current roles and status), Settings (informational), Administration and preview-only Users/Roles pages with Back/Home inline navigation.
 - Menu commands and callbacks resolve the current private linked Identity actor for every interaction; role-management preview is reserved for trusted Super Admins. Nothing about stale inline keyboards is trusted.
-- No migrations or new vendor packages; F06-B (user operations) and F06-C (role management) remain separate increments.
+- No migrations or new vendor packages; F06-B user operations and F06-C role management are now complete as separate increments.
 
 ## F06-B completed (PR #8)
 - Identity read actions `BrowseUsers` and immutable DTOs serve role-guarded, paginated/searchable user listings and profiles for Telegram (no direct model access in the adapter).
@@ -41,7 +41,7 @@ SkyNet is a Laravel successor to Python NVL. **Telegram-first** is the accepted 
 - Status changes use a 3-minute, unpredictable, one-time, operator-bound cache confirmation; `ChangeUserStatus` delegates to existing `UpdateUserAccess` and re-checks authorization, expected status and protected root/self policies under a DB transaction. Changes append Identity Audit events.
 - Search and user details expose data only to actors with current `users.manage`; revoked or inactive users and stale callbacks are denied. No new migrations/packages.
 
-## F06-C implementation (pending CI)
+## F06-C completed (PR #10)
 - Trusted Super Admins can browse/view roles and available code-defined permissions, create custom DB roles via `/newrole <slug>`, toggle allowed custom role permissions, and add/remove user roles through inline keyboards.
 - Identity Application Actions `ManageRoles`, `ToggleRolePermission` and `ToggleMemberRole` own reads, authorization, stale-state rejection and audit logging. Telegram UI receives immutable DTOs rather than DB models.
 - All RBAC writes require a three-minute, single-use, per-operator confirmation in lock-capable Laravel Cache, with authorization checked again at mutation time.
@@ -51,6 +51,8 @@ SkyNet is a Laravel successor to Python NVL. **Telegram-first** is the accepted 
 Full administration workflows (user creation, referral/customer onboarding), customer business operations, user self-registration, password reset, Livewire, Mini App, public REST API, server actions, SSH, network topology, long-running queues. Basic bot updates are processed synchronously; future heavy operations must be dispatched to durable jobs.
 
 ## Validation
+**F06-C passed:** GitHub Actions run **38099720840** (PHP 8.4/8.5): **83 Pest tests / 359 assertions**, Larastan 0 errors, Pint clean. This verifies Nutgram fake transport and Identity actions, not production BotFather deployment.
+
 **F06-B passed:** GitHub Actions run **38098764186** on PHP 8.4 and 8.5: **69 Pest tests / 295 assertions**, Larastan 0 errors, Pint clean. This covers Nutgram fake transport, not an actual deployed Telegram bot.
 
 **F06-A passed:** GitHub Actions run **38098139458** on PHP 8.4 / 8.5: 58 Pest tests, 228 assertions, Larastan and Pint green. These checks exercise Nutgram's fake Telegram transport; they do not prove that the bot has been deployed to BotFather.
@@ -61,7 +63,7 @@ Full administration workflows (user creation, referral/customer onboarding), cus
 
 ## Next
 1. Configure BotFather token, separate random webhook secret, public HTTPS URL, and operator-only account link in the deployment environment (do not commit any secrets).
-2. Validate F06-C on CI, then implement customer onboarding/referral foundation after deploying the Telegram transport.
+2. Plan the customer onboarding/referral foundation and consider the real Telegram deployment/integration checks before broader release.
 3. Add Livewire only when a web interface is required.
 
 See [Architecture](002-ARCHITECTURE.md), [Modules](003-MODULES.md), [Telegram operations](006-TELEGRAM-OPERATIONS.md), [Roadmap](005-ROADMAP.md) and [ADR 0004](adr/0004-telegram-first.md).

@@ -1,6 +1,6 @@
 # Telegram Foundation — Setup and Operations
 
-**Phase:** F06-A adds read-only navigation to the F4 webhook and account-link foundation. No server commands or user-management actions through Telegram.
+**Phase:** F06-C completes role management after F06-A navigation and F06-B user operations, building on the F4 secure webhook and account-link foundation. No server commands or user-management actions through Telegram.
 
 ## Requirements
 - SkyNet with PHP >=8.4.1, `composer install`, `php artisan migrate`.
