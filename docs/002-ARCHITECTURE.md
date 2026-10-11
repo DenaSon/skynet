@@ -59,3 +59,6 @@ F2 formalizes PHP >=8.4.1 in `composer.json`, with `config.platform.php=8.4.1` t
 
 ## RBAC hardening (F5)
 The identity module owns dynamic roles/permissions via Spatie Permission v8 (single `web` guard). User role assignments are relational. Admin-only operations pass through Gate and application actions so future Telegram/Livewire callers share enforcement. `super-admin` remains a reserved, protected role with a **second** mandatory allowlist check against the account's linked numeric Telegram ID. ENV is not a grant of privilege and needs at least two valid unique IDs. All state changes are audited. See [ADR 0005](adr/0005-dynamic-rbac-super-admin.md).
+
+## Remnawave Nodes integration (F10-C proposed PR)
+`Modules/Provisioning/Infrastructure/Remnawave` owns vendor-facing `RemnawaveNodesApi` and `RemnawaveNodeTelemetry`, using the common pinned `RemnawaveApiClient`. Node mutations are **internal infrastructure capabilities, not authorized user-facing operations**. Telegram, Sales and Billing never call them directly. Authorize and audit through a future Provisioning Application boundary with replay protection and operator confirmation before exposing any mutating node commands. No migrations or financial/provider side effects are introduced. See [F10-C runbook](011-REMNAWAVE-NODES.md).
