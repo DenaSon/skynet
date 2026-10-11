@@ -39,7 +39,8 @@ final class OrderReader
     {
         app(ResolveSalesBuyer::class)->isReseller($buyerId);
 
-        $row = DB::table('sales_orders')->where('idempotency_key', $idempotencyKey)->first();
+        $row = DB::table('sales_orders')->where('buyer_user_id', $buyerId)
+            ->where('idempotency_key', $idempotencyKey)->first();
 
         return $row === null ? null : $this->map($row);
     }
