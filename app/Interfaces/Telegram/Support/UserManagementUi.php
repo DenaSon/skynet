@@ -94,7 +94,7 @@ final class UserManagementUi
             return;
         }
 
-        $this->menus->showUserDetails($bot, $user, $this->pageNumber($page), $mode === 's');
+        $this->menus->showUserDetails($bot, $user, $this->pageNumber($page), $mode === 's', $actor->canManageRoles());
     }
 
     public function confirm(Nutgram $bot, string $id, string $page = '1', string $mode = 'a'): void
@@ -147,7 +147,7 @@ final class UserManagementUi
             return;
         }
 
-        $this->menus->showUserDetails($bot, $updated, $pending['page'], $pending['search']);
+        $this->menus->showUserDetails($bot, $updated, $pending['page'], $pending['search'], $actor->canManageRoles());
     }
 
     private function actor(Nutgram $bot): ?TelegramActor

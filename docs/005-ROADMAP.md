@@ -12,7 +12,7 @@ All statuses reflect **code in the repository**, not intentions.
 | F5 — Identity RBAC | Dynamic roles/permissions, guarded Super Admin enrollment, role migration, audit and tests | Completed (PR #5, PHP 8.4/8.5 CI green; 52 tests) |
 | F06-A — Telegram Navigation | Home, account, settings, admin/read-only submenus, keyboard routing and role gating | Completed on `master` (PR #6; 58 tests, PHP 8.4/8.5 CI green) |
 | F06-B — Telegram Users | Search, list, profile, one-time confirmed state updates through Identity Actions | Completed (PR #8 merged; 69 tests, PHP 8.4/8.5 CI green) |
-| F06-C — Telegram RBAC | Custom role/permission workflows via Identity actions | Planned |
+| F06-C — Telegram RBAC | Role directory, custom role creation, code-defined permissions, multi-role assignments, single-use confirmations | Implemented in PR branch; CI/merge pending |
 | Later — Web UI | Livewire 4 + Mary UI consuming the same Actions | Deferred |
 | Later — Product Domains | Define network/server/business capabilities based on use cases | Undecided |
 
@@ -55,3 +55,12 @@ All networking: WireGuard vs Outline or other transports; Core/Edge; node/agent 
 - Status changes require a 3-minute single-use actor-bound confirmation; stale requests, disabled actors, peer-admin edits, self-deactivation and Super Admin mutations are rejected by the shared Identity Action.
 - Every successful status mutation is written to the existing Identity audit log; no extra package or migration.
 - Nutgram fake tests, Identity tests, Larastan and Pint pass on PHP 8.4 and 8.5 before merge.
+
+## F06-C acceptance criteria
+- Only an active, Telegram-linked, ENV-allowlisted Super Admin can enter RBAC screens and run the shared Identity RBAC actions. An ordinary admin/member must be denied even with forged callbacks.
+- List roles and permission catalog, inspect their assignments, and create a custom role without changing PHP enums.
+- Add/revoke existing, code-defined permissions on **custom** roles, and toggle one of several roles for existing users; protect the last remaining user role.
+- Never assign/revoke `super-admin` or mutate any built-in role permissions via bot/HTTP UI.
+- Every mutation requires a three-minute actor-bound, one-time confirmation; reject stale/replayed modifications and log each successful change to the Identity audit table.
+- Read/actions callable by future Livewire presenters; no new migration/package; update living docs in same PR.
+- Pest, Larastan and Pint pass on PHP 8.4/8.5 before merge.

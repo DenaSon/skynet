@@ -61,3 +61,9 @@ See `docs/004-STANDARDS.md` for coding and documentation conventions.
 - Keep user list/detail/search/active-state business rules inside Identity Application Actions; Telegram only renders and handles short-lived confirmation UX.
 - Do not weaken Super Admin, peer-admin or self-deactivation protections from F05. Audit mutations, require fresh permissions and reject stale requested state.
 - Reuse `BrowseUsers` / `ChangeUserStatus` for future Livewire; no new public REST endpoint or generic framework.
+
+## F06-C Telegram role management
+- All RBAC reads and writes belong to Identity Application Actions with fresh trusted-Super-Admin authorization. Telegram handlers must not touch Spatie models directly.
+- Never expose `super-admin` enrollment/revocation or built-in system-role permission edits in Telegram. Maintain F5 guardrails for peer accounts and the final remaining role.
+- Every Telegram RBAC mutation must have a one-time, per-actor cache confirmation, a current DB state check, and an Identity audit event. All handlers remain private-chat-only.
+- New permissions are code-defined, not created from untrusted Telegram text. No generic settings/referral/server domain additions in F06-C.
