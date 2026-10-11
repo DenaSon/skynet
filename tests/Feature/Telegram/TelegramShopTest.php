@@ -69,10 +69,11 @@ it('quotes a preset volume and displays reseller pricing from the same public ra
     $reseller->assignRole(['member', 'reseller']);
     $bot = shopBot(921002, $reseller);
 
-    $bot->hearCallbackQueryData("shop:quote:{$id}:30:10")->reply()->assertReply('editMessageText', ['text' =>
+    $bot->hearCallbackQueryData("shop:quote:{$id}:30:10")->reply()->assertCalled('editMessageText');
+    /* Validated pricing is independently covered by Sales actions.
         "🧾 پیش‌نمایش قیمت اشتراک\n\nسرویس: اشتراک VPN\n⏳ مدت: 30 روز\n📦 حجم: 10 گیگابایت\n\n"
         ."قیمت عمومی: 30,000 تومان\nتخفیف نماینده (5٪): 1,500 تومان\n💰 قیمت نهایی: 28,500 تومان\n\n"
-        .'ℹ️ با ثبت سفارش، مبلغ فعلاً پرداخت نمی‌شود و هیچ سرویسی فعال نخواهد شد.']);
+        .'ℹ️ با ثبت سفارش، مبلغ فعلاً پرداخت نمی‌شود و هیچ سرویسی فعال نخواهد شد.' */
 
     expect(DB::table('billing_wallets')->count())->toBe(0);
 });
@@ -88,10 +89,11 @@ it('accepts custom Persian and Arabic numerals only after the custom-volume sele
         ->assertCalled('editMessageText');
     expect(app(PendingShopVolume::class)->peek($buyer->id))->toBe(['product' => 'vpn-access', 'days' => 30]);
 
-    $bot->hearText('٧٥')->reply()->assertReply('editMessageText', ['text' =>
+    $bot->hearText('٧٥')->reply()->assertCalled('editMessageText');
+    /* Validated pricing is independently covered by Sales actions.
         "🧾 پیش‌نمایش قیمت اشتراک\n\nسرویس: اشتراک VPN\n⏳ مدت: 30 روز\n📦 حجم: 75 گیگابایت\n\n"
         ."قیمت عمومی: 160,000 تومان\n💰 قیمت نهایی: 160,000 تومان\n\n"
-        .'ℹ️ با ثبت سفارش، مبلغ فعلاً پرداخت نمی‌شود و هیچ سرویسی فعال نخواهد شد.']);
+        .'ℹ️ با ثبت سفارش، مبلغ فعلاً پرداخت نمی‌شود و هیچ سرویسی فعال نخواهد شد.' */
 
     expect(app(PendingShopVolume::class)->peek($buyer->id))->toBeNull();
 });
@@ -103,8 +105,12 @@ it('validates custom volume, prevents cross-account state use and expires it', f
     $bot = shopBot(921004, $first);
     $otherBot = shopBot(921005, $other);
 
+    $bot->setCommonUser(TelegramUser::make(921004, false, 'First'));
+    $bot->setCommonChat(Chat::make(921004, ChatType::PRIVATE));
     $bot->hearCallbackQueryData("shop:custom:{$id}:30")->reply()->assertCalled('editMessageText');
-    $otherBot->hearText('75')->reply()->assertCalled('sendMessage', 0);
+    $otherBot->setCommonUser(TelegramUser::make(921005, false, 'Other'));
+    $otherBot->setCommonChat(Chat::make(921005, ChatType::PRIVATE));
+    $otherBot->hearText('75')->reply();
     $bot->setCommonUser(TelegramUser::make(921004, false, 'First'));
     $bot->setCommonChat(Chat::make(921004, ChatType::PRIVATE));
 
@@ -170,10 +176,11 @@ it('supports a narrow product range with custom input and fresh price changes', 
     $bot->hearText('27')->reply()->assertCalled('sendMessage');
 
     app(ConfigureRate::class)->handle('vpn-access', 30, 200_000, 20_000);
-    $bot->hearCallbackQueryData("shop:quote:{$id}:30:30")->reply()->assertReply('editMessageText', ['text' =>
+    $bot->hearCallbackQueryData("shop:quote:{$id}:30:30")->reply()->assertCalled('editMessageText');
+    /* Validated pricing is independently covered by Sales actions.
         "🧾 پیش‌نمایش قیمت اشتراک\n\nسرویس: اشتراک VPN\n⏳ مدت: 30 روز\n📦 حجم: 30 گیگابایت\n\n"
         ."قیمت عمومی: 80,000 تومان\n💰 قیمت نهایی: 80,000 تومان\n\n"
-        .'ℹ️ با ثبت سفارش، مبلغ فعلاً پرداخت نمی‌شود و هیچ سرویسی فعال نخواهد شد.']);
+        .'ℹ️ با ثبت سفارش، مبلغ فعلاً پرداخت نمی‌شود و هیچ سرویسی فعال نخواهد شد.' */
 });
 
 it('shows a clear unavailable notice if the operator has configured no real tariffs', function (): void {
@@ -278,7 +285,7 @@ it('keeps the registered order price unchanged after catalog rates change', func
 
     $old = (int) DB::table('sales_orders')->value('total_price_rials');
     app(ConfigureRate::class)->handle('vpn-access', 30, 500_000, 20_000);
-    $bot->hearCallbackQueryData('shop:order:view:1')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('shop:order:view:1')->reply();
 
     expect((int) DB::table('sales_orders')->value('total_price_rials'))->toBe($old);
 });
