@@ -230,7 +230,7 @@ final class RemnawaveSubscriptionLifecycle
     {
         $hash = hash('sha256', json_encode([$reference, $kind, $payload], JSON_THROW_ON_ERROR));
 
-        return DB::transaction(function () use ($reference, $key, $kind, $hash, $creating): array {
+        return DB::transaction(function () use ($reference, $key, $kind, $hash, $payload, $creating): array {
             $previous = DB::table('provisioning_operations')->where('idempotency_key', $key)->lockForUpdate()->first();
             $record = DB::table('provisioning_subscriptions')->where('reference', $reference)->lockForUpdate()->first();
 
