@@ -13,6 +13,11 @@ All statuses reflect **code in the repository**, not intentions.
 | F06-A — Telegram Navigation | Home, account, settings, admin/read-only submenus, keyboard routing and role gating | Completed on `master` (PR #6; 58 tests, PHP 8.4/8.5 CI green) |
 | F06-B — Telegram Users | Search, list, profile, one-time confirmed state updates through Identity Actions | Completed (PR #8 merged; 69 tests, PHP 8.4/8.5 CI green) |
 | F06-C — Telegram RBAC | Role directory, custom role creation, code-defined permissions, multi-role assignments, single-use confirmations | Completed (PR #10 merged; 83 tests / 359 assertions, PHP 8.4/8.5 CI green) |
+| F07 — Onboarding & Referral | Opt-in private Telegram registration, member-only accounts, unique invitations, single-shot attribution, invitation counts | Implemented on branch; CI/merge pending |
+| F08 — Billing/Wallet | Minimal reseller credit ledger, manual top-up, audit/idempotency | Planned after E2E |
+| F09 — Products/Orders | Plan catalog, prices, reservations/order states | Planned after E2E |
+| F10 — Marzban Provisioning | First server provider and subscription activation | Planned after E2E |
+| F11 — Telegram Sales | Direct and reseller flows over shared order/provisioning | Planned after E2E |
 | Later — Web UI | Livewire 4 + Mary UI consuming the same Actions | Deferred |
 | Later — Product Domains | Define network/server/business capabilities based on use cases | Undecided |
 
@@ -64,3 +69,11 @@ All networking: WireGuard vs Outline or other transports; Core/Edge; node/agent 
 - Every mutation requires a three-minute actor-bound, one-time confirmation; reject stale/replayed modifications and log each successful change to the Identity audit table.
 - Read/actions callable by future Livewire presenters; no new migration/package; update living docs in same PR.
 - Pest, Larastan and Pint pass on PHP 8.4/8.5 before merge.
+
+## F07 acceptance criteria
+- No admin identity overwritten or unilaterally converted to a public member; `/link` for operator-created accounts still works before signup.
+- `/start` and deep links alone must never create accounts. Explicit one-tap opt-in in private Telegram chats, guarded by an off-by-default deployment flag.
+- Every new account is `member`, without a verified email claim or a usable pre-shared password, and is uniquely linked to the Telegram numeric ID.
+- Referral codes are high entropy, stable per referrer, and no personal identifiers are exposed in links. One invited account gets at most one referrer, only when first registered. Invalid/expired/deactivated flows never rewrite attribution.
+- No wallet balances, commissions, sales data, provider coupling, generic registration HTTP route or new networking decisions.
+- Full Pest/Larastan/Pint CI on PHP 8.4 and 8.5, then real BotFather private chat E2E before public release.

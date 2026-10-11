@@ -1,7 +1,7 @@
 # SkyNet — Current Context
 
 **Reviewed:** 2026-10-11  
-**Stage:** F06-C Telegram RBAC management completed (PR #10 merged; PHP 8.4/8.5 CI green)  
+**Stage:** F07 Customer Onboarding & Referral implemented on `feature/07-customer-onboarding-referral` (CI/merge pending)  
 **Behavioral truth:** repository code and tests, not aspirational plans.
 
 ## Product direction
@@ -47,8 +47,14 @@ SkyNet is a Laravel successor to Python NVL. **Telegram-first** is the accepted 
 - All RBAC writes require a three-minute, single-use, per-operator confirmation in lock-capable Laravel Cache, with authorization checked again at mutation time.
 - Built-in `member`, `admin`, `super-admin` role definitions cannot be modified via Telegram, and `super-admin` cannot be assigned or removed there. Operator-bound allowlist is checked for each callback. No new migrations or dependencies.
 
+## F07 implementation (pending CI)
+- Explicit private-chat opt-in join via `onboarding:join`, no account created merely from `/start`. Existing operator `/link` workflow is preserved. Public signup is off by default; set `TELEGRAM_PUBLIC_SIGNUP_ENABLED=true` only after operator bootstrap.
+- Identity `RegisterTelegramMember` creates a **member-only** active account with a random non-routable placeholder email, unknown random web password, no verified email claim, and a unique Telegram binding; repeated updates are idempotent.
+- Referral module issues stable cryptographically random per-user codes, renders `t.me/<bot>?start=ref_<code>` via `/invite`, and counts verified completed signups; a pending code in short-lived cache is applied only during the same DB transaction as a brand-new account. Existing accounts can never be reattributed; no rewards/commission logic.
+- Orchestration in `Onboarding/Application/JoinFromTelegram` composes Identity and Referral Actions, while the Telegram adapter only holds temporary pending context and menus. No networking or money operations.
+
 ## Not implemented
-Full administration workflows (user creation, referral/customer onboarding), customer business operations, user self-registration, password reset, Livewire, Mini App, public REST API, server actions, SSH, network topology, long-running queues. Basic bot updates are processed synchronously; future heavy operations must be dispatched to durable jobs.
+Full administration workflows (user creation), customer business operations, web self-registration, password reset, Livewire, Mini App, public REST API, server actions, SSH, network topology, long-running queues. Basic bot updates are processed synchronously; future heavy operations must be dispatched to durable jobs.
 
 ## Validation
 **F06-C passed:** GitHub Actions run **38099720840** (PHP 8.4/8.5): **83 Pest tests / 359 assertions**, Larastan 0 errors, Pint clean. This verifies Nutgram fake transport and Identity actions, not production BotFather deployment.
