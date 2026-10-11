@@ -90,8 +90,8 @@ final readonly class RemnawaveNodeTelemetry
      */
     public function usageHistory(string $start, string $end): array
     {
-        if (! self::isUtcDateTime($start) || ! self::isUtcDateTime($end) || strcmp($start, $end) >= 0) {
-            throw new InvalidArgumentException('Valid increasing UTC start/end dates are required.');
+        if (! self::isCalendarDate($start) || ! self::isCalendarDate($end) || strcmp($start, $end) > 0) {
+            throw new InvalidArgumentException('Valid YYYY-MM-DD start/end dates are required (start may equal end).');
         }
 
         $data = $this->response('NodesUsageHistoryController_getStatsNodesUsage', query: [
@@ -115,8 +115,8 @@ final readonly class RemnawaveNodeTelemetry
     public function usageForNodes(array $nodeUuids, string $start, string $end): array
     {
         if ($nodeUuids === [] || ! array_is_list($nodeUuids)
-            || ! self::isUtcDateTime($start) || ! self::isUtcDateTime($end) || strcmp($start, $end) >= 0) {
-            throw new InvalidArgumentException('Nodes and increasing UTC date range are required.');
+            || ! self::isCalendarDate($start) || ! self::isCalendarDate($end) || strcmp($start, $end) > 0) {
+            throw new InvalidArgumentException('Nodes and valid YYYY-MM-DD date range are required (start may equal end).');
         }
 
         foreach ($nodeUuids as $uuid) {
@@ -137,11 +137,12 @@ final readonly class RemnawaveNodeTelemetry
         return $data;
     }
 
-    private static function isUtcDateTime(string $value): bool
+    private static function isCalendarDate(string $value): bool
     {
-        $date = \DateTimeImmutable::createFromFormat('!Y-m-d\TH:i:s\Z', $value, new \DateTimeZone('UTC'));
+        // v3.4.4 bandwidth operations accept a calendar date, not a timestamp.
+        $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $value, new \DateTimeZone('UTC'));
 
-        return $date !== false && $date->format('Y-m-d\TH:i:s\Z') === $value;
+        return $date !== false && $date->format('Y-m-d') === $value;
     }
 
     /**
