@@ -28,7 +28,8 @@ final readonly class RemnawaveApiClient
             ! is_array($parts)
             || ($parts['scheme'] ?? null) !== 'https'
             || empty($parts['host'])
-            || isset($parts['user'], $parts['pass'])
+            || isset($parts['user'])
+            || isset($parts['pass'])
             || isset($parts['query'])
             || isset($parts['fragment'])
         ) {
