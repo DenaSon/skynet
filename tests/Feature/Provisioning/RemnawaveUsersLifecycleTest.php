@@ -15,7 +15,7 @@ uses(RefreshDatabase::class);
 const USER_EXPIRY = '2026-12-01T00:00:00.000Z';
 const USER_SQUAD = '550e8400-e29b-41d4-a716-446655440005';
 
-function userApi(): RemnawaveUsersApi
+function lifecycleUserApi(): RemnawaveUsersApi
 {
     return new RemnawaveUsersApi(new RemnawaveApiClient('https://remna.test', 'test-only-token'));
 }
@@ -76,7 +76,7 @@ it('validates safe creation fields, quotas, dates and squads', function (): void
 it('creates with correct POST fields and returns only safe typed projection', function (): void {
     fakeWriteResponse();
 
-    $created = userApi()->create(new CreateRemnawaveUser('sk_demo', USER_EXPIRY, 1073741824, [USER_SQUAD]));
+    $created = lifecycleUserApi()->create(new CreateRemnawaveUser('sk_demo', USER_EXPIRY, 1073741824, [USER_SQUAD]));
 
     expect($created->id)->toBe(42)
         ->and($created->subscriptionUrl)->toBe('https://sub.example.test/short-random-code')
@@ -99,7 +99,7 @@ it('reads users by IDs, usernames and short codes, and paginates with API v3 sta
         return Http::response(['response' => userFixture()], 200);
     });
 
-    $api = userApi();
+    $api = lifecycleUserApi();
     expect($api->byId(42)->id)->toBe(42)
         ->and($api->byUsername('sk_demo')->username)->toBe('sk_demo')
         ->and($api->byShortUuid('short-random-code')->shortUuid)->toBe('short-random-code')
@@ -118,7 +118,7 @@ it('implements disable, enable, extend, reset traffic, revoke and delete with co
         'https://remna.test/api/users/42' => Http::response('', 204),
     ]);
 
-    $api = userApi();
+    $api = lifecycleUserApi();
     expect($api->disable(42)->id)->toBe(42)
         ->and($api->enable(42)->id)->toBe(42)
         ->and($api->extend(42, 30)->id)->toBe(42)
@@ -142,7 +142,7 @@ it('sends PATCH updates with numeric ID in JSON and no unspecified fields', func
     Http::preventStrayRequests();
     Http::fake(['https://remna.test/api/users' => Http::response(['response' => userFixture()], 200)]);
 
-    $response = userApi()->update(42, [
+    $response = lifecycleUserApi()->update(42, [
         'expireAt' => USER_EXPIRY,
         'trafficLimitBytes' => 2048,
         'activeInternalSquads' => [USER_SQUAD],
@@ -160,7 +160,7 @@ it('blocks unsupported user updates and malformed provider responses without wri
     Http::preventStrayRequests();
     Http::fake();
 
-    $api = userApi();
+    $api = lifecycleUserApi();
 
     expect(fn () => $api->update(42, ['id' => 99]))->toThrow(InvalidArgumentException::class)
         ->and(fn () => $api->update(42, ['trafficLimitBytes' => '-3']))->toThrow(InvalidArgumentException::class)
@@ -177,7 +177,7 @@ it('rejects incomplete provider projections rather than accepting missing subscr
         'id' => 42, 'username' => 'sk_demo', 'trafficLimitBytes' => 0,
     ]], 200)]);
 
-    expect(fn () => userApi()->byId(42))->toThrow(UnexpectedValueException::class);
+    expect(fn () => lifecycleUserApi()->byId(42))->toThrow(UnexpectedValueException::class);
 });
 
 it('keeps all application mutations disabled unless explicitly enabled', function (): void {
