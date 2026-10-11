@@ -245,7 +245,9 @@ it('locks uncertain provisioning after transport failures and reconciles by owne
         ->toThrow(RuntimeException::class, 'reconciliation');
     Http::assertSentCount(1);
 
-    Http::fake(['https://remna.test/api/users/by-username/*' => Http::response(['response' => ownedUser('order:97')], 200)]);
+    Http::fake(['https://remna.test/api/users/by-username/*' => Http::response(['response' => [
+        ...ownedUser('order:97'), 'trafficLimitBytes' => 100,
+    ]], 200)]);
     expect($lifecycle->reconcileCreate('order:97', 'pay:97'))->toBe(42)
         ->and(DB::table('provisioning_operations')->where('idempotency_key', 'pay:97')->value('state'))->toBe('completed');
 
