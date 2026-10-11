@@ -127,7 +127,9 @@ final class RemnawaveSubscriptionLifecycle
         $op = DB::table('provisioning_operations')->where('idempotency_key', $idempotencyKey)->first();
 
         if ($row === null || $op === null || (int) $op->subscription_id !== (int) $row->id
-            || $op->kind !== 'create' || $row->state !== 'needs_review' || $op->state !== 'needs_review') {
+            || $op->kind !== 'create'
+            || ! in_array($row->state, ['reserved', 'needs_review'], true)
+            || ! in_array($op->state, ['reserved', 'needs_review'], true)) {
             throw new RuntimeException('No uncertain create to reconcile.');
         }
 
@@ -161,7 +163,8 @@ final class RemnawaveSubscriptionLifecycle
         $op = DB::table('provisioning_operations')->where('idempotency_key', $idempotencyKey)->first();
 
         if ($row === null || $op === null || (int) $op->subscription_id !== (int) $row->id
-            || $row->state !== 'needs_review' || $op->state !== 'needs_review'
+            || ! in_array($row->state, ['reserved', 'needs_review'], true)
+            || ! in_array($op->state, ['reserved', 'needs_review'], true)
             || $row->last_operation_key !== $idempotencyKey
             || ! in_array($op->kind, ['expiration', 'quota', 'disable', 'enable'], true)
             || ! is_numeric($row->remote_user_id)) {
