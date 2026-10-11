@@ -26,6 +26,7 @@ return new class extends Migration
             $table->string('idempotency_key', 120)->unique();
             $table->string('kind', 24);
             $table->char('payload_hash', 64);
+            $table->json('expected_payload');
             $table->string('state', 24);
             $table->timestamps();
         });
