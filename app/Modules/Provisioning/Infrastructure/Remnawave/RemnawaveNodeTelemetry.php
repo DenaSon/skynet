@@ -33,15 +33,17 @@ final readonly class RemnawaveNodeTelemetry
             if (! is_array($node)
                 || ! is_string($node['nodeUuid'] ?? null)
                 || ! is_string($node['nodeName'] ?? null)
-                || ! is_int($node['usersOnline'] ?? null)
-                || $node['usersOnline'] < 0) {
+                || (! is_int($node['usersOnline'] ?? null) && ! is_float($node['usersOnline'] ?? null))
+                || $node['usersOnline'] < 0
+                || $node['usersOnline'] > PHP_INT_MAX
+                || floor((float) $node['usersOnline']) !== (float) $node['usersOnline']) {
                 throw new UnexpectedValueException('Invalid node metrics item.');
             }
 
             $summary[] = [
                 'uuid' => $node['nodeUuid'],
                 'name' => $node['nodeName'],
-                'usersOnline' => $node['usersOnline'],
+                'usersOnline' => (int) $node['usersOnline'],
             ];
         }
 
@@ -92,10 +94,18 @@ final readonly class RemnawaveNodeTelemetry
             throw new InvalidArgumentException('Valid increasing UTC start/end dates are required.');
         }
 
-        return $this->response('NodesUsageHistoryController_getStatsNodesUsage', query: [
+        $data = $this->response('NodesUsageHistoryController_getStatsNodesUsage', query: [
             'start' => $start,
             'end' => $end,
         ]);
+
+        foreach (['categories', 'sparklineData', 'topNodes', 'series'] as $field) {
+            if (! is_array($data[$field] ?? null) || ! array_is_list($data[$field])) {
+                throw new UnexpectedValueException("Invalid node usage field: {$field}");
+            }
+        }
+
+        return $data;
     }
 
     /**
@@ -115,10 +125,16 @@ final readonly class RemnawaveNodeTelemetry
             }
         }
 
-        return $this->response('BandwidthStatsNodesController_getNodeUsage', query: [
+        $data = $this->response('BandwidthStatsNodesController_getNodeUsage', query: [
             'start' => $start,
             'end' => $end,
         ], body: ['nodesUuids' => $nodeUuids]);
+
+        if (! is_array($data['nodes'] ?? null) || ! array_is_list($data['nodes'])) {
+            throw new UnexpectedValueException('Invalid node usage response collection.');
+        }
+
+        return $data;
     }
 
     private static function isUtcDateTime(string $value): bool
