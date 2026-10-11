@@ -372,3 +372,29 @@ it('refuses to mark a quota update complete if remote state does not match', fun
 
     expect(DB::table('provisioning_operations')->where('idempotency_key', 'quota:106')->value('state'))->toBe('needs_review');
 });
+
+
+it('can reconcile a crash-left reservation with a read-only lookup and no replay', function (): void {
+    enableStaging();
+    Http::preventStrayRequests();
+    Http::fake(['https://remna.test/api/users' => Http::response(['message' => 'failed'], 503)]);
+    $lifecycle = app(RemnawaveSubscriptionLifecycle::class);
+
+    try {
+        $lifecycle->create('order:107', 'pay:107', USER_EXPIRY, 100, [USER_SQUAD]);
+    } catch (RuntimeException) {
+        // Simulate a process exit before the exception path can write needs_review.
+    }
+
+    DB::table('provisioning_subscriptions')->where('reference', 'order:107')->update(['state' => 'reserved']);
+    DB::table('provisioning_operations')->where('idempotency_key', 'pay:107')->update(['state' => 'reserved']);
+
+    Http::fake(['https://remna.test/api/users/by-username/*' => Http::response(['response' => [
+        ...ownedUser('order:107'), 'trafficLimitBytes' => 100,
+    ]], 200)]);
+
+    expect($lifecycle->reconcileCreate('order:107', 'pay:107'))->toBe(42)
+        ->and(DB::table('provisioning_operations')->where('idempotency_key', 'pay:107')->value('state'))->toBe('completed');
+
+    Http::assertSentCount(1);
+});
