@@ -62,7 +62,7 @@ final class MenuRenderer
 
         $keyboard->addRow(InlineKeyboardButton::make('◀️ صفحه اصلی', callback_data: 'menu:home'));
 
-        $this->render($bot, "🛡️ مدیریت SkyNet\n\nبخش‌های مدیریتی در حال آماده‌سازی هستند.", $keyboard);
+        $this->render($bot, "🛡️ مدیریت SkyNet\n\nمدیریت کاربران فعال است. بخش نقش‌ها و دسترسی‌ها در فاز بعد تکمیل می‌شود.", $keyboard);
     }
 
     public function showUserList(Nutgram $bot, UserDirectoryPage $results, bool $search = false): void

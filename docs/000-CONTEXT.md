@@ -1,7 +1,7 @@
 # SkyNet — Current Context
 
 **Reviewed:** 2026-10-11  
-**Stage:** F06-B Telegram user management implemented in `feature/06b-telegram-user-management` (CI/merge pending)  
+**Stage:** F06-B Telegram user management verified (PR #8; PHP 8.4 / 8.5 CI green; merge pending)  
 **Behavioral truth:** repository code and tests, not aspirational plans.
 
 ## Product direction
@@ -35,7 +35,7 @@ SkyNet is a Laravel successor to Python NVL. **Telegram-first** is the accepted 
 - Menu commands and callbacks resolve the current private linked Identity actor for every interaction; role-management preview is reserved for trusted Super Admins. Nothing about stale inline keyboards is trusted.
 - No migrations or new vendor packages; F06-B (user operations) and F06-C (role management) remain separate increments.
 
-## F06-B implementation (pending CI)
+## F06-B implementation (PR #8)
 - Identity read actions `BrowseUsers` and immutable DTOs serve role-guarded, paginated/searchable user listings and profiles for Telegram (no direct model access in the adapter).
 - Telegram supports `/users`, `/finduser <term>`, page/detail inline callbacks, 10-minute search context and Back navigation.
 - Status changes use a 3-minute, unpredictable, one-time, operator-bound cache confirmation; `ChangeUserStatus` delegates to existing `UpdateUserAccess` and re-checks authorization, expected status and protected root/self policies under a DB transaction. Changes append Identity Audit events.
@@ -45,6 +45,8 @@ SkyNet is a Laravel successor to Python NVL. **Telegram-first** is the accepted 
 Actual admin/consumer business operations, user self-registration, password reset, Livewire, Mini App, public REST API, server actions, SSH, network topology, long-running queues. Basic bot updates are processed synchronously; future heavy operations must be dispatched to durable jobs.
 
 ## Validation
+**F06-B passed:** GitHub Actions run **38098764186** on PHP 8.4 and 8.5: **69 Pest tests / 295 assertions**, Larastan 0 errors, Pint clean. This covers Nutgram fake transport, not an actual deployed Telegram bot.
+
 **F06-A passed:** GitHub Actions run **38098139458** on PHP 8.4 / 8.5: 58 Pest tests, 228 assertions, Larastan and Pint green. These checks exercise Nutgram's fake Telegram transport; they do not prove that the bot has been deployed to BotFather.
 
 **F5 passed:** GitHub Actions run **38096797661** on PHP 8.4 and 8.5: **52 Pest tests / 209 assertions**, Larastan 0 errors, Pint clean. Portable Composer lock includes Spatie v8.3.0. No BotFather/production integration was exercised.
