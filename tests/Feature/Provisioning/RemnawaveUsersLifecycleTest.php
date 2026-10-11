@@ -319,7 +319,6 @@ it('protects subscription URL reads by local ownership and only permits active l
     Http::assertSentCount(1);
 });
 
-
 it('reconciles uncertain absolute quota updates by remote state without a second PATCH', function (): void {
     enableStaging();
     Http::preventStrayRequests();
