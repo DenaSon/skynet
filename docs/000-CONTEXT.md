@@ -1,7 +1,7 @@
 # SkyNet — Current Context
 
 **Reviewed:** 2026-10-11  
-**Stage:** F06-A Telegram navigation implemented on branch `feature/06a-telegram-navigation` (CI/merge pending)  
+**Stage:** F06-A Telegram navigation implemented (PR #6; CI passed, merge pending)  
 **Behavioral truth:** repository code and tests, not aspirational plans.
 
 ## Product direction
@@ -39,12 +39,14 @@ SkyNet is a Laravel successor to Python NVL. **Telegram-first** is the accepted 
 Actual admin/consumer business operations, user self-registration, password reset, Livewire, Mini App, public REST API, server actions, SSH, network topology, long-running queues. Basic bot updates are processed synchronously; future heavy operations must be dispatched to durable jobs.
 
 ## Validation
+**F06-A passed:** GitHub Actions run **38098139458** on PHP 8.4 / 8.5: 58 Pest tests, 228 assertions, Larastan and Pint green. These checks exercise Nutgram's fake Telegram transport; they do not prove that the bot has been deployed to BotFather.
+
 **F5 passed:** GitHub Actions run **38096797661** on PHP 8.4 and 8.5: **52 Pest tests / 209 assertions**, Larastan 0 errors, Pint clean. Portable Composer lock includes Spatie v8.3.0. No BotFather/production integration was exercised.
 
 **Previous F4 passed:** GitHub Actions run **38095212533** on PHP 8.4 and 8.5: **40 tests / 158 assertions**, Larastan **0 errors**, Pint **0 issues**. Composer lock is portable and includes Nutgram Laravel 1.7.1 / Nutgram 4.50.3. This validates repository code, **not** an actual deployed Telegram webhook or BotFather credentials.
 
 ## Next
-1. Validate and merge F06-A after GitHub Actions PHP 8.4/8.5 are green.
+1. Merge F06-A after the latest GitHub Actions run remains green.
 2. Configure BotFather token, separate random webhook secret, public HTTPS URL, and operator-only account link in the deployment environment (do not commit any secrets).
 3. Implement F06-B user management and F06-C role management via Identity/other domain Actions in later increments.
 4. Add Livewire only when a web interface is required.
