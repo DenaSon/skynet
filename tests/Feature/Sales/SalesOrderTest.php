@@ -137,6 +137,9 @@ it('enforces order ownership on reads and idempotency keys across buyers', funct
     expect(app(OrderReader::class)->recent($first->id))->toHaveCount(1)
         ->and(app(OrderReader::class)->recent($other->id))->toBeEmpty();
 
+    expect(app(OrderReader::class)->byKey($other->id, $token))->toBeNull();
+    expect(app(OrderReader::class)->byKey($first->id, $token)?->id)->toBe($created->id);
+
     expect(fn () => app(OrderReader::class)->find($other->id, $created->id))
         ->toThrow(ValidationException::class);
     expect(fn () => app(CreatePendingOrder::class)->handle($other->id, orderQuote($other->id), $token))
