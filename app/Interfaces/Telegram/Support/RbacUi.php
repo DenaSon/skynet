@@ -39,7 +39,7 @@ final class RbacUi
         $this->menus->showRolesList($bot, $this->roles->page($actor->userId, $page));
     }
 
-    public function detail(Nutgram $bot, string $roleId, string $page = '1'): void
+    public function detail(Nutgram $bot, string $roleId, string $page = '1', string $permissionPage = '1'): void
     {
         $actor = $this->actor($bot);
 
@@ -55,7 +55,7 @@ final class RbacUi
             return;
         }
 
-        $this->menus->showRoleDetails($bot, $role, $this->roles->permissions(), $this->page($page));
+        $this->menus->showRoleDetails($bot, $role, $this->roles->permissions(), $this->page($page), $this->page($permissionPage));
     }
 
     public function createHelp(Nutgram $bot): void

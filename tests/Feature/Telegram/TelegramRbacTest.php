@@ -134,3 +134,16 @@ it('blocks protected root roles and ignores group callbacks', function (): void 
     $bot->setCommonChat(Chat::make(-1234567, ChatType::GROUP));
     $bot->hearCallbackQueryData('rbac:page:1')->reply()->assertNoReply();
 });
+
+it('navigates an expanded permission catalog without a fixed twenty-five permission ceiling', function (): void {
+    [$root, $bot] = prepareRbacBot();
+    $role = app(CreateRole::class)->handle($root, 'reseller');
+
+    foreach (range(1, 20) as $index) {
+        Permission::findOrCreate(sprintf('sample.feature.%02d', $index), 'web');
+    }
+
+    $bot->hearCallbackQueryData("rbac:p:{$role->id}:1:2")->reply()
+        ->assertCalled('answerCallbackQuery')
+        ->assertCalled('editMessageText');
+});

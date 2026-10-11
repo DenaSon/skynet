@@ -74,3 +74,7 @@ $bot->onCallbackQueryData('rbac:member:{user}:{role}:{page}', function (Nutgram 
 $bot->onCallbackQueryData('rbac:apply:{token}', function (Nutgram $bot, string $token): void {
     app(RbacUi::class)->apply($bot, $token);
 });
+
+$bot->onCallbackQueryData('rbac:p:{id}:{page}:{permissionPage}', function (Nutgram $bot, string $id, string $page, string $permissionPage): void {
+    app(RbacUi::class)->detail($bot, $id, $page, $permissionPage);
+});

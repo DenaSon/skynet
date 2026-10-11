@@ -201,7 +201,7 @@ final class MenuRenderer
     /**
      * @param  list<PermissionEntry>  $available
      */
-    public function showRoleDetails(Nutgram $bot, RoleEntry $role, array $available, int $page): void
+    public function showRoleDetails(Nutgram $bot, RoleEntry $role, array $available, int $page, int $permissionPage = 1): void
     {
         $assigned = $role->permissions === [] ? 'هیچ مجوزی' : implode('، ', $role->permissions);
         $text = "🔐 نقش: {$role->name}\n\nکاربران: {$role->userCount}\nمجوزها: {$assigned}";
@@ -210,12 +210,24 @@ final class MenuRenderer
         if ($role->protected) {
             $text .= "\n\n🔒 نقش سیستمی محافظت‌شده است و از ربات قابل تغییر نیست.";
         } else {
-            foreach (array_slice($available, 0, 25) as $permission) {
+            $permissionPages = max(1, (int) ceil(count($available) / 8));
+            $permissionPage = max(1, min($permissionPage, $permissionPages));
+            $text .= "\nصفحه مجوزها: {$permissionPage} از {$permissionPages}";
+
+            foreach (array_slice($available, ($permissionPage - 1) * 8, 8) as $permission) {
                 $on = in_array($permission->name, $role->permissions, true);
                 $keyboard->addRow(InlineKeyboardButton::make(
                     ($on ? '✅ ' : '⬜ ').$permission->name,
                     callback_data: "rbac:perm:{$role->id}:{$permission->id}",
                 ));
+            }
+
+            if ($permissionPage > 1) {
+                $keyboard->addRow(InlineKeyboardButton::make('◀️ مجوزهای قبلی', callback_data: "rbac:p:{$role->id}:{$page}:".($permissionPage - 1)));
+            }
+
+            if ($permissionPage < $permissionPages) {
+                $keyboard->addRow(InlineKeyboardButton::make('مجوزهای بعدی ▶️', callback_data: "rbac:p:{$role->id}:{$page}:".($permissionPage + 1)));
             }
         }
 
@@ -230,7 +242,7 @@ final class MenuRenderer
         $protected = in_array('super-admin', $user->roles, true);
 
         foreach ($page->roles as $role) {
-            if ($role->name === 'super-admin') {
+            if ($protected || $role->name === 'super-admin') {
                 continue;
             }
 

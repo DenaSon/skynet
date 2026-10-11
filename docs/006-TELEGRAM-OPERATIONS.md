@@ -72,7 +72,7 @@ For eligible accounts, tap **فعال‌کردن / غیرفعال‌کردن** a
 **Operations:** Database-backed Laravel Cache and its lock table are required for short-lived confirmations. Set up the scheduler separately for other Telegram tasks. As with all bots, this is NOT proof of a deployed bot; use a real private chat only after your webhook/polling and operator binding have been configured. F06-C role management remains deferred.
 
 ## F06-C role management
-A **trusted** Super Admin opens `/admin` → **🔐 نقش‌ها و دسترسی‌ها** (or `/roles`) in private chat. Roles are paginated; tapping a role shows current permissions and user count. System roles (`member`, `admin`, `super-admin`) are locked for permission edits. On custom roles, each registered permission can be toggled after a one-time confirmation. Only permission names actually defined/enforced in the backend can be assigned; no UI-defined privileges.
+A **trusted** Super Admin opens `/admin` → **🔐 نقش‌ها و دسترسی‌ها** (or `/roles`) in private chat. Roles are paginated; tapping a role shows current permissions and user count. The registered permission catalog is paginated, eight per screen, with previous/next callbacks. System roles (`member`, `admin`, `super-admin`) are locked for permission edits. On custom roles, each registered permission can be toggled after a one-time confirmation. Only permission names actually defined/enforced in the backend can be assigned; no UI-defined privileges.
 
 To create a role, tap **➕ نقش جدید** and send `/newrole reseller` (3–50 ASCII slug characters). The role is created without permissions after confirmation; then assign the desired permissions from its screen.
 
