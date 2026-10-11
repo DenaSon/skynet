@@ -91,3 +91,9 @@ Use descriptive conventional commits (e.g., `chore:`, `docs:`, `feat:`, `test:`)
 - Volume integer 1–100 GB, four configured duration options 15/30/60/90 days; inactive product/rate cannot be quoted.
 - No float, price mutation by buyers, wallet creation/credit/debit or provider HTTP traffic as a side effect of `CalculateQuote`.
 - Future F09-C must re-price and snapshot server-side on order confirmation (quotes are informational and **not locked**).
+
+## F09-B Telegram presentation
+- Prices shown from the first shop screen are produced by `CalculateQuote` (not hardcoded). When only one product exists show duration+price directly, otherwise bounded product pages.
+- Explicit custom-volume opt-in, 10-minute actor-bound cache state; do not accept standalone text as pricing or order authority. Parse Persian/Arabic numerals and enforce F09-A integer GB bounds.
+- Any old/forged inline selection must reauthorize the linked active identity, product, duration and GB limit from DB; role-based discount is re-evaluated for every preview.
+- In F09-B never expose a functional buy/pay button, create an order, debit Billing, or call Remnawave. F09-C will own order state and immutable quote snapshot.

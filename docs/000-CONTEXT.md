@@ -1,7 +1,7 @@
 # SkyNet — Current Context
 
 **Reviewed:** 2026-10-11  
-**Stage:** F09-A Product Catalog & Pricing implemented and CI-verified (PR #15; PHP 8.4/8.5 green). F09-B/C not implemented.  
+**Stage:** F09-B Telegram Subscription Builder implemented in `feature/09b-telegram-subscription-builder` (CI/merge pending); F09-C orders not implemented.  
 **Behavioral truth:** repository code and tests, not aspirational plans.
 
 ## Product direction
@@ -66,10 +66,18 @@ SkyNet is a Laravel successor to Python NVL. **Telegram-first** is the accepted 
 - Rates are **not seeded** with fictional values. Terminal-only `sales:product:set` and `sales:rate:set` commands let an operator configure the product and tariffs. Catalog and quote reject inactive users, disabled products/rates, illegal volumes/durations and invalid prices.
 - F09-A is backend-only. No Telegram purchase menu, order row, wallet debit or Remnawave call exists; F09-B will consume quotes to display entry-menu prices, F09-C will persist an immutable order-price snapshot.
 
+## F09-B Telegram Subscription Builder (CI pending)
+- Active linked customers/representatives see **🛒 خرید اشتراک** on Telegram home, or use `/buy`. If only one active product exists, the first buying screen lists allowed durations with **real calculated minimum-volume prices**. Multiple products present a paginated product selector with starting prices.
+- A duration opens current prices for valid preset volumes plus boundaries and a **✏️ حجم دلخواه** option. Custom integer GB can be entered as ordinary chat text, including Persian/Arabic digits, only after explicit selection, in a 10-minute per-account pending context.
+- A read-only preview shows public price, reseller discount when applicable and final price, all recalculated server-side through F09-A Sales Actions; none of the callback values is an authoritative price. Telegram UI rounds fractional tomans **upwards** for display (actual rial price remains exact).
+- Disabled users, forged callbacks, expired custom contexts, disabled rates/products and unauthorized group chats are rejected. No order, payment, wallet mutation or Remnawave provision occurs.
+
 ## Not implemented
 Full administration workflows (user creation), customer business operations, web self-registration, password reset, Livewire, Mini App, public REST API, server actions, SSH, network topology, long-running queues. Basic bot updates are processed synchronously; future heavy operations must be dispatched to durable jobs.
 
 ## Validation
+**F09-B:** Await PHP 8.4/8.5 CI. No real BotFather E2E in this increment.
+
 **F09-A passed:** GitHub Actions run **38104681637** on PHP 8.4 and 8.5: **115 Pest tests / 557 assertions**, Larastan 0 errors, Pint clean (149 files). No live Telegram, payment or provider E2E.
 
 **F08 passed:** GitHub Actions run **38102895313** on PHP 8.4 and 8.5: **106 Pest tests / 494 assertions**, Larastan 0 errors, Pint clean. Tests do **not** verify real money, actual bank transfers or BotFather E2E.

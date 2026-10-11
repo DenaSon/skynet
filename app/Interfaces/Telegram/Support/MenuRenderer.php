@@ -32,6 +32,7 @@ final class MenuRenderer
         }
 
         $keyboard = InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('🛒 خرید اشتراک', callback_data: 'menu:shop'))
             ->addRow(InlineKeyboardButton::make('👤 حساب من', callback_data: 'menu:account'))
             ->addRow(InlineKeyboardButton::make('⚙️ تنظیمات', callback_data: 'menu:settings'))
             ->addRow(InlineKeyboardButton::make('🎁 دعوت دوستان', callback_data: 'menu:invite'));

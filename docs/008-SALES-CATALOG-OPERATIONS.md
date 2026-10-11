@@ -1,6 +1,6 @@
 # F09-A — Product Catalog & Pricing Operations
 
-**Scope:** Back-end operator configuration + read-only catalog/quotes. **No Telegram buy button/order/charge/Remnawave integration yet.**
+**Scope:** F09-A operator catalog and quotes, plus F09-B read-only Telegram buying preview. **No order/charge/Remnawave integration yet.**
 
 ## Configure product and rates
 
@@ -37,4 +37,4 @@ Re-running without `--inactive` reactivates. Disabling one rate hides it from cu
 
 ## Release verification
 
-Run `php artisan test`, `vendor/bin/phpstan analyse --no-progress` and `vendor/bin/pint --test`. Verify direct and reseller quote calculations with actual tariffs and bounds 1/100 GB before implementing the F09-B Telegram menu. Real Telegram purchase and real provider E2E are not performed in F09-A.
+Run `php artisan test`, `vendor/bin/phpstan analyse --no-progress` and `vendor/bin/pint --test`. Verify public and reseller pricing on the first Telegram buying screen, valid volumes including custom inputs, disabled rates and private-chat access. **F09-B is a read-only preview**; real Telegram/payment/provider E2E and order creation are not performed yet.

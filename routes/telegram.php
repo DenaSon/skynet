@@ -11,6 +11,7 @@ use App\Interfaces\Telegram\Handlers\SettingsHandler;
 use App\Interfaces\Telegram\Handlers\StartHandler;
 use App\Interfaces\Telegram\Support\BillingUi;
 use App\Interfaces\Telegram\Support\RbacUi;
+use App\Interfaces\Telegram\Support\ShopUi;
 use App\Interfaces\Telegram\Support\UserManagementUi;
 use SergiX44\Nutgram\Nutgram;
 
@@ -20,6 +21,9 @@ $bot->onCommand('start', StartHandler::class);
 $bot->onCommand('menu', StartHandler::class);
 $bot->onCommand('account', AccountHandler::class);
 $bot->onCommand('invite', InviteHandler::class);
+$bot->onCommand('buy', function (Nutgram $bot): void {
+    app(ShopUi::class)->open($bot);
+});
 $bot->onCommand('wallet', function (Nutgram $bot): void {
     app(BillingUi::class)->wallet($bot);
 });
@@ -111,4 +115,29 @@ $bot->onCallbackQueryData('rbac:apply:{token}', function (Nutgram $bot, string $
 
 $bot->onCallbackQueryData('rbac:p:{id}:{page}:{permissionPage}', function (Nutgram $bot, string $id, string $page, string $permissionPage): void {
     app(RbacUi::class)->detail($bot, $id, $page, $permissionPage);
+});
+
+$bot->onCallbackQueryData('menu:shop', function (Nutgram $bot): void {
+    app(ShopUi::class)->open($bot);
+});
+$bot->onCallbackQueryData('shop:catalog:{page}', function (Nutgram $bot, string $page): void {
+    app(ShopUi::class)->open($bot, (int) $page);
+});
+$bot->onCallbackQueryData('shop:product:{id}', function (Nutgram $bot, string $id): void {
+    app(ShopUi::class)->duration($bot, $id);
+});
+$bot->onCallbackQueryData('shop:volume:{id}:{days}', function (Nutgram $bot, string $id, string $days): void {
+    app(ShopUi::class)->volume($bot, $id, $days);
+});
+$bot->onCallbackQueryData('shop:custom:{id}:{days}', function (Nutgram $bot, string $id, string $days): void {
+    app(ShopUi::class)->custom($bot, $id, $days);
+});
+$bot->onCallbackQueryData('shop:quote:{id}:{days}:{gb}', function (Nutgram $bot, string $id, string $days, string $gb): void {
+    app(ShopUi::class)->quote($bot, $id, $days, $gb);
+});
+
+// Last-resort text matcher: it only responds if the active user previously
+// selected "custom volume" in a private chat. Commands remain higher priority.
+$bot->onText('{volume}', function (Nutgram $bot, string $volume): void {
+    app(ShopUi::class)->customText($bot, $volume);
 });
