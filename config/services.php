@@ -32,6 +32,7 @@ return [
         'url' => env('REMNAWAVE_PANEL_URL'),
         'token' => env('REMNAWAVE_API_TOKEN'),
         'timeout' => (int) env('REMNAWAVE_TIMEOUT', 15),
+        'writes_enabled' => (bool) env('REMNAWAVE_WRITES_ENABLED', false),
     ],
 
     'slack' => [
