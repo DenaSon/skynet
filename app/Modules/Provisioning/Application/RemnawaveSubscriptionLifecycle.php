@@ -131,8 +131,19 @@ final class RemnawaveSubscriptionLifecycle
             throw new RuntimeException('No uncertain create to reconcile.');
         }
 
+        $expected = json_decode((string) $op->expected_payload, true, 512, JSON_THROW_ON_ERROR);
+
+        if (! is_array($expected)) {
+            throw new RuntimeException('Invalid persisted provisioning operation.');
+        }
+
         $remote = $this->api()->byUsername(self::username($reference));
         $this->assertIdentity($remote, $reference);
+        $this->assertExpected($remote, [
+            'trafficLimitBytes' => $expected['trafficLimitBytes'] ?? null,
+            'expireAt' => $expected['expireAt'] ?? null,
+            'status' => $expected['status'] ?? null,
+        ]);
 
         return $this->complete($reference, $idempotencyKey, $remote);
     }
