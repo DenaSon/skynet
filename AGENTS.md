@@ -85,3 +85,13 @@ See `docs/004-STANDARDS.md` for coding and documentation conventions.
 - Accept global 1–100 **integer** GB and durations 15/30/60/90 only. Price in bounded integer rials: base + (GB × per-GB); 5% off the **same** rate for active reseller role (0% setting permitted).
 - Never seed fake selling prices; configure via operator-only Artisan, no unauthenticated HTTP/Telegram price mutations. Recalculate & snapshot upon F09-C order creation.
 - Remnawave is the selected future F10 Provider; do not put API fields, server identifiers or node settings into F09 catalog tables.
+
+## F09-B UI scope
+- Keep ShopUi thin: consume F09-A Catalog/Quote Actions, no Eloquent imports, no mutable price logic or Sales DB writes in Telegram.
+- Show real calculated price on the **first buying screen**, plus each preset volume and custom preview. Validate the actor/product/rate/volume live even for forged or stale callbacks.
+- Pending custom volume is a ten-minute, private-chat, per-user UX context only, never a quote lock. Sanitize plaintext, normalize Persian/Arabic numerals, and never create orders or charge wallets in F09-B.
+
+## F09-C orders and recheck
+- Order creation is a Sales Application Action, not a Telegram Eloquent write. Use the buyer-bound opaque checkout token only as a pointer to the immutable quote presented; re-price with `CalculateQuote` under a transaction and reject stale prices or changed permissions.
+- Store a DB-unique idempotency key per order; double-click/retry returns the same buyer-owned order, never a second charge or second order. No order row is proof of payment.
+- Orders start `pending_payment`, with immutable public/discount/final amounts and volume/duration snapshot. Never call Billing or Remnawave in F09-C. Read owner-scoped only; tests must cover cross-user access and old callback replays.

@@ -16,8 +16,8 @@ All statuses reflect **code in the repository**, not intentions.
 | F07 — Onboarding & Referral | Opt-in private Telegram registration, member-only accounts, unique invitations, single-shot attribution, invitation counts | Implemented (PR #12; 95 tests/426 assertions CI green); real E2E pending |
 | F08 — Billing/Wallet | Non-withdrawable reseller wallets, manual bank-transfer topups, two-posting ledger, root review, idempotency, Telegram operations | Completed on master (PR #13 merged; 106 tests / 494 assertions, PHP 8.4/8.5 CI green); live bank E2E pending |
 | F09-A — Product Catalog & Pricing | Product limits 1–100 GB, 15/30/60/90-day tariffs, direct/reseller quotes (5%), terminal admin setup | Implemented and verified (PR #15; 115 tests / 557 assertions, PHP 8.4/8.5 CI green) |
-| F09-B — Telegram Subscription Builder | Duration menu prices from 1 GB, volume presets/custom input, quote preview; no purchase | Planned |
-| F09-C — Orders | Recheck quote server-side, save price snapshot, idempotent pending-payment orders | Planned |
+| F09-B — Telegram Subscription Builder | Price shown on first buying screen, duration/volume options, custom integer input, read-only quote preview | Verified in PR #16 (135 tests / 660 assertions, PHP 8.4/8.5) |
+| F09-C — Orders | Server-side fresh-quote validation, immutable order price snapshot, buyer-bound idempotent pending-payment orders, `/orders` history | Verified in PR #16 (135 tests / 660 assertions, PHP 8.4/8.5) |
 | F10 — Remnawave Provisioning | First provider API, provisioning and activation (no Marzban dependency) | Planned after E2E |
 | F11 — Telegram Sales | Direct and reseller flows over shared order/provisioning | Planned after E2E |
 | Later — Web UI | Livewire 4 + Mary UI consuming the same Actions | Deferred |
@@ -97,3 +97,19 @@ All networking: WireGuard vs Outline or other transports; Core/Edge; node/agent 
 - Disabled products/rates cannot be quoted. Product rate edits affect future quotes; F09-C is responsible for immutable order snapshots.
 - No orders, payments, wallet debit, provider API, Telegram purchase flow or subscription activation in F09-A.
 - Run Pest, Larastan and Pint on PHP 8.4/8.5 before PR merge.
+
+## F09-B acceptance criteria
+- Logged-in active private-chat customer can open buying flow from Home or /buy. An empty catalog clearly shows unavailable rather than fake prices.
+- When one product is active, buying opens directly to durations with **real** computed minimum-volume prices (1 GB globally, or narrower product minimum). Multiple products display safe paginated selection with starting prices.
+- Valid duration shows preset volumes (1/10/30/50/100 where allowed, plus exact min/max), **each with current price**. A special button accepts integer custom 1–100 GB (or narrower bounds), including ASCII/Persian/Arabic digits, after a 10-minute per-actor opt-in.
+- Quote preview shows actual public price, 5% role-based reseller discount where applicable and final price; re-evaluates price and role server-side. Fractional tomans round *up only for display*.
+- Unauthorized, forged, inactive, expired or now-disabled selections cannot access sensitive data, mutate wallet or persist orders.
+- No buy confirmation button, payment, orders, Remnawave API or migrations/new dependencies in F09-B. CI + live E2E acceptance are distinct.
+
+## F09-C acceptance criteria
+- A customer sees price before making an order; the explicit confirm button is bound to the user and a ten-minute preview and cannot be forged or used by another account.
+- An order is only created if the active identity, product, duration, volume, public price and role-dependent discount are still valid and **exactly match the preview**; stale quotes require a new preview.
+- A successful callback stores one price snapshot and `pending_payment` order; database-unique idempotency key prevents two orders on retry. A retry returns the same order even if the catalog rate later changes.
+- Customer sees only their own orders (latest ten and individual detail). Snapshot never silently changes after operator modifies catalog prices.
+- F09-C adds no balance debit, wallet reservation, payment confirmation, bank integration, subscriptions, Remnawave API or server/network code. Any future paid order transition must be implemented and verified separately.
+- Tests cover ownership, duplicated callback, token expiry, stale quotes, role revocation, inactive buyer and zero Billing postings.

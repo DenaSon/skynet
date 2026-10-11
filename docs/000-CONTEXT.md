@@ -1,7 +1,7 @@
 # SkyNet — Current Context
 
 **Reviewed:** 2026-10-11  
-**Stage:** F09-A Product Catalog & Pricing implemented and CI-verified (PR #15; PHP 8.4/8.5 green). F09-B/C not implemented.  
+**Stage:** F09-B/C Telegram Subscription Builder & Pending Orders implemented and CI-verified (PR #16, 135 tests/660 assertions on PHP 8.4/8.5). Production Telegram/payment/provider E2E pending.  
 **Behavioral truth:** repository code and tests, not aspirational plans.
 
 ## Product direction
@@ -66,10 +66,26 @@ SkyNet is a Laravel successor to Python NVL. **Telegram-first** is the accepted 
 - Rates are **not seeded** with fictional values. Terminal-only `sales:product:set` and `sales:rate:set` commands let an operator configure the product and tariffs. Catalog and quote reject inactive users, disabled products/rates, illegal volumes/durations and invalid prices.
 - F09-A is backend-only. No Telegram purchase menu, order row, wallet debit or Remnawave call exists; F09-B will consume quotes to display entry-menu prices, F09-C will persist an immutable order-price snapshot.
 
+## F09-B Telegram Subscription Builder (CI pending)
+- Active linked customers/representatives see **🛒 خرید اشتراک** on Telegram home, or use `/buy`. If only one active product exists, the first buying screen lists allowed durations with **real calculated minimum-volume prices**. Multiple products present a paginated product selector with starting prices.
+- A duration opens current prices for valid preset volumes plus boundaries and a **✏️ حجم دلخواه** option. Custom integer GB can be entered as ordinary chat text, including Persian/Arabic digits, only after explicit selection, in a 10-minute per-account pending context.
+- A read-only preview shows public price, reseller discount when applicable and final price, all recalculated server-side through F09-A Sales Actions; none of the callback values is an authoritative price. Telegram UI rounds fractional tomans **upwards** for display (actual rial price remains exact).
+- Disabled users, forged callbacks, expired custom contexts, disabled rates/products and unauthorized group chats are rejected. No order, payment, wallet mutation or Remnawave provision occurs.
+
+## F09-C pending-payment Orders (PR #16, CI green)
+- `sales_orders` stores an immutable-at-application, buyer-owned per-subscription snapshot of product name/slug, duration, volume, public price, discount, and final integer-rial price. All newly created orders have status `pending_payment` only.
+- Telegram price preview now offers explicit **ثبت سفارش**. It issues a short-lived, unguessable checkout token bound to the actual linked buyer and server-computed quote. On click, the `CreatePendingOrder` Sales Action re-authorizes and recalculates current pricing; rate/role/product changes require a new preview, with no order created.
+- Idempotency keys are unique in the database; replaying a successful callback returns the same order even if a catalog tariff changed later. `OrderReader` restricts individual order lookups and the latest ten orders to their owner. Home now exposes **سفارش‌های من** and `/orders`.
+- No payment capture, wallet debit/hold, automatic fulfillment, Remnawave connectivity or subscriptions issued at this stage.
+
 ## Not implemented
 Full administration workflows (user creation), customer business operations, web self-registration, password reset, Livewire, Mini App, public REST API, server actions, SSH, network topology, long-running queues. Basic bot updates are processed synchronously; future heavy operations must be dispatched to durable jobs.
 
 ## Validation
+**F09-B/C passed:** GitHub Actions run **38105982226**, PHP 8.4 and 8.5: **135 Pest tests / 660 assertions**, Larastan 0 errors, Pint 158 files clean. No actual Telegram/payment/Remnawave E2E performed.
+
+**F09-B:** Verified alongside F09-C in PR #16.
+
 **F09-A passed:** GitHub Actions run **38104681637** on PHP 8.4 and 8.5: **115 Pest tests / 557 assertions**, Larastan 0 errors, Pint clean (149 files). No live Telegram, payment or provider E2E.
 
 **F08 passed:** GitHub Actions run **38102895313** on PHP 8.4 and 8.5: **106 Pest tests / 494 assertions**, Larastan 0 errors, Pint clean. Tests do **not** verify real money, actual bank transfers or BotFather E2E.

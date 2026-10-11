@@ -90,3 +90,11 @@ Set `BILLING_TOPUPS_ENABLED=true` only after migration, real BotFather and bank 
 
 ## F09-A — Sales Catalog & Pricing
 This increment provides **read-only** `ListProducts` and `CalculateQuote` Application Actions (not Telegram menus/orders yet). A product supports volumes from 1 to 100 GB and duration rates for 15, 30, 60 and 90 days. The same public base + per-GB tariff applies to everybody; active `reseller` users receive 5% off in integer-rial arithmetic (the code setting may be reduced to 0%). No guessed real prices are seeded. Terminal-only Artisan commands configure products and tariffs. Example setup and E2E checks are documented in [Sales catalog operations](docs/008-SALES-CATALOG-OPERATIONS.md). F09-B will surface these quotes from the initial Telegram menu. F09-C orders, F10 Remnawave provisioning and F11 payment remain deferred.
+
+## F09-B — Telegram price preview
+`/buy` (or **🛒 خرید اشتراک** on the Home screen) shows current duration options with **prices from the first buying page**. Select a duration, choose a preset volume or tap **✏️ حجم دلخواه** and send an integer GB amount (English/Persian/Arabic numerals). A temporary 10-minute per-account selection limits free-text volume input. The preview recalculates the real public rate and any 5% reseller discount with no purchase/order/payment/provisioning. Catalog prices must be configured first using `sales:product:set` and `sales:rate:set`. See [operations](docs/008-SALES-CATALOG-OPERATIONS.md).
+
+## F09-C — Pending-payment orders
+After a price preview, **✅ ثبت سفارش** atomically creates one buyer-owned `pending_payment` order **only if the price and role still match current server catalog data**. The ephemeral 10-minute buyer-bound checkout reference and unique DB key make retries idempotent. Home **📋 سفارش‌های من** and `/orders` list the account's last ten orders; individual order details retain original price even if the operator updates tariffs later. No payment, wallet debit, balance reservation or Remnawave provisioning occurs in F09-C.
+
+**F09 completion:** B and C are tested together in PR #16: 135 passing Pest tests / 660 assertions on PHP 8.4 and 8.5 with Larastan and Pint green. This is code/fake transport verification, **not** real Telegram payment or Remnawave activation.
