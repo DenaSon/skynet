@@ -75,7 +75,7 @@ final readonly class RemnawaveUsersApi
     /**
      * Changes only explicitly permitted user fields; always identifies by numeric user ID.
      *
-     * @param array<string, mixed> $fields
+     * @param  array<string, mixed>  $fields
      */
     public function update(int $id, array $fields): RemnawaveUserSnapshot
     {
@@ -206,8 +206,8 @@ final readonly class RemnawaveUsersApi
     }
 
     /** @param array<string, int|string> $path
-     * @param array<string, mixed> $query
-     * @param array<string, mixed>|null $body
+     * @param  array<string, mixed>  $query
+     * @param  array<string, mixed>|null  $body
      */
     private function user(string $operation, array $path = [], array $query = [], ?array $body = null): RemnawaveUserSnapshot
     {
@@ -215,9 +215,9 @@ final readonly class RemnawaveUsersApi
     }
 
     /**
-     * @param array<string, int|string> $path
-     * @param array<string, mixed> $query
-     * @param array<string, mixed>|null $body
+     * @param  array<string, int|string>  $path
+     * @param  array<string, mixed>  $query
+     * @param  array<string, mixed>|null  $body
      * @return array<string, mixed>
      */
     private function object(string $operation, array $path = [], array $query = [], ?array $body = null): array
