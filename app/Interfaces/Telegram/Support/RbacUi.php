@@ -6,9 +6,9 @@ use App\Modules\Identity\Application\BrowseUsers;
 use App\Modules\Identity\Application\CreateRole;
 use App\Modules\Identity\Application\ManageRoles;
 use App\Modules\Identity\Application\ResolveTelegramActor;
+use App\Modules\Identity\Application\TelegramActor;
 use App\Modules\Identity\Application\ToggleMemberRole;
 use App\Modules\Identity\Application\ToggleRolePermission;
-use App\Modules\Identity\Application\TelegramActor;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Validation\ValidationException;
@@ -26,8 +26,7 @@ final class RbacUi
         private readonly ToggleMemberRole $changeMember,
         private readonly RbacConfirmations $confirmations,
         private readonly MenuRenderer $menus,
-    ) {
-    }
+    ) {}
 
     public function browse(Nutgram $bot, int $page = 1): void
     {
