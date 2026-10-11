@@ -56,3 +56,8 @@ See `docs/004-STANDARDS.md` for coding and documentation conventions.
 - Admin and role navigation are authorization-gated even when stale/forged callback data is received.
 - Settings, Users and Roles screens in F06-A are explicitly read-only placeholders, not implementations of future domain features.
 - Do not add a generic settings table, referral model, privileged enrollment or server command to F06-A.
+
+## F06-B Telegram management
+- Keep user list/detail/search/active-state business rules inside Identity Application Actions; Telegram only renders and handles short-lived confirmation UX.
+- Do not weaken Super Admin, peer-admin or self-deactivation protections from F05. Audit mutations, require fresh permissions and reject stale requested state.
+- Reuse `BrowseUsers` / `ChangeUserStatus` for future Livewire; no new public REST endpoint or generic framework.

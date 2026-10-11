@@ -54,3 +54,8 @@ The old UserRole enum/column is migrated to Spatie `roles`, `permissions`, `mode
 The Telegram adapter adds `SettingsHandler`, `AdminUsersHandler`, `AdminRolesHandler` and explicit command/callback registrations. `MenuRenderer` owns text and inline keyboard navigation, including Home, Account, Settings, Administration, and **preview-only** Users/Roles pages. Nothing is persisted by these new pages.
 
 `ResolveTelegramActor` returns an immutable Identity Application DTO with fresh roles and `manageRoles` entitlement. The latter is available only to a trusted, allowlisted and linked Super Admin. Access is checked on **every** callback, not just while generating the keyboard. The adapter neither reads Identity models nor grants privileged roles. Later F06-B/C handlers can replace previews with actual authorized application operations.
+
+## F06-B — User directory and status use cases
+`Identity/Application/BrowseUsers` provides paginated, authorized, limited search and detail DTOs (`UserDirectoryEntry`, `UserDirectoryPage`), without exposing Eloquent models to the Telegram adapter. `ChangeUserStatus` atomically validates expected state and delegates to `UpdateUserAccess`; this preserves F05 RBAC restrictions and audit logging. The adapter owns only presentation and temporary operator-bound confirmation tokens (`UserStatusConfirmations` using Laravel Cache locks).
+
+The first real Telegram management feature is user **view/search/enable/disable**. The UI intentionally does not create users, change roles, expose passwords or alter protected Super Admins; RBAC mutation remains F06-C. The view/read use cases are reusable from future Livewire components without an HTTP API.

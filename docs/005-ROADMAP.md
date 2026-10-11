@@ -11,7 +11,7 @@ All statuses reflect **code in the repository**, not intentions.
 | F4 — Telegram Foundation | Nutgram, secure webhook, deduplication, private account linking, inline menus | Completed (PR #4; 40 tests, CI PHP 8.4/8.5) |
 | F5 — Identity RBAC | Dynamic roles/permissions, guarded Super Admin enrollment, role migration, audit and tests | Completed (PR #5, PHP 8.4/8.5 CI green; 52 tests) |
 | F06-A — Telegram Navigation | Home, account, settings, admin/read-only submenus, keyboard routing and role gating | Completed on `master` (PR #6; 58 tests, PHP 8.4/8.5 CI green) |
-| F06-B — Telegram Users | Search, list, profile and guarded state updates | Planned |
+| F06-B — Telegram Users | Search, list, profile, one-time confirmed state updates through Identity Actions | In PR branch; CI/merge pending |
 | F06-C — Telegram RBAC | Custom role/permission workflows via Identity actions | Planned |
 | Later — Web UI | Livewire 4 + Mary UI consuming the same Actions | Deferred |
 | Later — Product Domains | Define network/server/business capabilities based on use cases | Undecided |
@@ -47,3 +47,11 @@ All networking: WireGuard vs Outline or other transports; Core/Edge; node/agent 
 - Role previews are available only to trusted Super Admins; user-management previews to authorized admins.
 - Unauthorized/stale callback queries cannot expose protected pages.
 - Pest, Larastan and Pint are green on PHP 8.4 and 8.5; no migration or new dependency.
+
+## F06-B acceptance criteria
+- Existing /users and admin inline link open a real server-side paginated list (six per page) with stable ordering.
+- Search by internal ID, email or a single name fragment, with short-lived per-actor search state and no public registration.
+- Details show roles, active state and Telegram binding flag (never credentials or raw Telegram IDs).
+- Status changes require a 3-minute single-use actor-bound confirmation; stale requests, disabled actors, peer-admin edits, self-deactivation and Super Admin mutations are rejected by the shared Identity Action.
+- Every successful status mutation is written to the existing Identity audit log; no extra package or migration.
+- Nutgram fake tests, Identity tests, Larastan and Pint pass on PHP 8.4 and 8.5 before merge.
