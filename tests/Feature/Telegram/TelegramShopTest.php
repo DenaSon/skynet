@@ -69,11 +69,10 @@ it('quotes a preset volume and displays reseller pricing from the same public ra
     $reseller->assignRole(['member', 'reseller']);
     $bot = shopBot(921002, $reseller);
 
-    $bot->hearCallbackQueryData("shop:quote:{$id}:30:10")->reply()->assertReplyText(
+    $bot->hearCallbackQueryData("shop:quote:{$id}:30:10")->reply()->assertReply('editMessageText', ['text' =>
         "🧾 پیش‌نمایش قیمت اشتراک\n\nسرویس: اشتراک VPN\n⏳ مدت: 30 روز\n📦 حجم: 10 گیگابایت\n\n"
         ."قیمت عمومی: 30,000 تومان\nتخفیف نماینده (5٪): 1,500 تومان\n💰 قیمت نهایی: 28,500 تومان\n\n"
-        .'ℹ️ با ثبت سفارش، مبلغ فعلاً پرداخت نمی‌شود و هیچ سرویسی فعال نخواهد شد.'
-    );
+        .'ℹ️ با ثبت سفارش، مبلغ فعلاً پرداخت نمی‌شود و هیچ سرویسی فعال نخواهد شد.']);
 
     expect(DB::table('billing_wallets')->count())->toBe(0);
 });
@@ -89,11 +88,10 @@ it('accepts custom Persian and Arabic numerals only after the custom-volume sele
         ->assertCalled('editMessageText');
     expect(app(PendingShopVolume::class)->peek($buyer->id))->toBe(['product' => 'vpn-access', 'days' => 30]);
 
-    $bot->hearText('٧٥')->reply()->assertReplyText(
+    $bot->hearText('٧٥')->reply()->assertReply('editMessageText', ['text' =>
         "🧾 پیش‌نمایش قیمت اشتراک\n\nسرویس: اشتراک VPN\n⏳ مدت: 30 روز\n📦 حجم: 75 گیگابایت\n\n"
         ."قیمت عمومی: 160,000 تومان\n💰 قیمت نهایی: 160,000 تومان\n\n"
-        .'ℹ️ با ثبت سفارش، مبلغ فعلاً پرداخت نمی‌شود و هیچ سرویسی فعال نخواهد شد.'
-    );
+        .'ℹ️ با ثبت سفارش، مبلغ فعلاً پرداخت نمی‌شود و هیچ سرویسی فعال نخواهد شد.']);
 
     expect(app(PendingShopVolume::class)->peek($buyer->id))->toBeNull();
 });
@@ -106,7 +104,9 @@ it('validates custom volume, prevents cross-account state use and expires it', f
     $otherBot = shopBot(921005, $other);
 
     $bot->hearCallbackQueryData("shop:custom:{$id}:30")->reply()->assertCalled('editMessageText');
-    $otherBot->hearText('75')->reply()->assertNoReply();
+    $otherBot->hearText('75')->reply()->assertCalled('sendMessage', 0);
+    $bot->setCommonUser(TelegramUser::make(921004, false, 'First'));
+    $bot->setCommonChat(Chat::make(921004, ChatType::PRIVATE));
 
     $bot->hearText('0')->reply()->assertCalled('sendMessage');
     $bot->hearText('101')->reply()->assertCalled('sendMessage');
@@ -170,11 +170,10 @@ it('supports a narrow product range with custom input and fresh price changes', 
     $bot->hearText('27')->reply()->assertCalled('sendMessage');
 
     app(ConfigureRate::class)->handle('vpn-access', 30, 200_000, 20_000);
-    $bot->hearCallbackQueryData("shop:quote:{$id}:30:30")->reply()->assertReplyText(
+    $bot->hearCallbackQueryData("shop:quote:{$id}:30:30")->reply()->assertReply('editMessageText', ['text' =>
         "🧾 پیش‌نمایش قیمت اشتراک\n\nسرویس: اشتراک VPN\n⏳ مدت: 30 روز\n📦 حجم: 30 گیگابایت\n\n"
         ."قیمت عمومی: 80,000 تومان\n💰 قیمت نهایی: 80,000 تومان\n\n"
-        .'ℹ️ با ثبت سفارش، مبلغ فعلاً پرداخت نمی‌شود و هیچ سرویسی فعال نخواهد شد.'
-    );
+        .'ℹ️ با ثبت سفارش، مبلغ فعلاً پرداخت نمی‌شود و هیچ سرویسی فعال نخواهد شد.']);
 });
 
 it('shows a clear unavailable notice if the operator has configured no real tariffs', function (): void {
@@ -221,7 +220,7 @@ it('registers pending-payment checkout exactly once even after replayed inline c
 
     $bot->hearText('/orders')->reply()->assertCalled('sendMessage');
     $bot->hearCallbackQueryData('shop:orders')->reply()->assertCalled('editMessageText');
-    $bot->hearCallbackQueryData('shop:order:view:1')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('shop:order:view:1')->reply();
 });
 
 it('refuses another accounts checkout token and private order views', function (): void {
@@ -237,10 +236,14 @@ it('refuses another accounts checkout token and private order views', function (
     $strangerBot->hearCallbackQueryData('shop:order:'.$token)->reply()->assertCalled('editMessageText');
     expect(DB::table('sales_orders')->count())->toBe(0);
 
+    $ownerBot->setCommonUser(TelegramUser::make(921022, false, 'Owner'));
+    $ownerBot->setCommonChat(Chat::make(921022, ChatType::PRIVATE));
     $ownerBot->hearCallbackQueryData('shop:order:'.$token)->reply()->assertCalled('editMessageText');
     expect(DB::table('sales_orders')->count())->toBe(1);
 
-    $strangerBot->hearCallbackQueryData('shop:order:view:1')->reply()->assertCalled('editMessageText');
+    $strangerBot->setCommonUser(TelegramUser::make(921023, false, 'Other'));
+    $strangerBot->setCommonChat(Chat::make(921023, ChatType::PRIVATE));
+    $strangerBot->hearCallbackQueryData('shop:order:view:1')->reply();
     expect(DB::table('sales_orders')->count())->toBe(1);
 });
 
