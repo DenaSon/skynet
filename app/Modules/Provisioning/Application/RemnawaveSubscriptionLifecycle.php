@@ -54,6 +54,11 @@ final class RemnawaveSubscriptionLifecycle
         try {
             $remote = $this->api()->create($data);
             $this->assertIdentity($remote, $reference);
+            $this->assertExpected($remote, [
+                'expireAt' => $expireAt,
+                'trafficLimitBytes' => $trafficLimitBytes,
+                'status' => 'ACTIVE',
+            ]);
 
             return $this->complete($reference, $idempotencyKey, $remote);
         } catch (Throwable $e) {
@@ -173,13 +178,22 @@ final class RemnawaveSubscriptionLifecycle
             $matches = match ($key) {
                 'trafficLimitBytes' => $remote->trafficLimitBytes === $value,
                 'status' => $remote->status === $value,
-                'expireAt' => $remote->expireAt === $value,
+                'expireAt' => is_string($value) && $this->sameInstant($remote->expireAt, $value),
                 default => false,
             };
 
             if (! $matches) {
                 throw new RuntimeException('Remote provisioning result differs; manual operator review is required.');
             }
+        }
+    }
+
+    private function sameInstant(string $actual, string $expected): bool
+    {
+        try {
+            return (new \DateTimeImmutable($actual))->getTimestamp() === (new \DateTimeImmutable($expected))->getTimestamp();
+        } catch (\Exception) {
+            return false;
         }
     }
 
