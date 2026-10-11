@@ -36,7 +36,7 @@ Artisan::command('sales:product:set {slug} {name} {--min-gb=1} {--max-gb=100} {-
             (string) $this->argument('name'),
             (int) $min,
             (int) $max,
-            !(bool) $this->option('inactive'),
+            $this->option('inactive') === false,
         );
     } catch (ValidationException $exception) {
         $this->error(implode('; ', $exception->validator->errors()->all()));
@@ -70,7 +70,7 @@ Artisan::command('sales:rate:set {slug} {days} {base_toman} {per_gb_toman} {--in
             (int) $parts[0],
             (int) $parts[1] * 10,
             (int) $parts[2] * 10,
-            !(bool) $this->option('inactive'),
+            $this->option('inactive') === false,
         );
     } catch (ValidationException $exception) {
         $this->error(implode('; ', $exception->validator->errors()->all()));
