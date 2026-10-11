@@ -9,6 +9,7 @@ use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 
 uses(RefreshDatabase::class);
 
@@ -97,6 +98,6 @@ it('never changes a pre-linked admin account or reactivates a disabled user', fu
 
 it('rejects invalid numeric Telegram IDs and never creates an account', function (): void {
     expect(fn () => app(JoinFromTelegram::class)->handle(-5, 'Invalid'))
-        ->toThrow(\Illuminate\Validation\ValidationException::class);
+        ->toThrow(ValidationException::class);
     expect(User::query()->count())->toBe(0);
 });
