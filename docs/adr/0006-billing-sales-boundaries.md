@@ -7,9 +7,12 @@
 - Identity determines who a user is. Referral only tracks first signup attribution (not financial rewards).
 - Sales will own products, immutable quoted prices, customers (including external reseller clients), orders and their state transitions. Direct and reseller channels use one order model.
 - Billing will own non-withdrawable reseller prepaid credit with a compact auditable ledger; do not use a mutable `users.balance` as source of truth. Top-up credit requires independent verification, duplicate payment references must not credit twice, and amounts will use integer rials.
-- Provisioning translates a paid/authorized order into a service on a configured provider. First provider may be Marzban; SSH quotas, time accounting and Core/Edge topology are not F07 decisions.
+- Provisioning translates a paid/authorized order into a service on a configured provider. First provider is planned as **Remnawave** (replacing Marzban); SSH quotas, time accounting and Core/Edge topology remain future decisions.
 - A reseller purchases using wallet credit for their own external customers; role `reseller` determines access, while customer ownership and price scopes will live in Sales. A referral is not a reseller.
 - Reservation/capture/release and reconciliation semantics should be developed only when order and provisioning requirements are concrete and E2E tested.
+
+## F09-A implemented slice
+A minimal public catalog and duration tariff matrix back pure read-only price quotes. Products constrain integer volume 1–100 GB; duration options are 15/30/60/90 days. Wholesale (reseller) quotes are calculated from the **same** public rate with a fixed 5% discount (or 0% via code setting). Neither quote nor operator product setup interacts with wallet or Remnawave. Order snapshots, captures and fulfillment remain future increments.
 
 ## F08 implemented slice
 A verified manual topup has a globally unique bank reference and a unique `topup:<id>` journal with balanced cash-clearing debit / wallet-liability credit entries in integer rials. Wallet balance is derived from postings. A root-bounded explicit review and independent bank-side verification are required before cash is recorded. No purchase-side reservation/capture/release yet.

@@ -1,7 +1,7 @@
 # SkyNet — Current Context
 
 **Reviewed:** 2026-10-11  
-**Stage:** F08 Billing & Wallet completed (PR #13 merged, PHP 8.4/8.5 CI green; live bank/Telegram E2E still pending)  
+**Stage:** F09-A Product Catalog & Pricing implemented in `feature/09a-sales-catalog-pricing` (CI/merge pending). F09-B/C not implemented.  
 **Behavioral truth:** repository code and tests, not aspirational plans.
 
 ## Product direction
@@ -13,7 +13,7 @@ SkyNet is a Laravel successor to Python NVL. **Telegram-first** is the accepted 
 - F3 Identity established session auth and the original `admin/member` enum. F5 replaces that single enum/column with Spatie Permission v8 role/permission records, while retaining session guards and user status.
 - F4: `nutgram/laravel` ^1.7.1, Telegram adapter separate from Identity. Identity owns Telegram mappings, link-code issuance/redemption and lookup of an immutable `TelegramActor` DTO.
 - Telegram and eventual Livewire use Application actions directly; an HTTP API is optional, not a dependency.
-- **No networking decision**: no server SSH, WireGuard, Outline, VPN/node/provisioning, agent, Core/Edge.
+- **Provider direction:** Remnawave is the chosen initial future provisioning integration (F10), replacing the prior Marzban proposal. No provider SDK, Remnawave API connection, nodes or networking code exists yet.
 
 ## F5 implementation
 - Role and permission tables from Spatie, with a migration mapping existing `admin`/`member` users into DB roles before removing the old column.
@@ -60,10 +60,18 @@ SkyNet is a Laravel successor to Python NVL. **Telegram-first** is the accepted 
 - Temporary 3-minute, one-use, root-bound Telegram confirmation tokens gate reviewer actions. Billing Application checks fresh reseller/root roles and active status; Telegram IDs are not financial actor IDs. `BILLING_TOPUPS_ENABLED` is off by default.
 - Ledger balance, statement, claims, review and audit snapshots are reusable by future Sales/Livewire; no direct Marzban/SSH or shopping logic.
 
+## F09-A Product Catalog & Pricing (CI pending)
+- `Sales/Application` owns operator-configured `sales_products` and `sales_product_rates`, immutable DTOs (`CatalogProduct`, `ProductRate`, `PriceQuote`) and read/quote Actions for any active customer. A product may limit volumes within the global 1–100 GB window; initial supported durations: 15, 30, 60 and 90 days.
+- Prices use one public rate per product/duration (`base_price_rials + volume_gb × per_gb_rials`) and a role-derived reseller discount of 5% (also allows 0% via code config); all calculations in integer rials with documented half-up discount rounding. No separate reseller price catalog.
+- Rates are **not seeded** with fictional values. Terminal-only `sales:product:set` and `sales:rate:set` commands let an operator configure the product and tariffs. Catalog and quote reject inactive users, disabled products/rates, illegal volumes/durations and invalid prices.
+- F09-A is backend-only. No Telegram purchase menu, order row, wallet debit or Remnawave call exists; F09-B will consume quotes to display entry-menu prices, F09-C will persist an immutable order-price snapshot.
+
 ## Not implemented
 Full administration workflows (user creation), customer business operations, web self-registration, password reset, Livewire, Mini App, public REST API, server actions, SSH, network topology, long-running queues. Basic bot updates are processed synchronously; future heavy operations must be dispatched to durable jobs.
 
 ## Validation
+**F09-A:** Await CI results. There is no production catalog/bot/payment E2E in this increment.
+
 **F08 passed:** GitHub Actions run **38102895313** on PHP 8.4 and 8.5: **106 Pest tests / 494 assertions**, Larastan 0 errors, Pint clean. Tests do **not** verify real money, actual bank transfers or BotFather E2E.
 
 **F07 passed:** GitHub Actions run **38101861799** on PHP 8.4 and 8.5: **95 Pest tests / 426 assertions**, Larastan 0 errors and Pint clean. These are fake-transport/unit/feature tests; BotFather/private-chat E2E is **not** yet verified.
@@ -81,7 +89,7 @@ Full administration workflows (user creation), customer business operations, web
 ## Next
 1. Configure BotFather token, separate random webhook secret, public HTTPS URL, and operator-only account link in the deployment environment (do not commit any secrets).
 2. Deploy F07/F08 migrations and finish BotFather real E2E. Verify and sign off a manual bank check workflow before enabling top-up requests in production.
-3. Review minimal F08 Wallet/Billing requirements, retaining ADR 0006 boundaries.
+3. Confirm real tariff figures, configure the product/rates via Artisan, and validate the quote use cases in a test environment; F09-B can then build the Telegram duration/volume menu and F09-C orders.
 3. Add Livewire only when a web interface is required.
 
 See [Architecture](002-ARCHITECTURE.md), [Modules](003-MODULES.md), [Telegram operations](006-TELEGRAM-OPERATIONS.md), [Roadmap](005-ROADMAP.md) and [ADR 0004](adr/0004-telegram-first.md).
