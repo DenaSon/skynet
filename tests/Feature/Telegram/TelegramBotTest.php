@@ -112,7 +112,9 @@ it('rejects forged admin callbacks from members and ordinary admins', function (
     $bot->setCommonChat(Chat::make(88888, ChatType::PRIVATE));
 
     $bot->hearCallbackQueryData('menu:admin:users')->reply()
-        ->assertCalled('answerCallbackQuery');
+        ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.'])
+        ->assertCalled('editMessageText', 0)
+        ->assertCalled('sendMessage', 0);
 
     $admin = User::factory()->admin()->create();
     TelegramAccount::query()->create(['user_id' => $admin->id, 'telegram_user_id' => 99999]);
@@ -120,7 +122,8 @@ it('rejects forged admin callbacks from members and ordinary admins', function (
     $bot->setCommonChat(Chat::make(99999, ChatType::PRIVATE));
 
     $bot->hearCallbackQueryData('menu:admin:roles')->reply()
-        ->assertCalled('answerCallbackQuery');
+        ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.'])
+        ->assertCalled('editMessageText', 0);
 });
 
 it('allows a trusted Super Admin to navigate the role-management preview', function (): void {
@@ -140,7 +143,8 @@ it('allows a trusted Super Admin to navigate the role-management preview', funct
 
     config()->set('super_admin.telegram_ids', ['343434', '565656']);
     $bot->hearCallbackQueryData('menu:admin:roles')->reply()
-        ->assertCalled('answerCallbackQuery');
+        ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.'])
+        ->assertCalled('editMessageText', 0);
 });
 
 it('rechecks privileges after a role is revoked and refuses stale callbacks', function (): void {
@@ -157,7 +161,8 @@ it('rechecks privileges after a role is revoked and refuses stale callbacks', fu
     $user->syncRoles(['member']);
 
     $bot->hearCallbackQueryData('menu:admin:users')->reply()
-        ->assertCalled('answerCallbackQuery');
+        ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.'])
+        ->assertCalled('editMessageText', 0);
 });
 
 it('does not open protected settings for a deactivated account', function (): void {
