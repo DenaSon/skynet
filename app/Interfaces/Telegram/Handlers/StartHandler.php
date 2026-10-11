@@ -27,8 +27,9 @@ final class StartHandler
 
         $actor = $this->resolve->handle($id);
 
-        if ($actor === null && $payload !== null) {
-            $this->pending->remember($id, $payload);
+        if ($actor === null && ! $bot->isCallbackQuery()) {
+            // A direct /start clears an older invitation; only the latest explicit link matters.
+            $this->pending->remember($id, $payload ?? '');
         }
 
         $this->menus->showHome($bot, $actor);

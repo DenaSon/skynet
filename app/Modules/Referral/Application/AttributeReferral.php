@@ -2,8 +2,10 @@
 
 namespace App\Modules\Referral\Application;
 
+use App\Modules\Identity\Application\ResolveActiveUser;
 use App\Modules\Referral\Infrastructure\Models\Referral;
 use App\Modules\Referral\Infrastructure\Models\ReferralCode;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 
 final class AttributeReferral
@@ -20,6 +22,12 @@ final class AttributeReferral
         $ownerId = ReferralCode::query()->where('code', $code)->value('user_id');
 
         if ($ownerId === null || (int) $ownerId === $invitedId) {
+            return false;
+        }
+
+        try {
+            app(ResolveActiveUser::class)->handle((int) $ownerId);
+        } catch (AuthorizationException) {
             return false;
         }
 

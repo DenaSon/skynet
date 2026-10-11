@@ -43,7 +43,7 @@ final class JoinHandler
 
         $this->onboard->handle(
             $id,
-            (string) ($bot->user()?->first_name ?? 'Telegram member'),
+            (string) ($bot->user()->first_name ?? 'Telegram member'),
             $this->pending->take($id),
         );
 
