@@ -13,6 +13,5 @@ final readonly class PriceQuote
         public int $discountPercent,
         public int $discountRials,
         public int $totalPriceRials,
-    ) {
-    }
+    ) {}
 }

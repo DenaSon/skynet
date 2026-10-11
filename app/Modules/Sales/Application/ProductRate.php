@@ -8,6 +8,5 @@ final readonly class ProductRate
         public int $durationDays,
         public int $basePriceRials,
         public int $perGbRials,
-    ) {
-    }
+    ) {}
 }

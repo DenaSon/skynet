@@ -14,6 +14,5 @@ final readonly class CatalogProduct
         public int $minGb,
         public int $maxGb,
         public array $rates,
-    ) {
-    }
+    ) {}
 }

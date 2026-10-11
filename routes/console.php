@@ -1,8 +1,11 @@
 <?php
 
+use App\Modules\Sales\Application\ConfigureProduct;
+use App\Modules\Sales\Application\ConfigureRate;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
+use Illuminate\Validation\ValidationException;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -28,14 +31,14 @@ Artisan::command('sales:product:set {slug} {name} {--min-gb=1} {--max-gb=100} {-
     }
 
     try {
-        app(\App\Modules\Sales\Application\ConfigureProduct::class)->handle(
+        app(ConfigureProduct::class)->handle(
             (string) $this->argument('slug'),
             (string) $this->argument('name'),
             (int) $min,
             (int) $max,
-            ! (bool) $this->option('inactive'),
+            !(bool) $this->option('inactive'),
         );
-    } catch (\Illuminate\Validation\ValidationException $exception) {
+    } catch (ValidationException $exception) {
         $this->error(implode('; ', $exception->validator->errors()->all()));
 
         return 1;
@@ -62,14 +65,14 @@ Artisan::command('sales:rate:set {slug} {days} {base_toman} {per_gb_toman} {--in
     }
 
     try {
-        app(\App\Modules\Sales\Application\ConfigureRate::class)->handle(
+        app(ConfigureRate::class)->handle(
             (string) $this->argument('slug'),
             (int) $parts[0],
             (int) $parts[1] * 10,
             (int) $parts[2] * 10,
-            ! (bool) $this->option('inactive'),
+            !(bool) $this->option('inactive'),
         );
-    } catch (\Illuminate\Validation\ValidationException $exception) {
+    } catch (ValidationException $exception) {
         $this->error(implode('; ', $exception->validator->errors()->all()));
 
         return 1;
