@@ -102,7 +102,7 @@ These are customer prepaid service credits and **cannot be transferred, withdraw
 
 **Code milestone:** F08 PR #13 merged after CI passed with 106 tests / 494 assertions on PHP 8.4/8.5. No actual money transfers have been performed by these tests. Do not enable live topups without separate payment-operations verification.
 
-## F09-B Telegram Subscription Builder (no ordering yet)
+## F09-B Telegram Subscription Builder (pricing and selection)
 Use **🛒 خرید اشتراک** from the private Home menu or type `/buy`. For one active product the first screen lists allowed duration options **with minimum-volume prices**; multi-product catalogs first show paginated product cards with starting prices. After duration selection, choose a displayed volume/price or **✏️ حجم دلخواه** then send the integer amount (e.g., `75`, `۷۵` or `٧٥`) as an ordinary chat message. The opt-in text input expires in ten minutes, is scoped to the active account and cannot be activated in a group. Invalid amounts can be retried before expiry.
 
 The summary screen shows current public price, role-dependent reseller discount and total, all **recalculated from Sales**, not from Telegram button text or a cached price. Prices in UI are formatted as integer tomans and rounded up when an exact rial amount contains a fraction of a toman. **This is read-only and cannot create or pay for an order**. Rates still require operator setup in `sales:product:set` / `sales:rate:set`; missing tariffs are clearly reported as unavailable. Telegram BotFather E2E remains pending even after fake-transport CI.

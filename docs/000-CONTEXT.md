@@ -105,7 +105,8 @@ Full administration workflows (user creation), customer business operations, web
 ## Next
 1. Configure BotFather token, separate random webhook secret, public HTTPS URL, and operator-only account link in the deployment environment (do not commit any secrets).
 2. Deploy F07/F08 migrations and finish BotFather real E2E. Verify and sign off a manual bank check workflow before enabling top-up requests in production.
-3. Confirm real tariff figures, configure the product/rates via Artisan, and validate the quote use cases in a test environment; F09-B can then build the Telegram duration/volume menu and F09-C orders.
-3. Add Livewire only when a web interface is required.
+3. Configure actual Sales tariffs, then E2E test `/buy` through confirmed pending-payment orders in real private Telegram chats; do not mistake an unpaid order for a paid/activated subscription.
+4. Before F10, validate the installed Remnawave API and provisioning integration using a dedicated test panel and node. No wallet debit or paid checkout until F11.
+5. Add Livewire only when a web interface is required.
 
 See [Architecture](002-ARCHITECTURE.md), [Modules](003-MODULES.md), [Telegram operations](006-TELEGRAM-OPERATIONS.md), [Roadmap](005-ROADMAP.md) and [ADR 0004](adr/0004-telegram-first.md).
