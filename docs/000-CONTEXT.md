@@ -1,7 +1,7 @@
 # SkyNet — Current Context
 
 **Reviewed:** 2026-10-11  
-**Stage:** F06-A Telegram navigation implemented (PR #6; CI passed, merge pending)  
+**Stage:** F06-A Telegram navigation completed (PR #6 merged; PHP 8.4/8.5 CI green)  
 **Behavioral truth:** repository code and tests, not aspirational plans.
 
 ## Product direction
@@ -46,9 +46,8 @@ Actual admin/consumer business operations, user self-registration, password rese
 **Previous F4 passed:** GitHub Actions run **38095212533** on PHP 8.4 and 8.5: **40 tests / 158 assertions**, Larastan **0 errors**, Pint **0 issues**. Composer lock is portable and includes Nutgram Laravel 1.7.1 / Nutgram 4.50.3. This validates repository code, **not** an actual deployed Telegram webhook or BotFather credentials.
 
 ## Next
-1. Merge F06-A after the latest GitHub Actions run remains green.
-2. Configure BotFather token, separate random webhook secret, public HTTPS URL, and operator-only account link in the deployment environment (do not commit any secrets).
-3. Implement F06-B user management and F06-C role management via Identity/other domain Actions in later increments.
-4. Add Livewire only when a web interface is required.
+1. Configure BotFather token, separate random webhook secret, public HTTPS URL, and operator-only account link in the deployment environment (do not commit any secrets).
+2. Implement F06-B user management and F06-C role management via Identity/other domain Actions in later increments.
+3. Add Livewire only when a web interface is required.
 
 See [Architecture](002-ARCHITECTURE.md), [Modules](003-MODULES.md), [Telegram operations](006-TELEGRAM-OPERATIONS.md), [Roadmap](005-ROADMAP.md) and [ADR 0004](adr/0004-telegram-first.md).

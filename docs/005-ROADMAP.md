@@ -10,7 +10,7 @@ All statuses reflect **code in the repository**, not intentions.
 | F3 — Identity | Session auth; admin bootstrap; role/active access; JSON user management; tests | Completed (PR #3, PHP 8.4/8.5 CI green; 23 tests) |
 | F4 — Telegram Foundation | Nutgram, secure webhook, deduplication, private account linking, inline menus | Completed (PR #4; 40 tests, CI PHP 8.4/8.5) |
 | F5 — Identity RBAC | Dynamic roles/permissions, guarded Super Admin enrollment, role migration, audit and tests | Completed (PR #5, PHP 8.4/8.5 CI green; 52 tests) |
-| F06-A — Telegram Navigation | Home, account, settings, admin/read-only submenus, keyboard routing and role gating | PR #6 verified (58 tests; PHP 8.4/8.5), merge pending |
+| F06-A — Telegram Navigation | Home, account, settings, admin/read-only submenus, keyboard routing and role gating | Completed on `master` (PR #6; 58 tests, PHP 8.4/8.5 CI green) |
 | F06-B — Telegram Users | Search, list, profile and guarded state updates | Planned |
 | F06-C — Telegram RBAC | Custom role/permission workflows via Identity actions | Planned |
 | Later — Web UI | Livewire 4 + Mary UI consuming the same Actions | Deferred |
