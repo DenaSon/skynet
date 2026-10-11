@@ -1,8 +1,8 @@
 <?php
 
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveApiClient;
-use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveNodeTelemetry;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveNodesApi;
+use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveNodeTelemetry;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveOperationCatalog;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
