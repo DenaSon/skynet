@@ -84,3 +84,10 @@ Use descriptive conventional commits (e.g., `chore:`, `docs:`, `feat:`, `test:`)
 - A user-claimed transfer reference is evidence to examine, never proof of receipt. Only bank-verified reference + independent operator approval results in credit. Verified reference and journal ID must both be unique in the database.
 - Final review must compare captured reference against current pending state **inside a transaction**, including locking the topup row. Review confirmations are 3-minute actor-bound one-use cache tokens.
 - Payment, bank credentials, cardholder names and raw receipt screenshots do not belong in bot logs; no global ledger/account write endpoints or credit commands are exposed.
+
+## F09-A quoting invariants
+- No speculative catalog prices in code or migrations; operator provides explicit duration and base/per-GB integer-toman inputs, converted exactly once to integer rials by Artisan.
+- Active Identity customer is required for every read and quote; `reseller` role must be checked fresh on each quote. All price math is server-side; client messages never supply authoritative prices.
+- Volume integer 1–100 GB, four configured duration options 15/30/60/90 days; inactive product/rate cannot be quoted.
+- No float, price mutation by buyers, wallet creation/credit/debit or provider HTTP traffic as a side effect of `CalculateQuote`.
+- Future F09-C must re-price and snapshot server-side on order confirmation (quotes are informational and **not locked**).

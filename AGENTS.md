@@ -79,3 +79,9 @@ See `docs/004-STANDARDS.md` for coding and documentation conventions.
 - Finance operator authority is a **trusted Super Admin**, not an ordinary admin. A reseller can read/request only their own account. Typed transfer proof is not bank confirmation.
 - Existing referral, Identity, Sales and Provisioning must not be coupled to Billing infrastructure. No refunds, wallet debit, rewards, payouts or payment gateway until future explicit requirements and E2E.
 - Banking integration, manual verification and live Telegram E2E have not happened merely because feature tests passed. Leave `BILLING_TOPUPS_ENABLED=false` in production until signed off.
+
+## F09-A product catalog and pricing
+- Only two Sales catalog tables and DTO-driven, read-only active-buyer quotes; no order, money transfer, provisioning or Telegram purchase UI yet.
+- Accept global 1–100 **integer** GB and durations 15/30/60/90 only. Price in bounded integer rials: base + (GB × per-GB); 5% off the **same** rate for active reseller role (0% setting permitted).
+- Never seed fake selling prices; configure via operator-only Artisan, no unauthenticated HTTP/Telegram price mutations. Recalculate & snapshot upon F09-C order creation.
+- Remnawave is the selected future F10 Provider; do not put API fields, server identifiers or node settings into F09 catalog tables.

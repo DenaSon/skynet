@@ -15,8 +15,10 @@ All statuses reflect **code in the repository**, not intentions.
 | F06-C — Telegram RBAC | Role directory, custom role creation, code-defined permissions, multi-role assignments, single-use confirmations | Completed (PR #10 merged; 83 tests / 359 assertions, PHP 8.4/8.5 CI green) |
 | F07 — Onboarding & Referral | Opt-in private Telegram registration, member-only accounts, unique invitations, single-shot attribution, invitation counts | Implemented (PR #12; 95 tests/426 assertions CI green); real E2E pending |
 | F08 — Billing/Wallet | Non-withdrawable reseller wallets, manual bank-transfer topups, two-posting ledger, root review, idempotency, Telegram operations | Completed on master (PR #13 merged; 106 tests / 494 assertions, PHP 8.4/8.5 CI green); live bank E2E pending |
-| F09 — Products/Orders | Plan catalog, prices, reservations/order states | Planned after E2E |
-| F10 — Marzban Provisioning | First server provider and subscription activation | Planned after E2E |
+| F09-A — Product Catalog & Pricing | Product limits 1–100 GB, 15/30/60/90-day tariffs, direct/reseller quotes (5%), terminal admin setup | Implemented and verified (PR #15; 115 tests / 557 assertions, PHP 8.4/8.5 CI green) |
+| F09-B — Telegram Subscription Builder | Duration menu prices from 1 GB, volume presets/custom input, quote preview; no purchase | Planned |
+| F09-C — Orders | Recheck quote server-side, save price snapshot, idempotent pending-payment orders | Planned |
+| F10 — Remnawave Provisioning | First provider API, provisioning and activation (no Marzban dependency) | Planned after E2E |
 | F11 — Telegram Sales | Direct and reseller flows over shared order/provisioning | Planned after E2E |
 | Later — Web UI | Livewire 4 + Mary UI consuming the same Actions | Deferred |
 | Later — Product Domains | Define network/server/business capabilities based on use cases | Undecided |
@@ -86,3 +88,12 @@ All networking: WireGuard vs Outline or other transports; Core/Edge; node/agent 
 - Rejection posts no credit; root review actions use a single-use, 3-minute, operator-bound confirmation. A rejected/approved request cannot be moved again.
 - All financial details remain in Billing module; Sales, wallet purchases, reversals, payment gateways, commissions, refunds, withdrawals and network providers remain out of scope.
 - Pest, Larastan, Pint PHP 8.4/8.5 required to merge. Live bank reconciliation and Telegram E2E must gate enabling `BILLING_TOPUPS_ENABLED`.
+
+## F09-A acceptance criteria
+- Products/rates are small, operator-managed DB records, not guessed tariffs or user-editable pricing. No HTTP or Telegram write endpoint.
+- Active customers can read available products and request a **read-only** quote. Inactive/nonexistent buyers are denied.
+- Volume is integer GB (1–100 globally; product-specific limits may narrow the range) and durations are explicitly 15/30/60/90 days.
+- Quote formula is `base_price_rials + selected_gb × per_gb_rials`. An active `reseller` role gets 5% discount using exactly the same public rate; direct buyers pay full public rate. No float arithmetic. Zero percent is allowed by code config.
+- Disabled products/rates cannot be quoted. Product rate edits affect future quotes; F09-C is responsible for immutable order snapshots.
+- No orders, payments, wallet debit, provider API, Telegram purchase flow or subscription activation in F09-A.
+- Run Pest, Larastan and Pint on PHP 8.4/8.5 before PR merge.
