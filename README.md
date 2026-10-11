@@ -93,3 +93,6 @@ This increment provides **read-only** `ListProducts` and `CalculateQuote` Applic
 
 ## F09-B — Telegram price preview
 `/buy` (or **🛒 خرید اشتراک** on the Home screen) shows current duration options with **prices from the first buying page**. Select a duration, choose a preset volume or tap **✏️ حجم دلخواه** and send an integer GB amount (English/Persian/Arabic numerals). A temporary 10-minute per-account selection limits free-text volume input. The preview recalculates the real public rate and any 5% reseller discount with no purchase/order/payment/provisioning. Catalog prices must be configured first using `sales:product:set` and `sales:rate:set`. See [operations](docs/008-SALES-CATALOG-OPERATIONS.md).
+
+## F09-C — Pending-payment orders
+After a price preview, **✅ ثبت سفارش** atomically creates one buyer-owned `pending_payment` order **only if the price and role still match current server catalog data**. The ephemeral 10-minute buyer-bound checkout reference and unique DB key make retries idempotent. Home **📋 سفارش‌های من** and `/orders` list the account's last ten orders; individual order details retain original price even if the operator updates tariffs later. No payment, wallet debit, balance reservation or Remnawave provisioning occurs in F09-C.

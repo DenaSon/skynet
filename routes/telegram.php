@@ -24,6 +24,9 @@ $bot->onCommand('invite', InviteHandler::class);
 $bot->onCommand('buy', function (Nutgram $bot): void {
     app(ShopUi::class)->open($bot);
 });
+$bot->onCommand('orders', function (Nutgram $bot): void {
+    app(ShopUi::class)->listOrders($bot);
+});
 $bot->onCommand('wallet', function (Nutgram $bot): void {
     app(BillingUi::class)->wallet($bot);
 });
@@ -140,4 +143,14 @@ $bot->onCallbackQueryData('shop:quote:{id}:{days}:{gb}', function (Nutgram $bot,
 // selected "custom volume" in a private chat. Commands remain higher priority.
 $bot->onText('{volume}', function (Nutgram $bot, string $volume): void {
     app(ShopUi::class)->customText($bot, $volume);
+});
+
+$bot->onCallbackQueryData('shop:order:{token}', function (Nutgram $bot, string $token): void {
+    app(ShopUi::class)->createOrder($bot, $token);
+});
+$bot->onCallbackQueryData('shop:orders', function (Nutgram $bot): void {
+    app(ShopUi::class)->listOrders($bot);
+});
+$bot->onCallbackQueryData('shop:order:view:{id}', function (Nutgram $bot, string $id): void {
+    app(ShopUi::class)->viewOrder($bot, $id);
 });

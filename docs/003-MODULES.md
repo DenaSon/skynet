@@ -80,3 +80,8 @@ Operator setup is `sales:product:set` and `sales:rate:set` in `routes/console.ph
 
 ## F09-B — Telegram-only Subscription Builder
 `Interfaces/Telegram/Support/ShopUi` consumes immutable `CatalogProduct` and `PriceQuote` DTOs through F09-A `ListProducts`/`CalculateQuote`. It owns inline navigation, a bounded product list, preset and custom volume UX, and preview formatting but no catalog writes or pricing rules. `PendingShopVolume` keeps a short-lived per-buyer pending product/duration **only while entering a custom integer**; price is recalculated by Sales on each action. The Telegram adapter deliberately has no order/payment/provisioning side effects.
+
+## F09-C — Pending-payment order boundaries
+`Modules/Sales/Application/CreatePendingOrder` owns checkout: accepts an immutable expected quote and unpredictable idempotency key, reauthorizes the active buyer, reprices with `CalculateQuote` and atomically inserts a buyer-owned `pending_payment` order with its full public/reseller quote snapshot. Repeats with a previously successful key return the same record; price/role changes before the first order require a fresh quote. `OrderReader` provides owner-scoped latest-ten and individual reads, never direct Telegram DB access.
+
+`Interfaces/Telegram/Support/CheckoutTokens` is an ephemeral 10-minute user-bound preview, not financial proof. `ShopUi` exposes only an explicit order-create button and order-history navigation. There is no F09-C workflow that changes an order to paid, reserves or debits wallets, or provisions a provider.

@@ -6,6 +6,9 @@ use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\TelegramActor;
 use App\Modules\Sales\Application\CalculateQuote;
 use App\Modules\Sales\Application\CatalogProduct;
+use App\Modules\Sales\Application\CreatePendingOrder;
+use App\Modules\Sales\Application\OrderDetails;
+use App\Modules\Sales\Application\OrderReader;
 use App\Modules\Sales\Application\ListProducts;
 use App\Modules\Sales\Application\PriceQuote;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -23,6 +26,9 @@ final class ShopUi
         private readonly CalculateQuote $pricing,
         private readonly PendingShopVolume $pending,
         private readonly MenuRenderer $menus,
+        private readonly CheckoutTokens $checkoutTokens,
+        private readonly CreatePendingOrder $createOrder,
+        private readonly OrderReader $orders,
     ) {}
 
     public function open(Nutgram $bot, int $page = 1): void
@@ -265,10 +271,10 @@ final class ShopUi
         }
 
         $this->pending->forget($actor->userId);
-        $this->preview($bot, $product, $quote);
+        $this->preview($bot, $actor, $product, $quote);
     }
 
-    private function preview(Nutgram $bot, CatalogProduct $product, PriceQuote $quote): void
+    private function preview(Nutgram $bot, TelegramActor $actor, CatalogProduct $product, PriceQuote $quote): void
     {
         $lines = [
             '🧾 پیش‌نمایش قیمت اشتراک',
@@ -286,12 +292,132 @@ final class ShopUi
 
         $lines[] = '💰 قیمت نهایی: '.$this->formatToman($quote->totalPriceRials).' تومان';
         $lines[] = '';
-        $lines[] = 'ℹ️ این فقط نمایش قیمت لحظه‌ای است. ثبت سفارش و پرداخت در مرحله بعد فعال می‌شود.';
+        $lines[] = 'ℹ️ با ثبت سفارش، مبلغ فعلاً پرداخت نمی‌شود و هیچ سرویسی فعال نخواهد شد.';
 
+        $token = $this->checkoutTokens->issue($actor->userId, $quote);
         $keyboard = InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('✅ ثبت سفارش', callback_data: 'shop:order:'.$token))
             ->addRow(InlineKeyboardButton::make('📦 تغییر حجم', callback_data: "shop:volume:{$product->id}:{$quote->durationDays}"))
             ->addRow(InlineKeyboardButton::make('⏳ تغییر مدت', callback_data: "shop:product:{$product->id}"))
             ->addRow(InlineKeyboardButton::make('🏠 صفحه اصلی', callback_data: 'menu:home'));
+
+        $this->render($bot, implode("\n", $lines), $keyboard);
+    }
+
+
+    public function createOrder(Nutgram $bot, string $token): void
+    {
+        $actor = $this->actor($bot);
+
+        if ($actor === null) {
+            return;
+        }
+
+        $expected = $this->checkoutTokens->peek($actor->userId, $token);
+
+        if ($expected === null) {
+            $this->notice($bot, 'پیش‌فاکتور منقضی یا نامعتبر است. قیمت را دوباره بررسی کنید.');
+
+            return;
+        }
+
+        try {
+            $order = $this->createOrder->handle($actor->userId, $expected, $token);
+        } catch (ValidationException|AuthorizationException) {
+            $this->notice($bot, 'قیمت، مشخصات یا دسترسی شما تغییر کرده است. لطفاً پیش‌فاکتور تازه بگیرید.');
+
+            return;
+        }
+
+        $this->showOrder($bot, $order);
+    }
+
+    public function listOrders(Nutgram $bot): void
+    {
+        $actor = $this->actor($bot);
+
+        if ($actor === null) {
+            return;
+        }
+
+        try {
+            $orders = $this->orders->recent($actor->userId);
+        } catch (AuthorizationException) {
+            $this->menus->denyAccess($bot);
+
+            return;
+        }
+
+        $keyboard = InlineKeyboardMarkup::make();
+        $lines = ['📋 سفارش‌های من', '', 'آخرین ۱۰ سفارش:'];
+
+        foreach ($orders as $order) {
+            $lines[] = "#{$order->id} — {$order->durationDays} روز / {$order->trafficGb} گیگ — {$this->formatToman($order->totalPriceRials)} تومان";
+            $keyboard->addRow(InlineKeyboardButton::make(
+                '📄 سفارش #'.$order->id,
+                callback_data: 'shop:order:view:'.$order->id,
+            ));
+        }
+
+        if ($orders === []) {
+            $lines[] = 'هنوز سفارشی ثبت نکرده‌اید.';
+        }
+
+        $keyboard->addRow(InlineKeyboardButton::make('🛒 خرید اشتراک', callback_data: 'menu:shop'))
+            ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'menu:home'));
+
+        $this->render($bot, implode("\n", $lines), $keyboard);
+    }
+
+    public function viewOrder(Nutgram $bot, string $orderId): void
+    {
+        $actor = $this->actor($bot);
+
+        if ($actor === null) {
+            return;
+        }
+
+        if (preg_match('/^[1-9][0-9]{0,17}$/D', $orderId) !== 1) {
+            $this->notice($bot, 'سفارش پیدا نشد.');
+
+            return;
+        }
+
+        try {
+            $order = $this->orders->find($actor->userId, (int) $orderId);
+        } catch (AuthorizationException|ValidationException) {
+            $this->notice($bot, 'این سفارش برای شما قابل مشاهده نیست.');
+
+            return;
+        }
+
+        $this->showOrder($bot, $order);
+    }
+
+    private function showOrder(Nutgram $bot, OrderDetails $order): void
+    {
+        $keyboard = InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('📋 سفارش‌های من', callback_data: 'shop:orders'))
+            ->addRow(InlineKeyboardButton::make('🛒 سفارش جدید', callback_data: 'menu:shop'))
+            ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'menu:home'));
+
+        $lines = [
+            "✅ سفارش #{$order->id} ثبت شد",
+            '',
+            'سرویس: '.$this->safeName($order->productName),
+            "مدت: {$order->durationDays} روز",
+            "حجم: {$order->trafficGb} گیگابایت",
+            'قیمت عمومی: '.$this->formatToman($order->publicPriceRials).' تومان',
+        ];
+
+        if ($order->discountPercent > 0) {
+            $lines[] = "تخفیف نماینده ({$order->discountPercent}٪): {$this->formatToman($order->discountRials)} تومان";
+        }
+
+        $lines[] = 'مبلغ ثبت‌شده: '.$this->formatToman($order->totalPriceRials).' تومان';
+        $lines[] = 'وضعیت: در انتظار پرداخت';
+        $lines[] = '';
+        $lines[] = 'ℹ️ هنوز وجهی دریافت یا از کیف پول کسر نشده و سرویس VPN ساخته نشده است.';
 
         $this->render($bot, implode("\n", $lines), $keyboard);
     }

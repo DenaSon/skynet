@@ -1,10 +1,12 @@
 <?php
 
+use App\Interfaces\Telegram\Support\CheckoutTokens;
 use App\Interfaces\Telegram\Support\PendingShopVolume;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\ConfigureRate;
+use App\Modules\Sales\Application\CalculateQuote;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use SergiX44\Nutgram\Nutgram;
@@ -70,7 +72,7 @@ it('quotes a preset volume and displays reseller pricing from the same public ra
     $bot->hearCallbackQueryData("shop:quote:{$id}:30:10")->reply()->assertReplyText(
         "🧾 پیش‌نمایش قیمت اشتراک\n\nسرویس: اشتراک VPN\n⏳ مدت: 30 روز\n📦 حجم: 10 گیگابایت\n\n"
         ."قیمت عمومی: 30,000 تومان\nتخفیف نماینده (5٪): 1,500 تومان\n💰 قیمت نهایی: 28,500 تومان\n\n"
-        .'ℹ️ این فقط نمایش قیمت لحظه‌ای است. ثبت سفارش و پرداخت در مرحله بعد فعال می‌شود.'
+        .'ℹ️ با ثبت سفارش، مبلغ فعلاً پرداخت نمی‌شود و هیچ سرویسی فعال نخواهد شد.'
     );
 
     expect(DB::table('billing_wallets')->count())->toBe(0);
@@ -90,7 +92,7 @@ it('accepts custom Persian and Arabic numerals only after the custom-volume sele
     $bot->hearText('٧٥')->reply()->assertReplyText(
         "🧾 پیش‌نمایش قیمت اشتراک\n\nسرویس: اشتراک VPN\n⏳ مدت: 30 روز\n📦 حجم: 75 گیگابایت\n\n"
         ."قیمت عمومی: 160,000 تومان\n💰 قیمت نهایی: 160,000 تومان\n\n"
-        .'ℹ️ این فقط نمایش قیمت لحظه‌ای است. ثبت سفارش و پرداخت در مرحله بعد فعال می‌شود.'
+        .'ℹ️ با ثبت سفارش، مبلغ فعلاً پرداخت نمی‌شود و هیچ سرویسی فعال نخواهد شد.'
     );
 
     expect(app(PendingShopVolume::class)->peek($buyer->id))->toBeNull();
@@ -171,7 +173,7 @@ it('supports a narrow product range with custom input and fresh price changes', 
     $bot->hearCallbackQueryData("shop:quote:{$id}:30:30")->reply()->assertReplyText(
         "🧾 پیش‌نمایش قیمت اشتراک\n\nسرویس: اشتراک VPN\n⏳ مدت: 30 روز\n📦 حجم: 30 گیگابایت\n\n"
         ."قیمت عمومی: 80,000 تومان\n💰 قیمت نهایی: 80,000 تومان\n\n"
-        .'ℹ️ این فقط نمایش قیمت لحظه‌ای است. ثبت سفارش و پرداخت در مرحله بعد فعال می‌شود.'
+        .'ℹ️ با ثبت سفارش، مبلغ فعلاً پرداخت نمی‌شود و هیچ سرویسی فعال نخواهد شد.'
     );
 });
 
@@ -195,4 +197,85 @@ it('supports browsing multiple products without cross-catalog unauthorized acces
     $bot->hearText('/buy')->reply()->assertCalled('sendMessage');
     $id = (int) DB::table('sales_products')->where('slug', 'second')->value('id');
     $bot->hearCallbackQueryData("shop:product:{$id}")->reply()->assertCalled('editMessageText');
+});
+
+it('registers pending-payment checkout exactly once even after replayed inline callback', function (): void {
+    $id = shopSampleCatalog();
+    $buyer = User::factory()->create();
+    $bot = shopBot(921021, $buyer);
+    $quote = app(CalculateQuote::class)->handle($buyer->id, 'vpn-access', 30, 25);
+    $token = app(CheckoutTokens::class)->issue($buyer->id, $quote);
+
+    $bot->hearCallbackQueryData('shop:order:'.$token)->reply()
+        ->assertCalled('answerCallbackQuery')
+        ->assertCalled('editMessageText');
+
+    expect(DB::table('sales_orders')->count())->toBe(1)
+        ->and(DB::table('sales_orders')->value('traffic_gb'))->toBe(25)
+        ->and(DB::table('sales_orders')->value('status'))->toBe('pending_payment');
+
+    $bot->hearCallbackQueryData('shop:order:'.$token)->reply()->assertCalled('editMessageText');
+    expect(DB::table('sales_orders')->count())->toBe(1)
+        ->and(DB::table('billing_journals')->count())->toBe(0)
+        ->and(DB::table('billing_postings')->count())->toBe(0);
+
+    $bot->hearText('/orders')->reply()->assertCalled('sendMessage');
+    $bot->hearCallbackQueryData('shop:orders')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('shop:order:view:1')->reply()->assertCalled('editMessageText');
+});
+
+it('refuses another accounts checkout token and private order views', function (): void {
+    shopSampleCatalog();
+    $owner = User::factory()->create();
+    $stranger = User::factory()->create();
+    $ownerBot = shopBot(921022, $owner);
+    $strangerBot = shopBot(921023, $stranger);
+
+    $quote = app(CalculateQuote::class)->handle($owner->id, 'vpn-access', 30, 10);
+    $token = app(CheckoutTokens::class)->issue($owner->id, $quote);
+
+    $strangerBot->hearCallbackQueryData('shop:order:'.$token)->reply()->assertCalled('editMessageText');
+    expect(DB::table('sales_orders')->count())->toBe(0);
+
+    $ownerBot->hearCallbackQueryData('shop:order:'.$token)->reply()->assertCalled('editMessageText');
+    expect(DB::table('sales_orders')->count())->toBe(1);
+
+    $strangerBot->hearCallbackQueryData('shop:order:view:1')->reply()->assertCalled('editMessageText');
+    expect(DB::table('sales_orders')->count())->toBe(1);
+});
+
+it('rejects expired checkout and changed rates without charging any wallet', function (): void {
+    shopSampleCatalog();
+    $buyer = User::factory()->create();
+    $bot = shopBot(921024, $buyer);
+
+    $quote = app(CalculateQuote::class)->handle($buyer->id, 'vpn-access', 30, 10);
+    $token = app(CheckoutTokens::class)->issue($buyer->id, $quote);
+    app(ConfigureRate::class)->handle('vpn-access', 30, 300_000, 25_000);
+
+    $bot->hearCallbackQueryData('shop:order:'.$token)->reply()->assertCalled('editMessageText');
+    expect(DB::table('sales_orders')->count())->toBe(0);
+
+    $fresh = app(CalculateQuote::class)->handle($buyer->id, 'vpn-access', 30, 10);
+    $otherToken = app(CheckoutTokens::class)->issue($buyer->id, $fresh);
+    $this->travel(11)->minutes();
+
+    $bot->hearCallbackQueryData('shop:order:'.$otherToken)->reply()->assertCalled('editMessageText');
+    expect(DB::table('sales_orders')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe(0);
+});
+
+it('keeps the registered order price unchanged after catalog rates change', function (): void {
+    shopSampleCatalog();
+    $buyer = User::factory()->create();
+    $bot = shopBot(921025, $buyer);
+    $quoted = app(CalculateQuote::class)->handle($buyer->id, 'vpn-access', 30, 50);
+    $token = app(CheckoutTokens::class)->issue($buyer->id, $quoted);
+    $bot->hearCallbackQueryData('shop:order:'.$token)->reply()->assertCalled('editMessageText');
+
+    $old = (int) DB::table('sales_orders')->value('total_price_rials');
+    app(ConfigureRate::class)->handle('vpn-access', 30, 500_000, 20_000);
+    $bot->hearCallbackQueryData('shop:order:view:1')->reply()->assertCalled('editMessageText');
+
+    expect((int) DB::table('sales_orders')->value('total_price_rials'))->toBe($old);
 });

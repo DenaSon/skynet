@@ -17,7 +17,7 @@ All statuses reflect **code in the repository**, not intentions.
 | F08 — Billing/Wallet | Non-withdrawable reseller wallets, manual bank-transfer topups, two-posting ledger, root review, idempotency, Telegram operations | Completed on master (PR #13 merged; 106 tests / 494 assertions, PHP 8.4/8.5 CI green); live bank E2E pending |
 | F09-A — Product Catalog & Pricing | Product limits 1–100 GB, 15/30/60/90-day tariffs, direct/reseller quotes (5%), terminal admin setup | Implemented and verified (PR #15; 115 tests / 557 assertions, PHP 8.4/8.5 CI green) |
 | F09-B — Telegram Subscription Builder | Price shown on first buying screen, duration/volume options, custom integer input, read-only quote preview | Implemented in PR branch; CI/merge pending |
-| F09-C — Orders | Recheck quote server-side, save price snapshot, idempotent pending-payment orders | Planned |
+| F09-C — Orders | Server-side fresh-quote validation, immutable order price snapshot, buyer-bound idempotent pending-payment orders, `/orders` history | Implemented on combined PR branch; CI/merge pending |
 | F10 — Remnawave Provisioning | First provider API, provisioning and activation (no Marzban dependency) | Planned after E2E |
 | F11 — Telegram Sales | Direct and reseller flows over shared order/provisioning | Planned after E2E |
 | Later — Web UI | Livewire 4 + Mary UI consuming the same Actions | Deferred |
@@ -105,3 +105,11 @@ All networking: WireGuard vs Outline or other transports; Core/Edge; node/agent 
 - Quote preview shows actual public price, 5% role-based reseller discount where applicable and final price; re-evaluates price and role server-side. Fractional tomans round *up only for display*.
 - Unauthorized, forged, inactive, expired or now-disabled selections cannot access sensitive data, mutate wallet or persist orders.
 - No buy confirmation button, payment, orders, Remnawave API or migrations/new dependencies in F09-B. CI + live E2E acceptance are distinct.
+
+## F09-C acceptance criteria
+- A customer sees price before making an order; the explicit confirm button is bound to the user and a ten-minute preview and cannot be forged or used by another account.
+- An order is only created if the active identity, product, duration, volume, public price and role-dependent discount are still valid and **exactly match the preview**; stale quotes require a new preview.
+- A successful callback stores one price snapshot and `pending_payment` order; database-unique idempotency key prevents two orders on retry. A retry returns the same order even if the catalog rate later changes.
+- Customer sees only their own orders (latest ten and individual detail). Snapshot never silently changes after operator modifies catalog prices.
+- F09-C adds no balance debit, wallet reservation, payment confirmation, bank integration, subscriptions, Remnawave API or server/network code. Any future paid order transition must be implemented and verified separately.
+- Tests cover ownership, duplicated callback, token expiry, stale quotes, role revocation, inactive buyer and zero Billing postings.
