@@ -6,8 +6,8 @@ namespace App\Modules\Provisioning\Application;
 
 use App\Modules\Provisioning\Infrastructure\Remnawave\CreateRemnawaveUser;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveApiClientFactory;
-use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveUserSnapshot;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveUsersApi;
+use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveUserSnapshot;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use RuntimeException;
@@ -148,7 +148,6 @@ final class RemnawaveSubscriptionLifecycle
         return $this->complete($reference, $idempotencyKey, $remote);
     }
 
-
     /**
      * Read-only reconciliation of an uncertain absolute update.
      * Does not perform a second write. A mismatched state stays blocked.
@@ -234,7 +233,7 @@ final class RemnawaveSubscriptionLifecycle
     }
 
     /**
-     * @param array<string, mixed> $payload
+     * @param  array<string, mixed>  $payload
      * @return array{alreadyComplete: bool, remoteId: int}
      */
     private function reserve(string $reference, string $key, string $kind, array $payload, bool $creating): array
