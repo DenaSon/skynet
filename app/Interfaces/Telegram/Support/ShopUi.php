@@ -7,9 +7,9 @@ use App\Modules\Identity\Application\TelegramActor;
 use App\Modules\Sales\Application\CalculateQuote;
 use App\Modules\Sales\Application\CatalogProduct;
 use App\Modules\Sales\Application\CreatePendingOrder;
+use App\Modules\Sales\Application\ListProducts;
 use App\Modules\Sales\Application\OrderDetails;
 use App\Modules\Sales\Application\OrderReader;
-use App\Modules\Sales\Application\ListProducts;
 use App\Modules\Sales\Application\PriceQuote;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Validation\ValidationException;
@@ -303,7 +303,6 @@ final class ShopUi
 
         $this->render($bot, implode("\n", $lines), $keyboard);
     }
-
 
     public function createOrder(Nutgram $bot, string $token): void
     {

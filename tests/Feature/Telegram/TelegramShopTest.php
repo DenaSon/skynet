@@ -4,9 +4,9 @@ use App\Interfaces\Telegram\Support\CheckoutTokens;
 use App\Interfaces\Telegram\Support\PendingShopVolume;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
+use App\Modules\Sales\Application\CalculateQuote;
 use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\ConfigureRate;
-use App\Modules\Sales\Application\CalculateQuote;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use SergiX44\Nutgram\Nutgram;
@@ -169,7 +169,6 @@ it('supports a narrow product range with custom input and fresh price changes', 
 
     app(ConfigureRate::class)->handle('vpn-access', 30, 200_000, 20_000);
     $bot->hearCallbackQueryData("shop:quote:{$id}:30:30")->reply()->assertCalled('editMessageText');
-
 });
 
 it('shows a clear unavailable notice if the operator has configured no real tariffs', function (): void {

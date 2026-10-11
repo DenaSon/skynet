@@ -6,6 +6,7 @@ use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\ConfigureRate;
 use App\Modules\Sales\Application\CreatePendingOrder;
 use App\Modules\Sales\Application\OrderReader;
+use App\Modules\Sales\Application\PriceQuote;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -21,7 +22,7 @@ function orderFixture(): void
     app(ConfigureRate::class)->handle('vpn-access', 90, 250_000, 15_000);
 }
 
-function orderQuote(int $buyerId, int $gb = 10): \App\Modules\Sales\Application\PriceQuote
+function orderQuote(int $buyerId, int $gb = 10): PriceQuote
 {
     return app(CalculateQuote::class)->handle($buyerId, 'vpn-access', 30, $gb);
 }
