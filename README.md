@@ -2,7 +2,7 @@
 
 SkyNet is a new Laravel-based platform being developed as a **modular monolith**. It is a clean successor to the Python NVL project, not a translation of the existing bot.
 
-> **Status:** Foundation F1 and F2 merged; F3 Identity is merged. F4 Telegram-first foundation is implemented and CI verified (PR #4); all networking remains deferred. No customer-facing feature, UI, network integration, or authentication flow has been implemented.
+> **Status:** Foundation F1 and F2 merged; F3 Identity is merged. F4 Telegram-first foundation is implemented and CI verified (PR #4); all networking remains deferred. Telegram navigation and Identity authentication exist; business operations, web UI and networking remain deferred.
 
 ## Current stack
 
@@ -58,15 +58,18 @@ Make changes on a branch, include tests, update relevant docs in the **same PR**
 
 After `php artisan migrate`, create the **first** administrator by running `php artisan identity:bootstrap-admin` interactively. Password input is hidden and must have at least 12 characters. No admin is seeded and there is no public signup.
 
-Open `/login` to sign in. `/account` returns the authenticated user summary. Session-authenticated administrators can use JSON endpoints `GET/POST /admin/users` and `PATCH /admin/users/{user}`. The endpoints use Laravel web sessions and CSRF tokens—not API bearer tokens. The admin UI comes in F4. Account deactivation invalidates the current session on the next authenticated request; other sessions are not proactively listed or revoked. See [Identity documentation](docs/003-MODULES.md).
+Open `/login` to sign in. `/account` returns the authenticated user summary. Session-authenticated administrators can use JSON endpoints `GET/POST /admin/users` and `PATCH /admin/users/{user}`. The endpoints use Laravel web sessions and CSRF tokens—not API bearer tokens. A future web administration UI is deferred. Account deactivation invalidates the current session on the next authenticated request; other sessions are not proactively listed or revoked. See [Identity documentation](docs/003-MODULES.md).
 
 ## Telegram-first interface (F4)
 
 SkyNet's first interactive channel is **Telegram**, not Livewire. Install with `composer install`, migrate with `php artisan migrate`, and configure `TELEGRAM_TOKEN` + a distinct random `TELEGRAM_WEBHOOK_SECRET` in your local/deployment `.env`. Never commit the values. Set a public HTTPS `APP_URL` and run `php artisan telegram:webhook:set` for production. For local bot experiments, Nutgram's `nutgram:run` supports polling, but do not poll and run the production webhook simultaneously.
 
-After bootstrapping the first administrator, run `php artisan telegram:link-account 1` (replace 1 with the real user ID), then send the printed single-use `/link <code>` in a **private** chat with the bot. No public registrations or default Telegram admins are created. Commands: `/start`, `/menu`, `/account`, `/admin`; buttons use inline callbacks. Admin operations are *not yet implemented*—F4 is secure transport plus linking and navigation.
+After bootstrapping the first administrator, run `php artisan telegram:link-account 1` (replace 1 with the real user ID), then send the printed single-use `/link <code>` in a **private** chat with the bot. No public registrations or default Telegram admins are created. Commands: `/start`, `/menu`, `/account`, `/settings`, `/admin`; buttons use inline callbacks. Admin operations are *not yet implemented*—F4 is secure transport plus linking and navigation.
 
 Read [Telegram setup and operations](docs/006-TELEGRAM-OPERATIONS.md). The existing Laravel web login remains for backwards compatibility; new user-facing features target Telegram until a future Livewire presenter is approved.
 
 ## Dynamic RBAC and protected Super Admins (F5, CI verified)
 Identity roles are DB-backed via Spatie Permission v8. `admin` and `member` records are migrated from the former enum column; new role names such as `reseller` need no PHP enum edit. One user may have several roles. **Super Admin is a special protected root**: configure at least two distinct numeric IDs in `SUPER_ADMIN_TELEGRAM_IDS` and enroll each linked active user via `php artisan identity:super-admin:promote <user_id>`. ENV alone never grants access. Ordinary admin web endpoints cannot promote, demote or disable a Super Admin; all RBAC mutations are subject to server-side authorization and recorded in an identity audit table. See [RBAC operations](docs/007-RBAC-OPERATIONS.md).
+
+## Telegram navigation shell (F06-A)
+The first Telegram UI is deliberately read-only: linked members see Home → Account / Settings; authorized administrators see the Administration menu, whose Users and Roles pages are labeled as upcoming F06-B/F06-C work. Role management navigation is available only to trusted Super Admins. Every command and callback resolves the **current** linked active account and privileges, so revoked access or an old keyboard cannot bypass authorization. The Settings page does not persist settings; Referral remains deferred. No new tables, packages or business actions are required. See [Telegram operations](docs/006-TELEGRAM-OPERATIONS.md).

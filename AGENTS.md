@@ -50,3 +50,9 @@ See `docs/004-STANDARDS.md` for coding and documentation conventions.
 - Gate checks are not optional for transport adapters; actions must enforce privilege checks too.
 - Protect Super Admin from untrusted HTTP assignment, deactivation and revocation. Security/audit regressions require tests.
 - See ADR 0005 and `docs/007-RBAC-OPERATIONS.md`.
+
+## Telegram navigation (F06-A)
+- Keep all Telegram keyboard content in the lightweight `MenuRenderer`; handlers authenticate per request and do not cache access decisions.
+- Admin and role navigation are authorization-gated even when stale/forged callback data is received.
+- Settings, Users and Roles screens in F06-A are explicitly read-only placeholders, not implementations of future domain features.
+- Do not add a generic settings table, referral model, privileged enrollment or server command to F06-A.

@@ -49,3 +49,9 @@ Use descriptive conventional commits (e.g., `chore:`, `docs:`, `feat:`, `test:`)
 - All permission decisions must run in Application Actions / Gates; UI-only menu checks do not count.
 - Keep audit events for role/privilege mutations, without secrets, tokens or passwords.
 - A role can be added dynamically; adding a new permission means first defining the corresponding application authorization check.
+
+## Telegram UI navigation (F06-A)
+- Explicit callback names only; never trust UI state or message visibility as proof of authorization.
+- Re-resolve the active linked Identity account on each command and callback; use the Identity Application DTO rather than reaching into persistence from a Telegram handler.
+- Unknown/deactivated accounts never see protected pages. Role-management previews require a trusted Super Admin; admin-user previews require `users.manage` authority.
+- Reply to callback queries and edit the existing message for navigation. Avoid pretending a placeholder is a functional settings/users/roles page.

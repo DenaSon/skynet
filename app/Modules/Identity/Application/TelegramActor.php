@@ -12,10 +12,16 @@ final readonly class TelegramActor
         public string $name,
         public array $roles,
         public bool $admin,
+        public bool $manageRoles = false,
     ) {}
 
     public function isAdmin(): bool
     {
         return $this->admin;
+    }
+
+    public function canManageRoles(): bool
+    {
+        return $this->manageRoles;
     }
 }

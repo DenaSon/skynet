@@ -1,6 +1,6 @@
 # Telegram Foundation — Setup and Operations
 
-**Phase:** F4. Webhook + account link + basic menus only. No server commands or user-management bot screens.
+**Phase:** F06-A adds read-only navigation to the F4 webhook and account-link foundation. No server commands or user-management actions through Telegram.
 
 ## Requirements
 - SkyNet with PHP >=8.4.1, `composer install`, `php artisan migrate`.
@@ -34,7 +34,7 @@ The endpoint `POST /api/telegram/webhook` rejects missing/mismatched secrets (40
 2. Determine the actual SkyNet user ID from your DB or `php artisan tinker` (do not assume it is 1).
 3. Run `php artisan telegram:link-account <user_id>` in a secure terminal. This displays a **single-use** credential for 10 minutes.
 4. In a **private chat** with your own bot, send `/link <code>`. The bot links your numeric Telegram ID to that account.
-5. Use `/start` to see your menu. Admin users can view the placeholder admin screen. Member users cannot.
+5. Use `/start` to see your menu. Admin users can view the read-only administration navigation. Member users cannot.
 
 Do not forward link codes or reuse them. Link issuance replaces previous unused codes. Link attempts in group chats are ignored. There is no anonymous registration.
 
@@ -50,3 +50,14 @@ A real Telegram admin/user interface and server operations will invoke module Ap
 
 ## F5 protected Super Admin setup
 Set `SUPER_ADMIN_TELEGRAM_IDS=id1,id2` (at least two **distinct** numeric user IDs; **not** usernames) in your untracked `.env`, and refresh cached configuration. First bootstrap two internal users and link each account to its own private Telegram identity. Then use `php artisan identity:super-admin:promote <internal-user-id>` for both from the trusted terminal, explicitly confirming each enrollment. If an allowlist entry is removed or its account disabled, privileges stop immediately on subsequent requests. No token or ENV entry grants rights by itself. See [RBAC operations](007-RBAC-OPERATIONS.md).
+
+## F06-A command and keyboard map
+- `/start`, `/menu`: home; account/settings buttons for authenticated active users, admin button only for users who currently hold user-management authority.
+- `/account`: current SkyNet ID, name, roles and active status (no passwords or linked tokens).
+- `/settings`: informational screen with a Home button; **no editable settings are implemented**.
+- `/admin`: navigation for users with `users.manage` authority; the Users screen states it will be implemented in F06-B.
+- `menu:admin:roles`: read-only preview requiring a **trusted** Super Admin under the F5 allowlist; the future F06-C roles UI is not available to ordinary admins.
+- Back/Home inline callbacks edit the same message. The bot checks the current user/permissions again on each interaction, including old callback buttons. Unauthorized admin callbacks receive a brief refusal.
+- Groups are not supported for account or privileged menus.
+
+Telegram user/preferences storage, Referral, privileged role enrollment, user mutation and system operations are explicitly outside F06-A.
