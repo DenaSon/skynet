@@ -127,7 +127,7 @@ final readonly class RemnawaveNodesApi
     }
 
     /**
-     * @param  list<array{uuid: string, viewPosition: int}>  $nodes
+     * @param  list<array<string, mixed>>  $nodes
      * @return array<mixed>
      */
     public function reorder(array $nodes): array
@@ -137,7 +137,7 @@ final readonly class RemnawaveNodesApi
         }
 
         foreach ($nodes as $node) {
-            if (! is_array($node) || ! is_int($node['viewPosition'] ?? null)) {
+            if (! is_int($node['viewPosition'] ?? null)) {
                 throw new InvalidArgumentException('Node reorder requires a numeric viewPosition.');
             }
 
@@ -262,7 +262,7 @@ final readonly class RemnawaveNodesApi
     }
 
     /**
-     * @param  list<string>  $uuids
+     * @param  array<mixed>  $uuids
      * @return list<string>
      */
     private static function uuids(array $uuids): array
@@ -271,15 +271,17 @@ final readonly class RemnawaveNodesApi
             throw new InvalidArgumentException('At least one node UUID is required.');
         }
 
+        $validated = [];
+
         foreach ($uuids as $uuid) {
-            self::uuid($uuid);
+            $validated[] = self::uuid($uuid);
         }
 
-        if (count(array_unique($uuids)) !== count($uuids)) {
+        if (count(array_unique($validated)) !== count($validated)) {
             throw new InvalidArgumentException('Duplicate node UUID.');
         }
 
-        return $uuids;
+        return $validated;
     }
 
     /**
