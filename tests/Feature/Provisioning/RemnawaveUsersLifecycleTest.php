@@ -249,7 +249,8 @@ it('locks uncertain provisioning after transport failures and reconciles by owne
     expect($lifecycle->reconcileCreate('order:97', 'pay:97'))->toBe(42)
         ->and(DB::table('provisioning_operations')->where('idempotency_key', 'pay:97')->value('state'))->toBe('completed');
 
-    Http::assertSentCount(2);
+    // Http::fake() resets its recorded request list to the current stub sequence.
+    Http::assertSentCount(1);
 });
 
 it('refuses reconciliation against a foreign user with the same username', function (): void {
@@ -313,7 +314,7 @@ it('protects subscription URL reads by local ownership and only permits active l
     Http::fake(['https://remna.test/api/users/42' => Http::response(['response' => ownedUser('order:101')], 200)]);
 
     expect($lifecycle->subscription('order:101')->subscriptionUrl)->toBe('https://sub.example.test/short-random-code');
-    Http::assertSentCount(2);
+    Http::assertSentCount(1);
 });
 
 
@@ -341,7 +342,7 @@ it('reconciles uncertain absolute quota updates by remote state without a second
     expect($lifecycle->reconcileUpdate('order:105', 'quota:105'))->toBe(42)
         ->and($lifecycle->setTrafficLimit('order:105', 'quota:105', 2048))->toBe(42);
 
-    Http::assertSentCount(3);
+    Http::assertSentCount(1);
 });
 
 it('refuses to mark a quota update complete if remote state does not match', function (): void {
