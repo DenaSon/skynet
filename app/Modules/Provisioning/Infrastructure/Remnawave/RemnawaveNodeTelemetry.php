@@ -109,7 +109,7 @@ final readonly class RemnawaveNodeTelemetry
     }
 
     /**
-     * @param  list<string>  $nodeUuids
+     * @param  array<mixed>  $nodeUuids
      * @return array<string, mixed>
      */
     public function usageForNodes(array $nodeUuids, string $start, string $end): array
