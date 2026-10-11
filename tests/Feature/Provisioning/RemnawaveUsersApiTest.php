@@ -4,6 +4,7 @@ use App\Modules\Provisioning\Infrastructure\Remnawave\CreateRemnawaveUser;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveApiClient;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveUsersApi;
 use Illuminate\Http\Client\Request;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 
 const USER_SQUAD_UUID = '550e8400-e29b-41d4-a716-446655440000';
@@ -203,6 +204,6 @@ it('propagates remote errors to the trusted application layer without manufactur
     Http::preventStrayRequests();
     Http::fake(['https://panel.example.test/*' => Http::response(['message' => 'denied'], 403)]);
 
-    expect(fn () => userContractApi()->byId(42))->toThrow(\Illuminate\Http\Client\RequestException::class);
+    expect(fn () => userContractApi()->byId(42))->toThrow(RequestException::class);
     Http::assertSentCount(1);
 });
