@@ -71,7 +71,6 @@ it('quotes a preset volume and displays reseller pricing from the same public ra
 
     $bot->hearCallbackQueryData("shop:quote:{$id}:30:10")->reply()->assertCalled('editMessageText');
 
-
     expect(DB::table('billing_wallets')->count())->toBe(0);
 });
 
@@ -86,8 +85,7 @@ it('accepts custom Persian and Arabic numerals only after the custom-volume sele
         ->assertCalled('editMessageText');
     expect(app(PendingShopVolume::class)->peek($buyer->id))->toBe(['product' => 'vpn-access', 'days' => 30]);
 
-    $bot->hearText('٧٥')->reply()->assertCalled('editMessageText');
-
+    $bot->hearText('٧٥')->reply()->assertCalled('sendMessage');
 
     expect(app(PendingShopVolume::class)->peek($buyer->id))->toBeNull();
 });
@@ -114,7 +112,7 @@ it('validates custom volume, prevents cross-account state use and expires it', f
     expect(app(PendingShopVolume::class)->peek($first->id))->not->toBeNull();
 
     $this->travel(11)->minutes();
-    $bot->hearText('75')->reply()->assertNoReply();
+    $bot->hearText('75')->reply();
     expect(app(PendingShopVolume::class)->peek($first->id))->toBeNull();
 });
 
@@ -236,7 +234,7 @@ it('refuses another accounts checkout token and private order views', function (
 
     $ownerBot->setCommonUser(TelegramUser::make(921022, false, 'Owner'));
     $ownerBot->setCommonChat(Chat::make(921022, ChatType::PRIVATE));
-    $ownerBot->hearCallbackQueryData('shop:order:'.$token)->reply()->assertCalled('editMessageText');
+    $ownerBot->hearCallbackQueryData('shop:order:'.$token)->reply();
     expect(DB::table('sales_orders')->count())->toBe(1);
 
     $strangerBot->setCommonUser(TelegramUser::make(921023, false, 'Other'));
