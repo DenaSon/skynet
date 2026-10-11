@@ -18,8 +18,8 @@
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveApiClient;
 
 $client = new RemnawaveApiClient(
-    baseUrl: config('services.remnawave.url'),
-    apiToken: config('services.remnawave.token'),
+    baseUrl: 'https://panel.example.com',
+    apiToken: $tokenFromTrustedConfiguration,
 );
 
 $data = $client->call('UsersController_getUserById', pathParameters: ['userId' => 123]);
