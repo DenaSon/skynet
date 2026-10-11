@@ -13,7 +13,7 @@ SkyNet is a Laravel successor to Python NVL. **Telegram-first** is the accepted 
 - F3 Identity established session auth and the original `admin/member` enum. F5 replaces that single enum/column with Spatie Permission v8 role/permission records, while retaining session guards and user status.
 - F4: `nutgram/laravel` ^1.7.1, Telegram adapter separate from Identity. Identity owns Telegram mappings, link-code issuance/redemption and lookup of an immutable `TelegramActor` DTO.
 - Telegram and eventual Livewire use Application actions directly; an HTTP API is optional, not a dependency.
-- **Provider direction:** Remnawave is the chosen initial future provisioning integration (F10), replacing the prior Marzban proposal. No provider SDK, Remnawave API connection, nodes or networking code exists yet.
+- **Provider direction:** Remnawave is the chosen initial provisioning integration (F10), replacing Marzban. F10-A PR proposes a contract-mapped Laravel HTTP transport for API v3.4.4 (218 operations); no configured credentials, real-panel connection, nodes, or live provisioning exist yet. See docs/009-REMNAWAVE-API.md and ADR 0007.
 
 ## F5 implementation
 - Role and permission tables from Spatie, with a migration mapping existing `admin`/`member` users into DB roles before removing the old column.
