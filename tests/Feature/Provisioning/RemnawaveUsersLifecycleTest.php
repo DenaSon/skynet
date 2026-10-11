@@ -373,7 +373,6 @@ it('refuses to mark a quota update complete if remote state does not match', fun
     expect(DB::table('provisioning_operations')->where('idempotency_key', 'quota:106')->value('state'))->toBe('needs_review');
 });
 
-
 it('can reconcile a crash-left reservation with a read-only lookup and no replay', function (): void {
     enableStaging();
     Http::preventStrayRequests();
