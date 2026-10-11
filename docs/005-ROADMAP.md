@@ -18,7 +18,7 @@ All statuses reflect **code in the repository**, not intentions.
 | F09-A — Product Catalog & Pricing | Product limits 1–100 GB, 15/30/60/90-day tariffs, direct/reseller quotes (5%), terminal admin setup | Implemented and verified (PR #15; 115 tests / 557 assertions, PHP 8.4/8.5 CI green) |
 | F09-B — Telegram Subscription Builder | Price shown on first buying screen, duration/volume options, custom integer input, read-only quote preview | Verified in PR #16 (135 tests / 660 assertions, PHP 8.4/8.5) |
 | F09-C — Orders | Server-side fresh-quote validation, immutable order price snapshot, buyer-bound idempotent pending-payment orders, `/orders` history | Verified in PR #16 (135 tests / 660 assertions, PHP 8.4/8.5) |
-| F10 — Remnawave Provisioning | F10-A/B/C merged; F10-D typed Users API and SQL-reserved subscription lifecycle with read-only reconciliation | F10-D in review; no live E2E, authorized sales activation or wallet settlement |
+| F10 — Remnawave Provisioning | F10-A/B/C merged; F10-D typed Users API and SQL-reserved subscription lifecycle with read-only reconciliation | F10-D implemented in PR #23 (PHP 8.4/8.5 CI green); no live E2E, authorized sales activation or wallet settlement |
 | F11 — Telegram Sales | Direct and reseller flows over shared order/provisioning | Planned after E2E |
 | Later — Web UI | Livewire 4 + Mary UI consuming the same Actions | Deferred |
 | Later — Product Domains | Define network/server/business capabilities based on use cases | Undecided |
