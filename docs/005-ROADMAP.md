@@ -14,7 +14,7 @@ All statuses reflect **code in the repository**, not intentions.
 | F06-B — Telegram Users | Search, list, profile, one-time confirmed state updates through Identity Actions | Completed (PR #8 merged; 69 tests, PHP 8.4/8.5 CI green) |
 | F06-C — Telegram RBAC | Role directory, custom role creation, code-defined permissions, multi-role assignments, single-use confirmations | Completed (PR #10 merged; 83 tests / 359 assertions, PHP 8.4/8.5 CI green) |
 | F07 — Onboarding & Referral | Opt-in private Telegram registration, member-only accounts, unique invitations, single-shot attribution, invitation counts | Implemented (PR #12; 95 tests/426 assertions CI green); real E2E pending |
-| F08 — Billing/Wallet | Non-withdrawable reseller wallets, manual bank-transfer topups, two-posting ledger, root review, idempotency, Telegram operations | PR branch; CI/merge pending |
+| F08 — Billing/Wallet | Non-withdrawable reseller wallets, manual bank-transfer topups, two-posting ledger, root review, idempotency, Telegram operations | PR #13, CI green (106 tests / 494 assertions); merge pending |
 | F09 — Products/Orders | Plan catalog, prices, reservations/order states | Planned after E2E |
 | F10 — Marzban Provisioning | First server provider and subscription activation | Planned after E2E |
 | F11 — Telegram Sales | Direct and reseller flows over shared order/provisioning | Planned after E2E |
