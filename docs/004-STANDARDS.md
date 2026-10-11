@@ -69,3 +69,10 @@ Use descriptive conventional commits (e.g., `chore:`, `docs:`, `feat:`, `test:`)
 - Built-in `member`, `admin`, and `super-admin` role permissions are protected from Telegram edits. New permission types must be created in code with server-side enforcement before they are offered to roles.
 - Every write requires a short-lived, unpredictable, one-time confirmation tied to the initiating **internal user ID**, stored in a lock-capable cache. Re-validate the DB state and actor trust inside an Identity transaction; reject stale/replayed toggles; append an audit event.
 - Do not store raw Telegram IDs/tokens in role UI, callback strings or audit records. Present only predefined permissions and validated role names.
+
+## F07 public onboarding
+- Public signup is an explicit opt-in: never auto-enroll an account merely from `/start`; private-chat click plus `TELEGRAM_PUBLIC_SIGNUP_ENABLED` required. Avoid intercepting existing `/link` operator setup.
+- Use numeric Telegram IDs as binding keys; `@username`, referral slug, names and arbitrary message text are never authorization identities.
+- Register `member` only; never upgrade existing accounts or reactivate disabled accounts via onboarding. Do not give public Telegram users a verified email or reusable web password.
+- Referral attribution is immutable, at most one referrer per newly created account, with a DB unique constraint. Invalid or missing codes never block standalone signup.
+- No marketing reward or monetary ledger row can be implied by an invitation.

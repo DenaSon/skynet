@@ -81,3 +81,12 @@ For an existing user, open **👥 کاربران** → user → **🔐 مدیر�
 All role/permission/user-role writes are confirmed with a three-minute operator-bound single-use token, consumed by the cache lock, re-authorized by the Identity Application layer and recorded in `identity_audit_events`. The default database cache supports locks; configure a shared, durable lock-capable store in production and migrate Laravel's cache tables. If ENV IDs or active DB role change, stale callbacks will not grant rights.
 
 Do not mistake successful Nutgram fake tests for Telegram/BotFather deployment; configure real HTTPS webhook and the two enrolled roots separately.
+
+## F07 public registration and invite codes
+Operator setup comes first: bootstrap and Telegram-link intended administrators/Super Admins **before** allowing public joins. Keep `TELEGRAM_PUBLIC_SIGNUP_ENABLED=false` while bootstrapping. When ready, set `TELEGRAM_PUBLIC_SIGNUP_ENABLED=true` and `TELEGRAM_BOT_USERNAME=YourBotUsername` (BotFather username without `@`) in the private deployment `.env`, then clear/rebuild config cache. Never commit token, webhook secret or root IDs. A configured public HTTPS webhook is still required for Telegram traffic.
+
+A new person opens `/start` (or a shared deep link `https://t.me/YourBotUsername?start=ref_<24-hex-code>`). The start message **does not register anyone**. The person must tap **✅ ایجاد حساب رایگان** in the private chat, which creates a linked `member` identity. Old administrator accounts should instead enter `/link <one-time-code>`; joining cannot grant privileges. Users with an existing Telegram binding will **not** be registered again or moved to another referrer.
+
+Any active linked member or administrator uses `/invite` or **🎁 دعوت دوستان** to get a stable opaque referral link and a count of invited users who completed signup. A 15-minute pending invitation context is saved only for the target Telegram user, then consumed at initial signup. Invalid codes are ignored; an existing account is never reattributed. This is attribution only: **no wallet, commission, money or reward**. New Telegram-only accounts currently have synthetic non-deliverable email addresses and randomized web passwords, and cannot reset or use a real email login until a deliberate future account-upgrade flow.
+
+Before shipping: E2E test fresh private join, linked admin `/link`, invite click, duplicate `/start` and link, and forged group traffic against the real webhook. When the feature is disabled, joining must refuse to create a user even if a stale button is clicked.

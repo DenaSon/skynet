@@ -17,6 +17,15 @@ final class MenuRenderer
     public function showHome(Nutgram $bot, ?TelegramActor $actor): void
     {
         if ($actor === null) {
+            if (config('telegram.public_signup_enabled', false)) {
+                $keyboard = InlineKeyboardMarkup::make()
+                    ->addRow(InlineKeyboardButton::make('✅ ایجاد حساب رایگان', callback_data: 'onboarding:join'));
+
+                $this->render($bot, "👋 خوش آمدید به SkyNet\n\nبرای ایجاد حساب عادی، دکمه زیر را انتخاب کنید.\nاگر قبلاً توسط مدیر حسابی ساخته شده است، به‌جای ثبت‌نام با دستور /link کد اتصال آن را وارد کنید.", $keyboard);
+
+                return;
+            }
+
             $this->render($bot, '🔒 حساب شما به SkyNet متصل نیست. برای اتصال، کد یک‌بارمصرف صادرشده توسط مدیر را در گفت‌وگوی خصوصی با دستور /link وارد کنید.');
 
             return;
@@ -24,13 +33,33 @@ final class MenuRenderer
 
         $keyboard = InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('👤 حساب من', callback_data: 'menu:account'))
-            ->addRow(InlineKeyboardButton::make('⚙️ تنظیمات', callback_data: 'menu:settings'));
+            ->addRow(InlineKeyboardButton::make('⚙️ تنظیمات', callback_data: 'menu:settings'))
+            ->addRow(InlineKeyboardButton::make('🎁 دعوت دوستان', callback_data: 'menu:invite'));
 
         if ($actor->isAdmin()) {
             $keyboard->addRow(InlineKeyboardButton::make('🛡️ مدیریت', callback_data: 'menu:admin'));
         }
 
         $this->render($bot, "🏠 SkyNet\n\nخوش آمدید، {$this->displayName($actor->name)}.", $keyboard);
+    }
+
+    public function showInvite(Nutgram $bot, string $url, int $invitedCount): void
+    {
+        $this->render(
+            $bot,
+            "🎁 دعوت دوستان\n\nلینک اختصاصی شما:\n{$url}\n\n👥 دعوت‌های ثبت‌شده: {$invitedCount}\n\nدر این مرحله پاداش یا اعتبار مالی برای دعوت تعریف نشده است.",
+            $this->homeKeyboard(),
+        );
+    }
+
+    public function showInviteUnavailable(Nutgram $bot): void
+    {
+        $this->render($bot, 'امکان ساخت لینک دعوت هنوز تنظیم نشده است. مدیر باید TELEGRAM_BOT_USERNAME را تنظیم کند.', $this->homeKeyboard());
+    }
+
+    public function showSignupNotice(Nutgram $bot, string $message): void
+    {
+        $this->render($bot, "👤 ثبت‌نام\n\n{$message}", $this->homeKeyboard());
     }
 
     public function showAccount(Nutgram $bot, TelegramActor $actor): void

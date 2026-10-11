@@ -67,3 +67,9 @@ See `docs/004-STANDARDS.md` for coding and documentation conventions.
 - Never expose `super-admin` enrollment/revocation or built-in system-role permission edits in Telegram. Maintain F5 guardrails for peer accounts and the final remaining role.
 - Every Telegram RBAC mutation must have a one-time, per-actor cache confirmation, a current DB state check, and an Identity audit event. All handlers remain private-chat-only.
 - New permissions are code-defined, not created from untrusted Telegram text. No generic settings/referral/server domain additions in F06-C.
+
+## F07 onboarding/referral boundaries
+- Public join: deliberate private-chat consent plus deploy flag, then Identity `member` only. Do not intercept or auto-link existing administrator accounts; protect disabled accounts.
+- Onboarding orchestrates Identity/Referral Application use cases in a transaction. Telegram adapter owns only UI and short-lived deep-link state; do not reach into database models there.
+- Referral ownership is immutable and attributed only when a **new** member is created; no income/financial reward records at this phase.
+- Keep automated CI and E2E verification before production public rollout.
