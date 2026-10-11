@@ -76,7 +76,7 @@ final readonly class RemnawaveSubscriptionsApi
     }
 
     /**
-     * @param array<string, int|string> $path
+     * @param  array<string, int|string>  $path
      * @return array<string, mixed>
      */
     private function response(string $operation, array $path): array
