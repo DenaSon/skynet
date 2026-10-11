@@ -55,3 +55,10 @@ Use descriptive conventional commits (e.g., `chore:`, `docs:`, `feat:`, `test:`)
 - Re-resolve the active linked Identity account on each command and callback; use the Identity Application DTO rather than reaching into persistence from a Telegram handler.
 - Unknown/deactivated accounts never see protected pages. Role-management previews require a trusted Super Admin; admin-user previews require `users.manage` authority.
 - Reply to callback queries and edit the existing message for navigation. Avoid pretending a placeholder is a functional settings/users/roles page.
+
+## F06-B user operations and confirmation
+- Do not load Identity Infrastructure models inside Telegram presentation classes: browse, lookup and status-change Actions must perform current authorization.
+- Always recheck actor role/activity on callback, including old buttons; role management and Super Admin protection remain enforced by Identity.
+- A confirmed mutation is a one-time cache token, bound to the initiating internal actor and expires after 3 minutes. Use a cache lock for concurrent callback consumption. Final DB operation checks previous active state to reject replay/races.
+- Telegram messages must never contain password hashes, link tokens or raw Telegram IDs. A name/email shown in plain text must have control characters normalized.
+- Page/search queries must be bounded. Search context should expire and remain scoped to one internal actor.

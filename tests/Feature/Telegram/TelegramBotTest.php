@@ -29,7 +29,7 @@ it('renders an admin menu only after verified account linking', function (): voi
     $bot->setCommonChat(Chat::make(22222, ChatType::PRIVATE));
 
     $bot->hearText('/admin')->reply()
-        ->assertReplyText("🛡️ مدیریت SkyNet\n\nبخش‌های مدیریتی در حال آماده‌سازی هستند.");
+        ->assertReplyText("🛡️ مدیریت SkyNet\n\nمدیریت کاربران فعال است. بخش نقش‌ها و دسترسی‌ها در فاز بعد تکمیل می‌شود.");
 });
 
 it('does not disclose the admin menu to linked members', function (): void {

@@ -61,3 +61,12 @@ Set `SUPER_ADMIN_TELEGRAM_IDS=id1,id2` (at least two **distinct** numeric user I
 - Groups are not supported for account or privileged menus.
 
 Telegram user/preferences storage, Referral, privileged role enrollment, user mutation and system operations are explicitly outside F06-A.
+
+## F06-B user-management navigation
+Open `/admin` → **👥 کاربران**, or use `/users` (in a private chat as a current authorized admin). Six accounts appear per page, oldest IDs first. Tap an account for its name, internal ID, email, roles, active/inactive state, and whether its Telegram account is linked. Use the numbered buttons and Back controls to navigate.
+
+Tap **🔎 جست‌وجو**, then send `/finduser <term>` (one token, up to 64 chars). Search matches an internal numeric ID exactly or finds a fragment of name/email. The per-actor search context expires after 10 minutes; use `/finduser` again if expired. No user creation or role changes here.
+
+For eligible accounts, tap **فعال‌کردن / غیرفعال‌کردن** and explicitly confirm. A random actor-bound confirmation is valid for only 3 minutes and is consumed once. The Identity transaction checks live role/activity and current target status again. Super Admins cannot be disabled from the bot, ordinary admins cannot disable peers, and users cannot disable themselves. Successful changes append `identity.user.status_changed` audit rows.
+
+**Operations:** Database-backed Laravel Cache and its lock table are required for short-lived confirmations. Set up the scheduler separately for other Telegram tasks. As with all bots, this is NOT proof of a deployed bot; use a real private chat only after your webhook/polling and operator binding have been configured. F06-C role management remains deferred.
