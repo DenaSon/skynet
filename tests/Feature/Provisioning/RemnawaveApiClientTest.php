@@ -22,7 +22,7 @@ it('pins all 218 Remnawave v3.4.4 OpenAPI operations without duplicates', functi
 
 it('sends a mapped authorized request and preserves the response envelope', function (): void {
     Http::preventStrayRequests();
-    Http::fake(['remnawave.test/*' => Http::response(['response' => ['id' => 42]], 200)]);
+    Http::fake(['https://remnawave.test/*' => Http::response(['response' => ['id' => 42]], 200)]);
 
     $result = remnawaveClient()->call('UsersController_getUserById', ['userId' => 42]);
 
@@ -36,7 +36,7 @@ it('sends a mapped authorized request and preserves the response envelope', func
 
 it('maps POST JSON bodies without replaying writes', function (): void {
     Http::preventStrayRequests();
-    Http::fake(['remnawave.test/*' => Http::response(['response' => ['id' => 52]], 201)]);
+    Http::fake(['https://remnawave.test/*' => Http::response(['response' => ['id' => 52]], 201)]);
 
     remnawaveClient()->call('UsersController_createUser', body: ['username' => 'test_user']);
 
@@ -60,7 +60,7 @@ it('rejects unmapped operations and missing required parameters before HTTP', fu
 
 it('encodes path parameters rather than allowing arbitrary path injection', function (): void {
     Http::preventStrayRequests();
-    Http::fake(['remnawave.test/*' => Http::response(['response' => []], 200)]);
+    Http::fake(['https://remnawave.test/*' => Http::response(['response' => []], 200)]);
 
     remnawaveClient()->call('UsersController_getUserByUsername', ['username' => 'a/b c']);
 
@@ -69,7 +69,7 @@ it('encodes path parameters rather than allowing arbitrary path injection', func
 
 it('propagates HTTP errors and never automatically retries a write', function (): void {
     Http::preventStrayRequests();
-    Http::fake(['remnawave.test/*' => Http::response(['message' => 'Invalid input'], 422)]);
+    Http::fake(['https://remnawave.test/*' => Http::response(['message' => 'Invalid input'], 422)]);
 
     expect(fn () => remnawaveClient()->call('UsersController_createUser', body: ['username' => 'test_user']))
         ->toThrow(RequestException::class);
@@ -79,7 +79,7 @@ it('propagates HTTP errors and never automatically retries a write', function ()
 
 it('rejects redirect responses rather than forwarding the API token', function (): void {
     Http::preventStrayRequests();
-    Http::fake(['remnawave.test/*' => Http::response('', 302, ['Location' => 'https://external.test'])]);
+    Http::fake(['https://remnawave.test/*' => Http::response('', 302, ['Location' => 'https://external.test'])]);
 
     expect(fn () => remnawaveClient()->call('UsersController_getUsers'))->toThrow(RuntimeException::class);
     Http::assertSentCount(1);
@@ -87,7 +87,7 @@ it('rejects redirect responses rather than forwarding the API token', function (
 
 it('returns null for an empty success body', function (): void {
     Http::preventStrayRequests();
-    Http::fake(['remnawave.test/*' => Http::response('', 204)]);
+    Http::fake(['https://remnawave.test/*' => Http::response('', 204)]);
 
     expect(remnawaveClient()->call('UsersController_deleteUser', ['userId' => 42]))->toBeNull();
 });
