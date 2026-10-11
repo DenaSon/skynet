@@ -55,7 +55,7 @@ final class RbacUi
             return;
         }
 
-        $this->menus->showRoleDetails($bot, $role, $this->roles->permissions(), $this->page($page), $this->page($permissionPage));
+        $this->menus->showRoleDetails($bot, $role, $this->roles->permissions($actor->userId), $this->page($page), $this->page($permissionPage));
     }
 
     public function createHelp(Nutgram $bot): void
@@ -94,7 +94,7 @@ final class RbacUi
         }
 
         $role = $this->roles->find($actor->userId, (int) $roleId);
-        $permission = collect($this->roles->permissions())->first(fn ($entry): bool => $entry->id === (int) $permissionId);
+        $permission = collect($this->roles->permissions($actor->userId))->first(fn ($entry): bool => $entry->id === (int) $permissionId);
 
         if ($role === null || $role->protected || $permission === null) {
             $this->menus->showRoleNotice($bot, 'امکان تغییر مجوز این نقش وجود ندارد.');

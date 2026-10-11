@@ -147,3 +147,26 @@ it('navigates an expanded permission catalog without a fixed twenty-five permiss
         ->assertCalled('answerCallbackQuery')
         ->assertCalled('editMessageText');
 });
+
+it('binds pending confirmations to a single root and expires after three minutes', function (): void {
+    [$root, $bot] = prepareRbacBot();
+
+    $second = User::factory()->create();
+    $second->syncRoles(['super-admin']);
+    TelegramAccount::query()->create(['user_id' => $second->id, 'telegram_user_id' => 858585]);
+
+    $token = app(RbacConfirmations::class)->issue($root->id, 'create', name: 'exclusive');
+
+    $bot->setCommonUser(TelegramUser::make(858585, false, 'Second Root'));
+    $bot->setCommonChat(Chat::make(858585, ChatType::PRIVATE));
+
+    $bot->hearCallbackQueryData('rbac:apply:'.$token)->reply()->assertCalled('editMessageText');
+    expect(Role::query()->where('name', 'exclusive')->exists())->toBeFalse();
+
+    $bot->setCommonUser(TelegramUser::make(757575, false, 'Original Root'));
+    $bot->setCommonChat(Chat::make(757575, ChatType::PRIVATE));
+    $this->travel(4)->minutes();
+
+    $bot->hearCallbackQueryData('rbac:apply:'.$token)->reply()->assertCalled('editMessageText');
+    expect(Role::query()->where('name', 'exclusive')->exists())->toBeFalse();
+});

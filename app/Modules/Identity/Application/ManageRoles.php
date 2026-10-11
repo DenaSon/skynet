@@ -30,7 +30,7 @@ final class ManageRoles
 
         return new RoleDirectoryPage(
             roles: $roles->getCollection()->map(fn (Role $role): RoleEntry => $this->entry($role))->all(),
-            permissions: $this->permissions(),
+            permissions: $this->permissions($actorId),
             page: $roles->currentPage(),
             lastPage: $roles->lastPage(),
             total: $roles->total(),
@@ -50,8 +50,10 @@ final class ManageRoles
     /**
      * @return list<PermissionEntry>
      */
-    public function permissions(): array
+    public function permissions(int $actorId): array
     {
+        $this->authorize($actorId);
+
         return Permission::query()->where('guard_name', 'web')->orderBy('name')->get()
             ->map(fn (Permission $permission): PermissionEntry => new PermissionEntry((int) $permission->getKey(), $permission->name))
             ->all();
