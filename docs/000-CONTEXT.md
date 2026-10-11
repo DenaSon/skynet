@@ -1,7 +1,7 @@
 # SkyNet — Current Context
 
 **Reviewed:** 2026-10-11  
-**Stage:** F08 Billing & Wallet verified in PR #13 (PHP 8.4/8.5 CI green; merge pending; real bank/Telegram E2E not performed)  
+**Stage:** F08 Billing & Wallet completed (PR #13 merged, PHP 8.4/8.5 CI green; live bank/Telegram E2E still pending)  
 **Behavioral truth:** repository code and tests, not aspirational plans.
 
 ## Product direction
@@ -53,7 +53,7 @@ SkyNet is a Laravel successor to Python NVL. **Telegram-first** is the accepted 
 - Referral module issues stable cryptographically random per-user codes, renders `t.me/<bot>?start=ref_<code>` via `/invite`, and counts verified completed signups; a pending code in short-lived cache is applied only during the same DB transaction as a brand-new account. Existing accounts can never be reattributed; no rewards/commission logic.
 - Orchestration in `Onboarding/Application/JoinFromTelegram` composes Identity and Referral Actions, while the Telegram adapter only holds temporary pending context and menus. No networking or money operations.
 
-## F08 implemented and CI-verified (PR #13)
+## F08 completed in code (PR #13)
 - Billing is a small isolated module with reseller wallet account per Identity user, manual bank-transfer top-up requests and one trusted-Super-Admin review workflow. All monetary values are positive integer rials internally, displayed as toman in Telegram. No direct payout, transfer or purchase features.
 - An append-only-by-application two-posting journal is the source of wallet balance: a verified incoming transfer debits `cash_clearing` and credits `wallet_liability` atomically; there is no `users.balance` field. Independent bank verification is the operator's responsibility.
 - A submitted payment reference never increases credit until a trusted reviewer confirms it. DB-unique verified bank references and per-topup journal idempotency keys prevent multiple topups crediting the same reported transfer. Rejection creates no postings.
