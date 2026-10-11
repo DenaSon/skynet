@@ -85,3 +85,9 @@ Operator setup is `sales:product:set` and `sales:rate:set` in `routes/console.ph
 `Modules/Sales/Application/CreatePendingOrder` owns checkout: accepts an immutable expected quote and unpredictable idempotency key, reauthorizes the active buyer, reprices with `CalculateQuote` and atomically inserts a buyer-owned `pending_payment` order with its full public/reseller quote snapshot. Repeats with a previously successful key return the same record; price/role changes before the first order require a fresh quote. `OrderReader` provides owner-scoped latest-ten and individual reads, never direct Telegram DB access.
 
 `Interfaces/Telegram/Support/CheckoutTokens` is an ephemeral 10-minute user-bound preview, not financial proof. `ShopUi` exposes only an explicit order-create button and order-history navigation. There is no F09-C workflow that changes an order to paid, reserves or debits wallets, or provisions a provider.
+
+
+## F10-A/B — Remnawave transport and scoped provider discovery (stacked PRs)
+`Modules/Provisioning/Infrastructure/Remnawave` owns the external HTTP transport, pinned OpenAPI operation map, and read-only resource discovery. The `Presentation/Console/InspectRemnawave` operator command is the only new interface; `ProvisioningServiceProvider` registers it. The integration has **no dependency on Sales/Billing/Identity persistence**, and Telegram imports nothing from provider infrastructure.
+
+A configured operator may make five read-only GET requests to health, nodes, hosts, internal squads, and config profiles. The integration projects only minimal, safe node metadata to a typed DTO. It has no external writes, no customer/role service exposure, no webhook, no cross-module events and no order-provisioning side effects. Paid-order transition and any future `RemnawaveProvider` remain gated to a separate tested increment. See [staging runbook](010-REMNAWAVE-STAGING.md).
