@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Http;
 
 const USER_SQUAD_UUID = '550e8400-e29b-41d4-a716-446655440000';
 
-function userApi(): RemnawaveUsersApi
+function userContractApi(): RemnawaveUsersApi
 {
     return new RemnawaveUsersApi(new RemnawaveApiClient('https://panel.example.test', 'testing-token'));
 }
@@ -44,7 +44,7 @@ it('creates a subscriber using documented required fields and explicit safe limi
         internalSquadUuids: [USER_SQUAD_UUID],
     );
 
-    $user = userApi()->create($payload);
+    $user = userContractApi()->create($payload);
 
     expect($user->id)->toBe(42)
         ->and($user->username)->toBe('sky_order_42')
@@ -63,7 +63,7 @@ it('creates a subscriber using documented required fields and explicit safe limi
 it('retrieves subscriber by numeric ID, username and short UUID using documented paths', function (): void {
     prepareUserResponse();
 
-    $api = userApi();
+    $api = userContractApi();
     expect($api->byId(42)->id)->toBe(42)
         ->and($api->byUsername('sky_order_42')->shortUuid)->toBe('abcdefgh')
         ->and($api->byShortUuid('abcdefgh')->status)->toBe('ACTIVE');
@@ -85,7 +85,7 @@ it('retrieves paginated provider users without exposing password fields', functi
         'response' => ['users' => [remoteUser(['trojanPassword' => 'inbound-secret'])], 'total' => 1],
     ])]);
 
-    $users = userApi()->list(start: 10, size: 20);
+    $users = userContractApi()->list(start: 10, size: 20);
 
     expect($users['total'])->toBe(1)
         ->and($users['users'])->toHaveCount(1)
@@ -99,7 +99,7 @@ it('retrieves paginated provider users without exposing password fields', functi
 it('uses PATCH body id and validates whitelisted user mutations', function (): void {
     prepareUserResponse();
 
-    $api = userApi();
+    $api = userContractApi();
     expect($api->update(42, [
         'trafficLimitBytes' => 5368709120,
         'expireAt' => '2027-01-01T00:00:00Z',
@@ -118,7 +118,7 @@ it('uses PATCH body id and validates whitelisted user mutations', function (): v
 it('rejects invalid user payloads before making any provider request', function (): void {
     Http::preventStrayRequests();
     Http::fake();
-    $api = userApi();
+    $api = userContractApi();
 
     expect(fn () => new CreateRemnawaveUser('bad username!', '2026-12-01T00:00:00Z', 100, [USER_SQUAD_UUID]))
         ->toThrow(InvalidArgumentException::class);
@@ -140,7 +140,7 @@ it('rejects invalid user payloads before making any provider request', function 
 
 it('sends enable, disable, extend, traffic reset and revoke with correct verbs', function (): void {
     prepareUserResponse();
-    $api = userApi();
+    $api = userContractApi();
 
     $api->enable(42);
     $api->disable(42);
@@ -161,7 +161,7 @@ it('deletes users with an empty 204 response and does not retry', function (): v
     Http::preventStrayRequests();
     Http::fake(['https://panel.example.test/api/users/42' => Http::response('', 204)]);
 
-    userApi()->delete(42);
+    userContractApi()->delete(42);
     Http::assertSentCount(1);
     Http::assertSent(fn (Request $request): bool => $request->method() === 'DELETE');
 });
@@ -172,7 +172,7 @@ it('fails closed when the provider returns a malformed user response', function 
         'response' => ['id' => 42, 'username' => 'incomplete'],
     ])]);
 
-    expect(fn () => userApi()->byId(42))->toThrow(UnexpectedValueException::class);
+    expect(fn () => userContractApi()->byId(42))->toThrow(UnexpectedValueException::class);
     Http::assertSentCount(1);
 });
 
@@ -190,7 +190,7 @@ it('fetches read-only accessible nodes, tags and request history', function (): 
         ]),
     ]);
 
-    $api = userApi();
+    $api = userContractApi();
     expect($api->accessibleNodes(42)['activeNodes'])->toBe([])
         ->and($api->requestHistory(42)['total'])->toBe(0)
         ->and($api->tags()['tags'])->toBe(['VIP']);
@@ -203,6 +203,6 @@ it('propagates remote errors to the trusted application layer without manufactur
     Http::preventStrayRequests();
     Http::fake(['https://panel.example.test/*' => Http::response(['message' => 'denied'], 403)]);
 
-    expect(fn () => userApi()->byId(42))->toThrow(\Illuminate\Http\Client\RequestException::class);
+    expect(fn () => userContractApi()->byId(42))->toThrow(\Illuminate\Http\Client\RequestException::class);
     Http::assertSentCount(1);
 });
