@@ -1,6 +1,6 @@
 # F10-D — Remnawave User Lifecycle and Durable Provisioning
 
-**Status:** Implemented for review in PR; HTTP-fake tests only. **Not verified against a live panel. Not connected to payment, Telegram, checkout or public routes.**
+**Status:** Implemented in PR #23 with PHP 8.4/8.5 CI green; HTTP-fake tests only. **Not verified against a live panel. Not connected to payment, Telegram, checkout or public routes.**
 
 ## Source and contract
 - Official Remnawave API: https://docs.rw/api/ (pinned OpenAPI **v3.4.4**).
