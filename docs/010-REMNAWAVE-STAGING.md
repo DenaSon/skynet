@@ -1,6 +1,6 @@
 # F10-B — Read-only Remnawave staging diagnostics
 
-**Status:** Implemented in stacked PR, **not verified against a real Remnawave server**.
+**Status:** Implemented and merged via PR #20; **not verified against a real Remnawave server**.
 **API contract:** Official https://docs.rw/api/ exposes OpenAPI `v3.4.4`.
 **Server release:** `3.4.5` exists; validate against the pinned API contract before deploying writes.
 
