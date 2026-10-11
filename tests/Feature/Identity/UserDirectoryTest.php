@@ -14,7 +14,7 @@ uses(RefreshDatabase::class);
 it('paginates consistently and searches by id, name or email', function (): void {
     $admin = User::factory()->admin()->create();
     User::factory()->count(14)->create();
-    $alice = User::factory()->create(['name' => 'Alice Baker', 'email' => 'alice@example.test']);
+    $alice = User::factory()->create(['name' => 'UniqueDirectorySubject927', 'email' => 'unique-927@example.test']);
     $directory = app(BrowseUsers::class);
 
     $pageOne = $directory->page($admin->id);
@@ -25,8 +25,8 @@ it('paginates consistently and searches by id, name or email', function (): void
         ->and(count($pageOne->users))->toBe(6)
         ->and($pageTwo->users[0]->id)->toBeGreaterThan($pageOne->users[5]->id);
 
-    expect($directory->page($admin->id, 'alice')->users[0]->id)->toBe($alice->id)
-        ->and($directory->page($admin->id, 'alice@example.test')->total)->toBe(1)
+    expect($directory->page($admin->id, 'UniqueDirectorySubject927')->users[0]->id)->toBe($alice->id)
+        ->and($directory->page($admin->id, 'unique-927@example.test')->total)->toBe(1)
         ->and($directory->page($admin->id, (string) $alice->id)->total)->toBe(1)
         ->and($directory->page($admin->id, 'no-such-user')->total)->toBe(0);
 });
