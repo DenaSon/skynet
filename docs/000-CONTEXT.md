@@ -1,7 +1,7 @@
 # SkyNet — Current Context
 
 **Reviewed:** 2026-10-11  
-**Stage:** F06-B Telegram user management completed (PR #8 merged; CI PHP 8.4/8.5 green)  
+**Stage:** F06-C Telegram RBAC management implemented on `feature/06c-telegram-rbac` (CI/merge pending)  
 **Behavioral truth:** repository code and tests, not aspirational plans.
 
 ## Product direction
@@ -41,8 +41,14 @@ SkyNet is a Laravel successor to Python NVL. **Telegram-first** is the accepted 
 - Status changes use a 3-minute, unpredictable, one-time, operator-bound cache confirmation; `ChangeUserStatus` delegates to existing `UpdateUserAccess` and re-checks authorization, expected status and protected root/self policies under a DB transaction. Changes append Identity Audit events.
 - Search and user details expose data only to actors with current `users.manage`; revoked or inactive users and stale callbacks are denied. No new migrations/packages.
 
+## F06-C implementation (pending CI)
+- Trusted Super Admins can browse/view roles and available code-defined permissions, create custom DB roles via `/newrole <slug>`, toggle allowed custom role permissions, and add/remove user roles through inline keyboards.
+- Identity Application Actions `ManageRoles`, `ToggleRolePermission` and `ToggleMemberRole` own reads, authorization, stale-state rejection and audit logging. Telegram UI receives immutable DTOs rather than DB models.
+- All RBAC writes require a three-minute, single-use, per-operator confirmation in lock-capable Laravel Cache, with authorization checked again at mutation time.
+- Built-in `member`, `admin`, `super-admin` role definitions cannot be modified via Telegram, and `super-admin` cannot be assigned or removed there. Operator-bound allowlist is checked for each callback. No new migrations or dependencies.
+
 ## Not implemented
-Full administration workflows (role assignment, user creation, permissions), customer business operations, user self-registration, password reset, Livewire, Mini App, public REST API, server actions, SSH, network topology, long-running queues. Basic bot updates are processed synchronously; future heavy operations must be dispatched to durable jobs.
+Full administration workflows (user creation, referral/customer onboarding), customer business operations, user self-registration, password reset, Livewire, Mini App, public REST API, server actions, SSH, network topology, long-running queues. Basic bot updates are processed synchronously; future heavy operations must be dispatched to durable jobs.
 
 ## Validation
 **F06-B passed:** GitHub Actions run **38098764186** on PHP 8.4 and 8.5: **69 Pest tests / 295 assertions**, Larastan 0 errors, Pint clean. This covers Nutgram fake transport, not an actual deployed Telegram bot.
@@ -55,7 +61,7 @@ Full administration workflows (role assignment, user creation, permissions), cus
 
 ## Next
 1. Configure BotFather token, separate random webhook secret, public HTTPS URL, and operator-only account link in the deployment environment (do not commit any secrets).
-2. Implement F06-C role and permission management through Identity Actions.
+2. Validate F06-C on CI, then implement customer onboarding/referral foundation after deploying the Telegram transport.
 3. Add Livewire only when a web interface is required.
 
 See [Architecture](002-ARCHITECTURE.md), [Modules](003-MODULES.md), [Telegram operations](006-TELEGRAM-OPERATIONS.md), [Roadmap](005-ROADMAP.md) and [ADR 0004](adr/0004-telegram-first.md).

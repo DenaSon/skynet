@@ -70,3 +70,14 @@ Tap **🔎 جست‌وجو**, then send `/finduser <term>` (one token, up to 64 
 For eligible accounts, tap **فعال‌کردن / غیرفعال‌کردن** and explicitly confirm. A random actor-bound confirmation is valid for only 3 minutes and is consumed once. The Identity transaction checks live role/activity and current target status again. Super Admins cannot be disabled from the bot, ordinary admins cannot disable peers, and users cannot disable themselves. Successful changes append `identity.user.status_changed` audit rows.
 
 **Operations:** Database-backed Laravel Cache and its lock table are required for short-lived confirmations. Set up the scheduler separately for other Telegram tasks. As with all bots, this is NOT proof of a deployed bot; use a real private chat only after your webhook/polling and operator binding have been configured. F06-C role management remains deferred.
+
+## F06-C role management
+A **trusted** Super Admin opens `/admin` → **🔐 نقش‌ها و دسترسی‌ها** (or `/roles`) in private chat. Roles are paginated; tapping a role shows current permissions and user count. The registered permission catalog is paginated, eight per screen, with previous/next callbacks. System roles (`member`, `admin`, `super-admin`) are locked for permission edits. On custom roles, each registered permission can be toggled after a one-time confirmation. Only permission names actually defined/enforced in the backend can be assigned; no UI-defined privileges.
+
+To create a role, tap **➕ نقش جدید** and send `/newrole reseller` (3–50 ASCII slug characters). The role is created without permissions after confirmation; then assign the desired permissions from its screen.
+
+For an existing user, open **👥 کاربران** → user → **🔐 مدیریت نقش‌های کاربر** (visible to trusted roots). Toggle a desired role and explicitly confirm. Users can have multiple roles; removing the last one is blocked. Root role enrollment/revocation, root account disablement, modifying built-in role permissions and changing passwords are intentionally unavailable via the bot.
+
+All role/permission/user-role writes are confirmed with a three-minute operator-bound single-use token, consumed by the cache lock, re-authorized by the Identity Application layer and recorded in `identity_audit_events`. The default database cache supports locks; configure a shared, durable lock-capable store in production and migrate Laravel's cache tables. If ENV IDs or active DB role change, stale callbacks will not grant rights.
+
+Do not mistake successful Nutgram fake tests for Telegram/BotFather deployment; configure real HTTPS webhook and the two enrolled roots separately.

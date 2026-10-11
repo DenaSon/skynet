@@ -2,6 +2,9 @@
 
 namespace App\Interfaces\Telegram\Support;
 
+use App\Modules\Identity\Application\PermissionEntry;
+use App\Modules\Identity\Application\RoleDirectoryPage;
+use App\Modules\Identity\Application\RoleEntry;
 use App\Modules\Identity\Application\TelegramActor;
 use App\Modules\Identity\Application\UserDirectoryEntry;
 use App\Modules\Identity\Application\UserDirectoryPage;
@@ -62,7 +65,7 @@ final class MenuRenderer
 
         $keyboard->addRow(InlineKeyboardButton::make('◀️ صفحه اصلی', callback_data: 'menu:home'));
 
-        $this->render($bot, "🛡️ مدیریت SkyNet\n\nمدیریت کاربران فعال است. بخش نقش‌ها و دسترسی‌ها در فاز بعد تکمیل می‌شود.", $keyboard);
+        $this->render($bot, "🛡️ مدیریت SkyNet\n\nمدیریت کاربران، نقش‌ها و مجوزها فعال است.", $keyboard);
     }
 
     public function showUserList(Nutgram $bot, UserDirectoryPage $results, bool $search = false): void
@@ -104,7 +107,7 @@ final class MenuRenderer
         $this->render($bot, implode("\n", $lines), $keyboard);
     }
 
-    public function showUserDetails(Nutgram $bot, UserDirectoryEntry $user, int $page = 1, bool $search = false): void
+    public function showUserDetails(Nutgram $bot, UserDirectoryEntry $user, int $page = 1, bool $search = false, bool $manageRoles = false): void
     {
         $name = $this->displayName($user->name);
         $email = $this->displayName($user->email);
@@ -118,6 +121,10 @@ final class MenuRenderer
         if ($user->canChangeStatus) {
             $label = $user->active ? '⛔ غیرفعال‌کردن' : '✅ فعال‌کردن';
             $keyboard->addRow(InlineKeyboardButton::make($label, callback_data: "users:confirm:{$user->id}:{$page}:{$mode}"));
+        }
+
+        if ($manageRoles && ! in_array('super-admin', $user->roles, true)) {
+            $keyboard->addRow(InlineKeyboardButton::make('🔐 مدیریت نقش‌های کاربر', callback_data: "rbac:user:{$user->id}:1"));
         }
 
         $keyboard->addRow(InlineKeyboardButton::make('◀️ بازگشت به فهرست', callback_data: $this->pageCallback($page, $search)));
@@ -159,13 +166,137 @@ final class MenuRenderer
         $this->render($bot, "👥 مدیریت کاربران\n\n{$message}", $this->userBackKeyboard());
     }
 
-    public function showAdminRoles(Nutgram $bot): void
+    public function showRolesList(Nutgram $bot, RoleDirectoryPage $page): void
+    {
+        $text = "🔐 نقش‌ها و دسترسی‌ها\n\nتعداد: {$page->total} | صفحه {$page->page} از {$page->lastPage}\n";
+        $keyboard = InlineKeyboardMarkup::make();
+
+        foreach ($page->roles as $role) {
+            $mark = $role->protected ? '🔒' : '🧩';
+            $text .= "\n{$mark} {$role->name} — {$role->userCount} کاربر";
+            $keyboard->addRow(InlineKeyboardButton::make(
+                "{$mark} {$role->name}",
+                callback_data: "rbac:role:{$role->id}:{$page->page}",
+            ));
+        }
+
+        if ($page->roles === []) {
+            $text .= "\nنقشی پیدا نشد.";
+        }
+
+        $keyboard->addRow(InlineKeyboardButton::make('➕ نقش جدید', callback_data: 'rbac:new'));
+
+        if ($page->page > 1) {
+            $keyboard->addRow(InlineKeyboardButton::make('◀️ قبلی', callback_data: 'rbac:page:'.($page->page - 1)));
+        }
+
+        if ($page->page < $page->lastPage) {
+            $keyboard->addRow(InlineKeyboardButton::make('بعدی ▶️', callback_data: 'rbac:page:'.($page->page + 1)));
+        }
+
+        $keyboard->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
+        $this->render($bot, $text, $keyboard);
+    }
+
+    /**
+     * @param  list<PermissionEntry>  $available
+     */
+    public function showRoleDetails(Nutgram $bot, RoleEntry $role, array $available, int $page, int $permissionPage = 1): void
+    {
+        $assigned = $role->permissions === [] ? 'هیچ مجوزی' : implode('، ', $role->permissions);
+        $text = "🔐 نقش: {$role->name}\n\nکاربران: {$role->userCount}\nمجوزها: {$assigned}";
+        $keyboard = InlineKeyboardMarkup::make();
+
+        if ($role->protected) {
+            $text .= "\n\n🔒 نقش سیستمی محافظت‌شده است و از ربات قابل تغییر نیست.";
+        } else {
+            $permissionPages = max(1, (int) ceil(count($available) / 8));
+            $permissionPage = max(1, min($permissionPage, $permissionPages));
+            $text .= "\nصفحه مجوزها: {$permissionPage} از {$permissionPages}";
+
+            foreach (array_slice($available, ($permissionPage - 1) * 8, 8) as $permission) {
+                $on = in_array($permission->name, $role->permissions, true);
+                $keyboard->addRow(InlineKeyboardButton::make(
+                    ($on ? '✅ ' : '⬜ ').$permission->name,
+                    callback_data: "rbac:perm:{$role->id}:{$permission->id}",
+                ));
+            }
+
+            if ($permissionPage > 1) {
+                $keyboard->addRow(InlineKeyboardButton::make('◀️ مجوزهای قبلی', callback_data: "rbac:p:{$role->id}:{$page}:".($permissionPage - 1)));
+            }
+
+            if ($permissionPage < $permissionPages) {
+                $keyboard->addRow(InlineKeyboardButton::make('مجوزهای بعدی ▶️', callback_data: "rbac:p:{$role->id}:{$page}:".($permissionPage + 1)));
+            }
+        }
+
+        $keyboard->addRow(InlineKeyboardButton::make('◀️ همه نقش‌ها', callback_data: "rbac:page:{$page}"));
+        $this->render($bot, $text, $keyboard);
+    }
+
+    public function showUserRoles(Nutgram $bot, UserDirectoryEntry $user, RoleDirectoryPage $page): void
+    {
+        $text = "🔐 نقش‌های کاربر #{$user->id}\n\n{$this->displayName($user->name)}\nنقش‌های فعلی: ".implode('، ', $user->roles);
+        $keyboard = InlineKeyboardMarkup::make();
+        $protected = in_array('super-admin', $user->roles, true);
+
+        foreach ($page->roles as $role) {
+            if ($protected || $role->name === 'super-admin') {
+                continue;
+            }
+
+            $on = in_array($role->name, $user->roles, true);
+            $keyboard->addRow(InlineKeyboardButton::make(
+                ($on ? '✅ ' : '⬜ ').$role->name,
+                callback_data: "rbac:member:{$user->id}:{$role->id}:{$page->page}",
+            ));
+        }
+
+        if ($protected) {
+            $text .= "\n\n🔒 حساب Super Admin محافظت شده است.";
+        }
+
+        if ($page->page > 1) {
+            $keyboard->addRow(InlineKeyboardButton::make('◀️ قبلی', callback_data: "rbac:user:{$user->id}:".($page->page - 1)));
+        }
+
+        if ($page->page < $page->lastPage) {
+            $keyboard->addRow(InlineKeyboardButton::make('بعدی ▶️', callback_data: "rbac:user:{$user->id}:".($page->page + 1)));
+        }
+
+        $keyboard->addRow(InlineKeyboardButton::make('◀️ صفحه کاربر', callback_data: "users:view:{$user->id}:1:a"));
+        $this->render($bot, $text, $keyboard);
+    }
+
+    public function showRoleCreateHelp(Nutgram $bot): void
+    {
+        $this->render(
+            $bot,
+            "➕ ایجاد نقش سفارشی\n\nدر گفت‌وگوی خصوصی ارسال کنید:\n/newrole reseller\n\nنام نقش فقط از حروف انگلیسی کوچک، اعداد و خط تیره (۳ تا ۵۰ نویسه) تشکیل می‌شود.\n\nپس از تأیید، نقش بدون مجوز ایجاد خواهد شد؛ مجوزها را از صفحه نقش تخصیص دهید.",
+            $this->rbacBackKeyboard(),
+        );
+    }
+
+    public function showRbacConfirmation(Nutgram $bot, string $operation, string $token): void
     {
         $keyboard = InlineKeyboardMarkup::make()
-            ->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'))
-            ->addRow(InlineKeyboardButton::make('🏠 صفحه اصلی', callback_data: 'menu:home'));
+            ->addRow(InlineKeyboardButton::make('✅ تأیید عملیات', callback_data: 'rbac:apply:'.$token))
+            ->addRow(InlineKeyboardButton::make('انصراف', callback_data: 'menu:admin:roles'));
 
-        $this->render($bot, "🔐 نقش‌ها و دسترسی‌ها\n\nمدیریت نقش‌ها و مجوزها در F06-C فعال می‌شود.", $keyboard);
+        $this->render($bot, "⚠️ تأیید عملیات نقش و دسترسی\n\n{$operation}\n\nاین تأیید یک‌بارمصرف و به‌مدت ۳ دقیقه معتبر است.", $keyboard);
+    }
+
+    public function showRoleNotice(Nutgram $bot, string $message): void
+    {
+        $this->render($bot, "🔐 مدیریت نقش‌ها\n\n{$message}", $this->rbacBackKeyboard());
+    }
+
+    private function rbacBackKeyboard(): InlineKeyboardMarkup
+    {
+        return InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('◀️ نقش‌ها', callback_data: 'menu:admin:roles'))
+            ->addRow(InlineKeyboardButton::make('🏠 مدیریت', callback_data: 'menu:admin'));
     }
 
     public function denyAccess(Nutgram $bot): void

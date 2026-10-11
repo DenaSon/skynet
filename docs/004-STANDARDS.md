@@ -62,3 +62,10 @@ Use descriptive conventional commits (e.g., `chore:`, `docs:`, `feat:`, `test:`)
 - A confirmed mutation is a one-time cache token, bound to the initiating internal actor and expires after 3 minutes. Use a cache lock for concurrent callback consumption. Final DB operation checks previous active state to reject replay/races.
 - Telegram messages must never contain password hashes, link tokens or raw Telegram IDs. A name/email shown in plain text must have control characters normalized.
 - Page/search queries must be bounded. Search context should expire and remain scoped to one internal actor.
+
+## Telegram RBAC mutation safeguards (F06-C)
+- A Telegram UI callback cannot grant or revoke the protected Super Admin role. Root enrollment stays in the operator CLI.
+- Only active, linked, ENV-allowlisted **trusted Super Admins** may create/modify custom roles or assign multiple roles.
+- Built-in `member`, `admin`, and `super-admin` role permissions are protected from Telegram edits. New permission types must be created in code with server-side enforcement before they are offered to roles.
+- Every write requires a short-lived, unpredictable, one-time confirmation tied to the initiating **internal user ID**, stored in a lock-capable cache. Re-validate the DB state and actor trust inside an Identity transaction; reject stale/replayed toggles; append an audit event.
+- Do not store raw Telegram IDs/tokens in role UI, callback strings or audit records. Present only predefined permissions and validated role names.
