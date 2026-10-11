@@ -9,6 +9,7 @@ Source: Remnawave OpenAPI v3.4.4 (`https://docs.rw/api/`; pinned mirror at `http
 Files:
 - `Infrastructure/Remnawave/RemnawaveUsersApi.php` — named operations wrapping the mapped HTTP client.
 - `Infrastructure/Remnawave/CreateRemnawaveUser.php` — intentionally narrow, validated creation payload (username, UTC expiry, byte quota, required internal squad list, reset strategy, initial state and optional description).
+- `Infrastructure/Remnawave/RemnawaveSubscriptionsApi.php` — protected subscription lookups and connection keys by user ID / username / short UUID. Raw results contain credentials and stay strictly inside trusted provider infrastructure.
 - `Infrastructure/Remnawave/RemnawaveUserSnapshot.php` — immutable subset of the remote user DTO, omitting remote protocol passwords. Contains a **secret bearer subscription URL**; never dump it in logs, public JSON or diagnostics.
 
 | User capability | Internal API | Endpoint |
@@ -22,6 +23,7 @@ Files:
 | Reset traffic | `resetTraffic` | POST reset action |
 | Revoke subscription credentials | `revoke` | POST revoke action |
 | Delete | `delete` | `DELETE /api/users/{userId}` |
+| Protected subscription lookup and connection keys | `byUserId`, `byUsername`, `byShortUuid`, `connectionKeys` (SubscriptionsApi) | GET protected subscription routes |
 | Discover accessible nodes / tags / request history | `accessibleNodes`, `tags`, `requestHistory` | GET metadata routes |
 
 ## Security and operational contract
