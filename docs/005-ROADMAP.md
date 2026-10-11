@@ -15,7 +15,7 @@ All statuses reflect **code in the repository**, not intentions.
 | F06-C — Telegram RBAC | Role directory, custom role creation, code-defined permissions, multi-role assignments, single-use confirmations | Completed (PR #10 merged; 83 tests / 359 assertions, PHP 8.4/8.5 CI green) |
 | F07 — Onboarding & Referral | Opt-in private Telegram registration, member-only accounts, unique invitations, single-shot attribution, invitation counts | Implemented (PR #12; 95 tests/426 assertions CI green); real E2E pending |
 | F08 — Billing/Wallet | Non-withdrawable reseller wallets, manual bank-transfer topups, two-posting ledger, root review, idempotency, Telegram operations | Completed on master (PR #13 merged; 106 tests / 494 assertions, PHP 8.4/8.5 CI green); live bank E2E pending |
-| F09-A — Product Catalog & Pricing | Product limits 1–100 GB, 15/30/60/90-day tariffs, direct/reseller quotes (5%), terminal admin setup | PR branch, CI/merge pending |
+| F09-A — Product Catalog & Pricing | Product limits 1–100 GB, 15/30/60/90-day tariffs, direct/reseller quotes (5%), terminal admin setup | Implemented and verified (PR #15; 115 tests / 557 assertions, PHP 8.4/8.5 CI green) |
 | F09-B — Telegram Subscription Builder | Duration menu prices from 1 GB, volume presets/custom input, quote preview; no purchase | Planned |
 | F09-C — Orders | Recheck quote server-side, save price snapshot, idempotent pending-payment orders | Planned |
 | F10 — Remnawave Provisioning | First provider API, provisioning and activation (no Marzban dependency) | Planned after E2E |

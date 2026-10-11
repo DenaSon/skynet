@@ -1,7 +1,7 @@
 # SkyNet — Current Context
 
 **Reviewed:** 2026-10-11  
-**Stage:** F09-A Product Catalog & Pricing implemented in `feature/09a-sales-catalog-pricing` (CI/merge pending). F09-B/C not implemented.  
+**Stage:** F09-A Product Catalog & Pricing implemented and CI-verified (PR #15; PHP 8.4/8.5 green). F09-B/C not implemented.  
 **Behavioral truth:** repository code and tests, not aspirational plans.
 
 ## Product direction
@@ -60,7 +60,7 @@ SkyNet is a Laravel successor to Python NVL. **Telegram-first** is the accepted 
 - Temporary 3-minute, one-use, root-bound Telegram confirmation tokens gate reviewer actions. Billing Application checks fresh reseller/root roles and active status; Telegram IDs are not financial actor IDs. `BILLING_TOPUPS_ENABLED` is off by default.
 - Ledger balance, statement, claims, review and audit snapshots are reusable by future Sales/Livewire; no direct Marzban/SSH or shopping logic.
 
-## F09-A Product Catalog & Pricing (CI pending)
+## F09-A Product Catalog & Pricing (PR #15)
 - `Sales/Application` owns operator-configured `sales_products` and `sales_product_rates`, immutable DTOs (`CatalogProduct`, `ProductRate`, `PriceQuote`) and read/quote Actions for any active customer. A product may limit volumes within the global 1–100 GB window; initial supported durations: 15, 30, 60 and 90 days.
 - Prices use one public rate per product/duration (`base_price_rials + volume_gb × per_gb_rials`) and a role-derived reseller discount of 5% (also allows 0% via code config); all calculations in integer rials with documented half-up discount rounding. No separate reseller price catalog.
 - Rates are **not seeded** with fictional values. Terminal-only `sales:product:set` and `sales:rate:set` commands let an operator configure the product and tariffs. Catalog and quote reject inactive users, disabled products/rates, illegal volumes/durations and invalid prices.
@@ -70,7 +70,7 @@ SkyNet is a Laravel successor to Python NVL. **Telegram-first** is the accepted 
 Full administration workflows (user creation), customer business operations, web self-registration, password reset, Livewire, Mini App, public REST API, server actions, SSH, network topology, long-running queues. Basic bot updates are processed synchronously; future heavy operations must be dispatched to durable jobs.
 
 ## Validation
-**F09-A:** Await CI results. There is no production catalog/bot/payment E2E in this increment.
+**F09-A passed:** GitHub Actions run **38104681637** on PHP 8.4 and 8.5: **115 Pest tests / 557 assertions**, Larastan 0 errors, Pint clean (149 files). No live Telegram, payment or provider E2E.
 
 **F08 passed:** GitHub Actions run **38102895313** on PHP 8.4 and 8.5: **106 Pest tests / 494 assertions**, Larastan 0 errors, Pint clean. Tests do **not** verify real money, actual bank transfers or BotFather E2E.
 
