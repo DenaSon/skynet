@@ -30,6 +30,8 @@ No HTTP/Telegram mutating endpoints or admin buttons are wired. Before enabling 
 
 Internal telemetry must not be exposed raw to customers. Node count / \`isConnected\` reflects panel-side status, not client reachability from Iran. See https://docs.rw/learn-en/nodes/ and https://docs.rw/learn-en/quick-start/.
 
+Both node bandwidth operations require **calendar dates `YYYY-MM-DD`**, not UTC timestamps; same-day windows (`start == end`) are valid. Client rejects impossible dates and reversed ranges before network access.
+
 ## Real-panel E2E gate
 
 1. Complete F10-A and F10-B review and CI, configure an isolated TLS panel with least-privilege tokens. Run \`php artisan remnawave:inspect\`.
