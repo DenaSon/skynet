@@ -1,7 +1,7 @@
 # SkyNet — Current Context
 
 **Reviewed:** 2026-10-11  
-**Stage:** F06-B Telegram user management verified (PR #8; PHP 8.4 / 8.5 CI green; merge pending)  
+**Stage:** F06-B Telegram user management completed (PR #8 merged; CI PHP 8.4/8.5 green)  
 **Behavioral truth:** repository code and tests, not aspirational plans.
 
 ## Product direction
@@ -24,7 +24,7 @@ SkyNet is a Laravel successor to Python NVL. **Telegram-first** is the accepted 
 
 ## F4 implemented (merged)
 - Nutgram routing for /start, /menu, /account, /admin, /link {code} and inline menu callbacks.
-- Private-chat + Telegram numeric user-ID checks on every bot handler. Unknown/disabled accounts have no privileged menu. Admin menu is a placeholder, not user-management functionality.
+- Private-chat + Telegram numeric user-ID checks on every bot handler. Unknown/disabled accounts have no privileged menu. F06-A introduced a navigation shell; F06-B replaced the users preview with real read/search/enable/disable workflows.
 - Operator-only `telegram:link-account {user_id}` issues a random, one-time 10-minute code stored as SHA-256 hash. Redemption refuses reassignment or expired/replayed codes; no public self-signup.
 - `POST /api/telegram/webhook` validates a configured Telegram Secret Token before processing; no web session/CSRF exception.
 - Update IDs stored with processing leases and completion markers; concurrent duplicate updates request retry (503); failed updates can be retried. Outbound Telegram messaging is not transactional: *exactly-once side effects cannot be guaranteed*.
@@ -35,14 +35,14 @@ SkyNet is a Laravel successor to Python NVL. **Telegram-first** is the accepted 
 - Menu commands and callbacks resolve the current private linked Identity actor for every interaction; role-management preview is reserved for trusted Super Admins. Nothing about stale inline keyboards is trusted.
 - No migrations or new vendor packages; F06-B (user operations) and F06-C (role management) remain separate increments.
 
-## F06-B implementation (PR #8)
+## F06-B completed (PR #8)
 - Identity read actions `BrowseUsers` and immutable DTOs serve role-guarded, paginated/searchable user listings and profiles for Telegram (no direct model access in the adapter).
 - Telegram supports `/users`, `/finduser <term>`, page/detail inline callbacks, 10-minute search context and Back navigation.
 - Status changes use a 3-minute, unpredictable, one-time, operator-bound cache confirmation; `ChangeUserStatus` delegates to existing `UpdateUserAccess` and re-checks authorization, expected status and protected root/self policies under a DB transaction. Changes append Identity Audit events.
 - Search and user details expose data only to actors with current `users.manage`; revoked or inactive users and stale callbacks are denied. No new migrations/packages.
 
 ## Not implemented
-Actual admin/consumer business operations, user self-registration, password reset, Livewire, Mini App, public REST API, server actions, SSH, network topology, long-running queues. Basic bot updates are processed synchronously; future heavy operations must be dispatched to durable jobs.
+Full administration workflows (role assignment, user creation, permissions), customer business operations, user self-registration, password reset, Livewire, Mini App, public REST API, server actions, SSH, network topology, long-running queues. Basic bot updates are processed synchronously; future heavy operations must be dispatched to durable jobs.
 
 ## Validation
 **F06-B passed:** GitHub Actions run **38098764186** on PHP 8.4 and 8.5: **69 Pest tests / 295 assertions**, Larastan 0 errors, Pint clean. This covers Nutgram fake transport, not an actual deployed Telegram bot.
@@ -55,7 +55,7 @@ Actual admin/consumer business operations, user self-registration, password rese
 
 ## Next
 1. Configure BotFather token, separate random webhook secret, public HTTPS URL, and operator-only account link in the deployment environment (do not commit any secrets).
-2. Once F06-B CI passes and merges, implement F06-C role and permission management through Identity Actions.
+2. Implement F06-C role and permission management through Identity Actions.
 3. Add Livewire only when a web interface is required.
 
 See [Architecture](002-ARCHITECTURE.md), [Modules](003-MODULES.md), [Telegram operations](006-TELEGRAM-OPERATIONS.md), [Roadmap](005-ROADMAP.md) and [ADR 0004](adr/0004-telegram-first.md).
