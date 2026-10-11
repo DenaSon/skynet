@@ -36,6 +36,10 @@ final class MenuRenderer
             ->addRow(InlineKeyboardButton::make('⚙️ تنظیمات', callback_data: 'menu:settings'))
             ->addRow(InlineKeyboardButton::make('🎁 دعوت دوستان', callback_data: 'menu:invite'));
 
+        if (in_array('reseller', $actor->roles, true)) {
+            $keyboard->addRow(InlineKeyboardButton::make('💼 کیف پول نماینده', callback_data: 'menu:wallet'));
+        }
+
         if ($actor->isAdmin()) {
             $keyboard->addRow(InlineKeyboardButton::make('🛡️ مدیریت', callback_data: 'menu:admin'));
         }
@@ -90,6 +94,7 @@ final class MenuRenderer
 
         if ($actor->canManageRoles()) {
             $keyboard->addRow(InlineKeyboardButton::make('🔐 نقش‌ها و دسترسی‌ها', callback_data: 'menu:admin:roles'));
+            $keyboard->addRow(InlineKeyboardButton::make('💳 بررسی شارژها', callback_data: 'menu:billing-reviews'));
         }
 
         $keyboard->addRow(InlineKeyboardButton::make('◀️ صفحه اصلی', callback_data: 'menu:home'));

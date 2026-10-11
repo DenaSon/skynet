@@ -1,7 +1,7 @@
 # SkyNet — Current Context
 
 **Reviewed:** 2026-10-11  
-**Stage:** F07 Customer Onboarding & Referral implemented and CI-verified (PR #12; real Telegram E2E pending)  
+**Stage:** F08 Billing & Wallet verified in PR #13 (PHP 8.4/8.5 CI green; merge pending; real bank/Telegram E2E not performed)  
 **Behavioral truth:** repository code and tests, not aspirational plans.
 
 ## Product direction
@@ -53,10 +53,19 @@ SkyNet is a Laravel successor to Python NVL. **Telegram-first** is the accepted 
 - Referral module issues stable cryptographically random per-user codes, renders `t.me/<bot>?start=ref_<code>` via `/invite`, and counts verified completed signups; a pending code in short-lived cache is applied only during the same DB transaction as a brand-new account. Existing accounts can never be reattributed; no rewards/commission logic.
 - Orchestration in `Onboarding/Application/JoinFromTelegram` composes Identity and Referral Actions, while the Telegram adapter only holds temporary pending context and menus. No networking or money operations.
 
+## F08 implemented and CI-verified (PR #13)
+- Billing is a small isolated module with reseller wallet account per Identity user, manual bank-transfer top-up requests and one trusted-Super-Admin review workflow. All monetary values are positive integer rials internally, displayed as toman in Telegram. No direct payout, transfer or purchase features.
+- An append-only-by-application two-posting journal is the source of wallet balance: a verified incoming transfer debits `cash_clearing` and credits `wallet_liability` atomically; there is no `users.balance` field. Independent bank verification is the operator's responsibility.
+- A submitted payment reference never increases credit until a trusted reviewer confirms it. DB-unique verified bank references and per-topup journal idempotency keys prevent multiple topups crediting the same reported transfer. Rejection creates no postings.
+- Temporary 3-minute, one-use, root-bound Telegram confirmation tokens gate reviewer actions. Billing Application checks fresh reseller/root roles and active status; Telegram IDs are not financial actor IDs. `BILLING_TOPUPS_ENABLED` is off by default.
+- Ledger balance, statement, claims, review and audit snapshots are reusable by future Sales/Livewire; no direct Marzban/SSH or shopping logic.
+
 ## Not implemented
 Full administration workflows (user creation), customer business operations, web self-registration, password reset, Livewire, Mini App, public REST API, server actions, SSH, network topology, long-running queues. Basic bot updates are processed synchronously; future heavy operations must be dispatched to durable jobs.
 
 ## Validation
+**F08 passed:** GitHub Actions run **38102895313** on PHP 8.4 and 8.5: **106 Pest tests / 494 assertions**, Larastan 0 errors, Pint clean. Tests do **not** verify real money, actual bank transfers or BotFather E2E.
+
 **F07 passed:** GitHub Actions run **38101861799** on PHP 8.4 and 8.5: **95 Pest tests / 426 assertions**, Larastan 0 errors and Pint clean. These are fake-transport/unit/feature tests; BotFather/private-chat E2E is **not** yet verified.
 
 **F06-C passed:** GitHub Actions run **38099720840** (PHP 8.4/8.5): **83 Pest tests / 359 assertions**, Larastan 0 errors, Pint clean. This verifies Nutgram fake transport and Identity actions, not production BotFather deployment.
@@ -71,7 +80,7 @@ Full administration workflows (user creation), customer business operations, web
 
 ## Next
 1. Configure BotFather token, separate random webhook secret, public HTTPS URL, and operator-only account link in the deployment environment (do not commit any secrets).
-2. Deploy F07 migrations, configure BotFather and explicitly enable public signup only after operator enrollment. Verify join + invite + legacy account link end-to-end in a real Telegram chat before opening public acquisition.
+2. Deploy F07/F08 migrations and finish BotFather real E2E. Verify and sign off a manual bank check workflow before enabling top-up requests in production.
 3. Review minimal F08 Wallet/Billing requirements, retaining ADR 0006 boundaries.
 3. Add Livewire only when a web interface is required.
 
