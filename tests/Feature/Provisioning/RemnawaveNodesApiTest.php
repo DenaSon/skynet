@@ -220,8 +220,8 @@ it('queries node bandwidth by date without exporting a public endpoint', functio
     ]);
 
     $monitor = new RemnawaveNodeTelemetry(nodeTestClient());
-    $start = '2026-10-10T00:00:00Z';
-    $end = '2026-10-11T00:00:00Z';
+    $start = '2026-10-10';
+    $end = '2026-10-11';
 
     expect($monitor->usageHistory($start, $end)['categories'])->toBe([])
         ->and($monitor->usageForNodes([TEST_NODE_UUID], $start, $end)['nodes'])->toBe([]);
@@ -238,8 +238,33 @@ it('rejects invalid ranges and malformed metrics before any HTTP request', funct
     $monitor = new RemnawaveNodeTelemetry(nodeTestClient());
 
     expect(fn () => $monitor->usageHistory('yesterday', 'tomorrow'))->toThrow(InvalidArgumentException::class)
-        ->and(fn () => $monitor->usageHistory('2026-10-11T00:00:00Z', '2026-10-10T00:00:00Z'))->toThrow(InvalidArgumentException::class)
-        ->and(fn () => $monitor->usageForNodes([], '2026-10-10T00:00:00Z', '2026-10-11T00:00:00Z'))->toThrow(InvalidArgumentException::class);
+        ->and(fn () => $monitor->usageHistory('2026-10-11', '2026-10-10'))->toThrow(InvalidArgumentException::class)
+        ->and(fn () => $monitor->usageForNodes([], '2026-10-10', '2026-10-11'))->toThrow(InvalidArgumentException::class);
 
     Http::assertNothingSent();
+});
+
+it('allows same-day node bandwidth queries and rejects datetime or impossible dates', function (): void {
+    Http::preventStrayRequests();
+    Http::fake([
+        'https://rw.nodes.test/api/bandwidth-stats/nodes?*' => Http::response(['response' => [
+            'categories' => [], 'sparklineData' => [], 'topNodes' => [], 'series' => [],
+        ]], 200),
+        'https://rw.nodes.test/api/bandwidth-stats/nodes/usage*' => Http::response(['response' => [
+            'nodes' => [],
+        ]], 200),
+    ]);
+
+    $api = new RemnawaveNodeTelemetry(nodeTestClient());
+
+    expect($api->usageHistory('2026-10-10', '2026-10-10')['categories'])->toBe([])
+        ->and($api->usageForNodes([TEST_NODE_UUID], '2026-10-10', '2026-10-10')['nodes'])->toBe([]);
+
+    Http::assertSentCount(2);
+
+    expect(fn () => $api->usageHistory('2026-02-29', '2026-03-01'))->toThrow(InvalidArgumentException::class)
+        ->and(fn () => $api->usageHistory('2026-10-10T00:00:00Z', '2026-10-11'))->toThrow(InvalidArgumentException::class)
+        ->and(fn () => $api->usageForNodes([TEST_NODE_UUID], '2026-10-10', '2026-10-11T00:00:00Z'))->toThrow(InvalidArgumentException::class);
+
+    Http::assertSentCount(2);
 });
