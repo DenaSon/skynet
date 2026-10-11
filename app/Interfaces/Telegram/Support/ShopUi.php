@@ -66,7 +66,7 @@ final class ShopUi
         $page = max(1, min($page, $lastPage));
         $subset = array_slice($products, ($page - 1) * $perPage, $perPage);
         $keyboard = InlineKeyboardMarkup::make();
-        $lines = ["🛒 انتخاب سرویس", '', "صفحه {$page} از {$lastPage}", ''];
+        $lines = ['🛒 انتخاب سرویس', '', "صفحه {$page} از {$lastPage}", ''];
 
         foreach ($subset as $product) {
             $starting = $this->startingPrice($actor, $product);
