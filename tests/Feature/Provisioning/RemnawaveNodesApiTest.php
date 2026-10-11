@@ -163,14 +163,14 @@ it('validates bulk actions and update inputs', function (): void {
 it('sends bulk actions, profile changes, ordering, and node tags using mapped endpoints', function (): void {
     Http::preventStrayRequests();
     Http::fake([
-        'https://rw.nodes.test/api/nodes/tags' => Http::response(['response' => ['PROD']], 200),
+        'https://rw.nodes.test/api/nodes/tags' => Http::response(['response' => ['tags' => ['PROD']]], 200),
         'https://rw.nodes.test/api/nodes/actions/reorder' => Http::response(['response' => []], 200),
         'https://rw.nodes.test/api/nodes/bulk-actions/*' => Http::response('', 204),
         'https://rw.nodes.test/api/nodes/bulk-actions' => Http::response('', 204),
     ]);
 
     $api = nodeTestApi();
-    expect($api->tags())->toBe(['PROD']);
+    expect($api->tags())->toBe(['tags' => ['PROD']]);
     $api->bulkAction([TEST_NODE_UUID], 'RESTART');
     $api->bulkUpdate([TEST_NODE_UUID], ['countryCode' => 'DE']);
     $api->changeProfiles([TEST_NODE_UUID], validNodeConfig());
@@ -215,8 +215,8 @@ it('projects online node metrics without exporting sensitive telemetry', functio
 it('queries node bandwidth by date without exporting a public endpoint', function (): void {
     Http::preventStrayRequests();
     Http::fake([
-        'https://rw.nodes.test/api/bandwidth-stats/nodes/usage*' => Http::response(['response' => ['total' => 123]], 200),
-        'https://rw.nodes.test/api/bandwidth-stats/nodes?*' => Http::response(['response' => ['categories' => []]], 200),
+        'https://rw.nodes.test/api/bandwidth-stats/nodes/usage*' => Http::response(['response' => ['nodes' => []]], 200),
+        'https://rw.nodes.test/api/bandwidth-stats/nodes?*' => Http::response(['response' => ['categories' => [], 'sparklineData' => [], 'topNodes' => [], 'series' => []]], 200),
     ]);
 
     $monitor = new RemnawaveNodeTelemetry(nodeTestClient());
@@ -224,7 +224,7 @@ it('queries node bandwidth by date without exporting a public endpoint', functio
     $end = '2026-10-11T00:00:00Z';
 
     expect($monitor->usageHistory($start, $end)['categories'])->toBe([])
-        ->and($monitor->usageForNodes([TEST_NODE_UUID], $start, $end)['total'])->toBe(123);
+        ->and($monitor->usageForNodes([TEST_NODE_UUID], $start, $end)['nodes'])->toBe([]);
 
     Http::assertSentCount(2);
     Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
