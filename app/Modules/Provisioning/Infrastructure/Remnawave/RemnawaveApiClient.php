@@ -28,6 +28,7 @@ final readonly class RemnawaveApiClient
             ! is_array($parts)
             || ($parts['scheme'] ?? null) !== 'https'
             || empty($parts['host'])
+            || ! in_array($parts['path'] ?? '', ['', '/'], true)
             || isset($parts['user'])
             || isset($parts['pass'])
             || isset($parts['query'])
@@ -71,6 +72,12 @@ final readonly class RemnawaveApiClient
             throw new InvalidArgumentException('Unknown Remnawave operation ID.');
         }
 
+        foreach (array_keys($query) as $name) {
+            if (! in_array($name, $operation['queryParameters'], true)) {
+                throw new InvalidArgumentException("Unsupported Remnawave query parameter: {$name}");
+            }
+        }
+
         foreach ($operation['requiredQuery'] as $name) {
             if (! array_key_exists($name, $query) || $query[$name] === null) {
                 throw new InvalidArgumentException("Missing required Remnawave query parameter: {$name}");
@@ -85,9 +92,17 @@ final readonly class RemnawaveApiClient
             throw new InvalidArgumentException('This Remnawave operation does not accept a JSON request body.');
         }
 
+        if ($body !== null) {
+            foreach ($operation['requiredBodyFields'] as $name) {
+                if (! array_key_exists($name, $body) || $body[$name] === null) {
+                    throw new InvalidArgumentException("Missing required Remnawave JSON field: {$name}");
+                }
+            }
+        }
+
         $path = preg_replace_callback(
             '/\\{([A-Za-z][A-Za-z0-9]*)\\}/',
-            static function (array $matches) use ($pathParameters): string {
+            static function (array $matches) use ($pathParameters, $operation): string {
                 $key = $matches[1];
                 $value = $pathParameters[$key] ?? null;
 
@@ -97,6 +112,11 @@ final readonly class RemnawaveApiClient
 
                 if ((string) $value === '') {
                     throw new InvalidArgumentException("Empty Remnawave path parameter: {$key}");
+                }
+
+                if (in_array($key, $operation['numericPathParameters'], true)
+                    && ! preg_match('/^[1-9][0-9]*$/D', (string) $value)) {
+                    throw new InvalidArgumentException("Remnawave path parameter must be a positive integer: {$key}");
                 }
 
                 return rawurlencode((string) $value);
@@ -115,12 +135,17 @@ final readonly class RemnawaveApiClient
             $options['json'] = $body;
         }
 
-        $response = Http::withToken($this->apiToken)
-            ->acceptJson()
+        $request = Http::acceptJson()
             ->timeout($this->timeoutSeconds)
             ->connectTimeout(min(5, $this->timeoutSeconds))
-            ->withOptions(['allow_redirects' => false])
-            ->send($operation['method'], rtrim($this->baseUrl, '/').$path, $options);
+            ->withOptions(['allow_redirects' => false]);
+
+        // Public subscription/auth routes do not receive our administrative token.
+        if ($operation['requiresAuth']) {
+            $request = $request->withToken($this->apiToken);
+        }
+
+        $response = $request->send($operation['method'], rtrim($this->baseUrl, '/').$path, $options);
 
         // Do not forward bearer tokens to a redirect target.
         if ($response->redirect()) {
