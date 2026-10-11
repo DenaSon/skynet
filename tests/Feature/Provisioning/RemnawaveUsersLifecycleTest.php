@@ -211,7 +211,12 @@ function ownedUser(string $reference): array
 it('reserves and completes first provisioning write exactly once per request key', function (): void {
     enableStaging();
     Http::preventStrayRequests();
-    Http::fake(['https://remna.test/api/users' => Http::response(['response' => ownedUser('order:88')], 201)]);
+    Http::fake(['https://remna.test/api/users' => function (Request $request) {
+        return Http::response(['response' => [
+            ...ownedUser('order:88'),
+            'trafficLimitBytes' => $request['trafficLimitBytes'],
+        ]], 201);
+    }]);
 
     $lifecycle = app(RemnawaveSubscriptionLifecycle::class);
     expect($lifecycle->create('order:88', 'pay:88', USER_EXPIRY, 1073741824, [USER_SQUAD]))->toBe(42)
@@ -274,7 +279,12 @@ it('reserves absolute quota and expiry updates and never repeats a completed mut
     enableStaging();
     Http::preventStrayRequests();
     Http::fake(['https://remna.test/api/users' => function (Request $request) {
-        return Http::response(['response' => ownedUser('order:100')], $request->method() === 'POST' ? 201 : 200);
+        $remote = ownedUser('order:100');
+        $remote['trafficLimitBytes'] = $request['trafficLimitBytes'] ?? 100;
+        $remote['expireAt'] = $request['expireAt'] ?? USER_EXPIRY;
+        $remote['status'] = $request['status'] ?? 'ACTIVE';
+
+        return Http::response(['response' => $remote], $request->method() === 'POST' ? 201 : 200);
     }]);
 
     $lifecycle = app(RemnawaveSubscriptionLifecycle::class);
@@ -292,7 +302,9 @@ it('reserves absolute quota and expiry updates and never repeats a completed mut
 it('protects subscription URL reads by local ownership and only permits active links', function (): void {
     enableStaging();
     Http::preventStrayRequests();
-    Http::fake(['https://remna.test/api/users' => Http::response(['response' => ownedUser('order:101')], 201)]);
+    Http::fake(['https://remna.test/api/users' => Http::response(['response' => [
+        ...ownedUser('order:101'), 'trafficLimitBytes' => 100,
+    ]], 201)]);
 
     $lifecycle = app(RemnawaveSubscriptionLifecycle::class);
     expect(fn () => $lifecycle->subscription('missing:101'))->toThrow(RuntimeException::class);
@@ -302,4 +314,59 @@ it('protects subscription URL reads by local ownership and only permits active l
 
     expect($lifecycle->subscription('order:101')->subscriptionUrl)->toBe('https://sub.example.test/short-random-code');
     Http::assertSentCount(2);
+});
+
+
+it('reconciles uncertain absolute quota updates by remote state without a second PATCH', function (): void {
+    enableStaging();
+    Http::preventStrayRequests();
+    Http::fake(['https://remna.test/api/users' => Http::response(['response' => [
+        ...ownedUser('order:105'), 'trafficLimitBytes' => 100,
+    ]], 201)]);
+
+    $lifecycle = app(RemnawaveSubscriptionLifecycle::class);
+    expect($lifecycle->create('order:105', 'pay:105', USER_EXPIRY, 100, [USER_SQUAD]))->toBe(42);
+
+    Http::fake(['https://remna.test/api/users' => Http::response(['message' => 'timeout'], 503)]);
+
+    expect(fn () => $lifecycle->setTrafficLimit('order:105', 'quota:105', 2048))
+        ->toThrow(RuntimeException::class, 'uncertain');
+
+    expect(DB::table('provisioning_subscriptions')->where('reference', 'order:105')->value('state'))->toBe('needs_review');
+
+    Http::fake(['https://remna.test/api/users/42' => Http::response(['response' => [
+        ...ownedUser('order:105'), 'trafficLimitBytes' => 2048,
+    ]], 200)]);
+
+    expect($lifecycle->reconcileUpdate('order:105', 'quota:105'))->toBe(42)
+        ->and($lifecycle->setTrafficLimit('order:105', 'quota:105', 2048))->toBe(42);
+
+    Http::assertSentCount(3);
+});
+
+it('refuses to mark a quota update complete if remote state does not match', function (): void {
+    enableStaging();
+    Http::preventStrayRequests();
+    Http::fake(['https://remna.test/api/users' => Http::response(['response' => [
+        ...ownedUser('order:106'), 'trafficLimitBytes' => 100,
+    ]], 201)]);
+
+    $lifecycle = app(RemnawaveSubscriptionLifecycle::class);
+    $lifecycle->create('order:106', 'pay:106', USER_EXPIRY, 100, [USER_SQUAD]);
+
+    Http::fake(['https://remna.test/api/users' => Http::response(['message' => 'unavailable'], 503)]);
+    try {
+        $lifecycle->setTrafficLimit('order:106', 'quota:106', 2048);
+    } catch (RuntimeException) {
+        // Uncertain outcome is intentional.
+    }
+
+    Http::fake(['https://remna.test/api/users/42' => Http::response(['response' => [
+        ...ownedUser('order:106'), 'trafficLimitBytes' => 100,
+    ]], 200)]);
+
+    expect(fn () => $lifecycle->reconcileUpdate('order:106', 'quota:106'))
+        ->toThrow(RuntimeException::class, 'differs');
+
+    expect(DB::table('provisioning_operations')->where('idempotency_key', 'quota:106')->value('state'))->toBe('needs_review');
 });
