@@ -73,3 +73,9 @@ See `docs/004-STANDARDS.md` for coding and documentation conventions.
 - Onboarding orchestrates Identity/Referral Application use cases in a transaction. Telegram adapter owns only UI and short-lived deep-link state; do not reach into database models there.
 - Referral ownership is immutable and attributed only when a **new** member is created; no income/financial reward records at this phase.
 - Keep automated CI and E2E verification before production public rollout.
+
+## F08 finance safety
+- Billing owns wallet/topup/ledger. No balance column on User; integer rials only. Always post balanced journals in a DB transaction, with globally unique verified bank transfer reference and journal idempotency key.
+- Finance operator authority is a **trusted Super Admin**, not an ordinary admin. A reseller can read/request only their own account. Typed transfer proof is not bank confirmation.
+- Existing referral, Identity, Sales and Provisioning must not be coupled to Billing infrastructure. No refunds, wallet debit, rewards, payouts or payment gateway until future explicit requirements and E2E.
+- Banking integration, manual verification and live Telegram E2E have not happened merely because feature tests passed. Leave `BILLING_TOPUPS_ENABLED=false` in production until signed off.

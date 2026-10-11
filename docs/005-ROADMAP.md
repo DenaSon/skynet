@@ -14,7 +14,7 @@ All statuses reflect **code in the repository**, not intentions.
 | F06-B — Telegram Users | Search, list, profile, one-time confirmed state updates through Identity Actions | Completed (PR #8 merged; 69 tests, PHP 8.4/8.5 CI green) |
 | F06-C — Telegram RBAC | Role directory, custom role creation, code-defined permissions, multi-role assignments, single-use confirmations | Completed (PR #10 merged; 83 tests / 359 assertions, PHP 8.4/8.5 CI green) |
 | F07 — Onboarding & Referral | Opt-in private Telegram registration, member-only accounts, unique invitations, single-shot attribution, invitation counts | Implemented (PR #12; 95 tests/426 assertions CI green); real E2E pending |
-| F08 — Billing/Wallet | Minimal reseller credit ledger, manual top-up, audit/idempotency | Planned after E2E |
+| F08 — Billing/Wallet | Non-withdrawable reseller wallets, manual bank-transfer topups, two-posting ledger, root review, idempotency, Telegram operations | PR branch; CI/merge pending |
 | F09 — Products/Orders | Plan catalog, prices, reservations/order states | Planned after E2E |
 | F10 — Marzban Provisioning | First server provider and subscription activation | Planned after E2E |
 | F11 — Telegram Sales | Direct and reseller flows over shared order/provisioning | Planned after E2E |
@@ -77,3 +77,12 @@ All networking: WireGuard vs Outline or other transports; Core/Edge; node/agent 
 - Referral codes are high entropy, stable per referrer, and no personal identifiers are exposed in links. One invited account gets at most one referrer, only when first registered. Invalid/expired/deactivated flows never rewrite attribution.
 - No wallet balances, commissions, sales data, provider coupling, generic registration HTTP route or new networking decisions.
 - Full Pest/Larastan/Pint CI on PHP 8.4 and 8.5, then real BotFather private chat E2E before public release.
+
+## F08 acceptance criteria
+- A role-gated reseller may view only their own wallet and request credit. No account balance is writable by users or read from a mutable `users.balance` field.
+- Wallet entries are integer rials; Telegram displays toman. Amounts are bounded; no floating-point arithmetic.
+- A claimed receipt never credits money. Operator must independently confirm bank transfer and amount; only an active, linked, ENV-allowlisted Super Admin may approve or reject.
+- Approval writes a unique verified bank reference, two balanced postings and immutable journal in one database transaction. Repeated requests, approved receipts and stale callbacks never double-credit.
+- Rejection posts no credit; root review actions use a single-use, 3-minute, operator-bound confirmation. A rejected/approved request cannot be moved again.
+- All financial details remain in Billing module; Sales, wallet purchases, reversals, payment gateways, commissions, refunds, withdrawals and network providers remain out of scope.
+- Pest, Larastan, Pint PHP 8.4/8.5 required to merge. Live bank reconciliation and Telegram E2E must gate enabling `BILLING_TOPUPS_ENABLED`.

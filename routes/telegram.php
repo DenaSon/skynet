@@ -9,6 +9,7 @@ use App\Interfaces\Telegram\Handlers\JoinHandler;
 use App\Interfaces\Telegram\Handlers\LinkHandler;
 use App\Interfaces\Telegram\Handlers\SettingsHandler;
 use App\Interfaces\Telegram\Handlers\StartHandler;
+use App\Interfaces\Telegram\Support\BillingUi;
 use App\Interfaces\Telegram\Support\RbacUi;
 use App\Interfaces\Telegram\Support\UserManagementUi;
 use SergiX44\Nutgram\Nutgram;
@@ -19,6 +20,18 @@ $bot->onCommand('start', StartHandler::class);
 $bot->onCommand('menu', StartHandler::class);
 $bot->onCommand('account', AccountHandler::class);
 $bot->onCommand('invite', InviteHandler::class);
+$bot->onCommand('wallet', function (Nutgram $bot): void {
+    app(BillingUi::class)->wallet($bot);
+});
+$bot->onCommand('topup {toman}', function (Nutgram $bot, string $toman): void {
+    app(BillingUi::class)->topup($bot, $toman);
+});
+$bot->onCommand('paid {id} {reference}', function (Nutgram $bot, string $id, string $reference): void {
+    app(BillingUi::class)->paid($bot, $id, $reference);
+});
+$bot->onCommand('topups', function (Nutgram $bot): void {
+    app(BillingUi::class)->reviews($bot);
+});
 $bot->onCommand('settings', SettingsHandler::class);
 $bot->onCommand('admin', AdminHandler::class);
 $bot->onCommand('link {code}', LinkHandler::class);
@@ -34,6 +47,21 @@ $bot->onCommand('finduser {query}', function (Nutgram $bot, string $query): void
 $bot->onCallbackQueryData('menu:home', StartHandler::class);
 $bot->onCallbackQueryData('menu:account', AccountHandler::class);
 $bot->onCallbackQueryData('menu:invite', InviteHandler::class);
+$bot->onCallbackQueryData('menu:wallet', function (Nutgram $bot): void {
+    app(BillingUi::class)->wallet($bot);
+});
+$bot->onCallbackQueryData('billing:help', function (Nutgram $bot): void {
+    app(BillingUi::class)->help($bot);
+});
+$bot->onCallbackQueryData('menu:billing-reviews', function (Nutgram $bot): void {
+    app(BillingUi::class)->reviews($bot);
+});
+$bot->onCallbackQueryData('billing:review:{id}:{decision}', function (Nutgram $bot, string $id, string $decision): void {
+    app(BillingUi::class)->reviewRequest($bot, $id, $decision);
+});
+$bot->onCallbackQueryData('billing:apply:{token}', function (Nutgram $bot, string $token): void {
+    app(BillingUi::class)->applyReview($bot, $token);
+});
 $bot->onCallbackQueryData('onboarding:join', JoinHandler::class);
 $bot->onCallbackQueryData('menu:settings', SettingsHandler::class);
 $bot->onCallbackQueryData('menu:admin', AdminHandler::class);

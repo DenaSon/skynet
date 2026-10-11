@@ -76,3 +76,11 @@ Use descriptive conventional commits (e.g., `chore:`, `docs:`, `feat:`, `test:`)
 - Register `member` only; never upgrade existing accounts or reactivate disabled accounts via onboarding. Do not give public Telegram users a verified email or reusable web password.
 - Referral attribution is immutable, at most one referrer per newly created account, with a DB unique constraint. Invalid or missing codes never block standalone signup.
 - No marketing reward or monetary ledger row can be implied by an invitation.
+
+## F08 financial invariants
+- Money is stored as integer **rials**, within an explicit validated bound. The Telegram UI accepts/display integer tomans only, converting once; never use float or mutate `users.balance`.
+- Only an active `reseller` may create and submit their own topup. Only a current trusted Super Admin (linked, ENV allowlisted, active, correct root role) may review submissions.
+- Financial events have a unique business key and two balanced debit/credit postings; never edit/delete them through application actions. Source-of-truth wallet balance is the ledger liability postings.
+- A user-claimed transfer reference is evidence to examine, never proof of receipt. Only bank-verified reference + independent operator approval results in credit. Verified reference and journal ID must both be unique in the database.
+- Final review must compare captured reference against current pending state **inside a transaction**, including locking the topup row. Review confirmations are 3-minute actor-bound one-use cache tokens.
+- Payment, bank credentials, cardholder names and raw receipt screenshots do not belong in bot logs; no global ledger/account write endpoints or credit commands are exposed.

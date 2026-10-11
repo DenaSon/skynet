@@ -82,3 +82,8 @@ Trusted Super Admins can now use `/roles`, `/newrole <slug>`, and inline role/pe
 
 ## F07 — Telegram Onboarding & Referral
 Public Telegram signups are deployment-opt-in: `TELEGRAM_PUBLIC_SIGNUP_ENABLED=false` by default. Configure the exact `TELEGRAM_BOT_USERNAME` and enable public signup **only after the two trusted Super Admin accounts are linked**. `/start` or `/start ref_<code>` merely offers an explicit join button; `/link <code>` still links existing operator-created identities. A new member gets a unique Telegram binding, no usable web credentials or verified email, and exactly one initial optional referrer. Linked active accounts can use `/invite` to get their invitation URL and confirmed count. No sales, wallet or rewards are added in this phase. See [F07 runbook](docs/006-TELEGRAM-OPERATIONS.md).
+
+## F08 — Reseller wallets and manual credit
+An account with the explicitly assigned `reseller` role can use `/wallet`, `/topup <amount_toman>` and `/paid <request_id> <bank_reference>` in a **private Telegram chat**. A self-reported bank reference does not credit the wallet. An active trusted Super Admin independently verifies actual receipt, then reviews via `/topups`; approval creates an atomic two-posting, integer-rial ledger journal and one uniquely verified bank reference. Other admins are denied. Balances derive only from liability postings; there are no withdrawals, transfers, service purchases or Marzban integration.
+
+Set `BILLING_TOPUPS_ENABLED=true` only after migration, real BotFather and bank verification E2E. Payment instructions are configured privately in `BILLING_PAYMENT_INSTRUCTIONS`; never commit account/bank secrets. See `docs/006-TELEGRAM-OPERATIONS.md`.
