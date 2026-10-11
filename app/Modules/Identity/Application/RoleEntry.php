@@ -13,5 +13,6 @@ final readonly class RoleEntry
         public array $permissions,
         public int $userCount,
         public bool $protected,
-    ) {}
+    ) {
+    }
 }

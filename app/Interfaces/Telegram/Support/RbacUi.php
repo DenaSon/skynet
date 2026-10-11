@@ -26,7 +26,8 @@ final class RbacUi
         private readonly ToggleMemberRole $changeMember,
         private readonly RbacConfirmations $confirmations,
         private readonly MenuRenderer $menus,
-    ) {}
+    ) {
+    }
 
     public function browse(Nutgram $bot, int $page = 1): void
     {

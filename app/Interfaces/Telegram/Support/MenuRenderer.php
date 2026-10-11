@@ -123,7 +123,7 @@ final class MenuRenderer
             $keyboard->addRow(InlineKeyboardButton::make($label, callback_data: "users:confirm:{$user->id}:{$page}:{$mode}"));
         }
 
-        if ($manageRoles && ! in_array('super-admin', $user->roles, true)) {
+        if ($manageRoles && !in_array('super-admin', $user->roles, true)) {
             $keyboard->addRow(InlineKeyboardButton::make('🔐 مدیریت نقش‌های کاربر', callback_data: "rbac:user:{$user->id}:1"));
         }
 

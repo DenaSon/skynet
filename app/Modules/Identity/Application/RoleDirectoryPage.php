@@ -14,5 +14,6 @@ final readonly class RoleDirectoryPage
         public int $page,
         public int $lastPage,
         public int $total,
-    ) {}
+    ) {
+    }
 }
