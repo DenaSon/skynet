@@ -23,16 +23,14 @@ final class AdminHandler
             return;
         }
 
-        if ($this->resolve->handle($id)?->isAdmin() !== true) {
-            if ($bot->isCallbackQuery()) {
-                $bot->answerCallbackQuery(text: 'دسترسی مجاز نیست.');
-            } else {
-                $bot->sendMessage('دسترسی مجاز نیست.');
-            }
+        $actor = $this->resolve->handle($id);
+
+        if ($actor?->isAdmin() !== true) {
+            $this->menus->denyAccess($bot);
 
             return;
         }
 
-        $this->menus->showAdmin($bot);
+        $this->menus->showAdmin($bot, $actor);
     }
 }

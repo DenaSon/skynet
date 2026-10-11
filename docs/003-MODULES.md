@@ -1,6 +1,6 @@
 # Module Boundaries
 
-**Current:** Identity F3 merged; F4 Telegram presenter introduced separately; Administration remains an empty registered shell.
+**Current:** Identity with F5 RBAC, Telegram adapter with F06-A navigation; Administration remains an empty registered shell.
 
 | Module | Ownership | Implemented |
 | --- | --- | --- |
@@ -10,7 +10,7 @@
 ## Identity layout
 ```text
 app/Modules/Identity/
-  Domain/UserRole.php
+  (dynamic Spatie roles/permissions replace the removed UserRole enum)
   Application/{CreateUser,UpdateUserAccess}.php
   Infrastructure/Models/User.php
   Presentation/
@@ -38,7 +38,7 @@ app/Modules/Identity/
 - Public registration is intentionally absent. Bootstrap: `php artisan identity:bootstrap-admin`.
 
 ## Deferred
-Livewire/Mary UI presentation, full administration panel, granular permissions, additional roles, password reset / email verification / 2FA, and networking.
+Livewire/Mary UI presentation, administrative Telegram operations (F06-B/C), user preferences storage, password reset / email verification / 2FA, and networking.
 
 ## Telegram interface, not a business module (F4)
 `app/Interfaces/Telegram/` contains webhook controller, Nutgram handlers, inline-menu renderer, retry receipts, and operator commands. It only imports `App\Modules\Identity\Application\*` for account linking and actor resolution. Transport data does not become a domain model. `routes/telegram.php` registers Nutgram handlers.
@@ -47,5 +47,10 @@ Within Identity, `Application/{IssueTelegramLinkCode,LinkTelegramAccount,Resolve
 
 See [Telegram operations](006-TELEGRAM-OPERATIONS.md) for setup and [ADR 0004](adr/0004-telegram-first.md) for scope.
 
-## F5 Identity RBAC extension (planned until CI green)
+## F5 Identity RBAC extension (merged)
 The old UserRole enum/column is migrated to Spatie `roles`, `permissions`, `model_has_roles`, and related pivots. The Identity Application layer exposes `CreateRole`, `AssignUserRoles`, `SuperAdminTrust` and `RecordIdentityAudit`. Web account/user endpoints retain their old `role` compatibility field and also return `roles`. Super Admin enrollment is a privileged console operation only; it cannot be performed via an HTTP endpoint. See [RBAC operations](007-RBAC-OPERATIONS.md).
+
+## F06-A Telegram navigation shell
+The Telegram adapter adds `SettingsHandler`, `AdminUsersHandler`, `AdminRolesHandler` and explicit command/callback registrations. `MenuRenderer` owns text and inline keyboard navigation, including Home, Account, Settings, Administration, and **preview-only** Users/Roles pages. Nothing is persisted by these new pages.
+
+`ResolveTelegramActor` returns an immutable Identity Application DTO with fresh roles and `manageRoles` entitlement. The latter is available only to a trusted, allowlisted and linked Super Admin. Access is checked on **every** callback, not just while generating the keyboard. The adapter neither reads Identity models nor grants privileged roles. Later F06-B/C handlers can replace previews with actual authorized application operations.

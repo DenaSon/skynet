@@ -1,7 +1,7 @@
 # SkyNet — Current Context
 
 **Reviewed:** 2026-10-11  
-**Stage:** F5 RBAC verified (PR #5, GitHub CI PHP 8.4/8.5 green; merge into `master`)  
+**Stage:** F06-A Telegram navigation implemented (PR #6; CI passed, merge pending)  
 **Behavioral truth:** repository code and tests, not aspirational plans.
 
 ## Product direction
@@ -22,7 +22,7 @@ SkyNet is a Laravel successor to Python NVL. **Telegram-first** is the accepted 
 - Operator-only `identity:super-admin:promote {user}` requires existing private Telegram binding, allowlist membership and explicit terminal confirmation. Neither ordinary admin routes nor role creation APIs can grant the protected role.
 - Ordinary administrators may manage member accounts but cannot elevate privileges, edit peer admins or modify protected roots. All role/status updates record audit events. Root role revocation/recovery is deliberately CLI/manual-only, not via public HTTP.
 
-## F4 implemented on this branch
+## F4 implemented (merged)
 - Nutgram routing for /start, /menu, /account, /admin, /link {code} and inline menu callbacks.
 - Private-chat + Telegram numeric user-ID checks on every bot handler. Unknown/disabled accounts have no privileged menu. Admin menu is a placeholder, not user-management functionality.
 - Operator-only `telegram:link-account {user_id}` issues a random, one-time 10-minute code stored as SHA-256 hash. Redemption refuses reassignment or expired/replayed codes; no public self-signup.
@@ -30,17 +30,25 @@ SkyNet is a Laravel successor to Python NVL. **Telegram-first** is the accepted 
 - Update IDs stored with processing leases and completion markers; concurrent duplicate updates request retry (503); failed updates can be retried. Outbound Telegram messaging is not transactional: *exactly-once side effects cannot be guaranteed*.
 - `telegram:webhook:set` registers secret via Bot API; `telegram:prune-updates` cleans 7-day completed receipts using scheduler.
 
+## F06-A implementation
+- Shared Telegram MenuRenderer: Home, Account (real current roles and status), Settings (informational), Administration and preview-only Users/Roles pages with Back/Home inline navigation.
+- Menu commands and callbacks resolve the current private linked Identity actor for every interaction; role-management preview is reserved for trusted Super Admins. Nothing about stale inline keyboards is trusted.
+- No migrations or new vendor packages; F06-B (user operations) and F06-C (role management) remain separate increments.
+
 ## Not implemented
 Actual admin/consumer business operations, user self-registration, password reset, Livewire, Mini App, public REST API, server actions, SSH, network topology, long-running queues. Basic bot updates are processed synchronously; future heavy operations must be dispatched to durable jobs.
 
 ## Validation
+**F06-A passed:** GitHub Actions run **38098139458** on PHP 8.4 / 8.5: 58 Pest tests, 228 assertions, Larastan and Pint green. These checks exercise Nutgram's fake Telegram transport; they do not prove that the bot has been deployed to BotFather.
+
 **F5 passed:** GitHub Actions run **38096797661** on PHP 8.4 and 8.5: **52 Pest tests / 209 assertions**, Larastan 0 errors, Pint clean. Portable Composer lock includes Spatie v8.3.0. No BotFather/production integration was exercised.
 
 **Previous F4 passed:** GitHub Actions run **38095212533** on PHP 8.4 and 8.5: **40 tests / 158 assertions**, Larastan **0 errors**, Pint **0 issues**. Composer lock is portable and includes Nutgram Laravel 1.7.1 / Nutgram 4.50.3. This validates repository code, **not** an actual deployed Telegram webhook or BotFather credentials.
 
 ## Next
-1. Configure BotFather token, separate random webhook secret, public HTTPS URL, and operator-only account link in the deployment environment (do not commit any secrets).
-2. Implement real bot user/admin use cases via Identity/other domain Actions in later increments.
-3. Add Livewire only when a web interface is required.
+1. Merge F06-A after the latest GitHub Actions run remains green.
+2. Configure BotFather token, separate random webhook secret, public HTTPS URL, and operator-only account link in the deployment environment (do not commit any secrets).
+3. Implement F06-B user management and F06-C role management via Identity/other domain Actions in later increments.
+4. Add Livewire only when a web interface is required.
 
 See [Architecture](002-ARCHITECTURE.md), [Modules](003-MODULES.md), [Telegram operations](006-TELEGRAM-OPERATIONS.md), [Roadmap](005-ROADMAP.md) and [ADR 0004](adr/0004-telegram-first.md).
