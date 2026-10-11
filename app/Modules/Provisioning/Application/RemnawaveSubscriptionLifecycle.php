@@ -132,6 +132,57 @@ final class RemnawaveSubscriptionLifecycle
         return $this->complete($reference, $idempotencyKey, $remote);
     }
 
+
+    /**
+     * Read-only reconciliation of an uncertain absolute update.
+     * Does not perform a second write. A mismatched state stays blocked.
+     */
+    public function reconcileUpdate(string $reference, string $idempotencyKey): int
+    {
+        self::assertReference($reference);
+        self::assertKey($idempotencyKey);
+
+        $row = DB::table('provisioning_subscriptions')->where('reference', $reference)->first();
+        $op = DB::table('provisioning_operations')->where('idempotency_key', $idempotencyKey)->first();
+
+        if ($row === null || $op === null || (int) $op->subscription_id !== (int) $row->id
+            || $row->state !== 'needs_review' || $op->state !== 'needs_review'
+            || $row->last_operation_key !== $idempotencyKey
+            || ! in_array($op->kind, ['expiration', 'quota', 'disable', 'enable'], true)
+            || ! is_numeric($row->remote_user_id)) {
+            throw new RuntimeException('No uncertain absolute update to reconcile.');
+        }
+
+        $expected = json_decode((string) $op->expected_payload, true, 512, JSON_THROW_ON_ERROR);
+
+        if (! is_array($expected)) {
+            throw new RuntimeException('Invalid persisted provisioning operation.');
+        }
+
+        $remote = $this->api()->byId((int) $row->remote_user_id);
+        $this->assertIdentity($remote, $reference);
+        $this->assertExpected($remote, $expected);
+
+        return $this->complete($reference, $idempotencyKey, $remote);
+    }
+
+    /** @param array<string, mixed> $expected */
+    private function assertExpected(RemnawaveUserSnapshot $remote, array $expected): void
+    {
+        foreach ($expected as $key => $value) {
+            $matches = match ($key) {
+                'trafficLimitBytes' => $remote->trafficLimitBytes === $value,
+                'status' => $remote->status === $value,
+                'expireAt' => $remote->expireAt === $value,
+                default => false,
+            };
+
+            if (! $matches) {
+                throw new RuntimeException('Remote provisioning result differs; manual operator review is required.');
+            }
+        }
+    }
+
     /** @param array<string, mixed> $fields */
     private function mutate(string $reference, string $key, string $kind, array $fields): int
     {
@@ -147,6 +198,7 @@ final class RemnawaveSubscriptionLifecycle
         try {
             $remote = $this->api()->update($reserved['remoteId'], $fields);
             $this->assertIdentity($remote, $reference);
+            $this->assertExpected($remote, $fields);
 
             return $this->complete($reference, $key, $remote);
         } catch (Throwable $e) {
@@ -218,6 +270,7 @@ final class RemnawaveSubscriptionLifecycle
                 'idempotency_key' => $key,
                 'kind' => $kind,
                 'payload_hash' => $hash,
+                'expected_payload' => json_encode($payload, JSON_THROW_ON_ERROR),
                 'state' => 'reserved',
                 'created_at' => now(),
                 'updated_at' => now(),
