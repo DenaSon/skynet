@@ -265,6 +265,9 @@ it('expires drafts, blocks cross-root replay, and denies operations after allowl
     $otherBot = b14Bot(944002, $other);
     $otherBot->hearCallbackQueryData('plan:save:'.$token)->reply()->assertCalled('editMessageText');
 
+    // The test harness returns the same singleton Nutgram fake for both actors.
+    $bot->setCommonUser(TelegramUser::make(944001, false, 'Root'));
+    $bot->setCommonChat(Chat::make(944001, ChatType::PRIVATE));
     $this->travel(11)->minutes();
     $bot->hearCallbackQueryData('plan:save:'.$token)->reply();
     $this->travelBack();
