@@ -1,16 +1,16 @@
 # Module Boundaries
 
-**Current (2026-10-12):** F0–F10-E3 merged on `master`; Telegram Identity/RBAC, Referral, Billing top-ups, Sales orders, authorized subscription reads, and Nutgram customer UI are implemented. F11-A1 internal wallet settlement **merged via PR #30**, disabled by default; no consumer or live bank/provider E2E. Administration remains a shell. See [canonical context](000-CONTEXT.md).
+**Current (2026-10-12):** F0–F10-E3 merged on `master`; Telegram Identity/RBAC, Referral, Billing top-ups, Sales orders, authorized subscription reads, and Nutgram customer UI are implemented. F11-A1 wallet settlement and F11-A2 Super Admin manual bank review **merged via PR #30/#33**, both disabled by default; no consumer, live bank or provider E2E. Administration remains a shell. See [canonical context](000-CONTEXT.md).
 
 | Module | Ownership | Merged implementation / current boundary |
 | --- | --- | --- |
 | Identity | Users, authenticated actors, RBAC and audit | Session and Telegram identity; role/status actions, protected roots |
 | Referral / Onboarding | Invitation attribution and opt-in signup | Single-shot referral join; no financial rewards |
 | Billing | Reseller wallets and balanced prepaid ledger | Manual deposit workflow plus internal F11-A1 purchase debit (default-disabled, no user checkout) |
-| Sales | Product rates, order snapshots and settlement/outbox | `CreatePendingOrder`, guarded `SettleWalletOrder`, unique settlement and pending outbox (no worker) |
+| Sales | Product rates, order snapshots, bank claims and settlement/outbox | `CreatePendingOrder`, guarded `SettleWalletOrder`, `ManualBankPayments`, manual root-approved direct bank ledger, unique pending outbox (no worker) |
 | Provisioning | Remnawave transport, node/user DTOs and durable provider operation state | F10-A/B/C/D implemented internally; no actor-authorized sales integration or live panel E2E |
 | Administration | Future admin UI composition | Registered shell only |
-| Telegram (interface) | Private chatbot navigation and feature presenters | Identity/RBAC/onboarding/wallet/shop/orders; no provider subscription presenter yet |
+| Telegram (interface) | Private chatbot navigation and feature presenters | Identity/RBAC/onboarding/wallet/shop/orders/subscriptions; F11-A2 receipt-photo + Super Admin approve/reject UX (OFF by default) |
 | Web UI | Planned shared Application consumer | Livewire 4 + Mary UI deferred |
 
 ## Identity layout
@@ -104,7 +104,7 @@ A configured operator may make five read-only GET requests to health, nodes, hos
 ## F10-D — Provider Users and subscription operations
 `Provisioning/Infrastructure/Remnawave/RemnawaveUsersApi` implements the numeric-ID v3 user lifecycle; `CreateRemnawaveUser` validates a deliberately narrow creation contract. `Provisioning/Application/RemnawaveSubscriptionLifecycle` is the **only proposed business integration entry point** and owns durable idempotency reservations, provider ownership marker validation, read-only reconciliation and subscription lookup. No actor/payment/order authorization is implemented yet, so **no external adapter may call mutating methods**. Flag `REMNAWAVE_WRITES_ENABLED=false` by default. See [F10-D runbook](012-REMNAWAVE-USER-LIFECYCLE.md).
 
-## F10-E1 merged ownership read model / F10-E2 read actions / F10-E3 next
+## F10-E1/E2/E3 merged subscription authorization and presentation
 
 [PR #26](https://github.com/DenaSon/skynet/pull/26) introduces **F10-E1**: a one-to-one, FK-protected `provisioning_order_links` bridge (no writer until a trusted F11 settlement flow), `Sales/Application/OrderReader::page` with owner-scoped 1–50 keyset pagination, and `Provisioning/Application/SubscriptionOwnershipQuery` with secret-free `SubscriptionSummary`/`SubscriptionDetails`/`SubscriptionCursorPage` projections. It reads Sales via **Application DTOs**, batches local mapping lookups, and fails closed when an unpaid order is linked. These are **internal** methods; a caller-supplied buyer ID is not by itself authorization for a public/Telegram entry point. **F10-E2** provides fresh Identity-authorized owner-scoped list/detail/link/nodes (merged #27), and **F10-E3** provides the thin private Telegram presenter (merged #28). Future Livewire will reuse the same actions. `RemnawaveSubscriptionLifecycle::subscription(reference)` checks local mapping and remote marker, **not customer ownership**; do not call it directly from a UI handler.
 
@@ -119,3 +119,7 @@ These read Actions are already invoked from the private Telegram UI (F10-E3, PR 
 ## F11-A1 — Internal wallet settlement (PR #30 merged, default-disabled)
 
 Sales Application `SettleWalletOrder` is restricted to a freshly authorized, active reseller's own pending order. Billing Application `DebitWalletForOrder` can run only within a database transaction with the feature enabled; it locks the wallet and creates a balanced debit of prepaid liability and credit of unfulfilled order obligation. Sales atomically stores the immutable settlement, changes the order to `paid` and queues a unique pending outbox intent. An idempotent replay confirms the journal **and both exact postings**. No Telegram/HTTP/CLI caller, no consumer, no provider writes and no direct bank proof are included. Full staging/bank checks remain required.
+
+## F11-A2 — Manual direct bank receipt settlement (PR #33 merged, default-disabled)
+
+The Telegram presenter only accepts owner-submitted private photo updates for a pending Sales order, and forwards the photo to eligible Super Admins with approve/reject buttons and a durable review list. Sales `ManualBankPayments` owns encrypted Telegram file references, audited decisions and a bank-statement reference entered by the reviewer. Only an active allowlisted Super Admin can approve with a 3-minute actor-bound final confirmation. The unique reference claim is shared with F08 top-ups and cross-checks historical receipts. Direct-bank settlement creates balanced cash/order-liability postings, changes the order to `paid` and queues **one pending** outbox event in one transaction. No F11-B worker/Remnawave dispatch and no independent bank integration; see [F11-A2 runbook](014-F11-BANK-REVIEW.md).
