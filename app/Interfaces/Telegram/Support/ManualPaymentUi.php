@@ -7,6 +7,7 @@ namespace App\Interfaces\Telegram\Support;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Identity\Application\SuperAdminTrust;
+use App\Modules\Identity\Application\TelegramActor;
 use App\Modules\Identity\Application\TelegramRecipient;
 use App\Modules\Sales\Application\ManualBankPayments;
 use App\Modules\Sales\Application\OrderReader;
@@ -327,7 +328,7 @@ final readonly class ManualPaymentUi
         );
     }
 
-    private function root(Nutgram $bot): ?\App\Modules\Identity\Application\TelegramActor
+    private function root(Nutgram $bot): ?TelegramActor
     {
         $actor = $this->actor($bot);
 
@@ -339,7 +340,7 @@ final readonly class ManualPaymentUi
         return $actor;
     }
 
-    private function actor(Nutgram $bot): ?\App\Modules\Identity\Application\TelegramActor
+    private function actor(Nutgram $bot): ?TelegramActor
     {
         $id = $this->private->id($bot);
 
