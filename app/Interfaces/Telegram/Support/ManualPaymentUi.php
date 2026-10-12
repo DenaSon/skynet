@@ -43,11 +43,13 @@ final readonly class ManualPaymentUi
 
         if (config('sales.manual_bank_review_enabled', false) !== true) {
             $this->notice($bot, 'ارسال رسید در حال حاضر غیرفعال است.');
+
             return;
         }
 
         if (preg_match('/\A[1-9][0-9]{0,14}\z/D', $orderId) !== 1) {
             $this->notice($bot, 'شماره سفارش معتبر نیست.');
+
             return;
         }
 
@@ -59,6 +61,7 @@ final readonly class ManualPaymentUi
             }
         } catch (AuthorizationException|ValidationException) {
             $this->notice($bot, 'سفارش قابل پرداخت نیست.');
+
             return;
         }
 
@@ -93,6 +96,7 @@ final readonly class ManualPaymentUi
 
         if ($photo === null || is_int($messageId) === false) {
             $this->notice($bot, 'تصویر معتبر دریافت نشد. یک عکس معمولی بفرستید.');
+
             return;
         }
 
@@ -106,6 +110,7 @@ final readonly class ManualPaymentUi
             );
         } catch (ValidationException|AuthorizationException|UniqueConstraintViolationException) {
             $this->notice($bot, 'رسید پذیرفته نشد؛ وضعیت سفارش یا رسید قبلی را بررسی کنید.');
+
             return;
         }
 
@@ -125,6 +130,7 @@ final readonly class ManualPaymentUi
             $rows = $this->payments->pending($actor->userId);
         } catch (AuthorizationException) {
             $this->menus->denyAccess($bot);
+
             return;
         }
 
@@ -160,6 +166,7 @@ final readonly class ManualPaymentUi
 
         if ($id === null) {
             $this->notice($bot, 'شناسه رسید نامعتبر است.');
+
             return;
         }
 
@@ -167,6 +174,7 @@ final readonly class ManualPaymentUi
             $row = $this->payments->detail($actor->userId, $id);
         } catch (AuthorizationException|ValidationException) {
             $this->notice($bot, 'رسید در صف بررسی موجود نیست.');
+
             return;
         }
 
@@ -193,6 +201,7 @@ final readonly class ManualPaymentUi
 
         if ($id === null || in_array($choice, ['a', 'r'], true) === false) {
             $this->notice($bot, 'درخواست معتبر نیست.');
+
             return;
         }
 
@@ -200,11 +209,13 @@ final readonly class ManualPaymentUi
             $row = $this->payments->detail($actor->userId, $id);
         } catch (AuthorizationException|ValidationException) {
             $this->notice($bot, 'این درخواست قبلاً بررسی شده یا دیگر معتبر نیست.');
+
             return;
         }
 
         if ($choice === 'a') {
             $this->render($bot, "✅ بررسی تأیید رسید #{$id}\n\nبرای تأیید، ابتدا مبلغ و شناسه تراکنش را از گردش واقعی بانک بررسی کنید و در همین گفت‌وگو بنویسید:\n/bankconfirm {$id} BANK123456\n\nشناسه تصویر کاربر به‌تنهایی کافی نیست.", $this->backKeyboard());
+
             return;
         }
 
@@ -225,6 +236,7 @@ final readonly class ManualPaymentUi
 
         if ($id === null || preg_match('/\A[A-Za-z0-9_-]{6,64}\z/D', $reference) !== 1) {
             $this->notice($bot, 'شناسه بانکی معتبر نیست. مثال: /bankconfirm 12 BANK123456');
+
             return;
         }
 
@@ -232,6 +244,7 @@ final readonly class ManualPaymentUi
             $row = $this->payments->detail($actor->userId, $id);
         } catch (AuthorizationException|ValidationException) {
             $this->notice($bot, 'این رسید دیگر قابل بررسی نیست.');
+
             return;
         }
 
@@ -255,6 +268,7 @@ final readonly class ManualPaymentUi
 
         if ($decision === null) {
             $this->notice($bot, 'تأیید منقضی یا قبلاً مصرف شده است.');
+
             return;
         }
 
@@ -264,6 +278,7 @@ final readonly class ManualPaymentUi
             );
         } catch (AuthorizationException|ValidationException|UniqueConstraintViolationException) {
             $this->notice($bot, 'درخواست تغییر کرده یا شناسه تراکنش قبلاً استفاده شده است. دوباره بررسی کنید.');
+
             return;
         }
 
@@ -334,6 +349,7 @@ final readonly class ManualPaymentUi
 
         if ($actor !== null && $actor->canManageRoles() === false) {
             $this->menus->denyAccess($bot);
+
             return null;
         }
 
@@ -374,10 +390,12 @@ final readonly class ManualPaymentUi
 
             if (($bot->message()->photo ?? []) !== []) {
                 $bot->editMessageCaption(caption: $text, reply_markup: $keyboard);
+
                 return;
             }
 
             $bot->editMessageText(text: $text, reply_markup: $keyboard);
+
             return;
         }
 
