@@ -244,4 +244,3 @@ it('rejects replay when the purchase ledger postings are missing or unbalanced',
     expect(DB::table('billing_journals')->where('kind', 'purchase')->count())->toBe(1)
         ->and(DB::table('sales_fulfillment_outbox')->count())->toBe(1);
 });
-
