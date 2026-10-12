@@ -44,11 +44,7 @@ it('disallows bypassing Billing through raw Sales SQL', function (): void {
         "sales_bank_postings",
     ];
 
-    foreach (\Illuminate\Support\Facades\File::allFiles(app_path('Modules/Sales')) as $file) {
-        if ($file->getExtension() !== 'php') {
-            continue;
-        }
-
+    foreach ((new \Symfony\Component\Finder\Finder)->files()->in(dirname(__DIR__, 2).'/app/Modules/Sales')->name('*.php') as $file) {
         foreach ($forbidden as $fragment) {
             expect($file->getContents())->not->toContain($fragment);
         }
