@@ -7,20 +7,33 @@ use App\Interfaces\Telegram\Handlers\AdminUsersHandler;
 use App\Interfaces\Telegram\Handlers\InviteHandler;
 use App\Interfaces\Telegram\Handlers\JoinHandler;
 use App\Interfaces\Telegram\Handlers\LinkHandler;
+use App\Interfaces\Telegram\Handlers\ReplyMenuHandler;
 use App\Interfaces\Telegram\Handlers\SettingsHandler;
 use App\Interfaces\Telegram\Handlers\StartHandler;
 use App\Interfaces\Telegram\Support\BillingUi;
 use App\Interfaces\Telegram\Support\ManualPaymentUi;
+use App\Interfaces\Telegram\Support\PrivateTelegramUser;
 use App\Interfaces\Telegram\Support\RbacUi;
 use App\Interfaces\Telegram\Support\ShopUi;
 use App\Interfaces\Telegram\Support\SubscriptionUi;
 use App\Interfaces\Telegram\Support\UserManagementUi;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Types\Keyboard\ReplyKeyboardRemove;
 
 /** @var Nutgram $bot */
 $bot->onCommand('start {payload}', StartHandler::class);
 $bot->onCommand('start', StartHandler::class);
 $bot->onCommand('menu', StartHandler::class);
+$bot->onCommand('resetmenu', function (Nutgram $bot): void {
+    if (app(PrivateTelegramUser::class)->id($bot) === null) {
+        return;
+    }
+
+    $bot->sendMessage(
+        text: '✅ کیبورد سفارشی حذف شد. برای دریافت منوی فعلی /start را بزنید.',
+        reply_markup: ReplyKeyboardRemove::make(true),
+    );
+});
 $bot->onCommand('account', AccountHandler::class);
 $bot->onCommand('invite', InviteHandler::class);
 $bot->onCommand('buy', function (Nutgram $bot): void {
@@ -184,9 +197,13 @@ $bot->onCallbackQueryData('shop:quote:{id}:{days}:{gb}', function (Nutgram $bot,
     app(ShopUi::class)->quote($bot, $id, $days, $gb);
 });
 
-// Last-resort text matcher: it only responds if the active user previously
-// selected "custom volume" in a private chat. Commands remain higher priority.
+// The existing final text handler now dispatches exact Reply Keyboard labels first.
+// Unknown text still reaches the pending custom-volume flow. Commands keep priority.
 $bot->onText('{volume}', function (Nutgram $bot, string $volume): void {
+    if (app(ReplyMenuHandler::class)->handle($bot, $volume)) {
+        return;
+    }
+
     app(ShopUi::class)->customText($bot, $volume);
 });
 

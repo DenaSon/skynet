@@ -5,6 +5,7 @@ namespace App\Interfaces\Telegram\Handlers;
 use App\Interfaces\Telegram\Support\MenuRenderer;
 use App\Interfaces\Telegram\Support\PendingReferral;
 use App\Interfaces\Telegram\Support\PrivateTelegramUser;
+use App\Interfaces\Telegram\Support\ReplyMenuRenderer;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use SergiX44\Nutgram\Nutgram;
 
@@ -15,6 +16,7 @@ final class StartHandler
         private readonly ResolveTelegramActor $resolve,
         private readonly MenuRenderer $menus,
         private readonly PendingReferral $pending,
+        private readonly ReplyMenuRenderer $replyMenus,
     ) {}
 
     public function __invoke(Nutgram $bot, ?string $payload = null): void
@@ -30,6 +32,16 @@ final class StartHandler
         if ($actor === null && ! $bot->isCallbackQuery()) {
             // A direct /start clears an older invitation; only the latest explicit link matters.
             $this->pending->remember($id, $payload ?? '');
+        }
+
+        if (! $bot->isCallbackQuery() && config('telegram.hybrid_menu_enabled', false) === true) {
+            if ($actor === null) {
+                $this->replyMenus->showUnauthenticated($bot);
+            } else {
+                $this->replyMenus->showHome($bot, $actor);
+            }
+
+            return;
         }
 
         $this->menus->showHome($bot, $actor);
