@@ -70,9 +70,59 @@ final readonly class PlanAdminUi
             InlineKeyboardButton::make('➕ پلن‌ساز نماینده', callback_data: 'plan:begin:builder:0'),
         );
         $keyboard->addRow(InlineKeyboardButton::make('📚 محصولات پایه', callback_data: 'plan:products'));
+        $keyboard->addRow(InlineKeyboardButton::make('📋 نمونه پلن‌های قابل کپی', callback_data: 'plan:examples'));
+
         $keyboard->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
 
         $this->render($bot, implode("\n", $lines), $keyboard);
+    }
+
+    /**
+     * Copyable Telegram HTML code snippets. The active base-product slug is
+     * taken from authorized Sales catalog data, never guessed.
+     */
+    public function examples(Nutgram $bot): void
+    {
+        $actor = $this->actor($bot);
+        if ($actor === null) {
+            return;
+        }
+
+        $products = $this->plans->products($actor->userId);
+        $active = collect($products)->first(static fn (array $entry): bool => $entry['active']);
+        if ($active === null) {
+            $this->notice($bot, 'ابتدا یک محصول پایه فعال ایجاد کنید؛ بدون آن نمی‌توان پلن را ثبت کرد.');
+
+            return;
+        }
+
+        $slug = (string) $active['slug'];
+        $examples = [
+            ['اقتصادی ۱۰ گیگ / ۳۰ روز', "{$slug} | economy-10 | اقتصادی ۱۰ گیگ | hybrid | both | 10 | 30"],
+            ['استاندارد ۳۰ گیگ / ۳۰ روز', "{$slug} | standard-30 | استاندارد ۳۰ گیگ | hybrid | both | 30 | 30"],
+            ['حرفه‌ای ۶۰ گیگ / ۳۰ روز', "{$slug} | premium-60 | حرفه‌ای ۶۰ گیگ | hybrid | both | 60 | 30"],
+            ['نامحدود زمانی ۳۰ روز', "{$slug} | unlimited-30 | نامحدود ۳۰ روزه | time | both | - | 30"],
+            ['پلن‌ساز نماینده', "{$slug} | reseller-builder | سفارشی نماینده | hybrid | 1 | 100 | 15 | 90"],
+        ];
+
+        $lines = ['📋 <b>نمونه فرم‌های قابل کپی</b>', ''];
+        foreach ($examples as [$title, $form]) {
+            $lines[] = htmlspecialchars($title, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            $lines[] = '<code>'.htmlspecialchars($form, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'</code>';
+            $lines[] = '';
+        }
+        $lines[] = 'ابتدا دکمه ساخت پلن مربوطه را بزنید، سپس فقط متن داخل کد را ارسال کنید.';
+        $lines[] = 'اگر slug تکراری باشد، نام یکتای دیگری انتخاب کنید. قیمت‌ها جداگانه تعریف می‌شوند.';
+
+        if ($bot->isCallbackQuery()) {
+            $bot->answerCallbackQuery();
+        }
+
+        $bot->sendMessage(
+            text: implode("\n", $lines),
+            parse_mode: 'HTML',
+            reply_markup: $this->back(),
+        );
     }
 
     public function products(Nutgram $bot): void

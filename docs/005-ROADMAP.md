@@ -30,8 +30,9 @@ All statuses reflect **code in the repository**, not intentions.
 | F11-B1.2 — Plan pricing | Root-managed fixed/formula/unlimited/reseller tariffs, single-use publish, bounded integer-rial quote + buyer/revision revalidation, tests | **Merged** ([PR #39](https://github.com/DenaSon/skynet/pull/39), SHA 027c83c; master CI 38245902790 green); read-only, no orders |
 | UX-TG-01 — Telegram hybrid navigation | Opt-in two-column role-aware Reply Keyboard on home/admin, existing Inline screens, secure text dispatch, regression tests and rollout flag | **Merged PR #43**, green PHP CI; real BotFather smoke pending |
 | F11-B1.4 — Telegram plan management | Super Admin private plan and tariff CRUD, single-use previews, lifecycle publishing and audits, no provider dependency | **Delivered via PR #44**, green PHP 8.4/8.5 CI; private BotFather E2E pending |
+| F11-B1.5 — Read-only Telegram plan discovery | Private /catalog, buyer-authorized preset browsing, published quote previews, stale callback denial, copyable Super Admin templates | **PR #45**, 298 Pest tests/1818 assertions, PHP 8.4/8.5 PHPStan/Pint green; live BotFather QA pending; no checkout |
 | F11-B1.3 — Provider binding | Plan to Internal Squad mapping, bounded bytes/UTC expiry | Planned |
-| F11-B1.5–B1.6 — Nutgram read-only plan UX | Plan discovery and reseller builder previews without settlement; paid checkout gated by B1.3 | Planned |
+| F11-B1.6 — Reseller builder previews | Reseller custom GB/day selections, revalidated quote previews with no settlement | Planned; B1.3 required before activation |
 | F11-B — Fulfillment/delivery | Explicit plan → squad mapping, bounded bytes/expiry, reconciled activation and owner-safe link delivery | Planned; NOT implemented |
 | F11-C — Admin operations + staging | Permissioned audited actions, one-use confirmation, live panel and bank/BotFather E2E gates | Planned; NOT implemented |
 | F11-D — Telegram sales activation UX | Direct and reseller post-settlement delivery over common Application Actions | Planned after F11-A/B and E2E |

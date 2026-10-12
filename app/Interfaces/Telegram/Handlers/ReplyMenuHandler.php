@@ -7,6 +7,7 @@ use App\Interfaces\Telegram\Support\ManualPaymentUi;
 use App\Interfaces\Telegram\Support\PendingShopVolume;
 use App\Interfaces\Telegram\Support\PlanAdminDrafts;
 use App\Interfaces\Telegram\Support\PlanAdminUi;
+use App\Interfaces\Telegram\Support\PlanCatalogUi;
 use App\Interfaces\Telegram\Support\PrivateTelegramUser;
 use App\Interfaces\Telegram\Support\RbacUi;
 use App\Interfaces\Telegram\Support\ReplyMenuLabels;
@@ -60,6 +61,11 @@ final class ReplyMenuHandler
         switch ($text) {
             case ReplyMenuLabels::BUY:
                 app(ShopUi::class)->open($bot);
+
+                return true;
+
+            case ReplyMenuLabels::CATALOG:
+                app(PlanCatalogUi::class)->browse($bot);
 
                 return true;
 
