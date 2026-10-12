@@ -270,7 +270,6 @@ function a2RootId(): int
     return (int) DB::table('telegram_accounts')->where('telegram_user_id', 990101)->value('user_id');
 }
 
-
 it('stores direct bank payments in the same Billing journal and postings tables as wallet payments', function (): void {
     a2Setup();
     config()->set('sales.manual_bank_review_enabled', true);
