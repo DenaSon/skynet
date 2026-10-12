@@ -127,3 +127,7 @@ The Telegram presenter only accepts owner-submitted private photo updates for a 
 ## F11-B0 — Billing vs Sales (pre-production migration baseline)
 
 The single source of monetary truth is `billing_journals` + `billing_postings`: F08 deposits and F11-A1 prepaid debits reference wallets, whereas F11-A2 verified direct bank receipts use a `direct_bank_sale` journal with `wallet_id=NULL`. Sales bank settlement retains a unique `billing_journal_id`, not a second postings table. Billing Application owns `ClaimVerifiedBankReference`, `RecordDirectBankPayment` and `VerifyWalletOrderDebit`; Sales only orchestrates buyer/claim authorization, immutable order settlement, status, audit and pending outbox in one transaction. A caller-supplied receipt is never proof of payment. No production data existed when baseline migrations were edited. See [ADR 0008](adr/0008-unified-billing-ledger.md).
+
+## F11-B1.1 — Dynamic plan boundary
+
+Sales exclusively owns `sales_plans`, change confirmations and audits, linked to its existing `sales_products`. Optional order `plan_id` uses RESTRICT for future sold-plan protection. Identity grants catalog management solely to freshly eligible allowlisted Super Admins. Public/reseller listing is Sales Application, **not** Telegram SQL. These are commercial plan specifications, with no Remnawave UUID or prices. Existing F09 checkout remains separate until B1.2; see `docs/015-SALES-PLAN-CATALOG.md`.

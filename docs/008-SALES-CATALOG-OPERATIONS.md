@@ -38,3 +38,7 @@ Re-running without `--inactive` reactivates. Disabling one rate hides it from cu
 ## Release verification
 
 Run `php artisan test`, `vendor/bin/phpstan analyse --no-progress` and `vendor/bin/pint --test`. Verify public and reseller pricing on the first Telegram buying screen, valid volumes including custom inputs, disabled rates and private-chat access. F09-B previews stay read-only until the explicit F09-C **ثبت سفارش** button is clicked. This persists an unpaid order snapshot only. Live Telegram/payment/provider E2E remains pending.
+
+## F11-B1.1 plan catalog (internal-only)
+
+The legacy F09 `sales:product:set` and `sales:rate:set` commands remain for existing quote/checkout. New plans are managed exclusively with root-only Application Actions and are **not priced or orderable**. Use `ManagePlans` to create draft, update by expected revision and request/confirm activation, deactivation, archival or deletion. All root mutations are audited; confirmations expire in three minutes. `ListVisiblePlans` is only a scoped listing. The Telegram UI for managing plans will be built in B1.4. See `docs/015-SALES-PLAN-CATALOG.md`.
