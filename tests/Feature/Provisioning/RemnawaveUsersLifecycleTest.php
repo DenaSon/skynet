@@ -400,3 +400,65 @@ it('can reconcile a crash-left reservation with a read-only lookup and no replay
 
     Http::assertSentCount(1);
 });
+
+it('refuses an unusable created user when the provider drops or changes required squads', function (): void {
+    enableStaging();
+    Http::preventStrayRequests();
+
+    $lifecycle = app(RemnawaveSubscriptionLifecycle::class);
+    $wrongUuid = '550e8400-e29b-41d4-a716-446655440077';
+
+    foreach (['missing', 'wrong'] as $variant) {
+        $reference = 'order:squads:'.$variant;
+        $remote = ownedUser($reference);
+        $remote['trafficLimitBytes'] = 100;
+
+        if ($variant === 'missing') {
+            unset($remote['activeInternalSquads']);
+        } else {
+            $remote['activeInternalSquads'] = [['uuid' => $wrongUuid, 'name' => 'Other Squad']];
+        }
+
+        Http::fake(['https://remna.test/api/users' => Http::response(['response' => $remote], 201)]);
+
+        expect(fn () => $lifecycle->create($reference, 'pay:squads:'.$variant, USER_EXPIRY, 100, [USER_SQUAD]))
+            ->toThrow(RuntimeException::class, 'uncertain');
+
+        expect(DB::table('provisioning_subscriptions')->where('reference', $reference)->value('state'))->toBe('needs_review');
+        Http::assertSentCount(1);
+    }
+});
+
+it('reconciles creation only after all requested squads match regardless of their order', function (): void {
+    enableStaging();
+    Http::preventStrayRequests();
+
+    $secondSquad = '550e8400-e29b-41d4-a716-446655440078';
+    $reference = 'order:two-squads';
+    $key = 'pay:two-squads';
+
+    Http::fake(['https://remna.test/api/users' => Http::response(['message' => 'failed'], 503)]);
+    $lifecycle = app(RemnawaveSubscriptionLifecycle::class);
+
+    expect(fn () => $lifecycle->create($reference, $key, USER_EXPIRY, 100, [USER_SQUAD, $secondSquad]))
+        ->toThrow(RuntimeException::class, 'uncertain');
+
+    $remote = ownedUser($reference);
+    $remote['trafficLimitBytes'] = 100;
+    $remote['activeInternalSquads'] = [['uuid' => USER_SQUAD, 'name' => 'Squad 1']];
+
+    Http::fake(['https://remna.test/api/users/by-username/*' => Http::response(['response' => $remote], 200)]);
+
+    expect(fn () => $lifecycle->reconcileCreate($reference, $key))
+        ->toThrow(RuntimeException::class, 'differs');
+    expect(DB::table('provisioning_operations')->where('idempotency_key', $key)->value('state'))->toBe('needs_review');
+
+    $remote['activeInternalSquads'][] = ['uuid' => $secondSquad, 'name' => 'Squad 2'];
+    $remote['activeInternalSquads'] = array_reverse($remote['activeInternalSquads']);
+
+    Http::fake(['https://remna.test/api/users/by-username/*' => Http::response(['response' => $remote], 200)]);
+
+    expect($lifecycle->reconcileCreate($reference, $key))->toBe(42);
+    expect(DB::table('provisioning_operations')->where('idempotency_key', $key)->value('state'))->toBe('completed');
+    Http::assertSentCount(1);
+});
