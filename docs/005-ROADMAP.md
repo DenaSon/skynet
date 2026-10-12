@@ -29,8 +29,9 @@ All statuses reflect **code in the repository**, not intentions.
 | F11-B1.1 — Plan catalog foundation | Draft-first presets/builders, type/bound/audience validation, root CRUD + confirmations/audit, role-scoped listing | **Merged** ([PR #37](https://github.com/DenaSon/skynet/pull/37), SHA c3d52c8; CI 38243565483 green); NOT purchasable |
 | F11-B1.2 — Plan pricing | Root-managed fixed/formula/unlimited/reseller tariffs, single-use publish, bounded integer-rial quote + buyer/revision revalidation, tests | **Merged** ([PR #39](https://github.com/DenaSon/skynet/pull/39), SHA 027c83c; master CI 38245902790 green); read-only, no orders |
 | UX-TG-01 — Telegram hybrid navigation | Opt-in two-column role-aware Reply Keyboard on home/admin, existing Inline screens, secure text dispatch, regression tests and rollout flag | Implemented in PR, default OFF until production BotFather smoke test; CI required |
+| F11-B1.4 — Telegram plan management | Super Admin private plan and tariff CRUD, single-use previews, lifecycle publishing and audits, no provider dependency | Implemented on feature branch; CI/real BotFather E2E are release gates |
 | F11-B1.3 — Provider binding | Plan to Internal Squad mapping, bounded bytes/UTC expiry | Planned |
-| F11-B1.4–B1.6 — Nutgram UX | Root plan management, minimal public purchase, reseller builder | Planned |
+| F11-B1.5–B1.6 — Nutgram read-only plan UX | Plan discovery and reseller builder previews without settlement; paid checkout gated by B1.3 | Planned |
 | F11-B — Fulfillment/delivery | Explicit plan → squad mapping, bounded bytes/expiry, reconciled activation and owner-safe link delivery | Planned; NOT implemented |
 | F11-C — Admin operations + staging | Permissioned audited actions, one-use confirmation, live panel and bank/BotFather E2E gates | Planned; NOT implemented |
 | F11-D — Telegram sales activation UX | Direct and reseller post-settlement delivery over common Application Actions | Planned after F11-A/B and E2E |
@@ -40,7 +41,7 @@ All statuses reflect **code in the repository**, not intentions.
 ## Current engineering checkpoint (2026-10-12)
 
 - `master` PR #23 merge SHA `ec43b945138af3711db03bf418d0f382495e4a97`; [master CI 38213468652](https://github.com/DenaSon/skynet/actions/runs/38213468652) succeeded on PHP 8.4/8.5 with 200 tests / 959 assertions. Automated fakes **do not** certify live Remnawave/BotFather/bank behavior.
-- **Immediate work:** F10-E1/E2/E3 are merged (last: [PR #28](https://github.com/DenaSon/skynet/pull/28), master CI 38223868886 green). F11-A1 merged (PR #30; master CI 38226617474); F11-A2 manual bank review merged (PR #33, CI green), OFF by default; F11-B0 unified ledger/Billing boundary merged (PR #35, master CI 38238151791 green). **Next F11-B1** plan/squad mapping, followed by F11-B2 safe outbox dispatcher. Never enable live money/provider writes before production DB concurrency and isolated staging E2E.
+- **Immediate work:** F10-E1/E2/E3 are merged (last: [PR #28](https://github.com/DenaSon/skynet/pull/28), master CI 38223868886 green). F11-A1 merged (PR #30; master CI 38226617474); F11-A2 manual bank review merged (PR #33, CI green), OFF by default; F11-B0 unified ledger/Billing boundary merged (PR #35, master CI 38238151791 green). **Sequencing decision:** B1.4 was prioritized before B1.3 because Remnawave is not installed. B1.5/B1.6 may prepare read-only UX next, but B1.3 squad mapping and B2 dispatch/staging E2E still gate live provisioning. Never enable live money/provider writes before production DB concurrency and isolated staging E2E.
 - **Hard sequencing gate:** `pending_payment` is not settled and F08 top-up credit is not service purchase. Do not connect F10-D writes to checkout/Telegram before F11 paid transition, deduped debit/outbox and isolated staging verification.
 - Details and entry points: [000-CONTEXT.md](000-CONTEXT.md) is the canonical development handoff; this roadmap is milestone-level, not a second memory.
 
