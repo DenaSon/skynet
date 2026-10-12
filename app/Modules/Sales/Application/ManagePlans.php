@@ -174,6 +174,21 @@ final readonly class ManagePlans
             ->get()->map(static fn (object $row): PlanSummary => PlanSummary::fromRecord($row))->all();
     }
 
+    /**
+     * @return list<array{slug:string,name:string,active:bool}>
+     */
+    public function products(int $actorId): array
+    {
+        $this->authority->handle($actorId);
+
+        return DB::table('sales_products')->orderBy('slug')->get()
+            ->map(static fn (object $row): array => [
+                'slug' => (string) $row->slug,
+                'name' => (string) $row->name,
+                'active' => (bool) $row->is_active,
+            ])->all();
+    }
+
     public function find(int $actorId, int $planId): PlanSummary
     {
         $this->authority->handle($actorId);

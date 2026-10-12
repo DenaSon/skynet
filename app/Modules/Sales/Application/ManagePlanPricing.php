@@ -16,6 +16,15 @@ final readonly class ManagePlanPricing
 {
     public function __construct(private AssertCatalogManagementAccess $access) {}
 
+    public function find(int $rootId, int $planId): ?PlanTariffSummary
+    {
+        $this->access->handle($rootId);
+
+        $row = DB::table('sales_plan_prices')->where('plan_id', $planId)->first();
+
+        return $row === null ? null : PlanTariffSummary::fromRecord($row);
+    }
+
     public function configure(
         int $rootId, int $planId, int $expectedPlanRevision,
         int $expectedPriceRevision, PlanPricingDefinition $definition,
