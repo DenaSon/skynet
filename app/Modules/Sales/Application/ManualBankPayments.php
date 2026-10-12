@@ -51,7 +51,7 @@ final readonly class ManualBankPayments
             $existing = DB::table('sales_bank_payment_claims')->where('telegram_message_key', $messageKey)->first();
 
             if ($existing !== null && (int) $existing->buyer_user_id === $buyerId
-                && (int) $existing->sales_order_id === $orderId) {
+                && (int) $existing->sales_order_id === $orderId && $existing->status === 'submitted') {
                 return (int) $existing->id;
             }
 
