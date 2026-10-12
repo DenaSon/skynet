@@ -13,6 +13,7 @@ use App\Modules\Sales\Application\ConfigureRate;
 use App\Modules\Sales\Application\CreatePendingOrder;
 use App\Modules\Sales\Application\SettleWalletOrder;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -200,7 +201,7 @@ it('rolls back wallet debit and paid transition if the outbox cannot be inserted
     ]);
 
     expect(fn () => app(SettleWalletOrder::class)->handle(SubscriptionViewer::telegram(951009), $id))
-        ->toThrow(\Illuminate\Database\QueryException::class);
+        ->toThrow(QueryException::class);
 
     expect(DB::table('sales_orders')->where('id', $id)->value('status'))->toBe('pending_payment')
         ->and(app(ViewWallet::class)->handle($buyer->id)->balanceRials)->toBe(1_000_000)
