@@ -10,7 +10,7 @@
 - Do not call this client from Telegram or expose arbitrary operation IDs over HTTP. A future `RemnawaveProvider` and Provisioning Application Actions own authorization, user ownership, persistence, audit and idempotency.
 - No automatic retry, including for GET. An ambiguous write result **cannot** be interpreted as failure to create; reconciliation is required before retrying provisioning.
 - The catalog enforces basic presence/parameter routing metadata, but **does not** validate field formats, all nested schemas, query parameter types, API scope permissions, or response DTOs. It is not proof that a live panel accepts every operation.
-- Full route coverage (218/218) is NOT complete high-level SDK or E2E coverage. CRUD methods, pagination, schema-checked DTOs and webhooks are follow-up increments.
+- Full route coverage (218/218) is **not** a complete high-level SDK or live E2E. **Since F10-A**, PR #20 added scoped discovery, #21 added typed Nodes/telemetry, and #23 added typed Users/Subscriptions + durable lifecycle. Other mapped operation families still lack full domain wrappers; no user-facing, actor-authorized provider API or real-panel test exists.
 - 208 operations are marked Bearer-protected in v3.4.4 OpenAPI; 10 public authentication/subscription routes do not receive the administrative token.
 - No SDK/Composer dependency, migrations, service-provider registration, environment secrets, or remote API calls are added in F10-A.
 
@@ -27,7 +27,11 @@ $client = new RemnawaveApiClient(
 $data = $client->call('UsersController_getUserById', pathParameters: ['userId' => 123]);
 ```
 
-Configure credentials only when wiring the client in a follow-up phase; `services.remnawave` is **not yet registered** in this PR. Never hardcode a token or put it in Telegram callbacks/logs.
+**Historical F10-A note:** The original PR did not yet register `services.remnawave`; F10-B **has since added** `RemnawaveApiClientFactory` and `config/services.php` (`REMNAWAVE_PANEL_URL`, `REMNAWAVE_API_TOKEN`, timeout). F10-D also added `REMNAWAVE_WRITES_ENABLED=false` as a default-disabled *Application lifecycle* guard. Never hardcode a token or put it in Telegram callbacks/logs.
+
+## Current status after F10-D merge (2026-10-12)
+
+The **transport map** is complete for pinned v3.4.4, but the **authorized API for Telegram/Livewire** is **not**: F10-E issue [#24](https://github.com/DenaSon/skynet/issues/24) is the next step. F10-D PR [#23](https://github.com/DenaSon/skynet/pull/23) is merged, and the [master CI](https://github.com/DenaSon/skynet/actions/runs/38213468652) passed PHP 8.4/8.5; provider actions are internal, no payment/actor ownership integration or live API testing. See [current context](000-CONTEXT.md).
 
 ## Validation
 1. Run `php artisan test tests/Feature/Provisioning/RemnawaveApiClientTest.php`, plus Pint/Larastan and complete CI.
