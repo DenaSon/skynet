@@ -114,7 +114,7 @@ final readonly class ResellerBuilderUi
         $keyboard->addRow(InlineKeyboardButton::make('✏️ حجم و مدت دلخواه', callback_data: "builder:custom:{$plan->id}:{$pg}"));
         $keyboard->addRow(InlineKeyboardButton::make('◀️ پلن‌سازها', callback_data: 'builder:list:'.$pg));
 
-        $this->render($bot, "💼 ".$this->safe($plan->name)."\n\n".$this->bounds($plan)
+        $this->render($bot, '💼 '.$this->safe($plan->name)."\n\n".$this->bounds($plan)
             ."\n\nحجم پیشنهادی را انتخاب کنید یا برای واردکردن حجم و مدت دلخواه دکمه ✏️ را بزنید."
             ."\n\n⚠️ این انتخاب فقط برای استعلام قیمت است.", $keyboard);
     }
@@ -375,7 +375,7 @@ final readonly class ResellerBuilderUi
     }
 
     /** @param array<int|null> $candidates
-     *  @return list<int>
+     * @return list<int>
      */
     private function choices(array $candidates, int $minimum, int $maximum): array
     {

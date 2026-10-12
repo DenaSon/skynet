@@ -3,8 +3,8 @@
 namespace App\Interfaces\Telegram\Handlers;
 
 use App\Interfaces\Telegram\Support\MenuRenderer;
-use App\Interfaces\Telegram\Support\PendingReferral;
 use App\Interfaces\Telegram\Support\PendingBuilderSelection;
+use App\Interfaces\Telegram\Support\PendingReferral;
 use App\Interfaces\Telegram\Support\PrivateTelegramUser;
 use App\Interfaces\Telegram\Support\ReplyMenuRenderer;
 use App\Modules\Identity\Application\ResolveTelegramActor;
