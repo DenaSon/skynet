@@ -21,6 +21,34 @@ final class OrderReader
             ->all();
     }
 
+    /**
+     * Bounded, owner-scoped keyset pagination for future shared presenters.
+     * Zero provider lookups; no cross-tenant rows are ever returned.
+     */
+    public function page(int $buyerId, int $limit = 20, ?int $beforeOrderId = null): OrderCursorPage
+    {
+        app(ResolveSalesBuyer::class)->isReseller($buyerId);
+
+        if ($limit < 1 || $limit > 50 || ($beforeOrderId !== null && $beforeOrderId < 1)) {
+            throw ValidationException::withMessages(['page' => 'Invalid order pagination.']);
+        }
+
+        $query = DB::table('sales_orders')->where('buyer_user_id', $buyerId);
+
+        if ($beforeOrderId !== null) {
+            $query->where('id', '<', $beforeOrderId);
+        }
+
+        $rows = $query->orderByDesc('id')->limit($limit + 1)->get();
+        $hasNext = $rows->count() > $limit;
+        $orders = $rows->take($limit)->map(fn (object $row): OrderDetails => $this->map($row))->all();
+
+        return new OrderCursorPage(
+            orders: array_values($orders),
+            nextBeforeOrderId: $hasNext ? $orders[array_key_last($orders)]->id : null,
+        );
+    }
+
     public function find(int $buyerId, int $orderId): OrderDetails
     {
         app(ResolveSalesBuyer::class)->isReseller($buyerId);
