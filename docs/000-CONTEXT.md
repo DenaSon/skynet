@@ -4,7 +4,7 @@
 **Source of truth:** `master` code, migrations, tests, and GitHub PR/CI status—not this narrative when they disagree.  
 **Checkpoint:** F10-A/B/C/D merged; latest F10-D merge PR [#23](https://github.com/DenaSon/skynet/pull/23), commit `ec43b945138af3711db03bf418d0f382495e4a97`.  
 **Verified at checkpoint:** [master CI run 38213468652](https://github.com/DenaSon/skynet/actions/runs/38213468652), PHP 8.4 + 8.5 green, 200 Pest tests / 959 assertions, PHPStan and Pint green. **No live Remnawave, bank or BotFather E2E is thereby implied.**  
-**IN PROGRESS:** [Issue #24 — F10-E](https://github.com/DenaSon/skynet/issues/24), **F10-E1** owner-scoped query contract and database link in PR (not merged). F10-E2 authorized Application reads and F10-E3 Telegram presenter remain next. There were no open PRs immediately after PR #23 merged.
+**CURRENT INCREMENT:** [PR #26 — F10-E1](https://github.com/DenaSon/skynet/pull/26), local owner-scoped order/Subscription bridge and safe query DTOs. **NEXT:** [Issue #24](https://github.com/DenaSon/skynet/issues/24), F10-E2 actor-authenticated shared read actions and then F10-E3 Telegram presenter. Check GitHub for PR #26 merge/CI status. There were no open PRs immediately after PR #23 merged.
 
 > **Handoff rule:** Read this file, `AGENTS.md`, `docs/002-ARCHITECTURE.md`, `docs/003-MODULES.md`, `docs/005-ROADMAP.md`, and the relevant feature runbook **before editing**. Verify current code and branches; this checkpoint may become stale. Never assume previous chat context is accurate without checking GitHub.
 
