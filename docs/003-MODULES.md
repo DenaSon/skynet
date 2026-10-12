@@ -6,8 +6,8 @@
 | --- | --- | --- |
 | Identity | Users, authenticated actors, RBAC and audit | Session and Telegram identity; role/status actions, protected roots |
 | Referral / Onboarding | Invitation attribution and opt-in signup | Single-shot referral join; no financial rewards |
-| Billing | Reseller wallets and balanced prepaid ledger | Manual deposit workflow plus internal F11-A1 purchase debit (default-disabled, no user checkout) |
-| Sales | Product rates, order snapshots, bank claims and settlement/outbox | `CreatePendingOrder`, guarded `SettleWalletOrder`, `ManualBankPayments`, manual root-approved direct bank ledger, unique pending outbox (no worker) |
+| Billing | All bank references, wallet balances and a unified double-entry ledger | F08 top-ups, F11-A1 wallet debit, F11-A2 direct bank journals; one `billing_journals`/`billing_postings` ledger and verified reference registry |
+| Sales | Products, order/receipt states, settlement identity, review audit and outbox | `CreatePendingOrder`, guarded `SettleWalletOrder`, `ManualBankPayments`; no direct financial postings or Billing table queries; no dispatcher |
 | Provisioning | Remnawave transport, node/user DTOs and durable provider operation state | F10-A/B/C/D implemented internally; no actor-authorized sales integration or live panel E2E |
 | Administration | Future admin UI composition | Registered shell only |
 | Telegram (interface) | Private chatbot navigation and feature presenters | Identity/RBAC/onboarding/wallet/shop/orders/subscriptions; F11-A2 receipt-photo + Super Admin approve/reject UX (OFF by default) |
@@ -123,3 +123,7 @@ Sales Application `SettleWalletOrder` is restricted to a freshly authorized, act
 ## F11-A2 — Manual direct bank receipt settlement (PR #33 merged, default-disabled)
 
 The Telegram presenter only accepts owner-submitted private photo updates for a pending Sales order, and forwards the photo to eligible Super Admins with approve/reject buttons and a durable review list. Sales `ManualBankPayments` owns encrypted Telegram file references, audited decisions and a bank-statement reference entered by the reviewer. Only an active allowlisted Super Admin can approve with a 3-minute actor-bound final confirmation. The unique reference claim is shared with F08 top-ups and cross-checks historical receipts. Direct-bank settlement creates balanced cash/order-liability postings, changes the order to `paid` and queues **one pending** outbox event in one transaction. No F11-B worker/Remnawave dispatch and no independent bank integration; see [F11-A2 runbook](014-F11-BANK-REVIEW.md).
+
+## F11-B0 — Billing vs Sales (pre-production migration baseline)
+
+The single source of monetary truth is `billing_journals` + `billing_postings`: F08 deposits and F11-A1 prepaid debits reference wallets, whereas F11-A2 verified direct bank receipts use a `direct_bank_sale` journal with `wallet_id=NULL`. Sales bank settlement retains a unique `billing_journal_id`, not a second postings table. Billing Application owns `ClaimVerifiedBankReference`, `RecordDirectBankPayment` and `VerifyWalletOrderDebit`; Sales only orchestrates buyer/claim authorization, immutable order settlement, status, audit and pending outbox in one transaction. A caller-supplied receipt is never proof of payment. No production data existed when baseline migrations were edited. See [ADR 0008](adr/0008-unified-billing-ledger.md).

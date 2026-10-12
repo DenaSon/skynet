@@ -33,9 +33,19 @@ return new class extends Migration
             $table->timestamp('verified_at');
         });
 
+        // One global bank reference registry for both wallet topups and orders.
+        Schema::create('billing_bank_reference_claims', function (Blueprint $table): void {
+            $table->id();
+            $table->string('payment_reference', 64)->unique();
+            $table->string('source_type', 16);
+            $table->unsignedBigInteger('source_id');
+            $table->timestamp('verified_at');
+            $table->unique(['source_type', 'source_id']);
+        });
+
         Schema::create('billing_journals', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('wallet_id')->constrained('billing_wallets')->restrictOnDelete();
+            $table->foreignId('wallet_id')->nullable()->constrained('billing_wallets')->restrictOnDelete();
             $table->string('kind', 32);
             $table->string('idempotency_key', 128)->unique();
             $table->timestamp('created_at');
@@ -56,6 +66,7 @@ return new class extends Migration
     {
         Schema::dropIfExists('billing_postings');
         Schema::dropIfExists('billing_journals');
+        Schema::dropIfExists('billing_bank_reference_claims');
         Schema::dropIfExists('billing_verified_receipts');
         Schema::dropIfExists('billing_topups');
         Schema::dropIfExists('billing_wallets');

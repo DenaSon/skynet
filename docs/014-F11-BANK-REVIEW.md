@@ -19,3 +19,7 @@
 - `billing_bank_reference_claims` enforces new F08/F11 reference uniqueness; F11 additionally checks preexisting `billing_verified_receipts` so legacy wallet top-up references cannot be replayed as sales income.
 - Access to Telegram file IDs is restricted to authorized Super Admins. Telegram media remains hosted by Telegram; this does not download, archive or guarantee permanent retention of bank screenshots. Production retention/deletion, bank account reconciliation SOP, crash/cancellation and database isolation/concurrency must be reviewed.
 - No Remnawave outbound POST or live auto-activation. Offline fake transport and SQLite tests are not a substitute for real bank statement, MySQL/PostgreSQL concurrency, real Telegram private chats, or isolated staging E2E.
+
+## F11-B0 accounting boundary
+
+Verified direct purchases now write a `direct_bank_sale` journal and two balanced entries into the existing Billing ledger, **not** a second Sales postings table. Sales owns an immutable `sales_bank_settlements.billing_journal_id` pointer and the paid/outbox/audit transition. Billing owns the unique transfer registry and postings. These are clean baseline migrations because no production/customer records exist. Live bank reconciliation, real DB concurrency and Remnawave E2E remain pending. See [ADR 0008](adr/0008-unified-billing-ledger.md).

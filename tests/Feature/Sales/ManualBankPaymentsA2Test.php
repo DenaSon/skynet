@@ -17,6 +17,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
@@ -130,8 +131,8 @@ it('requires trusted super-admin and a verified bank reference, then books balan
         ->and(DB::table('sales_fulfillment_outbox')->where('sales_order_id', $order)->value('state'))->toBe('pending')
         ->and(DB::table('billing_bank_reference_claims')->count())->toBe(1)
         ->and(DB::table('sales_bank_settlements')->where('sales_order_id', $order)->value('amount_rials'))->toBe($amount)
-        ->and(DB::table('sales_bank_postings')->where('side', 'debit')->sum('amount_rials'))->toBe($amount)
-        ->and(DB::table('sales_bank_postings')->where('side', 'credit')->sum('amount_rials'))->toBe($amount)
+        ->and(DB::table('billing_postings')->where('account_code', 'cash_clearing')->where('side', 'debit')->sum('amount_rials'))->toBe($amount)
+        ->and(DB::table('billing_postings')->where('account_code', 'order_liability')->where('side', 'credit')->sum('amount_rials'))->toBe($amount)
         ->and(DB::table('sales_payment_review_audits')->where('decision', 'approved')->count())->toBe(1);
 
     expect(fn () => app(ManualBankPayments::class)->review($root->id, $claim, true, 'BANKA2X001'))
@@ -151,7 +152,7 @@ it('rejects receipt without marking order paid and permits a new genuine image',
 
     expect($result->approved)->toBeFalse()
         ->and(DB::table('sales_orders')->where('id', $order)->value('status'))->toBe('pending_payment')
-        ->and(DB::table('sales_bank_postings')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->where('kind', 'direct_bank_sale')->count())->toBe(0)
         ->and(DB::table('sales_fulfillment_outbox')->count())->toBe(0)
         ->and(a2Submit(990115, $order, 101))->toBeGreaterThan($claim);
 
@@ -268,3 +269,79 @@ function a2RootId(): int
 {
     return (int) DB::table('telegram_accounts')->where('telegram_user_id', 990101)->value('user_id');
 }
+
+
+it('stores direct bank payments in the same Billing journal and postings tables as wallet payments', function (): void {
+    a2Setup();
+    config()->set('sales.manual_bank_review_enabled', true);
+    $buyer = a2Account(990123);
+    $root = a2Account(990101, 'super-admin');
+    $order = a2Order($buyer);
+    $claim = a2Submit(990123, $order, 123);
+    app(ManualBankPayments::class)->review($root->id, $claim, true, 'B0BANKSHARED');
+
+    $settlement = DB::table('sales_bank_settlements')->where('sales_order_id', $order)->first();
+    $journal = DB::table('billing_journals')->where('id', $settlement->billing_journal_id)->first();
+
+    expect(Schema::hasTable('sales_bank_postings'))->toBeFalse()
+        ->and(Schema::hasTable('billing_direct_bank_postings'))->toBeFalse()
+        ->and($journal->wallet_id)->toBeNull()
+        ->and($journal->kind)->toBe('direct_bank_sale')
+        ->and($journal->idempotency_key)->toBe('direct-bank:order:'.$order)
+        ->and(DB::table('billing_postings')->where('journal_id', $journal->id)->count())->toBe(2)
+        ->and(DB::table('billing_bank_reference_claims')->where('payment_reference', 'B0BANKSHARED')->value('source_type'))->toBe('sales_order');
+
+    $debit = DB::table('billing_postings')->where('journal_id', $journal->id)->where('side', 'debit')->sum('amount_rials');
+    $credit = DB::table('billing_postings')->where('journal_id', $journal->id)->where('side', 'credit')->sum('amount_rials');
+    expect((int) $debit)->toBe((int) $credit);
+});
+
+it('rolls back both Billing ledger and Sales settlement if a downstream outbox insertion fails', function (): void {
+    a2Setup();
+    config()->set('sales.manual_bank_review_enabled', true);
+    $buyer = a2Account(990124);
+    $root = a2Account(990101, 'super-admin');
+    $order = a2Order($buyer);
+    $claim = a2Submit(990124, $order, 124);
+
+    DB::table('sales_fulfillment_outbox')->insert([
+        'sales_order_id' => $order,
+        'event_key' => 'sales-order:'.$order.':create',
+        'state' => 'pending',
+        'attempts' => 0,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    expect(fn () => app(ManualBankPayments::class)->review($root->id, $claim, true, 'B0ROLLBACK01'))
+        ->toThrow(QueryException::class);
+
+    expect(DB::table('sales_orders')->where('id', $order)->value('status'))->toBe('pending_payment')
+        ->and(DB::table('sales_bank_payment_claims')->where('id', $claim)->value('status'))->toBe('submitted')
+        ->and(DB::table('sales_bank_settlements')->count())->toBe(0)
+        ->and(DB::table('billing_bank_reference_claims')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe(0)
+        ->and(DB::table('billing_postings')->count())->toBe(0)
+        ->and(DB::table('sales_payment_review_audits')->count())->toBe(0);
+});
+
+it('blocks reuse of a reference reserved for a direct sale by a different wallet topup', function (): void {
+    a2Setup();
+    config()->set('sales.manual_bank_review_enabled', true);
+    $buyer = a2Account(990125, 'reseller');
+    $root = a2Account(990101, 'super-admin');
+    $order = a2Order($buyer);
+    $claim = a2Submit(990125, $order, 125);
+
+    app(ManualBankPayments::class)->review($root->id, $claim, true, 'B0SAMEBANKREF');
+
+    $topup = app(RequestTopup::class)->handle($buyer->id, 1_000_000, 'b0:duplicate:topup');
+    app(SubmitTopupReference::class)->handle($buyer->id, $topup, 'B0SAMEBANKREF');
+
+    expect(fn () => app(ReviewTopup::class)->handle($root->id, $topup, true, 'B0SAMEBANKREF'))
+        ->toThrow(QueryException::class);
+
+    expect(DB::table('billing_verified_receipts')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->where('kind', 'topup')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->where('kind', 'direct_bank_sale')->count())->toBe(1);
+});

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Sales\Application;
 
+use App\Modules\Billing\Application\RecordDirectBankPayment;
 use App\Modules\Identity\Application\AssertBillingAccess;
 use App\Modules\Identity\Application\AuthorizeSubscriptionViewer;
 use App\Modules\Identity\Application\SubscriptionViewer;
@@ -21,6 +22,7 @@ final readonly class ManualBankPayments
     public function __construct(
         private AuthorizeSubscriptionViewer $authorize,
         private AssertBillingAccess $access,
+        private RecordDirectBankPayment $bankPayments,
     ) {}
 
     public function submit(SubscriptionViewer $viewer, int $orderId, string $fileId, string $fileUniqueId, int $telegramMessageId): int
@@ -152,31 +154,20 @@ final readonly class ManualBankPayments
             }
 
             if ($approve) {
-                // Historical F08 receipts live in a separate table; enforce
-                // uniqueness across old top-ups, new top-ups and direct orders.
-                if (DB::table('billing_verified_receipts')->where('payment_reference', $reference)->exists()) {
-                    throw ValidationException::withMessages(['reference' => 'Transfer already credited to a wallet.']);
-                }
-
-                DB::table('billing_bank_reference_claims')->insert([
-                    'payment_reference' => $reference,
-                    'source_type' => 'sales_order',
-                    'source_id' => $order->id,
-                    'verified_at' => now(),
-                ]);
+                // The financial journal and unique reference are Billing-owned.
+                // This call is inside the same transaction as the Sales state.
+                $journalId = $this->bankPayments->handle(
+                    $rootId, (int) $order->id, (int) $order->total_price_rials, $reference,
+                );
 
                 $settlementId = (int) DB::table('sales_bank_settlements')->insertGetId([
                     'sales_order_id' => $order->id,
                     'payment_claim_id' => $claim->id,
+                    'billing_journal_id' => $journalId,
                     'verified_by' => $rootId,
                     'payment_reference' => $reference,
                     'amount_rials' => $order->total_price_rials,
                     'settled_at' => now(),
-                ]);
-
-                DB::table('sales_bank_postings')->insert([
-                    ['settlement_id' => $settlementId, 'account_code' => 'cash_clearing', 'side' => 'debit', 'amount_rials' => $order->total_price_rials],
-                    ['settlement_id' => $settlementId, 'account_code' => 'order_liability', 'side' => 'credit', 'amount_rials' => $order->total_price_rials],
                 ]);
 
                 $changed = DB::table('sales_orders')->where('id', $order->id)->where('status', 'pending_payment')
