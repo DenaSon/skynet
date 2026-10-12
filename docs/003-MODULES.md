@@ -104,7 +104,7 @@ A configured operator may make five read-only GET requests to health, nodes, hos
 ## F10-D — Provider Users and subscription operations
 `Provisioning/Infrastructure/Remnawave/RemnawaveUsersApi` implements the numeric-ID v3 user lifecycle; `CreateRemnawaveUser` validates a deliberately narrow creation contract. `Provisioning/Application/RemnawaveSubscriptionLifecycle` is the **only proposed business integration entry point** and owns durable idempotency reservations, provider ownership marker validation, read-only reconciliation and subscription lookup. No actor/payment/order authorization is implemented yet, so **no external adapter may call mutating methods**. Flag `REMNAWAVE_WRITES_ENABLED=false` by default. See [F10-D runbook](012-REMNAWAVE-USER-LIFECYCLE.md).
 
-## F10-E — Next shared Application API (NOT implemented)
+## F10-E1 ownership read model (PR #26) / F10-E2–E3 next
 
 [Issue #24](https://github.com/DenaSon/skynet/issues/24) governs the next development increment: **F10-E1** create a reliable internal Sales order-to-subscription reference and bounded immutable DTOs; **F10-E2** reuse Identity/Application checks and Sales order ownership for subscription lists/detail/link/accessible-node reads; **F10-E3** add a thin private-chat presenter, with future Livewire calling exactly the same use cases. None of these are currently present. `RemnawaveSubscriptionLifecycle::subscription(reference)` checks local mapping and remote marker, **not customer ownership**; do not call it directly from a UI handler.
 
