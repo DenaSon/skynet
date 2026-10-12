@@ -38,13 +38,16 @@ The **transport map** is complete for pinned v3.4.4, but the **authorized API fo
 2. Before production provisioning, deploy an isolated Remnawave panel pinned to the same API contract and verify authentication, actual create/read/extend/disable flows, response DTO fields, permissions/scopes, pagination, 429/5xx and ambiguous-write recovery against it.
 3. Re-check the official OpenAPI when bumping Remnawave. Never silently adopt another panel major release: v3 IDs use numeric `userId`, not the old user UUID.
 
-## F10 sequencing
-- F10-A: operation catalog, HTTP client, fake HTTP tests (this PR).
-- F10-B: configured, secured read-only health/resource discovery and real-panel smoke tests.
-- F10-C/D: authorized user provisioning and webhook/reconciliation, with real panel E2E.
-- F10-E through F10-H: lifecycle, monitoring/nodes, devices, templates, and advanced features behind application-layer permissions.
+## F10 implementation sequence (updated 2026-10-12)
 
-Production sales state transitions and wallet debits remain out of scope; pending orders never provision merely by existing.
+- **F10-A (merged PR #19):** operation catalog, shared HTTP client and fake tests.
+- **F10-B (merged PR #20):** configuration, read-only health/inventory and opt-in operator inspection. No real panel test.
+- **F10-C (merged PR #21):** named NodesController APIs and read-only telemetry, internal only. No authorized UI node writes.
+- **F10-D (merged PR #23):** named Users/Subscriptions APIs and **SQL-reserved** lifecycle, uniqueness and read-only uncertain-write reconciliation. No Telegram checkout activation, signed webhook ingestion, paid transition or live E2E.
+- **F10-E (next, Issue #24):** actor-authorized shared read Application API for Telegram and future Livewire, beginning with order ownership and safe DTOs.
+- **F11 (later):** independently verified Sales/Billing settlement and outbox, reconciled fulfillment/delivery, privileged actions and staging E2E.
+
+Full route mapping is not equal to a fully productized customer API. **Never** provision from a `pending_payment` order.
 
 ## What is ready vs. what is still required
 
@@ -53,11 +56,11 @@ Production sales state transitions and wallet debits remain out of scope; pendin
 | OpenAPI method/path map | 218/218 mapped for v3.4.4 |
 | Request auth / basic parameter checks | Mapped; covered by HTTP-fake tests |
 | Real network calls / panel compatibility | NOT tested |
-| Complete JSON Schema validation and typed DTOs | NOT implemented |
+| Complete JSON Schema validation and typed DTOs | Partial: named Users/Subscriptions/Nodes DTOs and selected fields; full recursive schema validation not implemented |
 | Use-case wrappers (Users, Nodes, Squads, etc.) | Users/Nodes implemented internally by F10-C/D; other groups partial or not implemented |
 | API token scopes, security review, rate-limit/backoff policy | NOT tested / partly deferred |
-| Provisioning orchestration, idempotency, reconciliation | NOT implemented |
-| Webhook ingestion/signature verification | NOT implemented |
+| Provisioning orchestration, idempotency, reconciliation | F10-D **internal** SQL reservations and read-only reconciliation implemented; **no Sales/Billing/payment authorization or durable outbox** |
+| Remnawave provider webhook ingestion/signature verification | NOT implemented; Telegram webhook verification is separate and implemented |
 | Subscription delivery and Telegram workflows | NOT implemented |
 
-The next functional integration begins with read-only API methods against a test panel; user operations follow only when request/response schema validation is in place. Never turn on live provisioning from just a green HTTP-fake test.
+The next **code increment** is F10-E (Issue #24): actor-authorized reads and ownership DTOs using HTTP fakes, with no live writes. Isolated read-only and then controlled write E2E against a real staging panel is a separate pre-activation gate. Never turn on live provisioning from just a green HTTP-fake test.
