@@ -22,7 +22,7 @@ All statuses reflect **code in the repository**, not intentions.
 | F10-D — Remnawave Users + durable lifecycle | Typed Users/Subscriptions adapters, safe DTOs, SQL reservations, exact squad check, create/update read-only reconciliation | **Merged on `master`** (PR #23, master CI run 38213468652: 200 tests / 959 assertions); no Telegram/checkout provisioning |
 | F10-E1 — Local ownership bridge/read model | Unique Sales-order↔Provisioning link, Sales owner-scoped keyset cursor, safe immutable subscription summaries/statuses, no provider traffic | **Merged PR #26**, master CI 38218297939 green. No payment or delivery |
 | F10-E2 — Authorized shared subscription reads | Fresh Telegram/web actor identity, owner-aware list/detail, guarded secret link and safe accessible-nodes data | Merged (#27, 2026-10-12); no live E2E |
-| F10-E3 — Telegram subscription presenter | Private /subscriptions menu, paged owned summaries, safe details, guarded link and nodes, UX/forgery tests | Implemented in review branch/PR; merge and PHP 8.4/8.5 CI unverified |
+| F10-E3 — Telegram subscription presenter | Private /subscriptions menu, paged owned summaries, safe details, guarded link and nodes, UX/forgery tests | PR #28 implementation; PHP 8.4/8.5 Pest/PHPStan/Pint green (run 38223465772); verify merge state and live E2E separately |
 | F11-A — Settlement + dispatch | Independently verified paid order / balanced wallet debit, transactional state transition, durable outbox | Planned; NOT implemented |
 | F11-B — Fulfillment/delivery | Explicit plan → squad mapping, bounded bytes/expiry, reconciled activation and owner-safe link delivery | Planned; NOT implemented |
 | F11-C — Admin operations + staging | Permissioned audited actions, one-use confirmation, live panel and bank/BotFather E2E gates | Planned; NOT implemented |
@@ -33,7 +33,7 @@ All statuses reflect **code in the repository**, not intentions.
 ## Current engineering checkpoint (2026-10-12)
 
 - `master` PR #23 merge SHA `ec43b945138af3711db03bf418d0f382495e4a97`; [master CI 38213468652](https://github.com/DenaSon/skynet/actions/runs/38213468652) succeeded on PHP 8.4/8.5 with 200 tests / 959 assertions. Automated fakes **do not** certify live Remnawave/BotFather/bank behavior.
-- **Immediate work:** Review and CI for F10-E3 under [Issue #24](https://github.com/DenaSon/skynet/issues/24). F10-E1 and F10-E2 have merged. After E3, keep F11 payment settlement and provider writes behind separate approval and live E2E gates.
+- **Immediate work:** Verify merge of F10-E3 [PR #28](https://github.com/DenaSon/skynet/pull/28) (PHP 8.4/8.5 CI green); then plan F11 independently. F10-E1 and F10-E2 are merged. Keep F11 settlement and provider writes behind approval, idempotent outbox and live E2E gates.
 - **Hard sequencing gate:** `pending_payment` is not settled and F08 top-up credit is not service purchase. Do not connect F10-D writes to checkout/Telegram before F11 paid transition, deduped debit/outbox and isolated staging verification.
 - Details and entry points: [000-CONTEXT.md](000-CONTEXT.md) is the canonical development handoff; this roadmap is milestone-level, not a second memory.
 

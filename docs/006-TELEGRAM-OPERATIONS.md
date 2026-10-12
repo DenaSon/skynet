@@ -113,7 +113,7 @@ Once a customer reviews the final computed quote in the Telegram preview, **✅ 
 Use **📋 سفارش‌های من** or `/orders` to view the latest ten orders and tap any order for its snapshotted duration, volume, price and status. An order is **not a paid subscription**: no wallet money is reserved/deducted, no bank payment is completed and no Remnawave account is created. Purchasing/activation belongs to later independent increments.
 
 
-## F10-E3 — Subscription UI (review branch; live E2E pending)
+## F10-E3 — Subscription UI (PR #28; PHP 8.4/8.5 CI green, live E2E pending)
 
 - The private-chat home menu entry \`📦 سرویس‌های من\` and \`/subscriptions\` open a six-item keyset-paginated list. Buttons edit the same message. The existing \`/orders\` command and \`shop:orders\` callback remain available for legacy order snapshots.
 - Rows clearly distinguish \`pending_payment\` (unpaid), \`provisioning\`, \`active\` (locally recorded), \`needs_review\`, and \`failed\`. No date of expiration or used-traffic figure is invented from unavailable DTO fields.

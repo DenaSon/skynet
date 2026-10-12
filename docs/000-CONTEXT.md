@@ -4,7 +4,7 @@
 **Source of truth:** `master` code, migrations, tests, and GitHub PR/CI status—not this narrative when they disagree.  
 **Checkpoint:** F10-A/B/C/D merged; latest F10-D merge PR [#23](https://github.com/DenaSon/skynet/pull/23), commit `ec43b945138af3711db03bf418d0f382495e4a97`.  
 **Verified at checkpoint:** [master CI run 38213468652](https://github.com/DenaSon/skynet/actions/runs/38213468652), PHP 8.4 + 8.5 green, 200 Pest tests / 959 assertions, PHPStan and Pint green. **No live Remnawave, bank or BotFather E2E is thereby implied.**  
-**CURRENT INCREMENT:** F10-E1 [PR #26](https://github.com/DenaSon/skynet/pull/26) and F10-E2 [PR #27](https://github.com/DenaSon/skynet/pull/27) merged on `master` (verified 2026-10-12). **F10-E3** Telegram subscription presenter is implemented on a review branch/PR, not yet released on `master`; merge/CI still require verification. **AFTER:** F11 verified settlement and provisioning, not part of F10-E3.
+**CURRENT INCREMENT:** F10-E1 [PR #26](https://github.com/DenaSon/skynet/pull/26) and F10-E2 [PR #27](https://github.com/DenaSon/skynet/pull/27) merged on `master`. F10-E3 implementation and its tests/docs are in [PR #28](https://github.com/DenaSon/skynet/pull/28); [GitHub CI 38223465772](https://github.com/DenaSon/skynet/actions/runs/38223465772) is green for PHP 8.4/8.5 (Pest/PHPStan/Pint). Verify PR #28 merge before calling it present on `master`. **NEXT after merge:** F11 payment verification, durable settlement and guarded provider dispatch.
 
 > **Handoff rule:** Read this file, `AGENTS.md`, `docs/002-ARCHITECTURE.md`, `docs/003-MODULES.md`, `docs/005-ROADMAP.md`, and the relevant feature runbook **before editing**. Verify current code and branches; this checkpoint may become stale. Never assume previous chat context is accurate without checking GitHub.
 
@@ -106,20 +106,20 @@ For Windows PowerShell, use `Copy-Item .env.example .env`. Optional frontend: `n
 - Coding agents: root [AGENTS.md](../AGENTS.md) is canonical; [CLAUDE.md](../CLAUDE.md) points there.
 - After each merged increment: **(a)** verify PR/CI and actual `master`, **(b)** change this Reviewed date + implemented/next/limits, **(c)** update Roadmap and relevant boundaries/runbook in the same PR, **(d)** explicitly record any unverified live behavior. Do not turn historic PR descriptions into current status.
 
-### F10-E2 — Authorized shared subscription read actions (PR #27; check merge status)
+### F10-E2 — Authorized shared subscription read actions (PR #27, merged)
 
 - Identity `SubscriptionViewer::telegram(verifiedTelegramId)` and `::web()` are **request contexts, not authentication tokens**. `AuthorizeSubscriptionViewer` re-resolves the linked, active Telegram actor or authenticated Laravel session on **every** action; it rejects disabled/unlinked principals. **Never build the Telegram context from an unverified callback field**; F10-E3 must supply the webhook-authenticated Telegram user ID.
 - `ListMySubscriptions` and `GetMySubscription` are presentation-neutral and call existing F10-E1 owner-scoped **local** DTOs; no Remnawave HTTP calls.
 - `GetSubscriptionLink` is the **sole dedicated credential action**. `ActiveSubscriptionAccess` requires exact paid/fulfilled owner order + active one-to-one link, verified remote user marker/ID, ACTIVE status, not-expired and unexhausted quota. It rechecks actor/order/link after the provider GET before returning `SubscriptionConnectionDetails` containing the URL. No URLs appear in list/detail or audit payloads.
 - `ListAccessibleNodes` reads the pinned Remnawave `GET /api/users/{userId}/accessible-nodes` only for a verified, eligible subscriber and validates the matching provider ID; returns only `name` and `countryCode` (max 200 nodes); no IP/UUID/inbound/raw provider JSON leaks.
-- Provider HTTP errors and invalid envelopes fail closed with a generic public-safe error, no provider exception chaining. Tests use HTTP fakes for 401/403/429/5xx, mismatched identity, node schema and post-GET revocation. **F10-E3 Telegram presentation routes exist only on the proposed PR until merged; they do not prove live E2E.** No provider writes, no real staging E2E and no automatic purchase settlement.
+- Provider HTTP errors and invalid envelopes fail closed with a generic public-safe error, no provider exception chaining. Tests use HTTP fakes for 401/403/429/5xx, mismatched identity, node schema and post-GET revocation. **F10-E3 Telegram presentation routes are in PR #28; their deployment and live E2E are not verified.** No provider writes, no real staging E2E and no automatic purchase settlement.
 
 
-### F10-E3 — Telegram presenter (branch/PR review; not yet merged)
+### F10-E3 — Telegram presenter (PR #28, CI green; verify merge state)
 
 - \`routes/telegram.php\` exposes \`/subscriptions\` plus private inline callbacks for keyset-paginated listings, owned details, explicit link retrieval and accessible-node names. The home menu uses \`📦 سرویس‌های من\`; the old \`/orders\` command and callback remain supported.
 - \`app/Interfaces/Telegram/Support/SubscriptionUi.php\` consumes only F10-E2 shared actions. Telegram user identity is derived only from the private verified update, never from callback data. No provider transport/model access and no new business writes.
 - Pending-payment Sales orders are displayed honestly as unpaid; local \`active\` means last recorded state, not live provider attestation. Link and nodes invoke separate Application checks on every click. Credentials never appear in list/detail/callback data; explicit link response disables previews.
 - UI is intentionally compact: six entries per page, status labels, back/home navigation, no new message for ordinary callbacks, useful empty/error states. Cursor/id parameters are strictly validated; old/forged callbacks are reauthorized.
 - Pest fake transport covers empty states, stale/forged/private-chat access, owner-scoped paging, provider errors, read-only behavior and credential redaction. This is **not** BotFather/Remnawave live E2E.
-- **After merge** update the reviewed merge SHA and master CI outcome; do not announce this feature as production released until live verification.
+- PR #28 CI [38223465772](https://github.com/DenaSon/skynet/actions/runs/38223465772): PHP 8.4/8.5 feature tests, PHPStan and Pint all green. Verify actual merge SHA/master CI after integration; do not announce production release until BotFather and Remnawave live verification.
