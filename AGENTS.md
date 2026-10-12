@@ -11,7 +11,7 @@ SkyNet is a Laravel 13 application being developed as a **modular monolith**.
 1. Read `docs/000-CONTEXT.md` before changing code.
 2. Read the relevant architecture/module/roadmap documents.
 3. Inspect the actual code, merged PRs, issues, migrations and most recent CI; documentation never overrides observed behavior.
-4. **Current checkpoint (2026-10-12):** F10-A/B/C/D are merged; read [Issue #24](https://github.com/DenaSon/skynet/issues/24) before starting F10-E1. Never treat 218 mapped Remnawave routes as 218 authorized Application APIs.
+4. **Current checkpoint (2026-10-12):** F10-A/B/C/D, F10-E1 (#26) and F10-E2 (#27) are merged. F10-E3 Telegram presenter is implemented in [PR #28](https://github.com/DenaSon/skynet/pull/28) with PHP 8.4/8.5 CI green; verify merge state. The next independent increment is F11 settlement/dispatch. Never treat 218 mapped Remnawave routes as 218 authorized Application APIs.
 5. Make the smallest change that solves the current task, and add or update tests.
 6. Update at least one relevant document in the **same PR** as any meaningful development change.
 
@@ -97,10 +97,10 @@ See `docs/004-STANDARDS.md` for coding and documentation conventions.
 - Store a DB-unique idempotency key per order; double-click/retry returns the same buyer-owned order, never a second charge or second order. No order row is proof of payment.
 - Orders start `pending_payment`, with immutable public/discount/final amounts and volume/duration snapshot. Never call Billing or Remnawave in F09-C. Read owner-scoped only; tests must cover cross-user access and old callback replays.
 
-## F10-D provider safety and F10-E handoff (current)
+## F10-D/E provider safety and F11 handoff (current)
 - **Merged:** PR #19 catalog/client (218 operations), #20 read-only discovery, #21 node API and telemetry, #23 typed Users/Subscriptions plus SQL-reserved lifecycle. No Remnawave live E2E. Refer to `docs/000-CONTEXT.md` for exact verified checkpoint.
 - Provider `Infrastructure/Remnawave` is a transport/DTO implementation, **not an authorization layer**. Telegram/Web never call it directly. The lifecycle `subscription(reference)` method checks local provider mapping but **does not check Identity/Sales order ownership**.
 - `REMNAWAVE_WRITES_ENABLED=false` by default. No action in Telegram/checkout invokes provider creation/update. `sales_orders` are `pending_payment` only; a Billing wallet top-up is not a purchase. No wallet debit, paid-order transition or durable provisioning outbox exists.
 - Every create checks the requested Internal Squad set against provider response; reject associative UUID arrays before a write. Protect subscription URLs like bearer tokens; no links in list DTOs or logs. Keep failed/ambiguous writes in `reserved`/`needs_review` until read-only reconciliation; never replay them blindly.
-- **Next:** [Issue #24](https://github.com/DenaSon/skynet/issues/24) F10-E1 (Sales order-to-provider ownership mapping and bounded read DTOs), then F10-E2 actor-authorized shared reads, F10-E3 Telegram presenter. Only afterward design F11 payment settlement, idempotent dispatch and real staging E2E.
+- **Next after F10-E3 PR #28 merges:** Design F11 verified payment settlement, idempotent durable dispatch and isolated staging E2E. The new Telegram subscription UI is read-only; it cannot settle, provision, debit or administratively mutate a service.
 - Do not implement broad payment/admin write interfaces or grant reseller cross-account access by role alone. Preserve Identity fresh checks, Sales order ownership, one-use root confirmation and audit in all new Application actions. Full PHP 8.4/8.5 CI required before merge.

@@ -111,3 +111,13 @@ The summary screen shows current public price, role-dependent reseller discount 
 Once a customer reviews the final computed quote in the Telegram preview, **✅ ثبت سفارش** creates an unpaid **`pending_payment`** order with the exact server-side public/reseller quote frozen in the database. The checkout callback includes an opaque 10-minute buyer-bound token; if prices, product availability or role change, the order is **rejected** and the customer must re-open a fresh quote. Repeated clicks on an already successful token return the existing order, rather than creating another.
 
 Use **📋 سفارش‌های من** or `/orders` to view the latest ten orders and tap any order for its snapshotted duration, volume, price and status. An order is **not a paid subscription**: no wallet money is reserved/deducted, no bank payment is completed and no Remnawave account is created. Purchasing/activation belongs to later independent increments.
+
+
+## F10-E3 — Subscription UI (PR #28; PHP 8.4/8.5 CI green, live E2E pending)
+
+- The private-chat home menu entry \`📦 سرویس‌های من\` and \`/subscriptions\` open a six-item keyset-paginated list. Buttons edit the same message. The existing \`/orders\` command and \`shop:orders\` callback remain available for legacy order snapshots.
+- Rows clearly distinguish \`pending_payment\` (unpaid), \`provisioning\`, \`active\` (locally recorded), \`needs_review\`, and \`failed\`. No date of expiration or used-traffic figure is invented from unavailable DTO fields.
+- Local detail shows product, duration, GB, order amount in rounded-up integer tomans and purchase date. Only recorded-active orders offer \`🔗 دریافت لینک اتصال\` and \`🌐 سرورهای در دسترس\`; these buttons re-check ownership, active Identity and live provider eligibility via F10-E2 Actions.
+- The link appears only after explicit private-chat selection, in a separate message with link preview disabled. Never log it or put it into callbacks, directory items or URLs. Old/forged callbacks are treated as untrusted identifiers; no cross-user access.
+- Callback data: \`subs:list:{cursor}\`, \`subs:view:{orderId}:{cursor}\`, \`subs:link:{orderId}:{cursor}\`, \`subs:nodes:{orderId}:{cursor}\`. A cursor of \`0\` means first page, otherwise it is the bounded internal Sales order keyset cursor. Back navigation preserves this cursor.
+- No bank verification, provider writes, automatic activation, network management, Web/Laravel API publication or real BotFather/Remnawave E2E is implied. \`REMNAWAVE_WRITES_ENABLED=false\` remains default. Run Pest/PHPStan/Pint on PHP 8.4/8.5, then private-chat live QA before production enablement.
