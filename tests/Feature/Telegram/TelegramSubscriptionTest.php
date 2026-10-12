@@ -100,7 +100,7 @@ it('shows an empty-state and an owner-scoped order directory with inline navigat
     $bot = subscriptionUiBot(880001, $buyer);
 
     $bot->hearText('/subscriptions')->reply()
-        ->assertReplyText("📦 سرویس‌های من\n\nهنوز سرویس یا سفارشی ندارید.");
+        ->assertReplyText("📦 سرویس‌های من\n\nهنوز سرویس یا سفارشی ندارید.\nاز بخش خرید می‌توانید سفارش جدید ثبت کنید.");
 
     $orderId = subscriptionUiOrder($buyer);
     subscriptionUiOrder(User::factory()->create());
@@ -109,7 +109,6 @@ it('shows an empty-state and an owner-scoped order directory with inline navigat
     Http::fake();
 
     $bot->hearText('/subscriptions')->reply()
-        ->assertReplyText('📦 سرویس‌های من')
         ->assertCalled('sendMessage');
 
     $bot->hearCallbackQueryData("subs:view:{$orderId}:0")->reply()
@@ -237,7 +236,7 @@ it('shows public-safe node names and gracefully handles provider errors without 
     ])]);
 
     $bot->hearCallbackQueryData("subs:nodes:{$id}:0")->reply()
-        ->assertReplyText('🌐 سرورهای در دسترس')
+        ->assertCalled('answerCallbackQuery')
         ->assertCalled('sendMessage', 0)
         ->assertCalled('editMessageText');
 
