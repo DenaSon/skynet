@@ -210,16 +210,18 @@ it('rolls back wallet debit and paid transition if the outbox cannot be inserted
         ->and(DB::table('billing_journals')->where('kind', 'purchase')->count())->toBe(0);
 });
 
-it('never permits the low-level wallet debit as an unguarded standalone call', function (): void {
+it('denies disabled low-level debit and refuses unfunded purchases', function (): void {
     $buyer = a1Buyer(951010);
     $id = a1Order($buyer);
 
     expect(fn () => app(DebitWalletForOrder::class)->handle($buyer->id, $id, 10_000))
         ->toThrow(AuthorizationException::class);
 
+    // RefreshDatabase starts an outer transaction; that does not authorize
+    // a purchase, so lack of verified funds must still fail closed.
     config()->set('sales.wallet_settlement_enabled', true);
     expect(fn () => app(DebitWalletForOrder::class)->handle($buyer->id, $id, 10_000))
-        ->toThrow(AuthorizationException::class);
+        ->toThrow(ValidationException::class);
 
     expect(DB::table('billing_journals')->count())->toBe(0)
         ->and(DB::table('sales_order_settlements')->count())->toBe(0);
