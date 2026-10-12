@@ -50,7 +50,7 @@ Production sales state transitions and wallet debits remain out of scope; pendin
 | Request auth / basic parameter checks | Mapped; covered by HTTP-fake tests |
 | Real network calls / panel compatibility | NOT tested |
 | Complete JSON Schema validation and typed DTOs | NOT implemented |
-| Use-case wrappers (Users, Nodes, Squads, etc.) | NOT implemented |
+| Use-case wrappers (Users, Nodes, Squads, etc.) | Users/Nodes implemented internally by F10-C/D; other groups partial or not implemented |
 | API token scopes, security review, rate-limit/backoff policy | NOT tested / partly deferred |
 | Provisioning orchestration, idempotency, reconciliation | NOT implemented |
 | Webhook ingestion/signature verification | NOT implemented |

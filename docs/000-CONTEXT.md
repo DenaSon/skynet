@@ -109,3 +109,5 @@ Full administration workflows (user creation), customer business operations, web
 3. Add Livewire only when a web interface is required.
 
 See [Architecture](002-ARCHITECTURE.md), [Modules](003-MODULES.md), [Telegram operations](006-TELEGRAM-OPERATIONS.md), [Roadmap](005-ROADMAP.md) and [ADR 0004](adr/0004-telegram-first.md).
+
+- **F10-D user lifecycle (PR in review):** typed v3 Users adapter, limited create DTO, DB-backed at-most-one-attempt subscription state with explicit read-only recovery after ambiguous writes. No live panel, payment capture, Telegram/user-facing provisioning or automatic sales activation. Deployment default is `REMNAWAVE_WRITES_ENABLED=false`. See docs/012-REMNAWAVE-USER-LIFECYCLE.md.
