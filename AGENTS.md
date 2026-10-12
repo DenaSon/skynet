@@ -78,7 +78,7 @@ See `docs/004-STANDARDS.md` for coding and documentation conventions.
 ## F08 finance safety
 - Billing owns wallet/topup/ledger. No balance column on User; integer rials only. Always post balanced journals in a DB transaction, with globally unique verified bank transfer reference and journal idempotency key.
 - Finance operator authority is a **trusted Super Admin**, not an ordinary admin. A reseller can read/request only their own account. Typed transfer proof is not bank confirmation.
-- Existing referral, Identity, Sales and Provisioning must not be coupled to Billing infrastructure. No refunds, wallet debit, rewards, payouts or payment gateway until future explicit requirements and E2E.
+- Existing referral, Identity, Sales and Provisioning must not be coupled to Billing infrastructure. No refunds, rewards, payouts or payment gateway. F11-A1 adds an **internal-only, default-disabled** wallet debit + Sales settlement; it is not wired to Telegram/HTTP and must remain disabled until independent bank verification, production DB concurrency and live E2E gates.
 - Banking integration, manual verification and live Telegram E2E have not happened merely because feature tests passed. Leave `BILLING_TOPUPS_ENABLED=false` in production until signed off.
 
 ## F09-A product catalog and pricing
