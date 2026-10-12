@@ -25,7 +25,7 @@ use Spatie\Permission\Models\Role;
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
-    config()->set('super_admin.telegram_ids', ['955001']);
+    config()->set('super_admin.telegram_ids', ['955001', '955019']);
     config()->set('telegram.hybrid_menu_enabled', true);
     app(ConfigureProduct::class)->handle('vpn-access', 'VPN Access');
     Role::findOrCreate('reseller', 'web');
