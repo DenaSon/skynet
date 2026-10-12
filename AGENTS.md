@@ -10,9 +10,10 @@ SkyNet is a Laravel 13 application being developed as a **modular monolith**.
 ## Start here
 1. Read `docs/000-CONTEXT.md` before changing code.
 2. Read the relevant architecture/module/roadmap documents.
-3. Inspect the actual code; documentation never overrides observed behavior.
-4. Make the smallest change that solves the current task, and add or update tests.
-5. Update at least one relevant document in the **same PR** as any meaningful development change.
+3. Inspect the actual code, merged PRs, issues, migrations and most recent CI; documentation never overrides observed behavior.
+4. **Current checkpoint (2026-10-12):** F10-A/B/C/D are merged; read [Issue #24](https://github.com/DenaSon/skynet/issues/24) before starting F10-E1. Never treat 218 mapped Remnawave routes as 218 authorized Application APIs.
+5. Make the smallest change that solves the current task, and add or update tests.
+6. Update at least one relevant document in the **same PR** as any meaningful development change.
 
 ## Identity reminder
 - The first Identity slice uses session + CSRF, no public registration or seeded admin credentials.
@@ -23,7 +24,7 @@ SkyNet is a Laravel 13 application being developed as a **modular monolith**.
 - Telegram handlers live in `app/Interfaces/Telegram` and may call approved Identity/Application actions; never import Identity/Infrastructure models or bypass role checks.
 - Only the documented webhook route can run Nutgram in HTTP; verify its independent secret before processing any update.
 - Private Telegram ID and single-use link tokens are the only approved identity join in F4.
-- Livewire/Mary UI and REST APIs are deferred. Do not introduce speculative server/network actions in Telegram handlers.
+- Livewire/Mary UI and public REST APIs remain deferred. Shared Application Actions are the intended integration contract; do not introduce provider/network actions in Telegram handlers.
 - See ADR 0004 and `docs/006-TELEGRAM-OPERATIONS.md` before Telegram changes.
 
 ## Fixed boundaries
@@ -31,7 +32,7 @@ SkyNet is a Laravel 13 application being developed as a **modular monolith**.
 - Modules are organized under `app/Modules/<Module>/`, registered explicitly in `bootstrap/providers.php`.
 - Keep domain/application logic independent of HTTP, Livewire, and Telegram interfaces.
 - Avoid unnecessary repositories, interfaces, events, or package dependencies.
-- No network/control-plane technology has been selected. **Do not** introduce WireGuard, Outline, Core/Edge, SSH tunnel, proxy, agent, or provisioning abstractions without a separate decision.
+- **Remnawave is selected as the external subscription panel API**, pinned to OpenAPI v3.4.4; F10-A/B/C/D are merged. The SkyNetwork transport/network-control-plane architecture (SSH/WireGuard/Core/Edge/agents/tunnels) is **not** selected by this Remnawave decision. Do not invent those implementations without a separate architectural decision.
 - Do not copy the existing Python NVL bot architecture into this foundation.
 
 ## Before declaring a task complete
@@ -95,3 +96,11 @@ See `docs/004-STANDARDS.md` for coding and documentation conventions.
 - Order creation is a Sales Application Action, not a Telegram Eloquent write. Use the buyer-bound opaque checkout token only as a pointer to the immutable quote presented; re-price with `CalculateQuote` under a transaction and reject stale prices or changed permissions.
 - Store a DB-unique idempotency key per order; double-click/retry returns the same buyer-owned order, never a second charge or second order. No order row is proof of payment.
 - Orders start `pending_payment`, with immutable public/discount/final amounts and volume/duration snapshot. Never call Billing or Remnawave in F09-C. Read owner-scoped only; tests must cover cross-user access and old callback replays.
+
+## F10-D provider safety and F10-E handoff (current)
+- **Merged:** PR #19 catalog/client (218 operations), #20 read-only discovery, #21 node API and telemetry, #23 typed Users/Subscriptions plus SQL-reserved lifecycle. No Remnawave live E2E. Refer to `docs/000-CONTEXT.md` for exact verified checkpoint.
+- Provider `Infrastructure/Remnawave` is a transport/DTO implementation, **not an authorization layer**. Telegram/Web never call it directly. The lifecycle `subscription(reference)` method checks local provider mapping but **does not check Identity/Sales order ownership**.
+- `REMNAWAVE_WRITES_ENABLED=false` by default. No action in Telegram/checkout invokes provider creation/update. `sales_orders` are `pending_payment` only; a Billing wallet top-up is not a purchase. No wallet debit, paid-order transition or durable provisioning outbox exists.
+- Every create checks the requested Internal Squad set against provider response; reject associative UUID arrays before a write. Protect subscription URLs like bearer tokens; no links in list DTOs or logs. Keep failed/ambiguous writes in `reserved`/`needs_review` until read-only reconciliation; never replay them blindly.
+- **Next:** [Issue #24](https://github.com/DenaSon/skynet/issues/24) F10-E1 (Sales order-to-provider ownership mapping and bounded read DTOs), then F10-E2 actor-authorized shared reads, F10-E3 Telegram presenter. Only afterward design F11 payment settlement, idempotent dispatch and real staging E2E.
+- Do not implement broad payment/admin write interfaces or grant reseller cross-account access by role alone. Preserve Identity fresh checks, Sales order ownership, one-use root confirmation and audit in all new Application actions. Full PHP 8.4/8.5 CI required before merge.
