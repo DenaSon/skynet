@@ -11,7 +11,7 @@ SkyNet is a Laravel 13 application being developed as a **modular monolith**.
 1. Read `docs/000-CONTEXT.md` before changing code.
 2. Read the relevant architecture/module/roadmap documents.
 3. Inspect the actual code, merged PRs, issues, migrations and most recent CI; documentation never overrides observed behavior.
-4. **Current checkpoint (2026-10-12):** F10-E1/E2/E3 (#26/#27/#28), F11-A1 wallet settlement (#30), F11-A2 manual Super Admin bank review (#33), and **F11-B0 unified Billing ledger** ([PR #35](https://github.com/DenaSon/skynet/pull/35)) are merged on `master`. F11-B0 squash SHA `8e04572327f27d2f9c7b5dc3f280662e53135f5f`, [master CI #38238151791](https://github.com/DenaSon/skynet/actions/runs/38238151791) green on PHP 8.4/8.5. All financial/provider write gates remain OFF; no live bank/Telegram/Remnawave E2E or F11-B dispatcher. **NEXT:** F11-B1.2 managed plan pricing; then F11-B1.3 plan to Internal Squad mapping. Pre-production migrations were edited in place because there is no live data; only use a fresh disposable development/test DB.
+4. **Current checkpoint (2026-10-12):** F11-B1.1 plan catalog (#37) and **F11-B1.2 managed pricing** ([PR #39](https://github.com/DenaSon/skynet/pull/39)) are merged on `master`; B1.2 squash `027c83c95a3d0bcf89f7ad8682c5a654d5c0e924`, [master CI 38245902790](https://github.com/DenaSon/skynet/actions/runs/38245902790) green (PHP 8.4/8.5 Pest/PHPStan/Pint). NEW plans are **read-only quotes**, not purchasable: B1.3 provider plan/Squad mapping and guarded order creation follow. F09 checkout unchanged, all financial and provider write gates remain OFF. No bank/Telegram/Remnawave E2E or production DB contention tests; no production data yet.
 5. Make the smallest change that solves the current task, and add or update tests.
 6. Update at least one relevant document in the **same PR** as any meaningful development change.
 
@@ -116,7 +116,7 @@ See `docs/004-STANDARDS.md` for coding and documentation conventions.
 
 Dynamic Sales plan catalog (volume/time/hybrid, preset/reseller builder, audience, bounds, statuses) is separate from existing F09 pricing/checkout. `ManagePlans` requires fresh allowlisted Super Admin authorization, revision checks, per-root hashed single-use confirmation and mutation audit. `ListVisiblePlans` is read-only and buyer-scoped; **no new plan is purchasable** before B1.2/B1.3. The future `sales_orders.plan_id` FK is nullable and restricts deletion. No bank/Remnawave flags, HTTP/Telegram UI or old pricing behavior change. Merged via [PR #37](https://github.com/DenaSon/skynet/pull/37), squash SHA `c3d52c81c45eb641efd1f744eecd58d98ab5790f`, CI PHP 8.4/8.5 tests, Larastan/Pint green. See `docs/015-SALES-PLAN-CATALOG.md`.
 
-## F11-B1.2 — Managed plan pricing (current increment)
+## F11-B1.2 — Managed plan pricing (merged #39)
 
 - Pricing is exclusively Sales-owned under `sales_plan_prices`, `sales_plan_price_confirmations` and `sales_plan_price_audits`, one price rule per B1.1 plan; plan and price each have independent optimistic revisions.
 - `ManagePlanPricing` is root-only; create/edit always resets pricing to **draft**, and publish/unpublish requires trusted Super Admin + actor-bound hashed one-use three-minute confirmation. No hidden live repricing of active quotes.
