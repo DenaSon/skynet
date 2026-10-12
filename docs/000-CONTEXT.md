@@ -55,7 +55,7 @@
 - `subscription(reference)` looks up a local linked active subscription and fetches a credential-bearing URL. **It does not authenticate a customer or establish ownership of the reference.** This action must only be called through a future actor-authorized Application boundary.
 - `RemnawaveUsersApi` also contains potentially destructive primitives (delete, revoke, reset, additive extend). They are **internal capabilities**, not approved business actions.
 
-### F10-E1 — Ownership read-model implementation (topic branch; not merged)
+### F10-E1 — Ownership read-model (PR #26; inspect actual merge status)
 
 - New `provisioning_order_links` **bridge table** contains unique `sales_order_id → provisioning_subscription_id` foreign keys. It deliberately has **no public/checkout writer**; F11 settlement/fulfillment will need a separately reviewed atomic binding action. The existing `provisioning_subscriptions.reference` and provider IDs never become a customer identity claim.
 - `Sales/Application/OrderReader::page()` is a 1–50 item, keyset-paginated **owner-scoped** read backed by `ResolveSalesBuyer` active-account checks. The existing `recent()`/Telegram `/orders` contract remains unchanged.
