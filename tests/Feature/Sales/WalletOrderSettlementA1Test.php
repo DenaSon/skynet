@@ -210,16 +210,18 @@ it('rolls back wallet debit and paid transition if the outbox cannot be inserted
         ->and(DB::table('billing_journals')->where('kind', 'purchase')->count())->toBe(0);
 });
 
-it('never permits the low-level wallet debit as an unguarded standalone call', function (): void {
+it('default-denies low-level wallet debit and rejects debit without verified funds', function (): void {
     $buyer = a1Buyer(951010);
     $id = a1Order($buyer);
 
     expect(fn () => app(DebitWalletForOrder::class)->handle($buyer->id, $id, 10_000))
         ->toThrow(AuthorizationException::class);
 
+    // RefreshDatabase wraps Pest tests in a DB transaction, so an outer
+    // transaction-level check alone is not a caller authorization boundary.
     config()->set('sales.wallet_settlement_enabled', true);
     expect(fn () => app(DebitWalletForOrder::class)->handle($buyer->id, $id, 10_000))
-        ->toThrow(AuthorizationException::class);
+        ->toThrow(ValidationException::class);
 
     expect(DB::table('billing_journals')->count())->toBe(0)
         ->and(DB::table('sales_order_settlements')->count())->toBe(0);
