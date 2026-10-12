@@ -8,6 +8,8 @@ final class ReplyMenuLabels
 
     public const SUBSCRIPTIONS = '📦 سرویس‌های من';
 
+    public const CATALOG = '📋 پلن‌ها و قیمت‌ها';
+
     public const ACCOUNT = '👤 حساب من';
 
     public const INVITE = '🎁 دعوت دوستان';
@@ -36,7 +38,7 @@ final class ReplyMenuLabels
     public static function all(): array
     {
         return [
-            self::BUY, self::SUBSCRIPTIONS, self::ACCOUNT, self::INVITE,
+            self::BUY, self::SUBSCRIPTIONS, self::CATALOG, self::ACCOUNT, self::INVITE,
             self::SETTINGS, self::ADMIN, self::WALLET, self::USERS,
             self::ROLES, self::PLANS, self::TOPUPS, self::RECEIPTS, self::HOME,
         ];

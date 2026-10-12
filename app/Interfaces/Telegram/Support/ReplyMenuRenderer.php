@@ -49,6 +49,7 @@ final class ReplyMenuRenderer
         $labels = [
             ReplyMenuLabels::BUY,
             ReplyMenuLabels::SUBSCRIPTIONS,
+            ReplyMenuLabels::CATALOG,
             ReplyMenuLabels::ACCOUNT,
             ReplyMenuLabels::INVITE,
             ReplyMenuLabels::SETTINGS,

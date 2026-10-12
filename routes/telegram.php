@@ -13,6 +13,7 @@ use App\Interfaces\Telegram\Handlers\StartHandler;
 use App\Interfaces\Telegram\Support\BillingUi;
 use App\Interfaces\Telegram\Support\ManualPaymentUi;
 use App\Interfaces\Telegram\Support\PlanAdminUi;
+use App\Interfaces\Telegram\Support\PlanCatalogUi;
 use App\Interfaces\Telegram\Support\PrivateTelegramUser;
 use App\Interfaces\Telegram\Support\RbacUi;
 use App\Interfaces\Telegram\Support\ShopUi;
@@ -72,6 +73,9 @@ $bot->onCommand('admin', AdminHandler::class);
 $bot->onCommand('link {code}', LinkHandler::class);
 $bot->onCommand('users', AdminUsersHandler::class);
 $bot->onCommand('roles', AdminRolesHandler::class);
+$bot->onCommand('catalog', function (Nutgram $bot): void {
+    app(PlanCatalogUi::class)->browse($bot);
+});
 $bot->onCommand('plans', function (Nutgram $bot): void {
     app(PlanAdminUi::class)->browse($bot);
 });
@@ -123,11 +127,23 @@ $bot->onCallbackQueryData('menu:settings', SettingsHandler::class);
 $bot->onCallbackQueryData('menu:admin', AdminHandler::class);
 $bot->onCallbackQueryData('menu:admin:users', AdminUsersHandler::class);
 $bot->onCallbackQueryData('menu:admin:roles', AdminRolesHandler::class);
+$bot->onCallbackQueryData('menu:plan-catalog', function (Nutgram $bot): void {
+    app(PlanCatalogUi::class)->browse($bot);
+});
+$bot->onCallbackQueryData('catalog:list:{page}', function (Nutgram $bot, string $page): void {
+    app(PlanCatalogUi::class)->browse($bot, ctype_digit($page) ? (int) $page : 1);
+});
+$bot->onCallbackQueryData('catalog:detail:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
+    app(PlanCatalogUi::class)->detail($bot, $id, $page);
+});
 $bot->onCallbackQueryData('menu:admin:plans', function (Nutgram $bot): void {
     app(PlanAdminUi::class)->browse($bot);
 });
 $bot->onCallbackQueryData('plan:list:{page}', function (Nutgram $bot, string $page): void {
     app(PlanAdminUi::class)->browse($bot, ctype_digit($page) ? (int) $page : 1);
+});
+$bot->onCallbackQueryData('plan:examples', function (Nutgram $bot): void {
+    app(PlanAdminUi::class)->examples($bot);
 });
 $bot->onCallbackQueryData('plan:products', function (Nutgram $bot): void {
     app(PlanAdminUi::class)->products($bot);
