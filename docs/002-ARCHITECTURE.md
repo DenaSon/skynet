@@ -50,7 +50,7 @@ Webhook receipts use a database unique update ID, 90-second processing lease, pr
 The future Livewire UI may call the same Application Actions directly; REST is not mandatory for an in-process presenter. See [ADR 0004](adr/0004-telegram-first.md).
 
 ## Open decisions
-Administrative Web UI, F10-E subscription ownership/read contracts, F11 paid-order settlement and durable queue/outbox, production DB/cache topology, authorized node actions and real provider/network E2E remain future work. Remnawave **is** selected as the external subscription panel API; independent SSH/WireGuard/Core/Edge transport choices remain open.
+Administrative Web UI, F11-A2 verified direct bank settlement, F11-B outbox dispatch/reconciliation, production DB/cache topology, authorized node actions and real provider/network E2E remain future work. F10-E1/E2/E3 are merged; F11-A1 wallet settlement/outbox storage is merged, OFF by default. Remnawave **is** selected as the external subscription panel API; independent SSH/WireGuard/Core/Edge transport choices remain open.
 
 See [ADR 0001](adr/0001-modular-monolith.md).
 
@@ -66,7 +66,7 @@ The identity module owns dynamic roles/permissions via Spatie Permission v8 (sin
 ## F10-D — Provider user lifecycle and uncertain-write recovery
 The Provisioning Application layer coordinates a durable `provisioning_subscriptions` / `provisioning_operations` reservation before each remote write. Transport remains in Infrastructure, and Billing/Sales/Telegram have **no direct dependency** on the provider. A second write is prohibited until a previous ambiguous operation has been reconciled. The customer subscription URL is secret and only returned by internal read after provider marker verification. No HTTP route, Telegram handler or order is wired to new write actions; the module remains default-disabled. See [F10-D runbook](012-REMNAWAVE-USER-LIFECYCLE.md).
 
-## Current integration seam (F10-D merged; F10-E next)
+## Current integration seam (F10-E and F11-A1 merged; F11-B future)
 
 ```text
 Telegram adapter / future Livewire presenter
@@ -78,7 +78,7 @@ Identity Application — resolve fresh active actor + RBAC
 Sales Application — buyer-owned order and immutable price snapshot
             |
             v
-[F10-E PLANNED] Authorized shared subscription read/actions + safe DTOs
+F10-E authorized shared subscription reads + safe DTOs + Telegram presenter
             |
             v
 Provisioning Application — SQL-reserved lifecycle and reconciliation (F10-D)
@@ -91,7 +91,7 @@ Remnawave v3.4.4 (NOT live-E2E verified)
 ```
 
 - **Already built:** F10-D `RemnawaveSubscriptionLifecycle` and the unique `provisioning_subscriptions` / `provisioning_operations` tables. This lifecycle has **no actor authorization, Sales order ownership, payment verification or Telegram/HTTP entry point**. It must remain internal and writes default-disabled.
-- **Next F10-E:** [Issue #24](https://github.com/DenaSon/skynet/issues/24) designs order ownership/read DTOs and an **Application-level authorization seam**, not a second provider SDK. A UI callback or provider ID is never proof of ownership. Link retrieval is a separate permissioned action because `subscriptionUrl` is a bearer credential.
-- **Future F11:** Sales/Billing settle exactly once *before* any provisioning; a durable outbox/queue controls dispatch and reconciliation after ambiguous writes. No remote provider calls or wallet debit should run inside the Sales order transaction.
+- **F10-E merged:** Actor-authorized subscription list/detail/connection/node Actions and Telegram presentation. A callback or provider ID is never proof of ownership; subscription URL remains a separately authorized bearer credential.
+- **F11-A1 merged but disabled:** Atomic Sales/Billing wallet debit, paid-order transition and pending outbox insert in a single DB transaction, with no remote provider call or outbox consumer. F11-A2 payment verification and F11-B safe dispatch/reconciliation remain future, gated by production DB concurrency and live staging E2E.
 - **Infrastructure boundary:** `RemnawaveUsersApi`, `RemnawaveSubscriptionsApi`, `RemnawaveNodesApi` and `RemnawaveNodeTelemetry` can make internal calls but **do not** implement business RBAC. Node mutations require a separate operator-authorized Application action, audit and confirmation.
 - **Actual tests:** [master CI 38213468652](https://github.com/DenaSon/skynet/actions/runs/38213468652) after PR #23 merge passed PHP 8.4/8.5 (200 tests / 959 assertions). Live panel, bank and Telegram E2E not executed. Canonical state: [000-CONTEXT.md](000-CONTEXT.md).

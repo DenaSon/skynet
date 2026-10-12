@@ -6,8 +6,8 @@
 | --- | --- | --- |
 | Identity | Users, authenticated actors, RBAC and audit | Session and Telegram identity; role/status actions, protected roots |
 | Referral / Onboarding | Invitation attribution and opt-in signup | Single-shot referral join; no financial rewards |
-| Billing | Reseller wallets and verified top-up ledger | Manual deposit workflow, no purchase debit/settlement |
-| Sales | Product rates, immutable quote/order snapshots | `CreatePendingOrder`, owner-scoped `OrderReader`; orders remain `pending_payment` |
+| Billing | Reseller wallets and balanced prepaid ledger | Manual deposit workflow plus internal F11-A1 purchase debit (default-disabled, no user checkout) |
+| Sales | Product rates, order snapshots and settlement/outbox | `CreatePendingOrder`, guarded `SettleWalletOrder`, unique settlement and pending outbox (no worker) |
 | Provisioning | Remnawave transport, node/user DTOs and durable provider operation state | F10-A/B/C/D implemented internally; no actor-authorized sales integration or live panel E2E |
 | Administration | Future admin UI composition | Registered shell only |
 | Telegram (interface) | Private chatbot navigation and feature presenters | Identity/RBAC/onboarding/wallet/shop/orders; no provider subscription presenter yet |
@@ -108,13 +108,13 @@ A configured operator may make five read-only GET requests to health, nodes, hos
 
 [PR #26](https://github.com/DenaSon/skynet/pull/26) introduces **F10-E1**: a one-to-one, FK-protected `provisioning_order_links` bridge (no writer until a trusted F11 settlement flow), `Sales/Application/OrderReader::page` with owner-scoped 1–50 keyset pagination, and `Provisioning/Application/SubscriptionOwnershipQuery` with secret-free `SubscriptionSummary`/`SubscriptionDetails`/`SubscriptionCursorPage` projections. It reads Sales via **Application DTOs**, batches local mapping lookups, and fails closed when an unpaid order is linked. These are **internal** methods; a caller-supplied buyer ID is not by itself authorization for a public/Telegram entry point. **F10-E2** provides fresh Identity-authorized owner-scoped list/detail/link/nodes (merged #27), and **F10-E3** provides the thin private Telegram presenter (merged #28). Future Livewire will reuse the same actions. `RemnawaveSubscriptionLifecycle::subscription(reference)` checks local mapping and remote marker, **not customer ownership**; do not call it directly from a UI handler.
 
-F11 is separately responsible for **independently verified** order settlement, wallet debits and provider dispatch. All of `sales_orders` created by current checkout remain `pending_payment`. Provider writes are default-disabled and live E2E has not occurred. See [Context](000-CONTEXT.md) and [F10-D lifecycle](012-REMNAWAVE-USER-LIFECYCLE.md).
+F11-A1 adds default-disabled, internal reseller wallet debit + atomic paid transition and pending outbox. Existing Telegram checkout still creates `pending_payment` orders and never invokes that action. Provider writes are default-disabled and live E2E has not occurred. See [Context](000-CONTEXT.md) and [F10-D lifecycle](012-REMNAWAVE-USER-LIFECYCLE.md).
 
 ## F10-E2 — shared authenticated read entry points (PR #27)
 
 `Identity/Application/SubscriptionViewer` describes an internal Telegram or web request context; `AuthorizeSubscriptionViewer` re-resolves fresh linked/active Identity on every use case. `ListMySubscriptions` and `GetMySubscription` use owner-scoped Sales/Application DTOs with no network. `ActiveSubscriptionAccess` is the guarded Remnawave boundary for `GetSubscriptionLink` and `ListAccessibleNodes`; it requires paid/fulfilled order, linked active provider record, marker + remote ID match, usable provider status, and repeats authorization and binding checks **after network reads**. The link DTO is a bearer credential and must only leave over a private authenticated channel. The node DTO exposes only display name and country, not IP, UUID, inbounds or provider JSON.
 
-These read Actions are already invoked from the private Telegram UI (F10-E3, PR #28 merged). No order settlement, auto-provisioning, refund synchronization, remote write or live Remnawave E2E is implemented. See [Context](000-CONTEXT.md) and [Issue #24](https://github.com/DenaSon/skynet/issues/24).
+These read Actions are already invoked from the private Telegram UI (F10-E3, PR #28 merged). No Telegram-triggered settlement, auto-provisioning, refund synchronization, remote write or live Remnawave E2E is implemented. See [Context](000-CONTEXT.md) and [Issue #24](https://github.com/DenaSon/skynet/issues/24).
 
 ## F11-A1 — Internal wallet settlement (PR #30 merged, default-disabled)
 
