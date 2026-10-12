@@ -23,6 +23,7 @@ final readonly class PlanCatalogUi
         private ResolveTelegramActor $resolve,
         private ListQuotedPresets $catalog,
         private PendingShopVolume $pendingVolume,
+        private PendingBuilderSelection $pendingBuilder,
         private MenuRenderer $menus,
     ) {}
 
@@ -34,6 +35,7 @@ final readonly class PlanCatalogUi
         }
 
         $this->pendingVolume->forget($actor->userId);
+        $this->pendingBuilder->forget($actor->userId);
 
         try {
             $entries = $this->catalog->handle($actor->userId);
