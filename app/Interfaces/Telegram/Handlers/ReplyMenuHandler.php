@@ -4,6 +4,7 @@ namespace App\Interfaces\Telegram\Handlers;
 
 use App\Interfaces\Telegram\Support\BillingUi;
 use App\Interfaces\Telegram\Support\ManualPaymentUi;
+use App\Interfaces\Telegram\Support\PendingBuilderSelection;
 use App\Interfaces\Telegram\Support\PendingShopVolume;
 use App\Interfaces\Telegram\Support\PlanAdminDrafts;
 use App\Interfaces\Telegram\Support\PlanAdminUi;
@@ -12,6 +13,7 @@ use App\Interfaces\Telegram\Support\PrivateTelegramUser;
 use App\Interfaces\Telegram\Support\RbacUi;
 use App\Interfaces\Telegram\Support\ReplyMenuLabels;
 use App\Interfaces\Telegram\Support\ReplyMenuRenderer;
+use App\Interfaces\Telegram\Support\ResellerBuilderUi;
 use App\Interfaces\Telegram\Support\ShopUi;
 use App\Interfaces\Telegram\Support\SubscriptionUi;
 use App\Interfaces\Telegram\Support\UserManagementUi;
@@ -27,6 +29,7 @@ final class ReplyMenuHandler
         private readonly ReplyMenuRenderer $replyMenus,
         private readonly PendingShopVolume $pendingVolume,
         private readonly PlanAdminDrafts $planDrafts,
+        private readonly PendingBuilderSelection $pendingBuilder,
     ) {}
 
     /**
@@ -57,10 +60,22 @@ final class ReplyMenuHandler
         // A button tap is navigation, never a custom volume submission.
         $this->pendingVolume->forget($actor->userId);
         $this->planDrafts->forget($actor->userId);
+        $this->pendingBuilder->forget($actor->userId);
 
         switch ($text) {
             case ReplyMenuLabels::BUY:
                 app(ShopUi::class)->open($bot);
+
+                return true;
+
+            case ReplyMenuLabels::BUILDER:
+                if (! in_array('reseller', $actor->roles, true)) {
+                    $this->deny($bot, $actor);
+
+                    return true;
+                }
+
+                app(ResellerBuilderUi::class)->browse($bot);
 
                 return true;
 

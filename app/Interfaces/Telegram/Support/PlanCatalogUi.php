@@ -23,6 +23,7 @@ final readonly class PlanCatalogUi
         private ResolveTelegramActor $resolve,
         private ListQuotedPresets $catalog,
         private PendingShopVolume $pendingVolume,
+        private PendingBuilderSelection $pendingBuilder,
         private MenuRenderer $menus,
     ) {}
 
@@ -34,6 +35,7 @@ final readonly class PlanCatalogUi
         }
 
         $this->pendingVolume->forget($actor->userId);
+        $this->pendingBuilder->forget($actor->userId);
 
         try {
             $entries = $this->catalog->handle($actor->userId);
@@ -78,6 +80,9 @@ final readonly class PlanCatalogUi
             $keyboard->addRow(InlineKeyboardButton::make('بعدی ▶️', callback_data: 'catalog:list:'.($page + 1)));
         }
 
+        if (in_array('reseller', $actor->roles, true)) {
+            $keyboard->addRow(InlineKeyboardButton::make('💼 پلن‌ساز نماینده', callback_data: 'menu:builder'));
+        }
         $keyboard->addRow(InlineKeyboardButton::make('🏠 صفحه اصلی', callback_data: 'menu:home'));
         $this->render($bot, implode("\n", $lines), $keyboard);
     }

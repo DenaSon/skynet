@@ -152,3 +152,12 @@ Use **📋 سفارش‌های من** or `/orders` to view the latest ten orders
 - Display volume or unlimited, days, public price, reseller discount, exact final price in integer rials, plus a labeled rounded-up approximate toman value. Super Admin /plans now includes copyable HTML code-formatted plan templates with the first active parent product slug; one line per sample to paste into the matching existing form. No seeded prices or real subscriptions.
 - No checkout buttons or managed-plan orders. No payment, wallet, outbox, settlement, provisioning or Remnawave traffic; the old F09 /buy command remains untouched. B1.3 internal Squad mapping and real provider staging must precede any settlement/provisioning.
 - After CD, privately test /catalog as member/reseller, publish/unpublish a plan and price, retry stale and forged callbacks, check group/unlinked denial, and verify sample codes copy cleanly. CI fakes do not prove Telegram delivery.
+
+
+## F11-B1.6 — Reseller-only builder preview (2026-10-13)
+
+- Private /builder, reseller-only home Inline/catalog navigation and optional Reply Keyboard button. Member, unlinked/disabled Telegram and group callbacks are rejected. Sales ListResellerBuilders allows only reseller audience + builder mode, active product/plan and current published tariff with at least one valid quote.
+- Quick flow: select volume in the plan bounds, then duration; unlimited time-based plans bypass volume. Enter arbitrary exact values with '35 | 45' (Persian/Arabic digits supported) or '- | 30' for unlimited. Owner-scoped draft expires in 10 minutes. Navigation to home, /catalog, /buy, other Reply labels or cancellation clears the draft.
+- Every final preview calls canonical CalculatePlanQuote and revalidates role, selected bounds, plan and price status/revision, floor and published reseller discount. Outputs exact rials and labeled rounded-up approximate tomans. Callback data contains no money or secrets. Invalid/stale choices do not change any DB state.
+- This is quote-only. No orders, payment, wallet, ledger, outbox, provider writes, network calls, migrations or feature flags; F09 /buy unchanged. Real activation still requires F11-B1.3 mapping and staging Remnawave E2E.
+- Production smoke: create builder in /plans, activate plan BEFORE configuring/publishing formula, use /builder as linked reseller, test buttons, custom ۳۵ | ۴۵, unlimited - | 30, expired/invalid values, role downgrade, inactive price, member/group denial, /catalog and /buy navigation.

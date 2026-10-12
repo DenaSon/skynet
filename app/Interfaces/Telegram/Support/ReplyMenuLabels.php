@@ -20,6 +20,8 @@ final class ReplyMenuLabels
 
     public const WALLET = '💼 کیف پول نماینده';
 
+    public const BUILDER = '💼 پلن‌ساز نماینده';
+
     public const USERS = '👥 کاربران';
 
     public const ROLES = '🔐 نقش‌ها و دسترسی‌ها';
@@ -39,7 +41,7 @@ final class ReplyMenuLabels
     {
         return [
             self::BUY, self::SUBSCRIPTIONS, self::CATALOG, self::ACCOUNT, self::INVITE,
-            self::SETTINGS, self::ADMIN, self::WALLET, self::USERS,
+            self::SETTINGS, self::ADMIN, self::WALLET, self::BUILDER, self::USERS,
             self::ROLES, self::PLANS, self::TOPUPS, self::RECEIPTS, self::HOME,
         ];
     }
