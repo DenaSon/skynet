@@ -33,6 +33,7 @@ function userFixture(string $username = 'sk_demo', ?string $description = null):
         'trafficLimitStrategy' => 'NO_RESET',
         'subscriptionUrl' => 'https://sub.example.test/short-random-code',
         'description' => $description,
+        'activeInternalSquads' => [['uuid' => USER_SQUAD, 'name' => 'Test Squad']],
         'userTraffic' => ['usedTrafficBytes' => 1024, 'lifetimeUsedTrafficBytes' => 2048],
     ];
 }
@@ -70,6 +71,8 @@ it('validates safe creation fields, quotas, dates and squads', function (): void
         ->and(fn () => new CreateRemnawaveUser('valid', USER_EXPIRY, -1, [USER_SQUAD]))
         ->toThrow(InvalidArgumentException::class)
         ->and(fn () => new CreateRemnawaveUser('valid', USER_EXPIRY, 10, []))
+        ->toThrow(InvalidArgumentException::class)
+        ->and(fn () => new CreateRemnawaveUser('valid', USER_EXPIRY, 10, ['primary' => USER_SQUAD]))
         ->toThrow(InvalidArgumentException::class);
 });
 
