@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Billing\Application\DebitWalletForOrder;
 use App\Modules\Billing\Application\RequestTopup;
 use App\Modules\Billing\Application\ReviewTopup;
 use App\Modules\Billing\Application\SubmitTopupReference;
@@ -207,4 +208,19 @@ it('rolls back wallet debit and paid transition if the outbox cannot be inserted
         ->and(app(ViewWallet::class)->handle($buyer->id)->balanceRials)->toBe(1_000_000)
         ->and(DB::table('sales_order_settlements')->count())->toBe(0)
         ->and(DB::table('billing_journals')->where('kind', 'purchase')->count())->toBe(0);
+});
+
+it('never permits the low-level wallet debit as an unguarded standalone call', function (): void {
+    $buyer = a1Buyer(951010);
+    $id = a1Order($buyer);
+
+    expect(fn () => app(DebitWalletForOrder::class)->handle($buyer->id, $id, 10_000))
+        ->toThrow(AuthorizationException::class);
+
+    config()->set('sales.wallet_settlement_enabled', true);
+    expect(fn () => app(DebitWalletForOrder::class)->handle($buyer->id, $id, 10_000))
+        ->toThrow(AuthorizationException::class);
+
+    expect(DB::table('billing_journals')->count())->toBe(0)
+        ->and(DB::table('sales_order_settlements')->count())->toBe(0);
 });
