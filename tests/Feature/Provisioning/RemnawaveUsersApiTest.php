@@ -26,6 +26,7 @@ function remoteUser(array $overrides = []): array
         'trafficLimitStrategy' => 'NO_RESET',
         'expireAt' => '2026-12-01T00:00:00Z',
         'subscriptionUrl' => 'https://subscriptions.example.test/sub/abcdefgh',
+        'activeInternalSquads' => [['uuid' => USER_SQUAD_UUID, 'name' => 'Test Squad']],
         'userTraffic' => ['usedTrafficBytes' => 12345],
     ], $overrides);
 }
@@ -128,6 +129,8 @@ it('rejects invalid user payloads before making any provider request', function 
     expect(fn () => new CreateRemnawaveUser('valid', '2026-12-01T00:00:00Z', -1, [USER_SQUAD_UUID]))
         ->toThrow(InvalidArgumentException::class);
     expect(fn () => new CreateRemnawaveUser('valid', '2026-12-01T00:00:00Z', 100, []))
+        ->toThrow(InvalidArgumentException::class);
+    expect(fn () => new CreateRemnawaveUser('valid', '2026-12-01T00:00:00Z', 100, ['primary' => USER_SQUAD_UUID]))
         ->toThrow(InvalidArgumentException::class);
     expect(fn () => $api->byId(0))->toThrow(InvalidArgumentException::class);
     expect(fn () => $api->update(42, []))->toThrow(InvalidArgumentException::class);
