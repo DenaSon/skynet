@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Billing\Application;
 
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -17,6 +18,11 @@ final readonly class DebitWalletForOrder
 
     public function handle(int $buyerId, int $orderId, int $amountRials): int
     {
+        // Enforce default-deny even when called outside the Sales orchestrator.
+        if (config('sales.wallet_settlement_enabled') !== true || DB::transactionLevel() < 1) {
+            throw new AuthorizationException;
+        }
+
         if ($orderId < 1 || $amountRials < 1 || $amountRials > 1_000_000_000_000) {
             throw ValidationException::withMessages(['payment' => 'Invalid wallet purchase amount.']);
         }
