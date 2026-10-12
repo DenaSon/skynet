@@ -9,6 +9,7 @@ use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\ManagePlanPricing;
 use App\Modules\Sales\Application\ManagePlans;
 use App\Modules\Sales\Application\PlanDefinition;
+use App\Modules\Sales\Application\PlanPricingDefinition;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -245,7 +246,7 @@ it('configures a bounded formula and rejects invalid or stale pricing submission
     $bot->hearText('60000 | 10000 | 1000 | 10000 | 5')->reply();
     $token = app(PlanAdminDrafts::class)->peek($root->id)['token'];
     app(ManagePlanPricing::class)->configure($root->id, $id, 1, 1,
-        new \App\Modules\Sales\Application\PlanPricingDefinition('formula', null, 400_000, 100_000, 10_000, 5, 100_000));
+        new PlanPricingDefinition('formula', null, 400_000, 100_000, 10_000, 5, 100_000));
     $bot->hearCallbackQueryData('plan:save:'.$token)->reply();
 
     expect(DB::table('sales_plan_prices')->value('base_price_rials'))->toBe(400_000)

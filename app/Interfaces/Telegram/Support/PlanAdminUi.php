@@ -44,7 +44,7 @@ final readonly class PlanAdminUi
         $page = min($page, $pages);
         $entries = array_slice($all, ($page - 1) * 5, 5);
 
-        $lines = ["📦 مدیریت پلن‌های SkyNet", "تعداد: ".count($all)." | صفحه {$page} از {$pages}", '',
+        $lines = ['📦 مدیریت پلن‌های SkyNet', "تعداد: ".count($all)." | صفحه {$page} از {$pages}", '',
             '⚠️ فعال‌سازی پلن فقط انتشار در Catalog است؛ خرید و ساخت سرویس هنوز متصل نیست.'];
         $keyboard = InlineKeyboardMarkup::make();
 
