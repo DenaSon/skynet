@@ -4,7 +4,7 @@
 **Source of truth:** `master` code, migrations, tests, and GitHub PR/CI status—not this narrative when they disagree.  
 **Checkpoint:** F10-A/B/C/D merged; latest F10-D merge PR [#23](https://github.com/DenaSon/skynet/pull/23), commit `ec43b945138af3711db03bf418d0f382495e4a97`.  
 **Verified at checkpoint:** [master CI run 38213468652](https://github.com/DenaSon/skynet/actions/runs/38213468652), PHP 8.4 + 8.5 green, 200 Pest tests / 959 assertions, PHPStan and Pint green. **No live Remnawave, bank or BotFather E2E is thereby implied.**  
-**CURRENT INCREMENT:** [PR #26 — F10-E1](https://github.com/DenaSon/skynet/pull/26), local owner-scoped order/Subscription bridge and safe query DTOs. **NEXT:** [Issue #24](https://github.com/DenaSon/skynet/issues/24), F10-E2 actor-authenticated shared read actions and then F10-E3 Telegram presenter. Check GitHub for PR #26 merge/CI status. There were no open PRs immediately after PR #23 merged.
+**CURRENT INCREMENT:** F10-E1 [PR #26](https://github.com/DenaSon/skynet/pull/26) merged (`0fa806c6f701f3a076699f87e7a7f98462d69b22`), [master CI 38218297939](https://github.com/DenaSon/skynet/actions/runs/38218297939) green. **F10-E2** [PR #27](https://github.com/DenaSon/skynet/pull/27) implements shared authorization/read actions (verify PR/CI/merge status before claiming released). **NEXT:** F10-E3 thin Telegram presenter under [Issue #24](https://github.com/DenaSon/skynet/issues/24). There were no open PRs immediately after PR #23 merged.
 
 > **Handoff rule:** Read this file, `AGENTS.md`, `docs/002-ARCHITECTURE.md`, `docs/003-MODULES.md`, `docs/005-ROADMAP.md`, and the relevant feature runbook **before editing**. Verify current code and branches; this checkpoint may become stale. Never assume previous chat context is accurate without checking GitHub.
 
@@ -55,7 +55,7 @@
 - `subscription(reference)` looks up a local linked active subscription and fetches a credential-bearing URL. **It does not authenticate a customer or establish ownership of the reference.** This action must only be called through a future actor-authorized Application boundary.
 - `RemnawaveUsersApi` also contains potentially destructive primitives (delete, revoke, reset, additive extend). They are **internal capabilities**, not approved business actions.
 
-### F10-E1 — Ownership read-model (PR #26; inspect actual merge status)
+### F10-E1 — Ownership read-model (merged PR #26)
 
 - New `provisioning_order_links` **bridge table** contains unique `sales_order_id → provisioning_subscription_id` foreign keys. It deliberately has **no public/checkout writer**; F11 settlement/fulfillment will need a separately reviewed atomic binding action. The existing `provisioning_subscriptions.reference` and provider IDs never become a customer identity claim.
 - `Sales/Application/OrderReader::page()` is a 1–50 item, keyset-paginated **owner-scoped** read backed by `ResolveSalesBuyer` active-account checks. The existing `recent()`/Telegram `/orders` contract remains unchanged.
@@ -105,3 +105,11 @@ For Windows PowerShell, use `Copy-Item .env.example .env`. Optional frontend: `n
 - Provider: [009-REMNAWAVE-API.md](009-REMNAWAVE-API.md), [010-REMNAWAVE-STAGING.md](010-REMNAWAVE-STAGING.md), [011-REMNAWAVE-NODES.md](011-REMNAWAVE-NODES.md), [012-REMNAWAVE-USER-LIFECYCLE.md](012-REMNAWAVE-USER-LIFECYCLE.md) and [012-REMNAWAVE-USERS.md](012-REMNAWAVE-USERS.md).
 - Coding agents: root [AGENTS.md](../AGENTS.md) is canonical; [CLAUDE.md](../CLAUDE.md) points there.
 - After each merged increment: **(a)** verify PR/CI and actual `master`, **(b)** change this Reviewed date + implemented/next/limits, **(c)** update Roadmap and relevant boundaries/runbook in the same PR, **(d)** explicitly record any unverified live behavior. Do not turn historic PR descriptions into current status.
+
+### F10-E2 — Authorized shared subscription read actions (PR #27; check merge status)
+
+- Identity `SubscriptionViewer::telegram(verifiedTelegramId)` and `::web()` are **request contexts, not authentication tokens**. `AuthorizeSubscriptionViewer` re-resolves the linked, active Telegram actor or authenticated Laravel session on **every** action; it rejects disabled/unlinked principals. **Never build the Telegram context from an unverified callback field**; F10-E3 must supply the webhook-authenticated Telegram user ID.
+- `ListMySubscriptions` and `GetMySubscription` are presentation-neutral and call existing F10-E1 owner-scoped **local** DTOs; no Remnawave HTTP calls.
+- `GetSubscriptionLink` is the **sole dedicated credential action**. `ActiveSubscriptionAccess` requires exact paid/fulfilled owner order + active one-to-one link, verified remote user marker/ID, ACTIVE status, not-expired and unexhausted quota. It rechecks actor/order/link after the provider GET before returning `SubscriptionConnectionDetails` containing the URL. No URLs appear in list/detail or audit payloads.
+- `ListAccessibleNodes` reads the pinned Remnawave `GET /api/users/{userId}/accessible-nodes` only for a verified, eligible subscriber and validates the matching provider ID; returns only `name` and `countryCode` (max 200 nodes); no IP/UUID/inbound/raw provider JSON leaks.
+- Provider HTTP errors and invalid envelopes fail closed with a generic public-safe error, no provider exception chaining. Tests use HTTP fakes for 401/403/429/5xx, mismatched identity, node schema and post-GET revocation. **No Telegram/Web presentation routes wired; F10-E3 is next.** No provider writes, no real staging E2E and no automatic purchase settlement.
