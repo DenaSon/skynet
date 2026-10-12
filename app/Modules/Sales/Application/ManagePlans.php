@@ -147,6 +147,7 @@ final readonly class ManagePlans
                 'activate' => 'active',
                 'deactivate' => 'inactive',
                 'archive' => 'archived',
+                default => throw ValidationException::withMessages(['operation' => 'Unsupported plan change.']),
             };
 
             DB::table('sales_plans')->where('id', $current->id)->update([
