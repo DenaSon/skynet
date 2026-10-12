@@ -9,7 +9,6 @@ use App\Modules\Provisioning\Application\GetMySubscription;
 use App\Modules\Provisioning\Application\GetSubscriptionLink;
 use App\Modules\Provisioning\Application\ListAccessibleNodes;
 use App\Modules\Provisioning\Application\ListMySubscriptions;
-use App\Modules\Provisioning\Application\SubscriptionSummary;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
