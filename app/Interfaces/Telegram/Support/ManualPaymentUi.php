@@ -213,7 +213,7 @@ final readonly class ManualPaymentUi
             return;
         }
 
-        if (($bot->message()->photo ?? []) !== [] && is_int($bot->message()->message_id)) {
+        if (($bot->message()->photo ?? []) !== []) {
             Cache::put('telegram:bankreview:origin:'.$actor->userId.':'.$id, $bot->message()->message_id, now()->addMinutes(10));
         }
 
