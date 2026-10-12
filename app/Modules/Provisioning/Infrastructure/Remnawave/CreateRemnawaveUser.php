@@ -83,15 +83,15 @@ final readonly class CreateRemnawaveUser
         }
     }
 
-    /** @param list<string> $squads */
+    /** @param array<mixed> $squads */
     public static function validateSquads(array $squads): void
     {
-        if ($squads === []) {
+        if ($squads === [] || ! array_is_list($squads)) {
             throw new InvalidArgumentException('At least one Remnawave internal squad is required.');
         }
 
         foreach ($squads as $uuid) {
-            if (! preg_match('/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/D', $uuid)) {
+            if (! is_string($uuid) || ! preg_match('/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/D', $uuid)) {
                 throw new InvalidArgumentException('Invalid Remnawave internal squad UUID.');
             }
         }
