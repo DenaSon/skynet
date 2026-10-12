@@ -213,6 +213,10 @@ final readonly class ManualPaymentUi
             return;
         }
 
+        if (($bot->message()->photo ?? []) !== [] && is_int($bot->message()->message_id)) {
+            Cache::put('telegram:bankreview:origin:'.$actor->userId.':'.$id, $bot->message()->message_id, now()->addMinutes(10));
+        }
+
         if ($choice === 'a') {
             $this->render($bot, "✅ بررسی تأیید رسید #{$id}\n\nبرای تأیید، ابتدا مبلغ و شناسه تراکنش را از گردش واقعی بانک بررسی کنید و در همین گفت‌وگو بنویسید:\n/bankconfirm {$id} BANK123456\n\nشناسه تصویر کاربر به‌تنهایی کافی نیست.", $this->backKeyboard());
 
@@ -249,7 +253,8 @@ final readonly class ManualPaymentUi
         }
 
         $reference = strtoupper($reference);
-        $token = $this->tokens->issue($actor->userId, $id, true, $reference, null);
+        $origin = Cache::get('telegram:bankreview:origin:'.$actor->userId.':'.$id);
+        $token = $this->tokens->issue($actor->userId, $id, true, $reference, is_int($origin) ? $origin : null);
         $keyboard = InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('✅ تأیید نهایی پرداخت', callback_data: 'bank:apply:'.$token))
             ->addRow(InlineKeyboardButton::make('انصراف', callback_data: 'bank:list'));
@@ -287,6 +292,20 @@ final readonly class ManualPaymentUi
             : "❌ رسید سفارش #{$result->orderId} رد شد.\nدر صورت نیاز می‌توانید رسید صحیح دیگری بفرستید.";
 
         $this->notice($bot, $message);
+
+        if ($decision['approve'] && is_int($decision['photo_message_id']) && $decision['photo_message_id'] > 0) {
+            try {
+                $bot->editMessageCaption(
+                    caption: "✅ پرداخت سفارش #{$result->orderId} تأیید شد.\nشناسه رسید #{$decision['claim']}\nدر انتظار فعال‌سازی.",
+                    chat_id: $this->private->id($bot),
+                    message_id: $decision['photo_message_id'],
+                    reply_markup: InlineKeyboardMarkup::make(),
+                );
+            } catch (Throwable) {
+                // A failure to update an old Telegram photo does not undo settlement.
+            }
+        }
+
         $recipient = $this->recipients->forActiveUser($result->buyerUserId);
 
         if ($recipient !== null) {
