@@ -8,8 +8,6 @@ use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\TelegramActor;
 use App\Modules\Sales\Application\ManagePlanPricing;
 use App\Modules\Sales\Application\ManagePlans;
-use App\Modules\Sales\Application\PlanDefinition;
-use App\Modules\Sales\Application\PlanPricingDefinition;
 use App\Modules\Sales\Application\PlanSummary;
 use App\Modules\Sales\Application\PlanTariffSummary;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -44,7 +42,7 @@ final readonly class PlanAdminUi
         $page = min($page, $pages);
         $entries = array_slice($all, ($page - 1) * 5, 5);
 
-        $lines = ['📦 مدیریت پلن‌های SkyNet', "تعداد: ".count($all)." | صفحه {$page} از {$pages}", '',
+        $lines = ['📦 مدیریت پلن‌های SkyNet', 'تعداد: '.count($all)." | صفحه {$page} از {$pages}", '',
             '⚠️ فعال‌سازی پلن فقط انتشار در Catalog است؛ خرید و ساخت سرویس هنوز متصل نیست.'];
         $keyboard = InlineKeyboardMarkup::make();
 
@@ -131,7 +129,7 @@ final readonly class PlanAdminUi
             "شناسه: {$plan->slug} | محصول: {$plan->productSlug}",
             "نوع: {$plan->kind} | حالت: {$plan->mode} | مخاطب: {$plan->audience}",
             "حجم: {$gb} | مدت: {$days}",
-            "محدوده حجم: ".($plan->minGb ?? '-').' تا '.($plan->maxGb ?? '-'),
+            'محدوده حجم: '.($plan->minGb ?? '-').' تا '.($plan->maxGb ?? '-'),
             "محدوده روز: {$plan->minDays} تا {$plan->maxDays}",
             "اولویت: {$plan->sortOrder} | ویژه: ".($plan->featured ? 'بله' : 'خیر'),
             "نسخه پلن: {$plan->revision}",
@@ -280,7 +278,7 @@ final readonly class PlanAdminUi
         try {
             if (in_array($state['type'], ['preset', 'builder', 'edit'], true)) {
                 $definition = $this->forms->plan($state['type'], $text);
-                $summary = "پلن {$definition->name}\n{$definition->slug} / {$definition->kind} / {$definition->mode}\nحجم: ".($definition->trafficGb ?? '-')." | مدت: ".($definition->durationDays ?? '-');
+                $summary = "پلن {$definition->name}\n{$definition->slug} / {$definition->kind} / {$definition->mode}\nحجم: ".($definition->trafficGb ?? '-').' | مدت: '.($definition->durationDays ?? '-');
             } else {
                 $plan = $this->plans->find($actor->userId, $state['plan_id']);
                 $definition = $this->forms->price($state['type'], $text, $plan);
