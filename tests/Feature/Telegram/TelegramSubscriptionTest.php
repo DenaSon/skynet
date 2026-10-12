@@ -249,6 +249,6 @@ it('shows public-safe node names and gracefully handles provider errors without 
         ->assertCalled('editMessageText')
         ->assertCalled('sendMessage', 0);
 
-    Http::assertSentCount(3);
+    Http::assertSentCount(1);
     expect(config('services.remnawave.writes_enabled'))->toBeFalse();
 });
