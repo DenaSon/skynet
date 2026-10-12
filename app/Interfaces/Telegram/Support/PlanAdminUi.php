@@ -178,7 +178,7 @@ final readonly class PlanAdminUi
         }
 
         $keyboard->addRow(InlineKeyboardButton::make('◀️ فهرست پلن‌ها', callback_data: 'plan:list:1'));
-        $this->render($bot, implode("\n", array_filter($description, static fn (string $line): bool => $line !== '' || true)), $keyboard);
+        $this->render($bot, implode("\n", $description), $keyboard);
     }
 
     public function begin(Nutgram $bot, string $type, string $id): void
@@ -230,7 +230,7 @@ final readonly class PlanAdminUi
         $hint = match ($type) {
             'preset' => "پلن ثابت (۷ فیلد):\nproduct | slug | name | kind | audience | GB/- | days\nمثال:\nvpn-access | standard-30 | استاندارد ۳۰ | hybrid | both | 30 | 30",
             'builder' => "پلن‌ساز نماینده (۸ فیلد):\nproduct | slug | name | kind | minGB/- | maxGB/- | minDays | maxDays\nمثال:\nvpn-access | custom-30 | سفارشی | hybrid | 1 | 100 | 15 | 90",
-            'edit' => "ویرایش (۱۴ فیلد):\nproduct | slug | name | kind | mode | audience | GB/- | days/- | minGB/- | maxGB/- | minDays | maxDays | order | featured(0/1)\n\nمتن فعلی را کپی، اصلاح و ارسال کنید:\n".$this->forms->editLine($plan),
+            'edit' => "ویرایش (۱۴ فیلد):\nproduct | slug | name | kind | mode | audience | GB/- | days/- | minGB/- | maxGB/- | minDays | maxDays | order | featured(0/1)\n\nمتن فعلی را کپی، اصلاح و ارسال کنید:\n".$this->forms->editLine($plan instanceof PlanSummary ? $plan : throw new \LogicException('Plan missing')),
             'fixed' => "تعرفه ثابت (۳ فیلد؛ همگی تومان به‌جز درصد):\npriceToman | minimumToman | resellerDiscountPercent\nمثال:\n120000 | 60000 | 5",
             'formula' => "تعرفه فرمولی (۵ فیلد؛ تومان به‌جز درصد):\nbaseToman | perGBToman | perDayToman | minimumToman | resellerDiscountPercent\nمثال:\n50000 | 10000 | 2000 | 20000 | 5",
         };
