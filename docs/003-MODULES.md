@@ -1,11 +1,17 @@
 # Module Boundaries
 
-**Current:** Identity with F5 RBAC, Telegram adapter with F06-A navigation; Administration remains an empty registered shell.
+**Current (2026-10-12):** F0–F10-D merged on `master`; Telegram Identity/RBAC, Referral/Onboarding, Billing manual wallet top-ups, Sales catalog/orders, and Remnawave internal Provisioning are implemented. F10-E shared authenticated subscription reads is **next**, not implemented. Administration remains a registered shell. See [canonical context](000-CONTEXT.md).
 
-| Module | Ownership | Implemented |
+| Module | Ownership | Merged implementation / current boundary |
 | --- | --- | --- |
-| Identity | User persistence, session authentication, role/active-state authorization, admin user-management use cases and safe bootstrap | Identity model, actions, web controllers, form requests, middleware, console command, routes and tests |
-| Administration | Future administrative interface/composition; no identity internals | Empty provider only |
+| Identity | Users, authenticated actors, RBAC and audit | Session and Telegram identity; role/status actions, protected roots |
+| Referral / Onboarding | Invitation attribution and opt-in signup | Single-shot referral join; no financial rewards |
+| Billing | Reseller wallets and verified top-up ledger | Manual deposit workflow, no purchase debit/settlement |
+| Sales | Product rates, immutable quote/order snapshots | `CreatePendingOrder`, owner-scoped `OrderReader`; orders remain `pending_payment` |
+| Provisioning | Remnawave transport, node/user DTOs and durable provider operation state | F10-A/B/C/D implemented internally; no actor-authorized sales integration or live panel E2E |
+| Administration | Future admin UI composition | Registered shell only |
+| Telegram (interface) | Private chatbot navigation and feature presenters | Identity/RBAC/onboarding/wallet/shop/orders; no provider subscription presenter yet |
+| Web UI | Planned shared Application consumer | Livewire 4 + Mary UI deferred |
 
 ## Identity layout
 ```text
@@ -37,8 +43,8 @@ app/Modules/Identity/
 - `GET /admin/users`, `POST /admin/users`, `PATCH /admin/users/{user}`: session+CSRF protected; admin-only; JSON results.
 - Public registration is intentionally absent. Bootstrap: `php artisan identity:bootstrap-admin`.
 
-## Deferred
-Livewire/Mary UI presentation, administrative Telegram operations (F06-B/C), user preferences storage, password reset / email verification / 2FA, and networking.
+## Deferred / not yet operational
+Livewire/Mary UI presentation, customer subscription reads via F10-E, paid-order transition, wallet purchase debit, provisioning outbox, provider write calls from a trusted business action, user preferences storage, password reset/email verification/2FA, live E2E and independent SSH/WireGuard transport design. **F06-B/C Telegram admin workflows are implemented**, not deferred.
 
 ## Telegram interface, not a business module (F4)
 `app/Interfaces/Telegram/` contains webhook controller, Nutgram handlers, inline-menu renderer, retry receipts, and operator commands. It only imports `App\Modules\Identity\Application\*` for account linking and actor resolution. Transport data does not become a domain model. `routes/telegram.php` registers Nutgram handlers.
@@ -97,3 +103,9 @@ A configured operator may make five read-only GET requests to health, nodes, hos
 
 ## F10-D — Provider Users and subscription operations
 `Provisioning/Infrastructure/Remnawave/RemnawaveUsersApi` implements the numeric-ID v3 user lifecycle; `CreateRemnawaveUser` validates a deliberately narrow creation contract. `Provisioning/Application/RemnawaveSubscriptionLifecycle` is the **only proposed business integration entry point** and owns durable idempotency reservations, provider ownership marker validation, read-only reconciliation and subscription lookup. No actor/payment/order authorization is implemented yet, so **no external adapter may call mutating methods**. Flag `REMNAWAVE_WRITES_ENABLED=false` by default. See [F10-D runbook](012-REMNAWAVE-USER-LIFECYCLE.md).
+
+## F10-E — Next shared Application API (NOT implemented)
+
+[Issue #24](https://github.com/DenaSon/skynet/issues/24) governs the next development increment: **F10-E1** create a reliable internal Sales order-to-subscription reference and bounded immutable DTOs; **F10-E2** reuse Identity/Application checks and Sales order ownership for subscription lists/detail/link/accessible-node reads; **F10-E3** add a thin private-chat presenter, with future Livewire calling exactly the same use cases. None of these are currently present. `RemnawaveSubscriptionLifecycle::subscription(reference)` checks local mapping and remote marker, **not customer ownership**; do not call it directly from a UI handler.
+
+F11 is separately responsible for **independently verified** order settlement, wallet debits and provider dispatch. All of `sales_orders` created by current checkout remain `pending_payment`. Provider writes are default-disabled and live E2E has not occurred. See [Context](000-CONTEXT.md) and [F10-D lifecycle](012-REMNAWAVE-USER-LIFECYCLE.md).
