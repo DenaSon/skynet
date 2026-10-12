@@ -1,6 +1,6 @@
 # Module Boundaries
 
-**Current (2026-10-12):** F0–F10-E3 merged on `master`; Telegram Identity/RBAC, Referral, Billing top-ups, Sales orders, authorized subscription reads, and Nutgram customer UI are implemented. F11-A1 internal wallet settlement is in PR #30, disabled by default. Administration remains a shell. See [canonical context](000-CONTEXT.md).
+**Current (2026-10-12):** F0–F10-E3 merged on `master`; Telegram Identity/RBAC, Referral, Billing top-ups, Sales orders, authorized subscription reads, and Nutgram customer UI are implemented. F11-A1 internal wallet settlement **merged via PR #30**, disabled by default; no consumer or live bank/provider E2E. Administration remains a shell. See [canonical context](000-CONTEXT.md).
 
 | Module | Ownership | Merged implementation / current boundary |
 | --- | --- | --- |
@@ -116,6 +116,6 @@ F11 is separately responsible for **independently verified** order settlement, w
 
 These read Actions are already invoked from the private Telegram UI (F10-E3, PR #28 merged). No order settlement, auto-provisioning, refund synchronization, remote write or live Remnawave E2E is implemented. See [Context](000-CONTEXT.md) and [Issue #24](https://github.com/DenaSon/skynet/issues/24).
 
-## F11-A1 — Internal wallet settlement (PR #30, default-disabled)
+## F11-A1 — Internal wallet settlement (PR #30 merged, default-disabled)
 
 Sales Application `SettleWalletOrder` is restricted to a freshly authorized, active reseller's own pending order. Billing Application `DebitWalletForOrder` can run only within a database transaction with the feature enabled; it locks the wallet and creates a balanced debit of prepaid liability and credit of unfulfilled order obligation. Sales atomically stores the immutable settlement, changes the order to `paid` and queues a unique pending outbox intent. An idempotent replay confirms the journal **and both exact postings**. No Telegram/HTTP/CLI caller, no consumer, no provider writes and no direct bank proof are included. Full staging/bank checks remain required.

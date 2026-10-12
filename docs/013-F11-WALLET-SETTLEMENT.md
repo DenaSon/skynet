@@ -1,6 +1,7 @@
 # F11-A1 — Offline Reseller Wallet Settlement (NOT live-enabled)
 
-**Safety:** `SALES_WALLET_SETTLEMENT_ENABLED=false` by default. No Telegram/HTTP/Artisan handler invokes settlement. No outbox consumer, provider writes, or real money integration exists in this increment. Offline Pest + HTTP fakes verify the implementation; bank, provider and BotFather E2E remain unverified.
+**Merged:** [PR #30](https://github.com/DenaSon/skynet/pull/30), SHA `76ea9e1b78db0f37281d5cfb224a4a98f20bc2cf`; [master CI #38226617474](https://github.com/DenaSon/skynet/actions/runs/38226617474) PHP 8.4/8.5 green. No real E2E.
+\n**Safety:** `SALES_WALLET_SETTLEMENT_ENABLED=false` by default. No Telegram/HTTP/Artisan handler invokes settlement. No outbox consumer, provider writes, or real money integration exists in this increment. Offline Pest + HTTP fakes verify the implementation; bank, provider and BotFather E2E remain unverified.
 
 ## Internal flow — single database transaction
 
