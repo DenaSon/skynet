@@ -107,3 +107,16 @@ After a price preview, **✅ ثبت سفارش** atomically creates one buyer-ow
 - **After F10-E:** F11 needs independently verified order settlement, reseller wallet debits, durable outbox and reconciled provider delivery **before** any paid subscription automation or staging sign-off.
 
 **Developer handoff:** Start at [docs/000-CONTEXT.md](docs/000-CONTEXT.md) (current project memory), then [AGENTS.md](AGENTS.md), [architecture](docs/002-ARCHITECTURE.md), [modules](docs/003-MODULES.md), [roadmap](docs/005-ROADMAP.md), and [Remnawave F10-D operations](docs/012-REMNAWAVE-USER-LIFECYCLE.md). Previous sections on this README preserve the chronological scope of their original phases; this status and Context describe **current** capabilities.
+
+## Deployment note: MySQL/MariaDB storage engine and partial migrations
+
+SkyNetwork requires **transactional InnoDB** tables for foreign keys, auditability and the future Billing settlement path. The MySQL and MariaDB connections pin `engine => InnoDB` in `config/database.php`, regardless of a server whose default table engine is MyISAM/Aria. A 255-character UTF-8 `users.email` unique index can exceed MyISAM's 1000-byte limit (error 1071). **Do not bypass this by switching to MyISAM, turning off foreign keys or reducing the database charset.**
+
+Read-only diagnosis from the Laravel container:
+
+```bash
+php artisan tinker --execute='dump(DB::select("SELECT VERSION() AS version, @@default_storage_engine AS default_engine")); dump(DB::select("SELECT TABLE_NAME, ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() ORDER BY TABLE_NAME"));'
+php artisan migrate:status
+```
+
+A failed first migration may have committed a partial `users` table without recording the migration. On a **confirmed disposable empty database only**, remove only that confirmed empty partial table or provision a fresh empty DB, then redeploy and run `php artisan config:clear && php artisan config:cache && php artisan migrate --force`. For databases with any important data, take a verified backup and investigate/migrate in place instead of dropping anything. Re-check created table engines: they must all be InnoDB. **Changing this application setting does not alter existing table engines or the DB server default**, so configure the database service separately if other applications need InnoDB. The app runs in ephemeral containers; never rely on changes made only inside one pod.
