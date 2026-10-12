@@ -1,6 +1,6 @@
 # F10-D — Remnawave User Lifecycle and Durable Provisioning
 
-**Status:** Implemented in PR #23 with PHP 8.4/8.5 CI green; HTTP-fake tests only. **Not verified against a live panel. Not connected to payment, Telegram, checkout or public routes.**
+**Status:** **Merged to `master` via PR #23** (2026-10-12). [Master CI 38213468652](https://github.com/DenaSon/skynet/actions/runs/38213468652): PHP 8.4/8.5, 200 tests / 959 assertions, PHPStan/Pint green. HTTP-fake tests only. **Not verified against a live panel. Not connected to payment, Telegram, checkout or public routes.**
 
 ## Source and contract
 - Official Remnawave API: https://docs.rw/api/ (pinned OpenAPI **v3.4.4**).
@@ -44,3 +44,7 @@ Before any production sales integration:
 - No live server E2E. Pin to v3.4.4 until compatibility is verified; a real panel may normalize dates or quota fields differently.
 
 Related: [API](009-REMNAWAVE-API.md), [Nodes](011-REMNAWAVE-NODES.md), [Staging](010-REMNAWAVE-STAGING.md), [Module boundaries](003-MODULES.md).
+
+## Next step after merge
+
+Follow [Issue #24 — F10-E](https://github.com/DenaSon/skynet/issues/24), starting with F10-E1 order-to-provider-reference ownership and safe list/detail DTOs. F10-E2 must check the active actor and exact Sales buyer ownership **before** reaching `subscription(reference)`. F10-E3 adds a thin private Telegram presenter; later Livewire 4/Mary UI uses the same Actions. No external adapter currently calls this lifecycle and no F11 paid transition/ledger debit/provisioning dispatch has been implemented. See [development context](000-CONTEXT.md).

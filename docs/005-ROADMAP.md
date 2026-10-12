@@ -18,10 +18,22 @@ All statuses reflect **code in the repository**, not intentions.
 | F09-A — Product Catalog & Pricing | Product limits 1–100 GB, 15/30/60/90-day tariffs, direct/reseller quotes (5%), terminal admin setup | Implemented and verified (PR #15; 115 tests / 557 assertions, PHP 8.4/8.5 CI green) |
 | F09-B — Telegram Subscription Builder | Price shown on first buying screen, duration/volume options, custom integer input, read-only quote preview | Verified in PR #16 (135 tests / 660 assertions, PHP 8.4/8.5) |
 | F09-C — Orders | Server-side fresh-quote validation, immutable order price snapshot, buyer-bound idempotent pending-payment orders, `/orders` history | Verified in PR #16 (135 tests / 660 assertions, PHP 8.4/8.5) |
-| F10 — Remnawave Provisioning | F10-A/B/C merged; F10-D typed Users API and SQL-reserved subscription lifecycle with read-only reconciliation | F10-D implemented in PR #23 (PHP 8.4/8.5 CI green); no live E2E, authorized sales activation or wallet settlement |
-| F11 — Telegram Sales | Direct and reseller flows over shared order/provisioning | Planned after E2E |
+| F10-A/B/C — Provider API, discovery and Nodes | OpenAPI v3.4.4 catalog (218 ops), read-only inventory, NodesController 15 routes and telemetry | **Merged on `master`** (PRs #19/#20/#21); PHP 8.4/8.5 CI green; no live panel E2E |
+| F10-D — Remnawave Users + durable lifecycle | Typed Users/Subscriptions adapters, safe DTOs, SQL reservations, exact squad check, create/update read-only reconciliation | **Merged on `master`** (PR #23, master CI run 38213468652: 200 tests / 959 assertions); no Telegram/checkout provisioning |
+| F10-E — Shared Subscription Application API | Owner-verified, provider-neutral read/query Actions and small Telegram adapter, independent of payment | **Next: Issue #24**, beginning F10-E1; NOT implemented |
+| F11-A — Settlement + dispatch | Independently verified paid order / balanced wallet debit, transactional state transition, durable outbox | Planned; NOT implemented |
+| F11-B — Fulfillment/delivery | Explicit plan → squad mapping, bounded bytes/expiry, reconciled activation and owner-safe link delivery | Planned; NOT implemented |
+| F11-C — Admin operations + staging | Permissioned audited actions, one-use confirmation, live panel and bank/BotFather E2E gates | Planned; NOT implemented |
+| F11-D — Telegram sales activation UX | Direct and reseller post-settlement delivery over common Application Actions | Planned after F11-A/B and E2E |
 | Later — Web UI | Livewire 4 + Mary UI consuming the same Actions | Deferred |
 | Later — Product Domains | Define network/server/business capabilities based on use cases | Undecided |
+
+## Current engineering checkpoint (2026-10-12)
+
+- `master` PR #23 merge SHA `ec43b945138af3711db03bf418d0f382495e4a97`; [master CI 38213468652](https://github.com/DenaSon/skynet/actions/runs/38213468652) succeeded on PHP 8.4/8.5 with 200 tests / 959 assertions. Automated fakes **do not** certify live Remnawave/BotFather/bank behavior.
+- **Immediate work:** [Issue #24](https://github.com/DenaSon/skynet/issues/24) F10-E1 ownership mapping (Identity actor → immutable Sales order → local provisioning reference), safe DTOs and bounded lists; then F10-E2 authorized reads; F10-E3 Telegram presenter.
+- **Hard sequencing gate:** `pending_payment` is not settled and F08 top-up credit is not service purchase. Do not connect F10-D writes to checkout/Telegram before F11 paid transition, deduped debit/outbox and isolated staging verification.
+- Details and entry points: [000-CONTEXT.md](000-CONTEXT.md) is the canonical development handoff; this roadmap is milestone-level, not a second memory.
 
 ## F3 acceptance criteria
 - Login/logout work through Laravel session auth with CSRF, throttling and rotation.
@@ -39,7 +51,7 @@ All statuses reflect **code in the repository**, not intentions.
 - Tests, static analysis and Pint checks pass; deploy steps and docs updated.
 
 ## Deferred architectural choices
-All networking: WireGuard vs Outline or other transports; Core/Edge; node/agent access; tunneling, VPN provisioning and monitoring internals.
+Remnawave is chosen for the subscription panel API (F10). SkyNetwork's own SSH/WireGuard/Core/Edge transport/tunnel/agent design, dedicated reachability testing, and live deployment topology still require separate decisions.
 
 ## F2 acceptance criteria
 - `composer.json` and `composer.lock` install consistently using PHP >=8.4.1, without workstation mirror URLs.

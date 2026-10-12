@@ -1,6 +1,6 @@
 # F10-B — Read-only Remnawave staging diagnostics
 
-**Status:** Implemented and merged via PR #20; **not verified against a real Remnawave server**.
+**Status:** F10-B implemented and merged via PR #20; F10-C/D now also merged (#21/#23). **No real Remnawave server E2E has been performed**; do not infer compatibility from fake tests. See [current context](000-CONTEXT.md).
 **API contract:** Official https://docs.rw/api/ exposes OpenAPI `v3.4.4`.
 **Server release:** `3.4.5` exists; validate against the pinned API contract before deploying writes.
 
@@ -37,7 +37,7 @@
 ## Verification gates
 - Automated: Pest HTTP fakes, PHPStan, Pint on supported PHP versions.
 - Staging: actual API token scope check, TLS/certificate, 401/403/429 and request timeout behavior.
-- F10-C separately: typed user DTOs, durable idempotency + ambiguous-write reconciliation, audit and real-panel tests.
+- F10-D **already implemented** typed user/subscription DTOs and durable SQL reservations/read-only reconciliation (PR #23). **Not yet implemented:** order-owner Application authorization, user-facing delivery, audit for provider writes, verified payment transitions, outbox, or any real-panel E2E.
 - There is **no** purchase, wallet debit or user activation from F10-B.
 
 Related: [API mapping](009-REMNAWAVE-API.md), [ADR 0007](adr/0007-remnawave-client.md), [architecture](002-ARCHITECTURE.md).
