@@ -1,7 +1,7 @@
 # SkyNetwork — Current Context / Development Memory
 
 **Reviewed:** 2026-10-13  
-**UX-TG-01 — hybrid Telegram navigation:** Implemented with an opt-in `TELEGRAM_HYBRID_MENU_ENABLED` deployment switch (default OFF). Active Telegram members and operators receive persistent, role-aware two-column ReplyKeyboards for `/start` and `/admin`; existing Inline callbacks remain supported. Exact-label routing within the existing text handler precedes custom-volume parsing and rechecks roles/allowlist for every press. No schema, payment, provider writes or extra dependencies. GitHub CI and live Telegram rollout must be verified separately; neither is proof of the other. **Next product work: F11-B1.3**.
+**UX-TG-01 — hybrid Telegram navigation:** Implemented with an opt-in `TELEGRAM_HYBRID_MENU_ENABLED` deployment switch (default OFF). Active Telegram members and operators receive persistent, role-aware two-column ReplyKeyboards for `/start` and `/admin`; existing Inline callbacks remain supported. Exact-label routing within the existing text handler precedes custom-volume parsing and rechecks roles/allowlist for every press. No schema, payment, provider writes or extra dependencies. GitHub CI and live Telegram rollout must be verified separately; neither is proof of the other. Private `/resetmenu` removes a stale persistent keyboard after rollback. **Next product work: F11-B1.3**.
 
 **Source of truth:** `master` code, migrations, tests, and GitHub PR/CI status—not this narrative when they disagree.  
 **Checkpoint:** F11-B1.2 managed pricing merged via [PR #39](https://github.com/DenaSon/skynet/pull/39), squash SHA `027c83c95a3d0bcf89f7ad8682c5a654d5c0e924`.  

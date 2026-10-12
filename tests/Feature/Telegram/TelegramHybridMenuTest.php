@@ -197,3 +197,15 @@ it('can be rolled back by disabling the feature flag without intercepting messag
     $bot->hearText('/start')->reply()
         ->assertReplyText("🏠 SkyNet\n\nخوش آمدید، {$user->name}.");
 });
+
+it('lets private users remove an old persistent keyboard after rollback', function (): void {
+    config()->set('telegram.hybrid_menu_enabled', false);
+    $user = User::factory()->create();
+    $bot = hybridBot(931011, $user);
+
+    $bot->hearText('/resetmenu')->reply()
+        ->assertReplyText('✅ کیبورد سفارشی حذف شد. برای دریافت منوی فعلی /start را بزنید.');
+
+    $bot->setCommonChat(Chat::make(-931011, ChatType::GROUP));
+    $bot->hearText('/resetmenu')->reply()->assertNoReply();
+});
