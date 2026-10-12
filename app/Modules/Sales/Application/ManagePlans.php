@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Sales\Application;
 
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -242,7 +243,7 @@ final readonly class ManagePlans
         return PlanSummary::fromRecord($row);
     }
 
-    private function query(): \Illuminate\Database\Query\Builder
+    private function query(): Builder
     {
         return DB::table('sales_plans as plans')
             ->join('sales_products as products', 'products.id', '=', 'plans.product_id')
