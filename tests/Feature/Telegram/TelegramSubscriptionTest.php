@@ -242,11 +242,13 @@ it('shows public-safe node names and gracefully handles provider errors without 
 
     Http::assertSentCount(2);
 
-    subscriptionUiFakeRemote($id, 503);
+    // A distinct origin avoids Laravel's additive HTTP fake registrations.
+    config()->set('services.remnawave.url', 'https://remna-down.test');
+    Http::fake(['https://remna-down.test/api/users/42' => Http::response([], 503)]);
     $bot->hearCallbackQueryData("subs:link:{$id}:0")->reply()
         ->assertCalled('editMessageText')
         ->assertCalled('sendMessage', 0);
 
-    Http::assertSentCount(1);
+    Http::assertSentCount(3);
     expect(config('services.remnawave.writes_enabled'))->toBeFalse();
 });
