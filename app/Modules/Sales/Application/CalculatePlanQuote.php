@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Sales\Application;
 
+use App\Modules\Identity\Application\ResolveSalesBuyer;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -13,7 +14,7 @@ use Illuminate\Validation\ValidationException;
  */
 final readonly class CalculatePlanQuote
 {
-    public function __construct(private ListVisiblePlans $plans) {}
+    public function __construct(private ListVisiblePlans $plans, private ResolveSalesBuyer $buyers) {}
 
     public function handle(int $buyerId, int $planId, int $durationDays, ?int $trafficGb): PlanPriceQuote
     {
@@ -55,7 +56,7 @@ final readonly class CalculatePlanQuote
 
         // Reseller access includes public/both plans. Exactly one discount
         // applies, the explicitly published plan discount. Never stack F09.
-        $discountPercent = $this->isReseller($buyerId) ? (int) $price->reseller_discount_percent : 0;
+        $discountPercent = $this->buyers->isReseller($buyerId) ? (int) $price->reseller_discount_percent : 0;
         $discount = intdiv($public * $discountPercent + 50, 100);
         $total = $public - $discount;
 
@@ -80,10 +81,5 @@ final readonly class CalculatePlanQuote
             discountRials: $discount,
             totalPriceRials: $total,
         );
-    }
-
-    private function isReseller(int $buyerId): bool
-    {
-        return app(\App\Modules\Identity\Application\ResolveSalesBuyer::class)->isReseller($buyerId);
     }
 }
