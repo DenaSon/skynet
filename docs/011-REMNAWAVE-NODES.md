@@ -34,7 +34,7 @@ Both node bandwidth operations require **calendar dates `YYYY-MM-DD`**, not UTC 
 
 ## Real-panel E2E gate
 
-1. Complete F10-A and F10-B review and CI, configure an isolated TLS panel with least-privilege tokens. Run \`php artisan remnawave:inspect\`.
+1. F10-A/B/C/D are merged with CI green; configure an isolated TLS panel with least-privilege tokens. Run \`php artisan remnawave:inspect\`.
 2. Use a separate test-only node. Validate \`all/one/tags\` and telemetry, including zero nodes, backend errors, malformed responses and timeouts.
 3. For writes, explicitly approve operations against only the test node: create/configure, enable/disable, restart (with forceRestart field), reset traffic, update/reorder and delete. Confirm actual provider-side state after each action.
 4. Verify panel version and API token scopes; ensure no customer or production node is affected.
