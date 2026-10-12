@@ -130,13 +130,21 @@ final readonly class ManualBankPayments
 
         return DB::transaction(function () use ($rootId, $claimId, $approve, $reference): object {
             $this->access->reviewer($rootId);
-            $claim = DB::table('sales_bank_payment_claims')->where('id', $claimId)->lockForUpdate()->first();
+            // Lock order before claim: the same sequence as photo submission
+            // and wallet settlement, avoiding opposite-order row deadlocks.
+            $snapshot = DB::table('sales_bank_payment_claims')->where('id', $claimId)->first(['sales_order_id']);
 
-            if ($claim === null || $claim->status !== 'submitted') {
-                throw ValidationException::withMessages(['claim' => 'Claim already reviewed or unavailable.']);
+            if ($snapshot === null) {
+                throw ValidationException::withMessages(['claim' => 'Claim unavailable.']);
             }
 
-            $order = DB::table('sales_orders')->where('id', $claim->sales_order_id)->lockForUpdate()->first();
+            $order = DB::table('sales_orders')->where('id', $snapshot->sales_order_id)->lockForUpdate()->first();
+            $claim = DB::table('sales_bank_payment_claims')->where('id', $claimId)->lockForUpdate()->first();
+
+            if ($claim === null || $claim->status !== 'submitted'
+                || (int) $claim->sales_order_id !== (int) $snapshot->sales_order_id) {
+                throw ValidationException::withMessages(['claim' => 'Claim already reviewed or unavailable.']);
+            }
 
             if ($order === null || (int) $order->buyer_user_id !== (int) $claim->buyer_user_id
                 || $order->status !== 'pending_payment') {
