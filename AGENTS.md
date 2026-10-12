@@ -11,7 +11,7 @@ SkyNet is a Laravel 13 application being developed as a **modular monolith**.
 1. Read `docs/000-CONTEXT.md` before changing code.
 2. Read the relevant architecture/module/roadmap documents.
 3. Inspect the actual code, merged PRs, issues, migrations and most recent CI; documentation never overrides observed behavior.
-4. **Current checkpoint (2026-10-12):** F10-A/B/C/D, F10-E1 (#26) and F10-E2 (#27) are merged. F10-E3 Telegram presenter is merged via [PR #28](https://github.com/DenaSon/skynet/pull/28), commit `3dd9e61974478f35c0a776855a5abe1f3836f6a8`; PHP 8.4/8.5 [master CI #38223868886](https://github.com/DenaSon/skynet/actions/runs/38223868886) green. The next independent increment is F11 settlement/dispatch. Never treat 218 mapped Remnawave routes as 218 authorized Application APIs.
+4. **Current checkpoint (2026-10-12):** F10-A/B/C/D, F10-E1 (#26) and F10-E2 (#27) are merged. F10-E3 Telegram presenter is merged via [PR #28](https://github.com/DenaSon/skynet/pull/28), commit `3dd9e61974478f35c0a776855a5abe1f3836f6a8`; PHP 8.4/8.5 [master CI #38223868886](https://github.com/DenaSon/skynet/actions/runs/38223868886) green. F11-A1 wallet-funded internal settlement is in PR #30 with an OFF-by-default flag and pending-only outbox; F11-A2/B payment verification and dispatch remain future work. Never treat 218 mapped Remnawave routes as 218 authorized Application APIs.
 5. Make the smallest change that solves the current task, and add or update tests.
 6. Update at least one relevant document in the **same PR** as any meaningful development change.
 
@@ -78,7 +78,7 @@ See `docs/004-STANDARDS.md` for coding and documentation conventions.
 ## F08 finance safety
 - Billing owns wallet/topup/ledger. No balance column on User; integer rials only. Always post balanced journals in a DB transaction, with globally unique verified bank transfer reference and journal idempotency key.
 - Finance operator authority is a **trusted Super Admin**, not an ordinary admin. A reseller can read/request only their own account. Typed transfer proof is not bank confirmation.
-- Existing referral, Identity, Sales and Provisioning must not be coupled to Billing infrastructure. No refunds, wallet debit, rewards, payouts or payment gateway until future explicit requirements and E2E.
+- Existing referral, Identity, Sales and Provisioning must not be coupled to Billing infrastructure. No refunds, rewards, payouts or payment gateway. F11-A1 adds an **internal-only, default-disabled** wallet debit + Sales settlement; it is not wired to Telegram/HTTP and must remain disabled until independent bank verification, production DB concurrency and live E2E gates.
 - Banking integration, manual verification and live Telegram E2E have not happened merely because feature tests passed. Leave `BILLING_TOPUPS_ENABLED=false` in production until signed off.
 
 ## F09-A product catalog and pricing
