@@ -12,6 +12,7 @@ use App\Interfaces\Telegram\Handlers\StartHandler;
 use App\Interfaces\Telegram\Support\BillingUi;
 use App\Interfaces\Telegram\Support\RbacUi;
 use App\Interfaces\Telegram\Support\ShopUi;
+use App\Interfaces\Telegram\Support\SubscriptionUi;
 use App\Interfaces\Telegram\Support\UserManagementUi;
 use SergiX44\Nutgram\Nutgram;
 
@@ -23,6 +24,9 @@ $bot->onCommand('account', AccountHandler::class);
 $bot->onCommand('invite', InviteHandler::class);
 $bot->onCommand('buy', function (Nutgram $bot): void {
     app(ShopUi::class)->open($bot);
+});
+$bot->onCommand('subscriptions', function (Nutgram $bot): void {
+    app(SubscriptionUi::class)->browse($bot);
 });
 $bot->onCommand('orders', function (Nutgram $bot): void {
     app(ShopUi::class)->listOrders($bot);
@@ -118,6 +122,22 @@ $bot->onCallbackQueryData('rbac:apply:{token}', function (Nutgram $bot, string $
 
 $bot->onCallbackQueryData('rbac:p:{id}:{page}:{permissionPage}', function (Nutgram $bot, string $id, string $page, string $permissionPage): void {
     app(RbacUi::class)->detail($bot, $id, $page, $permissionPage);
+});
+
+$bot->onCallbackQueryData('menu:subscriptions', function (Nutgram $bot): void {
+    app(SubscriptionUi::class)->browse($bot);
+});
+$bot->onCallbackQueryData('subs:list:{cursor}', function (Nutgram $bot, string $cursor): void {
+    app(SubscriptionUi::class)->browse($bot, $cursor);
+});
+$bot->onCallbackQueryData('subs:view:{id}:{cursor}', function (Nutgram $bot, string $id, string $cursor): void {
+    app(SubscriptionUi::class)->detail($bot, $id, $cursor);
+});
+$bot->onCallbackQueryData('subs:link:{id}:{cursor}', function (Nutgram $bot, string $id, string $cursor): void {
+    app(SubscriptionUi::class)->link($bot, $id, $cursor);
+});
+$bot->onCallbackQueryData('subs:nodes:{id}:{cursor}', function (Nutgram $bot, string $id, string $cursor): void {
+    app(SubscriptionUi::class)->nodes($bot, $id, $cursor);
 });
 
 $bot->onCallbackQueryData('menu:shop', function (Nutgram $bot): void {
