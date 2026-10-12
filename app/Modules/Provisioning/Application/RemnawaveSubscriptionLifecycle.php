@@ -58,6 +58,7 @@ final class RemnawaveSubscriptionLifecycle
                 'expireAt' => $expireAt,
                 'trafficLimitBytes' => $trafficLimitBytes,
                 'status' => 'ACTIVE',
+                'activeInternalSquads' => $internalSquadUuids,
             ]);
 
             return $this->complete($reference, $idempotencyKey, $remote);
@@ -145,6 +146,7 @@ final class RemnawaveSubscriptionLifecycle
             'trafficLimitBytes' => $expected['trafficLimitBytes'] ?? null,
             'expireAt' => $expected['expireAt'] ?? null,
             'status' => $expected['status'] ?? null,
+            'activeInternalSquads' => $expected['activeInternalSquads'] ?? null,
         ]);
 
         return $this->complete($reference, $idempotencyKey, $remote);
@@ -190,6 +192,7 @@ final class RemnawaveSubscriptionLifecycle
         foreach ($expected as $key => $value) {
             $matches = match ($key) {
                 'trafficLimitBytes' => $remote->trafficLimitBytes === $value,
+                'activeInternalSquads' => is_array($value) && $this->sameSquads($remote->activeInternalSquadUuids, $value),
                 'status' => $remote->status === $value,
                 'expireAt' => is_string($value) && $this->sameInstant($remote->expireAt, $value),
                 default => false,
@@ -199,6 +202,29 @@ final class RemnawaveSubscriptionLifecycle
                 throw new RuntimeException('Remote provisioning result differs; manual operator review is required.');
             }
         }
+    }
+
+    /**
+     * @param  list<string>  $actual
+     * @param  array<mixed>  $expected
+     */
+    private function sameSquads(array $actual, array $expected): bool
+    {
+        if (! array_is_list($expected)) {
+            return false;
+        }
+
+        foreach ($expected as $uuid) {
+            if (! is_string($uuid)) {
+                return false;
+            }
+        }
+
+        $expected = array_map('strtolower', $expected);
+        sort($actual);
+        sort($expected);
+
+        return $actual === $expected;
     }
 
     private function sameInstant(string $actual, string $expected): bool
