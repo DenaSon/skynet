@@ -14,6 +14,7 @@ use App\Modules\Sales\Application\ConfigureRate;
 use App\Modules\Sales\Application\CreatePendingOrder;
 use App\Modules\Sales\Application\ManualBankPayments;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -171,14 +172,14 @@ it('cannot credit the same bank transfer to another order or a reseller topup', 
     app(ManualBankPayments::class)->review($root->id, $claimA, true, 'DUPA2TRANSFER');
 
     expect(fn () => app(ManualBankPayments::class)->review($root->id, $claimB, true, 'DUPA2TRANSFER'))
-        ->toThrow(\Illuminate\Database\QueryException::class);
+        ->toThrow(QueryException::class);
 
     Role::findOrCreate('reseller', 'web');
     $buyer->assignRole('reseller');
     $topup = app(RequestTopup::class)->handle($buyer->id, 1_000_000, 'a2:topup:test:1');
     app(SubmitTopupReference::class)->handle($buyer->id, $topup, 'DUPA2TRANSFER');
     expect(fn () => app(ReviewTopup::class)->handle($root->id, $topup, true, 'DUPA2TRANSFER'))
-        ->toThrow(\Illuminate\Database\QueryException::class);
+        ->toThrow(QueryException::class);
 
     expect(DB::table('sales_bank_settlements')->count())->toBe(1)
         ->and(DB::table('billing_verified_receipts')->count())->toBe(0)
