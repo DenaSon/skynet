@@ -1,6 +1,6 @@
 # F11-B1.1 — Dynamic Sales Plan Catalog
 
-**Status:** Internal application foundation only; NOT purchasable until B1.2 pricing and B1.3 provider binding.
+**Status:** **Merged** in [PR #37](https://github.com/DenaSon/skynet/pull/37), SHA `c3d52c81c45eb641efd1f744eecd58d98ab5790f`, PHP 8.4/8.5 [CI 38243565483](https://github.com/DenaSon/skynet/actions/runs/38243565483) green. Internal-only; NOT purchasable until B1.2 pricing and B1.3 provider binding.
 
 ## Schema and ownership
 

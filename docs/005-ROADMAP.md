@@ -26,7 +26,7 @@ All statuses reflect **code in the repository**, not intentions.
 | F11-A1 — Wallet settlement foundation | Reseller-only, disabled-by-default wallet debit + paid order + unique pending outbox in one DB transaction, no dispatch | **Merged PR #30**, squash 76ea9e1, master CI 38226617474 green; default-disabled, no live bank/provider E2E |
 | F11-A2 — Super Admin manual bank review | Telegram photo claims, private Super Admin approve/reject with two-step manual bank reference, atomic balanced direct-bank settlement + outbox | **Merged PR #33** (SHA 1cd472e; master CI 38231567621 green); default-disabled, real bank/operator E2E pending |
 | F11-B0 — Unified Billing ledger and strict module boundaries | Pre-production baseline migrations, Billing-owned bank reference + shared journal/postings, wallet replay attestation, architecture tests, ADR 0008 | **Merged** ([PR #35](https://github.com/DenaSon/skynet/pull/35), SHA 8e04572; master CI 38238151791 green); live flags OFF |
-| F11-B1.1 — Plan catalog foundation | Draft-first presets/builders, type/bound/audience validation, root CRUD + confirmations/audit, role-scoped listing | In PR; CI/merge pending, NOT purchasable |
+| F11-B1.1 — Plan catalog foundation | Draft-first presets/builders, type/bound/audience validation, root CRUD + confirmations/audit, role-scoped listing | **Merged** ([PR #37](https://github.com/DenaSon/skynet/pull/37), SHA c3d52c8; CI 38243565483 green); NOT purchasable |
 | F11-B1.2 — Plan pricing | Unified fixed/formula/reseller pricing and immutable quotes | Planned |
 | F11-B1.3 — Provider binding | Plan to Internal Squad mapping, bounded bytes/UTC expiry | Planned |
 | F11-B1.4–B1.6 — Nutgram UX | Root plan management, minimal public purchase, reseller builder | Planned |
