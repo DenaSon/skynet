@@ -447,7 +447,9 @@ it('reconciles creation only after all requested squads match regardless of thei
     $remote['trafficLimitBytes'] = 100;
     $remote['activeInternalSquads'] = [['uuid' => USER_SQUAD, 'name' => 'Squad 1']];
 
-    Http::fake(['https://remna.test/api/users/by-username/*' => Http::response(['response' => $remote], 200)]);
+    Http::fake(['https://remna.test/api/users/by-username/*' => function (Request $request) use (&$remote) {
+        return Http::response(['response' => $remote], 200);
+    }]);
 
     expect(fn () => $lifecycle->reconcileCreate($reference, $key))
         ->toThrow(RuntimeException::class, 'differs');
@@ -456,9 +458,8 @@ it('reconciles creation only after all requested squads match regardless of thei
     $remote['activeInternalSquads'][] = ['uuid' => $secondSquad, 'name' => 'Squad 2'];
     $remote['activeInternalSquads'] = array_reverse($remote['activeInternalSquads']);
 
-    Http::fake(['https://remna.test/api/users/by-username/*' => Http::response(['response' => $remote], 200)]);
-
+    // The same fake callback observes the modified remote state on the next GET.
     expect($lifecycle->reconcileCreate($reference, $key))->toBe(42);
     expect(DB::table('provisioning_operations')->where('idempotency_key', $key)->value('state'))->toBe('completed');
-    Http::assertSentCount(1);
+    Http::assertSentCount(2);
 });
