@@ -20,3 +20,9 @@ A plan is either a fixed `preset` or a reseller-only `builder`; kinds are `volum
 - B1.3: approved plan-to-Internal-Squad mapping, bytes/expiry conversion; only mock provider inspection.
 - B1.4–B1.6: Super Admin Telegram management, public three-preset UX, reseller builder.
 - No seeded speculative prices, provider UUIDs, direct financial writes, live Remnawave provisioning or Telegram checkout edits in B1.1. Existing payment/provider feature flags remain OFF. PHP 8.4/8.5 CI is required. Real bank, BotFather and provider E2E remain out of scope.
+
+## F11-B1.2 — Pricing extension
+
+The B1.1 plan catalog and active parent product still govern visibility. Managed plans have one `sales_plan_prices` row (fixed preset or formula). Super Admin configures draft rules via `ManagePlanPricing`; publishing or disabling an active tariff requires one-use hashed root confirmation. Reconfiguration of an active tariff immediately makes that tariff a draft until it is deliberately republished. Plan edits invalidate any previously published price through `configured_plan_revision`.
+
+Buyer-facing price previews use `CalculatePlanQuote` and `RevalidatePlanQuote` only. They cannot create a pending-payment order before B1.3 mappings and the later explicit, owner-bound checkout Action. Legacy F09 remains operational in code with separate pricing; no combined discount, automatic migration or seeded prices. See `docs/016-SALES-PLAN-PRICING.md`.
