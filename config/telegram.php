@@ -6,4 +6,5 @@ return [
     'webhook_secret' => env('TELEGRAM_WEBHOOK_SECRET'),
     'bot_username' => env('TELEGRAM_BOT_USERNAME'),
     'public_signup_enabled' => env('TELEGRAM_PUBLIC_SIGNUP_ENABLED', false),
+    'hybrid_menu_enabled' => env('TELEGRAM_HYBRID_MENU_ENABLED', false),
 ];

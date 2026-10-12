@@ -7,6 +7,7 @@ use App\Interfaces\Telegram\Handlers\AdminUsersHandler;
 use App\Interfaces\Telegram\Handlers\InviteHandler;
 use App\Interfaces\Telegram\Handlers\JoinHandler;
 use App\Interfaces\Telegram\Handlers\LinkHandler;
+use App\Interfaces\Telegram\Handlers\ReplyMenuHandler;
 use App\Interfaces\Telegram\Handlers\SettingsHandler;
 use App\Interfaces\Telegram\Handlers\StartHandler;
 use App\Interfaces\Telegram\Support\BillingUi;
@@ -184,9 +185,13 @@ $bot->onCallbackQueryData('shop:quote:{id}:{days}:{gb}', function (Nutgram $bot,
     app(ShopUi::class)->quote($bot, $id, $days, $gb);
 });
 
-// Last-resort text matcher: it only responds if the active user previously
-// selected "custom volume" in a private chat. Commands remain higher priority.
+// The existing final text handler now dispatches exact Reply Keyboard labels first.
+// Unknown text still reaches the pending custom-volume flow. Commands keep priority.
 $bot->onText('{volume}', function (Nutgram $bot, string $volume): void {
+    if (app(ReplyMenuHandler::class)->handle($bot, $volume)) {
+        return;
+    }
+
     app(ShopUi::class)->customText($bot, $volume);
 });
 
