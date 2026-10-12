@@ -40,6 +40,7 @@ final class MenuRenderer
             ->addRow(InlineKeyboardButton::make('🎁 دعوت دوستان', callback_data: 'menu:invite'));
 
         if (in_array('reseller', $actor->roles, true)) {
+            $keyboard->addRow(InlineKeyboardButton::make('💼 پلن‌ساز نماینده', callback_data: 'menu:builder'));
             $keyboard->addRow(InlineKeyboardButton::make('💼 کیف پول نماینده', callback_data: 'menu:wallet'));
         }
 

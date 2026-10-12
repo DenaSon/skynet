@@ -78,6 +78,9 @@ final readonly class PlanCatalogUi
             $keyboard->addRow(InlineKeyboardButton::make('بعدی ▶️', callback_data: 'catalog:list:'.($page + 1)));
         }
 
+        if (in_array('reseller', $actor->roles, true)) {
+            $keyboard->addRow(InlineKeyboardButton::make('💼 پلن‌ساز نماینده', callback_data: 'menu:builder'));
+        }
         $keyboard->addRow(InlineKeyboardButton::make('🏠 صفحه اصلی', callback_data: 'menu:home'));
         $this->render($bot, implode("\n", $lines), $keyboard);
     }

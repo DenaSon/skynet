@@ -57,6 +57,7 @@ final class ReplyMenuRenderer
 
         if (in_array('reseller', $actor->roles, true)) {
             $labels[] = ReplyMenuLabels::WALLET;
+            $labels[] = ReplyMenuLabels::BUILDER;
         }
 
         if ($actor->isAdmin()) {

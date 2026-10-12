@@ -16,6 +16,7 @@ use App\Interfaces\Telegram\Support\PlanAdminUi;
 use App\Interfaces\Telegram\Support\PlanCatalogUi;
 use App\Interfaces\Telegram\Support\PrivateTelegramUser;
 use App\Interfaces\Telegram\Support\RbacUi;
+use App\Interfaces\Telegram\Support\ResellerBuilderUi;
 use App\Interfaces\Telegram\Support\ShopUi;
 use App\Interfaces\Telegram\Support\SubscriptionUi;
 use App\Interfaces\Telegram\Support\UserManagementUi;
@@ -73,6 +74,9 @@ $bot->onCommand('admin', AdminHandler::class);
 $bot->onCommand('link {code}', LinkHandler::class);
 $bot->onCommand('users', AdminUsersHandler::class);
 $bot->onCommand('roles', AdminRolesHandler::class);
+$bot->onCommand('builder', function (Nutgram $bot): void {
+    app(ResellerBuilderUi::class)->browse($bot);
+});
 $bot->onCommand('catalog', function (Nutgram $bot): void {
     app(PlanCatalogUi::class)->browse($bot);
 });
@@ -127,6 +131,27 @@ $bot->onCallbackQueryData('menu:settings', SettingsHandler::class);
 $bot->onCallbackQueryData('menu:admin', AdminHandler::class);
 $bot->onCallbackQueryData('menu:admin:users', AdminUsersHandler::class);
 $bot->onCallbackQueryData('menu:admin:roles', AdminRolesHandler::class);
+$bot->onCallbackQueryData('menu:builder', function (Nutgram $bot): void {
+    app(ResellerBuilderUi::class)->browse($bot);
+});
+$bot->onCallbackQueryData('builder:list:{page}', function (Nutgram $bot, string $page): void {
+    app(ResellerBuilderUi::class)->browse($bot, ctype_digit($page) ? min(10000, (int) $page) : 1);
+});
+$bot->onCallbackQueryData('builder:detail:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
+    app(ResellerBuilderUi::class)->detail($bot, $id, $page);
+});
+$bot->onCallbackQueryData('builder:days:{id}:{gb}:{page}', function (Nutgram $bot, string $id, string $gb, string $page): void {
+    app(ResellerBuilderUi::class)->days($bot, $id, $gb, $page);
+});
+$bot->onCallbackQueryData('builder:quote:{id}:{gb}:{days}:{page}', function (Nutgram $bot, string $id, string $gb, string $days, string $page): void {
+    app(ResellerBuilderUi::class)->quote($bot, $id, $gb, $days, $page);
+});
+$bot->onCallbackQueryData('builder:custom:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
+    app(ResellerBuilderUi::class)->custom($bot, $id, $page);
+});
+$bot->onCallbackQueryData('builder:cancel', function (Nutgram $bot): void {
+    app(ResellerBuilderUi::class)->cancel($bot);
+});
 $bot->onCallbackQueryData('menu:plan-catalog', function (Nutgram $bot): void {
     app(PlanCatalogUi::class)->browse($bot);
 });
@@ -255,6 +280,10 @@ $bot->onText('{volume}', function (Nutgram $bot, string $volume): void {
     }
 
     if (app(PlanAdminUi::class)->text($bot, $volume)) {
+        return;
+    }
+
+    if (app(ResellerBuilderUi::class)->customText($bot, $volume)) {
         return;
     }
 
