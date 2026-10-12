@@ -22,6 +22,8 @@ final class ReplyMenuLabels
 
     public const ROLES = '🔐 نقش‌ها و دسترسی‌ها';
 
+    public const PLANS = '📦 مدیریت پلن‌ها';
+
     public const TOPUPS = '💳 بررسی شارژها';
 
     public const RECEIPTS = '🧾 بررسی رسیدهای خرید';
@@ -36,7 +38,7 @@ final class ReplyMenuLabels
         return [
             self::BUY, self::SUBSCRIPTIONS, self::ACCOUNT, self::INVITE,
             self::SETTINGS, self::ADMIN, self::WALLET, self::USERS,
-            self::ROLES, self::TOPUPS, self::RECEIPTS, self::HOME,
+            self::ROLES, self::PLANS, self::TOPUPS, self::RECEIPTS, self::HOME,
         ];
     }
 }

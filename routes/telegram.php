@@ -12,6 +12,7 @@ use App\Interfaces\Telegram\Handlers\SettingsHandler;
 use App\Interfaces\Telegram\Handlers\StartHandler;
 use App\Interfaces\Telegram\Support\BillingUi;
 use App\Interfaces\Telegram\Support\ManualPaymentUi;
+use App\Interfaces\Telegram\Support\PlanAdminUi;
 use App\Interfaces\Telegram\Support\PrivateTelegramUser;
 use App\Interfaces\Telegram\Support\RbacUi;
 use App\Interfaces\Telegram\Support\ShopUi;
@@ -71,6 +72,12 @@ $bot->onCommand('admin', AdminHandler::class);
 $bot->onCommand('link {code}', LinkHandler::class);
 $bot->onCommand('users', AdminUsersHandler::class);
 $bot->onCommand('roles', AdminRolesHandler::class);
+$bot->onCommand('plans', function (Nutgram $bot): void {
+    app(PlanAdminUi::class)->browse($bot);
+});
+$bot->onCommand('plancancel', function (Nutgram $bot): void {
+    app(PlanAdminUi::class)->cancel($bot);
+});
 $bot->onCommand('newrole {name}', function (Nutgram $bot, string $name): void {
     app(RbacUi::class)->createRequest($bot, $name);
 });
@@ -116,6 +123,33 @@ $bot->onCallbackQueryData('menu:settings', SettingsHandler::class);
 $bot->onCallbackQueryData('menu:admin', AdminHandler::class);
 $bot->onCallbackQueryData('menu:admin:users', AdminUsersHandler::class);
 $bot->onCallbackQueryData('menu:admin:roles', AdminRolesHandler::class);
+$bot->onCallbackQueryData('menu:admin:plans', function (Nutgram $bot): void {
+    app(PlanAdminUi::class)->browse($bot);
+});
+$bot->onCallbackQueryData('plan:list:{page}', function (Nutgram $bot, string $page): void {
+    app(PlanAdminUi::class)->browse($bot, ctype_digit($page) ? (int) $page : 1);
+});
+$bot->onCallbackQueryData('plan:products', function (Nutgram $bot): void {
+    app(PlanAdminUi::class)->products($bot);
+});
+$bot->onCallbackQueryData('plan:view:{id}', function (Nutgram $bot, string $id): void {
+    app(PlanAdminUi::class)->detail($bot, $id);
+});
+$bot->onCallbackQueryData('plan:begin:{type}:{id}', function (Nutgram $bot, string $type, string $id): void {
+    app(PlanAdminUi::class)->begin($bot, $type, $id);
+});
+$bot->onCallbackQueryData('plan:save:{token}', function (Nutgram $bot, string $token): void {
+    app(PlanAdminUi::class)->save($bot, $token);
+});
+$bot->onCallbackQueryData('plan:status:{id}:{operation}', function (Nutgram $bot, string $id, string $operation): void {
+    app(PlanAdminUi::class)->requestStatus($bot, $id, $operation);
+});
+$bot->onCallbackQueryData('plan:apply:{type}:{token}', function (Nutgram $bot, string $type, string $token): void {
+    app(PlanAdminUi::class)->applyStatus($bot, $type, $token);
+});
+$bot->onCallbackQueryData('plan:cancel', function (Nutgram $bot): void {
+    app(PlanAdminUi::class)->cancel($bot);
+});
 
 $bot->onCallbackQueryData('users:page:{page}', function (Nutgram $bot, string $page): void {
     app(UserManagementUi::class)->browse($bot, (int) $page);
@@ -201,6 +235,10 @@ $bot->onCallbackQueryData('shop:quote:{id}:{days}:{gb}', function (Nutgram $bot,
 // Unknown text still reaches the pending custom-volume flow. Commands keep priority.
 $bot->onText('{volume}', function (Nutgram $bot, string $volume): void {
     if (app(ReplyMenuHandler::class)->handle($bot, $volume)) {
+        return;
+    }
+
+    if (app(PlanAdminUi::class)->text($bot, $volume)) {
         return;
     }
 
