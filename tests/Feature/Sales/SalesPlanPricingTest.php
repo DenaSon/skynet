@@ -74,6 +74,7 @@ function b12Publish(User $root, int $planId, PlanPricingDefinition $pricing, int
 
 beforeEach(function (): void {
     app(ConfigureProduct::class)->handle('vpn-access', 'VPN Access');
+    Role::findOrCreate('reseller', 'web');
 });
 
 it('calculates fixed public and single reseller-discounted preset prices in integer rials', function (): void {
