@@ -12,6 +12,7 @@ use UnexpectedValueException;
  */
 final readonly class RemnawaveUserSnapshot
 {
+    /** @param list<string> $activeInternalSquadUuids */
     public function __construct(
         public int $id,
         public string $username,
@@ -23,6 +24,7 @@ final readonly class RemnawaveUserSnapshot
         public string $subscriptionUrl,
         public int $usedTrafficBytes,
         public ?string $description,
+        public array $activeInternalSquadUuids,
     ) {}
 
     /**
@@ -40,6 +42,7 @@ final readonly class RemnawaveUserSnapshot
         $url = $data['subscriptionUrl'] ?? null;
         $usage = $data['userTraffic']['usedTrafficBytes'] ?? null;
         $description = $data['description'] ?? null;
+        $squads = $data['activeInternalSquads'] ?? null;
 
         if (! is_int($id) || $id < 1
             || ! is_string($username) || $username === ''
@@ -50,10 +53,27 @@ final readonly class RemnawaveUserSnapshot
             || ! is_string($expire) || $expire === ''
             || ! is_string($url) || ! str_starts_with($url, 'https://')
             || ! is_int($usage) || $usage < 0
-            || ($description !== null && ! is_string($description))) {
+            || ($description !== null && ! is_string($description))
+            || ! is_array($squads) || ! array_is_list($squads)) {
             throw new UnexpectedValueException('Invalid Remnawave user response contract.');
         }
 
-        return new self($id, $username, $shortUuid, $status, $limit, $strategy, $expire, $url, $usage, $description);
+        $squadUuids = [];
+
+        foreach ($squads as $squad) {
+            if (! is_array($squad)
+                || ! is_string($squad['uuid'] ?? null)
+                || ! preg_match('/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/D', $squad['uuid'])) {
+                throw new UnexpectedValueException('Invalid Remnawave user squad response.');
+            }
+
+            $squadUuids[] = strtolower($squad['uuid']);
+        }
+
+        if (count(array_unique($squadUuids)) !== count($squadUuids)) {
+            throw new UnexpectedValueException('Duplicate Remnawave squad in user response.');
+        }
+
+        return new self($id, $username, $shortUuid, $status, $limit, $strategy, $expire, $url, $usage, $description, $squadUuids);
     }
 }
