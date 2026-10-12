@@ -150,10 +150,10 @@ final readonly class PlanAdminUi
 
         if ($plan->status !== 'archived') {
             $keyboard->addRow(InlineKeyboardButton::make('✏️ ویرایش پلن', callback_data: "plan:begin:edit:{$planId}"));
-            $keyboard->addRow(
-                InlineKeyboardButton::make('💵 تعرفه ثابت', callback_data: "plan:begin:fixed:{$planId}"),
-                InlineKeyboardButton::make('🧮 تعرفه فرمولی', callback_data: "plan:begin:formula:{$planId}"),
-            );
+            if ($plan->mode === 'preset') {
+                $keyboard->addRow(InlineKeyboardButton::make('💵 تعرفه ثابت', callback_data: "plan:begin:fixed:{$planId}"));
+            }
+            $keyboard->addRow(InlineKeyboardButton::make('🧮 تعرفه فرمولی', callback_data: "plan:begin:formula:{$planId}"));
         }
 
         if (in_array($plan->status, ['draft', 'inactive'], true)) {
@@ -222,8 +222,8 @@ final readonly class PlanAdminUi
 
         $this->drafts->store($actor->userId, [
             'type' => $type, 'plan_id' => $planId,
-            'plan_revision' => $plan?->revision ?? 0,
-            'price_revision' => $price?->revision ?? 0,
+            'plan_revision' => $plan === null ? 0 : $plan->revision,
+            'price_revision' => $price === null ? 0 : $price->revision,
             'form' => '', 'stage' => 'input', 'token' => '',
         ]);
 
