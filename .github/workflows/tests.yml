@@ -63,7 +63,7 @@ jobs:
 
       - name: Diagnostic Pint diff (remove before merge)
         run: |
-          vendor/bin/pint --dirty
+          vendor/bin/pint app/Modules/Provisioning/Application/ListAccessibleNodes.php
           git diff -- app/Modules/Provisioning/Application/ListAccessibleNodes.php
 
       - name: Formatting verification
