@@ -1,0 +1,81 @@
+name: Prune safely merged branches
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: prune-merged-branches
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    if: github.repository == 'DenaSon/skynet'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Remove only verified merged PR branch refs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # PRs are checked against this repository and master. A squash-merged
+          # branch is only safe to delete if its current SHA equals PR head SHA.
+          gh api --paginate "repos/${GH_REPO}/pulls?state=closed&per_page=100" \
+            --jq '.[] | select(.merged_at != null and .base.ref == "master" and .head.repo.full_name == .base.repo.full_name) | [.head.ref, .head.sha] | @tsv' > /tmp/merged-heads.tsv
+
+          deleted=0
+          skipped=0
+          failed=0
+          while IFS=$'\t' read -r branch merged_sha; do
+            [[ -n "${branch}" && -n "${merged_sha}" ]] || continue
+            if [[ "${branch}" == master ]]; then
+              continue
+            fi
+
+            # GET is exact: a deleted branch or a name with slashes may return
+            # a 404, in which case there is nothing to remove.
+            current_sha="$(gh api "repos/${GH_REPO}/git/ref/heads/${branch}" --jq '.object.sha' 2>/dev/null || true)"
+            [[ -n "${current_sha}" ]] || continue
+
+            safe=false
+            if [[ "${current_sha}" == "${merged_sha}" ]]; then
+              safe=true
+            elif [[ "${branch}" == 'docs/f11-a1-merged-checkpoint' \
+              && "${current_sha}" == '1cc1d0f403e39efbeed39de2c7cae32c1ad59817' ]]; then
+              # The three post-PR31 documentation-only commits were included
+              # in merged PR32; SHA-pinned exception to the usual exact check.
+              reconciled="$(gh api "repos/${GH_REPO}/pulls/32" --jq '.merged' 2>/dev/null || true)"
+              [[ "${reconciled}" == true ]] && safe=true
+            fi
+
+            if [[ "${safe}" != true ]]; then
+              echo "SKIP (newer or unverified commits): ${branch}"
+              skipped=$((skipped + 1))
+              continue
+            fi
+
+            if gh api --method DELETE "repos/${GH_REPO}/git/refs/heads/${branch}" >/dev/null; then
+              echo "DELETED: ${branch}"
+              deleted=$((deleted + 1))
+            else
+              echo "FAILED: ${branch}" >&2
+              failed=$((failed + 1))
+            fi
+          done < /tmp/merged-heads.tsv
+
+          {
+            echo '## Merged branch cleanup'
+            echo "Deleted: **${deleted}**"
+            echo "Skipped changed refs: **${skipped}**"
+            echo "Deletion errors: **${failed}**"
+            echo 'Only same-repo, master-merged PR branches were eligible.'
+          } >> "${GITHUB_STEP_SUMMARY}"
+          (( failed == 0 ))
