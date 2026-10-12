@@ -131,3 +131,9 @@ The single source of monetary truth is `billing_journals` + `billing_postings`: 
 ## F11-B1.1 — Dynamic plan boundary
 
 Sales exclusively owns `sales_plans`, change confirmations and audits, linked to its existing `sales_products`. Optional order `plan_id` uses RESTRICT for future sold-plan protection. Identity grants catalog management solely to freshly eligible allowlisted Super Admins. Public/reseller listing is Sales Application, **not** Telegram SQL. These are commercial plan specifications, with no Remnawave UUID or prices. Existing F09 checkout remains separate until B1.2; see `docs/015-SALES-PLAN-CATALOG.md`.
+
+## F11-B1.2 — Price ownership
+
+- Sales owns `sales_plan_prices` (one revisioned tariff per B1.1 plan), pending root-bound confirmation and append-only pricing audit, entirely separate from Billing ledger and Provisioning UUIDs.
+- The price engine is read-only and uses Identity's fresh reseller role and Sales plan eligibility. Plans with draft/disabled/obsolete tariffs cannot be quoted. Quotes are immutable value objects with a buyer ID and both revisions for later transactional repricing; they are **not** purchase orders.
+- Existing F09 tariffs, quotes, pending-payment orders, Telegram UI and payment/provider gates remain unchanged. See `docs/016-SALES-PLAN-PRICING.md`.

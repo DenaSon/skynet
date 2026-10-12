@@ -115,3 +115,10 @@ See `docs/004-STANDARDS.md` for coding and documentation conventions.
 ## F11-B1.1 merged on master (#37)
 
 Dynamic Sales plan catalog (volume/time/hybrid, preset/reseller builder, audience, bounds, statuses) is separate from existing F09 pricing/checkout. `ManagePlans` requires fresh allowlisted Super Admin authorization, revision checks, per-root hashed single-use confirmation and mutation audit. `ListVisiblePlans` is read-only and buyer-scoped; **no new plan is purchasable** before B1.2/B1.3. The future `sales_orders.plan_id` FK is nullable and restricts deletion. No bank/Remnawave flags, HTTP/Telegram UI or old pricing behavior change. Merged via [PR #37](https://github.com/DenaSon/skynet/pull/37), squash SHA `c3d52c81c45eb641efd1f744eecd58d98ab5790f`, CI PHP 8.4/8.5 tests, Larastan/Pint green. See `docs/015-SALES-PLAN-CATALOG.md`.
+
+## F11-B1.2 — Managed plan pricing (current increment)
+
+- Pricing is exclusively Sales-owned under `sales_plan_prices`, `sales_plan_price_confirmations` and `sales_plan_price_audits`, one price rule per B1.1 plan; plan and price each have independent optimistic revisions.
+- `ManagePlanPricing` is root-only; create/edit always resets pricing to **draft**, and publish/unpublish requires trusted Super Admin + actor-bound hashed one-use three-minute confirmation. No hidden live repricing of active quotes.
+- `CalculatePlanQuote` is read-only and freshly buyer/role/visibility/plan/price authorized; fixed price applies to presets, formula = base + GB × per-GB + days × per-day. Time plans are unlimited (`trafficGb=null`), volume plans do not charge per day. Prices and discount are integer rials, capped, optional minimum-sell floor; one per-plan reseller discount **replaces**, never stacks with, F09's discount.
+- `PlanPriceQuote` is an immutable buyer+plan+price-revision snapshot. `RevalidatePlanQuote` rejects changed buyer/role/plan/price/amount. **No B1.2 order creation, wallet/bank transaction, Nutgram route, or provider write.** Existing F09 checkout is unaffected. Plan checkout waits for B1.3 binding and an explicit guarded action. See `docs/016-SALES-PLAN-PRICING.md`.
