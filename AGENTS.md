@@ -111,3 +111,7 @@ See `docs/004-STANDARDS.md` for coding and documentation conventions.
 - Financial source of truth is **one** Billing journal/postings pair (`billing_journals`, `billing_postings`) for F08 top-ups, F11-A1 wallet purchases and F11-A2 direct bank sales. Direct journals have null wallet and `kind=direct_bank_sale`; all money is integer rials. There is NO separate Sales postings table.
 - Sales owns order/claim/settlement reference, audit and pending outbox, but never queries `billing_*` raw tables. Use `Billing/Application/{ClaimVerifiedBankReference,RecordDirectBankPayment,VerifyWalletOrderDebit}`; preserve shared DB atomicity and real Super Admin bank evidence verification.
 - See `docs/adr/0008-unified-billing-ledger.md`, `docs/003-MODULES.md` and test coverage. No payment or Remnawave feature flag is enabled by this refactor.
+
+## F11-B1.1 current increment
+
+Dynamic Sales plan catalog (volume/time/hybrid, preset/reseller builder, audience, bounds, statuses) is separate from existing F09 pricing/checkout. `ManagePlans` requires fresh allowlisted Super Admin authorization, revision checks, per-root hashed single-use confirmation and mutation audit. `ListVisiblePlans` is read-only and buyer-scoped; **no new plan is purchasable** before B1.2/B1.3. The future `sales_orders.plan_id` FK is nullable and restricts deletion. No bank/Remnawave flags, HTTP/Telegram UI or old pricing behavior change. See `docs/015-SALES-PLAN-CATALOG.md`.
