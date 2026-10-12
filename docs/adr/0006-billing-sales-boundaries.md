@@ -1,7 +1,7 @@
 # ADR 0006 — Sales, Wallet, and Provisioning Boundaries
 
 **Date:** 2026-10-11
-**Status:** Accepted; F08 implements only prepaid wallet and verified manual topup, Sales/Provisioning remain deferred.
+**Status:** Historical accepted F08 boundary; F11-B0 financial SQL and unified ledger implementation is governed by [ADR 0008](0008-unified-billing-ledger.md).
 
 ## Decision
 - Identity determines who a user is. Referral only tracks first signup attribution (not financial rewards).

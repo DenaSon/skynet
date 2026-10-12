@@ -100,7 +100,14 @@ See `docs/004-STANDARDS.md` for coding and documentation conventions.
 ## F10-D/E provider safety and F11 handoff (current)
 - **Merged:** PR #19 catalog/client (218 operations), #20 read-only discovery, #21 node API and telemetry, #23 typed Users/Subscriptions plus SQL-reserved lifecycle. No Remnawave live E2E. Refer to `docs/000-CONTEXT.md` for exact verified checkpoint.
 - Provider `Infrastructure/Remnawave` is a transport/DTO implementation, **not an authorization layer**. Telegram/Web never call it directly. The lifecycle `subscription(reference)` method checks local provider mapping but **does not check Identity/Sales order ownership**.
-- `REMNAWAVE_WRITES_ENABLED=false` by default. No action in Telegram/checkout invokes provider creation/update. `sales_orders` are `pending_payment` only; a Billing wallet top-up is not a purchase. No wallet debit, paid-order transition or durable provisioning outbox exists.
+- `REMNAWAVE_WRITES_ENABLED=false` by default. F11-A1 and F11-A2 provide default-disabled financial settlement actions and a pending outbox, but neither Telegram checkout nor an outbox consumer performs Remnawave provider creation. A wallet top-up alone is never a service purchase.
 - Every create checks the requested Internal Squad set against provider response; reject associative UUID arrays before a write. Protect subscription URLs like bearer tokens; no links in list DTOs or logs. Keep failed/ambiguous writes in `reserved`/`needs_review` until read-only reconciliation; never replay them blindly.
-- **Next:** Design F11 verified payment settlement, idempotent durable dispatch and isolated staging E2E. The new Telegram subscription UI is read-only; it cannot settle, provision, debit or administratively mutate a service.
+- **Next:** F11-B1 product/plan-to-Internal-Squad mapping, then F11-B2 safe outbox claim/dispatch and reconciliation, followed by isolated staging E2E. Preserve default-disabled finance and remote-write gates.
 - Do not implement broad payment/admin write interfaces or grant reseller cross-account access by role alone. Preserve Identity fresh checks, Sales order ownership, one-use root confirmation and audit in all new Application actions. Full PHP 8.4/8.5 CI required before merge.
+
+## F11-B0 — financial boundary (current checkpoint)
+
+- **No production/customer data exist** as of this development phase. For F11-B0, modify baseline migrations, not data-preserving rename migrations. Initialize a fresh disposable development DB; do **not** apply a destructive migration to any DB containing real data.
+- Financial source of truth is **one** Billing journal/postings pair (`billing_journals`, `billing_postings`) for F08 top-ups, F11-A1 wallet purchases and F11-A2 direct bank sales. Direct journals have null wallet and `kind=direct_bank_sale`; all money is integer rials. There is NO separate Sales postings table.
+- Sales owns order/claim/settlement reference, audit and pending outbox, but never queries `billing_*` raw tables. Use `Billing/Application/{ClaimVerifiedBankReference,RecordDirectBankPayment,VerifyWalletOrderDebit}`; preserve shared DB atomicity and real Super Admin bank evidence verification.
+- See `docs/adr/0008-unified-billing-ledger.md`, `docs/003-MODULES.md` and test coverage. No payment or Remnawave feature flag is enabled by this refactor.

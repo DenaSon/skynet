@@ -25,3 +25,7 @@
 - **F11-A2:** direct bank transfer settlement *only* after independent evidence verification, globally unique approved receipt ownership, trusted operator confirmation and audit. Do not treat a user-supplied reference as payment.
 - **F11-B:** reviewed product→Internal Squad binding, UTC expiration/byte-limit rules, outbox claim/lock/reconciliation and one safe provider create attempt; ambiguous writes must NOT be automatically retried.
 - **F11-C/D:** privileged audited operations, staging with real provider/bank/BotFather, then customer activation UX. Do not connect Telegram to this new wallet action until reviewed integration and live gates are satisfied.
+
+## F11-B0 financial boundary clarification
+
+F11-A1 wallet purchase replay is attested by `Billing/Application/VerifyWalletOrderDebit`. All deposits and purchases share the Billing ledger (`billing_journals` + `billing_postings`) with integer-rial balanced entries. Direct bank entries use `wallet_id=NULL`; they never increase any customer's wallet balance. Sales does not query Billing tables. See [ADR 0008](adr/0008-unified-billing-ledger.md).

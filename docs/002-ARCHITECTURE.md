@@ -99,3 +99,7 @@ Remnawave v3.4.4 (NOT live-E2E verified)
 ## F11-A2 — Manual Super Admin payment gate
 
 A private Nutgram receipt photo is an untrusted payment claim, never automatic bank proof. Sales `ManualBankPayments` reauthorizes the Identity actor/owner and the current Super Admin allowlist, persists encrypted Telegram file references and auditable approve/reject decisions, and requires the operator to manually match a bank statement reference before final confirmation. Approval reserves a globally unique F08/F11 payment reference and atomically persists direct-bank double-entry postings, Sales `paid` status and a pending outbox record. `SALES_MANUAL_BANK_REVIEW_ENABLED=false` by default; there is no live bank API or fulfillment dispatcher. Live E2E, production DB lock verification and operational bank reconciliation remain gates.
+
+## F11-B0 — Single Billing financial ledger
+
+Only Billing owns `billing_bank_reference_claims`, `billing_journals` and `billing_postings`. A direct bank sale records a `direct_bank_sale` journal with `wallet_id=NULL` and the exact two `cash_clearing`/`order_liability` postings. Reseller wallet reads still select their own wallet liability; no independent Sales postings ledger exists. Sales invokes Billing Application Actions for verified-bank reference claiming, direct-bank posting and wallet debit replay attestation. Sales owns order/claim/settlement snapshot, audit and pending outbox. Everything commits in one DB transaction; Telegram and Remnawave remain outside. See [ADR 0008](adr/0008-unified-billing-ledger.md).

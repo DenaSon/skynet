@@ -24,31 +24,15 @@ return new class extends Migration
             $table->index(['sales_order_id', 'status']);
         });
 
-        // Shared across F08 wallet top-ups and F11 direct purchases.
-        Schema::create('billing_bank_reference_claims', function (Blueprint $table): void {
-            $table->id();
-            $table->string('payment_reference', 64)->unique();
-            $table->string('source_type', 16);
-            $table->unsignedBigInteger('source_id');
-            $table->timestamp('verified_at');
-        });
-
         Schema::create('sales_bank_settlements', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('sales_order_id')->unique()->constrained('sales_orders')->restrictOnDelete();
             $table->foreignId('payment_claim_id')->unique()->constrained('sales_bank_payment_claims')->restrictOnDelete();
+            $table->foreignId('billing_journal_id')->unique()->constrained('billing_journals')->restrictOnDelete();
             $table->foreignId('verified_by')->constrained('users')->restrictOnDelete();
             $table->string('payment_reference', 64)->unique();
             $table->unsignedBigInteger('amount_rials');
             $table->timestamp('settled_at');
-        });
-
-        Schema::create('sales_bank_postings', function (Blueprint $table): void {
-            $table->id();
-            $table->foreignId('settlement_id')->constrained('sales_bank_settlements')->restrictOnDelete();
-            $table->string('account_code', 32);
-            $table->string('side', 6);
-            $table->unsignedBigInteger('amount_rials');
         });
 
         Schema::create('sales_payment_review_audits', function (Blueprint $table): void {
@@ -63,9 +47,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('sales_payment_review_audits');
-        Schema::dropIfExists('sales_bank_postings');
         Schema::dropIfExists('sales_bank_settlements');
-        Schema::dropIfExists('billing_bank_reference_claims');
         Schema::dropIfExists('sales_bank_payment_claims');
     }
 };

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Sales\Application;
 
 use App\Modules\Billing\Application\DebitWalletForOrder;
+use App\Modules\Billing\Application\VerifyWalletOrderDebit;
 use App\Modules\Identity\Application\AuthorizeSubscriptionViewer;
 use App\Modules\Identity\Application\ResolveSalesBuyer;
 use App\Modules\Identity\Application\SubscriptionViewer;
@@ -25,6 +26,7 @@ final readonly class SettleWalletOrder
         private AuthorizeSubscriptionViewer $authorize,
         private ResolveSalesBuyer $buyers,
         private DebitWalletForOrder $debit,
+        private VerifyWalletOrderDebit $verifyDebit,
         private OrderReader $orders,
     ) {}
 
@@ -61,31 +63,14 @@ final readonly class SettleWalletOrder
                     ->where('sales_order_id', $orderId)->first();
                 $outbox = DB::table('sales_fulfillment_outbox')
                     ->where('sales_order_id', $orderId)->first();
-                $journal = $settlement === null ? null : DB::table('billing_journals as journals')
-                    ->join('billing_wallets as wallets', 'wallets.id', '=', 'journals.wallet_id')
-                    ->where('journals.id', $settlement->billing_journal_id)
-                    ->where('wallets.user_id', $buyerId)
-                    ->where('journals.kind', 'purchase')
-                    ->where('journals.idempotency_key', 'purchase:order:'.$orderId)
-                    ->first(['journals.id', 'journals.wallet_id']);
+                // The journal and its exact balanced postings are Billing-owned.
+                $balanced = $settlement !== null
+                    && $this->verifyDebit->handle(
+                        $buyerId, $orderId, (int) $settlement->billing_journal_id,
+                        (int) $order->total_price_rials,
+                    );
 
-                // The purchase journal alone is insufficient: it must carry
-                // precisely the two correct, balanced money movements.
-                $balanced = $journal !== null
-                    && DB::table('billing_postings')->where('journal_id', $journal->id)->count() === 2
-                    && DB::table('billing_postings')->where('journal_id', $journal->id)
-                        ->where('wallet_id', $journal->wallet_id)
-                        ->where('account_code', 'wallet_liability')
-                        ->where('side', 'debit')
-                        ->where('amount_rials', $order->total_price_rials)->exists()
-                    && DB::table('billing_postings')->where('journal_id', $journal->id)
-                        ->whereNull('wallet_id')
-                        ->where('account_code', 'order_liability')
-                        ->where('side', 'credit')
-                        ->where('amount_rials', $order->total_price_rials)->exists();
-
-                if ($settlement === null || $outbox === null || $journal === null
-                    || ! $balanced || $settlement->method !== 'reseller_wallet'
+                if ($settlement === null || $outbox === null || ! $balanced || $settlement->method !== 'reseller_wallet'
                     || (int) $settlement->amount_rials !== (int) $order->total_price_rials
                     || $outbox->event_key !== 'sales-order:'.$orderId.':create') {
                     throw ValidationException::withMessages(['order' => 'Paid order requires reconciliation.']);

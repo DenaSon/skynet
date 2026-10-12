@@ -25,6 +25,7 @@ All statuses reflect **code in the repository**, not intentions.
 | F10-E3 — Telegram subscription presenter | Private /subscriptions menu, paged owned summaries, safe details, guarded link and nodes, UX/forgery tests | **Merged on master** (PR #28, commit 3dd9e61; PHP 8.4/8.5 CI + master run 38223868886 green); live BotFather/Remnawave E2E pending |
 | F11-A1 — Wallet settlement foundation | Reseller-only, disabled-by-default wallet debit + paid order + unique pending outbox in one DB transaction, no dispatch | **Merged PR #30**, squash 76ea9e1, master CI 38226617474 green; default-disabled, no live bank/provider E2E |
 | F11-A2 — Super Admin manual bank review | Telegram photo claims, private Super Admin approve/reject with two-step manual bank reference, atomic balanced direct-bank settlement + outbox | **Merged PR #33** (SHA 1cd472e; master CI 38231567621 green); default-disabled, real bank/operator E2E pending |
+| F11-B0 — Unified Billing ledger and strict module boundaries | Pre-production baseline migrations, Billing-owned bank reference + direct postings, wallet replay attestation, architecture tests, ADR | PR in review; verify merge/CI, no live flags enabled |
 | F11-B — Fulfillment/delivery | Explicit plan → squad mapping, bounded bytes/expiry, reconciled activation and owner-safe link delivery | Planned; NOT implemented |
 | F11-C — Admin operations + staging | Permissioned audited actions, one-use confirmation, live panel and bank/BotFather E2E gates | Planned; NOT implemented |
 | F11-D — Telegram sales activation UX | Direct and reseller post-settlement delivery over common Application Actions | Planned after F11-A/B and E2E |
@@ -34,7 +35,7 @@ All statuses reflect **code in the repository**, not intentions.
 ## Current engineering checkpoint (2026-10-12)
 
 - `master` PR #23 merge SHA `ec43b945138af3711db03bf418d0f382495e4a97`; [master CI 38213468652](https://github.com/DenaSon/skynet/actions/runs/38213468652) succeeded on PHP 8.4/8.5 with 200 tests / 959 assertions. Automated fakes **do not** certify live Remnawave/BotFather/bank behavior.
-- **Immediate work:** F10-E1/E2/E3 are merged (last: [PR #28](https://github.com/DenaSon/skynet/pull/28), master CI 38223868886 green). F11-A1 merged (PR #30; master CI 38226617474); F11-A2 manual bank review merged (PR #33, CI green), OFF by default; next F11-B outbox consumer and verified plan/squad mapping. Never enable live money/provider writes before production DB concurrency and isolated staging E2E.
+- **Immediate work:** F10-E1/E2/E3 are merged (last: [PR #28](https://github.com/DenaSon/skynet/pull/28), master CI 38223868886 green). F11-A1 merged (PR #30; master CI 38226617474); F11-A2 manual bank review merged (PR #33, CI green), OFF by default; next F11-B0 ledger boundary review, then F11-B1 plan/squad mapping and F11-B2 outbox dispatcher. Never enable live money/provider writes before production DB concurrency and isolated staging E2E.
 - **Hard sequencing gate:** `pending_payment` is not settled and F08 top-up credit is not service purchase. Do not connect F10-D writes to checkout/Telegram before F11 paid transition, deduped debit/outbox and isolated staging verification.
 - Details and entry points: [000-CONTEXT.md](000-CONTEXT.md) is the canonical development handoff; this roadmap is milestone-level, not a second memory.
 

@@ -8,6 +8,8 @@ use Illuminate\Validation\ValidationException;
 
 final class ReviewTopup
 {
+    public function __construct(private readonly ClaimVerifiedBankReference $bankReferences) {}
+
     public function handle(int $operatorId, int $topupId, bool $approve, string $expectedReference): bool
     {
         return DB::transaction(function () use ($operatorId, $topupId, $approve, $expectedReference): bool {
@@ -20,19 +22,7 @@ final class ReviewTopup
             }
 
             if ($approve) {
-                // Unique bank reference across approved payments: one verified transfer = one credit.
-                if (DB::table('billing_verified_receipts')->where('payment_reference', $expectedReference)->exists()) {
-                    throw ValidationException::withMessages(['payment' => 'Payment reference already credited.']);
-                }
-
-                // Shared bank reference uniqueness with F11-A2 direct purchases.
-                // Existing F08 receipts remain authoritative for historical rows.
-                DB::table('billing_bank_reference_claims')->insert([
-                    'payment_reference' => $expectedReference,
-                    'source_type' => 'wallet_topup',
-                    'source_id' => $topupId,
-                    'verified_at' => now(),
-                ]);
+                $this->bankReferences->handle($operatorId, 'wallet_topup', $topupId, $expectedReference);
 
                 DB::table('billing_verified_receipts')->insert([
                     'payment_reference' => $expectedReference,
