@@ -182,6 +182,7 @@ it('ignores group labels and removes stale keyboard for disabled or unlinked use
         ->assertReplyText('🔒 حساب شما به SkyNet متصل نیست. برای اتصال، کد یک‌بارمصرف صادرشده توسط مدیر را در گفت‌وگوی خصوصی با دستور /link وارد کنید.');
 
     $user->forceFill(['is_active' => false])->save();
+    $bot->setCommonUser(TelegramUser::make(931008, false, 'Disabled'));
     $bot->setCommonChat(Chat::make(931008, ChatType::PRIVATE));
     $bot->hearText('/start')->reply()
         ->assertReplyText('🔒 حساب شما به SkyNet متصل نیست. برای اتصال، کد یک‌بارمصرف صادرشده توسط مدیر را در گفت‌وگوی خصوصی با دستور /link وارد کنید.');
