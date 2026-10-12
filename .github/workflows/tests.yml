@@ -62,9 +62,4 @@ jobs:
         run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
 
       - name: Formatting verification
-        run: |
-          vendor/bin/pint --test || {
-            vendor/bin/pint app/Interfaces/Telegram/Support/ManualPaymentUi.php
-            git diff -- app/Interfaces/Telegram/Support/ManualPaymentUi.php
-            exit 1
-          }
+        run: vendor/bin/pint --test
