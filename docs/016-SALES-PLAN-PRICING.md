@@ -1,5 +1,7 @@
 # F11-B1.2 — Managed Plan Pricing
 
+**Status:** Merged via [PR #39](https://github.com/DenaSon/skynet/pull/39), squash SHA `027c83c95a3d0bcf89f7ad8682c5a654d5c0e924`, [master CI 38245902790](https://github.com/DenaSon/skynet/actions/runs/38245902790) green (PHP 8.4/8.5 Pest, PHPStan, Pint).
+
 **Scope:** Root-managed prices and a read-only, buyer-bound plan quote. **No checkout/provider integration**.
 
 ## Tariff configuration
