@@ -4,7 +4,7 @@
 **Source of truth:** `master` code, migrations, tests, and GitHub PR/CI status—not this narrative when they disagree.  
 **Checkpoint:** F10-A/B/C/D merged; latest F10-D merge PR [#23](https://github.com/DenaSon/skynet/pull/23), commit `ec43b945138af3711db03bf418d0f382495e4a97`.  
 **Verified at checkpoint:** [master CI run 38213468652](https://github.com/DenaSon/skynet/actions/runs/38213468652), PHP 8.4 + 8.5 green, 200 Pest tests / 959 assertions, PHPStan and Pint green. **No live Remnawave, bank or BotFather E2E is thereby implied.**  
-**NEXT:** [Issue #24 — F10-E shared authorized Subscription Application API](https://github.com/DenaSon/skynet/issues/24), starting with **F10-E1 ownership + query contracts**. There were no open PRs immediately after PR #23 merged.
+**CURRENT INCREMENT:** [PR #26 — F10-E1](https://github.com/DenaSon/skynet/pull/26), local owner-scoped order/Subscription bridge and safe query DTOs. **NEXT:** [Issue #24](https://github.com/DenaSon/skynet/issues/24), F10-E2 actor-authenticated shared read actions and then F10-E3 Telegram presenter. Check GitHub for PR #26 merge/CI status. There were no open PRs immediately after PR #23 merged.
 
 > **Handoff rule:** Read this file, `AGENTS.md`, `docs/002-ARCHITECTURE.md`, `docs/003-MODULES.md`, `docs/005-ROADMAP.md`, and the relevant feature runbook **before editing**. Verify current code and branches; this checkpoint may become stale. Never assume previous chat context is accurate without checking GitHub.
 
@@ -54,6 +54,15 @@
 - `reconcileCreate` and `reconcileUpdate` issue **read-only** checks and verify expected state before completing. Creation also checks the **exact Internal Squad UUID set**; associative squad arrays and missing/wrong returned assignments fail closed.
 - `subscription(reference)` looks up a local linked active subscription and fetches a credential-bearing URL. **It does not authenticate a customer or establish ownership of the reference.** This action must only be called through a future actor-authorized Application boundary.
 - `RemnawaveUsersApi` also contains potentially destructive primitives (delete, revoke, reset, additive extend). They are **internal capabilities**, not approved business actions.
+
+### F10-E1 — Ownership read-model (PR #26; inspect actual merge status)
+
+- New `provisioning_order_links` **bridge table** contains unique `sales_order_id → provisioning_subscription_id` foreign keys. It deliberately has **no public/checkout writer**; F11 settlement/fulfillment will need a separately reviewed atomic binding action. The existing `provisioning_subscriptions.reference` and provider IDs never become a customer identity claim.
+- `Sales/Application/OrderReader::page()` is a 1–50 item, keyset-paginated **owner-scoped** read backed by `ResolveSalesBuyer` active-account checks. The existing `recent()`/Telegram `/orders` contract remains unchanged.
+- `Provisioning/Application/SubscriptionOwnershipQuery` composes only **Sales Application DTOs** with a single batched lookup of local Provisioning mapping rows. Its immutable `SubscriptionSummary`, `SubscriptionDetails`, `SubscriptionCursorPage` contain order snapshots and normalized `pending_payment/provisioning/needs_review/active/failed` statuses, **never links, usernames, tokens, references or remote numeric IDs**.
+- `pending_payment` orders cannot be mapped as activated: unexpected link on an unpaid order throws. Status simulations of `paid/fulfilled` in tests **do not** implement any Sales/Billing settlement transition. Only after F11 verified payment and a trusted link can `active` be projected.
+- These methods are **internal** contracts, not customer-facing authentication. F10-E2 must resolve the current Telegram/web actor and check the order owner **inside** a UI-ready Application use case; never expose `SubscriptionOwnershipQuery` directly to an untrusted handler.
+- HTTP fakes verify no provider access. **F10-E1 may be CI verified in PR but is not live-panel-tested.** Do not infer any completed purchase activation.
 
 ## 4. Strict safety/financial boundaries
 
