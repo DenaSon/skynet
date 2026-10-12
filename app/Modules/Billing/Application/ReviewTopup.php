@@ -25,6 +25,15 @@ final class ReviewTopup
                     throw ValidationException::withMessages(['payment' => 'Payment reference already credited.']);
                 }
 
+                // Shared bank reference uniqueness with F11-A2 direct purchases.
+                // Existing F08 receipts remain authoritative for historical rows.
+                DB::table('billing_bank_reference_claims')->insert([
+                    'payment_reference' => $expectedReference,
+                    'source_type' => 'wallet_topup',
+                    'source_id' => $topupId,
+                    'verified_at' => now(),
+                ]);
+
                 DB::table('billing_verified_receipts')->insert([
                     'payment_reference' => $expectedReference,
                     'topup_id' => $topupId,
