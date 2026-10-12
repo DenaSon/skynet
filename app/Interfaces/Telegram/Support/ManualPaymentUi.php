@@ -41,7 +41,7 @@ final readonly class ManualPaymentUi
             return;
         }
 
-        if (! config('sales.manual_bank_review_enabled', false)) {
+        if (config('sales.manual_bank_review_enabled', false) !== true) {
             $this->notice($bot, 'ارسال رسید در حال حاضر غیرفعال است.');
             return;
         }
@@ -77,13 +77,13 @@ final readonly class ManualPaymentUi
     {
         $actor = $this->actor($bot);
 
-        if ($actor === null || ! config('sales.manual_bank_review_enabled', false)) {
+        if ($actor === null || config('sales.manual_bank_review_enabled', false) !== true) {
             return;
         }
 
         $orderId = Cache::get('telegram:payphoto:'.$actor->userId);
 
-        if (! is_int($orderId)) {
+        if (is_int($orderId) === false) {
             return; // Never intercept unrelated images.
         }
 
@@ -91,7 +91,7 @@ final readonly class ManualPaymentUi
         $photo = $photos === [] ? null : $photos[array_key_last($photos)];
         $messageId = $bot->message()?->message_id;
 
-        if ($photo === null || ! is_int($messageId)) {
+        if ($photo === null || is_int($messageId) === false) {
             $this->notice($bot, 'تصویر معتبر دریافت نشد. یک عکس معمولی بفرستید.');
             return;
         }
@@ -191,7 +191,7 @@ final readonly class ManualPaymentUi
 
         $id = $this->parseId($claim);
 
-        if ($id === null || ! in_array($choice, ['a', 'r'], true)) {
+        if ($id === null || in_array($choice, ['a', 'r'], true) === false) {
             $this->notice($bot, 'درخواست معتبر نیست.');
             return;
         }
@@ -289,7 +289,7 @@ final readonly class ManualPaymentUi
         foreach ($this->trust->allowedTelegramIds() as $id) {
             $root = $this->actors->handle((int) $id);
 
-            if ($root === null || ! $root->canManageRoles()) {
+            if ($root === null || $root->canManageRoles() === false) {
                 continue;
             }
 
@@ -332,7 +332,7 @@ final readonly class ManualPaymentUi
     {
         $actor = $this->actor($bot);
 
-        if ($actor !== null && ! $actor->canManageRoles()) {
+        if ($actor !== null && $actor->canManageRoles() === false) {
             $this->menus->denyAccess($bot);
             return null;
         }
