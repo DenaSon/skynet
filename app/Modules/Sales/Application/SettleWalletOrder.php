@@ -67,10 +67,25 @@ final readonly class SettleWalletOrder
                     ->where('wallets.user_id', $buyerId)
                     ->where('journals.kind', 'purchase')
                     ->where('journals.idempotency_key', 'purchase:order:'.$orderId)
-                    ->first(['journals.id']);
+                    ->first(['journals.id', 'journals.wallet_id']);
+
+                // The purchase journal alone is insufficient: it must carry
+                // precisely the two correct, balanced money movements.
+                $balanced = $journal !== null
+                    && DB::table('billing_postings')->where('journal_id', $journal->id)->count() === 2
+                    && DB::table('billing_postings')->where('journal_id', $journal->id)
+                        ->where('wallet_id', $journal->wallet_id)
+                        ->where('account_code', 'wallet_liability')
+                        ->where('side', 'debit')
+                        ->where('amount_rials', $order->total_price_rials)->exists()
+                    && DB::table('billing_postings')->where('journal_id', $journal->id)
+                        ->whereNull('wallet_id')
+                        ->where('account_code', 'order_liability')
+                        ->where('side', 'credit')
+                        ->where('amount_rials', $order->total_price_rials)->exists();
 
                 if ($settlement === null || $outbox === null || $journal === null
-                    || $settlement->method !== 'reseller_wallet'
+                    || ! $balanced || $settlement->method !== 'reseller_wallet'
                     || (int) $settlement->amount_rials !== (int) $order->total_price_rials
                     || $outbox->event_key !== 'sales-order:'.$orderId.':create') {
                     throw ValidationException::withMessages(['order' => 'Paid order requires reconciliation.']);

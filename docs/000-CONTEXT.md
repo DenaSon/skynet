@@ -124,7 +124,7 @@ For Windows PowerShell, use `Copy-Item .env.example .env`. Optional frontend: `n
 - Pest fake transport covers empty states, stale/forged/private-chat access, owner-scoped paging, provider errors, read-only behavior and credential redaction. This is **not** BotFather/Remnawave live E2E.
 - PR #28 final CI [38223740272](https://github.com/DenaSon/skynet/actions/runs/38223740272): PHP 8.4/8.5 Pest, PHPStan and Pint green. Squash merged as `3dd9e61974478f35c0a776855a5abe1f3836f6a8`; [master CI 38223868886](https://github.com/DenaSon/skynet/actions/runs/38223868886) green. **No production release or real BotFather/Remnawave E2E has been verified.**
 
-### F11-A1 — Review PR (default-disabled)
+### F11-A1 — PR #30 (CI and merge status must be checked; default-disabled)
 
 - An internal, verified-actor reseller-only `SettleWalletOrder` coordinates a ledger-backed debit (`Billing/Application/DebitWalletForOrder`), one immutable settlement, conditional Sales `paid` transition, and exactly one pending outbox intent in one database transaction.
 - `SALES_WALLET_SETTLEMENT_ENABLED=false` by default; no Telegram/HTTP integration and no outbox consumer. No Remnawave write is reachable.

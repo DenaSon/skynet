@@ -11,7 +11,7 @@ SkyNet is a Laravel 13 application being developed as a **modular monolith**.
 1. Read `docs/000-CONTEXT.md` before changing code.
 2. Read the relevant architecture/module/roadmap documents.
 3. Inspect the actual code, merged PRs, issues, migrations and most recent CI; documentation never overrides observed behavior.
-4. **Current checkpoint (2026-10-12):** F10-A/B/C/D, F10-E1 (#26) and F10-E2 (#27) are merged. F10-E3 Telegram presenter is merged via [PR #28](https://github.com/DenaSon/skynet/pull/28), commit `3dd9e61974478f35c0a776855a5abe1f3836f6a8`; PHP 8.4/8.5 [master CI #38223868886](https://github.com/DenaSon/skynet/actions/runs/38223868886) green. The next independent increment is F11 settlement/dispatch. Never treat 218 mapped Remnawave routes as 218 authorized Application APIs.
+4. **Current checkpoint (2026-10-12):** F10-A/B/C/D, F10-E1 (#26) and F10-E2 (#27) are merged. F10-E3 Telegram presenter is merged via [PR #28](https://github.com/DenaSon/skynet/pull/28), commit `3dd9e61974478f35c0a776855a5abe1f3836f6a8`; PHP 8.4/8.5 [master CI #38223868886](https://github.com/DenaSon/skynet/actions/runs/38223868886) green. F11-A1 wallet-funded internal settlement is in PR #30 with an OFF-by-default flag and pending-only outbox; F11-A2/B payment verification and dispatch remain future work. Never treat 218 mapped Remnawave routes as 218 authorized Application APIs.
 5. Make the smallest change that solves the current task, and add or update tests.
 6. Update at least one relevant document in the **same PR** as any meaningful development change.
 
