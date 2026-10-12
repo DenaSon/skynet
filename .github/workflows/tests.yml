@@ -61,5 +61,10 @@ jobs:
       - name: Static analysis
         run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
 
+      - name: Diagnostic Pint diff (remove before merge)
+        run: |
+          vendor/bin/pint --dirty
+          git diff -- app/Modules/Provisioning/Application/ListAccessibleNodes.php
+
       - name: Formatting verification
         run: vendor/bin/pint --test
