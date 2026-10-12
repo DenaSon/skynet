@@ -261,5 +261,5 @@ it('does not connect new plans to F09 quote/checkout or alter existing payment g
         ->and(DB::table('sales_orders')->count())->toBe(0)
         ->and(config('sales.manual_bank_review_enabled'))->toBeFalse()
         ->and(config('sales.wallet_settlement_enabled'))->toBeFalse()
-        ->and(config('remnawave.writes_enabled'))->toBeFalse();
+        ->and(DB::table('provisioning_subscriptions')->count())->toBe(0);
 });
