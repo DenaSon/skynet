@@ -86,7 +86,7 @@ final readonly class ManualPaymentUi
             return; // Never intercept unrelated images.
         }
 
-        $photos = $bot->message()?->photo ?? [];
+        $photos = $bot->message()->photo ?? [];
         $photo = $photos === [] ? null : $photos[array_key_last($photos)];
         $messageId = $bot->message()?->message_id;
 
@@ -371,7 +371,7 @@ final readonly class ManualPaymentUi
         if ($bot->isCallbackQuery()) {
             $bot->answerCallbackQuery();
 
-            if (($bot->message()?->photo ?? []) !== []) {
+            if (($bot->message()->photo ?? []) !== []) {
                 $bot->editMessageCaption(caption: $text, reply_markup: $keyboard);
                 return;
             }
