@@ -2,7 +2,7 @@
 
 SkyNet is a new Laravel-based platform being developed as a **modular monolith**. It is a clean successor to the Python NVL project, not a translation of the existing bot.
 
-> **Status:** Foundation F1 and F2 merged; F3 Identity is merged. F4 Telegram-first foundation is implemented and CI verified (PR #4); all networking remains deferred. Telegram navigation and Identity authentication exist; business operations, web UI and networking remain deferred.
+> **Current checkpoint (2026-10-12):** F0–F10-D **merged on `master`**: Identity/RBAC, Telegram onboarding/referrals, reseller manual wallets, Sales catalog + `pending_payment` orders, and internal Remnawave transport/Nodes/Users/subscription lifecycle. [Master CI 38213468652](https://github.com/DenaSon/skynet/actions/runs/38213468652): PHP 8.4/8.5 green, 200 tests / 959 assertions. **Not live-E2E validated; no paid-order transition, auto-activation or customer subscription UI.** Next: [Issue #24 (F10-E)](https://github.com/DenaSon/skynet/issues/24).
 
 ## Current stack
 
@@ -46,7 +46,7 @@ The repository checks these on pull requests. Architecture tests currently enfor
 - One Laravel application, one deployable, one primary datastore.
 - Explicit module service providers under `app/Modules`; registration in `bootstrap/providers.php`.
 - `Identity` implements session login/logout, an account endpoint, restricted admin user management and admin bootstrapping. `Administration` remains an empty future UI module.
-- No network architecture or technology has been chosen. WireGuard, Outline, Core/Edge, tunnels, and provisioning are out of scope.
+- **Remnawave** is selected for the external subscription panel API (OpenAPI v3.4.4). Internal provider operation catalog, discovery, node and user wrappers, and SQL-reserved lifecycle are implemented; user-facing provider actions are **not** wired. Independent WireGuard/SSH/Core/Edge/tunnel/network transport design remains a separate decision.
 
 Start with [docs/000-CONTEXT.md](docs/000-CONTEXT.md), follow [AGENTS.md](AGENTS.md), and keep [docs/005-ROADMAP.md](docs/005-ROADMAP.md) current.
 
@@ -89,7 +89,7 @@ An account with the explicitly assigned `reseller` role can use `/wallet`, `/top
 Set `BILLING_TOPUPS_ENABLED=true` only after migration, real BotFather and bank verification E2E. Payment instructions are configured privately in `BILLING_PAYMENT_INSTRUCTIONS`; never commit account/bank secrets. See `docs/006-TELEGRAM-OPERATIONS.md`.
 
 ## F09-A — Sales Catalog & Pricing
-This increment provides **read-only** `ListProducts` and `CalculateQuote` Application Actions (not Telegram menus/orders yet). A product supports volumes from 1 to 100 GB and duration rates for 15, 30, 60 and 90 days. The same public base + per-GB tariff applies to everybody; active `reseller` users receive 5% off in integer-rial arithmetic (the code setting may be reduced to 0%). No guessed real prices are seeded. Terminal-only Artisan commands configure products and tariffs. Example setup and E2E checks are documented in [Sales catalog operations](docs/008-SALES-CATALOG-OPERATIONS.md). F09-B will surface these quotes from the initial Telegram menu. F09-C orders, F10 Remnawave provisioning and F11 payment remain deferred.
+This increment provides **read-only** `ListProducts` and `CalculateQuote` Application Actions (not Telegram menus/orders yet). A product supports volumes from 1 to 100 GB and duration rates for 15, 30, 60 and 90 days. The same public base + per-GB tariff applies to everybody; active `reseller` users receive 5% off in integer-rial arithmetic (the code setting may be reduced to 0%). No guessed real prices are seeded. Terminal-only Artisan commands configure products and tariffs. Example setup and E2E checks are documented in [Sales catalog operations](docs/008-SALES-CATALOG-OPERATIONS.md). F09-B now surfaces these quotes from the initial Telegram menu. F09-C orders and F10-A/B/C/D provider adapters were subsequently implemented; F11 payment settlement and live provider activation remain deferred.
 
 ## F09-B — Telegram price preview
 `/buy` (or **🛒 خرید اشتراک** on the Home screen) shows current duration options with **prices from the first buying page**. Select a duration, choose a preset volume or tap **✏️ حجم دلخواه** and send an integer GB amount (English/Persian/Arabic numerals). A temporary 10-minute per-account selection limits free-text volume input. The preview recalculates the real public rate and any 5% reseller discount with no purchase/order/payment/provisioning. Catalog prices must be configured first using `sales:product:set` and `sales:rate:set`. See [operations](docs/008-SALES-CATALOG-OPERATIONS.md).
@@ -98,3 +98,12 @@ This increment provides **read-only** `ListProducts` and `CalculateQuote` Applic
 After a price preview, **✅ ثبت سفارش** atomically creates one buyer-owned `pending_payment` order **only if the price and role still match current server catalog data**. The ephemeral 10-minute buyer-bound checkout reference and unique DB key make retries idempotent. Home **📋 سفارش‌های من** and `/orders` list the account's last ten orders; individual order details retain original price even if the operator updates tariffs later. No payment, wallet debit, balance reservation or Remnawave provisioning occurs in F09-C.
 
 **F09 completion:** B and C are tested together in PR #16: 135 passing Pest tests / 660 assertions on PHP 8.4 and 8.5 with Larastan and Pint green. This is code/fake transport verification, **not** real Telegram payment or Remnawave activation.
+
+## F10 — Remnawave progress and next starting point
+
+- **Merged:** [#19](https://github.com/DenaSon/skynet/pull/19) 218-operation v3.4.4 transport map; [#20](https://github.com/DenaSon/skynet/pull/20) read-only inventory/inspect CLI; [#21](https://github.com/DenaSon/skynet/pull/21) Nodes API + telemetry; [#23](https://github.com/DenaSon/skynet/pull/23) Users/Subscriptions adapters and durable local lifecycle with read-only uncertain-write reconciliation. The lifecycle checks remote user/expected **Internal Squad membership**; it is not an Identity/Sales authorization layer.
+- **Safety:** `REMNAWAVE_WRITES_ENABLED=false` is the default. No Telegram or checkout handler invokes provider writes. Links are bearer-like credentials; never place them in normal summaries, logs or public callback data. **No real Remnawave panel E2E has occurred.**
+- **Next:** [Issue #24 — F10-E](https://github.com/DenaSon/skynet/issues/24): F10-E1 order-to-subscription ownership, F10-E2 reusable authenticated read Actions, F10-E3 thin Telegram presenter. Future Livewire 4/Mary UI will reuse these Actions.
+- **After F10-E:** F11 needs independently verified order settlement, reseller wallet debits, durable outbox and reconciled provider delivery **before** any paid subscription automation or staging sign-off.
+
+**Developer handoff:** Start at [docs/000-CONTEXT.md](docs/000-CONTEXT.md) (current project memory), then [AGENTS.md](AGENTS.md), [architecture](docs/002-ARCHITECTURE.md), [modules](docs/003-MODULES.md), [roadmap](docs/005-ROADMAP.md), and [Remnawave F10-D operations](docs/012-REMNAWAVE-USER-LIFECYCLE.md). Previous sections on this README preserve the chronological scope of their original phases; this status and Context describe **current** capabilities.
