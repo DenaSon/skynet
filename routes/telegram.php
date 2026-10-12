@@ -10,6 +10,7 @@ use App\Interfaces\Telegram\Handlers\LinkHandler;
 use App\Interfaces\Telegram\Handlers\SettingsHandler;
 use App\Interfaces\Telegram\Handlers\StartHandler;
 use App\Interfaces\Telegram\Support\BillingUi;
+use App\Interfaces\Telegram\Support\ManualPaymentUi;
 use App\Interfaces\Telegram\Support\RbacUi;
 use App\Interfaces\Telegram\Support\ShopUi;
 use App\Interfaces\Telegram\Support\SubscriptionUi;
@@ -40,6 +41,15 @@ $bot->onCommand('topup {toman}', function (Nutgram $bot, string $toman): void {
 $bot->onCommand('paid {id} {reference}', function (Nutgram $bot, string $id, string $reference): void {
     app(BillingUi::class)->paid($bot, $id, $reference);
 });
+$bot->onCommand('payments', function (Nutgram $bot): void {
+    app(ManualPaymentUi::class)->list($bot);
+});
+$bot->onCommand('bankconfirm {claim} {reference}', function (Nutgram $bot, string $claim, string $reference): void {
+    app(ManualPaymentUi::class)->bankConfirm($bot, $claim, $reference);
+});
+$bot->onPhoto(function (Nutgram $bot): void {
+    app(ManualPaymentUi::class)->photo($bot);
+});
 $bot->onCommand('topups', function (Nutgram $bot): void {
     app(BillingUi::class)->reviews($bot);
 });
@@ -60,6 +70,21 @@ $bot->onCallbackQueryData('menu:account', AccountHandler::class);
 $bot->onCallbackQueryData('menu:invite', InviteHandler::class);
 $bot->onCallbackQueryData('menu:wallet', function (Nutgram $bot): void {
     app(BillingUi::class)->wallet($bot);
+});
+$bot->onCallbackQueryData('bank:list', function (Nutgram $bot): void {
+    app(ManualPaymentUi::class)->list($bot);
+});
+$bot->onCallbackQueryData('bank:show:{claim}', function (Nutgram $bot, string $claim): void {
+    app(ManualPaymentUi::class)->show($bot, $claim);
+});
+$bot->onCallbackQueryData('bank:choose:{claim}:{decision}', function (Nutgram $bot, string $claim, string $decision): void {
+    app(ManualPaymentUi::class)->choose($bot, $claim, $decision);
+});
+$bot->onCallbackQueryData('bank:apply:{token}', function (Nutgram $bot, string $token): void {
+    app(ManualPaymentUi::class)->apply($bot, $token);
+});
+$bot->onCallbackQueryData('shop:pay:{id}', function (Nutgram $bot, string $id): void {
+    app(ManualPaymentUi::class)->start($bot, $id);
 });
 $bot->onCallbackQueryData('billing:help', function (Nutgram $bot): void {
     app(BillingUi::class)->help($bot);

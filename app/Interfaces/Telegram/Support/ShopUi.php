@@ -395,8 +395,13 @@ final class ShopUi
 
     private function showOrder(Nutgram $bot, OrderDetails $order): void
     {
-        $keyboard = InlineKeyboardMarkup::make()
-            ->addRow(InlineKeyboardButton::make('📋 سفارش‌های من', callback_data: 'shop:orders'))
+        $keyboard = InlineKeyboardMarkup::make();
+
+        if ($order->status === 'pending_payment' && config('sales.manual_bank_review_enabled', false)) {
+            $keyboard->addRow(InlineKeyboardButton::make('🧾 ارسال رسید پرداخت', callback_data: 'shop:pay:'.$order->id));
+        }
+
+        $keyboard->addRow(InlineKeyboardButton::make('📋 سفارش‌های من', callback_data: 'shop:orders'))
             ->addRow(InlineKeyboardButton::make('🛒 سفارش جدید', callback_data: 'menu:shop'))
             ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'menu:home'));
 
@@ -414,9 +419,9 @@ final class ShopUi
         }
 
         $lines[] = 'مبلغ ثبت‌شده: '.$this->formatToman($order->totalPriceRials).' تومان';
-        $lines[] = 'وضعیت: در انتظار پرداخت';
+        $lines[] = 'وضعیت: '.($order->status === 'paid' ? '🕘 پرداخت ثبت‌شده؛ در انتظار فعال‌سازی' : '🟠 در انتظار پرداخت یا بررسی رسید');
         $lines[] = '';
-        $lines[] = 'ℹ️ هنوز وجهی دریافت یا از کیف پول کسر نشده و سرویس VPN ساخته نشده است.';
+        $lines[] = 'ℹ️ ارسال تصویر رسید به‌تنهایی به معنی دریافت وجه نیست؛ فعال‌سازی فقط بعد از بررسی معتبر انجام می‌شود.';
 
         $this->render($bot, implode("\n", $lines), $keyboard);
     }

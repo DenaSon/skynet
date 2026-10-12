@@ -130,3 +130,9 @@ For Windows PowerShell, use `Copy-Item .env.example .env`. Optional frontend: `n
 - `SALES_WALLET_SETTLEMENT_ENABLED=false` by default; no Telegram/HTTP integration and no outbox consumer. No Remnawave write is reachable.
 - Ledger purchase journal transfers prepaid wallet liability to an unfulfilled-order liability, not immediate revenue. Retry is bound to the exact original wallet journal/amount/order and fail-closed on inconsistent state.
 - Review tests, CI and exact PR merge before calling this released. Real bank evidence, MySQL concurrent workers, provider and BotFather E2E remain unverified. See `docs/013-F11-WALLET-SETTLEMENT.md`.
+
+### F11-A2 — Manual direct-transfer review (PR review, OFF by default)
+
+- `ManualBankPayments` and `ManualPaymentUi` connect a pending customer order to a Telegram photo receipt, notify eligible Super Admins and let them review by private inline keyboards. Photo file IDs are encrypted, state is persisted, and an image never automatically settles an order.
+- The final approval is a separate actor-bound, 3-minute one-use decision, after the Super Admin manually enters a BANK-statement-verified reference; a unique F08/F11 claim prevents payment reference reuse. Approval atomically records balanced direct-bank postings, transitions `pending_payment -> paid`, and inserts one pending fulfillment outbox event. Reject is audited and keeps order unpaid.
+- OFF by default via `SALES_MANUAL_BANK_REVIEW_ENABLED=false`. Do not enable until bank matching SOP, database locking/concurrency, operator procedures and real BotFather/bank E2E are verified. F11-B provider dispatch does not exist. See `docs/014-F11-BANK-REVIEW.md`.
