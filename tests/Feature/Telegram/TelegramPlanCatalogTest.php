@@ -64,17 +64,18 @@ function b15Preset(
         $kind === 'time' ? null : 100, 15, 90, 10, $featured,
     ));
 
-    $pricing = app(ManagePlanPricing::class);
-    $revision = $pricing->configure(
-        $root->id, $plan->id, 1, 0,
-        new PlanPricingDefinition('fixed', $priceRials, 0, 0, 0, $discount, 100_000),
-    );
-    $token = $pricing->requestChange($root->id, $plan->id, 1, $revision, 'activate');
-    $pricing->confirmChange($root->id, $token);
-
     $plans = app(ManagePlans::class);
     $token = $plans->requestChange($root->id, $plan->id, 1, 'activate');
     $plans->confirmChange($root->id, $token);
+
+    // Publishing a tariff must bind the *current* activated plan revision.
+    $pricing = app(ManagePlanPricing::class);
+    $revision = $pricing->configure(
+        $root->id, $plan->id, 2, 0,
+        new PlanPricingDefinition('fixed', $priceRials, 0, 0, 0, $discount, 100_000),
+    );
+    $token = $pricing->requestChange($root->id, $plan->id, 2, $revision, 'activate');
+    $pricing->confirmChange($root->id, $token);
 
     return $plan->id;
 }
