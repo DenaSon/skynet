@@ -1,6 +1,8 @@
 # F11-A2 — Manual Bank Receipt Review (staging only)
 
-**Status:** new implementation, enabled only with `SALES_MANUAL_BANK_REVIEW_ENABLED=true` and real bank review procedures. Default false. No bank API or provider account creation is implemented, and a Telegram screenshot is NEVER treated as proof of payment by itself.
+**Merged:** [PR #33](https://github.com/DenaSon/skynet/pull/33), SHA `1cd472eb3aa4655cfa70ae1a94b76e375309dab0`, [master CI 38231567621](https://github.com/DenaSon/skynet/actions/runs/38231567621) green.
+
+**Safety:** enabled only with `SALES_MANUAL_BANK_REVIEW_ENABLED=true` and real bank review procedures. Default false. No bank API or provider account creation is implemented, and a Telegram screenshot is NEVER treated as proof of payment by itself.
 
 ## Customer / Super Admin
 
