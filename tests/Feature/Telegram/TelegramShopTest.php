@@ -176,7 +176,7 @@ it('shows a clear unavailable notice if the operator has configured no real tari
     $bot = shopBot(921010, $buyer);
 
     $bot->hearText('/buy')->reply()->assertReplyText(
-        "🛒 خرید اشتراک\n\nدر حال حاضر تعرفه فعالی تعریف نشده است. خرید هنوز در دسترس نیست."
+        "🛒 خرید اشتراک\n\nدر حال حاضر اشتراکی برای خرید موجود نیست."
     );
 });
 
