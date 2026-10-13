@@ -42,3 +42,13 @@ Run `php artisan test`, `vendor/bin/phpstan analyse --no-progress` and `vendor/b
 ## F11-B1.1 plan catalog (internal-only)
 
 The legacy F09 `sales:product:set` and `sales:rate:set` commands remain for existing quote/checkout. New plans are managed exclusively with root-only Application Actions and are **not priced or orderable**. Use `ManagePlans` to create draft, update by expected revision and request/confirm activation, deactivation, archival or deletion. All root mutations are audited; confirmations expire in three minutes. `ListVisiblePlans` is only a scoped listing. The Telegram UI for managing plans will be built in B1.4. See `docs/015-SALES-PLAN-CATALOG.md`.
+
+
+## Telegram root management (F11-CATALOG-01)
+
+The private /products command and Super Admin /admin -> 📚 محصولات پایه now manage base products and legacy 15/30/60/90-day F09 rates. They do NOT manage fixed/formula F11 plan tariffs (continue using /plans). Forms:
+- New product: vpn-extra | اشتراک ویژه | 1 | 100
+- Edit existing product: اشتراک به‌روز | 1 | 100 (slug immutable)
+- Legacy rate for chosen duration: 50000 | 2000 (baseToman | perGBToman)
+
+Create/edit are previewed and confirmed with owner-scoped single-use 3-minute tokens. New products, new rates, and updated rates are inactive until separately enabled. All operations are independently root-authorized, audited (sales_catalog_management_audits), and protected against concurrent changes. No deletion, finance or provider writes. The old Artisan sales:product:set and sales:rate:set remain compatible; their edits invalidate an in-flight Telegram preview via fresh state comparisons. Existing production records are preserved by the additive audit-only migration.
