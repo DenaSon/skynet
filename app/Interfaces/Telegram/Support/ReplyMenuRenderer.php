@@ -78,6 +78,7 @@ final class ReplyMenuRenderer
         if ($actor->canManageRoles()) {
             $labels[] = ReplyMenuLabels::ROLES;
             $labels[] = ReplyMenuLabels::PLANS;
+            $labels[] = ReplyMenuLabels::PRODUCTS;
 
             if (config('billing.topups_enabled', false) === true) {
                 $labels[] = ReplyMenuLabels::TOPUPS;

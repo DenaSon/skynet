@@ -26,6 +26,7 @@ final class ShopUi
         private readonly CalculateQuote $pricing,
         private readonly PendingShopVolume $pending,
         private readonly PendingBuilderSelection $pendingBuilder,
+        private readonly ProductAdminDrafts $productDrafts,
         private readonly MenuRenderer $menus,
         private readonly CheckoutTokens $checkoutTokens,
         private readonly CreatePendingOrder $createOrder,
@@ -42,6 +43,7 @@ final class ShopUi
 
         $this->pending->forget($actor->userId);
         $this->pendingBuilder->forget($actor->userId);
+        $this->productDrafts->forget($actor->userId);
 
         try {
             $products = $this->catalog->handle($actor->userId);

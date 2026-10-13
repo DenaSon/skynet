@@ -15,6 +15,7 @@ use App\Interfaces\Telegram\Support\ManualPaymentUi;
 use App\Interfaces\Telegram\Support\PlanAdminUi;
 use App\Interfaces\Telegram\Support\PlanCatalogUi;
 use App\Interfaces\Telegram\Support\PrivateTelegramUser;
+use App\Interfaces\Telegram\Support\ProductAdminUi;
 use App\Interfaces\Telegram\Support\RbacUi;
 use App\Interfaces\Telegram\Support\ResellerBuilderUi;
 use App\Interfaces\Telegram\Support\ShopUi;
@@ -79,6 +80,9 @@ $bot->onCommand('builder', function (Nutgram $bot): void {
 });
 $bot->onCommand('catalog', function (Nutgram $bot): void {
     app(PlanCatalogUi::class)->browse($bot);
+});
+$bot->onCommand('products', function (Nutgram $bot): void {
+    app(ProductAdminUi::class)->browse($bot);
 });
 $bot->onCommand('plans', function (Nutgram $bot): void {
     app(PlanAdminUi::class)->browse($bot);
@@ -169,6 +173,27 @@ $bot->onCallbackQueryData('plan:list:{page}', function (Nutgram $bot, string $pa
 });
 $bot->onCallbackQueryData('plan:examples', function (Nutgram $bot): void {
     app(PlanAdminUi::class)->examples($bot);
+});
+$bot->onCallbackQueryData('menu:admin:products', function (Nutgram $bot): void {
+    app(ProductAdminUi::class)->browse($bot);
+});
+$bot->onCallbackQueryData('product:list:{page}', function (Nutgram $bot, string $page): void {
+    app(ProductAdminUi::class)->browse($bot, ctype_digit($page) ? min(10000, (int) $page) : 1);
+});
+$bot->onCallbackQueryData('product:view:{id}', function (Nutgram $bot, string $id): void {
+    app(ProductAdminUi::class)->detail($bot, $id);
+});
+$bot->onCallbackQueryData('product:form:{operation}:{id}:{days}', function (Nutgram $bot, string $operation, string $id, string $days): void {
+    app(ProductAdminUi::class)->form($bot, $operation, $id, $days);
+});
+$bot->onCallbackQueryData('product:status:{operation}:{id}:{days}', function (Nutgram $bot, string $operation, string $id, string $days): void {
+    app(ProductAdminUi::class)->status($bot, $operation, $id, $days);
+});
+$bot->onCallbackQueryData('product:apply:{token}', function (Nutgram $bot, string $token): void {
+    app(ProductAdminUi::class)->apply($bot, $token);
+});
+$bot->onCallbackQueryData('product:cancel', function (Nutgram $bot): void {
+    app(ProductAdminUi::class)->cancel($bot);
 });
 $bot->onCallbackQueryData('plan:products', function (Nutgram $bot): void {
     app(PlanAdminUi::class)->products($bot);
@@ -276,6 +301,10 @@ $bot->onCallbackQueryData('shop:quote:{id}:{days}:{gb}', function (Nutgram $bot,
 // Unknown text still reaches the pending custom-volume flow. Commands keep priority.
 $bot->onText('{volume}', function (Nutgram $bot, string $volume): void {
     if (app(ReplyMenuHandler::class)->handle($bot, $volume)) {
+        return;
+    }
+
+    if (app(ProductAdminUi::class)->text($bot, $volume)) {
         return;
     }
 

@@ -26,6 +26,9 @@ final readonly class ProductAdminUi
         private ManageBaseCatalog $catalog,
         private ProductAdminForms $forms,
         private ProductAdminDrafts $drafts,
+        private PlanAdminDrafts $planDrafts,
+        private PendingBuilderSelection $pendingBuilder,
+        private PendingShopVolume $pendingShop,
         private MenuRenderer $menus,
     ) {}
 
@@ -161,6 +164,9 @@ final readonly class ProductAdminUi
             return;
         }
 
+        $this->planDrafts->forget($actor->userId);
+        $this->pendingBuilder->forget($actor->userId);
+        $this->pendingShop->forget($actor->userId);
         $this->drafts->store($actor->userId, $this->state($operation, $pid, $duration, '', 'input', '', $snapshot));
         $existing = $operation === 'rate'
             ? collect($product['rates'])->firstWhere('duration_days', $duration)
@@ -262,6 +268,9 @@ final readonly class ProductAdminUi
             return;
         }
 
+        $this->planDrafts->forget($actor->userId);
+        $this->pendingBuilder->forget($actor->userId);
+        $this->pendingShop->forget($actor->userId);
         $token = bin2hex(random_bytes(12));
         $this->drafts->store($actor->userId,
             $this->state($operation, $pid, $duration, '', 'preview', $token, $s), true);

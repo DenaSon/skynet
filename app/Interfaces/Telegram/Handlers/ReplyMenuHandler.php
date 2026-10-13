@@ -10,6 +10,8 @@ use App\Interfaces\Telegram\Support\PlanAdminDrafts;
 use App\Interfaces\Telegram\Support\PlanAdminUi;
 use App\Interfaces\Telegram\Support\PlanCatalogUi;
 use App\Interfaces\Telegram\Support\PrivateTelegramUser;
+use App\Interfaces\Telegram\Support\ProductAdminDrafts;
+use App\Interfaces\Telegram\Support\ProductAdminUi;
 use App\Interfaces\Telegram\Support\RbacUi;
 use App\Interfaces\Telegram\Support\ReplyMenuLabels;
 use App\Interfaces\Telegram\Support\ReplyMenuRenderer;
@@ -29,6 +31,7 @@ final class ReplyMenuHandler
         private readonly ReplyMenuRenderer $replyMenus,
         private readonly PendingShopVolume $pendingVolume,
         private readonly PlanAdminDrafts $planDrafts,
+        private readonly ProductAdminDrafts $productDrafts,
         private readonly PendingBuilderSelection $pendingBuilder,
     ) {}
 
@@ -60,6 +63,7 @@ final class ReplyMenuHandler
         // A button tap is navigation, never a custom volume submission.
         $this->pendingVolume->forget($actor->userId);
         $this->planDrafts->forget($actor->userId);
+        $this->productDrafts->forget($actor->userId);
         $this->pendingBuilder->forget($actor->userId);
 
         switch ($text) {
@@ -128,6 +132,17 @@ final class ReplyMenuHandler
                 }
 
                 app(UserManagementUi::class)->browse($bot);
+
+                return true;
+
+            case ReplyMenuLabels::PRODUCTS:
+                if (! $actor->canManageRoles()) {
+                    $this->deny($bot, $actor);
+
+                    return true;
+                }
+
+                app(ProductAdminUi::class)->browse($bot);
 
                 return true;
 

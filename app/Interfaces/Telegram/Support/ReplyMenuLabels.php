@@ -28,6 +28,8 @@ final class ReplyMenuLabels
 
     public const PLANS = '📦 مدیریت پلن‌ها';
 
+    public const PRODUCTS = '📚 محصولات پایه';
+
     public const TOPUPS = '💳 بررسی شارژها';
 
     public const RECEIPTS = '🧾 بررسی رسیدهای خرید';
@@ -42,7 +44,7 @@ final class ReplyMenuLabels
         return [
             self::BUY, self::SUBSCRIPTIONS, self::CATALOG, self::ACCOUNT, self::INVITE,
             self::SETTINGS, self::ADMIN, self::WALLET, self::BUILDER, self::USERS,
-            self::ROLES, self::PLANS, self::TOPUPS, self::RECEIPTS, self::HOME,
+            self::ROLES, self::PLANS, self::PRODUCTS, self::TOPUPS, self::RECEIPTS, self::HOME,
         ];
     }
 }

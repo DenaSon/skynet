@@ -99,6 +99,7 @@ final class MenuRenderer
         if ($actor->canManageRoles()) {
             $keyboard->addRow(InlineKeyboardButton::make('🔐 نقش‌ها و دسترسی‌ها', callback_data: 'menu:admin:roles'));
             $keyboard->addRow(InlineKeyboardButton::make('📦 مدیریت پلن‌ها', callback_data: 'menu:admin:plans'));
+            $keyboard->addRow(InlineKeyboardButton::make('📚 محصولات پایه', callback_data: 'menu:admin:products'));
             $keyboard->addRow(InlineKeyboardButton::make('💳 بررسی شارژها', callback_data: 'menu:billing-reviews'));
             $keyboard->addRow(InlineKeyboardButton::make('🧾 بررسی رسیدهای خرید', callback_data: 'bank:list'));
         }

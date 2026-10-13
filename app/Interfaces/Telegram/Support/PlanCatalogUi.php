@@ -24,6 +24,7 @@ final readonly class PlanCatalogUi
         private ListQuotedPresets $catalog,
         private PendingShopVolume $pendingVolume,
         private PendingBuilderSelection $pendingBuilder,
+        private ProductAdminDrafts $productDrafts,
         private MenuRenderer $menus,
     ) {}
 
@@ -36,6 +37,7 @@ final readonly class PlanCatalogUi
 
         $this->pendingVolume->forget($actor->userId);
         $this->pendingBuilder->forget($actor->userId);
+        $this->productDrafts->forget($actor->userId);
 
         try {
             $entries = $this->catalog->handle($actor->userId);
