@@ -186,4 +186,13 @@ it('edits only the selected plan field without losing the old full-form editing 
 
     $bot->hearCallbackQueryData('plan:cancel')->reply();
     expect(app(PlanAdminDrafts::class)->peek($root->id))->toBeNull();
+
+    $bot->hearCallbackQueryData("plan:begin:edit:{$plan->id}")->reply();
+    $bot->hearCallbackQueryData('plan:editquick')->reply()->assertCalled('editMessageText');
+    expect(app(PlanAdminDrafts::class)->peek($root->id)['stage'])->toBe('input')
+        ->and(DB::table('sales_plans')->value('name'))->toBe('نام جدید');
+
+    $bot->hearCallbackQueryData('plan:editfields')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('plan:cancel')->reply();
+    expect(app(PlanAdminDrafts::class)->peek($root->id))->toBeNull();
 });
