@@ -295,6 +295,7 @@ final readonly class PlanAdminUi
         if (mb_strlen($example) <= 256) {
             $keyboard->addRow(TelegramUi::copy($example));
         }
+        $keyboard->addRow(InlineKeyboardButton::make('✏️ تغییر یک مورد', callback_data: 'plan:editfields'));
         $keyboard->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'plan:cancel'));
         $this->render($bot, "📝 فرم پلن\n\n".htmlspecialchars($hint, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
             ."\n\n📋 نمونه قابل کپی:\n".TelegramUi::code($example)
@@ -306,6 +307,52 @@ final readonly class PlanAdminUi
      * Called by the existing last-resort onText handler, before shop custom GB.
      * True means this text belongs to a pending, owner-bound admin form.
      */
+    /** @return list<string> */
+    private function editLabels(): array
+    {
+        return [
+            'محصول', 'شناسه پلن', 'نام پلن', 'نوع سرویس', 'حالت پلن',
+            'نمایش برای', 'حجم ثابت', 'مدت ثابت', 'حداقل حجم',
+            'حداکثر حجم', 'حداقل مدت', 'حداکثر مدت', 'ترتیب نمایش', 'نمایش ویژه',
+        ];
+    }
+
+    public function editFields(Nutgram $bot): void
+    {
+        $actor = $this->actor($bot);
+        if ($actor === null) {
+            return;
+        }
+
+        $state = $this->drafts->peek($actor->userId);
+        if ($state === null || $state['type'] !== 'edit' || $state['stage'] === 'preview') {
+            $this->notice($bot, 'ابتدا از صفحه پلن، ویرایش را انتخاب کنید.');
+
+            return;
+        }
+
+        $plan = $this->plans->find($actor->userId, $state['plan_id']);
+        if ($plan->revision !== $state['plan_revision']) {
+            $this->notice($bot, 'اطلاعات پلن تغییر کرده است. دوباره وارد ویرایش شوید.');
+
+            return;
+        }
+
+        $state['form'] = '';
+        $state['stage'] = 'input';
+        $this->drafts->store($actor->userId, $state);
+        $keyboard = InlineKeyboardMarkup::make();
+        foreach (array_chunk($this->editLabels(), 2, true) as $row) {
+            $buttons = [];
+            foreach ($row as $index => $label) {
+                $buttons[] = InlineKeyboardButton::make($label, callback_data: 'plan:editfield:'.$index);
+            }
+            $keyboard->addRow(...$buttons);
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('◀️ بازگشت به ویرایش', callback_data: 'plan:begin:edit:'.$state['plan_id']));
+        $this->render($bot, "✏️ ویرایش پلن\n\nکدام مورد را می‌خواهید تغییر دهید؟", $keyboard);
+    }
+
     /** @return list<array{0:string,1:string,2:bool}> */
     private function wizardFields(string $type): array
     {
