@@ -153,7 +153,6 @@ it('keeps grouped navigation role-gated and legacy menu targets routable', funct
     expect(DB::table('sales_orders')->count())->toBe(0);
 });
 
-
 it('edits only the selected plan field without losing the old full-form editing path', function (): void {
     [$root, $bot] = uxPolishRoot();
     app(ConfigureProduct::class)->handle('vpn-access', 'VPN access');

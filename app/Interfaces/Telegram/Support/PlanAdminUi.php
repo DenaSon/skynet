@@ -49,7 +49,7 @@ final readonly class PlanAdminUi
         $keyboard = InlineKeyboardMarkup::make();
 
         foreach ($entries as $entry) {
-            $lines[] = $this->statusIcon($entry->status)." #{$entry->id} — ".$this->safe($entry->name)." (".TelegramUi::planMode($entry->mode).")";
+            $lines[] = $this->statusIcon($entry->status)." #{$entry->id} — ".$this->safe($entry->name).' ('.TelegramUi::planMode($entry->mode).')';
             $keyboard->addRow(InlineKeyboardButton::make(
                 '#'.$entry->id.' · '.mb_substr($this->safe($entry->name), 0, 32),
                 callback_data: 'plan:view:'.$entry->id,
@@ -916,11 +916,13 @@ final readonly class PlanAdminUi
     private function tariffText(PlanTariffSummary $tariff): string
     {
         $value = $tariff->method === 'fixed'
-            ? 'ثابت: '.number_format((int) $tariff->fixedPriceRials).' ریال'
-            : 'پایه: '.number_format($tariff->basePriceRials).' + هر GB: '.number_format($tariff->perGbRials)
-                .' + هر روز: '.number_format($tariff->perDayRials).' ریال';
+            ? 'قیمت ثابت: '.TelegramUi::toman((int) $tariff->fixedPriceRials).' تومان'
+            : 'قیمت پایه: '.TelegramUi::toman($tariff->basePriceRials).' تومان'
+                ."\nهر گیگ: ".TelegramUi::toman($tariff->perGbRials).' تومان'
+                ."\nهر روز: ".TelegramUi::toman($tariff->perDayRials).' تومان';
 
-        return $value."\nکف: ".number_format($tariff->minimumTotalRials)." ریال | تخفیف نماینده: {$tariff->resellerDiscountPercent}%";
+        return $value."\nحداقل قیمت: ".TelegramUi::toman($tariff->minimumTotalRials)
+            ." تومان | تخفیف نماینده: {$tariff->resellerDiscountPercent}٪";
     }
 
     private function id(string $value): ?int
