@@ -226,6 +226,9 @@ $bot->onCallbackQueryData('plan:status:{id}:{operation}', function (Nutgram $bot
 $bot->onCallbackQueryData('plan:apply:{type}:{token}', function (Nutgram $bot, string $type, string $token): void {
     app(PlanAdminUi::class)->applyStatus($bot, $type, $token);
 });
+$bot->onCallbackQueryData('plan:editquick', function (Nutgram $bot): void {
+    app(PlanAdminUi::class)->editQuick($bot);
+});
 $bot->onCallbackQueryData('plan:editfields', function (Nutgram $bot): void {
     app(PlanAdminUi::class)->editFields($bot);
 });
