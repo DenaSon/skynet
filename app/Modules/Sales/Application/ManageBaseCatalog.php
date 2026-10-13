@@ -44,6 +44,53 @@ final readonly class ManageBaseCatalog
         return $this->currentSnapshot($operation, $id, $days);
     }
 
+    /** @param array<string, int|string|bool> $values */
+    public function validate(int $rootId, string $operation, int $id, int $days, array $values): void
+    {
+        $this->access->handle($rootId);
+        $this->currentSnapshot($operation, $id, $days);
+
+        if ($operation === 'create') {
+            $data = $this->productValues($values, true);
+            if (DB::table('sales_products')->where('slug', $data['slug'])->exists()) {
+                throw $this->invalid();
+            }
+
+            return;
+        }
+
+        if ($operation === 'edit') {
+            $this->productValues($values, false);
+
+            return;
+        }
+
+        if ($operation === 'rate') {
+            $this->rateValues($values);
+
+            return;
+        }
+
+        if ($values !== []) {
+            throw $this->invalid();
+        }
+
+        $product = $this->requireProduct($id);
+        if (in_array($operation, ['enable', 'disable'], true)) {
+            if ((bool) $product->is_active === ($operation === 'enable')) {
+                throw $this->invalid();
+            }
+
+            return;
+        }
+
+        $rate = DB::table('sales_product_rates')->where('product_id', $id)
+            ->where('duration_days', $days)->first();
+        if ($rate === null || (bool) $rate->is_active === ($operation === 'rate-enable')) {
+            throw $this->invalid();
+        }
+    }
+
     /**
      * @param array<string, int|string|bool> $values Prevalidated UI fields;
      *                                            the Application action validates again.
