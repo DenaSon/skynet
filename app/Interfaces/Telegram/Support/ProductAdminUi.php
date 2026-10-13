@@ -235,6 +235,7 @@ final readonly class ProductAdminUi
             'create' => 'ساخت محصول',
             'edit' => 'ویرایش محصول',
             'rate' => 'تنظیم قیمت فروش',
+            default => 'فرم محصول',
         };
         $this->render($bot, "📝 {$title} — مرحله ".($index + 1)." از {$count}\n\n"
             .htmlspecialchars($label, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
@@ -293,6 +294,7 @@ final readonly class ProductAdminUi
             'create' => 'vpn-extra | اشتراک ویژه | 1 | 100',
             'edit' => $this->editExample($actor->userId, $s['id']),
             'rate' => '50000 | 2000',
+            default => '',
         };
         $keyboard = InlineKeyboardMarkup::make()
             ->addRow(TelegramUi::copy($example))

@@ -287,32 +287,9 @@ final readonly class PlanAdminUi
             return;
         }
 
-        $hint = match ($type) {
-            'preset' => "پلن ثابت (۷ فیلد):\nproduct | slug | name | kind | audience | GB/- | days\nمثال:\nvpn-access | standard-30 | استاندارد ۳۰ | hybrid | both | 30 | 30",
-            'builder' => "پلن‌ساز نماینده (۸ فیلد):\nproduct | slug | name | kind | minGB/- | maxGB/- | minDays | maxDays\nمثال:\nvpn-access | custom-30 | سفارشی | hybrid | 1 | 100 | 15 | 90",
-            'edit' => "ویرایش (۱۴ فیلد):\nproduct | slug | name | kind | mode | audience | GB/- | days/- | minGB/- | maxGB/- | minDays | maxDays | order | featured(0/1)\n\nمتن فعلی را کپی، اصلاح و ارسال کنید:\n".$this->forms->editLine($plan instanceof PlanSummary ? $plan : throw new \LogicException('Plan missing')),
-            'fixed' => "تعرفه ثابت (۳ فیلد؛ همگی تومان به‌جز درصد):\npriceToman | minimumToman | resellerDiscountPercent\nمثال:\n120000 | 60000 | 5",
-            'formula' => "تعرفه فرمولی (۵ فیلد؛ تومان به‌جز درصد):\nbaseToman | perGBToman | perDayToman | minimumToman | resellerDiscountPercent\nمثال:\n50000 | 10000 | 2000 | 20000 | 5",
-        };
-
-        if ($price !== null && in_array($type, ['fixed', 'formula'], true) && $type === $price->method) {
-            $hint .= "\n\nمقادیر فعلی (برای اطلاع، درصورت غیرمضرب ۱۰ ریال اعداد را جداگانه بررسی کنید):\n".$this->forms->tariffLine($price);
-        }
-
-        $example = match ($type) {
-            'preset' => 'vpn-access | standard-30 | استاندارد ۳۰ | hybrid | both | 30 | 30',
-            'builder' => 'vpn-access | custom-30 | سفارشی | hybrid | 1 | 100 | 15 | 90',
-            'edit' => $this->forms->editLine($plan instanceof PlanSummary ? $plan : throw new \LogicException('Plan missing')),
-            'fixed' => '120000 | 60000 | 5',
-            'formula' => '50000 | 10000 | 2000 | 20000 | 5',
-        };
-        if (in_array($type, ['preset', 'builder'], true)) {
-            $active = collect($this->plans->products($actor->userId))
-                ->first(static fn (array $entry): bool => $entry['active']);
-            if ($active !== null) {
-                $example = (string) $active['slug'].mb_substr($example, mb_strlen('vpn-access'));
-            }
-        }
+        $current = $plan instanceof PlanSummary ? $plan : throw new \LogicException('Plan missing');
+        $example = $this->forms->editLine($current);
+        $hint = "ویرایش پلن\n\nمتن فعلی را اصلاح کنید و بفرستید.";
 
         $keyboard = InlineKeyboardMarkup::make();
         if (mb_strlen($example) <= 256) {
