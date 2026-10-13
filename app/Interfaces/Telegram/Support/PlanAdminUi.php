@@ -353,6 +353,78 @@ final readonly class PlanAdminUi
         $this->render($bot, "✏️ ویرایش پلن\n\nکدام مورد را می‌خواهید تغییر دهید؟", $keyboard);
     }
 
+    /** @return list<string> */
+    private function editChoices(int $index): array
+    {
+        return match ($index) {
+            3 => ['volume', 'time', 'hybrid'],
+            4 => ['preset', 'builder'],
+            5 => ['public', 'reseller', 'both'],
+            13 => ['0', '1'],
+            default => [],
+        };
+    }
+
+    public function editField(Nutgram $bot, string $field): void
+    {
+        $actor = $this->actor($bot);
+        if ($actor === null) {
+            return;
+        }
+
+        $state = $this->drafts->peek($actor->userId);
+        $labels = $this->editLabels();
+        if ($state === null || $state['type'] !== 'edit' || $state['stage'] === 'preview'
+            || preg_match('/\A(?:0|[1-9][0-9]{0,2})\z/D', $field) !== 1
+            || ! isset($labels[(int) $field])) {
+            $this->notice($bot, 'این انتخاب معتبر نیست. دوباره وارد ویرایش شوید.');
+
+            return;
+        }
+
+        $plan = $this->plans->find($actor->userId, $state['plan_id']);
+        if ($plan->revision !== $state['plan_revision']) {
+            $this->notice($bot, 'پلن تغییر کرده است. ویرایش را دوباره شروع کنید.');
+
+            return;
+        }
+
+        $parts = explode(' | ', $this->forms->editLine($plan));
+        $index = (int) $field;
+        if (! isset($parts[$index])) {
+            $this->notice($bot, 'ویرایش این مورد ممکن نیست.');
+
+            return;
+        }
+
+        $state['form'] = implode(' | ', $parts);
+        $state['stage'] = 'editfield:'.$index;
+        $this->drafts->store($actor->userId, $state);
+        $keyboard = InlineKeyboardMarkup::make();
+        foreach (array_chunk($this->editChoices($index), 2) as $row) {
+            $buttons = [];
+            foreach ($row as $value) {
+                $display = match ($index) {
+                    3 => TelegramUi::planKind($value),
+                    4 => TelegramUi::planMode($value),
+                    5 => TelegramUi::audience($value),
+                    default => $value === '1' ? 'بله' : 'خیر',
+                };
+                $buttons[] = InlineKeyboardButton::make($display, callback_data: 'plan:editchoice:'.$value);
+            }
+            $keyboard->addRow(...$buttons);
+        }
+        if (mb_strlen($parts[$index]) <= 256) {
+            $keyboard->addRow(TelegramUi::copy($parts[$index], '📋 کپی مقدار فعلی'));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('◀️ سایر مشخصات', callback_data: 'plan:editfields'))
+            ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'plan:cancel'));
+
+        $this->render($bot, '✏️ ویرایش '.$labels[$index]."\n\nمقدار فعلی: "
+            .TelegramUi::code($parts[$index])."\n\nمقدار جدید را ارسال کنید یا از دکمه‌ها انتخاب کنید.",
+            $keyboard, true);
+    }
+
     /** @return list<array{0:string,1:string,2:bool}> */
     private function wizardFields(string $type): array
     {
