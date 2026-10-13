@@ -92,8 +92,8 @@ final readonly class ManageBaseCatalog
     }
 
     /**
-     * @param array<string, int|string|bool> $values Prevalidated UI fields;
-     *                                            the Application action validates again.
+     * @param  array<string, int|string|bool>  $values  Prevalidated UI fields;
+     *                                                  the Application action validates again.
      */
     public function apply(int $rootId, string $operation, int $id, int $days, array $values, string $expected): int
     {
@@ -271,7 +271,7 @@ final readonly class ManageBaseCatalog
     }
 
     /** @param array<string, int|string|bool> $values
-     *  @return array<string, int|string>
+     * @return array<string, int|string>
      */
     private function productValues(array $values, bool $create): array
     {
@@ -296,7 +296,7 @@ final readonly class ManageBaseCatalog
     }
 
     /** @param array<string, int|string|bool> $values
-     *  @return array{base_price_rials:int,per_gb_rials:int}
+     * @return array{base_price_rials:int,per_gb_rials:int}
      */
     private function rateValues(array $values): array
     {
@@ -340,8 +340,8 @@ final readonly class ManageBaseCatalog
     }
 
     /**
-     * @param array<string, int|string|bool>|null $before
-     * @param array<string, int|string|bool> $after
+     * @param  array<string, int|string|bool>|null  $before
+     * @param  array<string, int|string|bool>  $after
      */
     private function audit(int $rootId, int $id, string $slug, ?int $days, string $operation, ?array $before, array $after): void
     {

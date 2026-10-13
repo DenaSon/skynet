@@ -240,6 +240,7 @@ final readonly class ProductAdminUi
             ."\nمحصول/تعرفه جدید یا ویرایش‌شده غیرفعال خواهد ماند."
             ."\nاین تأیید فقط یک‌بار و تا ۳ دقیقه معتبر است.",
             $this->confirmButtons($token));
+
         return true;
     }
 
@@ -281,7 +282,7 @@ final readonly class ProductAdminUi
             'rate-disable' => 'توقف تعرفه F09',
         };
         $this->render($bot, "⚠️ تأیید نهایی\n\n{$label}\n"
-            ."محصول: ".$this->safe($item['name'])."\n"
+            .'محصول: '.$this->safe($item['name'])."\n"
             ."شناسه: {$item['slug']}"
             .($duration ? "\nمدت تعرفه: {$duration} روز" : '')
             ."\n\nتأیید یک‌بارمصرف با اعتبار ۳ دقیقه. سفارش‌ها و پلن‌های قبلی پاک نمی‌شوند.",
