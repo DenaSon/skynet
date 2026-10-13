@@ -281,26 +281,13 @@ final readonly class PlanAdminUi
             'form' => '', 'stage' => $type === 'edit' ? 'input' : 'step:0', 'token' => '',
         ]);
 
-        if ($type !== 'edit') {
-            $this->showStep($bot, $actor->userId);
+        if ($type === 'edit') {
+            $this->editFields($bot);
 
             return;
         }
 
-        $current = $plan instanceof PlanSummary ? $plan : throw new \LogicException('Plan missing');
-        $example = $this->forms->editLine($current);
-        $hint = "ویرایش پلن\n\nمتن فعلی را اصلاح کنید و بفرستید.";
-
-        $keyboard = InlineKeyboardMarkup::make();
-        if (mb_strlen($example) <= 256) {
-            $keyboard->addRow(TelegramUi::copy($example));
-        }
-        $keyboard->addRow(InlineKeyboardButton::make('✏️ تغییر یک مورد', callback_data: 'plan:editfields'));
-        $keyboard->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'plan:cancel'));
-        $this->render($bot, "📝 فرم پلن\n\n".htmlspecialchars($hint, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
-            ."\n\n📋 نمونه قابل کپی:\n".TelegramUi::code($example)
-            ."\n\nمقادیر را در یک پیام بفرستید. برای نامحدود «-» بگذارید. تا ۱۰ دقیقه فرصت دارید.",
-            $keyboard, true);
+        $this->showStep($bot, $actor->userId);
     }
 
     /**
@@ -349,8 +336,55 @@ final readonly class PlanAdminUi
             }
             $keyboard->addRow(...$buttons);
         }
+        $keyboard->addRow(InlineKeyboardButton::make('⚡ ویرایش چند مورد', callback_data: 'plan:editquick'));
         $keyboard->addRow(InlineKeyboardButton::make('◀️ بازگشت به ویرایش', callback_data: 'plan:begin:edit:'.$state['plan_id']));
         $this->render($bot, "✏️ ویرایش پلن\n\nکدام مورد را می‌خواهید تغییر دهید؟", $keyboard);
+    }
+
+    public function editQuick(Nutgram $bot): void
+    {
+        $actor = $this->actor($bot);
+        if ($actor === null) {
+            return;
+        }
+
+        $state = $this->drafts->peek($actor->userId);
+        if ($state === null || $state['type'] !== 'edit' || $state['stage'] === 'preview') {
+            $this->notice($bot, 'ابتدا از صفحه پلن، ویرایش را انتخاب کنید.');
+
+            return;
+        }
+
+        try {
+            $plan = $this->plans->find($actor->userId, $state['plan_id']);
+        } catch (ValidationException) {
+            $this->notice($bot, 'این پلن دیگر در دسترس نیست.');
+
+            return;
+        }
+
+        if ($plan->revision !== $state['plan_revision']) {
+            $this->notice($bot, 'مشخصات پلن تغییر کرده است. دوباره ویرایش را باز کنید.');
+
+            return;
+        }
+
+        $example = $this->forms->editLine($plan);
+        $state['form'] = '';
+        $state['stage'] = 'input';
+        $this->drafts->store($actor->userId, $state);
+
+        $keyboard = InlineKeyboardMarkup::make();
+        if (mb_strlen($example) <= 256) {
+            $keyboard->addRow(TelegramUi::copy($example, '📋 کپی مشخصات فعلی'));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('◀️ انتخاب یک مورد', callback_data: 'plan:editfields'))
+            ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'plan:cancel'));
+
+        $this->render($bot, "⚡ ویرایش چند مورد\n\n"
+            ."خط زیر را کپی کنید، مقادیر دلخواه را تغییر دهید و کامل بفرستید.\n\n"
+            .TelegramUi::code($example)."\n\nبرای مقدار نامحدود از «-» استفاده کنید.",
+            $keyboard, true);
     }
 
     /** @return list<string> */
