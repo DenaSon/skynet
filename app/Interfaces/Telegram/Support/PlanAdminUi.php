@@ -460,7 +460,7 @@ final readonly class PlanAdminUi
         $this->text($bot, $value);
     }
 
-    public function back(Nutgram $bot): void
+    public function previous(Nutgram $bot): void
     {
         $actor = $this->actor($bot);
         if ($actor === null) {

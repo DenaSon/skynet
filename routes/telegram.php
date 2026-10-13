@@ -233,7 +233,7 @@ $bot->onCallbackQueryData('plan:quick', function (Nutgram $bot): void {
     app(PlanAdminUi::class)->quick($bot);
 });
 $bot->onCallbackQueryData('plan:back', function (Nutgram $bot): void {
-    app(PlanAdminUi::class)->back($bot);
+    app(PlanAdminUi::class)->previous($bot);
 });
 $bot->onCallbackQueryData('plan:cancel', function (Nutgram $bot): void {
     app(PlanAdminUi::class)->cancel($bot);
