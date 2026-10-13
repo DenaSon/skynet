@@ -1,6 +1,6 @@
 # SkyNetwork — Telegram UI/UX Identity (Normative)
 
-**Status:** Permanent project-level presentation contract for all future Telegram features, including Super Admin. Adopted 2026-10-13.
+**Status:** Permanent, normative presentation contract for every future Telegram feature, including Super Admin. Adopted 2026-10-13. [PR #48](https://github.com/DenaSon/skynet/pull/48) implements shared language/copy components, grouped administration and guided Sales forms. Broad customer/finance workflow redesign and actual live Telegram smoke remain separate work.
 
 ## Product promise
 

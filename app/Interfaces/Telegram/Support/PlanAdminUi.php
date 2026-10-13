@@ -8,7 +8,6 @@ use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\TelegramActor;
 use App\Modules\Sales\Application\ManagePlanPricing;
 use App\Modules\Sales\Application\ManagePlans;
-use App\Modules\Sales\Application\PlanSummary;
 use App\Modules\Sales\Application\PlanTariffSummary;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\QueryException;

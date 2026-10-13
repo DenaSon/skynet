@@ -175,3 +175,14 @@ Use **📋 سفارش‌های من** or `/orders` to view the latest ten orders
 ## UX-POLISH — Telegram interaction design
 
 See [normative UI/UX identity](017-TELEGRAM-UX-IDENTITY.md). Administrative pages use grouped sales/finance navigation (old menu labels/callbacks preserved), native copy-to-clipboard examples, and optional one-value-per-message guides for base products/rates and managed plans/prices. The existing pipe-delimited forms remain a fast entry option. No new DB migrations or provider/payment actions. After deployment, test native copy on a current Telegram client, step-by-step /products and /plans, Back/Cancel, old Reply keys, private-chat and root guards. CI is not live Telegram E2E.
+
+## UX-POLISH release smoke (PR #48)
+
+Automated tests include original command/callback compatibility, authorized root-only screens, one-time previews and no unintended order. After updating the actual deployment (not just merging CI), verify on real private Telegram with a trusted Super Admin:
+
+1. `/start`, `/admin` and the ReplyKeyboard `📦 محصولات و پلن‌ها`; see the grouped sub-navigation; original `/products`, `/plans`, `/catalog` and historic Reply labels still work.
+2. `/products` → create a **test draft only** using the field-by-field guide, and separately use `⚡ ورود سریع`; check `◀️ مرحله قبل`, `❌ انصراف`, copy button and confirm step. Do **not** publish a product/rate on production without a deliberate business decision.
+3. `/plans` → create draft, choose active base product, service kind and audience from buttons, and verify one-value-per-message entry and the original complete pipe-separated format. Open an existing test plan → `✏️ ویرایش پلن` → select one field, review changes, and confirm exactly once. Use the optional multi-field editor to verify backwards compatibility. Do not publish a real paid plan without authorization.
+4. Verify `📋 نمونه پلن‌های قابل کپی`: Telegram's native CopyTextButton actually places exact text in clipboard (current client required); try Persian examples and pipe characters. Invalid/expired confirmation must not change data.
+5. Verify disabled member and non-root admin cannot open or submit privileged callbacks; check reseller /builder and customer /catalog price display in **تومان**; confirm F09 /buy and customer /orders still work as before.
+6. Use read-only database queries for expected draft/audit/order state and check no unexpected new orders, ledger postings, or provider writes. Finance and Remnawave remain disabled independently of UI polish. Record real E2E results separately from GitHub CI.
