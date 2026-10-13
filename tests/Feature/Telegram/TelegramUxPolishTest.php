@@ -7,6 +7,8 @@ use App\Interfaces\Telegram\Support\TelegramUi;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Sales\Application\ConfigureProduct;
+use App\Modules\Sales\Application\ManagePlans;
+use App\Modules\Sales\Application\PlanDefinition;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use SergiX44\Nutgram\Nutgram;
@@ -149,4 +151,40 @@ it('keeps grouped navigation role-gated and legacy menu targets routable', funct
     $bot->setCommonChat(Chat::make(-981001, ChatType::GROUP));
     $bot->hearCallbackQueryData('menu:admin:sales')->reply()->assertNoReply();
     expect(DB::table('sales_orders')->count())->toBe(0);
+});
+
+
+it('edits only the selected plan field without losing the old full-form editing path', function (): void {
+    [$root, $bot] = uxPolishRoot();
+    app(ConfigureProduct::class)->handle('vpn-access', 'VPN access');
+    $plan = app(ManagePlans::class)->create($root->id, new PlanDefinition(
+        'vpn-access', 'ux-edit-preset', 'نام قدیمی', 'hybrid', 'preset', 'both',
+        10, 30, 10, 10, 30, 30,
+    ));
+
+    $bot->hearCallbackQueryData("plan:begin:edit:{$plan->id}")->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('plan:editfields')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('plan:editfield:2')->reply()->assertCalled('editMessageText');
+    $bot->hearText('نام جدید')->reply();
+    $state = app(PlanAdminDrafts::class)->peek($root->id);
+    expect($state['stage'])->toBe('preview')
+        ->and(DB::table('sales_plans')->value('name'))->toBe('نام قدیمی');
+
+    $bot->hearCallbackQueryData('plan:save:'.$state['token'])->reply();
+    $bot->hearCallbackQueryData('plan:save:'.$state['token'])->reply();
+
+    expect(DB::table('sales_plans')->value('name'))->toBe('نام جدید')
+        ->and(DB::table('sales_plans')->value('revision'))->toBe(2)
+        ->and(DB::table('sales_orders')->count())->toBe(0);
+
+    $bot->hearCallbackQueryData("plan:begin:edit:{$plan->id}")->reply();
+    $bot->hearCallbackQueryData('plan:editfields')->reply();
+    $bot->hearCallbackQueryData('plan:editfield:5')->reply();
+    $bot->hearCallbackQueryData('plan:editchoice:unknown')->reply();
+    expect(app(PlanAdminDrafts::class)->peek($root->id)['stage'])->toBe('editfield:5');
+    $bot->hearCallbackQueryData('plan:editchoice:both')->reply();
+    expect(app(PlanAdminDrafts::class)->peek($root->id)['stage'])->toBe('preview');
+
+    $bot->hearCallbackQueryData('plan:cancel')->reply();
+    expect(app(PlanAdminDrafts::class)->peek($root->id))->toBeNull();
 });
