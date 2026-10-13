@@ -68,7 +68,7 @@ it('routes reply labels before the custom-volume text matcher', function (): voi
     app(PendingShopVolume::class)->remember($user->id, 'vpn', 30);
 
     $bot->hearText(ReplyMenuLabels::ACCOUNT)->reply()
-        ->assertReplyText("👤 حساب من\n\nنام: {$user->name}\nشناسه SkyNet: {$user->id}\nنقش‌ها: member\nوضعیت: 🟢 فعال");
+        ->assertReplyText("👤 حساب من\n\nنام: {$user->name}\nشناسه SkyNet: {$user->id}\nنقش‌ها: کاربر\nوضعیت: 🟢 فعال");
 
     expect(app(PendingShopVolume::class)->peek($user->id))->toBeNull();
 

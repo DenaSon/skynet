@@ -29,7 +29,7 @@ it('renders an admin menu only after verified account linking', function (): voi
     $bot->setCommonChat(Chat::make(22222, ChatType::PRIVATE));
 
     $bot->hearText('/admin')->reply()
-        ->assertReplyText("🛡️ مدیریت SkyNet\n\nمدیریت کاربران، نقش‌ها و مجوزها فعال است.");
+        ->assertReplyText("🛡️ مدیریت SkyNet\n\nبخش موردنظر را انتخاب کنید.");
 });
 
 it('does not disclose the admin menu to linked members', function (): void {
@@ -76,7 +76,7 @@ it('shows actual account roles and status, and exposes a settings screen', funct
     $bot->setCommonChat(Chat::make(66666, ChatType::PRIVATE));
 
     $bot->hearText('/account')->reply()
-        ->assertReplyText("👤 حساب من\n\nنام: Test Member\nشناسه SkyNet: {$user->id}\nنقش‌ها: member\nوضعیت: 🟢 فعال");
+        ->assertReplyText("👤 حساب من\n\nنام: Test Member\nشناسه SkyNet: {$user->id}\nنقش‌ها: کاربر\nوضعیت: 🟢 فعال");
 
     $bot->hearText('/settings')->reply()
         ->assertReplyText("⚙️ تنظیمات\n\nدر حال حاضر گزینه‌ای برای تغییر تنظیمات وجود ندارد.");
