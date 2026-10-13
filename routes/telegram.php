@@ -226,6 +226,15 @@ $bot->onCallbackQueryData('plan:status:{id}:{operation}', function (Nutgram $bot
 $bot->onCallbackQueryData('plan:apply:{type}:{token}', function (Nutgram $bot, string $type, string $token): void {
     app(PlanAdminUi::class)->applyStatus($bot, $type, $token);
 });
+$bot->onCallbackQueryData('plan:choose:{value}', function (Nutgram $bot, string $value): void {
+    app(PlanAdminUi::class)->choose($bot, $value);
+});
+$bot->onCallbackQueryData('plan:quick', function (Nutgram $bot): void {
+    app(PlanAdminUi::class)->quick($bot);
+});
+$bot->onCallbackQueryData('plan:back', function (Nutgram $bot): void {
+    app(PlanAdminUi::class)->back($bot);
+});
 $bot->onCallbackQueryData('plan:cancel', function (Nutgram $bot): void {
     app(PlanAdminUi::class)->cancel($bot);
 });
