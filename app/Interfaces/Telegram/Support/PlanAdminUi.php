@@ -406,7 +406,7 @@ final readonly class PlanAdminUi
         $keyboard->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'plan:cancel'));
 
         $count = count($fields);
-        $this->render($bot, "📝 تنظیمات پلن — مرحله ".($index + 1)." از {$count}\n\n"
+        $this->render($bot, '📝 تنظیمات پلن — مرحله '.($index + 1)." از {$count}\n\n"
             .htmlspecialchars($label, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
             ."\n\nمثال: ".TelegramUi::code($example)
             ."\n\nیک گزینه انتخاب کنید یا مقدار موردنظر را بفرستید.",
