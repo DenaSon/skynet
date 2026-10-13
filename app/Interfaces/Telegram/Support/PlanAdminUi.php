@@ -425,6 +425,24 @@ final readonly class PlanAdminUi
             $keyboard, true);
     }
 
+    public function editChoice(Nutgram $bot, string $value): void
+    {
+        $actor = $this->actor($bot);
+        if ($actor === null) {
+            return;
+        }
+
+        $state = $this->drafts->peek($actor->userId);
+        if ($state === null || $state['type'] !== 'edit' || ! str_starts_with($state['stage'], 'editfield:')
+            || ! in_array($value, $this->editChoices((int) substr($state['stage'], 10)), true)) {
+            $this->notice($bot, 'این گزینه دیگر معتبر نیست.');
+
+            return;
+        }
+
+        $this->text($bot, $value);
+    }
+
     /** @return list<array{0:string,1:string,2:bool}> */
     private function wizardFields(string $type): array
     {
@@ -649,6 +667,23 @@ final readonly class PlanAdminUi
             return true;
         }
 
+        if (str_starts_with($state['stage'], 'editfield:')) {
+            $index = (int) substr($state['stage'], 10);
+            $parts = explode(' | ', $state['form']);
+            $value = trim($text);
+            if (! isset($parts[$index]) || $value === '' || mb_strlen($value) > 120
+                || str_contains($value, '|') || preg_match('/[\r\n\x00-\x1f\x7f]/u', $value) === 1
+                || ($this->editChoices($index) !== []
+                    && ! in_array($value, $this->editChoices($index), true))) {
+                $this->notice($bot, 'این مقدار معتبر نیست. دوباره تلاش کنید.');
+
+                return true;
+            }
+
+            $parts[$index] = $value;
+            $text = implode(' | ', $parts);
+        }
+
         if (str_starts_with($state['stage'], 'step:') && ! str_contains($text, '|')) {
             $index = (int) substr($state['stage'], 5);
             $fields = $this->wizardFields($state['type']);
@@ -681,7 +716,8 @@ final readonly class PlanAdminUi
 
                 return true;
             }
-        } elseif ($state['stage'] !== 'input' && ! str_starts_with($state['stage'], 'step:')) {
+        } elseif ($state['stage'] !== 'input' && ! str_starts_with($state['stage'], 'step:')
+            && ! str_starts_with($state['stage'], 'editfield:')) {
             $this->notice($bot, 'اطلاعات آماده بررسی است. تأیید یا انصراف را بزنید.');
 
             return true;
