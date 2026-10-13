@@ -62,7 +62,7 @@ final class MenuRenderer
 
     public function showInviteUnavailable(Nutgram $bot): void
     {
-        $this->render($bot, 'امکان ساخت لینک دعوت هنوز تنظیم نشده است. مدیر باید TELEGRAM_BOT_USERNAME را تنظیم کند.', $this->homeKeyboard());
+        $this->render($bot, 'لینک دعوت هنوز آماده نیست. لطفاً به مدیر اطلاع دهید.', $this->homeKeyboard());
     }
 
     public function showSignupNotice(Nutgram $bot, string $message): void
@@ -86,7 +86,7 @@ final class MenuRenderer
     {
         $this->render(
             $bot,
-            "⚙️ تنظیمات\n\nدر حال حاضر تنظیمات قابل تغییری وجود ندارد. گزینه‌های اعلان و زبان پس از تعریف نیازهای واقعی اضافه می‌شوند.",
+            "⚙️ تنظیمات\n\nدر حال حاضر گزینه‌ای برای تغییر تنظیمات وجود ندارد.",
             $this->homeKeyboard(),
         );
     }

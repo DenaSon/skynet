@@ -98,7 +98,7 @@ final class ReplyMenuRenderer
         $keyboard = ReplyKeyboardMarkup::make(
             resize_keyboard: true,
             one_time_keyboard: false,
-            input_field_placeholder: 'از منو انتخاب کنید یا دستور بنویسید',
+            input_field_placeholder: 'بخش موردنظر را انتخاب کنید',
             is_persistent: true,
         );
 

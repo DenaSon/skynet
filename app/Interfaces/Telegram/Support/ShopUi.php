@@ -54,7 +54,7 @@ final class ShopUi
         }
 
         if ($products === []) {
-            $this->notice($bot, 'در حال حاضر تعرفه فعالی تعریف نشده است. خرید هنوز در دسترس نیست.');
+            $this->notice($bot, 'در حال حاضر اشتراکی برای خرید موجود نیست.');
 
             return;
         }

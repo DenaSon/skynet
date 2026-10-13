@@ -508,6 +508,12 @@ final readonly class PlanAdminUi
                 $examples[0] = $choices[0];
             }
         }
+        if ($examples === []) {
+            $this->notice($bot, 'برای این فرم، ورود سریع در دسترس نیست.');
+
+            return;
+        }
+
         $example = implode(' | ', $examples);
         $s['form'] = '';
         $s['stage'] = 'input';
@@ -606,7 +612,7 @@ final readonly class PlanAdminUi
         $state['stage'] = 'preview';
         $this->drafts->store($actor->userId, $state);
 
-        $this->render($bot, "🔎 پیش‌نمایش تغییر\n\n{$summary}\n\nتأیید ثبت، عملیات را روی نسخه فعلی اجرا می‌کند. ویرایش/تعرفه در صورت تغییر نسخه رد می‌شود.\nبرای فعال‌سازی پلن یا انتشار قیمت پس از ثبت باید جداگانه تأیید بدهید.",
+        $this->render($bot, "🔎 بررسی اطلاعات\n\n{$summary}\n\nاگر اطلاعات درست است، ثبت را تأیید کنید.\nفعال‌سازی پلن و قیمت پس از ثبت جداگانه انجام می‌شود.",
             InlineKeyboardMarkup::make()
                 ->addRow(InlineKeyboardButton::make('✅ ثبت پیش‌نویس', callback_data: 'plan:save:'.$token))
                 ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'plan:cancel')));
@@ -629,7 +635,7 @@ final readonly class PlanAdminUi
 
         $state = $this->drafts->consume($actor->userId, $token);
         if ($state === null) {
-            $this->notice($bot, 'پیش‌نویس منقضی، لغو یا قبلاً مصرف شده است.');
+            $this->notice($bot, 'مهلت تأیید تمام شده یا این درخواست قبلاً انجام شده است. دوباره شروع کنید.');
 
             return;
         }
@@ -651,7 +657,7 @@ final readonly class PlanAdminUi
                 $planId = $plan->id;
             }
         } catch (ValidationException|AuthorizationException|QueryException) {
-            $this->notice($bot, 'ثبت رد شد. وضعیت محصول/پلن یا نسخه تغییر کرده است. دوباره از فهرست اقدام کنید.');
+            $this->notice($bot, 'اطلاعات پلن یا قیمت تغییر کرده است. از فهرست دوباره شروع کنید.');
 
             return;
         }
@@ -696,7 +702,16 @@ final readonly class PlanAdminUi
             return;
         }
 
-        $this->render($bot, "⚠️ تأیید عملیات {$operation}\n\nپلن #{$planId} — ".$this->safe($plan->name)."\n\nاین تأیید یک‌بارمصرف و ۳ دقیقه معتبر است. انتشار پلن/تعرفه به معنی ساخت اشتراک واقعی نیست.",
+        $label = match ($operation) {
+            'activate' => 'فعال‌سازی پلن',
+            'deactivate' => 'غیرفعال‌سازی پلن',
+            'archive' => 'بایگانی پلن',
+            'delete' => 'حذف پلن',
+            'pa' => 'انتشار قیمت',
+            'pd' => 'توقف نمایش قیمت',
+            default => 'تغییر وضعیت',
+        };
+        $this->render($bot, "⚠️ تأیید {$label}\n\nپلن: ".$this->safe($plan->name)."\n\nاگر مطمئن هستید، دکمه تأیید نهایی را بزنید.\nتا ۳ دقیقه فرصت دارید.",
             InlineKeyboardMarkup::make()
                 ->addRow(InlineKeyboardButton::make('✅ تأیید نهایی', callback_data: "plan:apply:{$target}:{$token}"))
                 ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: "plan:view:{$planId}")));
@@ -730,7 +745,7 @@ final readonly class PlanAdminUi
                 return;
             }
         } catch (ValidationException|AuthorizationException|QueryException) {
-            $this->notice($bot, 'تأیید منقضی یا مصرف‌شده است؛ یا وضعیت و مجوز شما تغییر کرده است.');
+            $this->notice($bot, 'این درخواست دیگر معتبر نیست. وضعیت پلن را بررسی و دوباره اقدام کنید.');
 
             return;
         }

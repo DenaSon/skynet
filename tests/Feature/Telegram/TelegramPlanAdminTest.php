@@ -233,7 +233,7 @@ it('configures a bounded formula and rejects invalid or stale pricing submission
 
     $bot->hearCallbackQueryData("plan:begin:formula:{$id}")->reply();
     $bot->hearText('0 | 0 | 0 | 1 | 5')->reply();
-    expect(app(PlanAdminDrafts::class)->peek($root->id)['stage'])->toBe('input');
+    expect(app(PlanAdminDrafts::class)->peek($root->id)['stage'])->toBe('step:0');
 
     $bot->hearText('50000 | 10000 | 1000 | 10000 | 5')->reply();
     $token = app(PlanAdminDrafts::class)->peek($root->id)['token'];

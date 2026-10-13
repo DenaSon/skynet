@@ -73,7 +73,7 @@ it('routes reply labels before the custom-volume text matcher', function (): voi
     expect(app(PendingShopVolume::class)->peek($user->id))->toBeNull();
 
     $bot->hearText(ReplyMenuLabels::BUY)->reply()
-        ->assertReplyText("🛒 خرید اشتراک\n\nدر حال حاضر تعرفه فعالی تعریف نشده است. خرید هنوز در دسترس نیست.");
+        ->assertReplyText("🛒 خرید اشتراک\n\nدر حال حاضر اشتراکی برای خرید موجود نیست.");
 
     $bot->hearText(ReplyMenuLabels::SUBSCRIPTIONS)->reply()->assertCalled('sendMessage');
     $bot->hearText(ReplyMenuLabels::HOME)->reply()
@@ -89,7 +89,7 @@ it('keeps non-menu text and legacy commands and callbacks working', function ():
 
     $bot->hearText('۷۵')->reply()->assertNoReply();
     $bot->hearText('/settings')->reply()->assertReplyText(
-        "⚙️ تنظیمات\n\nدر حال حاضر تنظیمات قابل تغییری وجود ندارد. گزینه‌های اعلان و زبان پس از تعریف نیازهای واقعی اضافه می‌شوند."
+        "⚙️ تنظیمات\n\nدر حال حاضر گزینه‌ای برای تغییر تنظیمات وجود ندارد."
     );
     $bot->hearCallbackQueryData('menu:account')->reply()
         ->assertCalled('answerCallbackQuery')
@@ -137,8 +137,8 @@ it('gates privileged reply buttons by trusted root and finance feature switches'
     $actor = app(ResolveTelegramActor::class)->handle(931006);
 
     $labels = hybridLabels(app(ReplyMenuRenderer::class)->adminKeyboard($actor));
-    expect($labels)->toContain(ReplyMenuLabels::ROLES)
-        ->not->toContain(ReplyMenuLabels::TOPUPS, ReplyMenuLabels::RECEIPTS);
+    expect($labels)->toContain(ReplyMenuLabels::ROLES, ReplyMenuLabels::SALES_SECTION)
+        ->not->toContain(ReplyMenuLabels::FINANCE_SECTION, ReplyMenuLabels::TOPUPS, ReplyMenuLabels::RECEIPTS);
 
     $bot->hearText(ReplyMenuLabels::TOPUPS)->reply()
         ->assertReplyText('دسترسی مجاز نیست. منوی شما به‌روز شد.');
@@ -146,7 +146,8 @@ it('gates privileged reply buttons by trusted root and finance feature switches'
     config()->set('billing.topups_enabled', true);
     config()->set('sales.manual_bank_review_enabled', true);
     $labels = hybridLabels(app(ReplyMenuRenderer::class)->adminKeyboard($actor));
-    expect($labels)->toContain(ReplyMenuLabels::TOPUPS, ReplyMenuLabels::RECEIPTS);
+    expect($labels)->toContain(ReplyMenuLabels::FINANCE_SECTION)
+        ->not->toContain(ReplyMenuLabels::TOPUPS, ReplyMenuLabels::RECEIPTS);
 
     $bot->hearText(ReplyMenuLabels::ROLES)->reply()->assertCalled('sendMessage');
 

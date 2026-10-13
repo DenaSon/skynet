@@ -79,7 +79,7 @@ it('shows actual account roles and status, and exposes a settings screen', funct
         ->assertReplyText("👤 حساب من\n\nنام: Test Member\nشناسه SkyNet: {$user->id}\nنقش‌ها: member\nوضعیت: 🟢 فعال");
 
     $bot->hearText('/settings')->reply()
-        ->assertReplyText("⚙️ تنظیمات\n\nدر حال حاضر تنظیمات قابل تغییری وجود ندارد. گزینه‌های اعلان و زبان پس از تعریف نیازهای واقعی اضافه می‌شوند.");
+        ->assertReplyText("⚙️ تنظیمات\n\nدر حال حاضر گزینه‌ای برای تغییر تنظیمات وجود ندارد.");
 });
 
 it('edits existing messages when navigating by inline callbacks', function (): void {
