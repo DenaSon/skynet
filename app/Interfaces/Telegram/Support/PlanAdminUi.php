@@ -278,8 +278,14 @@ final readonly class PlanAdminUi
             'type' => $type, 'plan_id' => $planId,
             'plan_revision' => $plan === null ? 0 : $plan->revision,
             'price_revision' => $price === null ? 0 : $price->revision,
-            'form' => '', 'stage' => 'input', 'token' => '',
+            'form' => '', 'stage' => $type === 'edit' ? 'input' : 'step:0', 'token' => '',
         ]);
+
+        if ($type !== 'edit') {
+            $this->showStep($bot, $actor->userId);
+
+            return;
+        }
 
         $hint = match ($type) {
             'preset' => "پلن ثابت (۷ فیلد):\nproduct | slug | name | kind | audience | GB/- | days\nمثال:\nvpn-access | standard-30 | استاندارد ۳۰ | hybrid | both | 30 | 30",
@@ -323,6 +329,200 @@ final readonly class PlanAdminUi
      * Called by the existing last-resort onText handler, before shop custom GB.
      * True means this text belongs to a pending, owner-bound admin form.
      */
+    /** @return list<array{0:string,1:string,2:bool}> */
+    private function wizardFields(string $type): array
+    {
+        return match ($type) {
+            'preset' => [
+                ['محصول', 'vpn-access', false],
+                ['شناسه کوتاه انگلیسی پلن', 'standard-30', false],
+                ['نام پلن', 'استاندارد ۳۰', false],
+                ['نوع سرویس', 'hybrid', false],
+                ['نمایش برای', 'both', false],
+                ['حجم (گیگابایت، برای نامحدود -)', '30', true],
+                ['مدت (روز)', '30', true],
+            ],
+            'builder' => [
+                ['محصول', 'vpn-access', false],
+                ['شناسه کوتاه انگلیسی پلن', 'reseller-builder', false],
+                ['نام پلن', 'پلن سفارشی', false],
+                ['نوع سرویس', 'hybrid', false],
+                ['حداقل حجم (گیگابایت، برای نامحدود -)', '1', true],
+                ['حداکثر حجم (گیگابایت، برای نامحدود -)', '100', true],
+                ['حداقل مدت (روز)', '15', true],
+                ['حداکثر مدت (روز)', '90', true],
+            ],
+            'fixed' => [
+                ['قیمت ثابت (تومان)', '120000', true],
+                ['حداقل قیمت (تومان)', '60000', true],
+                ['تخفیف نماینده (درصد)', '5', true],
+            ],
+            'formula' => [
+                ['قیمت پایه (تومان)', '50000', true],
+                ['قیمت هر گیگ (تومان)', '10000', true],
+                ['قیمت هر روز (تومان)', '2000', true],
+                ['حداقل قیمت (تومان)', '20000', true],
+                ['تخفیف نماینده (درصد)', '5', true],
+            ],
+            default => [],
+        };
+    }
+
+    /** @return list<string> */
+    private function wizardChoices(string $type, int $index, int $rootId): array
+    {
+        if (in_array($type, ['preset', 'builder'], true) && $index === 0) {
+            return array_values(array_map(
+                static fn (array $product): string => (string) $product['slug'],
+                array_filter($this->plans->products($rootId), static fn (array $entry): bool => $entry['active']),
+            ));
+        }
+
+        if (in_array($type, ['preset', 'builder'], true) && $index === 3) {
+            return ['volume', 'time', 'hybrid'];
+        }
+
+        return $type === 'preset' && $index === 4 ? ['public', 'reseller', 'both'] : [];
+    }
+
+    private function showStep(Nutgram $bot, int $actorId): void
+    {
+        $s = $this->drafts->peek($actorId);
+        if ($s === null || ! str_starts_with($s['stage'], 'step:')) {
+            return;
+        }
+
+        $index = (int) substr($s['stage'], 5);
+        $fields = $this->wizardFields($s['type']);
+        if (! isset($fields[$index])) {
+            $this->notice($bot, 'فرم معتبر نیست. دوباره شروع کنید.');
+
+            return;
+        }
+
+        [$label, $example] = $fields[$index];
+        $choices = $this->wizardChoices($s['type'], $index, $actorId);
+        if ($index === 0 && $choices !== []) {
+            $example = $choices[0];
+        }
+
+        $keyboard = InlineKeyboardMarkup::make();
+        if ($choices !== []) {
+            foreach (array_chunk($choices, 2) as $items) {
+                $buttons = [];
+                foreach ($items as $value) {
+                    $display = $index === 3 ? TelegramUi::planKind($value)
+                        : ($index === 4 ? TelegramUi::audience($value) : $value);
+                    $buttons[] = InlineKeyboardButton::make($display, callback_data: 'plan:choose:'.$value);
+                }
+                $keyboard->addRow(...$buttons);
+            }
+        }
+
+        if (mb_strlen($example) <= 256) {
+            $keyboard->addRow(TelegramUi::copy($example, '📋 کپی مثال'));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('⚡ ورود سریع همه اطلاعات', callback_data: 'plan:quick'));
+        if ($index > 0) {
+            $keyboard->addRow(InlineKeyboardButton::make('◀️ مرحله قبل', callback_data: 'plan:back'));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'plan:cancel'));
+
+        $count = count($fields);
+        $this->render($bot, "📝 تنظیمات پلن — مرحله ".($index + 1)." از {$count}\n\n"
+            .htmlspecialchars($label, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+            ."\n\nمثال: ".TelegramUi::code($example)
+            ."\n\nیک گزینه انتخاب کنید یا مقدار موردنظر را بفرستید.",
+            $keyboard, true);
+    }
+
+    public function choose(Nutgram $bot, string $value): void
+    {
+        $actor = $this->actor($bot);
+        if ($actor === null) {
+            return;
+        }
+
+        $s = $this->drafts->peek($actor->userId);
+        if ($s === null || ! str_starts_with($s['stage'], 'step:')) {
+            $this->notice($bot, 'این انتخاب دیگر معتبر نیست. دوباره شروع کنید.');
+
+            return;
+        }
+
+        $index = (int) substr($s['stage'], 5);
+        if (! in_array($value, $this->wizardChoices($s['type'], $index, $actor->userId), true)) {
+            $this->notice($bot, 'گزینه معتبر نیست. دوباره انتخاب کنید.');
+
+            return;
+        }
+
+        $this->text($bot, $value);
+    }
+
+    public function back(Nutgram $bot): void
+    {
+        $actor = $this->actor($bot);
+        if ($actor === null) {
+            return;
+        }
+
+        $s = $this->drafts->peek($actor->userId);
+        if ($s === null || $s['stage'] === 'preview') {
+            $this->browse($bot);
+
+            return;
+        }
+
+        $index = str_starts_with($s['stage'], 'step:') ? (int) substr($s['stage'], 5) : 0;
+        $parts = $s['form'] === '' ? [] : explode(' | ', $s['form']);
+        if ($index > 0) {
+            array_pop($parts);
+        }
+        $s['form'] = implode(' | ', $parts);
+        $s['stage'] = 'step:'.max(0, $index - 1);
+        $s['token'] = '';
+        $this->drafts->store($actor->userId, $s);
+        $this->showStep($bot, $actor->userId);
+    }
+
+    public function quick(Nutgram $bot): void
+    {
+        $actor = $this->actor($bot);
+        if ($actor === null) {
+            return;
+        }
+
+        $s = $this->drafts->peek($actor->userId);
+        if ($s === null || $s['stage'] === 'preview') {
+            $this->notice($bot, 'فرم منقضی شده است. دوباره شروع کنید.');
+
+            return;
+        }
+
+        $fields = $this->wizardFields($s['type']);
+        $examples = array_column($fields, 1);
+        if (in_array($s['type'], ['preset', 'builder'], true)) {
+            $choices = $this->wizardChoices($s['type'], 0, $actor->userId);
+            if ($choices !== []) {
+                $examples[0] = $choices[0];
+            }
+        }
+        $example = implode(' | ', $examples);
+        $s['form'] = '';
+        $s['stage'] = 'input';
+        $this->drafts->store($actor->userId, $s);
+        $keyboard = InlineKeyboardMarkup::make();
+        if (mb_strlen($example) <= 256) {
+            $keyboard->addRow(TelegramUi::copy($example));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('◀️ راهنمای مرحله‌ای', callback_data: 'plan:back'))
+            ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'plan:cancel'));
+        $this->render($bot, "⚡ ورود سریع\n\nیک پیام با مقادیر زیر بفرستید:\n".TelegramUi::code($example)
+            ."\n\nمقادیر را با علامت | جدا کنید.",
+            $keyboard, true);
+    }
+
     public function text(Nutgram $bot, string $text): bool
     {
         $telegramId = $this->privateUser->id($bot);
@@ -347,8 +547,40 @@ final readonly class PlanAdminUi
             return true;
         }
 
-        if ($state['stage'] !== 'input') {
-            $this->notice($bot, 'فرم منتظر تأیید است. با دکمه ثبت یا انصراف ادامه دهید.');
+        if (str_starts_with($state['stage'], 'step:') && ! str_contains($text, '|')) {
+            $index = (int) substr($state['stage'], 5);
+            $fields = $this->wizardFields($state['type']);
+            if (! isset($fields[$index])) {
+                $this->notice($bot, 'فرم معتبر نیست. دوباره شروع کنید.');
+
+                return true;
+            }
+
+            $value = trim($text);
+            $choices = $this->wizardChoices($state['type'], $index, $actor->userId);
+            if ($value === '' || mb_strlen($value) > 120
+                || preg_match('/[\r\n\x00-\x1f\x7f|]/u', $value) === 1
+                || ($choices !== [] && ! in_array($value, $choices, true))
+                || ($fields[$index][2] && $value !== '-'
+                    && preg_match('/\A(?:0|[1-9][0-9]{0,11})\z/D', $value) !== 1)) {
+                $this->notice($bot, 'این مقدار درست نیست. از گزینه‌ها انتخاب کنید یا مقدار معتبر بفرستید.');
+
+                return true;
+            }
+
+            $parts = $state['form'] === '' ? [] : explode(' | ', $state['form']);
+            $parts[] = $value;
+            $text = implode(' | ', $parts);
+            if ($index < count($fields) - 1) {
+                $state['form'] = $text;
+                $state['stage'] = 'step:'.($index + 1);
+                $this->drafts->store($actor->userId, $state);
+                $this->showStep($bot, $actor->userId);
+
+                return true;
+            }
+        } elseif ($state['stage'] !== 'input' && ! str_starts_with($state['stage'], 'step:')) {
+            $this->notice($bot, 'اطلاعات آماده بررسی است. تأیید یا انصراف را بزنید.');
 
             return true;
         }
