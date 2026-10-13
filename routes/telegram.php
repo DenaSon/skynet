@@ -226,6 +226,15 @@ $bot->onCallbackQueryData('plan:status:{id}:{operation}', function (Nutgram $bot
 $bot->onCallbackQueryData('plan:apply:{type}:{token}', function (Nutgram $bot, string $type, string $token): void {
     app(PlanAdminUi::class)->applyStatus($bot, $type, $token);
 });
+$bot->onCallbackQueryData('plan:editfields', function (Nutgram $bot): void {
+    app(PlanAdminUi::class)->editFields($bot);
+});
+$bot->onCallbackQueryData('plan:editfield:{index}', function (Nutgram $bot, string $index): void {
+    app(PlanAdminUi::class)->editField($bot, $index);
+});
+$bot->onCallbackQueryData('plan:editchoice:{value}', function (Nutgram $bot, string $value): void {
+    app(PlanAdminUi::class)->editChoice($bot, $value);
+});
 $bot->onCallbackQueryData('plan:choose:{value}', function (Nutgram $bot, string $value): void {
     app(PlanAdminUi::class)->choose($bot, $value);
 });
