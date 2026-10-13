@@ -56,7 +56,7 @@ final readonly class PlanCatalogUi
             "صفحه {$page} از {$lastPage}",
             '',
             'قیمت‌ها از تعرفه فعال محاسبه می‌شوند و ممکن است تغییر کنند.',
-            '⏳ ثبت سفارش و فعال‌سازی این پلن‌ها هنوز راه‌اندازی نشده است.',
+            'ℹ️ خرید پلن‌های این بخش فعلاً فعال نیست.',
             '',
         ];
 
@@ -124,12 +124,11 @@ final readonly class PlanCatalogUi
             '📊 حجم: '.($quote->trafficGb === null ? 'نامحدود' : $quote->trafficGb.' گیگابایت'),
             "⏳ مدت: {$quote->durationDays} روز",
             '',
-            '💵 قیمت عمومی: '.number_format($quote->publicPriceRials).' ریال',
-            "🎁 تخفیف نماینده: {$quote->discountPercent}% (".number_format($quote->discountRials).' ریال)',
-            '✅ قیمت نهایی: '.number_format($quote->totalPriceRials).' ریال',
-            '≈ '.$this->toman($quote->totalPriceRials).' تومان (گرد شده به بالا)',
+            '💵 قیمت عمومی: '.$this->toman($quote->publicPriceRials).' تومان',
+            "🎁 تخفیف نماینده: {$quote->discountPercent}٪",
+            '✅ مبلغ نهایی: '.$this->toman($quote->totalPriceRials).' تومان',
             '',
-            '⚠️ فقط پیش‌نمایش قیمت است؛ امکان پرداخت، رزرو قیمت و ساخت سرویس وجود ندارد.',
+            'ℹ️ این قیمت برای اطلاع شماست. خرید این پلن فعلاً فعال نیست.',
         ];
 
         $keyboard = InlineKeyboardMarkup::make()
