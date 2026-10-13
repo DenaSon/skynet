@@ -77,15 +77,11 @@ final class ReplyMenuRenderer
 
         if ($actor->canManageRoles()) {
             $labels[] = ReplyMenuLabels::ROLES;
-            $labels[] = ReplyMenuLabels::PLANS;
-            $labels[] = ReplyMenuLabels::PRODUCTS;
+            $labels[] = ReplyMenuLabels::SALES_SECTION;
 
-            if (config('billing.topups_enabled', false) === true) {
-                $labels[] = ReplyMenuLabels::TOPUPS;
-            }
-
-            if (config('sales.manual_bank_review_enabled', false) === true) {
-                $labels[] = ReplyMenuLabels::RECEIPTS;
+            if (config('billing.topups_enabled', false) === true
+                || config('sales.manual_bank_review_enabled', false) === true) {
+                $labels[] = ReplyMenuLabels::FINANCE_SECTION;
             }
         }
 

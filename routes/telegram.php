@@ -10,6 +10,7 @@ use App\Interfaces\Telegram\Handlers\LinkHandler;
 use App\Interfaces\Telegram\Handlers\ReplyMenuHandler;
 use App\Interfaces\Telegram\Handlers\SettingsHandler;
 use App\Interfaces\Telegram\Handlers\StartHandler;
+use App\Interfaces\Telegram\Support\AdminSectionsUi;
 use App\Interfaces\Telegram\Support\BillingUi;
 use App\Interfaces\Telegram\Support\ManualPaymentUi;
 use App\Interfaces\Telegram\Support\PlanAdminUi;
@@ -164,6 +165,12 @@ $bot->onCallbackQueryData('catalog:list:{page}', function (Nutgram $bot, string 
 });
 $bot->onCallbackQueryData('catalog:detail:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
     app(PlanCatalogUi::class)->detail($bot, $id, $page);
+});
+$bot->onCallbackQueryData('menu:admin:sales', function (Nutgram $bot): void {
+    app(AdminSectionsUi::class)->sales($bot);
+});
+$bot->onCallbackQueryData('menu:admin:finance', function (Nutgram $bot): void {
+    app(AdminSectionsUi::class)->finance($bot);
 });
 $bot->onCallbackQueryData('menu:admin:plans', function (Nutgram $bot): void {
     app(PlanAdminUi::class)->browse($bot);

@@ -98,15 +98,43 @@ final class MenuRenderer
 
         if ($actor->canManageRoles()) {
             $keyboard->addRow(InlineKeyboardButton::make('🔐 نقش‌ها و دسترسی‌ها', callback_data: 'menu:admin:roles'));
-            $keyboard->addRow(InlineKeyboardButton::make('📦 مدیریت پلن‌ها', callback_data: 'menu:admin:plans'));
-            $keyboard->addRow(InlineKeyboardButton::make('📚 محصولات پایه', callback_data: 'menu:admin:products'));
-            $keyboard->addRow(InlineKeyboardButton::make('💳 بررسی شارژها', callback_data: 'menu:billing-reviews'));
-            $keyboard->addRow(InlineKeyboardButton::make('🧾 بررسی رسیدهای خرید', callback_data: 'bank:list'));
+            $keyboard->addRow(InlineKeyboardButton::make('📦 محصولات و پلن‌ها', callback_data: 'menu:admin:sales'));
+            if (config('billing.topups_enabled', false) || config('sales.manual_bank_review_enabled', false)) {
+                $keyboard->addRow(InlineKeyboardButton::make('💳 امور مالی', callback_data: 'menu:admin:finance'));
+            }
         }
 
         $keyboard->addRow(InlineKeyboardButton::make('◀️ صفحه اصلی', callback_data: 'menu:home'));
 
         $this->render($bot, "🛡️ مدیریت SkyNet\n\nمدیریت کاربران، نقش‌ها و مجوزها فعال است.", $keyboard);
+    }
+
+    public function showAdminSales(Nutgram $bot): void
+    {
+        $keyboard = InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('📚 محصولات پایه', callback_data: 'menu:admin:products'))
+            ->addRow(InlineKeyboardButton::make('📦 مدیریت پلن‌ها', callback_data: 'menu:admin:plans'))
+            ->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
+
+        $this->render($bot, "📦 محصولات و پلن‌ها\n\nاز این بخش می‌توانید محصولات، پلن‌ها و قیمت‌های فروش را مدیریت کنید.", $keyboard);
+    }
+
+    public function showAdminFinance(Nutgram $bot): void
+    {
+        $keyboard = InlineKeyboardMarkup::make();
+        if (config('billing.topups_enabled', false)) {
+            $keyboard->addRow(InlineKeyboardButton::make('💳 بررسی شارژها', callback_data: 'menu:billing-reviews'));
+        }
+        if (config('sales.manual_bank_review_enabled', false)) {
+            $keyboard->addRow(InlineKeyboardButton::make('🧾 بررسی رسیدهای خرید', callback_data: 'bank:list'));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
+
+        $this->render($bot, "💳 امور مالی\n\n".(
+            config('billing.topups_enabled', false) || config('sales.manual_bank_review_enabled', false)
+                ? 'بخش موردنظر را انتخاب کنید.'
+                : 'در حال حاضر عملیاتی برای بررسی وجود ندارد.'
+        ), $keyboard);
     }
 
     public function showUserList(Nutgram $bot, UserDirectoryPage $results, bool $search = false): void

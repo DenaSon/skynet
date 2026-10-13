@@ -2,6 +2,7 @@
 
 namespace App\Interfaces\Telegram\Handlers;
 
+use App\Interfaces\Telegram\Support\AdminSectionsUi;
 use App\Interfaces\Telegram\Support\BillingUi;
 use App\Interfaces\Telegram\Support\ManualPaymentUi;
 use App\Interfaces\Telegram\Support\PendingBuilderSelection;
@@ -132,6 +133,28 @@ final class ReplyMenuHandler
                 }
 
                 app(UserManagementUi::class)->browse($bot);
+
+                return true;
+
+            case ReplyMenuLabels::SALES_SECTION:
+                if (! $actor->canManageRoles()) {
+                    $this->deny($bot, $actor);
+
+                    return true;
+                }
+
+                app(AdminSectionsUi::class)->sales($bot);
+
+                return true;
+
+            case ReplyMenuLabels::FINANCE_SECTION:
+                if (! $actor->canManageRoles()) {
+                    $this->deny($bot, $actor);
+
+                    return true;
+                }
+
+                app(AdminSectionsUi::class)->finance($bot);
 
                 return true;
 
