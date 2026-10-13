@@ -49,7 +49,7 @@ final readonly class PlanAdminUi
         $keyboard = InlineKeyboardMarkup::make();
 
         foreach ($entries as $entry) {
-            $lines[] = $this->statusIcon($entry->status)." #{$entry->id} — ".$this->safe($entry->name)." ({$entry->mode})";
+            $lines[] = $this->statusIcon($entry->status)." #{$entry->id} — ".$this->safe($entry->name)." (".TelegramUi::planMode($entry->mode).")";
             $keyboard->addRow(InlineKeyboardButton::make(
                 '#'.$entry->id.' · '.mb_substr($this->safe($entry->name), 0, 32),
                 callback_data: 'plan:view:'.$entry->id,
@@ -116,7 +116,7 @@ final readonly class PlanAdminUi
             $lines[] = '';
         }
         $lines[] = 'ابتدا دکمه ساخت پلن مربوطه را بزنید، سپس فقط متن داخل کد را ارسال کنید.';
-        $lines[] = 'اگر slug تکراری باشد، نام یکتای دیگری انتخاب کنید. قیمت‌ها جداگانه تعریف می‌شوند.';
+        $lines[] = 'اگر شناسه پلن قبلاً استفاده شده، شناسه جدیدی انتخاب کنید. قیمت‌ها جداگانه تنظیم می‌شوند.';
 
         if ($bot->isCallbackQuery()) {
             $bot->answerCallbackQuery();
@@ -726,11 +726,11 @@ final readonly class PlanAdminUi
         try {
             if (in_array($state['type'], ['preset', 'builder', 'edit'], true)) {
                 $definition = $this->forms->plan($state['type'], $text);
-                $summary = "پلن {$definition->name}\n{$definition->slug} / {$definition->kind} / {$definition->mode}\nحجم: ".($definition->trafficGb ?? '-').' | مدت: '.($definition->durationDays ?? '-');
+                $summary = "پلن {$definition->name}\n{$definition->slug}\nنوع: ".TelegramUi::planKind($definition->kind).' | حجم: '.($definition->trafficGb ?? 'نامحدود').' | مدت: '.($definition->durationDays ?? 'انتخابی');
             } else {
                 $plan = $this->plans->find($actor->userId, $state['plan_id']);
                 $definition = $this->forms->price($state['type'], $text, $plan);
-                $summary = "تعرفه {$definition->method} برای #{$plan->id}\n{$text}";
+                $summary = 'قیمت پلن '.$this->safe($plan->name)."\n{$text}";
             }
         } catch (ValidationException|AuthorizationException) {
             $this->notice($bot, 'ورودی معتبر نیست. ترتیب فیلدها، حدود حجم/مدت و اعداد را بررسی کنید؛ یا فرم را لغو و دوباره شروع کنید.');

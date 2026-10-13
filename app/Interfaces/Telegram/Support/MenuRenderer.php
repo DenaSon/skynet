@@ -55,7 +55,7 @@ final class MenuRenderer
     {
         $this->render(
             $bot,
-            "🎁 دعوت دوستان\n\nلینک اختصاصی شما:\n{$url}\n\n👥 دعوت‌های ثبت‌شده: {$invitedCount}\n\nدر این مرحله پاداش یا اعتبار مالی برای دعوت تعریف نشده است.",
+            "🎁 دعوت دوستان\n\nلینک اختصاصی شما:\n{$url}\n\n👥 دعوت‌های ثبت‌شده: {$invitedCount}\n\nفعلاً برای دعوت دوستان اعتباری اضافه نمی‌شود.",
             $this->homeKeyboard(),
         );
     }
@@ -73,7 +73,7 @@ final class MenuRenderer
     public function showAccount(Nutgram $bot, TelegramActor $actor): void
     {
         $name = $this->displayName($actor->name);
-        $roles = implode('، ', $actor->roles);
+        $roles = implode('، ', array_map(TelegramUi::role(...), $actor->roles));
 
         $this->render(
             $bot,
@@ -106,7 +106,7 @@ final class MenuRenderer
 
         $keyboard->addRow(InlineKeyboardButton::make('◀️ صفحه اصلی', callback_data: 'menu:home'));
 
-        $this->render($bot, "🛡️ مدیریت SkyNet\n\nمدیریت کاربران، نقش‌ها و مجوزها فعال است.", $keyboard);
+        $this->render($bot, "🛡️ مدیریت SkyNet\n\nبخش موردنظر را انتخاب کنید.", $keyboard);
     }
 
     public function showAdminSales(Nutgram $bot): void

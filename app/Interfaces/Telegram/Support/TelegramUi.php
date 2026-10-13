@@ -24,6 +24,34 @@ final class TelegramUi
         return InlineKeyboardButton::make($label, copy_text: CopyTextButton::make($text));
     }
 
+    public static function role(string $role): string
+    {
+        return match ($role) {
+            'member' => 'کاربر',
+            'reseller' => 'نماینده فروش',
+            'admin' => 'مدیر',
+            'super-admin' => 'مدیر اصلی',
+            'accountant' => 'حسابدار',
+            default => $role,
+        };
+    }
+
+    public static function topupStatus(string $status): string
+    {
+        return match ($status) {
+            'requested' => 'ثبت‌شده',
+            'submitted' => 'در انتظار بررسی',
+            'approved' => 'تأییدشده',
+            'rejected' => 'ردشده',
+            default => 'در حال بررسی',
+        };
+    }
+
+    public static function toman(int $rials): string
+    {
+        return number_format(intdiv($rials + 9, 10));
+    }
+
     public static function planMode(string $mode): string
     {
         return match ($mode) {

@@ -92,7 +92,7 @@ final readonly class ProductAdminUi
             '📦 محصول پایه #'.$pid,
             '',
             'نام: '.$this->safe($product['name']),
-            'شناسه ثابت (slug): '.$product['slug'],
+            'شناسه محصول: '.$product['slug'],
             'وضعیت: '.($product['is_active'] ? '🟢 فعال' : '⏸️ غیرفعال'),
             "محدوده حجم: {$product['min_gb']} تا {$product['max_gb']} گیگ",
             'پلن‌های وابسته: '.$product['managed_plan_count'],

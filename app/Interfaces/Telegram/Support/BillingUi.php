@@ -48,7 +48,7 @@ final class BillingUi
         $lines = ['💼 کیف پول نماینده', '', 'موجودی: '.number_format(intdiv($summary->balanceRials, 10)).' تومان', '', 'آخرین درخواست‌ها:'];
 
         foreach ($summary->topups as $row) {
-            $lines[] = '#'.$row['id'].' | '.number_format(intdiv($row['amount_rials'], 10)).' تومان | '.$row['status'];
+            $lines[] = '#'.$row['id'].' | '.number_format(intdiv($row['amount_rials'], 10)).' تومان | '.TelegramUi::topupStatus($row['status']);
         }
 
         if ($summary->topups === []) {
