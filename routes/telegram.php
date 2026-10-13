@@ -199,6 +199,12 @@ $bot->onCallbackQueryData('product:status:{operation}:{id}:{days}', function (Nu
 $bot->onCallbackQueryData('product:apply:{token}', function (Nutgram $bot, string $token): void {
     app(ProductAdminUi::class)->apply($bot, $token);
 });
+$bot->onCallbackQueryData('product:quick', function (Nutgram $bot): void {
+    app(ProductAdminUi::class)->quick($bot);
+});
+$bot->onCallbackQueryData('product:back', function (Nutgram $bot): void {
+    app(ProductAdminUi::class)->back($bot);
+});
 $bot->onCallbackQueryData('product:cancel', function (Nutgram $bot): void {
     app(ProductAdminUi::class)->cancel($bot);
 });
