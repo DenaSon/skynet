@@ -45,7 +45,7 @@ final readonly class ProductAdminUi
         $page = min(max($page, 1), $pages);
         $keyboard = InlineKeyboardMarkup::make();
         $lines = ['📚 محصولات پایه SkyNet', 'تعداد: '.count($products)." | صفحه {$page} از {$pages}", '',
-            'این محصولات، والد پلن‌های جدید و تعرفه‌های خرید قدیمی F09 هستند.', ''];
+            'محصول موردنظر را برای مشاهده قیمت‌ها یا ویرایش انتخاب کنید.', ''];
 
         foreach (array_slice($products, ($page - 1) * 5, 5) as $entry) {
             $status = $entry['is_active'] ? '🟢' : '⚪';
@@ -94,10 +94,10 @@ final readonly class ProductAdminUi
             'نام: '.$this->safe($product['name']),
             'شناسه ثابت (slug): '.$product['slug'],
             'وضعیت: '.($product['is_active'] ? '🟢 فعال' : '⏸️ غیرفعال'),
-            "حجم F09: {$product['min_gb']} تا {$product['max_gb']} گیگ",
+            "محدوده حجم: {$product['min_gb']} تا {$product['max_gb']} گیگ",
             'پلن‌های وابسته: '.$product['managed_plan_count'],
             '',
-            '💵 تعرفه‌های قدیمی F09 (تومان):',
+            '💵 قیمت‌های فروش مستقیم (تومان):',
         ];
         $rates = collect($product['rates'])->keyBy('duration_days');
         $keyboard = InlineKeyboardMarkup::make();
@@ -135,7 +135,7 @@ final readonly class ProductAdminUi
         $keyboard->addRow(InlineKeyboardButton::make('◀️ محصولات پایه', callback_data: 'product:list:1'));
 
         $lines[] = '';
-        $lines[] = '⚠️ تغییر محصول فعال بر Catalog و خرید F09 اثر می‌گذارد. تاریخچه سفارش‌ها و پلن‌ها حذف نمی‌شوند.';
+        $lines[] = '💡 غیرفعال‌کردن محصول، آن را از فهرست فروش پنهان می‌کند. سفارش‌های قبلی باقی می‌مانند.';
         $this->render($bot, implode("\n", $lines), $keyboard);
     }
 
@@ -180,10 +180,22 @@ final readonly class ProductAdminUi
                     .' | '.intdiv($existing['per_gb_rials'], 10)),
         };
 
-        $this->render($bot, "📝 فرم مدیریت محصول\n\n{$hint}\n\nفقط یک خط با علامت | ارسال کنید (اعداد انگلیسی)."
-            ."\nفرم ۱۰ دقیقه معتبر است. پس از ثبت، محصول/تعرفه ابتدا غیرفعال خواهد بود."
-            ."\n\n⚠️ تغییر تعرفه فعال، آن را تا انتشار مجدد غیرفعال می‌کند.",
-            InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'product:cancel')));
+        $example = match ($operation) {
+            'create' => 'vpn-extra | اشتراک ویژه | 1 | 100',
+            'edit' => "{$product['name']} | {$product['min_gb']} | {$product['max_gb']}",
+            'rate' => $existing === null ? '50000 | 2000'
+                : intdiv($existing['base_price_rials'], 10).' | '.intdiv($existing['per_gb_rials'], 10),
+        };
+        $keyboard = InlineKeyboardMarkup::make();
+        if (mb_strlen($example) <= 256) {
+            $keyboard->addRow(TelegramUi::copy($example));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'product:cancel'));
+        $this->render($bot, "📝 فرم محصول\n\n".htmlspecialchars($hint, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+            ."\n\n📋 نمونه قابل کپی:\n".TelegramUi::code($example)
+            ."\n\nمقادیر را در یک پیام بفرستید. تا ۱۰ دقیقه فرصت دارید."
+            ."\nمحصول و قیمت جدید، پس از ثبت ابتدا غیرفعال می‌مانند.",
+            $keyboard, true);
     }
 
     public function text(Nutgram $bot, string $text): bool
@@ -224,7 +236,7 @@ final readonly class ProductAdminUi
                 throw ValidationException::withMessages(['catalog' => 'Stale form.']);
             }
         } catch (ValidationException) {
-            $this->notice($bot, 'ورودی یا نسخه محصول معتبر نیست. اصلاح و دوباره ارسال کنید یا فرم جدید باز کنید.');
+            $this->notice($bot, 'مقادیر درست نیست یا اطلاعات تغییر کرده است. اصلاح کنید یا فرم را دوباره باز کنید.');
 
             return true;
         }
@@ -236,7 +248,7 @@ final readonly class ProductAdminUi
 
         $name = $s['operation'] === 'rate' ? 'تعرفه '.$s['days'].' روزه' : 'محصول پایه';
         $this->render($bot, "🔎 پیش‌نمایش {$name}\n\n".$this->safe($text)
-            ."\n\n⚠️ اعمال این عملیات در دیتابیس واقعی و ثبت Audit انجام می‌شود."
+            ."\n\nاگر اطلاعات درست است، ثبت را تأیید کنید."
             ."\nمحصول/تعرفه جدید یا ویرایش‌شده غیرفعال خواهد ماند."
             ."\nاین تأیید فقط یک‌بار و تا ۳ دقیقه معتبر است.",
             $this->confirmButtons($token));
@@ -278,8 +290,8 @@ final readonly class ProductAdminUi
         $label = match ($operation) {
             'enable' => 'فعال‌سازی محصول',
             'disable' => 'غیرفعال‌سازی محصول (همه پلن‌ها و خریدهای جدید مرتبط مخفی می‌شوند)',
-            'rate-enable' => 'انتشار تعرفه F09',
-            'rate-disable' => 'توقف تعرفه F09',
+            'rate-enable' => 'فعال‌سازی قیمت فروش مستقیم',
+            'rate-disable' => 'توقف قیمت فروش مستقیم',
         };
         $this->render($bot, "⚠️ تأیید نهایی\n\n{$label}\n"
             .'محصول: '.$this->safe($item['name'])."\n"
@@ -313,7 +325,7 @@ final readonly class ProductAdminUi
             $values = $s['input'] === '' ? [] : $this->forms->parse($s['operation'], $s['input']);
             $id = $this->catalog->apply($actor->userId, $s['operation'], $s['id'], $s['days'], $values, $s['snapshot']);
         } catch (ValidationException|AuthorizationException|QueryException) {
-            $this->notice($bot, 'ثبت انجام نشد: وضعیت محصول یا تعرفه تغییر کرده است. از فهرست دوباره تلاش کنید.');
+            $this->notice($bot, 'اطلاعات در این فاصله تغییر کرده است. از فهرست دوباره شروع کنید.');
 
             return;
         }
@@ -387,15 +399,15 @@ final readonly class ProductAdminUi
             ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'product:cancel'));
     }
 
-    private function render(Nutgram $bot, string $text, InlineKeyboardMarkup $keyboard): void
+    private function render(Nutgram $bot, string $text, InlineKeyboardMarkup $keyboard, bool $html = false): void
     {
         if ($bot->isCallbackQuery()) {
             $bot->answerCallbackQuery();
-            $bot->editMessageText(text: $text, reply_markup: $keyboard);
+            $bot->editMessageText(text: $text, reply_markup: $keyboard, parse_mode: $html ? 'HTML' : null);
 
             return;
         }
 
-        $bot->sendMessage(text: $text, reply_markup: $keyboard);
+        $bot->sendMessage(text: $text, reply_markup: $keyboard, parse_mode: $html ? 'HTML' : null);
     }
 }

@@ -63,7 +63,7 @@ final readonly class ResellerBuilderUi
         }
 
         if ($builders === []) {
-            $lines[] = 'پلن‌ساز فعال با تعرفه منتشرشده موجود نیست.';
+            $lines[] = 'در حال حاضر پلن سفارشی فعالی برای نمایندگان وجود ندارد.';
         }
 
         if ($page > 1) {

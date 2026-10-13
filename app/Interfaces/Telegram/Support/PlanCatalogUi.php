@@ -71,7 +71,7 @@ final readonly class PlanCatalogUi
         }
 
         if ($entries === []) {
-            $lines[] = 'در حال حاضر هیچ پلن ثابت با تعرفه منتشرشده‌ای وجود ندارد.';
+            $lines[] = 'در حال حاضر پلنی برای نمایش وجود ندارد.';
         }
 
         if ($page > 1) {

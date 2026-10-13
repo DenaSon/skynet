@@ -45,7 +45,7 @@ final readonly class PlanAdminUi
         $entries = array_slice($all, ($page - 1) * 5, 5);
 
         $lines = ['📦 مدیریت پلن‌های SkyNet', 'تعداد: '.count($all)." | صفحه {$page} از {$pages}", '',
-            '⚠️ فعال‌سازی پلن فقط انتشار در Catalog است؛ خرید و ساخت سرویس هنوز متصل نیست.'];
+            'پلن‌های دارای قیمت فعال نمایش داده می‌شوند. خرید پلن‌های جدید فعلاً فعال نیست.'];
         $keyboard = InlineKeyboardMarkup::make();
 
         foreach ($entries as $entry) {
@@ -107,10 +107,12 @@ final readonly class PlanAdminUi
             ['پلن‌ساز نماینده', "{$slug} | reseller-builder | سفارشی نماینده | hybrid | 1 | 100 | 15 | 90"],
         ];
 
-        $lines = ['📋 <b>نمونه فرم‌های قابل کپی</b>', ''];
+        $lines = ['📋 <b>نمونه‌های آماده پلن</b>', 'روی دکمه هر نمونه بزنید تا کپی شود.', ''];
+        $copies = InlineKeyboardMarkup::make();
         foreach ($examples as [$title, $form]) {
             $lines[] = htmlspecialchars($title, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-            $lines[] = '<code>'.htmlspecialchars($form, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'</code>';
+            $lines[] = TelegramUi::code($form);
+            $copies->addRow(TelegramUi::copy($form, '📋 '.$title));
             $lines[] = '';
         }
         $lines[] = 'ابتدا دکمه ساخت پلن مربوطه را بزنید، سپس فقط متن داخل کد را ارسال کنید.';
@@ -123,7 +125,7 @@ final readonly class PlanAdminUi
         $bot->sendMessage(
             text: implode("\n", $lines),
             parse_mode: 'HTML',
-            reply_markup: $this->back(),
+            reply_markup: $copies->addRow(InlineKeyboardButton::make('◀️ پلن‌ها', callback_data: 'plan:list:1')),
         );
     }
 
@@ -135,13 +137,13 @@ final readonly class PlanAdminUi
         }
 
         $entries = $this->plans->products($actor->userId);
-        $lines = ['📚 محصولات پایه (slug موردنیاز در فرم پلن)', ''];
+        $lines = ['📚 محصولات پایه', 'برای ساخت پلن، شناسه یکی از محصولات فعال را انتخاب کنید.', ''];
         foreach (array_slice($entries, 0, 25) as $product) {
             $lines[] = ($product['active'] ? '🟢 ' : '⚪ ').$product['slug'].' — '.$this->safe($product['name']);
         }
 
         if ($entries === []) {
-            $lines[] = 'محصولی موجود نیست؛ ابتدا محصول پایه را با ابزار موجود Sales تعریف کنید.';
+            $lines[] = 'هنوز محصولی ندارید. از بخش مدیریت محصولات، محصول جدید بسازید.';
         }
 
         if (count($entries) > 25) {
@@ -181,21 +183,20 @@ final readonly class PlanAdminUi
         $description = [
             $this->statusIcon($plan->status)." #{$plan->id} — ".$this->safe($plan->name),
             "شناسه: {$plan->slug} | محصول: {$plan->productSlug}",
-            "نوع: {$plan->kind} | حالت: {$plan->mode} | مخاطب: {$plan->audience}",
+            'نوع: '.TelegramUi::planKind($plan->kind).' | حالت: '.TelegramUi::planMode($plan->mode).' | مخاطب: '.TelegramUi::audience($plan->audience),
             "حجم: {$gb} | مدت: {$days}",
             'محدوده حجم: '.($plan->minGb ?? '-').' تا '.($plan->maxGb ?? '-'),
             "محدوده روز: {$plan->minDays} تا {$plan->maxDays}",
             "اولویت: {$plan->sortOrder} | ویژه: ".($plan->featured ? 'بله' : 'خیر'),
-            "نسخه پلن: {$plan->revision}",
             '',
             '💰 تعرفه: '.($price === null
                 ? 'تعریف نشده'
-                : "{$price->method} / {$price->status} / نسخه {$price->revision}".(
-                    $price->configuredPlanRevision === $plan->revision ? '' : ' ⚠️ ناسازگار با نسخه پلن'
+                : ($price->method === 'fixed' ? 'ثابت' : 'محاسباتی').' / '.TelegramUi::status($price->status).(
+                    $price->configuredPlanRevision === $plan->revision ? '' : ' ⚠️ قیمت نیاز به تنظیم دوباره دارد'
                 )),
             $price === null ? '' : $this->tariffText($price),
             '',
-            '⚠️ هنوز سفارش/پرداخت یا فعال‌سازی Remnawave برای این پلن وجود ندارد.',
+            'ℹ️ خرید این پلن فعلاً فعال نیست.',
         ];
 
         $keyboard = InlineKeyboardMarkup::make();
@@ -292,8 +293,30 @@ final readonly class PlanAdminUi
             $hint .= "\n\nمقادیر فعلی (برای اطلاع، درصورت غیرمضرب ۱۰ ریال اعداد را جداگانه بررسی کنید):\n".$this->forms->tariffLine($price);
         }
 
-        $this->render($bot, "📝 فرم مدیریت پلن\n\n{$hint}\n\nفقط یک پیام متنی با همین قالب بفرستید. «-» یعنی مقدار نامحدود/خالی. تا ۱۰ دقیقه معتبر است؛ هیچ تغییری قبل از تأیید ثبت نمی‌شود.",
-            InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'plan:cancel')));
+        $example = match ($type) {
+            'preset' => 'vpn-access | standard-30 | استاندارد ۳۰ | hybrid | both | 30 | 30',
+            'builder' => 'vpn-access | custom-30 | سفارشی | hybrid | 1 | 100 | 15 | 90',
+            'edit' => $this->forms->editLine($plan instanceof PlanSummary ? $plan : throw new \LogicException('Plan missing')),
+            'fixed' => '120000 | 60000 | 5',
+            'formula' => '50000 | 10000 | 2000 | 20000 | 5',
+        };
+        if (in_array($type, ['preset', 'builder'], true)) {
+            $active = collect($this->plans->products($actor->userId))
+                ->first(static fn (array $entry): bool => $entry['active']);
+            if ($active !== null) {
+                $example = (string) $active['slug'].mb_substr($example, mb_strlen('vpn-access'));
+            }
+        }
+
+        $keyboard = InlineKeyboardMarkup::make();
+        if (mb_strlen($example) <= 256) {
+            $keyboard->addRow(TelegramUi::copy($example));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'plan:cancel'));
+        $this->render($bot, "📝 فرم پلن\n\n".htmlspecialchars($hint, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+            ."\n\n📋 نمونه قابل کپی:\n".TelegramUi::code($example)
+            ."\n\nمقادیر را در یک پیام بفرستید. برای نامحدود «-» بگذارید. تا ۱۰ دقیقه فرصت دارید.",
+            $keyboard, true);
     }
 
     /**
@@ -552,15 +575,15 @@ final readonly class PlanAdminUi
         $this->render($bot, "📦 مدیریت پلن‌ها\n\n{$message}", $this->back());
     }
 
-    private function render(Nutgram $bot, string $message, InlineKeyboardMarkup $keyboard): void
+    private function render(Nutgram $bot, string $message, InlineKeyboardMarkup $keyboard, bool $html = false): void
     {
         if ($bot->isCallbackQuery()) {
             $bot->answerCallbackQuery();
-            $bot->editMessageText(text: $message, reply_markup: $keyboard);
+            $bot->editMessageText(text: $message, reply_markup: $keyboard, parse_mode: $html ? 'HTML' : null);
 
             return;
         }
 
-        $bot->sendMessage(text: $message, reply_markup: $keyboard);
+        $bot->sendMessage(text: $message, reply_markup: $keyboard, parse_mode: $html ? 'HTML' : null);
     }
 }
