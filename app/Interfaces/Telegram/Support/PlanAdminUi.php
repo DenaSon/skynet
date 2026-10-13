@@ -25,6 +25,7 @@ final readonly class PlanAdminUi
         private ManagePlans $plans,
         private ManagePlanPricing $pricing,
         private PlanAdminDrafts $drafts,
+        private ProductAdminDrafts $productDrafts,
         private PlanAdminForms $forms,
         private MenuRenderer $menus,
     ) {}
@@ -36,6 +37,7 @@ final readonly class PlanAdminUi
             return;
         }
 
+        $this->productDrafts->forget($actor->userId);
         $page = max(1, min(10000, $page));
         $all = $this->plans->all($actor->userId);
         $pages = max(1, (int) ceil(count($all) / 5));
@@ -146,7 +148,9 @@ final readonly class PlanAdminUi
             $lines[] = 'فقط ۲۵ مورد اول نمایش داده شده است.';
         }
 
-        $this->render($bot, implode("\n", $lines), $this->back());
+        $this->render($bot, implode("\n", $lines), InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('⚙️ مدیریت محصولات پایه', callback_data: 'menu:admin:products'))
+            ->addRow(InlineKeyboardButton::make('◀️ مدیریت پلن‌ها', callback_data: 'plan:list:1')));
     }
 
     public function detail(Nutgram $bot, string $id): void
@@ -236,6 +240,7 @@ final readonly class PlanAdminUi
             return;
         }
 
+        $this->productDrafts->forget($actor->userId);
         if (! in_array($type, ['preset', 'builder', 'edit', 'fixed', 'formula'], true)) {
             $this->notice($bot, 'فرم پشتیبانی نمی‌شود.');
 

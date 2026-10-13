@@ -6,6 +6,7 @@ use App\Interfaces\Telegram\Support\MenuRenderer;
 use App\Interfaces\Telegram\Support\PendingBuilderSelection;
 use App\Interfaces\Telegram\Support\PendingReferral;
 use App\Interfaces\Telegram\Support\PrivateTelegramUser;
+use App\Interfaces\Telegram\Support\ProductAdminDrafts;
 use App\Interfaces\Telegram\Support\ReplyMenuRenderer;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use SergiX44\Nutgram\Nutgram;
@@ -19,6 +20,7 @@ final class StartHandler
         private readonly PendingReferral $pending,
         private readonly ReplyMenuRenderer $replyMenus,
         private readonly PendingBuilderSelection $pendingBuilder,
+        private readonly ProductAdminDrafts $productDrafts,
     ) {}
 
     public function __invoke(Nutgram $bot, ?string $payload = null): void
@@ -32,6 +34,7 @@ final class StartHandler
         $actor = $this->resolve->handle($id);
         if ($actor !== null) {
             $this->pendingBuilder->forget($actor->userId);
+            $this->productDrafts->forget($actor->userId);
         }
 
         if ($actor === null && ! $bot->isCallbackQuery()) {
