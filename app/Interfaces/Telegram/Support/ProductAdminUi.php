@@ -45,7 +45,7 @@ final readonly class ProductAdminUi
         $page = min(max($page, 1), $pages);
         $keyboard = InlineKeyboardMarkup::make();
         $lines = ['📚 محصولات پایه SkyNet', 'تعداد: '.count($products)." | صفحه {$page} از {$pages}", '',
-            'این محصولات، والد پلن‌های جدید و تعرفه‌های خرید قدیمی F09 هستند.', ''];
+            'محصول موردنظر را برای مشاهده قیمت‌ها یا ویرایش انتخاب کنید.', ''];
 
         foreach (array_slice($products, ($page - 1) * 5, 5) as $entry) {
             $status = $entry['is_active'] ? '🟢' : '⚪';
@@ -92,12 +92,12 @@ final readonly class ProductAdminUi
             '📦 محصول پایه #'.$pid,
             '',
             'نام: '.$this->safe($product['name']),
-            'شناسه ثابت (slug): '.$product['slug'],
+            'شناسه محصول: '.$product['slug'],
             'وضعیت: '.($product['is_active'] ? '🟢 فعال' : '⏸️ غیرفعال'),
-            "حجم F09: {$product['min_gb']} تا {$product['max_gb']} گیگ",
+            "محدوده حجم: {$product['min_gb']} تا {$product['max_gb']} گیگ",
             'پلن‌های وابسته: '.$product['managed_plan_count'],
             '',
-            '💵 تعرفه‌های قدیمی F09 (تومان):',
+            '💵 قیمت‌های فروش مستقیم (تومان):',
         ];
         $rates = collect($product['rates'])->keyBy('duration_days');
         $keyboard = InlineKeyboardMarkup::make();
@@ -135,7 +135,7 @@ final readonly class ProductAdminUi
         $keyboard->addRow(InlineKeyboardButton::make('◀️ محصولات پایه', callback_data: 'product:list:1'));
 
         $lines[] = '';
-        $lines[] = '⚠️ تغییر محصول فعال بر Catalog و خرید F09 اثر می‌گذارد. تاریخچه سفارش‌ها و پلن‌ها حذف نمی‌شوند.';
+        $lines[] = '💡 غیرفعال‌کردن محصول، آن را از فهرست فروش پنهان می‌کند. سفارش‌های قبلی باقی می‌مانند.';
         $this->render($bot, implode("\n", $lines), $keyboard);
     }
 
@@ -167,23 +167,149 @@ final readonly class ProductAdminUi
         $this->planDrafts->forget($actor->userId);
         $this->pendingBuilder->forget($actor->userId);
         $this->pendingShop->forget($actor->userId);
-        $this->drafts->store($actor->userId, $this->state($operation, $pid, $duration, '', 'input', '', $snapshot));
-        $existing = $operation === 'rate'
-            ? collect($product['rates'])->firstWhere('duration_days', $duration)
-            : null;
-        $hint = match ($operation) {
-            'create' => "۴ فیلد: slug | name | minGB | maxGB\nمثال:\nvpn-access-2 | سرویس ویژه | 1 | 100",
-            'edit' => "۳ فیلد: name | minGB | maxGB\nشناسه ثابت و قابل تغییر نیست.\nمتن فعلی:\n{$product['name']} | {$product['min_gb']} | {$product['max_gb']}",
-            'rate' => "تعرفه {$duration} روزه: baseToman | perGBToman\nمثال:\n50000 | 2000".($existing === null
-                ? ''
-                : "\nمقادیر فعلی (تقریبی):\n".intdiv($existing['base_price_rials'], 10)
-                    .' | '.intdiv($existing['per_gb_rials'], 10)),
-        };
+        $this->drafts->store($actor->userId, $this->state($operation, $pid, $duration, '', 'step:0', '', $snapshot));
+        $this->showStep($bot, $actor->userId);
+    }
 
-        $this->render($bot, "📝 فرم مدیریت محصول\n\n{$hint}\n\nفقط یک خط با علامت | ارسال کنید (اعداد انگلیسی)."
-            ."\nفرم ۱۰ دقیقه معتبر است. پس از ثبت، محصول/تعرفه ابتدا غیرفعال خواهد بود."
-            ."\n\n⚠️ تغییر تعرفه فعال، آن را تا انتشار مجدد غیرفعال می‌کند.",
-            InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'product:cancel')));
+    /** @return list<array{0:string,1:string,2:bool}> */
+    private function fields(string $operation): array
+    {
+        return match ($operation) {
+            'create' => [
+                ['شناسه کوتاه انگلیسی محصول', 'vpn-premium', false],
+                ['نام محصول', 'اشتراک ویژه', false],
+                ['حداقل حجم (گیگابایت)', '1', true],
+                ['حداکثر حجم (گیگابایت)', '100', true],
+            ],
+            'edit' => [
+                ['نام محصول', 'اشتراک ویژه', false],
+                ['حداقل حجم (گیگابایت)', '1', true],
+                ['حداکثر حجم (گیگابایت)', '100', true],
+            ],
+            'rate' => [
+                ['قیمت پایه (تومان)', '50000', true],
+                ['قیمت هر گیگ (تومان)', '2000', true],
+            ],
+            default => [],
+        };
+    }
+
+    private function showStep(Nutgram $bot, int $actorId): void
+    {
+        $state = $this->drafts->peek($actorId);
+        if ($state === null || ! str_starts_with($state['stage'], 'step:')) {
+            return;
+        }
+
+        $index = (int) substr($state['stage'], 5);
+        $fields = $this->fields($state['operation']);
+        if (! isset($fields[$index])) {
+            $this->notice($bot, 'فرم معتبر نیست. دوباره شروع کنید.');
+
+            return;
+        }
+
+        [$label, $example] = $fields[$index];
+        $count = count($fields);
+        if ($state['operation'] === 'edit' && $state['id'] > 0) {
+            $product = $this->catalog->find($actorId, $state['id']);
+            $example = match ($index) {
+                0 => (string) $product['name'],
+                1 => (string) $product['min_gb'],
+                2 => (string) $product['max_gb'],
+                default => $example,
+            };
+        }
+
+        $keyboard = InlineKeyboardMarkup::make();
+        if (mb_strlen($example) <= 256) {
+            $keyboard->addRow(TelegramUi::copy($example, '📋 کپی مثال'));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('⚡ ورود سریع همه اطلاعات', callback_data: 'product:quick'));
+        if ($index > 0) {
+            $keyboard->addRow(InlineKeyboardButton::make('◀️ مرحله قبل', callback_data: 'product:back'));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'product:cancel'));
+
+        $title = match ($state['operation']) {
+            'create' => 'ساخت محصول',
+            'edit' => 'ویرایش محصول',
+            'rate' => 'تنظیم قیمت فروش',
+            default => 'فرم محصول',
+        };
+        $this->render($bot, "📝 {$title} — مرحله ".($index + 1)." از {$count}\n\n"
+            .htmlspecialchars($label, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+            ."\n\nمثال: ".TelegramUi::code($example)
+            ."\n\nلطفاً فقط همین مقدار را بفرستید.",
+            $keyboard, true);
+    }
+
+    public function back(Nutgram $bot): void
+    {
+        $actor = $this->actor($bot);
+        if ($actor === null) {
+            return;
+        }
+
+        $s = $this->drafts->peek($actor->userId);
+        if ($s === null) {
+            $this->browse($bot);
+
+            return;
+        }
+
+        $index = str_starts_with($s['stage'], 'step:') ? (int) substr($s['stage'], 5) : 0;
+        $parts = $s['input'] === '' ? [] : explode(' | ', $s['input']);
+        if ($index > 0) {
+            array_pop($parts);
+            $s['input'] = implode(' | ', $parts);
+            $s['stage'] = 'step:'.($index - 1);
+        } else {
+            $s['input'] = '';
+            $s['stage'] = 'step:0';
+        }
+        $s['token'] = '';
+        $this->drafts->store($actor->userId, $s);
+        $this->showStep($bot, $actor->userId);
+    }
+
+    public function quick(Nutgram $bot): void
+    {
+        $actor = $this->actor($bot);
+        if ($actor === null) {
+            return;
+        }
+
+        $s = $this->drafts->peek($actor->userId);
+        if ($s === null || $s['stage'] === 'preview') {
+            $this->notice($bot, 'فرم منقضی شده است. دوباره شروع کنید.');
+
+            return;
+        }
+
+        $s['input'] = '';
+        $s['stage'] = 'input';
+        $this->drafts->store($actor->userId, $s);
+        $example = match ($s['operation']) {
+            'create' => 'vpn-extra | اشتراک ویژه | 1 | 100',
+            'edit' => $this->editExample($actor->userId, $s['id']),
+            'rate' => '50000 | 2000',
+            default => '',
+        };
+        $keyboard = InlineKeyboardMarkup::make()
+            ->addRow(TelegramUi::copy($example))
+            ->addRow(InlineKeyboardButton::make('◀️ راهنمای مرحله‌ای', callback_data: 'product:back'))
+            ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'product:cancel'));
+        $this->render($bot, "⚡ ورود سریع\n\nیک پیام با همین قالب بفرستید:\n"
+            .TelegramUi::code($example)."\n\nمقادیر را با علامت | جدا کنید.",
+            $keyboard, true);
+    }
+
+    private function editExample(int $actorId, int $id): string
+    {
+        $p = $this->catalog->find($actorId, $id);
+
+        return "{$p['name']} | {$p['min_gb']} | {$p['max_gb']}";
     }
 
     public function text(Nutgram $bot, string $text): bool
@@ -210,8 +336,37 @@ final readonly class ProductAdminUi
             return true;
         }
 
-        if ($s['stage'] !== 'input') {
-            $this->notice($bot, 'فرم منتظر تأیید نهایی است؛ دکمه تأیید یا انصراف را بزنید.');
+        if (str_starts_with($s['stage'], 'step:') && ! str_contains($text, '|')) {
+            $index = (int) substr($s['stage'], 5);
+            $labels = $this->fields($s['operation']);
+            if (! isset($labels[$index])) {
+                $this->notice($bot, 'فرم معتبر نیست. دوباره شروع کنید.');
+
+                return true;
+            }
+
+            $value = trim($text);
+            if ($value === '' || mb_strlen($value) > 120
+                || preg_match('/[\r\n\x00-\x1f\x7f|]/u', $value) === 1
+                || ($labels[$index][2] && preg_match('/\A(?:0|[1-9][0-9]{0,11})\z/D', $value) !== 1)) {
+                $this->notice($bot, 'این مقدار درست نیست. لطفاً دوباره وارد کنید.');
+
+                return true;
+            }
+
+            $parts = $s['input'] === '' ? [] : explode(' | ', $s['input']);
+            $parts[] = $value;
+            $text = implode(' | ', $parts);
+            if ($index < count($labels) - 1) {
+                $this->drafts->store($actor->userId, $this->state(
+                    $s['operation'], $s['id'], $s['days'], $text, 'step:'.($index + 1), '', $s['snapshot'],
+                ));
+                $this->showStep($bot, $actor->userId);
+
+                return true;
+            }
+        } elseif ($s['stage'] !== 'input' && ! str_starts_with($s['stage'], 'step:')) {
+            $this->notice($bot, 'اطلاعات آماده تأیید است. برای ادامه، تأیید یا انصراف را بزنید.');
 
             return true;
         }
@@ -224,7 +379,7 @@ final readonly class ProductAdminUi
                 throw ValidationException::withMessages(['catalog' => 'Stale form.']);
             }
         } catch (ValidationException) {
-            $this->notice($bot, 'ورودی یا نسخه محصول معتبر نیست. اصلاح و دوباره ارسال کنید یا فرم جدید باز کنید.');
+            $this->notice($bot, 'مقادیر درست نیست یا اطلاعات تغییر کرده است. اصلاح کنید یا فرم را دوباره باز کنید.');
 
             return true;
         }
@@ -236,7 +391,7 @@ final readonly class ProductAdminUi
 
         $name = $s['operation'] === 'rate' ? 'تعرفه '.$s['days'].' روزه' : 'محصول پایه';
         $this->render($bot, "🔎 پیش‌نمایش {$name}\n\n".$this->safe($text)
-            ."\n\n⚠️ اعمال این عملیات در دیتابیس واقعی و ثبت Audit انجام می‌شود."
+            ."\n\nاگر اطلاعات درست است، ثبت را تأیید کنید."
             ."\nمحصول/تعرفه جدید یا ویرایش‌شده غیرفعال خواهد ماند."
             ."\nاین تأیید فقط یک‌بار و تا ۳ دقیقه معتبر است.",
             $this->confirmButtons($token));
@@ -278,8 +433,8 @@ final readonly class ProductAdminUi
         $label = match ($operation) {
             'enable' => 'فعال‌سازی محصول',
             'disable' => 'غیرفعال‌سازی محصول (همه پلن‌ها و خریدهای جدید مرتبط مخفی می‌شوند)',
-            'rate-enable' => 'انتشار تعرفه F09',
-            'rate-disable' => 'توقف تعرفه F09',
+            'rate-enable' => 'فعال‌سازی قیمت فروش مستقیم',
+            'rate-disable' => 'توقف قیمت فروش مستقیم',
         };
         $this->render($bot, "⚠️ تأیید نهایی\n\n{$label}\n"
             .'محصول: '.$this->safe($item['name'])."\n"
@@ -313,7 +468,7 @@ final readonly class ProductAdminUi
             $values = $s['input'] === '' ? [] : $this->forms->parse($s['operation'], $s['input']);
             $id = $this->catalog->apply($actor->userId, $s['operation'], $s['id'], $s['days'], $values, $s['snapshot']);
         } catch (ValidationException|AuthorizationException|QueryException) {
-            $this->notice($bot, 'ثبت انجام نشد: وضعیت محصول یا تعرفه تغییر کرده است. از فهرست دوباره تلاش کنید.');
+            $this->notice($bot, 'اطلاعات در این فاصله تغییر کرده است. از فهرست دوباره شروع کنید.');
 
             return;
         }
@@ -387,15 +542,15 @@ final readonly class ProductAdminUi
             ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'product:cancel'));
     }
 
-    private function render(Nutgram $bot, string $text, InlineKeyboardMarkup $keyboard): void
+    private function render(Nutgram $bot, string $text, InlineKeyboardMarkup $keyboard, bool $html = false): void
     {
         if ($bot->isCallbackQuery()) {
             $bot->answerCallbackQuery();
-            $bot->editMessageText(text: $text, reply_markup: $keyboard);
+            $bot->editMessageText(text: $text, reply_markup: $keyboard, parse_mode: $html ? 'HTML' : null);
 
             return;
         }
 
-        $bot->sendMessage(text: $text, reply_markup: $keyboard);
+        $bot->sendMessage(text: $text, reply_markup: $keyboard, parse_mode: $html ? 'HTML' : null);
     }
 }

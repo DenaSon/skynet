@@ -33,6 +33,7 @@ All statuses reflect **code in the repository**, not intentions.
 | F11-B1.5 — Read-only Telegram plan discovery | Private /catalog, buyer-authorized preset browsing, published quote previews, stale callback denial, copyable Super Admin templates | **PR #45**, 298 Pest tests/1818 assertions, PHP 8.4/8.5 PHPStan/Pint green; live BotFather QA pending; no checkout |
 | F11-B1.6 — Reseller builder preview | Private /builder, bounded GB/day selectors, 10-min buyer-scoped custom text input, current formula quote and role enforcement, no money/provider writes | **PR #46**, green PHP 8.4/8.5 CI (305 tests/1898 assertions), live private Telegram E2E pending |
 | F11-CATALOG-01 — Telegram base products and F09 rate management | Private root /products, add/edit/status, 15/30/60/90 legacy rate editing, one-use preview, optimistic snapshot/audit, no payment/provider writes | **PR #47**, green PHP 8.4/8.5 CI (313 tests/1979 assertions); live Telegram E2E pending |
+| UX-POLISH — Telegram identity and guided UI | [UX identity](017-TELEGRAM-UX-IDENTITY.md), root-only grouped navigation, native one-tap copy, step-by-step product/price and plan forms, selective plan editing; preserve all Actions and previous commands/callbacks | [PR #48](https://github.com/DenaSon/skynet/pull/48); PHP 8.4/8.5 CI required, real Telegram smoke pending; no provider/finance writes |
 | F11-B1.3 — Provider binding | Plan to Internal Squad mapping, bounded bytes/UTC expiry | Planned |
 
 | F11-B — Fulfillment/delivery | Explicit plan → squad mapping, bounded bytes/expiry, reconciled activation and owner-safe link delivery | Planned; NOT implemented |
@@ -138,3 +139,4 @@ Remnawave is chosen for the subscription panel API (F10). SkyNetwork's own SSH/W
 - Customer sees only their own orders (latest ten and individual detail). Snapshot never silently changes after operator modifies catalog prices.
 - F09-C adds no balance debit, wallet reservation, payment confirmation, bank integration, subscriptions, Remnawave API or server/network code. Any future paid order transition must be implemented and verified separately.
 - Tests cover ownership, duplicated callback, token expiry, stale quotes, role revocation, inactive buyer and zero Billing postings.
+

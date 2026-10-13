@@ -77,15 +77,11 @@ final class ReplyMenuRenderer
 
         if ($actor->canManageRoles()) {
             $labels[] = ReplyMenuLabels::ROLES;
-            $labels[] = ReplyMenuLabels::PLANS;
-            $labels[] = ReplyMenuLabels::PRODUCTS;
+            $labels[] = ReplyMenuLabels::SALES_SECTION;
 
-            if (config('billing.topups_enabled', false) === true) {
-                $labels[] = ReplyMenuLabels::TOPUPS;
-            }
-
-            if (config('sales.manual_bank_review_enabled', false) === true) {
-                $labels[] = ReplyMenuLabels::RECEIPTS;
+            if (config('billing.topups_enabled', false) === true
+                || config('sales.manual_bank_review_enabled', false) === true) {
+                $labels[] = ReplyMenuLabels::FINANCE_SECTION;
             }
         }
 
@@ -102,7 +98,7 @@ final class ReplyMenuRenderer
         $keyboard = ReplyKeyboardMarkup::make(
             resize_keyboard: true,
             one_time_keyboard: false,
-            input_field_placeholder: 'از منو انتخاب کنید یا دستور بنویسید',
+            input_field_placeholder: 'بخش موردنظر را انتخاب کنید',
             is_persistent: true,
         );
 

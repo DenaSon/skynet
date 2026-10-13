@@ -115,7 +115,7 @@ final readonly class ManualPaymentUi
         }
 
         Cache::forget('telegram:payphoto:'.$actor->userId);
-        $this->notice($bot, "🕘 رسید سفارش #{$orderId} ثبت شد.\nشماره بررسی: #{$claimId}\n\nتنها پس از تطبیق واقعی گردش بانک و تأیید Super Admin، سفارش تسویه می‌شود.");
+        $this->notice($bot, "🕘 رسید سفارش #{$orderId} ثبت شد.\nشماره بررسی: #{$claimId}\n\nتنها پس از تطبیق واقعی گردش بانک و تأیید مدیر، سفارش تسویه می‌شود.");
         $this->alertRoots($bot, $claimId);
     }
 

@@ -10,6 +10,7 @@ use App\Interfaces\Telegram\Handlers\LinkHandler;
 use App\Interfaces\Telegram\Handlers\ReplyMenuHandler;
 use App\Interfaces\Telegram\Handlers\SettingsHandler;
 use App\Interfaces\Telegram\Handlers\StartHandler;
+use App\Interfaces\Telegram\Support\AdminSectionsUi;
 use App\Interfaces\Telegram\Support\BillingUi;
 use App\Interfaces\Telegram\Support\ManualPaymentUi;
 use App\Interfaces\Telegram\Support\PlanAdminUi;
@@ -165,6 +166,12 @@ $bot->onCallbackQueryData('catalog:list:{page}', function (Nutgram $bot, string 
 $bot->onCallbackQueryData('catalog:detail:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
     app(PlanCatalogUi::class)->detail($bot, $id, $page);
 });
+$bot->onCallbackQueryData('menu:admin:sales', function (Nutgram $bot): void {
+    app(AdminSectionsUi::class)->sales($bot);
+});
+$bot->onCallbackQueryData('menu:admin:finance', function (Nutgram $bot): void {
+    app(AdminSectionsUi::class)->finance($bot);
+});
 $bot->onCallbackQueryData('menu:admin:plans', function (Nutgram $bot): void {
     app(PlanAdminUi::class)->browse($bot);
 });
@@ -192,6 +199,12 @@ $bot->onCallbackQueryData('product:status:{operation}:{id}:{days}', function (Nu
 $bot->onCallbackQueryData('product:apply:{token}', function (Nutgram $bot, string $token): void {
     app(ProductAdminUi::class)->apply($bot, $token);
 });
+$bot->onCallbackQueryData('product:quick', function (Nutgram $bot): void {
+    app(ProductAdminUi::class)->quick($bot);
+});
+$bot->onCallbackQueryData('product:back', function (Nutgram $bot): void {
+    app(ProductAdminUi::class)->back($bot);
+});
 $bot->onCallbackQueryData('product:cancel', function (Nutgram $bot): void {
     app(ProductAdminUi::class)->cancel($bot);
 });
@@ -212,6 +225,27 @@ $bot->onCallbackQueryData('plan:status:{id}:{operation}', function (Nutgram $bot
 });
 $bot->onCallbackQueryData('plan:apply:{type}:{token}', function (Nutgram $bot, string $type, string $token): void {
     app(PlanAdminUi::class)->applyStatus($bot, $type, $token);
+});
+$bot->onCallbackQueryData('plan:editquick', function (Nutgram $bot): void {
+    app(PlanAdminUi::class)->editQuick($bot);
+});
+$bot->onCallbackQueryData('plan:editfields', function (Nutgram $bot): void {
+    app(PlanAdminUi::class)->editFields($bot);
+});
+$bot->onCallbackQueryData('plan:editfield:{index}', function (Nutgram $bot, string $index): void {
+    app(PlanAdminUi::class)->editField($bot, $index);
+});
+$bot->onCallbackQueryData('plan:editchoice:{value}', function (Nutgram $bot, string $value): void {
+    app(PlanAdminUi::class)->editChoice($bot, $value);
+});
+$bot->onCallbackQueryData('plan:choose:{value}', function (Nutgram $bot, string $value): void {
+    app(PlanAdminUi::class)->choose($bot, $value);
+});
+$bot->onCallbackQueryData('plan:quick', function (Nutgram $bot): void {
+    app(PlanAdminUi::class)->quick($bot);
+});
+$bot->onCallbackQueryData('plan:back', function (Nutgram $bot): void {
+    app(PlanAdminUi::class)->previous($bot);
 });
 $bot->onCallbackQueryData('plan:cancel', function (Nutgram $bot): void {
     app(PlanAdminUi::class)->cancel($bot);

@@ -63,7 +63,7 @@ final readonly class ResellerBuilderUi
         }
 
         if ($builders === []) {
-            $lines[] = 'پلن‌ساز فعال با تعرفه منتشرشده موجود نیست.';
+            $lines[] = 'در حال حاضر پلن سفارشی فعالی برای نمایندگان وجود ندارد.';
         }
 
         if ($page > 1) {
@@ -208,6 +208,7 @@ final readonly class ResellerBuilderUi
         $example = $plan->kind === 'time' ? '- | 30' : '35 | 45';
 
         $keyboard = InlineKeyboardMarkup::make()
+            ->addRow(TelegramUi::copy($example))
             ->addRow(InlineKeyboardButton::make('❌ لغو انتخاب', callback_data: 'builder:cancel'))
             ->addRow(InlineKeyboardButton::make('◀️ انتخاب‌های پلن', callback_data: "builder:detail:{$plan->id}:{$pg}"));
 
@@ -300,12 +301,11 @@ final readonly class ResellerBuilderUi
             '📊 حجم: '.($quote->trafficGb === null ? 'نامحدود' : $quote->trafficGb.' گیگابایت'),
             "⏳ مدت: {$quote->durationDays} روز",
             '',
-            '💵 قیمت عمومی: '.number_format($quote->publicPriceRials).' ریال',
-            "🎁 تخفیف نماینده: {$quote->discountPercent}% (".number_format($quote->discountRials).' ریال)',
-            '✅ قیمت نماینده: '.number_format($quote->totalPriceRials).' ریال',
-            '≈ '.number_format(intdiv($quote->totalPriceRials + 9, 10)).' تومان (گرد شده به بالا)',
+            '💵 قیمت عمومی: '.number_format(intdiv($quote->publicPriceRials + 9, 10)).' تومان',
+            "🎁 تخفیف نماینده: {$quote->discountPercent}٪",
+            '✅ قیمت شما: '.number_format(intdiv($quote->totalPriceRials + 9, 10)).' تومان',
             '',
-            '⚠️ صرفاً استعلام لحظه‌ای است؛ قیمت رزرو نشده و سفارش، پرداخت یا اشتراک ساخته نمی‌شود.',
+            'ℹ️ این قیمت برای اطلاع شماست. خرید پلن سفارشی فعلاً فعال نیست.',
         ];
 
         $keyboard = InlineKeyboardMarkup::make()

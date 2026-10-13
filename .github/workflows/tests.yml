@@ -63,3 +63,4 @@ jobs:
 
       - name: Formatting verification
         run: vendor/bin/pint --test
+

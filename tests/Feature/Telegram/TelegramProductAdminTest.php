@@ -195,14 +195,14 @@ it('rejects invalid volume, rate bounds, duration and duplicate slugs before wri
     [$root, $bot] = baseProductRoot();
     $bot->hearCallbackQueryData('product:form:create:0:0')->reply();
     $bot->hearText('bad slug | Invalid | 1 | 100')->reply();
-    expect(app(ProductAdminDrafts::class)->peek($root->id)['stage'])->toBe('input');
+    expect(app(ProductAdminDrafts::class)->peek($root->id)['stage'])->toBe('step:0');
 
     $bot->hearText('vpn-access | Valid | 0 | 101')->reply();
     expect(DB::table('sales_products')->count())->toBe(0);
 
     app(ConfigureProduct::class)->handle('vpn-access', 'Original');
     $bot->hearText('vpn-access | Duplicate | 1 | 100')->reply();
-    expect(app(ProductAdminDrafts::class)->peek($root->id)['stage'])->toBe('input');
+    expect(app(ProductAdminDrafts::class)->peek($root->id)['stage'])->toBe('step:0');
 
     expect(fn () => app(ManageBaseCatalog::class)->snapshot($root->id, 'rate', 1, 31))
         ->toThrow(ValidationException::class);
@@ -247,7 +247,8 @@ it('navigates between product and plan menus without stealing other pending form
     $actor = app(ResolveTelegramActor::class)->handle(978001);
     $buttons = array_map(static fn ($button): string => $button->text,
         array_merge(...app(ReplyMenuRenderer::class)->adminKeyboard($actor)->keyboard));
-    expect($buttons)->toContain(ReplyMenuLabels::PRODUCTS);
+    expect($buttons)->toContain(ReplyMenuLabels::SALES_SECTION)
+        ->not->toContain(ReplyMenuLabels::PRODUCTS);
 
     $bot->hearCallbackQueryData('plan:products')->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('menu:admin:products')->reply()->assertCalled('editMessageText');

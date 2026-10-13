@@ -55,14 +55,14 @@ final class MenuRenderer
     {
         $this->render(
             $bot,
-            "🎁 دعوت دوستان\n\nلینک اختصاصی شما:\n{$url}\n\n👥 دعوت‌های ثبت‌شده: {$invitedCount}\n\nدر این مرحله پاداش یا اعتبار مالی برای دعوت تعریف نشده است.",
+            "🎁 دعوت دوستان\n\nلینک اختصاصی شما:\n{$url}\n\n👥 دعوت‌های ثبت‌شده: {$invitedCount}\n\nفعلاً برای دعوت دوستان اعتباری اضافه نمی‌شود.",
             $this->homeKeyboard(),
         );
     }
 
     public function showInviteUnavailable(Nutgram $bot): void
     {
-        $this->render($bot, 'امکان ساخت لینک دعوت هنوز تنظیم نشده است. مدیر باید TELEGRAM_BOT_USERNAME را تنظیم کند.', $this->homeKeyboard());
+        $this->render($bot, 'لینک دعوت هنوز آماده نیست. لطفاً به مدیر اطلاع دهید.', $this->homeKeyboard());
     }
 
     public function showSignupNotice(Nutgram $bot, string $message): void
@@ -73,7 +73,7 @@ final class MenuRenderer
     public function showAccount(Nutgram $bot, TelegramActor $actor): void
     {
         $name = $this->displayName($actor->name);
-        $roles = implode('، ', $actor->roles);
+        $roles = implode('، ', array_map(TelegramUi::role(...), $actor->roles));
 
         $this->render(
             $bot,
@@ -86,7 +86,7 @@ final class MenuRenderer
     {
         $this->render(
             $bot,
-            "⚙️ تنظیمات\n\nدر حال حاضر تنظیمات قابل تغییری وجود ندارد. گزینه‌های اعلان و زبان پس از تعریف نیازهای واقعی اضافه می‌شوند.",
+            "⚙️ تنظیمات\n\nدر حال حاضر گزینه‌ای برای تغییر تنظیمات وجود ندارد.",
             $this->homeKeyboard(),
         );
     }
@@ -98,15 +98,43 @@ final class MenuRenderer
 
         if ($actor->canManageRoles()) {
             $keyboard->addRow(InlineKeyboardButton::make('🔐 نقش‌ها و دسترسی‌ها', callback_data: 'menu:admin:roles'));
-            $keyboard->addRow(InlineKeyboardButton::make('📦 مدیریت پلن‌ها', callback_data: 'menu:admin:plans'));
-            $keyboard->addRow(InlineKeyboardButton::make('📚 محصولات پایه', callback_data: 'menu:admin:products'));
-            $keyboard->addRow(InlineKeyboardButton::make('💳 بررسی شارژها', callback_data: 'menu:billing-reviews'));
-            $keyboard->addRow(InlineKeyboardButton::make('🧾 بررسی رسیدهای خرید', callback_data: 'bank:list'));
+            $keyboard->addRow(InlineKeyboardButton::make('📦 محصولات و پلن‌ها', callback_data: 'menu:admin:sales'));
+            if (config('billing.topups_enabled', false) || config('sales.manual_bank_review_enabled', false)) {
+                $keyboard->addRow(InlineKeyboardButton::make('💳 امور مالی', callback_data: 'menu:admin:finance'));
+            }
         }
 
         $keyboard->addRow(InlineKeyboardButton::make('◀️ صفحه اصلی', callback_data: 'menu:home'));
 
-        $this->render($bot, "🛡️ مدیریت SkyNet\n\nمدیریت کاربران، نقش‌ها و مجوزها فعال است.", $keyboard);
+        $this->render($bot, "🛡️ مدیریت SkyNet\n\nبخش موردنظر را انتخاب کنید.", $keyboard);
+    }
+
+    public function showAdminSales(Nutgram $bot): void
+    {
+        $keyboard = InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('📚 محصولات پایه', callback_data: 'menu:admin:products'))
+            ->addRow(InlineKeyboardButton::make('📦 مدیریت پلن‌ها', callback_data: 'menu:admin:plans'))
+            ->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
+
+        $this->render($bot, "📦 محصولات و پلن‌ها\n\nاز این بخش می‌توانید محصولات، پلن‌ها و قیمت‌های فروش را مدیریت کنید.", $keyboard);
+    }
+
+    public function showAdminFinance(Nutgram $bot): void
+    {
+        $keyboard = InlineKeyboardMarkup::make();
+        if (config('billing.topups_enabled', false)) {
+            $keyboard->addRow(InlineKeyboardButton::make('💳 بررسی شارژها', callback_data: 'menu:billing-reviews'));
+        }
+        if (config('sales.manual_bank_review_enabled', false)) {
+            $keyboard->addRow(InlineKeyboardButton::make('🧾 بررسی رسیدهای خرید', callback_data: 'bank:list'));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
+
+        $this->render($bot, "💳 امور مالی\n\n".(
+            config('billing.topups_enabled', false) || config('sales.manual_bank_review_enabled', false)
+                ? 'بخش موردنظر را انتخاب کنید.'
+                : 'در حال حاضر عملیاتی برای بررسی وجود ندارد.'
+        ), $keyboard);
     }
 
     public function showUserList(Nutgram $bot, UserDirectoryPage $results, bool $search = false): void

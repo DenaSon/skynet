@@ -106,7 +106,7 @@ it('does not expose referral links before bot username has been configured', fun
     $bot = referralBot(601007);
 
     $bot->hearText('/invite')->reply()->assertReplyText(
-        'امکان ساخت لینک دعوت هنوز تنظیم نشده است. مدیر باید TELEGRAM_BOT_USERNAME را تنظیم کند.'
+        'لینک دعوت هنوز آماده نیست. لطفاً به مدیر اطلاع دهید.'
     );
 
     expect(DB::table('referral_codes')->count())->toBe(0);
