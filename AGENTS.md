@@ -2,6 +2,10 @@
 
 SkyNet is a Laravel 13 application being developed as a **modular monolith**.
 
+## Mandatory Telegram UI/UX identity
+
+Read [docs/017-TELEGRAM-UX-IDENTITY.md](docs/017-TELEGRAM-UX-IDENTITY.md) BEFORE any Telegram presenter/menu/form/message change. The user requires extremely simple Persian UX even for Super Admin; do not expose developer vocabulary, milestones, implementation notes or framework names in Telegram UI. Use native CopyTextButton and escaped HTML code for user-editable examples. Preserve all Actions, legacy callbacks/commands, security guards, and financial/provisioning boundaries. Use guided forms with a fast-entry fallback. Test copy text, cancel/back, role revocation and original commands on PHP 8.4/8.5. Keep the normative identity document current for future development.
+
 ## Current tooling
 - PHP 8.4.1+, Laravel 13, Pest 5, Larastan 3, Laravel Pint.
 - Check with `php artisan test`, `vendor/bin/phpstan analyse --no-progress`, `vendor/bin/pint --test` (or `composer quality`).

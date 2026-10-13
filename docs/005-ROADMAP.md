@@ -138,3 +138,5 @@ Remnawave is chosen for the subscription panel API (F10). SkyNetwork's own SSH/W
 - Customer sees only their own orders (latest ten and individual detail). Snapshot never silently changes after operator modifies catalog prices.
 - F09-C adds no balance debit, wallet reservation, payment confirmation, bank integration, subscriptions, Remnawave API or server/network code. Any future paid order transition must be implemented and verified separately.
 - Tests cover ownership, duplicated callback, token expiry, stale quotes, role revocation, inactive buyer and zero Billing postings.
+
+| UX-POLISH — Telegram presentation identity, native copy, grouped menus, guided root forms | Normative docs/017 UX identity, unmodified Actions, copy/code, root sales/finance grouping, stepwise product/plan forms with fast-entry compatibility, user-facing language cleanup | Feature branch; PR and CI pending, real Telegram smoke pending |
