@@ -157,13 +157,13 @@ function mb05aAdditionalClaim(User $buyer): int
     return (int) DB::table('telegram_notification_deliveries')->where('event_type', 'ReceiptSubmitted')->orderByDesc('id')->value('id');
 }
 
-it('reuploads a bounded Sales-origin JPEG under the Admin token without forwarding a Sales file ID', function (): void {
+it('reuploads a bounded Sales-origin photo under the Admin token without forwarding a Sales file ID', function (): void {
     $data = mb05aClaim('sales');
     config()->set('telegram.sales.enabled', true);
     config()->set('telegram.sales.token', '54321:sales_test');
     config()->set('telegram_notifications.enabled', true);
 
-    $image = base64_decode('/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD3+iiigD//2Q==', true);
+    $image = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP8z8DAwMDAxMDAwMDAAAANHQEDasKb6QAAAABJRU5ErkJggg==', true);
     expect($image)->toBeString();
 
     Http::preventStrayRequests();
@@ -171,11 +171,11 @@ it('reuploads a bounded Sales-origin JPEG under the Admin token without forwardi
         $url = $request->url();
 
         if (str_contains($url, '54321:sales_test/getFile')) {
-            return Http::response(['ok' => true, 'result' => ['file_path' => 'photos/test.jpg', 'file_size' => strlen($image)]]);
+            return Http::response(['ok' => true, 'result' => ['file_path' => 'photos/test.png', 'file_size' => strlen($image)]]);
         }
 
         if (str_contains($url, '/file/bot54321:sales_test/photos/test.jpg')) {
-            return Http::response($image, 200, ['Content-Type' => 'image/jpeg']);
+            return Http::response($image, 200, ['Content-Type' => 'image/png']);
         }
 
         if (str_contains($url, '12345:admin_test/sendPhoto')) {
