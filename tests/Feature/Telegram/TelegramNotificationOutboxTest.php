@@ -222,3 +222,40 @@ it('falls back to identifiers on invalid cross-bot photo and never declares phot
     Http::assertSentCount(2);
     Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '12345:admin_test/sendMessage'));
 });
+
+it('scopes receipt message identity to the source bot without changing historical Admin keys', function (): void {
+    $data = mb05aClaim();
+    $quote = app(CalculateQuote::class)->handle($data['buyer']->id, 'notify-test', 30, 10);
+    $newOrder = app(CreatePendingOrder::class)->handle($data['buyer']->id, $quote, bin2hex(random_bytes(16)))->id;
+    $salesClaim = app(ManualBankPayments::class)->submit(
+        SubscriptionViewer::telegram(996099), $newOrder,
+        'different-photo-id', 'different-unique-id', 8001, 'sales',
+    );
+
+    expect(DB::table('sales_bank_payment_claims')->where('id', $data['claim'])->value('telegram_message_key'))
+        ->toBe('tg:996099:8001')
+        ->and(DB::table('sales_bank_payment_claims')->where('id', $salesClaim)->value('telegram_message_key'))
+        ->toBe('tg:sales:996099:8001')
+        ->and(DB::table('sales_bank_payment_claims')->count())->toBe(2);
+});
+
+it('refuses destructive notification down migration and supports guarded console recovery', function (): void {
+    mb05aClaim();
+    $migration = require database_path('migrations/2026_10_15_000003_create_telegram_notification_deliveries.php');
+    expect(fn () => $migration->down())->toThrow(RuntimeException::class);
+
+    $id = (int) DB::table('telegram_notification_deliveries')->value('id');
+    DB::table('telegram_notification_deliveries')->where('id', $id)->update([
+        'state' => 'dead', 'attempts' => 5,
+    ]);
+
+    config()->set('telegram_notifications.enabled', true);
+    \Illuminate\Support\Facades\Queue::fake();
+    $this->artisan('telegram:notifications:dispatch', ['--retry-id' => (string) $id])->assertSuccessful();
+
+    expect(DB::table('telegram_notification_deliveries')->where('id', $id)->value('state'))->toBe('pending')
+        ->and(DB::table('telegram_notification_deliveries')->where('id', $id)->value('attempts'))->toBe(0);
+
+    DB::table('telegram_notification_deliveries')->where('id', $id)->update(['state' => 'sent']);
+    $this->artisan('telegram:notifications:dispatch', ['--retry-id' => (string) $id])->assertFailed();
+});
