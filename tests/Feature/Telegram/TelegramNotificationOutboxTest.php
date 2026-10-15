@@ -188,6 +188,13 @@ it('reuploads a bounded Sales-origin photo under the Admin token without forward
     $id = (int) DB::table('telegram_notification_deliveries')->value('id');
     app(DispatchTelegramNotification::class, ['deliveryId' => $id])->handle(app(TelegramNotificationSender::class));
 
+    $urls = Http::recorded()->map(static fn (array $record): string => $record[0]->url())->all();
+    expect($urls)->toBe([
+        'https://api.telegram.org/bot54321:sales_test/getFile',
+        'https://api.telegram.org/file/bot54321:sales_test/photos/test.png',
+        'https://api.telegram.org/bot12345:admin_test/sendPhoto',
+    ]);
+
     expect(DB::table('telegram_notification_deliveries')->where('id', $id)->value('state'))->toBe('sent');
     Http::assertSentCount(3);
     Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '12345:admin_test/sendPhoto'));
