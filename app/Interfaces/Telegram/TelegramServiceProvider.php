@@ -2,6 +2,7 @@
 
 namespace App\Interfaces\Telegram;
 
+use App\Interfaces\Telegram\Console\DispatchPendingNotifications;
 use App\Interfaces\Telegram\Console\IssueLinkCommand;
 use App\Interfaces\Telegram\Console\PruneUpdates;
 use App\Interfaces\Telegram\Console\RegisterWebhook;
@@ -24,7 +25,7 @@ final class TelegramServiceProvider extends ServiceProvider
         $this->loadRoutesFrom(__DIR__.'/routes/webhook.php');
 
         if ($this->app->runningInConsole()) {
-            $this->commands([IssueLinkCommand::class, PruneUpdates::class, RegisterWebhook::class]);
+            $this->commands([IssueLinkCommand::class, PruneUpdates::class, RegisterWebhook::class, DispatchPendingNotifications::class]);
         }
     }
 }
