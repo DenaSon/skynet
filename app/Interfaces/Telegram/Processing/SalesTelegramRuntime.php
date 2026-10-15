@@ -31,6 +31,7 @@ final class SalesTelegramRuntime implements ProcessSalesTelegramUpdate
         // empty until the separate Sales activation phase; Admin and legacy
         // registrations are never loaded into the Sales token's runtime.
         require __DIR__.'/../routes/sales.php';
+
         return $bot;
     }
 
