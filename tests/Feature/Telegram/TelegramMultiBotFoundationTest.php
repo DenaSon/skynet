@@ -13,6 +13,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Nutgram\Laravel\RunningMode\LaravelWebhook;
 use SergiX44\Nutgram\Nutgram;
 
 uses(RefreshDatabase::class);
@@ -292,5 +293,5 @@ it('constructs a separate Sales Nutgram instance without reusing the existing Ad
     expect($sales)->toBeInstanceOf(Nutgram::class)
         ->and($sales)->not->toBe($admin)
         ->and($sales->getBotId())->toBe(12345678)
-        ->and($sales->getRunningMode())->toBe(\Nutgram\Laravel\RunningMode\LaravelWebhook::class);
+        ->and($sales->getRunningMode())->toBe(LaravelWebhook::class);
 });
