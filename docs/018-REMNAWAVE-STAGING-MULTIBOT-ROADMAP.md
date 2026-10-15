@@ -1,19 +1,19 @@
 # SkyNetwork — Remnawave Staging → Multi-Bot & Admin Operations Roadmap
 
-**Status:** APPROVED RESEQUENCED PLAN — 2026-10-15; MB-01 ACCEPTED ([PR #52](https://github.com/DenaSon/skynet/pull/52)), **MB-02 CODE COMPLETE — [PR #53](https://github.com/DenaSon/skynet/pull/53), PHP 8.4/8.5 automated tests green; merge/post-deploy smoke pending**; MB-03–06 not started. Remnawave staging server unavailable.  
+**Status:** APPROVED RESEQUENCED PLAN — 2026-10-15; MB-01 ACCEPTED ([PR #52](https://github.com/DenaSon/skynet/pull/52)), **MB-02 MERGED — [PR #53](https://github.com/DenaSon/skynet/pull/53), commit `213458f`, PHP 8.4/8.5 and disposable MySQL migration CI green; production migration/BotFather smoke pending**; MB-03–06 not started. Remnawave staging server unavailable.  
 **Execution now:** MB-01 → MB-02 → MB-03 → MB-04 → MB-05A (notifications) + MB-05B (offline provider-read contracts) → MB-06A (offline/incremental validation). Optional narrowly justified RW-04 offline preparation may proceed independently.  
 **Execution when staging becomes available:** RW-01 → RW-02 → RW-03 (with separate test-write approval) → RW-04 live verification → MB-05B live verification → MB-06B final acceptance. These are **workstreams inside the same original 10 phases**, not new Epics.  
 **Planning baseline:** original roadmap authored against `bfac4a5`; dependency-only replan against `master` `8c83e28`. Inspect the latest `master` before implementation.  
 **Owner decision:** Complete provider-independent Multi-Bot and dedicated Admin Bot work now, without waiting for a Remnawave VPS. Defer only live Remnawave checks and related acceptance; retain one Laravel modular monolith, shared business database and authorized Application Actions. **Sales Bot public UX and production sales remain deferred.**  
 **Normative UX:** [017-TELEGRAM-UX-IDENTITY.md](017-TELEGRAM-UX-IDENTITY.md).
 
-> **Execution rule:** This is a **scope and acceptance contract**, not an implementation claim. RW-01/RW-02/RW-03 are **BLOCKED by unavailable staging**; MB-01 is **ACCEPTED (documentation-only)**; MB-03–06 remain **NOT STARTED**; MB-02 is CODE COMPLETE pending rollout checks. Document completed **code/offline** gates separately from **live** gates; a mock cannot prove panel compatibility. This docs-only change authorizes **no coding, server action, live write, payment activation or sales cutover**. Each phase starts only on a separate explicit implementation instruction.
+> **Execution rule:** This is a **scope and acceptance contract**, not an implementation claim. RW-01/RW-02/RW-03 are **BLOCKED by unavailable staging**; MB-01 is **ACCEPTED (documentation-only)**; MB-03–06 remain **NOT STARTED**; MB-02 code is MERGED; production rollout verification remains pending. Document completed **code/offline** gates separately from **live** gates; a mock cannot prove panel compatibility. This docs-only change authorizes **no coding, server action, live write, payment activation or sales cutover**. Each phase starts only on a separate explicit implementation instruction.
 
 ## 0. Approved dependency replan — work without a Remnawave server
 
 **Reason:** The operator cannot currently provision a Remnawave staging server. This must not block unrelated Telegram architecture, identity isolation, UX or queue work.
 
-**MB-01 accepted design handoff:** [full route inventory](019-MB01-TELEGRAM-ROUTE-INVENTORY.md) and [ADR 0009](adr/0009-dual-telegram-bot-boundaries.md). **Next eligible on separate user instruction:** MB-02 dual runtime, secure webhooks, scoped update receipts and state; MB-03 admin/sales routing and permissions with legacy-user compatibility; MB-04 dedicated Admin UX; **MB-05A** durable notification routing/media bridge developed and tested with fake Telegram endpoints (optionally with two isolated test bots); **MB-05B offline only** read DTOs, authorized Application Actions, UI unavailable/error states and static Plan–Squad mapping guards based on known contracts; **MB-06A** offline regression/upgrade/rollback checks. Limited RW-04 offline fixes only when supported by a reproduced defect or approved small read-model need.
+**MB-01 accepted design handoff:** [full route inventory](019-MB01-TELEGRAM-ROUTE-INVENTORY.md) and [ADR 0009](adr/0009-dual-telegram-bot-boundaries.md). **Next eligible on separate user instruction:** MB-03 admin/sales routing and permissions with legacy-user compatibility; MB-04 dedicated Admin UX; **MB-05A** durable notification routing/media bridge developed and tested with fake Telegram endpoints (optionally with two isolated test bots); **MB-05B offline only** read DTOs, authorized Application Actions, UI unavailable/error states and static Plan–Squad mapping guards based on known contracts; **MB-06A** offline regression/upgrade/rollback checks. Limited RW-04 offline fixes only when supported by a reproduced defect or approved small read-model need.
 
 **Still gated by real Remnawave staging:** RW-01/02/03; RW-04 **final** adapter compatibility and actual User/Node/Squad lifecycle verification; **MB-05B live** provider data and mapping validation; **MB-06B final** end-to-end acceptance of the provider-connected Admin surfaces. No fake data should be presented as a live panel, and no operator writes or plan activation are enabled by preparatory code.
 
@@ -24,7 +24,7 @@
 **Sequence diagram**
 
 ```text
-NOW: MB-01 -> MB-02 -> MB-03 -> MB-04 -> MB-05A / MB-05B-offline -> MB-06A
+NOW: MB-01 [accepted] -> MB-02 [merged; live smoke pending] -> MB-03 [next] -> MB-04 -> MB-05A / MB-05B-offline -> MB-06A
       [optional narrow RW-04 offline changes may be parallel]
 
 LATER WITH SERVER: RW-01 -> RW-02 -> RW-03 -> RW-04-live
