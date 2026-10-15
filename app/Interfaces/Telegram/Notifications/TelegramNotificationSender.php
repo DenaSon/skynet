@@ -188,13 +188,15 @@ final readonly class TelegramNotificationSender
         // Do not let GD warnings leak data or bypass the MIME/size checks.
         $dimensions = @getimagesizefromstring($data);
 
+        $mime = is_array($dimensions) ? ($dimensions['mime'] ?? null) : null;
+
         if (strlen($data) > (int) config('telegram_notifications.max_photo_bytes')
-            || strlen($data) < 1
-            || ! is_array($dimensions) || ($dimensions['mime'] ?? null) !== 'image/jpeg') {
+            || strlen($data) < 1 || ! in_array($mime, ['image/jpeg', 'image/png'], true)) {
             throw new NotificationUnavailable('invalid_media');
         }
 
-        $upload = Http::timeout(12)->attach('photo', $data, 'receipt.jpg', ['Content-Type' => 'image/jpeg'])
+        $filename = $mime === 'image/png' ? 'receipt.png' : 'receipt.jpg';
+        $upload = Http::timeout(12)->attach('photo', $data, $filename, ['Content-Type' => $mime])
             ->post($this->api($token, 'sendPhoto'), $fields);
         $this->check($upload, $bot, $chat);
     }
