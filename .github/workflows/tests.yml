@@ -64,3 +64,55 @@ jobs:
       - name: Formatting verification
         run: vendor/bin/pint --test
 
+
+  mysql-migration:
+    name: MB-02 MySQL migration
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: skynet_mb02_ci
+          MYSQL_ROOT_PASSWORD: ci-only-password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -pci-only-password"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      APP_ENV: testing
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: skynet_mb02_ci
+      DB_USERNAME: root
+      DB_PASSWORD: ci-only-password
+      MB02_MYSQL_SMOKE: '1'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.4'
+          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, pdo_mysql
+          coverage: none
+
+      - name: Install Composer dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Generate test application key
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Migrate disposable MySQL database
+        run: php artisan migrate --force
+
+      - name: Validate historical receipts and guarded rollback on MySQL
+        run: php tests/Smoke/mb02_mysql_migration.php
