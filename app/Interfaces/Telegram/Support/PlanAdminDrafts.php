@@ -2,6 +2,8 @@
 
 namespace App\Interfaces\Telegram\Support;
 
+use App\Interfaces\Telegram\Processing\TelegramBotContext;
+
 use Illuminate\Support\Facades\Cache;
 
 final class PlanAdminDrafts
@@ -57,6 +59,6 @@ final class PlanAdminDrafts
 
     private function key(int $actorId): string
     {
-        return 'telegram:planadmin:draft:'.$actorId;
+        return TelegramBotContext::current()->cacheKey('telegram:planadmin:draft:'.$actorId);
     }
 }

@@ -2,6 +2,8 @@
 
 namespace App\Interfaces\Telegram\Support;
 
+use App\Interfaces\Telegram\Processing\TelegramBotContext;
+
 use Illuminate\Support\Facades\Cache;
 
 final class PendingShopVolume
@@ -35,6 +37,6 @@ final class PendingShopVolume
 
     private function key(int $buyerId): string
     {
-        return 'telegram:shop:volume:'.$buyerId;
+        return TelegramBotContext::current()->cacheKey('telegram:shop:volume:'.$buyerId);
     }
 }

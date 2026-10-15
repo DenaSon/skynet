@@ -2,6 +2,8 @@
 
 namespace App\Interfaces\Telegram\Support;
 
+use App\Interfaces\Telegram\Processing\TelegramBotContext;
+
 use App\Modules\Sales\Application\PriceQuote;
 use Illuminate\Support\Facades\Cache;
 
@@ -52,6 +54,6 @@ final class CheckoutTokens
 
     private function key(string $token): string
     {
-        return 'telegram:shop:checkout:'.$token;
+        return TelegramBotContext::current()->cacheKey('telegram:shop:checkout:'.$token);
     }
 }
