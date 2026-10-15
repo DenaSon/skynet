@@ -13,8 +13,7 @@ require dirname(__DIR__, 2).'/vendor/autoload.php';
 $app = require dirname(__DIR__, 2).'/bootstrap/app.php';
 $app->make(Kernel::class)->bootstrap();
 
-
-if (! $app->environment('testing')
+if ($app->environment('testing') === false
     || DB::getDriverName() !== 'mysql'
     || DB::getDatabaseName() !== 'skynet_mb02_ci'
     || getenv('MB02_MYSQL_SMOKE') !== '1') {
@@ -23,7 +22,7 @@ if (! $app->environment('testing')
 
 function assertMb02(bool $condition, string $message): void
 {
-    if (! $condition) {
+    if ($condition === false) {
         throw new RuntimeException($message);
     }
 }
@@ -96,7 +95,7 @@ assertMb02(DB::table('telegram_updates')->count() === 3, 'Unsafe rollback lost r
 
 DB::table('telegram_updates')->where('bot_key', 'sales')->delete();
 $migration->down();
-assertMb02(! Schema::hasColumn('telegram_updates', 'bot_key'), 'Safe rollback did not restore legacy schema.');
+assertMb02(Schema::hasColumn('telegram_updates', 'bot_key') === false, 'Safe rollback did not restore legacy schema.');
 assertMb02(DB::table('telegram_updates')->count() === 2, 'Safe rollback lost Admin receipts.');
 
 // Leave the ephemeral schema in the new state for a final checked upgrade.
