@@ -14,6 +14,12 @@ final class ReplyMenuRenderer
 
     public function showHome(Nutgram $bot, TelegramActor $actor): void
     {
+        if ($actor->isAdmin()) {
+            $this->showAdmin($bot, $actor);
+
+            return;
+        }
+
         $name = trim((string) preg_replace('/[\r\n\x00-\x1F\x7F]+/u', ' ', $actor->name));
 
         $bot->sendMessage(
@@ -64,7 +70,7 @@ final class ReplyMenuRenderer
             $labels[] = ReplyMenuLabels::ADMIN;
         }
 
-        return $this->keyboard($labels);
+        return $actor->isAdmin() ? $this->adminKeyboard($actor) : $this->keyboard($labels);
     }
 
     public function adminKeyboard(TelegramActor $actor): ReplyKeyboardMarkup
@@ -85,7 +91,9 @@ final class ReplyMenuRenderer
             }
         }
 
-        $labels[] = ReplyMenuLabels::HOME;
+        // A primary-menu HOME button would only reopen this same Admin screen.
+        // The original HOME label remains accepted by the dispatcher for stale keyboards.
+        $labels[] = ReplyMenuLabels::ACCOUNT;
 
         return $this->keyboard($labels);
     }
