@@ -15,6 +15,7 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Validation\ValidationException;
 
 uses(RefreshDatabase::class);
 
@@ -92,7 +93,7 @@ it('records review notifications only on committed decisions and keeps settlemen
         ->and(DB::table('sales_fulfillment_outbox')->count())->toBe(1);
 
     expect(fn () => $payment->review($data['root']->id, $data['claim'], true, 'MB05ABANK123'))
-        ->toThrow(\Illuminate\Validation\ValidationException::class);
+        ->toThrow(ValidationException::class);
     expect(DB::table('telegram_notification_deliveries')->where('event_type', 'PaymentReviewed')->count())->toBe(1)
         ->and(DB::table('sales_bank_settlements')->count())->toBe(1);
 });
