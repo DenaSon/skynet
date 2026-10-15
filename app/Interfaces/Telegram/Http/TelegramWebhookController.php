@@ -3,7 +3,9 @@
 namespace App\Interfaces\Telegram\Http;
 
 use App\Interfaces\Telegram\Processing\ClaimState;
+use App\Interfaces\Telegram\Processing\ProcessSalesTelegramUpdate;
 use App\Interfaces\Telegram\Processing\ProcessTelegramUpdate;
+use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Interfaces\Telegram\Processing\TelegramUpdateReceipts;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -14,12 +16,24 @@ final class TelegramWebhookController
 {
     public function __invoke(
         Request $request,
-        ProcessTelegramUpdate $processor,
+        ProcessTelegramUpdate $adminProcessor,
+        ProcessSalesTelegramUpdate $salesProcessor,
         TelegramUpdateReceipts $receipts,
     ): Response {
-        $secret = config('telegram.webhook_secret');
+        $context = TelegramBotContext::current();
+        $sales = $context->key === TelegramBotContext::SALES;
 
-        // Fail closed even for local/testing environments.
+        $secret = $sales ? config('telegram.sales.webhook_secret') : config('telegram.webhook_secret');
+        $token = $sales ? config('telegram.sales.token') : config('nutgram.token');
+
+        if ($sales && (config('telegram.sales.enabled', false) !== true
+            || ! is_string($token) || $token === ''
+            || $token === config('nutgram.token')
+            || $secret === config('telegram.webhook_secret'))) {
+            return response('Webhook not configured.', 503);
+        }
+
+        // Do not create a receipt or instantiate a bot before checking its route secret.
         if (! is_string($secret) || $secret === '') {
             return response('Webhook not configured.', 503);
         }
@@ -36,7 +50,7 @@ final class TelegramWebhookController
             return response('Invalid update.', 422);
         }
 
-        $state = $receipts->claim($updateId);
+        $state = $receipts->claim($updateId, $context->key);
 
         if ($state === ClaimState::Processed) {
             return response()->noContent();
@@ -47,12 +61,17 @@ final class TelegramWebhookController
         }
 
         try {
-            $processor->handle();
-            $receipts->processed($updateId);
+            if ($sales) {
+                $salesProcessor->handle();
+            } else {
+                $adminProcessor->handle();
+            }
+
+            $receipts->processed($updateId, $context->key);
         } catch (Throwable $exception) {
-            $receipts->failed($updateId);
-            // Do not log raw Nutgram/HTTP exception messages: they can contain secrets.
+            $receipts->failed($updateId, $context->key);
             Log::warning('Telegram update processing failed', [
+                'bot_key' => $context->key,
                 'update_id' => $updateId,
                 'exception_type' => $exception::class,
             ]);

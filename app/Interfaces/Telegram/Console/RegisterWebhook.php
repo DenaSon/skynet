@@ -2,25 +2,43 @@
 
 namespace App\Interfaces\Telegram\Console;
 
+use App\Interfaces\Telegram\Processing\SalesTelegramRuntime;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use SergiX44\Nutgram\Nutgram;
 
 final class RegisterWebhook extends Command
 {
-    protected $signature = 'telegram:webhook:set {url? : Public HTTPS webhook URL (default: APP_URL + route)}';
+    protected $signature = 'telegram:webhook:set {url? : Public HTTPS webhook URL (default: existing legacy Admin URL)} {--bot=admin : admin or sales}';
 
-    protected $description = 'Register the protected SkyNet Telegram webhook (not the Nutgram default hook command)';
+    protected $description = 'Register a protected SkyNetwork Telegram webhook';
 
-    public function handle(Nutgram $bot): int
+    public function handle(Nutgram $adminBot, SalesTelegramRuntime $salesRuntime): int
     {
-        $secret = config('telegram.webhook_secret');
-        $token = config('nutgram.token');
-        $url = (string) ($this->argument('url') ?: route('telegram.webhook'));
+        $key = $this->option('bot');
+
+        if (! in_array($key, ['admin', 'sales'], true)) {
+            $this->error('Unknown bot. Choose admin or sales.');
+
+            return self::FAILURE;
+        }
+
+        $sales = $key === 'sales';
+        $secret = $sales ? config('telegram.sales.webhook_secret') : config('telegram.webhook_secret');
+        $token = $sales ? config('telegram.sales.token') : config('nutgram.token');
+        $url = (string) ($this->argument('url') ?: route($sales ? 'telegram.sales.webhook' : 'telegram.webhook'));
+
+        if ($sales && (config('telegram.sales.enabled', false) !== true
+            || $token === config('nutgram.token')
+            || $secret === config('telegram.webhook_secret'))) {
+            $this->error('Sales bot is disabled or its credentials are not independent.');
+
+            return self::FAILURE;
+        }
 
         if (! is_string($secret) || ! preg_match('/^[A-Za-z0-9_-]{1,256}$/D', $secret)
             || ! is_string($token) || $token === '') {
-            $this->error('Configure TELEGRAM_TOKEN and TELEGRAM_WEBHOOK_SECRET (1–256 URL-safe characters).');
+            $this->error('Configure the selected Telegram token and independent URL-safe webhook secret.');
 
             return self::FAILURE;
         }
@@ -32,6 +50,7 @@ final class RegisterWebhook extends Command
         }
 
         try {
+            $bot = $sales ? $salesRuntime->make() : $adminBot;
             $accepted = $bot->setWebhook(
                 url: $url,
                 allowed_updates: ['message', 'callback_query'],
@@ -39,8 +58,7 @@ final class RegisterWebhook extends Command
                 secret_token: $secret,
             );
         } catch (\Throwable $e) {
-            $this->error('Telegram rejected the webhook setup. Check the URL and network connectivity.');
-            // Transport exceptions may contain Bot API URLs including the bot token.
+            $this->error('Telegram rejected the webhook setup. Check URL and network connectivity.');
             Log::warning('Telegram webhook registration failed', ['exception_type' => $e::class]);
 
             return self::FAILURE;
