@@ -23,7 +23,7 @@ final class DispatchPendingNotifications extends Command
         $retry = $this->option('retry-id');
 
         if ($retry !== null) {
-            if (! is_string($retry) || preg_match('/\\A[1-9][0-9]{0,14}\\z/D', $retry) !== 1) {
+            if (preg_match('/\\A[1-9][0-9]{0,14}\\z/D', $retry) !== 1) {
                 $this->error('Invalid delivery ID.');
 
                 return self::FAILURE;
