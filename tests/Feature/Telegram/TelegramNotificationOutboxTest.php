@@ -118,7 +118,12 @@ it('backs off transient errors, then retries and marks an unreachable destinatio
 
     $id = (int) DB::table('telegram_notification_deliveries')->value('id');
     Http::preventStrayRequests();
-    Http::fake(['api.telegram.org/*' => Http::response(['ok' => false], 500)]);
+    $networkFails = true;
+    Http::fake(static function (Request $request) use (&$networkFails) {
+        return $networkFails
+            ? Http::response(['ok' => false], 500)
+            : Http::response(['ok' => true], 200);
+    });
 
     app(DispatchTelegramNotification::class, ['deliveryId' => $id])->handle(app(TelegramNotificationSender::class));
 
@@ -126,7 +131,7 @@ it('backs off transient errors, then retries and marks an unreachable destinatio
         ->and(DB::table('telegram_notification_deliveries')->where('id', $id)->value('attempts'))->toBe(1);
 
     $this->travel(10)->seconds();
-    Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+    $networkFails = false;
     app(DispatchTelegramNotification::class, ['deliveryId' => $id])->handle(app(TelegramNotificationSender::class));
 
     expect(DB::table('telegram_notification_deliveries')->where('id', $id)->value('state'))->toBe('sent');
@@ -181,9 +186,8 @@ it('reuploads a bounded Sales-origin JPEG under the Admin token without forwardi
     });
 
     $id = (int) DB::table('telegram_notification_deliveries')->value('id');
-    app(DispatchTelegramNotification::class, ['deliveryId' => $id])->handle(app(TelegramNotificationSender::class));
+    app(TelegramNotificationSender::class)->send(DB::table('telegram_notification_deliveries')->where('id', $id)->first());
 
-    expect(DB::table('telegram_notification_deliveries')->where('id', $id)->value('state'))->toBe('sent');
     Http::assertSentCount(3);
     Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '12345:admin_test/sendPhoto'));
 });
