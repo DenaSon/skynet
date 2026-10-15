@@ -243,7 +243,7 @@ it('handles the private Nutgram photo submission and root action without sending
 
     $bot->hearMessage(['message_id' => 501, 'photo' => [
         ['file_id' => 'photo-file-a2', 'file_unique_id' => 'photo-unique-a2', 'width' => 600, 'height' => 600],
-    ]])->reply()->assertCalled('sendMessage');
+    ]])->reply()->assertCalled('sendPhoto'); // Old Admin alerts stay live while MB-05A dispatch is OFF.
 
     expect(DB::table('sales_bank_payment_claims')->count())->toBe(1)
         ->and(DB::table('sales_orders')->where('id', $order)->value('status'))->toBe('pending_payment');
