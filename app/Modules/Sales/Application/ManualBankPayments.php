@@ -47,7 +47,10 @@ final readonly class ManualBankPayments
             throw new AuthorizationException;
         }
 
-        $messageKey = 'tg:'.$viewer->telegramUserId.':'.$telegramMessageId;
+        // Keep historical Admin message keys unchanged, but prevent Sales updates
+        // with equal Telegram message IDs from colliding with the original bot.
+        $messageKey = ($sourceBotKey === 'sales' ? 'tg:sales:' : 'tg:')
+            .$viewer->telegramUserId.':'.$telegramMessageId;
         $fingerprint = hash('sha256', $fileUniqueId);
 
         return DB::transaction(function () use ($buyerId, $orderId, $fileId, $messageKey, $fingerprint, $sourceBotKey): int {
