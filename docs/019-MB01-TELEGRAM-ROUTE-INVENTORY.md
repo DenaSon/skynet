@@ -5,6 +5,8 @@
 **Primary source:** `routes/telegram.php`, related handlers/support, `config/telegram.php` and `config/nutgram.php`  
 **Read with:** [ADR 0009](adr/0009-dual-telegram-bot-boundaries.md), [execution roadmap](018-REMNAWAVE-STAGING-MULTIBOT-ROADMAP.md), [Telegram UX](017-TELEGRAM-UX-IDENTITY.md).
 
+**MB-03 registration handoff (PR #55, source implementation):** The line references below intentionally describe the immutable MB-01 baseline, not current file positions. The original BotFather runtime now composes explicit `app/Interfaces/Telegram/routes/shared.php` (10), `admin.php` (63), `legacy_sales.php` (39 including photo) and `legacy_text.php` (one mixed catch-all), through `routes/telegram.php`. All 113 registrations remain available to old linked users. The independent `routes/sales.php` is intentionally empty; it never loads Admin, legacy or shared registrations. An executable contract test compares the exact command/callback inventory and asserts no duplicate or lost registration. **No Admin-only cutover and no public Sales Bot activation in MB-03.**
+
 > This is an **audited migration inventory**, not proof that a new router is implemented or that every money/provider feature is currently enabled. A route classified `SALES` is **still registered in today's single legacy bot** and must stay reachable there until a verified migration path exists. `SHARED` means a common **business capability or navigation intent**, **not** a blanket guarantee that both future bots expose it to all callers. All authorization remains in Identity/Application actions.
 
 ## 1. Coverage and current runtime

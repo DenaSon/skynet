@@ -14,7 +14,7 @@ final class SalesTelegramRuntime implements ProcessSalesTelegramUpdate
     {
         $token = config('telegram.sales.token');
 
-        if (! is_string($token) || $token === '') {
+        if (is_string($token) === false || $token === '') {
             throw new \LogicException('Sales Telegram bot is not configured.');
         }
 
@@ -27,8 +27,11 @@ final class SalesTelegramRuntime implements ProcessSalesTelegramUpdate
         $bot = new Nutgram($token, $configuration);
         $bot->setRunningMode(LaravelWebhook::class);
 
-        // Deliberately no handlers in MB-02. The Sales Router is an isolated,
-        // disabled-by-default technical shell; MB-03 registers allowed routes.
+        // Only this explicit registry can attach Sales handlers. It is intentionally
+        // empty until the separate Sales activation phase; Admin and legacy
+        // registrations are never loaded into the Sales token's runtime.
+        require __DIR__.'/../routes/sales.php';
+
         return $bot;
     }
 
