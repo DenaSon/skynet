@@ -184,9 +184,13 @@ final readonly class TelegramNotificationSender
 
         $data = $image->body();
 
+        // Some otherwise valid JPEGs carry non-fatal libjpeg metadata warnings.
+        // Do not let GD warnings leak data or bypass the MIME/size checks.
+        $dimensions = @getimagesizefromstring($data);
+
         if (strlen($data) > (int) config('telegram_notifications.max_photo_bytes')
             || strlen($data) < 1
-            || (getimagesizefromstring($data)['mime'] ?? null) !== 'image/jpeg') {
+            || ! is_array($dimensions) || ($dimensions['mime'] ?? null) !== 'image/jpeg') {
             throw new NotificationUnavailable('invalid_media');
         }
 
