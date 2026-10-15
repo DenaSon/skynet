@@ -7,9 +7,8 @@ namespace App\Interfaces\Telegram\Support;
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\SubscriptionViewer;
-use App\Modules\Identity\Application\SuperAdminTrust;
 use App\Modules\Identity\Application\TelegramActor;
-use App\Modules\Identity\Application\TelegramRecipient;
+use App\Interfaces\Telegram\Notifications\TelegramNotificationSender;
 use App\Modules\Sales\Application\ManualBankPayments;
 use App\Modules\Sales\Application\OrderReader;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -26,8 +25,7 @@ final readonly class ManualPaymentUi
     public function __construct(
         private PrivateTelegramUser $private,
         private ResolveTelegramActor $actors,
-        private SuperAdminTrust $trust,
-        private TelegramRecipient $recipients,
+        private TelegramNotificationSender $sender,
         private ManualBankPayments $payments,
         private OrderReader $orders,
         private PaymentDecisionTokens $tokens,
@@ -108,6 +106,7 @@ final readonly class ManualPaymentUi
                 $photo->file_id,
                 $photo->file_unique_id,
                 $messageId,
+                TelegramBotContext::current()->key,
             );
         } catch (ValidationException|AuthorizationException|UniqueConstraintViolationException) {
             $this->notice($bot, 'رسید پذیرفته نشد؛ وضعیت سفارش یا رسید قبلی را بررسی کنید.');
@@ -117,7 +116,6 @@ final readonly class ManualPaymentUi
 
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$actor->userId));
         $this->notice($bot, "🕘 رسید سفارش #{$orderId} ثبت شد.\nشماره بررسی: #{$claimId}\n\nتنها پس از تطبیق واقعی گردش بانک و تأیید مدیر، سفارش تسویه می‌شود.");
-        $this->alertRoots($bot, $claimId);
     }
 
     public function list(Nutgram $bot): void
@@ -183,12 +181,22 @@ final readonly class ManualPaymentUi
             $bot->answerCallbackQuery();
         }
 
-        $bot->sendPhoto(
-            photo: $row->photoFileId,
-            caption: $this->caption($row),
-            reply_markup: $this->reviewKeyboard($id),
-            protect_content: true,
-        );
+        if ($row->sourceBotKey === TelegramBotContext::ADMIN) {
+            $bot->sendPhoto(
+                photo: $row->photoFileId,
+                caption: $this->caption($row),
+                reply_markup: $this->reviewKeyboard($id),
+                protect_content: true,
+            );
+
+            return;
+        }
+
+        try {
+            $this->sender->showReceiptToRoot($id, $actor->userId, (int) $this->private->id($bot), $this->caption($row));
+        } catch (Throwable) {
+            $this->notice($bot, 'تصویر رسید فعلاً قابل نمایش نیست؛ درخواست در صف بررسی محفوظ است. بدون تطبیق گردش بانک آن را تأیید نکنید.');
+        }
     }
 
     public function choose(Nutgram $bot, string $claim, string $choice): void
@@ -307,40 +315,6 @@ final readonly class ManualPaymentUi
             }
         }
 
-        $recipient = $this->recipients->forActiveUser($result->buyerUserId);
-
-        if ($recipient !== null) {
-            try {
-                $bot->sendMessage(text: $message, chat_id: $recipient, protect_content: true);
-            } catch (Throwable) {
-                // Review is committed. Failed delivery cannot roll back a bank decision.
-                // Status remains accessible in the customer's order history.
-            }
-        }
-    }
-
-    private function alertRoots(Nutgram $bot, int $claimId): void
-    {
-        foreach ($this->trust->allowedTelegramIds() as $id) {
-            $root = $this->actors->handle((int) $id);
-
-            if ($root === null || $root->canManageRoles() === false) {
-                continue;
-            }
-
-            try {
-                $row = $this->payments->detail($root->userId, $claimId);
-                $bot->sendPhoto(
-                    photo: $row->photoFileId,
-                    chat_id: (int) $id,
-                    caption: $this->caption($row),
-                    reply_markup: $this->reviewKeyboard($claimId),
-                    protect_content: true,
-                );
-            } catch (Throwable) {
-                // The claim is durable; roots can recover it from /payments.
-            }
-        }
     }
 
     private function caption(object $row): string
