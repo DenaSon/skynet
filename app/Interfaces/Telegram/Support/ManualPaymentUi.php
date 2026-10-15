@@ -336,7 +336,6 @@ final readonly class ManualPaymentUi
                 }
             }
         }
-        }
     }
 
     private function alertRoots(Nutgram $bot, int $claimId): void
