@@ -25,9 +25,18 @@ final readonly class AdminSectionsUi
 
     public function finance(Nutgram $bot): void
     {
-        if ($this->actor($bot) !== null) {
-            $this->menus->showAdminFinance($bot);
+        if ($this->actor($bot) === null) {
+            return;
         }
+
+        if (config('billing.topups_enabled', false) !== true
+            && config('sales.manual_bank_review_enabled', false) !== true) {
+            $this->menus->denyAccess($bot);
+
+            return;
+        }
+
+        $this->menus->showAdminFinance($bot);
     }
 
     private function actor(Nutgram $bot): ?TelegramActor
