@@ -115,8 +115,8 @@ it('shows normal admins only user management and protects against revocation', f
 
     $actor = app(ResolveTelegramActor::class)->handle(931005);
     $labels = hybridLabels(app(ReplyMenuRenderer::class)->adminKeyboard($actor));
-    expect($labels)->toContain(ReplyMenuLabels::USERS, ReplyMenuLabels::HOME)
-        ->not->toContain(ReplyMenuLabels::ROLES, ReplyMenuLabels::TOPUPS, ReplyMenuLabels::RECEIPTS);
+    expect($labels)->toContain(ReplyMenuLabels::USERS, ReplyMenuLabels::ACCOUNT)
+        ->not->toContain(ReplyMenuLabels::HOME, ReplyMenuLabels::ROLES, ReplyMenuLabels::TOPUPS, ReplyMenuLabels::RECEIPTS);
 
     $bot->hearText('/admin')->reply()
         ->assertReplyText("🛡️ مدیریت SkyNet\n\nبخش موردنظر را از منوی پایین انتخاب کنید.");
