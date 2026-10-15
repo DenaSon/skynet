@@ -59,6 +59,11 @@ final readonly class TelegramNotificationSender
 
             $claimId = (int) $delivery->claim_id;
             $orderId = (int) $delivery->order_id;
+            if (DB::table('sales_bank_payment_claims')->where('id', $claimId)
+                ->where('status', 'submitted')->doesntExist()) {
+                throw new NotificationUnavailable('already_reviewed');
+            }
+
             $row = $this->payments->detail($userId, $claimId);
 
             $caption = "🧾 رسید جدید #{$claimId}\nسفارش #{$orderId}\n\n⚠️ پیش از تأیید، گردش واقعی بانک را بررسی کنید.";
@@ -135,7 +140,7 @@ final readonly class TelegramNotificationSender
             'chat_id' => $chat, 'text' => $text, 'protect_content' => 'true',
         ]);
 
-        $this->check($result, $bot);
+        $this->check($result, $bot, $chat);
     }
 
     private function photo(string $bot, int $chat, string $fileId, string $sourceBot, string $caption, string $keyboard): void
@@ -149,7 +154,7 @@ final readonly class TelegramNotificationSender
         if ($bot === $sourceBot) {
             $response = Http::timeout(12)->asForm()
                 ->post($this->api($token, 'sendPhoto'), $fields + ['photo' => $fileId]);
-            $this->check($response, $bot);
+            $this->check($response, $bot, $chat);
 
             return;
         }
@@ -187,17 +192,19 @@ final readonly class TelegramNotificationSender
 
         $upload = Http::timeout(12)->attach('photo', $data, 'receipt.jpg', ['Content-Type' => 'image/jpeg'])
             ->post($this->api($token, 'sendPhoto'), $fields);
-        $this->check($upload, $bot);
+        $this->check($upload, $bot, $chat);
     }
 
-    private function check(Response $response, string $bot): void
+    private function check(Response $response, string $bot, ?int $chatId = null): void
     {
         if ($response->status() === 403) {
-            DB::table('telegram_bot_contacts')->where('bot_key', $bot)
-                ->where('chat_id', (int) $response->json('parameters.chat_id', 0))
-                ->update(['delivery_status' => 'blocked', 'updated_at' => now()]);
+            if ($chatId !== null) {
+                DB::table('telegram_bot_contacts')->where('bot_key', $bot)
+                    ->where('chat_id', $chatId)
+                    ->update(['delivery_status' => 'blocked', 'updated_at' => now()]);
+            }
 
-            throw new NotificationUnavailable('blocked');
+            throw new NotificationUnavailable($chatId === null ? 'source_unavailable' : 'blocked');
         }
 
         if (! $response->successful() || $response->json('ok') !== true) {
