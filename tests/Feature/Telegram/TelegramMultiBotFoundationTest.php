@@ -5,7 +5,6 @@ use App\Interfaces\Telegram\Processing\ProcessSalesTelegramUpdate;
 use App\Interfaces\Telegram\Processing\ProcessTelegramUpdate;
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Interfaces\Telegram\Processing\TelegramUpdateReceipts;
-use App\Interfaces\Telegram\Processing\SalesTelegramRuntime;
 use App\Interfaces\Telegram\Support\PlanAdminDrafts;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
@@ -72,6 +71,7 @@ it('shares admin receipts across legacy and new admin URLs while isolating sales
     $admin = new class implements ProcessTelegramUpdate
     {
         public int $count = 0;
+
         public array $contexts = [];
 
         public function handle(): void
@@ -83,6 +83,7 @@ it('shares admin receipts across legacy and new admin URLs while isolating sales
     $sales = new class implements ProcessSalesTelegramUpdate
     {
         public int $count = 0;
+
         public array $contexts = [];
 
         public function handle(): void

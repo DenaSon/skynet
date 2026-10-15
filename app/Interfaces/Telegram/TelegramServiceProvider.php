@@ -6,8 +6,8 @@ use App\Interfaces\Telegram\Console\IssueLinkCommand;
 use App\Interfaces\Telegram\Console\PruneUpdates;
 use App\Interfaces\Telegram\Console\RegisterWebhook;
 use App\Interfaces\Telegram\Processing\NutgramUpdateProcessor;
-use App\Interfaces\Telegram\Processing\ProcessTelegramUpdate;
 use App\Interfaces\Telegram\Processing\ProcessSalesTelegramUpdate;
+use App\Interfaces\Telegram\Processing\ProcessTelegramUpdate;
 use App\Interfaces\Telegram\Processing\SalesTelegramRuntime;
 use Illuminate\Support\ServiceProvider;
 

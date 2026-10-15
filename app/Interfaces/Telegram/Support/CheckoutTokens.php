@@ -3,7 +3,6 @@
 namespace App\Interfaces\Telegram\Support;
 
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
-
 use App\Modules\Sales\Application\PriceQuote;
 use Illuminate\Support\Facades\Cache;
 

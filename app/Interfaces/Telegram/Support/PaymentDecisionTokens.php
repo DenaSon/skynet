@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Interfaces\Telegram\Support;
 
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
-
 use Illuminate\Support\Facades\Cache;
 
 final class PaymentDecisionTokens
