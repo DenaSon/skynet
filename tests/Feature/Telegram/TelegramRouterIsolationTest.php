@@ -13,24 +13,24 @@ function mb03Registrations(string $path): array
 {
     $bot = new class
     {
-    /** @var array<int, string> */
+        /** @var array<int, string> */
         public array $routes = [];
-    
+
         public function onCommand(string $pattern, mixed $handler): void
         {
             $this->routes[] = 'command:'.$pattern;
         }
-    
+
         public function onCallbackQueryData(string $pattern, mixed $handler): void
         {
             $this->routes[] = 'callback:'.$pattern;
         }
-    
+
         public function onPhoto(mixed $handler): void
         {
             $this->routes[] = 'photo:*';
         }
-    
+
         public function onText(string $pattern, mixed $handler): void
         {
             $this->routes[] = 'text:'.$pattern;
