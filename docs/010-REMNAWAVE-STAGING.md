@@ -1,5 +1,8 @@
 # F10-B — Read-only Remnawave staging diagnostics
 
+**Availability update (2026-10-15):** Remnawave staging VPS is **not currently available**; no live panel test or installation has been completed. RW-01–RW-03 are blocked, with RW-04 permitted only as narrow offline preparation. Provider-independent MB-01–MB-04, MB-05A, MB-05B offline and MB-06A may proceed under [the dependency-replanned execution contract](018-REMNAWAVE-STAGING-MULTIBOT-ROADMAP.md); never infer real-panel compatibility from HTTP fakes.
+
+
 **Status:** F10-B implemented and merged via PR #20; F10-C/D now also merged (#21/#23). **No real Remnawave server E2E has been performed**; do not infer compatibility from fake tests. See [current context](000-CONTEXT.md).
 **API contract:** Official https://docs.rw/api/ exposes OpenAPI `v3.4.4`.
 **Server release:** `3.4.5` exists; validate against the pinned API contract before deploying writes.
