@@ -52,6 +52,10 @@ final class ReplyMenuRenderer
 
     public function homeKeyboard(TelegramActor $actor): ReplyKeyboardMarkup
     {
+        if ($actor->isAdmin()) {
+            return $this->adminKeyboard($actor);
+        }
+
         $labels = [
             ReplyMenuLabels::BUY,
             ReplyMenuLabels::SUBSCRIPTIONS,
@@ -66,11 +70,7 @@ final class ReplyMenuRenderer
             $labels[] = ReplyMenuLabels::BUILDER;
         }
 
-        if ($actor->isAdmin()) {
-            $labels[] = ReplyMenuLabels::ADMIN;
-        }
-
-        return $actor->isAdmin() ? $this->adminKeyboard($actor) : $this->keyboard($labels);
+        return $this->keyboard($labels);
     }
 
     public function adminKeyboard(TelegramActor $actor): ReplyKeyboardMarkup
