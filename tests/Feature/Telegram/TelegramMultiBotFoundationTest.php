@@ -207,3 +207,45 @@ it('does not register a Sales webhook while disabled', function (): void {
 it('requires explicit bot selection for webhook registration', function (): void {
     $this->artisan('telegram:webhook:set', ['--bot' => 'untrusted'])->assertFailed();
 });
+
+it('migrates existing processed and in-flight admin receipts without discarding them', function (): void {
+    Schema::drop('telegram_updates');
+    Schema::create('telegram_updates', function (\Illuminate\Database\Schema\Blueprint $table): void {
+        $table->unsignedBigInteger('update_id')->primary();
+        $table->string('status', 16);
+        $table->timestamp('processing_until')->nullable();
+        $table->timestamp('processed_at')->nullable();
+        $table->timestamps();
+    });
+
+    DB::table('telegram_updates')->insert([
+        ['update_id' => 801, 'status' => 'processed', 'processing_until' => null,
+            'processed_at' => now(), 'created_at' => now(), 'updated_at' => now()],
+        ['update_id' => 802, 'status' => 'processing', 'processing_until' => now()->addSeconds(20),
+            'processed_at' => null, 'created_at' => now(), 'updated_at' => now()],
+    ]);
+
+    $migration = require database_path('migrations/2026_10_15_000001_scope_telegram_updates_by_bot.php');
+    $migration->up();
+
+    expect(DB::table('telegram_updates')->where('bot_key', 'admin')->where('update_id', 801)->value('status'))->toBe('processed')
+        ->and(DB::table('telegram_updates')->where('bot_key', 'admin')->where('update_id', 802)->value('status'))->toBe('processing');
+
+    expect(app(TelegramUpdateReceipts::class)->claim(802, 'admin'))->toBe(ClaimState::Busy)
+        ->and(app(TelegramUpdateReceipts::class)->claim(801, 'sales'))->toBe(ClaimState::Claimed)
+        ->and(DB::table('telegram_updates')->count())->toBe(3);
+
+    // An old unscoped schema would confuse these Admin and Sales rows.
+    expect(fn () => $migration->down())->toThrow(RuntimeException::class);
+});
+
+it('supports schema rollback only if no sales receipts have ever been written', function (): void {
+    $receipts = app(TelegramUpdateReceipts::class);
+    $receipts->claim(803, 'admin');
+
+    $migration = require database_path('migrations/2026_10_15_000001_scope_telegram_updates_by_bot.php');
+    $migration->down();
+
+    expect(Schema::hasColumn('telegram_updates', 'bot_key'))->toBeFalse()
+        ->and(DB::table('telegram_updates')->where('update_id', 803)->value('status'))->toBe('processing');
+});
