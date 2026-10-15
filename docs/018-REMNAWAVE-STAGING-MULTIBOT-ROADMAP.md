@@ -1,12 +1,36 @@
 # SkyNetwork — Remnawave Staging → Multi-Bot & Admin Operations Roadmap
 
-**Status:** APPROVED PLAN / NOT STARTED — 2026-10-15  
-**Execution sequence:** RW-01 → RW-02 → RW-03 → RW-04 → MB-01 → MB-02 → MB-03 → MB-04 → MB-05 → MB-06  
-**Current baseline:** `master` at `bfac4a534e0c2d4da404743d52371dceed219642` when this plan was authored. Update the baseline when starting work.  
-**Owner decision:** Build, validate and harden a real **isolated Remnawave staging panel** first. Then isolate **Admin Bot** from the future **Sales Bot** while retaining one Laravel modular monolith, one business database and shared authorized Application Actions. **Sales Bot public UX and production sales are deferred.**  
+**Status:** APPROVED RESEQUENCED PLAN — 2026-10-15; implementation not started. Remnawave staging server currently unavailable.  
+**Execution now:** MB-01 → MB-02 → MB-03 → MB-04 → MB-05A (notifications) + MB-05B (offline provider-read contracts) → MB-06A (offline/incremental validation). Optional narrowly justified RW-04 offline preparation may proceed independently.  
+**Execution when staging becomes available:** RW-01 → RW-02 → RW-03 (with separate test-write approval) → RW-04 live verification → MB-05B live verification → MB-06B final acceptance. These are **workstreams inside the same original 10 phases**, not new Epics.  
+**Planning baseline:** original roadmap authored against `bfac4a5`; dependency-only replan against `master` `8c83e28`. Inspect the latest `master` before implementation.  
+**Owner decision:** Complete provider-independent Multi-Bot and dedicated Admin Bot work now, without waiting for a Remnawave VPS. Defer only live Remnawave checks and related acceptance; retain one Laravel modular monolith, shared business database and authorized Application Actions. **Sales Bot public UX and production sales remain deferred.**  
 **Normative UX:** [017-TELEGRAM-UX-IDENTITY.md](017-TELEGRAM-UX-IDENTITY.md).
 
-> **Execution rule:** This is a **scope and acceptance contract**, not an implementation claim. All ten phases start as **NOT STARTED**. Do not mark a phase complete based only on planned code, HTTP fakes, a green CI run or an unverified claim about a server. Record evidence, PR links, CI and actual staging/Telegram checks separately. Starting any phase requires a new explicit implementation instruction. This roadmap's docs-only merge authorizes **no server change, live write, payment activation or production rollout**.
+> **Execution rule:** This is a **scope and acceptance contract**, not an implementation claim. RW-01/RW-02/RW-03 are **BLOCKED by unavailable staging**; other phases remain **NOT STARTED**. Document completed **code/offline** gates separately from **live** gates; a mock cannot prove panel compatibility. This docs-only change authorizes **no coding, server action, live write, payment activation or sales cutover**. Each phase starts only on a separate explicit implementation instruction.
+
+## 0. Approved dependency replan — work without a Remnawave server
+
+**Reason:** The operator cannot currently provision a Remnawave staging server. This must not block unrelated Telegram architecture, identity isolation, UX or queue work.
+
+**Immediately eligible (still NOT STARTED):** MB-01 inventory/contracts; MB-02 dual runtime, secure webhooks, scoped update receipts and state; MB-03 admin/sales routing and permissions with legacy-user compatibility; MB-04 dedicated Admin UX; **MB-05A** durable notification routing/media bridge developed and tested with fake Telegram endpoints (optionally with two isolated test bots); **MB-05B offline only** read DTOs, authorized Application Actions, UI unavailable/error states and static Plan–Squad mapping guards based on known contracts; **MB-06A** offline regression/upgrade/rollback checks. Limited RW-04 offline fixes only when supported by a reproduced defect or approved small read-model need.
+
+**Still gated by real Remnawave staging:** RW-01/02/03; RW-04 **final** adapter compatibility and actual User/Node/Squad lifecycle verification; **MB-05B live** provider data and mapping validation; **MB-06B final** end-to-end acceptance of the provider-connected Admin surfaces. No fake data should be presented as a live panel, and no operator writes or plan activation are enabled by preparatory code.
+
+**Separate Telegram reality:** Mock tests can validate dispatch logic, but cross-bot delivery of a photo requires two real bot tokens and started chats; **a Remnawave panel is not a prerequisite for this test**. Without two test bots, keep media delivery/destination verification pending; it cannot be marked LIVE VERIFIED.
+
+**Safe production increment rule:** Since `master` auto-deploys, provider-dependent menus must be hidden or visibly unavailable until a verified real panel is configured. Keep prior customer/reseller paths working until a safe Sales Bot replacement or approved legacy bridge exists; do not announce a complete Admin-only cutover earlier. Admin-only functions may be rolled out incrementally if backwards compatible. **MB-06A can validate/deploy the provider-independent admin foundation while MB-06B and Epic-level final acceptance remain pending.**
+
+**Sequence diagram**
+
+```text
+NOW: MB-01 -> MB-02 -> MB-03 -> MB-04 -> MB-05A / MB-05B-offline -> MB-06A
+      [optional narrow RW-04 offline changes may be parallel]
+
+LATER WITH SERVER: RW-01 -> RW-02 -> RW-03 -> RW-04-live
+                                                |
+                       MB-05B-live verification -> MB-06B final acceptance
+```
 
 ## 1. Epic index and end-state
 
@@ -50,7 +74,7 @@ Every implementation PR must:
 
 **Status vocabulary:** `NOT STARTED` → `IN PROGRESS` → `CODE COMPLETE` → `LIVE VERIFIED` → `ACCEPTED`; `BLOCKED` if a dependency cannot be fulfilled. A production-dependent phase cannot be `ACCEPTED` based on mocks alone. Link a specific GitHub PR and run plus a redacted live-test record.
 
-## 4. EPIC-RW — Remnawave Staging & Operational API (first)
+## 4. EPIC-RW — Remnawave Staging & Operational API (server-dependent completion)
 
 ### RW-01 — Isolated Remnawave Staging Server
 
@@ -101,7 +125,7 @@ Every implementation PR must:
 
 ### RW-04 — API Client Hardening & Stable Provider Contract
 
-**Depends on:** RW-03.
+**Depends on:** RW-03 **only for live compatibility sign-off**. A strictly bounded **offline preparation** slice can begin earlier: adapter DTO/validation/exception tests with HTTP fakes and targeted read-only Application contracts; no claims of real API interoperability.
 
 **Work packages**
 - Fix only observed contract defects and high-value missing typed adapters for the **Admin Bot's planned P0/P1 reads** (health, nodes, user/subscription summary, hosts, Internal Squads, Config Profiles, needs-review).
@@ -112,13 +136,15 @@ Every implementation PR must:
 
 **Deliverables:** stable typed operations/fixtures, provider compatibility report, operator runbook, updated `docs/009`–`012`, tests, and documented safe enablement boundaries.
 
-**Acceptance / go-no-go:** essential Admin reads and controlled lifecycle receive evidence-backed compatibility status; no critical unresolved mismatch; CI and **staging E2E** green; `REMNAWAVE_WRITES_ENABLED=false` on production; RW Epic handoff signed off before MB-01. A panel not supporting the required API version is a BLOCKER, not an invitation to bypass validation.
+**Offline checkpoint:** scoped DTO/HTTP-fake cases, missing-config and fail-closed tests, safe read models, CI and redacted fixtures may become **CODE COMPLETE (offline)** without a server; do not mark RW-04 or Epic-RW as LIVE VERIFIED/ACCEPTED.
 
-## 5. EPIC-MB — Two Bots, one Backend, Admin-first (second)
+**Final acceptance / go-no-go (after RW-03):** essential Admin reads and controlled lifecycle have evidence-backed *real-panel* compatibility status, no critical unresolved mismatch, CI and **staging E2E** green, `REMNAWAVE_WRITES_ENABLED=false` on production. Only live provider-connected Admin UI and final MB-06B rely on this gate; **MB-01 through MB-04 and MB-05A do not**. A panel not supporting required API behavior is a BLOCKER, not permission to bypass validation.
+
+## 5. EPIC-MB — Two Bots, one Backend, Admin-first (may start before RW)
 
 ### MB-01 — Inventory, Bot Boundaries & Migration Contract
 
-**Depends on:** RW-04.
+**Depends on:** the approved architecture scope and existing `master` code only. **Does not depend on RW-01–RW-04 or a live panel.** MB-01 is the **next executable phase**.
 
 **Work packages**
 - Export an authoritative inventory of **all** existing Telegram commands, callback patterns, reply labels, text/photo handlers, permissions and output notifications from `routes/telegram.php` and presenters.
@@ -180,7 +206,7 @@ Every implementation PR must:
 
 ### MB-05 — Durable Cross-bot Notifications & Remnawave Readiness
 
-**Depends on:** MB-04 and RW-04. **Two bounded workstreams, not a new platform.**
+**Depends on:** MB-04 for **MB-05A notifications** and **MB-05B offline read-model/UX work**. **RW-04 live sign-off is required only for MB-05B live provider verification/enablement.** These are two bounded workstreams within MB-05, not a new platform.
 
 **A — Realtime-enough notification workflow**
 - Use existing Laravel database queue and transactional Sales/Billing outbox where available; create only narrowly scoped missing notification envelope/dispatcher, not Redis Streams, WebSockets, Kafka or a generic event platform.
@@ -191,17 +217,20 @@ Every implementation PR must:
 - Test both directions with **two real non-public test bots** if Sales Bot credentials are available. A mock-only run cannot mark bot-to-bot delivery LIVE VERIFIED.
 
 **B — Bounded Remnawave admin read management**
-- Present server health, node connectivity/telemetry, host/config-profile/squad summaries, guarded user/subscription status and SQL `needs_review` safely via **read-only, authorized Application Actions**.
+- **Before the server exists:** implement typed read models, narrowly scoped authorized Application Actions, tested negative/unavailable/error states and optionally hidden provider menu entry points. HTTP fakes are only test fixtures; do **not** show a fabricated server health, node, user or subscription as live.
+- **After RW-04 live sign-off:** present actual server health, node connectivity/telemetry, host/config-profile/squad summaries, guarded user/subscription status and SQL `needs_review` safely via **read-only, authorized Application Actions**.
 - Prepare Plan → Internal Squad binding contract with revision/status checks and fail-closed activation guard; only treat a mapping as **verified** if the real staging panel confirms its UUID and membership. Do not turn binding creation into real sales activation.
 - Keep destructive/restart/quota/revoke/reset provider operations **outside this Epic** unless separately approved with full audited Application Actions, one-time confirmation and staging/production gate.
 
-**Deliverables:** bounded dispatcher and receipt-media bridge (when real two-bot test available), delivery/recovery runbook, Admin health/nodes/squad/subscription read UI, verified vs unavailable statuses.
+**Deliverables:** bounded dispatcher and receipt-media bridge, delivery/recovery runbook, typed Admin provider reads (guarded/offline), provider availability states and a split evidence matrix for MB-05A / MB-05B-offline / MB-05B-live.
 
-**Acceptance:** no lost committed claim; retries and manual recovery work; real two-bot notification/photo smoke where credentials exist; admin authorization remains enforced; provider writes remain OFF in production; Admin UI never exposes provider credentials or returns fake health.
+**MB-05A acceptance:** durable, authorized and idempotent business transitions with at-least-once notifications, recoverable unsent claims, bounded retries and secure media. Real two-bot delivery/photo smoke remains a separate live requirement when two test bots exist; no claim of live delivery from mocks.
+
+**MB-05B offline checkpoint:** provider reads and Plan–Squad guards are tested with fakes, fail closed when unconfigured, and no simulated values are surfaced as real. **MB-05B live acceptance:** only after RW-04 live checks validate the underlying panel responses and mappings. Production provider writes stay OFF throughout.
 
 ### MB-06 — System Regression, Cutover & Operational Acceptance
 
-**Depends on:** MB-05.
+**Depends on:** MB-05A and MB-05B **offline** for MB-06A. **MB-06B final acceptance** additionally requires live MB-05B verification after RW-04 and actual two-bot delivery checks. A missing provider is **not** a reason to stop the offline regression checkpoint.
 
 **Work packages**
 - Re-run command/callback parity against MB-01 inventory; test Admin and Sales isolation, callback replay, role revocation, idempotency, cross-bot `update_id`, DB migration from existing data, queue failures, incomplete media transfer and recovery.
@@ -212,14 +241,16 @@ Every implementation PR must:
 
 **Deliverables:** release verification matrix, final Admin runbook, migration/rollback evidence, architecture/UI docs and explicit future Sales Bot backlog.
 
-**Acceptance:** every old admin Action passes parity; two-bot isolation gates are green; no real unintended payments/provider writes; admin notifications and safe recovery tested; existing production users/orders intact; controlled automatic-deploy merge followed by explicit post-deploy smoke; Admin Bot accepted as operational. **Sales Bot public release is a separate future Epic.**
+**MB-06A acceptance (provider-independent):** every existing Admin Action passes parity, two-bot isolation and backward-compatibility tests are green, database/queue/retry rollback are verified, no real payments/provider writes, existing production records intact and post-deploy Admin Bot smoke recorded. A nonadmin still using the previous bot retains its supported flows. This validates **admin foundation only**.
+
+**MB-06B final acceptance (provider-connected):** MB-06A + RW-04 live and MB-05B live verification + measured two-bot notification/photo smoke and recovery evidence. Only then mark full EPIC-MB accepted; the public Sales Bot remains a future Epic.
 
 ## 6. Current baseline: what already exists vs what is missing
 
 | Capability | Current observed code | Contract for these Epics |
 | --- | --- | --- |
 | Remnawave transport | OpenAPI 3.4.4 catalog, **218** operations; server transport/client factory | Verify actual panel response/version; not blanket SDK completeness |
-| Provider Read | `RemnawaveReadApi`, `remnawave:inspect`, Nodes telemetry | Live verify first; Admin read-actions only after |
+| Provider Read | `RemnawaveReadApi`, `remnawave:inspect`, Nodes telemetry | Offline read Actions/DTOs can be coded and mocked now, but live provider UI must fail closed until RW-04 real verification |
 | Users & Lifecycle | typed Users/Subscriptions adapters, SQL reservation and reconciliation | Scoped staging create/update/failures; production writes OFF |
 | Sales Plans | managed products/plans/pricing, Telegram wizard, quote only | Preserve existing; guarded Squad binding readiness, no paid checkout |
 | Identity | one `telegram_accounts` mapping; single linked Telegram user ID | Keep shared user identity, add bot-specific interaction eligibility |
@@ -231,8 +262,8 @@ Every implementation PR must:
 
 ## 7. Cross-epic dependency and stop rules
 
-- RW-01 is blocked until an operator provisions the isolated server and supplies **configuration through secure deployment controls**, never via commits or chat. No simulated completion.
-- RW-02 essential health/inventory incompatibility blocks RW-03. RW-03 ambiguous write/reconciliation failure blocks RW-04. RW-04 critical API mismatch blocks MB read UI integration.
+- RW-01/RW-02/RW-03 are currently BLOCKED by lack of an isolated staging server; this does **not** block MB-01–MB-04, MB-05A, MB-05B-offline or MB-06A. Supply eventual staging credentials only through secure deployment controls, never commits/chat. No simulated completion.
+- RW-02 essential health/inventory incompatibility blocks RW-03. RW-03 ambiguous write/reconciliation failure blocks **RW-04 live sign-off**. RW-04 critical mismatch blocks **MB-05B live provider activation and MB-06B**, but not independent Multi-Bot isolation.
 - MB-02 migration must be verified using a **copy/test fixture of the existing database structure**, not `migrate:fresh` in production. A failed cutover is rolled back without destroying historical update receipts.
 - MB-03 must not break a current linked non-admin merely because public Sales Bot UX has been postponed. Verify actual usage via privacy-safe read-only queries.
 - MB-05 live notification verification requires two started bots and valid token scopes. Bot-to-bot message delivery is through **Laravel and Telegram API**, not by Telegram bots messaging each other. Outbox gives **at-least-once attempts**, not a guarantee of delivery or exactly-once notification.
@@ -252,18 +283,18 @@ At the start and end of each phase record:
 
 | Phase | Status | PR(s) | CI | Live/staging evidence | Blockers | Rollback verified |
 | --- | --- | --- | --- | --- | --- | --- |
-| RW-01 | NOT STARTED | — | — | — | Staging server/operator setup | — |
-| RW-02 | NOT STARTED | — | — | — | RW-01 | — |
-| RW-03 | NOT STARTED | — | — | — | RW-02 + operator staging-write approval | — |
-| RW-04 | NOT STARTED | — | — | — | RW-03 | — |
-| MB-01 | NOT STARTED | — | — | — | RW-04 | — |
+| RW-01 | BLOCKED | — | — | — | Staging VPS unavailable; operator setup | — |
+| RW-02 | BLOCKED | — | — | — | RW-01; no live panel | — |
+| RW-03 | BLOCKED | — | — | — | RW-02 + explicit staging-write approval | — |
+| RW-04 | NOT STARTED | — | — | — | Offline work eligible; final sign-off needs RW-03 | — |
+| MB-01 | NOT STARTED | — | — | — | **Eligible now; no RW dependency** | — |
 | MB-02 | NOT STARTED | — | — | — | MB-01 | — |
 | MB-03 | NOT STARTED | — | — | — | MB-02 + nonadmin compatibility contract | — |
 | MB-04 | NOT STARTED | — | — | — | MB-03 | — |
-| MB-05 | NOT STARTED | — | — | — | MB-04 + two test bots for live delivery | — |
-| MB-06 | NOT STARTED | — | — | — | MB-05 | — |
+| MB-05 | NOT STARTED | — | — | — | A: after MB-04; B-offline: after MB-04; B-live: needs RW-04. Real delivery needs two started test bots | — |
+| MB-06 | NOT STARTED | — | — | — | A: after MB-05 offline; B final: RW-04 + MB-05B-live + two-bot smoke | — |
 
-**First executable step, on a separate future user instruction:** start **RW-01**, inspect actual target server/panel-release compatibility and prepare a security-focused installation checklist. Do **not** begin MB implementation or create/update production server resources from this roadmap commit.
+**First executable step, on a separate future user instruction:** start **MB-01** (inventory, architecture/identity and notification contracts). Leave RW-01–03 BLOCKED until staging becomes available. No code, VPS, secrets, bot migration or production settings are changed by this documentation-only replan.
 
 ## 10. References
 
