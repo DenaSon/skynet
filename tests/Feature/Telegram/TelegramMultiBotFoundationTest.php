@@ -3,6 +3,7 @@
 use App\Interfaces\Telegram\Processing\ClaimState;
 use App\Interfaces\Telegram\Processing\ProcessSalesTelegramUpdate;
 use App\Interfaces\Telegram\Processing\ProcessTelegramUpdate;
+use App\Interfaces\Telegram\Processing\SalesTelegramRuntime;
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Interfaces\Telegram\Processing\TelegramUpdateReceipts;
 use App\Interfaces\Telegram\Support\PlanAdminDrafts;
@@ -12,6 +13,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use SergiX44\Nutgram\Nutgram;
 
 uses(RefreshDatabase::class);
 
@@ -281,4 +283,14 @@ it('keeps the existing Admin webhook alive if code deploys before its schema mig
     expect($admin->count)->toBe(1)
         ->and(DB::table('telegram_updates')->where('update_id', 804)->value('status'))->toBe('processed')
         ->and(DB::table('telegram_updates')->count())->toBe(1);
+});
+
+it('constructs a separate Sales Nutgram instance without reusing the existing Admin runtime', function (): void {
+    $admin = app(Nutgram::class);
+    $sales = app(SalesTelegramRuntime::class)->make();
+
+    expect($sales)->toBeInstanceOf(Nutgram::class)
+        ->and($sales)->not->toBe($admin)
+        ->and($sales->getBotId())->toBe(12345678)
+        ->and($sales->getRunningMode())->toBe(\Nutgram\Laravel\RunningMode\LaravelWebhook::class);
 });
