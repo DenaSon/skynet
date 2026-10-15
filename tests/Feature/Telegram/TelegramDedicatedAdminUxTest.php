@@ -101,6 +101,8 @@ it('shows only authorized real Admin operations for trusted roots and gates fina
     $bot->hearCallbackQueryData('menu:admin:plans')->reply()->assertCalled('editMessageText');
     $bot->hearText(ReplyMenuLabels::FINANCE_SECTION)->reply()
         ->assertReplyText('دسترسی مجاز نیست. منوی شما به‌روز شد.');
+    $bot->hearCallbackQueryData('menu:admin:finance')->reply()
+        ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.']);
 
     config()->set('sales.manual_bank_review_enabled', true);
     expect(mb04Labels(app(ReplyMenuRenderer::class)->homeKeyboard($actor)))
