@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Telegram\Support;
 
+use App\Interfaces\Telegram\Notifications\TelegramNotificationSender;
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Identity\Application\TelegramActor;
-use App\Interfaces\Telegram\Notifications\TelegramNotificationSender;
 use App\Modules\Sales\Application\ManualBankPayments;
 use App\Modules\Sales\Application\OrderReader;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -311,8 +311,7 @@ final readonly class ManualPaymentUi
                     reply_markup: InlineKeyboardMarkup::make(),
                 );
             } catch (Throwable) {
-                // The bank decision is already committed; old captions are cosmetic.
-                return;
+                // A failure to update an old Telegram photo does not undo settlement.
             }
         }
     }
