@@ -52,10 +52,6 @@ final class MenuRenderer
             $keyboard->addRow(InlineKeyboardButton::make('💼 کیف پول نماینده', callback_data: 'menu:wallet'));
         }
 
-        if ($actor->isAdmin()) {
-            $keyboard->addRow(InlineKeyboardButton::make('🛡️ مدیریت', callback_data: 'menu:admin'));
-        }
-
         $this->render($bot, "🏠 SkyNet\n\nخوش آمدید، {$this->displayName($actor->name)}.", $keyboard);
     }
 
