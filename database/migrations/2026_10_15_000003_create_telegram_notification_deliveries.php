@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use RuntimeException;
 
 return new class extends Migration
 {
@@ -40,7 +41,7 @@ return new class extends Migration
         // Never silently delete committed intents and their delivery evidence.
         if (Schema::hasTable('telegram_notification_deliveries')
             && DB::table('telegram_notification_deliveries')->exists()) {
-            throw new \RuntimeException('Notification deliveries exist; use a reviewed forward-fix, not a destructive rollback.');
+            throw new RuntimeException('Notification deliveries exist; use a reviewed forward-fix, not a destructive rollback.');
         }
 
         Schema::dropIfExists('telegram_notification_deliveries');
