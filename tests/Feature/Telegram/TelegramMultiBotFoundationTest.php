@@ -275,6 +275,7 @@ it('keeps the existing Admin webhook alive if code deploys before its schema mig
     $this->app->instance(ProcessTelegramUpdate::class, $admin);
     $this->postJson('/api/telegram/webhook', ['update_id' => 804], adminHeaders())->assertNoContent();
     $this->postJson('/api/telegram/admin/webhook', ['update_id' => 804], adminHeaders())->assertNoContent();
+    $this->postJson('/api/telegram/sales/webhook', ['update_id' => 804], adminHeaders())->assertForbidden();
     $this->postJson('/api/telegram/sales/webhook', ['update_id' => 804], salesHeaders())->assertServiceUnavailable();
 
     expect($admin->count)->toBe(1)

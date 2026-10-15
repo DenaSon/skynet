@@ -36,11 +36,6 @@ final class TelegramWebhookController
             return response('Webhook not configured.', 503);
         }
 
-        // The code may deploy before migrate. Do not claim Sales updates in old schema.
-        if ($sales && ! Schema::hasColumn('telegram_updates', 'bot_key')) {
-            return response('Webhook not configured.', 503);
-        }
-
         // Do not create a receipt or instantiate a bot before checking its route secret.
         if (! is_string($secret) || $secret === '') {
             return response('Webhook not configured.', 503);
@@ -50,6 +45,11 @@ final class TelegramWebhookController
 
         if (! hash_equals($secret, $provided)) {
             return response('Forbidden.', 403);
+        }
+
+        // The code may deploy before migrate. Do not claim Sales updates in old schema.
+        if ($sales && ! Schema::hasColumn('telegram_updates', 'bot_key')) {
+            return response('Webhook not configured.', 503);
         }
 
         $updateId = $request->input('update_id');
