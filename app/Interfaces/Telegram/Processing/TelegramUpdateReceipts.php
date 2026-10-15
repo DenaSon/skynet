@@ -5,30 +5,39 @@ namespace App\Interfaces\Telegram\Processing;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use RuntimeException;
 
 final class TelegramUpdateReceipts
 {
     public function claim(int $updateId, string $botKey = TelegramBotContext::ADMIN): ClaimState
     {
-        $context = new TelegramBotContext($botKey);
+        $scoped = $this->isScoped($botKey);
 
         try {
-            return DB::transaction(function () use ($updateId, $context): ClaimState {
-                $row = DB::table('telegram_updates')
-                    ->where('bot_key', $context->key)
-                    ->where('update_id', $updateId)
-                    ->lockForUpdate()
-                    ->first();
+            return DB::transaction(function () use ($updateId, $botKey, $scoped): ClaimState {
+                $query = DB::table('telegram_updates')->where('update_id', $updateId);
+
+                if ($scoped) {
+                    $query->where('bot_key', $botKey);
+                }
+
+                $row = $query->lockForUpdate()->first();
 
                 if ($row === null) {
-                    DB::table('telegram_updates')->insert([
-                        'bot_key' => $context->key,
+                    $values = [
                         'update_id' => $updateId,
                         'status' => 'processing',
                         'processing_until' => now()->addSeconds(90),
                         'created_at' => now(),
                         'updated_at' => now(),
-                    ]);
+                    ];
+
+                    if ($scoped) {
+                        $values['bot_key'] = $botKey;
+                    }
+
+                    DB::table('telegram_updates')->insert($values);
 
                     return ClaimState::Claimed;
                 }
@@ -42,14 +51,17 @@ final class TelegramUpdateReceipts
                     return ClaimState::Busy;
                 }
 
-                DB::table('telegram_updates')
-                    ->where('bot_key', $context->key)
-                    ->where('update_id', $updateId)
-                    ->update([
-                        'status' => 'processing',
-                        'processing_until' => now()->addSeconds(90),
-                        'updated_at' => now(),
-                    ]);
+                $query = DB::table('telegram_updates')->where('update_id', $updateId);
+
+                if ($scoped) {
+                    $query->where('bot_key', $botKey);
+                }
+
+                $query->update([
+                    'status' => 'processing',
+                    'processing_until' => now()->addSeconds(90),
+                    'updated_at' => now(),
+                ]);
 
                 return ClaimState::Claimed;
             });
@@ -64,22 +76,48 @@ final class TelegramUpdateReceipts
 
     public function processed(int $updateId, string $botKey = TelegramBotContext::ADMIN): void
     {
-        DB::table('telegram_updates')->where('bot_key', (new TelegramBotContext($botKey))->key)
-            ->where('update_id', $updateId)->update([
-                'status' => 'processed',
-                'processing_until' => null,
-                'processed_at' => now(),
-                'updated_at' => now(),
-            ]);
+        $scoped = $this->isScoped($botKey);
+        $query = DB::table('telegram_updates')->where('update_id', $updateId);
+
+        if ($scoped) {
+            $query->where('bot_key', $botKey);
+        }
+
+        $query->update([
+            'status' => 'processed',
+            'processing_until' => null,
+            'processed_at' => now(),
+            'updated_at' => now(),
+        ]);
     }
 
     public function failed(int $updateId, string $botKey = TelegramBotContext::ADMIN): void
     {
-        DB::table('telegram_updates')->where('bot_key', (new TelegramBotContext($botKey))->key)
-            ->where('update_id', $updateId)->update([
-                'status' => 'failed',
-                'processing_until' => null,
-                'updated_at' => now(),
-            ]);
+        $scoped = $this->isScoped($botKey);
+        $query = DB::table('telegram_updates')->where('update_id', $updateId);
+
+        if ($scoped) {
+            $query->where('bot_key', $botKey);
+        }
+
+        $query->update([
+            'status' => 'failed',
+            'processing_until' => null,
+            'updated_at' => now(),
+        ]);
+    }
+
+    private function isScoped(string $botKey): bool
+    {
+        $context = new TelegramBotContext($botKey);
+        $scoped = Schema::hasColumn('telegram_updates', 'bot_key');
+
+        // A code-first deploy keeps the original Admin webhook operational.
+        // Sales must not use the old global update ID primary key.
+        if (! $scoped && $context->key !== TelegramBotContext::ADMIN) {
+            throw new RuntimeException('Telegram bot-key schema migration is required.');
+        }
+
+        return $scoped;
     }
 }

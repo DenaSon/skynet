@@ -8,6 +8,7 @@ use App\Interfaces\Telegram\Processing\TelegramUpdateReceipts;
 use App\Interfaces\Telegram\Support\PlanAdminDrafts;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -210,7 +211,7 @@ it('requires explicit bot selection for webhook registration', function (): void
 
 it('migrates existing processed and in-flight admin receipts without discarding them', function (): void {
     Schema::drop('telegram_updates');
-    Schema::create('telegram_updates', function (\Illuminate\Database\Schema\Blueprint $table): void {
+    Schema::create('telegram_updates', function (Blueprint $table): void {
         $table->unsignedBigInteger('update_id')->primary();
         $table->string('status', 16);
         $table->timestamp('processing_until')->nullable();
@@ -248,4 +249,35 @@ it('supports schema rollback only if no sales receipts have ever been written', 
 
     expect(Schema::hasColumn('telegram_updates', 'bot_key'))->toBeFalse()
         ->and(DB::table('telegram_updates')->where('update_id', 803)->value('status'))->toBe('processing');
+});
+
+it('keeps the existing Admin webhook alive if code deploys before its schema migration', function (): void {
+    Schema::drop('telegram_updates');
+    Schema::create('telegram_updates', function (Blueprint $table): void {
+        $table->unsignedBigInteger('update_id')->primary();
+        $table->string('status', 16);
+        $table->timestamp('processing_until')->nullable();
+        $table->timestamp('processed_at')->nullable();
+        $table->timestamps();
+    });
+
+    config()->set('telegram.sales.enabled', true);
+    $admin = new class implements ProcessTelegramUpdate
+    {
+        public int $count = 0;
+
+        public function handle(): void
+        {
+            $this->count++;
+        }
+    };
+
+    $this->app->instance(ProcessTelegramUpdate::class, $admin);
+    $this->postJson('/api/telegram/webhook', ['update_id' => 804], adminHeaders())->assertNoContent();
+    $this->postJson('/api/telegram/admin/webhook', ['update_id' => 804], adminHeaders())->assertNoContent();
+    $this->postJson('/api/telegram/sales/webhook', ['update_id' => 804], salesHeaders())->assertServiceUnavailable();
+
+    expect($admin->count)->toBe(1)
+        ->and(DB::table('telegram_updates')->where('update_id', 804)->value('status'))->toBe('processed')
+        ->and(DB::table('telegram_updates')->count())->toBe(1);
 });

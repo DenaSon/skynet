@@ -62,7 +62,5 @@ jobs:
         run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
 
       - name: Formatting verification
-        run: |
-          vendor/bin/pint
-          git diff --color=never -- tests/Feature/Telegram/TelegramMultiBotFoundationTest.php
+        run: vendor/bin/pint --test
 

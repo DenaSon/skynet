@@ -11,6 +11,7 @@ use App\Interfaces\Telegram\Processing\TelegramUpdateReceipts;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Throwable;
 
 final class TelegramWebhookController
@@ -32,6 +33,11 @@ final class TelegramWebhookController
             || ! is_string($token) || $token === ''
             || $token === config('nutgram.token')
             || $secret === config('telegram.webhook_secret'))) {
+            return response('Webhook not configured.', 503);
+        }
+
+        // The code may deploy before migrate. Do not claim Sales updates in old schema.
+        if ($sales && ! Schema::hasColumn('telegram_updates', 'bot_key')) {
             return response('Webhook not configured.', 503);
         }
 
