@@ -8,36 +8,34 @@ use Illuminate\Support\Facades\DB;
 
 uses(RefreshDatabase::class);
 
-final class Mb03RegistrationSpy
-{
-    /** @var array<int, string> */
-    public array $routes = [];
-
-    public function onCommand(string $pattern, mixed $handler): void
-    {
-        $this->routes[] = 'command:'.$pattern;
-    }
-
-    public function onCallbackQueryData(string $pattern, mixed $handler): void
-    {
-        $this->routes[] = 'callback:'.$pattern;
-    }
-
-    public function onPhoto(mixed $handler): void
-    {
-        $this->routes[] = 'photo:*';
-    }
-
-    public function onText(string $pattern, mixed $handler): void
-    {
-        $this->routes[] = 'text:'.$pattern;
-    }
-}
-
 /** @return array<int, string> */
 function mb03Registrations(string $path): array
 {
-    $bot = new Mb03RegistrationSpy;
+    $bot = new class
+    {
+    /** @var array<int, string> */
+        public array $routes = [];
+    
+        public function onCommand(string $pattern, mixed $handler): void
+        {
+            $this->routes[] = 'command:'.$pattern;
+        }
+    
+        public function onCallbackQueryData(string $pattern, mixed $handler): void
+        {
+            $this->routes[] = 'callback:'.$pattern;
+        }
+    
+        public function onPhoto(mixed $handler): void
+        {
+            $this->routes[] = 'photo:*';
+        }
+    
+        public function onText(string $pattern, mixed $handler): void
+        {
+            $this->routes[] = 'text:'.$pattern;
+        }
+    };
 
     require base_path($path);
 
