@@ -61,8 +61,10 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
         $expected[$match[2]][] = $kind.$name;
     }
 
-    expect(count($matches))->toBe(111);
+    expect(count($matches))->toBe(111); // Immutable MB-01 baseline
 
+    // MB-05B adds one guarded, unadvertised Admin-only read command.
+    $expected['ADMIN'][] = 'command:servers';
     $expected['SALES'][] = 'photo:*';
     $files = [
         'ADMIN' => 'app/Interfaces/Telegram/routes/admin.php',
@@ -87,8 +89,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(113)
-        ->and(count(array_unique($legacy)))->toBe(113);
+        ->and(count($legacy))->toBe(114)
+        ->and(count(array_unique($legacy)))->toBe(114);
 });
 
 it('keeps the second Sales Bot router empty, separate and unable to register Admin callbacks', function (): void {
