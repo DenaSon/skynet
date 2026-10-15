@@ -188,7 +188,7 @@ final readonly class TelegramNotificationSender
         // Do not let GD warnings leak data or bypass the MIME/size checks.
         $dimensions = @getimagesizefromstring($data);
 
-        $mime = is_array($dimensions) ? ($dimensions['mime'] ?? null) : null;
+        $mime = is_array($dimensions) ? $dimensions['mime'] : null;
 
         if (strlen($data) > (int) config('telegram_notifications.max_photo_bytes')
             || strlen($data) < 1 || ! in_array($mime, ['image/jpeg', 'image/png'], true)) {
