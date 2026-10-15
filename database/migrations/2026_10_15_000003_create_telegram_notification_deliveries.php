@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
@@ -36,6 +37,12 @@ return new class extends Migration
 
     public function down(): void
     {
+        // Never silently delete committed intents and their delivery evidence.
+        if (Schema::hasTable('telegram_notification_deliveries')
+            && DB::table('telegram_notification_deliveries')->exists()) {
+            throw new \RuntimeException('Notification deliveries exist; use a reviewed forward-fix, not a destructive rollback.');
+        }
+
         Schema::dropIfExists('telegram_notification_deliveries');
         Schema::table('sales_bank_payment_claims', function (Blueprint $table): void {
             $table->dropColumn('source_bot_key');
