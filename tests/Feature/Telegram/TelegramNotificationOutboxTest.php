@@ -42,7 +42,7 @@ function mb05aClaim(string $source = 'admin'): array
     $root = mb05aUser(996001, true);
     $buyer = mb05aUser(996099);
     $quote = app(CalculateQuote::class)->handle($buyer->id, 'notify-test', 30, 10);
-    $order = app(CreatePendingOrder::class)->handle($buyer->id, $quote, 'mb05a-'.bin2hex(random_bytes(8)))->id;
+    $order = app(CreatePendingOrder::class)->handle($buyer->id, $quote, bin2hex(random_bytes(16)))->id;
 
     $claim = app(ManualBankPayments::class)->submit(
         SubscriptionViewer::telegram(996099), $order,
@@ -132,7 +132,9 @@ it('backs off transient errors, then retries and marks an unreachable destinatio
     expect(DB::table('telegram_notification_deliveries')->where('id', $id)->value('state'))->toBe('sent');
 
     // A revoked root cannot get a notification even with a stale queued intent.
+    config()->set('telegram_notifications.enabled', false);
     $data2 = mb05aAdditionalClaim($data['buyer']);
+    config()->set('telegram_notifications.enabled', true);
     $data['root']->forceFill(['is_active' => false])->save();
     app(DispatchTelegramNotification::class, ['deliveryId' => $data2])->handle(app(TelegramNotificationSender::class));
 
@@ -142,7 +144,7 @@ it('backs off transient errors, then retries and marks an unreachable destinatio
 function mb05aAdditionalClaim(User $buyer): int
 {
     $quote = app(CalculateQuote::class)->handle($buyer->id, 'notify-test', 30, 10);
-    $order = app(CreatePendingOrder::class)->handle($buyer->id, $quote, 'mb05a-next-'.bin2hex(random_bytes(8)))->id;
+    $order = app(CreatePendingOrder::class)->handle($buyer->id, $quote, bin2hex(random_bytes(16)))->id;
     app(ManualBankPayments::class)->submit(
         SubscriptionViewer::telegram(996099), $order, 'image-token-again', 'image-unique-again', 8002,
     );
