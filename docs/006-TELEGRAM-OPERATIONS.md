@@ -186,3 +186,32 @@ Automated tests include original command/callback compatibility, authorized root
 4. Verify `📋 نمونه پلن‌های قابل کپی`: Telegram's native CopyTextButton actually places exact text in clipboard (current client required); try Persian examples and pipe characters. Invalid/expired confirmation must not change data.
 5. Verify disabled member and non-root admin cannot open or submit privileged callbacks; check reseller /builder and customer /catalog price display in **تومان**; confirm F09 /buy and customer /orders still work as before.
 6. Use read-only database queries for expected draft/audit/order state and check no unexpected new orders, ledger postings, or provider writes. Finance and Remnawave remain disabled independently of UI polish. Record real E2E results separately from GitHub CI.
+
+## MB-02 — Two bot runtimes (safe technical foundation)
+
+**Code-phase scope:** The original BotFather bot, `TELEGRAM_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, original `routes/telegram.php`, `telegram:webhook:set` (no options), and `POST /api/telegram/webhook` retain their behavior. A second Admin alias `POST /api/telegram/admin/webhook` shares the **same** Admin update receipts. Sales runs in its own Nutgram instance, with **zero registered handlers** in MB-02: its `POST /api/telegram/sales/webhook` must fail with 503 unless explicitly enabled. No current member/reseller access is retired.
+
+**Untracked deployment configuration** (placeholders only, **leave disabled** until the separate Sales Bot is ready):
+```dotenv
+TELEGRAM_TOKEN=existing-admin-bot-token
+TELEGRAM_WEBHOOK_SECRET=existing-admin-secret
+TELEGRAM_SALES_ENABLED=false
+TELEGRAM_SALES_TOKEN=
+TELEGRAM_SALES_WEBHOOK_SECRET=
+TELEGRAM_SALES_BOT_USERNAME=
+```
+- Existing admin registration continues with `php artisan telegram:webhook:set`; optional `--bot=admin` is equivalent. A later **explicitly approved** setup can use `telegram:webhook:set --bot=sales` only after `TELEGRAM_SALES_ENABLED=true` and independently configured credentials. The Sales handler set is currently empty; **do not enable/register it for customers**.
+- Secret-token validation occurs before any Update claim. The two routes require their respective secrets and reject shared Sales/Admin token or shared secrets.
+- MySQL `telegram_updates` now uses `(bot_key, update_id)` as its primary key; historical records default to `admin`. The new `telegram_bot_contacts` is only a per-bot record of a verified linked active user's **private** chat, not additional SkyNetwork identities; missing or blocked chat remains undeliverable. **No cross-bot notification dispatch is implemented here** (MB-05A).
+- All existing Admin/legacy cache draft and confirmation key names are unchanged, including TTL, so previous keyboards and in-flight forms continue working. Sales-derived keys have a separate `telegram:sales:` namespace. Avoid clearing cache during migration.
+
+**Mandatory production preflight (read-only; performed by operator before deploy or cutover):**
+1. Verify deployed `master` SHA and actual MySQL `telegram_updates` table size/schema/indexes; count active rows and in-flight leases. **Do not paste Telegram IDs or keys in reports.**
+2. Count linked active/nonadmin/reseller users and recent usage in aggregated, anonymized form. Since these figures are not available through GitHub, **do not assume zero customers**. Do not remove legacy customer menus or callbacks.
+3. Confirm migrations are additive to all business tables; back up the database, check available rollback/restore method, leave Sales credentials absent and Sales flag OFF.
+4. Apply the migrations through the normal automatic Production pipeline, then verify the `bot_key` defaults on old receipts and uniqueness of `(bot_key, update_id)`. Test the existing webhook/Telegram Admin and one existing nonadmin flow. Confirm no errors, double processing or altered Sales/Billing/Provider flags.
+5. Check new Admin alias is secured and deduplicates the old URL; do **not** switch the BotFather webhook URL unnecessarily.
+
+**Rollback:** Revert PHP only while **Sales remains disabled**; historical Admin `update_id` processing is still compatible with the new table as long as there is one Admin row per ID. Do **not** roll back the schema if any Sales receipts exist; the migration deliberately blocks unsafe rollback. Once Sales is enabled, falling back to an old unscoped receipt handler is **unsafe**; disable Sales and roll forward with a compatible version. Never delete the sales rows to make a down-migration pass.
+
+**Evidence limits:** PHP 8.4/8.5 CI and fake webhook tests verify contracts; they are **not** proof of the actual Production MySQL migration or live Telegram Sales Bot behavior. MB-03 performs router isolation and final real cutover later; MB-05A provides durable cross-bot notifications and safe receipt media transfer.
