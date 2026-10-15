@@ -1,13 +1,13 @@
 # SkyNetwork — Remnawave Staging → Multi-Bot & Admin Operations Roadmap
 
-**Status:** APPROVED RESEQUENCED PLAN — 2026-10-15; MB-01 documentation acceptance via [PR #52](https://github.com/DenaSon/skynet/pull/52) (PHP 8.4/8.5 CI green), MB-02–06 not started. Remnawave staging server unavailable.  
+**Status:** APPROVED RESEQUENCED PLAN — 2026-10-15; MB-01 ACCEPTED ([PR #52](https://github.com/DenaSon/skynet/pull/52)), **MB-02 CODE COMPLETE — [PR #53](https://github.com/DenaSon/skynet/pull/53), PHP 8.4/8.5 automated tests green; merge/post-deploy smoke pending**; MB-03–06 not started. Remnawave staging server unavailable.  
 **Execution now:** MB-01 → MB-02 → MB-03 → MB-04 → MB-05A (notifications) + MB-05B (offline provider-read contracts) → MB-06A (offline/incremental validation). Optional narrowly justified RW-04 offline preparation may proceed independently.  
 **Execution when staging becomes available:** RW-01 → RW-02 → RW-03 (with separate test-write approval) → RW-04 live verification → MB-05B live verification → MB-06B final acceptance. These are **workstreams inside the same original 10 phases**, not new Epics.  
 **Planning baseline:** original roadmap authored against `bfac4a5`; dependency-only replan against `master` `8c83e28`. Inspect the latest `master` before implementation.  
 **Owner decision:** Complete provider-independent Multi-Bot and dedicated Admin Bot work now, without waiting for a Remnawave VPS. Defer only live Remnawave checks and related acceptance; retain one Laravel modular monolith, shared business database and authorized Application Actions. **Sales Bot public UX and production sales remain deferred.**  
 **Normative UX:** [017-TELEGRAM-UX-IDENTITY.md](017-TELEGRAM-UX-IDENTITY.md).
 
-> **Execution rule:** This is a **scope and acceptance contract**, not an implementation claim. RW-01/RW-02/RW-03 are **BLOCKED by unavailable staging**; MB-01 is **ACCEPTED (documentation-only)**; MB-02–06 remain **NOT STARTED**. Document completed **code/offline** gates separately from **live** gates; a mock cannot prove panel compatibility. This docs-only change authorizes **no coding, server action, live write, payment activation or sales cutover**. Each phase starts only on a separate explicit implementation instruction.
+> **Execution rule:** This is a **scope and acceptance contract**, not an implementation claim. RW-01/RW-02/RW-03 are **BLOCKED by unavailable staging**; MB-01 is **ACCEPTED (documentation-only)**; MB-03–06 remain **NOT STARTED**; MB-02 is CODE COMPLETE pending rollout checks. Document completed **code/offline** gates separately from **live** gates; a mock cannot prove panel compatibility. This docs-only change authorizes **no coding, server action, live write, payment activation or sales cutover**. Each phase starts only on a separate explicit implementation instruction.
 
 ## 0. Approved dependency replan — work without a Remnawave server
 
@@ -288,13 +288,13 @@ At the start and end of each phase record:
 | RW-03 | BLOCKED | — | — | — | RW-02 + explicit staging-write approval | — |
 | RW-04 | NOT STARTED | — | — | — | Offline work eligible; final sign-off needs RW-03 | — |
 | MB-01 | ACCEPTED — documentation-only | [#52](https://github.com/DenaSon/skynet/pull/52) | [PHP 8.4/8.5 green](https://github.com/DenaSon/skynet/actions/runs/38781856907); post-merge CI checked separately | 113/113 registrations + 18/18 labels matched code; no live test required for docs | Nonadmin Production usage preflight required in MB-02 | No runtime/schema changes |
-| MB-02 | NOT STARTED | — | — | — | MB-01 | — |
+| MB-02 | CODE COMPLETE — rollout verification pending | [#53](https://github.com/DenaSon/skynet/pull/53) | PHP 8.4/8.5 Pest/PHPStan/Pint green on PR; final master CI separate | SQLite legacy-row preservation, collisions, route secret and bot contacts; **Production MySQL/Telegram live pending** | Read-only Production DB/schema/nonadmin preflight; Sales OFF | Code-before-migration Admin fallback + guarded schema rollback |
 | MB-03 | NOT STARTED | — | — | — | MB-02 + nonadmin compatibility contract | — |
 | MB-04 | NOT STARTED | — | — | — | MB-03 | — |
 | MB-05 | NOT STARTED | — | — | — | A: after MB-04; B-offline: after MB-04; B-live: needs RW-04. Real delivery needs two started test bots | — |
 | MB-06 | NOT STARTED | — | — | — | A: after MB-05 offline; B final: RW-04 + MB-05B-live + two-bot smoke | — |
 
-**Next implementation step, after MB-01 acceptance and a separate user instruction:** **MB-02**, using [audited inventory](019-MB01-TELEGRAM-ROUTE-INVENTORY.md) and [ADR 0009](adr/0009-dual-telegram-bot-boundaries.md). RW-01–03 remain BLOCKED until staging. MB-01 changed no PHP, migration, token, server or runtime configuration.
+**Next implementation step after MB-02 review/acceptance:** **MB-03 — Router Isolation**, based on [the audited inventory](019-MB01-TELEGRAM-ROUTE-INVENTORY.md) and [ADR 0009](adr/0009-dual-telegram-bot-boundaries.md). MB-02 deliberately leaves all current Admin/Member/Reseller handlers on the original bot; the isolated Sales runtime contains no handlers and stays OFF.
 
 ## 10. References
 

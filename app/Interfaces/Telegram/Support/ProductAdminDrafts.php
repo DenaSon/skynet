@@ -2,6 +2,7 @@
 
 namespace App\Interfaces\Telegram\Support;
 
+use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use Illuminate\Support\Facades\Cache;
 
 final class ProductAdminDrafts
@@ -48,6 +49,6 @@ final class ProductAdminDrafts
 
     private function key(int $actorId): string
     {
-        return 'telegram:productadmin:draft:'.$actorId;
+        return TelegramBotContext::current()->cacheKey('telegram:productadmin:draft:'.$actorId);
     }
 }

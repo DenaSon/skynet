@@ -2,6 +2,7 @@
 
 namespace App\Interfaces\Telegram\Support;
 
+use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use Illuminate\Support\Facades\Cache;
 
 final class PendingReferral
@@ -26,6 +27,6 @@ final class PendingReferral
 
     private function key(int $telegramId): string
     {
-        return 'telegram:signup:referral:'.$telegramId;
+        return TelegramBotContext::current()->cacheKey('telegram:signup:referral:'.$telegramId);
     }
 }

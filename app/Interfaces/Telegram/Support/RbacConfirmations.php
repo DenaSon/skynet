@@ -2,6 +2,7 @@
 
 namespace App\Interfaces\Telegram\Support;
 
+use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use Illuminate\Support\Facades\Cache;
 
 final class RbacConfirmations
@@ -49,6 +50,6 @@ final class RbacConfirmations
 
     private function key(string $token): string
     {
-        return 'tg:rbac:confirmation:'.$token;
+        return TelegramBotContext::current()->cacheKey('tg:rbac:confirmation:'.$token);
     }
 }

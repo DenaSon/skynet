@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Telegram\Support;
 
+use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Identity\Application\SuperAdminTrust;
@@ -65,7 +66,7 @@ final readonly class ManualPaymentUi
             return;
         }
 
-        Cache::put('telegram:payphoto:'.$actor->userId, $order->id, now()->addMinutes(10));
+        Cache::put(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$actor->userId), $order->id, now()->addMinutes(10));
         $instructions = trim((string) config('billing.payment_instructions', ''));
         $instructions = mb_substr($instructions === '' ? 'برای دریافت اطلاعات پرداخت با پشتیبانی هماهنگ کنید.' : $instructions, 0, 350);
 
@@ -84,7 +85,7 @@ final readonly class ManualPaymentUi
             return;
         }
 
-        $orderId = Cache::get('telegram:payphoto:'.$actor->userId);
+        $orderId = Cache::get(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$actor->userId));
 
         if (is_int($orderId) === false) {
             return; // Never intercept unrelated images.
@@ -114,7 +115,7 @@ final readonly class ManualPaymentUi
             return;
         }
 
-        Cache::forget('telegram:payphoto:'.$actor->userId);
+        Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$actor->userId));
         $this->notice($bot, "🕘 رسید سفارش #{$orderId} ثبت شد.\nشماره بررسی: #{$claimId}\n\nتنها پس از تطبیق واقعی گردش بانک و تأیید مدیر، سفارش تسویه می‌شود.");
         $this->alertRoots($bot, $claimId);
     }
@@ -214,7 +215,7 @@ final readonly class ManualPaymentUi
         }
 
         if (($bot->message()->photo ?? []) !== []) {
-            Cache::put('telegram:bankreview:origin:'.$actor->userId.':'.$id, $bot->message()->message_id, now()->addMinutes(10));
+            Cache::put(TelegramBotContext::current()->cacheKey('telegram:bankreview:origin:'.$actor->userId.':'.$id), $bot->message()->message_id, now()->addMinutes(10));
         }
 
         if ($choice === 'a') {
@@ -253,7 +254,7 @@ final readonly class ManualPaymentUi
         }
 
         $reference = strtoupper($reference);
-        $origin = Cache::get('telegram:bankreview:origin:'.$actor->userId.':'.$id);
+        $origin = Cache::get(TelegramBotContext::current()->cacheKey('telegram:bankreview:origin:'.$actor->userId.':'.$id));
         $token = $this->tokens->issue($actor->userId, $id, true, $reference, is_int($origin) ? $origin : null);
         $keyboard = InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('✅ تأیید نهایی پرداخت', callback_data: 'bank:apply:'.$token))

@@ -2,6 +2,7 @@
 
 namespace App\Interfaces\Telegram\Support;
 
+use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use Illuminate\Support\Facades\Cache;
 
 final class BillingReviewTokens
@@ -46,6 +47,6 @@ final class BillingReviewTokens
 
     private function key(string $token): string
     {
-        return 'telegram:billing:review:'.$token;
+        return TelegramBotContext::current()->cacheKey('telegram:billing:review:'.$token);
     }
 }

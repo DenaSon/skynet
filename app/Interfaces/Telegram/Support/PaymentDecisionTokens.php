@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Telegram\Support;
 
+use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use Illuminate\Support\Facades\Cache;
 
 final class PaymentDecisionTokens
@@ -11,7 +12,7 @@ final class PaymentDecisionTokens
     public function issue(int $operatorId, int $claimId, bool $approve, ?string $reference, ?int $photoMessageId): string
     {
         $token = bin2hex(random_bytes(16));
-        Cache::put('telegram:bankreview:'.$token, [
+        Cache::put(TelegramBotContext::current()->cacheKey('telegram:bankreview:'.$token), [
             'operator' => $operatorId,
             'claim' => $claimId,
             'approve' => $approve,
@@ -29,7 +30,7 @@ final class PaymentDecisionTokens
             return null;
         }
 
-        $key = 'telegram:bankreview:'.$token;
+        $key = TelegramBotContext::current()->cacheKey('telegram:bankreview:'.$token);
 
         return Cache::lock($key.':lock', 10)->block(2, function () use ($key, $operatorId): ?array {
             $value = Cache::get($key);
