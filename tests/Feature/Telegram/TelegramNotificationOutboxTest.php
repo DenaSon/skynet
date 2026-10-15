@@ -186,8 +186,9 @@ it('reuploads a bounded Sales-origin JPEG under the Admin token without forwardi
     });
 
     $id = (int) DB::table('telegram_notification_deliveries')->value('id');
-    app(TelegramNotificationSender::class)->showReceiptToRoot($data['claim'], $data['root']->id, 996001, 'Receipt review');
+    app(DispatchTelegramNotification::class, ['deliveryId' => $id])->handle(app(TelegramNotificationSender::class));
 
+    expect(DB::table('telegram_notification_deliveries')->where('id', $id)->value('state'))->toBe('sent');
     Http::assertSentCount(3);
     Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '12345:admin_test/sendPhoto'));
 });
