@@ -14,6 +14,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 
 uses(RefreshDatabase::class);
 
@@ -250,7 +251,7 @@ it('refuses destructive notification down migration and supports guarded console
     ]);
 
     config()->set('telegram_notifications.enabled', true);
-    \Illuminate\Support\Facades\Queue::fake();
+    Queue::fake();
     $this->artisan('telegram:notifications:dispatch', ['--retry-id' => (string) $id])->assertSuccessful();
 
     expect(DB::table('telegram_notification_deliveries')->where('id', $id)->value('state'))->toBe('pending')
