@@ -12,6 +12,7 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('telegram:prune-updates')->daily();
+Schedule::command('telegram:notifications:dispatch')->everyMinute()->withoutOverlapping();
 
 /*
 |--------------------------------------------------------------------------
