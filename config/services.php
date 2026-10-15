@@ -33,6 +33,10 @@ return [
         'token' => env('REMNAWAVE_API_TOKEN'),
         'timeout' => (int) env('REMNAWAVE_TIMEOUT', 15),
         'writes_enabled' => (bool) env('REMNAWAVE_WRITES_ENABLED', false),
+        // OFF until RW-04 live API verification; not enabled by offline CI.
+        'admin_reads_verified' => (bool) env('REMNAWAVE_ADMIN_READS_VERIFIED', false),
+        // Separate gate, only after a real squad UUID/membership review.
+        'squad_bindings_live_verified' => (bool) env('REMNAWAVE_SQUAD_BINDINGS_LIVE_VERIFIED', false),
     ],
 
     'slack' => [
