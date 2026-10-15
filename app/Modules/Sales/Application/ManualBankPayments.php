@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Sales\Application;
 
+use App\Interfaces\Telegram\Notifications\PaymentNotificationOutbox;
 use App\Modules\Billing\Application\RecordDirectBankPayment;
 use App\Modules\Identity\Application\AssertBillingAccess;
 use App\Modules\Identity\Application\AuthorizeSubscriptionViewer;
@@ -23,11 +24,16 @@ final readonly class ManualBankPayments
         private AuthorizeSubscriptionViewer $authorize,
         private AssertBillingAccess $access,
         private RecordDirectBankPayment $bankPayments,
+        private PaymentNotificationOutbox $notifications,
     ) {}
 
-    public function submit(SubscriptionViewer $viewer, int $orderId, string $fileId, string $fileUniqueId, int $telegramMessageId): int
+    public function submit(SubscriptionViewer $viewer, int $orderId, string $fileId, string $fileUniqueId, int $telegramMessageId, string $sourceBotKey = 'admin'): int
     {
         $this->enabled();
+
+        if (! in_array($sourceBotKey, ['admin', 'sales'], true)) {
+            throw new AuthorizationException;
+        }
 
         if ($orderId < 1 || $telegramMessageId < 1 || strlen($fileId) < 5 || strlen($fileId) > 1024
             || strlen($fileUniqueId) < 5 || strlen($fileUniqueId) > 255) {
@@ -43,7 +49,7 @@ final readonly class ManualBankPayments
         $messageKey = 'tg:'.$viewer->telegramUserId.':'.$telegramMessageId;
         $fingerprint = hash('sha256', $fileUniqueId);
 
-        return DB::transaction(function () use ($buyerId, $orderId, $fileId, $messageKey, $fingerprint): int {
+        return DB::transaction(function () use ($buyerId, $orderId, $fileId, $messageKey, $fingerprint, $sourceBotKey): int {
             $order = DB::table('sales_orders')->where('id', $orderId)->where('buyer_user_id', $buyerId)->lockForUpdate()->first();
 
             if ($order === null || $order->status !== 'pending_payment') {
@@ -65,16 +71,21 @@ final readonly class ManualBankPayments
                 throw ValidationException::withMessages(['receipt' => 'This receipt was already submitted.']);
             }
 
-            return (int) DB::table('sales_bank_payment_claims')->insertGetId([
+            $claimId = (int) DB::table('sales_bank_payment_claims')->insertGetId([
                 'sales_order_id' => $orderId,
                 'buyer_user_id' => $buyerId,
                 'photo_encrypted' => Crypt::encryptString($fileId),
+                'source_bot_key' => $sourceBotKey,
                 'photo_fingerprint' => $fingerprint,
                 'telegram_message_key' => $messageKey,
                 'status' => 'submitted',
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
+
+            $this->notifications->submitted($claimId, $orderId);
+
+            return $claimId;
         }, 3);
     }
 
@@ -112,6 +123,7 @@ final readonly class ManualBankPayments
             'amountRials' => (int) $row->total_price_rials,
             'productName' => (string) $row->product_name,
             'photoFileId' => Crypt::decryptString($row->photo_encrypted),
+            'sourceBotKey' => (string) $row->source_bot_key,
         ];
     }
 
@@ -200,6 +212,8 @@ final readonly class ManualBankPayments
                 'decision' => $approve ? 'approved' : 'rejected',
                 'created_at' => now(),
             ]);
+
+            $this->notifications->reviewed($claimId, (int) $order->id, (int) $claim->buyer_user_id);
 
             return (object) [
                 'orderId' => (int) $order->id,
