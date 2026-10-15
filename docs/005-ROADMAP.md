@@ -1,6 +1,8 @@
 # Roadmap
 
-All statuses reflect **code in the repository**, not intentions.
+All statuses reflect **code in the repository**, not intentions. Planned milestones are explicitly marked as **NOT STARTED**.
+
+**Next approved execution contract (2026-10-15):** [Remnawave Staging → Multi-Bot & Admin Operations Roadmap](018-REMNAWAVE-STAGING-MULTIBOT-ROADMAP.md) — `RW-01 → RW-02 → RW-03 → RW-04 → MB-01 → MB-02 → MB-03 → MB-04 → MB-05 → MB-06`. Documentation approval is **not** an instruction to start development or provision servers.
 
 | Increment | Scope | Status |
 | --- | --- | --- |
@@ -34,6 +36,8 @@ All statuses reflect **code in the repository**, not intentions.
 | F11-B1.6 — Reseller builder preview | Private /builder, bounded GB/day selectors, 10-min buyer-scoped custom text input, current formula quote and role enforcement, no money/provider writes | **PR #46**, green PHP 8.4/8.5 CI (305 tests/1898 assertions), live private Telegram E2E pending |
 | F11-CATALOG-01 — Telegram base products and F09 rate management | Private root /products, add/edit/status, 15/30/60/90 legacy rate editing, one-use preview, optimistic snapshot/audit, no payment/provider writes | **PR #47**, green PHP 8.4/8.5 CI (313 tests/1979 assertions); live Telegram E2E pending |
 | UX-POLISH — Telegram identity and guided UI | [UX identity](017-TELEGRAM-UX-IDENTITY.md), root-only grouped navigation, native one-tap copy, step-by-step product/price and plan forms, selective plan editing; preserve all Actions and previous commands/callbacks | [PR #48](https://github.com/DenaSon/skynet/pull/48); PHP 8.4/8.5 CI required, real Telegram smoke pending; no provider/finance writes |
+| EPIC-RW — Remnawave staging & operational API | RW-01–RW-04: isolated real staging server, read-only contract/live checks, safe test-only lifecycle, adapter hardening; see [execution contract](018-REMNAWAVE-STAGING-MULTIBOT-ROADMAP.md) | **NOT STARTED**; operator staging setup and live-test approval required |
+| EPIC-MB — Multi-Bot foundation & Admin operations | MB-01–MB-06: architecture inventory, dual runtimes, admin router/security, dedicated admin UX, cross-bot outbox/media and bounded Remnawave read UI, E2E/rollback | **NOT STARTED**; starts after EPIC-RW acceptance; public Sales Bot deferred |
 | F11-B1.3 — Provider binding | Plan to Internal Squad mapping, bounded bytes/UTC expiry | Planned |
 
 | F11-B — Fulfillment/delivery | Explicit plan → squad mapping, bounded bytes/expiry, reconciled activation and owner-safe link delivery | Planned; NOT implemented |
