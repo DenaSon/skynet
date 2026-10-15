@@ -174,7 +174,7 @@ it('reuploads a bounded Sales-origin photo under the Admin token without forward
             return Http::response(['ok' => true, 'result' => ['file_path' => 'photos/test.png', 'file_size' => strlen($image)]]);
         }
 
-        if (str_contains($url, '/file/bot54321:sales_test/photos/test.jpg')) {
+        if (str_contains($url, '/file/bot54321:sales_test/photos/test.png')) {
             return Http::response($image, 200, ['Content-Type' => 'image/png']);
         }
 
