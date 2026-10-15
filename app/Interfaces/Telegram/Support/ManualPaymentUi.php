@@ -8,7 +8,9 @@ use App\Interfaces\Telegram\Notifications\TelegramNotificationSender;
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\SubscriptionViewer;
+use App\Modules\Identity\Application\SuperAdminTrust;
 use App\Modules\Identity\Application\TelegramActor;
+use App\Modules\Identity\Application\TelegramRecipient;
 use App\Modules\Sales\Application\ManualBankPayments;
 use App\Modules\Sales\Application\OrderReader;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -25,6 +27,8 @@ final readonly class ManualPaymentUi
     public function __construct(
         private PrivateTelegramUser $private,
         private ResolveTelegramActor $actors,
+        private SuperAdminTrust $trust,
+        private TelegramRecipient $recipients,
         private TelegramNotificationSender $sender,
         private ManualBankPayments $payments,
         private OrderReader $orders,
@@ -116,6 +120,11 @@ final readonly class ManualPaymentUi
 
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$actor->userId));
         $this->notice($bot, "🕘 رسید سفارش #{$orderId} ثبت شد.\nشماره بررسی: #{$claimId}\n\nتنها پس از تطبیق واقعی گردش بانک و تأیید مدیر، سفارش تسویه می‌شود.");
+        // Keep the already deployed best-effort alerts until the durable
+        // notification worker is explicitly enabled in Production.
+        if (config('telegram_notifications.enabled', false) !== true) {
+            $this->alertRoots($bot, $claimId);
+        }
     }
 
     public function list(Nutgram $bot): void
@@ -312,6 +321,44 @@ final readonly class ManualPaymentUi
                 );
             } catch (Throwable) {
                 // A failure to update an old Telegram photo does not undo settlement.
+            }
+        }
+
+        if (config('telegram_notifications.enabled', false) !== true) {
+            $recipient = $this->recipients->forActiveUser($result->buyerUserId);
+
+            if ($recipient !== null) {
+                try {
+                    $bot->sendMessage(text: $message, chat_id: $recipient, protect_content: true);
+                } catch (Throwable) {
+                    // Review is committed. Failed delivery cannot roll back a bank decision.
+                    // Status remains accessible in the customer's order history.
+                }
+            }
+        }
+        }
+    }
+
+    private function alertRoots(Nutgram $bot, int $claimId): void
+    {
+        foreach ($this->trust->allowedTelegramIds() as $id) {
+            $root = $this->actors->handle((int) $id);
+
+            if ($root === null || $root->canManageRoles() === false) {
+                continue;
+            }
+
+            try {
+                $row = $this->payments->detail($root->userId, $claimId);
+                $bot->sendPhoto(
+                    photo: $row->photoFileId,
+                    chat_id: (int) $id,
+                    caption: $this->caption($row),
+                    reply_markup: $this->reviewKeyboard($claimId),
+                    protect_content: true,
+                );
+            } catch (Throwable) {
+                // The claim is durable; roots can recover it from /payments.
             }
         }
     }
