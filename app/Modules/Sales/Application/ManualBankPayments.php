@@ -12,6 +12,7 @@ use App\Modules\Identity\Application\SubscriptionViewer;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -71,19 +72,28 @@ final readonly class ManualBankPayments
                 throw ValidationException::withMessages(['receipt' => 'This receipt was already submitted.']);
             }
 
-            $claimId = (int) DB::table('sales_bank_payment_claims')->insertGetId([
+            $fields = [
                 'sales_order_id' => $orderId,
                 'buyer_user_id' => $buyerId,
                 'photo_encrypted' => Crypt::encryptString($fileId),
-                'source_bot_key' => $sourceBotKey,
                 'photo_fingerprint' => $fingerprint,
                 'telegram_message_key' => $messageKey,
                 'status' => 'submitted',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ]);
+            ];
 
-            $this->notifications->submitted($claimId, $orderId);
+            // During rolling deploys the old Admin receipt path remains usable
+            // until the additive migration has been applied.
+            if (Schema::hasColumn('sales_bank_payment_claims', 'source_bot_key')) {
+                $fields['source_bot_key'] = $sourceBotKey;
+            }
+
+            $claimId = (int) DB::table('sales_bank_payment_claims')->insertGetId($fields);
+
+            if (Schema::hasTable('telegram_notification_deliveries')) {
+                $this->notifications->submitted($claimId, $orderId);
+            }
 
             return $claimId;
         }, 3);
@@ -123,7 +133,7 @@ final readonly class ManualBankPayments
             'amountRials' => (int) $row->total_price_rials,
             'productName' => (string) $row->product_name,
             'photoFileId' => Crypt::decryptString($row->photo_encrypted),
-            'sourceBotKey' => (string) $row->source_bot_key,
+            'sourceBotKey' => (string) ($row->source_bot_key ?? 'admin'),
         ];
     }
 
@@ -213,7 +223,9 @@ final readonly class ManualBankPayments
                 'created_at' => now(),
             ]);
 
-            $this->notifications->reviewed($claimId, (int) $order->id, (int) $claim->buyer_user_id);
+            if (Schema::hasTable('telegram_notification_deliveries')) {
+                $this->notifications->reviewed($claimId, (int) $order->id, (int) $claim->buyer_user_id);
+            }
 
             return (object) [
                 'orderId' => (int) $order->id,
