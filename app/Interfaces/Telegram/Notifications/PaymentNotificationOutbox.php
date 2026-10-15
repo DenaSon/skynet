@@ -63,6 +63,8 @@ final readonly class PaymentNotificationOutbox
     private function record(
         string $key, string $type, int $recipientId, string $bot, int $claimId, int $orderId,
     ): void {
+        $enabled = config('telegram_notifications.enabled', false) === true;
+
         $id = DB::table('telegram_notification_deliveries')->insertGetId([
             'event_key' => $key,
             'event_type' => $type,
@@ -70,14 +72,16 @@ final readonly class PaymentNotificationOutbox
             'bot_key' => $bot,
             'claim_id' => $claimId,
             'order_id' => $orderId,
-            'state' => 'pending',
+            // Keep audit evidence but never replay alerts that the legacy
+            // BotFather compatibility sender already delivered.
+            'state' => $enabled ? 'pending' : 'suppressed',
             'attempts' => 0,
             'available_at' => now(),
             'created_at' => now(),
             'updated_at' => now(),
         ]);
 
-        if (config('telegram_notifications.enabled', false) === true) {
+        if ($enabled) {
             DB::afterCommit(static function () use ($id): void {
                 DispatchTelegramNotification::dispatch((int) $id);
             });
