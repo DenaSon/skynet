@@ -148,8 +148,8 @@ The old callback strings themselves are **compatibility contracts**. Buttons alr
 
 | Handler | Target | Existing order / acceptance concern |
 | --- | --- | --- |
-| `onPhoto` (line 68) | SALES + legacy bridge | `ManualPaymentUi::photo` only processes after `telegram:payphoto:{userId}` state and when manual bank review is enabled. Stored `photo_encrypted` contains a **source-bot-scoped** `file_id`; preserve consent, claim identity, pending-order checks, fingerprint duplicate denial and root-review recovery. |
-| `onText('{volume}')` (line 336) | MIXED → split | Exact dispatch order is `ReplyMenuHandler::handle` → `ProductAdminUi::text` → `PlanAdminUi::text` → `ResellerBuilderUi::customText` → `ShopUi::customText`. Keep old precedence on the legacy bridge; separately register an Admin-only text path and a Sales-only text path. Never reroute unauthenticated text to a privileged form. |
+| `onPhoto` (`routes/telegram.php:68`) | SALES + legacy bridge | `ManualPaymentUi::photo` only processes after `telegram:payphoto:{userId}` state and when manual bank review is enabled. Stored `photo_encrypted` contains a **source-bot-scoped** `file_id`; preserve consent, claim identity, pending-order checks, fingerprint duplicate denial and root-review recovery. |
+| `onText('{volume}')` (`routes/telegram.php:336`) | MIXED → split | Exact dispatch order is `ReplyMenuHandler::handle` → `ProductAdminUi::text` → `PlanAdminUi::text` → `ResellerBuilderUi::customText` → `ShopUi::customText`. Keep old precedence on the legacy bridge; separately register an Admin-only text path and a Sales-only text path. Never reroute unauthenticated text to a privileged form. |
 
 ## 5. Persistent ReplyKeyboard inventory (18/18)
 
