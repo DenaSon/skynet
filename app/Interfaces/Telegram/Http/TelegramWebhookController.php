@@ -6,6 +6,7 @@ use App\Interfaces\Telegram\Processing\ClaimState;
 use App\Interfaces\Telegram\Processing\ProcessSalesTelegramUpdate;
 use App\Interfaces\Telegram\Processing\ProcessTelegramUpdate;
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
+use App\Interfaces\Telegram\Processing\TelegramBotContacts;
 use App\Interfaces\Telegram\Processing\TelegramUpdateReceipts;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -19,6 +20,7 @@ final class TelegramWebhookController
         ProcessTelegramUpdate $adminProcessor,
         ProcessSalesTelegramUpdate $salesProcessor,
         TelegramUpdateReceipts $receipts,
+        TelegramBotContacts $contacts,
     ): Response {
         $context = TelegramBotContext::current();
         $sales = $context->key === TelegramBotContext::SALES;
@@ -65,6 +67,16 @@ final class TelegramWebhookController
                 $salesProcessor->handle();
             } else {
                 $adminProcessor->handle();
+            }
+
+            // Contact bookkeeping must never force a completed business update to run twice.
+            try {
+                $contacts->record($request, $context->key);
+            } catch (Throwable $ignored) {
+                Log::warning('Telegram contact tracking failed', [
+                    'bot_key' => $context->key,
+                    'exception_type' => $ignored::class,
+                ]);
             }
 
             $receipts->processed($updateId, $context->key);
