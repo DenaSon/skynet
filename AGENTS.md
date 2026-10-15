@@ -2,6 +2,10 @@
 
 SkyNet is a Laravel 13 application being developed as a **modular monolith**.
 
+## Approved execution roadmap — Remnawave staging before Multi-Bot
+
+**Next work is governed by [docs/018-REMNAWAVE-STAGING-MULTIBOT-ROADMAP.md](docs/018-REMNAWAVE-STAGING-MULTIBOT-ROADMAP.md), approved as a plan on 2026-10-15.** Sequence: RW-01–RW-04 (isolated staging Remnawave and evidence-backed API validation) then MB-01–MB-06 (separate Admin/Sales Telegram runtimes, Admin UX and bounded safe provider read operations). All ten phases start NOT STARTED. The roadmap is the scope/acceptance contract; do not start implementation, server setup, add uncontrolled scope, activate sales/provider money writes, or claim live verification because documentation is merged. The existing `master` merge auto-deploys, so every future code PR must be independently backward-compatible, gated and tested. Preserve `REMNAWAVE_WRITES_ENABLED=false` in production. Read the full document and current code before proposing phase work.
+
 ## Mandatory Telegram UI/UX identity
 
 Read [docs/017-TELEGRAM-UX-IDENTITY.md](docs/017-TELEGRAM-UX-IDENTITY.md) BEFORE any Telegram presenter/menu/form/message change. The user requires extremely simple Persian UX even for Super Admin; do not expose developer vocabulary, milestones, implementation notes or framework names in Telegram UI. Use native CopyTextButton and escaped HTML code for user-editable examples. Preserve all Actions, legacy callbacks/commands, security guards, and financial/provisioning boundaries. Use guided forms with a fast-entry fallback. Test copy text, cancel/back, role revocation and original commands on PHP 8.4/8.5. Keep the normative identity document current for future development.
