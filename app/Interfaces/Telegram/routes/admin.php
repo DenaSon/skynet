@@ -3,6 +3,7 @@
 use App\Interfaces\Telegram\Handlers\AdminHandler;
 use App\Interfaces\Telegram\Handlers\AdminRolesHandler;
 use App\Interfaces\Telegram\Handlers\AdminUsersHandler;
+use App\Interfaces\Telegram\Support\AdminProviderOverviewUi;
 use App\Interfaces\Telegram\Support\AdminSectionsUi;
 use App\Interfaces\Telegram\Support\BillingUi;
 use App\Interfaces\Telegram\Support\ManualPaymentUi;
@@ -14,6 +15,11 @@ use SergiX44\Nutgram\Nutgram;
 
 /** @var Nutgram $bot */
 // Admin-only registrations. Existing authorization and confirmation checks remain inside the handlers.
+
+// Unadvertised until real provider verification; no simulated live status.
+$bot->onCommand('servers', function (Nutgram $bot): void {
+    app(AdminProviderOverviewUi::class)->show($bot);
+});
 
 $bot->onCommand('payments', function (Nutgram $bot): void {
     app(ManualPaymentUi::class)->list($bot);
