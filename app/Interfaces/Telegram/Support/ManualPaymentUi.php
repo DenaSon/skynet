@@ -314,7 +314,6 @@ final readonly class ManualPaymentUi
                 // A failure to update an old Telegram photo does not undo settlement.
             }
         }
-
     }
 
     private function caption(object $row): string
