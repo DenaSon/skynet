@@ -311,7 +311,8 @@ final readonly class ManualPaymentUi
                     reply_markup: InlineKeyboardMarkup::make(),
                 );
             } catch (Throwable) {
-                // A failure to update an old Telegram photo does not undo settlement.
+                // The bank decision is already committed; old captions are cosmetic.
+                return;
             }
         }
     }
