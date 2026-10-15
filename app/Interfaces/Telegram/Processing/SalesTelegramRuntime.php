@@ -14,7 +14,7 @@ final class SalesTelegramRuntime implements ProcessSalesTelegramUpdate
     {
         $token = config('telegram.sales.token');
 
-        if (! is_string($token) || $token === '') {
+        if (is_string($token) === false || $token === '') {
             throw new \LogicException('Sales Telegram bot is not configured.');
         }
 
