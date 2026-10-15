@@ -31,6 +31,14 @@ final class MenuRenderer
             return;
         }
 
+        // The existing BotFather chat remains backwards-compatible, but active
+        // operators now land on the dedicated Admin home, never a buyer menu.
+        if ($actor->isAdmin()) {
+            $this->showAdmin($bot, $actor);
+
+            return;
+        }
+
         $keyboard = InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('🛒 خرید اشتراک', callback_data: 'menu:shop'))
             ->addRow(InlineKeyboardButton::make('📋 پلن‌ها و قیمت‌ها', callback_data: 'menu:plan-catalog'))
@@ -93,18 +101,24 @@ final class MenuRenderer
 
     public function showAdmin(Nutgram $bot, TelegramActor $actor): void
     {
-        $keyboard = InlineKeyboardMarkup::make()
-            ->addRow(InlineKeyboardButton::make('👥 کاربران', callback_data: 'menu:admin:users'));
+        $keyboard = InlineKeyboardMarkup::make();
 
         if ($actor->canManageRoles()) {
-            $keyboard->addRow(InlineKeyboardButton::make('🔐 نقش‌ها و دسترسی‌ها', callback_data: 'menu:admin:roles'));
+            $keyboard->addRow(
+                InlineKeyboardButton::make('👥 کاربران', callback_data: 'menu:admin:users'),
+                InlineKeyboardButton::make('🔐 نقش‌ها', callback_data: 'menu:admin:roles'),
+            );
             $keyboard->addRow(InlineKeyboardButton::make('📦 محصولات و پلن‌ها', callback_data: 'menu:admin:sales'));
-            if (config('billing.topups_enabled', false) || config('sales.manual_bank_review_enabled', false)) {
+
+            if (config('billing.topups_enabled', false) === true
+                || config('sales.manual_bank_review_enabled', false) === true) {
                 $keyboard->addRow(InlineKeyboardButton::make('💳 امور مالی', callback_data: 'menu:admin:finance'));
             }
+        } else {
+            $keyboard->addRow(InlineKeyboardButton::make('👥 کاربران', callback_data: 'menu:admin:users'));
         }
 
-        $keyboard->addRow(InlineKeyboardButton::make('◀️ صفحه اصلی', callback_data: 'menu:home'));
+        $keyboard->addRow(InlineKeyboardButton::make('👤 حساب من', callback_data: 'menu:account'));
 
         $this->render($bot, "🛡️ مدیریت SkyNet\n\nبخش موردنظر را انتخاب کنید.", $keyboard);
     }
@@ -112,8 +126,10 @@ final class MenuRenderer
     public function showAdminSales(Nutgram $bot): void
     {
         $keyboard = InlineKeyboardMarkup::make()
-            ->addRow(InlineKeyboardButton::make('📚 محصولات پایه', callback_data: 'menu:admin:products'))
-            ->addRow(InlineKeyboardButton::make('📦 مدیریت پلن‌ها', callback_data: 'menu:admin:plans'))
+            ->addRow(
+                InlineKeyboardButton::make('📚 محصولات پایه', callback_data: 'menu:admin:products'),
+                InlineKeyboardButton::make('📦 مدیریت پلن‌ها', callback_data: 'menu:admin:plans'),
+            )
             ->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
 
         $this->render($bot, "📦 محصولات و پلن‌ها\n\nاز این بخش می‌توانید محصولات، پلن‌ها و قیمت‌های فروش را مدیریت کنید.", $keyboard);
