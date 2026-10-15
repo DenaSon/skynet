@@ -33,8 +33,14 @@ function mb05aUser(int $tg, bool $root = false): User
 }
 
 /** @return array{buyer: User, root: User, order: int, claim: int} */
-function mb05aClaim(string $source = 'admin'): array
+function mb05aClaim(string $source = 'admin', bool $notifications = true): array
 {
+    config()->set('telegram_notifications.enabled', $notifications);
+
+    if ($notifications) {
+        Queue::fake();
+    }
+
     config()->set('super_admin.telegram_ids', ['996001', '996002']);
     config()->set('sales.manual_bank_review_enabled', true);
     config()->set('nutgram.token', '12345:admin_test');
@@ -139,9 +145,7 @@ it('backs off transient errors, then retries and marks an unreachable destinatio
     expect(DB::table('telegram_notification_deliveries')->where('id', $id)->value('state'))->toBe('sent');
 
     // A revoked root cannot get a notification even with a stale queued intent.
-    config()->set('telegram_notifications.enabled', false);
     $data2 = mb05aAdditionalClaim($data['buyer']);
-    config()->set('telegram_notifications.enabled', true);
     $data['root']->forceFill(['is_active' => false])->save();
     app(DispatchTelegramNotification::class, ['deliveryId' => $data2])->handle(app(TelegramNotificationSender::class));
 
@@ -260,4 +264,22 @@ it('refuses destructive notification down migration and supports guarded console
 
     DB::table('telegram_notification_deliveries')->where('id', $id)->update(['state' => 'sent']);
     $this->artisan('telegram:notifications:dispatch', ['--retry-id' => (string) $id])->assertFailed();
+});
+
+it('preserves a suppressed durable record without replaying legacy notifications on rollout', function (): void {
+    mb05aClaim('admin', false);
+    $row = DB::table('telegram_notification_deliveries')->first();
+
+    expect($row->state)->toBe('suppressed');
+
+    config()->set('telegram_notifications.enabled', true);
+    Http::preventStrayRequests();
+    Http::fake();
+
+    app(DispatchTelegramNotification::class, ['deliveryId' => (int) $row->id])
+        ->handle(app(TelegramNotificationSender::class));
+
+    expect(DB::table('telegram_notification_deliveries')->where('id', $row->id)->value('state'))
+        ->toBe('suppressed');
+    Http::assertNothingSent();
 });
