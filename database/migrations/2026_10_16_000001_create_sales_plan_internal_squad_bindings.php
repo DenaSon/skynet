@@ -24,7 +24,7 @@ return new class extends Migration
     {
         if (Schema::hasTable('sales_plan_internal_squad_bindings')
             && DB::table('sales_plan_internal_squad_bindings')->exists()) {
-            throw new \RuntimeException('Cannot discard recorded plan-to-squad binding evidence.');
+            throw new RuntimeException('Cannot discard recorded plan-to-squad binding evidence.');
         }
 
         Schema::dropIfExists('sales_plan_internal_squad_bindings');
