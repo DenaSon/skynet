@@ -320,11 +320,12 @@ final readonly class ManualPaymentUi
 
         if ($decision['approve'] && is_int($decision['photo_message_id']) && $decision['photo_message_id'] > 0) {
             try {
-                $bot->editMessageCaption(
-                    caption: "✅ پرداخت سفارش #{$result->orderId} تأیید شد.\nشناسه رسید #{$decision['claim']}\nدر انتظار فعال‌سازی.",
-                    chat_id: $this->private->id($bot),
-                    message_id: $decision['photo_message_id'],
-                    reply_markup: InlineKeyboardMarkup::make(),
+                TelegramUi::editCaption(
+                    $bot,
+                    "✅ پرداخت سفارش #{$result->orderId} تأیید شد.\nشناسه رسید #{$decision['claim']}\nدر انتظار فعال‌سازی.",
+                    InlineKeyboardMarkup::make(),
+                    $this->private->id($bot),
+                    $decision['photo_message_id'],
                 );
             } catch (Throwable) {
                 // A failure to update an old Telegram photo does not undo settlement.
