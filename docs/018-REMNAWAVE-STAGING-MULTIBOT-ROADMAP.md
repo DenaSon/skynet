@@ -1,4 +1,4 @@
-# SkyNetwork — Remnawave Staging → Multi-Bot & Admin Operations Roadmap
+# ParsaGate — Remnawave Staging → Multi-Bot & Admin Operations Roadmap
 
 **Status:** APPROVED RESEQUENCED PLAN — 2026-10-15; MB-01 ACCEPTED ([PR #52](https://github.com/DenaSon/skynet/pull/52)), **MB-02 MERGED — [PR #53](https://github.com/DenaSon/skynet/pull/53), commit `213458f`, PHP 8.4/8.5 and disposable MySQL migration CI green; production migration/BotFather smoke pending**; MB-03 MERGED in [PR #55](https://github.com/DenaSon/skynet/pull/55), `e8a780b`, PHP/MySQL CI green, live smoke pending; MB-04 MERGED in [PR #56](https://github.com/DenaSon/skynet/pull/56) as `8da5e13` with PHP/MySQL CI green, live smoke pending; MB-05A MERGED in [PR #57](https://github.com/DenaSon/skynet/pull/57), `580c64a`, default OFF and real two-bot delivery pending; MB-05B OFFLINE MERGED in [PR #58](https://github.com/DenaSon/skynet/pull/58) as `480f2a9` (live panel checks pending); MB-06A source [PR #59](https://github.com/DenaSon/skynet/pull/59) is a provider-independent CI/operational checkpoint, with real Admin Bot smoke pending; MB-06B not started. Remnawave staging server unavailable.  
 **Execution now:** MB-01 → MB-02 → MB-03 → MB-04 → MB-05A (notifications) + MB-05B (offline provider-read contracts) → MB-06A (offline/incremental validation). Optional narrowly justified RW-04 offline preparation may proceed independently.  
@@ -78,7 +78,7 @@ Every implementation PR must:
 
 ### RW-01 — Isolated Remnawave Staging Server
 
-**Goal:** A controlled real API target without exposing SkyNetwork production subscriptions.
+**Goal:** A controlled real API target without exposing ParsaGate production subscriptions.
 
 **Work packages**
 - Operator selects a **separate staging VPS/panel**, confirms architecture/resource requirements and an available target release. Compare actual panel API compatibility to our **pinned v3.4.4** OpenAPI before upgrading the contract.
@@ -167,7 +167,7 @@ Every implementation PR must:
 - Support `POST /api/telegram/admin/webhook`, future `POST /api/telegram/sales/webhook`; preserve legacy `POST /api/telegram/webhook` as alias for current bot **during migration**, with identical authenticated processing and replay protections. Default `sales` OFF.
 - Expand `telegram_updates` from `update_id` primary key to collision-safe unique `(bot_key, update_id)`; backfill existing receipts as `admin` without reset, reconcile constraints transactionally and plan reverse compatibility.
 - Namespace per-bot cache drafts/confirmation locks/update receipts; do not accidentally invalidate active admin forms on deploy without a user-safe expiry plan.
-- Preserve `telegram_accounts` as common **Telegram user identity** mapping when possible. Store per-bot started/blocked/delivery eligibility **separately**; do not require creating duplicate SkyNetwork users or assuming one bot's chat permission applies to the other.
+- Preserve `telegram_accounts` as common **Telegram user identity** mapping when possible. Store per-bot started/blocked/delivery eligibility **separately**; do not require creating duplicate ParsaGate users or assuming one bot's chat permission applies to the other.
 - Register/validate webhooks with bot-specific credentials only when explicitly configured, without dropping pending updates or exposing tokens.
 
 **Deliverables:** two isolated testable runtimes, additive migrations, environment config template (no secrets), compatibility tests and a reversible rollout guide.
@@ -267,7 +267,7 @@ Every implementation PR must:
 - MB-02 migration must be verified using a **copy/test fixture of the existing database structure**, not `migrate:fresh` in production. A failed cutover is rolled back without destroying historical update receipts.
 - MB-03 must not break a current linked non-admin merely because public Sales Bot UX has been postponed. Verify actual usage via privacy-safe read-only queries.
 - MB-05 live notification verification requires two started bots and valid token scopes. Bot-to-bot message delivery is through **Laravel and Telegram API**, not by Telegram bots messaging each other. Outbox gives **at-least-once attempts**, not a guarantee of delivery or exactly-once notification.
-- Do not let **InfraBillingController** API operations silently become SkyNetwork wallet/ledger operations; they are different domains.
+- Do not let **InfraBillingController** API operations silently become ParsaGate wallet/ledger operations; they are different domains.
 - Unavailable or malformed external provider state is shown as unavailable, never as a fabricated green/healthy state. Redaction before logging or audit.
 - Production provider writes, money flags and public sales require **new** independent authorization outside this roadmap.
 
