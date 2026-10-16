@@ -298,7 +298,7 @@ final class BillingUi
     private function render(Nutgram $bot, string $message, InlineKeyboardMarkup $keyboard): void
     {
         if ($bot->isCallbackQuery()) {
-            $bot->answerCallbackQuery();
+            TelegramUi::answerCallback($bot);
             $bot->editMessageText(text: $message, reply_markup: $keyboard);
 
             return;
