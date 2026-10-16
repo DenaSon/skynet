@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use Illuminate\Contracts\Console\Kernel;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -13,14 +12,14 @@ require dirname(__DIR__, 2).'/vendor/autoload.php';
 $app = require dirname(__DIR__, 2).'/bootstrap/app.php';
 $app->make(Kernel::class)->bootstrap();
 
-if (! $app->environment('testing') || DB::getDriverName() !== 'mysql'
+if ($app->environment('testing') === false || DB::getDriverName() !== 'mysql'
     || DB::getDatabaseName() !== 'skynet_mb02_ci' || getenv('MB02_MYSQL_SMOKE') !== '1') {
     throw new RuntimeException('MB-06A migration smoke is restricted to the disposable CI MySQL database.');
 }
 
 function mb06Assert(bool $result, string $description): void
 {
-    if (! $result) {
+    if ($result === false) {
         throw new RuntimeException($description);
     }
 }
@@ -46,7 +45,7 @@ $orderId = (int) DB::table('sales_orders')->insertGetId([
 // Model a pre-MB-05A deployment with a real historical receipt row.
 $notifications = require dirname(__DIR__, 2).'/database/migrations/2026_10_15_000003_create_telegram_notification_deliveries.php';
 $notifications->down();
-mb06Assert(! Schema::hasColumn('sales_bank_payment_claims', 'source_bot_key'), 'Legacy claim schema not restored.');
+mb06Assert(Schema::hasColumn('sales_bank_payment_claims', 'source_bot_key') === false, 'Legacy claim schema not restored.');
 
 $claimId = (int) DB::table('sales_bank_payment_claims')->insertGetId([
     'sales_order_id' => $orderId, 'buyer_user_id' => $userId,
