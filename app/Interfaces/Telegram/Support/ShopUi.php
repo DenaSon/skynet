@@ -414,7 +414,7 @@ final class ShopUi
             '',
             'سرویس: '.$this->safeName($order->productName),
             "مدت: {$order->durationDays} روز",
-            "حجم: ".($order->trafficGb === null ? "نامحدود" : $order->trafficGb." گیگابایت"),
+            'حجم: '.($order->trafficGb === null ? 'نامحدود' : $order->trafficGb.' گیگابایت'),
             'قیمت عمومی: '.$this->formatToman($order->publicPriceRials).' تومان',
         ];
 
