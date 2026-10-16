@@ -2,6 +2,7 @@
 
 namespace App\Interfaces\Telegram\Handlers;
 
+use App\Interfaces\Telegram\Support\AdminProviderOverviewUi;
 use App\Interfaces\Telegram\Support\AdminSectionsUi;
 use App\Interfaces\Telegram\Support\BillingUi;
 use App\Interfaces\Telegram\Support\ManualPaymentUi;
@@ -144,6 +145,18 @@ final class ReplyMenuHandler
                 }
 
                 app(AdminSectionsUi::class)->sales($bot);
+
+                return true;
+
+            case ReplyMenuLabels::SERVERS:
+                if (! $actor->canManageRoles()
+                    || config('services.remnawave.admin_reads_verified', false) !== true) {
+                    $this->deny($bot, $actor);
+
+                    return true;
+                }
+
+                app(AdminProviderOverviewUi::class)->show($bot);
 
                 return true;
 
