@@ -1,6 +1,5 @@
 <?php
 
-use App\Interfaces\Telegram\Processing\SalesTelegramRuntime;
 use App\Modules\Identity\Application\IssueTelegramLinkCode;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
@@ -26,7 +25,9 @@ beforeEach(function (): void {
 
 function sb01Bot(int $telegramId): Nutgram
 {
-    $bot = app(SalesTelegramRuntime::class)->make();
+    $bot = Nutgram::fake();
+    // Register the real Sales-only handlers on Nutgram's test transport.
+    require base_path('app/Interfaces/Telegram/routes/sales.php');
     $bot->setCommonUser(TelegramUser::make($telegramId, false, 'Sales Buyer'));
     $bot->setCommonChat(Chat::make($telegramId, ChatType::PRIVATE));
 
