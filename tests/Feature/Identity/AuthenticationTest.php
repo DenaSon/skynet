@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Hash;
 uses(RefreshDatabase::class);
 
 it('displays a public login form without offering registration', function (): void {
-    $this->get('/login')->assertOk()->assertSee('SkyNet sign in');
+    $this->get('/login')->assertOk()->assertSee('ParsaGate sign in');
     $this->get('/register')->assertNotFound();
     $this->post('/register')->assertNotFound();
 });
