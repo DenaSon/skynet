@@ -283,3 +283,62 @@ it('preserves a suppressed durable record without replaying legacy notifications
         ->toBe('suppressed');
     Http::assertNothingSent();
 });
+
+it('bounds rate-limit retries, marks dead after five attempts and only recovers by an explicit operator action', function (): void {
+    $data = mb05aClaim();
+    config()->set('telegram_notifications.enabled', true);
+    $id = (int) DB::table('telegram_notification_deliveries')->value('id');
+
+    Http::preventStrayRequests();
+    Http::fake(['api.telegram.org/*' => Http::response(['ok' => false, 'description' => 'Too Many Requests'], 429)]);
+
+    for ($attempt = 1; $attempt <= 5; $attempt++) {
+        app(DispatchTelegramNotification::class, ['deliveryId' => $id])->handle(app(TelegramNotificationSender::class));
+
+        $entry = DB::table('telegram_notification_deliveries')->where('id', $id)->first();
+        expect((int) $entry->attempts)->toBe($attempt)
+            ->and($entry->state)->toBe($attempt === 5 ? 'dead' : 'pending');
+
+        $this->travel(301)->seconds();
+    }
+
+    app(DispatchTelegramNotification::class, ['deliveryId' => $id])->handle(app(TelegramNotificationSender::class));
+
+    expect(DB::table('telegram_notification_deliveries')->where('id', $id)->value('state'))->toBe('dead');
+    Http::assertSentCount(5);
+
+    Queue::fake();
+    $this->artisan('telegram:notifications:dispatch', ['--retry-id' => (string) $id])->assertSuccessful();
+    expect(DB::table('telegram_notification_deliveries')->where('id', $id)->value('state'))->toBe('pending')
+        ->and(DB::table('telegram_notification_deliveries')->where('id', $id)->value('attempts'))->toBe(0)
+        ->and(DB::table('sales_bank_settlements')->count())->toBe(0)
+        ->and(DB::table('sales_fulfillment_outbox')->count())->toBe(0);
+});
+
+it('recovers expired delivery leases once while ignoring live leases and suppressed legacy notices', function (): void {
+    mb05aClaim();
+    config()->set('telegram_notifications.enabled', true);
+    $id = (int) DB::table('telegram_notification_deliveries')->value('id');
+
+    DB::table('telegram_notification_deliveries')->where('id', $id)->update([
+        'state' => 'processing', 'leased_until' => now()->addMinute(),
+    ]);
+
+    Http::preventStrayRequests();
+    Http::fake(['api.telegram.org/*' => Http::response(['ok' => true, 'result' => ['message_id' => 1]], 200)]);
+
+    app(DispatchTelegramNotification::class, ['deliveryId' => $id])->handle(app(TelegramNotificationSender::class));
+    Http::assertNothingSent();
+
+    $this->travel(61)->seconds();
+    app(DispatchTelegramNotification::class, ['deliveryId' => $id])->handle(app(TelegramNotificationSender::class));
+    expect(DB::table('telegram_notification_deliveries')->where('id', $id)->value('state'))->toBe('sent')
+        ->and(DB::table('telegram_notification_deliveries')->where('id', $id)->value('attempts'))->toBe(1);
+
+    app(DispatchTelegramNotification::class, ['deliveryId' => $id])->handle(app(TelegramNotificationSender::class));
+    Http::assertSentCount(1);
+
+    DB::table('telegram_notification_deliveries')->where('id', $id)->update(['state' => 'suppressed']);
+    $this->artisan('telegram:notifications:dispatch', ['--retry-id' => (string) $id])->assertFailed();
+    expect(DB::table('telegram_notification_deliveries')->where('id', $id)->value('state'))->toBe('suppressed');
+});
