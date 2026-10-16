@@ -41,6 +41,15 @@ function mb05bFakeRead(): void
 {
     Http::preventStrayRequests();
     Http::fake([
+        'https://rw.example.test/api/system/stats' => Http::response([
+            'response' => [
+                'cpu' => ['cores' => 2],
+                'memory' => ['total' => 2060730368, 'used' => 1229987840, 'free' => 830742528],
+                'uptime' => 23341.83,
+                'users' => ['totalUsers' => 2],
+                'onlineStats' => ['onlineNow' => 0],
+            ],
+        ]),
         'https://rw.example.test/api/system/health' => Http::response([
             'response' => ['runtimeMetrics' => [['instanceId' => 'api-1']]],
         ]),
@@ -123,12 +132,13 @@ it('returns secret-free typed inventory only through authorized read-only GETs',
     expect($read->state)->toBe('available')->and($read->instances)->toBe(1)
         ->and($read->nodes)->toBe(2)->and($read->connectedNodes)->toBe(1)
         ->and($read->hosts)->toBe(1)->and($read->internalSquads)->toBe(2)
-        ->and($read->configProfiles)->toBe(1)->and($read->needsReview)->toBe(1);
+        ->and($read->configProfiles)->toBe(1)->and($read->needsReview)->toBe(1)
+        ->and($read->systemStats?->cpuCores)->toBe(2);
 
     $bot->hearText('/servers')->reply()
-        ->assertReplyText("🖥️ وضعیت سرورها\n\nسرورهای متصل: 1 از 2\nمیزبان‌ها: 1\nگروه‌ها: 2\nپروفایل‌ها: 1\nنمونه‌های فعال پنل: 1\nدرخواست‌های داخلی نیازمند بررسی: 1");
+        ->assertReplyText("🖥️ وضعیت سرورها\n\nسرورهای متصل: 1 از 2\nمیزبان‌ها: 1\nگروه‌ها: 2\nپروفایل‌ها: 1\nنمونه‌های فعال پنل: 1\nدرخواست‌های داخلی نیازمند بررسی: 1\n\n📊 آمار گزارش‌شده پنل\nهسته‌های CPU: 2\nRAM مصرف‌شده: 1.15 از 1.92 GiB (60٪)\nRAM آزاد: 0.77 GiB\nزمان فعالیت: 6 ساعت و 29 دقیقه\nکاربران کل: 2\nکاربران آنلاین: 0");
 
-    Http::assertSentCount(10);
+    Http::assertSentCount(12);
     Http::assertSent(fn ($request): bool => $request->method() === 'GET');
 });
 
@@ -240,6 +250,15 @@ it('shows zero Nodes and refreshes current data using GET only, with the root me
 
     Http::preventStrayRequests();
     Http::fake([
+        'https://rw.example.test/api/system/stats' => Http::response([
+            'response' => [
+                'cpu' => ['cores' => 2],
+                'memory' => ['total' => 2060730368, 'used' => 1229987840, 'free' => 830742528],
+                'uptime' => 23341.83,
+                'users' => ['totalUsers' => 2],
+                'onlineStats' => ['onlineNow' => 0],
+            ],
+        ]),
         'https://rw.example.test/api/system/health' => Http::response([
             'response' => ['runtimeMetrics' => [['instanceId' => 'api-1']]],
         ]),
@@ -258,7 +277,7 @@ it('shows zero Nodes and refreshes current data using GET only, with the root me
     $labels = array_map(static fn ($button): string => $button->text, array_merge(...$keyboard->keyboard));
     expect($labels)->toContain(ReplyMenuLabels::SERVERS);
 
-    $expected = "🖥️ وضعیت سرورها\n\nسرورهای متصل: 0 از 0\nمیزبان‌ها: 0\nگروه‌ها: 1\nپروفایل‌ها: 1\nنمونه‌های فعال پنل: 1\nدرخواست‌های داخلی نیازمند بررسی: 0\n\nهنوز سروری تعریف نشده است.";
+    $expected = "🖥️ وضعیت سرورها\n\nسرورهای متصل: 0 از 0\nمیزبان‌ها: 0\nگروه‌ها: 1\nپروفایل‌ها: 1\nنمونه‌های فعال پنل: 1\nدرخواست‌های داخلی نیازمند بررسی: 0\n\nهنوز سروری تعریف نشده است.\n\n📊 آمار گزارش‌شده پنل\nهسته‌های CPU: 2\nRAM مصرف‌شده: 1.15 از 1.92 GiB (60٪)\nRAM آزاد: 0.77 GiB\nزمان فعالیت: 6 ساعت و 29 دقیقه\nکاربران کل: 2\nکاربران آنلاین: 0";
 
     $bot->hearText('/servers')->reply()->assertReplyText($expected);
     $bot->hearCallbackQueryData('menu:admin:servers')->reply()
@@ -268,7 +287,7 @@ it('shows zero Nodes and refreshes current data using GET only, with the root me
     $bot->hearText(ReplyMenuLabels::SERVERS)->reply()
         ->assertReplyText($expected);
 
-    Http::assertSentCount(20);
+    Http::assertSentCount(24);
     Http::assertSent(fn ($request): bool => $request->method() === 'GET');
     expect(config('services.remnawave.writes_enabled'))->toBeFalse();
 });
@@ -312,4 +331,22 @@ it('never presents an HTTP 503 response as live panel health on refresh', functi
     expect(app(ReadAdminProviderOverview::class)->handle($root->id)->state)->toBe('error');
     Http::assertSentCount(2);
     Http::assertSent(fn ($request): bool => $request->method() === 'GET');
+});
+
+it('preserves old server inventory when optional P1 statistics fail', function (): void {
+    [$root, $bot] = mb05bRoot();
+    mb05bFakeRead();
+    Http::fake(['https://rw.example.test/api/system/stats' => Http::response(['error' => 'unavailable'], 503)]);
+
+    $overview = app(ReadAdminProviderOverview::class)->handle($root->id);
+    expect($overview->state)->toBe('available')
+        ->and($overview->nodes)->toBe(2)
+        ->and($overview->systemStats)->toBeNull();
+
+    $bot->hearText('/servers')->reply()->assertReplyText(
+        "🖥️ وضعیت سرورها\n\nسرورهای متصل: 1 از 2\nمیزبان‌ها: 1\nگروه‌ها: 2\nپروفایل‌ها: 1\nنمونه‌های فعال پنل: 1\nدرخواست‌های داخلی نیازمند بررسی: 0",
+    );
+
+    Http::assertSentCount(12);
+    Http::assertSent(static fn ($request): bool => $request->method() === 'GET');
 });

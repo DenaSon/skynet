@@ -14,6 +14,15 @@ function fakeRemnawaveDiscovery(): void
 {
     Http::preventStrayRequests();
     Http::fake([
+        'https://rw.example.test/api/system/stats' => Http::response([
+            'response' => [
+                'cpu' => ['cores' => 2],
+                'memory' => ['total' => 2060730368, 'used' => 1229987840, 'free' => 830742528],
+                'uptime' => 23341.83,
+                'users' => ['totalUsers' => 2],
+                'onlineStats' => ['onlineNow' => 0],
+            ],
+        ]),
         'https://rw.example.test/api/system/health' => Http::response([
             'response' => ['runtimeMetrics' => [['instanceId' => 'api-1']]],
         ]),
@@ -117,5 +126,52 @@ it('does not treat an HTTP authorization error as successful smoke testing', fun
     config()->set('services.remnawave.timeout', 15);
 
     $this->artisan('remnawave:inspect')->assertExitCode(1);
+    Http::assertSentCount(1);
+});
+
+it('reads and validates panel resource stats from the existing GET endpoint', function (): void {
+    Http::preventStrayRequests();
+    Http::fake([
+        'https://rw.example.test/api/system/stats' => Http::response([
+            'response' => [
+                'cpu' => ['cores' => 2],
+                'memory' => ['total' => 2060730368, 'used' => 1229987840, 'free' => 830742528],
+                'uptime' => 23341.83,
+                'users' => ['totalUsers' => 2],
+                'onlineStats' => ['onlineNow' => 0],
+            ],
+        ]),
+    ]);
+
+    $stats = remnawaveReadApi()->systemStats();
+
+    expect($stats->cpuCores)->toBe(2)
+        ->and($stats->memoryTotal)->toBe(2060730368)
+        ->and($stats->memoryUsed)->toBe(1229987840)
+        ->and($stats->memoryFree)->toBe(830742528)
+        ->and($stats->uptimeSeconds)->toBe(23341.83)
+        ->and($stats->totalUsers)->toBe(2)
+        ->and($stats->onlineUsers)->toBe(0);
+
+    Http::assertSentCount(1);
+    Http::assertSent(static fn ($request): bool => $request->url() === 'https://rw.example.test/api/system/stats'
+        && $request->method() === 'GET');
+});
+
+it('rejects malformed or negative panel resource stats without accepting fabricated numbers', function (): void {
+    Http::preventStrayRequests();
+    Http::fake([
+        'https://rw.example.test/api/system/stats' => Http::response([
+            'response' => [
+                'cpu' => ['cores' => '2'],
+                'memory' => ['total' => 2060730368, 'used' => 1229987840, 'free' => 830742528],
+                'uptime' => 23341.83,
+                'users' => ['totalUsers' => 2],
+                'onlineStats' => ['onlineNow' => 0],
+            ],
+        ]),
+    ]);
+
+    expect(fn () => remnawaveReadApi()->systemStats())->toThrow(UnexpectedValueException::class);
     Http::assertSentCount(1);
 });
