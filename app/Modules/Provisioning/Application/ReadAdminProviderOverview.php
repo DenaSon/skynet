@@ -12,7 +12,6 @@ use Throwable;
 
 /**
  * Trusted-root read Action: no raw API passthrough, mutation or credentials.
- * Panel-backed UI is gated until RW-04/MB-05B live sign-off.
  */
 final readonly class ReadAdminProviderOverview
 {
@@ -24,10 +23,6 @@ final readonly class ReadAdminProviderOverview
     public function handle(int $actorUserId): AdminProviderOverview
     {
         $this->access->handle($actorUserId);
-
-        if (config('services.remnawave.admin_reads_verified', false) !== true) {
-            return new AdminProviderOverview('unavailable');
-        }
 
         try {
             $read = new RemnawaveReadApi($this->factory->make());

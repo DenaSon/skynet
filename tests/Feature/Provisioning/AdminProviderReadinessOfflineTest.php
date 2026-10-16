@@ -60,26 +60,29 @@ function mb05bFakeRead(): void
     config()->set('services.remnawave.token', 'offline-test-only');
 }
 
-it('fails closed before live verification, even with configured credentials', function (): void {
+it('fails safely with no provider credentials while keeping Super Admin navigation available', function (): void {
     [$root, $bot] = mb05bRoot();
-    config()->set('services.remnawave.url', 'https://rw.example.test');
-    config()->set('services.remnawave.token', 'offline-test-only');
-    config()->set('services.remnawave.admin_reads_verified', false);
+    config()->set('telegram.hybrid_menu_enabled', true);
+    config()->set('services.remnawave.url', null);
+    config()->set('services.remnawave.token', null);
     Http::preventStrayRequests();
     Http::fake();
 
     $status = app(ReadAdminProviderOverview::class)->handle($root->id);
-    expect($status->state)->toBe('unavailable')
-        ->and($status->nodes)->toBeNull();
+    expect($status->state)->toBe('error')->and($status->nodes)->toBeNull();
+
+    $actor = app(ResolveTelegramActor::class)->handle(997001);
+    $keyboard = app(ReplyMenuRenderer::class)->homeKeyboard($actor);
+    $labels = array_map(static fn ($button): string => $button->text, array_merge(...$keyboard->keyboard));
+    expect($labels)->toContain(ReplyMenuLabels::SERVERS);
 
     $bot->hearText('/servers')->reply()
-        ->assertReplyText("🖥️ وضعیت سرورها\n\nاطلاعات سرورها هنوز آماده نمایش نیست.");
+        ->assertReplyText("🖥️ وضعیت سرورها\n\nدریافت اطلاعات ممکن نیست. کمی بعد دوباره تلاش کنید.");
     Http::assertNothingSent();
 });
 
 it('rejects members, ordinary administrators, revoked users and group chats before remote requests', function (): void {
     [$member, $bot] = mb05bRoot(super: false);
-    config()->set('services.remnawave.admin_reads_verified', true);
     mb05bFakeRead();
 
     expect(fn () => app(ReadAdminProviderOverview::class)->handle($member->id))
@@ -99,10 +102,9 @@ it('rejects members, ordinary administrators, revoked users and group chats befo
     Http::assertNothingSent();
 });
 
-it('returns secret-free typed inventory only through authorized read-only GETs with an explicit live gate', function (): void {
+it('returns secret-free typed inventory only through authorized read-only GETs', function (): void {
     [$root, $bot] = mb05bRoot();
     mb05bFakeRead();
-    config()->set('services.remnawave.admin_reads_verified', true);
 
     DB::table('provisioning_subscriptions')->insert([
         'reference' => 'offline-read-test', 'remote_username' => 'tester',
@@ -132,7 +134,6 @@ it('returns secret-free typed inventory only through authorized read-only GETs w
 
 it('never renders a successful provider state on failed, malformed or missing-config responses', function (): void {
     [$root, $bot] = mb05bRoot();
-    config()->set('services.remnawave.admin_reads_verified', true);
     config()->set('services.remnawave.token', null);
     Http::preventStrayRequests();
     Http::fake();
@@ -206,26 +207,26 @@ it('protects recorded mappings from destructive rollback', function (): void {
     expect(DB::table('sales_plan_internal_squad_bindings')->count())->toBe(1);
 });
 
-it('hides server navigation with the P0 flag OFF and never contacts the panel', function (): void {
+it('always exposes safe server navigation to Super Admin even without panel configuration', function (): void {
     [$root, $bot] = mb05bRoot();
     config()->set('telegram.hybrid_menu_enabled', true);
-    config()->set('services.remnawave.admin_reads_verified', false);
+    config()->set('services.remnawave.url', null);
+    config()->set('services.remnawave.token', null);
     Http::preventStrayRequests();
     Http::fake();
 
     $actor = app(ResolveTelegramActor::class)->handle(997001);
     $keyboard = app(ReplyMenuRenderer::class)->homeKeyboard($actor);
     $labels = array_map(static fn ($button): string => $button->text, array_merge(...$keyboard->keyboard));
-    expect($labels)->not->toContain(ReplyMenuLabels::SERVERS);
+    expect($labels)->toContain(ReplyMenuLabels::SERVERS);
 
-    $bot->hearText('/servers')->reply()
-        ->assertReplyText("🖥️ وضعیت سرورها\n\nاطلاعات سرورها هنوز آماده نمایش نیست.");
+    $safe = "🖥️ وضعیت سرورها\n\nدریافت اطلاعات ممکن نیست. کمی بعد دوباره تلاش کنید.";
+    $bot->hearText('/servers')->reply()->assertReplyText($safe);
     $bot->hearCallbackQueryData('menu:admin:servers')->reply()
         ->assertCalled('answerCallbackQuery')->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('servers:refresh')->reply()
         ->assertCalled('answerCallbackQuery')->assertCalled('editMessageText');
-    $bot->hearText(ReplyMenuLabels::SERVERS)->reply()
-        ->assertReplyText('دسترسی مجاز نیست. منوی شما به‌روز شد.');
+    $bot->hearText(ReplyMenuLabels::SERVERS)->reply()->assertReplyText($safe);
 
     Http::assertNothingSent();
 });
@@ -233,7 +234,6 @@ it('hides server navigation with the P0 flag OFF and never contacts the panel', 
 it('shows zero Nodes and refreshes current data using GET only, with the root menu enabled', function (): void {
     [$root, $bot] = mb05bRoot();
     config()->set('telegram.hybrid_menu_enabled', true);
-    config()->set('services.remnawave.admin_reads_verified', true);
     config()->set('services.remnawave.writes_enabled', false);
     config()->set('services.remnawave.url', 'https://rw.example.test');
     config()->set('services.remnawave.token', 'offline-test-only');
@@ -276,7 +276,6 @@ it('shows zero Nodes and refreshes current data using GET only, with the root me
 it('rejects old server buttons immediately after role revocation without start', function (): void {
     [$root, $bot] = mb05bRoot();
     config()->set('telegram.hybrid_menu_enabled', true);
-    config()->set('services.remnawave.admin_reads_verified', true);
     mb05bFakeRead();
     $root->syncRoles(['member']);
 
@@ -302,7 +301,6 @@ it('rejects old server buttons immediately after role revocation without start',
 
 it('never presents an HTTP 503 response as live panel health on refresh', function (): void {
     [$root, $bot] = mb05bRoot();
-    config()->set('services.remnawave.admin_reads_verified', true);
     config()->set('services.remnawave.url', 'https://rw.example.test');
     config()->set('services.remnawave.token', 'offline-test-only');
     Http::preventStrayRequests();

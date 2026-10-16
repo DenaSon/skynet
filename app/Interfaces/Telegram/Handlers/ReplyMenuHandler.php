@@ -149,8 +149,7 @@ final class ReplyMenuHandler
                 return true;
 
             case ReplyMenuLabels::SERVERS:
-                if (! $actor->canManageRoles()
-                    || config('services.remnawave.admin_reads_verified', false) !== true) {
+                if (! $actor->canManageRoles()) {
                     $this->deny($bot, $actor);
 
                     return true;
