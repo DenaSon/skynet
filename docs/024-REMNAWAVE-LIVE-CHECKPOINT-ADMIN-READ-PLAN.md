@@ -1,5 +1,19 @@
 # ParsaGate — Remnawave Live Checkpoint & Admin Server Overview Plan
 
+## Server Overview P1 — Approved additive read-only statistics (2026-10-16)
+
+**Approval and real API evidence:** Operator confirmed SRO P1 scope to enhance the existing Super Admin server overview using only the present Remnawave panel, without Nodes. A real **read-only** Runflare terminal probe returned: `cpu.cores=2`, `memory.total=2060730368`, `memory.used=1229987840`, `memory.free=830742528`, `uptime=23341.83`, `users.totalUsers=2`, `onlineStats.onlineNow=0`, `runtime.instances=3`, `STATUS=PASS`. These are **operator observed at one instant**, not continuous host telemetry. They are **not hardcoded in code**. The pinned 3.4.4 OpenAPI `GET /api/system/stats` provides these fields; units and uptime semantics must be described as **panel-reported** rather than independently verified VPS host CPU usage/OS uptime.
+
+**Implementation scope:** Reuse `RemnawaveApiClient` and existing root-authorized `ReadAdminProviderOverview`. Extend only the typed `RemnawaveReadApi` adapter, a minimal secret-free statistics DTO, existing Overview projection and Admin Bot screen. On-demand Refresh requests the original five P0 GETs **plus one GET `/api/system/stats`**. Display CPU **core count** (not CPU utilization), memory in **GiB and percentage used**, elapsed uptime as days/hours/minutes, total users and online users. All values must be parsed/validated as nonnegative finite numbers with consistent used/free/total bounds, never user IDs, raw API payload or tokens.
+
+**Failure isolation / authorization:** If P0 panel health/inventory fails, retain existing generic unavailable/error state; if **only P1 stats** fails due to missing/malformed fields, 403/429/5xx/timeout or untrusted type, display the prior P0 overview **unchanged**. Keep the root-only, active+linked+allowlisted, private chat, Application Action and callback guards, zero-Node display and existing Sales Bot behavior. No provider Write, no switch of `REMNAWAVE_WRITES_ENABLED=false` or `REMNAWAVE_SQUAD_BINDINGS_LIVE_VERIFIED=false`, no Node, SSH, Agent, cron, migration, dependency or new API route.
+
+**Acceptance & rollout:** New HTTP-fake tests cover valid live-shaped response, malformed types, actual formatting, role revocation, no Node, GET-only and stats-only fault resilience; existing code/tests must continue passing on PHP 8.4/8.5, PHPStan and Pint, disposable MySQL CI. **Real Runflare and BotFather smoke are still distinct acceptance gates:** after a reviewed PR merge/deploy, operator verifies updated private Admin Bot `/servers`, refresh/back, correct P0+P1 counts, denied non-root and no provider writes. Do not claim P1 live accepted based on CI/fakes. If the expanded page proves problematic, revert the small PR; no schema or data rollback required.
+
+**Excluded:** Linux Load Average, disk usage, CPU utilization percentage, OS-level independent hardware/uptime probe, scheduler/long-term history/alerts, Node metrics, user/subscription details or checkout. Any of these require separately scoped approval.
+
+
+
 ## SRO-03 approved simplification — remove admin reads flag
 
 **CURRENT RELEASE INSTRUCTIONS (2026-10-16):** By explicit operator approval, the temporary `REMNAWAVE_ADMIN_READS_VERIFIED` flag has been removed from the application Action, both Admin navigation styles, refresh UI, reply text routing, `config/services.php`, `.env.example`, and dependent tests. The earlier SRO-03B Environment toggle / OFF rollback steps below are **superseded historical guidance: do not apply them**. The existing Remnawave instance does not require a Node for this page.

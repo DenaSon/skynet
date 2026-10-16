@@ -1,5 +1,8 @@
 # ParsaGate — Current Context / Development Memory 
 
+**SRO P1 statistics (2026-10-16, approved):** Live RW v3.4.4 GET /api/system/stats observed 2 CPU cores, RAM total/used/free 2060730368/1229987840/830742528 bytes, uptime 23341.83 seconds, 2 users/0 online. Minimal additive root-only UI/code PR adds an optional typed P1 stats section with safe stats-only failure fallback; existing P0/Node-zero/GET-only/RBAC unchanged. No CPU utilization, Load Average, SSH/OS agent, Node or writes; no SRO-03 live acceptance claimed. [Scoped P1 contract & smoke](024-REMNAWAVE-LIVE-CHECKPOINT-ADMIN-READ-PLAN.md#server-overview-p1--approved-additive-read-only-statistics-2026-10-16).
+
+
 **Current SRO-03 source decision (2026-10-16):** The operator approved removing the temporary `REMNAWAVE_ADMIN_READS_VERIFIED` flag; only the trusted Super Admin (active, allowlisted, Telegram-linked, private chat) sees the status entry and can refresh, regardless of provider availability. Missing credentials/failed GET display a generic safe error, not a false healthy state. No new provider API/Node/migration/write; write and Squad flags remain OFF. Old enable-the-read-flag instructions in earlier entries are superseded. Live Telegram / Runflare acceptance is still **PENDING**. See [updated SRO-03 read-only overview decision](024-REMNAWAVE-LIVE-CHECKPOINT-ADMIN-READ-PLAN.md#sro-03-approved-simplification--remove-admin-reads-flag).
 
 
