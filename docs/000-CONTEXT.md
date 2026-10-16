@@ -1,4 +1,7 @@
-# ParsaGate — Current Context / Development Memory
+# ParsaGate — Current Context / Development Memory 
+
+**SRO-02 IMPLEMENTATION PR (2026-10-16):** Existing Super Admin-only Admin Bot `/servers` now has guarded Inline + hybrid Reply entry, refresh/back callback and explicit empty-Node, error/needs-review labeling. No new API, Node, provider writes, DB schema or Production switch. Regression tests are added but **live BotFather smoke and enablement are deliberately reserved for SRO-03**; flag OFF remains mandatory until approved. See [implementation scope / tests](024-REMNAWAVE-LIVE-CHECKPOINT-ADMIN-READ-PLAN.md#h-sro-02-implementation-checkpoint--2026-10-16).
+
 
 **SRO-01 P0 ADMIN SERVER READ GATE (2026-10-16):** Existing five GET adapter shapes reconciled with operator-run live RW 3.4.4 Runflare outputs; empty Nodes/Hosts are expected. Existing root/private/allowlist + fail-closed HTTP fake tests inspected; local `needs_review` count test-only, real Admin Action/Telegram flag activation not performed. **SRO-01 GO for SRO-02 code only, NOT SRO-03 or full RW-04 acceptance**. No changes to runtime/config/schema; keep provider writes, squad binding and admin read verification switches OFF pending separate approvals. [Details](024-REMNAWAVE-LIVE-CHECKPOINT-ADMIN-READ-PLAN.md#G-sro-01-completion-evidence--2026-10-16-read-only-no-deploy-change).
 
