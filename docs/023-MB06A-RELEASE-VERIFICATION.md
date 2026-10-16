@@ -2,6 +2,25 @@
 
 **Scope:** Provider-independent regression and rollout checkpoint of [approved MB-06A](018-REMNAWAVE-STAGING-MULTIBOT-ROADMAP.md). PR #59. The code is **not** proof of actual Telegram/BotFather or production acceptance. Admin Bot still carries old member/reseller flows; the Sales Bot is a non-public technical shell.
 
+## Production operator evidence — 2026-10-16 (ParsaGate, not legacy NVL Core)
+
+**Evidence type:** commands and Telegram smoke outcomes supplied by the operator from the deployed ParsaGate Laravel container. No independent SSH access, job execution or second-role login was performed by the reviewer. Source/CI baseline: `master` `805346678650324bcce60277c77a62ae7ec6742f`; [PR #63](https://github.com/DenaSon/skynet/pull/63) corrected Telegram HTTP 400 `message is not modified` on identical receipt/menu edits; [post-merge PHP 8.4/8.5 + MySQL CI](https://github.com/DenaSon/skynet/actions/runs/38871578375) succeeded.
+
+| Acceptance evidence | Actual operator observation | Decision / limits |
+| --- | --- | --- |
+| Production database upgrade | `php artisan migrate:status` reported all 23 listed migrations as `Ran`, including bot-scoped update receipts, contacts, notification deliveries and Plan–Squad bindings | **Observed** existing deployed schema; no destructive rollback or historical data reconciliation performed in Production |
+| Admin Telegram navigation | Operator successfully exercised six **read-only** areas: `/start` + `/admin`, `/users`, `/roles`, `/products` + `/plans`, `/servers` (safe unavailable) and `/payments` | **Passed for tested Super Admin session(s)**. No claim of ordinary Admin login, role revocation, destructive action, financial approval or second bot E2E |
+| Finance callback defect | `/payments` list, repeated **تازه‌سازی** and **مدیریت** returned normally after PR #63; operator reported no new webhook errors | **Passed for read-only navigation**; no bank settlement tested |
+| Runtime aggregate snapshot | `telegram:ops:status`: Admin webhook failures **72**, stale leases **0**, contacts **1**; Sales failures **0**, Sales contacts **0**; pending/failed DB jobs **0**; all notification states/due recovery, provisioning needs-review and fulfillment intents **0** | Historical cumulative failure count was **unchanged** across reported successful tests; do not erase or interpret 72 as current incidents. Snapshot is not active transport / worker-heartbeat proof |
+| Safety flags | Telegram delivery **disabled**, Sales runtime **disabled**, Provider writes **disabled** | Matches conservative rollout; delivery and provider features not accepted |
+| Worker | Process list showed `www` running `/usr/local/bin/php artisan queue:work database --queue=default --sleep=3 --tries=3 --timeout=60 --max-time=3600` in new pod; Nginx and PHP-FPM remained running; `php artisan queue:failed`: none | **Worker process verified at snapshot**; no successful end-to-end real job, restart/replica or sustained-health measurement proved |
+| Scheduler | Runflare cron configured for Laravel `schedule:run` every minute; **operator explicitly confirmed the scheduled execution** | **Operator-confirmed** rather than independently captured timestamped cron log; do not add a second scheduler under Supervisor |
+| Supervisor | Existing `nginx` and `php-fpm` preserved; new `laravel-queue` uses `user=www`, one process per Pod; owner permission checks returned `PERMISSIONS_OK` | No app code, DB, payment flags or provider changes; multi-replica worker count and queue processing remain separate operational checks |
+
+**Acceptance decision:** Production Admin UI/read-only finance smoke, deployed schema, worker process and Runflare Cron setup have supporting evidence. **MB-06A full acceptance is not yet claimed**, because the approved [MB-06A contract](018-REMNAWAVE-STAGING-MULTIBOT-ROADMAP.md) also requires real compatibility/authorization checks for currently absent linked Member, Reseller and ordinary Admin roles, plus observed job processing/operational verification. Automated role/route/isolation tests cannot replace those real-user checks. Keep the old mixed Admin webhook's legacy routes intact and all Sales/provider/notification activation flags OFF; do not create real payments merely to pass this checklist.
+
+**Next narrow checks (only if the operator elects to complete full MB-06A live acceptance):** test an authorized non-root/Member and Reseller in a safe, non-financial way once suitable linked accounts exist; verify denial of privileged stale callbacks after role revocation with controlled test fixtures, not actual privileged customer changes; review actual worker job completion and replica topology without enabling new live delivery; retain the approved cutover/rollback constraints. Missing Remnawave staging, real two-bot notification/photo transfer and provider reads are **MB-06B** dependencies and are not silently folded into MB-06A.
+
 ## CI & evidence matrix
 
 | Area | Automated checkpoint | Must verify separately |
@@ -46,7 +65,7 @@ Operational rollback for unverified newly introduced features is **flag-based**,
 ## Deferred scope and explicit boundaries
 
 - **MB-06A source/CI checkpoint:** mergeable when all tests, PHPStan/Pint and MySQL migration/rollback smoke pass.
-- **MB-06A live acceptance:** operator-controlled post-deploy Admin Telegram smoke and existing production-record preservation evidence still required. Until captured, status is `CODE COMPLETE — LIVE CHECK PENDING`.
+- **MB-06A production checkpoint (2026-10-16):** read-only Admin smoke, actual schema presence, Worker process and operator-confirmed Cron passed as documented above; **full live acceptance remains open** for non-root/nonadmin legacy compatibility, revocation and observed job execution. Historical data were not mutated or proven exhaustively reconciled.
 - **MB-06B full acceptance:** blocked on RW-01–04 staging, MB-05B live provider verification and two-bot real message/media delivery.
 - **Future public Sales Bot:** remains a separate approved Epic; no live checkout, auto-provisioning, token switch or new payment activation in MB-06A.
 
