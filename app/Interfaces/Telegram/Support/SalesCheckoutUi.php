@@ -40,8 +40,8 @@ final readonly class SalesCheckoutUi
             return;
         }
 
-        if (! $this->positive($id) || ! $this->positive($days)
-            || ! preg_match('/\A(?:0|[1-9][0-9]{0,3})\z/D', $gb)) {
+        if ($this->positive($id) === false || $this->positive($days) === false
+            || preg_match('/\A(?:0|[1-9][0-9]{0,3})\z/D', $gb) !== 1) {
             $this->notice($bot, 'مشخصات انتخاب معتبر نیست.');
 
             return;
@@ -148,7 +148,7 @@ final readonly class SalesCheckoutUi
             return;
         }
 
-        if (! $this->positive($id)) {
+        if ($this->positive($id) === false) {
             $this->notice($bot, 'سفارش در دسترس نیست.');
 
             return;
