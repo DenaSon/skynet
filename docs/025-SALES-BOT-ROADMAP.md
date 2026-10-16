@@ -22,6 +22,14 @@
 
 
 
+## Sales checkout UX correction — 2026-10-17 (after SB-06)
+
+- Scope: **copy and read-only readiness status**. Replace obsolete `purchase disabled` wording only on the dedicated Sales Bot catalog/builder pages where an existing, guarded `sales:checkout:preview` path is registered. Preserve old admin-token legacy UX with its existing read-only wording. The Sales home button is labeled «🛒 انتخاب پلن» but still points to the original guarded catalog callback; no new checkout route or sales authority.
+- Trusted Super Admin's existing plan-detail view now states whether the plan **can enter Sales order creation** using the original `CheckPlanSquadReadiness` predicate AND active current pricing. Incomplete/unverified/disabled/stale Plan–Squad remains `not ready`. This is **read-only evidence**, neither a Plan–Squad binding wizard nor remote verification. Do not falsely imply a provider user is active.
+- Buyer order-detail guidance now matches the actual state: `pending_payment` with receipt gate OFF, awaiting an submitted receipt, genuinely paid but not fulfilled, and completed fulfillment. No payment status, bank journal, order state or provider writes are modified.
+- Preserve default-OFF `SALES_MANUAL_BANK_REVIEW_ENABLED`, `REMNAWAVE_SQUAD_BINDINGS_LIVE_VERIFIED`, `REMNAWAVE_WRITES_ENABLED` and `TELEGRAM_NOTIFICATIONS_ENABLED`. No schema/migration/dependency change, automatic fulfillment consumer, new Plan–Squad wizard, finance workflow or provider API write. Production still requires the SB-03 snapshot migration (operator check), verified real Plan–Squad readiness, separate banking enablement and approved isolated RW Staging E2E.
+- Acceptance: current authorized Sales/Reseller/Admin Telegram handlers, no unverified pending order, no provider/bank operations; existing SB-03/04/05 readiness, owner isolation and notification tests. CI PHP 8.4/8.5 + Pest, PHPStan, Pint, disposable MySQL. Live Telegram/prod tests are operator-gated and not claimed.
+
 ## SB-06 — Sales subscription visibility and final private navigation (2026-10-17)
 
 - Introduces a **Sales-only** `/subscriptions` / «📦 اشتراک‌های من» view and paginated owner-scoped `sales:subs:list:{cursor}`, `sales:subs:view:{orderId}:{cursor}`, `sales:subs:link:{orderId}:{cursor}` callbacks. Existing Admin Bot `SubscriptionUi` and legacy `subs:*` routes remain unchanged. The Sales order details link to the new subscription detail only for `fulfilled` orders; Back/Home and stale paging are handled without opening Admin menus.

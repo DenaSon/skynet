@@ -227,3 +227,19 @@ it('rejects unverified setup and expired tokens without creating any order', fun
     expect(DB::table('sales_orders')->count())->toBe(0);
     Http::assertNothingSent();
 });
+
+
+it('keeps Sales checkout blocked by an unverified Squad even if pricing is published', function (): void {
+    $root = sb03Root();
+    $planId = sb03Plan($root, 'ux-unverified');
+    $buyer = User::factory()->create();
+    $bot = sb03Bot(979031, $buyer);
+
+    $bot->hearCallbackQueryData("sales:checkout:preview:{$planId}:30:30")->reply()
+        ->assertCalled('answerCallbackQuery')
+        ->assertCalled('editMessageText');
+
+    expect(DB::table('sales_orders')->count())->toBe(0)
+        ->and(DB::table('sales_fulfillment_outbox')->count())->toBe(0);
+    Http::assertNothingSent();
+});

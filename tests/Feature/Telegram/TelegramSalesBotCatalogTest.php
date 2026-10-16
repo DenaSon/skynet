@@ -195,3 +195,33 @@ it('keeps orders, settlement, provisioning and admin commands unavailable in the
         ->and(DB::table('provisioning_subscriptions')->count())->toBe(0);
     Http::assertNothingSent();
 });
+
+
+it('clearly offers the Sales plan-selection path without claiming an unverified purchase is available', function (): void {
+    $member = User::factory()->create();
+    $bot = sb02Bot(977020, $member);
+
+    $bot->hearText('/catalog')->reply()->assertReplyText(
+        "📋 پلن‌ها و قیمت‌ها\nصفحه 1 از 1\n\nقیمت‌ها از تعرفه فعال محاسبه می‌شوند و ممکن است تغییر کنند.\n"
+        ."برای بررسی امکان ثبت سفارش، یک پلن را انتخاب کنید.\n\nدر حال حاضر پلنی برای نمایش وجود ندارد."
+    );
+    $bot->hearText('/start')->reply()->assertCalled('sendMessage');
+
+    expect(DB::table('sales_orders')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('gives Sales resellers truthful custom-plan guidance without unlocking finance or checkout', function (): void {
+    $reseller = User::factory()->create();
+    $reseller->assignRole('reseller');
+    $bot = sb02Bot(977021, $reseller);
+
+    $bot->hearText('/builder')->reply()->assertReplyText(
+        "💼 پلن‌ساز نمایندگان\nصفحه 1 از 1\n\n"
+        ."حجم و مدت دلخواه را انتخاب کنید؛ امکان ثبت سفارش پس از بررسی آمادگی سرویس مشخص می‌شود.\n\n"
+        ."در حال حاضر پلن سفارشی فعالی برای نمایندگان وجود ندارد."
+    );
+
+    expect(DB::table('sales_orders')->count())->toBe(0);
+    Http::assertNothingSent();
+});
