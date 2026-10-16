@@ -83,7 +83,13 @@ final readonly class TelegramNotificationSender
                     throw $e;
                 }
                 // Photo missing/unavailable: keep the durable review queue as source of truth.
-            } catch (Throwable) {
+            } catch (Throwable $e) {
+                // Telegram 429 applies to the entire destination bot. Sending a
+                // fallback text immediately would double traffic while throttled.
+                if ($e instanceof RuntimeException && $e->getCode() === 429) {
+                    throw $e;
+                }
+
                 // Never log file IDs, tokens, binary data or external exception messages.
             }
 
@@ -211,6 +217,10 @@ final readonly class TelegramNotificationSender
             }
 
             throw new NotificationUnavailable($chatId === null ? 'source_unavailable' : 'blocked');
+        }
+
+        if ($response->status() === 429) {
+            throw new RuntimeException('Telegram rate limited.', 429);
         }
 
         if (! $response->successful() || $response->json('ok') !== true) {
