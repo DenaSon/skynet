@@ -121,7 +121,7 @@ it('returns secret-free typed inventory only through authorized read-only GETs w
         ->and($read->configProfiles)->toBe(1)->and($read->needsReview)->toBe(1);
 
     $bot->hearText('/servers')->reply()
-        ->assertReplyText("🖥️ وضعیت سرورها\n\nسرورهای متصل: 1 از 2\nمیزبان‌ها: 1\nگروه‌ها: 2\nپروفایل‌ها: 1\nنمونه‌های فعال: 1\nدرخواست‌های نیازمند بررسی: 1");
+        ->assertReplyText("🖥️ وضعیت سرورها\n\nسرورهای متصل: 1 از 2\nمیزبان‌ها: 1\nگروه‌ها: 2\nپروفایل‌ها: 1\nنمونه‌های فعال پنل: 1\nدرخواست‌های داخلی نیازمند بررسی: 1");
 
     Http::assertSentCount(10);
     Http::assertSent(fn ($request): bool => $request->method() === 'GET');
@@ -201,4 +201,109 @@ it('protects recorded mappings from destructive rollback', function (): void {
     $migration = require database_path('migrations/2026_10_16_000001_create_sales_plan_internal_squad_bindings.php');
     expect(fn () => $migration->down())->toThrow(RuntimeException::class);
     expect(DB::table('sales_plan_internal_squad_bindings')->count())->toBe(1);
+});
+
+
+it('hides server navigation with the P0 flag OFF and never contacts the panel', function (): void {
+    [$root, $bot] = mb05bRoot();
+    config()->set('telegram.hybrid_menu_enabled', true);
+    config()->set('services.remnawave.admin_reads_verified', false);
+    Http::preventStrayRequests();
+    Http::fake();
+
+    $actor = app(\App\Modules\Identity\Application\ResolveTelegramActor::class)->handle(997001);
+    $keyboard = app(\App\Interfaces\Telegram\Support\ReplyMenuRenderer::class)->homeKeyboard($actor);
+    $labels = array_map(static fn ($button): string => $button->text, array_merge(...$keyboard->keyboard));
+    expect($labels)->not->toContain(\App\Interfaces\Telegram\Support\ReplyMenuLabels::SERVERS);
+
+    $bot->hearText('/servers')->reply()
+        ->assertReplyText("🖥️ وضعیت سرورها\n\nاطلاعات سرورها هنوز آماده نمایش نیست.");
+    $bot->hearCallbackQueryData('menu:admin:servers')->reply()
+        ->assertCalled('answerCallbackQuery')->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('servers:refresh')->reply()
+        ->assertCalled('answerCallbackQuery')->assertCalled('editMessageText');
+    $bot->hearText(\App\Interfaces\Telegram\Support\ReplyMenuLabels::SERVERS)->reply()
+        ->assertReplyText('دسترسی مجاز نیست. منوی شما به‌روز شد.');
+
+    Http::assertNothingSent();
+});
+
+it('shows zero Nodes and refreshes current data using GET only, with the root menu enabled', function (): void {
+    [$root, $bot] = mb05bRoot();
+    config()->set('telegram.hybrid_menu_enabled', true);
+    config()->set('services.remnawave.admin_reads_verified', true);
+    config()->set('services.remnawave.writes_enabled', false);
+    config()->set('services.remnawave.url', 'https://rw.example.test');
+    config()->set('services.remnawave.token', 'offline-test-only');
+
+    Http::preventStrayRequests();
+    Http::fake([
+        'https://rw.example.test/api/system/health' => Http::response([
+            'response' => ['runtimeMetrics' => [['instanceId' => 'api-1']]],
+        ]),
+        'https://rw.example.test/api/nodes' => Http::response(['response' => []]),
+        'https://rw.example.test/api/hosts' => Http::response(['response' => []]),
+        'https://rw.example.test/api/internal-squads' => Http::response([
+            'response' => ['total' => 1, 'internalSquads' => []],
+        ]),
+        'https://rw.example.test/api/config-profiles' => Http::response([
+            'response' => ['total' => 1, 'configProfiles' => []],
+        ]),
+    ]);
+
+    $actor = app(\App\Modules\Identity\Application\ResolveTelegramActor::class)->handle(997001);
+    $keyboard = app(\App\Interfaces\Telegram\Support\ReplyMenuRenderer::class)->homeKeyboard($actor);
+    $labels = array_map(static fn ($button): string => $button->text, array_merge(...$keyboard->keyboard));
+    expect($labels)->toContain(\App\Interfaces\Telegram\Support\ReplyMenuLabels::SERVERS);
+
+    $expected = "🖥️ وضعیت سرورها\n\nسرورهای متصل: 0 از 0\nمیزبان‌ها: 0\nگروه‌ها: 1\nپروفایل‌ها: 1\nنمونه‌های فعال پنل: 1\nدرخواست‌های داخلی نیازمند بررسی: 0\n\nهنوز سروری تعریف نشده است.";
+
+    $bot->hearText('/servers')->reply()->assertReplyText($expected);
+    $bot->hearCallbackQueryData('menu:admin:servers')->reply()
+        ->assertCalled('answerCallbackQuery')->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('servers:refresh')->reply()
+        ->assertCalled('answerCallbackQuery')->assertCalled('editMessageText');
+    $bot->hearText(\App\Interfaces\Telegram\Support\ReplyMenuLabels::SERVERS)->reply()
+        ->assertReplyText($expected);
+
+    Http::assertSentCount(20);
+    Http::assertSent(fn ($request): bool => $request->method() === 'GET');
+    expect(config('services.remnawave.writes_enabled'))->toBeFalse();
+});
+
+it('rejects old server buttons immediately after role revocation without start', function (): void {
+    [$root, $bot] = mb05bRoot();
+    config()->set('telegram.hybrid_menu_enabled', true);
+    config()->set('services.remnawave.admin_reads_verified', true);
+    mb05bFakeRead();
+    $root->syncRoles(['member']);
+
+    $bot->hearCallbackQueryData('menu:admin:servers')->reply()
+        ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.'])
+        ->assertCalled('editMessageText', 0);
+    $bot->hearCallbackQueryData('servers:refresh')->reply()
+        ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.'])
+        ->assertCalled('editMessageText', 0);
+    $bot->hearText(\App\Interfaces\Telegram\Support\ReplyMenuLabels::SERVERS)->reply()
+        ->assertReplyText('دسترسی مجاز نیست. منوی شما به‌روز شد.');
+
+    $bot->setCommonChat(Chat::make(-997001, ChatType::GROUP));
+    $bot->hearCallbackQueryData('servers:refresh')->reply()->assertNoReply();
+    Http::assertNothingSent();
+});
+
+it('never presents an HTTP 503 response as live panel health on refresh', function (): void {
+    [$root, $bot] = mb05bRoot();
+    config()->set('services.remnawave.admin_reads_verified', true);
+    config()->set('services.remnawave.url', 'https://rw.example.test');
+    config()->set('services.remnawave.token', 'offline-test-only');
+    Http::preventStrayRequests();
+    Http::fake(['https://rw.example.test/*' => Http::response(['error' => 'private'], 503)]);
+
+    $bot->hearCallbackQueryData('servers:refresh')->reply()
+        ->assertCalled('answerCallbackQuery')->assertCalled('editMessageText');
+
+    expect(app(ReadAdminProviderOverview::class)->handle($root->id)->state)->toBe('error');
+    Http::assertSentCount(2);
+    Http::assertSent(fn ($request): bool => $request->method() === 'GET');
 });
