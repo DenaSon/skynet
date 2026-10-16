@@ -102,7 +102,6 @@ $bot->onText('{volume}', function (Nutgram $bot, string $volume): void {
     app(ResellerBuilderUi::class)->customText($bot, $volume);
 });
 
-
 // SB-03: buyer-owned managed-plan pending orders. No payment, bank review,
 // legacy Shop mutation or provider operations are registered on Sales.
 $bot->onCommand('orders', function (Nutgram $bot): void {
