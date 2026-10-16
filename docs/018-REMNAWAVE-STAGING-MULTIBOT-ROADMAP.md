@@ -1,5 +1,8 @@
 # ParsaGate — Remnawave Staging → Multi-Bot & Admin Operations Roadmap
 
+**Current operator checkpoint — 2026-10-16:** Isolated Remnawave **3.4.4** staging is online; real Laravel read/health/inventory and one disposable staging user Create/absolute Update/Disable/Enable were operator-tested. RW-01/02 lack full formal sign-off; RW-03 is **PARTIAL**, no Node/Host; one typed subscription ownership assertion failed (17/18 batch), not a proven leak. The **next planning scope is MB-05B-live P0 Admin-only server overview with zero Nodes**, phase-split **SRO-01 → SRO-02 → SRO-03**; no implementation/flag changes, no sales/provider writes. See [current evidence and exact scopes](024-REMNAWAVE-LIVE-CHECKPOINT-ADMIN-READ-PLAN.md). **This supersedes historical “staging unavailable / BLOCKED” statements below, which remain as dated history.**
+
+
 **Status:** APPROVED RESEQUENCED PLAN — 2026-10-15; MB-01 ACCEPTED ([PR #52](https://github.com/DenaSon/skynet/pull/52)), **MB-02 MERGED — [PR #53](https://github.com/DenaSon/skynet/pull/53), commit `213458f`, PHP 8.4/8.5 and disposable MySQL migration CI green; production migration/BotFather smoke pending**; MB-03 MERGED in [PR #55](https://github.com/DenaSon/skynet/pull/55), `e8a780b`, PHP/MySQL CI green, live smoke pending; MB-04 MERGED in [PR #56](https://github.com/DenaSon/skynet/pull/56) as `8da5e13` with PHP/MySQL CI green, live smoke pending; MB-05A MERGED in [PR #57](https://github.com/DenaSon/skynet/pull/57), `580c64a`, default OFF and real two-bot delivery pending; MB-05B OFFLINE MERGED in [PR #58](https://github.com/DenaSon/skynet/pull/58) as `480f2a9` (live panel checks pending); MB-06A source [PR #59](https://github.com/DenaSon/skynet/pull/59) is a provider-independent CI/operational checkpoint, with **limited real Admin Bot smoke passed on 2026-10-16** and remaining live sign-off gaps tracked below; MB-06B not started. Remnawave staging server unavailable.  
 **MB-06A regression closeout (PR #65, 2026-10-16):** Isolated test DB + real Nutgram legacy handler tests cover Member/Reseller/ordinary Admin read-only paths, privileged-denial and stale-role revocation. Existing queued notification job processed by a real `queue:work --once` worker **inside CI only**; PHP 8.4/8.5 + MySQL green ([CI](https://github.com/DenaSon/skynet/actions/runs/38879273519)). **Code and offline regression gate closed; final live Production acceptance not yet met**. These roles were subsequently reported as smoke-tested by the operator; live revoked-role callback denial and Production job execution remain unverified. No alteration to user data, approved acceptance criteria or live flags. See [release evidence](023-MB06A-RELEASE-VERIFICATION.md).
 
@@ -289,10 +292,10 @@ At the start and end of each phase record:
 
 | Phase | Status | PR(s) | CI | Live/staging evidence | Blockers | Rollback verified |
 | --- | --- | --- | --- | --- | --- | --- |
-| RW-01 | BLOCKED | — | — | — | Staging VPS unavailable; operator setup | — |
-| RW-02 | BLOCKED | — | — | — | RW-01; no live panel | — |
-| RW-03 | BLOCKED | — | — | — | RW-02 + explicit staging-write approval | — |
-| RW-04 | NOT STARTED | — | — | — | Offline work eligible; final sign-off needs RW-03 | — |
+| RW-01 | OPERATOR STAGING ONLINE — formal sign-off open | — | — | v3.4.4/TLS/Caddy/login/health operator observed | Backup/recovery and token scope evidence | Reprovision/restore not verified |
+| RW-02 | P0 READ PATHS LIVE VERIFIED — formal gate open | — | — | 5 core GETs via Laravel; Users/Subscriptions basic shapes; 401/404 | Remaining negative/malformed/telemetry cases; matrix | No writes |
+| RW-03 | PARTIAL LIVE VERIFIED — NOT CLOSED | — | — | Direct staging Create 201, quota/expiry PATCH 200, disable/enable POST 200 | App Action idempotency/reconciliation; subscription owner test 17/18; zero Node/Host; cleanup | No repeat of uncertain write |
+| RW-04 | P0 ADMIN-READ VERIFICATION PLANNED; FULL GATE OPEN | — | — | Existing adapters and RW-02 live reads | Only P0 bounded proof allowed for MB-05B; full RW-03 still pending | Flag OFF |
 | MB-01 | ACCEPTED — documentation-only | [#52](https://github.com/DenaSon/skynet/pull/52) | [PHP 8.4/8.5 green](https://github.com/DenaSon/skynet/actions/runs/38781856907); post-merge CI checked separately | 113/113 registrations + 18/18 labels matched code; no live test required for docs | Nonadmin Production usage preflight required in MB-02 | No runtime/schema changes |
 | MB-02 | CODE MERGED — schema observed in Production; final cutover not accepted | [#53](https://github.com/DenaSon/skynet/pull/53) | PHP 8.4/8.5 + MySQL CI green | Operator `migrate:status` shows bot-scoping/contact migrations `Ran`; original Admin webhook handled real read-only smoke; nonadmin live pending | Old mixed legacy routes retained; Sales OFF | Code-before-migration Admin fallback + guarded schema rollback |
 | MB-03 | CODE MERGED — legacy compatibility preserved in routing | [#55](https://github.com/DenaSon/skynet/pull/55) | PHP 8.4/8.5 + MySQL CI green | Source tests preserve 113 original route registrations; nonadmin role smoke operator-reported passed (2026-10-16); per-route trace and role revocation pending | Sales Bot stays OFF | No original route removed |
@@ -302,10 +305,15 @@ At the start and end of each phase record:
 
 **Next acceptance step (not new feature development):** Finish MB-06A Production job-processing evidence (stale-role/live callback denial is operator-reported PASS) without changing current customer entitlements or payment/provider flags. MB-03 router isolation is already merged; the original bot still retains Admin/Member/Reseller handlers. Sales remains an OFF technical shell. See [the acceptance runbook](023-MB06A-RELEASE-VERIFICATION.md).
 
+## 9A. Approved next planning slice (2026-10-16)
+
+**EPIC-RW:** narrow five-read-endpoint live verification for the current server; do not declare all of RW-03 or RW-04 accepted. **EPIC-MB / MB-05B-live P0:** **SRO-01** compatibility and root/error gate, **SRO-02** reuse existing `/servers` with minimal Super Admin menu/refresh/back, **SRO-03** explicit operator-only enablement and real Telegram smoke. No Node/Host, CPU/RAM monitoring, user/subscription detail, Sale Bot activation or provider write. See the **frozen phase-by-phase scope, tests and rollback** in [024](024-REMNAWAVE-LIVE-CHECKPOINT-ADMIN-READ-PLAN.md). Full execution requires a separate implementation instruction; this commit is documentation only.
+
 ## 10. References
 
 - [MB-01 route/state/permission inventory](019-MB01-TELEGRAM-ROUTE-INVENTORY.md) and [ADR 0009 — dual-bot boundaries](adr/0009-dual-telegram-bot-boundaries.md)
 - [Current development context](000-CONTEXT.md)
+- [2026-10-16 live staging evidence and SRO-01–03 scope](024-REMNAWAVE-LIVE-CHECKPOINT-ADMIN-READ-PLAN.md)
 - [Existing roadmap](005-ROADMAP.md)
 - [Telegram operations](006-TELEGRAM-OPERATIONS.md) and [normative UX identity](017-TELEGRAM-UX-IDENTITY.md)
 - [Remnawave API mapping](009-REMNAWAVE-API.md), [read-only staging diagnostics](010-REMNAWAVE-STAGING.md), [node adapter](011-REMNAWAVE-NODES.md), [user lifecycle and reconciliation](012-REMNAWAVE-USER-LIFECYCLE.md)

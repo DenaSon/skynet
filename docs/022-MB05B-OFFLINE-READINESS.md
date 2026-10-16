@@ -1,5 +1,8 @@
 # MB-05B Offline — Admin read models / Plan–Squad contract
 
+**Current operator checkpoint — 2026-10-16:** Isolated Remnawave **3.4.4** staging is online; real Laravel read/health/inventory and one disposable staging user Create/absolute Update/Disable/Enable were operator-tested. RW-01/02 lack full formal sign-off; RW-03 is **PARTIAL**, no Node/Host; one typed subscription ownership assertion failed (17/18 batch), not a proven leak. The **next planning scope is MB-05B-live P0 Admin-only server overview with zero Nodes**, phase-split **SRO-01 → SRO-02 → SRO-03**; no implementation/flag changes, no sales/provider writes. See [current evidence and exact scopes](024-REMNAWAVE-LIVE-CHECKPOINT-ADMIN-READ-PLAN.md). **This supersedes historical “staging unavailable / BLOCKED” statements below, which remain as dated history.**
+
+
 **Scope and evidence:** [PR #58](https://github.com/DenaSon/skynet/pull/58), read-only/offline only. Remnawave staging is not available; no HTTP-fake result is evidence of a working real panel.
 
 ## Implemented contract
@@ -26,3 +29,10 @@
 ## Follow-up
 
 Keep `REMNAWAVE_ADMIN_READS_VERIFIED=false`, `REMNAWAVE_SQUAD_BINDINGS_LIVE_VERIFIED=false` and `REMNAWAVE_WRITES_ENABLED=false` in Production. No actual provider-connected menu or plan binding can be declared verified until RW-04 staging evidence and owner approval. Next provider-independent work is **MB-06A**; RW-01–04, MB-05B-live and MB-06B remain separate gated follow-ups.
+
+## Live readiness update — 2026-10-16 (operator evidence; not implementation)
+
+Remnawave 3.4.4 staging is now available, and the same five P0 GET routes used by `ReadAdminProviderOverview` were successfully inspected from Runflare (`/api/system/health`, nodes, hosts, squads, profiles). The previous **offline-only** section and matrix are historical implementation evidence; they must **not** be interpreted as current lack of a server. No Node/Host exists; empty inventory is expected. Source for current evidence and boundaries: [024](024-REMNAWAVE-LIVE-CHECKPOINT-ADMIN-READ-PLAN.md).
+
+**Next:** SRO-01 P0 read/gate verification → SRO-02 guarded menu + refresh/back → SRO-03 operator-approved real Admin Bot activation. Existing `/servers` screen/Action remain hidden/unavailable by default. `REMNAWAVE_WRITES_ENABLED=false` and `REMNAWAVE_SQUAD_BINDINGS_LIVE_VERIFIED=false` remain; do **not** enable `REMNAWAVE_ADMIN_READS_VERIFIED` until the SRO gates pass. User/subscription details, unverified owner shape (one 17/18 live-batch FAIL), Node setup and paid Sales are excluded.
+
