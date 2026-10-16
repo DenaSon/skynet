@@ -205,6 +205,7 @@ function sb02SalesWebhookContext(): void
 {
     $route = new \Illuminate\Routing\Route('POST', 'api/telegram/sales/webhook', static fn (): null => null);
     $route->defaults('bot_key', 'sales');
+    $route->bind(request());
     request()->setRouteResolver(static fn (): \Illuminate\Routing\Route => $route);
 }
 
