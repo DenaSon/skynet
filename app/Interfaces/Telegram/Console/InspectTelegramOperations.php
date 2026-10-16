@@ -73,6 +73,7 @@ final class InspectTelegramOperations extends Command
 
         $this->line('Provisioning needs review: '.DB::table('provisioning_operations')->where('state', 'needs_review')->count());
         $this->line('Unconsumed fulfillment intents: '.DB::table('sales_fulfillment_outbox')->where('state', 'pending')->count());
+        $this->line('Fulfillment needs review: '.DB::table('sales_fulfillment_outbox')->where('state', 'needs_review')->count());
 
         if (Schema::hasTable('failed_jobs')) {
             $this->line('Failed queue jobs: '.DB::table('failed_jobs')->count());
