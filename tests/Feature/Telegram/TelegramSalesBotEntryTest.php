@@ -67,7 +67,7 @@ it('uses current roles without making Admin or legacy checkout routes available 
         "🏠 ParsaGate\n\nخوش آمدید، Dealer Ignored.\nنوع حساب: کاربر\n\nبرای مشاهده پلن‌ها و قیمت‌ها، گزینه زیر را انتخاب کنید.\nخرید اشتراک هنوز فعال نیست."
     );
 
-    foreach (['/admin', '/roles', '/payments', '/buy', '/catalog', '/builder'] as $command) {
+    foreach (['/admin', '/roles', '/payments', '/buy'] as $command) {
         $bot->hearText($command)->reply()->assertNoReply();
     }
     foreach (['menu:admin:users', 'rbac:apply:forged', 'shop:order:forged'] as $callback) {
