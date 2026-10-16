@@ -102,6 +102,28 @@ final readonly class ManualBankPayments
         }, 3);
     }
 
+    /**
+     * Owner-scoped status for Sales order history. Readable even when the
+     * payment gate is OFF so that old receipt evidence remains visible.
+     * Never return encrypted files or bank references to the buyer.
+     */
+    public function latestReceiptStatus(SubscriptionViewer $viewer, int $orderId): ?string
+    {
+        $buyerId = $this->authorize->userId($viewer);
+        if ($orderId < 1 || DB::table('sales_orders')->where('id', $orderId)
+            ->where('buyer_user_id', $buyerId)->doesntExist()) {
+            throw ValidationException::withMessages(['order' => 'Order not found.']);
+        }
+
+        $status = DB::table('sales_bank_payment_claims')
+            ->where('sales_order_id', $orderId)
+            ->where('buyer_user_id', $buyerId)
+            ->orderByDesc('id')
+            ->value('status');
+
+        return is_string($status) ? $status : null;
+    }
+
     /** @return list<object> */
     public function pending(int $rootId, int $limit = 12): array
     {

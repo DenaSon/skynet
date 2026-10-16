@@ -57,7 +57,11 @@ final readonly class ManualPaymentUi
         }
 
         try {
-            $order = $this->orders->find($actor->userId, (int) $orderId);
+            // Sales accepts only the managed-plan orders created in SB-03.
+            // Legacy F09 orders remain reachable on the original bot only.
+            $order = TelegramBotContext::current()->key === TelegramBotContext::SALES
+                ? $this->orders->findPlan($actor->userId, (int) $orderId)
+                : $this->orders->find($actor->userId, (int) $orderId);
 
             if ($order->status !== 'pending_payment') {
                 throw ValidationException::withMessages(['order' => 'Not payable']);
@@ -72,8 +76,11 @@ final readonly class ManualPaymentUi
         $instructions = trim((string) config('billing.payment_instructions', ''));
         $instructions = mb_substr($instructions === '' ? 'برای دریافت اطلاعات پرداخت با پشتیبانی هماهنگ کنید.' : $instructions, 0, 350);
 
+        $back = TelegramBotContext::current()->key === TelegramBotContext::SALES
+            ? 'sales:checkout:view:'.$order->id
+            : 'shop:order:view:'.$order->id;
         $keyboard = InlineKeyboardMarkup::make()->addRow(
-            InlineKeyboardButton::make('◀️ سفارش', callback_data: 'shop:order:view:'.$order->id),
+            InlineKeyboardButton::make('◀️ سفارش', callback_data: $back),
         )->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'menu:home'));
 
         $this->render($bot, "🧾 ثبت رسید سفارش #{$order->id}\n\nمبلغ دقیق: ".number_format(intdiv($order->totalPriceRials + 9, 10))." تومان\n\n{$instructions}\n\nپس از انتقال وجه، تصویر رسید را در همین گفت‌وگوی خصوصی ارسال کنید.\nاین درخواست ۱۰ دقیقه اعتبار دارد؛ تصویر به‌تنهایی پرداخت را اثبات نمی‌کند.", $keyboard);
@@ -122,7 +129,10 @@ final readonly class ManualPaymentUi
         $this->notice($bot, "🕘 رسید سفارش #{$orderId} ثبت شد.\nشماره بررسی: #{$claimId}\n\nتنها پس از تطبیق واقعی گردش بانک و تأیید مدیر، سفارش تسویه می‌شود.");
         // Keep the already deployed best-effort alerts until the durable
         // notification worker is explicitly enabled in Production.
-        if (config('telegram_notifications.enabled', false) !== true) {
+        if (config('telegram_notifications.enabled', false) !== true
+            && TelegramBotContext::current()->key === TelegramBotContext::ADMIN) {
+            // The legacy original-bot best-effort path remains unchanged.
+            // Never deliver Admin-only bank buttons using the Sales token.
             $this->alertRoots($bot, $claimId);
         }
     }
@@ -427,7 +437,12 @@ final readonly class ManualPaymentUi
 
     private function notice(Nutgram $bot, string $text): void
     {
-        $this->render($bot, $text, $this->backKeyboard());
+        $keyboard = TelegramBotContext::current()->key === TelegramBotContext::SALES
+            ? InlineKeyboardMarkup::make()
+                ->addRow(InlineKeyboardButton::make('📋 سفارش‌های من', callback_data: 'sales:checkout:orders'))
+                ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'menu:home'))
+            : $this->backKeyboard();
+        $this->render($bot, $text, $keyboard);
     }
 
     private function render(Nutgram $bot, string $text, InlineKeyboardMarkup $keyboard, bool $callbackAcknowledged = false): void
