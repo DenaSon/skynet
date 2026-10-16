@@ -125,6 +125,11 @@ it('keeps the second Sales Bot router limited to identity and read-only catalog 
         'callback:builder:custom:{id}:{page}',
         'callback:builder:cancel',
         'text:{volume}',
+        'command:orders',
+        'callback:sales:checkout:preview:{id}:{days}:{gb}',
+        'callback:sales:checkout:commit:{token}',
+        'callback:sales:checkout:orders',
+        'callback:sales:checkout:view:{id}',
     ]);
 
     $runtime = file_get_contents(app_path('Interfaces/Telegram/Processing/SalesTelegramRuntime.php'));

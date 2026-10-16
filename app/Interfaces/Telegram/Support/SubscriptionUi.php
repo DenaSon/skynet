@@ -81,7 +81,7 @@ final readonly class SubscriptionUi
             $status = $this->status($item->status);
             $name = $this->safeText($item->productName, 42);
             $lines[] = "{$status} · #{$item->orderId}";
-            $lines[] = "{$name}  |  {($item->trafficGb === null ? 'نامحدود' : $item->trafficGb.' گیگ')} · {$item->durationDays} روز";
+            $lines[] = $name.' | '.($item->trafficGb === null ? 'نامحدود' : $item->trafficGb.' گیگ').' · '.$item->durationDays.' روز';
             $lines[] = '';
             $keyboard->addRow(InlineKeyboardButton::make(
                 "{$this->statusIcon($item->status)} #{$item->orderId} · {$this->safeText($name, 23)}",
