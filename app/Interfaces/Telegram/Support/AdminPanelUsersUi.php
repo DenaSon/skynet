@@ -134,10 +134,10 @@ final readonly class AdminPanelUsersUi
                 'EXPIRED' => '⚪ منقضی',
                 default => 'نامشخص',
             };
-            $quota = $result->trafficLimitBytes === 0
+            $quota = ($result->trafficLimitBytes ?? 0) === 0
                 ? 'نامحدود'
-                : number_format($result->trafficLimitBytes / 1073741824, 2, '.', '').' GiB';
-            $used = number_format($result->usedTrafficBytes / 1073741824, 2, '.', '').' GiB';
+                : number_format(($result->trafficLimitBytes ?? 0) / 1073741824, 2, '.', '').' GiB';
+            $used = number_format(($result->usedTrafficBytes ?? 0) / 1073741824, 2, '.', '').' GiB';
             $verified = $result->subscriptionMatched ? 'تأیید شد' : 'یافت نشد';
             $message = "👤 جزئیات کاربر پنل\n\n"
                 ."نام کاربری: {$result->username}\n"

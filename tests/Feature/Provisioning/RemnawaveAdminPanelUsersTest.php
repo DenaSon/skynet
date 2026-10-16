@@ -6,6 +6,7 @@ use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Application\ListAdminPanelUsers;
+use App\Modules\Provisioning\Application\ReadAdminPanelUser;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -162,4 +163,95 @@ it('never performs provider requests for malformed page callbacks', function ():
     expect(fn () => app(ListAdminPanelUsers::class)->handle($root->id, 0))
         ->toThrow(InvalidArgumentException::class);
     Http::assertNothingSent();
+});
+
+
+function rw04bFakeDetail(bool $mismatch = false, bool $fail = false): void
+{
+    config()->set('services.remnawave.url', 'https://rw.example.test');
+    config()->set('services.remnawave.token', 'fake-token-only');
+    Http::preventStrayRequests();
+    Http::fake([
+        'https://rw.example.test/api/users/42' => $fail
+            ? Http::response(['error' => 'private'], 503)
+            : Http::response(['response' => rw04aRemoteUser(42)]),
+        'https://rw.example.test/api/subscriptions/by-id/42' => Http::response([
+            'response' => [
+                'isFound' => true,
+                'user' => [
+                    'username' => $mismatch ? 'wrong_person' : 'fixture_42',
+                    'shortUuid' => 'short42',
+                ],
+                'links' => ['vless://never-leak-config'],
+                'ssConfLinks' => [],
+                'subscriptionUrl' => 'https://secrets.example.test/never-leak-link',
+            ],
+        ]),
+    ]);
+}
+
+it('shows only checked safe details and correctly matches v3 subscription username and shortUuid', function (): void {
+    [$root, $bot] = rw04aActor();
+    rw04bFakeDetail();
+
+    $detail = app(ReadAdminPanelUser::class)->handle($root->id, 42);
+    expect($detail->state)->toBe('available')
+        ->and($detail->id)->toBe(42)
+        ->and($detail->username)->toBe('fixture_42')
+        ->and($detail->subscriptionMatched)->toBeTrue()
+        ->and($detail->trafficLimitBytes)->toBe(1073741824)
+        ->and($detail->usedTrafficBytes)->toBe(123)
+        ->and(json_encode($detail, JSON_THROW_ON_ERROR))->not->toContain('never-leak')
+        ->not->toContain('vless://')
+        ->not->toContain('short42');
+
+    $bot->hearCallbackQueryData('rw:users:view:42:1')->reply()
+        ->assertCalled('answerCallbackQuery')->assertCalled('editMessageText');
+
+    Http::assertSentCount(4);
+    Http::assertSent(static fn ($req): bool => $req->method() === 'GET'
+        && str_ends_with($req->url(), '/api/subscriptions/by-id/42'));
+});
+
+it('rejects a subscription for a different username rather than trusting a missing user.id', function (): void {
+    [$root, $bot] = rw04aActor();
+    rw04bFakeDetail(mismatch: true);
+
+    expect(app(ReadAdminPanelUser::class)->handle($root->id, 42)->state)->toBe('error');
+    $bot->hearCallbackQueryData('rw:users:view:42:1')->reply()
+        ->assertCalled('answerCallbackQuery')->assertCalled('editMessageText');
+
+    Http::assertSentCount(4);
+    Http::assertSent(static fn ($req): bool => $req->method() === 'GET');
+});
+
+it('denies revoked, nonroot and group access to provider details without any network calls', function (): void {
+    [$root, $bot] = rw04aActor();
+    rw04bFakeDetail();
+    $root->syncRoles(['member']);
+
+    expect(fn () => app(ReadAdminPanelUser::class)->handle($root->id, 42))
+        ->toThrow(AuthorizationException::class);
+    $bot->hearCallbackQueryData('rw:users:view:42:1')->reply()
+        ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.'])
+        ->assertCalled('editMessageText', 0);
+    $bot->setCommonChat(Chat::make(-995041, ChatType::GROUP));
+    $bot->hearCallbackQueryData('rw:users:view:42:1')->reply()->assertNoReply();
+    Http::assertNothingSent();
+});
+
+it('denies invalid IDs and keeps HTTP failures as generic errors', function (): void {
+    [$root, $bot] = rw04aActor();
+    rw04bFakeDetail();
+
+    expect(fn () => app(ReadAdminPanelUser::class)->handle($root->id, 0))
+        ->toThrow(InvalidArgumentException::class);
+
+    $bot->hearCallbackQueryData('rw:users:view:0:1')->reply()
+        ->assertCalled('answerCallbackQuery')->assertCalled('editMessageText');
+    Http::assertNothingSent();
+
+    rw04bFakeDetail(fail: true);
+    expect(app(ReadAdminPanelUser::class)->handle($root->id, 42)->state)->toBe('error');
+    Http::assertSentCount(1);
 });
