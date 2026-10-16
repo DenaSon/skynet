@@ -145,13 +145,13 @@ it('reads and validates panel resource stats from the existing GET endpoint', fu
 
     $stats = remnawaveReadApi()->systemStats();
 
-    expect($stats->cpuCores)->toBe(2)
-        ->and($stats->memoryTotal)->toBe(2060730368)
-        ->and($stats->memoryUsed)->toBe(1229987840)
-        ->and($stats->memoryFree)->toBe(830742528)
-        ->and($stats->uptimeSeconds)->toBe(23341.83)
-        ->and($stats->totalUsers)->toBe(2)
-        ->and($stats->onlineUsers)->toBe(0);
+    expect($stats['cpuCores'])->toBe(2)
+        ->and($stats['memoryTotal'])->toBe(2060730368)
+        ->and($stats['memoryUsed'])->toBe(1229987840)
+        ->and($stats['memoryFree'])->toBe(830742528)
+        ->and($stats['uptimeSeconds'])->toBe(23341.83)
+        ->and($stats['totalUsers'])->toBe(2)
+        ->and($stats['onlineUsers'])->toBe(0);
 
     Http::assertSentCount(1);
     Http::assertSent(static fn ($request): bool => $request->url() === 'https://rw.example.test/api/system/stats'

@@ -21,7 +21,10 @@ final readonly class RemnawaveReadApi
         return count($this->list($health['runtimeMetrics'] ?? null, 'runtimeMetrics'));
     }
 
-    public function systemStats(): RemnawaveSystemStats
+    /**
+     * @return array{cpuCores:int, memoryTotal:int, memoryUsed:int, memoryFree:int, uptimeSeconds:float, totalUsers:int, onlineUsers:int}
+     */
+    public function systemStats(): array
     {
         $stats = $this->objectResponse('SystemController_getStats');
         $cpu = $stats['cpu'] ?? null;
@@ -48,15 +51,15 @@ final readonly class RemnawaveReadApi
             throw new UnexpectedValueException('Invalid Remnawave system stats.');
         }
 
-        return new RemnawaveSystemStats(
-            cpuCores: $cores,
-            memoryTotal: $total,
-            memoryUsed: $used,
-            memoryFree: $free,
-            uptimeSeconds: (float) $uptime,
-            totalUsers: $totalUsers,
-            onlineUsers: $onlineUsers,
-        );
+        return [
+            'cpuCores' => $cores,
+            'memoryTotal' => $total,
+            'memoryUsed' => $used,
+            'memoryFree' => $free,
+            'uptimeSeconds' => (float) $uptime,
+            'totalUsers' => $totalUsers,
+            'onlineUsers' => $onlineUsers,
+        ];
     }
 
     private function nonNegativeInteger(mixed $value): int

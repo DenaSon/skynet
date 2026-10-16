@@ -31,7 +31,7 @@ final readonly class ReadAdminProviderOverview
 
             // Optional P1 metrics must not break the verified P0 overview.
             try {
-                $systemStats = $read->systemStats();
+                $systemStats = new AdminSystemStats(...$read->systemStats());
             } catch (Throwable) {
                 $systemStats = null;
             }

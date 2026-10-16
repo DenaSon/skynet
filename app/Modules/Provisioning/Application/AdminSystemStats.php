@@ -2,13 +2,10 @@
 
 declare(strict_types=1);
 
-namespace App\Modules\Provisioning\Infrastructure\Remnawave;
+namespace App\Modules\Provisioning\Application;
 
-/**
- * Secret-free, read-only Remnawave stats. Memory figures are reported in bytes.
- * These are panel-reported values, not independently verified VPS telemetry.
- */
-final readonly class RemnawaveSystemStats
+/** Secret-free projection of panel-reported, not independently verified VPS, system statistics. */
+final readonly class AdminSystemStats
 {
     public function __construct(
         public int $cpuCores,

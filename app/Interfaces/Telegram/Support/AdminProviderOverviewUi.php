@@ -6,8 +6,8 @@ namespace App\Interfaces\Telegram\Support;
 
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Provisioning\Application\AdminProviderOverview;
+use App\Modules\Provisioning\Application\AdminSystemStats;
 use App\Modules\Provisioning\Application\ReadAdminProviderOverview;
-use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveSystemStats;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
@@ -81,7 +81,7 @@ final readonly class AdminProviderOverviewUi
             .($result->systemStats !== null ? $this->systemStats($result->systemStats) : '');
     }
 
-    private function systemStats(RemnawaveSystemStats $stats): string
+    private function systemStats(AdminSystemStats $stats): string
     {
         $total = number_format($stats->memoryTotal / 1073741824, 2, '.', '');
         $used = number_format($stats->memoryUsed / 1073741824, 2, '.', '');
