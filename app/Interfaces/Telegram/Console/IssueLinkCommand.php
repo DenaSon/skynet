@@ -8,7 +8,7 @@ use Illuminate\Validation\ValidationException;
 
 final class IssueLinkCommand extends Command
 {
-    protected $signature = 'telegram:link-account {user : SkyNet internal user ID}';
+    protected $signature = 'telegram:link-account {user : ParsaGate internal user ID}';
 
     protected $description = 'Generate a single-use Telegram account-link code (10 minute lifetime)';
 
@@ -30,7 +30,7 @@ final class IssueLinkCommand extends Command
             return self::FAILURE;
         }
 
-        $this->line('In a PRIVATE chat with your SkyNet bot, send:');
+        $this->line('In a PRIVATE chat with your ParsaGate bot, send:');
         $this->line('/link '.$code);
         $this->warn('This is a one-time credential. It expires in 10 minutes; do not share or log it.');
 
