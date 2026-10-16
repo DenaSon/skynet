@@ -65,6 +65,9 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
 
     // MB-05B adds one guarded, unadvertised Admin-only read command.
     $expected['ADMIN'][] = 'command:servers';
+    // SRO-02 adds two guarded, read-only Admin callbacks without changing the MB-01 baseline.
+    $expected['ADMIN'][] = 'callback:menu:admin:servers';
+    $expected['ADMIN'][] = 'callback:servers:refresh';
     $expected['SALES'][] = 'photo:*';
     $files = [
         'ADMIN' => 'app/Interfaces/Telegram/routes/admin.php',
@@ -89,8 +92,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(114)
-        ->and(count(array_unique($legacy)))->toBe(114);
+        ->and(count($legacy))->toBe(116)
+        ->and(count(array_unique($legacy)))->toBe(116);
 });
 
 it('keeps the second Sales Bot router empty, separate and unable to register Admin callbacks', function (): void {
@@ -120,7 +123,7 @@ it('does not execute forged Admin callbacks delivered to an enabled, isolated Sa
 
     $beforeRoles = $user->getRoleNames()->all();
 
-    foreach (['rbac:apply:aaaa', 'users:apply:bbbb', 'product:apply:cccc', 'bank:apply:dddd'] as $offset => $forged) {
+    foreach (['rbac:apply:aaaa', 'users:apply:bbbb', 'product:apply:cccc', 'bank:apply:dddd', 'menu:admin:servers', 'servers:refresh'] as $offset => $forged) {
         $this->postJson('/api/telegram/sales/webhook', [
             'update_id' => 92000 + $offset,
             'callback_query' => [
@@ -139,5 +142,5 @@ it('does not execute forged Admin callbacks delivered to an enabled, isolated Sa
     }
 
     expect($user->fresh()->getRoleNames()->all())->toBe($beforeRoles)
-        ->and(DB::table('telegram_updates')->where('bot_key', 'sales')->where('status', 'processed')->count())->toBe(4);
+        ->and(DB::table('telegram_updates')->where('bot_key', 'sales')->where('status', 'processed')->count())->toBe(6);
 });
