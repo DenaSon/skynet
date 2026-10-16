@@ -165,7 +165,6 @@ it('never performs provider requests for malformed page callbacks', function ():
     Http::assertNothingSent();
 });
 
-
 function rw04bFakeDetail(bool $mismatch = false, bool $fail = false): void
 {
     config()->set('services.remnawave.url', 'https://rw.example.test');
