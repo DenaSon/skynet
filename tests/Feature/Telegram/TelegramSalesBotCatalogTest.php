@@ -24,7 +24,7 @@ uses(RefreshDatabase::class);
 beforeEach(function (): void {
     config()->set('telegram.sales.enabled', false);
     config()->set('telegram.public_signup_enabled', false);
-    config()->set('super_admin.telegram_ids', ['977001']);
+    config()->set('super_admin.telegram_ids', ['977001', '977002']);
     app(ConfigureProduct::class)->handle('vpn-access', 'VPN Access');
     Role::findOrCreate('reseller', 'web');
     Http::preventStrayRequests();
