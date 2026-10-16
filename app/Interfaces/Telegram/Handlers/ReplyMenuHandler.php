@@ -3,7 +3,6 @@
 namespace App\Interfaces\Telegram\Handlers;
 
 use App\Interfaces\Telegram\Support\AdminProviderOverviewUi;
-use App\Interfaces\Telegram\Support\AdminPanelUsersUi;
 use App\Interfaces\Telegram\Support\AdminSectionsUi;
 use App\Interfaces\Telegram\Support\BillingUi;
 use App\Interfaces\Telegram\Support\ManualPaymentUi;
@@ -45,7 +44,7 @@ final class ReplyMenuHandler
     public function handle(Nutgram $bot, string $text): bool
     {
         if (config('telegram.hybrid_menu_enabled', false) !== true
-            || !in_array($text, ReplyMenuLabels::all(), true)) {
+            || ! in_array($text, ReplyMenuLabels::all(), true)) {
             return false;
         }
 
@@ -76,7 +75,7 @@ final class ReplyMenuHandler
                 return true;
 
             case ReplyMenuLabels::BUILDER:
-                if (!in_array('reseller', $actor->roles, true)) {
+                if (! in_array('reseller', $actor->roles, true)) {
                     $this->deny($bot, $actor);
 
                     return true;
@@ -117,7 +116,7 @@ final class ReplyMenuHandler
                 return true;
 
             case ReplyMenuLabels::ADMIN:
-                if (!$actor->isAdmin()) {
+                if (! $actor->isAdmin()) {
                     $this->deny($bot, $actor);
 
                     return true;
@@ -128,7 +127,7 @@ final class ReplyMenuHandler
                 return true;
 
             case ReplyMenuLabels::USERS:
-                if (!$actor->isAdmin()) {
+                if (! $actor->isAdmin()) {
                     $this->deny($bot, $actor);
 
                     return true;
@@ -139,7 +138,7 @@ final class ReplyMenuHandler
                 return true;
 
             case ReplyMenuLabels::SALES_SECTION:
-                if (!$actor->canManageRoles()) {
+                if (! $actor->canManageRoles()) {
                     $this->deny($bot, $actor);
 
                     return true;
@@ -150,7 +149,7 @@ final class ReplyMenuHandler
                 return true;
 
             case ReplyMenuLabels::SERVERS:
-                if (!$actor->canManageRoles()) {
+                if (! $actor->canManageRoles()) {
                     $this->deny($bot, $actor);
 
                     return true;
@@ -160,19 +159,8 @@ final class ReplyMenuHandler
 
                 return true;
 
-            case ReplyMenuLabels::PANEL_USERS:
-                if ($actor->canManageRoles() !== true) {
-                    $this->deny($bot, $actor);
-
-                    return true;
-                }
-
-                app(AdminPanelUsersUi::class)->browse($bot);
-
-                return true;
-
             case ReplyMenuLabels::FINANCE_SECTION:
-                if (!$actor->canManageRoles()
+                if (! $actor->canManageRoles()
                     || (config('billing.topups_enabled', false) !== true
                         && config('sales.manual_bank_review_enabled', false) !== true)) {
                     $this->deny($bot, $actor);
@@ -185,7 +173,7 @@ final class ReplyMenuHandler
                 return true;
 
             case ReplyMenuLabels::PRODUCTS:
-                if (!$actor->canManageRoles()) {
+                if (! $actor->canManageRoles()) {
                     $this->deny($bot, $actor);
 
                     return true;
@@ -196,7 +184,7 @@ final class ReplyMenuHandler
                 return true;
 
             case ReplyMenuLabels::PLANS:
-                if (!$actor->canManageRoles()) {
+                if (! $actor->canManageRoles()) {
                     $this->deny($bot, $actor);
 
                     return true;
@@ -207,7 +195,7 @@ final class ReplyMenuHandler
                 return true;
 
             case ReplyMenuLabels::ROLES:
-                if (!$actor->canManageRoles()) {
+                if (! $actor->canManageRoles()) {
                     $this->deny($bot, $actor);
 
                     return true;
@@ -218,7 +206,7 @@ final class ReplyMenuHandler
                 return true;
 
             case ReplyMenuLabels::WALLET:
-                if (!in_array('reseller', $actor->roles, true)) {
+                if (! in_array('reseller', $actor->roles, true)) {
                     $this->deny($bot, $actor);
 
                     return true;
@@ -229,7 +217,7 @@ final class ReplyMenuHandler
                 return true;
 
             case ReplyMenuLabels::TOPUPS:
-                if (!$actor->canManageRoles() || config('billing.topups_enabled', false) !== true) {
+                if (! $actor->canManageRoles() || config('billing.topups_enabled', false) !== true) {
                     $this->deny($bot, $actor);
 
                     return true;
@@ -240,7 +228,7 @@ final class ReplyMenuHandler
                 return true;
 
             case ReplyMenuLabels::RECEIPTS:
-                if (!$actor->canManageRoles() || config('sales.manual_bank_review_enabled', false) !== true) {
+                if (! $actor->canManageRoles() || config('sales.manual_bank_review_enabled', false) !== true) {
                     $this->deny($bot, $actor);
 
                     return true;

@@ -107,14 +107,16 @@ it('pages the real-provider projection with safe fields and GET-only calls', fun
         && $request->hasHeader('Authorization', 'Bearer fake-token-only'));
 });
 
-it('shows admin navigation only for trusted root in inline and persistent menus', function (): void {
+it('keeps the existing hybrid users menu unchanged while restricting provider reads to root', function (): void {
     [$root] = rw04aActor();
     $actor = app(ResolveTelegramActor::class)->handle(995041);
     config()->set('telegram.hybrid_menu_enabled', true);
     $buttons = app(ReplyMenuRenderer::class)->homeKeyboard($actor)->keyboard;
     $labels = array_map(static fn ($button): string => $button->text, array_merge(...$buttons));
-    expect($labels)->toContain(ReplyMenuLabels::PANEL_USERS)
-        ->and($root->hasRole('super-admin'))->toBeTrue();
+
+    expect($labels)->toContain(ReplyMenuLabels::SERVERS)
+        ->not->toContain('👥 کاربران پنل');
+    expect($actor->canManageRoles())->toBeTrue();
 });
 
 it('fails safely with no provider configuration or a remote 503', function (): void {
