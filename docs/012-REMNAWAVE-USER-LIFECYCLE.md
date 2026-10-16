@@ -1,5 +1,8 @@
 # F10-D — Remnawave User Lifecycle and Durable Provisioning
 
+**Current live qualification — 2026-10-16:** The pinned 3.4.4 API was operator-tested against an isolated live Remnawave panel. Read-only health/inventory, typed Users/Subscriptions GET, and scoped direct staging Create/absolute quota/expiry/disable/enable tests succeeded; this does **not** prove 218 operations or live Laravel Application idempotency. No Node or Host. RW-03 incomplete; one 17/18 batch subscription ownership assertion failed and needs redacted contract review. No production writes. Current evidence and the next P0-only Admin read plan: [024](024-REMNAWAVE-LIVE-CHECKPOINT-ADMIN-READ-PLAN.md). Statements below about no available staging server are dated historical checkpoints.
+
+
 **Status:** **Merged to `master` via PR #23** (2026-10-12). [Master CI 38213468652](https://github.com/DenaSon/skynet/actions/runs/38213468652): PHP 8.4/8.5, 200 tests / 959 assertions, PHPStan/Pint green. HTTP-fake tests only. **Not verified against a live panel. Not connected to payment, Telegram, checkout or public routes.**
 
 ## Source and contract

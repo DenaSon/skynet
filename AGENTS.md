@@ -1,5 +1,6 @@
 # ParsaGate — Agent Instructions
 
+**Latest operator staging/plan checkpoint (2026-10-16):** Remnawave 3.4.4 staging is live and read-only API + scoped direct test-user CRUD were operator-verified; RW-03 remains partial (no Node, no live Laravel idempotency); next **planning-only** Admin Bot scope is SRO-01–03 / MB-05B-live P0 server overview. See [docs/024](docs/024-REMNAWAVE-LIVE-CHECKPOINT-ADMIN-READ-PLAN.md). All older 'server unavailable' text reflects its original date. Keep provider writes OFF, root-only/private UI, Sales OFF; this update does not authorize production flags or code.\n\n
 ParsaGate is a Laravel 13 application being developed as a **modular monolith**.
 
 ## Approved execution roadmap — Multi-Bot foundations while Remnawave staging is unavailable

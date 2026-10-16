@@ -1,5 +1,8 @@
 # F10-B — Read-only Remnawave staging diagnostics
 
+**Current live qualification — 2026-10-16:** The pinned 3.4.4 API was operator-tested against an isolated live Remnawave panel. Read-only health/inventory, typed Users/Subscriptions GET, and scoped direct staging Create/absolute quota/expiry/disable/enable tests succeeded; this does **not** prove 218 operations or live Laravel Application idempotency. No Node or Host. RW-03 incomplete; one 17/18 batch subscription ownership assertion failed and needs redacted contract review. No production writes. Current evidence and the next P0-only Admin read plan: [024](024-REMNAWAVE-LIVE-CHECKPOINT-ADMIN-READ-PLAN.md). Statements below about no available staging server are dated historical checkpoints.
+
+
 **Availability update (2026-10-15):** Remnawave staging VPS is **not currently available**; no live panel test or installation has been completed. RW-01–RW-03 are blocked, with RW-04 permitted only as narrow offline preparation. Provider-independent MB-01–MB-04, MB-05A, MB-05B offline and MB-06A may proceed under [the dependency-replanned execution contract](018-REMNAWAVE-STAGING-MULTIBOT-ROADMAP.md); never infer real-panel compatibility from HTTP fakes.
 
 

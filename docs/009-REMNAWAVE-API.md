@@ -1,5 +1,8 @@
 # Remnawave API Mapping (F10-A)
 
+**Current live qualification — 2026-10-16:** The pinned 3.4.4 API was operator-tested against an isolated live Remnawave panel. Read-only health/inventory, typed Users/Subscriptions GET, and scoped direct staging Create/absolute quota/expiry/disable/enable tests succeeded; this does **not** prove 218 operations or live Laravel Application idempotency. No Node or Host. RW-03 incomplete; one 17/18 batch subscription ownership assertion failed and needs redacted contract review. No production writes. Current evidence and the next P0-only Admin read plan: [024](024-REMNAWAVE-LIVE-CHECKPOINT-ADMIN-READ-PLAN.md). Statements below about no available staging server are dated historical checkpoints.
+
+
 **Status:** Transport mapping merged into `master` via PR #19; **NOT** integrated with purchases or verified against a live panel.
 **Pinned API:** Remnawave OpenAPI 3.4.4, 218 operations, 162 paths.
 **Source:** https://docs.rw/api/ (official documentation); reproducible spec mirror: https://raw.githubusercontent.com/Jolymmiles/remnawave-api-go/v3.4.4/specs/3.4.4.json
