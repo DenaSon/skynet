@@ -4,6 +4,7 @@ use App\Interfaces\Telegram\Handlers\AdminHandler;
 use App\Interfaces\Telegram\Handlers\AdminRolesHandler;
 use App\Interfaces\Telegram\Handlers\AdminUsersHandler;
 use App\Interfaces\Telegram\Support\AdminProviderOverviewUi;
+use App\Interfaces\Telegram\Support\AdminPanelUsersUi;
 use App\Interfaces\Telegram\Support\AdminSectionsUi;
 use App\Interfaces\Telegram\Support\BillingUi;
 use App\Interfaces\Telegram\Support\ManualPaymentUi;
@@ -16,7 +17,19 @@ use SergiX44\Nutgram\Nutgram;
 /** @var Nutgram $bot */
 // Admin-only registrations. Existing authorization and confirmation checks remain inside the handlers.
 
-// Hidden from menus until approved real provider verification; command remains available.
+// Operator-only provider reads. No write controls are registered.
+$bot->onCommand('panelusers', function (Nutgram $bot): void {
+    app(AdminPanelUsersUi::class)->browse($bot);
+});
+
+$bot->onCallbackQueryData('menu:admin:panelusers', function (Nutgram $bot): void {
+    app(AdminPanelUsersUi::class)->browse($bot);
+});
+
+$bot->onCallbackQueryData('rw:users:page:{page}', function (Nutgram $bot, string $page): void {
+    app(AdminPanelUsersUi::class)->browse($bot, $page);
+});
+
 $bot->onCommand('servers', function (Nutgram $bot): void {
     app(AdminProviderOverviewUi::class)->show($bot);
 });

@@ -106,7 +106,10 @@ final class MenuRenderer
             );
             $keyboard->addRow(InlineKeyboardButton::make('📦 محصولات و پلن‌ها', callback_data: 'menu:admin:sales'));
 
-            $keyboard->addRow(InlineKeyboardButton::make('🖥️ وضعیت سرورها', callback_data: 'menu:admin:servers'));
+            $keyboard->addRow(
+                InlineKeyboardButton::make('🖥️ وضعیت سرورها', callback_data: 'menu:admin:servers'),
+                InlineKeyboardButton::make('👥 کاربران پنل', callback_data: 'menu:admin:panelusers'),
+            );
 
             if (config('billing.topups_enabled', false) === true
                 || config('sales.manual_bank_review_enabled', false) === true) {

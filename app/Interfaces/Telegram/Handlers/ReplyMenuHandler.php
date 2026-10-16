@@ -3,6 +3,7 @@
 namespace App\Interfaces\Telegram\Handlers;
 
 use App\Interfaces\Telegram\Support\AdminProviderOverviewUi;
+use App\Interfaces\Telegram\Support\AdminPanelUsersUi;
 use App\Interfaces\Telegram\Support\AdminSectionsUi;
 use App\Interfaces\Telegram\Support\BillingUi;
 use App\Interfaces\Telegram\Support\ManualPaymentUi;
@@ -156,6 +157,17 @@ final class ReplyMenuHandler
                 }
 
                 app(AdminProviderOverviewUi::class)->show($bot);
+
+                return true;
+
+            case ReplyMenuLabels::PANEL_USERS:
+                if (! $actor->canManageRoles()) {
+                    $this->deny($bot, $actor);
+
+                    return true;
+                }
+
+                app(AdminPanelUsersUi::class)->browse($bot);
 
                 return true;
 

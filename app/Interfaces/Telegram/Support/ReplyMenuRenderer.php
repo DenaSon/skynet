@@ -86,6 +86,7 @@ final class ReplyMenuRenderer
             $labels[] = ReplyMenuLabels::SALES_SECTION;
 
             $labels[] = ReplyMenuLabels::SERVERS;
+            $labels[] = ReplyMenuLabels::PANEL_USERS;
 
             if (config('billing.topups_enabled', false) === true
                 || config('sales.manual_bank_review_enabled', false) === true) {
