@@ -109,11 +109,11 @@ final class OrderReader
             status: (string) $row->status,
             createdAt: (string) $row->created_at,
             planId: $row->plan_id === null ? null : (int) $row->plan_id,
-            planSlug: $row->plan_slug === null ? null : (string) $row->plan_slug,
-            planKind: $row->plan_kind === null ? null : (string) $row->plan_kind,
-            planRevision: $row->plan_revision === null ? null : (int) $row->plan_revision,
-            pricingRevision: $row->pricing_revision === null ? null : (int) $row->pricing_revision,
-            internalSquadUuid: $row->internal_squad_uuid === null ? null : (string) $row->internal_squad_uuid,
+            planSlug: ($row->plan_slug ?? null) === null ? null : (string) $row->plan_slug,
+            planKind: ($row->plan_kind ?? null) === null ? null : (string) $row->plan_kind,
+            planRevision: ($row->plan_revision ?? null) === null ? null : (int) $row->plan_revision,
+            pricingRevision: ($row->pricing_revision ?? null) === null ? null : (int) $row->pricing_revision,
+            internalSquadUuid: ($row->internal_squad_uuid ?? null) === null ? null : (string) $row->internal_squad_uuid,
         );
     }
 }
