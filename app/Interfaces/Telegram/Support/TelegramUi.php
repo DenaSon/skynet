@@ -5,11 +5,39 @@ declare(strict_types=1);
 namespace App\Interfaces\Telegram\Support;
 
 use InvalidArgumentException;
+use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\CopyTextButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 
 final class TelegramUi
 {
+    /**
+     * An expired acknowledgement is a transport-only failure, not a failed
+     * business operation. Other Telegram failures must still propagate.
+     */
+    public static function answerCallback(Nutgram $bot, ?string $text = null): void
+    {
+        if (! $bot->isCallbackQuery()) {
+            return;
+        }
+
+        try {
+            if ($text === null) {
+                $bot->answerCallbackQuery();
+            } else {
+                $bot->answerCallbackQuery(text: $text);
+            }
+        } catch (TelegramException $exception) {
+            $stale = $exception->getCode() === 400
+                && (str_contains($exception->getMessage(), 'query is too old')
+                    || str_contains($exception->getMessage(), 'query ID is invalid'));
+
+            if (! $stale) {
+                throw $exception;
+            }
+        }
+    }
     public static function code(string $text): string
     {
         return '<code>'.htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'</code>';
