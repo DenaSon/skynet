@@ -45,13 +45,19 @@ final readonly class SalesHomeUi
             return;
         }
 
+        $keyboard = InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('📋 پلن‌ها و قیمت‌ها', callback_data: 'menu:plan-catalog'));
+        if (in_array('reseller', $actor->roles, true)) {
+            $keyboard->addRow(InlineKeyboardButton::make('💼 پلن‌ساز نماینده', callback_data: 'menu:builder'));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('👤 حساب من', callback_data: 'sales:account'));
+
         $this->render(
             $bot,
             "🏠 ParsaGate\n\nخوش آمدید، ".$this->name($actor->name)
                 .".\nنوع حساب: ".$this->salesRole($actor)
-                ."\n\n🛒 خرید اشتراک به‌زودی فعال می‌شود.",
-            InlineKeyboardMarkup::make()
-                ->addRow(InlineKeyboardButton::make('👤 حساب من', callback_data: 'sales:account')),
+                ."\n\nبرای مشاهده پلن‌ها و قیمت‌ها، گزینه زیر را انتخاب کنید.\nخرید اشتراک هنوز فعال نیست.",
+            $keyboard,
         );
     }
 

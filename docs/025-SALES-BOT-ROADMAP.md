@@ -20,6 +20,14 @@
 | **SB-05** | Paid-order gated provisioning, safe Plan–Squad conversion and reconciled Remnawave lifecycle | Unique order-to-provider mapping, no retry of uncertain writes, owner isolation, provider writes OFF until staging acceptance | Live VPS/Node setup or production provider writes without approval |
 | **SB-06** | Customer-owned subscriptions, guarded connection link, expiry/usage/status, final Persian navigation | Never leak secrets in lists/logs; per-user authorization on every action, graceful unavailable/error views, regression and manual release checklist | Public launch before accepted live tests |
 
+## SB-02 — Implementation and acceptance scope
+
+- Reuse the existing `PlanCatalogUi` and `ResellerBuilderUi` via the isolated Sales router, not copied Sales pricing/Presenter logic. Bind only their list, detail, paging, read-only quote, custom input, cancel, and back callbacks.
+- A linked active user sees the priced catalog; a current reseller additionally sees the builder. Existing Application Actions reauthorize each call against current buyer, plan audience/status/revision, published price and current reseller role; no second discount policy.
+- The Sales-only `menu:home` returns to `SalesHomeUi`; no Admin or legacy Shop routers are imported. Free-form text is accepted only by the existing 10-minute reseller builder selection.
+- **Source acceptance:** new regression cases for member/reseller pricing, missing or withdrawn prices, role revocation, invalid/stale callback, group denial, custom builder input, zero orders/financial/provider traffic and unchanged legacy Admin route inventory. PHP 8.4/8.5, MySQL, PHPStan and Pint must pass.
+- **Release:** Sales runtime/public signup/notifications/billing/provider writes remain OFF on Production. Live Telegram tests deferred by operator. Rollback is the isolated SB-02 PR, without any migration.
+
 ## SB-01 implementation contract and current checkpoint
 
 - The existing Sales runtime and webhook already isolate token, secret, Telegram update receipts and cache. Add only a Sales route registry and one small presentation adapter. Do not touch Admin's legacy shared handlers.
