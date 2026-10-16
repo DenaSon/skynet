@@ -383,7 +383,7 @@ final class MenuRenderer
     public function denyAccess(Nutgram $bot): void
     {
         if ($bot->isCallbackQuery()) {
-            $bot->answerCallbackQuery(text: 'دسترسی مجاز نیست.');
+            TelegramUi::answerCallback($bot, 'دسترسی مجاز نیست.');
 
             return;
         }
@@ -417,7 +417,7 @@ final class MenuRenderer
     private function render(Nutgram $bot, string $text, ?InlineKeyboardMarkup $keyboard = null): void
     {
         if ($bot->isCallbackQuery()) {
-            $bot->answerCallbackQuery();
+            TelegramUi::answerCallback($bot);
             $bot->editMessageText(text: $text, reply_markup: $keyboard);
 
             return;
