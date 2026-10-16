@@ -236,7 +236,7 @@ it('gives Sales resellers truthful custom-plan guidance without unlocking financ
     $bot->hearText('/builder')->reply()->assertReplyText(
         "💼 پلن‌ساز نمایندگان\nصفحه 1 از 1\n\n"
         ."حجم و مدت دلخواه را انتخاب کنید؛ امکان ثبت سفارش پس از بررسی آمادگی سرویس مشخص می‌شود.\n\n"
-         . 'در حال حاضر پلن سفارشی فعالی برای نمایندگان وجود ندارد.'
+        .'در حال حاضر پلن سفارشی فعالی برای نمایندگان وجود ندارد.'
     );
 
     expect(DB::table('sales_orders')->count())->toBe(0);
