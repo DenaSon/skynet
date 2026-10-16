@@ -1,4 +1,4 @@
-# SkyNetwork — coding agent entry point
+# ParsaGate — coding agent entry point
 
 Read [AGENTS.md](AGENTS.md) for the canonical development rules.  
 Read [docs/000-CONTEXT.md](docs/000-CONTEXT.md) for the **current project memory**, implemented features, safety limits, latest validated CI and the exact next task.  
