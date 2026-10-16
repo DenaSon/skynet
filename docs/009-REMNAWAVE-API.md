@@ -1,5 +1,8 @@
 # Remnawave API Mapping (F10-A)
 
+**Pinned Remnawave v3.4.4 subscription identity clarification (2026-10-16):** Operator read-only staging probe confirmed `/api/subscriptions/by-id/{userId}`, by-username and by-short-uuid all returned `isFound=true` with protected URL present. The response `user.id` is **absent by design** from all three `GetSubscriptionBy*ResponseDto` OpenAPI schemas. The previous 17 PASS / 1 FAIL `Subscription Ownership` batch incorrectly expected a numeric ID there; it is not proof of leakage. Root-only RW-04B uses the independently retrieved typed `/api/users/{userId}` record and checks the subscription response's `user.username` and `user.shortUuid` **both exactly match** before presenting safe non-secret information. This **does not** by itself prove Sales/order customer ownership or make provider links public. No provider writes or subscription credentials are exposed.
+
+
 **Current live qualification — 2026-10-16:** The pinned 3.4.4 API was operator-tested against an isolated live Remnawave panel. Read-only health/inventory, typed Users/Subscriptions GET, and scoped direct staging Create/absolute quota/expiry/disable/enable tests succeeded; this does **not** prove 218 operations or live Laravel Application idempotency. No Node or Host. RW-03 incomplete; one 17/18 batch subscription ownership assertion failed and needs redacted contract review. No production writes. Current evidence and the next P0-only Admin read plan: [024](024-REMNAWAVE-LIVE-CHECKPOINT-ADMIN-READ-PLAN.md). Statements below about no available staging server are dated historical checkpoints.
 
 
