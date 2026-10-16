@@ -1,5 +1,6 @@
 <?php
 
+use App\Interfaces\Telegram\Support\ManualPaymentUi;
 use App\Interfaces\Telegram\Support\PlanCatalogUi;
 use App\Interfaces\Telegram\Support\ResellerBuilderUi;
 use App\Interfaces\Telegram\Support\SalesCheckoutUi;
@@ -122,4 +123,14 @@ $bot->onCallbackQueryData('sales:checkout:orders', function (Nutgram $bot): void
 
 $bot->onCallbackQueryData('sales:checkout:view:{id}', function (Nutgram $bot, string $id): void {
     app(SalesCheckoutUi::class)->viewOrder($bot, $id);
+});
+
+// SB-04: customer receipt intake only. Admin decision callbacks remain
+// exclusively in the Admin router and are never bound to this Sales token.
+$bot->onCallbackQueryData('sales:payment:start:{id}', function (Nutgram $bot, string $id): void {
+    app(ManualPaymentUi::class)->start($bot, $id);
+});
+
+$bot->onPhoto(function (Nutgram $bot): void {
+    app(ManualPaymentUi::class)->photo($bot);
 });

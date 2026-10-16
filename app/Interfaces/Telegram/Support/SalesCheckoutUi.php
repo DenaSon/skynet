@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Interfaces\Telegram\Support;
 
 use App\Modules\Identity\Application\ResolveTelegramActor;
+use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Provisioning\Application\CheckPlanSquadReadiness;
 use App\Modules\Sales\Application\CalculatePlanQuote;
 use App\Modules\Sales\Application\CreatePendingPlanOrder;
 use App\Modules\Sales\Application\ListQuotedPresets;
 use App\Modules\Sales\Application\ListResellerBuilders;
+use App\Modules\Sales\Application\ManualBankPayments;
 use App\Modules\Sales\Application\OrderDetails;
 use App\Modules\Sales\Application\OrderReader;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -31,6 +33,7 @@ final readonly class SalesCheckoutUi
         private PlanCheckoutTokens $tokens,
         private CreatePendingPlanOrder $create,
         private OrderReader $orders,
+        private ManualBankPayments $payments,
     ) {}
 
     public function preview(Nutgram $bot, string $id, string $days, string $gb): void
@@ -167,18 +170,36 @@ final readonly class SalesCheckoutUi
 
     private function showOrder(Nutgram $bot, OrderDetails $order): void
     {
-        $status = $order->status === 'pending_payment'
-            ? '🟠 در انتظار پرداخت' : 'در حال بررسی';
+        $latestReceipt = $this->payments->latestReceiptStatus(
+            SubscriptionViewer::telegram((int) $bot->user()->id),
+            $order->id,
+        );
+
+        $status = match (true) {
+            $order->status === 'paid' => '✅ پرداخت تأیید شده؛ در انتظار فعال‌سازی',
+            $latestReceipt === 'submitted' => '🕘 رسید در انتظار بررسی',
+            $latestReceipt === 'rejected' => '❌ رسید رد شده؛ نیاز به ارسال رسید صحیح',
+            default => '🟠 در انتظار پرداخت',
+        };
+
+        $keyboard = InlineKeyboardMarkup::make();
+        if ($order->status === 'pending_payment' && $latestReceipt !== 'submitted'
+            && config('sales.manual_bank_review_enabled', false) === true) {
+            $keyboard->addRow(InlineKeyboardButton::make(
+                $latestReceipt === 'rejected' ? '🧾 ارسال رسید جدید' : '🧾 ارسال رسید پرداخت',
+                callback_data: 'sales:payment:start:'.$order->id,
+            ));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('📋 سفارش‌های من', callback_data: 'sales:checkout:orders'))
+            ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'menu:home'));
 
         $this->render($bot, "✅ سفارش #{$order->id}\n\nپلن: ".$this->safe($order->productName)
             ."\nحجم: ".($order->trafficGb === null ? 'نامحدود' : $order->trafficGb.' گیگابایت')
             ."\nمدت: {$order->durationDays} روز"
             ."\nمبلغ ثبت‌شده: ".TelegramUi::toman($order->totalPriceRials).' تومان'
             ."\nوضعیت: {$status}"
-            ."\n\nپرداخت و ارسال رسید در مرحله بعد فعال می‌شود؛ این سفارش هنوز سرویس ایجاد نکرده است.",
-            InlineKeyboardMarkup::make()
-                ->addRow(InlineKeyboardButton::make('📋 سفارش‌های من', callback_data: 'sales:checkout:orders'))
-                ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'menu:home')),
+            ."\n\nتطبیق پرداخت فقط با بررسی واقعی بانک انجام می‌شود؛ سرویس هنوز فعال نشده است.",
+            $keyboard,
         );
     }
 
