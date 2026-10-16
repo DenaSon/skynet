@@ -38,6 +38,12 @@ final class InspectTelegramOperations extends Command
             return self::FAILURE;
         }
 
+        if (! Schema::hasColumn('telegram_updates', 'bot_key')) {
+            $this->warn('Telegram update scoping migration pending.');
+
+            return self::FAILURE;
+        }
+
         $this->line('Telegram delivery: '.(config('telegram_notifications.enabled', false) === true ? 'enabled' : 'disabled'));
         $this->line('Sales Bot runtime: '.(config('telegram.sales.enabled', false) === true ? 'enabled' : 'disabled'));
         $this->line('Provider writes: '.(config('services.remnawave.writes_enabled', false) === true ? 'enabled' : 'disabled'));
