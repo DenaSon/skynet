@@ -61,10 +61,20 @@ final class TelegramUi
         }
     }
 
-    public static function editCaption(Nutgram $bot, string $caption, ?InlineKeyboardMarkup $keyboard = null): void
-    {
+    public static function editCaption(
+        Nutgram $bot,
+        string $caption,
+        ?InlineKeyboardMarkup $keyboard = null,
+        ?int $chatId = null,
+        ?int $messageId = null,
+    ): void {
         try {
-            $bot->editMessageCaption(caption: $caption, reply_markup: $keyboard);
+            $bot->editMessageCaption(
+                caption: $caption,
+                chat_id: $chatId,
+                message_id: $messageId,
+                reply_markup: $keyboard,
+            );
         } catch (TelegramException $exception) {
             if (! self::isUnmodified($exception)) {
                 throw $exception;
