@@ -40,7 +40,7 @@ it('shows a real Sales-only home and account for linked members without commerce
     $bot = sb01Bot(771001);
 
     $bot->hearText('/start')->reply()
-        ->assertReplyText("🏠 ParsaGate\n\nخوش آمدید، Buyer.\nنوع حساب: کاربر\n\n🛒 خرید اشتراک به‌زودی فعال می‌شود.");
+        ->assertReplyText("🏠 ParsaGate\n\nخوش آمدید، Buyer.\nنوع حساب: کاربر\n\nبرای مشاهده پلن‌ها و قیمت‌ها، گزینه زیر را انتخاب کنید.\nخرید اشتراک هنوز فعال نیست.");
     $bot->hearText('/account')->reply()
         ->assertReplyText("👤 حساب من\n\nنام: Buyer\nشناسه ParsaGate: {$user->id}\nنوع حساب: کاربر\nوضعیت: 🟢 فعال");
     $bot->hearCallbackQueryData('sales:home')->reply()->assertCalled('editMessageText');
@@ -60,14 +60,14 @@ it('uses current roles without making Admin or legacy checkout routes available 
     $bot = sb01Bot(771002);
 
     $bot->hearText('/start')->reply()->assertReplyText(
-        "🏠 ParsaGate\n\nخوش آمدید، Dealer Ignored.\nنوع حساب: نماینده فروش\n\n🛒 خرید اشتراک به‌زودی فعال می‌شود."
+        "🏠 ParsaGate\n\nخوش آمدید، Dealer Ignored.\nنوع حساب: نماینده فروش\n\nبرای مشاهده پلن‌ها و قیمت‌ها، گزینه زیر را انتخاب کنید.\nخرید اشتراک هنوز فعال نیست."
     );
     $user->syncRoles(['member']);
     $bot->hearText('/start')->reply()->assertReplyText(
-        "🏠 ParsaGate\n\nخوش آمدید، Dealer Ignored.\nنوع حساب: کاربر\n\n🛒 خرید اشتراک به‌زودی فعال می‌شود."
+        "🏠 ParsaGate\n\nخوش آمدید، Dealer Ignored.\nنوع حساب: کاربر\n\nبرای مشاهده پلن‌ها و قیمت‌ها، گزینه زیر را انتخاب کنید.\nخرید اشتراک هنوز فعال نیست."
     );
 
-    foreach (['/admin', '/roles', '/payments', '/buy', '/catalog', '/builder'] as $command) {
+    foreach (['/admin', '/roles', '/payments', '/buy'] as $command) {
         $bot->hearText($command)->reply()->assertNoReply();
     }
     foreach (['menu:admin:users', 'rbac:apply:forged', 'shop:order:forged'] as $callback) {
