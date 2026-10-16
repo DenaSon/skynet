@@ -72,6 +72,7 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'command:panelusers';
     $expected['ADMIN'][] = 'callback:menu:admin:panelusers';
     $expected['ADMIN'][] = 'callback:rw:users:page:{page}';
+    $expected['ADMIN'][] = 'callback:rw:users:view:{id}:{page}';
     $expected['SALES'][] = 'photo:*';
     $files = [
         'ADMIN' => 'app/Interfaces/Telegram/routes/admin.php',
@@ -96,8 +97,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(119)
-        ->and(count(array_unique($legacy)))->toBe(119);
+        ->and(count($legacy))->toBe(120)
+        ->and(count(array_unique($legacy)))->toBe(120);
 });
 
 it('keeps the second Sales Bot router empty, separate and unable to register Admin callbacks', function (): void {
