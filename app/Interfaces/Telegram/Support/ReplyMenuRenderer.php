@@ -85,9 +85,7 @@ final class ReplyMenuRenderer
             $labels[] = ReplyMenuLabels::ROLES;
             $labels[] = ReplyMenuLabels::SALES_SECTION;
 
-            if (config('services.remnawave.admin_reads_verified', false) === true) {
-                $labels[] = ReplyMenuLabels::SERVERS;
-            }
+            $labels[] = ReplyMenuLabels::SERVERS;
 
             if (config('billing.topups_enabled', false) === true
                 || config('sales.manual_bank_review_enabled', false) === true) {

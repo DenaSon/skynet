@@ -1,5 +1,8 @@
 # ParsaGate — Current Context / Development Memory 
 
+**Current SRO-03 source decision (2026-10-16):** The operator approved removing the temporary `REMNAWAVE_ADMIN_READS_VERIFIED` flag; only the trusted Super Admin (active, allowlisted, Telegram-linked, private chat) sees the status entry and can refresh, regardless of provider availability. Missing credentials/failed GET display a generic safe error, not a false healthy state. No new provider API/Node/migration/write; write and Squad flags remain OFF. Old enable-the-read-flag instructions in earlier entries are superseded. Live Telegram / Runflare acceptance is still **PENDING**. See [updated SRO-03 read-only overview decision](024-REMNAWAVE-LIVE-CHECKPOINT-ADMIN-READ-PLAN.md#sro-03-approved-simplification--remove-admin-reads-flag).
+
+
 **SRO-03 RELEASE HANDOFF (2026-10-16):** SRO-02 is merged on `master` (`4b4b66f`; post-merge PHP 8.4/8.5/MySQL CI green). SRO-03 is an **operator Runflare Environment enablement + real Admin Telegram smoke / rollback verification**, not a missing implementation. A precise read-only preflight, `REMNAWAVE_ADMIN_READS_VERIFIED=true` operator step and acceptance ledger are at [docs/024 §I](024-REMNAWAVE-LIVE-CHECKPOINT-ADMIN-READ-PLAN.md#i-sro-03-controlled-activation-runbook--2026-10-16). This executor has no direct Runflare/Telegram access; **live activation and acceptance NOT claimed**. Do not change provider writes, Squad flag, Sales, Node or database schemas. GitHub docs merge does not establish deployment or live test.
 
 

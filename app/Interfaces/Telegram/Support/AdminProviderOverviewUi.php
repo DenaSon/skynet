@@ -53,9 +53,7 @@ final readonly class AdminProviderOverviewUi
 
         $keyboard = InlineKeyboardMarkup::make();
 
-        if (config('services.remnawave.admin_reads_verified', false) === true) {
-            $keyboard->addRow(InlineKeyboardButton::make('🔄 به‌روزرسانی', callback_data: 'servers:refresh'));
-        }
+        $keyboard->addRow(InlineKeyboardButton::make('🔄 به‌روزرسانی', callback_data: 'servers:refresh'));
 
         $keyboard->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
 
