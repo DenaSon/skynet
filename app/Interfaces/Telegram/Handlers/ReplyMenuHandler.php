@@ -161,7 +161,7 @@ final class ReplyMenuHandler
                 return true;
 
             case ReplyMenuLabels::PANEL_USERS:
-                if (! $actor->canManageRoles()) {
+                if ($actor->canManageRoles() !== true) {
                     $this->deny($bot, $actor);
 
                     return true;
