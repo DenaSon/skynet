@@ -2,6 +2,7 @@
 
 namespace App\Interfaces\Telegram\Support;
 
+use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\TelegramActor;
 use App\Modules\Sales\Application\CalculatePlanQuote;
@@ -308,8 +309,14 @@ final readonly class ResellerBuilderUi
             'ℹ️ این قیمت برای اطلاع شماست. خرید پلن سفارشی فعلاً فعال نیست.',
         ];
 
-        $keyboard = InlineKeyboardMarkup::make()
-            ->addRow(InlineKeyboardButton::make('✏️ تغییر حجم یا مدت', callback_data: "builder:custom:{$plan->id}:{$page}"))
+        $keyboard = InlineKeyboardMarkup::make();
+        if (TelegramBotContext::current()->key === 'sales') {
+            $keyboard->addRow(InlineKeyboardButton::make(
+                '🧾 بررسی امکان ثبت سفارش',
+                callback_data: "sales:checkout:preview:{$quote->planId}:{$quote->durationDays}:".($quote->trafficGb ?? 0),
+            ));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('✏️ تغییر حجم یا مدت', callback_data: "builder:custom:{$plan->id}:{$page}"))
             ->addRow(InlineKeyboardButton::make('◀️ پلن‌سازها', callback_data: 'builder:list:'.$page))
             ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'menu:home'));
 

@@ -2,6 +2,7 @@
 
 use App\Interfaces\Telegram\Support\PlanCatalogUi;
 use App\Interfaces\Telegram\Support\ResellerBuilderUi;
+use App\Interfaces\Telegram\Support\SalesCheckoutUi;
 use App\Interfaces\Telegram\Support\SalesHomeUi;
 use SergiX44\Nutgram\Nutgram;
 
@@ -99,4 +100,26 @@ $bot->onCallbackQueryData('builder:cancel', function (Nutgram $bot): void {
 // into legacy admin forms, sales checkout or payment submission.
 $bot->onText('{volume}', function (Nutgram $bot, string $volume): void {
     app(ResellerBuilderUi::class)->customText($bot, $volume);
+});
+
+// SB-03: buyer-owned managed-plan pending orders. No payment, bank review,
+// legacy Shop mutation or provider operations are registered on Sales.
+$bot->onCommand('orders', function (Nutgram $bot): void {
+    app(SalesCheckoutUi::class)->listOrders($bot);
+});
+
+$bot->onCallbackQueryData('sales:checkout:preview:{id}:{days}:{gb}', function (Nutgram $bot, string $id, string $days, string $gb): void {
+    app(SalesCheckoutUi::class)->preview($bot, $id, $days, $gb);
+});
+
+$bot->onCallbackQueryData('sales:checkout:commit:{token}', function (Nutgram $bot, string $token): void {
+    app(SalesCheckoutUi::class)->commit($bot, $token);
+});
+
+$bot->onCallbackQueryData('sales:checkout:orders', function (Nutgram $bot): void {
+    app(SalesCheckoutUi::class)->listOrders($bot);
+});
+
+$bot->onCallbackQueryData('sales:checkout:view:{id}', function (Nutgram $bot, string $id): void {
+    app(SalesCheckoutUi::class)->viewOrder($bot, $id);
 });

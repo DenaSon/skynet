@@ -2,6 +2,7 @@
 
 namespace App\Interfaces\Telegram\Support;
 
+use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\TelegramActor;
 use App\Modules\Sales\Application\ListQuotedPresets;
@@ -128,11 +129,17 @@ final readonly class PlanCatalogUi
             "🎁 تخفیف نماینده: {$quote->discountPercent}٪",
             '✅ مبلغ نهایی: '.$this->toman($quote->totalPriceRials).' تومان',
             '',
-            'ℹ️ این قیمت برای اطلاع شماست. خرید این پلن فعلاً فعال نیست.',
+            TelegramBotContext::current()->key === 'sales'
+                ? 'ℹ️ ثبت سفارش تنها پس از تأیید آمادگی سرویس امکان‌پذیر است.'
+                : 'ℹ️ این قیمت برای اطلاع شماست. خرید این پلن فعلاً فعال نیست.',
         ];
 
-        $keyboard = InlineKeyboardMarkup::make()
-            ->addRow(InlineKeyboardButton::make('◀️ پلن‌ها', callback_data: 'catalog:list:'.$page))
+        $keyboard = InlineKeyboardMarkup::make();
+        if (TelegramBotContext::current()->key === 'sales') {
+            $callback = 'sales:checkout:preview:'.$quote->planId.':'.$quote->durationDays.':'.($quote->trafficGb ?? 0);
+            $keyboard->addRow(InlineKeyboardButton::make('🧾 بررسی امکان ثبت سفارش', callback_data: $callback));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('◀️ پلن‌ها', callback_data: 'catalog:list:'.$page))
             ->addRow(InlineKeyboardButton::make('🏠 صفحه اصلی', callback_data: 'menu:home'));
 
         $this->render($bot, implode("\n", $lines), $keyboard);

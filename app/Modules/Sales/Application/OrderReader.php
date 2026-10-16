@@ -21,6 +21,26 @@ final class OrderReader
             ->all();
     }
 
+    /** @return list<OrderDetails> */
+    public function recentPlans(int $buyerId): array
+    {
+        app(ResolveSalesBuyer::class)->isReseller($buyerId);
+
+        return DB::table('sales_orders')->where('buyer_user_id', $buyerId)
+            ->whereNotNull('plan_id')->orderByDesc('id')->limit(10)->get()
+            ->map(fn (object $row): OrderDetails => $this->map($row))->all();
+    }
+
+    public function findPlan(int $buyerId, int $orderId): OrderDetails
+    {
+        $order = $this->find($buyerId, $orderId);
+        if ($order->planId === null) {
+            throw ValidationException::withMessages(['order' => 'Order not found.']);
+        }
+
+        return $order;
+    }
+
     /**
      * Bounded, owner-scoped keyset pagination for future shared presenters.
      * Zero provider lookups; no cross-tenant rows are ever returned.
@@ -81,13 +101,19 @@ final class OrderReader
             productSlug: (string) $row->product_slug,
             productName: (string) $row->product_name,
             durationDays: (int) $row->duration_days,
-            trafficGb: (int) $row->traffic_gb,
+            trafficGb: $row->traffic_gb === null ? null : (int) $row->traffic_gb,
             publicPriceRials: (int) $row->public_price_rials,
             discountPercent: (int) $row->discount_percent,
             discountRials: (int) $row->discount_rials,
             totalPriceRials: (int) $row->total_price_rials,
             status: (string) $row->status,
             createdAt: (string) $row->created_at,
+            planId: $row->plan_id === null ? null : (int) $row->plan_id,
+            planSlug: ($row->plan_slug ?? null) === null ? null : (string) $row->plan_slug,
+            planKind: ($row->plan_kind ?? null) === null ? null : (string) $row->plan_kind,
+            planRevision: ($row->plan_revision ?? null) === null ? null : (int) $row->plan_revision,
+            pricingRevision: ($row->pricing_revision ?? null) === null ? null : (int) $row->pricing_revision,
+            internalSquadUuid: ($row->internal_squad_uuid ?? null) === null ? null : (string) $row->internal_squad_uuid,
         );
     }
 }

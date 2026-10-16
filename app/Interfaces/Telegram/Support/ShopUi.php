@@ -355,7 +355,7 @@ final class ShopUi
         $lines = ['📋 سفارش‌های من', '', 'آخرین ۱۰ سفارش:'];
 
         foreach ($orders as $order) {
-            $lines[] = "#{$order->id} — {$order->durationDays} روز / {$order->trafficGb} گیگ — {$this->formatToman($order->totalPriceRials)} تومان";
+            $lines[] = '#'.$order->id.' — '.$order->durationDays.' روز / '.($order->trafficGb === null ? 'نامحدود' : $order->trafficGb.' گیگ').' — '.$this->formatToman($order->totalPriceRials).' تومان';
             $keyboard->addRow(InlineKeyboardButton::make(
                 '📄 سفارش #'.$order->id,
                 callback_data: 'shop:order:view:'.$order->id,
@@ -414,7 +414,7 @@ final class ShopUi
             '',
             'سرویس: '.$this->safeName($order->productName),
             "مدت: {$order->durationDays} روز",
-            "حجم: {$order->trafficGb} گیگابایت",
+            'حجم: '.($order->trafficGb === null ? 'نامحدود' : $order->trafficGb.' گیگابایت'),
             'قیمت عمومی: '.$this->formatToman($order->publicPriceRials).' تومان',
         ];
 
