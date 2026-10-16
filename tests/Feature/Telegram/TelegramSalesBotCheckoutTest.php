@@ -117,7 +117,7 @@ it('fails closed until a current explicitly verified plan-to-squad binding exist
     expect($order->status)->toBe('pending_payment')
         ->and($order->planId)->toBe($id)
         ->and($order->planRevision)->toBe(2)
-        ->and($order->pricingRevision)->toBe(1)
+        ->and($order->pricingRevision)->toBe(2)
         ->and($order->internalSquadUuid)->toBe('123e4567-e89b-12d3-a456-426614174000')
         ->and($order->trafficGb)->toBe(30)
         ->and($order->totalPriceRials)->toBe(1_000_000)
