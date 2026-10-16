@@ -9,5 +9,7 @@ return [
     'routes' => true,
     'mixins' => false,
     'namespace' => app_path('Interfaces/Telegram'),
-    'log_channel' => env('TELEGRAM_LOG_CHANNEL', 'null'),
+    // Vendor errors may contain the BotFather token and full Telegram update.
+    // The webhook controller already emits structured, credential-free warnings.
+    'log_channel' => 'null',
 ];
