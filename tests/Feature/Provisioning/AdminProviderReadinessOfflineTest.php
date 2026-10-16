@@ -206,7 +206,6 @@ it('protects recorded mappings from destructive rollback', function (): void {
     expect(DB::table('sales_plan_internal_squad_bindings')->count())->toBe(1);
 });
 
-
 it('hides server navigation with the P0 flag OFF and never contacts the panel', function (): void {
     [$root, $bot] = mb05bRoot();
     config()->set('telegram.hybrid_menu_enabled', true);
