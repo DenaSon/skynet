@@ -26,7 +26,7 @@ it('keeps signup disabled by default and never creates an unsolicited account on
     $bot = referralBot(601001);
 
     $bot->hearText('/start')->reply()->assertReplyText(
-        '🔒 حساب شما به SkyNet متصل نیست. برای اتصال، کد یک‌بارمصرف صادرشده توسط مدیر را در گفت‌وگوی خصوصی با دستور /link وارد کنید.'
+        '🔒 حساب شما به ParsaGate متصل نیست. برای اتصال، کد یک‌بارمصرف صادرشده توسط مدیر را در گفت‌وگوی خصوصی با دستور /link وارد کنید.'
     );
     $bot->hearCallbackQueryData('onboarding:join')->reply()->assertCalled('editMessageText');
 
@@ -35,7 +35,7 @@ it('keeps signup disabled by default and never creates an unsolicited account on
 
 it('requires the user to click join after visiting a deep link', function (): void {
     config()->set('telegram.public_signup_enabled', true);
-    config()->set('telegram.bot_username', 'SkyNet_Test_Bot');
+    config()->set('telegram.bot_username', 'ParsaGate_Test_Bot');
 
     $referrer = User::factory()->create(['name' => 'Inviter']);
     $bot = referralBot(601002);

@@ -23,7 +23,7 @@ final class ReplyMenuRenderer
         $name = trim((string) preg_replace('/[\r\n\x00-\x1F\x7F]+/u', ' ', $actor->name));
 
         $bot->sendMessage(
-            text: "🏠 SkyNet\n\nخوش آمدید، {$name}.",
+            text: "🏠 ParsaGate\n\nخوش آمدید، {$name}.",
             reply_markup: $this->homeKeyboard($actor),
         );
     }
@@ -31,7 +31,7 @@ final class ReplyMenuRenderer
     public function showAdmin(Nutgram $bot, TelegramActor $actor): void
     {
         $bot->sendMessage(
-            text: "🛡️ مدیریت SkyNet\n\nبخش موردنظر را از منوی پایین انتخاب کنید.",
+            text: "🛡️ مدیریت ParsaGate\n\nبخش موردنظر را از منوی پایین انتخاب کنید.",
             reply_markup: $this->adminKeyboard($actor),
         );
     }
@@ -45,7 +45,7 @@ final class ReplyMenuRenderer
         }
 
         $bot->sendMessage(
-            text: '🔒 حساب شما به SkyNet متصل نیست. برای اتصال، کد یک‌بارمصرف صادرشده توسط مدیر را در گفت‌وگوی خصوصی با دستور /link وارد کنید.',
+            text: '🔒 حساب شما به ParsaGate متصل نیست. برای اتصال، کد یک‌بارمصرف صادرشده توسط مدیر را در گفت‌وگوی خصوصی با دستور /link وارد کنید.',
             reply_markup: ReplyKeyboardRemove::make(true),
         );
     }

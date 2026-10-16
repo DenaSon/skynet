@@ -43,7 +43,7 @@ final readonly class PlanAdminUi
         $page = min($page, $pages);
         $entries = array_slice($all, ($page - 1) * 5, 5);
 
-        $lines = ['📦 مدیریت پلن‌های SkyNet', 'تعداد: '.count($all)." | صفحه {$page} از {$pages}", '',
+        $lines = ['📦 مدیریت پلن‌های ParsaGate', 'تعداد: '.count($all)." | صفحه {$page} از {$pages}", '',
             'پلن‌های دارای قیمت فعال نمایش داده می‌شوند. خرید پلن‌های جدید فعلاً فعال نیست.'];
         $keyboard = InlineKeyboardMarkup::make();
 

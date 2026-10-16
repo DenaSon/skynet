@@ -13,7 +13,7 @@ final class BootstrapAdmin extends Command
 {
     protected $signature = 'identity:bootstrap-admin';
 
-    protected $description = 'Interactively create the first SkyNet administrator';
+    protected $description = 'Interactively create the first ParsaGate administrator';
 
     public function handle(CreateUser $createUser): int
     {

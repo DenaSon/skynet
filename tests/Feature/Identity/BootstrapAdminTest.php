@@ -10,7 +10,7 @@ it('bootstraps the first administrator without a seeded account', function (): v
     expect(User::query()->count())->toBe(0);
 
     $this->artisan('identity:bootstrap-admin')
-        ->expectsQuestion('Name', 'SkyNet Owner')
+        ->expectsQuestion('Name', 'ParsaGate Owner')
         ->expectsQuestion('Email', 'Owner@Example.Test')
         ->expectsQuestion('Password (at least 12 characters)', 'a-very-secure-password!')
         ->assertSuccessful();

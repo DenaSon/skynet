@@ -1,6 +1,6 @@
 # Roadmap
 
-All statuses reflect **code in the repository**, not intentions. Planned milestones are explicitly marked as **NOT STARTED**.
+All statuses reflect **code in the repository**, not intentions. Planned milestones are explicitly marked as **NOT STARTED**. The public product brand is **ParsaGate**; legacy repository, database and provider-reference identifiers remain unchanged.
 
 **Approved execution contract, dependency update (2026-10-15):** [Remnawave & Multi-Bot Roadmap](018-REMNAWAVE-STAGING-MULTIBOT-ROADMAP.md). **Current path:** MB-01 (documentation accepted, PR #52) → MB-02 (PR #53 merged, `213458f`; production smoke pending) → MB-03 (PR #55 merged `e8a780b`; live smoke pending) → MB-04 (PR #56 merged, `8da5e13`; live smoke pending) → MB-05A (PR #57 merged, `580c64a`; two-bot live smoke pending) + MB-05B offline (PR #58 merged, `480f2a9`; live deferred) → MB-06A (PR #59 code/CI checkpoint; operator live acceptance remains separate). **Deferred until staging server:** RW-01 → RW-02 → RW-03 → RW-04 live completion → MB-05B-live → MB-06B final acceptance. RW-04 offline fixes may proceed only when narrowly justified. This is a documentation-only re-sequencing, **not** authorization to begin development or server provisioning.
 
@@ -69,7 +69,7 @@ All statuses reflect **code in the repository**, not intentions. Planned milesto
 - Tests, static analysis and Pint checks pass; deploy steps and docs updated.
 
 ## Deferred architectural choices
-Remnawave is chosen for the subscription panel API (F10). SkyNetwork's own SSH/WireGuard/Core/Edge transport/tunnel/agent design, dedicated reachability testing, and live deployment topology still require separate decisions.
+Remnawave is chosen for the subscription panel API (F10). ParsaGate's own SSH/WireGuard/Core/Edge transport/tunnel/agent design, dedicated reachability testing, and live deployment topology still require separate decisions.
 
 ## F2 acceptance criteria
 - `composer.json` and `composer.lock` install consistently using PHP >=8.4.1, without workstation mirror URLs.
