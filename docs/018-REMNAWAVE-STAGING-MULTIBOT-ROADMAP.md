@@ -313,6 +313,8 @@ At the start and end of each phase record:
 
 **SRO-02 source checkpoint (2026-10-16):** Add only the gated Super Admin `/servers` menu path and refresh/back with existing read Action, plus focused regression; no Node, write, new endpoint/DB dependency or Production flag enablement. SRO-03 independently owns operator approval and real Telegram smoke. [Exact scope](024-REMNAWAVE-LIVE-CHECKPOINT-ADMIN-READ-PLAN.md#h-sro-02-implementation-checkpoint--2026-10-16).
 
+**SRO-03 rollout handoff (2026-10-16):** SRO-02 merged as [PR #71](https://github.com/DenaSon/skynet/pull/71), post-merge [master CI](https://github.com/DenaSon/skynet/actions/runs/38937309944) green. A [Runflare + Telegram operator acceptance runbook](024-REMNAWAVE-LIVE-CHECKPOINT-ADMIN-READ-PLAN.md#i-sro-03-controlled-activation-runbook--2026-10-16) is prepared, but the production read flag and real Telegram screens/role-denial have **not** been confirmed. SRO-03 and MB-05B-live P0 remain **LIVE PENDING**; no Node/Write changes or broad RW-03/04 sign-off. Do not equate documentation merge with activation.
+
 ## 10. References
 
 - [MB-01 route/state/permission inventory](019-MB01-TELEGRAM-ROUTE-INVENTORY.md) and [ADR 0009 — dual-bot boundaries](adr/0009-dual-telegram-bot-boundaries.md)

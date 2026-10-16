@@ -1,5 +1,8 @@
 # ParsaGate — Current Context / Development Memory 
 
+**SRO-03 RELEASE HANDOFF (2026-10-16):** SRO-02 is merged on `master` (`4b4b66f`; post-merge PHP 8.4/8.5/MySQL CI green). SRO-03 is an **operator Runflare Environment enablement + real Admin Telegram smoke / rollback verification**, not a missing implementation. A precise read-only preflight, `REMNAWAVE_ADMIN_READS_VERIFIED=true` operator step and acceptance ledger are at [docs/024 §I](024-REMNAWAVE-LIVE-CHECKPOINT-ADMIN-READ-PLAN.md#i-sro-03-controlled-activation-runbook--2026-10-16). This executor has no direct Runflare/Telegram access; **live activation and acceptance NOT claimed**. Do not change provider writes, Squad flag, Sales, Node or database schemas. GitHub docs merge does not establish deployment or live test.
+
+
 **SRO-02 IMPLEMENTATION PR (2026-10-16):** Existing Super Admin-only Admin Bot `/servers` now has guarded Inline + hybrid Reply entry, refresh/back callback and explicit empty-Node, error/needs-review labeling. No new API, Node, provider writes, DB schema or Production switch. Regression tests are added but **live BotFather smoke and enablement are deliberately reserved for SRO-03**; flag OFF remains mandatory until approved. See [implementation scope / tests](024-REMNAWAVE-LIVE-CHECKPOINT-ADMIN-READ-PLAN.md#h-sro-02-implementation-checkpoint--2026-10-16).
 
 
