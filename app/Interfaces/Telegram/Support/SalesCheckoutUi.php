@@ -173,7 +173,7 @@ final readonly class SalesCheckoutUi
         $this->render($bot, "✅ سفارش #{$order->id}\n\nپلن: ".$this->safe($order->productName)
             ."\nحجم: ".($order->trafficGb === null ? 'نامحدود' : $order->trafficGb.' گیگابایت')
             ."\nمدت: {$order->durationDays} روز"
-            ."\nمبلغ ثبت‌شده: ".TelegramUi::toman($order->totalPriceRials)." تومان"
+            ."\nمبلغ ثبت‌شده: ".TelegramUi::toman($order->totalPriceRials).' تومان'
             ."\nوضعیت: {$status}"
             ."\n\nپرداخت و ارسال رسید در مرحله بعد فعال می‌شود؛ این سفارش هنوز سرویس ایجاد نکرده است.",
             InlineKeyboardMarkup::make()
