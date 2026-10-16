@@ -1,6 +1,6 @@
-# SkyNet
+# ParsaGate
 
-SkyNet is a new Laravel-based platform being developed as a **modular monolith**. It is a clean successor to the Python NVL project, not a translation of the existing bot.
+ParsaGate is a new Laravel-based platform being developed as a **modular monolith**. It is a clean successor to the Python NVL project, not a translation of the existing bot.
 
 > **Current checkpoint (2026-10-12):** F0–F10-D **merged on `master`**: Identity/RBAC, Telegram onboarding/referrals, reseller manual wallets, Sales catalog + `pending_payment` orders, and internal Remnawave transport/Nodes/Users/subscription lifecycle. [Master CI 38213468652](https://github.com/DenaSon/skynet/actions/runs/38213468652): PHP 8.4/8.5 green, 200 tests / 959 assertions. **Not live-E2E validated; no paid-order transition, auto-activation or customer subscription UI.** Next: [Issue #24 (F10-E)](https://github.com/DenaSon/skynet/issues/24).
 
@@ -62,7 +62,7 @@ Open `/login` to sign in. `/account` returns the authenticated user summary. Ses
 
 ## Telegram-first interface (F4)
 
-SkyNet's first interactive channel is **Telegram**, not Livewire. Install with `composer install`, migrate with `php artisan migrate`, and configure `TELEGRAM_TOKEN` + a distinct random `TELEGRAM_WEBHOOK_SECRET` in your local/deployment `.env`. Never commit the values. Set a public HTTPS `APP_URL` and run `php artisan telegram:webhook:set` for production. For local bot experiments, Nutgram's `nutgram:run` supports polling, but do not poll and run the production webhook simultaneously.
+ParsaGate's first interactive channel is **Telegram**, not Livewire. Install with `composer install`, migrate with `php artisan migrate`, and configure `TELEGRAM_TOKEN` + a distinct random `TELEGRAM_WEBHOOK_SECRET` in your local/deployment `.env`. Never commit the values. Set a public HTTPS `APP_URL` and run `php artisan telegram:webhook:set` for production. For local bot experiments, Nutgram's `nutgram:run` supports polling, but do not poll and run the production webhook simultaneously.
 
 After bootstrapping the first administrator, run `php artisan telegram:link-account 1` (replace 1 with the real user ID), then send the printed single-use `/link <code>` in a **private** chat with the bot. No public registrations or default Telegram admins are created. Commands: `/start`, `/menu`, `/account`, `/settings`, `/admin`; buttons use inline callbacks. F04 established secure transport and linking; F06-B now adds guarded user directory, search and confirmed activation/deactivation. Role edits are implemented in F06-C for trusted Super Admins with one-time confirmation.
 
@@ -110,7 +110,7 @@ After a price preview, **✅ ثبت سفارش** atomically creates one buyer-ow
 
 ## Deployment note: MySQL/MariaDB storage engine and partial migrations
 
-SkyNetwork requires **transactional InnoDB** tables for foreign keys, auditability and the future Billing settlement path. The MySQL and MariaDB connections pin `engine => InnoDB` in `config/database.php`, regardless of a server whose default table engine is MyISAM/Aria. A 255-character UTF-8 `users.email` unique index can exceed MyISAM's 1000-byte limit (error 1071). **Do not bypass this by switching to MyISAM, turning off foreign keys or reducing the database charset.**
+ParsaGate requires **transactional InnoDB** tables for foreign keys, auditability and the future Billing settlement path. The MySQL and MariaDB connections pin `engine => InnoDB` in `config/database.php`, regardless of a server whose default table engine is MyISAM/Aria. A 255-character UTF-8 `users.email` unique index can exceed MyISAM's 1000-byte limit (error 1071). **Do not bypass this by switching to MyISAM, turning off foreign keys or reducing the database charset.**
 
 Read-only diagnosis from the Laravel container:
 
