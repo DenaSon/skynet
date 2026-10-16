@@ -7,7 +7,7 @@
 </head>
 <body>
     <main>
-        <h1>SkyNet sign in</h1>
+        <h1>ParsaGate sign in</h1>
         <form method="post" action="{{ route('identity.login') }}">
             @csrf
             <div>
