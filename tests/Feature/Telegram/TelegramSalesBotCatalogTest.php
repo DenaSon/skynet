@@ -197,7 +197,20 @@ it('keeps orders, settlement, provisioning and admin commands unavailable in the
 });
 
 
+/**
+ * Reproduce the route-owned context of the real Sales webhook. Nutgram's fake
+ * registers handlers but does not set Laravel's HTTP route by itself.
+ */
+function sb02SalesWebhookContext(): void
+{
+    $route = new \Illuminate\Routing\Route('POST', 'api/telegram/sales/webhook', static fn (): null => null);
+    $route->defaults('bot_key', 'sales');
+    request()->setRouteResolver(static fn (): \Illuminate\Routing\Route => $route);
+}
+
 it('clearly offers the Sales plan-selection path without claiming an unverified purchase is available', function (): void {
+    sb02SalesWebhookContext();
+    expect(\App\Interfaces\Telegram\Processing\TelegramBotContext::current()->key)->toBe('sales');
     $member = User::factory()->create();
     $bot = sb02Bot(977020, $member);
 
@@ -212,6 +225,8 @@ it('clearly offers the Sales plan-selection path without claiming an unverified 
 });
 
 it('gives Sales resellers truthful custom-plan guidance without unlocking finance or checkout', function (): void {
+    sb02SalesWebhookContext();
+    expect(\App\Interfaces\Telegram\Processing\TelegramBotContext::current()->key)->toBe('sales');
     $reseller = User::factory()->create();
     $reseller->assignRole('reseller');
     $bot = sb02Bot(977021, $reseller);
