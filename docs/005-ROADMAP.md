@@ -1,5 +1,8 @@
 # Roadmap
 
+**SRO-03 explicit operator-approved simplification (2026-10-16):** Remove the temporary Admin read visibility flag; always show the existing read-only server overview to trusted Super Admin, while preserving double authorization, safe errors and independent Write/Squad gates OFF. Source change and CI do **not** constitute a live Telegram acceptance; real Runflare/Telegram smoke still required. See [updated SRO-03 read-only overview decision](024-REMNAWAVE-LIVE-CHECKPOINT-ADMIN-READ-PLAN.md#sro-03-approved-simplification--remove-admin-reads-flag).
+
+
 **Current development increment — SRO-02 (2026-10-16):** Existing P0 Admin-only server overview gains guarded Inline/hybrid menu and refresh/back plus tested empty-Node/unauthorized/error paths; **code in independent PR; CI and real Telegram rollout distinct**. SRO-03 requires explicit trusted Production read-flag approval; provider writes/Sales remain OFF. [Frozen scope & handoff](024-REMNAWAVE-LIVE-CHECKPOINT-ADMIN-READ-PLAN.md#h-sro-02-implementation-checkpoint--2026-10-16).
 
 

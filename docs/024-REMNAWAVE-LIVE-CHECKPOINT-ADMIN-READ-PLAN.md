@@ -1,5 +1,33 @@
 # ParsaGate — Remnawave Live Checkpoint & Admin Server Overview Plan
 
+## SRO-03 approved simplification — remove admin reads flag
+
+**CURRENT RELEASE INSTRUCTIONS (2026-10-16):** By explicit operator approval, the temporary `REMNAWAVE_ADMIN_READS_VERIFIED` flag has been removed from the application Action, both Admin navigation styles, refresh UI, reply text routing, `config/services.php`, `.env.example`, and dependent tests. The earlier SRO-03B Environment toggle / OFF rollback steps below are **superseded historical guidance: do not apply them**. The existing Remnawave instance does not require a Node for this page.
+
+**Execution behavior:** A linked/active/allowlisted trusted Super Admin always sees «🖥️ وضعیت سرورها» on Admin Inline and persistent Reply menus; `/servers`, `menu:admin:servers`, `servers:refresh` all use the existing root-only `ReadAdminProviderOverview` and its five GET operations. Missing token/url, transport failure, unauthorized provider response, malformed data or 5xx results in generic error messaging. Do not render a fictitious healthy state. Existing `PrivateTelegramUser`, `ResolveTelegramActor`, `SuperAdminTrust`, `AssertCatalogManagementAccess` and per-callback reauthorization remain intact.
+
+**Independent safety:** `REMNAWAVE_WRITES_ENABLED=false` and `REMNAWAVE_SQUAD_BINDINGS_LIVE_VERIFIED=false` remain mandatory and were **not** removed. No provider write, user/subscription exposure, Node/Host, new provider endpoint, migration, new dependency, Sales Bot feature or billing operation is part of this patch.
+
+**Runflare verification after deploy (read-only):**
+
+```bash
+cd /var/www
+php artisan tinker --execute='
+echo "WRITES_SAFE=".(config("services.remnawave.writes_enabled") === false ? "PASS" : "FAIL").PHP_EOL;
+echo "SQUADS_SAFE=".(config("services.remnawave.squad_bindings_live_verified") === false ? "PASS" : "FAIL").PHP_EOL;
+echo "READ_FLAG_REMOVED=".(array_key_exists("admin_reads_verified", config("services.remnawave", [])) ? "FAIL" : "PASS").PHP_EOL;
+echo "CALLBACKS_READY=".(str_contains(file_get_contents(base_path("app/Interfaces/Telegram/routes/admin.php")), "servers:refresh") ? "PASS" : "FAIL").PHP_EOL;
+'
+php artisan remnawave:inspect
+```
+
+**Acceptance:** All four PASS plus successful GET-only inspect, followed by operator-confirmed real Admin Bot `/start` or `/admin` → «وضعیت سرورها» → «به‌روزرسانی» → «بازگشت». Verify 0 Nodes / Hosts and nonzero Squad/Profile against live panel. Test ordinary Admin/member/reseller denial, stale callback denial, and old operations without changing live root roles or financial state. Verify logs/queue for regressions. Record redacted PASS/FAIL, not tokens or user data.
+
+**Rollback:** A removed flag cannot disable this page; if any regression requires rollback, revert the **specific PR** via reviewed release and usual auto-deploy procedure. Never try to fix GET issues by enabling provider writes or Squad binding. An unreachable panel should show a safe error, so network faults alone are not a reason to perform unsafe changes.
+
+**Acceptance ledger:** Source implementation in PR / CI is separate from actual Runflare deployment and private Telegram tests, which remain PENDING until operator evidence is supplied. Do not close SRO-03 or RW-03/04 based solely on merge.
+
+
 **Date:** 2026-10-16  
 **Decision:** Planning approved by operator; **implementation NOT started**.  
 **Authoritative execution scope:** [018](018-REMNAWAVE-STAGING-MULTIBOT-ROADMAP.md), [022](022-MB05B-OFFLINE-READINESS.md), [Telegram UX 017](017-TELEGRAM-UX-IDENTITY.md).  
@@ -82,7 +110,7 @@
 | --- | --- | --- |
 | SRO-01 | **P0 READ GATE COMPLETE — GO FOR SRO-02 ONLY** | Five operator-live GET shapes + source/HTTP-fake guards; detailed evidence in §G; no new live Action run |
 | SRO-02 | **IMPLEMENTED IN PR — CI & REAL TELEGRAM STILL PENDING** | Gated Admin Inline/Reply navigation; refreshed read-only overview; root revocation/no-Node/HTTP error Pest tests |
-| SRO-03 | **RELEASE PRECHECK / RUNBOOK READY — LIVE ACTIVATION & ACCEPTANCE PENDING** | Post-merge SRO-02 CI green; no direct Runflare/Telegram access; operator-controlled flag and real smoke must be supplied |
+| SRO-03 | **READ-FLAG REMOVAL CODE PR — LIVE SMOKE STILL PENDING** | Root-only status visible without feature flag; deployment / actual Telegram must be verified separately |
 | RW-03 full | **PARTIAL — OPEN** | Operator staging CRUD; application idempotency and Node E2E pending |
 | MB-06B | **NOT STARTED / GATED** | Full RW/multibot live acceptance later |
 
