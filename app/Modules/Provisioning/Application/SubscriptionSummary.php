@@ -14,7 +14,7 @@ final readonly class SubscriptionSummary
         public int $orderId,
         public string $productName,
         public int $durationDays,
-        public int $trafficGb,
+        public ?int $trafficGb,
         public int $totalPriceRials,
         public string $status,
         public string $orderedAt,

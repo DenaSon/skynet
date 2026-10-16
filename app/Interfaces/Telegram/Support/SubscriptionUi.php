@@ -81,7 +81,7 @@ final readonly class SubscriptionUi
             $status = $this->status($item->status);
             $name = $this->safeText($item->productName, 42);
             $lines[] = "{$status} · #{$item->orderId}";
-            $lines[] = "{$name}  |  {$item->trafficGb} گیگ · {$item->durationDays} روز";
+            $lines[] = "{$name}  |  {($item->trafficGb === null ? 'نامحدود' : $item->trafficGb.' گیگ')} · {$item->durationDays} روز";
             $lines[] = '';
             $keyboard->addRow(InlineKeyboardButton::make(
                 "{$this->statusIcon($item->status)} #{$item->orderId} · {$this->safeText($name, 23)}",
@@ -145,7 +145,7 @@ final readonly class SubscriptionUi
             '',
             'سرویس: '.$this->safeText($item->productName, 80),
             'وضعیت: '.$this->status($item->status),
-            'حجم: '.$item->trafficGb.' گیگابایت',
+            'حجم: '.($item->trafficGb === null ? 'نامحدود' : $item->trafficGb.' گیگابایت'),
             'دوره: '.$item->durationDays.' روز',
             'مبلغ سفارش: '.$this->toman($item->totalPriceRials).' تومان',
             'تاریخ سفارش: '.substr($item->orderedAt, 0, 10),

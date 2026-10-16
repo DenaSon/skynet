@@ -20,10 +20,19 @@ final readonly class CheckPlanSquadReadiness
     {
         $this->access->handle($actorUserId);
 
+        return $this->verifiedSquadForCheckout($planId) !== null;
+    }
+
+    /**
+     * Internal read-only buyer-checkout gate. Caller must first authorize and
+     * revalidate its buyer and plan; this method does not grant any provider write.
+     */
+    public function verifiedSquadForCheckout(int $planId): ?string
+    {
         if ($planId < 1
             || config('services.remnawave.squad_bindings_live_verified', false) !== true
             || ! Schema::hasTable('sales_plan_internal_squad_bindings')) {
-            return false;
+            return null;
         }
 
         $row = DB::table('sales_plans as plan')
@@ -32,9 +41,10 @@ final readonly class CheckPlanSquadReadiness
             ->where('plan.id', $planId)
             ->select('plan.status', 'plan.revision', 'product.is_active',
                 'binding.plan_revision', 'binding.internal_squad_uuid', 'binding.verified_at')
+            ->lockForUpdate()
             ->first();
 
-        return $row !== null
+        $ready = $row !== null
             && $row->status === 'active'
             && (bool) $row->is_active
             && (int) $row->revision > 0
@@ -42,5 +52,7 @@ final readonly class CheckPlanSquadReadiness
             && $row->verified_at !== null
             && is_string($row->internal_squad_uuid)
             && preg_match('/\A[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}\z/D', $row->internal_squad_uuid) === 1;
+
+        return $ready ? (string) $row->internal_squad_uuid : null;
     }
 }
