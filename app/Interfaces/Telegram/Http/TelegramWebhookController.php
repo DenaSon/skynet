@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use Throwable;
 
 final class TelegramWebhookController
@@ -88,10 +89,40 @@ final class TelegramWebhookController
             $receipts->processed($updateId, $context->key);
         } catch (Throwable $exception) {
             $receipts->failed($updateId, $context->key);
+
+            // Classify Telegram API failures without logging API descriptions,
+            // callback tokens, chat IDs or other untrusted update content.
+            $telegramError = [];
+            if ($exception instanceof TelegramException) {
+                $description = strtolower($exception->getMessage());
+                $telegramError = [
+                    'telegram_error_code' => $exception->getCode(),
+                    'telegram_error_type' => match (true) {
+                        str_contains($description, 'message is not modified') => 'message_not_modified',
+                        str_contains($description, 'message identifier is not specified') => 'missing_message_identifier',
+                        str_contains($description, 'message to edit not found') => 'edit_target_not_found',
+                        str_contains($description, "message can't be edited") => 'edit_not_allowed',
+                        str_contains($description, 'query is too old') => 'callback_expired',
+                        str_contains($description, 'query id is invalid') => 'invalid_callback_id',
+                        str_contains($description, 'chat not found') => 'chat_not_found',
+                        str_contains($description, "can't parse entities") => 'invalid_message_format',
+                        str_contains($description, 'reply markup is invalid') => 'invalid_reply_markup',
+                        default => 'unclassified',
+                    },
+                    'callback_area' => match ($request->input('callback_query.data')) {
+                        'bank:list' => 'bank_list',
+                        'menu:admin' => 'admin_menu',
+                        'menu:admin:finance' => 'finance_menu',
+                        default => 'other',
+                    },
+                ];
+            }
+
             Log::warning('Telegram update processing failed', [
                 'bot_key' => $context->key,
                 'update_id' => $updateId,
                 'exception_type' => $exception::class,
+                ...$telegramError,
             ]);
 
             return response('Update processing failed.', 500);
