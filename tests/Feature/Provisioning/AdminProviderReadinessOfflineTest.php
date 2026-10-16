@@ -287,6 +287,12 @@ it('rejects old server buttons immediately after role revocation without start',
     $bot->hearText(\App\Interfaces\Telegram\Support\ReplyMenuLabels::SERVERS)->reply()
         ->assertReplyText('دسترسی مجاز نیست. منوی شما به‌روز شد.');
 
+    // An ordinary Admin must never gain the P0 overview after a stale button tap.
+    $root->syncRoles(['admin']);
+    $bot->hearCallbackQueryData('servers:refresh')->reply()
+        ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.'])
+        ->assertCalled('editMessageText', 0);
+
     $bot->setCommonChat(Chat::make(-997001, ChatType::GROUP));
     $bot->hearCallbackQueryData('servers:refresh')->reply()->assertNoReply();
     Http::assertNothingSent();
