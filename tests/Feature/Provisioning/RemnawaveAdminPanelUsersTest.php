@@ -90,10 +90,12 @@ it('pages the real-provider projection with safe fields and GET-only calls', fun
         ->and(array_keys($first->users[0]))->toBe(['id', 'username', 'status'])
         ->and(json_encode($first, JSON_THROW_ON_ERROR))->not->toContain('never-leak');
 
-    $bot->hearText('/panelusers')->reply()
-        ->assertReplyText(fn (string $text): bool => str_contains($text, '👥 کاربران پنل')
-            && str_contains($text, 'fixture_1')
-            && ! str_contains($text, 'never-leak'));
+    $expected = "👥 کاربران پنل\n\nتعداد: 11 | صفحه 1\n";
+    for ($i = 1; $i <= 10; $i++) {
+        $expected .= "\nfixture_{$i} — ".($i % 2 === 0 ? '🔴 غیرفعال' : '🟢 فعال');
+    }
+
+    $bot->hearText('/panelusers')->reply()->assertReplyText($expected);
     $bot->hearCallbackQueryData('rw:users:page:2')->reply()
         ->assertCalled('answerCallbackQuery')->assertCalled('editMessageText');
 
