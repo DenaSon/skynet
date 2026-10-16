@@ -46,7 +46,7 @@ it('does not swallow temporary Telegram errors or acknowledge ordinary commands'
 it('keeps existing optional callback denial text without altering its message', function (): void {
     $bot = Mockery::mock(Nutgram::class);
     $bot->shouldReceive('isCallbackQuery')->once()->andReturn(true);
-    $bot->shouldReceive('answerCallbackQuery')->once()->with('دسترسی مجاز نیست.');
+    $bot->shouldReceive('answerCallbackQuery')->once()->with(null, 'دسترسی مجاز نیست.');
 
     TelegramUi::answerCallback($bot, 'دسترسی مجاز نیست.');
 });
