@@ -136,10 +136,8 @@ final readonly class PlanCatalogUi
 
         $keyboard = InlineKeyboardMarkup::make();
         if (TelegramBotContext::current()->key === 'sales') {
-            $keyboard->addRow(InlineKeyboardButton::make(
-                '🧾 بررسی امکان ثبت سفارش',
-                callback_data: 'sales:checkout:preview:'.$quote->planId.':'.$quote->durationDays.':'.($quote->trafficGb ?? 0),
-            ));
+            $callback = 'sales:checkout:preview:'.$quote->planId.':'.$quote->durationDays.':'.($quote->trafficGb ?? 0);
+            $keyboard->addRow(InlineKeyboardButton::make('🧾 بررسی امکان ثبت سفارش', callback_data: $callback));
         }
         $keyboard->addRow(InlineKeyboardButton::make('◀️ پلن‌ها', callback_data: 'catalog:list:'.$page))
             ->addRow(InlineKeyboardButton::make('🏠 صفحه اصلی', callback_data: 'menu:home'));
