@@ -37,7 +37,6 @@ beforeEach(function (): void {
     config()->set('nutgram.token', '12345:admin_test');
     config()->set('telegram.sales.token', '54321:sales_test');
     Http::preventStrayRequests();
-    Http::fake();
 });
 
 function sb04SalesContext(): void
@@ -96,11 +95,16 @@ function sb04Order(bool $time = false): array
     return compact('buyer', 'root', 'order');
 }
 
-function sb04Photo(Nutgram $bot, int $messageId = 55): void
+function sb04Photo(Nutgram $bot, int $messageId = 55, bool $shouldReply = true): void
 {
-    $bot->hearMessage(['message_id' => $messageId, 'photo' => [
+    $reply = $bot->hearMessage(['message_id' => $messageId, 'photo' => [
         ['file_id' => 'sale-photo-file-123', 'file_unique_id' => 'sale-unique-photo-123', 'width' => 600, 'height' => 600],
-    ]])->reply()->assertCalled('sendMessage');
+    ]])->reply();
+    if ($shouldReply) {
+        $reply->assertCalled('sendMessage');
+    } else {
+        $reply->assertNoReply();
+    }
 }
 
 it('does not expose receipt submission or accept forged pending payment while the gate is off', function (): void {
@@ -111,7 +115,7 @@ it('does not expose receipt submission or accept forged pending payment while th
     $bot->hearCallbackQueryData('sales:checkout:view:'.$data['order'])->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('sales:payment:start:'.$data['order'])->reply()
         ->assertCalled('editMessageText');
-    sb04Photo($bot);
+    sb04Photo($bot, 55, false);
 
     expect(DB::table('sales_bank_payment_claims')->count())->toBe(0)
         ->and(DB::table('sales_orders')->where('id', $data['order'])->value('status'))->toBe('pending_payment')
@@ -153,7 +157,7 @@ it('limits Sales receipts to owner managed-plan orders and private chats, even w
 
     $otherBot = sb04Bot(974098);
     $otherBot->hearCallbackQueryData('sales:payment:start:'.$data['order'])->reply()->assertCalled('editMessageText');
-    sb04Photo($otherBot, 56);
+    sb04Photo($otherBot, 56, false);
     expect(fn () => app(ManualBankPayments::class)->latestReceiptStatus(
         SubscriptionViewer::telegram(974098), $data['order'],
     ))->toThrow(ValidationException::class);
