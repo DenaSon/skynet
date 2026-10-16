@@ -117,9 +117,7 @@ final readonly class PlanAdminUi
         $lines[] = 'ابتدا دکمه ساخت پلن مربوطه را بزنید، سپس فقط متن داخل کد را ارسال کنید.';
         $lines[] = 'اگر شناسه پلن قبلاً استفاده شده، شناسه جدیدی انتخاب کنید. قیمت‌ها جداگانه تنظیم می‌شوند.';
 
-        if ($bot->isCallbackQuery()) {
-            $bot->answerCallbackQuery();
-        }
+        TelegramUi::answerCallback($bot);
 
         $bot->sendMessage(
             text: implode("\n", $lines),
@@ -992,8 +990,8 @@ final readonly class PlanAdminUi
     private function render(Nutgram $bot, string $message, InlineKeyboardMarkup $keyboard, bool $html = false): void
     {
         if ($bot->isCallbackQuery()) {
-            $bot->answerCallbackQuery();
-            $bot->editMessageText(text: $message, reply_markup: $keyboard, parse_mode: $html ? 'HTML' : null);
+            TelegramUi::answerCallback($bot);
+            TelegramUi::editText($bot, $message, $keyboard, $html ? 'HTML' : null);
 
             return;
         }

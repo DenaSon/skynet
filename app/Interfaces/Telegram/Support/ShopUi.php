@@ -521,8 +521,8 @@ final class ShopUi
     private function render(Nutgram $bot, string $message, InlineKeyboardMarkup $keyboard): void
     {
         if ($bot->isCallbackQuery()) {
-            $bot->answerCallbackQuery();
-            $bot->editMessageText(text: $message, reply_markup: $keyboard);
+            TelegramUi::answerCallback($bot);
+            TelegramUi::editText($bot, $message, $keyboard);
 
             return;
         }

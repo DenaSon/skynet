@@ -277,8 +277,8 @@ final readonly class SubscriptionUi
     private function render(Nutgram $bot, string $text, InlineKeyboardMarkup $keyboard): void
     {
         if ($bot->isCallbackQuery()) {
-            $bot->answerCallbackQuery();
-            $bot->editMessageText(text: $text, reply_markup: $keyboard);
+            TelegramUi::answerCallback($bot);
+            TelegramUi::editText($bot, $text, $keyboard);
 
             return;
         }

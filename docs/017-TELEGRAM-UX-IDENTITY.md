@@ -31,7 +31,7 @@ ParsaGate is a practical Persian Telegram bot. A person can administer products,
 
 ## Implementation boundaries and checklist
 
-- Shared transport-only presentation helpers live under app/Interfaces/Telegram/Support/TelegramUi.php. Keep business rules in modules. No new payment or provider side effects in UX work.
+- Shared transport-only presentation helpers live under app/Interfaces/Telegram/Support/TelegramUi.php. All presenters must use `TelegramUi::answerCallback`, `TelegramUi::editText` or `TelegramUi::editCaption` instead of calling Nutgram callback acknowledgement or message/caption edit methods directly. Only Telegram HTTP 400 `message is not modified` and expired callback acknowledgements are benign; every other error must still surface. A source-regression test enforces this boundary. Keep business rules in modules. No new payment or provider side effects in UX work.
 - Every change should test: command/callback reachability, role and private-chat guards, copy payload and HTML escaping, cancellation, one-time/expiry/stale replay, existing order behavior and no extra provider calls.
 - PHP 8.4/8.5 Pest, PHPStan and Pint must pass before merge. GitHub CI is not proof of live Telegram E2E; separately record which screens are manually verified.
 - Preserve Back/Cancel, old callbacks and commands, and the enabled/disabled behavior of all flags.

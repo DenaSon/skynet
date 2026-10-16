@@ -34,6 +34,16 @@ Following the operator's request to finish the phase **without adding production
 
 **Evidence boundary / acceptance:** The operator has no linked Member, Reseller or ordinary Admin session to smoke-test in Production, so real live parity for these roles, revoked-role live callbacks, an actual Production queue job and independent current-data restoration/reconciliation are **NOT verified**. **Do not label the full MB-06A live acceptance as passed** until those requirements can be demonstrated or the owner explicitly approves a separately documented acceptance exception. Keep Sales Bot OFF, legacy mixed routes in place, provider writes OFF, and notifications OFF; do not create Production customers, paid orders or dummy settlements to force the test. This does not affect the separately blocked MB-06B real panel/two-bot gates.
 
+## MB-06A — Member callback regression observed 2026-10-16
+
+In the real original Admin Bot, the operator linked a second Member test account. Real logs showed repeated Telegram HTTP 400 `message_not_modified`, followed by `callback_expired`, from callbacks classified as `other` (not specific enough to identify one exact button). The Admin failed-update count increased from **72 to 75**. This is a **real regression**, not a queue or schema failure; existing `/payments` no-op handling had already been fixed.
+
+Source inspection found unguarded callback acknowledgements/text edits in legacy Shop, Plan Catalog, Subscriptions, Reseller Builder, Plan/Product Admin and Billing UI, and caption edit in Manual Payment UI. The targeted transport-only follow-up reuses the shared `TelegramUi` safe methods everywhere. The regression guard fails CI if a presenter directly calls those Telegram APIs again. Only unchanged-message HTTP 400 and expired acknowledgements are treated as benign; other failures still propagate. The change does **not** activate checkout, mutate financial/provider state, alter roles, modify routes or join the two catalogues.
+
+**Separate business-data finding:** Production contains 1 active base product, 0 active/total legacy `sales_product_rates`, 1 plan and 1 plan-price row. The legacy `/buy` flow therefore has no publishable legacy offer even though `/catalog` can present a separately priced plan. Do not invent or auto-convert a legacy price during this bug fix.
+
+**Post-deploy acceptance needed:** Using the linked Member session, repeatedly tap `/start` → خرید اشتراک / بخش خرید, `/catalog` → same/list/back, `/subscriptions` → empty list/back and home. Confirm navigation is responsive, screens tell the truth about unavailable offers and no new `message_not_modified` / `callback_expired` warnings appear; compare `php artisan telegram:ops:status` before/after, recognizing old failed rows remain historical. Financial write operations remain forbidden for this smoke.
+
 ## CI & evidence matrix
 
 | Area | Automated checkpoint | Must verify separately |

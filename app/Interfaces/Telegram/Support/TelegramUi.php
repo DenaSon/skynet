@@ -30,9 +30,10 @@ final class TelegramUi
                 $bot->answerCallbackQuery(text: $text);
             }
         } catch (TelegramException $exception) {
+            $description = strtolower($exception->getMessage());
             $stale = $exception->getCode() === 400
-                && (str_contains($exception->getMessage(), 'query is too old')
-                    || str_contains($exception->getMessage(), 'query ID is invalid'));
+                && (str_contains($description, 'query is too old')
+                    || str_contains($description, 'query id is invalid'));
 
             if (! $stale) {
                 throw $exception;
@@ -45,16 +46,46 @@ final class TelegramUi
      * the requested UI is already visible. Do not retry that no-op update.
      * Every other edit failure remains actionable.
      */
-    public static function editText(Nutgram $bot, string $text, ?InlineKeyboardMarkup $keyboard = null): void
-    {
+    public static function editText(
+        Nutgram $bot,
+        string $text,
+        ?InlineKeyboardMarkup $keyboard = null,
+        ?string $parseMode = null,
+    ): void {
         try {
-            $bot->editMessageText(text: $text, reply_markup: $keyboard);
+            $bot->editMessageText(text: $text, reply_markup: $keyboard, parse_mode: $parseMode);
         } catch (TelegramException $exception) {
-            if ($exception->getCode() !== 400
-                || ! str_contains(strtolower($exception->getMessage()), 'message is not modified')) {
+            if (! self::isUnmodified($exception)) {
                 throw $exception;
             }
         }
+    }
+
+    public static function editCaption(
+        Nutgram $bot,
+        string $caption,
+        ?InlineKeyboardMarkup $keyboard = null,
+        ?int $chatId = null,
+        ?int $messageId = null,
+    ): void {
+        try {
+            $bot->editMessageCaption(
+                caption: $caption,
+                chat_id: $chatId,
+                message_id: $messageId,
+                reply_markup: $keyboard,
+            );
+        } catch (TelegramException $exception) {
+            if (! self::isUnmodified($exception)) {
+                throw $exception;
+            }
+        }
+    }
+
+    private static function isUnmodified(TelegramException $exception): bool
+    {
+        return $exception->getCode() === 400
+            && str_contains(strtolower($exception->getMessage()), 'message is not modified');
     }
 
     public static function code(string $text): string

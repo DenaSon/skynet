@@ -83,3 +83,43 @@ it('keeps normal Telegram message edits intact', function (): void {
 
     TelegramUi::editText($bot, '◀️ مدیریت');
 });
+
+it('accepts repeated HTML-mode edits without changing the original formatting contract', function (): void {
+    $bot = Mockery::mock(Nutgram::class);
+    $bot->shouldReceive('editMessageText')->once()->andThrow(
+        new TelegramException('Bad Request: message is not modified', 400),
+    );
+
+    TelegramUi::editText($bot, '<b>مدیریت پلن‌ها</b>', null, 'HTML');
+});
+
+it('accepts only an unchanged caption edit and preserves all other caption failures', function (): void {
+    $alreadyShown = Mockery::mock(Nutgram::class);
+    $alreadyShown->shouldReceive('editMessageCaption')->once()->andThrow(
+        new TelegramException('Bad Request: message is not modified', 400),
+    );
+
+    TelegramUi::editCaption($alreadyShown, 'رسید خرید');
+
+    foreach ([
+        new TelegramException('Bad Request: message to edit not found', 400),
+        new TelegramException('Bad Request: message is not modified', 403),
+        new TelegramException('Too Many Requests: retry after 5', 429),
+    ] as $exception) {
+        $bot = Mockery::mock(Nutgram::class);
+        $bot->shouldReceive('editMessageCaption')->once()->andThrow($exception);
+
+        expect(fn () => TelegramUi::editCaption($bot, 'رسید خرید'))
+            ->toThrow(TelegramException::class, $exception->getMessage());
+    }
+});
+
+it('preserves explicit receipt-photo edit targets for committed payment navigation', function (): void {
+    $bot = Mockery::mock(Nutgram::class);
+    $bot->shouldReceive('editMessageCaption')->once()
+        ->withArgs(static fn (...$arguments): bool => in_array(1729, $arguments, true)
+            && in_array(317, $arguments, true))
+        ->andThrow(new TelegramException('Bad Request: message is not modified', 400));
+
+    TelegramUi::editCaption($bot, 'رسید تأیید شد', null, 1729, 317);
+});
