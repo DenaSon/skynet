@@ -37,11 +37,11 @@ function mb05bRoot(int $telegramId = 997001, bool $super = true): array
     return [$user, $bot];
 }
 
-function mb05bFakeRead(): void
+function mb05bFakeRead(bool $statsAvailable = true): void
 {
     Http::preventStrayRequests();
     Http::fake([
-        'https://rw.example.test/api/system/stats' => Http::response([
+        'https://rw.example.test/api/system/stats' => $statsAvailable ? Http::response([
             'response' => [
                 'cpu' => ['cores' => 2],
                 'memory' => ['total' => 2060730368, 'used' => 1229987840, 'free' => 830742528],
@@ -49,7 +49,7 @@ function mb05bFakeRead(): void
                 'users' => ['totalUsers' => 2],
                 'onlineStats' => ['onlineNow' => 0],
             ],
-        ]),
+        ]) : Http::response(['error' => 'unavailable'], 503),
         'https://rw.example.test/api/system/health' => Http::response([
             'response' => ['runtimeMetrics' => [['instanceId' => 'api-1']]],
         ]),
@@ -335,8 +335,7 @@ it('never presents an HTTP 503 response as live panel health on refresh', functi
 
 it('preserves old server inventory when optional P1 statistics fail', function (): void {
     [$root, $bot] = mb05bRoot();
-    mb05bFakeRead();
-    Http::fake(['https://rw.example.test/api/system/stats' => Http::response(['error' => 'unavailable'], 503)]);
+    mb05bFakeRead(false);
 
     $overview = app(ReadAdminProviderOverview::class)->handle($root->id);
     expect($overview->state)->toBe('available')
