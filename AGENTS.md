@@ -1,12 +1,14 @@
-# SkyNet — Agent Instructions
+# ParsaGate — Agent Instructions
 
-SkyNet is a Laravel 13 application being developed as a **modular monolith**.
+ParsaGate is a Laravel 13 application being developed as a **modular monolith**.
 
 ## Approved execution roadmap — Multi-Bot foundations while Remnawave staging is unavailable
 
 **Next work is governed by [docs/018-REMNAWAVE-STAGING-MULTIBOT-ROADMAP.md](docs/018-REMNAWAVE-STAGING-MULTIBOT-ROADMAP.md), updated 2026-10-15.** The MB-01 architecture/route inventory was accepted in [docs/019](docs/019-MB01-TELEGRAM-ROUTE-INVENTORY.md) and [ADR 0009](docs/adr/0009-dual-telegram-bot-boundaries.md), accepted as documentation-only via [PR #52](https://github.com/DenaSon/skynet/pull/52) and PHP 8.4/8.5 CI. **MB-02 MERGED on `master` via PR #53 (`213458f`); PHP 8.4/8.5 and disposable MySQL migration CI green; real Production schema migration and Telegram smoke remain unverified**; MB-03 router isolation is merged via PR #55 (`e8a780b`; PHP 8.4/8.5/MySQL CI green; live Telegram smoke pending), preserving 113 original routes through the old token, while Sales remains an OFF technical shell with no Admin handlers. **MB-04 MERGED via PR #56 (`8da5e13`)**: verified active Admin/Root starts at dedicated Admin home; buyer/reseller navigation is hidden only in that home, not removed from the original token's legacy routes. All callbacks, permissions, forms, copied examples, linked nonadmin users, live DB and webhook remain until a separately approved cutover; CI and real Telegram smoke must be tracked separately. **MB-05A MERGED PR #57 (`580c64a`)** adds a default-OFF, DB-backed notification outbox for bank receipt/review, retriable delivery and bounded cross-token media bridge; do not claim real BotFather delivery from HTTP fakes. Follow [MB-05A runbook](docs/021-MB05A-NOTIFICATION-OPERATIONS.md). **MB-05B OFFLINE MERGED via PR #58 (`480f2a9`)** introduces root-authorized, fail-closed Admin read DTOs and a plan-revision Squad guard with separate real-panel verification flags OFF by default; live panel status is NOT verified. [Split acceptance matrix](docs/022-MB05B-OFFLINE-READINESS.md). **MB-06A code/CI checkpoint PR #59:** role/route parity, privacy-safe `telegram:ops:status`, bounded 429 retry, actual disposable MySQL MB-05A/B upgrade/rollback smoke; [operator runbook](docs/023-MB06A-RELEASE-VERIFICATION.md). Live BotFather and deployed DB checks remain separate, do not claim final acceptance without evidence. RW-01–03 remain blocked by missing Remnawave staging; no real provider/sales activation. One Laravel/backend/DB, shared authorized Actions; no unnecessary abstractions. Every `master` merge auto-deploys: keep future code additive, guarded, tested and rollback-safe, provider writes OFF.
 
 ## Mandatory Telegram UI/UX identity
+
+**Brand naming:** ParsaGate is the public-facing product name across both Telegram bots, web views, operator-facing messages and notifications. Preserve technical identifiers (repository name, existing stored references, provider ownership markers, DB names, URLs and webhook contracts) to prevent regressions. Production `APP_NAME` and BotFather profiles require independent operator updates.
 
 Read [docs/017-TELEGRAM-UX-IDENTITY.md](docs/017-TELEGRAM-UX-IDENTITY.md) BEFORE any Telegram presenter/menu/form/message change. The user requires extremely simple Persian UX even for Super Admin; do not expose developer vocabulary, milestones, implementation notes or framework names in Telegram UI. Use native CopyTextButton and escaped HTML code for user-editable examples. Preserve all Actions, legacy callbacks/commands, security guards, and financial/provisioning boundaries. Use guided forms with a fast-entry fallback. Test copy text, cancel/back, role revocation and original commands on PHP 8.4/8.5. Keep the normative identity document current for future development.
 
@@ -40,7 +42,7 @@ Read [docs/017-TELEGRAM-UX-IDENTITY.md](docs/017-TELEGRAM-UX-IDENTITY.md) BEFORE
 - Modules are organized under `app/Modules/<Module>/`, registered explicitly in `bootstrap/providers.php`.
 - Keep domain/application logic independent of HTTP, Livewire, and Telegram interfaces.
 - Avoid unnecessary repositories, interfaces, events, or package dependencies.
-- **Remnawave is selected as the external subscription panel API**, pinned to OpenAPI v3.4.4; F10-A/B/C/D are merged. The SkyNetwork transport/network-control-plane architecture (SSH/WireGuard/Core/Edge/agents/tunnels) is **not** selected by this Remnawave decision. Do not invent those implementations without a separate architectural decision.
+- **Remnawave is selected as the external subscription panel API**, pinned to OpenAPI v3.4.4; F10-A/B/C/D are merged. The ParsaGate transport/network-control-plane architecture (SSH/WireGuard/Core/Edge/agents/tunnels) is **not** selected by this Remnawave decision. Do not invent those implementations without a separate architectural decision.
 - Do not copy the existing Python NVL bot architecture into this foundation.
 
 ## Before declaring a task complete
