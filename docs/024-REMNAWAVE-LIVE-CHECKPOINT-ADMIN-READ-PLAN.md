@@ -82,7 +82,7 @@
 | --- | --- | --- |
 | SRO-01 | **P0 READ GATE COMPLETE — GO FOR SRO-02 ONLY** | Five operator-live GET shapes + source/HTTP-fake guards; detailed evidence in §G; no new live Action run |
 | SRO-02 | **IMPLEMENTED IN PR — CI & REAL TELEGRAM STILL PENDING** | Gated Admin Inline/Reply navigation; refreshed read-only overview; root revocation/no-Node/HTTP error Pest tests |
-| SRO-03 | **PLANNED — NOT STARTED** | Explicit operator activation + live Telegram confirmation |
+| SRO-03 | **RELEASE PRECHECK / RUNBOOK READY — LIVE ACTIVATION & ACCEPTANCE PENDING** | Post-merge SRO-02 CI green; no direct Runflare/Telegram access; operator-controlled flag and real smoke must be supplied |
 | RW-03 full | **PARTIAL — OPEN** | Operator staging CRUD; application idempotency and Node E2E pending |
 | MB-06B | **NOT STARTED / GATED** | Full RW/multibot live acceptance later |
 
@@ -130,3 +130,82 @@
 **Added regression cases:** OFF navigation/zero provider requests, zero Node/Host fake data, exact five GETs per authorized open/refresh (no writes), stale callback/reply after root revocation and ordinary Admin downgrade, group guard, HTTP 503 failure; preserve previously tested enabled nonempty Node view and inherited account/route tests. **These are simulated HTTP/Nutgram tests**, not an actual BotFather/Remnawave SRO-03 run.
 
 **No scope expansion:** no Node/server install, remote mutations, SQL migrations, new packages, Sales Bot/customer/finance change, new provider API methods or switched Environment flags. `REMNAWAVE_WRITES_ENABLED=false`, `REMNAWAVE_ADMIN_READS_VERIFIED=false` and `REMNAWAVE_SQUAD_BINDINGS_LIVE_VERIFIED=false` remain deployment safety requirements. **SRO-03** must separately authorize changing the Admin reads flag and complete live Telegram smoke before live P0 acceptance.
+
+
+## I. SRO-03 controlled activation runbook — 2026-10-16
+
+**Status: RELEASE INSTRUCTIONS PREPARED, NOT LIVE ACCEPTED.** This is the implementation/acceptance handoff for SRO-03; it is deliberately **not** a new feature. The preceding SRO-02 production-code merge is [PR #71](https://github.com/DenaSon/skynet/pull/71), master `4b4b66f362ad279305012b7eb461dfd53c9a3b4d`; the **post-merge** [CI Tests workflow](https://github.com/DenaSon/skynet/actions/runs/38937309944) was successful. A green CI does **not** establish Runflare deployment or BotFather delivery. No Runflare/SSH/Telegram-account connector is currently available to this development executor, so **do not claim the flag was switched or real Telegram tested**. Operator controls Environment; do not commit secret values or server-specific defaults.
+
+### SRO-03A — Release preflight (read-only; Runflare Laravel terminal)
+
+Verify the actual running Laravel container has SRO-02 routes before changing any environment values; do **not** infer runtime version only from GitHub merge:
+
+```bash
+cd /var/www
+php artisan tinker --execute='
+$router = file_get_contents(base_path("app/Interfaces/Telegram/routes/admin.php"));
+echo "SRO02_CALLBACKS=".(is_string($router) && str_contains($router, "servers:refresh") && str_contains($router, "menu:admin:servers") ? "PASS" : "FAIL").PHP_EOL;
+echo "WRITES_OFF=".(config("services.remnawave.writes_enabled") === false ? "PASS" : "FAIL").PHP_EOL;
+echo "SQUAD_BINDINGS_OFF=".(config("services.remnawave.squad_bindings_live_verified") === false ? "PASS" : "FAIL").PHP_EOL;
+echo "READ_GATE=".(config("services.remnawave.admin_reads_verified") === true ? "ON" : "OFF").PHP_EOL;
+'
+php artisan remnawave:inspect
+```
+
+**Go only if** the callback code is present, both write/binding flags report PASS, and **all five live GET** operations succeed via `remnawave:inspect` with the expected empty Nodes/Hosts. `runtimeMetrics` counts panel instances, not VPS uptime/CPU. Do not expose token or raw user/subscription responses. If callback not present or API inspector fails: STOP, do not enable the read gate; investigate active image/deployment and allowlist first.
+
+### SRO-03B — Enable exactly one Environment flag (trusted Runflare UI)
+
+In the **existing Laravel service's** Runflare Environment settings, set **only**:
+
+```dotenv
+REMNAWAVE_ADMIN_READS_VERIFIED=true
+```
+
+Apply the Environment change via the service's existing deployment/restart procedure, ensuring newly running web/queue processes use current Laravel config. Keep all other environment settings and Caddy as they were. In particular **confirm**:
+
+```dotenv
+REMNAWAVE_WRITES_ENABLED=false
+REMNAWAVE_SQUAD_BINDINGS_LIVE_VERIFIED=false
+```
+
+Do **not** add these values to tracked `.env`, `config/services.php` as hard-coded truth, GitHub Actions secrets, Telegram or commit messages. Do not perform migrations. Existing PHP config cache must reflect the live environment; if it does not, use the already-approved deployment cache/restart procedure and verify before smoke. **Never turn on provider writes to solve a GET/UI problem.**
+
+Run the same read-only Tinker snippet after rollout and require `READ_GATE=ON` plus both other PASS checks. Then `php artisan remnawave:inspect` must still succeed. If the gate remains OFF or inspector fails, STOP/ROLLBACK; do not call the feature accepted.
+
+### SRO-03C — Live private Telegram acceptance (operator must perform)
+
+Use the **existing Admin Bot**, **already linked/active/allowlisted Super Admin** and the **actual staging Remnawave panel**:
+
+| # | Live check | Pass evidence, no private data |
+| --- | --- | --- |
+| T1 | `/start` or `/admin` | «🖥️ وضعیت سرورها» appears in the Super Admin Inline/Reply menu only when gate ON |
+| T2 | `/servers` + new «وضعیت سرورها» button | Real panel health/runtime metrics and **0/0 Nodes**, **0 Hosts**, nonzero squad/profile counts; no fabricated connected Node |
+| T3 | «🔄 به‌روزرسانی» | Callback acknowledged, existing message safely updated/refreshed (unchanged contents are okay), five current GETs; no duplicate history or provider mutation |
+| T4 | «◀️ مدیریت» | Returns to existing Admin screen; prior Users, Roles, Products/Plans and Account navigation preserved |
+| T5 | Existing Member/Reseller/ordinary Admin | No privileged menu. A historical/forged `menu:admin:servers` or `servers:refresh` is denied; preferably use an **existing harmless stale callback** if available. **Do not change live privileged roles solely for testing without separate explicit approval.** |
+| T6 | Failure and recovery | Offline fake tests already prove safe 503/malformed response handling; **do not sabotage production Caddy, TLS or token** to inject faults; real fault injection is deferred and must not be reported as LIVE PASS |
+| T7 | Other business operations | Original member/reseller read menus, admin finance/customer actions and webhook remain available; no new provider writes, orders, payouts or financial state changes |
+| T8 | Operational check | Recent Laravel logs, Telegram update/queue processing and runtime contain no new errors or secret-bearing output |
+
+Evidence output should be **only booleans/labels, not user IDs, raw tokens, subscription URLs or provider response JSON**; record PASS/FAIL/NOT RUN for each test and the active deployment revision. Role-revocation test is acceptance-required if a safe disposable actor/stale message exists; otherwise mark **PENDING**, do not fabricate a PASS. Do not use the real primary root account for risky role changes.
+
+### SRO-03D — Immediate rollback (zero schema/data operations)
+
+1. Set `REMNAWAVE_ADMIN_READS_VERIFIED=false` in the **same trusted Runflare service Environment**, apply the existing deployment/restart/cache process, and verify `READ_GATE=OFF` and both safety flags PASS.
+2. In the real Admin Bot, send `/start` or `/admin`: «وضعیت سرورها» entry should be hidden. `/servers` still works safely and says «اطلاعات سرورها هنوز آماده نمایش نیست.»; pressing an old refresh button must not call the provider or display fabricated data.
+3. Verify existing Admin/Member/Reseller operations and logs are unchanged. No migration, table delete, role modification, Caddy change or user cleanup is needed.
+
+### SRO-03 acceptance ledger (intentionally open)
+
+| Gate | Verified evidence | Current status |
+| --- | --- | --- |
+| SRO-02 source code merged | PR #71 + master SHA and post-merge CI above | **PASS — GitHub only** |
+| Actual Runflare deployment/version & preflight | Requires operator terminal output | **PENDING** |
+| Trusted Runflare read-only flag turned ON | Requires operator Environment / cached config evidence | **PENDING** |
+| Real Admin Bot /servers, refresh and back | Requires operator Telegram observations | **PENDING** |
+| Negative role and legacy route smoke | Requires operator observation | **PENDING** |
+| Logs/queue, safe rollback path | Requires operator observation, only non-destructive operations | **PENDING** |
+| Full RW-03/RW-04, Subscription Ownership and Node/VPN | Separate prior gates; **not** this phase | **OPEN — OUTSIDE SRO-03** |
+
+**Do not mark MB-05B-live P0 or SRO-03 ACCEPTED** until all mandatory operator live checks are recorded and reviewed. A documentation PR may be merged independently because it does not enable production reads or affect data. An SRO-03 follow-up acceptance record after real operator smoke must update this ledger; do not guess values.
