@@ -9,6 +9,7 @@ use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\CopyTextButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
+use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 
 final class TelegramUi
 {
@@ -34,6 +35,23 @@ final class TelegramUi
                     || str_contains($exception->getMessage(), 'query ID is invalid'));
 
             if (! $stale) {
+                throw $exception;
+            }
+        }
+    }
+
+    /**
+     * Telegram treats an unchanged text/markup edit as HTTP 400 even though
+     * the requested UI is already visible. Do not retry that no-op update.
+     * Every other edit failure remains actionable.
+     */
+    public static function editText(Nutgram $bot, string $text, ?InlineKeyboardMarkup $keyboard = null): void
+    {
+        try {
+            $bot->editMessageText(text: $text, reply_markup: $keyboard);
+        } catch (TelegramException $exception) {
+            if ($exception->getCode() !== 400
+                || ! str_contains(strtolower($exception->getMessage()), 'message is not modified')) {
                 throw $exception;
             }
         }
