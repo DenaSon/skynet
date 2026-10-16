@@ -26,7 +26,7 @@ uses(RefreshDatabase::class);
 const SB05_SQUAD = '123e4567-e89b-12d3-a456-426614174000';
 
 beforeEach(function (): void {
-    config()->set('super_admin.telegram_ids', ['975001']);
+    config()->set('super_admin.telegram_ids', ['975001', '975002']);
     config()->set('services.remnawave.url', 'https://remna.test');
     config()->set('services.remnawave.token', 'fake-token');
     config()->set('services.remnawave.writes_enabled', false);

@@ -105,6 +105,7 @@ final readonly class FulfillPaidPlanOrder
                 || ! in_array($order->plan_kind, ['volume', 'hybrid', 'time'], true)
                 || (int) $order->duration_days < 1 || (int) $order->duration_days > 3650
                 || (int) $order->total_price_rials < 1
+                || (int) $order->plan_revision !== (int) DB::table('sales_plans')->where('id', $order->plan_id)->value('revision')
                 || ($order->traffic_gb === null && $order->plan_kind !== 'time')
                 || ($order->traffic_gb !== null && (int) $order->traffic_gb < 1)
                 || ! is_string($order->internal_squad_uuid)
@@ -149,6 +150,10 @@ final readonly class FulfillPaidPlanOrder
             }
 
             return;
+        }
+
+        if ($bank === null) {
+            throw new RuntimeException('Bank settlement is missing.');
         }
 
         $journal = DB::table('billing_journals')->where('id', $bank->billing_journal_id)

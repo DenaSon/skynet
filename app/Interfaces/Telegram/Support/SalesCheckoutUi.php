@@ -200,7 +200,7 @@ final readonly class SalesCheckoutUi
             ."\nمبلغ ثبت‌شده: ".TelegramUi::toman($order->totalPriceRials).' تومان'
             ."\nوضعیت: {$status}"
             ."\n\n".($order->status === 'fulfilled'
-                ? 'جزئیات اشتراک شما از بخش اشتراک‌ها قابل مشاهده خواهد بود.'
+                ? 'اشتراک این سفارش فعال شده است.'
                 : 'تطبیق پرداخت فقط با بررسی واقعی بانک انجام می‌شود؛ سرویس هنوز فعال نشده است.'),
             $keyboard,
         );
