@@ -57,6 +57,7 @@ final readonly class AdminPanelUsersUi
                     'DISABLED' => '🔴 غیرفعال',
                     'LIMITED' => '🟠 محدود',
                     'EXPIRED' => '⚪ منقضی',
+                    default => 'نامشخص',
                 };
                 $message .= "\n{$user['username']} — {$status}";
             }
