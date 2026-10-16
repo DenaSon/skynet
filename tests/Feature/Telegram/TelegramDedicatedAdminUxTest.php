@@ -41,14 +41,14 @@ it('opens the actual Admin home from start, menu and legacy home callback withou
     $bot = mb04Bot(984001, $admin);
 
     $bot->hearText('/start')->reply()
-        ->assertReplyText("🛡️ مدیریت SkyNet\n\nبخش موردنظر را انتخاب کنید.");
+        ->assertReplyText("🛡️ مدیریت ParsaGate\n\nبخش موردنظر را انتخاب کنید.");
     $bot->hearText('/menu')->reply()
-        ->assertReplyText("🛡️ مدیریت SkyNet\n\nبخش موردنظر را انتخاب کنید.");
+        ->assertReplyText("🛡️ مدیریت ParsaGate\n\nبخش موردنظر را انتخاب کنید.");
     $bot->hearCallbackQueryData('menu:home')->reply()
         ->assertCalled('answerCallbackQuery')
         ->assertCalled('editMessageText');
     $bot->hearText('/admin')->reply()
-        ->assertReplyText("🛡️ مدیریت SkyNet\n\nبخش موردنظر را انتخاب کنید.");
+        ->assertReplyText("🛡️ مدیریت ParsaGate\n\nبخش موردنظر را انتخاب کنید.");
 
     $actor = app(ResolveTelegramActor::class)->handle(984001);
     expect($actor)->not->toBeNull();
@@ -65,11 +65,11 @@ it('refreshes the persistent keyboard for an authorized Admin on start and prese
     $bot = mb04Bot(984002, $admin);
 
     $bot->hearText('/start')->reply()
-        ->assertReplyText("🛡️ مدیریت SkyNet\n\nبخش موردنظر را از منوی پایین انتخاب کنید.");
+        ->assertReplyText("🛡️ مدیریت ParsaGate\n\nبخش موردنظر را از منوی پایین انتخاب کنید.");
     $bot->hearText(ReplyMenuLabels::USERS)->reply()->assertCalled('sendMessage');
     $bot->hearText(ReplyMenuLabels::ACCOUNT)->reply()->assertCalled('sendMessage');
     $bot->hearText(ReplyMenuLabels::HOME)->reply()
-        ->assertReplyText("🛡️ مدیریت SkyNet\n\nبخش موردنظر را از منوی پایین انتخاب کنید.");
+        ->assertReplyText("🛡️ مدیریت ParsaGate\n\nبخش موردنظر را از منوی پایین انتخاب کنید.");
 
     // A label from an old keyboard, and original commands, still work after UI retirement.
     $bot->hearText(ReplyMenuLabels::BUY)->reply()->assertCalled('sendMessage');
@@ -117,17 +117,17 @@ it('keeps non-admin navigation unchanged and removes the Admin landing after rol
     $member = User::factory()->create(['name' => 'Regular User']);
     $memberBot = mb04Bot(984004, $member);
     $memberBot->hearText('/start')->reply()
-        ->assertReplyText("🏠 SkyNet\n\nخوش آمدید، Regular User.");
+        ->assertReplyText("🏠 ParsaGate\n\nخوش آمدید، Regular User.");
     $memberBot->hearText('/admin')->reply()->assertReplyText('دسترسی مجاز نیست.');
 
     $admin = User::factory()->admin()->create();
     $bot = mb04Bot(984005, $admin);
     $bot->hearText('/start')->reply()
-        ->assertReplyText("🛡️ مدیریت SkyNet\n\nبخش موردنظر را انتخاب کنید.");
+        ->assertReplyText("🛡️ مدیریت ParsaGate\n\nبخش موردنظر را انتخاب کنید.");
 
     $admin->syncRoles(['member']);
     $bot->hearText('/start')->reply()
-        ->assertReplyText("🏠 SkyNet\n\nخوش آمدید، {$admin->name}.");
+        ->assertReplyText("🏠 ParsaGate\n\nخوش آمدید، {$admin->name}.");
     $bot->hearCallbackQueryData('menu:admin:users')->reply()
         ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.']);
 });
@@ -144,5 +144,5 @@ it('keeps private chat guards and refuses stale Admin keyboards for inactive use
     $bot->setCommonChat(Chat::make(984006, ChatType::PRIVATE));
     $admin->forceFill(['is_active' => false])->save();
     $bot->hearText(ReplyMenuLabels::USERS)->reply()
-        ->assertReplyText('🔒 حساب شما به SkyNet متصل نیست. برای اتصال، کد یک‌بارمصرف صادرشده توسط مدیر را در گفت‌وگوی خصوصی با دستور /link وارد کنید.');
+        ->assertReplyText('🔒 حساب شما به ParsaGate متصل نیست. برای اتصال، کد یک‌بارمصرف صادرشده توسط مدیر را در گفت‌وگوی خصوصی با دستور /link وارد کنید.');
 });
