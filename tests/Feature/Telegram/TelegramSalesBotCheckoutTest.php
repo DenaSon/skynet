@@ -31,6 +31,7 @@ beforeEach(function (): void {
     config()->set('services.remnawave.writes_enabled', false);
     config()->set('telegram.sales.enabled', false);
     app(ConfigureProduct::class)->handle('vpn-access', 'VPN Access');
+    Role::findOrCreate('reseller', 'web');
     Http::preventStrayRequests();
     Http::fake();
 });
