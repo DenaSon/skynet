@@ -51,13 +51,17 @@ final readonly class SalesHomeUi
             $keyboard->addRow(InlineKeyboardButton::make('💼 پلن‌ساز نماینده', callback_data: 'menu:builder'));
         }
         $keyboard->addRow(InlineKeyboardButton::make('📋 سفارش‌های من', callback_data: 'sales:checkout:orders'));
+        $keyboard->addRow(InlineKeyboardButton::make('📦 اشتراک‌های من', callback_data: 'sales:subs:list:0'));
         $keyboard->addRow(InlineKeyboardButton::make('👤 حساب من', callback_data: 'sales:account'));
 
         $this->render(
             $bot,
             "🏠 ParsaGate\n\nخوش آمدید، ".$this->name($actor->name)
                 .".\nنوع حساب: ".$this->salesRole($actor)
-                ."\n\nبرای مشاهده پلن‌ها و قیمت‌ها، گزینه زیر را انتخاب کنید.\nثبت سفارش فقط برای پلن‌های آماده امکان‌پذیر است؛ پرداخت هنوز فعال نیست.",
+                ."\n\nبرای مشاهده پلن‌ها و قیمت‌ها، گزینه زیر را انتخاب کنید.\nثبت سفارش فقط برای پلن‌های آماده امکان‌پذیر است."
+                .(config('sales.manual_bank_review_enabled', false) === true
+                    ? "\nپس از سفارش، می‌توانید رسید پرداخت را ارسال کنید."
+                    : "\nپرداخت فعلاً فعال نیست."),
             $keyboard,
         );
     }

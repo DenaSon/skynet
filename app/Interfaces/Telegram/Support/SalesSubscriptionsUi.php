@@ -1,0 +1,272 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Interfaces\Telegram\Support;
+
+use App\Modules\Identity\Application\SubscriptionViewer;
+use App\Modules\Provisioning\Application\GetMySubscription;
+use App\Modules\Provisioning\Application\GetSubscriptionLink;
+use App\Modules\Provisioning\Application\GetSubscriptionUsage;
+use App\Modules\Provisioning\Application\ListMySubscriptions;
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Validation\ValidationException;
+use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
+use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\Message\LinkPreviewOptions;
+use Throwable;
+
+/**
+ * Sales-only navigation over the shared subscription ownership/read actions.
+ * No Admin menu, raw provider DTO, new business rules or provider writes.
+ */
+final readonly class SalesSubscriptionsUi
+{
+    private const PER_PAGE = 6;
+
+    public function __construct(
+        private PrivateTelegramUser $privateUser,
+        private ListMySubscriptions $list,
+        private GetMySubscription $details,
+        private GetSubscriptionUsage $usage,
+        private GetSubscriptionLink $link,
+    ) {}
+
+    public function browse(Nutgram $bot, string $cursor = '0'): void
+    {
+        $viewer = $this->viewer($bot);
+        if ($viewer === null) {
+            return;
+        }
+
+        $before = $this->id($cursor, true);
+        if ($before === null) {
+            $this->notice($bot, 'صفحه انتخاب‌شده معتبر نیست.', $this->homeButtons());
+
+            return;
+        }
+
+        try {
+            $page = $this->list->handle($viewer, self::PER_PAGE, $before === 0 ? null : $before);
+        } catch (AuthorizationException) {
+            $this->notice($bot, 'برای استفاده، حساب فعال خود را متصل کنید.', $this->homeButtons());
+
+            return;
+        } catch (Throwable) {
+            $this->notice($bot, 'نمایش اشتراک‌ها فعلاً ممکن نیست. دوباره تلاش کنید.', $this->homeButtons());
+
+            return;
+        }
+
+        $keyboard = InlineKeyboardMarkup::make();
+        if ($page->items === []) {
+            $message = $before === 0
+                ? 'هنوز سفارش یا اشتراکی ندارید.'
+                : 'مورد دیگری در این صفحه وجود ندارد.';
+        } else {
+            $lines = ['📦 اشتراک‌های من', ''];
+            foreach ($page->items as $item) {
+                $lines[] = '#'.$item->orderId.' · '.$this->clean($item->productName)
+                    .' · '.$this->status($item->status);
+                $keyboard->addRow(InlineKeyboardButton::make(
+                    '📄 سفارش #'.$item->orderId,
+                    callback_data: 'sales:subs:view:'.$item->orderId.':'.$cursor,
+                ));
+            }
+            $lines[] = '';
+            $lines[] = 'اطلاعات مصرف و انقضا در جزئیات اشتراک فعال نمایش داده می‌شود.';
+            $message = implode("\n", $lines);
+
+            if ($page->nextBeforeOrderId !== null) {
+                $keyboard->addRow(InlineKeyboardButton::make(
+                    'موارد بیشتر ◀️',
+                    callback_data: 'sales:subs:list:'.$page->nextBeforeOrderId,
+                ));
+            }
+        }
+
+        $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'sales:subs:list:'.$cursor))
+            ->addRow(InlineKeyboardButton::make('📋 پلن‌ها', callback_data: 'menu:plan-catalog'))
+            ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
+
+        $this->render($bot, $page->items === [] ? "📦 اشتراک‌های من\n\n".$message : $message, $keyboard);
+    }
+
+    public function detail(Nutgram $bot, string $id, string $cursor = '0'): void
+    {
+        $viewer = $this->viewer($bot);
+        if ($viewer === null) {
+            return;
+        }
+
+        $orderId = $this->id($id);
+        if ($orderId === null || $this->id($cursor, true) === null) {
+            $this->notice($bot, 'اشتراک انتخاب‌شده معتبر نیست.', $this->homeButtons());
+
+            return;
+        }
+
+        try {
+            $details = $this->details->handle($viewer, $orderId);
+        } catch (AuthorizationException|ValidationException) {
+            $this->notice($bot, 'این اشتراک در دسترس حساب شما نیست.', $this->backButtons($cursor));
+
+            return;
+        } catch (Throwable) {
+            $this->notice($bot, 'نمایش جزئیات فعلاً ممکن نیست.', $this->backButtons($cursor));
+
+            return;
+        }
+
+        $item = $details->summary;
+        $lines = [
+            '📄 اشتراک #'.$item->orderId,
+            '',
+            'سرویس: '.$this->clean($item->productName),
+            'وضعیت ثبت‌شده: '.$this->status($item->status),
+            'حجم خرید: '.($item->trafficGb === null ? 'نامحدود' : $item->trafficGb.' گیگابایت'),
+            'مدت خرید: '.$item->durationDays.' روز',
+            'مبلغ: '.TelegramUi::toman($item->totalPriceRials).' تومان',
+            '',
+        ];
+        $keyboard = InlineKeyboardMarkup::make();
+
+        if ($details->canRequestLink) {
+            try {
+                $live = $this->usage->handle($viewer, $orderId);
+                $lines[] = 'وضعیت فعلی: 🟢 فعال (بررسی‌شده)';
+                $lines[] = 'مصرف: '.$this->gb($live->usedBytes).' گیگابایت';
+                $lines[] = 'باقی‌مانده: '.($live->limitBytes === 0
+                    ? 'نامحدود'
+                    : $this->gb(max(0, $live->limitBytes - $live->usedBytes)).' گیگابایت');
+                $lines[] = 'انقضا (UTC): '.substr(str_replace('T', ' ', $live->expireAt), 0, 16);
+            } catch (Throwable) {
+                $lines[] = 'اطلاعات لحظه‌ای مصرف و انقضا در دسترس نیست.';
+                $lines[] = 'وضعیت ثبت‌شده به معنی اتصال تأییدشده نیست.';
+            }
+
+            $keyboard->addRow(InlineKeyboardButton::make(
+                '🔗 دریافت لینک اختصاصی',
+                callback_data: 'sales:subs:link:'.$orderId.':'.$cursor,
+            ));
+        } else {
+            $lines[] = 'لینک اتصال فقط پس از پرداخت و فعال‌سازی در دسترس است.';
+        }
+
+        $keyboard->addRow(InlineKeyboardButton::make('🔄 بررسی دوباره', callback_data: 'sales:subs:view:'.$orderId.':'.$cursor))
+            ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'sales:subs:list:'.$cursor))
+            ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
+
+        $this->render($bot, implode("\n", $lines), $keyboard);
+    }
+
+    public function link(Nutgram $bot, string $id, string $cursor = '0'): void
+    {
+        $viewer = $this->viewer($bot);
+        if ($viewer === null) {
+            return;
+        }
+
+        $orderId = $this->id($id);
+        if ($orderId === null || $this->id($cursor, true) === null) {
+            $this->notice($bot, 'درخواست معتبر نیست.', $this->homeButtons());
+
+            return;
+        }
+
+        try {
+            // A visible button is never authorization; every request rechecks
+            // local ownership, active provider identity and expiry.
+            $link = $this->link->handle($viewer, $orderId);
+            if (strlen($link->subscriptionUrl) > 2048) {
+                throw new \RuntimeException('Invalid connection URL length.');
+            }
+        } catch (AuthorizationException|ValidationException) {
+            $this->notice($bot, 'لینک این اشتراک برای حساب شما در دسترس نیست.', $this->backButtons($cursor));
+
+            return;
+        } catch (Throwable) {
+            $this->notice($bot, 'لینک اتصال فعلاً در دسترس نیست. کمی بعد دوباره تلاش کنید.', $this->backButtons($cursor));
+
+            return;
+        }
+
+        // No URL in edited messages, callback data, lists, logs or previews.
+        // A fresh private-chat send is the only credential-bearing reply.
+        TelegramUi::answerCallback($bot);
+        $bot->sendMessage(
+            text: "🔐 لینک اختصاصی اشتراک #{$orderId}\n\n{$link->subscriptionUrl}\n\nاین لینک خصوصی است؛ با دیگران به اشتراک نگذارید.",
+            link_preview_options: LinkPreviewOptions::make(is_disabled: true),
+        );
+    }
+
+    private function viewer(Nutgram $bot): ?SubscriptionViewer
+    {
+        $id = $this->privateUser->id($bot);
+
+        return $id === null ? null : SubscriptionViewer::telegram($id);
+    }
+
+    private function id(string $value, bool $allowZero = false): ?int
+    {
+        if ($allowZero && $value === '0') {
+            return 0;
+        }
+
+        return preg_match('/\A[1-9][0-9]{0,14}\z/D', $value) === 1 ? (int) $value : null;
+    }
+
+    private function clean(string $value): string
+    {
+        return mb_substr(trim((string) preg_replace('/[\x00-\x1F\x7F\x{202A}-\x{202E}]+/u', ' ', $value)), 0, 70);
+    }
+
+    private function status(string $status): string
+    {
+        return match ($status) {
+            'pending_payment' => '🟠 در انتظار پرداخت',
+            'provisioning' => '🔵 در انتظار فعال‌سازی',
+            'active' => '🟢 فعال (ثبت‌شده)',
+            'needs_review' => '🟡 در حال بررسی',
+            'failed' => '🔴 ناموفق یا لغوشده',
+            default => '⚪ نامشخص',
+        };
+    }
+
+    private function gb(int $bytes): string
+    {
+        return number_format($bytes / 1073741824, 2);
+    }
+
+    private function homeButtons(): InlineKeyboardMarkup
+    {
+        return InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('📦 اشتراک‌ها', callback_data: 'sales:subs:list:0'))
+            ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
+    }
+
+    private function backButtons(string $cursor): InlineKeyboardMarkup
+    {
+        return InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'sales:subs:list:'.$cursor))
+            ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
+    }
+
+    private function notice(Nutgram $bot, string $message, InlineKeyboardMarkup $keyboard): void
+    {
+        $this->render($bot, "📦 اشتراک‌های من\n\n".$message, $keyboard);
+    }
+
+    private function render(Nutgram $bot, string $message, InlineKeyboardMarkup $keyboard): void
+    {
+        if ($bot->isCallbackQuery()) {
+            TelegramUi::answerCallback($bot);
+            TelegramUi::editText($bot, $message, $keyboard);
+
+            return;
+        }
+
+        $bot->sendMessage(text: $message, reply_markup: $keyboard);
+    }
+}
