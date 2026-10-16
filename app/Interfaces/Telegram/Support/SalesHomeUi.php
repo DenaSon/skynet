@@ -46,7 +46,7 @@ final readonly class SalesHomeUi
         }
 
         $keyboard = InlineKeyboardMarkup::make()
-            ->addRow(InlineKeyboardButton::make('📋 پلن‌ها و قیمت‌ها', callback_data: 'menu:plan-catalog'));
+            ->addRow(InlineKeyboardButton::make('🛒 انتخاب پلن', callback_data: 'menu:plan-catalog'));
         if (in_array('reseller', $actor->roles, true)) {
             $keyboard->addRow(InlineKeyboardButton::make('💼 پلن‌ساز نماینده', callback_data: 'menu:builder'));
         }
