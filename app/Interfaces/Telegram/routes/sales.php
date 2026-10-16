@@ -136,7 +136,6 @@ $bot->onPhoto(function (Nutgram $bot): void {
     app(ManualPaymentUi::class)->photo($bot);
 });
 
-
 // SB-06: buyer-owned subscriptions. Reuse existing Provisioning read Actions.
 // Callback IDs are Sales-only; Admin subscription router stays unchanged.
 $bot->onCommand('subscriptions', function (Nutgram $bot): void {
