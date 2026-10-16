@@ -442,7 +442,7 @@ final readonly class ManualPaymentUi
                 return;
             }
 
-            $bot->editMessageText(text: $text, reply_markup: $keyboard);
+            TelegramUi::editText($bot, $text, $keyboard);
 
             return;
         }
