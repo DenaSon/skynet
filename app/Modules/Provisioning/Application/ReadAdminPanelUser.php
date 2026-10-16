@@ -38,7 +38,7 @@ final readonly class ReadAdminPanelUser
             }
 
             $subscription = (new RemnawaveSubscriptionsApi($client))->byUserId($remoteId);
-            $matched = $subscription['isFound'];
+            $matched = $subscription['isFound'] === true;
 
             // The v3.4.4 protected subscription user has username and shortUuid,
             // NOT a numeric user.id. All three read paths were observed live.
