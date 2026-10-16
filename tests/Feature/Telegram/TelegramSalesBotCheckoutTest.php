@@ -12,7 +12,6 @@ use App\Modules\Sales\Application\ManagePlans;
 use App\Modules\Sales\Application\OrderReader;
 use App\Modules\Sales\Application\PlanDefinition;
 use App\Modules\Sales\Application\PlanPricingDefinition;
-use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
