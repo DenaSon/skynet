@@ -38,6 +38,7 @@ final class TelegramUi
             }
         }
     }
+
     public static function code(string $text): string
     {
         return '<code>'.htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'</code>';
