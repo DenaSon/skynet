@@ -1,5 +1,8 @@
 # Roadmap
 
+**Current development increment — SRO-02 (2026-10-16):** Existing P0 Admin-only server overview gains guarded Inline/hybrid menu and refresh/back plus tested empty-Node/unauthorized/error paths; **code in independent PR; CI and real Telegram rollout distinct**. SRO-03 requires explicit trusted Production read-flag approval; provider writes/Sales remain OFF. [Frozen scope & handoff](024-REMNAWAVE-LIVE-CHECKPOINT-ADMIN-READ-PLAN.md#h-sro-02-implementation-checkpoint--2026-10-16).
+
+
 **Current operator checkpoint — 2026-10-16:** Isolated Remnawave **3.4.4** staging is online; real Laravel read/health/inventory and one disposable staging user Create/absolute Update/Disable/Enable were operator-tested. RW-01/02 lack full formal sign-off; RW-03 is **PARTIAL**, no Node/Host; one typed subscription ownership assertion failed (17/18 batch), not a proven leak. The **next planning scope is MB-05B-live P0 Admin-only server overview with zero Nodes**, phase-split **SRO-01 → SRO-02 → SRO-03**; no implementation/flag changes, no sales/provider writes. See [current evidence and exact scopes](024-REMNAWAVE-LIVE-CHECKPOINT-ADMIN-READ-PLAN.md). **This supersedes historical “staging unavailable / BLOCKED” statements below, which remain as dated history.**
 
 

@@ -81,7 +81,7 @@
 | ID | Status as of this document | Owner / evidence |
 | --- | --- | --- |
 | SRO-01 | **P0 READ GATE COMPLETE — GO FOR SRO-02 ONLY** | Five operator-live GET shapes + source/HTTP-fake guards; detailed evidence in §G; no new live Action run |
-| SRO-02 | **PLANNED — NOT STARTED** | Independent PR, CI, operator smoke |
+| SRO-02 | **IMPLEMENTED IN PR — CI & REAL TELEGRAM STILL PENDING** | Gated Admin Inline/Reply navigation; refreshed read-only overview; root revocation/no-Node/HTTP error Pest tests |
 | SRO-03 | **PLANNED — NOT STARTED** | Explicit operator activation + live Telegram confirmation |
 | RW-03 full | **PARTIAL — OPEN** | Operator staging CRUD; application idempotency and Node E2E pending |
 | MB-06B | **NOT STARTED / GATED** | Full RW/multibot live acceptance later |
@@ -119,3 +119,14 @@
 - **Changed in SRO-01:** documentation/evidence/status only. **No application code, schema, configuration, provider mutation, or Production activation.** There was no new live-server test or config fetch during this review. Rollback not required beyond reverting the docs PR.
 
 **SRO-01 evidence references:** operator `remnawave:inspect` and 17/18 read-only batch in the conversation; `RemnawaveReadApi`, `RemnawaveApiClient`, `ReadAdminProviderOverview`, `SuperAdminTrust`, `AdminProviderOverviewUi`, `AdminProviderReadinessOfflineTest`, `RemnawaveReadApiTest`. An existing past CI success and live test logs are **not** newly rerun tests for this docs-only checkpoint.
+
+
+## H. SRO-02 implementation checkpoint — 2026-10-16
+
+**Scope implemented (SRO-02 only):** Reused existing `AdminProviderOverviewUi`, `ReadAdminProviderOverview` and `TelegramUi` helpers; bound `menu:admin:servers` and `servers:refresh` under the pre-existing Admin router; retained private `/servers` and Back `menu:admin`. A single «🖥️ وضعیت سرورها» destination is added to Inline Admin home and hybrid ReplyKeyboard **only for an authorized Super Admin when `REMNAWAVE_ADMIN_READS_VERIFIED=true`**. Flag OFF remains default, hides the entry and leaves `/servers` as a truthful unavailable screen. Callback opening/refresh rechecks current actor and shared Application authorization; stale/revoked root callbacks are denied without an API request.
+
+**Presentation:** zero Nodes shows `0 از 0` and «هنوز سروری تعریف نشده است.»; a runtime instance is explicitly called a panel instance, and `needs_review` is labeled an **internal** request count. HTTP errors/invalid data display a generic error, without leaking URL/token/config, subscription links or user details. No custom realtime polling, caching or extra API adapter.
+
+**Added regression cases:** OFF navigation/zero provider requests, zero Node/Host fake data, exact five GETs per authorized open/refresh (no writes), stale callback/reply after root revocation and ordinary Admin downgrade, group guard, HTTP 503 failure; preserve previously tested enabled nonempty Node view and inherited account/route tests. **These are simulated HTTP/Nutgram tests**, not an actual BotFather/Remnawave SRO-03 run.
+
+**No scope expansion:** no Node/server install, remote mutations, SQL migrations, new packages, Sales Bot/customer/finance change, new provider API methods or switched Environment flags. `REMNAWAVE_WRITES_ENABLED=false`, `REMNAWAVE_ADMIN_READS_VERIFIED=false` and `REMNAWAVE_SQUAD_BINDINGS_LIVE_VERIFIED=false` remain deployment safety requirements. **SRO-03** must separately authorize changing the Admin reads flag and complete live Telegram smoke before live P0 acceptance.

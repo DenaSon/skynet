@@ -16,8 +16,16 @@ use SergiX44\Nutgram\Nutgram;
 /** @var Nutgram $bot */
 // Admin-only registrations. Existing authorization and confirmation checks remain inside the handlers.
 
-// Unadvertised until real provider verification; no simulated live status.
+// Hidden from menus until approved real provider verification; command remains available.
 $bot->onCommand('servers', function (Nutgram $bot): void {
+    app(AdminProviderOverviewUi::class)->show($bot);
+});
+
+$bot->onCallbackQueryData('menu:admin:servers', function (Nutgram $bot): void {
+    app(AdminProviderOverviewUi::class)->show($bot);
+});
+
+$bot->onCallbackQueryData('servers:refresh', function (Nutgram $bot): void {
     app(AdminProviderOverviewUi::class)->show($bot);
 });
 

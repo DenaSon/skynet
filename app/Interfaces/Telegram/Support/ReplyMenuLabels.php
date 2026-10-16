@@ -32,6 +32,8 @@ final class ReplyMenuLabels
 
     public const FINANCE_SECTION = '💳 امور مالی';
 
+    public const SERVERS = '🖥️ وضعیت سرورها';
+
     public const PRODUCTS = '📚 محصولات پایه';
 
     public const TOPUPS = '💳 بررسی شارژها';
@@ -49,7 +51,7 @@ final class ReplyMenuLabels
             self::BUY, self::SUBSCRIPTIONS, self::CATALOG, self::ACCOUNT, self::INVITE,
             self::SETTINGS, self::ADMIN, self::WALLET, self::BUILDER, self::USERS,
             self::ROLES, self::PLANS, self::PRODUCTS, self::SALES_SECTION,
-            self::FINANCE_SECTION, self::TOPUPS, self::RECEIPTS, self::HOME,
+            self::FINANCE_SECTION, self::SERVERS, self::TOPUPS, self::RECEIPTS, self::HOME,
         ];
     }
 }
