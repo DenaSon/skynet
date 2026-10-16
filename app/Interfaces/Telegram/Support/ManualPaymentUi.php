@@ -134,10 +134,19 @@ final readonly class ManualPaymentUi
             return;
         }
 
+        // Acknowledge before querying financial rows: Telegram expires callback
+        // IDs after a short deadline even if the requested list still works.
+        $acknowledged = $bot->isCallbackQuery();
+        if ($acknowledged) {
+            TelegramUi::answerCallback($bot);
+        }
+
         try {
             $rows = $this->payments->pending($actor->userId);
         } catch (AuthorizationException) {
-            $this->menus->denyAccess($bot);
+            if (! $acknowledged) {
+                $this->menus->denyAccess($bot);
+            }
 
             return;
         }
@@ -160,7 +169,7 @@ final readonly class ManualPaymentUi
         $text .= "\n\n⚠️ عکس رسید، اثبات واریز نیست؛ گردش بانک را بررسی کنید.";
         $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'bank:list'))
             ->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
-        $this->render($bot, $text, $keyboard);
+        $this->render($bot, $text, $keyboard, $acknowledged);
     }
 
     public function show(Nutgram $bot, string $claim): void
@@ -186,9 +195,7 @@ final readonly class ManualPaymentUi
             return;
         }
 
-        if ($bot->isCallbackQuery()) {
-            $bot->answerCallbackQuery();
-        }
+        TelegramUi::answerCallback($bot);
 
         if ($row->sourceBotKey === TelegramBotContext::ADMIN) {
             $bot->sendPhoto(
@@ -422,10 +429,12 @@ final readonly class ManualPaymentUi
         $this->render($bot, $text, $this->backKeyboard());
     }
 
-    private function render(Nutgram $bot, string $text, InlineKeyboardMarkup $keyboard): void
+    private function render(Nutgram $bot, string $text, InlineKeyboardMarkup $keyboard, bool $callbackAcknowledged = false): void
     {
         if ($bot->isCallbackQuery()) {
-            $bot->answerCallbackQuery();
+            if (! $callbackAcknowledged) {
+                TelegramUi::answerCallback($bot);
+            }
 
             if (($bot->message()->photo ?? []) !== []) {
                 $bot->editMessageCaption(caption: $text, reply_markup: $keyboard);

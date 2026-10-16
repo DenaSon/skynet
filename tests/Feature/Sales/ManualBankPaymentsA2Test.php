@@ -344,3 +344,25 @@ it('blocks reuse of a reference reserved for a direct sale by a different wallet
         ->and(DB::table('billing_journals')->where('kind', 'topup')->count())->toBe(0)
         ->and(DB::table('billing_journals')->where('kind', 'direct_bank_sale')->count())->toBe(1);
 });
+
+it('acknowledges financial receipt-list callbacks once and preserves pending records', function (): void {
+    a2Setup();
+    config()->set('sales.manual_bank_review_enabled', true);
+
+    $buyer = a2Account(990131);
+    a2Account(990101, 'super-admin');
+    $order = a2Order($buyer);
+    $claim = a2Submit(990131, $order);
+
+    $rootBot = a2Bot(990101);
+    $rootBot->hearCallbackQueryData('bank:list')->reply()
+        ->assertCalled('answerCallbackQuery', 1)
+        ->assertCalled('editMessageText', 1);
+
+    expect(DB::table('sales_bank_payment_claims')->where('id', $claim)->value('status'))->toBe('submitted')
+        ->and(DB::table('sales_orders')->where('id', $order)->value('status'))->toBe('pending_payment')
+        ->and(DB::table('sales_bank_settlements')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe(0);
+
+    $rootBot->hearText('/payments')->reply()->assertCalled('sendMessage');
+});
