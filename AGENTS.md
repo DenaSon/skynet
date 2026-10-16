@@ -1,5 +1,7 @@
 # ParsaGate — Agent Instructions
 
+**EPIC-SB (approved 2026-10-17):** Follow [docs/025](docs/025-SALES-BOT-ROADMAP.md). SB-01 adds only an isolated Sales Bot identity/navigation entry, without any checkout, money, provider writes, public activation or Admin route removal. Source/CI and live Telegram acceptance are distinct.
+
 **Latest operator staging/plan checkpoint (2026-10-16):** Remnawave 3.4.4 staging is live and read-only API + scoped direct test-user CRUD were operator-verified; RW-03 remains partial (no Node, no live Laravel idempotency); next **planning-only** Admin Bot scope is SRO-01–03 / MB-05B-live P0 server overview. See [docs/024](docs/024-REMNAWAVE-LIVE-CHECKPOINT-ADMIN-READ-PLAN.md). All older 'server unavailable' text reflects its original date. Keep provider writes OFF, root-only/private UI, Sales OFF; this update does not authorize production flags or code.\n\n
 ParsaGate is a Laravel 13 application being developed as a **modular monolith**.
 

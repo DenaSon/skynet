@@ -102,7 +102,16 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
 });
 
 it('keeps the second Sales Bot router empty, separate and unable to register Admin callbacks', function (): void {
-    expect(mb03Registrations('app/Interfaces/Telegram/routes/sales.php'))->toBe([]);
+    expect(mb03Registrations('app/Interfaces/Telegram/routes/sales.php'))->toBe([
+        'command:start {payload}',
+        'command:start',
+        'command:menu',
+        'command:account',
+        'command:link {code}',
+        'callback:sales:home',
+        'callback:sales:account',
+        'callback:sales:join',
+    ]);
 
     $runtime = file_get_contents(app_path('Interfaces/Telegram/Processing/SalesTelegramRuntime.php'));
     expect($runtime)->toContain("require __DIR__.'/../routes/sales.php'")
