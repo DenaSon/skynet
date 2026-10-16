@@ -301,7 +301,6 @@ it('keeps legacy purchasing isolated and never sends a provider request', functi
     Http::assertNothingSent();
 });
 
-
 it('shows the root plan-readiness screen without creating any Squad mapping or provider user', function (): void {
     [$root, $bot] = b14Root();
     $planId = b14Plan($root);

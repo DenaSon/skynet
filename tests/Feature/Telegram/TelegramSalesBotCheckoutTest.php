@@ -228,7 +228,6 @@ it('rejects unverified setup and expired tokens without creating any order', fun
     Http::assertNothingSent();
 });
 
-
 it('keeps Sales checkout blocked by an unverified Squad even if pricing is published', function (): void {
     $root = sb03Root();
     $planId = sb03Plan($root, 'ux-unverified');
