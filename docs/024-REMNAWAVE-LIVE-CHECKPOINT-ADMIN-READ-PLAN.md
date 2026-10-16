@@ -1,5 +1,15 @@
 # ParsaGate — Remnawave Live Checkpoint & Admin Server Overview Plan
 
+## RW-04A / RW-04B — Minimal Admin-only Users reads (2026-10-16)
+
+RW-04A and RW-04B are two independent additive GitHub PRs. RW-04A [RW-04A PR #75](https://github.com/DenaSon/skynet/pull/75) **merged** after [green CI](https://github.com/DenaSon/skynet/actions/runs/38960730198); RW-04B must pass CI and be reviewed/merged separately. Operator live read-only evidence from Runflare: `remnawave:inspect` PASS (0 Nodes, 0 Hosts, 1 Squad, 1 Profile, 3 runtime instances), `USERS_LIST=PASS TOTAL=2 PAGE=2`, `BY_ID/BY_USERNAME/BY_SHORT_UUID FOUND=YES` but `user.id=null`, which matches v3.4.4 schema (IDs are in the Users endpoint, not protected subscriptions).
+
+**Scope:** In the existing Admin Bot, only active+linked+allowlisted Super Admin can open `/panelusers` or the new Inline «کاربران پنل». The existing local «کاربران» and hybrid Reply menus remain unchanged. Page size 10, count, status and bounded navigation; RW-04B extends this with user selection, safe volume/usage/expiry, and a strict check of both subscription `username` and `shortUuid` against the typed ID-based user record. Nothing raw passes to Telegram. Each click/callback reauthorizes root, private-chat only; missing config, 401/403/429/503/timeout/malformed response and cross-identity mismatch show a neutral error. All external calls are GET. No changes to Sales customer ownership, subscription link reveal, Node, payments, schema, Webhook, provider writes, or squad bindings.
+
+**Exit/acceptance:** Source: [RW-04A CI](https://github.com/DenaSon/skynet/actions/runs/38960730198) PASS, RW-04B CI **pending until PR**. Runtime: after deployment, operator checks `/panelusers` or Inline button, page/refresh/back, tap a user, read expected status/quota/usage/expiry, confirm nonroot and stale callback denied without GET, no secrets, inspect logs and confirm `REMNAWAVE_WRITES_ENABLED=false`, `REMNAWAVE_SQUAD_BINDINGS_LIVE_VERIFIED=false`. This evidence has **not yet been supplied** for these new screens. Use reviewed PR revert for rollback; no DB rollback. `RW-03` end-to-end provisioning and consumer subscription ownership are **not accepted** by these read-only admin features.
+
+
+
 ## Server Overview P1 — Approved additive read-only statistics (2026-10-16)
 
 **Approval and real API evidence:** Operator confirmed SRO P1 scope to enhance the existing Super Admin server overview using only the present Remnawave panel, without Nodes. A real **read-only** Runflare terminal probe returned: `cpu.cores=2`, `memory.total=2060730368`, `memory.used=1229987840`, `memory.free=830742528`, `uptime=23341.83`, `users.totalUsers=2`, `onlineStats.onlineNow=0`, `runtime.instances=3`, `STATUS=PASS`. These are **operator observed at one instant**, not continuous host telemetry. They are **not hardcoded in code**. The pinned 3.4.4 OpenAPI `GET /api/system/stats` provides these fields; units and uptime semantics must be described as **panel-reported** rather than independently verified VPS host CPU usage/OS uptime.

@@ -30,6 +30,10 @@ $bot->onCallbackQueryData('rw:users:page:{page}', function (Nutgram $bot, string
     app(AdminPanelUsersUi::class)->browse($bot, $page);
 });
 
+$bot->onCallbackQueryData('rw:users:view:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
+    app(AdminPanelUsersUi::class)->detail($bot, $id, $page);
+});
+
 $bot->onCommand('servers', function (Nutgram $bot): void {
     app(AdminProviderOverviewUi::class)->show($bot);
 });
