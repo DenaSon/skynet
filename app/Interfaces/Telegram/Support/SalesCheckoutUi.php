@@ -191,6 +191,9 @@ final readonly class SalesCheckoutUi
                 callback_data: 'sales:payment:start:'.$order->id,
             ));
         }
+        if ($order->status === 'fulfilled') {
+            $keyboard->addRow(InlineKeyboardButton::make('📦 مشاهده اشتراک', callback_data: 'sales:subs:view:'.$order->id.':0'));
+        }
         $keyboard->addRow(InlineKeyboardButton::make('📋 سفارش‌های من', callback_data: 'sales:checkout:orders'))
             ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'menu:home'));
 

@@ -5,6 +5,7 @@ use App\Interfaces\Telegram\Support\PlanCatalogUi;
 use App\Interfaces\Telegram\Support\ResellerBuilderUi;
 use App\Interfaces\Telegram\Support\SalesCheckoutUi;
 use App\Interfaces\Telegram\Support\SalesHomeUi;
+use App\Interfaces\Telegram\Support\SalesSubscriptionsUi;
 use SergiX44\Nutgram\Nutgram;
 
 /** @var Nutgram $bot */
@@ -133,4 +134,23 @@ $bot->onCallbackQueryData('sales:payment:start:{id}', function (Nutgram $bot, st
 
 $bot->onPhoto(function (Nutgram $bot): void {
     app(ManualPaymentUi::class)->photo($bot);
+});
+
+
+// SB-06: buyer-owned subscriptions. Reuse existing Provisioning read Actions.
+// Callback IDs are Sales-only; Admin subscription router stays unchanged.
+$bot->onCommand('subscriptions', function (Nutgram $bot): void {
+    app(SalesSubscriptionsUi::class)->browse($bot);
+});
+
+$bot->onCallbackQueryData('sales:subs:list:{cursor}', function (Nutgram $bot, string $cursor): void {
+    app(SalesSubscriptionsUi::class)->browse($bot, $cursor);
+});
+
+$bot->onCallbackQueryData('sales:subs:view:{id}:{cursor}', function (Nutgram $bot, string $id, string $cursor): void {
+    app(SalesSubscriptionsUi::class)->detail($bot, $id, $cursor);
+});
+
+$bot->onCallbackQueryData('sales:subs:link:{id}:{cursor}', function (Nutgram $bot, string $id, string $cursor): void {
+    app(SalesSubscriptionsUi::class)->link($bot, $id, $cursor);
 });
