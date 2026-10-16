@@ -40,7 +40,6 @@ $bot->onCallbackQueryData('sales:join', function (Nutgram $bot): void {
     app(SalesHomeUi::class)->join($bot);
 });
 
-
 // SB-02: isolated routes for the existing read-only Sales presenters. Never
 // register legacy Shop, Admin, payment or provider actions on this token.
 $bot->onCommand('catalog', function (Nutgram $bot): void {
