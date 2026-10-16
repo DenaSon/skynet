@@ -21,6 +21,19 @@
 
 **Next narrow checks (only if the operator elects to complete full MB-06A live acceptance):** test an authorized non-root/Member and Reseller in a safe, non-financial way once suitable linked accounts exist; verify denial of privileged stale callbacks after role revocation with controlled test fixtures, not actual privileged customer changes; review actual worker job completion and replica topology without enabling new live delivery; retain the approved cutover/rollback constraints. Missing Remnawave staging, real two-bot notification/photo transfer and provider reads are **MB-06B** dependencies and are not silently folded into MB-06A.
 
+## MB-06A final provider-independent CI follow-up — PR #65 (2026-10-16)
+
+Following the operator's request to finish the phase **without adding production roles or financial data**, the existing test-only database exercises these previously unverified contracts using the **original mixed bot's actual Nutgram routes**:
+
+- Linked **Member**: `/start`, `/buy`, `/catalog`, `/orders`, `/subscriptions` remain readable; privileged commands and forged Admin callbacks deny access.
+- Linked **Reseller**: `/builder` and `/catalog` are reachable; removing the reseller role immediately denies old builder callbacks.
+- Ordinary **Admin**: `/start` and `/users` remain reachable, while root-only `/roles`, `/payments`, finance callbacks are denied; removing the Admin role denies stale admin callbacks.
+- A real Laravel `database` queue worker executes **one existing `DispatchTelegramNotification` job** using `queue:work --once` and drains `jobs` without failed jobs **in the isolated automated test environment** while notification delivery and Sales are OFF. No HTTP/Telegram, bank/provider write or checkout is allowed by these tests.
+
+**Automation:** [PR #65](https://github.com/DenaSon/skynet/pull/65) passed PHP 8.4, PHP 8.5 and disposable MySQL CI ([workflow](https://github.com/DenaSon/skynet/actions/runs/38879273519)). This completes the **provider-independent code + automated regression/queue execution checkpoint** for MB-06A.
+
+**Evidence boundary / acceptance:** The operator has no linked Member, Reseller or ordinary Admin session to smoke-test in Production, so real live parity for these roles, revoked-role live callbacks, an actual Production queue job and independent current-data restoration/reconciliation are **NOT verified**. **Do not label the full MB-06A live acceptance as passed** until those requirements can be demonstrated or the owner explicitly approves a separately documented acceptance exception. Keep Sales Bot OFF, legacy mixed routes in place, provider writes OFF, and notifications OFF; do not create Production customers, paid orders or dummy settlements to force the test. This does not affect the separately blocked MB-06B real panel/two-bot gates.
+
 ## CI & evidence matrix
 
 | Area | Automated checkpoint | Must verify separately |
@@ -64,7 +77,7 @@ Operational rollback for unverified newly introduced features is **flag-based**,
 
 ## Deferred scope and explicit boundaries
 
-- **MB-06A source/CI checkpoint:** mergeable when all tests, PHPStan/Pint and MySQL migration/rollback smoke pass.
+- **MB-06A code + provider-independent automated acceptance:** PHP 8.4/8.5/PHPStan/Pint, MySQL migration/rollback, real DB queue-worker-in-test, and simulated legacy Member/Reseller/Admin authorization passed. PR #65 adds the final focused regression; this closes the **engineering/CI scope**, not the outstanding live Production acceptance.
 - **MB-06A production checkpoint (2026-10-16):** read-only Admin smoke, actual schema presence, Worker process and operator-confirmed Cron passed as documented above; **full live acceptance remains open** for non-root/nonadmin legacy compatibility, revocation and observed job execution. Historical data were not mutated or proven exhaustively reconciled.
 - **MB-06B full acceptance:** blocked on RW-01–04 staging, MB-05B live provider verification and two-bot real message/media delivery.
 - **Future public Sales Bot:** remains a separate approved Epic; no live checkout, auto-provisioning, token switch or new payment activation in MB-06A.
