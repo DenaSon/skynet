@@ -299,7 +299,7 @@ final class BillingUi
     {
         if ($bot->isCallbackQuery()) {
             TelegramUi::answerCallback($bot);
-            $bot->editMessageText(text: $message, reply_markup: $keyboard);
+            TelegramUi::editText($bot, $message, $keyboard);
 
             return;
         }

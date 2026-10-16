@@ -545,8 +545,8 @@ final readonly class ProductAdminUi
     private function render(Nutgram $bot, string $text, InlineKeyboardMarkup $keyboard, bool $html = false): void
     {
         if ($bot->isCallbackQuery()) {
-            $bot->answerCallbackQuery();
-            $bot->editMessageText(text: $text, reply_markup: $keyboard, parse_mode: $html ? 'HTML' : null);
+            TelegramUi::answerCallback($bot);
+            TelegramUi::editText($bot, $text, $keyboard, $html ? 'HTML' : null);
 
             return;
         }

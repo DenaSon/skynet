@@ -437,7 +437,7 @@ final readonly class ManualPaymentUi
             }
 
             if (($bot->message()->photo ?? []) !== []) {
-                $bot->editMessageCaption(caption: $text, reply_markup: $keyboard);
+                TelegramUi::editCaption($bot, $text, $keyboard);
 
                 return;
             }
