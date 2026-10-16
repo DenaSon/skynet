@@ -1,5 +1,8 @@
 <?php
 
+use App\Interfaces\Telegram\Support\ReplyMenuLabels;
+use App\Interfaces\Telegram\Support\ReplyMenuRenderer;
+use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Application\CheckPlanSquadReadiness;
@@ -211,10 +214,10 @@ it('hides server navigation with the P0 flag OFF and never contacts the panel', 
     Http::preventStrayRequests();
     Http::fake();
 
-    $actor = app(\App\Modules\Identity\Application\ResolveTelegramActor::class)->handle(997001);
-    $keyboard = app(\App\Interfaces\Telegram\Support\ReplyMenuRenderer::class)->homeKeyboard($actor);
+    $actor = app(ResolveTelegramActor::class)->handle(997001);
+    $keyboard = app(ReplyMenuRenderer::class)->homeKeyboard($actor);
     $labels = array_map(static fn ($button): string => $button->text, array_merge(...$keyboard->keyboard));
-    expect($labels)->not->toContain(\App\Interfaces\Telegram\Support\ReplyMenuLabels::SERVERS);
+    expect($labels)->not->toContain(ReplyMenuLabels::SERVERS);
 
     $bot->hearText('/servers')->reply()
         ->assertReplyText("🖥️ وضعیت سرورها\n\nاطلاعات سرورها هنوز آماده نمایش نیست.");
@@ -222,7 +225,7 @@ it('hides server navigation with the P0 flag OFF and never contacts the panel', 
         ->assertCalled('answerCallbackQuery')->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('servers:refresh')->reply()
         ->assertCalled('answerCallbackQuery')->assertCalled('editMessageText');
-    $bot->hearText(\App\Interfaces\Telegram\Support\ReplyMenuLabels::SERVERS)->reply()
+    $bot->hearText(ReplyMenuLabels::SERVERS)->reply()
         ->assertReplyText('دسترسی مجاز نیست. منوی شما به‌روز شد.');
 
     Http::assertNothingSent();
@@ -251,10 +254,10 @@ it('shows zero Nodes and refreshes current data using GET only, with the root me
         ]),
     ]);
 
-    $actor = app(\App\Modules\Identity\Application\ResolveTelegramActor::class)->handle(997001);
-    $keyboard = app(\App\Interfaces\Telegram\Support\ReplyMenuRenderer::class)->homeKeyboard($actor);
+    $actor = app(ResolveTelegramActor::class)->handle(997001);
+    $keyboard = app(ReplyMenuRenderer::class)->homeKeyboard($actor);
     $labels = array_map(static fn ($button): string => $button->text, array_merge(...$keyboard->keyboard));
-    expect($labels)->toContain(\App\Interfaces\Telegram\Support\ReplyMenuLabels::SERVERS);
+    expect($labels)->toContain(ReplyMenuLabels::SERVERS);
 
     $expected = "🖥️ وضعیت سرورها\n\nسرورهای متصل: 0 از 0\nمیزبان‌ها: 0\nگروه‌ها: 1\nپروفایل‌ها: 1\nنمونه‌های فعال پنل: 1\nدرخواست‌های داخلی نیازمند بررسی: 0\n\nهنوز سروری تعریف نشده است.";
 
@@ -263,7 +266,7 @@ it('shows zero Nodes and refreshes current data using GET only, with the root me
         ->assertCalled('answerCallbackQuery')->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('servers:refresh')->reply()
         ->assertCalled('answerCallbackQuery')->assertCalled('editMessageText');
-    $bot->hearText(\App\Interfaces\Telegram\Support\ReplyMenuLabels::SERVERS)->reply()
+    $bot->hearText(ReplyMenuLabels::SERVERS)->reply()
         ->assertReplyText($expected);
 
     Http::assertSentCount(20);
@@ -284,7 +287,7 @@ it('rejects old server buttons immediately after role revocation without start',
     $bot->hearCallbackQueryData('servers:refresh')->reply()
         ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.'])
         ->assertCalled('editMessageText', 0);
-    $bot->hearText(\App\Interfaces\Telegram\Support\ReplyMenuLabels::SERVERS)->reply()
+    $bot->hearText(ReplyMenuLabels::SERVERS)->reply()
         ->assertReplyText('دسترسی مجاز نیست. منوی شما به‌روز شد.');
 
     // An ordinary Admin must never gain the P0 overview after a stale button tap.
