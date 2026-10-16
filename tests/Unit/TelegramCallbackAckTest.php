@@ -113,3 +113,13 @@ it('accepts only an unchanged caption edit and preserves all other caption failu
             ->toThrow(TelegramException::class, $exception->getMessage());
     }
 });
+
+it('preserves explicit receipt-photo edit targets for committed payment navigation', function (): void {
+    $bot = Mockery::mock(Nutgram::class);
+    $bot->shouldReceive('editMessageCaption')->once()
+        ->withArgs(static fn (...$arguments): bool => in_array(1729, $arguments, true)
+            && in_array(317, $arguments, true))
+        ->andThrow(new TelegramException('Bad Request: message is not modified', 400));
+
+    TelegramUi::editCaption($bot, 'رسید تأیید شد', null, 1729, 317);
+});
