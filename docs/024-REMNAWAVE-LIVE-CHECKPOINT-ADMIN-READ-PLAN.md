@@ -80,10 +80,42 @@
 
 | ID | Status as of this document | Owner / evidence |
 | --- | --- | --- |
-| SRO-01 | **PLANNED — NOT STARTED** | GitHub source inspection + operator P0 live read evidence |
+| SRO-01 | **P0 READ GATE COMPLETE — GO FOR SRO-02 ONLY** | Five operator-live GET shapes + source/HTTP-fake guards; detailed evidence in §G; no new live Action run |
 | SRO-02 | **PLANNED — NOT STARTED** | Independent PR, CI, operator smoke |
 | SRO-03 | **PLANNED — NOT STARTED** | Explicit operator activation + live Telegram confirmation |
 | RW-03 full | **PARTIAL — OPEN** | Operator staging CRUD; application idempotency and Node E2E pending |
 | MB-06B | **NOT STARTED / GATED** | Full RW/multibot live acceptance later |
 
 **Per-phase closeout:** In 2–3 concise Persian paragraphs report **done / tested / remaining / risks**, link PR/CI/real test evidence, and update only relevant development documents. Never convert a green HTTP fake or exploratory console output into unconditional live production acceptance.
+
+## G. SRO-01 completion evidence — 2026-10-16 (READ-ONLY, NO DEPLOY CHANGE)
+
+**Decision: GO to SRO-02 implementation only; NO-GO to SRO-03 feature-flag activation or full RW-04 sign-off.** Scope: the **five** existing P0 Remnawave GET endpoints and private Super Admin overview, **no Node**. Source inspected on `master` at `6b49e62b2449a2470b85a6a496a765016c9e5934`; live API results were previously observed by the operator on Runflare and **were not re-executed during this documentation review**.
+
+### P0 live endpoint / typed contract matrix
+
+| P0 read operation | Existing adapter and safe shape | Real Runflare evidence | Decision |
+| --- | --- | --- | --- |
+| `GET /api/system/health` | `SystemController_getRemnawaveHealth`, `response.runtimeMetrics` list → runtime instance **count**, not VPS CPU/memory | `remnawave:inspect` reported **3** runtime instances; typed live batch `Health API: PASS` | **P0-compatible** |
+| `GET /api/nodes` | `NodesController_getNodes`, list of UUID/name/boolean connected/disabled; enabled-connected count excludes disabled | **0** nodes, no Node provisioned; live batch inventory PASS | **P0-compatible; empty is expected** |
+| `GET /api/hosts` | `HostsController_getHosts`, list → count | **0** Hosts; operator live inspection successful | **P0-compatible; empty is expected** |
+| `GET /api/internal-squads` | `InternalSquadController_getInternalSquads`, `response.internalSquads` array + integer `total` | **1** Squad; operator live inspection successful | **P0-compatible** |
+| `GET /api/config-profiles` | `ConfigProfileController_getConfigProfiles`, `response.configProfiles` array + integer `total` | **1** Profile; operator live inspection successful | **P0-compatible** |
+
+**Local count separately:** `ReadAdminProviderOverview` reads `provisioning_operations.state='needs_review'` using a **local SELECT count**. Positive count and formatting are tested in `tests/Feature/Provisioning/AdminProviderReadinessOfflineTest.php` with a disposable test DB; **not separately executed through the live Admin Action against Production DB**. SRO-03 must verify the final screen end to end; this field is **not** a Remnawave API health metric.
+
+### Authorization, fail-closed behavior and evidence source
+
+- `PrivateTelegramUser` requires a private chat with the same sender; `ResolveTelegramActor` rejects inactive/unlinked accounts. `AdminProviderOverviewUi` checks trusted root and `ReadAdminProviderOverview` independently enforces `AssertCatalogManagementAccess`, backed by `SuperAdminTrust`: active `super-admin`, linked and allowlisted, with at least two configured designated IDs. Offline `AdminProviderReadinessOfflineTest` covers member, ordinary admin at Application level, inactive, group, flag OFF and allowed reads; **new refresh callback denial** is an SRO-02 test obligation.
+- `REMNAWAVE_ADMIN_READS_VERIFIED` defaults OFF: unavailable with **zero** panel requests. When enabled after explicit approval, trusted factory URL/token are server-side only. `RemnawaveReadApi` validates required shape and fails closed; Action converts missing credentials, malformed response, authorization errors, network exceptions/timeout/429/5xx to generic `error` and never exposes exception/token/Node IP/subscription URL to the Telegram UI. This behavior is **source-inspected and HTTP-fake tested**, **not** real-fault-injected for every status.
+- `RemnawaveApiClient` uses bounded timeout, denies redirects, has **no retry**, and P0 Action invokes GET only. Operator live batch confirmed invalid API token **401** and missing user **404** (user 404 is outside five P0 endpoints). Real 403/429/5xx/timeout negative checks are pending broader RW-02/04 assurance; avoid labeling them live-verified.
+- No observed P0 incompatibility warrants expanding client, schema, flags, ACL, or Node setup. The previous `Subscription Ownership` assertion failure in the **17 PASS / 1 FAIL** batch concerns a **separately excluded** user/subscription detail path. It remains open; no inference of data leakage or authorization acceptance.
+
+### P0 gate, exclusions and next action
+
+- **GO for SRO-02**: one small, root-only `/servers` Admin menu entry + refresh/back using existing `ReadAdminProviderOverview`/UI; display `۰ از ۰؛ هنوز سروری تعریف نشده` for empty Nodes; guard against stale/forged callbacks; keep old routes. Write no new provider adapter, DB migration, scheduler or Node agent.
+- **NO-GO for SRO-03** until SRO-02 PHP 8.4/8.5, Pest, PHPStan and Pint pass and the operator explicitly approves trusted Environment flag switch plus real Telegram smoke; no Production switch was made in SRO-01. `REMNAWAVE_WRITES_ENABLED=false`, `REMNAWAVE_ADMIN_READS_VERIFIED=false` (until approved), `REMNAWAVE_SQUAD_BINDINGS_LIVE_VERIFIED=false` remain safety requirements.
+- **Not accepted**: all RW-03/RW-04 gates, live Laravel idempotency/reconciliation, Node/client connectivity, subscriber ownership read, real fault injection, two-bot media delivery, customer purchases or panel/server OS monitoring.
+- **Changed in SRO-01:** documentation/evidence/status only. **No application code, schema, configuration, provider mutation, or Production activation.** There was no new live-server test or config fetch during this review. Rollback not required beyond reverting the docs PR.
+
+**SRO-01 evidence references:** operator `remnawave:inspect` and 17/18 read-only batch in the conversation; `RemnawaveReadApi`, `RemnawaveApiClient`, `ReadAdminProviderOverview`, `SuperAdminTrust`, `AdminProviderOverviewUi`, `AdminProviderReadinessOfflineTest`, `RemnawaveReadApiTest`. An existing past CI success and live test logs are **not** newly rerun tests for this docs-only checkpoint.

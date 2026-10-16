@@ -36,3 +36,5 @@ Remnawave 3.4.4 staging is now available, and the same five P0 GET routes used b
 
 **Next:** SRO-01 P0 read/gate verification → SRO-02 guarded menu + refresh/back → SRO-03 operator-approved real Admin Bot activation. Existing `/servers` screen/Action remain hidden/unavailable by default. `REMNAWAVE_WRITES_ENABLED=false` and `REMNAWAVE_SQUAD_BINDINGS_LIVE_VERIFIED=false` remain; do **not** enable `REMNAWAVE_ADMIN_READS_VERIFIED` until the SRO gates pass. User/subscription details, unverified owner shape (one 17/18 live-batch FAIL), Node setup and paid Sales are excluded.
 
+
+**SRO-01 checkpoint (2026-10-16):** The existing five P0 health/inventory GET paths match operator-observed real API output, with authorization/error handling reviewed via source and HTTP fakes. **GO for SRO-02 implementation only**, **NO-GO for production admin read flag** until SRO-02 tests and SRO-03 authorized rollout; no Node required. Local needs-review count remains test-backed, not independently live-validated. [Full per-endpoint evidence](024-REMNAWAVE-LIVE-CHECKPOINT-ADMIN-READ-PLAN.md#G-sro-01-completion-evidence--2026-10-16-read-only-no-deploy-change).
