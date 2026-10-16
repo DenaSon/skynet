@@ -240,7 +240,7 @@ it('denies revoked, nonroot and group access to provider details without any net
     Http::assertNothingSent();
 });
 
-it('denies invalid IDs and keeps HTTP failures as generic errors', function (): void {
+it('denies invalid detail IDs before any provider request', function (): void {
     [$root, $bot] = rw04aActor();
     rw04bFakeDetail();
 
@@ -250,8 +250,12 @@ it('denies invalid IDs and keeps HTTP failures as generic errors', function (): 
     $bot->hearCallbackQueryData('rw:users:view:0:1')->reply()
         ->assertCalled('answerCallbackQuery')->assertCalled('editMessageText');
     Http::assertNothingSent();
+});
 
+it('keeps HTTP failures as generic detail errors', function (): void {
+    [$root] = rw04aActor();
     rw04bFakeDetail(fail: true);
+
     expect(app(ReadAdminPanelUser::class)->handle($root->id, 42)->state)->toBe('error');
     Http::assertSentCount(1);
 });
