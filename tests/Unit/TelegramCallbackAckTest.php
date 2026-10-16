@@ -50,3 +50,36 @@ it('keeps existing optional callback denial text without altering its message', 
 
     TelegramUi::answerCallback($bot, 'دسترسی مجاز نیست.');
 });
+
+it('accepts only a confirmed unchanged Telegram message edit as an already-rendered success', function (): void {
+    $bot = Mockery::mock(Nutgram::class);
+    $bot->shouldReceive('editMessageText')->once()->andThrow(
+        new TelegramException(
+            'Bad Request: message is not modified: specified new message content and reply markup are exactly the same',
+            400,
+        ),
+    );
+
+    TelegramUi::editText($bot, '🧾 رسیدهای در انتظار بررسی');
+});
+
+it('preserves actionable edit errors, including other HTTP 400 and non-400 unchanged responses', function (): void {
+    foreach ([
+        new TelegramException('Bad Request: message to edit not found', 400),
+        new TelegramException('Bad Request: message is not modified', 403),
+        new TelegramException('Too Many Requests: retry after 5', 429),
+    ] as $exception) {
+        $bot = Mockery::mock(Nutgram::class);
+        $bot->shouldReceive('editMessageText')->once()->andThrow($exception);
+
+        expect(fn () => TelegramUi::editText($bot, 'متن جدید'))
+            ->toThrow(TelegramException::class, $exception->getMessage());
+    }
+});
+
+it('keeps normal Telegram message edits intact', function (): void {
+    $bot = Mockery::mock(Nutgram::class);
+    $bot->shouldReceive('editMessageText')->once()->andReturn(null);
+
+    TelegramUi::editText($bot, '◀️ مدیریت');
+});

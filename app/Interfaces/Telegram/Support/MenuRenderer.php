@@ -418,7 +418,7 @@ final class MenuRenderer
     {
         if ($bot->isCallbackQuery()) {
             TelegramUi::answerCallback($bot);
-            $bot->editMessageText(text: $text, reply_markup: $keyboard);
+            TelegramUi::editText($bot, $text, $keyboard);
 
             return;
         }
