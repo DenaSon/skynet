@@ -160,7 +160,7 @@ it('rejects role and price revision changes before first commit but retains acce
     $buyer->assignRole('reseller');
     $order = app(CreatePendingPlanOrder::class)->handle($buyer->id, $quote, str_repeat('c', 32));
     $prices = app(ManagePlanPricing::class);
-    $rev = $prices->configure($root->id, $id, 2, 1, new PlanPricingDefinition(
+    $rev = $prices->configure($root->id, $id, 2, 2, new PlanPricingDefinition(
         'fixed', 1_500_000, 0, 0, 0, 5, 100_000,
     ));
     $token = $prices->requestChange($root->id, $id, 2, $rev, 'activate');
