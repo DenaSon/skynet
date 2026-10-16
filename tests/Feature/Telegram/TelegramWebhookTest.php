@@ -5,6 +5,8 @@ use App\Interfaces\Telegram\Processing\ProcessTelegramUpdate;
 use App\Interfaces\Telegram\Processing\TelegramUpdateReceipts;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 
 uses(RefreshDatabase::class);
 
@@ -104,4 +106,57 @@ it('retries expired in-progress leases and prunes old completed receipts', funct
 
     $this->artisan('telegram:prune-updates')->assertSuccessful();
     expect(DB::table('telegram_updates')->count())->toBe(0);
+});
+
+it('logs only a bounded error category and never the Telegram description or callback token', function (): void {
+    $fake = new class implements ProcessTelegramUpdate
+    {
+        public function handle(): void
+        {
+            throw new TelegramException('Bad Request: message is not modified; SECRET-DESCRIPTION', 400);
+        }
+    };
+    $this->app->instance(ProcessTelegramUpdate::class, $fake);
+    Log::spy();
+
+    $this->postJson('/api/telegram/webhook', [
+        'update_id' => 107,
+        'callback_query' => ['data' => 'bank:apply:SECRET-CALLBACK'],
+    ], ['X-Telegram-Bot-Api-Secret-Token' => 'test_secret-telegram'])->assertInternalServerError();
+
+    Log::shouldHaveReceived('warning')->once()->with(
+        'Telegram update processing failed',
+        Mockery::on(function (array $context): bool {
+            return $context['telegram_error_code'] === 400
+                && $context['telegram_error_type'] === 'message_not_modified'
+                && $context['callback_area'] === 'other'
+                && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'SECRET');
+        }),
+    );
+    expect(DB::table('telegram_updates')->where('update_id', 107)->value('status'))->toBe('failed');
+});
+
+it('classifies bank-list callback errors without logging raw Telegram API text', function (): void {
+    $fake = new class implements ProcessTelegramUpdate
+    {
+        public function handle(): void
+        {
+            throw new TelegramException('Bad Request: message identifier is not specified', 400);
+        }
+    };
+    $this->app->instance(ProcessTelegramUpdate::class, $fake);
+    Log::spy();
+
+    $this->postJson('/api/telegram/webhook', [
+        'update_id' => 108,
+        'callback_query' => ['data' => 'bank:list'],
+    ], ['X-Telegram-Bot-Api-Secret-Token' => 'test_secret-telegram'])->assertInternalServerError();
+
+    Log::shouldHaveReceived('warning')->once()->with(
+        'Telegram update processing failed',
+        Mockery::on(fn (array $context): bool => $context['telegram_error_code'] === 400
+            && $context['telegram_error_type'] === 'missing_message_identifier'
+            && $context['callback_area'] === 'bank_list'
+            && ! array_key_exists('message', $context)),
+    );
 });
