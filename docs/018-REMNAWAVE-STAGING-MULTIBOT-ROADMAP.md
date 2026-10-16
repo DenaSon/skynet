@@ -317,6 +317,8 @@ At the start and end of each phase record:
 
 **SRO-03 source change approved by operator (2026-10-16):** Read-only Admin overview visibility no longer uses `REMNAWAVE_ADMIN_READS_VERIFIED`. Existing root RBAC and GET-only API/fail-closed behavior stay, as do `REMNAWAVE_WRITES_ENABLED=false` and `REMNAWAVE_SQUAD_BINDINGS_LIVE_VERIFIED=false`. Old Environment read-flag rollout text is historical, **not active guidance**. Real Telegram smoke still pending. See [updated SRO-03 read-only overview decision](024-REMNAWAVE-LIVE-CHECKPOINT-ADMIN-READ-PLAN.md#sro-03-approved-simplification--remove-admin-reads-flag).
 
+**Admin Server Overview P1 approved (2026-10-16):** Only reuse existing Remnawave API `SystemController_getStats` (`GET /api/system/stats`) for bounded Super Admin CPU-core, RAM, reported uptime, user/online counts. Live response shape validated by operator. Type-safe optional read with stats-only failure isolation; no CPU utilization/load/disk/Node/Write. [P1 scope and acceptance](024-REMNAWAVE-LIVE-CHECKPOINT-ADMIN-READ-PLAN.md#server-overview-p1--approved-additive-read-only-statistics-2026-10-16). Separate real Telegram acceptance required.
+
 ## 10. References
 
 - [MB-01 route/state/permission inventory](019-MB01-TELEGRAM-ROUTE-INVENTORY.md) and [ADR 0009 — dual-bot boundaries](adr/0009-dual-telegram-bot-boundaries.md)

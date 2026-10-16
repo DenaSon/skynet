@@ -21,6 +21,61 @@ final readonly class RemnawaveReadApi
         return count($this->list($health['runtimeMetrics'] ?? null, 'runtimeMetrics'));
     }
 
+    /**
+     * @return array{cpuCores:int, memoryTotal:int, memoryUsed:int, memoryFree:int, uptimeSeconds:float, totalUsers:int, onlineUsers:int}
+     */
+    public function systemStats(): array
+    {
+        $stats = $this->objectResponse('SystemController_getStats');
+        $cpu = $stats['cpu'] ?? null;
+        $memory = $stats['memory'] ?? null;
+        $users = $stats['users'] ?? null;
+        $online = $stats['onlineStats'] ?? null;
+
+        if (! is_array($cpu) || ! is_array($memory)
+            || ! is_array($users) || ! is_array($online)) {
+            throw new UnexpectedValueException('Malformed Remnawave system stats.');
+        }
+
+        $cores = $this->nonNegativeInteger($cpu['cores'] ?? null);
+        $total = $this->nonNegativeInteger($memory['total'] ?? null);
+        $used = $this->nonNegativeInteger($memory['used'] ?? null);
+        $free = $this->nonNegativeInteger($memory['free'] ?? null);
+        $totalUsers = $this->nonNegativeInteger($users['totalUsers'] ?? null);
+        $onlineUsers = $this->nonNegativeInteger($online['onlineNow'] ?? null);
+        $uptime = $stats['uptime'] ?? null;
+
+        if ($cores === 0 || $total === 0 || $used > $total || $free > $total
+            || (! is_int($uptime) && ! is_float($uptime))
+            || ! is_finite((float) $uptime) || $uptime < 0) {
+            throw new UnexpectedValueException('Invalid Remnawave system stats.');
+        }
+
+        return [
+            'cpuCores' => $cores,
+            'memoryTotal' => $total,
+            'memoryUsed' => $used,
+            'memoryFree' => $free,
+            'uptimeSeconds' => (float) $uptime,
+            'totalUsers' => $totalUsers,
+            'onlineUsers' => $onlineUsers,
+        ];
+    }
+
+    private function nonNegativeInteger(mixed $value): int
+    {
+        if (is_int($value) && $value >= 0) {
+            return $value;
+        }
+
+        if (is_float($value) && is_finite($value)
+            && $value >= 0 && $value < PHP_INT_MAX && floor($value) === $value) {
+            return (int) $value;
+        }
+
+        throw new UnexpectedValueException('Invalid Remnawave numeric stat.');
+    }
+
     public function inventory(): RemnawaveDiscoverySnapshot
     {
         $remoteNodes = $this->list(

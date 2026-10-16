@@ -19,5 +19,6 @@ final readonly class AdminProviderOverview
         public ?int $internalSquads = null,
         public ?int $configProfiles = null,
         public ?int $needsReview = null,
+        public ?AdminSystemStats $systemStats = null,
     ) {}
 }

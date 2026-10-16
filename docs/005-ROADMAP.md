@@ -1,5 +1,8 @@
 # Roadmap
 
+**Approved P1 Admin Server Overview (2026-10-16):** Extend existing root-only Remnawave server screen with `GET /api/system/stats` counts: CPU cores, panel-reported RAM total/used/free, uptime, total/online users. Live read-only shape observed on Runflare; no new service/Node/SSH/OS telemetry, writes or Sales. P0 remains functional if the optional stats endpoint fails; real Telegram smoke still pending. [Bounded scope](024-REMNAWAVE-LIVE-CHECKPOINT-ADMIN-READ-PLAN.md#server-overview-p1--approved-additive-read-only-statistics-2026-10-16).
+
+
 **SRO-03 explicit operator-approved simplification (2026-10-16):** Remove the temporary Admin read visibility flag; always show the existing read-only server overview to trusted Super Admin, while preserving double authorization, safe errors and independent Write/Squad gates OFF. Source change and CI do **not** constitute a live Telegram acceptance; real Runflare/Telegram smoke still required. See [updated SRO-03 read-only overview decision](024-REMNAWAVE-LIVE-CHECKPOINT-ADMIN-READ-PLAN.md#sro-03-approved-simplification--remove-admin-reads-flag).
 
 

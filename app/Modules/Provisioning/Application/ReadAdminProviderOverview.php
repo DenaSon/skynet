@@ -29,6 +29,13 @@ final readonly class ReadAdminProviderOverview
             $instances = $read->healthInstanceCount();
             $inventory = $read->inventory();
 
+            // Optional P1 metrics must not break the verified P0 overview.
+            try {
+                $systemStats = new AdminSystemStats(...$read->systemStats());
+            } catch (Throwable) {
+                $systemStats = null;
+            }
+
             return new AdminProviderOverview(
                 state: 'available',
                 instances: $instances,
@@ -38,6 +45,7 @@ final readonly class ReadAdminProviderOverview
                 internalSquads: $inventory->internalSquads,
                 configProfiles: $inventory->configProfiles,
                 needsReview: DB::table('provisioning_operations')->where('state', 'needs_review')->count(),
+                systemStats: $systemStats,
             );
         } catch (Throwable) {
             // Do not leak token, endpoint, transport errors or private panel data.

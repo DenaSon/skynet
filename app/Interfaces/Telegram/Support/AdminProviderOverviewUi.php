@@ -6,6 +6,7 @@ namespace App\Interfaces\Telegram\Support;
 
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Provisioning\Application\AdminProviderOverview;
+use App\Modules\Provisioning\Application\AdminSystemStats;
 use App\Modules\Provisioning\Application\ReadAdminProviderOverview;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
@@ -76,6 +77,28 @@ final readonly class AdminProviderOverviewUi
             ."پروفایل‌ها: {$result->configProfiles}\n"
             ."نمونه‌های فعال پنل: {$result->instances}\n"
             ."درخواست‌های داخلی نیازمند بررسی: {$result->needsReview}"
-            .($result->nodes === 0 ? "\n\nهنوز سروری تعریف نشده است." : '');
+            .($result->nodes === 0 ? "\n\nهنوز سروری تعریف نشده است." : '')
+            .($result->systemStats !== null ? $this->systemStats($result->systemStats) : '');
+    }
+
+    private function systemStats(AdminSystemStats $stats): string
+    {
+        $total = number_format($stats->memoryTotal / 1073741824, 2, '.', '');
+        $used = number_format($stats->memoryUsed / 1073741824, 2, '.', '');
+        $free = number_format($stats->memoryFree / 1073741824, 2, '.', '');
+        $percent = (int) round($stats->memoryUsed * 100 / $stats->memoryTotal);
+        $seconds = (int) floor($stats->uptimeSeconds);
+        $days = intdiv($seconds, 86400);
+        $hours = intdiv($seconds % 86400, 3600);
+        $minutes = intdiv($seconds % 3600, 60);
+        $duration = ($days > 0 ? "{$days} روز و " : '')."{$hours} ساعت و {$minutes} دقیقه";
+
+        return "\n\n📊 آمار گزارش‌شده پنل\n"
+            ."هسته‌های CPU: {$stats->cpuCores}\n"
+            ."RAM مصرف‌شده: {$used} از {$total} GiB ({$percent}٪)\n"
+            ."RAM آزاد: {$free} GiB\n"
+            ."زمان فعالیت: {$duration}\n"
+            ."کاربران کل: {$stats->totalUsers}\n"
+            ."کاربران آنلاین: {$stats->onlineUsers}";
     }
 }
