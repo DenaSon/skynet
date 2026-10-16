@@ -3,8 +3,8 @@
 namespace App\Interfaces\Telegram\Processing;
 
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
+use Illuminate\Support\Facades\Log;
 use Nutgram\Laravel\RunningMode\LaravelWebhook;
-use Psr\Log\LoggerInterface;
 use SergiX44\Nutgram\Configuration;
 use SergiX44\Nutgram\Nutgram;
 
@@ -21,7 +21,7 @@ final class SalesTelegramRuntime implements ProcessSalesTelegramUpdate
         $configuration = new Configuration(
             container: app(),
             cache: app(CacheRepository::class),
-            logger: app(LoggerInterface::class),
+            logger: Log::channel('null'),
         );
 
         $bot = new Nutgram($token, $configuration);
