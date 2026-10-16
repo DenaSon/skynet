@@ -17,9 +17,9 @@
 | Scheduler | Runflare cron configured for Laravel `schedule:run` every minute; **operator explicitly confirmed the scheduled execution** | **Operator-confirmed** rather than independently captured timestamped cron log; do not add a second scheduler under Supervisor |
 | Supervisor | Existing `nginx` and `php-fpm` preserved; new `laravel-queue` uses `user=www`, one process per Pod; owner permission checks returned `PERMISSIONS_OK` | No app code, DB, payment flags or provider changes; multi-replica worker count and queue processing remain separate operational checks |
 
-**Acceptance decision (updated 2026-10-16):** Production Admin UI/read-only finance smoke, deployed schema, worker process and Runflare Cron setup have supporting evidence. The operator subsequently reports successful Telegram role/capability checks for Member, Reseller, ordinary Admin and Super Admin; the precise per-command results and post-revocation stale-button behavior were not separately captured. **MB-06A full live acceptance is not yet claimed** until controlled stale-role denial and observed Production queue-job processing/operational verification are evidenced. Preserve the old mixed Admin webhook's legacy routes and keep Sales/provider/notification activation flags OFF; do not generate payments to satisfy this checklist.
+**Acceptance decision (updated 2026-10-16):** Production Admin UI/read-only finance smoke, deployed schema, worker process and Runflare Cron setup have supporting evidence. The operator subsequently reports successful Telegram role/capability checks for Member, Reseller, ordinary Admin and Super Admin; the precise per-command results and post-revocation stale-button behavior were not separately captured. **MB-06A full live acceptance is not yet claimed**: subsequent operator-confirmed live role-revocation checks passed (recorded below), while an observed Production queue-job completion and remaining operator acceptance evidence are still pending. Preserve the old mixed Admin webhook's legacy routes and keep Sales/provider/notification activation flags OFF; do not generate payments to satisfy this checklist.
 
-**Next narrow checks:** Confirm that already-open privileged inline and Reply buttons deny actions **before `/start`** after controlled role revocation; record exact member/reseller/admin command outcomes and a real Production worker job completion without enabling notifications or financial writes. Keep rollout/rollback constraints. Remnawave staging and real cross-bot notification/photo delivery remain **MB-06B** dependencies.
+**Next narrow checks:** Record an observed Production worker job completion (no external notification, payment or provider write), and retain existing operational and data-preservation evidence. Live revoked-role Inline/Reply denial was subsequently reported as passed by the operator (below). Keep rollout/rollback constraints. Remnawave staging and real cross-bot notification/photo delivery remain **MB-06B** dependencies.
 
 ## MB-06A final provider-independent CI follow-up — PR #65 (2026-10-16)
 
@@ -51,6 +51,18 @@ Source inspection found unguarded callback acknowledgements/text edits in legacy
 **Source review of `master` `56e3826`:** `ResolveTelegramActor` reloads an active linked user's roles/permissions on each Telegram command, text or callback; privileged presenters re-authorize the freshly resolved actor. Legacy Reply-keyboard labels are checked again after role change, so `/start` is only needed to **refresh the visible keyboard**, not to invalidate permissions on new requests. Automated MB-06A tests exercise Reseller → Member and Admin → Member transitions and stale callback denial; Super Admin trust also requires its current role and Telegram allowlist. The current BotFather token still intentionally serves legacy buyer/reseller paths. The second Sales Bot has an isolated token, webhook secret, update IDs and **empty handler registry**, and is disabled by default per MB-03/MB-06A. This is not final Admin/Sales customer cutover.
 
 **Source/CI:** [latest merged `master` regression run](https://github.com/DenaSon/skynet/actions/runs/38887811363) is green. No code fix or Production operation was necessary for either boundary; the only correction here is the verification record. Full MB-06A live sign-off remains pending stale-role live denial and Production job evidence, while real cross-bot delivery belongs to MB-06B.
+
+## Final manual RBAC revocation smoke — operator report, 2026-10-16
+
+**Result: PASS — five of five operator-executed live Telegram checks.** The operator explicitly confirmed the following on the existing ParsaGate Telegram bot, with no new Telegram processing errors observed:
+
+1. After removing `admin`, the previously visible Users button was denied without another `/start`.
+2. `/users` and `/admin` were both denied immediately after removing `admin`, without another `/start`.
+3. After removing `reseller`, the previously visible reseller builder button was denied without another `/start`.
+4. `/builder` was denied after removing `reseller`.
+5. No new Telegram processing errors were reported during the checks.
+
+**Evidence classification:** operator-reported real Production Telegram smoke, not independent API/log/screenshot verification by the reviewer. Test accounts only; no user IDs, tokens, chats, raw logs, banking records or provider writes included in the report. This closes the **live stale-role revocation acceptance item**, but does not independently establish Production database queue job execution, cross-bot live transport, RW staging, or full MB-06A sign-off. `master` behavior was already covered by automated stale-callback regression tests; no code fix is required for RBAC.
 
 ## CI & evidence matrix
 
@@ -85,8 +97,8 @@ Operational rollback for unverified newly introduced features is **flag-based**,
 
 ## Pending real Telegram acceptance checks (operator)
 
-- [ ] Verify both authorized Super Admins and an ordinary Admin: `/start`, `/admin`, `/users`, `/roles` (root-only), `/products`, `/plans`, `/payments` (only if enabled). Confirm concise Persian, guided forms, native copy, Back/Cancel, and revocation of stale callbacks.
-- [ ] Verify an existing linked ordinary user and reseller still access `/start`, `/buy`, `/orders`, `/subscriptions`, `/catalog`, `/builder` (only authorized reseller), and original Reply labels; do not create a real paid order as part of smoke.
+- [ ] Complete any remaining itemized Super Admin/ordinary Admin screens and UX checks not explicitly reported; **revoked Admin and Reseller stale keyboard/command denial passed by operator on 2026-10-16**, recorded above.
+- [ ] Complete any individual legacy Member/Reseller purchase/read-only route cases not itemized in operator reports; their menus/functions were operator-reported as passed. Do not create a real paid order as part of smoke.
 - [ ] With provider verification OFF, `/servers` shows only a safe unavailable message, not fake live health; ordinary users cannot open it.
 - [ ] Confirm existing Admin webhook receives real messages with valid secret. Do not switch the original token or disable legacy Admin/Member routes.
 - [ ] Review queue and webhook failure rates, `telegram:ops:status`, worker/scheduler uptime after the release; record evidence with private data redacted.
@@ -96,7 +108,7 @@ Operational rollback for unverified newly introduced features is **flag-based**,
 ## Deferred scope and explicit boundaries
 
 - **MB-06A code + provider-independent automated acceptance:** PHP 8.4/8.5/PHPStan/Pint, MySQL migration/rollback, real DB queue-worker-in-test, and simulated legacy Member/Reseller/Admin authorization passed. PR #65 adds the final focused regression; this closes the **engineering/CI scope**, not the outstanding live Production acceptance.
-- **MB-06A production checkpoint (2026-10-16):** read-only Admin smoke, actual schema presence, worker process and operator-confirmed Cron passed. Later operator reports successful Member, Reseller, ordinary Admin and Super Admin Telegram tests; command-level traces were not provided. **Full live acceptance remains open** for stale-role revocation and observed Production job execution. Historical data were not mutated or exhaustively reconciled.
+- **MB-06A production checkpoint (2026-10-16):** read-only Admin smoke, actual schema presence, worker process and operator-confirmed Cron passed. Later operator reports successful Member, Reseller, ordinary Admin and Super Admin Telegram tests; command-level traces were not provided. **Full live acceptance remains open** for observed Production queue-job execution and any unrecorded operator checks; stale-role revocation is operator-reported PASS (5/5). Historical data were not mutated or exhaustively reconciled.
 - **MB-06B full acceptance:** blocked on RW-01–04 staging, MB-05B live provider verification and two-bot real message/media delivery.
 - **Future public Sales Bot:** remains a separate approved Epic; no live checkout, auto-provisioning, token switch or new payment activation in MB-06A.
 
