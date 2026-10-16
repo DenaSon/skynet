@@ -1,5 +1,6 @@
 <?php
 
+use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Interfaces\Telegram\Support\PendingBuilderSelection;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
@@ -11,6 +12,7 @@ use App\Modules\Sales\Application\ManagePlans;
 use App\Modules\Sales\Application\PlanDefinition;
 use App\Modules\Sales\Application\PlanPricingDefinition;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use SergiX44\Nutgram\Nutgram;
@@ -193,5 +195,50 @@ it('keeps orders, settlement, provisioning and admin commands unavailable in the
         ->and(DB::table('sales_bank_payment_claims')->count())->toBe(0)
         ->and(DB::table('billing_journals')->count())->toBe(0)
         ->and(DB::table('provisioning_subscriptions')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+/**
+ * Reproduce the route-owned context of the real Sales webhook. Nutgram's fake
+ * registers handlers but does not set Laravel's HTTP route by itself.
+ */
+function sb02SalesWebhookContext(): void
+{
+    $route = new Route('POST', 'api/telegram/sales/webhook', static fn (): null => null);
+    $route->defaults('bot_key', 'sales');
+    $route->bind(request());
+    request()->setRouteResolver(static fn (): Route => $route);
+}
+
+it('clearly offers the Sales plan-selection path without claiming an unverified purchase is available', function (): void {
+    sb02SalesWebhookContext();
+    expect(TelegramBotContext::current()->key)->toBe('sales');
+    $member = User::factory()->create();
+    $bot = sb02Bot(977020, $member);
+
+    $bot->hearText('/catalog')->reply()->assertReplyText(
+        "📋 پلن‌ها و قیمت‌ها\nصفحه 1 از 1\n\nقیمت‌ها از تعرفه فعال محاسبه می‌شوند و ممکن است تغییر کنند.\n"
+        ."برای بررسی امکان ثبت سفارش، یک پلن را انتخاب کنید.\n\nدر حال حاضر پلنی برای نمایش وجود ندارد."
+    );
+    $bot->hearText('/start')->reply()->assertCalled('sendMessage');
+
+    expect(DB::table('sales_orders')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('gives Sales resellers truthful custom-plan guidance without unlocking finance or checkout', function (): void {
+    sb02SalesWebhookContext();
+    expect(TelegramBotContext::current()->key)->toBe('sales');
+    $reseller = User::factory()->create();
+    $reseller->assignRole('reseller');
+    $bot = sb02Bot(977021, $reseller);
+
+    $bot->hearText('/builder')->reply()->assertReplyText(
+        "💼 پلن‌ساز نمایندگان\nصفحه 1 از 1\n\n"
+        ."حجم و مدت دلخواه را انتخاب کنید؛ امکان ثبت سفارش پس از بررسی آمادگی سرویس مشخص می‌شود.\n\n"
+        .'در حال حاضر پلن سفارشی فعالی برای نمایندگان وجود ندارد.'
+    );
+
+    expect(DB::table('sales_orders')->count())->toBe(0);
     Http::assertNothingSent();
 });

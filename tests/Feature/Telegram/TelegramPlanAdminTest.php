@@ -300,3 +300,22 @@ it('keeps legacy purchasing isolated and never sends a provider request', functi
 
     Http::assertNothingSent();
 });
+
+it('shows the root plan-readiness screen without creating any Squad mapping or provider user', function (): void {
+    [$root, $bot] = b14Root();
+    $planId = b14Plan($root);
+
+    config()->set('services.remnawave.squad_bindings_live_verified', false);
+    config()->set('services.remnawave.writes_enabled', false);
+    Http::preventStrayRequests();
+    Http::fake();
+
+    $bot->hearCallbackQueryData('plan:view:'.$planId)->reply()
+        ->assertCalled('answerCallbackQuery')
+        ->assertCalled('editMessageText');
+
+    expect(DB::table('sales_plan_internal_squad_bindings')->count())->toBe(0)
+        ->and(DB::table('sales_orders')->count())->toBe(0)
+        ->and(DB::table('provisioning_operations')->count())->toBe(0);
+    Http::assertNothingSent();
+});

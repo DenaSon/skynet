@@ -62,7 +62,7 @@ final readonly class SalesCheckoutUi
             }
 
             if ($this->squads->verifiedSquadForCheckout($quote->planId) === null) {
-                $this->notice($bot, 'ثبت سفارش این پلن هنوز آماده نیست. می‌توانید قیمت آن را مشاهده کنید.');
+                $this->notice($bot, 'ثبت سفارش این پلن هنوز فعال نشده است. می‌توانید قیمت آن را ببینید یا پلن دیگری انتخاب کنید.');
 
                 return;
             }
@@ -202,11 +202,27 @@ final readonly class SalesCheckoutUi
             ."\nمدت: {$order->durationDays} روز"
             ."\nمبلغ ثبت‌شده: ".TelegramUi::toman($order->totalPriceRials).' تومان'
             ."\nوضعیت: {$status}"
-            ."\n\n".($order->status === 'fulfilled'
-                ? 'اشتراک این سفارش فعال شده است.'
-                : 'تطبیق پرداخت فقط با بررسی واقعی بانک انجام می‌شود؛ سرویس هنوز فعال نشده است.'),
+            ."\n\n".$this->orderHint($order, $latestReceipt),
             $keyboard,
         );
+    }
+
+    private function orderHint(OrderDetails $order, ?string $receipt): string
+    {
+        if ($order->status === 'fulfilled') {
+            return 'اشتراک این سفارش فعال شده است.';
+        }
+        if ($order->status === 'paid') {
+            return 'پرداخت تأیید شده است. سرویس هنوز فعال نشده است.';
+        }
+        if ($receipt === 'submitted') {
+            return 'رسید شما ثبت شده و در انتظار بررسی پرداخت است.';
+        }
+        if (config('sales.manual_bank_review_enabled', false) !== true) {
+            return 'ارسال رسید پرداخت فعلاً در دسترس نیست.';
+        }
+
+        return 'پس از پرداخت، رسید را ارسال کنید. تأیید پرداخت فقط با بررسی واقعی بانک انجام می‌شود.';
     }
 
     private function buyer(Nutgram $bot): ?int

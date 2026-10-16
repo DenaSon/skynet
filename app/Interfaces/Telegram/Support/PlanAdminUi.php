@@ -6,6 +6,7 @@ namespace App\Interfaces\Telegram\Support;
 
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\TelegramActor;
+use App\Modules\Provisioning\Application\CheckPlanSquadReadiness;
 use App\Modules\Sales\Application\ManagePlanPricing;
 use App\Modules\Sales\Application\ManagePlans;
 use App\Modules\Sales\Application\PlanTariffSummary;
@@ -23,6 +24,7 @@ final readonly class PlanAdminUi
         private ResolveTelegramActor $resolve,
         private ManagePlans $plans,
         private ManagePlanPricing $pricing,
+        private CheckPlanSquadReadiness $squads,
         private PlanAdminDrafts $drafts,
         private ProductAdminDrafts $productDrafts,
         private PlanAdminForms $forms,
@@ -44,7 +46,7 @@ final readonly class PlanAdminUi
         $entries = array_slice($all, ($page - 1) * 5, 5);
 
         $lines = ['📦 مدیریت پلن‌های ParsaGate', 'تعداد: '.count($all)." | صفحه {$page} از {$pages}", '',
-            'پلن‌های دارای قیمت فعال نمایش داده می‌شوند. خرید پلن‌های جدید فعلاً فعال نیست.'];
+            'برای بررسی امکان ثبت سفارش، جزئیات هر پلن را باز کنید.'];
         $keyboard = InlineKeyboardMarkup::make();
 
         foreach ($entries as $entry) {
@@ -175,6 +177,12 @@ final readonly class PlanAdminUi
             return;
         }
 
+        $ready = $plan->status === 'active'
+            && $price !== null
+            && $price->status === 'active'
+            && $price->configuredPlanRevision === $plan->revision
+            && $this->squads->handle($actor->userId, $planId);
+
         $gb = $plan->trafficGb === null ? 'نامحدود' : $plan->trafficGb.' GB';
         $days = $plan->durationDays === null ? 'انتخابی' : $plan->durationDays.' روز';
         $description = [
@@ -193,7 +201,8 @@ final readonly class PlanAdminUi
                 )),
             $price === null ? '' : $this->tariffText($price),
             '',
-            'ℹ️ خرید این پلن فعلاً فعال نیست.',
+            '🛒 ثبت سفارش در بات فروش: '.($ready ? '✅ آماده' : '⏳ هنوز آماده نیست'),
+            'فعال‌سازی اشتراک پس از تأیید پرداخت، جداگانه انجام می‌شود.',
         ];
 
         $keyboard = InlineKeyboardMarkup::make();

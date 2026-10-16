@@ -52,7 +52,9 @@ final readonly class ResellerBuilderUi
         $pages = max(1, (int) ceil(count($builders) / 5));
         $page = min(max(1, $page), $pages);
         $lines = ['💼 پلن‌ساز نمایندگان', "صفحه {$page} از {$pages}", '',
-            'پلن‌های زیر دارای تعرفه فعال هستند. فقط پیش‌نمایش قیمت است؛ سفارش و پرداخت در دسترس نیست.', ''];
+            TelegramBotContext::current()->key === 'sales'
+                ? 'حجم و مدت دلخواه را انتخاب کنید؛ امکان ثبت سفارش پس از بررسی آمادگی سرویس مشخص می‌شود.'
+                : 'پلن‌های زیر دارای تعرفه فعال هستند. فقط پیش‌نمایش قیمت است؛ سفارش و پرداخت در دسترس نیست.', ''];
         $keyboard = InlineKeyboardMarkup::make();
 
         foreach (array_slice($builders, ($page - 1) * 5, 5) as $builder) {
@@ -306,7 +308,9 @@ final readonly class ResellerBuilderUi
             "🎁 تخفیف نماینده: {$quote->discountPercent}٪",
             '✅ قیمت شما: '.number_format(intdiv($quote->totalPriceRials + 9, 10)).' تومان',
             '',
-            'ℹ️ این قیمت برای اطلاع شماست. خرید پلن سفارشی فعلاً فعال نیست.',
+            TelegramBotContext::current()->key === 'sales'
+                ? 'برای ادامه، امکان ثبت سفارش را بررسی کنید.'
+                : 'ℹ️ این قیمت برای اطلاع شماست. خرید پلن سفارشی فعلاً فعال نیست.',
         ];
 
         $keyboard = InlineKeyboardMarkup::make();
