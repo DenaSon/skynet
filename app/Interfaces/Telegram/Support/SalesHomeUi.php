@@ -96,7 +96,8 @@ final readonly class SalesHomeUi
             return;
         }
 
-        if ($this->resolve->handle($telegramId) !== null) {
+        $actor = $this->resolve->handle($telegramId);
+        if ($actor !== null) {
             $this->start($bot);
 
             return;
@@ -104,11 +105,12 @@ final readonly class SalesHomeUi
 
         $this->onboard->handle(
             $telegramId,
-            (string) ($bot->user()?->first_name ?? 'کاربر'),
+            (string) ($bot->user()->first_name ?? 'کاربر'),
             $this->referrals->take($telegramId),
         );
 
-        if ($this->resolve->handle($telegramId) === null) {
+        $actor = $this->resolve->handle($telegramId);
+        if ($actor === null) {
             $this->render($bot, 'حساب شما غیرفعال است. برای پیگیری با پشتیبانی تماس بگیرید.', $this->back());
 
             return;
