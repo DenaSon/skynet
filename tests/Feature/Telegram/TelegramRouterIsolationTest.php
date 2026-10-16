@@ -68,6 +68,10 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     // SRO-02 adds two guarded, read-only Admin callbacks without changing the MB-01 baseline.
     $expected['ADMIN'][] = 'callback:menu:admin:servers';
     $expected['ADMIN'][] = 'callback:servers:refresh';
+    // RW-04A adds three root-only read-only routes; immutable MB-01 baseline retained.
+    $expected['ADMIN'][] = 'command:panelusers';
+    $expected['ADMIN'][] = 'callback:menu:admin:panelusers';
+    $expected['ADMIN'][] = 'callback:rw:users:page:{page}';
     $expected['SALES'][] = 'photo:*';
     $files = [
         'ADMIN' => 'app/Interfaces/Telegram/routes/admin.php',
@@ -92,8 +96,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(116)
-        ->and(count(array_unique($legacy)))->toBe(116);
+        ->and(count($legacy))->toBe(119)
+        ->and(count(array_unique($legacy)))->toBe(119);
 });
 
 it('keeps the second Sales Bot router empty, separate and unable to register Admin callbacks', function (): void {

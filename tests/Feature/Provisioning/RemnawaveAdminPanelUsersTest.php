@@ -19,7 +19,7 @@ uses(RefreshDatabase::class);
 /** @return array{0:User,1:Nutgram} */
 function rw04aActor(bool $trusted = true): array
 {
-    config()->set('super_admin.telegram_ids', ['995041']);
+    config()->set('super_admin.telegram_ids', ['995041', '995042']);
     $user = User::factory()->create();
     $user->syncRoles([$trusted ? 'super-admin' : 'member']);
     TelegramAccount::query()->create(['user_id' => $user->id, 'telegram_user_id' => 995041]);
