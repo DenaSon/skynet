@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace App\Interfaces\Telegram\Support;
 
 use App\Modules\Identity\Application\ResolveTelegramActor;
+use App\Modules\Provisioning\Application\CheckPlanSquadReadiness;
 use App\Modules\Sales\Application\CalculatePlanQuote;
 use App\Modules\Sales\Application\CreatePendingPlanOrder;
 use App\Modules\Sales\Application\ListQuotedPresets;
 use App\Modules\Sales\Application\ListResellerBuilders;
 use App\Modules\Sales\Application\OrderDetails;
 use App\Modules\Sales\Application\OrderReader;
-use App\Modules\Provisioning\Application\CheckPlanSquadReadiness;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
