@@ -21,12 +21,12 @@ final class MenuRenderer
                 $keyboard = InlineKeyboardMarkup::make()
                     ->addRow(InlineKeyboardButton::make('✅ ایجاد حساب رایگان', callback_data: 'onboarding:join'));
 
-                $this->render($bot, "👋 خوش آمدید به SkyNet\n\nبرای ایجاد حساب عادی، دکمه زیر را انتخاب کنید.\nاگر قبلاً توسط مدیر حسابی ساخته شده است، به‌جای ثبت‌نام با دستور /link کد اتصال آن را وارد کنید.", $keyboard);
+                $this->render($bot, "👋 خوش آمدید به ParsaGate\n\nبرای ایجاد حساب عادی، دکمه زیر را انتخاب کنید.\nاگر قبلاً توسط مدیر حسابی ساخته شده است، به‌جای ثبت‌نام با دستور /link کد اتصال آن را وارد کنید.", $keyboard);
 
                 return;
             }
 
-            $this->render($bot, '🔒 حساب شما به SkyNet متصل نیست. برای اتصال، کد یک‌بارمصرف صادرشده توسط مدیر را در گفت‌وگوی خصوصی با دستور /link وارد کنید.');
+            $this->render($bot, '🔒 حساب شما به ParsaGate متصل نیست. برای اتصال، کد یک‌بارمصرف صادرشده توسط مدیر را در گفت‌وگوی خصوصی با دستور /link وارد کنید.');
 
             return;
         }
@@ -52,7 +52,7 @@ final class MenuRenderer
             $keyboard->addRow(InlineKeyboardButton::make('💼 کیف پول نماینده', callback_data: 'menu:wallet'));
         }
 
-        $this->render($bot, "🏠 SkyNet\n\nخوش آمدید، {$this->displayName($actor->name)}.", $keyboard);
+        $this->render($bot, "🏠 ParsaGate\n\nخوش آمدید، {$this->displayName($actor->name)}.", $keyboard);
     }
 
     public function showInvite(Nutgram $bot, string $url, int $invitedCount): void
@@ -81,7 +81,7 @@ final class MenuRenderer
 
         $this->render(
             $bot,
-            "👤 حساب من\n\nنام: {$name}\nشناسه SkyNet: {$actor->userId}\nنقش‌ها: {$roles}\nوضعیت: 🟢 فعال",
+            "👤 حساب من\n\nنام: {$name}\nشناسه ParsaGate: {$actor->userId}\nنقش‌ها: {$roles}\nوضعیت: 🟢 فعال",
             $this->homeKeyboard(),
         );
     }
@@ -116,7 +116,7 @@ final class MenuRenderer
 
         $keyboard->addRow(InlineKeyboardButton::make('👤 حساب من', callback_data: 'menu:account'));
 
-        $this->render($bot, "🛡️ مدیریت SkyNet\n\nبخش موردنظر را انتخاب کنید.", $keyboard);
+        $this->render($bot, "🛡️ مدیریت ParsaGate\n\nبخش موردنظر را انتخاب کنید.", $keyboard);
     }
 
     public function showAdminSales(Nutgram $bot): void
