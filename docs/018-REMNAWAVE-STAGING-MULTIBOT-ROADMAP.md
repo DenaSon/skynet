@@ -309,6 +309,8 @@ At the start and end of each phase record:
 
 **EPIC-RW:** narrow five-read-endpoint live verification for the current server; do not declare all of RW-03 or RW-04 accepted. **EPIC-MB / MB-05B-live P0:** **SRO-01** compatibility and root/error gate, **SRO-02** reuse existing `/servers` with minimal Super Admin menu/refresh/back, **SRO-03** explicit operator-only enablement and real Telegram smoke. No Node/Host, CPU/RAM monitoring, user/subscription detail, Sale Bot activation or provider write. See the **frozen phase-by-phase scope, tests and rollback** in [024](024-REMNAWAVE-LIVE-CHECKPOINT-ADMIN-READ-PLAN.md). Full execution requires a separate implementation instruction; this commit is documentation only.
 
+**SRO-01 P0 gate (2026-10-16):** Source reviewed on `master` and the five existing Remnawave health/inventory GET endpoints were matched to the operator's earlier real Runflare outputs (instances 3; nodes/hosts 0; squads/profiles 1). Existing Super Admin private/read-only/error tests were inspected; **GO only for SRO-02 minimal menu/refresh/back development**. Production flag remains OFF, no live Admin Action was executed during this review, no Node required; RW-03/04 full sign-off and subscription ownership investigation remain OPEN. [Evidence and precise limits in 024 §G](024-REMNAWAVE-LIVE-CHECKPOINT-ADMIN-READ-PLAN.md).
+
 ## 10. References
 
 - [MB-01 route/state/permission inventory](019-MB01-TELEGRAM-ROUTE-INVENTORY.md) and [ADR 0009 — dual-bot boundaries](adr/0009-dual-telegram-bot-boundaries.md)
