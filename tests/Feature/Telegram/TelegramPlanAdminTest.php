@@ -319,3 +319,40 @@ it('shows the root plan-readiness screen without creating any Squad mapping or p
         ->and(DB::table('provisioning_operations')->count())->toBe(0);
     Http::assertNothingSent();
 });
+
+
+it('reads attached service details with GET only and preserves private root plan callbacks', function (): void {
+    [$root, $bot] = b14Root();
+    $planId = b14Plan($root);
+
+    config()->set('services.remnawave.url', 'https://rw.example.test');
+    config()->set('services.remnawave.token', 'test-only');
+    config()->set('services.remnawave.writes_enabled', false);
+    config()->set('services.remnawave.squad_bindings_live_verified', false);
+    DB::table('sales_plan_internal_squad_bindings')->insert([
+        'plan_id' => $planId,
+        'plan_revision' => 1,
+        'internal_squad_uuid' => '550e8400-e29b-41d4-a716-446655440001',
+        'verified_at' => now(),
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+    Http::preventStrayRequests();
+    Http::fake([
+        'https://rw.example.test/api/internal-squads/*' => Http::response([
+            'response' => [
+                'uuid' => '550e8400-e29b-41d4-a716-446655440001',
+                'name' => 'Staging service',
+            ],
+        ]),
+    ]);
+
+    $bot->hearCallbackQueryData('plan:view:'.$planId)->reply()
+        ->assertCalled('answerCallbackQuery')
+        ->assertCalled('editMessageText');
+
+    expect(DB::table('sales_plan_internal_squad_bindings')->where('plan_id', $planId)->count())->toBe(1)
+        ->and(DB::table('sales_orders')->count())->toBe(0)
+        ->and(DB::table('provisioning_subscriptions')->count())->toBe(0);
+    Http::assertSentCount(1);
+    Http::assertSent(static fn ($request): bool => $request->method() === 'GET');
+});

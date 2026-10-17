@@ -140,3 +140,71 @@ it('has admin-only callback registrations without enabling a Sales Squad mutatio
     expect($adminRoutes)->toContain('plan:squad:list:{id}', 'plan:squad:select:{id}:{choice}', 'plan:squad:apply:{token}')
         ->and($salesRoutes)->not->toContain('plan:squad:');
 });
+
+
+it('reads the connected service name from a matching panel GET without enabling checkout', function (): void {
+    $root = op02Root();
+    $plan = op02Plan($root);
+    op02Panel();
+
+    $action = app(ManagePlanSquadBinding::class);
+    expect($action->status($root->id, $plan))->toBe(['state' => 'missing', 'name' => null]);
+    Http::assertNothingSent();
+
+    $action->bind($root->id, $plan, 1, OP02_UUID);
+    expect($action->status($root->id, $plan))->toBe([
+        'state' => 'connected', 'name' => 'Staging service',
+    ]);
+    Http::assertSentCount(2);
+    Http::assertSent(static fn ($request): bool => $request->method() === 'GET');
+    expect(config('services.remnawave.writes_enabled'))->toBeFalse()
+        ->and(config('services.remnawave.squad_bindings_live_verified'))->toBeFalse();
+});
+
+it('shows stale local connections without pretending they are usable or calling the panel', function (): void {
+    $root = op02Root();
+    $plan = op02Plan($root);
+    op02Panel();
+
+    app(ManagePlanSquadBinding::class)->bind($root->id, $plan, 1, OP02_UUID);
+    DB::table('sales_plans')->where('id', $plan)->update(['revision' => 2]);
+
+    expect(app(ManagePlanSquadBinding::class)->status($root->id, $plan))
+        ->toBe(['state' => 'stale', 'name' => null]);
+    Http::assertSentCount(1);
+});
+
+it('does not claim a valid remote name on a missing, mismatched or failed response', function (): void {
+    $root = op02Root();
+    $plan = op02Plan($root);
+    DB::table('sales_plan_internal_squad_bindings')->insert([
+        'plan_id' => $plan,
+        'plan_revision' => 1,
+        'internal_squad_uuid' => OP02_UUID,
+        'verified_at' => now(),
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    Http::fake(['https://rw.example.test/api/internal-squads/*' => Http::response([
+        'response' => ['uuid' => '550e8400-e29b-41d4-a716-446655440002', 'name' => 'Other service'],
+    ])]);
+    expect(app(ManagePlanSquadBinding::class)->status($root->id, $plan))
+        ->toBe(['state' => 'unavailable', 'name' => null]);
+
+    Http::fake(['https://rw.example.test/api/internal-squads/*' => Http::response(['message' => 'offline'], 503)]);
+    expect(app(ManagePlanSquadBinding::class)->status($root->id, $plan))
+        ->toBe(['state' => 'unavailable', 'name' => null]);
+    Http::assertSent(static fn ($request): bool => $request->method() === 'GET');
+});
+
+it('prevents untrusted administrators from reading plan-Squad status or making provider requests', function (): void {
+    $root = op02Root();
+    $plan = op02Plan($root);
+    $member = User::factory()->create();
+    Http::fake();
+
+    expect(fn () => app(ManagePlanSquadBinding::class)->status($member->id, $plan))
+        ->toThrow(AuthorizationException::class);
+    Http::assertNothingSent();
+});
