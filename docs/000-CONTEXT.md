@@ -1,5 +1,19 @@
 # ParsaGate — Current Context / Development Memory 
 
+## NW-01 — Password SSH preflight wizard (2026-10-18)
+
+**Source scope and gate:** Admin Bot linked trusted Super Admin only, private chats. Adds separate NW-01 route and text wizard for public IPv4, name, SSH port, SSH username/password, existing Config Profile/Inbound. Feature gate NODE_SSH_SETUP_ENABLED defaults to false; it is separate from REMNAWAVE_WRITES_ENABLED and does not enable any provider writes.
+
+**Credential handling:** delete the Telegram password message before caching; if Telegram deletion fails, abort without caching. Encrypt the temporary password using Laravel Crypt, in the actor+bot scoped cache for 10 minutes, never persist it in SQL or return it in a message. Cancel/expiry/single-use consume it; bot chats are not end-to-end encrypted, so operator should rotate the password after the check. Readiness only supports public IPv4 and a strict one-time OpenSSH host-key fingerprint approval (compare with independent VPS provider console).
+
+**Read-only preflight:** discover ED25519 SSH host key, show SHA256 fingerprint, then authenticated OpenSSH test with strict pinned known_hosts and one fixed read-only Linux/Ubuntu/Debian command. The password goes only to a short-lived SSH_ASKPASS subprocess environment, not argv/logs. No arbitrary operator command, installation, Node POST, Host creation, or financial mutation. Uses existing Symfony Process, Nutgram routing, ManageAdminNodes reads, cache and RBAC; no new Composer package or migration. Old NODE-01 create/Node operations, Host and Sales remain unchanged.
+
+**Operational qualification:** PHP source/HTTP-fake tests are NOT real SSH testing. The deployed Laravel runtime must provide ssh and ssh-keyscan, execute permission for resources/scripts/nw01-askpass.sh, outbound TCP SSH, and a valid encryption key. A real isolated VPS/operator smoke is required before setting NODE_SSH_SETUP_ENABLED=true. No production activation is authorized by merge. SSH access/OS/host key or Telegram deletion failures must fail closed without logging credentials.
+
+**Acceptance / follow-up:** gated-off UI not advertised; non-root/group denial and stale callback replay; valid guided input, no SSH secret in UI or unencrypted cache; GET-only provider queries; no regression of NODE/HOST/CFG routes. NW-02 worker-driven install, NW-03 provider registration and Host, NW-04 end-to-end tests are future phases, not implemented here.
+
+
+
 ## Final scoped review and Admin UI polish — MET / NODE / HOST / CFG (2026-10-17)
 
 - Reviewed latest `master` after MET-01/02, NODE-01/02/03, HOST-01/02 and CFG-01/02 against Admin/Sales isolation, authorization, one-time confirmations, default-OFF provider mutations and the compact Persian UX contract.
