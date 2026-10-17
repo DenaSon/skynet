@@ -1,5 +1,13 @@
 # ParsaGate — Current Context / Development Memory 
 
+## CFG-01 — read-only Config Profiles and Inbounds (2026-10-17)
+
+- **Scope:** Existing private Admin Bot adds `/profiles`, paginated `cfg1:list:{page}`, and `cfg1:view:{uuid}:{page}` reachable from «وضعیت سرورها» and «مدیریت نودها». The screen lists existing named Config Profiles (at most 30 via existing ManageAdminNodes), safe Inbound tags (up to 30, display capped at 20) and an optional list of associated Node names (display capped at ten). Navigation and refresh are simple Persian buttons; no Xray raw config/credentials/tokens are shown.
+- **Reuse:** Existing `ManageAdminNodes::profiles/inbounds`, version-pinned `RemnawaveNodesApi::all`, `AssertCatalogManagementAccess`, `PrivateTelegramUser` and Nutgram. Authorization is rechecked by the Application Action and UI for each callback, and the selected Profile UUID must still be in the latest provider list. An optional Node-to-Profile relationship is shown only when *every* returned Node supplies a valid UUID/name and an explicit `configProfile.activeConfigProfileUuid`; otherwise «اطلاعات ارتباط نودها در دسترس نیست» is displayed, not an inaccurate zero-dependency claim.
+- **Limits:** **No writes**, Provider flags, API architecture change, schema, new dependencies, Xray editor, new web UI, Sales navigation or Node mutation. CFG-02 create/edit/delete remains a separate approval/scope. This is not proof that a real provider reports the optional relationship fields: operator must verify the live API/Telegram rendering before considering production UX accepted.
+- **Evidence:** fake-HTTP feature tests verify GET-only safe projections, valid and malformed UUIDs, stale Profile selection, optional Node linkage and failures, revoked/ordinary operator and group-chat denial; PHP 8.4/8.5, PHPStan/Pint and MySQL CI are the pre-merge gate. Live Telegram/Remnawave smoke remains outstanding.
+
+
 ## MET-02 — Admin historical traffic and per-Node users (2026-10-17)
 
 - MVP: Private root-only Admin `/traffic`, 7/30-day `metrics:range:{days}` and Node detail `metrics:node:{days}:{uuid}`; linked from MET-01 dashboard. Inclusive UTC calendar dates, on-demand refresh, daily trend, Node aggregates only from complete validated series matching known Node names, and top ten provider-reported users for a currently existing Node. No arbitrary Telegram dates/UUIDs, long-range queries or new polling.

@@ -3,6 +3,7 @@
 use App\Interfaces\Telegram\Handlers\AdminHandler;
 use App\Interfaces\Telegram\Handlers\AdminRolesHandler;
 use App\Interfaces\Telegram\Handlers\AdminUsersHandler;
+use App\Interfaces\Telegram\Support\AdminConfigProfilesUi;
 use App\Interfaces\Telegram\Support\AdminFulfillmentUi;
 use App\Interfaces\Telegram\Support\AdminNodeBatchUi;
 use App\Interfaces\Telegram\Support\AdminNodeMetricsUi;
@@ -43,6 +44,17 @@ $bot->onCallbackQueryData('rw:users:view:{id}:{page}', function (Nutgram $bot, s
 });
 
 // NODE-01: private Super Admin Node browsing and guarded, one-use CREATE.
+// CFG-01: read-only existing Config Profiles and their Inbounds.
+$bot->onCommand('profiles', function (Nutgram $bot): void {
+    app(AdminConfigProfilesUi::class)->browse($bot);
+});
+$bot->onCallbackQueryData('cfg1:list:{page}', function (Nutgram $bot, string $page): void {
+    app(AdminConfigProfilesUi::class)->browse($bot, $page);
+});
+$bot->onCallbackQueryData('cfg1:view:{uuid}:{page}', function (Nutgram $bot, string $uuid, string $page): void {
+    app(AdminConfigProfilesUi::class)->detail($bot, $uuid, $page);
+});
+
 $bot->onCommand('nodes', function (Nutgram $bot): void {
     app(AdminNodesUi::class)->browse($bot);
 });
