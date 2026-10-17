@@ -1,5 +1,11 @@
 # ParsaGate — Current Context / Development Memory 
 
+## MVP-03 — Customer subscription delivery polish (2026-10-17)
+
+- **MVP-only completion of SB-06, not a new subscription feature.** On the existing Sales Bot «اشتراک‌های من» detail, an unactivated/unpaid subscription now links directly to its **owner-authorized Sales order** for payment/status. Existing order details retain the fulfilled → subscription link. Back, refresh and Home remain intact; no new callbacks/routes or business Actions.
+- The existing explicit, private and **freshly authorized** subscription-link callback delivers the same credential only in the dedicated private message, now with a native **«📋 کپی لینک»** button when the HTTPS URL fits Telegram's 256-character copy-text limit. Longer URLs remain selectable as message text with clear instructions; never truncate or store the credential in a callback/list/log. Link previews remain disabled, and the delivered message links back to the subscription detail. When the current secure usage GET cannot verify active/usable status, the detail screen offers refresh rather than an immediately futile link button; direct/stale link callbacks still independently re-authorize and fail closed via `GetSubscriptionLink`.
+- Preserves existing `GetMySubscription`, `GetSubscriptionUsage`, `GetSubscriptionLink`, `ActiveSubscriptionAccess` and Remnawave client, admin routes, billing/checkout, flags and provider writes OFF by default. No migration, dependency, automated activation, notifications or feature outside this customer-delivery path. New isolated Nutgram/HTTP-fake regression is **not live Telegram/Remnawave proof**; operator E2E remains deferred to the end of the MVP. Next approved scope: MVP-04 basic authorized subscription enable/disable only.
+
 ## MVP-02 — Admin fulfillment outcomes (2026-10-17)
 
 - **MVP scope:** enhance the original trusted/private Admin Bot `/fulfillment` listing with a single «✅ فعال‌سازی‌های انجام‌شده» destination (`full:completed`). The existing pending/processing/needs-review queue, root-only order details and explicit operator-confirmation actions remain intact. Both lists are bounded to the latest **20** applicable orders with refresh/back navigation; no search, pagination, analytics or new persistence layer.

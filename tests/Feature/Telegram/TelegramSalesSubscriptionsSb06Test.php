@@ -253,3 +253,74 @@ it('refuses remote identity mismatch and remains read-only for customer subscrip
     Http::assertSent(static fn (Request $r): bool => $r->method() === 'GET');
     expect(DB::table('provisioning_order_links')->count())->toBe(1);
 });
+
+it('links a pending subscription detail back to its own Sales order without extra writes', function (): void {
+    $buyer = User::factory()->create();
+    $order = sb06Order($buyer);
+    $bot = sb06Bot(976011, $buyer);
+    Http::fake();
+
+    $bot->hearCallbackQueryData('sales:subs:view:'.$order.':0')->reply()
+        ->assertCalled('answerCallbackQuery')
+        ->assertCalled('editMessageText')
+        ->assertCalled('sendMessage', 0);
+
+    // The new order button reuses the existing owner-scoped Sales order callback.
+    $bot->hearCallbackQueryData('sales:checkout:view:'.$order)->reply()
+        ->assertCalled('editMessageText')
+        ->assertCalled('sendMessage', 0);
+    expect(DB::table('sales_orders')->where('id', $order)->value('status'))->toBe('pending_payment');
+    Http::assertNothingSent();
+});
+
+it('delivers both short copyable and long selectable URLs only through a private confirmed link callback', function (): void {
+    $buyer = User::factory()->create();
+    $order = sb06Order($buyer);
+    sb06Activated($order);
+    $bot = sb06Bot(976012, $buyer);
+
+    Http::fake([
+        'https://remna.test/api/users/42' => Http::response(['response' => sb06Provider($order)]),
+    ]);
+    $bot->hearCallbackQueryData('sales:subs:link:'.$order.':0')->reply()
+        ->assertCalled('answerCallbackQuery')
+        ->assertCalled('sendMessage')
+        ->assertCalled('editMessageText', 0);
+    Http::assertSentCount(1);
+
+    // URLs beyond Telegram CopyTextButton's 256-char limit still get delivered
+    // as private selectable text; the copy control is safely omitted.
+    $longUrl = 'https://test.example.test/'.str_repeat('x', 285);
+    Http::fake([
+        'https://remna.test/api/users/42' => Http::response([
+            'response' => sb06Provider($order, ['subscriptionUrl' => $longUrl]),
+        ]),
+    ]);
+    $bot->hearCallbackQueryData('sales:subs:link:'.$order.':0')->reply()
+        ->assertCalled('sendMessage')
+        ->assertCalled('editMessageText', 0);
+    Http::assertSentCount(1);
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
+    expect(DB::table('provisioning_order_links')->count())->toBe(1)
+        ->and(config('services.remnawave.writes_enabled'))->toBeFalse();
+});
+
+it('keeps private link delivery fail-closed when remote usage is temporarily unavailable', function (): void {
+    $buyer = User::factory()->create();
+    $order = sb06Order($buyer);
+    sb06Activated($order);
+    $bot = sb06Bot(976013, $buyer);
+
+    Http::fake([
+        'https://remna.test/api/users/42' => Http::response([], 503),
+    ]);
+    $bot->hearCallbackQueryData('sales:subs:view:'.$order.':0')->reply()
+        ->assertCalled('editMessageText')
+        ->assertCalled('sendMessage', 0);
+    $bot->hearCallbackQueryData('sales:subs:link:'.$order.':0')->reply()
+        ->assertCalled('editMessageText')
+        ->assertCalled('sendMessage', 0);
+
+    Http::assertSentCount(2);
+    expect(DB::table('provisioning_order_links')->count())->toBe(1);
+});
