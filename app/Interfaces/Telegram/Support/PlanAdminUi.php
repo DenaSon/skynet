@@ -7,6 +7,7 @@ namespace App\Interfaces\Telegram\Support;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\TelegramActor;
 use App\Modules\Provisioning\Application\CheckPlanSquadReadiness;
+use App\Modules\Provisioning\Application\ManagePlanSquadBinding;
 use App\Modules\Sales\Application\ManagePlanPricing;
 use App\Modules\Sales\Application\ManagePlans;
 use App\Modules\Sales\Application\PlanTariffSummary;
@@ -25,6 +26,7 @@ final readonly class PlanAdminUi
         private ManagePlans $plans,
         private ManagePlanPricing $pricing,
         private CheckPlanSquadReadiness $squads,
+        private ManagePlanSquadBinding $bindings,
         private PlanAdminDrafts $drafts,
         private ProductAdminDrafts $productDrafts,
         private PlanAdminForms $forms,
@@ -177,11 +179,30 @@ final readonly class PlanAdminUi
             return;
         }
 
+        $binding = $this->bindings->status($actor->userId, $planId);
         $ready = $plan->status === 'active'
             && $price !== null
             && $price->status === 'active'
             && $price->configuredPlanRevision === $plan->revision
             && $this->squads->handle($actor->userId, $planId);
+
+        $service = match ($binding['state']) {
+            'connected' => $this->safe($binding['name'] ?? ''),
+            'stale' => 'نیاز به انتخاب دوباره',
+            'unavailable' => 'بررسی اتصال ممکن نیست',
+            default => 'انتخاب نشده',
+        };
+        $reason = match (true) {
+            $plan->status !== 'active' => 'ابتدا پلن را فعال کنید.',
+            $price === null => 'ابتدا تعرفه پلن را تنظیم کنید.',
+            $price->configuredPlanRevision !== $plan->revision => 'تعرفه پلن را دوباره تنظیم کنید.',
+            $price->status !== 'active' => 'تعرفه پلن را منتشر کنید.',
+            $binding['state'] === 'missing' => 'ابتدا یک سرویس به پلن متصل کنید.',
+            $binding['state'] === 'stale' => 'اتصال سرویس قدیمی است؛ دوباره انتخاب کنید.',
+            config('services.remnawave.squad_bindings_live_verified') !== true => 'فروش این سرویس هنوز تأیید نهایی نشده است.',
+            ! $ready => 'محصول پایه را فعال کنید.',
+            default => null,
+        };
 
         $gb = $plan->trafficGb === null ? 'نامحدود' : $plan->trafficGb.' GB';
         $days = $plan->durationDays === null ? 'انتخابی' : $plan->durationDays.' روز';
@@ -201,7 +222,9 @@ final readonly class PlanAdminUi
                 )),
             $price === null ? '' : $this->tariffText($price),
             '',
+            '🔗 سرویس متصل: '.$service,
             '🛒 ثبت سفارش در بات فروش: '.($ready ? '✅ آماده' : '⏳ هنوز آماده نیست'),
+            $reason === null ? '' : 'راهنما: '.$reason,
             'فعال‌سازی اشتراک پس از تأیید پرداخت، جداگانه انجام می‌شود.',
         ];
 

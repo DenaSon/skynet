@@ -1,5 +1,11 @@
 # ParsaGate — Current Context / Development Memory 
 
+## MVP-01 — Clear connected service and checkout blocker (2026-10-17)
+
+- **Approved MVP-only scope:** reuse OP-02 Admin plan detail and `ManagePlanSquadBinding` to display the currently stored plan service as a **human-readable remote-verified name**, or a truthful missing/stale/unavailable state. One guarded read of existing local Plan–Squad mapping; only if its revision and local verification match, make **one existing GET** `InternalSquadController_getInternalSquadByUuid`. Remote UUID/name must match strictly; errors never claim connection. A temporarily unavailable remote name is displayed separately and does not silently modify the existing buyer checkout guard. Trust/RBAC are enforced in the Application Action and the existing private Admin presenter.
+- The original `CheckPlanSquadReadiness` gate remains the decisive checkout guard; the Admin read-only screen shows one actionable Persian blocker in priority order: inactive plan, missing/stale/unpublished price, missing/stale service, globally unapproved service-sales readiness, or inactive product. No change to buyer checkout, API writes, DB schema, binding confirmation, prices, notifications, background jobs or runtime flags. The original «🔗 اتصال سرویس» action and Back navigation remain.
+- **MVP first:** no generic readiness engine/DTO, squad browser rewrite, new wizard, Node/Host management, analytics or subscriptions automation. **CI with fake HTTP** supports code quality, not real Remnawave/Telegram/Production acceptance. The latter is intentionally deferred until infrastructure access is available. Next approved development scopes MVP-02 (Admin paid activation outcome), MVP-03 (customer subscription delivery), MVP-04 (only basic enable/disable), each subject to its own PR.
+
 ## OP-03 — Root-confirmed Admin fulfillment (2026-10-17)
 
 - Admin Bot gains «🔌 فعال‌سازی اشتراک‌ها» and `/fulfillment`: trusted, linked, private Super Admin views only paid managed-plan orders with existing `sales_fulfillment_outbox` intent. Selection and 3-minute, per-root one-time confirmation enqueue a **single-order Laravel Job**. No provider request happens inside Telegram Webhook. Job implements unique order key, one attempt, bounded runtime and logs only generic outcome with order id.
