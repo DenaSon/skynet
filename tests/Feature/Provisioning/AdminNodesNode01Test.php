@@ -309,6 +309,7 @@ it('NW-01 deletes the password message before temporary encrypted storage and do
     $bot->hearText('Test02 | 194.5.192.133')->reply();
     $bot->hearText('22')->reply();
     $bot->hearText('root')->reply();
+    expect(Cache::get($key)['stage'])->toBe('password');
     $bot->hearMessage(['text' => 'not-a-real-ssh-password', 'message_id' => 512])->reply()->assertCalled('deleteMessage');
 
     $state = Cache::get($key);
