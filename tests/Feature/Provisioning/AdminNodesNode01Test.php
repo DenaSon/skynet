@@ -47,7 +47,7 @@ function node01Actors(): array
 
 function node01Bot(int $telegramId = 951111, bool $private = true): Nutgram
 {
-    $bot = Nutgram::fake();
+    $bot = app(Nutgram::class);
     $bot->setCommonUser(TelegramUser::make($telegramId, false, 'User'));
     $bot->setCommonChat(Chat::make($private ? $telegramId : -1001234, $private ? ChatType::PRIVATE : ChatType::SUPERGROUP));
 
@@ -106,7 +106,6 @@ it('shows a bounded, sanitized Node list/detail/tags with GET only for trusted r
         && $r->hasHeader('Authorization', 'Bearer fake-token'));
 
     $bot = node01Bot();
-    require base_path('app/Interfaces/Telegram/routes/admin.php');
     $bot->hearCallbackQueryData('node1:list:1')->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('node1:view:'.NODE01_UUID)->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('node1:tags')->reply()->assertCalled('editMessageText');
@@ -150,18 +149,18 @@ it('guides Admin name/address, profile, inbound, preview and a one-use provider 
     $bot = node01Bot();
     $ui = app(AdminNodesUi::class);
 
-    $ui->begin($bot);
-    expect($ui->text($bot, 'Germany-01 | node.example.com'))->toBeTrue();
-    $ui->profile($bot, '0');
-    $ui->toggle($bot, '0');
-    $ui->preview($bot);
+    $bot->hearCallbackQueryData('node1:begin')->reply()->assertCalled('editMessageText');
+    $bot->hearText('Germany-01 | node.example.com')->reply()->assertCalled('sendMessage');
+    $bot->hearCallbackQueryData('node1:profile:0')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('node1:inbound:0')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('node1:preview')->reply()->assertCalled('editMessageText');
 
     $key = TelegramBotContext::current()->cacheKey('node01:draft:'.$actors['root']->id);
     $draft = Cache::get($key);
     expect($draft['stage'])->toBe('preview');
-    $ui->apply($bot, $draft['token']);
+    $bot->hearCallbackQueryData('node1:apply:'.$draft['token'])->reply()->assertCalled('editMessageText');
     expect(Cache::get($key))->toBeNull();
-    $ui->apply($bot, $draft['token']);
+    $bot->hearCallbackQueryData('node1:apply:'.$draft['token'])->reply()->assertCalled('editMessageText');
 
     Http::assertSentCount(5);
     Http::assertSent(static fn (Request $r): bool => $r->method() === 'POST'
@@ -182,16 +181,16 @@ it('consumes confirmation even if provider response is uncertain and never retri
     $ui = app(AdminNodesUi::class);
     $bot = node01Bot();
 
-    $ui->begin($bot);
-    $ui->text($bot, 'Germany-01 | node.example.com');
-    $ui->profile($bot, '0');
-    $ui->toggle($bot, '0');
-    $ui->preview($bot);
+    $bot->hearCallbackQueryData('node1:begin')->reply();
+    $bot->hearText('Germany-01 | node.example.com')->reply();
+    $bot->hearCallbackQueryData('node1:profile:0')->reply();
+    $bot->hearCallbackQueryData('node1:inbound:0')->reply();
+    $bot->hearCallbackQueryData('node1:preview')->reply();
 
     $key = TelegramBotContext::current()->cacheKey('node01:draft:'.$actors['root']->id);
     $token = Cache::get($key)['token'];
-    $ui->apply($bot, $token);
-    $ui->apply($bot, $token);
+    $bot->hearCallbackQueryData('node1:apply:'.$token)->reply();
+    $bot->hearCallbackQueryData('node1:apply:'.$token)->reply();
     expect(Cache::get($key))->toBeNull();
     expect(collect(Http::recorded())->filter(static fn ($pair): bool => $pair[0]->method() === 'POST'))->toHaveCount(1);
 });
