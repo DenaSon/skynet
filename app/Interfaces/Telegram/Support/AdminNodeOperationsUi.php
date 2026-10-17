@@ -163,11 +163,16 @@ final readonly class AdminNodeOperationsUi
                 "✅ درخواست ثبت شد.\n\nبرای مشاهده نتیجه نهایی، فهرست نودها را تازه‌سازی کنید.",
                 $this->listKeyboard(),
             );
+        } catch (\Illuminate\Validation\ValidationException) {
+            $this->render($bot,
+                "درخواست اجرا نشد؛ وضعیت سرور یا دسترسی تغییر کرده است.\n\nفهرست را تازه‌سازی کنید و دوباره بررسی کنید.",
+                $this->listKeyboard(),
+            );
         } catch (Throwable) {
             // Includes timeout or unverified response AFTER the remote write.
             // Always require a read-only refresh; never retry this ticket.
             $this->render($bot,
-                "نتیجه عملیات قطعی نیست.\n\nقبل از درخواست دوباره، وضعیت نود را بررسی کنید.",
+                "نتیجه عملیات قطعی نیست.\n\nقبل از درخواست دوباره، وضعیت سرور را بررسی کنید.",
                 $this->listKeyboard(),
             );
         }
@@ -205,7 +210,13 @@ final readonly class AdminNodeOperationsUi
         $detail = $mode === 'edit'
             ? "\nنام جدید: ".$this->safe($changes['name'])."\nآدرس جدید: ".$this->safe($changes['address'])
             : '';
-        $warning = $mode === 'delete' ? "\n\n⚠️ این کار برگشت‌پذیر نیست و ممکن است سرویس کاربران را قطع کند." : '';
+        $warning = match ($mode) {
+            'delete' => "\n\n⚠️ حذف دائمی است و ممکن است سرویس کاربران را قطع کند.",
+            'reset' => "\n\n⚠️ شمارنده مصرف ترافیک این سرور بازنشانی می‌شود.",
+            'restart' => "\n\n⚠️ هنگام راه‌اندازی مجدد ممکن است اتصال کاربران موقتاً قطع شود.",
+            'disable' => "\n\n⚠️ با غیرفعال‌کردن سرور ممکن است سرویس کاربران قطع شود.",
+            default => '',
+        };
 
         $this->render($bot,
             '⚠️ تأیید '.$label."\n\nنود: ".$this->safe($name).$detail.$warning
