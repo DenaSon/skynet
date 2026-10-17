@@ -55,7 +55,7 @@ final readonly class AdminHostOperationsUi
             return;
         }
         // Prevent old text handlers and old confirmations acting on this new form.
-        foreach (['host01:draft:', 'host02:batch:', 'node01:draft:', 'node02:draft:', 'node03:draft:'] as $prefix) {
+        foreach (['host01:draft:', 'host02:batch:', 'node01:draft:', 'node02:draft:', 'node03:draft:', 'cfg02:draft:'] as $prefix) {
             Cache::forget(TelegramBotContext::current()->cacheKey($prefix.$root));
         }
         $state = ['stage' => $mode === 'edit' ? 'edit' : 'preview', 'mode' => $mode, 'host' => $host];
