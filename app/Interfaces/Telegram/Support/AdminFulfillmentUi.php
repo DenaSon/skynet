@@ -198,7 +198,7 @@ final readonly class AdminFulfillmentUi
         $order = $state['id'];
         try {
             $this->reviews->authorizeRequest($root, $order, $state['mode'] === 'reconcile');
-            FulfillPaidPlanOrderJob::dispatch($order, $state['mode'] === 'reconcile');
+            FulfillPaidPlanOrderJob::dispatch($order, $state['mode'] === 'reconcile', $root);
             $this->render($bot,
                 '✅ درخواست سفارش #'.$order.' ثبت شد.'."\n\nنتیجه را از فهرست سفارش‌ها بررسی کنید.",
                 $this->home());
