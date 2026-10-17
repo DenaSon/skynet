@@ -296,3 +296,30 @@ it('NW-01 preflight rejects local SSH destinations and invalid ports without net
         ->and(fn () => $ssh->validateTarget('194.5.192.133', 0))->toThrow(\RuntimeException::class);
     $ssh->validateTarget('194.5.192.133', 22);
 });
+
+
+it('NW-01 deletes the password message before temporary encrypted storage and does not echo the secret', function (): void {
+    $actors = node01Actors();
+    node01FakeProvider();
+    config()->set('services.remnawave.node_ssh_setup_enabled', true);
+    $bot = node01Bot();
+    $key = TelegramBotContext::current()->cacheKey('nw01:draft:'.$actors['root']->id);
+
+    $bot->hearCallbackQueryData('nw1:begin')->reply();
+    $bot->hearText('Test02 | 194.5.192.133')->reply();
+    $bot->hearText('22')->reply();
+    $bot->hearText('root')->reply();
+    $bot->hearText('not-a-real-ssh-password')->reply()->assertCalled('deleteMessage');
+
+    $state = Cache::get($key);
+    expect($state['stage'])->toBe('profile')
+        ->and($state['secret'])->not->toBe('not-a-real-ssh-password')
+        ->and(\Illuminate\Support\Facades\Crypt::decryptString($state['secret']))->toBe('not-a-real-ssh-password');
+    $bot->hearCallbackQueryData('nw1:profile:0')->reply();
+    $bot->hearCallbackQueryData('nw1:inbound:0')->reply();
+    expect(Cache::get($key)['stage'])->toBe('preview');
+
+    $bot->hearCallbackQueryData('nw1:cancel')->reply();
+    expect(Cache::get($key))->toBeNull();
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
+});
