@@ -31,7 +31,7 @@ final readonly class AdminTrafficReportUi
         try {
             $report = $this->reports->summary($actorId, $days);
         } catch (ValidationException) {
-            $this->render($bot, "بازه گزارش معتبر نیست.", $this->back());
+            $this->render($bot, 'بازه گزارش معتبر نیست.', $this->back());
 
             return;
         }
