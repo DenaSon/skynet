@@ -137,6 +137,69 @@ final readonly class RemnawaveNodeTelemetry
         return $data;
     }
 
+    /**
+     * Ranked per-node users for an inclusive UTC calendar-date range.
+     * Only username and provider-reported byte total leave this adapter.
+     *
+     * @return list<array{username:string,total:int}>
+     */
+    public function topUsers(string $nodeUuid, string $start, string $end): array
+    {
+        if (! preg_match('/\A[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}\z/D', $nodeUuid)
+            || ! self::isCalendarDate($start) || ! self::isCalendarDate($end) || $start > $end) {
+            throw new InvalidArgumentException('Invalid node or reporting interval.');
+        }
+
+        $data = $this->response('BandwidthStatsNodesController_getStatsNodeUsersUsage', [
+            'start' => $start, 'end' => $end, 'topUsersLimit' => 10,
+        ], path: ['uuid' => strtolower($nodeUuid)]);
+
+        if (! is_array($data['topUsers'] ?? null) || ! array_is_list($data['topUsers'])
+            || count($data['topUsers']) > 10) {
+            throw new UnexpectedValueException('Invalid top users list.');
+        }
+
+        $users = [];
+        $seen = [];
+        foreach ($data['topUsers'] as $row) {
+            if (! is_array($row) || ! is_string($row['username'] ?? null)
+                || ! self::safeLabel($row['username']) || isset($seen[$row['username']])
+                || ($total = self::nonNegativeBytes($row['total'] ?? null)) === null) {
+                throw new UnexpectedValueException('Invalid top user row.');
+            }
+            $seen[$row['username']] = true;
+            $users[] = ['username' => $row['username'], 'total' => $total];
+        }
+
+        return $users;
+    }
+
+    public static function nonNegativeBytes(mixed $value): ?int
+    {
+        if (is_int($value)) {
+            return $value >= 0 ? $value : null;
+        }
+
+        if (is_float($value)) {
+            return is_finite($value) && $value >= 0 && $value <= 9007199254740991 && floor($value) === $value
+                ? (int) $value : null;
+        }
+
+        if (! is_string($value) || preg_match('/\A(?:0|[1-9][0-9]*)\z/D', $value) !== 1
+            || strlen($value) > strlen((string) PHP_INT_MAX)
+            || (strlen($value) === strlen((string) PHP_INT_MAX) && strcmp($value, (string) PHP_INT_MAX) > 0)) {
+            return null;
+        }
+
+        return (int) $value;
+    }
+
+    private static function safeLabel(string $label): bool
+    {
+        return trim($label) !== '' && mb_strlen($label) <= 80
+            && preg_match('/[\x00-\x1F\x7F]/u', $label) !== 1;
+    }
+
     private static function isCalendarDate(string $value): bool
     {
         // v3.4.4 bandwidth operations accept a calendar date, not a timestamp.
@@ -150,9 +213,9 @@ final readonly class RemnawaveNodeTelemetry
      * @param  array<string, mixed>|null  $body
      * @return array<string, mixed>
      */
-    private function response(string $operation, array $query = [], ?array $body = null): array
+    private function response(string $operation, array $query = [], ?array $body = null, array $path = []): array
     {
-        $result = $this->client->call($operation, query: $query, body: $body);
+        $result = $this->client->call($operation, pathParameters: $path, query: $query, body: $body);
 
         if (! is_array($result)
             || ! array_key_exists('response', $result)
