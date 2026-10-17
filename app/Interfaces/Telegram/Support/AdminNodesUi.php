@@ -75,6 +75,7 @@ final readonly class AdminNodesUi
         $keyboard->addRow(InlineKeyboardButton::make('➕ افزودن نود', callback_data: 'node1:begin'));
         $keyboard->addRow(InlineKeyboardButton::make('🏷️ تگ‌ها', callback_data: 'node1:tags'));
         $keyboard->addRow(InlineKeyboardButton::make('⚙️ عملیات گروهی', callback_data: 'node3:list'));
+        $keyboard->addRow(InlineKeyboardButton::make('🌐 مدیریت هاست‌ها', callback_data: 'host1:list:1'));
         $keyboard->addRow(InlineKeyboardButton::make('🧩 پروفایل‌های اتصال', callback_data: 'cfg1:list:1'));
         $keyboard->addRow(InlineKeyboardButton::make('📊 مانیتورینگ', callback_data: 'metrics:refresh'));
         $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'node1:list:'.$page));
@@ -151,6 +152,7 @@ final readonly class AdminNodesUi
             return;
         }
         // A single pending Node text wizard per operator avoids misrouting input.
+        Cache::forget(TelegramBotContext::current()->cacheKey('host01:draft:'.$root));
         Cache::forget(TelegramBotContext::current()->cacheKey('node02:draft:'.$root));
         Cache::forget(TelegramBotContext::current()->cacheKey('node03:draft:'.$root));
         $this->save($root, ['stage' => 'info']);

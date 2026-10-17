@@ -5,6 +5,7 @@ use App\Interfaces\Telegram\Handlers\AdminRolesHandler;
 use App\Interfaces\Telegram\Handlers\AdminUsersHandler;
 use App\Interfaces\Telegram\Support\AdminConfigProfilesUi;
 use App\Interfaces\Telegram\Support\AdminFulfillmentUi;
+use App\Interfaces\Telegram\Support\AdminHostsUi;
 use App\Interfaces\Telegram\Support\AdminNodeBatchUi;
 use App\Interfaces\Telegram\Support\AdminNodeMetricsUi;
 use App\Interfaces\Telegram\Support\AdminNodeOperationsUi;
@@ -53,6 +54,32 @@ $bot->onCallbackQueryData('cfg1:list:{page}', function (Nutgram $bot, string $pa
 });
 $bot->onCallbackQueryData('cfg1:view:{uuid}:{page}', function (Nutgram $bot, string $uuid, string $page): void {
     app(AdminConfigProfilesUi::class)->detail($bot, $uuid, $page);
+});
+
+// HOST-01: private root-only Host list/detail and guarded create wizard.
+$bot->onCommand('hosts', function (Nutgram $bot): void {
+    app(AdminHostsUi::class)->browse($bot);
+});
+$bot->onCallbackQueryData('host1:list:{page}', function (Nutgram $bot, string $page): void {
+    app(AdminHostsUi::class)->browse($bot, $page);
+});
+$bot->onCallbackQueryData('host1:view:{uuid}', function (Nutgram $bot, string $uuid): void {
+    app(AdminHostsUi::class)->detail($bot, $uuid);
+});
+$bot->onCallbackQueryData('host1:begin', function (Nutgram $bot): void {
+    app(AdminHostsUi::class)->begin($bot);
+});
+$bot->onCallbackQueryData('host1:profile:{index}', function (Nutgram $bot, string $index): void {
+    app(AdminHostsUi::class)->profile($bot, $index);
+});
+$bot->onCallbackQueryData('host1:inbound:{index}', function (Nutgram $bot, string $index): void {
+    app(AdminHostsUi::class)->inbound($bot, $index);
+});
+$bot->onCallbackQueryData('host1:apply:{token}', function (Nutgram $bot, string $token): void {
+    app(AdminHostsUi::class)->apply($bot, $token);
+});
+$bot->onCallbackQueryData('host1:cancel', function (Nutgram $bot): void {
+    app(AdminHostsUi::class)->cancel($bot);
 });
 
 $bot->onCommand('nodes', function (Nutgram $bot): void {
