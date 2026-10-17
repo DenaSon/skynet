@@ -3,14 +3,17 @@
 declare(strict_types=1);
 
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
+use App\Interfaces\Telegram\Support\AdminNodeSetupUi;
 use App\Interfaces\Telegram\Support\AdminNodesUi;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Application\ManageAdminNodes;
+use App\Modules\Provisioning\Infrastructure\NodeSetup\NodeSshPreflight;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
@@ -282,7 +285,7 @@ it('NW-01 blocks untrusted and group chat from opening SSH readiness', function 
     node01Actors();
     node01FakeProvider();
     config()->set('services.remnawave.node_ssh_setup_enabled', true);
-    $ui = app(\App\Interfaces\Telegram\Support\AdminNodeSetupUi::class);
+    $ui = app(AdminNodeSetupUi::class);
 
     $ui->begin(node01Bot(951112));
     $ui->begin(node01Bot(951111, false));
@@ -290,10 +293,10 @@ it('NW-01 blocks untrusted and group chat from opening SSH readiness', function 
 });
 
 it('NW-01 preflight rejects local SSH destinations and invalid ports without network', function (): void {
-    $ssh = app(\App\Modules\Provisioning\Infrastructure\NodeSetup\NodeSshPreflight::class);
-    expect(fn () => $ssh->validateTarget('127.0.0.1', 22))->toThrow(\RuntimeException::class)
-        ->and(fn () => $ssh->validateTarget('192.168.1.1', 22))->toThrow(\RuntimeException::class)
-        ->and(fn () => $ssh->validateTarget('194.5.192.133', 0))->toThrow(\RuntimeException::class);
+    $ssh = app(NodeSshPreflight::class);
+    expect(fn () => $ssh->validateTarget('127.0.0.1', 22))->toThrow(RuntimeException::class)
+        ->and(fn () => $ssh->validateTarget('192.168.1.1', 22))->toThrow(RuntimeException::class)
+        ->and(fn () => $ssh->validateTarget('194.5.192.133', 0))->toThrow(RuntimeException::class);
     $ssh->validateTarget('194.5.192.133', 22);
 });
 
@@ -318,7 +321,7 @@ it('NW-01 attempts password deletion and never persists plaintext in either Tele
     if (is_array($state)) {
         expect($state['stage'])->toBe('profile')
             ->and($state['secret'])->not->toBe('not-a-real-ssh-password')
-            ->and(\Illuminate\Support\Facades\Crypt::decryptString($state['secret']))->toBe('not-a-real-ssh-password');
+            ->and(Crypt::decryptString($state['secret']))->toBe('not-a-real-ssh-password');
         $bot->hearCallbackQueryData('nw1:cancel')->reply();
         expect(Cache::get($key))->toBeNull();
     } else {
