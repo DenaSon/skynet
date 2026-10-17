@@ -81,7 +81,7 @@ final readonly class AdminProviderOverviewUi
     {
         return "🖥️ وضعیت سرورها\n\n"
             ."سرورهای متصل: {$result->connectedNodes} از {$result->nodes}\n"
-            ."هاست‌ها: {$result->hosts}\n"
+            ."میزبان‌ها: {$result->hosts}\n"
             ."گروه‌ها: {$result->internalSquads}\n"
             ."پروفایل‌ها: {$result->configProfiles}\n"
             ."نمونه‌های فعال پنل: {$result->instances}\n"
