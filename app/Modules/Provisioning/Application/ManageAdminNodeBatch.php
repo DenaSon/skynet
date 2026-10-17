@@ -47,7 +47,7 @@ final readonly class ManageAdminNodeBatch
             $original[$node['uuid']] = $node;
         }
         foreach ($uuids as $uuid) {
-            if (! $this->uuid($uuid) || ! isset($original[$uuid])) {
+            if (! $this->uuid($uuid) || isset($original[$uuid]) === false) {
                 throw ValidationException::withMessages(['nodes' => 'Invalid node selection.']);
             }
         }
