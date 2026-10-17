@@ -8,7 +8,9 @@ use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Provisioning\Application\ManageAdminNodeBatch;
 use App\Modules\Provisioning\Application\ManageAdminNodes;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
@@ -368,9 +370,9 @@ final readonly class AdminNodeBatchUi
         try {
             $this->batch->perform($root, $state['mode'], $state['nodes'], $state['selected'], $state['data']);
             $this->render($bot, "✅ درخواست گروهی ثبت شد.\n\nنتیجه نهایی را از فهرست نودها بررسی کنید.", $this->back());
-        } catch (\Illuminate\Validation\ValidationException) {
+        } catch (ValidationException) {
             $this->render($bot, "درخواست اجرا نشد؛ سرورهای انتخاب‌شده یا تنظیمات تغییر کرده‌اند.\n\nفهرست را تازه‌سازی کنید.", $this->back());
-        } catch (\Illuminate\Contracts\Cache\LockTimeoutException) {
+        } catch (LockTimeoutException) {
             $this->render($bot, "عملیات دیگری روی سرورها در حال انجام است.\n\nابتدا وضعیت سرورها را بررسی کنید.", $this->back());
         } catch (Throwable) {
             $this->render($bot, "نتیجه عملیات قطعی نیست.\n\nابتدا وضعیت سرورها را تازه‌سازی کنید؛ درخواست خودکار تکرار نمی‌شود.", $this->back());
@@ -425,7 +427,7 @@ final readonly class AdminNodeBatchUi
     {
         $keyboard = InlineKeyboardMarkup::make();
         $names = array_column($state['nodes'], 'name', 'uuid');
-        $lines = ["↕️ ترتیب نمایش سرورها", '', 'با دکمه‌های شماره‌دار، جای سرورها را تغییر دهید.', ''];
+        $lines = ['↕️ ترتیب نمایش سرورها', '', 'با دکمه‌های شماره‌دار، جای سرورها را تغییر دهید.', ''];
         foreach ($state['selected'] as $i => $uuid) {
             $lines[] = ($i + 1).' · '.$this->safe($names[$uuid]);
             $buttons = [];
