@@ -25,7 +25,7 @@ const NODE01_PROFILE = '550e8400-e29b-41d4-a716-446655440001';
 const NODE01_INBOUND = '550e8400-e29b-41d4-a716-446655440002';
 
 beforeEach(function (): void {
-    config()->set('super_admin.telegram_ids', ['951111']);
+    config()->set('super_admin.telegram_ids', ['951111', '951113']);
     config()->set('services.remnawave.url', 'https://remna.node01.test');
     config()->set('services.remnawave.token', 'fake-token');
     config()->set('services.remnawave.writes_enabled', false);
