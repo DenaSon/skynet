@@ -1,6 +1,7 @@
 <?php
 
 use App\Interfaces\Telegram\Handlers\ReplyMenuHandler;
+use App\Interfaces\Telegram\Support\AdminNodesUi;
 use App\Interfaces\Telegram\Support\PlanAdminUi;
 use App\Interfaces\Telegram\Support\ProductAdminUi;
 use App\Interfaces\Telegram\Support\ResellerBuilderUi;
@@ -12,6 +13,10 @@ use SergiX44\Nutgram\Nutgram;
 
 $bot->onText('{volume}', function (Nutgram $bot, string $volume): void {
     if (app(ReplyMenuHandler::class)->handle($bot, $volume)) {
+        return;
+    }
+
+    if (app(AdminNodesUi::class)->text($bot, $volume)) {
         return;
     }
 

@@ -4,6 +4,7 @@ use App\Interfaces\Telegram\Handlers\AdminHandler;
 use App\Interfaces\Telegram\Handlers\AdminRolesHandler;
 use App\Interfaces\Telegram\Handlers\AdminUsersHandler;
 use App\Interfaces\Telegram\Support\AdminFulfillmentUi;
+use App\Interfaces\Telegram\Support\AdminNodesUi;
 use App\Interfaces\Telegram\Support\AdminPanelUsersUi;
 use App\Interfaces\Telegram\Support\AdminProviderOverviewUi;
 use App\Interfaces\Telegram\Support\AdminSectionsUi;
@@ -35,6 +36,47 @@ $bot->onCallbackQueryData('rw:users:page:{page}', function (Nutgram $bot, string
 
 $bot->onCallbackQueryData('rw:users:view:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
     app(AdminPanelUsersUi::class)->detail($bot, $id, $page);
+});
+
+// NODE-01: private Super Admin Node browsing and guarded, one-use CREATE.
+$bot->onCommand('nodes', function (Nutgram $bot): void {
+    app(AdminNodesUi::class)->browse($bot);
+});
+
+$bot->onCallbackQueryData('node1:list:{page}', function (Nutgram $bot, string $page): void {
+    app(AdminNodesUi::class)->browse($bot, $page);
+});
+
+$bot->onCallbackQueryData('node1:view:{uuid}', function (Nutgram $bot, string $uuid): void {
+    app(AdminNodesUi::class)->detail($bot, $uuid);
+});
+
+$bot->onCallbackQueryData('node1:tags', function (Nutgram $bot): void {
+    app(AdminNodesUi::class)->tags($bot);
+});
+
+$bot->onCallbackQueryData('node1:begin', function (Nutgram $bot): void {
+    app(AdminNodesUi::class)->begin($bot);
+});
+
+$bot->onCallbackQueryData('node1:profile:{index}', function (Nutgram $bot, string $index): void {
+    app(AdminNodesUi::class)->profile($bot, $index);
+});
+
+$bot->onCallbackQueryData('node1:inbound:{index}', function (Nutgram $bot, string $index): void {
+    app(AdminNodesUi::class)->toggle($bot, $index);
+});
+
+$bot->onCallbackQueryData('node1:preview', function (Nutgram $bot): void {
+    app(AdminNodesUi::class)->preview($bot);
+});
+
+$bot->onCallbackQueryData('node1:apply:{token}', function (Nutgram $bot, string $token): void {
+    app(AdminNodesUi::class)->apply($bot, $token);
+});
+
+$bot->onCallbackQueryData('node1:cancel', function (Nutgram $bot): void {
+    app(AdminNodesUi::class)->cancel($bot);
 });
 
 $bot->onCommand('servers', function (Nutgram $bot): void {
