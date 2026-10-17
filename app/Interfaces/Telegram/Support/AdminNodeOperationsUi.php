@@ -61,6 +61,9 @@ final readonly class AdminNodeOperationsUi
             return;
         }
 
+        // Starting another Node wizard invalidates stale pending text/confirm steps.
+        Cache::forget(TelegramBotContext::current()->cacheKey('node01:draft:'.$root));
+        Cache::forget(TelegramBotContext::current()->cacheKey('node03:draft:'.$root));
         Cache::put($this->key($root), [
             'stage' => $mode === 'edit' ? 'edit' : 'confirm',
             'mode' => $mode,
