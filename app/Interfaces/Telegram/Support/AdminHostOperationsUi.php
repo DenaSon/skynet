@@ -185,6 +185,7 @@ final readonly class AdminHostOperationsUi
             'enable' => 'فعال‌سازی',
             'disable' => 'غیرفعال‌سازی',
             'delete' => 'حذف دائمی',
+            default => 'عملیات هاست',
         };
         $detail = '';
         if ($mode === 'edit') {
