@@ -8,7 +8,6 @@ use App\Modules\Identity\Application\AssertCatalogManagementAccess;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveApiClientFactory;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
-use Throwable;
 use UnexpectedValueException;
 
 /**
