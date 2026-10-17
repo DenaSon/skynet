@@ -112,7 +112,15 @@ final readonly class PlanSquadUi
 
             return;
         }
-        $state = Cache::pull($this->confirmKey($actor, $token));
+        $key = $this->confirmKey($actor, $token);
+        $state = Cache::lock($key.':lock', 10)->block(2, static function () use ($key): mixed {
+            $value = Cache::get($key);
+            if (is_array($value)) {
+                Cache::forget($key);
+            }
+
+            return $value;
+        });
         if (! is_array($state)) {
             $this->render($bot, 'این تأیید قبلاً استفاده شده یا منقضی است.', $this->back(0));
 

@@ -83,7 +83,7 @@ final readonly class ManagePlanSquadBinding
                     'plan_revision' => $revision,
                     'verified_at' => now(),
                     'updated_at' => now(),
-                    'created_at' => $old?->created_at ?? now(),
+                    'created_at' => $old === null ? now() : $old->created_at,
                 ],
             );
             DB::table('sales_plan_audits')->insert([
