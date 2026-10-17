@@ -114,7 +114,7 @@ final readonly class ReadAdminNodeMetrics
      * The pinned endpoint returns decimal byte strings by Node and calendar day.
      * Never guess at units, reinterpret duplicate records, or overflow PHP integers.
      *
-     * @param list<array{nodeName:string,date:string,totalBytes:string}> $rows
+     * @param  list<array{nodeName:string,date:string,totalBytes:string}>  $rows
      * @return array{today:int|null,week:int|null}
      */
     private static function trafficSummary(array $rows, string $today): array
