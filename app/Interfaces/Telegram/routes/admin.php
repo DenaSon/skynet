@@ -231,6 +231,9 @@ $bot->onCallbackQueryData('metrics:range:{days}', function (Nutgram $bot, string
 $bot->onCallbackQueryData('metrics:node:{days}:{uuid}', function (Nutgram $bot, string $days, string $uuid): void {
     app(AdminTrafficReportUi::class)->node($bot, $days, $uuid);
 });
+$bot->onCallbackQueryData('metrics:page:{days}:{page}', function (Nutgram $bot, string $days, string $page): void {
+    app(AdminTrafficReportUi::class)->summary($bot, $days, $page);
+});
 
 $bot->onCommand('servers', function (Nutgram $bot): void {
     app(AdminProviderOverviewUi::class)->show($bot);
