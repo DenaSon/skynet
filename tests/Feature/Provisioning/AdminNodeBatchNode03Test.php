@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
+use App\Modules\Provisioning\Application\ManageAdminNodeOperations;
+use App\Modules\Provisioning\Application\ManageAdminNodes;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use App\Modules\Provisioning\Application\ManageAdminNodeBatch;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -271,5 +274,67 @@ it('Telegram blocks disabled global write gate and non-root operator', function 
     expect(node03Writes())->toBe(0);
     $root->syncRoles(['member']);
     $bot->hearCallbackQueryData('node3:list')->reply();
+    expect(node03Writes())->toBe(0);
+});
+
+
+it('serializes create, individual and group Node writes using the same short-lived lock', function (): void {
+    $root = node03Root();
+    config()->set('services.remnawave.writes_enabled', true);
+    node03Fake();
+
+    $lock = Cache::lock('nodes:mutation', 60);
+    expect($lock->get())->toBeTrue();
+    try {
+        expect(fn () => app(ManageAdminNodes::class)->create(
+            $root->id, 'NewNode', 'new.example.com', NODE03_PROFILE, [NODE03_INBOUND],
+        ))->toThrow(LockTimeoutException::class);
+
+        expect(fn () => app(ManageAdminNodeOperations::class)->perform(
+            $root->id, 'disable', node03List()[0],
+        ))->toThrow(LockTimeoutException::class);
+
+        expect(fn () => app(ManageAdminNodeBatch::class)->perform(
+            $root->id, 'restart', node03List(), [NODE03_A],
+        ))->toThrow(LockTimeoutException::class);
+    } finally {
+        $lock->release();
+    }
+
+    Http::assertNothingSent();
+});
+
+it('shows named batch targets and an explicit traffic-reset consequence before approval', function (): void {
+    node03Root();
+    config()->set('services.remnawave.writes_enabled', true);
+    node03Fake();
+    $bot = node03Bot();
+
+    $bot->hearCallbackQueryData('node3:list')->reply();
+    $bot->hearCallbackQueryData('node3:toggle:0')->reply();
+    $bot->hearCallbackQueryData('node3:choose:reset')->reply()->assertReply('editMessageText', [
+        'text' => "⚠️ تأیید عملیات گروهی\n\nصفرکردن ترافیک\nتعداد سرورها: 1\n\n"
+            ."سرورهای هدف:\n1. Alpha\n\n⚠️ شمارنده مصرف ترافیک سرورهای انتخاب‌شده صفر می‌شود."
+            ."\nاعتبار تأیید: ۳ دقیقه.",
+    ]);
+    expect(node03Writes())->toBe(0);
+});
+
+it('displays the complete proposed note value before bulk approval', function (): void {
+    node03Root();
+    config()->set('services.remnawave.writes_enabled', true);
+    node03Fake();
+    $bot = node03Bot();
+    $note = str_repeat('A', 140);
+
+    $bot->hearCallbackQueryData('node3:list')->reply();
+    $bot->hearCallbackQueryData('node3:toggle:0')->reply();
+    $bot->hearCallbackQueryData('node3:choose:update')->reply();
+    $bot->hearCallbackQueryData('node3:field:1')->reply();
+    $bot->hearText($note)->reply()->assertReply('sendMessage', [
+        'text' => "⚠️ تأیید عملیات گروهی\n\nویرایش گروهی\nتعداد سرورها: 1\n\n"
+            ."سرورهای هدف:\n1. Alpha\nفیلد: یادداشت\nمقدار جدید: ".$note
+            ."\n\nنتیجه تغییرات را پس از ثبت بررسی کنید.\nاعتبار تأیید: ۳ دقیقه.",
+    ]);
     expect(node03Writes())->toBe(0);
 });
