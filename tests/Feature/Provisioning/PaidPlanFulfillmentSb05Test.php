@@ -7,7 +7,9 @@ use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Application\FulfillPaidPlanOrder;
 use App\Modules\Provisioning\Application\GetMySubscription;
+use App\Modules\Provisioning\Application\ManageFulfilledSubscriptionStatus;
 use App\Modules\Provisioning\Application\ReviewPaidFulfillment;
+use App\Modules\Provisioning\Jobs\ChangeFulfilledSubscriptionStatusJob;
 use App\Modules\Provisioning\Jobs\FulfillPaidPlanOrderJob;
 use App\Modules\Sales\Application\CalculatePlanQuote;
 use App\Modules\Sales\Application\ConfigureProduct;
@@ -428,4 +430,146 @@ it('opens completed Admin results and order details with existing root-only navi
 
     Queue::assertNothingPushed();
     Http::assertNothingSent();
+});
+
+it('blocks untrusted or disabled provider status changes without a network write', function (): void {
+    $data = sb05Order();
+    config()->set('services.remnawave.writes_enabled', true);
+    sb05FakeCreate($data['order']);
+    app(FulfillPaidPlanOrder::class)->handle($data['order']);
+    config()->set('services.remnawave.writes_enabled', false);
+    Http::fake();
+
+    $status = app(ManageFulfilledSubscriptionStatus::class);
+    expect(fn () => $status->authorizeChange($data['root']->id, $data['order'], 'disable'))
+        ->toThrow(ValidationException::class);
+    expect(fn () => $status->status($data['buyer']->id, $data['order']))
+        ->toThrow(AuthorizationException::class);
+    Http::assertNothingSent();
+});
+
+it('changes only a fulfilled, owned provider subscription and blocks repeat clicks', function (): void {
+    $data = sb05Order();
+    config()->set('services.remnawave.writes_enabled', true);
+    $current = 'ACTIVE';
+    $expiry = '';
+    $bytes = 0;
+    Http::fake(static function (Request $request) use ($data, &$current, &$expiry, &$bytes) {
+        if ($request->method() === 'POST') {
+            $expiry = (string) $request['expireAt'];
+            $bytes = (int) $request['trafficLimitBytes'];
+        }
+        if ($request->method() === 'PATCH' && $request->url() === 'https://remna.test/api/users') {
+            $current = (string) $request['status'];
+        }
+
+        return Http::response(['response' => [
+            ...sb05Remote($data['order'], $expiry, $bytes),
+            'status' => $current,
+        ]], $request->method() === 'POST' ? 201 : 200);
+    });
+    app(FulfillPaidPlanOrder::class)->handle($data['order']);
+
+    $status = app(ManageFulfilledSubscriptionStatus::class);
+    expect($status->status($data['root']->id, $data['order']))->toBe('active');
+    $disable = 'mvp04:'.$data['order'].':'.str_repeat('a', 32);
+    $status->change($data['root']->id, $data['order'], 'disable', $disable);
+    expect($status->status($data['root']->id, $data['order']))->toBe('disabled');
+    expect(fn () => $status->change($data['root']->id, $data['order'], 'disable', $disable))
+        ->toThrow(ValidationException::class);
+    $status->change($data['root']->id, $data['order'], 'enable',
+        'mvp04:'.$data['order'].':'.str_repeat('b', 32));
+    expect($status->status($data['root']->id, $data['order']))->toBe('active');
+    expect(DB::table('provisioning_operations')->whereIn('kind', ['disable', 'enable'])
+        ->where('state', 'completed')->count())->toBe(2);
+    Http::assertSent(static fn (Request $req): bool => $req->method() === 'PATCH'
+        && $req->url() === 'https://remna.test/api/users'
+        && (int) $req['id'] === 52 && count($req->data()) === 2
+        && $req['status'] === 'DISABLED');
+    Http::assertSent(static fn (Request $req): bool => $req->method() === 'PATCH'
+        && $req['status'] === 'ACTIVE');
+});
+
+it('blocks forged completed orders without a real local owner linkage before GET', function (): void {
+    $data = sb05Order();
+    $status = app(ManageFulfilledSubscriptionStatus::class);
+    config()->set('services.remnawave.writes_enabled', true);
+    Http::fake();
+
+    expect(fn () => $status->status($data['root']->id, $data['order']))
+        ->toThrow(ValidationException::class);
+    DB::table('sales_orders')->where('id', $data['order'])->update(['status' => 'fulfilled']);
+    DB::table('sales_fulfillment_outbox')->where('sales_order_id', $data['order'])
+        ->update(['state' => 'completed']);
+    expect(fn () => $status->status($data['root']->id, $data['order']))
+        ->toThrow(ValidationException::class);
+    Http::assertNothingSent();
+});
+
+it('reconciles uncertain status updates with GET only and never replays PATCH', function (): void {
+    $data = sb05Order();
+    config()->set('services.remnawave.writes_enabled', true);
+    $expiry = '';
+    $bytes = 0;
+    $remoteStatus = 'ACTIVE';
+    Http::fake(static function (Request $req) use ($data, &$expiry, &$bytes, &$remoteStatus) {
+        if ($req->method() === 'POST') {
+            $expiry = (string) $req['expireAt'];
+            $bytes = (int) $req['trafficLimitBytes'];
+        }
+        if ($req->method() === 'PATCH') {
+            return Http::response('', 503);
+        }
+
+        return Http::response(['response' => [
+            ...sb05Remote($data['order'], $expiry, $bytes),
+            'status' => $remoteStatus,
+        ]], $req->method() === 'POST' ? 201 : 200);
+    });
+    app(FulfillPaidPlanOrder::class)->handle($data['order']);
+
+    $status = app(ManageFulfilledSubscriptionStatus::class);
+    expect(fn () => $status->change($data['root']->id, $data['order'], 'disable',
+        'mvp04:'.$data['order'].':'.str_repeat('c', 32)))->toThrow(RuntimeException::class);
+    expect($status->status($data['root']->id, $data['order']))->toBe('review')
+        ->and(DB::table('provisioning_operations')->where('kind', 'disable')->value('state'))->toBe('needs_review');
+    Http::assertSentCount(3);
+
+    config()->set('services.remnawave.writes_enabled', false);
+    $remoteStatus = 'DISABLED';
+    $status->reconcile($data['root']->id, $data['order']);
+    expect(DB::table('provisioning_operations')->where('kind', 'disable')->value('state'))->toBe('completed');
+    Http::assertSentCount(4);
+    Http::assertSent(static fn (Request $req): bool => $req->method() === 'GET');
+});
+
+it('keeps private status callbacks read-only when provider writes are disabled', function (): void {
+    $data = sb05Order();
+    config()->set('services.remnawave.writes_enabled', true);
+    sb05FakeCreate($data['order']);
+    app(FulfillPaidPlanOrder::class)->handle($data['order']);
+    config()->set('services.remnawave.writes_enabled', false);
+    Http::fake();
+    Queue::fake();
+
+    $bot = Nutgram::fake();
+    require base_path('app/Interfaces/Telegram/routes/admin.php');
+    $bot->setCommonUser(TelegramUser::make(975001, false, 'Root'));
+    $bot->setCommonChat(Chat::make(975001, ChatType::PRIVATE));
+
+    $bot->hearCallbackQueryData('full:service:view:'.$data['order'])->reply()
+        ->assertCalled('answerCallbackQuery')
+        ->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('full:service:prepare:'.$data['order'].':disable')->reply()
+        ->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('full:service:check:'.$data['order'])->reply()
+        ->assertCalled('editMessageText');
+    Queue::assertNothingPushed();
+    Http::assertSentCount(1);
+
+    $job = new ChangeFulfilledSubscriptionStatusJob($data['order'], $data['root']->id, 'disable',
+        'mvp04:'.$data['order'].':'.str_repeat('d', 32));
+    expect($job->tries)->toBe(1)
+        ->and($job->uniqueId())->toBe('parsa:subscription-status:'.$data['order'])
+        ->and($job->connection)->toBe('database');
 });

@@ -1,5 +1,11 @@
 # ParsaGate — Current Context / Development Memory 
 
+## MVP-04 — Basic Super Admin subscription status management (2026-10-17)
+
+- **MVP-only scope:** Existing Admin Bot completed-order detail now links to a small «مدیریت وضعیت اشتراک» screen. Only active, linked, allowlisted Super Admins in private chats may request a real, owner-linked customer's subscription status or explicitly confirm **Disable/Enable**. Eligible orders require `fulfilled` Sales state, completed fulfillment outbox, a unique local provisioning link and exact `sales-order:{id}` reference; the existing Lifecycle strictly verifies remote username/ownership marker before any status write.
+- **Reuse and safety:** The existing `RemnawaveSubscriptionLifecycle::disable/enable/reconcileUpdate` and Remnawave users `PATCH` adapter perform all writes; never accept a provider user ID from Telegram. One-time, root-bound three-minute confirmation queues one bounded one-attempt database Job. Current root authority, order and remote state are rechecked in the worker. Uncertain provider write produces `needs_review`, no automatic retry, with an explicit **GET-only** reconciliation button. Existing idempotent operation reservation prevents competing writes. `REMNAWAVE_WRITES_ENABLED` remains OFF by default; no server flag change or live operation authorized by source CI.
+- **MVP closure boundary:** No quota/expiration edits, delete/revoke, renewal, Node/Host UI, finance changes, new migration, extra dependencies or notification subsystem. Existing Admin/Sales routes and buyer subscription access remain. Code checks are isolated HTTP-fake/Pest/PHPStan/Pint and disposable MySQL; real Telegram/Remnawave, deployed DB schema, payment and client VPN connectivity remain a separately approved end-of-MVP staging/Production gate, never assumed from CI. This is the **fourth and final planned MVP feature phase**; post-launch enhancements stay deferred.
+
 ## MVP-03 — Customer subscription delivery polish (2026-10-17)
 
 - **MVP-only completion of SB-06, not a new subscription feature.** On the existing Sales Bot «اشتراک‌های من» detail, an unactivated/unpaid subscription now links directly to its **owner-authorized Sales order** for payment/status. Existing order details retain the fulfilled → subscription link. Back, refresh and Home remain intact; no new callbacks/routes or business Actions.

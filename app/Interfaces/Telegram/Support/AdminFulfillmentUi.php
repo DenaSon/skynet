@@ -116,6 +116,9 @@ final readonly class AdminFulfillmentUi
         if ($order->intent_state === 'completed') {
             $lines[] = '';
             $lines[] = 'فعال‌سازی این سفارش ثبت شده است. مشتری می‌تواند اشتراک خود را در بات فروش مشاهده کند.';
+            $buttons->addRow(InlineKeyboardButton::make(
+                '🔌 مدیریت وضعیت اشتراک', callback_data: 'full:service:view:'.$orderId,
+            ));
         }
         if (in_array($order->intent_state, ['processing', 'needs_review'], true)) {
             $lines[] = '';
