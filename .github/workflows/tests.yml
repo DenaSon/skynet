@@ -61,6 +61,12 @@ jobs:
       - name: Static analysis
         run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
 
+      - name: HOST-02 formatter inspection (temporary)
+        run: |
+          vendor/bin/pint app/Interfaces/Telegram/Support/AdminHostBatchUi.php app/Modules/Provisioning/Application/ManageAdminHosts.php
+          git diff -- app/Interfaces/Telegram/Support/AdminHostBatchUi.php app/Modules/Provisioning/Application/ManageAdminHosts.php
+          git checkout -- app/Interfaces/Telegram/Support/AdminHostBatchUi.php app/Modules/Provisioning/Application/ManageAdminHosts.php
+
       - name: Formatting verification
         run: vendor/bin/pint --test
 
