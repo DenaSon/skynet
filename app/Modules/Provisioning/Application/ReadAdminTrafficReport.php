@@ -158,7 +158,8 @@ final readonly class ReadAdminTrafficReport
         $byName = [];
         foreach ($series as $entry) {
             if (! is_array($entry) || ! is_string($entry['name'] ?? null) || ! is_array($entry['data'] ?? null)
-                || ! array_is_list($entry['data']) || count($entry['data']) > 30 || isset($byName[$entry['name']])) {
+                || ! array_is_list($entry['data']) || count($entry['data']) !== count($history['categories'])
+                || count($entry['data']) > 30 || isset($byName[$entry['name']])) {
                 // Schema variants must not be interpreted as zero usage.
                 throw new UnexpectedValueException('Invalid Node traffic series.');
             }
