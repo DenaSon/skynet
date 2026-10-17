@@ -131,6 +131,7 @@ final class MenuRenderer
                 InlineKeyboardButton::make('📚 محصولات پایه', callback_data: 'menu:admin:products'),
                 InlineKeyboardButton::make('📦 مدیریت پلن‌ها', callback_data: 'menu:admin:plans'),
             )
+            ->addRow(InlineKeyboardButton::make('🔌 فعال‌سازی اشتراک‌ها', callback_data: 'menu:admin:fulfillment'))
             ->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
 
         $this->render($bot, "📦 محصولات و پلن‌ها\n\nاز این بخش می‌توانید محصولات، پلن‌ها و قیمت‌های فروش را مدیریت کنید.", $keyboard);
