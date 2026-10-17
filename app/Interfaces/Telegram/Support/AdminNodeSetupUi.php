@@ -64,10 +64,11 @@ final readonly class AdminNodeSetupUi
             // If deletion fails, do not use or cache the secret.
             try {
                 $messageId = $bot->message()?->message_id;
-                if (! is_int($messageId)) {
-                    throw new \RuntimeException('Missing message id');
+                $chatId = $bot->chat()?->id;
+                if (! is_int($messageId) || ! is_int($chatId)) {
+                    throw new \RuntimeException('Missing message identity');
                 }
-                $bot->deleteMessage(message_id: $messageId);
+                $bot->deleteMessage(chat_id: $chatId, message_id: $messageId);
             } catch (Throwable) {
                 Cache::forget($this->key($id));
                 $this->render($bot, 'حذف پیام رمز ممکن نشد؛ این تلاش لغو شد. رمز را تغییر دهید.', $this->back());
