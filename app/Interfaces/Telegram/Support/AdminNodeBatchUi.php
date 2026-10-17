@@ -60,6 +60,7 @@ final readonly class AdminNodeBatchUi
         }
 
         // Keep only one Node wizard active so free-text replies reach the visible form.
+        Cache::forget(TelegramBotContext::current()->cacheKey('cfg02:draft:'.$root));
         Cache::forget(TelegramBotContext::current()->cacheKey('host01:draft:'.$root));
         Cache::forget(TelegramBotContext::current()->cacheKey('host02:draft:'.$root));
         Cache::forget(TelegramBotContext::current()->cacheKey('host02:batch:'.$root));
