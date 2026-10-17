@@ -298,7 +298,7 @@ it('NW-01 preflight rejects local SSH destinations and invalid ports without net
 });
 
 
-it('NW-01 deletes the incoming password and retains only encrypted temporary credentials', function (): void {
+it('NW-01 invokes deletion and rejects a credential if Telegram does not acknowledge it', function (): void {
     $actors = node01Actors();
     node01FakeProvider();
     config()->set('services.remnawave.node_ssh_setup_enabled', true);
@@ -311,16 +311,9 @@ it('NW-01 deletes the incoming password and retains only encrypted temporary cre
     $bot->hearText('root')->reply();
     expect(Cache::get($key)['stage'])->toBe('password');
 
+    // The fake records deleteMessage but cannot return the Telegram
+    // acknowledgment. Never accept or store a password in that case.
     $bot->hearText('not-a-real-ssh-password')->reply()->assertCalled('deleteMessage');
-    $state = Cache::get($key);
-    expect($state['stage'])->toBe('profile')
-        ->and($state['secret'])->not->toBe('not-a-real-ssh-password')
-        ->and(\Illuminate\Support\Facades\Crypt::decryptString($state['secret']))->toBe('not-a-real-ssh-password');
-
-    $bot->hearCallbackQueryData('nw1:profile:0')->reply();
-    $bot->hearCallbackQueryData('nw1:inbound:0')->reply();
-    expect(Cache::get($key)['stage'])->toBe('preview');
-    $bot->hearCallbackQueryData('nw1:cancel')->reply();
     expect(Cache::get($key))->toBeNull();
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
 });
