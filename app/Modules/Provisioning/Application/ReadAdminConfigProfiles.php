@@ -93,7 +93,7 @@ final readonly class ReadAdminConfigProfiles
     private static function uuidValid(mixed $value): bool
     {
         return is_string($value) && preg_match(
-            '/\A[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\z/D',
+            '/\A[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}\z/D',
             $value,
         ) === 1;
     }
