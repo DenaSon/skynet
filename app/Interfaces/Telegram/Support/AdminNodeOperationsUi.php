@@ -168,6 +168,11 @@ final readonly class AdminNodeOperationsUi
                 "درخواست اجرا نشد؛ وضعیت سرور یا دسترسی تغییر کرده است.\n\nفهرست را تازه‌سازی کنید و دوباره بررسی کنید.",
                 $this->listKeyboard(),
             );
+        } catch (\Illuminate\Contracts\Cache\LockTimeoutException) {
+            $this->render($bot,
+                "عملیات دیگری روی سرورها در حال انجام است.\n\nابتدا وضعیت سرور را بررسی کنید.",
+                $this->listKeyboard(),
+            );
         } catch (Throwable) {
             // Includes timeout or unverified response AFTER the remote write.
             // Always require a read-only refresh; never retry this ticket.
