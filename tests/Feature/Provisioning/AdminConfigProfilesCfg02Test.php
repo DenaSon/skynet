@@ -7,8 +7,8 @@ use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Application\ManageAdminConfigProfiles;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Request;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
@@ -81,8 +81,7 @@ function cfg02Fake(?array $nodes = [], ?array $hosts = [], bool $uncertain = fal
                 'https://cfg02.test/api/config-profiles' => Http::response(['response' => [
                     'configProfiles' => [['uuid' => CFG02_PROFILE, 'name' => $name]],
                 ]]),
-                'https://cfg02.test/api/config-profiles/'.CFG02_PROFILE.'/inbounds' =>
-                    Http::response(['response' => ['inbounds' => []]]),
+                'https://cfg02.test/api/config-profiles/'.CFG02_PROFILE.'/inbounds' => Http::response(['response' => ['inbounds' => []]]),
                 'https://cfg02.test/api/nodes' => $nodes === null ? Http::response(['error' => 'down'], 503)
                     : Http::response(['response' => $nodes]),
                 'https://cfg02.test/api/hosts' => $hosts === null ? Http::response(['error' => 'down'], 503)
