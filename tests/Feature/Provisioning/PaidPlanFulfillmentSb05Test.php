@@ -256,7 +256,6 @@ it('registers an explicit one-order operator command without a background dispat
     Http::assertNothingSent();
 });
 
-
 it('keeps Admin-only fulfilled order directory read-only with genuine paid and outbox scopes', function (): void {
     $data = sb05Order();
     $guest = User::factory()->create();
