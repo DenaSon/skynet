@@ -64,12 +64,6 @@ jobs:
       - name: Formatting verification
         run: vendor/bin/pint --test
 
-      - name: Temporary NODE-01 formatting diagnostic
-        if: failure()
-        run: |
-          vendor/bin/pint app/Modules/Provisioning/Application/ManageAdminNodes.php
-          git diff -- app/Modules/Provisioning/Application/ManageAdminNodes.php
-
 
   mysql-migration:
     name: MySQL migration and rollback
