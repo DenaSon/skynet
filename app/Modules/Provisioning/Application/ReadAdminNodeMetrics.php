@@ -46,8 +46,8 @@ final readonly class ReadAdminNodeMetrics
         }
 
         $onlineByUuid = [];
+        $telemetry = new RemnawaveNodeTelemetry($client);
         try {
-            $telemetry = new RemnawaveNodeTelemetry($client);
             foreach ($telemetry->onlineUsers() as $row) {
                 // Never use remote display names here. Node list is the trusted view.
                 $uuid = strtolower($row['uuid']);
