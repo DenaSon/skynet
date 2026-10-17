@@ -277,7 +277,6 @@ it('Telegram blocks disabled global write gate and non-root operator', function 
     expect(node03Writes())->toBe(0);
 });
 
-
 it('serializes create, individual and group Node writes using the same short-lived lock', function (): void {
     $root = node03Root();
     config()->set('services.remnawave.writes_enabled', true);
