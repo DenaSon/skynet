@@ -47,16 +47,18 @@ final readonly class AdminNodesUi
         $pages = max(1, (int) ceil(count($nodes) / 10));
         $page = min($page, $pages);
         $keyboard = InlineKeyboardMarkup::make();
-        $lines = ['🖥️ مدیریت نودها', 'تعداد: '.count($nodes)." | صفحه {$page} از {$pages}", ''];
+        $enabled = count(array_filter($nodes, static fn (array $node): bool => ! $node['disabled']));
+        $online = count(array_filter($nodes, static fn (array $node): bool => ! $node['disabled'] && $node['connected']));
+        $lines = ['🖥️ مدیریت نودها',
+            'کل: '.count($nodes).' | فعال: '.$enabled.' | متصل: '.$online,
+            "صفحه {$page} از {$pages}", '',
+            $nodes === [] ? 'هنوز سروری اضافه نشده است.' : 'برای مشاهده جزئیات، یک سرور را انتخاب کنید.',
+        ];
         foreach (array_slice($nodes, ($page - 1) * 10, 10) as $node) {
-            $status = $node['disabled'] ? '⏸️ غیرفعال' : ($node['connected'] ? '🟢 متصل' : '🔴 قطع');
-            $lines[] = $this->safe($node['name']).' — '.$status;
+            $status = $node['disabled'] ? '⏸️' : ($node['connected'] ? '🟢' : '🔴');
             $keyboard->addRow(InlineKeyboardButton::make(
-                $this->safe($node['name']), callback_data: 'node1:view:'.$node['uuid'],
+                $status.' '.$this->safe($node['name']), callback_data: 'node1:view:'.$node['uuid'],
             ));
-        }
-        if ($nodes === []) {
-            $lines[] = 'هنوز نودی ثبت نشده است.';
         }
         $nav = [];
         if ($page > 1) {
@@ -102,11 +104,13 @@ final readonly class AdminNodesUi
             InlineKeyboardButton::make('🔄 راه‌اندازی مجدد', callback_data: 'node2:prepare:'.$node['uuid'].':restart'),
             InlineKeyboardButton::make('📊 صفرکردن ترافیک', callback_data: 'node2:prepare:'.$node['uuid'].':reset'),
         );
-        $keyboard->addRow(InlineKeyboardButton::make('🗑️ حذف نود', callback_data: 'node2:prepare:'.$node['uuid'].':delete'));
+        if ($node['disabled']) {
+            $keyboard->addRow(InlineKeyboardButton::make('🗑️ حذف سرور', callback_data: 'node2:prepare:'.$node['uuid'].':delete'));
+        }
         $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'node1:view:'.$node['uuid']));
         $keyboard->addRow(InlineKeyboardButton::make('◀️ فهرست نودها', callback_data: 'node1:list:1'));
         $this->render($bot,
-            '🖥️ جزئیات نود'."\n\n"
+            '🖥️ جزئیات سرور'."\n\n"
             .'نام: '.$this->safe($node['name'])."\n"
             .'وضعیت: '.$status."\n"
             .'اتصال: '.$connected,
