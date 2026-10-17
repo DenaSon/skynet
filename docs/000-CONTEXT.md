@@ -1,5 +1,12 @@
 # ParsaGate — Current Context / Development Memory 
 
+## NODE-03 — Super Admin group Node operations (2026-10-17)
+
+- **Approved MVP-only completion of the 3-phase Node scope:** Existing private Admin Bot «مدیریت نودها» adds «عملیات گروهی» with select-up-to-20, bulk enable/disable/restart/reset traffic; guarded bulk update of the existing Nodes API's supported fields, existing Config Profile + inbound selection, complete-list display reorder (up/down), and explicitly confirmed restart-all. Uses only the pinned \`RemnawaveNodesApi\` 15-operation adapter; no duplicate API clients, dependencies, new migrations or Sales/customer changes.
+- **Safety:** allowlisted active linked Super Admin + private chat at every Telegram step and inside the shared Application Action. \`REMNAWAVE_WRITES_ENABLED\` remains OFF. Selection is bounded to a 20-node private view; a fresh panel Node GET verifies each selected UUID, name, connection and disabled state immediately before one remote operation. Reorder/restart-all additionally verify complete inventory; profile modification revalidates remote Profile/Inbound choices; bulk update uses a one-field, typed whitelist. Three-minute root-bound token is consumed under cache lock **before** writing, and the action uses one bounded batch lock. No automatic replays on timeout or ambiguous outcomes; user is instructed to reread remote state. Bulk restart and restart-all may disrupt users. No real production or staging provider operations are authorized by CI.
+- **Acceptance:** isolated fake-provider/Pest test of all Node bulk endpoints plus boundary denial, stale state, no duplicate writes, remote timeout, cross-root and private-chat isolation, and full PHP 8.4/8.5, PHPStan/Pint and MySQL CI. Final live Telegram, real Remnawave Node/Host and VPN connectivity evidence is still a separate operator-controlled gate. The three planned Node feature phases are code-complete only when this PR and post-merge CI pass.
+
+
 ## NODE-02 — Single-node Super Admin controls (2026-10-17)
 
 - **Approved scope:** existing Admin Bot Node detail now exposes guided **edit name/address**, **enable**, **disable**, **restart**, **reset traffic counter** and **delete** using existing 3.4.4 \`RemnawaveNodesApi\`; no bulk, Host/Node VPS installation or extra Node field wizard (NODE-03 separately planned). Admin-only \`node2:prepare/apply/cancel\` callbacks and the original legacy-text dispatcher handle a single private edit line, without breaking NODE-01 and prior routes.

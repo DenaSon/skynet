@@ -104,6 +104,17 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:node2:prepare:{uuid}:{mode}';
     $expected['ADMIN'][] = 'callback:node2:apply:{token}';
     $expected['ADMIN'][] = 'callback:node2:cancel';
+    // NODE-03 is an isolated Admin-only group operations wizard.
+    $expected['ADMIN'][] = 'callback:node3:list';
+    $expected['ADMIN'][] = 'callback:node3:toggle:{index}';
+    $expected['ADMIN'][] = 'callback:node3:choose:{mode}';
+    $expected['ADMIN'][] = 'callback:node3:move:{index}:{direction}';
+    $expected['ADMIN'][] = 'callback:node3:profile:{index}';
+    $expected['ADMIN'][] = 'callback:node3:inbound:{index}';
+    $expected['ADMIN'][] = 'callback:node3:field:{index}';
+    $expected['ADMIN'][] = 'callback:node3:preview';
+    $expected['ADMIN'][] = 'callback:node3:apply:{token}';
+    $expected['ADMIN'][] = 'callback:node3:cancel';
     $expected['SALES'][] = 'photo:*';
     $files = [
         'ADMIN' => 'app/Interfaces/Telegram/routes/admin.php',
@@ -128,8 +139,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(147)
-        ->and(count(array_unique($legacy)))->toBe(147);
+        ->and(count($legacy))->toBe(157)
+        ->and(count(array_unique($legacy)))->toBe(157);
 });
 
 it('keeps the second Sales Bot router limited to identity and read-only catalog without Admin callbacks', function (): void {
