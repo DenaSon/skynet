@@ -1,5 +1,11 @@
 # ParsaGate — Current Context / Development Memory 
 
+## MVP post-review safety fixes — queued root trust and reserved update recovery (2026-10-17)
+
+- The existing Admin Bot fulfillment confirmation now carries the authenticated root user ID into the one-shot database Job. The worker **rechecks current Super Admin trust** before initiating either CREATE or GET-only reconciliation. Old queued Job payloads without an actor ID fail closed. The separately trusted operator CLI still calls the existing Application Action directly; no new Telegram routes or permissions.
+- For already fulfilled and locally linked orders, a status-update reservation left in `reserved` by worker interruption is shown as «نیازمند بررسی» only when a matching `enable/disable` operation is recorded. The existing Admin «بررسی نتیجه» action uses the Lifecycle's strict GET-only reconciliation. It never retries the PATCH, and unmatched/foreign states remain blocked.
+- Source regression tests cover revoked queued authorization and reserved-state recovery. Provider writes and Sales gates remain default-OFF; no DB schema, flags, finance, provider API or architectural changes. Green CI does not replace deferred live Telegram/Remnawave E2E.
+
 ## MVP-04 — Basic Super Admin subscription status management (2026-10-17)
 
 - **MVP-only scope:** Existing Admin Bot completed-order detail now links to a small «مدیریت وضعیت اشتراک» screen. Only active, linked, allowlisted Super Admins in private chats may request a real, owner-linked customer's subscription status or explicitly confirm **Disable/Enable**. Eligible orders require `fulfilled` Sales state, completed fulfillment outbox, a unique local provisioning link and exact `sales-order:{id}` reference; the existing Lifecycle strictly verifies remote username/ownership marker before any status write.

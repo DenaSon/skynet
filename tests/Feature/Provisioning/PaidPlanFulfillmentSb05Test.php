@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Modules\Identity\Application\AssertCatalogManagementAccess;
 use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
@@ -311,8 +312,8 @@ it('delivers no remote write during Admin confirmation and queues only the trust
 
     $reader = app(ReviewPaidFulfillment::class);
     expect($reader->authorizeRequest($data['root']->id, $data['order'], false)->id)->toBe($data['order']);
-    FulfillPaidPlanOrderJob::dispatch($data['order']);
-    Queue::assertPushed(FulfillPaidPlanOrderJob::class, 1);
+    FulfillPaidPlanOrderJob::dispatch($data['order'], false, $data['root']->id);
+    Queue::assertPushed(FulfillPaidPlanOrderJob::class, static fn (FulfillPaidPlanOrderJob $job): bool => $job->actorId === $data['root']->id);
     expect(DB::table('provisioning_subscriptions')->count())->toBe(0);
     Http::assertNothingSent();
 });
@@ -321,15 +322,15 @@ it('does not replay uncertain provider writes from a queued job', function (): v
     $data = sb05Order();
     config()->set('services.remnawave.writes_enabled', true);
     Http::fake(['https://remna.test/api/users' => Http::response('provider timeout', 503)]);
-    $job = new FulfillPaidPlanOrderJob($data['order']);
+    $job = new FulfillPaidPlanOrderJob($data['order'], false, $data['root']->id);
 
     expect($job->tries)->toBe(1)
         ->and($job->uniqueId())->toBe('parsa:fulfillment:'.$data['order']);
-    $job->handle(app(FulfillPaidPlanOrder::class));
+    $job->handle(app(FulfillPaidPlanOrder::class), app(AssertCatalogManagementAccess::class));
     expect(DB::table('sales_fulfillment_outbox')->value('state'))->toBe('needs_review');
     Http::assertSentCount(1);
 
-    $job->handle(app(FulfillPaidPlanOrder::class));
+    $job->handle(app(FulfillPaidPlanOrder::class), app(AssertCatalogManagementAccess::class));
     Http::assertSentCount(1);
 });
 
@@ -572,4 +573,70 @@ it('keeps private status callbacks read-only when provider writes are disabled',
     expect($job->tries)->toBe(1)
         ->and($job->uniqueId())->toBe('parsa:subscription-status:'.$data['order'])
         ->and($job->connection)->toBe('database');
+});
+
+it('rechecks queued Admin fulfillment trust and refuses revoked or legacy rootless jobs', function (): void {
+    $data = sb05Order();
+    config()->set('services.remnawave.writes_enabled', true);
+    Http::fake();
+    $job = new FulfillPaidPlanOrderJob($data['order'], false, $data['root']->id);
+    $legacy = new FulfillPaidPlanOrderJob($data['order']);
+
+    // The one-time Telegram confirmation happened before this role revocation.
+    $data['root']->syncRoles(['member']);
+    $job->handle(app(FulfillPaidPlanOrder::class), app(AssertCatalogManagementAccess::class));
+    $legacy->handle(app(FulfillPaidPlanOrder::class), app(AssertCatalogManagementAccess::class));
+
+    expect(DB::table('sales_fulfillment_outbox')->where('sales_order_id', $data['order'])->value('state'))->toBe('pending')
+        ->and(DB::table('provisioning_subscriptions')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('exposes a reserved status update for read-only recovery after worker interruption', function (): void {
+    $data = sb05Order();
+    config()->set('services.remnawave.writes_enabled', true);
+    sb05FakeCreate($data['order']);
+    app(FulfillPaidPlanOrder::class)->handle($data['order']);
+
+    $reference = 'sales-order:'.$data['order'];
+    $key = 'mvp04:'.$data['order'].':'.str_repeat('e', 32);
+    $sub = DB::table('provisioning_subscriptions')->where('reference', $reference)->first();
+    $createPayload = json_decode((string) DB::table('provisioning_operations')
+        ->where('kind', 'create')->value('expected_payload'), true, 512, JSON_THROW_ON_ERROR);
+
+    // Simulate a crash after the durable reservation, before marking the PATCH result.
+    DB::table('provisioning_subscriptions')->where('id', $sub->id)->update([
+        'state' => 'reserved', 'last_operation_key' => $key,
+    ]);
+    DB::table('provisioning_operations')->insert([
+        'subscription_id' => $sub->id,
+        'idempotency_key' => $key,
+        'kind' => 'disable',
+        'payload_hash' => hash('sha256', json_encode([$reference, 'disable', ['status' => 'DISABLED']], JSON_THROW_ON_ERROR)),
+        'expected_payload' => json_encode(['status' => 'DISABLED'], JSON_THROW_ON_ERROR),
+        'state' => 'reserved',
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+
+    config()->set('services.remnawave.writes_enabled', false);
+    $remote = [
+        ...sb05Remote($data['order'], $createPayload['expireAt'], $createPayload['trafficLimitBytes']),
+        'status' => 'DISABLED',
+    ];
+    Http::fake(['*' => Http::response(['response' => $remote], 200)]);
+
+    $statuses = app(ManageFulfilledSubscriptionStatus::class);
+    expect($statuses->status($data['root']->id, $data['order']))->toBe('review');
+    $statuses->authorizeReconcile($data['root']->id, $data['order']);
+    expect(fn () => $statuses->authorizeChange($data['root']->id, $data['order'], 'enable'))
+        ->toThrow(ValidationException::class);
+    expect(fn () => $statuses->status($data['buyer']->id, $data['order']))
+        ->toThrow(AuthorizationException::class);
+
+    $statuses->reconcile($data['root']->id, $data['order']);
+    expect(DB::table('provisioning_subscriptions')->where('id', $sub->id)->value('state'))->toBe('active')
+        ->and(DB::table('provisioning_operations')->where('idempotency_key', $key)->value('state'))->toBe('completed')
+        ->and($statuses->status($data['root']->id, $data['order']))->toBe('disabled');
+    Http::assertSent(static fn (Request $req): bool => $req->method() === 'GET');
+    Http::assertNotSent(static fn (Request $req): bool => $req->method() === 'PATCH');
 });

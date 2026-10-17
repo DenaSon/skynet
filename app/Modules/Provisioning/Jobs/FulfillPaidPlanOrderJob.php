@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Provisioning\Jobs;
 
+use App\Modules\Identity\Application\AssertCatalogManagementAccess;
 use App\Modules\Provisioning\Application\FulfillPaidPlanOrder;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -25,7 +26,7 @@ final class FulfillPaidPlanOrderJob implements ShouldBeUnique, ShouldQueue
 
     public int $uniqueFor = 180;
 
-    public function __construct(public int $orderId, public bool $reconcile = false)
+    public function __construct(public int $orderId, public bool $reconcile = false, public int $actorId = 0)
     {
         // Never let a sync queue run the provider operation in a Telegram webhook.
         $this->onConnection('database');
@@ -36,9 +37,11 @@ final class FulfillPaidPlanOrderJob implements ShouldBeUnique, ShouldQueue
         return 'parsa:fulfillment:'.$this->orderId;
     }
 
-    public function handle(FulfillPaidPlanOrder $fulfill): void
+    public function handle(FulfillPaidPlanOrder $fulfill, AssertCatalogManagementAccess $access): void
     {
         try {
+            // Older queued payloads have no actorId and must fail closed.
+            $access->handle($this->actorId);
             if ($this->reconcile) {
                 // The lifecycle resolves an uncertain CREATE with GET only.
                 $fulfill->reconcile($this->orderId);
