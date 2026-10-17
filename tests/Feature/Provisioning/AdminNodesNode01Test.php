@@ -210,3 +210,15 @@ it('revalidates chosen profile/inbounds and current root authority immediately b
         ->toThrow(AuthorizationException::class);
     expect(collect(Http::recorded())->filter(static fn ($pair): bool => $pair[0]->method() === 'POST'))->toBeEmpty();
 });
+
+
+it('renders a compact Node list with a single status summary and no duplicated names', function (): void {
+    node01Actors();
+    node01FakeProvider();
+
+    node01Bot()->hearCallbackQueryData('node1:list:1')->reply()->assertReply('editMessageText', [
+        'text' => "🖥️ مدیریت نودها\nکل: 1 | فعال: 1 | متصل: 1\nصفحه 1 از 1\n\n"
+            .'برای مشاهده جزئیات، یک سرور را انتخاب کنید.',
+    ]);
+    Http::assertSentCount(1);
+});
