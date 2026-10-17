@@ -7,6 +7,8 @@ use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Application\FulfillPaidPlanOrder;
 use App\Modules\Provisioning\Application\GetMySubscription;
+use App\Modules\Provisioning\Application\ReviewPaidFulfillment;
+use App\Modules\Provisioning\Jobs\FulfillPaidPlanOrderJob;
 use App\Modules\Sales\Application\CalculatePlanQuote;
 use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\CreatePendingPlanOrder;
@@ -15,11 +17,17 @@ use App\Modules\Sales\Application\ManagePlans;
 use App\Modules\Sales\Application\ManualBankPayments;
 use App\Modules\Sales\Application\PlanDefinition;
 use App\Modules\Sales\Application\PlanPricingDefinition;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Validation\ValidationException;
+use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Properties\ChatType;
+use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
+use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 
 uses(RefreshDatabase::class);
 
@@ -254,12 +262,12 @@ it('keeps Admin-only fulfilled order directory read-only with genuine paid and o
     $guest = User::factory()->create();
     Http::fake();
 
-    $reader = app(\App\Modules\Provisioning\Application\ReviewPaidFulfillment::class);
+    $reader = app(ReviewPaidFulfillment::class);
     expect($reader->pending($data['root']->id))->toHaveCount(1)
         ->and($reader->pending($data['root']->id)[0]->id)->toBe($data['order']);
 
     expect(fn () => $reader->pending($guest->id))
-        ->toThrow(\Illuminate\Auth\Access\AuthorizationException::class);
+        ->toThrow(AuthorizationException::class);
     DB::table('sales_orders')->where('id', $data['order'])->update(['status' => 'pending_payment']);
     expect(fn () => $reader->detail($data['root']->id, $data['order']))
         ->toThrow(ValidationException::class);
@@ -268,14 +276,14 @@ it('keeps Admin-only fulfilled order directory read-only with genuine paid and o
 
 it('does not enqueue a fulfillment from Admin while provider writes are disabled', function (): void {
     $data = sb05Order();
-    \Illuminate\Support\Facades\Queue::fake();
+    Queue::fake();
     Http::fake();
-    $reviews = app(\App\Modules\Provisioning\Application\ReviewPaidFulfillment::class);
+    $reviews = app(ReviewPaidFulfillment::class);
 
     expect(fn () => $reviews->authorizeRequest($data['root']->id, $data['order'], false))
         ->toThrow(ValidationException::class);
     expect($reviews->detail($data['root']->id, $data['order'])->intent_state)->toBe('pending');
-    \Illuminate\Support\Facades\Queue::assertNothingPushed();
+    Queue::assertNothingPushed();
     Http::assertNothingSent();
 });
 
@@ -283,12 +291,12 @@ it('delivers no remote write during Admin confirmation and queues only the trust
     $data = sb05Order();
     config()->set('services.remnawave.writes_enabled', true);
     config()->set('services.remnawave.squad_bindings_live_verified', true);
-    \Illuminate\Support\Facades\Queue::fake();
+    Queue::fake();
     Http::fake();
-    $bot = \SergiX44\Nutgram\Nutgram::fake();
+    $bot = Nutgram::fake();
     require base_path('app/Interfaces/Telegram/routes/admin.php');
-    $bot->setCommonUser(\SergiX44\Nutgram\Telegram\Types\User\User::make(975001, false, 'Root'));
-    $bot->setCommonChat(\SergiX44\Nutgram\Telegram\Types\Chat\Chat::make(975001, \SergiX44\Nutgram\Telegram\Properties\ChatType::PRIVATE));
+    $bot->setCommonUser(TelegramUser::make(975001, false, 'Root'));
+    $bot->setCommonChat(Chat::make(975001, ChatType::PRIVATE));
 
     $bot->hearText('/fulfillment')->reply()->assertCalled('sendMessage');
     $bot->hearCallbackQueryData('full:prepare:'.$data['order'].':start')->reply()
@@ -297,13 +305,13 @@ it('delivers no remote write during Admin confirmation and queues only the trust
     // buyer/order identifier. Obtain it only from the fake outbound keyboard.
     $bot->hearCallbackQueryData('full:view:'.$data['order'])->reply()->assertCalled('editMessageText');
     expect(DB::table('sales_fulfillment_outbox')->value('state'))->toBe('pending');
-    \Illuminate\Support\Facades\Queue::assertNothingPushed();
+    Queue::assertNothingPushed();
     Http::assertNothingSent();
 
-    $reader = app(\App\Modules\Provisioning\Application\ReviewPaidFulfillment::class);
+    $reader = app(ReviewPaidFulfillment::class);
     expect($reader->authorizeRequest($data['root']->id, $data['order'], false)->id)->toBe($data['order']);
-    \App\Modules\Provisioning\Jobs\FulfillPaidPlanOrderJob::dispatch($data['order']);
-    \Illuminate\Support\Facades\Queue::assertPushed(\App\Modules\Provisioning\Jobs\FulfillPaidPlanOrderJob::class, 1);
+    FulfillPaidPlanOrderJob::dispatch($data['order']);
+    Queue::assertPushed(FulfillPaidPlanOrderJob::class, 1);
     expect(DB::table('provisioning_subscriptions')->count())->toBe(0);
     Http::assertNothingSent();
 });
@@ -312,7 +320,7 @@ it('does not replay uncertain provider writes from a queued job', function (): v
     $data = sb05Order();
     config()->set('services.remnawave.writes_enabled', true);
     Http::fake(['https://remna.test/api/users' => Http::response('provider timeout', 503)]);
-    $job = new \App\Modules\Provisioning\Jobs\FulfillPaidPlanOrderJob($data['order']);
+    $job = new FulfillPaidPlanOrderJob($data['order']);
 
     expect($job->tries)->toBe(1)
         ->and($job->uniqueId())->toBe('parsa:fulfillment:'.$data['order']);
@@ -327,11 +335,11 @@ it('does not replay uncertain provider writes from a queued job', function (): v
 it('never authorizes an unapproved or unavailable fulfillment state', function (): void {
     $data = sb05Order();
     config()->set('services.remnawave.writes_enabled', true);
-    $reader = app(\App\Modules\Provisioning\Application\ReviewPaidFulfillment::class);
+    $reader = app(ReviewPaidFulfillment::class);
     expect(fn () => $reader->authorizeRequest($data['root']->id, $data['order'], true))
         ->toThrow(ValidationException::class);
     expect(fn () => $reader->authorizeRequest($data['buyer']->id, $data['order'], false))
-        ->toThrow(\Illuminate\Auth\Access\AuthorizationException::class);
+        ->toThrow(AuthorizationException::class);
 
     DB::table('sales_fulfillment_outbox')->where('sales_order_id', $data['order'])
         ->update(['state' => 'needs_review']);

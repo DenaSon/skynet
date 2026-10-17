@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Provisioning\Application;
 
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -56,7 +57,7 @@ final readonly class ReviewPaidFulfillment
         return $row;
     }
 
-    private function base(): \Illuminate\Database\Query\Builder
+    private function base(): Builder
     {
         return DB::table('sales_orders as orders')
             ->join('sales_fulfillment_outbox as intent', 'intent.sales_order_id', '=', 'orders.id')
