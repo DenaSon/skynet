@@ -317,3 +317,20 @@ it('NW-01 fails closed when the Telegram test update has no trustworthy message 
     expect(Cache::get($key))->toBeNull();
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
 });
+
+
+it('NW-01 yields to a newer legacy Node wizard instead of intercepting its text', function (): void {
+    $actors = node01Actors();
+    node01FakeProvider();
+    config()->set('services.remnawave.node_ssh_setup_enabled', true);
+    config()->set('services.remnawave.writes_enabled', true);
+    $key = TelegramBotContext::current()->cacheKey('nw01:draft:'.$actors['root']->id);
+    $bot = node01Bot();
+
+    $bot->hearCallbackQueryData('nw1:begin')->reply();
+    expect(Cache::get($key)['stage'])->toBe('identity');
+    $bot->hearCallbackQueryData('node1:begin')->reply();
+    $bot->hearText('Legacy-01 | node.example.com')->reply();
+    expect(Cache::get($key))->toBeNull();
+    expect(Cache::get(TelegramBotContext::current()->cacheKey('node01:draft:'.$actors['root']->id))['stage'])->toBe('profile');
+});
