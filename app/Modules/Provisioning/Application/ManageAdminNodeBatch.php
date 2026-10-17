@@ -24,7 +24,7 @@ final readonly class ManageAdminNodeBatch
     ) {}
 
     /**
-     * @param list<array{uuid:string,name:string,connected:bool,disabled:bool}> $expected
+     * @param list<array<string, mixed>> $expected
      * @param list<string> $uuids Selected nodes; complete ordered set for reorder/restart-all
      * @param array<string,mixed> $data
      */
