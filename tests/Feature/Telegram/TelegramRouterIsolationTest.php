@@ -183,7 +183,7 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
 
     expect($legacy)->toBe($all)
         ->and(count($legacy))->toBe(193)
-        ->and(count(array_unique($legacy)))->toBe(187);
+        ->and(count(array_unique($legacy)))->toBe(193);
 });
 
 it('keeps the second Sales Bot router limited to identity and read-only catalog without Admin callbacks', function (): void {
