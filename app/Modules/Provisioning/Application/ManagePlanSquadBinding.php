@@ -50,7 +50,6 @@ final readonly class ManagePlanSquadBinding
         return $result;
     }
 
-
     /**
      * Read-only status for the existing Admin plan screen. A stored UUID is
      * never presented as a live remote service without a matching provider GET.

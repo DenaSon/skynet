@@ -141,7 +141,6 @@ it('has admin-only callback registrations without enabling a Sales Squad mutatio
         ->and($salesRoutes)->not->toContain('plan:squad:');
 });
 
-
 it('reads the connected service name from a matching panel GET without enabling checkout', function (): void {
     $root = op02Root();
     $plan = op02Plan($root);

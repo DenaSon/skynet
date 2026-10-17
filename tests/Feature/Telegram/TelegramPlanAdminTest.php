@@ -320,7 +320,6 @@ it('shows the root plan-readiness screen without creating any Squad mapping or p
     Http::assertNothingSent();
 });
 
-
 it('reads attached service details with GET only and preserves private root plan callbacks', function (): void {
     [$root, $bot] = b14Root();
     $planId = b14Plan($root);
