@@ -133,11 +133,9 @@ final readonly class ManageAdminNodes
     public function create(int $actorId, string $name, string $address, string $profileUuid, array $inboundUuids): string
     {
         $this->validateIdentity($actorId, $name, $address);
-        if (config('services.remnawave.writes_enabled') !== true) {
-            throw ValidationException::withMessages(['node' => 'Node creation is disabled.']);
-        }
+        $this->authorizeWrite($actorId);
         self::uuid($profileUuid);
-        if ($inboundUuids === [] || ! array_is_list($inboundUuids) || count($inboundUuids) > 30) {
+        if ($inboundUuids === [] || count($inboundUuids) > 30) {
             throw ValidationException::withMessages(['node' => 'Choose at least one inbound.']);
         }
 
@@ -161,10 +159,7 @@ final readonly class ManageAdminNodes
                 throw ValidationException::withMessages(['node' => 'Inbound changed.']);
             }
         }
-        $this->access->handle($actorId);
-        if (config('services.remnawave.writes_enabled') !== true) {
-            throw ValidationException::withMessages(['node' => 'Node creation is disabled.']);
-        }
+        $this->authorizeWrite($actorId);
 
         $created = (new RemnawaveNodesApi($this->factory->make()))->create([
             'name' => $name,
@@ -180,6 +175,14 @@ final readonly class ManageAdminNodes
         }
 
         return strtolower($created['uuid']);
+    }
+
+    private function authorizeWrite(int $actorId): void
+    {
+        $this->access->handle($actorId);
+        if (config('services.remnawave.writes_enabled') !== true) {
+            throw ValidationException::withMessages(['node' => 'Node creation is disabled.']);
+        }
     }
 
     /** @param array<string, mixed> $node
