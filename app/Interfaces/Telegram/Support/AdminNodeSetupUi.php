@@ -7,7 +7,7 @@ namespace App\Interfaces\Telegram\Support;
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Provisioning\Application\ManageAdminNodes;
-use App\Modules\Provisioning\Infrastructure\NodeSetup\NodeSshPreflight;
+use App\Modules\Provisioning\Application\NodeSetupReadiness;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use SergiX44\Nutgram\Nutgram;
@@ -22,7 +22,7 @@ final readonly class AdminNodeSetupUi
         private PrivateTelegramUser $private,
         private ResolveTelegramActor $actors,
         private ManageAdminNodes $nodes,
-        private NodeSshPreflight $ssh,
+        private NodeSetupReadiness $ssh,
         private MenuRenderer $menus,
     ) {}
 
@@ -106,7 +106,7 @@ final readonly class AdminNodeSetupUi
             $ip = trim($parts[1]);
             try {
                 $this->nodes->validateIdentity($id, $name, $ip);
-                $this->ssh->validateTarget($ip, 22);
+                $this->ssh->validateTarget($id, $ip, 22);
                 foreach ($this->nodes->all($id) as $node) {
                     if (mb_strtolower($node['name']) === mb_strtolower($name)) {
                         throw new \RuntimeException('Duplicate name.');
@@ -212,7 +212,7 @@ final readonly class AdminNodeSetupUi
             return;
         }
         try {
-            $draft['host'] = $this->ssh->scan($draft['ip'], $draft['port']);
+            $draft['host'] = $this->ssh->scan($id, $draft['ip'], $draft['port']);
         } catch (Throwable) {
             $this->render($bot, 'اتصال SSH برقرار نشد؛ IP و پورت را بررسی کنید.', $this->cancelButton());
 
@@ -256,7 +256,7 @@ final readonly class AdminNodeSetupUi
                 throw new \RuntimeException('Profile changed.');
             }
             $password = Crypt::decryptString($draft['secret']);
-            $os = $this->ssh->check($draft['ip'], $draft['port'], $draft['username'], $password, $draft['host']['knownHost']);
+            $os = $this->ssh->check($id, $draft['ip'], $draft['port'], $draft['username'], $password, $draft['host']['knownHost']);
             unset($password);
             $this->render($bot, "✅ سرور آماده ادامه راه‌اندازی است.\n\nنام: ".$draft['name']
                 ."\nسیستم‌عامل: ".$os."\n\nدر این مرحله هیچ نرم‌افزاری نصب نشده است.", $this->back());
