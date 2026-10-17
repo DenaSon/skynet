@@ -1,5 +1,13 @@
 # Roadmap
 
+## MET-02 — Admin historical traffic and per-Node users (2026-10-17)
+
+- MVP: Private root-only Admin `/traffic`, 7/30-day `metrics:range:{days}` and Node detail `metrics:node:{days}:{uuid}`; linked from MET-01 dashboard. Inclusive UTC calendar dates, on-demand refresh, daily trend, Node aggregates only from complete validated series matching known Node names, and top ten provider-reported users for a currently existing Node. No arbitrary Telegram dates/UUIDs, long-range queries or new polling.
+- Use existing `RemnawaveNodeTelemetry::usageHistory`, plus one guarded `topUsers` method wrapping the pinned `GET /api/bandwidth-stats/nodes/{uuid}/users` with topUsersLimit=10. No mutation endpoint, unfiltered remote user payload or customer interface. Root authorizes both in Telegram and Application Action; invalid range or stale Node fails closed. UTC period is shown explicitly and Tehran receipt time is distinct.
+- Fail-safe numeric mapping: malformed, duplicate or overlapping dates, negative/imprecise/overflow byte totals and unrecognized per-node series never become fabricated zero usage. A valid daily trend survives a malformed per-node series. Per-node aggregation requires series points aligned to the reported date categories; duplicate Node names remain unavailable rather than ambiguously mapped. Top-users view displays only username and total bytes, never private identifiers/configs.
+- Out of scope: unlimited date picker, persistent history, Prometheus, auto-alerts, reporting export, new schema/dependencies, Production flags, finance, Sales and Provider writes. HTTP-fake + router/authorization + PHP CI are source evidence only; real Remnawave/Telegram operator smoke remains required.
+
+
 ## MET-01 — Read-only Admin Bot monitoring (2026-10-17)
 
 - Scope: /metrics and metrics:refresh in private Admin Bot only, linked from the existing server and Node screens. Shows Node counts/status, global online users, per-Node online counts, UTC dated traffic for today and seven calendar days, and time received in Tehran. On-demand snapshot only, not continuous monitoring.
