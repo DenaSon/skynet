@@ -7,7 +7,9 @@ namespace App\Interfaces\Telegram\Support;
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Provisioning\Application\ManageAdminNodes;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
@@ -314,10 +316,10 @@ final readonly class AdminNodesUi
                 InlineKeyboardMarkup::make()
                     ->addRow(InlineKeyboardButton::make('📄 جزئیات نود', callback_data: 'node1:view:'.$uuid))
                     ->addRow(InlineKeyboardButton::make('◀️ فهرست نودها', callback_data: 'node1:list:1')));
-        } catch (\Illuminate\Validation\ValidationException) {
+        } catch (ValidationException) {
             $this->render($bot, "درخواست اجرا نشد؛ مشخصات یا دسترسی تغییر کرده است.\n\nفهرست سرورها را تازه‌سازی کنید.",
                 $this->listKeyboard());
-        } catch (\Illuminate\Contracts\Cache\LockTimeoutException) {
+        } catch (LockTimeoutException) {
             $this->render($bot, "عملیات دیگری روی سرورها در حال انجام است.\n\nابتدا فهرست را بررسی کنید.",
                 $this->listKeyboard());
         } catch (Throwable) {
