@@ -235,3 +235,64 @@ it('retires other pending Node forms when starting the create wizard', function 
         ->and(Cache::get('node01:draft:'.$root)['stage'])->toBe('info');
     Http::assertNothingSent();
 });
+
+
+it('NW-01 setup remains default-disabled and cannot cause a provider write', function (): void {
+    node01Actors();
+    node01FakeProvider();
+    $bot = node01Bot();
+
+    $bot->hearCallbackQueryData('nw1:begin')->reply()->assertCalled('editMessageText');
+
+    expect(Cache::get(TelegramBotContext::current()->cacheKey('nw01:draft:1')))->toBeNull();
+    Http::assertNothingSent();
+});
+
+it('NW-01 private root wizard validates a public VPS and uses existing GET-only profiles', function (): void {
+    $actors = node01Actors();
+    node01FakeProvider();
+    config()->set('services.remnawave.node_ssh_setup_enabled', true);
+    $root = $actors['root']->id;
+    $key = TelegramBotContext::current()->cacheKey('nw01:draft:'.$root);
+    $bot = node01Bot();
+
+    $bot->hearCallbackQueryData('nw1:begin')->reply()->assertCalled('editMessageText');
+    expect(Cache::get($key)['stage'])->toBe('identity');
+
+    $bot->hearText('Test02 | 127.0.0.1')->reply();
+    expect(Cache::get($key)['stage'])->toBe('identity');
+
+    $bot->hearText('Test02 | 194.5.192.133')->reply();
+    expect(Cache::get($key)['stage'])->toBe('port');
+
+    $bot->hearText('22')->reply();
+    expect(Cache::get($key)['stage'])->toBe('username');
+
+    $bot->hearText('root')->reply();
+    expect(Cache::get($key)['stage'])->toBe('password');
+
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
+    expect(collect(Http::recorded())->filter(static fn (array $pair): bool => $pair[0]->method() !== 'GET'))->toBeEmpty();
+
+    $bot->hearCallbackQueryData('nw1:cancel')->reply()->assertCalled('editMessageText');
+    expect(Cache::get($key))->toBeNull();
+});
+
+it('NW-01 blocks untrusted and group chat from opening SSH readiness', function (): void {
+    node01Actors();
+    node01FakeProvider();
+    config()->set('services.remnawave.node_ssh_setup_enabled', true);
+    $ui = app(\App\Interfaces\Telegram\Support\AdminNodeSetupUi::class);
+
+    $ui->begin(node01Bot(951112));
+    $ui->begin(node01Bot(951111, false));
+    Http::assertNothingSent();
+});
+
+it('NW-01 preflight rejects local SSH destinations and invalid ports without network', function (): void {
+    $ssh = app(\App\Modules\Provisioning\Infrastructure\NodeSetup\NodeSshPreflight::class);
+    expect(fn () => $ssh->validateTarget('127.0.0.1', 22))->toThrow(\RuntimeException::class)
+        ->and(fn () => $ssh->validateTarget('192.168.1.1', 22))->toThrow(\RuntimeException::class)
+        ->and(fn () => $ssh->validateTarget('194.5.192.133', 0))->toThrow(\RuntimeException::class);
+    $ssh->validateTarget('194.5.192.133', 22);
+});
