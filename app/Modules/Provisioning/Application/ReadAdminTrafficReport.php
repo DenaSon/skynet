@@ -41,7 +41,14 @@ final readonly class ReadAdminTrafficReport
             $telemetry = new RemnawaveNodeTelemetry($this->factory->make());
             $history = $telemetry->usageHistory($start, $end);
             $trend = self::trend($history, $start, $end);
-            $perNode = self::perNode($history, $nodes);
+            try {
+                $perNode = self::perNode($history, $nodes);
+            } catch (Throwable) {
+                // A schema variant in per-Node series must not erase the valid daily trend.
+                $perNode = array_map(static fn (array $node): array => [
+                    'uuid' => $node['uuid'], 'name' => $node['name'], 'total' => null,
+                ], $nodes);
+            }
 
             return [
                 'state' => 'available', 'days' => $days, 'start' => $start, 'end' => $end,
