@@ -70,6 +70,7 @@ final readonly class AdminNodesUi
         }
         $keyboard->addRow(InlineKeyboardButton::make('➕ افزودن نود', callback_data: 'node1:begin'));
         $keyboard->addRow(InlineKeyboardButton::make('🏷️ تگ‌ها', callback_data: 'node1:tags'));
+        $keyboard->addRow(InlineKeyboardButton::make('⚙️ عملیات گروهی', callback_data: 'node3:list'));
         $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'node1:list:'.$page));
         $keyboard->addRow(InlineKeyboardButton::make('◀️ وضعیت سرورها', callback_data: 'menu:admin:servers'));
 
