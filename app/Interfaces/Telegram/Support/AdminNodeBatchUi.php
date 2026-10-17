@@ -367,6 +367,8 @@ final readonly class AdminNodeBatchUi
             $this->render($bot, "✅ درخواست گروهی ثبت شد.\n\nنتیجه نهایی را از فهرست نودها بررسی کنید.", $this->back());
         } catch (\Illuminate\Validation\ValidationException) {
             $this->render($bot, "درخواست اجرا نشد؛ سرورهای انتخاب‌شده یا تنظیمات تغییر کرده‌اند.\n\nفهرست را تازه‌سازی کنید.", $this->back());
+        } catch (\Illuminate\Contracts\Cache\LockTimeoutException) {
+            $this->render($bot, "عملیات دیگری روی سرورها در حال انجام است.\n\nابتدا وضعیت سرورها را بررسی کنید.", $this->back());
         } catch (Throwable) {
             $this->render($bot, "نتیجه عملیات قطعی نیست.\n\nابتدا وضعیت سرورها را تازه‌سازی کنید؛ درخواست خودکار تکرار نمی‌شود.", $this->back());
         }
@@ -477,7 +479,8 @@ final readonly class AdminNodeBatchUi
             $field = array_key_first($state['data']);
             $value = $state['data'][$field];
             $display = is_array($value) ? implode(', ', $value) : (string) $value;
-            $details = "\nفیلد: ".self::FIELDS[$field]."\nمقدار جدید: ".$this->safe($display);
+            $display = (string) preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $display);
+            $details = "\nفیلد: ".self::FIELDS[$field]."\nمقدار جدید: ".$display;
         }
         $warning = match ($state['mode']) {
             'restart', 'restart-all', 'disable' => '⚠️ ممکن است اتصال کاربران قطع شود.',
