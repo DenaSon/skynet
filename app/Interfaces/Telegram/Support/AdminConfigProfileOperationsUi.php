@@ -172,7 +172,7 @@ final readonly class AdminConfigProfileOperationsUi
             }
             $keyboard->addRow(InlineKeyboardButton::make('◀️ فهرست پروفایل‌ها', callback_data: 'cfg1:list:1'));
             $message = $state['mode'] === 'create'
-                ? "✅ درخواست ساخت پروفایل پذیرفته شد.\n\nاین پروفایل هیچ Inbound ندارد؛ برای استفاده ابتدا در پنل تنظیمش کنید."
+                ? "✅ درخواست ساخت پروفایل پذیرفته شد.\n\nاین پروفایل هنوز ورودی اتصال ندارد؛ برای استفاده ابتدا در پنل آن را تنظیم کنید."
                 : "✅ درخواست تغییر ارسال شد.\n\nوضعیت نهایی را از فهرست بررسی کنید.";
             $this->render($bot, $message, $keyboard);
         } catch (ValidationException) {
@@ -207,7 +207,7 @@ final readonly class AdminConfigProfileOperationsUi
             default => 'بررسی عملیات',
         };
         $description = match ($mode) {
-            'create' => 'نام: '.self::safe($state['name'])."\n".'پروفایل پایه بدون Inbound یا کلید اتصال ساخته می‌شود.',
+            'create' => 'نام: '.self::safe($state['name'])."\n".'پروفایل پایه بدون ورودی اتصال یا کلید محرمانه ساخته می‌شود.',
             'rename' => 'نام قبلی: '.self::safe($state['profile']['name'])."\n"
                 .'نام جدید: '.self::safe($state['name'])."\n".'تنظیمات اتصال تغییر نمی‌کنند.',
             'delete' => 'نام: '.self::safe($state['profile']['name'])."\n"
