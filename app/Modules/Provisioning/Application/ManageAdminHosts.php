@@ -193,7 +193,7 @@ final readonly class ManageAdminHosts
     {
         $this->authorizeWrite($actorId);
         if (! in_array($mode, ['enable', 'disable'], true) || $expected === [] || count($expected) > 20
-            ) {
+        ) {
             throw ValidationException::withMessages(['host' => 'Invalid batch selection.']);
         }
         $uuids = [];
