@@ -47,8 +47,11 @@ final readonly class AdminNodeSetupUi
 
     public function text(Nutgram $bot, string $value): bool
     {
+        if (! $this->enabled()) {
+            return false;
+        }
         $id = $this->root($bot, false);
-        if ($id === null || ! $this->enabled()) {
+        if ($id === null) {
             return false;
         }
         $draft = $this->draft($id);
