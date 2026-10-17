@@ -128,7 +128,7 @@ final readonly class ManageAdminNodes
      * Explicit one-shot operator action; caller consumes its one-use token before calling.
      * An uncertain POST is never retried automatically. Operator must recheck the list.
      *
-     * @param list<string> $inboundUuids
+     * @param  list<string>  $inboundUuids
      */
     public function create(int $actorId, string $name, string $address, string $profileUuid, array $inboundUuids): string
     {
