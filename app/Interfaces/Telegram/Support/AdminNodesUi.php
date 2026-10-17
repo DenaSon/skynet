@@ -72,9 +72,16 @@ final readonly class AdminNodesUi
         if ($nav !== []) {
             $keyboard->addRow(...$nav);
         }
-        $keyboard->addRow(InlineKeyboardButton::make('➕ افزودن نود', callback_data: 'node1:begin'));
+        if (config('services.remnawave.writes_enabled') === true) {
+            $keyboard->addRow(
+                InlineKeyboardButton::make('➕ افزودن نود', callback_data: 'node1:begin'),
+                InlineKeyboardButton::make('⚙️ عملیات گروهی', callback_data: 'node3:list'),
+            );
+        } else {
+            $lines[] = '';
+            $lines[] = '🔒 تغییرات فعلاً غیرفعال است؛ اطلاعات فقط قابل مشاهده‌اند.';
+        }
         $keyboard->addRow(InlineKeyboardButton::make('🏷️ تگ‌ها', callback_data: 'node1:tags'));
-        $keyboard->addRow(InlineKeyboardButton::make('⚙️ عملیات گروهی', callback_data: 'node3:list'));
         $keyboard->addRow(InlineKeyboardButton::make('🌐 مدیریت هاست‌ها', callback_data: 'host1:list:1'));
         $keyboard->addRow(InlineKeyboardButton::make('🧩 پروفایل‌های اتصال', callback_data: 'cfg1:list:1'));
         $keyboard->addRow(InlineKeyboardButton::make('📊 مانیتورینگ', callback_data: 'metrics:refresh'));
@@ -100,17 +107,19 @@ final readonly class AdminNodesUi
         $status = $node['disabled'] ? '⏸️ غیرفعال' : '🟢 فعال';
         $connected = $node['connected'] ? '🟢 متصل' : '🔴 قطع';
         $keyboard = InlineKeyboardMarkup::make();
-        $keyboard->addRow(InlineKeyboardButton::make('✏️ ویرایش مشخصات', callback_data: 'node2:prepare:'.$node['uuid'].':edit'));
-        $keyboard->addRow(InlineKeyboardButton::make(
-            $node['disabled'] ? '▶️ فعال‌سازی' : '⏸️ غیرفعال‌سازی',
-            callback_data: 'node2:prepare:'.$node['uuid'].($node['disabled'] ? ':enable' : ':disable'),
-        ));
-        $keyboard->addRow(
-            InlineKeyboardButton::make('🔄 راه‌اندازی مجدد', callback_data: 'node2:prepare:'.$node['uuid'].':restart'),
-            InlineKeyboardButton::make('📊 صفرکردن ترافیک', callback_data: 'node2:prepare:'.$node['uuid'].':reset'),
-        );
-        if ($node['disabled']) {
-            $keyboard->addRow(InlineKeyboardButton::make('🗑️ حذف سرور', callback_data: 'node2:prepare:'.$node['uuid'].':delete'));
+        if (config('services.remnawave.writes_enabled') === true) {
+            $keyboard->addRow(InlineKeyboardButton::make('✏️ ویرایش مشخصات', callback_data: 'node2:prepare:'.$node['uuid'].':edit'));
+            $keyboard->addRow(InlineKeyboardButton::make(
+                $node['disabled'] ? '▶️ فعال‌سازی' : '⏸️ غیرفعال‌سازی',
+                callback_data: 'node2:prepare:'.$node['uuid'].($node['disabled'] ? ':enable' : ':disable'),
+            ));
+            $keyboard->addRow(
+                InlineKeyboardButton::make('🔄 راه‌اندازی مجدد', callback_data: 'node2:prepare:'.$node['uuid'].':restart'),
+                InlineKeyboardButton::make('📊 صفرکردن ترافیک', callback_data: 'node2:prepare:'.$node['uuid'].':reset'),
+            );
+            if ($node['disabled']) {
+                $keyboard->addRow(InlineKeyboardButton::make('🗑️ حذف سرور', callback_data: 'node2:prepare:'.$node['uuid'].':delete'));
+            }
         }
         $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'node1:view:'.$node['uuid']));
         $keyboard->addRow(InlineKeyboardButton::make('◀️ فهرست نودها', callback_data: 'node1:list:1'));
@@ -118,7 +127,8 @@ final readonly class AdminNodesUi
             '🖥️ جزئیات سرور'."\n\n"
             .'نام: '.$this->safe($node['name'])."\n"
             .'وضعیت: '.$status."\n"
-            .'اتصال: '.$connected,
+            .'اتصال: '.$connected
+            .(config('services.remnawave.writes_enabled') === true ? '' : "\n\n🔒 تغییرات فعلاً غیرفعال است."),
             $keyboard,
         );
     }

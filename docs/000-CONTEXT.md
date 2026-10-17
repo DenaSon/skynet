@@ -1,5 +1,13 @@
 # ParsaGate — Current Context / Development Memory 
 
+## Final scoped review and Admin UI polish — MET / NODE / HOST / CFG (2026-10-17)
+
+- Reviewed latest `master` after MET-01/02, NODE-01/02/03, HOST-01/02 and CFG-01/02 against Admin/Sales isolation, authorization, one-time confirmations, default-OFF provider mutations and the compact Persian UX contract.
+- **Usability fix:** MET-02 historical traffic panel formerly linked only the first ten Nodes to their top-user report. New `metrics:page:{days}:{page}` keeps bounded ten-item inline pages, visible previous/next buttons, validation and current-page refresh for all permitted Nodes (up to existing 500-node read ceiling). It reuses the same read Action and query windows; no extra polling, database or API endpoint.
+- **UI-only polish:** Provider overview groups four existing destinations into a two-column inline menu; Node/Host/Profile lists and details show clear read-only status instead of displaying inoperative mutation buttons when `REMNAWAVE_WRITES_ENABLED=false`. The actions and routes remain available when authorized writes are enabled, and their independent ACL/flag guards are unchanged. Profile deletion is not offered when a known Node dependency exists or Node relationships are unverified; the actual Action still checks all Node/Host dependencies on confirmation.
+- Out of scope: changing Remnawave response mappings without live evidence, adding long-term analytics, unlocking provider writes, modifying provisioning, changing config profile JSON, or new abstractions. Live Remnawave/Telegram accuracy and mutation effects **are not verified** by source/CI tests, and require operator smoke testing. PHP 8.4/8.5, PHPStan, Pint, disposable MySQL and Sales route isolation remain the merge gates.
+
+
 ## CFG-02 — Controlled Config Profile lifecycle (2026-10-17)
 
 - **MVP scope:** Private trusted Super Admin Admin Bot creates a named **base-only** Config Profile using a fixed minimal, non-listening Xray config: `{log:{loglevel:warning}, inbounds:[], outbounds:[{tag:DIRECT,protocol:freedom}]}`. It deliberately contains **zero inbound listeners, user accounts and cryptographic secrets**, and is not automatically linked to any Node or Host; operator must configure real Inbounds in the trusted Remnawave panel before use. Other actions: safe **rename only** (PATCH UUID+name; no raw Xray edits) and deletion with proof of **zero Node and Host dependencies**. Existing CFG-01 browsing preserved. No general-purpose JSON editor, private key duplication, inbound mutation, complex preset library, default selection or production provider writes.

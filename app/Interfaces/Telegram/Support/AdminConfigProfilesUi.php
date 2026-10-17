@@ -62,14 +62,17 @@ final readonly class AdminConfigProfilesUi
             $keyboard->addRow(...$nav);
         }
 
-        $keyboard->addRow(InlineKeyboardButton::make('➕ پروفایل جدید', callback_data: 'cfg2:begin'));
+        if (config('services.remnawave.writes_enabled') === true) {
+            $keyboard->addRow(InlineKeyboardButton::make('➕ پروفایل جدید', callback_data: 'cfg2:begin'));
+        }
         $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'cfg1:list:'.$page));
         $keyboard->addRow(InlineKeyboardButton::make('◀️ وضعیت سرورها', callback_data: 'menu:admin:servers'));
 
         $this->render($bot,
             "🧩 پروفایل‌های اتصال\n\n"
             .'تعداد: '.count($profiles)." | صفحه {$page} از {$pages}\n\n"
-            .($profiles === [] ? 'هنوز پروفایلی تعریف نشده است.' : 'برای مشاهده ورودی‌ها، یک پروفایل انتخاب کنید.'),
+            .($profiles === [] ? 'هنوز پروفایلی تعریف نشده است.' : 'برای مشاهده ورودی‌ها، یک پروفایل انتخاب کنید.')
+            .(config('services.remnawave.writes_enabled') === true ? '' : "\n\n🔒 تغییرات فعلاً غیرفعال است."),
             $keyboard,
         );
     }
@@ -137,11 +140,19 @@ final readonly class AdminConfigProfilesUi
             }
         }
 
-        $keyboard = InlineKeyboardMarkup::make()
-            ->addRow(InlineKeyboardButton::make('✏️ تغییر نام', callback_data: 'cfg2:prepare:'.$profile['uuid'].':rename'))
-            ->addRow(InlineKeyboardButton::make('🗑️ حذف پروفایل', callback_data: 'cfg2:prepare:'.$profile['uuid'].':delete'))
-            ->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'cfg1:view:'.$profile['uuid'].':'.$page))
-            ->addRow(InlineKeyboardButton::make('◀️ فهرست پروفایل‌ها', callback_data: 'cfg1:list:'.$page));
+        $keyboard = InlineKeyboardMarkup::make();
+        if (config('services.remnawave.writes_enabled') === true) {
+            $keyboard->addRow(InlineKeyboardButton::make('✏️ تغییر نام', callback_data: 'cfg2:prepare:'.$profile['uuid'].':rename'));
+            if ($profile['linkedNodes'] === []) {
+                // Final deletion still rechecks both Nodes and Hosts.
+                $keyboard->addRow(InlineKeyboardButton::make('🗑️ حذف پروفایل', callback_data: 'cfg2:prepare:'.$profile['uuid'].':delete'));
+            }
+        } else {
+            $lines[] = '';
+            $lines[] = '🔒 تغییرات فعلاً غیرفعال است.';
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'cfg1:view:'.$profile['uuid'].':'.$page));
+        $keyboard->addRow(InlineKeyboardButton::make('◀️ فهرست پروفایل‌ها', callback_data: 'cfg1:list:'.$page));
         $this->render($bot, implode("\n", $lines), $keyboard);
     }
 

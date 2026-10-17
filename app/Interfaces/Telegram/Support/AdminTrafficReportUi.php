@@ -21,10 +21,17 @@ final readonly class AdminTrafficReportUi
         private MenuRenderer $menus,
     ) {}
 
-    public function summary(Nutgram $bot, string $days = '7'): void
+    public function summary(Nutgram $bot, string $days = '7', string $requestedPage = '1'): void
     {
         $actorId = $this->actor($bot);
         if ($actorId === null) {
+            return;
+        }
+
+        if (! ctype_digit($requestedPage) || strlen($requestedPage) > 3
+            || (int) $requestedPage < 1 || (int) $requestedPage > 100) {
+            $this->render($bot, 'شماره صفحه معتبر نیست.', $this->back());
+
             return;
         }
 
@@ -58,18 +65,30 @@ final readonly class AdminTrafficReportUi
             }
 
             $message .= "\n\n🖥️ مصرف نودها:";
+            $pages = max(1, (int) ceil(count($report['nodes']) / 10));
+            $page = min((int) $requestedPage, $pages);
             if ($report['nodes'] === []) {
                 $message .= "\nنودی ثبت نشده است.";
             } else {
-                foreach (array_slice($report['nodes'], 0, 10) as $node) {
+                $message .= "\nصفحه {$page} از {$pages}:";
+                foreach (array_slice($report['nodes'], ($page - 1) * 10, 10) as $node) {
                     $message .= "\n".self::safe($node['name']).' · '.self::bytes($node['total']);
                     $keyboard->addRow(InlineKeyboardButton::make(
                         '👥 '.self::safe($node['name']),
                         callback_data: 'metrics:node:'.$days.':'.$node['uuid'],
                     ));
                 }
-                if (count($report['nodes']) > 10) {
-                    $message .= "\nبرای سایر نودها از فهرست مدیریت استفاده کنید.";
+                $navigation = [];
+                if ($page > 1) {
+                    $navigation[] = InlineKeyboardButton::make('◀️ قبلی',
+                        callback_data: 'metrics:page:'.$days.':'.($page - 1));
+                }
+                if ($page < $pages) {
+                    $navigation[] = InlineKeyboardButton::make('بعدی ▶️',
+                        callback_data: 'metrics:page:'.$days.':'.($page + 1));
+                }
+                if ($navigation !== []) {
+                    $keyboard->addRow(...$navigation);
                 }
             }
 
@@ -77,7 +96,8 @@ final readonly class AdminTrafficReportUi
                 ."\nمقادیر نامشخص به‌معنای مصرف صفر نیستند.";
         }
 
-        $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی گزارش', callback_data: 'metrics:range:'.$days));
+        $refreshPage = isset($page) ? 'metrics:page:'.$days.':'.$page : 'metrics:range:'.$days;
+        $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی گزارش', callback_data: $refreshPage));
         $keyboard->addRow(InlineKeyboardButton::make('◀️ مانیتورینگ', callback_data: 'metrics:refresh'));
         $this->render($bot, $message, $keyboard);
     }

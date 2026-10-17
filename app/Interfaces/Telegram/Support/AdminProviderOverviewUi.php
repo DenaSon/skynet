@@ -54,13 +54,14 @@ final readonly class AdminProviderOverviewUi
 
         $keyboard = InlineKeyboardMarkup::make();
 
-        $keyboard->addRow(InlineKeyboardButton::make('📊 مانیتورینگ', callback_data: 'metrics:refresh'));
-
-        $keyboard->addRow(InlineKeyboardButton::make('🌐 مدیریت هاست‌ها', callback_data: 'host1:list:1'));
-
-        $keyboard->addRow(InlineKeyboardButton::make('🧩 پروفایل‌های اتصال', callback_data: 'cfg1:list:1'));
-
-        $keyboard->addRow(InlineKeyboardButton::make('📋 مدیریت نودها', callback_data: 'node1:list:1'));
+        $keyboard->addRow(
+            InlineKeyboardButton::make('📊 مانیتورینگ', callback_data: 'metrics:refresh'),
+            InlineKeyboardButton::make('🖥️ نودها', callback_data: 'node1:list:1'),
+        );
+        $keyboard->addRow(
+            InlineKeyboardButton::make('🌐 هاست‌ها', callback_data: 'host1:list:1'),
+            InlineKeyboardButton::make('🧩 پروفایل‌ها', callback_data: 'cfg1:list:1'),
+        );
 
         $keyboard->addRow(InlineKeyboardButton::make('🔄 به‌روزرسانی', callback_data: 'servers:refresh'));
 
