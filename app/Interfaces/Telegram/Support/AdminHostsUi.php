@@ -136,7 +136,7 @@ final readonly class AdminHostsUi
         }
 
         // Retire pending Node text handlers; never let an old wizard consume Host details.
-        foreach (['node01:draft:', 'node02:draft:', 'node03:draft:', 'host02:draft:', 'host02:batch:'] as $prefix) {
+        foreach (['node01:draft:', 'node02:draft:', 'node03:draft:', 'host02:draft:', 'host02:batch:', 'cfg02:draft:'] as $prefix) {
             Cache::forget(TelegramBotContext::current()->cacheKey($prefix.$root));
         }
         $this->save($root, ['stage' => 'info']);

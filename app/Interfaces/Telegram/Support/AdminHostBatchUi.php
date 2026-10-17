@@ -43,7 +43,7 @@ final readonly class AdminHostBatchUi
 
             return;
         }
-        foreach (['host01:draft:', 'host02:draft:', 'node01:draft:', 'node02:draft:', 'node03:draft:'] as $prefix) {
+        foreach (['host01:draft:', 'host02:draft:', 'node01:draft:', 'node02:draft:', 'node03:draft:', 'cfg02:draft:'] as $prefix) {
             Cache::forget(TelegramBotContext::current()->cacheKey($prefix.$root));
         }
         $state = ['stage' => 'select', 'hosts' => $hosts, 'selected' => [], 'page' => 1];

@@ -62,6 +62,7 @@ final readonly class AdminConfigProfilesUi
             $keyboard->addRow(...$nav);
         }
 
+        $keyboard->addRow(InlineKeyboardButton::make('➕ پروفایل جدید', callback_data: 'cfg2:begin'));
         $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'cfg1:list:'.$page));
         $keyboard->addRow(InlineKeyboardButton::make('◀️ وضعیت سرورها', callback_data: 'menu:admin:servers'));
 
@@ -137,6 +138,8 @@ final readonly class AdminConfigProfilesUi
         }
 
         $keyboard = InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('✏️ تغییر نام', callback_data: 'cfg2:prepare:'.$profile['uuid'].':rename'))
+            ->addRow(InlineKeyboardButton::make('🗑️ حذف پروفایل', callback_data: 'cfg2:prepare:'.$profile['uuid'].':delete'))
             ->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'cfg1:view:'.$profile['uuid'].':'.$page))
             ->addRow(InlineKeyboardButton::make('◀️ فهرست پروفایل‌ها', callback_data: 'cfg1:list:'.$page));
         $this->render($bot, implode("\n", $lines), $keyboard);

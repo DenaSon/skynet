@@ -152,6 +152,7 @@ final readonly class AdminNodesUi
             return;
         }
         // A single pending Node text wizard per operator avoids misrouting input.
+        Cache::forget(TelegramBotContext::current()->cacheKey('cfg02:draft:'.$root));
         Cache::forget(TelegramBotContext::current()->cacheKey('host01:draft:'.$root));
         Cache::forget(TelegramBotContext::current()->cacheKey('host02:draft:'.$root));
         Cache::forget(TelegramBotContext::current()->cacheKey('host02:batch:'.$root));
