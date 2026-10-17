@@ -55,7 +55,7 @@ final readonly class ManageAdminNodeOperations
 
         // One in-flight operation per Node, even if two Super Admins press
         // different confirmation buttons. Lock expiry covers the HTTP timeout.
-        Cache::lock('node02:write:'.strtolower($expected['uuid']), 30)->block(1, function () use ($actorId, $mode, $expected, $changes): void {
+        Cache::lock('nodes:mutation', 60)->block(1, function () use ($actorId, $mode, $expected, $changes): void {
             $actual = $this->nodes->one($actorId, $expected['uuid']);
             if ($actual !== $expected) {
                 throw ValidationException::withMessages(['node' => 'Node changed since confirmation.']);
