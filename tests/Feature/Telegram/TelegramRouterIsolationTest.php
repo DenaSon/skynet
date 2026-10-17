@@ -81,6 +81,7 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'command:fulfillment';
     $expected['ADMIN'][] = 'callback:menu:admin:fulfillment';
     $expected['ADMIN'][] = 'callback:full:list';
+    $expected['ADMIN'][] = 'callback:full:completed';
     $expected['ADMIN'][] = 'callback:full:view:{id}';
     $expected['ADMIN'][] = 'callback:full:prepare:{id}:{mode}';
     $expected['ADMIN'][] = 'callback:full:apply:{token}';
@@ -108,8 +109,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(129)
-        ->and(count(array_unique($legacy)))->toBe(129);
+        ->and(count($legacy))->toBe(130)
+        ->and(count(array_unique($legacy)))->toBe(130);
 });
 
 it('keeps the second Sales Bot router limited to identity and read-only catalog without Admin callbacks', function (): void {

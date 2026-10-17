@@ -23,21 +23,21 @@ final readonly class AdminFulfillmentUi
         private MenuRenderer $menus,
     ) {}
 
-    public function browse(Nutgram $bot): void
+    public function browse(Nutgram $bot, bool $completed = false): void
     {
         $root = $this->root($bot);
         if ($root === null) {
             return;
         }
         try {
-            $orders = $this->reviews->pending($root);
+            $orders = $completed ? $this->reviews->completed($root) : $this->reviews->pending($root);
         } catch (Throwable) {
             $this->render($bot, 'نمایش سفارش‌ها فعلاً ممکن نیست.', $this->home());
 
             return;
         }
 
-        $lines = ['🔌 فعال‌سازی اشتراک‌ها', ''];
+        $lines = [$completed ? '✅ فعال‌سازی‌های انجام‌شده' : '🔌 فعال‌سازی اشتراک‌ها', 'آخرین ۲۰ سفارش', ''];
         $buttons = InlineKeyboardMarkup::make();
         foreach ($orders as $order) {
             $state = $this->status($order->intent_state);
@@ -48,15 +48,23 @@ final readonly class AdminFulfillmentUi
             ));
         }
         if ($orders === []) {
-            $lines[] = 'سفارش پرداخت‌شده‌ای برای فعال‌سازی یا بررسی وجود ندارد.';
+            $lines[] = $completed
+                ? 'هنوز اشتراک فعال‌شده‌ای ثبت نشده است.'
+                : 'سفارش پرداخت‌شده‌ای برای فعال‌سازی یا بررسی وجود ندارد.';
         }
-        if (config('services.remnawave.writes_enabled') !== true
-            || config('services.remnawave.squad_bindings_live_verified') !== true) {
+        if (! $completed && (config('services.remnawave.writes_enabled') !== true
+            || config('services.remnawave.squad_bindings_live_verified') !== true)) {
             $lines[] = '';
             $lines[] = 'فعال‌سازی سرویس در حال حاضر غیرفعال است.';
         }
-        $buttons->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'full:list'))
-            ->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
+        $buttons->addRow(InlineKeyboardButton::make(
+            '🔄 تازه‌سازی', callback_data: $completed ? 'full:completed' : 'full:list',
+        ));
+        $buttons->addRow(InlineKeyboardButton::make(
+            $completed ? '🕘 در انتظار فعال‌سازی' : '✅ فعال‌سازی‌های انجام‌شده',
+            callback_data: $completed ? 'full:list' : 'full:completed',
+        ));
+        $buttons->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
 
         $this->render($bot, implode("\n", $lines), $buttons);
     }
@@ -105,6 +113,10 @@ final readonly class AdminFulfillmentUi
                 $lines[] = 'فعال‌سازی در حال حاضر غیرفعال است.';
             }
         }
+        if ($order->intent_state === 'completed') {
+            $lines[] = '';
+            $lines[] = 'فعال‌سازی این سفارش ثبت شده است. مشتری می‌تواند اشتراک خود را در بات فروش مشاهده کند.';
+        }
         if (in_array($order->intent_state, ['processing', 'needs_review'], true)) {
             $lines[] = '';
             $lines[] = 'در صورت نامشخص‌بودن نتیجه، فقط وضعیت سرویس موجود بررسی می‌شود.';
@@ -113,7 +125,12 @@ final readonly class AdminFulfillmentUi
                 callback_data: 'full:prepare:'.$orderId.':reconcile',
             ));
         }
-        $buttons->addRow(InlineKeyboardButton::make('◀️ سفارش‌ها', callback_data: 'full:list'));
+        $buttons->addRow(InlineKeyboardButton::make(
+            '🔄 تازه‌سازی', callback_data: 'full:view:'.$orderId,
+        ));
+        $buttons->addRow(InlineKeyboardButton::make(
+            '◀️ سفارش‌ها', callback_data: $order->intent_state === 'completed' ? 'full:completed' : 'full:list',
+        ));
         $this->render($bot, implode("\n", $lines), $buttons);
     }
 
@@ -219,7 +236,8 @@ final readonly class AdminFulfillmentUi
             'pending' => 'آماده بررسی',
             'processing' => 'در حال فعال‌سازی',
             'needs_review' => 'نیازمند بررسی',
-            default => 'انجام‌شده',
+            'completed' => '✅ فعال‌سازی ثبت شد',
+            default => 'نامشخص',
         };
     }
 

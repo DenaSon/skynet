@@ -22,7 +22,18 @@ final readonly class ReviewPaidFulfillment
     {
         $this->access->handle($actorId);
 
-        return $this->base()->whereIn('intent.state', ['pending', 'processing', 'needs_review'])
+        return $this->base()->where('orders.status', 'paid')
+            ->whereIn('intent.state', ['pending', 'processing', 'needs_review'])
+            ->orderByDesc('orders.id')->limit(20)->get()->all();
+    }
+
+    /** @return list<object> */
+    public function completed(int $actorId): array
+    {
+        $this->access->handle($actorId);
+
+        return $this->base()->where('orders.status', 'fulfilled')
+            ->where('intent.state', 'completed')
             ->orderByDesc('orders.id')->limit(20)->get()->all();
     }
 
@@ -34,7 +45,10 @@ final readonly class ReviewPaidFulfillment
         }
 
         $row = $this->base()->where('orders.id', $orderId)->first();
-        if ($row === null) {
+        if ($row === null || ! (
+            ($row->order_status === 'paid' && in_array($row->intent_state, ['pending', 'processing', 'needs_review'], true))
+            || ($row->order_status === 'fulfilled' && $row->intent_state === 'completed')
+        )) {
             throw ValidationException::withMessages(['order' => 'Order unavailable.']);
         }
 
@@ -45,7 +59,7 @@ final readonly class ReviewPaidFulfillment
     {
         $row = $this->detail($actorId, $orderId);
         $expected = $reconcile ? ['needs_review', 'processing'] : ['pending'];
-        if (! in_array($row->intent_state, $expected, true)) {
+        if ($row->order_status !== 'paid' || ! in_array($row->intent_state, $expected, true)) {
             throw ValidationException::withMessages(['order' => 'Order is no longer eligible.']);
         }
 
@@ -62,9 +76,9 @@ final readonly class ReviewPaidFulfillment
         return DB::table('sales_orders as orders')
             ->join('sales_fulfillment_outbox as intent', 'intent.sales_order_id', '=', 'orders.id')
             ->whereNotNull('orders.plan_id')
-            ->where('orders.status', 'paid')
             ->select(
                 'orders.id',
+                'orders.status as order_status',
                 'orders.product_name',
                 'orders.total_price_rials',
                 'orders.duration_days',
