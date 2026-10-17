@@ -1,5 +1,13 @@
 # ParsaGate — Current Context / Development Memory 
 
+## HOST-01 — private Admin Host browsing and guarded create (2026-10-17)
+
+- MVP scope: `/hosts` and private root-only `host1:list/view/begin/profile/inbound/apply/cancel` callbacks linked from the existing server overview and Node UI. Read-only paginated, bounded Host list and safe Host details display `remark/address/port/isDisabled` plus the optional two inbound UUIDs; no raw provider fields, credentials, or customer links. A Host is a client connection entry, not a VPS/Node.
+- One guided three-step create wizard: `remark | address | port` → choose an existing Config Profile → choose **one** inbound belonging to it → one-time short-lived preview/confirmation. The version-pinned API requires `inbound: {configProfileUuid, configProfileInboundUuid}`, `remark`, `address`, `port`. A newly created Host is explicitly **isDisabled=true** to prevent accidental customer exposure before later controlled activation. The global `REMNAWAVE_WRITES_ENABLED` flag stays OFF by default; starting this wizard while disabled does not persist a draft.
+- Reuse the existing API Client, `ManageAdminNodes::profiles/inbounds`, active trusted Super Admin check, `TelegramBotContext` and Cache. Verify current Profile/Inbound membership and write authorization within a shared `hosts:mutation` cache lock around exactly one provider POST. Consume one-use root-bound confirmation before requesting the provider; uncertain response is never automatically retried. Invalidate stale conflicting Node drafts (and vice versa) to preserve text-routing precedence.
+- No new dependencies, migrations, flags, sales/customer features, Host update/delete/enable/batch (reserved for HOST-02), Xray config edits, Node installation or live provider execution. Fake-HTTP/Telegram tests verify authorization, GET-only list/detail, disabled-by-default create, valid body shape and one POST, stale/revoked cases, request validation and uncertain-response replay safety. PHP 8.4/8.5, PHPStan, Pint, MySQL CI required before merge; production deploy/live Telegram and real Remnawave acceptance are separate and unverified.
+
+
 ## CFG-01 — read-only Config Profiles and Inbounds (2026-10-17)
 
 - **Scope:** Existing private Admin Bot adds `/profiles`, paginated `cfg1:list:{page}`, and `cfg1:view:{uuid}:{page}` reachable from «وضعیت سرورها» and «مدیریت نودها». The screen lists existing named Config Profiles (at most 30 via existing ManageAdminNodes), safe Inbound tags (up to 30, display capped at 20) and an optional list of associated Node names (display capped at ten). Navigation and refresh are simple Persian buttons; no Xray raw config/credentials/tokens are shown.
