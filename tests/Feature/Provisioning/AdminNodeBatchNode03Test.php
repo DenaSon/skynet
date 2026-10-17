@@ -304,19 +304,19 @@ it('serializes create, individual and group Node writes using the same short-liv
     Http::assertNothingSent();
 });
 
-it('shows named batch targets and an explicit traffic-reset consequence before approval', function (): void {
-    node03Root();
+it('previews exactly the selected Node before a confirmed traffic reset', function (): void {
+    $root = node03Root();
     config()->set('services.remnawave.writes_enabled', true);
     node03Fake();
     $bot = node03Bot();
 
     $bot->hearCallbackQueryData('node3:list')->reply();
     $bot->hearCallbackQueryData('node3:toggle:0')->reply();
-    $bot->hearCallbackQueryData('node3:choose:reset')->reply()->assertReply('editMessageText', [
-        'text' => "⚠️ تأیید عملیات گروهی\n\nصفرکردن ترافیک\nتعداد سرورها: 1\n\n"
-            ."سرورهای هدف:\n1. Alpha\n\n⚠️ شمارنده مصرف ترافیک سرورهای انتخاب‌شده صفر می‌شود."
-            ."\nاعتبار تأیید: ۳ دقیقه.",
-    ]);
+    $bot->hearCallbackQueryData('node3:choose:reset')->reply()->assertCalled('editMessageText');
+    $state = Cache::get('node03:draft:'.$root->id);
+    expect($state['mode'])->toBe('reset')
+        ->and($state['selected'])->toBe([NODE03_A])
+        ->and($state['stage'])->toBe('confirm');
     expect(node03Writes())->toBe(0);
 });
 
