@@ -91,15 +91,25 @@ final readonly class AdminNodesUi
         }
         $status = $node['disabled'] ? '⏸️ غیرفعال' : '🟢 فعال';
         $connected = $node['connected'] ? '🟢 متصل' : '🔴 قطع';
+        $keyboard = InlineKeyboardMarkup::make();
+        $keyboard->addRow(InlineKeyboardButton::make('✏️ ویرایش مشخصات', callback_data: 'node2:prepare:'.$node['uuid'].':edit'));
+        $keyboard->addRow(InlineKeyboardButton::make(
+            $node['disabled'] ? '▶️ فعال‌سازی' : '⏸️ غیرفعال‌سازی',
+            callback_data: 'node2:prepare:'.$node['uuid'].($node['disabled'] ? ':enable' : ':disable'),
+        ));
+        $keyboard->addRow(
+            InlineKeyboardButton::make('🔄 راه‌اندازی مجدد', callback_data: 'node2:prepare:'.$node['uuid'].':restart'),
+            InlineKeyboardButton::make('📊 صفرکردن ترافیک', callback_data: 'node2:prepare:'.$node['uuid'].':reset'),
+        );
+        $keyboard->addRow(InlineKeyboardButton::make('🗑️ حذف نود', callback_data: 'node2:prepare:'.$node['uuid'].':delete'));
+        $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'node1:view:'.$node['uuid']));
+        $keyboard->addRow(InlineKeyboardButton::make('◀️ فهرست نودها', callback_data: 'node1:list:1'));
         $this->render($bot,
             '🖥️ جزئیات نود'."\n\n"
             .'نام: '.$this->safe($node['name'])."\n"
             .'وضعیت: '.$status."\n"
-            .'اتصال: '.$connected."\n\n"
-            .'تنظیمات و عملیات بیشتر در مرحله بعدی اضافه می‌شوند.',
-            InlineKeyboardMarkup::make()
-                ->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'node1:view:'.$node['uuid']))
-                ->addRow(InlineKeyboardButton::make('◀️ فهرست نودها', callback_data: 'node1:list:1')),
+            .'اتصال: '.$connected,
+            $keyboard,
         );
     }
 
