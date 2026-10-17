@@ -3,6 +3,7 @@
 use App\Interfaces\Telegram\Handlers\AdminHandler;
 use App\Interfaces\Telegram\Handlers\AdminRolesHandler;
 use App\Interfaces\Telegram\Handlers\AdminUsersHandler;
+use App\Interfaces\Telegram\Support\AdminFulfillmentUi;
 use App\Interfaces\Telegram\Support\AdminPanelUsersUi;
 use App\Interfaces\Telegram\Support\AdminProviderOverviewUi;
 use App\Interfaces\Telegram\Support\AdminSectionsUi;
@@ -47,6 +48,10 @@ $bot->onCallbackQueryData('servers:refresh', function (Nutgram $bot): void {
     app(AdminProviderOverviewUi::class)->show($bot);
 });
 
+$bot->onCommand('fulfillment', function (Nutgram $bot): void {
+    app(AdminFulfillmentUi::class)->browse($bot);
+});
+
 $bot->onCommand('payments', function (Nutgram $bot): void {
     app(ManualPaymentUi::class)->list($bot);
 });
@@ -83,6 +88,26 @@ $bot->onCommand('newrole {name}', function (Nutgram $bot, string $name): void {
 
 $bot->onCommand('finduser {query}', function (Nutgram $bot, string $query): void {
     app(UserManagementUi::class)->search($bot, $query);
+});
+
+$bot->onCallbackQueryData('menu:admin:fulfillment', function (Nutgram $bot): void {
+    app(AdminFulfillmentUi::class)->browse($bot);
+});
+
+$bot->onCallbackQueryData('full:list', function (Nutgram $bot): void {
+    app(AdminFulfillmentUi::class)->browse($bot);
+});
+
+$bot->onCallbackQueryData('full:view:{id}', function (Nutgram $bot, string $id): void {
+    app(AdminFulfillmentUi::class)->detail($bot, $id);
+});
+
+$bot->onCallbackQueryData('full:prepare:{id}:{mode}', function (Nutgram $bot, string $id, string $mode): void {
+    app(AdminFulfillmentUi::class)->prepare($bot, $id, $mode);
+});
+
+$bot->onCallbackQueryData('full:apply:{token}', function (Nutgram $bot, string $token): void {
+    app(AdminFulfillmentUi::class)->apply($bot, $token);
 });
 
 $bot->onCallbackQueryData('bank:list', function (Nutgram $bot): void {
