@@ -67,13 +67,18 @@ final readonly class AdminHostsUi
         if ($nav !== []) {
             $keyboard->addRow(...$nav);
         }
-        $keyboard->addRow(InlineKeyboardButton::make('➕ افزودن هاست', callback_data: 'host1:begin'));
-        $keyboard->addRow(InlineKeyboardButton::make('⚙️ عملیات گروهی', callback_data: 'host2:batch:begin'));
+        if (config('services.remnawave.writes_enabled') === true) {
+            $keyboard->addRow(
+                InlineKeyboardButton::make('➕ افزودن هاست', callback_data: 'host1:begin'),
+                InlineKeyboardButton::make('⚙️ عملیات گروهی', callback_data: 'host2:batch:begin'),
+            );
+        }
         $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'host1:list:'.$page));
         $keyboard->addRow(InlineKeyboardButton::make('◀️ وضعیت سرورها', callback_data: 'menu:admin:servers'));
         $this->render($bot,
             "🌐 مدیریت هاست‌ها\n\nکل: ".count($hosts)." | صفحه {$page} از {$pages}\n\n"
-            .($hosts === [] ? 'هنوز هاستی تعریف نشده است.' : 'برای مشاهده مشخصات، یک هاست را انتخاب کنید.'),
+            .($hosts === [] ? 'هنوز هاستی تعریف نشده است.' : 'برای مشاهده مشخصات، یک هاست را انتخاب کنید.')
+            .(config('services.remnawave.writes_enabled') === true ? '' : "\n\n🔒 تغییرات فعلاً غیرفعال است."),
             $keyboard,
         );
     }
@@ -96,17 +101,19 @@ final readonly class AdminHostsUi
             false => '🟢 فعال',
             default => 'نامشخص',
         };
-        $keyboard = InlineKeyboardMarkup::make()
-            ->addRow(InlineKeyboardButton::make('✏️ ویرایش', callback_data: 'host2:prepare:'.$host['uuid'].':edit'));
-        if ($host['disabled'] !== null) {
-            $mode = $host['disabled'] ? 'enable' : 'disable';
-            $keyboard->addRow(InlineKeyboardButton::make(
-                $mode === 'enable' ? '▶️ فعال‌سازی' : '⏸️ غیرفعال‌سازی',
-                callback_data: 'host2:prepare:'.$host['uuid'].':'.$mode,
-            ));
-        }
-        if ($host['disabled'] === true) {
-            $keyboard->addRow(InlineKeyboardButton::make('🗑️ حذف هاست', callback_data: 'host2:prepare:'.$host['uuid'].':delete'));
+        $keyboard = InlineKeyboardMarkup::make();
+        if (config('services.remnawave.writes_enabled') === true) {
+            $keyboard->addRow(InlineKeyboardButton::make('✏️ ویرایش', callback_data: 'host2:prepare:'.$host['uuid'].':edit'));
+            if ($host['disabled'] !== null) {
+                $mode = $host['disabled'] ? 'enable' : 'disable';
+                $keyboard->addRow(InlineKeyboardButton::make(
+                    $mode === 'enable' ? '▶️ فعال‌سازی' : '⏸️ غیرفعال‌سازی',
+                    callback_data: 'host2:prepare:'.$host['uuid'].':'.$mode,
+                ));
+            }
+            if ($host['disabled'] === true) {
+                $keyboard->addRow(InlineKeyboardButton::make('🗑️ حذف هاست', callback_data: 'host2:prepare:'.$host['uuid'].':delete'));
+            }
         }
         $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'host1:view:'.$host['uuid']));
         $keyboard->addRow(InlineKeyboardButton::make('◀️ فهرست هاست‌ها', callback_data: 'host1:list:1'));
@@ -118,7 +125,8 @@ final readonly class AdminHostsUi
             .'وضعیت: '.$status."\n"
             .'شناسه پروفایل: '.($host['profileUuid'] ?? 'نامشخص')."\n"
             .'شناسه ورودی: '.($host['inboundUuid'] ?? 'نامشخص')."\n\n"
-            .'ثبت هاست به‌معنای تأیید اتصال کاربران نیست.',
+            .'ثبت هاست به‌معنای تأیید اتصال کاربران نیست.'
+            .(config('services.remnawave.writes_enabled') === true ? '' : "\n\n🔒 تغییرات فعلاً غیرفعال است."),
             $keyboard,
         );
     }
