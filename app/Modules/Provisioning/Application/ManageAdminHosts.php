@@ -128,6 +128,103 @@ final readonly class ManageAdminHosts
         });
     }
 
+    /**
+     * HOST-02: one verified remote action, serialized with HOST-01 creation.
+     * The confirmation holds the exact safe Host snapshot reviewed by the root.
+     *
+     * @param  array{uuid:string,remark:string,address:string,port:int,disabled:bool|null,profileUuid:string|null,inboundUuid:string|null}  $expected
+     * @param  array<string, mixed>  $fields
+     */
+    public function change(int $actorId, string $uuid, string $mode, array $expected, array $fields = []): void
+    {
+        $this->authorizeWrite($actorId);
+        $uuid = self::uuid($uuid);
+        if (! in_array($mode, ['edit', 'enable', 'disable', 'delete'], true)) {
+            throw ValidationException::withMessages(['host' => 'Unsupported Host action.']);
+        }
+        if ($mode === 'edit') {
+            if (array_keys($fields) !== ['remark', 'address', 'port']
+                || ! is_string($fields['remark']) || ! is_string($fields['address'])
+                || ! is_int($fields['port'])) {
+                throw ValidationException::withMessages(['host' => 'Invalid Host edit fields.']);
+            }
+            $this->validateIdentity($actorId, $fields['remark'], $fields['address'], $fields['port']);
+        } elseif ($fields !== []) {
+            throw ValidationException::withMessages(['host' => 'Unexpected Host fields.']);
+        }
+
+        Cache::lock('hosts:mutation', 60)->block(1, function () use ($actorId, $uuid, $mode, $expected, $fields): void {
+            $current = $this->one($actorId, $uuid);
+            if ($expected !== $current) {
+                throw ValidationException::withMessages(['host' => 'Host changed since confirmation.']);
+            }
+            if ($mode === 'delete' && $current['disabled'] !== true) {
+                throw ValidationException::withMessages(['host' => 'Disable Host before deleting.']);
+            }
+            if ($mode === 'enable' && $current['disabled'] !== true) {
+                throw ValidationException::withMessages(['host' => 'Host is not confirmed disabled.']);
+            }
+            if ($mode === 'disable' && $current['disabled'] !== false) {
+                throw ValidationException::withMessages(['host' => 'Host is not confirmed enabled.']);
+            }
+            if ($mode === 'edit' && $fields['remark'] === $current['remark']
+                && $fields['address'] === $current['address'] && $fields['port'] === $current['port']) {
+                throw ValidationException::withMessages(['host' => 'No Host fields changed.']);
+            }
+            $this->authorizeWrite($actorId);
+            $api = $this->factory->make();
+            match ($mode) {
+                'edit' => $api->call('HostsController_updateHost', body: ['uuid' => $uuid, ...$fields]),
+                'enable' => $api->call('HostsBulkActionsController_enableHosts', body: ['uuids' => [$uuid]]),
+                'disable' => $api->call('HostsBulkActionsController_disableHosts', body: ['uuids' => [$uuid]]),
+                'delete' => $api->call('HostsController_deleteHost', pathParameters: ['uuid' => $uuid]),
+            };
+            // Transport acknowledgement is not proof of client connectivity.
+        });
+    }
+
+    /**
+     * Batch actions deliberately exclude DELETE and UPDATE: the MVP only
+     * supports safely confirmed enable/disable of up to 20 selected Hosts.
+     *
+     * @param  list<array{uuid:string,remark:string,address:string,port:int,disabled:bool|null,profileUuid:string|null,inboundUuid:string|null}>  $expected
+     */
+    public function batch(int $actorId, string $mode, array $expected): void
+    {
+        $this->authorizeWrite($actorId);
+        if (! in_array($mode, ['enable', 'disable'], true) || $expected === [] || count($expected) > 20
+            || ! array_is_list($expected)) {
+            throw ValidationException::withMessages(['host' => 'Invalid batch selection.']);
+        }
+        $uuids = [];
+        foreach ($expected as $host) {
+            if (! is_array($host) || ! is_string($host['uuid'] ?? null)) {
+                throw ValidationException::withMessages(['host' => 'Invalid selected Host.']);
+            }
+            $uuid = self::uuid($host['uuid']);
+            if (in_array($uuid, $uuids, true)) {
+                throw ValidationException::withMessages(['host' => 'Duplicate selected Host.']);
+            }
+            $uuids[] = $uuid;
+        }
+
+        Cache::lock('hosts:mutation', 60)->block(1, function () use ($actorId, $mode, $expected, $uuids): void {
+            // One fresh inventory read also protects against removed Hosts.
+            $current = $this->all($actorId);
+            $indexed = array_column($current, null, 'uuid');
+            foreach ($expected as $host) {
+                if (($indexed[$host['uuid']] ?? null) !== $host || $host['disabled'] !== ($mode === 'enable')) {
+                    throw ValidationException::withMessages(['host' => 'One of the selected Hosts changed.']);
+                }
+            }
+            $this->authorizeWrite($actorId);
+            $operation = $mode === 'enable'
+                ? 'HostsBulkActionsController_enableHosts'
+                : 'HostsBulkActionsController_disableHosts';
+            $this->factory->make()->call($operation, body: ['uuids' => $uuids]);
+        });
+    }
+
     private function authorizeWrite(int $actorId): void
     {
         $this->access->handle($actorId);
