@@ -511,7 +511,8 @@ it('reconciles uncertain status updates with GET only and never replays PATCH', 
     config()->set('services.remnawave.writes_enabled', true);
     $expiry = '';
     $bytes = 0;
-    Http::fake(static function (Request $req) use ($data, &$expiry, &$bytes) {
+    $remoteStatus = 'ACTIVE';
+    Http::fake(static function (Request $req) use ($data, &$expiry, &$bytes, &$remoteStatus) {
         if ($req->method() === 'POST') {
             $expiry = (string) $req['expireAt'];
             $bytes = (int) $req['trafficLimitBytes'];
@@ -522,7 +523,7 @@ it('reconciles uncertain status updates with GET only and never replays PATCH', 
 
         return Http::response(['response' => [
             ...sb05Remote($data['order'], $expiry, $bytes),
-            'status' => 'ACTIVE',
+            'status' => $remoteStatus,
         ]], $req->method() === 'POST' ? 201 : 200);
     });
     app(FulfillPaidPlanOrder::class)->handle($data['order']);
@@ -535,14 +536,10 @@ it('reconciles uncertain status updates with GET only and never replays PATCH', 
     Http::assertSentCount(3);
 
     config()->set('services.remnawave.writes_enabled', false);
-    Http::fake(['https://remna.test/api/users/52' => Http::response([
-        'response' => [
-            ...sb05Remote($data['order'], $expiry, $bytes),
-            'status' => 'DISABLED',
-        ],
-    ])]);
+    $remoteStatus = 'DISABLED';
     $status->reconcile($data['root']->id, $data['order']);
     expect(DB::table('provisioning_operations')->where('kind', 'disable')->value('state'))->toBe('completed');
+    Http::assertSentCount(4);
     Http::assertSent(static fn (Request $req): bool => $req->method() === 'GET');
 });
 
