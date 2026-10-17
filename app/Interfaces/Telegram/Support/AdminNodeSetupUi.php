@@ -68,7 +68,9 @@ final readonly class AdminNodeSetupUi
                 if (! is_int($messageId) || ! is_int($chatId)) {
                     throw new \RuntimeException('Missing message identity');
                 }
-                $bot->deleteMessage(chat_id: $chatId, message_id: $messageId);
+                if ($bot->deleteMessage(chat_id: $chatId, message_id: $messageId) !== true) {
+                    throw new \RuntimeException('Telegram deletion not confirmed');
+                }
             } catch (Throwable) {
                 Cache::forget($this->key($id));
                 $this->render($bot, 'حذف پیام رمز ممکن نشد؛ این تلاش لغو شد. رمز را تغییر دهید.', $this->back());
