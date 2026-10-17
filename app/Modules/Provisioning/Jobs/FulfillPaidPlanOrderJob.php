@@ -25,7 +25,11 @@ final class FulfillPaidPlanOrderJob implements ShouldBeUnique, ShouldQueue
 
     public int $uniqueFor = 180;
 
-    public function __construct(public int $orderId, public bool $reconcile = false) {}
+    public function __construct(public int $orderId, public bool $reconcile = false)
+    {
+        // Never let a sync queue run the provider operation in a Telegram webhook.
+        $this->onConnection('database');
+    }
 
     public function uniqueId(): string
     {

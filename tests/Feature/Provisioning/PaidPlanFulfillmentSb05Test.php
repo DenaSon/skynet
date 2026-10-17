@@ -252,7 +252,6 @@ it('registers an explicit one-order operator command without a background dispat
 it('keeps Admin-only fulfilled order directory read-only with genuine paid and outbox scopes', function (): void {
     $data = sb05Order();
     $guest = User::factory()->create();
-    $another = sb05Order(pay: false);
     Http::fake();
 
     $reader = app(\App\Modules\Provisioning\Application\ReviewPaidFulfillment::class);
@@ -261,7 +260,8 @@ it('keeps Admin-only fulfilled order directory read-only with genuine paid and o
 
     expect(fn () => $reader->pending($guest->id))
         ->toThrow(\Illuminate\Auth\Access\AuthorizationException::class);
-    expect(fn () => $reader->detail($data['root']->id, $another['order']))
+    DB::table('sales_orders')->where('id', $data['order'])->update(['status' => 'pending_payment']);
+    expect(fn () => $reader->detail($data['root']->id, $data['order']))
         ->toThrow(ValidationException::class);
     Http::assertNothingSent();
 });
@@ -285,7 +285,7 @@ it('delivers no remote write during Admin confirmation and queues only the trust
     config()->set('services.remnawave.squad_bindings_live_verified', true);
     \Illuminate\Support\Facades\Queue::fake();
     Http::fake();
-    $bot = Nutgram::fake();
+    $bot = \SergiX44\Nutgram\Nutgram::fake();
     require base_path('app/Interfaces/Telegram/routes/admin.php');
     $bot->setCommonUser(\SergiX44\Nutgram\Telegram\Types\User\User::make(975001, false, 'Root'));
     $bot->setCommonChat(\SergiX44\Nutgram\Telegram\Types\Chat\Chat::make(975001, \SergiX44\Nutgram\Telegram\Properties\ChatType::PRIVATE));
