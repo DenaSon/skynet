@@ -5,6 +5,8 @@ use App\Interfaces\Telegram\Handlers\AdminRolesHandler;
 use App\Interfaces\Telegram\Handlers\AdminUsersHandler;
 use App\Interfaces\Telegram\Support\AdminConfigProfilesUi;
 use App\Interfaces\Telegram\Support\AdminFulfillmentUi;
+use App\Interfaces\Telegram\Support\AdminHostBatchUi;
+use App\Interfaces\Telegram\Support\AdminHostOperationsUi;
 use App\Interfaces\Telegram\Support\AdminHostsUi;
 use App\Interfaces\Telegram\Support\AdminNodeBatchUi;
 use App\Interfaces\Telegram\Support\AdminNodeMetricsUi;
@@ -80,6 +82,35 @@ $bot->onCallbackQueryData('host1:apply:{token}', function (Nutgram $bot, string 
 });
 $bot->onCallbackQueryData('host1:cancel', function (Nutgram $bot): void {
     app(AdminHostsUi::class)->cancel($bot);
+});
+
+// HOST-02: guarded single-Host operations and bounded group enable/disable.
+$bot->onCallbackQueryData('host2:prepare:{uuid}:{mode}', function (Nutgram $bot, string $uuid, string $mode): void {
+    app(AdminHostOperationsUi::class)->prepare($bot, $uuid, $mode);
+});
+$bot->onCallbackQueryData('host2:apply:{token}', function (Nutgram $bot, string $token): void {
+    app(AdminHostOperationsUi::class)->apply($bot, $token);
+});
+$bot->onCallbackQueryData('host2:cancel', function (Nutgram $bot): void {
+    app(AdminHostOperationsUi::class)->cancel($bot);
+});
+$bot->onCallbackQueryData('host2:batch:begin', function (Nutgram $bot): void {
+    app(AdminHostBatchUi::class)->begin($bot);
+});
+$bot->onCallbackQueryData('host2:batch:page:{page}', function (Nutgram $bot, string $page): void {
+    app(AdminHostBatchUi::class)->page($bot, $page);
+});
+$bot->onCallbackQueryData('host2:batch:toggle:{index}', function (Nutgram $bot, string $index): void {
+    app(AdminHostBatchUi::class)->toggle($bot, $index);
+});
+$bot->onCallbackQueryData('host2:batch:choose:{mode}', function (Nutgram $bot, string $mode): void {
+    app(AdminHostBatchUi::class)->choose($bot, $mode);
+});
+$bot->onCallbackQueryData('host2:batch:apply:{token}', function (Nutgram $bot, string $token): void {
+    app(AdminHostBatchUi::class)->apply($bot, $token);
+});
+$bot->onCallbackQueryData('host2:batch:cancel', function (Nutgram $bot): void {
+    app(AdminHostBatchUi::class)->cancel($bot);
 });
 
 $bot->onCommand('nodes', function (Nutgram $bot): void {
