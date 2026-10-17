@@ -146,6 +146,9 @@ final readonly class AdminNodesUi
 
             return;
         }
+        // A single pending Node text wizard per operator avoids misrouting input.
+        Cache::forget(TelegramBotContext::current()->cacheKey('node02:draft:'.$root));
+        Cache::forget(TelegramBotContext::current()->cacheKey('node03:draft:'.$root));
         $this->save($root, ['stage' => 'info']);
         $this->render($bot,
             "➕ افزودن نود — گام ۱ از ۳\n\nنام و آدرس سرور را در یک پیام بفرستید:\n\n"
