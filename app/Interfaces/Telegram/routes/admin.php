@@ -12,6 +12,7 @@ use App\Interfaces\Telegram\Support\AdminPanelUsersUi;
 use App\Interfaces\Telegram\Support\AdminProviderOverviewUi;
 use App\Interfaces\Telegram\Support\AdminSectionsUi;
 use App\Interfaces\Telegram\Support\AdminSubscriptionStatusUi;
+use App\Interfaces\Telegram\Support\AdminTrafficReportUi;
 use App\Interfaces\Telegram\Support\BillingUi;
 use App\Interfaces\Telegram\Support\ManualPaymentUi;
 use App\Interfaces\Telegram\Support\PlanAdminUi;
@@ -133,6 +134,17 @@ $bot->onCommand('metrics', function (Nutgram $bot): void {
 });
 $bot->onCallbackQueryData('metrics:refresh', function (Nutgram $bot): void {
     app(AdminNodeMetricsUi::class)->show($bot);
+});
+
+// MET-02: bounded on-demand historical reads, never provider mutations.
+$bot->onCommand('traffic', function (Nutgram $bot): void {
+    app(AdminTrafficReportUi::class)->summary($bot);
+});
+$bot->onCallbackQueryData('metrics:range:{days}', function (Nutgram $bot, string $days): void {
+    app(AdminTrafficReportUi::class)->summary($bot, $days);
+});
+$bot->onCallbackQueryData('metrics:node:{days}:{uuid}', function (Nutgram $bot, string $days, string $uuid): void {
+    app(AdminTrafficReportUi::class)->node($bot, $days, $uuid);
 });
 
 $bot->onCommand('servers', function (Nutgram $bot): void {
