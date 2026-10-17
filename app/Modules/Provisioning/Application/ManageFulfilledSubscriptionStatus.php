@@ -65,6 +65,8 @@ final readonly class ManageFulfilledSubscriptionStatus
     public function change(int $actorId, int $orderId, string $mode, string $operationKey): void
     {
         $this->authorizeChange($actorId, $orderId, $mode);
+        // Recheck order status and root rights after the remote status GET.
+        $this->linked($actorId, $orderId);
         if (preg_match('/\Amvp04:[1-9][0-9]{0,14}:[a-f0-9]{32}\z/D', $operationKey) !== 1
             || ! str_starts_with($operationKey, 'mvp04:'.$orderId.':')) {
             throw ValidationException::withMessages(['subscription' => 'Invalid request.']);

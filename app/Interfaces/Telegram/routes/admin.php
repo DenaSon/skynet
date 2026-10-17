@@ -6,8 +6,8 @@ use App\Interfaces\Telegram\Handlers\AdminUsersHandler;
 use App\Interfaces\Telegram\Support\AdminFulfillmentUi;
 use App\Interfaces\Telegram\Support\AdminPanelUsersUi;
 use App\Interfaces\Telegram\Support\AdminProviderOverviewUi;
-use App\Interfaces\Telegram\Support\AdminSubscriptionStatusUi;
 use App\Interfaces\Telegram\Support\AdminSectionsUi;
+use App\Interfaces\Telegram\Support\AdminSubscriptionStatusUi;
 use App\Interfaces\Telegram\Support\BillingUi;
 use App\Interfaces\Telegram\Support\ManualPaymentUi;
 use App\Interfaces\Telegram\Support\PlanAdminUi;
@@ -20,7 +20,7 @@ use SergiX44\Nutgram\Nutgram;
 /** @var Nutgram $bot */
 // Admin-only registrations. Existing authorization and confirmation checks remain inside the handlers.
 
-// Operator-only provider reads. No write controls are registered.
+// Operator-only provider reads. Status writes are separate, confirmed and default-disabled.
 $bot->onCommand('panelusers', function (Nutgram $bot): void {
     app(AdminPanelUsersUi::class)->browse($bot);
 });
@@ -329,7 +329,6 @@ $bot->onCallbackQueryData('plan:squad:select:{id}:{choice}', function (Nutgram $
 $bot->onCallbackQueryData('plan:squad:apply:{token}', function (Nutgram $bot, string $token): void {
     app(PlanSquadUi::class)->apply($bot, $token);
 });
-
 
 // MVP-04: Admin-only status operations for locally linked, fulfilled subscriptions.
 $bot->onCallbackQueryData('full:service:view:{id}', function (Nutgram $bot, string $id): void {
