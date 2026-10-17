@@ -61,6 +61,13 @@ jobs:
       - name: Static analysis
         run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
 
+      # Temporary NODE-03 formatting diagnostic; removed before merge.
+      - name: Inspect NODE-03 formatter diff
+        run: |
+          vendor/bin/pint app/Modules/Provisioning/Application/ManageAdminNodeBatch.php
+          git diff -- app/Modules/Provisioning/Application/ManageAdminNodeBatch.php
+          git checkout -- app/Modules/Provisioning/Application/ManageAdminNodeBatch.php
+
       - name: Formatting verification
         run: vendor/bin/pint --test
 
