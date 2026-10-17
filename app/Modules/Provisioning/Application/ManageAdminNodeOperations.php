@@ -28,8 +28,8 @@ final readonly class ManageAdminNodeOperations
     ) {}
 
     /**
-     * @param array{uuid:string,name:string,connected:bool,disabled:bool} $expected
-     * @param array{name:string,address:string}|array{} $changes
+     * @param  array<string, mixed>  $expected
+     * @param  array<string, mixed>  $changes
      */
     public function perform(int $actorId, string $mode, array $expected, array $changes = []): void
     {
