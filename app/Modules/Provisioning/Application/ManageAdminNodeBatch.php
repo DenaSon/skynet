@@ -69,6 +69,9 @@ final readonly class ManageAdminNodeBatch
                     throw ValidationException::withMessages(['nodes' => 'Selected nodes changed.']);
                 }
             }
+            if ($mode === 'reorder' && array_column($current, 'uuid') !== array_keys($original)) {
+                throw ValidationException::withMessages(['nodes' => 'Node order changed since selection.']);
+            }
             if ($mode === 'reorder' && array_column($current, 'uuid') === $uuids) {
                 throw ValidationException::withMessages(['nodes' => 'Node order has not changed.']);
             }
