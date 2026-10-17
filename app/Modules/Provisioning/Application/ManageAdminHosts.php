@@ -193,14 +193,11 @@ final readonly class ManageAdminHosts
     {
         $this->authorizeWrite($actorId);
         if (! in_array($mode, ['enable', 'disable'], true) || $expected === [] || count($expected) > 20
-            || ! array_is_list($expected)) {
+            ) {
             throw ValidationException::withMessages(['host' => 'Invalid batch selection.']);
         }
         $uuids = [];
         foreach ($expected as $host) {
-            if (! is_array($host) || ! is_string($host['uuid'] ?? null)) {
-                throw ValidationException::withMessages(['host' => 'Invalid selected Host.']);
-            }
             $uuid = self::uuid($host['uuid']);
             if (in_array($uuid, $uuids, true)) {
                 throw ValidationException::withMessages(['host' => 'Duplicate selected Host.']);
