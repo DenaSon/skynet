@@ -81,6 +81,9 @@ final readonly class AdminNodesUi
             $lines[] = '';
             $lines[] = '🔒 تغییرات فعلاً غیرفعال است؛ اطلاعات فقط قابل مشاهده‌اند.';
         }
+        if (config('services.remnawave.node_ssh_setup_enabled') === true) {
+            $keyboard->addRow(InlineKeyboardButton::make('🛠️ راه‌اندازی سرور جدید', callback_data: 'nw1:begin'));
+        }
         $keyboard->addRow(InlineKeyboardButton::make('🏷️ تگ‌ها', callback_data: 'node1:tags'));
         $keyboard->addRow(InlineKeyboardButton::make('🌐 مدیریت هاست‌ها', callback_data: 'host1:list:1'));
         $keyboard->addRow(InlineKeyboardButton::make('🧩 پروفایل‌های اتصال', callback_data: 'cfg1:list:1'));
