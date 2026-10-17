@@ -118,8 +118,8 @@ final readonly class ManageAdminNodes
     {
         $this->access->handle($actorId);
         if (! self::label($name, 64) || strlen($address) > 253
-            || (! filter_var($address, FILTER_VALIDATE_IP)
-                && ! filter_var($address, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME))) {
+            || (filter_var($address, FILTER_VALIDATE_IP) === false
+                && filter_var($address, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) === false)) {
             throw ValidationException::withMessages(['node' => 'Invalid name or server address.']);
         }
     }
