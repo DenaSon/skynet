@@ -61,12 +61,6 @@ jobs:
       - name: Static analysis
         run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
 
-      - name: MET-02 formatter inspection (temporary)
-        run: |
-          vendor/bin/pint app/Interfaces/Telegram/Support/AdminTrafficReportUi.php
-          git diff -- app/Interfaces/Telegram/Support/AdminTrafficReportUi.php
-          git checkout -- app/Interfaces/Telegram/Support/AdminTrafficReportUi.php
-
       - name: Formatting verification
         run: vendor/bin/pint --test
 
