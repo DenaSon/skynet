@@ -85,6 +85,10 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:full:view:{id}';
     $expected['ADMIN'][] = 'callback:full:prepare:{id}:{mode}';
     $expected['ADMIN'][] = 'callback:full:apply:{token}';
+    $expected['ADMIN'][] = 'callback:full:service:view:{id}';
+    $expected['ADMIN'][] = 'callback:full:service:prepare:{id}:{mode}';
+    $expected['ADMIN'][] = 'callback:full:service:apply:{token}';
+    $expected['ADMIN'][] = 'callback:full:service:check:{id}';
     $expected['SALES'][] = 'photo:*';
     $files = [
         'ADMIN' => 'app/Interfaces/Telegram/routes/admin.php',
@@ -109,8 +113,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(130)
-        ->and(count(array_unique($legacy)))->toBe(130);
+        ->and(count($legacy))->toBe(134)
+        ->and(count(array_unique($legacy)))->toBe(134);
 });
 
 it('keeps the second Sales Bot router limited to identity and read-only catalog without Admin callbacks', function (): void {

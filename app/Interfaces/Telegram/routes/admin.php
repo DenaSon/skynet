@@ -6,6 +6,7 @@ use App\Interfaces\Telegram\Handlers\AdminUsersHandler;
 use App\Interfaces\Telegram\Support\AdminFulfillmentUi;
 use App\Interfaces\Telegram\Support\AdminPanelUsersUi;
 use App\Interfaces\Telegram\Support\AdminProviderOverviewUi;
+use App\Interfaces\Telegram\Support\AdminSubscriptionStatusUi;
 use App\Interfaces\Telegram\Support\AdminSectionsUi;
 use App\Interfaces\Telegram\Support\BillingUi;
 use App\Interfaces\Telegram\Support\ManualPaymentUi;
@@ -327,4 +328,22 @@ $bot->onCallbackQueryData('plan:squad:select:{id}:{choice}', function (Nutgram $
 
 $bot->onCallbackQueryData('plan:squad:apply:{token}', function (Nutgram $bot, string $token): void {
     app(PlanSquadUi::class)->apply($bot, $token);
+});
+
+
+// MVP-04: Admin-only status operations for locally linked, fulfilled subscriptions.
+$bot->onCallbackQueryData('full:service:view:{id}', function (Nutgram $bot, string $id): void {
+    app(AdminSubscriptionStatusUi::class)->view($bot, $id);
+});
+
+$bot->onCallbackQueryData('full:service:prepare:{id}:{mode}', function (Nutgram $bot, string $id, string $mode): void {
+    app(AdminSubscriptionStatusUi::class)->prepare($bot, $id, $mode);
+});
+
+$bot->onCallbackQueryData('full:service:apply:{token}', function (Nutgram $bot, string $token): void {
+    app(AdminSubscriptionStatusUi::class)->apply($bot, $token);
+});
+
+$bot->onCallbackQueryData('full:service:check:{id}', function (Nutgram $bot, string $id): void {
+    app(AdminSubscriptionStatusUi::class)->check($bot, $id);
 });
