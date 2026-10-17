@@ -57,6 +57,9 @@ final readonly class AdminNodeBatchUi
             return;
         }
 
+        // Keep only one Node wizard active so free-text replies reach the visible form.
+        Cache::forget(TelegramBotContext::current()->cacheKey('node01:draft:'.$root));
+        Cache::forget(TelegramBotContext::current()->cacheKey('node02:draft:'.$root));
         $state = ['stage' => 'select', 'nodes' => $nodes, 'selected' => [], 'mode' => '', 'data' => []];
         $this->store($root, $state);
         $this->selection($bot, $state);
