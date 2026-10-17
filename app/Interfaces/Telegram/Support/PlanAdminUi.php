@@ -184,7 +184,6 @@ final readonly class PlanAdminUi
             && $price !== null
             && $price->status === 'active'
             && $price->configuredPlanRevision === $plan->revision
-            && $binding['state'] === 'connected'
             && $this->squads->handle($actor->userId, $planId);
 
         $service = match ($binding['state']) {
@@ -200,7 +199,6 @@ final readonly class PlanAdminUi
             $price->status !== 'active' => 'تعرفه پلن را منتشر کنید.',
             $binding['state'] === 'missing' => 'ابتدا یک سرویس به پلن متصل کنید.',
             $binding['state'] === 'stale' => 'اتصال سرویس قدیمی است؛ دوباره انتخاب کنید.',
-            $binding['state'] === 'unavailable' => 'سرویس متصل قابل بررسی نیست؛ دوباره تلاش کنید.',
             config('services.remnawave.squad_bindings_live_verified') !== true => 'فروش این سرویس هنوز تأیید نهایی نشده است.',
             ! $ready => 'محصول پایه را فعال کنید.',
             default => null,
