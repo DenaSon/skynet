@@ -236,6 +236,11 @@ final readonly class AdminNodeSetupUi
         if ($id === null) {
             return;
         }
+        if ($this->draft($id) === null) {
+            $this->expired($bot);
+
+            return;
+        }
         $key = $this->key($id);
         $draft = Cache::lock($key.':lock', 20)->block(2, static function () use ($key, $token): mixed {
             $state = Cache::get($key);
@@ -333,6 +338,14 @@ final readonly class AdminNodeSetupUi
     /** @return array<string,mixed>|null */
     private function draft(int $id): ?array
     {
+        // A newer legacy wizard takes precedence over any stale SSH draft.
+        foreach (['node01:draft:', 'node02:draft:', 'node03:draft:', 'host01:draft:', 'host02:draft:', 'host02:batch:', 'cfg02:draft:'] as $prefix) {
+            if (Cache::has(TelegramBotContext::current()->cacheKey($prefix.$id))) {
+                Cache::forget($this->key($id));
+
+                return null;
+            }
+        }
         $state = Cache::get($this->key($id));
 
         return is_array($state) ? $state : null;
