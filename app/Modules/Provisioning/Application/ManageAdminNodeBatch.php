@@ -58,7 +58,7 @@ final readonly class ManageAdminNodeBatch
         }
 
         $payload = $this->payload($mode, $data);
-        Cache::lock('node03:batch:write', 60)->block(1, function () use ($actorId, $mode, $uuids, $original, $payload): void {
+        Cache::lock('nodes:mutation', 60)->block(1, function () use ($actorId, $mode, $uuids, $original, $payload): void {
             $current = $this->nodes->all($actorId);
             $live = array_column($current, null, 'uuid');
             if (($mode === 'reorder' || $mode === 'restart-all') && count($current) !== count($original)) {

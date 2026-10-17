@@ -8,7 +8,9 @@ use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Provisioning\Application\ManageAdminNodeBatch;
 use App\Modules\Provisioning\Application\ManageAdminNodes;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
@@ -57,6 +59,9 @@ final readonly class AdminNodeBatchUi
             return;
         }
 
+        // Keep only one Node wizard active so free-text replies reach the visible form.
+        Cache::forget(TelegramBotContext::current()->cacheKey('node01:draft:'.$root));
+        Cache::forget(TelegramBotContext::current()->cacheKey('node02:draft:'.$root));
         $state = ['stage' => 'select', 'nodes' => $nodes, 'selected' => [], 'mode' => '', 'data' => []];
         $this->store($root, $state);
         $this->selection($bot, $state);
@@ -103,7 +108,7 @@ final readonly class AdminNodeBatchUi
         }
 
         if (! in_array($mode, ['reorder', 'restart-all'], true) && $state['selected'] === []) {
-            $this->render($bot, 'ابتدا یک یا چند نود انتخاب کنید.', $this->back());
+            $this->selection($bot, $state);
 
             return;
         }
@@ -365,8 +370,12 @@ final readonly class AdminNodeBatchUi
         try {
             $this->batch->perform($root, $state['mode'], $state['nodes'], $state['selected'], $state['data']);
             $this->render($bot, "✅ درخواست گروهی ثبت شد.\n\nنتیجه نهایی را از فهرست نودها بررسی کنید.", $this->back());
+        } catch (ValidationException) {
+            $this->render($bot, "درخواست اجرا نشد؛ سرورهای انتخاب‌شده یا تنظیمات تغییر کرده‌اند.\n\nفهرست را تازه‌سازی کنید.", $this->back());
+        } catch (LockTimeoutException) {
+            $this->render($bot, "عملیات دیگری روی سرورها در حال انجام است.\n\nابتدا وضعیت سرورها را بررسی کنید.", $this->back());
         } catch (Throwable) {
-            $this->render($bot, "نتیجه عملیات قطعی نیست.\n\nابتدا وضعیت نودها را تازه‌سازی کنید؛ درخواست خودکار تکرار نمی‌شود.", $this->back());
+            $this->render($bot, "نتیجه عملیات قطعی نیست.\n\nابتدا وضعیت سرورها را تازه‌سازی کنید؛ درخواست خودکار تکرار نمی‌شود.", $this->back());
         }
     }
 
@@ -418,19 +427,23 @@ final readonly class AdminNodeBatchUi
     {
         $keyboard = InlineKeyboardMarkup::make();
         $names = array_column($state['nodes'], 'name', 'uuid');
+        $lines = ['↕️ ترتیب نمایش سرورها', '', 'با دکمه‌های شماره‌دار، جای سرورها را تغییر دهید.', ''];
         foreach ($state['selected'] as $i => $uuid) {
-            $buttons = [InlineKeyboardButton::make(($i + 1).' · '.$this->safe($names[$uuid]), callback_data: 'node3:move:'.$i.':up')];
+            $lines[] = ($i + 1).' · '.$this->safe($names[$uuid]);
+            $buttons = [];
             if ($i > 0) {
-                $buttons[] = InlineKeyboardButton::make('⬆️', callback_data: 'node3:move:'.$i.':up');
+                $buttons[] = InlineKeyboardButton::make('⬆️ '.($i + 1), callback_data: 'node3:move:'.$i.':up');
             }
             if ($i < count($state['selected']) - 1) {
-                $buttons[] = InlineKeyboardButton::make('⬇️', callback_data: 'node3:move:'.$i.':down');
+                $buttons[] = InlineKeyboardButton::make('⬇️ '.($i + 1), callback_data: 'node3:move:'.$i.':down');
             }
-            $keyboard->addRow(...$buttons);
+            if ($buttons !== []) {
+                $keyboard->addRow(...$buttons);
+            }
         }
         $keyboard->addRow(InlineKeyboardButton::make('✅ بررسی ترتیب', callback_data: 'node3:preview'));
         $keyboard->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'node3:cancel'));
-        $this->render($bot, "↕️ ترتیب نمایش نودها\n\nبا فلش‌ها نودها را جابه‌جا کنید.", $keyboard);
+        $this->render($bot, implode("\n", $lines), $keyboard);
     }
 
     /** @param array<string,mixed> $state */
@@ -458,13 +471,34 @@ final readonly class AdminNodeBatchUi
             'reset' => 'صفرکردن ترافیک', 'profile' => 'تغییر پروفایل',
             'update' => 'ویرایش گروهی', 'reorder' => 'تغییر ترتیب', 'restart-all' => 'ری‌استارت تمام نودها',
         ];
+        $names = array_column($state['nodes'], 'name', 'uuid');
+        $targetLines = [];
+        foreach ($state['selected'] as $index => $uuid) {
+            $targetLines[] = ($index + 1).'. '.$this->safe($names[$uuid]);
+        }
+        $details = '';
+        if ($state['mode'] === 'profile') {
+            $details = "\nپروفایل جدید: ".$this->safe($state['profile']['name'])
+                ."\nتعداد ورودی‌ها: ".count($state['chosen']);
+        } elseif ($state['mode'] === 'update') {
+            $field = array_key_first($state['data']);
+            $value = $state['data'][$field];
+            $display = is_array($value) ? implode(', ', $value) : (string) $value;
+            $display = (string) preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $display);
+            $details = "\nفیلد: ".self::FIELDS[$field]."\nمقدار جدید: ".$display;
+        }
+        $warning = match ($state['mode']) {
+            'restart', 'restart-all', 'disable' => '⚠️ ممکن است اتصال کاربران قطع شود.',
+            'reset' => '⚠️ شمارنده مصرف ترافیک سرورهای انتخاب‌شده صفر می‌شود.',
+            default => 'نتیجه تغییرات را پس از ثبت بررسی کنید.',
+        };
         $state['stage'] = 'confirm';
         $state['token'] = bin2hex(random_bytes(16));
         $this->store($root, $state);
         $this->render($bot, "⚠️ تأیید عملیات گروهی\n\n".$labels[$state['mode']]
-            ."\nتعداد نودهای هدف: ".count($state['selected'])
-            ."\n\nاین عملیات ممکن است اتصال کاربران را مختل کند. فقط در صورت اطمینان تأیید کنید."
-            ."\nاعتبار تأیید: ۳ دقیقه.",
+            ."\nتعداد سرورها: ".count($state['selected'])
+            ."\n\nسرورهای هدف".($state['mode'] === 'reorder' ? ' به ترتیب جدید' : '').":\n".implode("\n", $targetLines)
+            .$details."\n\n".$warning."\nاعتبار تأیید: ۳ دقیقه.",
             InlineKeyboardMarkup::make()
                 ->addRow(InlineKeyboardButton::make('✅ تأیید نهایی', callback_data: 'node3:apply:'.$state['token']))
                 ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'node3:cancel')),

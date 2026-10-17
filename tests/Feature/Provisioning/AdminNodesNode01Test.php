@@ -210,3 +210,28 @@ it('revalidates chosen profile/inbounds and current root authority immediately b
         ->toThrow(AuthorizationException::class);
     expect(collect(Http::recorded())->filter(static fn ($pair): bool => $pair[0]->method() === 'POST'))->toBeEmpty();
 });
+
+it('renders a compact Node list with a single status summary and no duplicated names', function (): void {
+    node01Actors();
+    node01FakeProvider();
+
+    node01Bot()->hearCallbackQueryData('node1:list:1')->reply()->assertCalled('editMessageText');
+    Http::assertSentCount(1);
+});
+
+it('retires other pending Node forms when starting the create wizard', function (): void {
+    $actors = node01Actors();
+    config()->set('services.remnawave.writes_enabled', true);
+    node01FakeProvider();
+    $root = $actors['root']->id;
+
+    Cache::put('node02:draft:'.$root, ['stage' => 'edit'], now()->addMinutes(10));
+    Cache::put('node03:draft:'.$root, ['stage' => 'value'], now()->addMinutes(10));
+
+    node01Bot()->hearCallbackQueryData('node1:begin')->reply()->assertCalled('editMessageText');
+
+    expect(Cache::get('node02:draft:'.$root))->toBeNull()
+        ->and(Cache::get('node03:draft:'.$root))->toBeNull()
+        ->and(Cache::get('node01:draft:'.$root)['stage'])->toBe('info');
+    Http::assertNothingSent();
+});

@@ -8,7 +8,9 @@ use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Provisioning\Application\ManageAdminNodeOperations;
 use App\Modules\Provisioning\Application\ManageAdminNodes;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
@@ -61,6 +63,9 @@ final readonly class AdminNodeOperationsUi
             return;
         }
 
+        // Starting another Node wizard invalidates stale pending text/confirm steps.
+        Cache::forget(TelegramBotContext::current()->cacheKey('node01:draft:'.$root));
+        Cache::forget(TelegramBotContext::current()->cacheKey('node03:draft:'.$root));
         Cache::put($this->key($root), [
             'stage' => $mode === 'edit' ? 'edit' : 'confirm',
             'mode' => $mode,
@@ -163,11 +168,21 @@ final readonly class AdminNodeOperationsUi
                 "✅ درخواست ثبت شد.\n\nبرای مشاهده نتیجه نهایی، فهرست نودها را تازه‌سازی کنید.",
                 $this->listKeyboard(),
             );
+        } catch (ValidationException) {
+            $this->render($bot,
+                "درخواست اجرا نشد؛ وضعیت سرور یا دسترسی تغییر کرده است.\n\nفهرست را تازه‌سازی کنید و دوباره بررسی کنید.",
+                $this->listKeyboard(),
+            );
+        } catch (LockTimeoutException) {
+            $this->render($bot,
+                "عملیات دیگری روی سرورها در حال انجام است.\n\nابتدا وضعیت سرور را بررسی کنید.",
+                $this->listKeyboard(),
+            );
         } catch (Throwable) {
             // Includes timeout or unverified response AFTER the remote write.
             // Always require a read-only refresh; never retry this ticket.
             $this->render($bot,
-                "نتیجه عملیات قطعی نیست.\n\nقبل از درخواست دوباره، وضعیت نود را بررسی کنید.",
+                "نتیجه عملیات قطعی نیست.\n\nقبل از درخواست دوباره، وضعیت سرور را بررسی کنید.",
                 $this->listKeyboard(),
             );
         }
@@ -205,7 +220,13 @@ final readonly class AdminNodeOperationsUi
         $detail = $mode === 'edit'
             ? "\nنام جدید: ".$this->safe($changes['name'])."\nآدرس جدید: ".$this->safe($changes['address'])
             : '';
-        $warning = $mode === 'delete' ? "\n\n⚠️ این کار برگشت‌پذیر نیست و ممکن است سرویس کاربران را قطع کند." : '';
+        $warning = match ($mode) {
+            'delete' => "\n\n⚠️ حذف دائمی است و ممکن است سرویس کاربران را قطع کند.",
+            'reset' => "\n\n⚠️ شمارنده مصرف ترافیک این سرور بازنشانی می‌شود.",
+            'restart' => "\n\n⚠️ هنگام راه‌اندازی مجدد ممکن است اتصال کاربران موقتاً قطع شود.",
+            'disable' => "\n\n⚠️ با غیرفعال‌کردن سرور ممکن است سرویس کاربران قطع شود.",
+            default => '',
+        };
 
         $this->render($bot,
             '⚠️ تأیید '.$label."\n\nنود: ".$this->safe($name).$detail.$warning

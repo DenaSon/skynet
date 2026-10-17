@@ -7,7 +7,9 @@ namespace App\Interfaces\Telegram\Support;
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Provisioning\Application\ManageAdminNodes;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
@@ -47,16 +49,18 @@ final readonly class AdminNodesUi
         $pages = max(1, (int) ceil(count($nodes) / 10));
         $page = min($page, $pages);
         $keyboard = InlineKeyboardMarkup::make();
-        $lines = ['🖥️ مدیریت نودها', 'تعداد: '.count($nodes)." | صفحه {$page} از {$pages}", ''];
+        $enabled = count(array_filter($nodes, static fn (array $node): bool => ! $node['disabled']));
+        $online = count(array_filter($nodes, static fn (array $node): bool => ! $node['disabled'] && $node['connected']));
+        $lines = ['🖥️ مدیریت نودها',
+            'کل: '.count($nodes).' | فعال: '.$enabled.' | متصل: '.$online,
+            "صفحه {$page} از {$pages}", '',
+            $nodes === [] ? 'هنوز سروری اضافه نشده است.' : 'برای مشاهده جزئیات، یک سرور را انتخاب کنید.',
+        ];
         foreach (array_slice($nodes, ($page - 1) * 10, 10) as $node) {
-            $status = $node['disabled'] ? '⏸️ غیرفعال' : ($node['connected'] ? '🟢 متصل' : '🔴 قطع');
-            $lines[] = $this->safe($node['name']).' — '.$status;
+            $status = $node['disabled'] ? '⏸️' : ($node['connected'] ? '🟢' : '🔴');
             $keyboard->addRow(InlineKeyboardButton::make(
-                $this->safe($node['name']), callback_data: 'node1:view:'.$node['uuid'],
+                $status.' '.$this->safe($node['name']), callback_data: 'node1:view:'.$node['uuid'],
             ));
-        }
-        if ($nodes === []) {
-            $lines[] = 'هنوز نودی ثبت نشده است.';
         }
         $nav = [];
         if ($page > 1) {
@@ -102,11 +106,13 @@ final readonly class AdminNodesUi
             InlineKeyboardButton::make('🔄 راه‌اندازی مجدد', callback_data: 'node2:prepare:'.$node['uuid'].':restart'),
             InlineKeyboardButton::make('📊 صفرکردن ترافیک', callback_data: 'node2:prepare:'.$node['uuid'].':reset'),
         );
-        $keyboard->addRow(InlineKeyboardButton::make('🗑️ حذف نود', callback_data: 'node2:prepare:'.$node['uuid'].':delete'));
+        if ($node['disabled']) {
+            $keyboard->addRow(InlineKeyboardButton::make('🗑️ حذف سرور', callback_data: 'node2:prepare:'.$node['uuid'].':delete'));
+        }
         $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'node1:view:'.$node['uuid']));
         $keyboard->addRow(InlineKeyboardButton::make('◀️ فهرست نودها', callback_data: 'node1:list:1'));
         $this->render($bot,
-            '🖥️ جزئیات نود'."\n\n"
+            '🖥️ جزئیات سرور'."\n\n"
             .'نام: '.$this->safe($node['name'])."\n"
             .'وضعیت: '.$status."\n"
             .'اتصال: '.$connected,
@@ -142,6 +148,9 @@ final readonly class AdminNodesUi
 
             return;
         }
+        // A single pending Node text wizard per operator avoids misrouting input.
+        Cache::forget(TelegramBotContext::current()->cacheKey('node02:draft:'.$root));
+        Cache::forget(TelegramBotContext::current()->cacheKey('node03:draft:'.$root));
         $this->save($root, ['stage' => 'info']);
         $this->render($bot,
             "➕ افزودن نود — گام ۱ از ۳\n\nنام و آدرس سرور را در یک پیام بفرستید:\n\n"
@@ -307,10 +316,16 @@ final readonly class AdminNodesUi
                 InlineKeyboardMarkup::make()
                     ->addRow(InlineKeyboardButton::make('📄 جزئیات نود', callback_data: 'node1:view:'.$uuid))
                     ->addRow(InlineKeyboardButton::make('◀️ فهرست نودها', callback_data: 'node1:list:1')));
+        } catch (ValidationException) {
+            $this->render($bot, "درخواست اجرا نشد؛ مشخصات یا دسترسی تغییر کرده است.\n\nفهرست سرورها را تازه‌سازی کنید.",
+                $this->listKeyboard());
+        } catch (LockTimeoutException) {
+            $this->render($bot, "عملیات دیگری روی سرورها در حال انجام است.\n\nابتدا فهرست را بررسی کنید.",
+                $this->listKeyboard());
         } catch (Throwable) {
             // The remote POST might have succeeded despite a timeout or malformed
             // response. The consumed token MUST NEVER be reused to retry it.
-            $this->render($bot, "نتیجه ثبت نود مشخص نیست.\n\nپیش از هر اقدام، فهرست نودها را بررسی کنید.",
+            $this->render($bot, "نتیجه ثبت سرور مشخص نیست.\n\nپیش از هر اقدام، فهرست سرورها را بررسی کنید.",
                 $this->listKeyboard());
         }
     }

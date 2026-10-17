@@ -7,6 +7,7 @@ namespace App\Modules\Provisioning\Application;
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveApiClientFactory;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveNodesApi;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
 use UnexpectedValueException;
 
@@ -147,34 +148,36 @@ final readonly class ManageAdminNodes
             throw ValidationException::withMessages(['node' => 'Duplicate inbound selection.']);
         }
 
-        // Fresh remote reads ensure that stale preview buttons cannot write a
-        // removed profile/inbound. Reauthorize again immediately before POST.
-        $profiles = $this->profiles($actorId);
-        if (! in_array(strtolower($profileUuid), array_column($profiles, 'uuid'), true)) {
-            throw ValidationException::withMessages(['node' => 'Profile changed.']);
-        }
-        $available = array_column($this->inbounds($actorId, $profileUuid), 'uuid');
-        foreach ($chosen as $uuid) {
-            if (! in_array(strtolower($uuid), $available, true)) {
-                throw ValidationException::withMessages(['node' => 'Inbound changed.']);
+        // Serialize all Node mutations (create, single-node and batch) while
+        // validating the latest profile/inbound state under the same lock.
+        return Cache::lock('nodes:mutation', 60)->block(1, function () use ($actorId, $name, $address, $profileUuid, $chosen): string {
+            $profiles = $this->profiles($actorId);
+            if (! in_array(strtolower($profileUuid), array_column($profiles, 'uuid'), true)) {
+                throw ValidationException::withMessages(['node' => 'Profile changed.']);
             }
-        }
-        $this->authorizeWrite($actorId);
+            $available = array_column($this->inbounds($actorId, $profileUuid), 'uuid');
+            foreach ($chosen as $uuid) {
+                if (! in_array(strtolower($uuid), $available, true)) {
+                    throw ValidationException::withMessages(['node' => 'Inbound changed.']);
+                }
+            }
+            $this->authorizeWrite($actorId);
 
-        $created = (new RemnawaveNodesApi($this->factory->make()))->create([
-            'name' => $name,
-            'address' => $address,
-            'configProfile' => [
-                'activeConfigProfileUuid' => strtolower($profileUuid),
-                'activeInbounds' => array_map('strtolower', $chosen),
-            ],
-        ]);
+            $created = (new RemnawaveNodesApi($this->factory->make()))->create([
+                'name' => $name,
+                'address' => $address,
+                'configProfile' => [
+                    'activeConfigProfileUuid' => strtolower($profileUuid),
+                    'activeInbounds' => array_map('strtolower', $chosen),
+                ],
+            ]);
 
-        if (! self::uuidValid($created['uuid'] ?? null)) {
-            throw new UnexpectedValueException('Node create outcome is not verifiable.');
-        }
+            if (! self::uuidValid($created['uuid'] ?? null)) {
+                throw new UnexpectedValueException('Node create outcome is not verifiable.');
+            }
 
-        return strtolower($created['uuid']);
+            return strtolower($created['uuid']);
+        });
     }
 
     private function authorizeWrite(int $actorId): void

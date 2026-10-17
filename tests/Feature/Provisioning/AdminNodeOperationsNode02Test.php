@@ -231,3 +231,19 @@ it('cancels one pending edit without mutating remote state', function (): void {
     $bot->hearCallbackQueryData('node2:cancel')->reply()->assertCalled('editMessageText');
     expect(Cache::get('node02:draft:'.$root->id))->toBeNull()->and(node02Mutations())->toBe(0);
 });
+
+it('invalidates abandoned create and bulk drafts when a single-node edit begins', function (): void {
+    $root = node02Root();
+    config()->set('services.remnawave.writes_enabled', true);
+    node02Fake();
+
+    Cache::put('node01:draft:'.$root->id, ['stage' => 'info'], now()->addMinutes(10));
+    Cache::put('node03:draft:'.$root->id, ['stage' => 'value'], now()->addMinutes(10));
+
+    node02Bot()->hearCallbackQueryData('node2:prepare:'.NODE02_UUID.':edit')->reply()->assertCalled('editMessageText');
+
+    expect(Cache::get('node01:draft:'.$root->id))->toBeNull()
+        ->and(Cache::get('node03:draft:'.$root->id))->toBeNull()
+        ->and(Cache::get('node02:draft:'.$root->id)['stage'])->toBe('edit');
+    expect(node02Mutations())->toBe(0);
+});
