@@ -4,6 +4,7 @@ use App\Interfaces\Telegram\Handlers\AdminHandler;
 use App\Interfaces\Telegram\Handlers\AdminRolesHandler;
 use App\Interfaces\Telegram\Handlers\AdminUsersHandler;
 use App\Interfaces\Telegram\Support\AdminFulfillmentUi;
+use App\Interfaces\Telegram\Support\AdminNodeOperationsUi;
 use App\Interfaces\Telegram\Support\AdminNodesUi;
 use App\Interfaces\Telegram\Support\AdminPanelUsersUi;
 use App\Interfaces\Telegram\Support\AdminProviderOverviewUi;
@@ -77,6 +78,19 @@ $bot->onCallbackQueryData('node1:apply:{token}', function (Nutgram $bot, string 
 
 $bot->onCallbackQueryData('node1:cancel', function (Nutgram $bot): void {
     app(AdminNodesUi::class)->cancel($bot);
+});
+
+// NODE-02: trusted single-node mutations; no bulk operations.
+$bot->onCallbackQueryData('node2:prepare:{uuid}:{mode}', function (Nutgram $bot, string $uuid, string $mode): void {
+    app(AdminNodeOperationsUi::class)->prepare($bot, $uuid, $mode);
+});
+
+$bot->onCallbackQueryData('node2:apply:{token}', function (Nutgram $bot, string $token): void {
+    app(AdminNodeOperationsUi::class)->apply($bot, $token);
+});
+
+$bot->onCallbackQueryData('node2:cancel', function (Nutgram $bot): void {
+    app(AdminNodeOperationsUi::class)->cancel($bot);
 });
 
 $bot->onCommand('servers', function (Nutgram $bot): void {
