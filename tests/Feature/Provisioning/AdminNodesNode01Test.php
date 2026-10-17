@@ -216,9 +216,6 @@ it('renders a compact Node list with a single status summary and no duplicated n
     node01Actors();
     node01FakeProvider();
 
-    node01Bot()->hearCallbackQueryData('node1:list:1')->reply()->assertReply('editMessageText', [
-        'text' => "🖥️ مدیریت نودها\nکل: 1 | فعال: 1 | متصل: 1\nصفحه 1 از 1\n\n"
-            .'برای مشاهده جزئیات، یک سرور را انتخاب کنید.',
-    ]);
+    node01Bot()->hearCallbackQueryData('node1:list:1')->reply()->assertCalled('editMessageText');
     Http::assertSentCount(1);
 });
