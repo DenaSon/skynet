@@ -49,18 +49,27 @@ function met02Bot(int $telegramId = 955001, bool $private = true): Nutgram
 }
 
 /** @param array<string,mixed>|null $history */
-function met02Fake(?array $history = null, bool $topUsersOk = true): void
+function met02Fake(?array $history = null, bool $topUsersOk = true, int $count = 2): void
 {
-    Http::fake(static function (Request $r) use ($history, $topUsersOk) {
+    $nodes = [
+        ['uuid' => MET02_NODE, 'name' => 'Alpha', 'isConnected' => true, 'isDisabled' => false],
+        ['uuid' => MET02_SECOND, 'name' => 'Beta', 'isConnected' => false, 'isDisabled' => false],
+    ];
+    for ($i = 2; $i < $count; $i++) {
+        $nodes[] = [
+            'uuid' => sprintf('550e8400-e29b-41d4-a716-%012d', $i + 1),
+            'name' => 'Node-'.($i + 1),
+            'isConnected' => false,
+            'isDisabled' => false,
+        ];
+    }
+    Http::fake(static function (Request $r) use ($history, $topUsersOk, $nodes) {
         $path = parse_url($r->url(), PHP_URL_PATH);
         $today = gmdate('Y-m-d');
         $yesterday = gmdate('Y-m-d', strtotime('-1 day'));
 
         return match ($path) {
-            '/api/nodes' => Http::response(['response' => [
-                ['uuid' => MET02_NODE, 'name' => 'Alpha', 'isConnected' => true, 'isDisabled' => false],
-                ['uuid' => MET02_SECOND, 'name' => 'Beta', 'isConnected' => false, 'isDisabled' => false],
-            ]]),
+            '/api/nodes' => Http::response(['response' => $nodes]),
             '/api/bandwidth-stats/nodes' => Http::response(['response' => $history ?? [
                 'categories' => [$yesterday, $today],
                 'sparklineData' => [1073741824, 2147483648],
@@ -106,6 +115,23 @@ it('shows 7/30 day daily trend and exact per-node totals only from validated rep
     Http::assertSent(static fn (Request $r): bool => $r->method() === 'GET'
         && str_contains($r->url(), 'start=') && str_contains($r->url(), 'end='));
     expect(collect(Http::recorded())->every(static fn (array $pair): bool => $pair[0]->method() === 'GET'))->toBeTrue();
+});
+
+
+it('navigates beyond the first ten Nodes and bounds invalid page requests without extra reads', function (): void {
+    met02Root();
+    met02Fake(count: 23);
+    $bot = met02Bot();
+
+    $bot->hearCallbackQueryData('metrics:page:7:2')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('metrics:page:30:3')->reply()->assertCalled('editMessageText');
+    Http::assertSentCount(4);
+
+    $bot->hearCallbackQueryData('metrics:page:7:0')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('metrics:page:7:101')->reply()->assertCalled('editMessageText');
+    Http::assertSentCount(4);
+    expect(collect(Http::recorded())->every(static fn (array $item): bool => $item[0]->method() === 'GET'))
+        ->toBeTrue();
 });
 
 it('reads top users for one existing node without exposing full user payload', function (): void {
