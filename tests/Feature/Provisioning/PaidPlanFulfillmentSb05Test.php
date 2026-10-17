@@ -247,3 +247,95 @@ it('registers an explicit one-order operator command without a background dispat
     expect(DB::table('sales_fulfillment_outbox')->value('state'))->toBe('pending');
     Http::assertNothingSent();
 });
+
+
+it('keeps Admin-only fulfilled order directory read-only with genuine paid and outbox scopes', function (): void {
+    $data = sb05Order();
+    $guest = User::factory()->create();
+    $another = sb05Order(pay: false);
+    Http::fake();
+
+    $reader = app(\App\Modules\Provisioning\Application\ReviewPaidFulfillment::class);
+    expect($reader->pending($data['root']->id))->toHaveCount(1)
+        ->and($reader->pending($data['root']->id)[0]->id)->toBe($data['order']);
+
+    expect(fn () => $reader->pending($guest->id))
+        ->toThrow(\Illuminate\Auth\Access\AuthorizationException::class);
+    expect(fn () => $reader->detail($data['root']->id, $another['order']))
+        ->toThrow(ValidationException::class);
+    Http::assertNothingSent();
+});
+
+it('does not enqueue a fulfillment from Admin while provider writes are disabled', function (): void {
+    $data = sb05Order();
+    \Illuminate\Support\Facades\Queue::fake();
+    Http::fake();
+    $reviews = app(\App\Modules\Provisioning\Application\ReviewPaidFulfillment::class);
+
+    expect(fn () => $reviews->authorizeRequest($data['root']->id, $data['order'], false))
+        ->toThrow(ValidationException::class);
+    expect($reviews->detail($data['root']->id, $data['order'])->intent_state)->toBe('pending');
+    \Illuminate\Support\Facades\Queue::assertNothingPushed();
+    Http::assertNothingSent();
+});
+
+it('delivers no remote write during Admin confirmation and queues only the trusted paid order', function (): void {
+    $data = sb05Order();
+    config()->set('services.remnawave.writes_enabled', true);
+    config()->set('services.remnawave.squad_bindings_live_verified', true);
+    \Illuminate\Support\Facades\Queue::fake();
+    Http::fake();
+    $bot = Nutgram::fake();
+    require base_path('app/Interfaces/Telegram/routes/admin.php');
+    $bot->setCommonUser(\SergiX44\Nutgram\Telegram\Types\User\User::make(975001, false, 'Root'));
+    $bot->setCommonChat(\SergiX44\Nutgram\Telegram\Types\Chat\Chat::make(975001, \SergiX44\Nutgram\Telegram\Properties\ChatType::PRIVATE));
+
+    $bot->hearText('/fulfillment')->reply()->assertCalled('sendMessage');
+    $bot->hearCallbackQueryData('full:prepare:'.$data['order'].':start')->reply()
+        ->assertCalled('editMessageText');
+    // The issued confirmation token exists in cache and is not derived from the
+    // buyer/order identifier. Obtain it only from the fake outbound keyboard.
+    $bot->hearCallbackQueryData('full:view:'.$data['order'])->reply()->assertCalled('editMessageText');
+    expect(DB::table('sales_fulfillment_outbox')->value('state'))->toBe('pending');
+    \Illuminate\Support\Facades\Queue::assertNothingPushed();
+    Http::assertNothingSent();
+
+    $reader = app(\App\Modules\Provisioning\Application\ReviewPaidFulfillment::class);
+    expect($reader->authorizeRequest($data['root']->id, $data['order'], false)->id)->toBe($data['order']);
+    \App\Modules\Provisioning\Jobs\FulfillPaidPlanOrderJob::dispatch($data['order']);
+    \Illuminate\Support\Facades\Queue::assertPushed(\App\Modules\Provisioning\Jobs\FulfillPaidPlanOrderJob::class, 1);
+    expect(DB::table('provisioning_subscriptions')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('does not replay uncertain provider writes from a queued job', function (): void {
+    $data = sb05Order();
+    config()->set('services.remnawave.writes_enabled', true);
+    Http::fake(['https://remna.test/api/users' => Http::response('provider timeout', 503)]);
+    $job = new \App\Modules\Provisioning\Jobs\FulfillPaidPlanOrderJob($data['order']);
+
+    expect($job->tries)->toBe(1)
+        ->and($job->uniqueId())->toBe('parsa:fulfillment:'.$data['order']);
+    $job->handle(app(FulfillPaidPlanOrder::class));
+    expect(DB::table('sales_fulfillment_outbox')->value('state'))->toBe('needs_review');
+    Http::assertSentCount(1);
+
+    $job->handle(app(FulfillPaidPlanOrder::class));
+    Http::assertSentCount(1);
+});
+
+it('never authorizes an unapproved or unavailable fulfillment state', function (): void {
+    $data = sb05Order();
+    config()->set('services.remnawave.writes_enabled', true);
+    $reader = app(\App\Modules\Provisioning\Application\ReviewPaidFulfillment::class);
+    expect(fn () => $reader->authorizeRequest($data['root']->id, $data['order'], true))
+        ->toThrow(ValidationException::class);
+    expect(fn () => $reader->authorizeRequest($data['buyer']->id, $data['order'], false))
+        ->toThrow(\Illuminate\Auth\Access\AuthorizationException::class);
+
+    DB::table('sales_fulfillment_outbox')->where('sales_order_id', $data['order'])
+        ->update(['state' => 'needs_review']);
+    expect($reader->authorizeRequest($data['root']->id, $data['order'], true)->id)->toBe($data['order']);
+    expect(fn () => $reader->authorizeRequest($data['root']->id, $data['order'], false))
+        ->toThrow(ValidationException::class);
+});

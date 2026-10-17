@@ -1,5 +1,11 @@
 # ParsaGate — Current Context / Development Memory 
 
+## OP-03 — Root-confirmed Admin fulfillment (2026-10-17)
+
+- Admin Bot gains «🔌 فعال‌سازی اشتراک‌ها» and `/fulfillment`: trusted, linked, private Super Admin views only paid managed-plan orders with existing `sales_fulfillment_outbox` intent. Selection and 3-minute, per-root one-time confirmation enqueue a **single-order Laravel Job**. No provider request happens inside Telegram Webhook. Job implements unique order key, one attempt, bounded runtime and logs only generic outcome with order id.
+- Actual provider POST uses **unchanged** `FulfillPaidPlanOrder` settlement journal verification, Plan revision/Squad checks, unique durable create reservation, terminal `needs_review` on uncertain writes and protected order-to-subscription mapping. Queue duplicates cannot cause a second POST. An ambiguous order offers separate root-confirmed **GET-only reconciliation**, reusing `FulfillPaidPlanOrder::reconcile`, with no blind create retry.
+- When provider writes or globally verified Squad gate are OFF, activation action is unavailable. No finance enablement, user/client signup, automatic bank settlement, automatic paid-event fulfillment, Node/Host provisioning, new migration, provider flag or root role changes. Source CI and isolated fake-provider tests cannot prove real customer VPN connectivity; live two-bot/Remnawave/bank tests remain deferred together until after OP-03 by operator request.
+
 ## OP-02 — Plan–Squad management source checkpoint (2026-10-17)
 
 - Trusted Super Admin only, private Admin Bot plan detail → «🔗 اتصال سرویس». The operator selects an existing Squad read from Remnawave `GET /api/internal-squads`, reviews a one-time confirmation and the authorized Provisioning Action verifies the exact UUID via `GET /api/internal-squads/{uuid}` before persisting a binding to the existing `sales_plan_internal_squad_bindings` table. Changes append a small `sales_plan_audits` row. No new schema/dependency, no Provider write, no creation of Nodes/Hosts/Squads.
