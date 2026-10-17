@@ -239,7 +239,6 @@ it('retires other pending Node forms when starting the create wizard', function 
     Http::assertNothingSent();
 });
 
-
 it('NW-01 setup remains default-disabled and cannot cause a provider write', function (): void {
     node01Actors();
     node01FakeProvider();
