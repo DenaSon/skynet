@@ -50,6 +50,53 @@ final readonly class ManagePlanSquadBinding
         return $result;
     }
 
+
+    /**
+     * Read-only status for the existing Admin plan screen. A stored UUID is
+     * never presented as a live remote service without a matching provider GET.
+     *
+     * @return array{state:'missing'|'stale'|'unavailable'|'connected',name:?string}
+     */
+    public function status(int $actorId, int $planId): array
+    {
+        $this->access->handle($actorId);
+        $plan = DB::table('sales_plans')->where('id', $planId)->first();
+        if ($plan === null) {
+            throw ValidationException::withMessages(['plan' => 'Unavailable plan.']);
+        }
+
+        if (! Schema::hasTable('sales_plan_internal_squad_bindings')) {
+            return ['state' => 'missing', 'name' => null];
+        }
+
+        $binding = DB::table('sales_plan_internal_squad_bindings')->where('plan_id', $planId)->first();
+        if ($binding === null) {
+            return ['state' => 'missing', 'name' => null];
+        }
+
+        if ((int) $binding->plan_revision !== (int) $plan->revision
+            || $binding->verified_at === null || ! self::uuid($binding->internal_squad_uuid)) {
+            return ['state' => 'stale', 'name' => null];
+        }
+
+        try {
+            $result = $this->factory->make()->call('InternalSquadController_getInternalSquadByUuid', [
+                'uuid' => $binding->internal_squad_uuid,
+            ]);
+            $remote = is_array($result) ? ($result['response'] ?? null) : null;
+            if (! is_array($remote) || ! self::uuid($remote['uuid'] ?? null)
+                || strtolower($remote['uuid']) !== strtolower($binding->internal_squad_uuid)
+                || ! is_string($remote['name'] ?? null) || trim($remote['name']) === '') {
+                return ['state' => 'unavailable', 'name' => null];
+            }
+
+            return ['state' => 'connected', 'name' => mb_substr(trim($remote['name']), 0, 70)];
+        } catch (\Throwable) {
+            // Unreachable / malformed remote data never becomes a positive state.
+            return ['state' => 'unavailable', 'name' => null];
+        }
+    }
+
     public function bind(int $actorId, int $planId, int $revision, string $uuid): void
     {
         $this->plan($actorId, $planId);
