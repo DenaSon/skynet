@@ -109,6 +109,16 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:host1:inbound:{index}';
     $expected['ADMIN'][] = 'callback:host1:apply:{token}';
     $expected['ADMIN'][] = 'callback:host1:cancel';
+    // HOST-02 adds single-Host mutation and bounded bulk actions on Admin only.
+    $expected['ADMIN'][] = 'callback:host2:prepare:{uuid}:{mode}';
+    $expected['ADMIN'][] = 'callback:host2:apply:{token}';
+    $expected['ADMIN'][] = 'callback:host2:cancel';
+    $expected['ADMIN'][] = 'callback:host2:batch:begin';
+    $expected['ADMIN'][] = 'callback:host2:batch:page:{page}';
+    $expected['ADMIN'][] = 'callback:host2:batch:toggle:{index}';
+    $expected['ADMIN'][] = 'callback:host2:batch:choose:{mode}';
+    $expected['ADMIN'][] = 'callback:host2:batch:apply:{token}';
+    $expected['ADMIN'][] = 'callback:host2:batch:cancel';
     // NODE-01 adds only guarded Admin-only Node routes.
     $expected['ADMIN'][] = 'command:nodes';
     $expected['ADMIN'][] = 'callback:node1:list:{page}';
@@ -159,8 +169,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(173)
-        ->and(count(array_unique($legacy)))->toBe(173);
+        ->and(count($legacy))->toBe(182)
+        ->and(count(array_unique($legacy)))->toBe(182);
 });
 
 it('keeps the second Sales Bot router limited to identity and read-only catalog without Admin callbacks', function (): void {
