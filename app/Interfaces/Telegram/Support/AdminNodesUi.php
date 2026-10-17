@@ -311,10 +311,16 @@ final readonly class AdminNodesUi
                 InlineKeyboardMarkup::make()
                     ->addRow(InlineKeyboardButton::make('📄 جزئیات نود', callback_data: 'node1:view:'.$uuid))
                     ->addRow(InlineKeyboardButton::make('◀️ فهرست نودها', callback_data: 'node1:list:1')));
+        } catch (\Illuminate\Validation\ValidationException) {
+            $this->render($bot, "درخواست اجرا نشد؛ مشخصات یا دسترسی تغییر کرده است.\n\nفهرست سرورها را تازه‌سازی کنید.",
+                $this->listKeyboard());
+        } catch (\Illuminate\Contracts\Cache\LockTimeoutException) {
+            $this->render($bot, "عملیات دیگری روی سرورها در حال انجام است.\n\nابتدا فهرست را بررسی کنید.",
+                $this->listKeyboard());
         } catch (Throwable) {
             // The remote POST might have succeeded despite a timeout or malformed
             // response. The consumed token MUST NEVER be reused to retry it.
-            $this->render($bot, "نتیجه ثبت نود مشخص نیست.\n\nپیش از هر اقدام، فهرست نودها را بررسی کنید.",
+            $this->render($bot, "نتیجه ثبت سرور مشخص نیست.\n\nپیش از هر اقدام، فهرست سرورها را بررسی کنید.",
                 $this->listKeyboard());
         }
     }
