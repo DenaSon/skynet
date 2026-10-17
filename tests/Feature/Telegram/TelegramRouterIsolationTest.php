@@ -96,6 +96,7 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'command:traffic';
     $expected['ADMIN'][] = 'callback:metrics:range:{days}';
     $expected['ADMIN'][] = 'callback:metrics:node:{days}:{uuid}';
+    $expected['ADMIN'][] = 'callback:metrics:page:{days}:{page}';
     // CFG-01 is read-only and private to Admin Bot.
     $expected['ADMIN'][] = 'command:profiles';
     $expected['ADMIN'][] = 'callback:cfg1:list:{page}';
@@ -174,8 +175,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(186)
-        ->and(count(array_unique($legacy)))->toBe(186);
+        ->and(count($legacy))->toBe(187)
+        ->and(count(array_unique($legacy)))->toBe(187);
 });
 
 it('keeps the second Sales Bot router limited to identity and read-only catalog without Admin callbacks', function (): void {
