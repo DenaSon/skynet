@@ -9,6 +9,7 @@ use App\Interfaces\Telegram\Support\AdminSectionsUi;
 use App\Interfaces\Telegram\Support\BillingUi;
 use App\Interfaces\Telegram\Support\ManualPaymentUi;
 use App\Interfaces\Telegram\Support\PlanAdminUi;
+use App\Interfaces\Telegram\Support\PlanSquadUi;
 use App\Interfaces\Telegram\Support\ProductAdminUi;
 use App\Interfaces\Telegram\Support\RbacUi;
 use App\Interfaces\Telegram\Support\UserManagementUi;
@@ -284,4 +285,17 @@ $bot->onCallbackQueryData('rbac:apply:{token}', function (Nutgram $bot, string $
 
 $bot->onCallbackQueryData('rbac:p:{id}:{page}:{permissionPage}', function (Nutgram $bot, string $id, string $page, string $permissionPage): void {
     app(RbacUi::class)->detail($bot, $id, $page, $permissionPage);
+});
+
+// OP-02: trusted Admin-only Plan–Squad selection. No remote writes.
+$bot->onCallbackQueryData('plan:squad:list:{id}', function (Nutgram $bot, string $id): void {
+    app(PlanSquadUi::class)->browse($bot, $id);
+});
+
+$bot->onCallbackQueryData('plan:squad:select:{id}:{choice}', function (Nutgram $bot, string $id, string $choice): void {
+    app(PlanSquadUi::class)->select($bot, $id, $choice);
+});
+
+$bot->onCallbackQueryData('plan:squad:apply:{token}', function (Nutgram $bot, string $token): void {
+    app(PlanSquadUi::class)->apply($bot, $token);
 });
