@@ -222,8 +222,16 @@ it('blocks deletion if the Hosts API fails or the profile was renamed', function
     expect(fn () => $service->delete($root->id, $expected))->toThrow(RequestException::class);
     expect(cfg02MutationCount())->toBe(0);
 
+});
+
+it('blocks deletion if the profile has been renamed since its preview', function (): void {
+    $root = cfg02Root();
     cfg02Fake(name: 'Renamed');
-    expect(fn () => $service->delete($root->id, $expected))->toThrow(ValidationException::class);
+    config()->set('services.remnawave.writes_enabled', true);
+    $service = app(ManageAdminConfigProfiles::class);
+    expect(fn () => $service->delete($root->id, [
+        'uuid' => CFG02_PROFILE, 'name' => 'Main',
+    ]))->toThrow(ValidationException::class);
     expect(cfg02MutationCount())->toBe(0);
 });
 
