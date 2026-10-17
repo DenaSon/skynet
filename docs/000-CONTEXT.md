@@ -1,5 +1,12 @@
 # ParsaGate — Current Context / Development Memory 
 
+## NODE-01 — Super Admin Node list and guarded creation (2026-10-17)
+
+- **Approved limited MVP expansion:** Admin Bot existing «مدیریت سرورها» continues to show the original read-only overview; a new root-only «مدیریت نودها» screen and \`/nodes\` offer a bounded paged Node list, exact Node detail with connected/enabled states, and existing panel tags. Reuse the pinned \`RemnawaveNodesApi\` (GET operations); never expose raw provider payloads, addresses, tokens or URLs.
+- **Create-only wizard:** «افزودن نود» → private one-line name/address entry → select one existing Config Profile → select one or more of that profile's existing Inbounds → preview → short-lived one-use root-bound confirmation. Application Action rechecks allowlisted active root, selected remote Profile/Inbound membership and \`REMNAWAVE_WRITES_ENABLED\` immediately before exactly one \`NodesController_createNode\` POST. The confirmation is consumed **before** the request; unknown outcomes require explicit read-only list inspection, never blind automatic retry. The flag stays OFF by default; no live provider writes authorized by merging source code.
+- **Outside NODE-01:** edit, delete, enable/disable, restart/reset, bulk operations, Node installation on a VPS, Host creation, new finance/Sales behavior, migrations, new dependency or automatic runtime flag changes. Dedicated fake-provider/Pest tests and GitHub CI check authorization, stale/invalid state and no duplicate POST. Real Remnawave/Telegram/Node connectivity must be separately verified before production activation. Planned follow-up NODE-02 and NODE-03 remain separate approvals.
+
+
 ## MVP post-review safety fixes — queued root trust and reserved update recovery (2026-10-17)
 
 - The existing Admin Bot fulfillment confirmation now carries the authenticated root user ID into the one-shot database Job. The worker **rechecks current Super Admin trust** before initiating either CREATE or GET-only reconciliation. Old queued Job payloads without an actor ID fail closed. The separately trusted operator CLI still calls the existing Application Action directly; no new Telegram routes or permissions.
