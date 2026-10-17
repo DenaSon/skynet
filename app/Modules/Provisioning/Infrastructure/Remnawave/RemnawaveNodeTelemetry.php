@@ -181,7 +181,7 @@ final readonly class RemnawaveNodeTelemetry
         }
 
         if (is_float($value)) {
-            return is_finite($value) && $value >= 0 && $value < PHP_INT_MAX && floor($value) === $value
+            return is_finite($value) && $value >= 0 && $value <= 9007199254740991 && floor($value) === $value
                 ? (int) $value : null;
         }
 
