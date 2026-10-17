@@ -300,7 +300,6 @@ it('NW-01 preflight rejects local SSH destinations and invalid ports without net
     $ssh->validateTarget('194.5.192.133', 22);
 });
 
-
 it('NW-01 attempts password deletion and never persists plaintext in either Telegram fake outcome', function (): void {
     $actors = node01Actors();
     node01FakeProvider();
