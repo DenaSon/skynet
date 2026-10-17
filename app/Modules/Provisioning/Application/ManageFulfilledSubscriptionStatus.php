@@ -28,7 +28,7 @@ final readonly class ManageFulfilledSubscriptionStatus
     {
         $linked = $this->linked($actorId, $orderId);
 
-        if ($linked->state === 'needs_review') {
+        if (in_array($linked->state, ['reserved', 'needs_review'], true)) {
             $this->uncertainKey($linked);
 
             return 'review';
@@ -109,7 +109,7 @@ final readonly class ManageFulfilledSubscriptionStatus
             ->where('intent.state', 'completed')
             ->where('sub.reference', 'sales-order:'.$orderId)
             ->whereNotNull('sub.remote_user_id')
-            ->whereIn('sub.state', ['active', 'needs_review'])
+            ->whereIn('sub.state', ['active', 'reserved', 'needs_review'])
             ->select('sub.id', 'sub.reference', 'sub.state', 'sub.remote_user_id', 'sub.last_operation_key')
             ->first();
 
@@ -122,7 +122,7 @@ final readonly class ManageFulfilledSubscriptionStatus
 
     private function uncertainKey(object $linked): string
     {
-        if ($linked->state !== 'needs_review') {
+        if (! in_array($linked->state, ['reserved', 'needs_review'], true)) {
             throw ValidationException::withMessages(['subscription' => 'Nothing to verify.']);
         }
 
