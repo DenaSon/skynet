@@ -575,7 +575,6 @@ it('keeps private status callbacks read-only when provider writes are disabled',
         ->and($job->connection)->toBe('database');
 });
 
-
 it('rechecks queued Admin fulfillment trust and refuses revoked or legacy rootless jobs', function (): void {
     $data = sb05Order();
     config()->set('services.remnawave.writes_enabled', true);
