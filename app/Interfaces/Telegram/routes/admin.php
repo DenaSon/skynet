@@ -4,6 +4,7 @@ use App\Interfaces\Telegram\Handlers\AdminHandler;
 use App\Interfaces\Telegram\Handlers\AdminRolesHandler;
 use App\Interfaces\Telegram\Handlers\AdminUsersHandler;
 use App\Interfaces\Telegram\Support\AdminFulfillmentUi;
+use App\Interfaces\Telegram\Support\AdminNodeBatchUi;
 use App\Interfaces\Telegram\Support\AdminNodeOperationsUi;
 use App\Interfaces\Telegram\Support\AdminNodesUi;
 use App\Interfaces\Telegram\Support\AdminPanelUsersUi;
@@ -91,6 +92,38 @@ $bot->onCallbackQueryData('node2:apply:{token}', function (Nutgram $bot, string 
 
 $bot->onCallbackQueryData('node2:cancel', function (Nutgram $bot): void {
     app(AdminNodeOperationsUi::class)->cancel($bot);
+});
+
+// NODE-03: private Super Admin batch controls.
+$bot->onCallbackQueryData('node3:list', function (Nutgram $bot): void {
+    app(AdminNodeBatchUi::class)->browse($bot);
+});
+$bot->onCallbackQueryData('node3:toggle:{index}', function (Nutgram $bot, string $index): void {
+    app(AdminNodeBatchUi::class)->toggle($bot, $index);
+});
+$bot->onCallbackQueryData('node3:choose:{mode}', function (Nutgram $bot, string $mode): void {
+    app(AdminNodeBatchUi::class)->choose($bot, $mode);
+});
+$bot->onCallbackQueryData('node3:move:{index}:{direction}', function (Nutgram $bot, string $index, string $direction): void {
+    app(AdminNodeBatchUi::class)->move($bot, $index, $direction);
+});
+$bot->onCallbackQueryData('node3:profile:{index}', function (Nutgram $bot, string $index): void {
+    app(AdminNodeBatchUi::class)->profile($bot, $index);
+});
+$bot->onCallbackQueryData('node3:inbound:{index}', function (Nutgram $bot, string $index): void {
+    app(AdminNodeBatchUi::class)->inbound($bot, $index);
+});
+$bot->onCallbackQueryData('node3:field:{index}', function (Nutgram $bot, string $index): void {
+    app(AdminNodeBatchUi::class)->field($bot, $index);
+});
+$bot->onCallbackQueryData('node3:preview', function (Nutgram $bot): void {
+    app(AdminNodeBatchUi::class)->preview($bot);
+});
+$bot->onCallbackQueryData('node3:apply:{token}', function (Nutgram $bot, string $token): void {
+    app(AdminNodeBatchUi::class)->apply($bot, $token);
+});
+$bot->onCallbackQueryData('node3:cancel', function (Nutgram $bot): void {
+    app(AdminNodeBatchUi::class)->cancel($bot);
 });
 
 $bot->onCommand('servers', function (Nutgram $bot): void {
