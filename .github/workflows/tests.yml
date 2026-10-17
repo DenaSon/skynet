@@ -61,12 +61,6 @@ jobs:
       - name: Static analysis
         run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
 
-      - name: CFG-02 formatter inspection (temporary)
-        run: |
-          vendor/bin/pint app/Modules/Provisioning/Application/ManageAdminConfigProfiles.php tests/Feature/Provisioning/AdminConfigProfilesCfg02Test.php
-          git diff -- app/Modules/Provisioning/Application/ManageAdminConfigProfiles.php tests/Feature/Provisioning/AdminConfigProfilesCfg02Test.php
-          git checkout -- app/Modules/Provisioning/Application/ManageAdminConfigProfiles.php tests/Feature/Provisioning/AdminConfigProfilesCfg02Test.php
-
       - name: Formatting verification
         run: vendor/bin/pint --test
 
