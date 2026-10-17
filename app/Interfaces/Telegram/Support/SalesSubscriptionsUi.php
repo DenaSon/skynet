@@ -141,17 +141,21 @@ final readonly class SalesSubscriptionsUi
                     ? 'نامحدود'
                     : $this->gb(max(0, $live->limitBytes - $live->usedBytes)).' گیگابایت');
                 $lines[] = 'انقضا (UTC): '.substr(str_replace('T', ' ', $live->expireAt), 0, 16);
+                $keyboard->addRow(InlineKeyboardButton::make(
+                    '🔗 دریافت لینک اختصاصی',
+                    callback_data: 'sales:subs:link:'.$orderId.':'.$cursor,
+                ));
             } catch (Throwable) {
                 $lines[] = 'اطلاعات لحظه‌ای مصرف و انقضا در دسترس نیست.';
                 $lines[] = 'وضعیت ثبت‌شده به معنی اتصال تأییدشده نیست.';
+                $lines[] = 'برای دریافت لینک، کمی بعد دوباره بررسی کنید.';
             }
-
-            $keyboard->addRow(InlineKeyboardButton::make(
-                '🔗 دریافت لینک اختصاصی',
-                callback_data: 'sales:subs:link:'.$orderId.':'.$cursor,
-            ));
         } else {
             $lines[] = 'لینک اتصال فقط پس از پرداخت و فعال‌سازی در دسترس است.';
+            $keyboard->addRow(InlineKeyboardButton::make(
+                '📋 وضعیت سفارش و پرداخت',
+                callback_data: 'sales:checkout:view:'.$orderId,
+            ));
         }
 
         $keyboard->addRow(InlineKeyboardButton::make('🔄 بررسی دوباره', callback_data: 'sales:subs:view:'.$orderId.':'.$cursor))
@@ -192,12 +196,25 @@ final readonly class SalesSubscriptionsUi
             return;
         }
 
-        // No URL in edited messages, callback data, lists, logs or previews.
-        // A fresh private-chat send is the only credential-bearing reply.
+        // Credentials only in the explicit private delivery message. The native
+        // Telegram copy button is available for URLs within its 256-char limit.
+        // Longer URLs stay selectable in the message, never in callback data.
+        $canCopy = mb_strlen($link->subscriptionUrl) <= 256;
+        $keyboard = InlineKeyboardMarkup::make();
+        if ($canCopy) {
+            $keyboard->addRow(TelegramUi::copy($link->subscriptionUrl, '📋 کپی لینک'));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make(
+            '◀️ اشتراک من', callback_data: 'sales:subs:view:'.$orderId.':'.$cursor,
+        ));
+
         TelegramUi::answerCallback($bot);
         $bot->sendMessage(
-            text: "🔐 لینک اختصاصی اشتراک #{$orderId}\n\n{$link->subscriptionUrl}\n\nاین لینک خصوصی است؛ با دیگران به اشتراک نگذارید.",
+            text: "🔐 لینک اختصاصی اشتراک #{$orderId}\n\n{$link->subscriptionUrl}\n\n"
+                .($canCopy ? 'برای کپی، دکمه زیر را انتخاب کنید.' : 'برای کپی، متن لینک را نگه دارید.')
+                ."\nاین لینک خصوصی است؛ با دیگران به اشتراک نگذارید.",
             link_preview_options: LinkPreviewOptions::make(is_disabled: true),
+            reply_markup: $keyboard,
         );
     }
 
