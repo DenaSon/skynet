@@ -1,5 +1,14 @@
 # Roadmap
 
+## NODE final review — focused Admin Bot UX and write safety (2026-10-17)
+
+- Reviewed NODE-01/02/03 on `master` against `docs/017-TELEGRAM-UX-IDENTITY.md`, existing role checks, the version-pinned Remnawave Nodes API adapter, and all Node Pest cases. Scope stays limited to the existing MVP Node screens/actions; no new features, dependencies, migrations, flags, host installation, billing or Sales changes.
+- List now presents one concise summary (total/enabled/connected), a single status-marked button per Node, and no duplicate rows. An active Node no longer advertises the forbidden Delete button (the server-side disabled-before-delete check is retained). Single-Node confirmations explain consequences of disable/restart/reset/delete, with distinct messages for invalidated state, conflicting in-flight operations and uncertain provider outcomes.
+- Batch UI lists **exact target Node names**, desired reorder, selected profile/inbound count, changed field and **complete proposed value** at confirmation. Reorder controls are explicit numbered arrows, not clickable labels with hidden move behavior. Existing confirmation token and global write flag stay unchanged.
+- Creation, single-Node and batch writes now share a single bounded `nodes:mutation` cache lock, including the fresh profile/inbound or Node GET and the one provider write. This conservatively serializes admin Node mutations in the MVP, avoiding cross-screen in-flight conflicts. Lock contention does not imply an attempted remote write. All operations remain root-only/private, one-time confirmed and OFF by default; no provider request is blindly retried after a possibly successful timeout.
+- Acceptance boundary: dedicated fake-HTTP tests for UX text and lock contention plus existing NODE-01/02/03 suite, PHP 8.4/8.5, PHPStan, Pint and MySQL CI. Green CI does **not** verify real Telegram, production schema/deploy, Node/Host setup or live VPN connectivity. Operator-controlled live smoke remains pending.
+
+
 ## NODE-03 — Super Admin group Node operations (2026-10-17)
 
 - **Approved MVP-only completion of the 3-phase Node scope:** Existing private Admin Bot «مدیریت نودها» adds «عملیات گروهی» with select-up-to-20, bulk enable/disable/restart/reset traffic; guarded bulk update of the existing Nodes API's supported fields, existing Config Profile + inbound selection, complete-list display reorder (up/down), and explicitly confirmed restart-all. Uses only the pinned \`RemnawaveNodesApi\` 15-operation adapter; no duplicate API clients, dependencies, new migrations or Sales/customer changes.
