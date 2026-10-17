@@ -117,7 +117,6 @@ it('shows 7/30 day daily trend and exact per-node totals only from validated rep
     expect(collect(Http::recorded())->every(static fn (array $pair): bool => $pair[0]->method() === 'GET'))->toBeTrue();
 });
 
-
 it('navigates beyond the first ten Nodes and bounds invalid page requests without extra reads', function (): void {
     met02Root();
     met02Fake(count: 23);
