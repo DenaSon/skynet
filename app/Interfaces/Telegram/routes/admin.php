@@ -3,6 +3,7 @@
 use App\Interfaces\Telegram\Handlers\AdminHandler;
 use App\Interfaces\Telegram\Handlers\AdminRolesHandler;
 use App\Interfaces\Telegram\Handlers\AdminUsersHandler;
+use App\Interfaces\Telegram\Support\AdminConfigProfileOperationsUi;
 use App\Interfaces\Telegram\Support\AdminConfigProfilesUi;
 use App\Interfaces\Telegram\Support\AdminFulfillmentUi;
 use App\Interfaces\Telegram\Support\AdminHostBatchUi;
@@ -56,6 +57,20 @@ $bot->onCallbackQueryData('cfg1:list:{page}', function (Nutgram $bot, string $pa
 });
 $bot->onCallbackQueryData('cfg1:view:{uuid}:{page}', function (Nutgram $bot, string $uuid, string $page): void {
     app(AdminConfigProfilesUi::class)->detail($bot, $uuid, $page);
+});
+
+// CFG-02: confirmed root-only create/rename/delete. No raw Xray editor.
+$bot->onCallbackQueryData('cfg2:begin', function (Nutgram $bot): void {
+    app(AdminConfigProfileOperationsUi::class)->begin($bot);
+});
+$bot->onCallbackQueryData('cfg2:prepare:{uuid}:{mode}', function (Nutgram $bot, string $uuid, string $mode): void {
+    app(AdminConfigProfileOperationsUi::class)->prepare($bot, $uuid, $mode);
+});
+$bot->onCallbackQueryData('cfg2:apply:{token}', function (Nutgram $bot, string $token): void {
+    app(AdminConfigProfileOperationsUi::class)->apply($bot, $token);
+});
+$bot->onCallbackQueryData('cfg2:cancel', function (Nutgram $bot): void {
+    app(AdminConfigProfileOperationsUi::class)->cancel($bot);
 });
 
 // HOST-01: private root-only Host list/detail and guarded create wizard.
