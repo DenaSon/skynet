@@ -346,3 +346,86 @@ it('never authorizes an unapproved or unavailable fulfillment state', function (
     expect(fn () => $reader->authorizeRequest($data['root']->id, $data['order'], false))
         ->toThrow(ValidationException::class);
 });
+
+it('keeps completed orders visible to the root after a genuine locally recorded activation', function (): void {
+    $data = sb05Order();
+    config()->set('services.remnawave.writes_enabled', true);
+    sb05FakeCreate($data['order']);
+    app(FulfillPaidPlanOrder::class)->handle($data['order']);
+    Http::assertSentCount(1);
+
+    config()->set('services.remnawave.writes_enabled', false);
+    Http::fake();
+    Queue::fake();
+
+    $reader = app(ReviewPaidFulfillment::class);
+    expect($reader->pending($data['root']->id))->toBeEmpty()
+        ->and($reader->completed($data['root']->id))->toHaveCount(1)
+        ->and($reader->completed($data['root']->id)[0]->id)->toBe($data['order'])
+        ->and($reader->detail($data['root']->id, $data['order'])->intent_state)->toBe('completed')
+        ->and($reader->detail($data['root']->id, $data['order'])->order_status)->toBe('fulfilled');
+
+    expect(fn () => $reader->authorizeRequest($data['root']->id, $data['order'], false))
+        ->toThrow(ValidationException::class);
+    expect(fn () => $reader->authorizeRequest($data['root']->id, $data['order'], true))
+        ->toThrow(ValidationException::class);
+    expect(fn () => $reader->completed($data['buyer']->id))
+        ->toThrow(AuthorizationException::class);
+    Queue::assertNothingPushed();
+    Http::assertNothingSent();
+});
+
+it('keeps processing and uncertain orders in the original Admin queue without false success', function (): void {
+    $data = sb05Order();
+    Http::fake();
+    $reader = app(ReviewPaidFulfillment::class);
+
+    foreach (['processing', 'needs_review'] as $state) {
+        DB::table('sales_fulfillment_outbox')->where('sales_order_id', $data['order'])
+            ->update(['state' => $state]);
+        expect($reader->pending($data['root']->id))->toHaveCount(1)
+            ->and($reader->completed($data['root']->id))->toBeEmpty()
+            ->and($reader->detail($data['root']->id, $data['order'])->intent_state)->toBe($state);
+    }
+
+    Http::assertNothingSent();
+});
+
+it('does not display incomplete or forged fulfillment state as completed', function (): void {
+    $data = sb05Order();
+    Http::fake();
+    DB::table('sales_fulfillment_outbox')->where('sales_order_id', $data['order'])
+        ->update(['state' => 'completed']);
+    $reader = app(ReviewPaidFulfillment::class);
+
+    expect($reader->pending($data['root']->id))->toBeEmpty()
+        ->and($reader->completed($data['root']->id))->toBeEmpty();
+    expect(fn () => $reader->detail($data['root']->id, $data['order']))
+        ->toThrow(ValidationException::class);
+    Http::assertNothingSent();
+});
+
+it('opens completed Admin results and order details with existing root-only navigation', function (): void {
+    $data = sb05Order();
+    config()->set('services.remnawave.writes_enabled', true);
+    sb05FakeCreate($data['order']);
+    app(FulfillPaidPlanOrder::class)->handle($data['order']);
+    Http::fake();
+    Queue::fake();
+
+    $bot = Nutgram::fake();
+    require base_path('app/Interfaces/Telegram/routes/admin.php');
+    $bot->setCommonUser(TelegramUser::make(975001, false, 'Root'));
+    $bot->setCommonChat(Chat::make(975001, ChatType::PRIVATE));
+
+    $bot->hearCallbackQueryData('full:completed')->reply()
+        ->assertCalled('answerCallbackQuery')
+        ->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('full:view:'.$data['order'])->reply()
+        ->assertCalled('answerCallbackQuery')
+        ->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('full:list')->reply()->assertCalled('editMessageText');
+
+    Queue::assertNothingPushed();
+    Http::assertNothingSent();
+});

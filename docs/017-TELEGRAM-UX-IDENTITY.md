@@ -21,6 +21,11 @@ ParsaGate is a practical Persian Telegram bot. A person can administer products,
 - Admin-only plan detail shows the linked service's **remote-confirmed human name**, or a concise unavailable/missing/outdated message. Never show Squad UUID, raw API response, technical flags or developer terms to operators.
 - A single actionable Persian reason explains why checkout is not ready; existing service-selection and Back buttons remain. This is presentation-only and never overrides verified checkout/financial/provider guards.
 
+## MVP-02 Admin fulfillment outcomes (2026-10-17)
+
+- Root-only Admin subscription activation queue keeps pending/review states while a separate small «✅ فعال‌سازی‌های انجام‌شده» screen shows locally completed orders; success is described as recorded, not proof of current online provider status.
+- Keep a short refresh and contextual Back path and the original explicit confirmation for any write. Never expose provider credentials, API metadata or developer vocabulary in status/result text.
+
 ## Navigation
 
 - Persistent ReplyKeyboard (when opt-in enabled) only has small role-aware primary destinations. Admin subfunctions are grouped, not placed in a wall of buttons.
