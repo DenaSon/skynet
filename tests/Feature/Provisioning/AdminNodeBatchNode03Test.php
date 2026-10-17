@@ -337,3 +337,18 @@ it('displays the complete proposed note value before bulk approval', function ()
     ]);
     expect(node03Writes())->toBe(0);
 });
+
+it('replaces older single-node and create drafts when starting bulk management', function (): void {
+    $root = node03Root();
+    node03Fake();
+
+    Cache::put('node01:draft:'.$root->id, ['stage' => 'info'], now()->addMinutes(10));
+    Cache::put('node02:draft:'.$root->id, ['stage' => 'edit'], now()->addMinutes(10));
+
+    node03Bot()->hearCallbackQueryData('node3:list')->reply()->assertCalled('editMessageText');
+
+    expect(Cache::get('node01:draft:'.$root->id))->toBeNull()
+        ->and(Cache::get('node02:draft:'.$root->id))->toBeNull()
+        ->and(Cache::get('node03:draft:'.$root->id)['stage'])->toBe('select');
+    expect(node03Writes())->toBe(0);
+});
