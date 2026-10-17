@@ -3,14 +3,17 @@
 declare(strict_types=1);
 
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
+use App\Interfaces\Telegram\Support\AdminNodeSetupUi;
 use App\Interfaces\Telegram\Support\AdminNodesUi;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Application\ManageAdminNodes;
+use App\Modules\Provisioning\Infrastructure\NodeSetup\NodeSshPreflight;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
@@ -234,4 +237,109 @@ it('retires other pending Node forms when starting the create wizard', function 
         ->and(Cache::get('node03:draft:'.$root))->toBeNull()
         ->and(Cache::get('node01:draft:'.$root)['stage'])->toBe('info');
     Http::assertNothingSent();
+});
+
+it('NW-01 setup remains default-disabled and cannot cause a provider write', function (): void {
+    node01Actors();
+    node01FakeProvider();
+    $bot = node01Bot();
+
+    $bot->hearCallbackQueryData('nw1:begin')->reply()->assertCalled('editMessageText');
+
+    expect(Cache::get(TelegramBotContext::current()->cacheKey('nw01:draft:1')))->toBeNull();
+    Http::assertNothingSent();
+});
+
+it('NW-01 private root wizard validates a public VPS and uses existing GET-only profiles', function (): void {
+    $actors = node01Actors();
+    node01FakeProvider();
+    config()->set('services.remnawave.node_ssh_setup_enabled', true);
+    $root = $actors['root']->id;
+    $key = TelegramBotContext::current()->cacheKey('nw01:draft:'.$root);
+    $bot = node01Bot();
+
+    $bot->hearCallbackQueryData('nw1:begin')->reply()->assertCalled('editMessageText');
+    expect(Cache::get($key)['stage'])->toBe('identity');
+
+    $bot->hearText('Test02 | 127.0.0.1')->reply();
+    expect(Cache::get($key)['stage'])->toBe('identity');
+
+    $bot->hearText('Test02 | 194.5.192.133')->reply();
+    expect(Cache::get($key)['stage'])->toBe('port');
+
+    $bot->hearText('22')->reply();
+    expect(Cache::get($key)['stage'])->toBe('username');
+
+    $bot->hearText('root')->reply();
+    expect(Cache::get($key)['stage'])->toBe('password');
+
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
+    expect(collect(Http::recorded())->filter(static fn (array $pair): bool => $pair[0]->method() !== 'GET'))->toBeEmpty();
+
+    $bot->hearCallbackQueryData('nw1:cancel')->reply()->assertCalled('editMessageText');
+    expect(Cache::get($key))->toBeNull();
+});
+
+it('NW-01 blocks untrusted and group chat from opening SSH readiness', function (): void {
+    node01Actors();
+    node01FakeProvider();
+    config()->set('services.remnawave.node_ssh_setup_enabled', true);
+    $ui = app(AdminNodeSetupUi::class);
+
+    $ui->begin(node01Bot(951112));
+    $ui->begin(node01Bot(951111, false));
+    Http::assertNothingSent();
+});
+
+it('NW-01 preflight rejects local SSH destinations and invalid ports without network', function (): void {
+    $ssh = app(NodeSshPreflight::class);
+    expect(fn () => $ssh->validateTarget('127.0.0.1', 22))->toThrow(RuntimeException::class)
+        ->and(fn () => $ssh->validateTarget('192.168.1.1', 22))->toThrow(RuntimeException::class)
+        ->and(fn () => $ssh->validateTarget('194.5.192.133', 0))->toThrow(RuntimeException::class);
+    $ssh->validateTarget('194.5.192.133', 22);
+});
+
+it('NW-01 attempts password deletion and never persists plaintext in either Telegram fake outcome', function (): void {
+    $actors = node01Actors();
+    node01FakeProvider();
+    config()->set('services.remnawave.node_ssh_setup_enabled', true);
+    $bot = node01Bot();
+    $key = TelegramBotContext::current()->cacheKey('nw01:draft:'.$actors['root']->id);
+
+    $bot->hearCallbackQueryData('nw1:begin')->reply();
+    $bot->hearText('Test02 | 194.5.192.133')->reply();
+    $bot->hearText('22')->reply();
+    $bot->hearText('root')->reply();
+    expect(Cache::get($key)['stage'])->toBe('password');
+
+    $bot->hearText('not-a-real-ssh-password')->reply()->assertCalled('deleteMessage');
+    // Nutgram's default fake may acknowledge deletion or return null depending
+    // on its mock response; both must preserve the no-plaintext invariant.
+    $state = Cache::get($key);
+    if (is_array($state)) {
+        expect($state['stage'])->toBe('profile')
+            ->and($state['secret'])->not->toBe('not-a-real-ssh-password')
+            ->and(Crypt::decryptString($state['secret']))->toBe('not-a-real-ssh-password');
+        $bot->hearCallbackQueryData('nw1:cancel')->reply();
+        expect(Cache::get($key))->toBeNull();
+    } else {
+        expect($state)->toBeNull();
+    }
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
+});
+
+it('NW-01 yields to a newer legacy Node wizard instead of intercepting its text', function (): void {
+    $actors = node01Actors();
+    node01FakeProvider();
+    config()->set('services.remnawave.node_ssh_setup_enabled', true);
+    config()->set('services.remnawave.writes_enabled', true);
+    $key = TelegramBotContext::current()->cacheKey('nw01:draft:'.$actors['root']->id);
+    $bot = node01Bot();
+
+    $bot->hearCallbackQueryData('nw1:begin')->reply();
+    expect(Cache::get($key)['stage'])->toBe('identity');
+    $bot->hearCallbackQueryData('node1:begin')->reply();
+    $bot->hearText('Legacy-01 | node.example.com')->reply();
+    expect(Cache::get($key))->toBeNull();
+    expect(Cache::get(TelegramBotContext::current()->cacheKey('node01:draft:'.$actors['root']->id))['stage'])->toBe('profile');
 });

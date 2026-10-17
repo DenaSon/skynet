@@ -54,3 +54,9 @@ ParsaGate is a practical Persian Telegram bot. A person can administer products,
 - A PR may finish only a subset. Mark incomplete flows explicitly in docs/000-CONTEXT.md, rather than calling the entire redesign done.
 
 Review this standard before every future Telegram UI feature.
+
+## NW-01 — Guided server readiness
+
+- Only private trusted root and when NODE_SSH_SETUP_ENABLED is on; one prompt at a time, Cancel and contextual Back. Never echo SSH password or raw key material.
+- Independently confirm the displayed SSH fingerprint before a one-shot authentication test. An SSH preflight pass must never be presented as completed Node installation or VPN connectivity.
+- Deletion failures of password messages abort the flow. Existing Node, Host, Profile and Sales menus/callbacks remain intact.

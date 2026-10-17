@@ -12,6 +12,7 @@ use App\Interfaces\Telegram\Support\AdminHostsUi;
 use App\Interfaces\Telegram\Support\AdminNodeBatchUi;
 use App\Interfaces\Telegram\Support\AdminNodeMetricsUi;
 use App\Interfaces\Telegram\Support\AdminNodeOperationsUi;
+use App\Interfaces\Telegram\Support\AdminNodeSetupUi;
 use App\Interfaces\Telegram\Support\AdminNodesUi;
 use App\Interfaces\Telegram\Support\AdminPanelUsersUi;
 use App\Interfaces\Telegram\Support\AdminProviderOverviewUi;
@@ -142,6 +143,25 @@ $bot->onCallbackQueryData('node1:view:{uuid}', function (Nutgram $bot, string $u
 
 $bot->onCallbackQueryData('node1:tags', function (Nutgram $bot): void {
     app(AdminNodesUi::class)->tags($bot);
+});
+
+$bot->onCallbackQueryData('nw1:begin', function (Nutgram $bot): void {
+    app(AdminNodeSetupUi::class)->begin($bot);
+});
+$bot->onCallbackQueryData('nw1:profile:{index}', function (Nutgram $bot, string $index): void {
+    app(AdminNodeSetupUi::class)->profile($bot, $index);
+});
+$bot->onCallbackQueryData('nw1:inbound:{index}', function (Nutgram $bot, string $index): void {
+    app(AdminNodeSetupUi::class)->inbound($bot, $index);
+});
+$bot->onCallbackQueryData('nw1:scan:{token}', function (Nutgram $bot, string $token): void {
+    app(AdminNodeSetupUi::class)->scan($bot, $token);
+});
+$bot->onCallbackQueryData('nw1:trust:{token}', function (Nutgram $bot, string $token): void {
+    app(AdminNodeSetupUi::class)->trust($bot, $token);
+});
+$bot->onCallbackQueryData('nw1:cancel', function (Nutgram $bot): void {
+    app(AdminNodeSetupUi::class)->cancel($bot);
 });
 
 $bot->onCallbackQueryData('node1:begin', function (Nutgram $bot): void {

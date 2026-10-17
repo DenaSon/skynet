@@ -6,6 +6,7 @@ use App\Interfaces\Telegram\Support\AdminHostOperationsUi;
 use App\Interfaces\Telegram\Support\AdminHostsUi;
 use App\Interfaces\Telegram\Support\AdminNodeBatchUi;
 use App\Interfaces\Telegram\Support\AdminNodeOperationsUi;
+use App\Interfaces\Telegram\Support\AdminNodeSetupUi;
 use App\Interfaces\Telegram\Support\AdminNodesUi;
 use App\Interfaces\Telegram\Support\PlanAdminUi;
 use App\Interfaces\Telegram\Support\ProductAdminUi;
@@ -17,6 +18,11 @@ use SergiX44\Nutgram\Nutgram;
 // Keep the exact original Reply -> Product -> Plan -> Builder -> Shop precedence until a safe Sales cutover.
 
 $bot->onText('{volume}', function (Nutgram $bot, string $volume): void {
+    // Consume a pending private SSH secret before generic reply-menu matching.
+    if (app(AdminNodeSetupUi::class)->text($bot, $volume)) {
+        return;
+    }
+
     if (app(ReplyMenuHandler::class)->handle($bot, $volume)) {
         return;
     }
