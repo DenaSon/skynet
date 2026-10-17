@@ -8,6 +8,7 @@ use App\Interfaces\Telegram\Support\AdminNodeBatchUi;
 use App\Interfaces\Telegram\Support\AdminNodeOperationsUi;
 use App\Interfaces\Telegram\Support\AdminNodesUi;
 use App\Interfaces\Telegram\Support\AdminPanelUsersUi;
+use App\Interfaces\Telegram\Support\AdminNodeMetricsUi;
 use App\Interfaces\Telegram\Support\AdminProviderOverviewUi;
 use App\Interfaces\Telegram\Support\AdminSectionsUi;
 use App\Interfaces\Telegram\Support\AdminSubscriptionStatusUi;
@@ -124,6 +125,14 @@ $bot->onCallbackQueryData('node3:apply:{token}', function (Nutgram $bot, string 
 });
 $bot->onCallbackQueryData('node3:cancel', function (Nutgram $bot): void {
     app(AdminNodeBatchUi::class)->cancel($bot);
+});
+
+// MET-01: root-only, read-only Node and traffic snapshot.
+$bot->onCommand('metrics', function (Nutgram $bot): void {
+    app(AdminNodeMetricsUi::class)->show($bot);
+});
+$bot->onCallbackQueryData('metrics:refresh', function (Nutgram $bot): void {
+    app(AdminNodeMetricsUi::class)->show($bot);
 });
 
 $bot->onCommand('servers', function (Nutgram $bot): void {
