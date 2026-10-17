@@ -7,6 +7,7 @@ use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Application\ManageAdminConfigProfiles;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -218,7 +219,7 @@ it('blocks deletion if the Hosts API fails or the profile was renamed', function
     config()->set('services.remnawave.writes_enabled', true);
     $service = app(ManageAdminConfigProfiles::class);
     $expected = $service->existing($root->id, CFG02_PROFILE);
-    expect(fn () => $service->delete($root->id, $expected))->toThrow(Throwable::class);
+    expect(fn () => $service->delete($root->id, $expected))->toThrow(RequestException::class);
     expect(cfg02MutationCount())->toBe(0);
 
     cfg02Fake(name: 'Renamed');
