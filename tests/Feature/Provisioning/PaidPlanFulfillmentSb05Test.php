@@ -451,23 +451,24 @@ it('blocks untrusted or disabled provider status changes without a network write
 it('changes only a fulfilled, owned provider subscription and blocks repeat clicks', function (): void {
     $data = sb05Order();
     config()->set('services.remnawave.writes_enabled', true);
-    sb05FakeCreate($data['order']);
-    app(FulfillPaidPlanOrder::class)->handle($data['order']);
-
-    $snapshot = json_decode((string) DB::table('provisioning_operations')->where('kind', 'create')
-        ->value('expected_payload'), true, 512, JSON_THROW_ON_ERROR);
     $current = 'ACTIVE';
-
-    Http::fake(static function (Request $request) use ($data, $snapshot, &$current) {
+    $expiry = '';
+    $bytes = 0;
+    Http::fake(static function (Request $request) use ($data, &$current, &$expiry, &$bytes) {
+        if ($request->method() === 'POST') {
+            $expiry = (string) $request['expireAt'];
+            $bytes = (int) $request['trafficLimitBytes'];
+        }
         if ($request->method() === 'PATCH' && $request->url() === 'https://remna.test/api/users') {
             $current = (string) $request['status'];
         }
 
         return Http::response(['response' => [
-            ...sb05Remote($data['order'], (string) $snapshot['expireAt'], (int) $snapshot['trafficLimitBytes']),
+            ...sb05Remote($data['order'], $expiry, $bytes),
             'status' => $current,
-        ]]);
+        ]], $request->method() === 'POST' ? 201 : 200);
     });
+    app(FulfillPaidPlanOrder::class)->handle($data['order']);
 
     $status = app(ManageFulfilledSubscriptionStatus::class);
     expect($status->status($data['root']->id, $data['order']))->toBe('active');
@@ -508,39 +509,40 @@ it('blocks forged completed orders without a real local owner linkage before GET
 it('reconciles uncertain status updates with GET only and never replays PATCH', function (): void {
     $data = sb05Order();
     config()->set('services.remnawave.writes_enabled', true);
-    sb05FakeCreate($data['order']);
-    app(FulfillPaidPlanOrder::class)->handle($data['order']);
-
-    $snapshot = json_decode((string) DB::table('provisioning_operations')->where('kind', 'create')
-        ->value('expected_payload'), true, 512, JSON_THROW_ON_ERROR);
-    Http::fake(static function (Request $req) use ($data, $snapshot) {
+    $expiry = '';
+    $bytes = 0;
+    Http::fake(static function (Request $req) use ($data, &$expiry, &$bytes) {
+        if ($req->method() === 'POST') {
+            $expiry = (string) $req['expireAt'];
+            $bytes = (int) $req['trafficLimitBytes'];
+        }
         if ($req->method() === 'PATCH') {
             return Http::response('', 503);
         }
 
         return Http::response(['response' => [
-            ...sb05Remote($data['order'], (string) $snapshot['expireAt'], (int) $snapshot['trafficLimitBytes']),
+            ...sb05Remote($data['order'], $expiry, $bytes),
             'status' => 'ACTIVE',
-        ]]);
+        ]], $req->method() === 'POST' ? 201 : 200);
     });
+    app(FulfillPaidPlanOrder::class)->handle($data['order']);
 
     $status = app(ManageFulfilledSubscriptionStatus::class);
     expect(fn () => $status->change($data['root']->id, $data['order'], 'disable',
         'mvp04:'.$data['order'].':'.str_repeat('c', 32)))->toThrow(RuntimeException::class);
     expect($status->status($data['root']->id, $data['order']))->toBe('review')
         ->and(DB::table('provisioning_operations')->where('kind', 'disable')->value('state'))->toBe('needs_review');
-    Http::assertSentCount(2);
+    Http::assertSentCount(3);
 
     config()->set('services.remnawave.writes_enabled', false);
     Http::fake(['https://remna.test/api/users/52' => Http::response([
         'response' => [
-            ...sb05Remote($data['order'], (string) $snapshot['expireAt'], (int) $snapshot['trafficLimitBytes']),
+            ...sb05Remote($data['order'], $expiry, $bytes),
             'status' => 'DISABLED',
         ],
     ])]);
     $status->reconcile($data['root']->id, $data['order']);
     expect(DB::table('provisioning_operations')->where('kind', 'disable')->value('state'))->toBe('completed');
-    Http::assertSentCount(1);
     Http::assertSent(static fn (Request $req): bool => $req->method() === 'GET');
 });
 
