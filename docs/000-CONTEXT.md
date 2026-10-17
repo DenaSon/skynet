@@ -1,5 +1,12 @@
 # ParsaGate — Current Context / Development Memory 
 
+## NODE-02 — Single-node Super Admin controls (2026-10-17)
+
+- **Approved scope:** existing Admin Bot Node detail now exposes guided **edit name/address**, **enable**, **disable**, **restart**, **reset traffic counter** and **delete** using existing 3.4.4 \`RemnawaveNodesApi\`; no bulk, Host/Node VPS installation or extra Node field wizard (NODE-03 separately planned). Admin-only \`node2:prepare/apply/cancel\` callbacks and the original legacy-text dispatcher handle a single private edit line, without breaking NODE-01 and prior routes.
+- **Security:** current allowlisted Super Admin is reauthorized in each Telegram step and inside the Application Action before remote GET and immediately before the one write. All changes require \`REMNAWAVE_WRITES_ENABLED=true\`, which remains **OFF by default**, and an explicit three-minute actor-bound one-use confirmation consumed before the external mutation. Action verifies the exact existing Node UUID/name/status against a fresh GET; only allowlisted modes execute. Delete requires a previously disabled Node and explicitly warns that it is irreversible. At most one Node write can run under the same bounded cache lock. Provider timeout/unknown outcome is **never automatically retried**; UI instructs a read-only status check. A successful 202/204 acknowledges only the request, not actual remote state change.
+- **Acceptance boundary:** isolated fake Remnawave/Pest permission, stale, rejection, one-time/timeout and all five mutation kinds plus edit; PHP 8.4/8.5, PHPStan/Pint, MySQL CI. No production flag changes, migration, provider request from this PR or real Telegram/Node claim. Live staged/Production acceptance still requires separate operator checks before enabling writes. Only NODE-02 implementation is authorized; NODE-03 bulk operations remain deferred.
+
+
 ## NODE-01 — Super Admin Node list and guarded creation (2026-10-17)
 
 - **Approved limited MVP expansion:** Admin Bot existing «مدیریت سرورها» continues to show the original read-only overview; a new root-only «مدیریت نودها» screen and \`/nodes\` offer a bounded paged Node list, exact Node detail with connected/enabled states, and existing panel tags. Reuse the pinned \`RemnawaveNodesApi\` (GET operations); never expose raw provider payloads, addresses, tokens or URLs.
