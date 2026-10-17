@@ -298,7 +298,7 @@ it('NW-01 preflight rejects local SSH destinations and invalid ports without net
 });
 
 
-it('NW-01 fails closed when the Telegram test update has no trustworthy message identity', function (): void {
+it('NW-01 deletes the Telegram password message and stores only temporary ciphertext', function (): void {
     $actors = node01Actors();
     node01FakeProvider();
     config()->set('services.remnawave.node_ssh_setup_enabled', true);
@@ -311,13 +311,19 @@ it('NW-01 fails closed when the Telegram test update has no trustworthy message 
     $bot->hearText('root')->reply();
     expect(Cache::get($key)['stage'])->toBe('password');
 
-    // Nutgram's text fixture has no authentic incoming message ID, so the
-    // password must never be cached or accepted as successfully deleted.
-    $bot->hearText('not-a-real-ssh-password')->reply()->assertCalled('sendMessage');
+    $bot->hearText('not-a-real-ssh-password')->reply()->assertCalled('deleteMessage');
+    $state = Cache::get($key);
+    expect($state['stage'])->toBe('profile')
+        ->and($state['secret'])->not->toBe('not-a-real-ssh-password')
+        ->and(\Illuminate\Support\Facades\Crypt::decryptString($state['secret']))->toBe('not-a-real-ssh-password');
+
+    $bot->hearCallbackQueryData('nw1:profile:0')->reply();
+    $bot->hearCallbackQueryData('nw1:inbound:0')->reply();
+    expect(Cache::get($key)['stage'])->toBe('preview');
+    $bot->hearCallbackQueryData('nw1:cancel')->reply();
     expect(Cache::get($key))->toBeNull();
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
 });
-
 
 it('NW-01 yields to a newer legacy Node wizard instead of intercepting its text', function (): void {
     $actors = node01Actors();
