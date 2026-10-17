@@ -61,12 +61,6 @@ jobs:
       - name: Static analysis
         run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
 
-      - name: MET-01 formatter inspection (temporary)
-        run: |
-          vendor/bin/pint app/Modules/Provisioning/Application/ReadAdminNodeMetrics.php
-          git diff -- app/Modules/Provisioning/Application/ReadAdminNodeMetrics.php
-          git checkout -- app/Modules/Provisioning/Application/ReadAdminNodeMetrics.php
-
       - name: Formatting verification
         run: vendor/bin/pint --test
 
