@@ -236,6 +236,10 @@ final readonly class PlanAdminUi
             }
         }
 
+        if ($plan->status !== 'archived') {
+            $keyboard->addRow(InlineKeyboardButton::make('🔗 اتصال سرویس', callback_data: 'plan:squad:list:'.$planId));
+        }
+
         $keyboard->addRow(InlineKeyboardButton::make('◀️ فهرست پلن‌ها', callback_data: 'plan:list:1'));
         $this->render($bot, implode("\n", $description), $keyboard);
     }
