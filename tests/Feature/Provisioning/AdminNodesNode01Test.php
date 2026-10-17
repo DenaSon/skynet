@@ -163,7 +163,7 @@ it('guides Admin name/address, profile, inbound, preview and a one-use provider 
     expect(Cache::get($key))->toBeNull();
     $ui->apply($bot, $draft['token']);
 
-    Http::assertSentCount(4);
+    Http::assertSentCount(5);
     Http::assertSent(static fn (Request $r): bool => $r->method() === 'POST'
         && $r->url() === 'https://remna.node01.test/api/nodes'
         && $r['name'] === 'Germany-01'
