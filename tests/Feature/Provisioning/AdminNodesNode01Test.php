@@ -211,7 +211,6 @@ it('revalidates chosen profile/inbounds and current root authority immediately b
     expect(collect(Http::recorded())->filter(static fn ($pair): bool => $pair[0]->method() === 'POST'))->toBeEmpty();
 });
 
-
 it('renders a compact Node list with a single status summary and no duplicated names', function (): void {
     node01Actors();
     node01FakeProvider();
