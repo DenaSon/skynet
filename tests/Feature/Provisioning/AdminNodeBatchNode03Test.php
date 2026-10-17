@@ -237,9 +237,10 @@ it('Telegram profile, update and reorder flows are limited to root private chat'
 
     node03Bot(953002)->hearCallbackQueryData('node3:apply:'.$state['token'])->reply();
     expect(node03Writes())->toBe(0);
-    $bot->hearCallbackQueryData('node3:cancel')->reply();
+    $bot->hearCallbackQueryData('node3:cancel')->reply()->assertCalled('editMessageText');
+    expect(Cache::get('node03:draft:'.$root->id))->toBeNull();
 
-    $bot->hearCallbackQueryData('node3:list')->reply();
+    $bot->hearCallbackQueryData('node3:list')->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('node3:toggle:0')->reply();
     $bot->hearCallbackQueryData('node3:choose:update')->reply();
     $bot->hearCallbackQueryData('node3:field:0')->reply();
