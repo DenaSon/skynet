@@ -148,7 +148,7 @@ final readonly class AdminHostBatchUi
             : 'غیرفعال‌سازی ممکن است اتصال مشتریان را قطع کند.';
         $this->render($bot, "⚠️ تأیید {$action} گروهی\n\n"
             .implode("\n", $lines)."\n\n"
-            ."تعداد: ".count($hosts)."\n".$warning."\n"
+            .'تعداد: '.count($hosts)."\n".$warning."\n"
             .'با تأیید، دقیقاً یک درخواست گروهی ارسال می‌شود.',
             InlineKeyboardMarkup::make()
                 ->addRow(InlineKeyboardButton::make('✅ تأیید نهایی', callback_data: 'host2:batch:apply:'.$state['token']))
