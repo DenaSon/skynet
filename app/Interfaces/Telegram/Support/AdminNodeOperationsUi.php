@@ -8,7 +8,9 @@ use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Provisioning\Application\ManageAdminNodeOperations;
 use App\Modules\Provisioning\Application\ManageAdminNodes;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
@@ -166,12 +168,12 @@ final readonly class AdminNodeOperationsUi
                 "✅ درخواست ثبت شد.\n\nبرای مشاهده نتیجه نهایی، فهرست نودها را تازه‌سازی کنید.",
                 $this->listKeyboard(),
             );
-        } catch (\Illuminate\Validation\ValidationException) {
+        } catch (ValidationException) {
             $this->render($bot,
                 "درخواست اجرا نشد؛ وضعیت سرور یا دسترسی تغییر کرده است.\n\nفهرست را تازه‌سازی کنید و دوباره بررسی کنید.",
                 $this->listKeyboard(),
             );
-        } catch (\Illuminate\Contracts\Cache\LockTimeoutException) {
+        } catch (LockTimeoutException) {
             $this->render($bot,
                 "عملیات دیگری روی سرورها در حال انجام است.\n\nابتدا وضعیت سرور را بررسی کنید.",
                 $this->listKeyboard(),
