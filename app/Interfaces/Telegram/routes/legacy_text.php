@@ -12,11 +12,11 @@ use SergiX44\Nutgram\Nutgram;
 // Keep the exact original Reply -> Product -> Plan -> Builder -> Shop precedence until a safe Sales cutover.
 
 $bot->onText('{volume}', function (Nutgram $bot, string $volume): void {
-    if (app(AdminNodesUi::class)->text($bot, $volume)) {
+    if (app(ReplyMenuHandler::class)->handle($bot, $volume)) {
         return;
     }
 
-    if (app(ReplyMenuHandler::class)->handle($bot, $volume)) {
+    if (app(AdminNodesUi::class)->text($bot, $volume)) {
         return;
     }
 
