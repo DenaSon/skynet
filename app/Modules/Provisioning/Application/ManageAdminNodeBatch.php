@@ -24,9 +24,9 @@ final readonly class ManageAdminNodeBatch
     ) {}
 
     /**
-     * @param list<array<string, mixed>> $expected
-     * @param list<string> $uuids Selected nodes; complete ordered set for reorder/restart-all
-     * @param array<string,mixed> $data
+     * @param  list<array<string, mixed>>  $expected
+     * @param  list<string>  $uuids  Selected nodes; complete ordered set for reorder/restart-all
+     * @param  array<string,mixed>  $data
      */
     public function perform(int $actorId, string $mode, array $expected, array $uuids, array $data = []): void
     {
