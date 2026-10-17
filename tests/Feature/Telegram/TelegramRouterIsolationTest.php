@@ -89,6 +89,17 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:full:service:prepare:{id}:{mode}';
     $expected['ADMIN'][] = 'callback:full:service:apply:{token}';
     $expected['ADMIN'][] = 'callback:full:service:check:{id}';
+    // NODE-01 adds only guarded Admin-only Node routes.
+    $expected['ADMIN'][] = 'command:nodes';
+    $expected['ADMIN'][] = 'callback:node1:list:{page}';
+    $expected['ADMIN'][] = 'callback:node1:view:{uuid}';
+    $expected['ADMIN'][] = 'callback:node1:tags';
+    $expected['ADMIN'][] = 'callback:node1:begin';
+    $expected['ADMIN'][] = 'callback:node1:profile:{index}';
+    $expected['ADMIN'][] = 'callback:node1:inbound:{index}';
+    $expected['ADMIN'][] = 'callback:node1:preview';
+    $expected['ADMIN'][] = 'callback:node1:apply:{token}';
+    $expected['ADMIN'][] = 'callback:node1:cancel';
     $expected['SALES'][] = 'photo:*';
     $files = [
         'ADMIN' => 'app/Interfaces/Telegram/routes/admin.php',
@@ -113,7 +124,7 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(134)
+        ->and(count($legacy))->toBe(144)
         ->and(count(array_unique($legacy)))->toBe(134);
 });
 
