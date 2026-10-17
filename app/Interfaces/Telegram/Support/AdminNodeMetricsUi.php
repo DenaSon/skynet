@@ -37,6 +37,7 @@ final readonly class AdminNodeMetricsUi
         $snapshot = $this->metrics->handle($actor->userId);
         $keyboard = InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی آمار', callback_data: 'metrics:refresh'))
+            ->addRow(InlineKeyboardButton::make('📈 گزارش مصرف', callback_data: 'metrics:range:7'))
             ->addRow(InlineKeyboardButton::make('🖥️ مدیریت نودها', callback_data: 'node1:list:1'))
             ->addRow(InlineKeyboardButton::make('◀️ وضعیت سرورها', callback_data: 'menu:admin:servers'));
 
