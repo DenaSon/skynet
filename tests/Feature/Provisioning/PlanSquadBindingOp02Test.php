@@ -137,6 +137,6 @@ it('has admin-only callback registrations without enabling a Sales Squad mutatio
     $adminRoutes = file_get_contents(base_path('app/Interfaces/Telegram/routes/admin.php'));
     $salesRoutes = file_get_contents(base_path('app/Interfaces/Telegram/routes/sales.php'));
 
-    expect($adminRoutes)->toContain("plan:squad:list:{id}", "plan:squad:select:{id}:{choice}", "plan:squad:apply:{token}")
+    expect($adminRoutes)->toContain('plan:squad:list:{id}', 'plan:squad:select:{id}:{choice}', 'plan:squad:apply:{token}')
         ->and($salesRoutes)->not->toContain('plan:squad:');
 });

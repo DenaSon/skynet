@@ -287,7 +287,6 @@ $bot->onCallbackQueryData('rbac:p:{id}:{page}:{permissionPage}', function (Nutgr
     app(RbacUi::class)->detail($bot, $id, $page, $permissionPage);
 });
 
-
 // OP-02: trusted Admin-only Plan–Squad selection. No remote writes.
 $bot->onCallbackQueryData('plan:squad:list:{id}', function (Nutgram $bot, string $id): void {
     app(PlanSquadUi::class)->browse($bot, $id);
