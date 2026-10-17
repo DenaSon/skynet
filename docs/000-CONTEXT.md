@@ -1,5 +1,12 @@
 # ParsaGate — Current Context / Development Memory 
 
+## MET-01 — Admin monitoring implementation checkpoint (2026-10-17)
+
+- The MVP has a read-only private Super Admin dashboard (/metrics, metrics:refresh) discoverable from Admin server status and Node list. Uses existing Remnawave node inventory, node online metrics, system-wide onlineNow, and lastSevenDays traffic analytics. Fresh on-demand status only, not background monitoring.
+- The global online-user count must not be replaced by a sum of per-node connections. Optional analytics may be unavailable independently; the UI says «نامشخص», not zero. Traffic is derived solely from numeric decimal byte strings for seven UTC dates, with safe duplicate/overflow rejection; Tehran time labels receipt, not source measurement.
+- No Provider writes, env flags, schema, dependencies, new daemon, Sales UI, customer data, or operational tests. Keep MET-02, Hosts, and Config Profiles in separate scopes. CI fake-HTTP tests verify reads and authorization; real panel/Telegram smoke pending.
+
+
 ## NODE final review — focused Admin Bot UX and write safety (2026-10-17)
 
 - Reviewed NODE-01/02/03 on `master` against `docs/017-TELEGRAM-UX-IDENTITY.md`, existing role checks, the version-pinned Remnawave Nodes API adapter, and all Node Pest cases. Scope stays limited to the existing MVP Node screens/actions; no new features, dependencies, migrations, flags, host installation, billing or Sales changes.
