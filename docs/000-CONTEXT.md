@@ -1,5 +1,11 @@
 # ParsaGate — Current Context / Development Memory 
 
+## MVP-02 — Admin fulfillment outcomes (2026-10-17)
+
+- **MVP scope:** enhance the original trusted/private Admin Bot `/fulfillment` listing with a single «✅ فعال‌سازی‌های انجام‌شده» destination (`full:completed`). The existing pending/processing/needs-review queue, root-only order details and explicit operator-confirmation actions remain intact. Both lists are bounded to the latest **20** applicable orders with refresh/back navigation; no search, pagination, analytics or new persistence layer.
+- **Read-only truth:** `ReviewPaidFulfillment` can now read locally **fulfilled** managed-plan orders with a **completed** immutable fulfillment outbox. Detailed success means only that ParsaGate recorded the activation; it does **not** certify live provider connectivity. A paid order with an inconsistent `completed` outbox is *not* displayed as successfully activated. Existing paid-only `authorizeRequest`, remote POST, one-time confirmation, GET-only reconciliation and identity/role checks remain unchanged and fail closed.
+- **Boundaries:** no finance changes, new jobs, Remnawave calls, migration, flag changes, notifications, automatic fulfillment or production activation. Source tests on isolated DB/HTTP fakes and CI are distinct from deferred real Telegram/Remnawave E2E. Next small planned MVP-03 is customer subscription-delivery completeness; MVP-04 is basic root-only enable/disable under independent approval.
+
 ## MVP-01 — Clear connected service and checkout blocker (2026-10-17)
 
 - **Approved MVP-only scope:** reuse OP-02 Admin plan detail and `ManagePlanSquadBinding` to display the currently stored plan service as a **human-readable remote-verified name**, or a truthful missing/stale/unavailable state. One guarded read of existing local Plan–Squad mapping; only if its revision and local verification match, make **one existing GET** `InternalSquadController_getInternalSquadByUuid`. Remote UUID/name must match strictly; errors never claim connection. A temporarily unavailable remote name is displayed separately and does not silently modify the existing buyer checkout guard. Trust/RBAC are enforced in the Application Action and the existing private Admin presenter.
