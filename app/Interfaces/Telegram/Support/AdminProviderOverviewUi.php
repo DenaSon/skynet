@@ -54,6 +54,8 @@ final readonly class AdminProviderOverviewUi
 
         $keyboard = InlineKeyboardMarkup::make();
 
+        $keyboard->addRow(InlineKeyboardButton::make('📊 مانیتورینگ', callback_data: 'metrics:refresh'));
+
         $keyboard->addRow(InlineKeyboardButton::make('📋 مدیریت نودها', callback_data: 'node1:list:1'));
 
         $keyboard->addRow(InlineKeyboardButton::make('🔄 به‌روزرسانی', callback_data: 'servers:refresh'));

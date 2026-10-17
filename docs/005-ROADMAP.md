@@ -1,5 +1,13 @@
 # Roadmap
 
+## MET-01 — Read-only Admin Bot monitoring (2026-10-17)
+
+- Scope: /metrics and metrics:refresh in private Admin Bot only, linked from the existing server and Node screens. Shows Node counts/status, global online users, per-Node online counts, UTC dated traffic for today and seven calendar days, and time received in Tehran. On-demand snapshot only, not continuous monitoring.
+- Reuse existing ManageAdminNodes, RemnawaveNodeTelemetry, RemnawaveReadApi, and mapped GET operations. Strict root authorization; independent failure handling for optional metrics; unavailable is not zero. Never sum per-node users as unique online users. Reject invalid or overflowing byte totals.
+- No new migrations, dependencies, Provider writes, flags, jobs, Sales interfaces, or automatic alerts. MET-02 histories and drilldowns, Hosts and Config Profiles remain separate.
+- Evidence: fake Remnawave GET-only tests, private/role security, partial failures, traffic parsing, CI. Real Telegram, real traffic metrics, and production deployment remain unverified until operator checks.
+
+
 ## NODE final review — focused Admin Bot UX and write safety (2026-10-17)
 
 - Reviewed NODE-01/02/03 on `master` against `docs/017-TELEGRAM-UX-IDENTITY.md`, existing role checks, the version-pinned Remnawave Nodes API adapter, and all Node Pest cases. Scope stays limited to the existing MVP Node screens/actions; no new features, dependencies, migrations, flags, host installation, billing or Sales changes.
