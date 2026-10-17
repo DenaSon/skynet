@@ -68,6 +68,7 @@ final readonly class AdminHostsUi
             $keyboard->addRow(...$nav);
         }
         $keyboard->addRow(InlineKeyboardButton::make('➕ افزودن هاست', callback_data: 'host1:begin'));
+        $keyboard->addRow(InlineKeyboardButton::make('⚙️ عملیات گروهی', callback_data: 'host2:batch:begin'));
         $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'host1:list:'.$page));
         $keyboard->addRow(InlineKeyboardButton::make('◀️ وضعیت سرورها', callback_data: 'menu:admin:servers'));
         $this->render($bot,
@@ -95,6 +96,20 @@ final readonly class AdminHostsUi
             false => '🟢 فعال',
             default => 'نامشخص',
         };
+        $keyboard = InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('✏️ ویرایش', callback_data: 'host2:prepare:'.$host['uuid'].':edit'));
+        if ($host['disabled'] !== null) {
+            $mode = $host['disabled'] ? 'enable' : 'disable';
+            $keyboard->addRow(InlineKeyboardButton::make(
+                $mode === 'enable' ? '▶️ فعال‌سازی' : '⏸️ غیرفعال‌سازی',
+                callback_data: 'host2:prepare:'.$host['uuid'].':'.$mode,
+            ));
+        }
+        if ($host['disabled'] === true) {
+            $keyboard->addRow(InlineKeyboardButton::make('🗑️ حذف هاست', callback_data: 'host2:prepare:'.$host['uuid'].':delete'));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'host1:view:'.$host['uuid']));
+        $keyboard->addRow(InlineKeyboardButton::make('◀️ فهرست هاست‌ها', callback_data: 'host1:list:1'));
         $this->render($bot,
             "🌐 جزئیات هاست\n\n"
             .'نام: '.self::safe($host['remark'])."\n"
@@ -104,9 +119,7 @@ final readonly class AdminHostsUi
             .'شناسه پروفایل: '.($host['profileUuid'] ?? 'نامشخص')."\n"
             .'شناسه ورودی: '.($host['inboundUuid'] ?? 'نامشخص')."\n\n"
             .'ثبت هاست به‌معنای تأیید اتصال کاربران نیست.',
-            InlineKeyboardMarkup::make()
-                ->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'host1:view:'.$host['uuid']))
-                ->addRow(InlineKeyboardButton::make('◀️ فهرست هاست‌ها', callback_data: 'host1:list:1')),
+            $keyboard,
         );
     }
 
@@ -123,7 +136,7 @@ final readonly class AdminHostsUi
         }
 
         // Retire pending Node text handlers; never let an old wizard consume Host details.
-        foreach (['node01:draft:', 'node02:draft:', 'node03:draft:'] as $prefix) {
+        foreach (['node01:draft:', 'node02:draft:', 'node03:draft:', 'host02:draft:', 'host02:batch:'] as $prefix) {
             Cache::forget(TelegramBotContext::current()->cacheKey($prefix.$root));
         }
         $this->save($root, ['stage' => 'info']);
