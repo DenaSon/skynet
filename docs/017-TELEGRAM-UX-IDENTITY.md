@@ -26,6 +26,11 @@ ParsaGate is a practical Persian Telegram bot. A person can administer products,
 - Root-only Admin subscription activation queue keeps pending/review states while a separate small «✅ فعال‌سازی‌های انجام‌شده» screen shows locally completed orders; success is described as recorded, not proof of current online provider status.
 - Keep a short refresh and contextual Back path and the original explicit confirmation for any write. Never expose provider credentials, API metadata or developer vocabulary in status/result text.
 
+## MVP-04 — Super Admin service status (2026-10-17)
+
+- From a completed-order detail, show only «🔌 مدیریت وضعیت اشتراک» then the verified «فعال/غیرفعال/نیازمند بررسی/قابل بررسی نیست» state. Show at most one available operation, with explicit one-time confirmation and a safe Back/refresh path; never show developer error text, provider ID/UUID or credentials.
+- A queued operation is a **request**, not a completed status change. If the result is uncertain, offer only «🔎 بررسی نتیجه», which must not write again. No root status buttons in Sales Bot or ordinary Admin menus.
+
 ## Navigation
 
 - Persistent ReplyKeyboard (when opt-in enabled) only has small role-aware primary destinations. Admin subfunctions are grouped, not placed in a wall of buttons.
