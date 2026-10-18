@@ -64,6 +64,8 @@ final readonly class ManageNodeInstallation
                 'state' => 'queued',
             ], now()->addHours(3));
             InstallRemnawaveNode::dispatch($identifier);
+            // Non-secret pointer for returning to the latest setup from Node management.
+            Cache::put('nw02:last:'.$actorId, $identifier, now()->addHours(3));
         } catch (Throwable) {
             Cache::forget('nw02:access:'.$identifier);
             Cache::forget('nw02:status:'.$identifier);
@@ -114,7 +116,7 @@ final readonly class ManageNodeInstallation
         if ($state['owner'] !== $actorId) {
             throw new RuntimeException('Installation belongs to another operator.');
         }
-        if (in_array($state['state'], ['started', 'installing', 'starting', 'pending', 'uncertain'], true)) {
+        if (in_array($state['state'], ['launching', 'started', 'installing', 'starting', 'pending', 'uncertain'], true)) {
             try {
                 $access = $this->credentials($identifier);
                 $remote = $this->installer->status(
@@ -138,6 +140,32 @@ final readonly class ManageNodeInstallation
             'name' => $state['name'],
             'state' => $state['state'],
         ];
+    }
+
+    /**
+     * NW-04: one recoverable recent installation link, without secret material,
+     * remote calls or extending the three-hour NW-02 checkpoint lifetime.
+     */
+    public function recent(int $actorId): ?string
+    {
+        $this->access->handle($actorId);
+        $identifier = Cache::get('nw02:last:'.$actorId);
+        if (! is_string($identifier)) {
+            return null;
+        }
+
+        try {
+            $state = $this->meta($identifier);
+            if ($state['owner'] === $actorId) {
+                return $identifier;
+            }
+        } catch (Throwable) {
+            // An expired or malformed bookmark is not a resumable setup.
+        }
+
+        Cache::forget('nw02:last:'.$actorId);
+
+        return null;
     }
 
     /**
