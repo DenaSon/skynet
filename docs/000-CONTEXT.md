@@ -1,5 +1,7 @@
 # ParsaGate — Current Context / Development Memory 
 
+**NW-04 review / requested live reset checkpoint (2026-10-18):** Source CI passed, but *destructive VPS reinstall and panel Node/Host removal have not started*. Preflight requires inventory of existing Host, User, Profile/Inbound and Squad dependencies, provider snapshot/rollback, Runflare real SSH/Queue/Cache checks, and explicit verification that panel Node management port matches the installer-fixed 2222. See [NW04 live-reset preflight](NW04-LIVE-RESET-PREFLIGHT.md) before touching the existing active Node. No code/flag/server change authorized by this documentation review.
+
 ## NW-04 — Final source review, recovery and operator acceptance (2026-10-18)
 
 - Final MVP Node setup UX remains in existing Admin Node management (NW-01 → NW-02 → NW-03), no parallel SSH/Provider subsystem and no Sales/Billing work. New Admin-only `nw4:recent` callback and contextual `↪️ ادامه راه‌اندازی اخیر` button read one authorized **nonsecret** bookmark in Cache for up to three hours; it is also available if the Provider Node inventory GET fails. No extra migration or dependency.
