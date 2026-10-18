@@ -343,3 +343,24 @@ it('NW-01 yields to a newer legacy Node wizard instead of intercepting its text'
     expect(Cache::get($key))->toBeNull();
     expect(Cache::get(TelegramBotContext::current()->cacheKey('node01:draft:'.$actors['root']->id))['stage'])->toBe('profile');
 });
+
+it('NW-04 private Admin can resume a recent setup while ordinary users cannot', function (): void {
+    $actors = node01Actors();
+    node01FakeProvider();
+    config()->set('services.remnawave.node_ssh_setup_enabled', true);
+    config()->set('services.remnawave.node_ssh_install_enabled', true);
+    $id = str_repeat('b', 32);
+    Cache::put('nw02:last:'.$actors['root']->id, $id, now()->addHours(3));
+    Cache::put('nw02:status:'.$id, [
+        'owner' => $actors['root']->id,
+        'name' => 'Node-02',
+        'state' => 'queued',
+    ], now()->addHours(3));
+
+    node01Bot()->hearCallbackQueryData('nw4:recent')->reply()->assertCalled('editMessageText');
+    expect(Cache::get('nw02:last:'.$actors['root']->id))->toBe($id);
+
+    node01Bot(951112)->hearCallbackQueryData('nw4:recent')->reply();
+    node01Bot(951111, false)->hearCallbackQueryData('nw4:recent')->reply();
+    Http::assertNothingSent();
+});
