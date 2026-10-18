@@ -7,6 +7,7 @@ use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Application\ManageNodeInstallation;
 use App\Modules\Provisioning\Infrastructure\NodeSetup\NodeSshInstaller;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
@@ -71,7 +72,7 @@ it('NW-02 defaults off, queues opaque identifier only, and reserves a VPS once',
         ->not->toContain('194.5.192.133');
 
     expect(fn () => $manager->enqueue($fixture['actor']->id, $fixture['ready']))->toThrow(RuntimeException::class);
-    expect(fn () => $manager->status($fixture['other']->id, $identifier))->toThrow(Throwable::class);
+    expect(fn () => $manager->status($fixture['other']->id, $identifier))->toThrow(AuthorizationException::class);
     Http::assertNothingSent();
 });
 
@@ -132,5 +133,5 @@ it('NW-02 status rechecks root identity and destroys credentials when Node runs'
         ->and(Cache::get('nw02:access:'.$identifier))->toBeNull();
 
     $fixture['actor']->syncRoles(['member']);
-    expect(fn () => $manager->status($fixture['actor']->id, $identifier))->toThrow(Throwable::class);
+    expect(fn () => $manager->status($fixture['actor']->id, $identifier))->toThrow(AuthorizationException::class);
 });
