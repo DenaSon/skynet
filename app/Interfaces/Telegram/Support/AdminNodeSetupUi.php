@@ -7,6 +7,7 @@ namespace App\Interfaces\Telegram\Support;
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Provisioning\Application\ManageAdminNodes;
+use App\Modules\Provisioning\Application\ManageNodeInstallation;
 use App\Modules\Provisioning\Application\NodeSetupReadiness;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
@@ -23,6 +24,7 @@ final readonly class AdminNodeSetupUi
         private ResolveTelegramActor $actors,
         private ManageAdminNodes $nodes,
         private NodeSetupReadiness $ssh,
+        private ManageNodeInstallation $installer,
         private MenuRenderer $menus,
     ) {}
 
@@ -41,6 +43,7 @@ final readonly class AdminNodeSetupUi
         foreach (['node01:draft:', 'node02:draft:', 'node03:draft:', 'host01:draft:', 'host02:draft:', 'cfg02:draft:'] as $prefix) {
             Cache::forget(TelegramBotContext::current()->cacheKey($prefix.$id));
         }
+        Cache::forget('nw02:ready:'.$id);
         $this->save($id, ['stage' => 'identity']);
         $this->render($bot, "🖥️ راه‌اندازی سرور — ۱ از ۵\n\nنام و IP عمومی سرور را وارد کنید:\nGermany-02 | 203.0.113.10", $this->cancelButton());
     }
@@ -266,11 +269,95 @@ final readonly class AdminNodeSetupUi
             $password = Crypt::decryptString($draft['secret']);
             $os = $this->ssh->check($id, $draft['ip'], $draft['port'], $draft['username'], $password, $draft['host']['knownHost']);
             unset($password);
-            $this->render($bot, "✅ سرور آماده ادامه راه‌اندازی است.\n\nنام: ".$draft['name']
-                ."\nسیستم‌عامل: ".$os."\n\nدر این مرحله هیچ نرم‌افزاری نصب نشده است.", $this->back());
+            if (config('services.remnawave.node_ssh_install_enabled') === true) {
+                $setupToken = bin2hex(random_bytes(16));
+                $draft['installToken'] = $setupToken;
+                Cache::put('nw02:ready:'.$id, $draft, now()->addMinutes(10));
+                $this->render($bot,
+                    "✅ اتصال امن بررسی شد.\n\nنام: ".$draft['name']."\nسیستم‌عامل: ".$os
+                    ."\n\nنصب نرم‌افزار روی این سرور فقط پس از تأیید شما شروع می‌شود.",
+                    InlineKeyboardMarkup::make()
+                        ->addRow(InlineKeyboardButton::make('🚀 شروع نصب روی سرور', callback_data: 'nw2:start:'.$setupToken))
+                        ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'nw1:cancel')));
+            } else {
+                $this->render($bot, "✅ سرور آماده ادامه راه‌اندازی است.\n\nنام: ".$draft['name']
+                    ."\nسیستم‌عامل: ".$os."\n\nدر این مرحله هیچ نرم‌افزاری نصب نشده است.", $this->back());
+            }
         } catch (Throwable) {
             $this->render($bot, 'بررسی SSH موفق نبود؛ برای تلاش بعدی دوباره شروع کنید.', $this->back());
         }
+    }
+
+    /** Confirmed, single-use installation action, separate from read-only NW-01. */
+    public function install(Nutgram $bot, string $token): void
+    {
+        $root = $this->root($bot);
+        if ($root === null) {
+            return;
+        }
+        if (! $this->enabled() || config('services.remnawave.node_ssh_install_enabled') !== true
+            || preg_match('/\A[a-f0-9]{32}\z/D', $token) !== 1) {
+            $this->expired($bot);
+
+            return;
+        }
+
+        try {
+            $key = 'nw02:ready:'.$root;
+            $state = Cache::lock($key.':lock', 10)->block(2, static function () use ($key, $token): mixed {
+                $ready = Cache::get($key);
+                if (! is_array($ready) || ! is_string($ready['installToken'] ?? null)
+                    || ! hash_equals($ready['installToken'], $token)) {
+                    return null;
+                }
+                Cache::forget($key);
+
+                return $ready;
+            });
+            if (! is_array($state)) {
+                $this->expired($bot);
+
+                return;
+            }
+            $identifier = $this->installer->enqueue($root, $state);
+            $this->render($bot, "🕒 درخواست نصب ثبت شد.\n\nنتیجه از بخش وضعیت نصب قابل پیگیری است.",
+                $this->statusKeyboard($identifier));
+        } catch (Throwable) {
+            $this->render($bot, 'شروع نصب ممکن نشد یا برای این سرور درخواست دیگری ثبت شده است.', $this->back());
+        }
+    }
+
+    public function installationStatus(Nutgram $bot, string $identifier): void
+    {
+        $root = $this->root($bot);
+        if ($root === null) {
+            return;
+        }
+        try {
+            $status = $this->installer->status($root, $identifier);
+        } catch (Throwable) {
+            $this->render($bot, 'وضعیت نصب در دسترس نیست یا منقضی شده است.', $this->back());
+
+            return;
+        }
+        $description = match ($status['state']) {
+            'queued' => 'در صف آماده‌سازی',
+            'launching', 'pending' => 'در حال آغاز عملیات',
+            'started', 'installing' => 'در حال نصب نرم‌افزارها',
+            'starting' => 'در حال راه‌اندازی سرویس',
+            'running' => '✅ نرم‌افزار سرور نصب و اجرا شده است. اتصال به پنل در مرحله بعد انجام می‌شود.',
+            'failed' => '❌ نصب موفق نبود. پیش از درخواست مجدد، سرور باید بررسی شود.',
+            default => '⚠️ نتیجه عملیات مشخص نیست. پیش از تلاش مجدد وضعیت سرور را بررسی کنید.',
+        };
+        $this->render($bot, "🖥️ وضعیت آماده‌سازی\n\nنام: ".$status['name']."\n".$description,
+            $this->statusKeyboard($identifier));
+    }
+
+    private function statusKeyboard(string $identifier): InlineKeyboardMarkup
+    {
+        return InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('🔄 بررسی وضعیت نصب', callback_data: 'nw2:status:'.$identifier))
+            ->addRow(InlineKeyboardButton::make('◀️ مدیریت نودها', callback_data: 'node1:list:1'));
     }
 
     public function cancel(Nutgram $bot): void
@@ -280,6 +367,7 @@ final readonly class AdminNodeSetupUi
             return;
         }
         Cache::forget($this->key($id));
+        Cache::forget('nw02:ready:'.$id);
         $this->render($bot, 'راه‌اندازی لغو شد.', $this->back());
     }
 
