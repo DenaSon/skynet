@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Interfaces\Telegram\Processing\TelegramBotContext;
+use App\Interfaces\Telegram\Support\AdminNodeSetupUi;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Application\CompleteNodeSetup;
@@ -11,6 +13,10 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Properties\ChatType;
+use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
+use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 
 uses(RefreshDatabase::class);
 
@@ -169,3 +175,19 @@ it('NW-03 never repeats uncertain Node POST and never reports an unverified Host
 });
 
 
+
+it('NW-03 Host port input never consumes text from a newer legacy Node wizard', function (): void {
+    $ready = nw03Ready();
+    $owner = $ready['actor']->id;
+    $bot = app(Nutgram::class);
+    $bot->setCommonUser(TelegramUser::make(981101, false, 'Root'));
+    $bot->setCommonChat(Chat::make(981101, ChatType::PRIVATE));
+    $legacy = TelegramBotContext::current()->cacheKey('node01:draft:'.$owner);
+
+    Cache::put('nw03:hostDraft:'.$owner, ['id' => $ready['id']], now()->addMinutes(10));
+    Cache::put($legacy, ['stage' => 'info'], now()->addMinutes(10));
+
+    expect(app(AdminNodeSetupUi::class)->text($bot, '1234'))->toBeFalse()
+        ->and(Cache::get('nw03:hostDraft:'.$owner))->toBeNull()
+        ->and(Cache::get($legacy)['stage'])->toBe('info');
+});
