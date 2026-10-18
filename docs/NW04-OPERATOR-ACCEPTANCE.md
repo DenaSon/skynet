@@ -1,5 +1,26 @@
 # NW-04 — پذیرش راه‌اندازی سرور از بات (Runbook)
 
+
+## Runflare laravel-nginx runtime SSH preparation (2026-10-18)
+
+The stock **Runflare `laravel-nginx`** image in this staging deployment is Debian 13 and does not ship `openssh-client`. Its file mount also presented the Git-executable `resources/scripts/nw01-askpass.sh` with mode 0644. Source commit alone therefore does **not** establish runnable SSH.
+
+- The existing service's **postStart** field should invoke only `/bin/sh /var/www/resources/scripts/prepare-ssh-runtime.sh` once the source commit is deployed. Do **not** replace its Command/Args, Nginx/Supervisor configuration or Laravel Queue definition.
+- The idempotent script checks for both `ssh` and `ssh-keyscan`; if either is absent, it installs Debian `openssh-client` via apt-get (requires the lifecycle hook to run as root and Debian package network reachability). It then `chmod 755`s the mounted Askpass file and verifies all three prerequisites. Installation errors abort this hook; they must be inspected in deployment/lifecycle logs, not ignored.
+- postStart might run concurrently with the app/Queue startup; **do not enable the Node SSH flags until the new container is running and both the CLI and effective Webhook/Queue execution environments have been verified**. Changing settings/redeploying can discard manual apt/chmod fixes; this hook repeats them on new containers.
+- Safe verification after deploy, before enabling flags:
+  ```sh
+  cd /var/www
+  ssh -V
+  command -v ssh-keyscan
+  test -x resources/scripts/nw01-askpass.sh && echo ASKPASS_OK
+  supervisorctl status
+  php artisan tinker --execute='dump(["queue"=>config("queue.default"),"cache"=>config("cache.default"),"ssh_setup"=>config("services.remnawave.node_ssh_setup_enabled"),"ssh_install"=>config("services.remnawave.node_ssh_install_enabled"),"provider_writes"=>config("services.remnawave.writes_enabled")]);'
+  ```
+- This is an **Alpha/Beta temporary runtime solution**, not a prebuilt-image guarantee. After it passes in the new container, perform the existing read-only SSH/fingerprint preflight. Keep `NODE_SSH_SETUP_ENABLED`, `NODE_SSH_INSTALL_ENABLED` and `REMNAWAVE_WRITES_ENABLED` **OFF until the appropriate operator-approved test step**. VPS reinstall and Remnawave deletion still require separate explicit operator approval.
+- Do not commit credentials, open SSH ports, touch existing VPS/Node, or assume CI shell syntax checks are actual Runflare connectivity tests.
+
+
 **وضعیت:** تست‌های کد/CI و پذیرش واقعی جدا هستند. این سند مجوز تغییر Production یا روشن‌کردن Feature Flag نیست. اجرای دستورهای زیر تنها روی یک VPS آزمایشی خالی و با تصمیم صریح اپراتور انجام شود.
 
 ## محدوده قابل‌قبول

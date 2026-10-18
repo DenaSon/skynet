@@ -1,5 +1,9 @@
 # ParsaGate — Current Context / Development Memory 
 
+
+**Runflare SSH bootstrap checkpoint (2026-10-18):** The deployed Debian 13 `laravel-nginx` image was observed missing `openssh-client`; mounted Askpass was 0644 despite Git 100755. An additive, idempotent `resources/scripts/prepare-ssh-runtime.sh` for a short Runflare postStart command was added. It does not modify bot/provider flags, Docker images, VPS or queue configuration; real postStart execution/SSH/worker smoke remains unverified. Operator runbook: [docs/NW04-OPERATOR-ACCEPTANCE.md](NW04-OPERATOR-ACCEPTANCE.md).
+
+
 **NW-04 review / requested live reset checkpoint (2026-10-18):** Source CI passed, but *destructive VPS reinstall and panel Node/Host removal have not started*. Preflight requires inventory of existing Host, User, Profile/Inbound and Squad dependencies, provider snapshot/rollback, Runflare real SSH/Queue/Cache checks, and explicit verification that panel Node management port matches the installer-fixed 2222. See [NW04 live-reset preflight](NW04-LIVE-RESET-PREFLIGHT.md) before touching the existing active Node. No code/flag/server change authorized by this documentation review.
 
 ## NW-04 — Final source review, recovery and operator acceptance (2026-10-18)
