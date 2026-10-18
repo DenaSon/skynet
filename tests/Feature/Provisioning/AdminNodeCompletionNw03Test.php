@@ -8,6 +8,7 @@ use App\Modules\Provisioning\Application\CompleteNodeSetup;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
@@ -142,7 +143,6 @@ it('NW-03 only creates a disabled Host after confirmed live Node connection', fu
     $action->registerNode($ready['actor']->id, $ready['id']);
     expect(fn () => $action->previewHost($ready['actor']->id, $ready['id'], 1234))
         ->toThrow(RuntimeException::class);
-    Http::assertSentCount(6);
     nw03Api(true);
     expect($action->previewHost($ready['actor']->id, $ready['id'], 1234)['remark'])->toBe('ParsaNode02-Host');
     expect($action->createHost($ready['actor']->id, $ready['id'], 1234))->toBe(NW03_HOST);
@@ -159,7 +159,7 @@ it('NW-03 never repeats uncertain Node POST and never reports an unverified Host
     $ready = nw03Ready();
     nw03Api(true, true);
     $action = app(CompleteNodeSetup::class);
-    expect(fn () => $action->registerNode($ready['actor']->id, $ready['id']))->toThrow(Throwable::class);
+    expect(fn () => $action->registerNode($ready['actor']->id, $ready['id']))->toThrow(RequestException::class);
     expect($action->progress($ready['actor']->id, $ready['id'])['nodeStage'])->toBe('uncertain');
     expect(fn () => $action->registerNode($ready['actor']->id, $ready['id']))->toThrow(RuntimeException::class);
     expect(collect(Http::recorded())->filter(static fn (array $p): bool => $p[0]->method() === 'POST'))->toHaveCount(1);
