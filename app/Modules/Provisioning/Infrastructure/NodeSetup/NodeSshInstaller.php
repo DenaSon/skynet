@@ -28,7 +28,7 @@ class NodeSshInstaller
 
         // The secret is base64-encoded only for safe shell transport, NOT for encryption.
         // SSH transports the script via stdin; it never appears in argv or output.
-        $secretEnv = base64_encode('SECRET_KEY='.$secret."\n");
+        $secretEnv = base64_encode('SECRET_KEY='.$secret."\nNODE_PORT=2222\n");
         $compose = "services:\n  remnanode:\n    container_name: remnanode\n    hostname: remnanode\n"
             ."    image: remnawave/node:3.4.2\n    restart: always\n    network_mode: host\n"
             ."    cap_add:\n      - NET_ADMIN\n    env_file:\n      - .env\n";
