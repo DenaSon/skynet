@@ -169,27 +169,3 @@ it('NW-03 never repeats uncertain Node POST and never reports an unverified Host
 });
 
 
-it('temporary NW-03 Pint diagnostic for exact formatting diff', function (): void {
-    $path = base_path('app/Modules/Provisioning/Application/ManageNodeInstallation.php');
-    $before = file_get_contents($path);
-    $process = new \Symfony\Component\Process\Process(['php', base_path('vendor/bin/pint'), $path]);
-    $process->setTimeout(60);
-    try {
-        $process->run();
-        $after = file_get_contents($path);
-        if ($after !== $before) {
-            $old = tempnam(sys_get_temp_dir(), 'nw03old');
-            $new = tempnam(sys_get_temp_dir(), 'nw03new');
-            file_put_contents($old, $before);
-            file_put_contents($new, $after);
-            $diff = new \Symfony\Component\Process\Process(['diff', '-u', $old, $new]);
-            $diff->run();
-            fwrite(STDERR, "\nNW03_PINT_EXACT_DIFF_BEGIN\n".$diff->getOutput()."\nNW03_PINT_EXACT_DIFF_END\n");
-            @unlink($old);
-            @unlink($new);
-        }
-    } finally {
-        file_put_contents($path, $before);
-    }
-    expect(true)->toBeTrue();
-});
