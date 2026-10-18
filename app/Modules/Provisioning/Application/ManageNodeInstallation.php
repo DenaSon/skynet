@@ -167,10 +167,9 @@ final readonly class ManageNodeInstallation
     {
         $state = $this->context($actorId, $identifier);
         foreach ($changes as $key => $value) {
-            match ($key) {
-                'nodeStage', 'nodeUuid', 'hostStage', 'hostUuid' => null,
-                default => throw new RuntimeException('Unsupported setup checkpoint field.'),
-            };
+            if (! in_array($key, ['nodeStage', 'nodeUuid', 'hostStage', 'hostUuid'], true)) {
+                throw new RuntimeException('Unsupported setup checkpoint field.');
+            }
             $state[$key] = $value;
         }
         $this->persist($identifier, $state);
