@@ -60,3 +60,9 @@ Review this standard before every future Telegram UI feature.
 - Only private trusted root and when NODE_SSH_SETUP_ENABLED is on; one prompt at a time, Cancel and contextual Back. Never echo SSH password or raw key material.
 - Independently confirm the displayed SSH fingerprint before a one-shot authentication test. An SSH preflight pass must never be presented as completed Node installation or VPN connectivity.
 - Deletion failures of password messages abort the flow. Existing Node, Host, Profile and Sales menus/callbacks remain intact.
+
+## NW-02 — Automated Node installation
+
+- After the verified server check, show one explicit install confirmation; never begin remote writes from a read-only validation callback.
+- Only show short Persian state messages for queued, installing, running, failed or uncertain operations. Do not expose SSH password, Node SECRET_KEY, raw logs, Linux package commands or internal phase labels.
+- Refresh status without auto-retrying. A running server is not a connected Node until panel registration in the following flow. Always preserve Back and the original Node/Host menus.
