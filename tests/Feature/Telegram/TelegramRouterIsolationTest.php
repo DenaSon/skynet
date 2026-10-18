@@ -125,6 +125,9 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:cfg2:prepare:{uuid}:{mode}';
     $expected['ADMIN'][] = 'callback:cfg2:apply:{token}';
     $expected['ADMIN'][] = 'callback:cfg2:cancel';
+    // NW-02 adds two separately gated private Admin-only installer callbacks.
+    $expected['ADMIN'][] = 'callback:nw2:start:{token}';
+    $expected['ADMIN'][] = 'callback:nw2:status:{identifier}';
     // NW-01 adds root-only read-only SSH readiness callbacks, no Sales routes.
     $expected['ADMIN'][] = 'callback:nw1:begin';
     $expected['ADMIN'][] = 'callback:nw1:profile:{index}';
@@ -182,8 +185,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(193)
-        ->and(count(array_unique($legacy)))->toBe(193);
+        ->and(count($legacy))->toBe(195)
+        ->and(count(array_unique($legacy)))->toBe(195);
 });
 
 it('keeps the second Sales Bot router limited to identity and read-only catalog without Admin callbacks', function (): void {
