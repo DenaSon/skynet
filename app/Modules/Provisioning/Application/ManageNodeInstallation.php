@@ -161,7 +161,7 @@ final readonly class ManageNodeInstallation
      * NW-03: update only the non-secret setup checkpoint under a separate
      * per-installation lock used by the registration coordinator.
      *
-     * @param array<string,mixed> $changes
+     * @param  array<string,mixed>  $changes
      */
     public function checkpoint(int $actorId, string $identifier, array $changes): void
     {
