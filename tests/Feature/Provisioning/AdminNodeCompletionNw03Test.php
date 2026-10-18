@@ -173,8 +173,6 @@ it('NW-03 never repeats uncertain Node POST and never reports an unverified Host
     expect(collect(Http::recorded())->filter(static fn (array $p): bool => $p[0]->method() === 'POST'))->toHaveCount(1);
 });
 
-
-
 it('NW-03 Host port input never consumes text from a newer legacy Node wizard', function (): void {
     $ready = nw03Ready();
     $owner = $ready['actor']->id;
