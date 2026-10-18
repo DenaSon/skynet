@@ -43,7 +43,13 @@ final readonly class AdminNodesUi
         try {
             $nodes = $this->nodes->all($root);
         } catch (Throwable) {
-            $this->render($bot, '🖥️ مدیریت نودها'."\n\n".'دریافت فهرست ممکن نیست.', $this->home());
+            $keyboard = $this->home();
+            if (config('services.remnawave.node_ssh_setup_enabled') === true
+                && config('services.remnawave.node_ssh_install_enabled') === true
+                && $this->installations->recent($root) !== null) {
+                $keyboard->addRow(InlineKeyboardButton::make('↪️ ادامه راه‌اندازی اخیر', callback_data: 'nw4:recent'));
+            }
+            $this->render($bot, '🖥️ مدیریت نودها'."\n\n".'دریافت فهرست ممکن نیست. می‌توانید وضعیت راه‌اندازی اخیر را جداگانه بررسی کنید.', $keyboard);
 
             return;
         }
