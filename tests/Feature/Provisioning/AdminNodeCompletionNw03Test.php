@@ -48,9 +48,10 @@ function nw03Ready(): array
     return compact('actor', 'other', 'id');
 }
 
-function nw03Api(bool $connected = true, bool $nodeWriteFails = false): void
+function nw03Api(bool $connected = true, bool $nodeWriteFails = false): object
 {
-    Http::fake(static function (Request $r) use ($connected, $nodeWriteFails) {
+    $connection = (object) ['connected' => $connected];
+    Http::fake(static function (Request $r) use ($connection, $nodeWriteFails) {
         $method = $r->method();
         $url = $r->url();
         $base = 'https://rw.nw03.test/api/';
@@ -76,7 +77,7 @@ function nw03Api(bool $connected = true, bool $nodeWriteFails = false): void
         if ($method === 'GET' && $url === $base.'nodes/'.NW03_NODE) {
             return Http::response(['response' => [
                 'uuid' => NW03_NODE, 'name' => 'ParsaNode02',
-                'isConnected' => $connected, 'isDisabled' => false,
+                'isConnected' => $connection->connected, 'isDisabled' => false,
             ]], 200);
         }
         if ($method === 'GET' && $url === $base.'hosts') {
@@ -98,6 +99,8 @@ function nw03Api(bool $connected = true, bool $nodeWriteFails = false): void
 
         return Http::response(['error' => 'unknown'], 404);
     });
+
+    return $connection;
 }
 
 it('NW-03 only allows confirmed NW-02 running state, authorized root and existing write gate', function (): void {
@@ -138,12 +141,12 @@ it('NW-03 creates Node once through existing Node Action and verifies live Conne
 
 it('NW-03 only creates a disabled Host after confirmed live Node connection', function (): void {
     $ready = nw03Ready();
-    nw03Api(false);
+    $connection = nw03Api(false);
     $action = app(CompleteNodeSetup::class);
     $action->registerNode($ready['actor']->id, $ready['id']);
     expect(fn () => $action->previewHost($ready['actor']->id, $ready['id'], 1234))
         ->toThrow(RuntimeException::class);
-    nw03Api(true);
+    $connection->connected = true;
     expect($action->previewHost($ready['actor']->id, $ready['id'], 1234)['remark'])->toBe('ParsaNode02-Host');
     expect($action->createHost($ready['actor']->id, $ready['id'], 1234))->toBe(NW03_HOST);
     expect($action->hostStatus($ready['actor']->id, $ready['id'])['verified'])->toBeTrue();
