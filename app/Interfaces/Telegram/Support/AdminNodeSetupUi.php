@@ -371,6 +371,7 @@ final readonly class AdminNodeSetupUi
             return;
         }
         Cache::forget('nw03:hostDraft:'.$root);
+        Cache::forget('nw03:confirm:'.$root);
         try {
             $step = $this->completion->progress($root, $identifier);
             $keyboard = InlineKeyboardMarkup::make();
