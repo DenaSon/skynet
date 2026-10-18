@@ -135,3 +135,15 @@ it('NW-02 status rechecks root identity and destroys credentials when Node runs'
     $fixture['actor']->syncRoles(['member']);
     expect(fn () => $manager->status($fixture['actor']->id, $identifier))->toThrow(AuthorizationException::class);
 });
+
+
+it('NW-02 fixed remote installer parses as POSIX shell and has no dynamic command template', function (): void {
+    $installer = base_path('resources/scripts/nw02-install-remote.sh');
+    $process = new \Symfony\Component\Process\Process(['sh', '-n', $installer]);
+    $process->mustRun();
+
+    $script = file_get_contents($installer);
+    expect($script)->toContain('docker compose up -d --no-recreate')
+        ->toContain('trap')
+        ->not->toContain('eval ');
+});
