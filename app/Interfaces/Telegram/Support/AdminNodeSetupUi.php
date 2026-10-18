@@ -46,6 +46,8 @@ final readonly class AdminNodeSetupUi
             Cache::forget(TelegramBotContext::current()->cacheKey($prefix.$id));
         }
         Cache::forget('nw02:ready:'.$id);
+        Cache::forget('nw03:hostDraft:'.$id);
+        Cache::forget('nw03:confirm:'.$id);
         $this->save($id, ['stage' => 'identity']);
         $this->render($bot, "🖥️ راه‌اندازی سرور — ۱ از ۵\n\nنام و IP عمومی سرور را وارد کنید:\nGermany-02 | 203.0.113.10", $this->cancelButton());
     }
@@ -463,6 +465,14 @@ final readonly class AdminNodeSetupUi
         $draft = Cache::get('nw03:hostDraft:'.$root);
         if (! is_array($draft) || ! is_string($draft['id'] ?? null)) {
             return false;
+        }
+        // Newer legacy Node/Host/Profile wizards always own their text input.
+        foreach (['node01:draft:', 'node02:draft:', 'node03:draft:', 'host01:draft:', 'host02:draft:', 'host02:batch:', 'cfg02:draft:'] as $prefix) {
+            if (Cache::has(TelegramBotContext::current()->cacheKey($prefix.$root))) {
+                Cache::forget('nw03:hostDraft:'.$root);
+
+                return false;
+            }
         }
         $identifier = $draft['id'];
         if (! ctype_digit($value) || strlen($value) > 5 || (int) $value < 1 || (int) $value > 65535) {
