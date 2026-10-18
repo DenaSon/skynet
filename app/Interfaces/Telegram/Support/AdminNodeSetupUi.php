@@ -334,6 +334,29 @@ final readonly class AdminNodeSetupUi
         }
     }
 
+    /** Resume a recent setup from the existing Node menu, without reusing credentials. */
+    public function resumeRecent(Nutgram $bot): void
+    {
+        $root = $this->root($bot);
+        if ($root === null) {
+            return;
+        }
+        if (! $this->enabled() || config('services.remnawave.node_ssh_install_enabled') !== true) {
+            $this->render($bot, 'ادامه راه‌اندازی فعلاً فعال نیست.', $this->back());
+
+            return;
+        }
+        $id = $this->installer->recent($root);
+        if ($id === null) {
+            $this->render($bot, 'راه‌اندازی قابل ادامه‌ای پیدا نشد. اگر زمان آن گذشته، وضعیت سرور را در پنل بررسی کنید.', $this->back());
+
+            return;
+        }
+
+        // The regular status path already rechecks ownership and current privilege.
+        $this->installationStatus($bot, $id);
+    }
+
     public function installationStatus(Nutgram $bot, string $identifier): void
     {
         $root = $this->root($bot);
@@ -343,18 +366,18 @@ final readonly class AdminNodeSetupUi
         try {
             $status = $this->installer->status($root, $identifier);
         } catch (Throwable) {
-            $this->render($bot, 'وضعیت نصب در دسترس نیست یا منقضی شده است.', $this->back());
+            $this->render($bot, 'اطلاعات این راه‌اندازی در دسترس نیست یا زمان آن گذشته است. پیش از شروع دوباره، فهرست سرورها و هاست‌ها را بررسی کنید.', $this->back());
 
             return;
         }
         $description = match ($status['state']) {
-            'queued' => 'در صف آماده‌سازی',
-            'launching', 'pending' => 'در حال آغاز عملیات',
+            'queued' => 'در صف آماده‌سازی. اگر انتظار طولانی شد، وضعیت اجرای کارهای پس‌زمینه را بررسی کنید.',
+            'launching', 'pending' => 'در حال شروع عملیات. می‌توانید کمی بعد وضعیت را تازه‌سازی کنید.',
             'started', 'installing' => 'در حال نصب نرم‌افزارها',
             'starting' => 'در حال راه‌اندازی سرویس',
-            'running' => '✅ نرم‌افزار سرور نصب و اجرا شده است. اتصال به پنل در مرحله بعد انجام می‌شود.',
-            'failed' => '❌ نصب موفق نبود. پیش از درخواست مجدد، سرور باید بررسی شود.',
-            default => '⚠️ نتیجه عملیات مشخص نیست. پیش از تلاش مجدد وضعیت سرور را بررسی کنید.',
+            'running' => '✅ سرویس سرور راه‌اندازی شده است. ثبت در پنل و بررسی اتصال هنوز باقی مانده است.',
+            'failed' => '❌ نصب کامل نشد. ابتدا وضعیت سرویس را روی سرور بررسی کنید؛ درخواست نصب جدید را بدون بررسی تکرار نکنید.',
+            default => '⚠️ نتیجه نصب هنوز روشن نیست. وضعیت سرور را بررسی کنید؛ شروع دوباره ممکن است نصب قبلی را تکرار کند.',
         };
         $keyboard = $this->statusKeyboard($identifier);
         if ($status['state'] === 'running'
