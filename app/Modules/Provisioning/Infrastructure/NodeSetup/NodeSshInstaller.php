@@ -47,7 +47,7 @@ class NodeSshInstaller
             ."cat > /opt/remnanode/docker-compose.yml <<'NW02_COMPOSE'\n".$compose."NW02_COMPOSE\n"
             ."chmod 0600 /opt/remnanode/docker-compose.yml\n"
             ."printf 'pending\\n' > /opt/parsa-node-install/status\n"
-            ."systemd-run --no-block --collect --unit=parsa-node-bootstrap "
+            .'systemd-run --no-block --collect --unit=parsa-node-bootstrap '
             ."/bin/sh /opt/parsa-node-install/install.sh >/dev/null\n"
             ."printf 'STARTED\\n'\n";
         $reply = trim($this->ssh($ip, $port, $user, $password, $knownHost, $payload, 35));
