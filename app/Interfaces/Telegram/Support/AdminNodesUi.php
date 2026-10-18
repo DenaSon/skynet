@@ -7,6 +7,7 @@ namespace App\Interfaces\Telegram\Support;
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Provisioning\Application\ManageAdminNodes;
+use App\Modules\Provisioning\Application\ManageNodeInstallation;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
@@ -22,6 +23,7 @@ final readonly class AdminNodesUi
         private PrivateTelegramUser $private,
         private ResolveTelegramActor $actors,
         private ManageAdminNodes $nodes,
+        private ManageNodeInstallation $installations,
         private MenuRenderer $menus,
     ) {}
 
@@ -83,6 +85,10 @@ final readonly class AdminNodesUi
         }
         if (config('services.remnawave.node_ssh_setup_enabled') === true) {
             $keyboard->addRow(InlineKeyboardButton::make('🛠️ راه‌اندازی سرور جدید', callback_data: 'nw1:begin'));
+            if (config('services.remnawave.node_ssh_install_enabled') === true
+                && $this->installations->recent($root) !== null) {
+                $keyboard->addRow(InlineKeyboardButton::make('↪️ ادامه راه‌اندازی اخیر', callback_data: 'nw4:recent'));
+            }
         }
         $keyboard->addRow(InlineKeyboardButton::make('🏷️ تگ‌ها', callback_data: 'node1:tags'));
         $keyboard->addRow(InlineKeyboardButton::make('🌐 مدیریت هاست‌ها', callback_data: 'host1:list:1'));
