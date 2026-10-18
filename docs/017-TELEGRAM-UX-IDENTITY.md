@@ -73,3 +73,9 @@ Review this standard before every future Telegram UI feature.
 - Client port is a separate user-entered field and must match the chosen inbound; do not imply SSH or Node management ports are customer endpoints.
 - The Host is created disabled. Link to existing Host details and its separate enable confirmation; if its profile/inbound cannot be verified, show a short manual-review notice.
 - Show a clear instruction to review Internal Squad access before enabling a Host. No automatic edits to users, squads or sales.
+
+## NW-04 — Recovery UX
+
+- Show «ادامه راه‌اندازی اخیر» in the existing Node menu only when an authorized unexpired attempt exists and SSH install is enabled; do not show a dead button or retain secrets in the bookmark.
+- In pending/failed/uncertain states, say what to check without inventing success, requiring blind retries or revealing debug logs/credentials.
+- For a server setup begun in another menu session, the same status screen must be recoverable; no new install, Node, Host or Squad write is triggered by refresh or return. Preserve current Node/Host/Profile menus and separate Host enable confirmation.
