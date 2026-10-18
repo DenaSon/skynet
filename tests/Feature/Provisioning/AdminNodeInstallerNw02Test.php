@@ -147,3 +147,61 @@ it('NW-02 fixed remote installer parses as POSIX shell and has no dynamic comman
         ->toContain('trap')
         ->not->toContain('eval ');
 });
+
+
+it('NW-04 resumes an actor-owned recent setup without extending an expired checkpoint', function (): void {
+    $fixture = nw02Fixture();
+    Queue::fake();
+    Http::preventStrayRequests();
+    $manager = app(ManageNodeInstallation::class);
+
+    $id = $manager->enqueue($fixture['actor']->id, $fixture['ready']);
+    expect($manager->recent($fixture['actor']->id))->toBe($id);
+    expect(fn () => $manager->recent($fixture['other']->id))->toThrow(AuthorizationException::class);
+
+    Cache::forget('nw02:status:'.$id);
+    expect($manager->recent($fixture['actor']->id))->toBeNull()
+        ->and(Cache::get('nw02:last:'.$fixture['actor']->id))->toBeNull();
+    Http::assertNothingSent();
+});
+
+it('NW-04 recovers launching state with read-only SSH status and never replays an installer', function (): void {
+    $fixture = nw02Fixture();
+    Queue::fake();
+    Http::preventStrayRequests();
+    $manager = app(ManageNodeInstallation::class);
+    $id = $manager->enqueue($fixture['actor']->id, $fixture['ready']);
+    $state = Cache::get('nw02:status:'.$id);
+    $state['state'] = 'launching';
+    Cache::put('nw02:status:'.$id, $state, now()->addHour());
+
+    $fake = Mockery::mock(NodeSshInstaller::class);
+    $fake->shouldReceive('status')->once()->andReturn('running');
+    $fake->shouldNotReceive('start');
+    app()->instance(NodeSshInstaller::class, $fake);
+
+    $result = app(ManageNodeInstallation::class)->status($fixture['actor']->id, $id);
+    expect($result['state'])->toBe('running')
+        ->and(Cache::get('nw02:access:'.$id))->toBeNull()
+        ->and(app(ManageNodeInstallation::class)->recent($fixture['actor']->id))->toBe($id);
+    Queue::assertPushed(InstallRemnawaveNode::class, 1);
+    Http::assertNothingSent();
+});
+
+it('NW-04 retains the uncertain state when a recovery poll cannot reach the VPS', function (): void {
+    $fixture = nw02Fixture();
+    Queue::fake();
+    Http::preventStrayRequests();
+    $id = app(ManageNodeInstallation::class)->enqueue($fixture['actor']->id, $fixture['ready']);
+    $state = Cache::get('nw02:status:'.$id);
+    $state['state'] = 'uncertain';
+    Cache::put('nw02:status:'.$id, $state, now()->addHour());
+
+    $fake = Mockery::mock(NodeSshInstaller::class);
+    $fake->shouldReceive('status')->once()->andThrow(new RuntimeException('SSH unavailable'));
+    $fake->shouldNotReceive('start');
+    app()->instance(NodeSshInstaller::class, $fake);
+
+    expect(app(ManageNodeInstallation::class)->status($fixture['actor']->id, $id)['state'])->toBe('uncertain');
+    Http::assertNothingSent();
+});
