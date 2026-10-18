@@ -160,6 +160,13 @@ $bot->onCallbackQueryData('nw1:scan:{token}', function (Nutgram $bot, string $to
 $bot->onCallbackQueryData('nw1:trust:{token}', function (Nutgram $bot, string $token): void {
     app(AdminNodeSetupUi::class)->trust($bot, $token);
 });
+$bot->onCallbackQueryData('nw2:start:{token}', function (Nutgram $bot, string $token): void {
+    app(AdminNodeSetupUi::class)->install($bot, $token);
+});
+$bot->onCallbackQueryData('nw2:status:{identifier}', function (Nutgram $bot, string $identifier): void {
+    app(AdminNodeSetupUi::class)->installationStatus($bot, $identifier);
+});
+
 $bot->onCallbackQueryData('nw1:cancel', function (Nutgram $bot): void {
     app(AdminNodeSetupUi::class)->cancel($bot);
 });
