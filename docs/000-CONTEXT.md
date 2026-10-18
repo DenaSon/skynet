@@ -1,5 +1,18 @@
 # ParsaGate — Current Context / Development Memory 
 
+## NW-02 — automatic SSH installation engine (2026-10-18)
+
+- Scope: A separate root/private Admin confirmation after a successful NW-01 verified fingerprint/password preflight, an opaque-ID single-attempt Laravel Queue job, fixed remote installer launch and status refresh. Existing Admin Node/Host/Profile actions are reused for navigation, not duplicated. No Remnawave Node POST, Host creation, Squad mutation, customer provisioning or purchases in NW-02.
+- Gates: both NODE_SSH_SETUP_ENABLED and independent NODE_SSH_INSTALL_ENABLED must be true; install gate defaults false, including on merge. The existing REMNAWAVE_WRITES_ENABLED remains unchanged and off by default. Never run a live install from an automated merge.
+- Auth: validated public IPv4 and trusted private Super Admin; only preverified root password SSH is supported. The previously operator-confirmed ED25519 known_hosts identity is strictly pinned by OpenSSH. Password message deletion remains required in NW-01.
+- Queuing: consume a 10-minute one-use install confirmation, reserve each target IP once per 3h via existing Cache, store only Laravel-Crypt-encrypted SSH secrets in short-lived shared Cache (max 2h), serialize only a random identifier into the queue; one try/55-second launcher maximum. A dropped SSH response is classified uncertain, never auto-replayed. Confirmation is required to start real remote writes.
+- Remote: use ssh with dedicated ephemeral SSH_ASKPASS subprocess environment, no secret argv, fixed root-owned payload on stdin; refuse an existing /opt/remnanode Compose or .env and an existing remnanode Docker container. Detached systemd installation runs the official Docker apt packages if needed; uses tagged remnawave/node:3.4.2, host networking, NET_ADMIN and NODE_PORT=2222. A validated GET /api/keygen response.secretKey is transported only through pinned SSH and written 0600 to the remote Node .env; no provider POST. Status is fixed-value only (pending/installing/starting/running/failed); server process logs are not forwarded to Telegram.
+- UI: one explicit start-install button after SSH preflight, followed by check-status and back. Running means remote container launched, NOT that Node is registered, connected, provisioned or VPN tested; those are NW-03/NW-04. Requires production queue worker, shared encrypted Cache, permitted outbound SSH, ssh/ssh-keyscan and working systemd on VPS, Docker repositories reachable. Status can expire; no blind retries. Existing user configuration is not deleted/overwritten.
+- Risk: Do not expose Node API port 2222 publicly; restrict it to the panel IP using VPS/provider firewall after installation, and retain SSH access. The installer does not alter system firewalls (would risk cutting off SSH), change existing Docker setups or roll back apt side effects. An interrupted install can leave staged files; operator must inspect the VPS before manual cleanup. Telegram bot chats are not E2EE; rotate the root password after use.
+- Verification: fake HTTP/Queue/SSH tests and CI are source-only; no live Runflare outbound SSH, Telegram password-message deletion, official keygen response or fresh VPS install is claimed without an operator smoke. NW-02 must not be marked production-ready on source tests alone.
+
+
+
 ## NW-01 — Password SSH preflight wizard (2026-10-18)
 
 **Source scope and gate:** Admin Bot linked trusted Super Admin only, private chats. Adds separate NW-01 route and text wizard for public IPv4, name, SSH port, SSH username/password, existing Config Profile/Inbound. Feature gate NODE_SSH_SETUP_ENABLED defaults to false; it is separate from REMNAWAVE_WRITES_ENABLED and does not enable any provider writes.
