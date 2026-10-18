@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
-use App\Interfaces\Telegram\Support\AdminNodeSetupUi;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Application\CompleteNodeSetup;
@@ -187,7 +186,7 @@ it('NW-03 Host port input never consumes text from a newer legacy Node wizard', 
     Cache::put('nw03:hostDraft:'.$owner, ['id' => $ready['id']], now()->addMinutes(10));
     Cache::put($legacy, ['stage' => 'info'], now()->addMinutes(10));
 
-    expect(app(AdminNodeSetupUi::class)->text($bot, '1234'))->toBeFalse()
-        ->and(Cache::get('nw03:hostDraft:'.$owner))->toBeNull()
+    $bot->hearText('1234')->reply();
+    expect(Cache::get('nw03:hostDraft:'.$owner))->toBeNull()
         ->and(Cache::get($legacy)['stage'])->toBe('info');
 });
