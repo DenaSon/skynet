@@ -49,7 +49,7 @@ final readonly class AdminNodeSetupUi
         Cache::forget('nw03:hostDraft:'.$id);
         Cache::forget('nw03:confirm:'.$id);
         $this->save($id, ['stage' => 'identity']);
-        $this->render($bot, "🖥️ راه‌اندازی سرور — ۱ از ۵\n\nنام و IP عمومی سرور را وارد کنید:\nGermany-02 | 203.0.113.10", $this->cancelButton());
+        $this->render($bot, "🖥️ راه‌اندازی سرور\n\nنام دلخواه و IP عمومی سرور را با | جدا کنید:\nGermany-02 | IP عمومی VPS", $this->cancelButton());
     }
 
     public function text(Nutgram $bot, string $value): bool
@@ -133,7 +133,7 @@ final readonly class AdminNodeSetupUi
             $draft['name'] = $name;
             $draft['ip'] = $ip;
             $draft['stage'] = 'port';
-            $next = "🖥️ راه‌اندازی سرور — ۲ از ۵\n\nپورت SSH را وارد کنید (معمولاً 22).";
+            $next = "🖥️ اتصال به سرور\n\nپورت SSH را وارد کنید (معمولاً 22).";
         } elseif ($stage === 'port') {
             $port = ctype_digit($value) && strlen($value) <= 5 ? (int) $value : 0;
             if ($port < 1 || $port > 65535) {
@@ -143,7 +143,7 @@ final readonly class AdminNodeSetupUi
             }
             $draft['port'] = $port;
             $draft['stage'] = 'username';
-            $next = "🖥️ راه‌اندازی سرور — ۳ از ۵\n\nنام کاربری SSH را وارد کنید (مثلاً root).";
+            $next = "🖥️ اتصال به سرور\n\nنام کاربری SSH را وارد کنید (برای نصب خودکار: root).";
         } else {
             if (preg_match('/\A[a-z_][a-z0-9_-]{0,31}\z/iD', $value) !== 1) {
                 $this->render($bot, 'نام کاربری معتبر نیست.', $this->cancelButton());
@@ -152,7 +152,7 @@ final readonly class AdminNodeSetupUi
             }
             $draft['username'] = $value;
             $draft['stage'] = 'password';
-            $next = "🔐 راه‌اندازی سرور — ۴ از ۵\n\nرمز SSH را در همین گفتگوی خصوصی ارسال کنید.\nپیام رمز پس از دریافت حذف می‌شود.";
+            $next = "🔐 رمز سرور\n\nرمز SSH را فقط در همین گفتگوی خصوصی بفرستید. پیام پس از دریافت حذف می‌شود؛ بعد از راه‌اندازی رمز را تغییر دهید.";
         }
         $this->save($id, $draft);
         $this->render($bot, $next, $this->cancelButton());
@@ -203,7 +203,7 @@ final readonly class AdminNodeSetupUi
         $draft['token'] = bin2hex(random_bytes(16));
         $draft['stage'] = 'preview';
         $this->save($id, $draft);
-        $this->render($bot, "🖥️ بررسی اطلاعات — ۵ از ۵\n\n"
+        $this->render($bot, "🖥️ بازبینی مشخصات سرور\n\n"
             .'نام: '.$draft['name']."\nIP: ".$draft['ip']."\nپورت: ".$draft['port']."\n"
             .'کاربر: '.$draft['username']."\nپروفایل: ".$draft['profile']['name']."\nورودی: ".$inbound['name']
             ."\n\nدر این مرحله هیچ تغییری روی سرور انجام نمی‌شود.",
@@ -585,6 +585,8 @@ final readonly class AdminNodeSetupUi
         }
         Cache::forget($this->key($id));
         Cache::forget('nw02:ready:'.$id);
+        Cache::forget('nw03:hostDraft:'.$id);
+        Cache::forget('nw03:confirm:'.$id);
         $this->render($bot, 'راه‌اندازی لغو شد.', $this->back());
     }
 
