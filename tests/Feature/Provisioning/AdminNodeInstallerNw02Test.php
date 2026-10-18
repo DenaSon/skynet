@@ -148,7 +148,6 @@ it('NW-02 fixed remote installer parses as POSIX shell and has no dynamic comman
         ->not->toContain('eval ');
 });
 
-
 it('NW-04 resumes an actor-owned recent setup without extending an expired checkpoint', function (): void {
     $fixture = nw02Fixture();
     Queue::fake();
