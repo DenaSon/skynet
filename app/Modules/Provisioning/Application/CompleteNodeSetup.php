@@ -6,7 +6,6 @@ namespace App\Modules\Provisioning\Application;
 
 use Illuminate\Support\Facades\Cache;
 use RuntimeException;
-use Throwable;
 
 /**
  * NW-03: small coordinator over existing NODE-01 and HOST-01 Actions.
