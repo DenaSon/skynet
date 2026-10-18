@@ -344,7 +344,6 @@ it('NW-01 yields to a newer legacy Node wizard instead of intercepting its text'
     expect(Cache::get(TelegramBotContext::current()->cacheKey('node01:draft:'.$actors['root']->id))['stage'])->toBe('profile');
 });
 
-
 it('NW-04 private Admin can resume a recent setup while ordinary users cannot', function (): void {
     $actors = node01Actors();
     node01FakeProvider();
