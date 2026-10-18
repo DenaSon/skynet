@@ -160,6 +160,10 @@ $bot->onCallbackQueryData('nw1:scan:{token}', function (Nutgram $bot, string $to
 $bot->onCallbackQueryData('nw1:trust:{token}', function (Nutgram $bot, string $token): void {
     app(AdminNodeSetupUi::class)->trust($bot, $token);
 });
+$bot->onCallbackQueryData('nw4:recent', function (Nutgram $bot): void {
+    app(AdminNodeSetupUi::class)->resumeRecent($bot);
+});
+
 $bot->onCallbackQueryData('nw3:resume:{identifier}', function (Nutgram $bot, string $identifier): void {
     app(AdminNodeSetupUi::class)->completionOverview($bot, $identifier);
 });
