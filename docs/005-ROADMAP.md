@@ -1,5 +1,13 @@
 # Roadmap
 
+## NW-04 — Final source review, recovery and operator acceptance (2026-10-18)
+
+- Final MVP Node setup UX remains in existing Admin Node management (NW-01 → NW-02 → NW-03), no parallel SSH/Provider subsystem and no Sales/Billing work. New Admin-only `nw4:recent` callback and contextual `↪️ ادامه راه‌اندازی اخیر` button read one authorized **nonsecret** bookmark in Cache for up to three hours; it is also available if the Provider Node inventory GET fails. No extra migration or dependency.
+- Recovery fixes: a detached installation stuck in **launching** can be checked using existing pinned SSH *read-only* status without replaying the Queue job or issuing Provider writes. Failed/uncertain/pending states have clearer operator guidance. Cancel retires NW-01/NW-02/NW-03 pending UI drafts; old Node/Host/Profile routes retained. SSH credentials remain encrypted and deleted on confirmed Node running; no credential is stored in the bookmark.
+- Security gates stay default OFF: `NODE_SSH_SETUP_ENABLED=false`, `NODE_SSH_INSTALL_ENABLED=false`, `REMNAWAVE_WRITES_ENABLED=false`. Admin Trusted Root/private-only; no silent retry, no Host auto-enable, no automatic Squad/user mutation, no firewall edits, no destructive migrations.
+- **Acceptance is split:** PHP 8.4/8.5, Laravel/Pest, PHPStan/Pint, disposable MySQL CI and fake SSH/API/Queue/RBAC regression tests may close NW-04 **source/CI only**. A real isolated VPS, Runflare SSH, Telegram password deletion, actual Node Connected, Host binding and client egress require separate operator live evidence. Runbook and rollback: [NW04-OPERATOR-ACCEPTANCE.md](NW04-OPERATOR-ACCEPTANCE.md). Do not claim Live PASS without that evidence.
+
+
 ## NW-03 — Supervised Node registration and disabled Host (2026-10-18)
 
 - Source scope: Reuse **NW-02 completed** `nw02:status` cache checkpoint (`state=running`), verified root/private Admin UI, `ManageAdminNodes` and `ManageAdminHosts`. No new provider client, schema, queue, payment, Sales Bot or parallel management system. The NW-03 coordinator only orchestrates these existing Actions.
