@@ -66,3 +66,10 @@ Review this standard before every future Telegram UI feature.
 - After the verified server check, show one explicit install confirmation; never begin remote writes from a read-only validation callback.
 - Only show short Persian state messages for queued, installing, running, failed or uncertain operations. Do not expose SSH password, Node SECRET_KEY, raw logs, Linux package commands or internal phase labels.
 - Refresh status without auto-retrying. A running server is not a connected Node until panel registration in the following flow. Always preserve Back and the original Node/Host menus.
+
+## NW-03 — Node/Host completion
+
+- One explicit confirmation to register an installed Node, followed by a fresh connection check; disconnected or unavailable must not look successful.
+- Client port is a separate user-entered field and must match the chosen inbound; do not imply SSH or Node management ports are customer endpoints.
+- The Host is created disabled. Link to existing Host details and its separate enable confirmation; if its profile/inbound cannot be verified, show a short manual-review notice.
+- Show a clear instruction to review Internal Squad access before enabling a Host. No automatic edits to users, squads or sales.

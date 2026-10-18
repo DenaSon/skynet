@@ -160,6 +160,22 @@ $bot->onCallbackQueryData('nw1:scan:{token}', function (Nutgram $bot, string $to
 $bot->onCallbackQueryData('nw1:trust:{token}', function (Nutgram $bot, string $token): void {
     app(AdminNodeSetupUi::class)->trust($bot, $token);
 });
+$bot->onCallbackQueryData('nw3:resume:{identifier}', function (Nutgram $bot, string $identifier): void {
+    app(AdminNodeSetupUi::class)->completionOverview($bot, $identifier);
+});
+$bot->onCallbackQueryData('nw3:node:prepare:{identifier}', function (Nutgram $bot, string $identifier): void {
+    app(AdminNodeSetupUi::class)->prepareNodeRegistration($bot, $identifier);
+});
+$bot->onCallbackQueryData('nw3:node:apply:{token}', function (Nutgram $bot, string $token): void {
+    app(AdminNodeSetupUi::class)->applyNodeRegistration($bot, $token);
+});
+$bot->onCallbackQueryData('nw3:host:begin:{identifier}', function (Nutgram $bot, string $identifier): void {
+    app(AdminNodeSetupUi::class)->beginHostCreation($bot, $identifier);
+});
+$bot->onCallbackQueryData('nw3:host:apply:{token}', function (Nutgram $bot, string $token): void {
+    app(AdminNodeSetupUi::class)->applyHostCreation($bot, $token);
+});
+
 $bot->onCallbackQueryData('nw2:start:{token}', function (Nutgram $bot, string $token): void {
     app(AdminNodeSetupUi::class)->install($bot, $token);
 });

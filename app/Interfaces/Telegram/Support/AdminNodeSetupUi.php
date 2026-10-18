@@ -6,6 +6,7 @@ namespace App\Interfaces\Telegram\Support;
 
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Identity\Application\ResolveTelegramActor;
+use App\Modules\Provisioning\Application\CompleteNodeSetup;
 use App\Modules\Provisioning\Application\ManageAdminNodes;
 use App\Modules\Provisioning\Application\ManageNodeInstallation;
 use App\Modules\Provisioning\Application\NodeSetupReadiness;
@@ -25,6 +26,7 @@ final readonly class AdminNodeSetupUi
         private ManageAdminNodes $nodes,
         private NodeSetupReadiness $ssh,
         private ManageNodeInstallation $installer,
+        private CompleteNodeSetup $completion,
         private MenuRenderer $menus,
     ) {}
 
@@ -44,6 +46,8 @@ final readonly class AdminNodeSetupUi
             Cache::forget(TelegramBotContext::current()->cacheKey($prefix.$id));
         }
         Cache::forget('nw02:ready:'.$id);
+        Cache::forget('nw03:hostDraft:'.$id);
+        Cache::forget('nw03:confirm:'.$id);
         $this->save($id, ['stage' => 'identity']);
         $this->render($bot, "🖥️ راه‌اندازی سرور — ۱ از ۵\n\nنام و IP عمومی سرور را وارد کنید:\nGermany-02 | 203.0.113.10", $this->cancelButton());
     }
@@ -56,6 +60,9 @@ final readonly class AdminNodeSetupUi
         $id = $this->root($bot, false);
         if ($id === null) {
             return false;
+        }
+        if ($this->hostPortInput($bot, $id, $value)) {
+            return true;
         }
         $draft = $this->draft($id);
         $stage = $draft['stage'] ?? null;
@@ -349,8 +356,195 @@ final readonly class AdminNodeSetupUi
             'failed' => '❌ نصب موفق نبود. پیش از درخواست مجدد، سرور باید بررسی شود.',
             default => '⚠️ نتیجه عملیات مشخص نیست. پیش از تلاش مجدد وضعیت سرور را بررسی کنید.',
         };
+        $keyboard = $this->statusKeyboard($identifier);
+        if ($status['state'] === 'running'
+            && config('services.remnawave.writes_enabled') === true
+            && config('services.remnawave.node_ssh_install_enabled') === true) {
+            $keyboard->addRow(InlineKeyboardButton::make('➡️ تکمیل اتصال سرور', callback_data: 'nw3:resume:'.$identifier));
+        }
         $this->render($bot, "🖥️ وضعیت آماده‌سازی\n\nنام: ".$status['name']."\n".$description,
-            $this->statusKeyboard($identifier));
+            $keyboard);
+    }
+
+    public function completionOverview(Nutgram $bot, string $identifier): void
+    {
+        $root = $this->root($bot);
+        if ($root === null) {
+            return;
+        }
+        Cache::forget('nw03:hostDraft:'.$root);
+        Cache::forget('nw03:confirm:'.$root);
+        try {
+            $step = $this->completion->progress($root, $identifier);
+            $keyboard = InlineKeyboardMarkup::make();
+            $message = '🖥️ تکمیل اتصال سرور';
+
+            if ($step['nodeStage'] === 'ready') {
+                $message .= "\n\nنرم‌افزار روی سرور اجرا شده است. ثبت این سرور در پنل نیاز به تأیید شما دارد.";
+                $keyboard->addRow(InlineKeyboardButton::make('➕ ثبت سرور در پنل', callback_data: 'nw3:node:prepare:'.$identifier));
+            } elseif ($step['nodeStage'] !== 'registered') {
+                $message .= "\n\n⚠️ نتیجه ثبت سرور مشخص نیست. فهرست سرورها را در پنل بررسی کنید؛ ثبت مجدد خودکار انجام نمی‌شود.";
+            } else {
+                $node = $this->completion->nodeStatus($root, $identifier);
+                if (! $node['connected'] || $node['disabled']) {
+                    $message .= "\n\n⏳ سرور ثبت شده است، ولی هنوز اتصال فعال آن از پنل تأیید نشده است.";
+                } elseif ($step['hostStage'] === 'ready') {
+                    $message .= "\n\n✅ سرور به پنل متصل است. اکنون می‌توانید هاست را ایجاد کنید.";
+                    $keyboard->addRow(InlineKeyboardButton::make('➕ ساخت هاست', callback_data: 'nw3:host:begin:'.$identifier));
+                } elseif ($step['hostStage'] !== 'created') {
+                    $message .= "\n\n⚠️ نتیجه ساخت هاست مشخص نیست؛ فهرست هاست‌ها را بررسی کنید.";
+                } else {
+                    $host = $this->completion->hostStatus($root, $identifier);
+                    $message .= $host['verified']
+                        ? "\n\n✅ هاست به‌صورت غیرفعال ساخته و مشخصات آن تأیید شد.\nقبل از فعال‌سازی، دسترسی گروه اشتراک و اتصال کلاینت را بررسی کنید."
+                        : "\n\n⚠️ هاست ساخته شده، ولی تمام مشخصات ارتباطی آن از پنل تأیید نشده است. آن را در بخش هاست‌ها بررسی کنید.";
+                    $keyboard->addRow(InlineKeyboardButton::make('🌐 مشاهده هاست', callback_data: 'host1:view:'.$host['uuid']));
+                }
+            }
+
+            $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'nw3:resume:'.$identifier));
+            $keyboard->addRow(InlineKeyboardButton::make('◀️ مدیریت نودها', callback_data: 'node1:list:1'));
+            $this->render($bot, $message, $keyboard);
+        } catch (Throwable) {
+            $this->render($bot, 'بررسی وضعیت اتصال ممکن نشد. تنظیمات و وضعیت پنل را بررسی کنید.', $this->back());
+        }
+    }
+
+    public function prepareNodeRegistration(Nutgram $bot, string $identifier): void
+    {
+        $root = $this->root($bot);
+        if ($root === null) {
+            return;
+        }
+        try {
+            $review = $this->completion->previewNode($root, $identifier);
+            $token = bin2hex(random_bytes(16));
+            Cache::put('nw03:confirm:'.$root, [
+                'kind' => 'node', 'id' => $identifier, 'token' => $token,
+            ], now()->addMinutes(10));
+            $this->render($bot, "➕ تأیید ثبت سرور\n\n"
+                .'نام: '.$review['name']."\n"
+                .'IP: '.$review['address']."\n\n"
+                .'سرور در پنل ثبت می‌شود؛ هیچ کاربری جابه‌جا نخواهد شد.',
+                InlineKeyboardMarkup::make()
+                    ->addRow(InlineKeyboardButton::make('✅ ثبت سرور', callback_data: 'nw3:node:apply:'.$token))
+                    ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'nw3:resume:'.$identifier)));
+        } catch (Throwable) {
+            $this->render($bot, 'اطلاعات سرور یا تنظیمات اتصال معتبر نیست، یا سرور قبلاً ثبت شده است.', $this->back());
+        }
+    }
+
+    public function applyNodeRegistration(Nutgram $bot, string $token): void
+    {
+        $this->applyConfirmation($bot, $token, 'node');
+    }
+
+    public function beginHostCreation(Nutgram $bot, string $identifier): void
+    {
+        $root = $this->root($bot);
+        if ($root === null) {
+            return;
+        }
+        try {
+            $step = $this->completion->progress($root, $identifier);
+            $node = $this->completion->nodeStatus($root, $identifier);
+            if ($step['hostStage'] !== 'ready' || ! $node['connected'] || $node['disabled']) {
+                throw new \RuntimeException('Not ready');
+            }
+            Cache::put('nw03:hostDraft:'.$root, ['id' => $identifier], now()->addMinutes(10));
+            $this->render($bot, "🌐 افزودن هاست\n\nپورت ورودی اتصال کاربران را ارسال کنید (مثلاً 1234).\nاین پورت باید با تنظیمات ورودی انتخاب‌شده در پنل یکسان باشد.",
+                InlineKeyboardMarkup::make()
+                    ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'nw3:resume:'.$identifier)));
+        } catch (Throwable) {
+            $this->render($bot, 'ابتدا اتصال فعال سرور را در پنل تأیید کنید.', $this->back());
+        }
+    }
+
+    private function hostPortInput(Nutgram $bot, int $root, string $value): bool
+    {
+        $draft = Cache::get('nw03:hostDraft:'.$root);
+        if (! is_array($draft) || ! is_string($draft['id'] ?? null)) {
+            return false;
+        }
+        // Newer legacy Node/Host/Profile wizards always own their text input.
+        foreach (['node01:draft:', 'node02:draft:', 'node03:draft:', 'host01:draft:', 'host02:draft:', 'host02:batch:', 'cfg02:draft:'] as $prefix) {
+            if (Cache::has(TelegramBotContext::current()->cacheKey($prefix.$root))) {
+                Cache::forget('nw03:hostDraft:'.$root);
+
+                return false;
+            }
+        }
+        $identifier = $draft['id'];
+        if (! ctype_digit($value) || strlen($value) > 5 || (int) $value < 1 || (int) $value > 65535) {
+            $this->render($bot, 'لطفاً یک پورت معتبر بین ۱ تا ۶۵۵۳۵ وارد کنید.',
+                InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'nw3:resume:'.$identifier)));
+
+            return true;
+        }
+        try {
+            $port = (int) $value;
+            $review = $this->completion->previewHost($root, $identifier, $port);
+            $token = bin2hex(random_bytes(16));
+            Cache::forget('nw03:hostDraft:'.$root);
+            Cache::put('nw03:confirm:'.$root, [
+                'kind' => 'host', 'id' => $identifier, 'port' => $port, 'token' => $token,
+            ], now()->addMinutes(10));
+            $this->render($bot, "🌐 تأیید ساخت هاست\n\n"
+                .'نام: '.$review['remark']."\nآدرس: ".$review['address']."\nپورت: ".$port
+                ."\n\nهاست ابتدا غیرفعال ساخته می‌شود. فعال‌سازی به تأیید جداگانه نیاز دارد.",
+                InlineKeyboardMarkup::make()
+                    ->addRow(InlineKeyboardButton::make('✅ ساخت هاست غیرفعال', callback_data: 'nw3:host:apply:'.$token))
+                    ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'nw3:resume:'.$identifier)));
+        } catch (Throwable) {
+            Cache::forget('nw03:hostDraft:'.$root);
+            $this->render($bot, 'تنظیمات هاست معتبر نیست یا هاست مشابهی وجود دارد. تنظیمات پنل را بررسی کنید.', $this->back());
+        }
+
+        return true;
+    }
+
+    public function applyHostCreation(Nutgram $bot, string $token): void
+    {
+        $this->applyConfirmation($bot, $token, 'host');
+    }
+
+    private function applyConfirmation(Nutgram $bot, string $token, string $kind): void
+    {
+        $root = $this->root($bot);
+        if ($root === null) {
+            return;
+        }
+        if (preg_match('/\A[a-f0-9]{32}\z/D', $token) !== 1) {
+            $this->expired($bot);
+
+            return;
+        }
+        $key = 'nw03:confirm:'.$root;
+        try {
+            $state = Cache::lock($key.':lock', 15)->block(1, static function () use ($key, $token, $kind): mixed {
+                $data = Cache::get($key);
+                if (! is_array($data) || ($data['kind'] ?? null) !== $kind
+                    || ! is_string($data['token'] ?? null) || ! hash_equals($data['token'], $token)) {
+                    return null;
+                }
+                Cache::forget($key);
+
+                return $data;
+            });
+            if (! is_array($state)) {
+                $this->expired($bot);
+
+                return;
+            }
+            if ($kind === 'node') {
+                $this->completion->registerNode($root, $state['id']);
+            } else {
+                $this->completion->createHost($root, $state['id'], $state['port']);
+            }
+            $this->completionOverview($bot, $state['id']);
+        } catch (Throwable) {
+            $this->render($bot, 'نتیجه عملیات تأیید نشد. پیش از هر تلاش جدید، فهرست سرورها یا هاست‌ها را بررسی کنید.', $this->back());
+        }
     }
 
     private function statusKeyboard(string $identifier): InlineKeyboardMarkup

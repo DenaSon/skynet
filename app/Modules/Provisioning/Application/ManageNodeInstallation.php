@@ -140,6 +140,41 @@ final readonly class ManageNodeInstallation
         ];
     }
 
+    /**
+     * NW-03: non-secret installation snapshot for the existing Node/Host actions.
+     * Only a currently trusted operator can access their own completed setup.
+     *
+     * @return array<string,mixed>
+     */
+    public function context(int $actorId, string $identifier): array
+    {
+        $this->access->handle($actorId);
+        $state = $this->meta($identifier);
+        if ($state['owner'] !== $actorId || $state['state'] !== 'running') {
+            throw new RuntimeException('Installation is not verified as running or is not owned by actor.');
+        }
+
+        return $state;
+    }
+
+    /**
+     * NW-03: update only the non-secret setup checkpoint under a separate
+     * per-installation lock used by the registration coordinator.
+     *
+     * @param  array<string,mixed>  $changes
+     */
+    public function checkpoint(int $actorId, string $identifier, array $changes): void
+    {
+        $state = $this->context($actorId, $identifier);
+        foreach ($changes as $key => $value) {
+            if (! in_array($key, ['nodeStage', 'nodeUuid', 'hostStage', 'hostUuid'], true)) {
+                throw new RuntimeException('Unsupported setup checkpoint field.');
+            }
+            $state[$key] = $value;
+        }
+        $this->persist($identifier, $state);
+    }
+
     /** @return array<string,mixed> */
     private function meta(string $id): array
     {
