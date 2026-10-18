@@ -19,7 +19,7 @@ uses(RefreshDatabase::class);
 /** @return array{actor:User,other:User,ready:array<string,mixed>} */
 function nw02Fixture(): array
 {
-    config()->set('super_admin.telegram_ids', ['981101']);
+    config()->set('super_admin.telegram_ids', ['981101', '981102']);
     config()->set('services.remnawave.url', 'https://rw.nw02.test');
     config()->set('services.remnawave.token', 'fake-token');
     config()->set('services.remnawave.writes_enabled', false);
