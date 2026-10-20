@@ -37,6 +37,12 @@ DenaGate is a practical Persian Telegram bot. A person can administer products, 
 - InlineKeyboard is for object actions, selections, Back, Cancel and confirmations. Stale historic Reply labels plus old commands and callbacks MUST remain routable and re-authorized; never delete an Action to simplify a menu.
 - Navigation is contextual; Back returns to a parent, Cancel makes no mutation. No inert buttons. Never assume hiding a button replaces server authorization.
 
+## UXR-02 — Sales-only payment presentation (2026-10-20)
+- Preset selection from Sales home or catalog opens the one-screen payment directly, with fresh buyer/price/Squad validation; no separate preflight/preview/confirmation page. Existing callbacks remain safe, Admin and legacy routes remain independent.
+- Render the **recorded order price** in bold tomans, with plan/traffic/duration and only real configured destination details. Escape all dynamic text in Telegram HTML; use native CopyTextButton for exact bank card and amount. Do not ship sample or inferred payment details.
+- A short optional ForceReply is a UX hint for photos, **never** proof of ownership or payment; photo submission verifies current private Sales account, owned payable order, 10-minute scoped state and duplicate media through existing Actions. After receipt: «رسید دریافت شد؛ منتظر بررسی مدیر باشید». No Sales approval or provider writes.
+- A repeat tap resumes the same owned pending order; «خرید جدید» is explicit. Expired/non-photo input and Home/Cancel show safe way forward without wiping Admin bot input. Financial and UXR-03 scope remains unchanged.
+
 ## UXR-01 — Sales presentation contract (2026-10-20)
 
 - Sales always installs its own persistent two-column Reply menu on `/start`/entry: «🛒 خرید سرویس», «📋 سرویس‌های من», «👤 حساب کاربری», «💬 پشتیبانی». The separate legacy/Admin hybrid-menu opt-in does not control Sales. Existing callbacks edit their page instead of sending another home greeting. Reply and inline keyboards use separate messages, as required by Telegram.
