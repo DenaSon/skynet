@@ -31,6 +31,7 @@ final readonly class SalesSubscriptionsUi
         private GetMySubscription $details,
         private GetSubscriptionUsage $usage,
         private GetSubscriptionLink $link,
+        private SubscriptionPageLink $pages,
     ) {}
 
     public function browse(Nutgram $bot, string $cursor = '0'): void
@@ -159,6 +160,12 @@ final readonly class SalesSubscriptionsUi
                     '🔐 نمایش کد اتصال',
                     callback_data: 'sales:subs:link:'.$orderId.':'.$cursor,
                 ));
+                if ($this->pages->configured()) {
+                    $keyboard->addRow(InlineKeyboardButton::make(
+                        '🌐 صفحه اشتراک',
+                        callback_data: 'sales:subs:page:'.$orderId.':'.$cursor,
+                    ));
+                }
             } catch (Throwable) {
                 $lines[] = 'اطلاعات لحظه‌ای مصرف و انقضا در دسترس نیست.';
                 $lines[] = 'وضعیت ثبت‌شده به معنی اتصال تأییدشده نیست.';
@@ -233,6 +240,69 @@ final readonly class SalesSubscriptionsUi
                 ."\nاین لینک خصوصی است؛ با دیگران به اشتراک نگذارید.",
             link_preview_options: LinkPreviewOptions::make(is_disabled: true),
             reply_markup: $keyboard,
+        );
+    }
+
+    public function page(Nutgram $bot, string $id, string $cursor = '0'): void
+    {
+        $viewer = $this->viewer($bot);
+        if ($viewer === null) {
+            return;
+        }
+
+        $orderId = $this->id($id);
+        if ($orderId === null || $this->id($cursor, true) === null) {
+            $this->notice($bot, 'درخواست معتبر نیست.', $this->homeButtons());
+
+            return;
+        }
+
+        if (! $this->pages->configured()) {
+            $this->notice($bot, 'صفحه اشتراک هنوز آماده نیست. از نمایش کد اتصال استفاده کنید.',
+                $this->backButtons($cursor));
+
+            return;
+        }
+
+        try {
+            // The existing credential Action freshly verifies the private buyer,
+            // linked order, current provider status, expiry and unchanged identity.
+            $url = $this->link->handle($viewer, $orderId)->subscriptionUrl;
+            if (! $this->pages->matches($url)) {
+                throw new \\RuntimeException('Subscription Page host mismatch.');
+            }
+        } catch (AuthorizationException|ValidationException) {
+            $this->notice($bot, 'صفحه این اشتراک برای حساب شما در دسترس نیست.', $this->backButtons($cursor));
+
+            return;
+        } catch (Throwable) {
+            $this->notice($bot, 'صفحه اشتراک فعلاً در دسترس نیست. برای اتصال از لینک اختصاصی استفاده کنید.',
+                $this->backButtons($cursor));
+
+            return;
+        }
+
+        $keyboard = InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('🌐 باز کردن صفحه اشتراک', url: $url));
+
+        if (mb_strlen($url) <= 256) {
+            $keyboard->addRow(TelegramUi::copy($url, '📋 کپی لینک اشتراک'));
+        }
+
+        $keyboard->addRow(InlineKeyboardButton::make('🔐 نمایش کد اتصال',
+            callback_data: 'sales:subs:link:'.$orderId.':'.$cursor))
+            ->addRow(InlineKeyboardButton::make('📚 آموزش اتصال', callback_data: 'sales:help:apps'))
+            ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'sales:subs:view:'.$orderId.':'.$cursor));
+
+        TelegramUi::answerCallback($bot);
+        $bot->sendMessage(
+            text: "🌐 صفحه اختصاصی سرویس #{$orderId}\\n\\n"
+                ."با دکمه زیر صفحه وضعیت و راهنمای اتصال را باز کنید.\\n"
+                .(mb_strlen($url) <= 256 ? 'برای کپی لینک از دکمه استفاده کنید.' : "لینک قابل انتخاب:\\n{$url}")
+                ."\\nاین لینک خصوصی است؛ آن را به دیگران ندهید.",
+            link_preview_options: LinkPreviewOptions::make(is_disabled: true),
+            reply_markup: $keyboard,
+            protect_content: true,
         );
     }
 
