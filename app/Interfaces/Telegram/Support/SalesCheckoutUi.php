@@ -67,13 +67,27 @@ final readonly class SalesCheckoutUi
         $this->purchase($bot, (string) $quote->planId, (string) $quote->durationDays, (string) ($quote->trafficGb ?? 0));
     }
 
-    /** Buying a second service is explicit, never an accidental repeated tap. */
-    public function newPurchase(Nutgram $bot, string $id, string $days, string $gb): void
+    /** One deliberate new-purchase intent per owned source order, replay-safe. */
+    public function newPurchase(Nutgram $bot, string $sourceId): void
     {
-        $this->purchase($bot, $id, $days, $gb, newOrder: true);
+        $buyer = $this->buyer($bot);
+        if ($buyer === null || ! $this->positive($sourceId)) {
+            $this->notice($bot, 'سفارش در دسترس نیست.');
+
+            return;
+        }
+        try {
+            $source = $this->orders->findPlan($buyer, (int) $sourceId);
+        } catch (AuthorizationException|ValidationException) {
+            $this->notice($bot, 'سفارش در دسترس نیست.');
+
+            return;
+        }
+        $this->purchase($bot, (string) $source->planId, (string) $source->durationDays,
+            (string) ($source->trafficGb ?? 0), sourceOrderId: $source->id);
     }
 
-    private function purchase(Nutgram $bot, string $id, string $days, string $gb, bool $newOrder = false): void
+    private function purchase(Nutgram $bot, string $id, string $days, string $gb, ?int $sourceOrderId = null): void
     {
         $buyer = $this->buyer($bot);
         if ($buyer === null) {
@@ -112,15 +126,21 @@ final readonly class SalesCheckoutUi
             $key = TelegramBotContext::current()->cacheKey(
                 'telegram:sales:purchase:'.$buyer.':'.$quote->planId.':'.$quote->durationDays.':'.($quote->trafficGb ?? 0),
             );
-            $order = Cache::lock($key, 10)->block(3, function () use ($buyer, $quote, $newOrder): OrderDetails {
-                if (! $newOrder) {
+            $order = Cache::lock($key, 10)->block(3, function () use ($buyer, $quote, $sourceOrderId): OrderDetails {
+                if ($sourceOrderId === null) {
                     $existing = $this->orders->pendingForQuote($buyer, $quote);
                     if ($existing !== null) {
                         return $existing;
                     }
                 }
 
-                return $this->create->handle($buyer, $quote, bin2hex(random_bytes(16)));
+                // Stable intent for the button on this particular owned order.
+                // The *next* order has a new button, so intentional repeat purchases work.
+                $key = $sourceOrderId === null
+                    ? bin2hex(random_bytes(16))
+                    : substr(hash('sha256', 'sales-new-order:'.$buyer.':'.$sourceOrderId), 0, 32);
+
+                return $this->create->handle($buyer, $quote, $key);
             });
         } catch (AuthorizationException|ValidationException|LockTimeoutException) {
             $this->notice($bot, 'قیمت یا دسترسی تغییر کرده است. لطفاً پلن را دوباره انتخاب کنید.');
@@ -248,7 +268,7 @@ final readonly class SalesCheckoutUi
         if ($order->planId !== null) {
             $keyboard->addRow(InlineKeyboardButton::make(
                 '🛒 خرید جدید همین پلن',
-                callback_data: 'sales:checkout:new:'.$order->planId.':'.$order->durationDays.':'.($order->trafficGb ?? 0),
+                callback_data: 'sales:checkout:new:'.$order->id,
             ));
         }
         if ($order->status === 'fulfilled') {
