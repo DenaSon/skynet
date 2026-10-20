@@ -111,3 +111,10 @@ Review this standard before every future Telegram UI feature.
 - «📋 سرویس‌های من» lists only actual linked services, not orders awaiting payment or activation. Use the plan/name, traffic and duration in short readable lines; a button opens details directly. The stored local `active` state is labelled «فعال در سوابق» and must not be misrepresented as real provider usability or expiry. The customer sees verified current usage, quota and expiry only after the owner-authorized provider read succeeds.
 - Show «🔐 نمایش کد اتصال» only after the verified link/usage read succeeds. Use the existing private ownership Action at the final click too. Offer «آموزش اتصال» and «پشتیبانی» without invented operator handles or tickets.
 - Short escaped HTML headings, labelled lines, bold monetary totals, a single brief blockquote when useful, clear navigation and descriptive status words take precedence over decorative UI. Failed reads show unavailable/retry, never artificial zero statistics.
+
+
+## UXR-05 — Official subscription browser page handoff
+
+- «🌐 صفحه اشتراک» is a separate, optional action near «🔐 نمایش کد اتصال» in the Sales-only service detail and success message. It appears only after an operator configures the exact live Remnawave Subscription Page hostname; otherwise the legacy private connection flow is unchanged.
+- Page callbacks carry only order ID and cursor. On every click, recheck private buyer, owned order, active provider identity and expiry through existing Application Actions; accept only the exact HTTPS host returned by RW, then show a protected private Telegram message with the real browser-open URL and native copy when permitted. Never fabricate or log subscription credentials, append short UUIDs, or hand out panel management URLs.
+- The **official** Subpage Builder is responsible for DenaGate/Persian branding, mobile use, QR/import, real usage/expiry and customer instructions. Laravel does not render the web page. Missing external deployment/provider readiness must be described as unavailable, not activated. See [docs/027](027-UXR05-SUBSCRIPTION-PAGE-RUNBOOK.md).
