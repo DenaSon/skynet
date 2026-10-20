@@ -134,9 +134,10 @@ $bot->onText('(?!/){volume}', function (Nutgram $bot, string $volume): void {
     if (app(SalesHomeUi::class)->navigate($bot, $volume)) {
         return;
     }
-    if (! app(ResellerBuilderUi::class)->customText($bot, $volume)) {
-        app(SalesHomeUi::class)->fallback($bot);
+    if (app(ResellerBuilderUi::class)->customText($bot, $volume)) {
+        return;
     }
+    app(SalesHomeUi::class)->fallback($bot);
 });
 
 $bot->fallback(function (Nutgram $bot): void {

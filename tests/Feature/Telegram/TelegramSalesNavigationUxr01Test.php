@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Testing\FakeNutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
@@ -50,7 +51,7 @@ function uxr01Bot(User $user): Nutgram
 /** @return array<string, mixed> */
 function uxr01Payload(Request $request): array
 {
-    $data = \SergiX44\Nutgram\Testing\FakeNutgram::getActualData($request);
+    $data = FakeNutgram::getActualData($request);
     if (is_string($data['reply_markup'] ?? null)) {
         $data['reply_markup'] = json_decode($data['reply_markup'], true, flags: JSON_THROW_ON_ERROR);
     }
@@ -123,11 +124,9 @@ it('uses the Sales identity for invitations and retains reseller access only whi
             return str_contains($body['text'], $url)
                 && $body['reply_markup']['inline_keyboard'][1][0]['copy_text']['text'] === $url;
         }, index: 1);
-    $bot->hearText('/account')->reply()->assertRaw(static fn (Request $request): bool =>
-        str_contains(json_encode(uxr01Payload($request), JSON_THROW_ON_ERROR), 'menu:builder'));
+    $bot->hearText('/account')->reply()->assertRaw(static fn (Request $request): bool => str_contains(json_encode(uxr01Payload($request), JSON_THROW_ON_ERROR), 'menu:builder'));
     $user->syncRoles(['member']);
-    $bot->hearText('/account')->reply()->assertRaw(static fn (Request $request): bool =>
-        ! str_contains(json_encode(uxr01Payload($request), JSON_THROW_ON_ERROR), 'menu:builder'));
+    $bot->hearText('/account')->reply()->assertRaw(static fn (Request $request): bool => ! str_contains(json_encode(uxr01Payload($request), JSON_THROW_ON_ERROR), 'menu:builder'));
     $bot->hearCallbackQueryData('menu:builder')->reply()
         ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.']);
     Http::assertNothingSent();

@@ -11,11 +11,13 @@ use App\Modules\Sales\Application\ManagePlanPricing;
 use App\Modules\Sales\Application\ManagePlans;
 use App\Modules\Sales\Application\PlanDefinition;
 use App\Modules\Sales\Application\PlanPricingDefinition;
+use GuzzleHttp\Psr7\Request;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Testing\FakeNutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
@@ -264,8 +266,8 @@ it('shows bounded ready plan prices on home using current buyer quotes and prese
     $buyer = User::factory()->create();
     $bot = sb02Bot(977030, $buyer);
     $bot->hearText('/start')->reply()->assertCalled('sendMessage', 2)
-        ->assertRaw(static function (\GuzzleHttp\Psr7\Request $request) use ($ready, $restricted, $unready): bool {
-            $body = \SergiX44\Nutgram\Testing\FakeNutgram::getActualData($request);
+        ->assertRaw(static function (Request $request) use ($ready, $restricted, $unready): bool {
+            $body = FakeNutgram::getActualData($request);
             $encoded = json_encode($body, JSON_THROW_ON_ERROR);
 
             return $body['parse_mode'] === 'HTML'
@@ -279,20 +281,20 @@ it('shows bounded ready plan prices on home using current buyer quotes and prese
         }, index: 1);
     $bot->hearCallbackQueryData('sales:home:2')->reply()->assertCalled('sendMessage', 0)
         ->assertCalled('answerCallbackQuery')->assertCalled('editMessageText')
-        ->assertRaw(static function (\GuzzleHttp\Psr7\Request $request): bool {
-            $body = \SergiX44\Nutgram\Testing\FakeNutgram::getActualData($request);
+        ->assertRaw(static function (Request $request): bool {
+            $body = FakeNutgram::getActualData($request);
 
             return substr_count($body['text'], 'مبلغ:') === 1 && str_contains($body['text'], 'صفحه 2 از 2');
         }, index: 1);
     $buyer->assignRole('reseller');
-    $bot->hearCallbackQueryData('sales:home:1')->reply()->assertRaw(static function (\GuzzleHttp\Psr7\Request $request): bool {
-        $body = \SergiX44\Nutgram\Testing\FakeNutgram::getActualData($request);
+    $bot->hearCallbackQueryData('sales:home:1')->reply()->assertRaw(static function (Request $request): bool {
+        $body = FakeNutgram::getActualData($request);
 
         return str_contains($body['text'], '<b>90,000 تومان</b>');
     }, index: 1);
     config()->set('services.remnawave.squad_bindings_live_verified', false);
-    $bot->hearCallbackQueryData('sales:home:invalid')->reply()->assertRaw(static function (\GuzzleHttp\Psr7\Request $request): bool {
-        $body = \SergiX44\Nutgram\Testing\FakeNutgram::getActualData($request);
+    $bot->hearCallbackQueryData('sales:home:invalid')->reply()->assertRaw(static function (Request $request): bool {
+        $body = FakeNutgram::getActualData($request);
 
         return str_contains($body['text'], 'فعلاً پلن آماده خریدی وجود ندارد')
             && ! str_contains($body['text'], 'مبلغ:');
