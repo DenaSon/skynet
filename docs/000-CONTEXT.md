@@ -1,5 +1,13 @@
 # ParsaGate — Current Context / Development Memory 
 
+## Sales live checkout / quote-cache compatibility — 2026-10-20
+
+- Operator reports a fresh post-port-fix server setup, Node/Host activation and real client connection (119 ms reported latency). IP egress and measured traffic-counter evidence remain unrecorded; this is not full Sales lifecycle acceptance. The replacement Sales Bot webhook subsequently registered and its home/catalog responded.
+- The active 10 GB / 30-day test plan was linked to Default-Squad; the operator enabled the live Squad verification gate for controlled testing. Checkout then reported an invalid/expired quote. Source diagnosis: `PlanCheckoutTokens` caches a `PlanPriceQuote` object while Laravel 13's `cache.serializable_classes=false` prevents object restoration from the database cache; the existing array-cache test bypassed this boundary.
+- Pre-fix [CI reproduction](https://github.com/DenaSon/skynet/actions/runs/39456339850) confirmed the database-cache case immediately returned a null quote while the array case passed. Narrow fix: allow only the existing immutable, scalar-only `PlanPriceQuote` class in cache configuration. Do not permit arbitrary cached classes. Buyer binding, ten-minute expiry, idempotency, repricing, finance/Provider gates and DTO validation remain unchanged. A real database-cache regression covers quote round-trip and private checkout; an unrelated PHP object must remain blocked.
+- After the fixed source deploys, rebuild effective configuration and gracefully restart queue workers, then obtain a fresh Sales preview. No cache flush, order rewrite or manual paid-state mutation is required. Real receipt approval, fulfillment, customer delivery and subscription-status E2E remain pending.
+- Approved follow-up UX: rename the existing manual Node-registration entry to «ثبت نود آماده»; keep the new-server wizard as the main path. This rename is not part of the cache fix.
+
 ## NW-03 management-port correction — 2026-10-20
 
 - Operator-reported live evidence: the fresh VPS installer completed, the Node container listened on TCP 2222, but the panel attempted port 443. Explicitly saving Node Port 2222 in the panel made both panel and Admin Bot report the Node connected and enabled. The wizard's SSH port 22 was correct and is independent of the Node management port.
