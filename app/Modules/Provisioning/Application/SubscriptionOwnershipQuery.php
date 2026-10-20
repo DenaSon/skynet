@@ -8,6 +8,7 @@ use App\Modules\Sales\Application\OrderDetails;
 use App\Modules\Sales\Application\OrderReader;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use UnexpectedValueException;
 
 /**
@@ -41,7 +42,7 @@ final readonly class SubscriptionOwnershipQuery
     public function servicePage(int $buyerId, int $limit = 6, ?int $beforeOrderId = null): SubscriptionCursorPage
     {
         if ($limit < 1 || $limit > 50 || ($beforeOrderId !== null && $beforeOrderId < 1)) {
-            throw \Illuminate\Validation\ValidationException::withMessages(['page' => 'Invalid service pagination.']);
+            throw ValidationException::withMessages(['page' => 'Invalid service pagination.']);
         }
 
         // Uses the existing OrderReader owner/active-account authority.
