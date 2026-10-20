@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Telegram\Support;
 
+use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Provisioning\Application\CheckPlanSquadReadiness;
@@ -15,6 +16,8 @@ use App\Modules\Sales\Application\ManualBankPayments;
 use App\Modules\Sales\Application\OrderDetails;
 use App\Modules\Sales\Application\OrderReader;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Contracts\Cache\LockTimeoutException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
@@ -36,56 +39,96 @@ final readonly class SalesCheckoutUi
         private ManualBankPayments $payments,
     ) {}
 
+    /** The old preview callback is still accepted, but no extra confirmation is shown. */
     public function preview(Nutgram $bot, string $id, string $days, string $gb): void
+    {
+        $this->purchase($bot, $id, $days, $gb);
+    }
+
+    /** Home and catalog selections both go straight to the same payment view. */
+    public function choosePreset(Nutgram $bot, string $id): void
+    {
+        $buyer = $this->buyer($bot);
+        if ($buyer === null || ! $this->positive($id)) {
+            $this->notice($bot, 'این پلن در دسترس نیست.');
+
+            return;
+        }
+
+        try {
+            $entry = $this->presets->find($buyer, (int) $id);
+        } catch (AuthorizationException|ValidationException) {
+            $this->notice($bot, 'این پلن تغییر کرده است؛ لطفاً دوباره انتخاب کنید.');
+
+            return;
+        }
+
+        $quote = $entry->quote;
+        $this->purchase($bot, (string) $quote->planId, (string) $quote->durationDays, (string) ($quote->trafficGb ?? 0));
+    }
+
+    /** Buying a second service is explicit, never an accidental repeated tap. */
+    public function newPurchase(Nutgram $bot, string $id, string $days, string $gb): void
+    {
+        $this->purchase($bot, $id, $days, $gb, newOrder: true);
+    }
+
+    private function purchase(Nutgram $bot, string $id, string $days, string $gb, bool $newOrder = false): void
     {
         $buyer = $this->buyer($bot);
         if ($buyer === null) {
             return;
         }
-
-        if ($this->positive($id) === false || $this->positive($days) === false
-            || preg_match('/\A(?:0|[1-9][0-9]{0,3})\z/D', $gb) !== 1) {
+        if (! $this->positive($id) || ! $this->positive($days)
+            || preg_match('/\\A(?:0|[1-9][0-9]{0,3})\\z/D', $gb) !== 1) {
             $this->notice($bot, 'مشخصات انتخاب معتبر نیست.');
+
+            return;
+        }
+
+        // Never create an unpaid order when no genuine payment destination exists.
+        if (config('sales.manual_bank_review_enabled', false) !== true
+            || app(ManualPaymentUi::class)->cardNumber() === null) {
+            $this->notice($bot, 'پرداخت فعلاً در دسترس نیست. اطلاعات کارت باید توسط مدیر تنظیم شود.');
 
             return;
         }
 
         try {
             $quote = $this->quotes->handle($buyer, (int) $id, (int) $days, $gb === '0' ? null : (int) $gb);
-
-            // Price authorization alone is not enough: only presets or
-            // reseller-only builders currently offered to this buyer.
             if ($quote->mode === 'preset') {
                 $this->presets->find($buyer, $quote->planId);
             } else {
                 $this->builders->find($buyer, $quote->planId);
             }
-
             if ($this->squads->verifiedSquadForCheckout($quote->planId) === null) {
-                $this->notice($bot, 'ثبت سفارش این پلن هنوز فعال نشده است. می‌توانید قیمت آن را ببینید یا پلن دیگری انتخاب کنید.');
+                $this->notice($bot, 'این پلن هنوز آماده خرید نیست. پلن دیگری انتخاب کنید.');
 
                 return;
             }
-        } catch (AuthorizationException|ValidationException) {
-            $this->notice($bot, 'این پلن یا تعرفه تغییر کرده است. لطفاً دوباره انتخاب کنید.');
+
+            // Lock the buyer's selection; durable order snapshots remain the
+            // source of truth even when the database cache has been cleared.
+            $key = TelegramBotContext::current()->cacheKey(
+                'telegram:sales:purchase:'.$buyer.':'.$quote->planId.':'.$quote->durationDays.':'.($quote->trafficGb ?? 0),
+            );
+            $order = Cache::lock($key, 10)->block(3, function () use ($buyer, $quote, $newOrder): OrderDetails {
+                if (! $newOrder) {
+                    $existing = $this->orders->pendingForQuote($buyer, $quote);
+                    if ($existing !== null) {
+                        return $existing;
+                    }
+                }
+
+                return $this->create->handle($buyer, $quote, bin2hex(random_bytes(16)));
+            });
+        } catch (AuthorizationException|ValidationException|LockTimeoutException) {
+            $this->notice($bot, 'قیمت یا دسترسی تغییر کرده است. لطفاً پلن را دوباره انتخاب کنید.');
 
             return;
         }
 
-        $token = $this->tokens->issue($buyer, $quote);
-        $price = TelegramUi::toman($quote->totalPriceRials);
-
-        $this->render($bot, "🧾 بررسی سفارش\n\nپلن: ".$this->safe($quote->planName)
-            ."\nحجم: ".($quote->trafficGb === null ? 'نامحدود' : $quote->trafficGb.' گیگابایت')
-            ."\nمدت: {$quote->durationDays} روز"
-            ."\nقیمت عمومی: ".TelegramUi::toman($quote->publicPriceRials).' تومان'
-            ."\nتخفیف: {$quote->discountPercent}٪"
-            ."\nمبلغ نهایی: {$price} تومان"
-            ."\n\nثبت سفارش هیچ پرداخت یا فعال‌سازی خودکاری انجام نمی‌دهد.",
-            InlineKeyboardMarkup::make()
-                ->addRow(InlineKeyboardButton::make('✅ ثبت سفارش', callback_data: 'sales:checkout:commit:'.$token))
-                ->addRow(InlineKeyboardButton::make('◀️ پلن‌ها', callback_data: 'menu:plan-catalog')),
-        );
+        $this->showOrder($bot, $order);
     }
 
     public function commit(Nutgram $bot, string $token): void
@@ -132,7 +175,10 @@ final readonly class SalesCheckoutUi
         $lines = ['📋 سفارش‌های من', ''];
         foreach ($orders as $order) {
             $lines[] = '#'.$order->id.' — '.$this->safe($order->productName).' — '.TelegramUi::toman($order->totalPriceRials).' تومان';
-            $keyboard->addRow(InlineKeyboardButton::make('📄 سفارش #'.$order->id, callback_data: 'sales:checkout:view:'.$order->id));
+            $keyboard->addRow(InlineKeyboardButton::make(
+                $order->status === 'pending_payment' ? '▶️ سفارش #'.$order->id.' · ادامه پرداخت' : '📄 سفارش #'.$order->id,
+                callback_data: 'sales:checkout:view:'.$order->id,
+            ));
         }
 
         if ($orders === []) {
@@ -183,12 +229,26 @@ final readonly class SalesCheckoutUi
             default => '🟠 در انتظار پرداخت',
         };
 
+        if ($order->status === 'pending_payment' && $latestReceipt !== 'submitted'
+            && TelegramBotContext::current()->key === TelegramBotContext::SALES
+            && config('sales.manual_bank_review_enabled', false) === true) {
+            app(ManualPaymentUi::class)->start($bot, (string) $order->id);
+
+            return;
+        }
+
         $keyboard = InlineKeyboardMarkup::make();
         if ($order->status === 'pending_payment' && $latestReceipt !== 'submitted'
             && config('sales.manual_bank_review_enabled', false) === true) {
             $keyboard->addRow(InlineKeyboardButton::make(
                 $latestReceipt === 'rejected' ? '🧾 ارسال رسید جدید' : '🧾 ارسال رسید پرداخت',
                 callback_data: 'sales:payment:start:'.$order->id,
+            ));
+        }
+        if ($order->planId !== null) {
+            $keyboard->addRow(InlineKeyboardButton::make(
+                '🛒 خرید جدید همین پلن',
+                callback_data: 'sales:checkout:new:'.$order->planId.':'.$order->durationDays.':'.($order->trafficGb ?? 0),
             ));
         }
         if ($order->status === 'fulfilled') {
