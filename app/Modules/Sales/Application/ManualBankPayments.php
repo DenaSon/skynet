@@ -173,6 +173,14 @@ final readonly class ManualBankPayments
 
         $reference = strtoupper(trim($verifiedBankReference ?? ''));
 
+        if ($approve && $reference === '' && config('sales.one_click_bank_review_enabled', false) === true) {
+            // This internal audit key identifies the operator-reviewed receipt.
+            // It is NOT a bank-issued reference and cannot dedupe two separate
+            // screenshots representing the same real transfer. The operator
+            // must independently verify incoming bank funds before clicking.
+            $reference = 'MANUAL-CLAIM-'.$claimId;
+        }
+
         if ($approve && preg_match('/\A[A-Z0-9_-]{6,64}\z/D', $reference) !== 1) {
             throw ValidationException::withMessages(['reference' => 'Verified bank reference required.']);
         }
