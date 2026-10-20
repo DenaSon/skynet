@@ -26,7 +26,7 @@ use SergiX44\Nutgram\Testing\FakeNutgram;
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
-    config()->set('super_admin.telegram_ids', ['973001']);
+    config()->set('super_admin.telegram_ids', ['973001', '973002']);
     config()->set('cache.default', 'database');
     config()->set('sales.manual_bank_review_enabled', true);
     config()->set('billing.payment_card_number', '6037991234567890'); // Test fixture, not a production payee.
