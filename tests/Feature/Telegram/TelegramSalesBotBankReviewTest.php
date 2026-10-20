@@ -2,6 +2,7 @@
 
 use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
 use App\Interfaces\Telegram\Notifications\TelegramNotificationSender;
+use App\Modules\Provisioning\Jobs\FulfillPaidPlanOrderJob;
 use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
@@ -342,8 +343,8 @@ it('requires all gates before final approval and then queues one automatic RW ac
         ->and(DB::table('sales_bank_payment_claims')->where('id', $claim)->value('status'))->toBe('approved')
         ->and(DB::table('sales_bank_settlements')->count())->toBe(1)
         ->and(DB::table('billing_journals')->count())->toBe(1);
-    \Illuminate\Support\Facades\\Queue::assertPushed(
-        \App\Modules\Provisioning\Jobs\\FulfillPaidPlanOrderJob::class,
+    Queue::assertPushed(
+        FulfillPaidPlanOrderJob::class,
         static fn ($job): bool => $job->orderId === $data['order'] && $job->actorId === $data['root']->id,
     );
 
@@ -378,7 +379,7 @@ it('finishes receipt rejection with one button and never enqueues provider creat
         ->and(DB::table('sales_orders')->where('id', $data['order'])->value('status'))->toBe('pending_payment')
         ->and(DB::table('sales_bank_settlements')->count())->toBe(0)
         ->and(DB::table('telegram_notification_deliveries')->where('event_type', 'PaymentReviewed')->count())->toBe(1);
-    \Illuminate\Support\Facades\\Queue::assertNotPushed(
-        \App\Modules\Provisioning\Jobs\\FulfillPaidPlanOrderJob::class,
+    Queue::assertNotPushed(
+        FulfillPaidPlanOrderJob::class,
     );
 });
