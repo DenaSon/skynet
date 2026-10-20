@@ -1,5 +1,11 @@
 # ParsaGate — Current Context / Development Memory 
 
+
+## UXR-05 — official RW Subscription Page app integration (2026-10-21)
+
+UXR-05 source scope explicitly approved. Use official RW Subscription Page for the browser UX instead of an independent Laravel web dashboard, without changing RW customer URLs in code. New optional `SALES_SUBSCRIPTION_PAGE_HOST` defaults empty and adds Sales-private page callbacks only for the exact provider-returned HTTPS host. Existing owner/active/expiry read Action is reexecuted on click, and legacy connection delivery is unchanged. External Docker, proxy, DNS, TLS, real Subpage Builder branding, page token and client/browser smoke are operator-only rollout work, **not performed by source merge**. [Runbook and acceptance checklist](027-UXR05-SUBSCRIPTION-PAGE-RUNBOOK.md). Issue #121 remains open until real deployed evidence.
+
+
 ## UXR-02 — Direct Sales payment and receipt input (2026-10-20)
 
 - Operator approved the Sales-only UXR-02 scope after UXR-01 merge (#128, `bfb59df`, 614 tests per PHP 8.4/8.5 + PHPStan/Pint/MySQL). Source changes are in the separate UXR-02 PR and require their **own** passing CI. Live acceptance of the UXR-01/02 screens is not yet recorded.
