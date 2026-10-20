@@ -1,5 +1,6 @@
 # Roadmap
 
+> **UXR-02 (2026-10-20):** The Sales-only direct plan → payment → photo receipt phase follows merged UXR-01 PR #128. See [docs/026](026-SALES-UX-ROADMAP.md) for code scope, operator-only real card configuration, verification and live acceptance. UXR-03 (Admin receipt decisions/notifications/automatic activation) is **not started**. Source implementation must pass new PR CI before a merge; no Production flag or provider operation is authorized.\n\n
 ## UXR — Approved five-phase Sales UX roadmap (2026-10-20)
 
 [Detailed scope and acceptance](026-SALES-UX-ROADMAP.md) / [#115](https://github.com/DenaSon/skynet/issues/115). Prior tests are complete by operator report; the new phases each have their own change verification.
