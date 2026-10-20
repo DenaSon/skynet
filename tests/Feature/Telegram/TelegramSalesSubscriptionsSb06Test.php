@@ -17,10 +17,10 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use SergiX44\Nutgram\Nutgram;
-use SergiX44\Nutgram\Testing\FakeNutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
+use SergiX44\Nutgram\Testing\FakeNutgram;
 
 uses(RefreshDatabase::class);
 
@@ -349,7 +349,7 @@ it('rejects unsafe subscription page hosts and foreign or non-https URLs without
         'https://user:password@sub.example.test/short-user',
         'https://sub.example.test:443/short-user',
         'https://sub.example.test/short-user#private',
-        "https://sub.example.test/short-user\\r\\nInjected: true",
+        "https://sub.example.test/short-user\r\nInjected: true",
         'https://sub.example.test/',
     ] as $unsafe) {
         expect($page->matches($unsafe))->toBeFalse();
