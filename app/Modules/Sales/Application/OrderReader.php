@@ -31,6 +31,28 @@ final class OrderReader
             ->map(fn (object $row): OrderDetails => $this->map($row))->all();
     }
 
+    /**
+     * Reuse an already payable snapshot when the same selection is tapped again.
+     * The explicit new-purchase route bypasses this lookup.
+     */
+    public function pendingForQuote(int $buyerId, PlanPriceQuote $quote): ?OrderDetails
+    {
+        app(ResolveSalesBuyer::class)->isReseller($buyerId);
+
+        $row = DB::table('sales_orders')
+            ->where('buyer_user_id', $buyerId)
+            ->where('status', 'pending_payment')
+            ->where('plan_id', $quote->planId)
+            ->where('plan_revision', $quote->planRevision)
+            ->where('pricing_revision', $quote->pricingRevision)
+            ->where('duration_days', $quote->durationDays)
+            ->where('traffic_gb', $quote->trafficGb)
+            ->where('total_price_rials', $quote->totalPriceRials)
+            ->orderByDesc('id')->first();
+
+        return $row === null ? null : $this->map($row);
+    }
+
     public function findPlan(int $buyerId, int $orderId): OrderDetails
     {
         $order = $this->find($buyerId, $orderId);
