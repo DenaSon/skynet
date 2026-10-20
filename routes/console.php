@@ -1,9 +1,11 @@
 <?php
 
+use App\Modules\Provisioning\Jobs\FulfillPaidPlanOrderJob;
 use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\ConfigureRate;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schedule;
 use Illuminate\Validation\ValidationException;
 
@@ -13,6 +15,33 @@ Artisan::command('inspire', function () {
 
 Schedule::command('telegram:prune-updates')->daily();
 Schedule::command('telegram:notifications:dispatch')->everyMinute()->withoutOverlapping();
+Schedule::command('sales:fulfillment:dispatch')->everyMinute()->withoutOverlapping();
+
+// Recovery for a committed bank approval whose post-commit enqueue was lost.
+// Never dispatch while provider/price-binding gates are disabled. The existing
+// unique queue job checks reviewer access and settlement before any write.
+Artisan::command('sales:fulfillment:dispatch', function (): int {
+    if (config('sales.auto_fulfillment_enabled', false) !== true
+        || config('services.remnawave.writes_enabled') !== true
+        || config('services.remnawave.squad_bindings_live_verified') !== true) {
+        return 0;
+    }
+
+    $rows = DB::table('sales_fulfillment_outbox as outbox')
+        ->join('sales_orders as orders', 'orders.id', '=', 'outbox.sales_order_id')
+        ->join('sales_bank_settlements as bank', 'bank.sales_order_id', '=', 'orders.id')
+        ->join('sales_bank_payment_claims as claim', 'claim.id', '=', 'bank.payment_claim_id')
+        ->where('orders.status', 'paid')->where('outbox.state', 'pending')
+        ->where('claim.status', 'approved')->whereNotNull('claim.reviewed_by')
+        ->orderBy('orders.id')->limit(20)
+        ->get(['orders.id', 'claim.reviewed_by']);
+
+    foreach ($rows as $row) {
+        FulfillPaidPlanOrderJob::dispatch((int) $row->id, false, (int) $row->reviewed_by);
+    }
+
+    return 0;
+})->purpose('Recover approved paid-plan activation intents through the existing authorized queue');
 
 /*
 |--------------------------------------------------------------------------

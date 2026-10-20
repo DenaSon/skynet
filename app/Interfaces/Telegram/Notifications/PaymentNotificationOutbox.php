@@ -7,6 +7,7 @@ namespace App\Interfaces\Telegram\Notifications;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\SuperAdminTrust;
 use App\Modules\Identity\Application\TelegramRecipient;
+use App\Modules\Provisioning\Jobs\FulfillPaidPlanOrderJob;
 use Illuminate\Support\Facades\DB;
 
 final readonly class PaymentNotificationOutbox
@@ -37,6 +38,24 @@ final readonly class PaymentNotificationOutbox
     // Called INSIDE the transaction that committed the single-use bank review.
     public function reviewed(int $claimId, int $orderId, int $buyerId): void
     {
+        // The decision has already committed Billing settlement within the
+        // caller transaction. Reuse its freshly authorized human reviewer;
+        // FulfillPaidPlanOrderJob checks current permissions again at runtime.
+        if (config('sales.auto_fulfillment_enabled', false) === true) {
+            $reviewer = DB::table('sales_bank_payment_claims')
+                ->where('id', $claimId)->where('sales_order_id', $orderId)
+                ->where('status', 'approved')->value('reviewed_by');
+            if (is_numeric($reviewer) && (int) $reviewer > 0) {
+                DB::afterCommit(static function () use ($orderId, $reviewer): void {
+                    if (config('sales.auto_fulfillment_enabled', false) === true
+                        && config('services.remnawave.writes_enabled') === true
+                        && config('services.remnawave.squad_bindings_live_verified') === true) {
+                        FulfillPaidPlanOrderJob::dispatch($orderId, false, (int) $reviewer);
+                    }
+                });
+            }
+        }
+
         if ($this->recipients->forActiveUser($buyerId) === null) {
             return;
         }
