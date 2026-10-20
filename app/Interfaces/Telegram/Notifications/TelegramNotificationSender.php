@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Telegram\Notifications;
 
+use App\Interfaces\Telegram\Support\SubscriptionPageLink;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\TelegramRecipient;
 use App\Modules\Sales\Application\ManualBankPayments;
@@ -153,12 +154,20 @@ final readonly class TelegramNotificationSender
                 throw new NotificationUnavailable('not_active');
             }
 
-            // Only an order ID is placed in the callback. The existing Sales
-            // subscription action authenticates ownership and fresh eligibility.
-            $keyboard = json_encode(['inline_keyboard' => [[[
+            // Only an order ID is placed in callbacks. The Sales presenter
+            // rechecks authorization and active RW data on every click.
+            $buttons = [[
                 'text' => '🔐 نمایش کد اتصال',
                 'callback_data' => 'sales:subs:link:'.$orderId.':0',
-            ]]]], JSON_THROW_ON_ERROR);
+            ]];
+            $rows = [$buttons];
+            if (app(SubscriptionPageLink::class)->configured()) {
+                $rows[] = [[
+                    'text' => '🌐 صفحه اشتراک',
+                    'callback_data' => 'sales:subs:page:'.$orderId.':0',
+                ]];
+            }
+            $keyboard = json_encode(['inline_keyboard' => $rows], JSON_THROW_ON_ERROR);
             $this->text($bot, $chat, "✅ اشتراک شما فعال شد!\nسفارش #{$orderId}\n\nبرای دریافت اتصال دکمه زیر را انتخاب کنید.", $keyboard);
 
             return;
