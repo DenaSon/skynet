@@ -98,7 +98,7 @@ final readonly class ManualPaymentUi
             $amount = (string) intdiv($order->totalPriceRials + 9, 10);
             $keyboard->addRow(TelegramUi::copy($card, '📋 کپی شماره کارت'), TelegramUi::copy($amount, '📋 کپی مبلغ'));
             $keyboard->addRow(InlineKeyboardButton::make('🛒 خرید جدید همین پلن',
-                callback_data: 'sales:checkout:new:'.$order->planId.':'.$order->durationDays.':'.($order->trafficGb ?? 0)));
+                callback_data: 'sales:checkout:new:'.$order->id));
         }
         $keyboard->addRow(InlineKeyboardButton::make('◀️ پلن‌ها', callback_data: $back))
             ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'menu:home'));
