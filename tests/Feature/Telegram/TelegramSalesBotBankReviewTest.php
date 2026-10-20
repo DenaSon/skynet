@@ -30,6 +30,7 @@ uses(RefreshDatabase::class);
 beforeEach(function (): void {
     config()->set('super_admin.telegram_ids', ['974001', '974002']);
     config()->set('sales.manual_bank_review_enabled', false);
+    config()->set('billing.payment_card_number', '6037991234567890'); // Isolated fixture, never a shipped destination.
     config()->set('telegram_notifications.enabled', false);
     config()->set('telegram.sales.enabled', false);
     config()->set('services.remnawave.writes_enabled', false);
