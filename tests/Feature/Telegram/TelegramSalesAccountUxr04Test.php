@@ -27,6 +27,8 @@ uses(RefreshDatabase::class);
 beforeEach(function (): void {
     config()->set('telegram.public_signup_enabled', false);
     config()->set('services.remnawave.writes_enabled', false);
+    Role::findOrCreate('reseller', 'web');
+    Role::findOrCreate('member', 'web');
     Http::preventStrayRequests();
     Http::fake();
     app(ConfigureProduct::class)->handle('uxr04-item', '<Plan> & Title');
