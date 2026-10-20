@@ -398,7 +398,7 @@ it('offers the exact verified official page URL only in the owner private chat',
 
             return ($keyboard['inline_keyboard'][0][0]['url'] ?? null) === $url
                 && str_contains(json_encode($keyboard, JSON_THROW_ON_ERROR), 'sales:subs:link:');
-        });
+        }, index: 1);
     Http::assertSentCount(1);
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
     expect(config('services.remnawave.writes_enabled'))->toBeFalse();
