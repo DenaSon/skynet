@@ -1,5 +1,11 @@
 # Roadmap
 
+## NW-03 live-test fix — explicit Node management port (2026-10-20)
+
+- Operator confirmed that the installed Node listened on 2222 while the panel attempted 443; manually saving Node Port 2222 restored panel/Admin Bot connectivity.
+- Scope: send `port: 2222` only from the existing server-setup registration coordinator; preserve manual Node creation, SSH input, inbound/Host ports and all authorization/replay guards. Regression assertions cover both registration paths.
+- Acceptance: source CI and a fresh post-deploy wizard registration are separate gates. The existing Node is already manually corrected; Host/Squad/client acceptance remains pending, so this is not full NW-04 Live PASS.
+
 **NW-04 review / requested live reset checkpoint (2026-10-18):** Source CI passed, but *destructive VPS reinstall and panel Node/Host removal have not started*. Preflight requires inventory of existing Host, User, Profile/Inbound and Squad dependencies, provider snapshot/rollback, Runflare real SSH/Queue/Cache checks, and explicit verification that panel Node management port matches the installer-fixed 2222. See [NW04 live-reset preflight](NW04-LIVE-RESET-PREFLIGHT.md) before touching the existing active Node. No code/flag/server change authorized by this documentation review.
 
 ## NW-04 — Final source review, recovery and operator acceptance (2026-10-18)

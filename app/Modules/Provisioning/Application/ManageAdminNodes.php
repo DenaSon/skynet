@@ -131,7 +131,7 @@ final readonly class ManageAdminNodes
      *
      * @param  list<string>  $inboundUuids
      */
-    public function create(int $actorId, string $name, string $address, string $profileUuid, array $inboundUuids): string
+    public function create(int $actorId, string $name, string $address, string $profileUuid, array $inboundUuids, ?int $port = null): string
     {
         $this->validateIdentity($actorId, $name, $address);
         $this->authorizeWrite($actorId);
@@ -150,7 +150,7 @@ final readonly class ManageAdminNodes
 
         // Serialize all Node mutations (create, single-node and batch) while
         // validating the latest profile/inbound state under the same lock.
-        return Cache::lock('nodes:mutation', 60)->block(1, function () use ($actorId, $name, $address, $profileUuid, $chosen): string {
+        return Cache::lock('nodes:mutation', 60)->block(1, function () use ($actorId, $name, $address, $profileUuid, $chosen, $port): string {
             $profiles = $this->profiles($actorId);
             if (! in_array(strtolower($profileUuid), array_column($profiles, 'uuid'), true)) {
                 throw ValidationException::withMessages(['node' => 'Profile changed.']);
@@ -163,14 +163,18 @@ final readonly class ManageAdminNodes
             }
             $this->authorizeWrite($actorId);
 
-            $created = (new RemnawaveNodesApi($this->factory->make()))->create([
+            $data = [
                 'name' => $name,
                 'address' => $address,
                 'configProfile' => [
                     'activeConfigProfileUuid' => strtolower($profileUuid),
                     'activeInbounds' => array_map('strtolower', $chosen),
                 ],
-            ]);
+            ];
+            if ($port !== null) {
+                $data['port'] = $port;
+            }
+            $created = (new RemnawaveNodesApi($this->factory->make()))->create($data);
 
             if (! self::uuidValid($created['uuid'] ?? null)) {
                 throw new UnexpectedValueException('Node create outcome is not verifiable.');

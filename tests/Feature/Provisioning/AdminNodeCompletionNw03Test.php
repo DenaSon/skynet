@@ -126,7 +126,7 @@ it('NW-03 only allows confirmed NW-02 running state, authorized root and existin
     Http::assertNothingSent();
 });
 
-it('NW-03 creates Node once through existing Node Action and verifies live Connected', function (): void {
+it('NW-03 creates Node once on installer port 2222 and verifies live Connected', function (): void {
     $ready = nw03Ready();
     nw03Api();
     $action = app(CompleteNodeSetup::class);
@@ -140,6 +140,7 @@ it('NW-03 creates Node once through existing Node Action and verifies live Conne
     Http::assertSent(static fn (Request $r): bool => $r->method() === 'POST'
         && $r->url() === 'https://rw.nw03.test/api/nodes'
         && $r['address'] === '194.5.192.133'
+        && $r['port'] === 2222
         && $r['configProfile']['activeConfigProfileUuid'] === NW03_PROFILE
         && $r['configProfile']['activeInbounds'] === [NW03_INBOUND]);
 });

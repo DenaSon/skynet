@@ -1,5 +1,11 @@
 # ParsaGate — Current Context / Development Memory 
 
+## NW-03 management-port correction — 2026-10-20
+
+- Operator-reported live evidence: the fresh VPS installer completed, the Node container listened on TCP 2222, but the panel attempted port 443. Explicitly saving Node Port 2222 in the panel made both panel and Admin Bot report the Node connected and enabled. The wizard's SSH port 22 was correct and is independent of the Node management port.
+- The server-setup coordinator now explicitly passes `port: 2222` through the existing `ManageAdminNodes::create` Action, matching the installer. Its optional port argument preserves the original manual Node-registration payload when omitted. No existing Node is patched, no migration/flag change or remote operation is performed by this source fix.
+- Regression assertions cover the wizard's POST port and unchanged manual-create payload. CI and a fresh post-deploy wizard registration must be verified separately; Host creation, Squad access and real client egress remain pending for this live attempt.
+
 
 **Runflare SSH bootstrap checkpoint (2026-10-18):** The deployed Debian 13 `laravel-nginx` image was observed missing `openssh-client`; mounted Askpass was 0644 despite Git 100755. An additive, idempotent `resources/scripts/prepare-ssh-runtime.sh` for a short Runflare postStart command was added. It does not modify bot/provider flags, Docker images, VPS or queue configuration; real postStart execution/SSH/worker smoke remains unverified. Operator runbook: [docs/NW04-OPERATOR-ACCEPTANCE.md](NW04-OPERATOR-ACCEPTANCE.md).
 
