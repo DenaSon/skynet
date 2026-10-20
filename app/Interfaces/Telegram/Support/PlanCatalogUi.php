@@ -8,6 +8,7 @@ use App\Modules\Identity\Application\TelegramActor;
 use App\Modules\Sales\Application\ListQuotedPresets;
 use App\Modules\Sales\Application\QuotedPreset;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
@@ -37,8 +38,8 @@ final readonly class PlanCatalogUi
         }
 
         if (TelegramBotContext::current()->key === TelegramBotContext::SALES) {
-            \Illuminate\Support\Facades\Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$actor->userId));
-            \Illuminate\Support\Facades\Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:recent:'.$actor->userId));
+            Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$actor->userId));
+            Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:recent:'.$actor->userId));
         }
 
         $this->pendingVolume->forget($actor->userId);
