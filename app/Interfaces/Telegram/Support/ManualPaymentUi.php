@@ -194,9 +194,16 @@ final readonly class ManualPaymentUi
         $orderId = Cache::get(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$actor->userId));
 
         if (is_int($orderId) === false) {
-            if (TelegramBotContext::current()->key === TelegramBotContext::SALES
-                && Cache::has(TelegramBotContext::current()->cacheKey('telegram:payphoto:recent:'.$actor->userId))) {
-                $this->notice($bot, 'زمان دریافت رسید تمام شده است. از «سفارش‌های من» ادامه پرداخت را باز کنید.');
+            $recent = TelegramBotContext::current()->key === TelegramBotContext::SALES
+                ? Cache::get(TelegramBotContext::current()->cacheKey('telegram:payphoto:recent:'.$actor->userId))
+                : null;
+            if (is_int($recent)) {
+                $receipt = $this->payments->latestReceiptStatus(
+                    SubscriptionViewer::telegram((int) $this->private->id($bot)), $recent,
+                );
+                $this->notice($bot, $receipt === 'submitted'
+                    ? 'رسید این سفارش قبلاً دریافت شده؛ منتظر بررسی مدیر باشید.'
+                    : 'زمان دریافت رسید تمام شده است. از «سفارش‌های من» ادامه پرداخت را باز کنید.');
             }
 
             return;
@@ -228,9 +235,6 @@ final readonly class ManualPaymentUi
         }
 
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$actor->userId));
-        if (TelegramBotContext::current()->key === TelegramBotContext::SALES) {
-            Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:recent:'.$actor->userId));
-        }
         $this->notice($bot, TelegramBotContext::current()->key === TelegramBotContext::SALES
             ? "✅ رسید دریافت شد؛ منتظر بررسی مدیر باشید.\nسفارش #{$orderId}"
             : "🕘 رسید سفارش #{$orderId} ثبت شد.\nشماره بررسی: #{$claimId}\n\nتنها پس از تطبیق واقعی گردش بانک و تأیید مدیر، سفارش تسویه می‌شود.");
