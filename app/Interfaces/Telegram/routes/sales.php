@@ -64,6 +64,10 @@ $bot->onCallbackQueryData('sales:help:{page}', function (Nutgram $bot, string $p
     app(SalesSupportUi::class)->show($bot, $page);
 });
 
+$bot->onCallbackQueryData('sales:wallet', function (Nutgram $bot): void {
+    app(SalesHomeUi::class)->wallet($bot);
+});
+
 $bot->onCallbackQueryData('sales:account', function (Nutgram $bot): void {
     app(SalesHomeUi::class)->account($bot);
 });
