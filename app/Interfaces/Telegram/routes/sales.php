@@ -157,8 +157,8 @@ $bot->onCallbackQueryData('sales:checkout:preview:{id}:{days}:{gb}', function (N
     app(SalesCheckoutUi::class)->preview($bot, $id, $days, $gb);
 });
 
-$bot->onCallbackQueryData('sales:checkout:new:{id}:{days}:{gb}', function (Nutgram $bot, string $id, string $days, string $gb): void {
-    app(SalesCheckoutUi::class)->newPurchase($bot, $id, $days, $gb);
+$bot->onCallbackQueryData('sales:checkout:new:{source}', function (Nutgram $bot, string $source): void {
+    app(SalesCheckoutUi::class)->newPurchase($bot, $source);
 });
 
 $bot->onCallbackQueryData('sales:checkout:commit:{token}', function (Nutgram $bot, string $token): void {
