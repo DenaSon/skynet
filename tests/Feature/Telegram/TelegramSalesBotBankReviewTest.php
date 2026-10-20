@@ -30,6 +30,7 @@ uses(RefreshDatabase::class);
 beforeEach(function (): void {
     config()->set('super_admin.telegram_ids', ['974001', '974002']);
     config()->set('sales.manual_bank_review_enabled', false);
+    config()->set('sales.one_click_bank_review_enabled', false);
     config()->set('billing.payment_card_number', '6037991234567890'); // Isolated fixture, never a shipped destination.
     config()->set('telegram_notifications.enabled', false);
     config()->set('telegram.sales.enabled', false);
@@ -243,4 +244,64 @@ it('routes the Sales-origin receipt photo across tokens only through the guarded
         'https://api.telegram.org/file/bot54321:sales_test/photos/test.png',
         'https://api.telegram.org/bot12345:admin_test/sendPhoto',
     ]);
+});
+
+it('gates the one-click operator attestation and settles only once with an internal audit reference', function (): void {
+    $data = sb04Order();
+    config()->set('sales.manual_bank_review_enabled', true);
+    config()->set('telegram_notifications.enabled', true);
+    Queue::fake();
+    $claimId = app(ManualBankPayments::class)->submit(
+        SubscriptionViewer::telegram(974099), $data['order'],
+        'sale-photo-file-123', 'sale-unique-photo-123', 510, 'sales',
+    );
+    $review = app(ManualBankPayments::class);
+
+    expect(fn () => $review->review($data['root']->id, $claimId, true))
+        ->toThrow(ValidationException::class);
+
+    config()->set('sales.one_click_bank_review_enabled', true);
+    expect($review->review($data['root']->id, $claimId, true)->approved)->toBeTrue();
+    expect(DB::table('sales_bank_settlements')->value('payment_reference'))
+        ->toBe('MANUAL-CLAIM-'.$claimId);
+    expect(DB::table('sales_bank_settlements')->count())->toBe(1)
+        ->and(DB::table('billing_journals')->where('kind', 'direct_bank_sale')->count())->toBe(1)
+        ->and(DB::table('sales_fulfillment_outbox')->count())->toBe(1);
+    expect(fn () => $review->review($data['root']->id, $claimId, true))
+        ->toThrow(ValidationException::class);
+    Http::assertNothingSent();
+});
+
+it('renders direct review actions in the durable Admin receipt alert without leaking Sales file IDs', function (): void {
+    $data = sb04Order();
+    config()->set('sales.manual_bank_review_enabled', true);
+    config()->set('sales.one_click_bank_review_enabled', true);
+    config()->set('telegram_notifications.enabled', true);
+    config()->set('telegram.sales.enabled', true);
+    Queue::fake();
+    $claimId = app(ManualBankPayments::class)->submit(
+        SubscriptionViewer::telegram(974099), $data['order'],
+        'sale-photo-file-123', 'sale-unique-photo-123', 511, 'sales',
+    );
+    $deliveryId = (int) DB::table('telegram_notification_deliveries')
+        ->where('event_type', 'ReceiptSubmitted')->value('id');
+    $image = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP8z8DAwMDAxMDAwMDAAAANHQEDasKb6QAAAABJRU5ErkJggg==', true);
+    expect($image)->toBeString();
+    Http::fake(function (Request $request) use ($image) {
+        if (str_contains($request->url(), '54321:sales_test/getFile')) {
+            return Http::response(['ok' => true, 'result' => ['file_path' => 'photos/test.png', 'file_size' => strlen($image)]]);
+        }
+        if (str_contains($request->url(), '/file/bot54321:sales_test/photos/test.png')) {
+            return Http::response($image, 200, ['Content-Type' => 'image/png']);
+        }
+
+        return Http::response(['ok' => true, 'result' => ['message_id' => 5]], 200);
+    });
+    app(DispatchTelegramNotification::class, ['deliveryId' => $deliveryId])
+        ->handle(app(TelegramNotificationSender::class));
+
+    expect(DB::table('telegram_notification_deliveries')->where('id', $deliveryId)->value('state'))->toBe('sent');
+    Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '12345:admin_test/sendPhoto')
+        && str_contains((string) $request['reply_markup'], 'bank:decide:'.$claimId.':a')
+        && str_contains((string) $request['reply_markup'], 'bank:decide:'.$claimId.':r'));
 });
