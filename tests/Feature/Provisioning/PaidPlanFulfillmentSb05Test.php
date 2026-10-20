@@ -43,6 +43,7 @@ beforeEach(function (): void {
     config()->set('services.remnawave.writes_enabled', false);
     config()->set('services.remnawave.squad_bindings_live_verified', false);
     config()->set('sales.manual_bank_review_enabled', false);
+    config()->set('sales.auto_fulfillment_enabled', false);
     config()->set('telegram_notifications.enabled', false);
     Http::preventStrayRequests();
 });
@@ -639,4 +640,38 @@ it('exposes a reserved status update for read-only recovery after worker interru
         ->and($statuses->status($data['root']->id, $data['order']))->toBe('disabled');
     Http::assertSent(static fn (Request $req): bool => $req->method() === 'GET');
     Http::assertNotSent(static fn (Request $req): bool => $req->method() === 'PATCH');
+});
+
+it('queues automatic fulfillment after a committed root review only when all gates are enabled', function (): void {
+    $data = sb05Order(pay: false);
+    config()->set('sales.manual_bank_review_enabled', true);
+    config()->set('sales.auto_fulfillment_enabled', true);
+    config()->set('services.remnawave.writes_enabled', true);
+    Queue::fake();
+    $claim = app(ManualBankPayments::class)->submit(
+        SubscriptionViewer::telegram(975099), $data['order'],
+        'uxr03-file-123', 'uxr03-unique-123', 700, 'sales',
+    );
+    app(ManualBankPayments::class)->review($data['root']->id, $claim, true, 'UXR03BANK777');
+
+    Queue::assertPushed(FulfillPaidPlanOrderJob::class,
+        static fn (FulfillPaidPlanOrderJob $job): bool => $job->orderId === $data['order']
+            && $job->actorId === $data['root']->id && ! $job->reconcile);
+    expect(DB::table('sales_fulfillment_outbox')->value('state'))->toBe('pending');
+    expect(DB::table('provisioning_subscriptions')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('recovers an approved pending bank order using the same guarded queue and no provider call in scheduler', function (): void {
+    $data = sb05Order();
+    Queue::fake();
+    config()->set('sales.auto_fulfillment_enabled', true);
+    config()->set('services.remnawave.writes_enabled', true);
+
+    $this->artisan('sales:fulfillment:dispatch')->assertSuccessful();
+
+    Queue::assertPushed(FulfillPaidPlanOrderJob::class,
+        static fn (FulfillPaidPlanOrderJob $job): bool => $job->orderId === $data['order']
+            && $job->actorId === $data['root']->id);
+    Http::assertNothingSent();
 });

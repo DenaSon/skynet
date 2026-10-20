@@ -8,4 +8,5 @@ return [
     'wallet_settlement_enabled' => env('SALES_WALLET_SETTLEMENT_ENABLED', false),
     'manual_bank_review_enabled' => env('SALES_MANUAL_BANK_REVIEW_ENABLED', false),
     'one_click_bank_review_enabled' => env('SALES_ONE_CLICK_BANK_REVIEW_ENABLED', false),
+    'auto_fulfillment_enabled' => env('SALES_AUTO_FULFILLMENT_ENABLED', false),
 ];
