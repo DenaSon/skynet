@@ -103,3 +103,11 @@ Review this standard before every future Telegram UI feature.
 - A committed approval may show «پرداخت تأیید شد؛ اشتراک در حال آماده‌سازی است» **only while automated provisioning is actually enabled and verified**. An uncertain/failed create is not described as active. Rejected receipts may be resubmitted through the existing purchase flow.
 - Only after the real RW result and owned order/subscription mapping are committed, send a fresh «✅ اشتراک شما فعال شد» Sales message with «🔐 نمایش کد اتصال». The callback contains only an order identifier; a new owner/authorization check precedes the private connection link. Receipt/photo and connection credentials never appear in public chats, logs or callbacks.
 - Legacy payment and fulfillment management commands remain available to authorized operators for exceptional/manual recovery; simple Persian is shown to Telegram users, with internal mechanism and rollout flag names restricted to developer documentation.
+
+
+## UXR-04 — Account and owned services
+
+- The Sales account displays a modest summary of the active linked identity, actual membership date, all paid/fulfilled sales-order totals (not unpaid orders) and registered owned services. All money remains calculated in rials and labelled in tomans; reseller wallet stays reseller-only and re-authorized.
+- «📋 سرویس‌های من» lists only actual linked services, not orders awaiting payment or activation. Use the plan/name, traffic and duration in short readable lines; a button opens details directly. The stored local `active` state is labelled «فعال در سوابق» and must not be misrepresented as real provider usability or expiry. The customer sees verified current usage, quota and expiry only after the owner-authorized provider read succeeds.
+- Show «🔐 نمایش کد اتصال» only after the verified link/usage read succeeds. Use the existing private ownership Action at the final click too. Offer «آموزش اتصال» and «پشتیبانی» without invented operator handles or tickets.
+- Short escaped HTML headings, labelled lines, bold monetary totals, a single brief blockquote when useful, clear navigation and descriptive status words take precedence over decorative UI. Failed reads show unavailable/retry, never artificial zero statistics.

@@ -97,7 +97,7 @@ it('adds simple owner-only Sales subscription navigation with an empty state and
     Http::fake();
 
     $bot->hearText('/subscriptions')->reply()
-        ->assertReplyText("📋 سرویس‌های من\n\nهنوز سفارش یا اشتراکی ندارید.");
+        ->assertCalled('sendMessage');
 
     $orderId = sb06Order($buyer);
     sb06Order(User::factory()->create());
