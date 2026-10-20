@@ -320,7 +320,9 @@ it('requires all gates before final approval and then queues one automatic RW ac
     );
 
     $admin = Nutgram::fake();
-    require base_path('app/Interfaces/Telegram/routes/admin.php');
+    (static function (Nutgram $bot): void {
+        require base_path('app/Interfaces/Telegram/routes/admin.php');
+    })($admin);
     $admin->setCommonUser(TelegramUser::make(974001, false, 'Root'));
     $admin->setCommonChat(Chat::make(974001, ChatType::PRIVATE));
 
@@ -369,7 +371,9 @@ it('finishes receipt rejection with one button and never enqueues provider creat
         'sale-test-receipt-r', 'sale-test-unique-r', 703, 'sales',
     );
     $admin = Nutgram::fake();
-    require base_path('app/Interfaces/Telegram/routes/admin.php');
+    (static function (Nutgram $bot): void {
+        require base_path('app/Interfaces/Telegram/routes/admin.php');
+    })($admin);
     $admin->setCommonUser(TelegramUser::make(974001, false, 'Root'));
     $admin->setCommonChat(Chat::make(974001, ChatType::PRIVATE));
     $admin->hearCallbackQueryData('bank:decide:'.$claim.':r')->reply()
