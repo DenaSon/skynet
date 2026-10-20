@@ -62,7 +62,7 @@ function uxr02Plan(): array
     $root->assignRole('super-admin');
     TelegramAccount::query()->create(['user_id' => $root->id, 'telegram_user_id' => 973001]);
     $plan = app(ManagePlans::class)->create($root->id, new PlanDefinition(
-        'vpn-access', '<Plan & Name>', 'توضیح', 'hybrid', 'preset', 'both',
+        'vpn-access', 'uxr02-plan', 'توضیح', 'hybrid', 'preset', 'both',
         30, 30, 1, 100, 15, 90,
     ));
     $plans = app(ManagePlans::class);
@@ -71,6 +71,7 @@ function uxr02Plan(): array
     $rev = $prices->configure($root->id, $plan->id, 2, 0,
         new PlanPricingDefinition('fixed', 1_000_000, 0, 0, 0, 10, 100_000));
     $prices->confirmChange($root->id, $prices->requestChange($root->id, $plan->id, 2, $rev, 'activate'));
+    DB::table('sales_plans')->where('id', $plan->id)->update(['name' => '<Plan & Name>']);
 
     DB::table('sales_plan_internal_squad_bindings')->insert([
         'plan_id' => $plan->id,
