@@ -59,7 +59,9 @@ final readonly class SubscriptionOwnershipQuery
         $states = $this->statesFor($orders);
         $items = array_map(fn (OrderDetails $order): SubscriptionSummary => $this->summary($order, $states[$order->id] ?? null), $orders);
 
-        return new SubscriptionCursorPage($items, $hasNext ? end($ids) : null);
+        $last = $ids === [] ? null : $ids[count($ids) - 1];
+
+        return new SubscriptionCursorPage($items, $hasNext ? $last : null);
     }
 
     /** @return array{total:int, activeRecorded:int, needsReview:int} */
