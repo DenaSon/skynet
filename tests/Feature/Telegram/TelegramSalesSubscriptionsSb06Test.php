@@ -97,7 +97,7 @@ it('adds simple owner-only Sales subscription navigation with an empty state and
     Http::fake();
 
     $bot->hearText('/subscriptions')->reply()
-        ->assertReplyText("📦 اشتراک‌های من\n\nهنوز سفارش یا اشتراکی ندارید.");
+        ->assertReplyText("📋 سرویس‌های من\n\nهنوز سفارش یا اشتراکی ندارید.");
 
     $orderId = sb06Order($buyer);
     sb06Order(User::factory()->create());
@@ -182,7 +182,10 @@ it('shows verified usage, remaining quota and UTC expiration without leaking the
         ->and(json_encode($usage, JSON_THROW_ON_ERROR))->not->toContain('private-sb06-credential');
 
     $bot->hearCallbackQueryData('sales:subs:view:'.$order.':0')->reply()
-        ->assertCalled('editMessageText')->assertCalled('sendMessage', 0);
+        ->assertReply('answerCallbackQuery', index: 0)
+        ->assertReply('sendChatAction', ['action' => 'typing'], index: 1)
+        ->assertReply('editMessageText', index: 2)
+        ->assertCalled('answerCallbackQuery')->assertCalled('sendMessage', 0);
     Http::assertSentCount(2);
     Http::assertSent(static fn (Request $r): bool => $r->method() === 'GET'
         && $r->url() === 'https://remna.test/api/users/42');

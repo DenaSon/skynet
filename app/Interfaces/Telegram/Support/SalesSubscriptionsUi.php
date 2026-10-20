@@ -65,7 +65,7 @@ final readonly class SalesSubscriptionsUi
                 ? 'هنوز سفارش یا اشتراکی ندارید.'
                 : 'مورد دیگری در این صفحه وجود ندارد.';
         } else {
-            $lines = ['📦 اشتراک‌های من', ''];
+            $lines = ['📋 سرویس‌های من', ''];
             foreach ($page->items as $item) {
                 $lines[] = '#'.$item->orderId.' · '.$this->clean($item->productName)
                     .' · '.$this->status($item->status);
@@ -90,7 +90,7 @@ final readonly class SalesSubscriptionsUi
             ->addRow(InlineKeyboardButton::make('📋 پلن‌ها', callback_data: 'menu:plan-catalog'))
             ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
 
-        $this->render($bot, $page->items === [] ? "📦 اشتراک‌های من\n\n".$message : $message, $keyboard);
+        $this->render($bot, $page->items === [] ? "📋 سرویس‌های من\n\n".$message : $message, $keyboard);
     }
 
     public function detail(Nutgram $bot, string $id, string $cursor = '0'): void
@@ -131,8 +131,12 @@ final readonly class SalesSubscriptionsUi
             '',
         ];
         $keyboard = InlineKeyboardMarkup::make();
+        $acknowledged = false;
 
         if ($details->canRequestLink) {
+            TelegramUi::answerCallback($bot);
+            $acknowledged = $bot->isCallbackQuery();
+            TelegramUi::activity($bot);
             try {
                 $live = $this->usage->handle($viewer, $orderId);
                 $lines[] = 'وضعیت فعلی: 🟢 فعال (بررسی‌شده)';
@@ -162,7 +166,7 @@ final readonly class SalesSubscriptionsUi
             ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'sales:subs:list:'.$cursor))
             ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
 
-        $this->render($bot, implode("\n", $lines), $keyboard);
+        $this->render($bot, implode("\n", $lines), $keyboard, ! $acknowledged);
     }
 
     public function link(Nutgram $bot, string $id, string $cursor = '0'): void
@@ -272,13 +276,15 @@ final readonly class SalesSubscriptionsUi
 
     private function notice(Nutgram $bot, string $message, InlineKeyboardMarkup $keyboard): void
     {
-        $this->render($bot, "📦 اشتراک‌های من\n\n".$message, $keyboard);
+        $this->render($bot, "📋 سرویس‌های من\n\n".$message, $keyboard);
     }
 
-    private function render(Nutgram $bot, string $message, InlineKeyboardMarkup $keyboard): void
+    private function render(Nutgram $bot, string $message, InlineKeyboardMarkup $keyboard, bool $acknowledge = true): void
     {
         if ($bot->isCallbackQuery()) {
-            TelegramUi::answerCallback($bot);
+            if ($acknowledge) {
+                TelegramUi::answerCallback($bot);
+            }
             TelegramUi::editText($bot, $message, $keyboard);
 
             return;

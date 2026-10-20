@@ -1,5 +1,19 @@
 # Roadmap
 
+## UXR — Approved five-phase Sales UX roadmap (2026-10-20)
+
+[Detailed scope and acceptance](026-SALES-UX-ROADMAP.md) / [#115](https://github.com/DenaSon/skynet/issues/115). Prior tests are complete by operator report; the new phases each have their own change verification.
+
+| Phase | Status / result |
+| --- | --- |
+| UXR-01 | Implemented in source: four-button home with ready-plan prices, support/guides, invitations, safe navigation/feedback and ready-node label. CI and new live acceptance are tracked separately. |
+| UXR-02 | Planned: direct plan → payment → receipt, copy and resume; preserve price/ownership checks. |
+| UXR-03 | Planned: Admin receipt alert/approve/reject → automatic existing fulfillment → buyer notification. |
+| UXR-04 | Planned: real account statistics, recognizable service list/details and final typography. |
+| UXR-05 | Planned: compatible official RW subscription page and bot integration. |
+
+Only UXR-01 execution/merge is authorized in this checkpoint. #126 begins here and completes in UXR-04; #127's general feedback begins here and receipt ForceReply completes in UXR-02. Missing Admin receipt alert #117 and deferred Host Profile debt #111 remain open.
+
 ## Controlled MVP Sales happy path — operator-confirmed live checkpoint (2026-10-20)
 
 - **LIVE PASS for purchase → receipt submission → operator payment approval → subscription activation**, as reported by the operator after the quote-cache fix. The same session already confirmed the new-server/Node/Host path and real Shadowsocks client connectivity. Source fixes #112/#113 and their CI are distinct from this live evidence.

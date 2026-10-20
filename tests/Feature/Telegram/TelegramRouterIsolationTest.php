@@ -1,10 +1,15 @@
 <?php
 
+use App\Interfaces\Telegram\Processing\ProcessSalesTelegramUpdate;
 use App\Interfaces\Telegram\Processing\SalesTelegramRuntime;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Properties\ChatType;
+use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
+use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 
 uses(RefreshDatabase::class);
 
@@ -29,6 +34,11 @@ function mb03Registrations(string $path): array
         public function onPhoto(mixed $handler): void
         {
             $this->routes[] = 'photo:*';
+        }
+
+        public function fallback(mixed $handler): void
+        {
+            $this->routes[] = 'fallback:*';
         }
 
         public function onText(string $pattern, mixed $handler): void
@@ -197,7 +207,7 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
         ->and(count(array_unique($legacy)))->toBe(201);
 });
 
-it('keeps the second Sales Bot router limited to identity and read-only catalog without Admin callbacks', function (): void {
+it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {
     expect(mb03Registrations('app/Interfaces/Telegram/routes/sales.php'))->toBe([
         'command:start {payload}',
         'command:start',
@@ -205,6 +215,13 @@ it('keeps the second Sales Bot router limited to identity and read-only catalog 
         'command:account',
         'command:link {code}',
         'callback:sales:home',
+        'callback:sales:home:{page}',
+        'callback:sales:invite',
+        'command:invite',
+        'callback:sales:support',
+        'command:help',
+        'command:cancel',
+        'callback:sales:help:{page}',
         'callback:sales:account',
         'callback:sales:join',
         'command:catalog',
@@ -220,7 +237,8 @@ it('keeps the second Sales Bot router limited to identity and read-only catalog 
         'callback:builder:quote:{id}:{gb}:{days}:{page}',
         'callback:builder:custom:{id}:{page}',
         'callback:builder:cancel',
-        'text:{volume}',
+        'text:(?!/){volume}',
+        'fallback:*',
         'command:orders',
         'callback:sales:checkout:preview:{id}:{days}:{gb}',
         'callback:sales:checkout:commit:{token}',
@@ -257,6 +275,22 @@ it('does not execute forged Admin callbacks delivered to an enabled, isolated Sa
     ]);
 
     $beforeRoles = $user->getRoleNames()->all();
+
+    // Unknown callbacks now send safe guidance. Use the real Sales registry
+    // with a fake Telegram transport rather than calling Telegram from CI.
+    app()->instance(ProcessSalesTelegramUpdate::class, new class implements ProcessSalesTelegramUpdate
+    {
+        public function handle(): void
+        {
+            $bot = Nutgram::fake();
+            require base_path('app/Interfaces/Telegram/routes/sales.php');
+            $id = (int) request()->input('callback_query.from.id');
+            $bot->setCommonUser(TelegramUser::make($id, false, 'Test'));
+            $bot->setCommonChat(Chat::make($id, ChatType::PRIVATE));
+            $bot->hearCallbackQueryData((string) request()->input('callback_query.data'))->reply()
+                ->assertCalled('answerCallbackQuery')->assertCalled('editMessageText');
+        }
+    });
 
     foreach (['rbac:apply:aaaa', 'users:apply:bbbb', 'product:apply:cccc', 'bank:apply:dddd', 'menu:admin:servers', 'servers:refresh'] as $offset => $forged) {
         $this->postJson('/api/telegram/sales/webhook', [

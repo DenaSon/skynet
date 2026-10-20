@@ -7,6 +7,7 @@ namespace App\Interfaces\Telegram\Support;
 use InvalidArgumentException;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
+use SergiX44\Nutgram\Telegram\Properties\ChatAction;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\CopyTextButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
@@ -90,7 +91,22 @@ final class TelegramUi
 
     public static function code(string $text): string
     {
-        return '<code>'.htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'</code>';
+        return '<code>'.self::escape($text).'</code>';
+    }
+
+    public static function escape(string $text): string
+    {
+        return htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+
+    /** Optional feedback must never prevent an authorized read from completing. */
+    public static function activity(Nutgram $bot): void
+    {
+        try {
+            $bot->sendChatAction(action: ChatAction::TYPING);
+        } catch (\Throwable) {
+            // No retry: a typing indicator is not a business operation.
+        }
     }
 
     public static function copy(string $text, string $label = '📋 کپی نمونه'): InlineKeyboardButton

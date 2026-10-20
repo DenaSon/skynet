@@ -100,6 +100,17 @@ final class ReplyMenuRenderer
         return $this->keyboard($labels);
     }
 
+    /** Sales has its own registry; never expose the legacy/Admin keyboard here. */
+    public function salesKeyboard(): ReplyKeyboardMarkup
+    {
+        return $this->keyboard([
+            ReplyMenuLabels::SALES_BUY,
+            ReplyMenuLabels::SALES_SUBSCRIPTIONS,
+            ReplyMenuLabels::SALES_ACCOUNT,
+            ReplyMenuLabels::SALES_SUPPORT,
+        ]);
+    }
+
     /**
      * @param  list<string>  $labels
      */

@@ -80,21 +80,27 @@ final readonly class AdminNodesUi
         if ($nav !== []) {
             $keyboard->addRow(...$nav);
         }
+        if (config('services.remnawave.node_ssh_setup_enabled') === true) {
+            $keyboard->addRow(InlineKeyboardButton::make('🛠️ افزودن سرور جدید', callback_data: 'nw1:begin'));
+            if (config('services.remnawave.node_ssh_install_enabled') === true
+                && $this->installations->recent($root) !== null) {
+                $keyboard->addRow(InlineKeyboardButton::make('↪️ ادامه راه‌اندازی اخیر', callback_data: 'nw4:recent'));
+            }
+        }
         if (config('services.remnawave.writes_enabled') === true) {
             $keyboard->addRow(
-                InlineKeyboardButton::make('➕ افزودن نود', callback_data: 'node1:begin'),
+                InlineKeyboardButton::make('➕ ثبت نود آماده', callback_data: 'node1:begin'),
                 InlineKeyboardButton::make('⚙️ عملیات گروهی', callback_data: 'node3:list'),
             );
         } else {
             $lines[] = '';
             $lines[] = '🔒 تغییرات فعلاً غیرفعال است؛ اطلاعات فقط قابل مشاهده‌اند.';
         }
-        if (config('services.remnawave.node_ssh_setup_enabled') === true) {
-            $keyboard->addRow(InlineKeyboardButton::make('🛠️ راه‌اندازی سرور جدید', callback_data: 'nw1:begin'));
-            if (config('services.remnawave.node_ssh_install_enabled') === true
-                && $this->installations->recent($root) !== null) {
-                $keyboard->addRow(InlineKeyboardButton::make('↪️ ادامه راه‌اندازی اخیر', callback_data: 'nw4:recent'));
-            }
+        if (config('services.remnawave.node_ssh_setup_enabled') === true
+            && config('services.remnawave.writes_enabled') === true) {
+            $lines[] = '';
+            $lines[] = 'سرور تازه: «افزودن سرور جدید»؛ نود از قبل نصب‌شده: «ثبت نود آماده».';
+            $lines[] = 'این دو مسیر جایگزین‌اند؛ اجرای هر دو لازم نیست.';
         }
         $keyboard->addRow(InlineKeyboardButton::make('🏷️ تگ‌ها', callback_data: 'node1:tags'));
         $keyboard->addRow(InlineKeyboardButton::make('🌐 مدیریت هاست‌ها', callback_data: 'host1:list:1'));
@@ -172,7 +178,7 @@ final readonly class AdminNodesUi
             return;
         }
         if (config('services.remnawave.writes_enabled') !== true) {
-            $this->render($bot, "➕ افزودن نود\n\nافزودن سرور فعلاً غیرفعال است.", $this->listKeyboard());
+            $this->render($bot, "➕ ثبت نود آماده\n\nافزودن سرور فعلاً غیرفعال است.", $this->listKeyboard());
 
             return;
         }
@@ -185,7 +191,7 @@ final readonly class AdminNodesUi
         Cache::forget(TelegramBotContext::current()->cacheKey('node03:draft:'.$root));
         $this->save($root, ['stage' => 'info']);
         $this->render($bot,
-            "➕ افزودن نود — گام ۱ از ۳\n\nنام و آدرس سرور را در یک پیام بفرستید:\n\n"
+            "➕ ثبت نود آماده — گام ۱ از ۳\n\nاین مسیر برای سروری است که نود روی آن نصب شده است.\nنام و آدرس سرور را در یک پیام بفرستید:\n\n"
             ."Germany-01 | node.example.com\n\nآدرس باید IP یا نام دامنه باشد؛ بدون http و پورت.",
             $this->cancelKeyboard());
     }
@@ -300,7 +306,7 @@ final readonly class AdminNodesUi
         $state['token'] = $token;
         $this->save($root, $state);
         $this->render($bot,
-            "➕ افزودن نود — گام ۳ از ۳\n\n"
+            "➕ ثبت نود آماده — گام ۳ از ۳\n\n"
             .'نام: '.$this->safe($state['name'])."\n"
             .'آدرس: '.$this->safe($state['address'])."\n"
             .'پروفایل: '.$this->safe($state['profile']['name'])."\n"
@@ -382,7 +388,7 @@ final readonly class AdminNodesUi
             ));
         }
         $keyboard->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'node1:cancel'));
-        $this->render($bot, "➕ افزودن نود — گام ۲ از ۳\n\nپروفایل را انتخاب کنید."
+        $this->render($bot, "➕ ثبت نود آماده — گام ۲ از ۳\n\nپروفایل را انتخاب کنید."
             .($profiles === [] ? "\n\nهنوز پروفایلی در پنل وجود ندارد." : ''), $keyboard);
     }
 

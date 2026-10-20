@@ -9,6 +9,7 @@ use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Application\ManageAdminNodes;
 use App\Modules\Provisioning\Infrastructure\NodeSetup\NodeSshPreflight;
+use GuzzleHttp\Psr7\Request as TelegramRequest;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
@@ -20,6 +21,7 @@ use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
+use SergiX44\Nutgram\Testing\FakeNutgram;
 
 uses(RefreshDatabase::class);
 
@@ -364,4 +366,29 @@ it('NW-04 private Admin can resume a recent setup while ordinary users cannot', 
     node01Bot(951112)->hearCallbackQueryData('nw4:recent')->reply();
     node01Bot(951111, false)->hearCallbackQueryData('nw4:recent')->reply();
     Http::assertNothingSent();
+});
+
+it('distinguishes fresh server setup from existing node registration without changing their callbacks', function (): void {
+    node01Actors();
+    node01FakeProvider();
+    config()->set('services.remnawave.writes_enabled', true);
+    config()->set('services.remnawave.node_ssh_setup_enabled', true);
+    $bot = node01Bot();
+    $bot->hearCallbackQueryData('node1:list:1')->reply()
+        ->assertRaw(static function (TelegramRequest $request): bool {
+            $body = FakeNutgram::getActualData($request);
+            $markup = $body['reply_markup'];
+            if (is_string($markup)) {
+                $markup = json_decode($markup, true, flags: JSON_THROW_ON_ERROR);
+            }
+            $buttons = array_merge(...$markup['inline_keyboard']);
+            $paths = array_values(array_filter($buttons, static fn (array $button): bool => in_array($button['callback_data'] ?? '', ['nw1:begin', 'node1:begin'], true)));
+
+            return str_contains($body['text'], 'این دو مسیر جایگزین‌اند') && $paths === [
+                ['text' => '🛠️ افزودن سرور جدید', 'callback_data' => 'nw1:begin'],
+                ['text' => '➕ ثبت نود آماده', 'callback_data' => 'node1:begin'],
+            ];
+        }, index: 1);
+    Http::assertSentCount(1);
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
 });

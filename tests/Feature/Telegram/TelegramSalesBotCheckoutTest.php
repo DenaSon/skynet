@@ -220,7 +220,7 @@ it('binds Sales preview and idempotent commit to a private user without exposing
     $bot->setCommonChat(Chat::make(-979012, ChatType::GROUP));
     $bot->hearCallbackQueryData('sales:checkout:commit:'.$token)->reply()->assertNoReply();
     $bot->setCommonChat(Chat::make(979012, ChatType::PRIVATE));
-    $bot->hearCallbackQueryData('bank:apply:forged')->reply()->assertNoReply();
+    $bot->hearCallbackQueryData('bank:apply:forged')->reply()->assertCalled('answerCallbackQuery')->assertCalled('editMessageText');
     expect(DB::table('billing_journals')->count())->toBe(0);
     Http::assertNothingSent();
 
