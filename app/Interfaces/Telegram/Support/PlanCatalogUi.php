@@ -38,6 +38,7 @@ final readonly class PlanCatalogUi
 
         if (TelegramBotContext::current()->key === TelegramBotContext::SALES) {
             \Illuminate\Support\Facades\Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$actor->userId));
+            \Illuminate\Support\Facades\Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:recent:'.$actor->userId));
         }
 
         $this->pendingVolume->forget($actor->userId);
