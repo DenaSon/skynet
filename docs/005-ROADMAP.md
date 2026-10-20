@@ -1,5 +1,11 @@
 # Roadmap
 
+## Controlled MVP Sales happy path — operator-confirmed live checkpoint (2026-10-20)
+
+- **LIVE PASS for purchase → receipt submission → operator payment approval → subscription activation**, as reported by the operator after the quote-cache fix. The same session already confirmed the new-server/Node/Host path and real Shadowsocks client connectivity. Source fixes #112/#113 and their CI are distinct from this live evidence.
+- Remaining closeout: diagnose/verify the missing Admin receipt notification, apply the agreed manual-node menu rename, and retain separate evidence for the remaining release checks rather than assuming them from activation. No new feature phase or multi-protocol scope is opened here.
+- This documentation checkpoint is not public-launch approval and changes no runtime configuration, code, money or provider state. See the latest evidence boundaries in `docs/000-CONTEXT.md` and `docs/025-SALES-BOT-ROADMAP.md`.
+
 ## Sales E2E defect — database-cached quote restoration (2026-10-20)
 
 - During controlled live checkout after Squad verification, the operator hit an invalid/expired preview. Reproduce with the real database cache, not only the array test store.

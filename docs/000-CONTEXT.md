@@ -1,5 +1,13 @@
 # ParsaGate — Current Context / Development Memory 
 
+## Controlled Sales purchase → activation — LIVE PASS, operator-reported (2026-10-20, 20:13 Tehran)
+
+- The operator confirmed the fresh-preview/cache fix after [PR #113](https://github.com/DenaSon/skynet/pull/113): Sales created the managed-plan order, accepted its receipt, and displayed payment approved / awaiting activation after the operator's Admin review. The operator then reported the test complete and the subscription activated. This closes the controlled purchase-to-activation happy path; it is live operator evidence, separate from CI.
+- Earlier in the same session, a fresh Ubuntu server completed the post-[#112](https://github.com/DenaSon/skynet/pull/112) setup, Node/Host activation and a real Shadowsocks client connection (119 ms reported latency). No secret, subscription URL, bank reference or customer identity is retained here.
+- Open notification issue: the receipt alert did not arrive in the Admin Bot, so the operator used the receipt list to review it. The effective notification flag, queue/delivery states and exact failure cause have not been supplied; use the sanitized `telegram:ops:status` check before assuming a cause. Do not replay suppressed historical deliveries or submit another receipt for the same test.
+- Approved UI follow-up remains «افزودن نود» → «ثبت نود آماده», preserving the existing Action and callbacks. No implementation is included in this documentation checkpoint. Additional protocols remain outside the current MVP closeout.
+- Acceptance boundary: public-launch approval and separately measured IP/usage, duplicate/cross-account and subscription enable/disable evidence are not inferred from the activation confirmation. This checkpoint changes no code, flags, data or provider resources; it supersedes earlier pending statements only for the live steps explicitly confirmed above.
+
 ## Sales live checkout / quote-cache compatibility — 2026-10-20
 
 - Operator reports a fresh post-port-fix server setup, Node/Host activation and real client connection (119 ms reported latency). IP egress and measured traffic-counter evidence remain unrecorded; this is not full Sales lifecycle acceptance. The replacement Sales Bot webhook subsequently registered and its home/catalog responded.

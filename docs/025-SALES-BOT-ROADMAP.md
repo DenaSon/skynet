@@ -1,5 +1,11 @@
 # ParsaGate — EPIC-SB Sales Bot roadmap
 
+## Controlled live purchase-to-activation checkpoint — 2026-10-20
+
+- Operator-confirmed: the fixed fresh preview produced a real pending-payment order, receipt submission reached review, Admin approval produced paid / awaiting activation, and the subscription was subsequently activated. Mark this controlled happy path **LIVE PASS (operator-reported)**; earlier blanket live-pending wording is historical for these confirmed steps.
+- Admin receipt notification remains **OPEN**: no alert arrived, though manual receipt-list review worked. Effective notification enablement and delivery/queue diagnostics have not been provided. Check `telegram:ops:status`; do not assume that enabling notifications will replay a previously suppressed receipt event.
+- Public rollout and the remaining release-case evidence stay separate. No further protocol, financial or customer feature is authorized by this acceptance note; the previously agreed Node-menu rename is still a small pending UI follow-up.
+
 ## Sales checkout database-cache compatibility — 2026-10-20
 
 - `PlanCheckoutTokens` intentionally stores the immutable, buyer-bound `PlanPriceQuote` snapshot for ten minutes. Laravel 13 must explicitly allow that DTO in `cache.serializable_classes`; the production-style database store otherwise cannot restore it, even for a fresh preview. Do not replace the allow-list with unrestricted `true`.
