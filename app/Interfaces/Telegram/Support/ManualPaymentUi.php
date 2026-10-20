@@ -243,7 +243,7 @@ final readonly class ManualPaymentUi
         if (config('telegram_notifications.enabled', false) !== true) {
             if (TelegramBotContext::current()->key === TelegramBotContext::ADMIN) {
                 $this->alertRoots($bot, $claimId);
-            } else {
+            } elseif (config('sales.one_click_bank_review_enabled', false) === true) {
                 // Sales file IDs are token-specific: use the existing secure
                 // bounded downloader and Admin-token reupload.
                 foreach ($this->trust->allowedTelegramIds() as $id) {
