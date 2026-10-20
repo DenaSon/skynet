@@ -240,11 +240,27 @@ final readonly class ManualPaymentUi
             : "🕘 رسید سفارش #{$orderId} ثبت شد.\nشماره بررسی: #{$claimId}\n\nتنها پس از تطبیق واقعی گردش بانک و تأیید مدیر، سفارش تسویه می‌شود.");
         // Keep the already deployed best-effort alerts until the durable
         // notification worker is explicitly enabled in Production.
-        if (config('telegram_notifications.enabled', false) !== true
-            && TelegramBotContext::current()->key === TelegramBotContext::ADMIN) {
-            // The legacy original-bot best-effort path remains unchanged.
-            // Never deliver Admin-only bank buttons using the Sales token.
-            $this->alertRoots($bot, $claimId);
+        if (config('telegram_notifications.enabled', false) !== true) {
+            if (TelegramBotContext::current()->key === TelegramBotContext::ADMIN) {
+                $this->alertRoots($bot, $claimId);
+            } elseif (config('sales.one_click_bank_review_enabled', false) === true) {
+                // Sales file IDs are token-specific: use the existing secure
+                // bounded downloader and Admin-token reupload.
+                foreach ($this->trust->allowedTelegramIds() as $id) {
+                    $root = $this->actors->handle((int) $id);
+                    if ($root === null || ! $root->canManageRoles()) {
+                        continue;
+                    }
+                    try {
+                        $this->sender->showReceiptToRoot(
+                            $claimId, $root->userId, (int) $id,
+                            $this->caption($this->payments->detail($root->userId, $claimId)),
+                        );
+                    } catch (Throwable) {
+                        // The review queue remains authoritative.
+                    }
+                }
+            }
         }
     }
 
@@ -333,6 +349,56 @@ final readonly class ManualPaymentUi
             $this->sender->showReceiptToRoot($id, $actor->userId, (int) $this->private->id($bot), $this->caption($row));
         } catch (Throwable) {
             $this->notice($bot, 'تصویر رسید فعلاً قابل نمایش نیست؛ درخواست در صف بررسی محفوظ است. بدون تطبیق گردش بانک آن را تأیید نکنید.');
+        }
+    }
+
+    /** A root's first click is the final audited receipt decision. */
+    public function decide(Nutgram $bot, string $claim, string $choice): void
+    {
+        $actor = $this->root($bot);
+        if ($actor === null) {
+            return;
+        }
+        $id = $this->parseId($claim);
+        if (config('sales.one_click_bank_review_enabled', false) !== true
+            || $id === null || ! in_array($choice, ['a', 'r'], true)) {
+            $this->notice($bot, 'درخواست معتبر نیست. رسیدها را دوباره بررسی کنید.');
+
+            return;
+        }
+        try {
+            $result = $this->payments->review($actor->userId, $id, $choice === 'a');
+        } catch (AuthorizationException|ValidationException|UniqueConstraintViolationException) {
+            $this->notice($bot, 'این رسید قبلاً بررسی شده یا دیگر معتبر نیست.');
+
+            return;
+        }
+        $autoReady = config('sales.auto_fulfillment_enabled', false) === true
+            && config('services.remnawave.writes_enabled') === true
+            && config('services.remnawave.squad_bindings_live_verified') === true;
+        $message = $result->approved
+            ? ($autoReady
+                ? "✅ پرداخت سفارش #{$result->orderId} تأیید شد.\nاشتراک در حال آماده‌سازی است."
+                : "✅ پرداخت سفارش #{$result->orderId} تأیید شد.\nدرخواست فعال‌سازی ثبت شد.")
+            : "❌ رسید سفارش #{$result->orderId} رد شد.\nمشتری می‌تواند رسید جدیدی ارسال کند.";
+        try {
+            if (($bot->message()->photo ?? []) !== []) {
+                TelegramUi::editCaption($bot, $message, InlineKeyboardMarkup::make());
+            } else {
+                TelegramUi::editText($bot, $message, InlineKeyboardMarkup::make());
+            }
+        } catch (Throwable) {
+            // The committed settlement/rejection must not be undone by Telegram.
+        }
+        if (config('telegram_notifications.enabled', false) !== true) {
+            $recipient = $this->recipients->forActiveUser($result->buyerUserId);
+            if ($recipient !== null) {
+                try {
+                    $bot->sendMessage(text: $message, chat_id: $recipient, protect_content: true);
+                } catch (Throwable) {
+                    // Buyer can still read the authoritative order state.
+                }
+            }
         }
     }
 
@@ -498,9 +564,12 @@ final readonly class ManualPaymentUi
 
     private function reviewKeyboard(int $id): InlineKeyboardMarkup
     {
+        $direct = config('sales.one_click_bank_review_enabled', false) === true;
+        $callback = $direct ? 'bank:decide:' : 'bank:choose:';
+
         return InlineKeyboardMarkup::make()->addRow(
-            InlineKeyboardButton::make('✅ بررسی تأیید', callback_data: 'bank:choose:'.$id.':a'),
-            InlineKeyboardButton::make('❌ رد رسید', callback_data: 'bank:choose:'.$id.':r'),
+            InlineKeyboardButton::make($direct ? '✅ تأیید پرداخت' : '✅ بررسی تأیید', callback_data: $callback.$id.':a'),
+            InlineKeyboardButton::make('❌ رد رسید', callback_data: $callback.$id.':r'),
         );
     }
 

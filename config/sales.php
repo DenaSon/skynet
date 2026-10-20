@@ -7,4 +7,5 @@ return [
     // F11-A1: internal settlement only; no consumer route and no dispatcher.
     'wallet_settlement_enabled' => env('SALES_WALLET_SETTLEMENT_ENABLED', false),
     'manual_bank_review_enabled' => env('SALES_MANUAL_BANK_REVIEW_ENABLED', false),
+    'one_click_bank_review_enabled' => env('SALES_ONE_CLICK_BANK_REVIEW_ENABLED', false),
 ];

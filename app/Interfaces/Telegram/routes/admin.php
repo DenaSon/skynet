@@ -368,6 +368,10 @@ $bot->onCallbackQueryData('bank:show:{claim}', function (Nutgram $bot, string $c
     app(ManualPaymentUi::class)->show($bot, $claim);
 });
 
+$bot->onCallbackQueryData('bank:decide:{claim}:{decision}', function (Nutgram $bot, string $claim, string $decision): void {
+    app(ManualPaymentUi::class)->decide($bot, $claim, $decision);
+});
+
 $bot->onCallbackQueryData('bank:choose:{claim}:{decision}', function (Nutgram $bot, string $claim, string $decision): void {
     app(ManualPaymentUi::class)->choose($bot, $claim, $decision);
 });
