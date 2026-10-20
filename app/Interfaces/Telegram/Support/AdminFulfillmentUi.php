@@ -100,18 +100,9 @@ final readonly class AdminFulfillmentUi
 
         $buttons = InlineKeyboardMarkup::make();
         if ($order->intent_state === 'pending') {
-            if (config('services.remnawave.writes_enabled') === true
-                && config('services.remnawave.squad_bindings_live_verified') === true) {
-                $lines[] = '';
-                $lines[] = 'فقط در صورت تأیید پرداخت واقعی، فعال‌سازی را انتخاب کنید.';
-                $buttons->addRow(InlineKeyboardButton::make(
-                    '✅ درخواست فعال‌سازی',
-                    callback_data: 'full:prepare:'.$orderId.':start',
-                ));
-            } else {
-                $lines[] = '';
-                $lines[] = 'فعال‌سازی در حال حاضر غیرفعال است.';
-            }
+            $lines[] = '';
+            $lines[] = 'درخواست فعال‌سازی خودکار ثبت شده است. وضعیت را تازه‌سازی کنید.';
+            $lines[] = 'اگر انجام نشد، از پشتیبانی فنی درخواست بررسی صف کنید.';
         }
         if ($order->intent_state === 'completed') {
             $lines[] = '';
@@ -144,7 +135,7 @@ final readonly class AdminFulfillmentUi
             return;
         }
         $order = $this->id($id);
-        if ($order === null || ! in_array($mode, ['start', 'reconcile'], true)) {
+        if ($order === null || $mode !== 'reconcile') {
             $this->render($bot, 'درخواست معتبر نیست.', $this->home());
 
             return;
@@ -159,9 +150,7 @@ final readonly class AdminFulfillmentUi
         $token = bin2hex(random_bytes(16));
         Cache::put($this->key($root, $token), ['id' => $order, 'mode' => $mode], now()->addMinutes(3));
         $this->render($bot,
-            '⚠️ تأیید نهایی سفارش #'.$order."\n\n".($mode === 'start'
-                ? 'در صورت تأیید، ساخت سرویس در پنل درخواست می‌شود. این عملیات ممکن است قابل بازگشت نباشد.'
-                : 'فقط وضعیت سرویس موجود بررسی می‌شود؛ سرویس جدیدی ساخته نخواهد شد.'),
+            '⚠️ تأیید بررسی وضعیت سفارش #'.$order."\n\n".'فقط وضعیت سرویس موجود بررسی می‌شود؛ سرویس جدیدی ساخته نخواهد شد.',
             InlineKeyboardMarkup::make()
                 ->addRow(InlineKeyboardButton::make('✅ تأیید', callback_data: 'full:apply:'.$token))
                 ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'full:view:'.$order)),
@@ -190,7 +179,7 @@ final readonly class AdminFulfillmentUi
         });
 
         if (! is_array($state) || ! is_int($state['id'] ?? null)
-            || ! in_array($state['mode'] ?? null, ['start', 'reconcile'], true)) {
+            || ($state['mode'] ?? null) !== 'reconcile') {
             $this->render($bot, 'این تأیید قبلاً استفاده شده یا منقضی است.', $this->home());
 
             return;
