@@ -32,3 +32,12 @@
 - Verify no duplicate journal/settlement and no credentials, bank identifiers or media bytes in logs. **No real financial approval** in test.
 
 Do not conflate CI fake Telegram responses with a real two-token BotFather delivery.
+
+
+## UXR-03 notification extension (source PRs #130–#132; release flags still OFF)
+
+- ReceiptSubmitted now supports an Admin-photo message showing plan, amount and the **two direct operator decisions** when `SALES_ONE_CLICK_BANK_REVIEW_ENABLED=true`; legacy multistep bank verification remains when false. Admin review always requires actual independent bank-statement checking.
+- A Sales-origin photo cannot be forwarded via its foreign `file_id`; use the existing secure reupload and keep `/payments` as the operational fallback. When durable delivery is enabled, do not also send a legacy best-effort duplicate.
+- Approved bank payment optionally enqueues the existing fulfillment job **after commit**; `sales:fulfillment:dispatch` runs every minute as recovery for genuinely paid pending bank orders only. It does not call Remnawave.
+- `SubscriptionActivated` is a unique existing-outbox delivery for a fulfilled, locally linked, active owned service; always target an independently reachable Sales Bot contact. Final messages include a private callback to the existing owner-authorized connection action, never a subscription token in callback data.
+- Keep `TELEGRAM_NOTIFICATIONS_ENABLED`, `SALES_ONE_CLICK_BANK_REVIEW_ENABLED`, `SALES_AUTO_FULFILLMENT_ENABLED` and RW write flags **OFF until separate live sign-off**. Failure of notification does not reverse settlement or create a second RW account. Record sanitized status counts and exact staging/real delivery evidence separately from CI.

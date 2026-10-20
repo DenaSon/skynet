@@ -79,8 +79,30 @@ final readonly class PaymentNotificationOutbox
         );
     }
 
+    /**
+     * Called INSIDE the transaction that completed the existing RW order link.
+     * Never emits a success notice on payment approval or a queued CREATE.
+     */
+    public function activated(int $orderId, int $buyerId): void
+    {
+        if ($orderId < 1 || $buyerId < 1 || $this->recipients->forActiveUser($buyerId) === null) {
+            return;
+        }
+
+        $started = DB::table('telegram_bot_contacts')->where('user_id', $buyerId)
+            ->where('bot_key', 'sales')->where('delivery_status', 'reachable')->exists();
+        if (! $started || config('telegram.sales.enabled', false) !== true) {
+            return;
+        }
+
+        $this->record(
+            'subscription:activated:order:'.$orderId.':buyer:'.$buyerId,
+            'SubscriptionActivated', $buyerId, 'sales', null, $orderId,
+        );
+    }
+
     private function record(
-        string $key, string $type, int $recipientId, string $bot, int $claimId, int $orderId,
+        string $key, string $type, int $recipientId, string $bot, ?int $claimId, int $orderId,
     ): void {
         $enabled = config('telegram_notifications.enabled', false) === true;
 
