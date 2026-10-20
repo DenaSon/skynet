@@ -10,7 +10,6 @@ use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Identity\Application\SuperAdminTrust;
 use App\Modules\Identity\Application\TelegramActor;
-use App\Modules\Identity\Application\TelegramRecipient;
 use App\Modules\Sales\Application\ManualBankPayments;
 use App\Modules\Sales\Application\OrderReader;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -29,7 +28,6 @@ final readonly class ManualPaymentUi
         private PrivateTelegramUser $private,
         private ResolveTelegramActor $actors,
         private SuperAdminTrust $trust,
-        private TelegramRecipient $recipients,
         private TelegramNotificationSender $sender,
         private ManualBankPayments $payments,
         private OrderReader $orders,
@@ -408,16 +406,6 @@ final readonly class ManualPaymentUi
             }
         } catch (Throwable) {
             // The committed settlement/rejection must not be undone by Telegram.
-        }
-        if (config('telegram_notifications.enabled', false) !== true) {
-            $recipient = $this->recipients->forActiveUser($result->buyerUserId);
-            if ($recipient !== null) {
-                try {
-                    $bot->sendMessage(text: $message, chat_id: $recipient, protect_content: true);
-                } catch (Throwable) {
-                    // Buyer can still read the authoritative order state.
-                }
-            }
         }
     }
 
