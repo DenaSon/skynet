@@ -114,11 +114,52 @@ final readonly class TelegramNotificationSender
             }
 
             $order = (int) $delivery->order_id;
+            // A late, retried payment event must not tell a customer their
+            // already-active subscription is still being prepared.
+            if ($claim->status === 'approved' && DB::table('sales_orders')
+                ->where('id', $order)->where('buyer_user_id', $userId)
+                ->where('status', 'fulfilled')->exists()) {
+                throw new NotificationUnavailable('superseded_by_activation');
+            }
+            $autoReady = config('sales.auto_fulfillment_enabled', false) === true
+                && config('services.remnawave.writes_enabled') === true
+                && config('services.remnawave.squad_bindings_live_verified') === true;
             $text = $claim->status === 'approved'
-                ? "✅ پرداخت سفارش #{$order} تأیید شد. درخواست فعال‌سازی ثبت شد؛ سرویس هنوز ساخته نشده است."
+                ? ($autoReady
+                    ? "✅ پرداخت سفارش #{$order} تأیید شد؛ اشتراک در حال آماده‌سازی است."
+                    : "✅ پرداخت سفارش #{$order} تأیید شد. درخواست فعال‌سازی ثبت شد؛ سرویس هنوز ساخته نشده است.")
                 : "❌ رسید سفارش #{$order} رد شد. در صورت نیاز می‌توانید رسید جدید بفرستید.";
 
             $this->text($bot, $chat, $text);
+
+            return;
+        }
+
+        if ($delivery->event_type === 'SubscriptionActivated') {
+            $orderId = (int) $delivery->order_id;
+            if ($bot !== 'sales' || $orderId < 1) {
+                throw new NotificationUnavailable('invalid_recipient');
+            }
+
+            $complete = DB::table('sales_orders as orders')
+                ->join('sales_fulfillment_outbox as outbox', 'outbox.sales_order_id', '=', 'orders.id')
+                ->join('provisioning_order_links as links', 'links.sales_order_id', '=', 'orders.id')
+                ->join('provisioning_subscriptions as service', 'service.id', '=', 'links.provisioning_subscription_id')
+                ->where('orders.id', $orderId)->where('orders.buyer_user_id', $userId)
+                ->where('orders.status', 'fulfilled')->where('outbox.state', 'completed')
+                ->where('service.state', 'active')->exists();
+
+            if (! $complete) {
+                throw new NotificationUnavailable('not_active');
+            }
+
+            // Only an order ID is placed in the callback. The existing Sales
+            // subscription action authenticates ownership and fresh eligibility.
+            $keyboard = json_encode(['inline_keyboard' => [[[
+                'text' => '🔐 نمایش کد اتصال',
+                'callback_data' => 'sales:subs:link:'.$orderId.':0',
+            ]]]], JSON_THROW_ON_ERROR);
+            $this->text($bot, $chat, "✅ اشتراک شما فعال شد!\nسفارش #{$orderId}\n\nبرای دریافت اتصال دکمه زیر را انتخاب کنید.", $keyboard);
 
             return;
         }
@@ -148,11 +189,13 @@ final readonly class TelegramNotificationSender
         $this->photo('admin', $chatId, $row->photoFileId, (string) $row->sourceBotKey, $caption, $keyboard);
     }
 
-    private function text(string $bot, int $chat, string $text): void
+    private function text(string $bot, int $chat, string $text, ?string $keyboard = null): void
     {
-        $result = Http::timeout(10)->asForm()->post($this->api($this->token($bot), 'sendMessage'), [
-            'chat_id' => $chat, 'text' => $text, 'protect_content' => 'true',
-        ]);
+        $fields = ['chat_id' => $chat, 'text' => $text, 'protect_content' => 'true'];
+        if ($keyboard !== null) {
+            $fields['reply_markup'] = $keyboard;
+        }
+        $result = Http::timeout(10)->asForm()->post($this->api($this->token($bot), 'sendMessage'), $fields);
 
         $this->check($result, $bot, $chat);
     }

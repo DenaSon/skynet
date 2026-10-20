@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
+use App\Interfaces\Telegram\Notifications\TelegramNotificationSender;
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
 use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
@@ -674,4 +676,59 @@ it('recovers an approved pending bank order using the same guarded queue and no 
         static fn (FulfillPaidPlanOrderJob $job): bool => $job->orderId === $data['order']
             && $job->actorId === $data['root']->id);
     Http::assertNothingSent();
+});
+
+it('emits one durable Sales activation notice only after verified RW completion and linked ownership', function (): void {
+    $data = sb05Order();
+    config()->set('telegram_notifications.enabled', true);
+    config()->set('telegram.sales.enabled', true);
+    config()->set('telegram.sales.token', '54321:sales_test');
+    config()->set('nutgram.token', '12345:admin_test');
+    config()->set('services.remnawave.writes_enabled', true);
+    DB::table('telegram_bot_contacts')->insert([
+        'user_id' => $data['buyer']->id, 'bot_key' => 'sales', 'chat_id' => 975099,
+        'delivery_status' => 'reachable', 'last_seen_at' => now(),
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+    Queue::fake();
+    sb05FakeCreate($data['order']);
+
+    expect(app(FulfillPaidPlanOrder::class)->handle($data['order']))->toBe(52);
+    $delivery = DB::table('telegram_notification_deliveries')
+        ->where('event_type', 'SubscriptionActivated')->first();
+
+    expect($delivery)->not->toBeNull()
+        ->and($delivery->state)->toBe('pending')
+        ->and($delivery->bot_key)->toBe('sales')
+        ->and((int) $delivery->recipient_user_id)->toBe($data['buyer']->id)
+        ->and((int) $delivery->order_id)->toBe($data['order']);
+    expect(DB::table('telegram_notification_deliveries')->where('event_type', 'SubscriptionActivated')->count())->toBe(1);
+
+    Http::fake(['https://api.telegram.org/*' => Http::response(['ok' => true])]);
+    app(DispatchTelegramNotification::class, ['deliveryId' => $delivery->id])
+        ->handle(app(TelegramNotificationSender::class));
+
+    expect(DB::table('telegram_notification_deliveries')->where('id', $delivery->id)->value('state'))->toBe('sent');
+    Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '54321:sales_test/sendMessage')
+        && str_contains((string) ($request['reply_markup'] ?? ''), 'sales:subs:link:'.$data['order'].':0'));
+    expect(fn () => app(FulfillPaidPlanOrder::class)->handle($data['order']))->toThrow(RuntimeException::class);
+    expect(DB::table('telegram_notification_deliveries')->where('event_type', 'SubscriptionActivated')->count())->toBe(1);
+});
+
+it('does not notify activation when provider CREATE is uncertain', function (): void {
+    $data = sb05Order();
+    config()->set('telegram_notifications.enabled', true);
+    config()->set('telegram.sales.enabled', true);
+    config()->set('services.remnawave.writes_enabled', true);
+    DB::table('telegram_bot_contacts')->insert([
+        'user_id' => $data['buyer']->id, 'bot_key' => 'sales', 'chat_id' => 975099,
+        'delivery_status' => 'reachable', 'last_seen_at' => now(),
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+    Queue::fake();
+    Http::fake(['https://remna.test/api/users' => Http::response(['message' => 'provider unavailable'], 503)]);
+
+    expect(fn () => app(FulfillPaidPlanOrder::class)->handle($data['order']))->toThrow(RuntimeException::class);
+    expect(DB::table('sales_fulfillment_outbox')->value('state'))->toBe('needs_review')
+        ->and(DB::table('telegram_notification_deliveries')->where('event_type', 'SubscriptionActivated')->count())->toBe(0);
 });

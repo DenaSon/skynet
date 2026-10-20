@@ -95,3 +95,11 @@ Review this standard before every future Telegram UI feature.
 - Show «ادامه راه‌اندازی اخیر» in the existing Node menu only when an authorized unexpired attempt exists and SSH install is enabled; do not show a dead button or retain secrets in the bookmark.
 - In pending/failed/uncertain states, say what to check without inventing success, requiring blind retries or revealing debug logs/credentials.
 - For a server setup begun in another menu session, the same status screen must be recoverable; no new install, Node, Host or Squad write is triggered by refresh or return. Preserve current Node/Host/Profile menus and separate Host enable confirmation.
+
+
+## UXR-03 Sales/Admin payment-to-connection message contract
+
+- A customer-submitted receipt is **awaiting bank review**, never a successful payment. Admin receives the protected receipt image, short plan/order/amount context, and only two direct decision buttons when the gated mode is enabled. The decision is the operator's final explicit attestation of a separately verified real bank transfer, not bank API verification.
+- A committed approval may show «پرداخت تأیید شد؛ اشتراک در حال آماده‌سازی است» **only while automated provisioning is actually enabled and verified**. An uncertain/failed create is not described as active. Rejected receipts may be resubmitted through the existing purchase flow.
+- Only after the real RW result and owned order/subscription mapping are committed, send a fresh «✅ اشتراک شما فعال شد» Sales message with «🔐 نمایش کد اتصال». The callback contains only an order identifier; a new owner/authorization check precedes the private connection link. Receipt/photo and connection credentials never appear in public chats, logs or callbacks.
+- Legacy payment and fulfillment management commands remain available to authorized operators for exceptional/manual recovery; simple Persian is shown to Telegram users, with internal mechanism and rollout flag names restricted to developer documentation.

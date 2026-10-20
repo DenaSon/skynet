@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Provisioning\Application;
 
+use App\Interfaces\Telegram\Notifications\PaymentNotificationOutbox;
 use App\Modules\Billing\Application\VerifyWalletOrderDebit;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -20,6 +21,7 @@ final readonly class FulfillPaidPlanOrder
         private CheckPlanSquadReadiness $squads,
         private VerifyWalletOrderDebit $wallet,
         private RemnawaveSubscriptionLifecycle $lifecycle,
+        private PaymentNotificationOutbox $notifications,
     ) {}
 
     public function handle(int $orderId): int
@@ -208,6 +210,10 @@ final readonly class FulfillPaidPlanOrder
 
             DB::table('sales_orders')->where('id', $orderId)->update(['status' => 'fulfilled', 'updated_at' => now()]);
             DB::table('sales_fulfillment_outbox')->where('id', $outbox->id)->update(['state' => 'completed', 'updated_at' => now()]);
+
+            // No success intent until both the verified provider response AND
+            // the order-to-owned-subscription linkage are committed.
+            $this->notifications->activated($orderId, (int) $order->buyer_user_id);
 
             return $remoteId;
         });
