@@ -1,6 +1,6 @@
 # DenaGate — Sales UX roadmap (UXR)
 
-Parent tracker: [#115](https://github.com/DenaSon/skynet/issues/115). The operator approved the five-phase plan and **explicitly authorized UXR-01 implementation and merge to master on 2026-10-20**. Later phases require their own start instruction. These identifiers are separate from earlier SB/MVP/UX phases.
+Parent tracker: [#115](https://github.com/DenaSon/skynet/issues/115). The operator approved the five-phase plan and **authorized UXR-01 (merged in PR #128) and UXR-02 implementation via a separate PR on 2026-10-20**. UXR-03–05 still require their own start instructions. These identifiers are separate from earlier SB/MVP/UX phases.
 
 ## Baseline
 
@@ -11,7 +11,7 @@ Reuse the existing identity, dual-bot boundaries, pricing/checkout Actions, rece
 | Phase | Scope / issues | State |
 | --- | --- | --- |
 | UXR-01 | Navigation, ready-plan home, support/guides, ready-node label: #120, #122, #125; start #126/#127 | Implemented in source; CI recorded in implementation PR; new live smoke pending |
-| UXR-02 | Direct plan → payment → photo, copy/resume: #116; finish #127 | Planned |
+| UXR-02 | Direct plan → payment → photo, copy/resume: #116; finish #127 | Implemented in UXR-02 branch; CI and live acceptance separately verified |
 | UXR-03 | Receipt alert/decision → automatic RW activation → customer notification: #117/#118/#119 | Planned |
 | UXR-04 | Real account statistics and recognizable services/details: #123/#124; finish #126 | Planned |
 | UXR-05 | Compatible official RW Subscription Page and delivery integration: #121/#119 | Planned |
@@ -42,6 +42,16 @@ Post-deploy smoke (no provider write required):
 - [ ] Admin Node menu clearly distinguishes new server from preinstalled node registration.
 
 Record live results separately; earlier-version acceptance is not evidence for these changed screens. No migration, dependency or finance/provider flag change is required. Rollback is a source revert; existing orders/provider state and callback contracts do not need rewriting.
+
+## UXR-02 implementation and acceptance
+
+- **Sales Bot only:** home/catalog preset selection and existing builder preview callback use the existing CalculatePlanQuote / ListQuotedPresets / CheckPlanSquadReadiness / CreatePendingPlanOrder authorization, price-revision and immutable snapshot checks. No preflight/pre-invoice/confirm page in the normal path; old `sales:checkout:preview` and `sales:checkout:commit` callbacks remain safely handled. Admin catalog, bank review and legacy routes remain unchanged.
+- Fresh selection takes the buyer-scoped lock on the **existing cache store** and searches an identical durable pending order snapshot first. Repeated callbacks show the same order; explicit `sales:checkout:new` creates a separate order. An old order retains its recorded amount; a fresh purchase recalculates current pricing and cannot silently reuse an obsolete snapshot. Owned purchase history continues the exact unpaid order.
+- The payment message displays escaped plan, quota, duration, recorded rial-to-toman amount and **configured real** bank card details, with native CopyTextButton for the exact 16-digit card and amount (toman integer). Sales payment creation fails closed if the bank review gate or unambiguous card number is unavailable. Set `BILLING_PAYMENT_CARD_NUMBER` to the operator's actual card; existing `BILLING_PAYMENT_INSTRUCTIONS` is also shown escaped and supports extraction only when it contains one unambiguous 16-digit card. **No default account is shipped or Production value changed.**
+- The same payment step accepts a private photo without pressing another button; a short separate Nutgram ForceReply prompt helps open the image picker, without supplying payment authority or identifying the order. The existing Sales-scoped 10-minute cache pointer and ManualBankPayments Action still revalidate owner/order/review state, reject duplicates, encrypt media, and record a claim **without marking paid**. Text/documents, expired input, stale callbacks and cancel/home provide a safe next action; only the current bot's drafts are cleared.
+- The existing financial ledger, receipt queue/outbox, Admin approval flow and dormant fulfillment are untouched. **#117 / UXR-03 notification, bank approval/rejection simplification, automatic RW creation and customer activation message are not part of this phase.**
+- **Source acceptance:** focused DB-backed cache/lock + Nutgram fake regressions for selection/direct receipt, exact copy buttons and escaping, role/owner isolation, idempotent repeat vs explicit purchase, repricing, invalid/expired/canceled input and no Billing/provider writes; PHP 8.4/8.5 Pest, PHPStan/Pint and disposable MySQL CI are required before merge. CI is not Telegram live smoke.
+- **Operator live acceptance remains OPEN:** Sales private real-member and reseller selections; actual `BILLING_PAYMENT_CARD_NUMBER` or an unambiguous real instruction card; copy into a bank app, receipt photo without replying, unaccepted/rejected/expired states, callback replay, Home and Admin Bot legacy functionality. Keep all Production flags unchanged; do not infer notification delivery or real provider fulfillment from source tests. Rollback by reverting the UX code; no schema changes.
 
 ## Remaining phase boundaries
 
