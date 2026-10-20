@@ -144,6 +144,9 @@ $bot->onText('(?!/){volume}', function (Nutgram $bot, string $volume): void {
 });
 
 $bot->fallback(function (Nutgram $bot): void {
+    if (app(ManualPaymentUi::class)->invalidInput($bot)) {
+        return;
+    }
     app(SalesHomeUi::class)->fallback($bot);
 });
 
@@ -177,12 +180,6 @@ $bot->onCallbackQueryData('sales:checkout:view:{id}', function (Nutgram $bot, st
 // exclusively in the Admin router and are never bound to this Sales token.
 $bot->onCallbackQueryData('sales:payment:start:{id}', function (Nutgram $bot, string $id): void {
     app(ManualPaymentUi::class)->start($bot, $id);
-});
-
-$bot->onDocument(function (Nutgram $bot): void {
-    if (! app(ManualPaymentUi::class)->invalidInput($bot)) {
-        app(SalesHomeUi::class)->fallback($bot);
-    }
 });
 
 $bot->onPhoto(function (Nutgram $bot): void {
