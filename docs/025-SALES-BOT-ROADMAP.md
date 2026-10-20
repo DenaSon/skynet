@@ -1,5 +1,8 @@
 # ParsaGate — EPIC-SB Sales Bot roadmap
 
+## UXR-02 — Direct Sales payment (2026-10-20)
+Operator separately authorized UXR-02 after UXR-01 merged (#128). Sales-only home/catalog selects and creates or resumes an owned immutable pending order directly, displays real configured bank details with native card/amount copy, accepts the receipt photo in the same step with lightweight ForceReply, and explains pending review. Existing bank ledger, original Admin review and notification outbox remain the authority; automatic activation and missing Admin alert #117 belong to UXR-03. No new tables, package, Production flag or bank destination is seeded. Test/CI and live smoke are separate, as recorded in [docs/026](026-SALES-UX-ROADMAP.md).
+
 ## UXR-01 — Four-button Sales navigation (2026-10-20)
 
 The operator authorized implementing phase 1 and merging it to `master`. [UXR roadmap](026-SALES-UX-ROADMAP.md) defines all five phases independently from the older SB/MVP names.
