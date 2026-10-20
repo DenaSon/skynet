@@ -374,7 +374,7 @@ it('distinguishes fresh server setup from existing node registration without cha
     $bot = node01Bot();
     $bot->hearCallbackQueryData('node1:list:1')->reply()
         ->assertRaw(static function (\GuzzleHttp\Psr7\Request $request): bool {
-            $body = json_decode((string) $request->getBody(), true, flags: JSON_THROW_ON_ERROR);
+            $body = \SergiX44\Nutgram\Testing\FakeNutgram::getActualData($request);
             $markup = $body['reply_markup'];
             if (is_string($markup)) {
                 $markup = json_decode($markup, true, flags: JSON_THROW_ON_ERROR);

@@ -50,7 +50,7 @@ function uxr01Bot(User $user): Nutgram
 /** @return array<string, mixed> */
 function uxr01Payload(Request $request): array
 {
-    $data = json_decode((string) $request->getBody(), true, flags: JSON_THROW_ON_ERROR);
+    $data = \SergiX44\Nutgram\Testing\FakeNutgram::getActualData($request);
     if (is_string($data['reply_markup'] ?? null)) {
         $data['reply_markup'] = json_decode($data['reply_markup'], true, flags: JSON_THROW_ON_ERROR);
     }

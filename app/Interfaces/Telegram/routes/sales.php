@@ -129,7 +129,8 @@ $bot->onCallbackQueryData('builder:cancel', function (Nutgram $bot): void {
 
 // Primary menu labels always win over pending free-text forms. Unmatched
 // input gets guidance, never a fallback into Admin or legacy purchase routes.
-$bot->onText('{volume}', function (Nutgram $bot, string $volume): void {
+// Exclude commands: Nutgram resolves every matching handler, not just the first.
+$bot->onText('(?!/){volume}', function (Nutgram $bot, string $volume): void {
     if (app(SalesHomeUi::class)->navigate($bot, $volume)) {
         return;
     }

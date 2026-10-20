@@ -237,7 +237,7 @@ it('keeps Sales identity, navigation and buyer routes isolated from Admin callba
         'callback:builder:quote:{id}:{gb}:{days}:{page}',
         'callback:builder:custom:{id}:{page}',
         'callback:builder:cancel',
-        'text:{volume}',
+        'text:(?!/){volume}',
         'fallback:*',
         'command:orders',
         'callback:sales:checkout:preview:{id}:{days}:{gb}',
