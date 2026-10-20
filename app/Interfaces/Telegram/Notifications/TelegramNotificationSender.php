@@ -66,12 +66,18 @@ final readonly class TelegramNotificationSender
 
             $row = $this->payments->detail($userId, $claimId);
 
-            $caption = "🧾 رسید جدید #{$claimId}\nسفارش #{$orderId}\n\n⚠️ پیش از تأیید، گردش واقعی بانک را بررسی کنید.";
+            $caption = "🧾 رسید جدید #{$claimId}\nسفارش #{$orderId}"
+                ."\nپلن: ".mb_substr((string) $row->productName, 0, 60)
+                ."\nمبلغ: ".number_format(intdiv($row->amountRials + 9, 10))." تومان"
+                ."\n\n⚠️ فقط پس از بررسی گردش واقعی بانک تأیید کنید.";
+            $direct = config('sales.one_click_bank_review_enabled', false) === true;
             $buttons = json_encode([
-                'inline_keyboard' => [[[
-                    'text' => '🧾 بررسی رسید',
-                    'callback_data' => 'bank:show:'.$claimId,
-                ]]],
+                'inline_keyboard' => [$direct ? [
+                    ['text' => '✅ تأیید پرداخت', 'callback_data' => 'bank:decide:'.$claimId.':a'],
+                    ['text' => '❌ رد رسید', 'callback_data' => 'bank:decide:'.$claimId.':r'],
+                ] : [
+                    ['text' => '🧾 بررسی رسید', 'callback_data' => 'bank:show:'.$claimId],
+                ]],
             ], JSON_THROW_ON_ERROR);
 
             try {
@@ -130,10 +136,12 @@ final readonly class TelegramNotificationSender
         }
 
         $row = $this->payments->detail($rootId, $claimId);
+        $direct = config('sales.one_click_bank_review_enabled', false) === true;
+        $callback = $direct ? 'bank:decide:' : 'bank:choose:';
         $keyboard = json_encode([
             'inline_keyboard' => [[
-                ['text' => '✅ بررسی تأیید', 'callback_data' => 'bank:choose:'.$claimId.':a'],
-                ['text' => '❌ رد رسید', 'callback_data' => 'bank:choose:'.$claimId.':r'],
+                ['text' => $direct ? '✅ تأیید پرداخت' : '✅ بررسی تأیید', 'callback_data' => $callback.$claimId.':a'],
+                ['text' => '❌ رد رسید', 'callback_data' => $callback.$claimId.':r'],
             ]],
         ], JSON_THROW_ON_ERROR);
 
