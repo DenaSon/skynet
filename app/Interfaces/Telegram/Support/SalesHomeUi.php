@@ -287,6 +287,7 @@ final readonly class SalesHomeUi
     {
         $this->pendingBuilder->forget($buyerId);
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$buyerId));
+        Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:recent:'.$buyerId));
     }
 
     private function salesRole(TelegramActor $actor): string
