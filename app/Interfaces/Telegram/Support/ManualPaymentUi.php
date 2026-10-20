@@ -105,13 +105,13 @@ final readonly class ManualPaymentUi
 
         if ($sales) {
             $details = '<b>💳 پرداخت سفارش #'.$order->id.'</b>'
-                ."\\n\\n📦 پلن: <b>".TelegramUi::escape($order->productName).'</b>'
-                ."\\nحجم: ".($order->trafficGb === null ? 'نامحدود' : $order->trafficGb.' گیگابایت')
+                ."\n\n📦 پلن: <b>".TelegramUi::escape($order->productName).'</b>'
+                ."\nحجم: ".($order->trafficGb === null ? 'نامحدود' : $order->trafficGb.' گیگابایت')
                 ." · مدت: {$order->durationDays} روز"
-                ."\\n\\nمبلغ دقیق: <b>".TelegramUi::toman($order->totalPriceRials).' تومان</b>'
-                ."\\nشماره کارت: ".TelegramUi::code($card)
-                .($instructions === '' ? '' : "\\n".TelegramUi::escape($instructions))
-                ."\\n\\n<blockquote>بعد از واریز، عکس رسید را همین‌جا بفرستید. ثبت رسید به معنای تأیید پرداخت نیست.</blockquote>";
+                ."\n\nمبلغ دقیق: <b>".TelegramUi::toman($order->totalPriceRials).' تومان</b>'
+                ."\nشماره کارت: ".TelegramUi::code($card)
+                .($instructions === '' ? '' : "\n".TelegramUi::escape($instructions))
+                ."\n\n<blockquote>بعد از واریز، عکس رسید را همین‌جا بفرستید. ثبت رسید به معنای تأیید پرداخت نیست.</blockquote>";
             $this->renderPayment($bot, $details, $keyboard);
             // ForceReply is a lightweight prompt, not another required step.
             // Ownership and order state are rechecked on receipt submission.
@@ -127,7 +127,7 @@ final readonly class ManualPaymentUi
             return;
         }
 
-        $this->render($bot, "🧾 ثبت رسید سفارش #{$order->id}\\n\\nمبلغ دقیق: ".TelegramUi::toman($order->totalPriceRials)." تومان\\n\\n{$instructions}\\n\\nپس از انتقال وجه، تصویر رسید را در همین گفت‌وگوی خصوصی ارسال کنید.\\nاین درخواست ۱۰ دقیقه اعتبار دارد؛ تصویر به‌تنهایی پرداخت را اثبات نمی‌کند.", $keyboard);
+        $this->render($bot, "🧾 ثبت رسید سفارش #{$order->id}\n\nمبلغ دقیق: ".TelegramUi::toman($order->totalPriceRials)." تومان\n\n{$instructions}\n\nپس از انتقال وجه، تصویر رسید را در همین گفت‌وگوی خصوصی ارسال کنید.\nاین درخواست ۱۰ دقیقه اعتبار دارد؛ تصویر به‌تنهایی پرداخت را اثبات نمی‌کند.", $keyboard);
     }
 
     /** The configured card is real operator data, never a default/demo identity. */
@@ -225,8 +225,8 @@ final readonly class ManualPaymentUi
 
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$actor->userId));
         $this->notice($bot, TelegramBotContext::current()->key === TelegramBotContext::SALES
-            ? "✅ رسید دریافت شد؛ منتظر بررسی مدیر باشید.\\nسفارش #{$orderId}"
-            : "🕘 رسید سفارش #{$orderId} ثبت شد.\\nشماره بررسی: #{$claimId}\\n\\nتنها پس از تطبیق واقعی گردش بانک و تأیید مدیر، سفارش تسویه می‌شود.");
+            ? "✅ رسید دریافت شد؛ منتظر بررسی مدیر باشید.\nسفارش #{$orderId}"
+            : "🕘 رسید سفارش #{$orderId} ثبت شد.\nشماره بررسی: #{$claimId}\n\nتنها پس از تطبیق واقعی گردش بانک و تأیید مدیر، سفارش تسویه می‌شود.");
         // Keep the already deployed best-effort alerts until the durable
         // notification worker is explicitly enabled in Production.
         if (config('telegram_notifications.enabled', false) !== true
