@@ -1,5 +1,11 @@
 # ParsaGate — EPIC-SB Sales Bot roadmap
 
+## Sales checkout database-cache compatibility — 2026-10-20
+
+- `PlanCheckoutTokens` intentionally stores the immutable, buyer-bound `PlanPriceQuote` snapshot for ten minutes. Laravel 13 must explicitly allow that DTO in `cache.serializable_classes`; the production-style database store otherwise cannot restore it, even for a fresh preview. Do not replace the allow-list with unrestricted `true`.
+- Exercise private preview/commit with both array and real database cache. Verify quote restoration, buyer isolation, ten-minute expiry, one order after duplicate commits, no bank/Provider writes, and rejection of unrelated cached objects. HTTP-fake/SQLite cache verification does not prove live bank or Remnawave acceptance.
+- Post-deploy operator check: rebuild Laravel configuration, gracefully restart workers, open a fresh preview in the Sales Bot and submit once. Confirm the owned order is `pending_payment`; then resume the separately controlled receipt/fulfillment test. Do not clear all cache or alter existing orders to bypass this check.
+
 ## MVP-04 — Basic Super Admin subscription status management (2026-10-17)
 
 - **MVP-only scope:** Existing Admin Bot completed-order detail now links to a small «مدیریت وضعیت اشتراک» screen. Only active, linked, allowlisted Super Admins in private chats may request a real, owner-linked customer's subscription status or explicitly confirm **Disable/Enable**. Eligible orders require `fulfilled` Sales state, completed fulfillment outbox, a unique local provisioning link and exact `sales-order:{id}` reference; the existing Lifecycle strictly verifies remote username/ownership marker before any status write.

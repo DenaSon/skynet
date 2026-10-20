@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Sales\Application\PlanPriceQuote;
 use Illuminate\Support\Str;
 
 return [
@@ -131,6 +132,9 @@ return [
     |
     */
 
-    'serializable_classes' => false,
+    // The checkout snapshot is immutable and contains only scalar fields.
+    'serializable_classes' => [
+        PlanPriceQuote::class,
+    ],
 
 ];

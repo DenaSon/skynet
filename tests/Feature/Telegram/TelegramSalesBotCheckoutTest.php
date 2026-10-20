@@ -12,7 +12,9 @@ use App\Modules\Sales\Application\ManagePlans;
 use App\Modules\Sales\Application\OrderReader;
 use App\Modules\Sales\Application\PlanDefinition;
 use App\Modules\Sales\Application\PlanPricingDefinition;
+use Illuminate\Cache\DatabaseStore;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
@@ -195,7 +197,11 @@ it('preserves unlimited traffic as NULL and lets only the owner view managed-pla
     Http::assertNothingSent();
 });
 
-it('binds Sales preview and idempotent commit to a private user without exposing bank or provider operations', function (): void {
+it('binds Sales preview and idempotent commit to a private user without exposing bank or provider operations', function (string $store): void {
+    config()->set('cache.default', $store);
+    if ($store === 'database') {
+        expect(Cache::getStore())->toBeInstanceOf(DatabaseStore::class);
+    }
     $root = sb03Root();
     $id = sb03Plan($root, 'telegram');
     sb03Binding($id);
@@ -205,6 +211,8 @@ it('binds Sales preview and idempotent commit to a private user without exposing
     $bot->hearCallbackQueryData("sales:checkout:preview:{$id}:30:30")->reply()->assertCalled('editMessageText');
     $quote = app(CalculatePlanQuote::class)->handle($buyer->id, $id, 30, 30);
     $token = app(PlanCheckoutTokens::class)->issue($buyer->id, $quote);
+    expect(app(PlanCheckoutTokens::class)->peek($buyer->id, $token))->toEqual($quote)
+        ->and(app(PlanCheckoutTokens::class)->peek($buyer->id + 1000, $token))->toBeNull();
     $bot->hearCallbackQueryData('sales:checkout:commit:'.$token)->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('sales:checkout:commit:'.$token)->reply()->assertCalled('editMessageText');
     expect(DB::table('sales_orders')->count())->toBe(1);
@@ -215,6 +223,17 @@ it('binds Sales preview and idempotent commit to a private user without exposing
     $bot->hearCallbackQueryData('bank:apply:forged')->reply()->assertNoReply();
     expect(DB::table('billing_journals')->count())->toBe(0);
     Http::assertNothingSent();
+
+    $this->travel(11)->minutes();
+    expect(app(PlanCheckoutTokens::class)->peek($buyer->id, $token))->toBeNull();
+})->with(['array', 'database']);
+
+it('does not restore unrelated PHP objects from the database cache', function (): void {
+    config()->set('cache.default', 'database');
+    expect(Cache::getStore())->toBeInstanceOf(DatabaseStore::class);
+    Cache::put('sb03:unrelated-object', (object) ['probe' => true], 60);
+
+    expect(Cache::get('sb03:unrelated-object'))->not->toBeInstanceOf(stdClass::class);
 });
 
 it('rejects unverified setup and expired tokens without creating any order', function (): void {

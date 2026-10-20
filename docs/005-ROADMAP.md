@@ -1,5 +1,11 @@
 # Roadmap
 
+## Sales E2E defect — database-cached quote restoration (2026-10-20)
+
+- During controlled live checkout after Squad verification, the operator hit an invalid/expired preview. Reproduce with the real database cache, not only the array test store.
+- Fix only Laravel's cache class allow-list for the existing immutable `PlanPriceQuote`; retain expiry, buyer isolation, single-order retries, all financial/Provider gates and rejection of unrelated serialized classes. No new feature, migration, dependency or remote write.
+- Acceptance: pre-fix reproduction and fixed PHP 8.4/8.5/PHPStan/Pint/MySQL CI, followed by fresh post-deploy Sales preview → one pending-payment order. Receipt/fulfillment/client E2E and the previously agreed Node-menu rename remain separate remaining work.
+
 ## NW-03 live-test fix — explicit Node management port (2026-10-20)
 
 - Operator confirmed that the installed Node listened on 2222 while the panel attempted 443; manually saving Node Port 2222 restored panel/Admin Bot connectivity.
