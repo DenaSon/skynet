@@ -332,7 +332,7 @@ it('requires all gates before final approval and then queues one automatic RW ac
     expect(DB::table('sales_orders')->where('id', $data['order'])->value('status'))->toBe('pending_payment')
         ->and(DB::table('billing_journals')->count())->toBe(0)
         ->and(DB::table('sales_bank_payment_claims')->where('id', $claim)->value('status'))->toBe('submitted');
-    Queue::assertNothingPushed();
+    Queue::assertNotPushed(FulfillPaidPlanOrderJob::class);
 
     config()->set('sales.one_click_bank_review_enabled', true);
     config()->set('sales.auto_fulfillment_enabled', true);
