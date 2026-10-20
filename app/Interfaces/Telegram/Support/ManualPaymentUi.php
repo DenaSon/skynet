@@ -227,8 +227,19 @@ final readonly class ManualPaymentUi
                 $messageId,
                 TelegramBotContext::current()->key,
             );
-        } catch (ValidationException|AuthorizationException|UniqueConstraintViolationException) {
-            $this->notice($bot, 'این رسید تکراری است یا سفارش دیگر قابل پرداخت نیست. از «سفارش‌های من» وضعیت را بررسی کنید.');
+        } catch (ValidationException $e) {
+            $errors = $e->errors();
+            $reason = $errors['receipt'][0] ?? null;
+            $message = match ($reason) {
+                'This order already has a receipt pending review.' => 'رسید این سفارش قبلاً دریافت شده و در انتظار بررسی است.',
+                'This receipt was already submitted.' => 'این تصویر قبلاً برای یک رسید ثبت شده است؛ تصویر جدید ارسال کنید.',
+                default => 'سفارش دیگر قابل پرداخت نیست یا تصویر معتبر نیست. وضعیت سفارش را در «سوابق خرید» بررسی کنید.',
+            };
+            $this->notice($bot, $message);
+
+            return;
+        } catch (AuthorizationException|UniqueConstraintViolationException) {
+            $this->notice($bot, 'این سفارش قابل پرداخت نیست یا قبلاً رسید دریافت شده است. «سوابق خرید» را بررسی کنید.');
 
             return;
         }
@@ -364,6 +375,13 @@ final readonly class ManualPaymentUi
 
             return;
         }
+        if (config('telegram_notifications.enabled', false) !== true
+            || config('telegram.sales.enabled', false) !== true) {
+            $this->notice($bot, 'ارسال نتیجه بررسی به مشتری هنوز آماده نیست. رسید در انتظار بررسی باقی مانده است.');
+
+            return;
+        }
+
         // Never commit a bank settlement into a paid-but-stuck order: the
         // one-decision path is enabled only when queued activation can start.
         if ($choice === 'a' && ! $this->automaticActivationReady()) {
