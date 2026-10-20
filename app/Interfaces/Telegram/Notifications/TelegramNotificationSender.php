@@ -68,7 +68,7 @@ final readonly class TelegramNotificationSender
 
             $caption = "🧾 رسید جدید #{$claimId}\nسفارش #{$orderId}"
                 ."\nپلن: ".mb_substr((string) $row->productName, 0, 60)
-                ."\nمبلغ: ".number_format(intdiv($row->amountRials + 9, 10))." تومان"
+                ."\nمبلغ: ".number_format(intdiv($row->amountRials + 9, 10)).' تومان'
                 ."\n\n⚠️ فقط پس از بررسی گردش واقعی بانک تأیید کنید.";
             $direct = config('sales.one_click_bank_review_enabled', false) === true;
             $buttons = json_encode([
