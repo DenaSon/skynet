@@ -302,10 +302,6 @@ $bot->onCommand('payments', function (Nutgram $bot): void {
     app(ManualPaymentUi::class)->list($bot);
 });
 
-$bot->onCommand('bankconfirm {claim} {reference}', function (Nutgram $bot, string $claim, string $reference): void {
-    app(ManualPaymentUi::class)->bankConfirm($bot, $claim, $reference);
-});
-
 $bot->onCommand('topups', function (Nutgram $bot): void {
     app(BillingUi::class)->reviews($bot);
 });
@@ -370,14 +366,6 @@ $bot->onCallbackQueryData('bank:show:{claim}', function (Nutgram $bot, string $c
 
 $bot->onCallbackQueryData('bank:decide:{claim}:{decision}', function (Nutgram $bot, string $claim, string $decision): void {
     app(ManualPaymentUi::class)->decide($bot, $claim, $decision);
-});
-
-$bot->onCallbackQueryData('bank:choose:{claim}:{decision}', function (Nutgram $bot, string $claim, string $decision): void {
-    app(ManualPaymentUi::class)->choose($bot, $claim, $decision);
-});
-
-$bot->onCallbackQueryData('bank:apply:{token}', function (Nutgram $bot, string $token): void {
-    app(ManualPaymentUi::class)->apply($bot, $token);
 });
 
 $bot->onCallbackQueryData('menu:billing-reviews', function (Nutgram $bot): void {
