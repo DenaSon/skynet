@@ -13,7 +13,7 @@ Reuse the existing identity, dual-bot boundaries, pricing/checkout Actions, rece
 | UXR-01 | Navigation, ready-plan home, support/guides, ready-node label: #120, #122, #125; start #126/#127 | Implemented in source; CI recorded in implementation PR; new live smoke pending |
 | UXR-02 | Direct plan → payment → photo, copy/resume: #116; finish #127 | Implemented in UXR-02 branch; CI and live acceptance separately verified |
 | UXR-03 | Receipt alert/decision → automatic RW activation → customer notification: #117/#118/#119 | Implemented across PRs #130/#131/#132; CI and LIVE acceptance remain separate |
-| UXR-04 | Real account statistics and recognizable services/details: #123/#124; finish #126 | Planned |
+| UXR-04 | Real account statistics and recognizable services/details: #123/#124; finish #126 | Implemented in UXR-04 PR; source CI and live acceptance tracked separately |
 | UXR-05 | Compatible official RW Subscription Page and delivery integration: #121/#119 | Planned |
 
 ## UXR-01 implementation
@@ -84,3 +84,12 @@ Tracked issues: #117 (Admin receipt and final decision), #118 (automatic queued 
 - Exercise the scheduled recovery while the queue worker is healthy, and verify delivery states (`pending`, `sent`, `dead`, `unavailable`) from sanitized metadata only. Preserve old orders, credentials and links. If necessary disable the new gates before source rollback.
 
 New CI includes DB-backed/fake-Telegram/provider HTTP contract assertions only. **Real bank reconciliation, true Telegram delivery and live Remnawave creation are independent acceptance gates.**
+
+
+## UXR-04 implementation and evidence — 2026-10-21
+
+- Owner-authorized identity membership-date read and whole-history paid-purchase count/sum in integer rials; pending, cancelled and refunded orders do not contribute to paid totals. Sales account presenter displays safe escaped name, ID, role, membership date and genuine local-linked service counts, with working owned order history, referral, service and Home links.
+- Existing reseller-only Billing wallet remains restricted to freshly authorized resellers; ordinary members receive neither wallet balance nor wallet shortcut. No public wallet, recharge or new permissions.
+- «سرویس‌های من» pages contain **only linked provisioning subscriptions** with owned plan/volume/duration and local state; unfulfilled/unpaid purchases remain available under order history. Counts query the full permitted owned set, not just six displayed services, and pagination uses the existing descending order cursor. Detail reuses previously authorized provider usage and connection Actions, with direct connection/help/support and safe error display.
+- **Accuracy boundary:** local `provisioning_subscriptions` lacks actual provider expiry and state synchronization. UI labels its count «فعال در سوابق» and obtains independently confirmed live status, usage and expiry only when a customer's service detail is opened. It never misreports provider read errors as zero or expires a service from a missing date. A real aggregate expired-service count is unavailable with existing records; this remains explicitly unverified rather than creating a second remote polling/snapshot system outside the approved MVP. This is a documented limitation of #124 and may require a separate operator decision if aggregate expiry is mandatory before closing that Issue.
+- Read-only improvements preserve all existing Admin and UXR-03 paths, no migration/dependency/RW writes, no change in prices or billing rules. Source CI: PHP 8.4/8.5 Pest, PHPStan/Pint and MySQL; live Persian Telegram keyboard and real RW service status checks require operator smoke after deployment.
