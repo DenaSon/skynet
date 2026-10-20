@@ -373,8 +373,13 @@ final readonly class ManualPaymentUi
 
             return;
         }
+        $autoReady = config('sales.auto_fulfillment_enabled', false) === true
+            && config('services.remnawave.writes_enabled') === true
+            && config('services.remnawave.squad_bindings_live_verified') === true;
         $message = $result->approved
-            ? "✅ پرداخت سفارش #{$result->orderId} تأیید شد.\nاشتراک در حال آماده‌سازی است."
+            ? ($autoReady
+                ? "✅ پرداخت سفارش #{$result->orderId} تأیید شد.\nاشتراک در حال آماده‌سازی است."
+                : "✅ پرداخت سفارش #{$result->orderId} تأیید شد.\nدرخواست فعال‌سازی ثبت شد.")
             : "❌ رسید سفارش #{$result->orderId} رد شد.\nمشتری می‌تواند رسید جدیدی ارسال کند.";
         try {
             if (($bot->message()->photo ?? []) !== []) {
