@@ -68,7 +68,7 @@ final readonly class SalesHomeUi
         ));
         $pages = max(1, (int) ceil(count($entries) / 5));
         $page = min(max(1, $page), $pages);
-        $lines = ['<b>🛒 پلن‌های آماده خرید</b>', '', 'یک پلن را برای مشاهده جزئیات انتخاب کنید.', ''];
+        $lines = ['<b>🛒 پلن‌های آماده خرید</b>', '', 'یک پلن را انتخاب کنید تا مستقیماً وارد پرداخت شوید.', ''];
         $keyboard = InlineKeyboardMarkup::make();
         foreach (array_slice($entries, ($page - 1) * 5, 5) as $entry) {
             $lines[] = '📦 <b>'.$this->name($entry->plan->name).'</b>';
@@ -287,6 +287,7 @@ final readonly class SalesHomeUi
     {
         $this->pendingBuilder->forget($buyerId);
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$buyerId));
+        Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:recent:'.$buyerId));
     }
 
     private function salesRole(TelegramActor $actor): string

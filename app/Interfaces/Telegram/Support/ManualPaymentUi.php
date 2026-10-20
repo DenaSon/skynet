@@ -18,6 +18,7 @@ use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Types\Keyboard\ForceReply;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 use Throwable;
@@ -72,18 +73,114 @@ final readonly class ManualPaymentUi
             return;
         }
 
+        $sales = TelegramBotContext::current()->key === TelegramBotContext::SALES;
+        if ($sales) {
+            if ($this->payments->latestReceiptStatus(SubscriptionViewer::telegram((int) $this->private->id($bot)), $order->id) === 'submitted') {
+                $this->notice($bot, 'رسید این سفارش قبلاً دریافت شده و در انتظار بررسی مدیر است.');
+
+                return;
+            }
+            $card = $this->cardNumber();
+            if ($card === null) {
+                $this->notice($bot, 'اطلاعات پرداخت هنوز تنظیم نشده است. با پشتیبانی تماس بگیرید.');
+
+                return;
+            }
+        }
+
         Cache::put(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$actor->userId), $order->id, now()->addMinutes(10));
+        if ($sales) {
+            Cache::put(TelegramBotContext::current()->cacheKey('telegram:payphoto:recent:'.$actor->userId), $order->id, now()->addHour());
+        }
         $instructions = trim((string) config('billing.payment_instructions', ''));
-        $instructions = mb_substr($instructions === '' ? 'برای دریافت اطلاعات پرداخت با پشتیبانی هماهنگ کنید.' : $instructions, 0, 350);
+        $instructions = mb_substr($instructions, 0, 350);
 
-        $back = TelegramBotContext::current()->key === TelegramBotContext::SALES
-            ? 'sales:checkout:view:'.$order->id
-            : 'shop:order:view:'.$order->id;
-        $keyboard = InlineKeyboardMarkup::make()->addRow(
-            InlineKeyboardButton::make('◀️ سفارش', callback_data: $back),
-        )->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'menu:home'));
+        $back = $sales ? 'menu:plan-catalog' : 'shop:order:view:'.$order->id;
+        $keyboard = InlineKeyboardMarkup::make();
+        if ($sales) {
+            $amount = (string) intdiv($order->totalPriceRials + 9, 10);
+            $keyboard->addRow(TelegramUi::copy($card, '📋 کپی شماره کارت'), TelegramUi::copy($amount, '📋 کپی مبلغ'));
+            $keyboard->addRow(InlineKeyboardButton::make('🛒 خرید جدید همین پلن',
+                callback_data: 'sales:checkout:new:'.$order->id));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('◀️ پلن‌ها', callback_data: $back))
+            ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'menu:home'));
 
-        $this->render($bot, "🧾 ثبت رسید سفارش #{$order->id}\n\nمبلغ دقیق: ".number_format(intdiv($order->totalPriceRials + 9, 10))." تومان\n\n{$instructions}\n\nپس از انتقال وجه، تصویر رسید را در همین گفت‌وگوی خصوصی ارسال کنید.\nاین درخواست ۱۰ دقیقه اعتبار دارد؛ تصویر به‌تنهایی پرداخت را اثبات نمی‌کند.", $keyboard);
+        if ($sales) {
+            $details = '<b>💳 پرداخت سفارش #'.$order->id.'</b>'
+                ."\n\n📦 پلن: <b>".TelegramUi::escape($order->productName).'</b>'
+                ."\nحجم: ".($order->trafficGb === null ? 'نامحدود' : $order->trafficGb.' گیگابایت')
+                ." · مدت: {$order->durationDays} روز"
+                ."\n\nمبلغ دقیق: <b>".TelegramUi::toman($order->totalPriceRials).' تومان</b>'
+                ."\nشماره کارت: ".TelegramUi::code($card)
+                .($instructions === '' ? '' : "\n".TelegramUi::escape($instructions))
+                ."\n\n<blockquote>بعد از واریز، عکس رسید را همین‌جا بفرستید. ثبت رسید به معنای تأیید پرداخت نیست.</blockquote>";
+            $this->renderPayment($bot, $details, $keyboard);
+            // ForceReply is a lightweight prompt, not another required step.
+            // Ownership and order state are rechecked on receipt submission.
+            $bot->sendMessage(
+                text: '📷 عکس رسید را برای همین سفارش ارسال کنید (۱۰ دقیقه فرصت دارید).',
+                reply_markup: ForceReply::make(
+                    force_reply: true,
+                    input_field_placeholder: 'عکس رسید پرداخت',
+                    selective: true,
+                ),
+            );
+
+            return;
+        }
+
+        $this->render($bot, "🧾 ثبت رسید سفارش #{$order->id}\n\nمبلغ دقیق: ".TelegramUi::toman($order->totalPriceRials)." تومان\n\n{$instructions}\n\nپس از انتقال وجه، تصویر رسید را در همین گفت‌وگوی خصوصی ارسال کنید.\nاین درخواست ۱۰ دقیقه اعتبار دارد؛ تصویر به‌تنهایی پرداخت را اثبات نمی‌کند.", $keyboard);
+    }
+
+    /** The configured card is real operator data, never a default/demo identity. */
+    public function cardNumber(): ?string
+    {
+        $card = trim((string) config('billing.payment_card_number', ''));
+        if ($card !== '') {
+            $card = preg_replace('/[\\s-]+/u', '', $card);
+
+            return is_string($card) && preg_match('/\\A[0-9]{16}\\z/D', $card) === 1 ? $card : null;
+        }
+
+        // Backward-compatible: extract only one unambiguous card from the
+        // existing payment instructions. Never infer an account from arbitrary digits.
+        $instructions = (string) config('billing.payment_instructions', '');
+        preg_match_all('/(?<![0-9])(?:[0-9][ -]?){15}[0-9](?![0-9])/u', $instructions, $matches);
+        if (count($matches[0]) !== 1) {
+            return null;
+        }
+        $extracted = preg_replace('/[ -]/', '', $matches[0][0]);
+
+        return is_string($extracted) && preg_match('/\\A[0-9]{16}\\z/D', $extracted) === 1 ? $extracted : null;
+    }
+
+    /** Do not treat unrelated text/documents as a receipt while awaiting a photo. */
+    public function invalidInput(Nutgram $bot): bool
+    {
+        $actor = $this->actor($bot);
+        if ($actor === null || TelegramBotContext::current()->key !== TelegramBotContext::SALES
+            || config('sales.manual_bank_review_enabled', false) !== true) {
+            return false;
+        }
+        $orderId = Cache::get(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$actor->userId));
+        if (! is_int($orderId)) {
+            return false;
+        }
+        $this->notice($bot, 'لطفاً عکس رسید را بفرستید، یا از «خانه» خارج شوید. برای ادامه بعدی، «سفارش‌های من» را باز کنید.');
+
+        return true;
+    }
+
+    private function renderPayment(Nutgram $bot, string $text, InlineKeyboardMarkup $keyboard): void
+    {
+        if ($bot->isCallbackQuery()) {
+            TelegramUi::answerCallback($bot);
+            TelegramUi::editText($bot, $text, $keyboard, 'HTML');
+
+            return;
+        }
+        $bot->sendMessage(text: $text, reply_markup: $keyboard, parse_mode: 'HTML');
     }
 
     public function photo(Nutgram $bot): void
@@ -97,7 +194,19 @@ final readonly class ManualPaymentUi
         $orderId = Cache::get(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$actor->userId));
 
         if (is_int($orderId) === false) {
-            return; // Never intercept unrelated images.
+            $recent = TelegramBotContext::current()->key === TelegramBotContext::SALES
+                ? Cache::get(TelegramBotContext::current()->cacheKey('telegram:payphoto:recent:'.$actor->userId))
+                : null;
+            if (is_int($recent)) {
+                $receipt = $this->payments->latestReceiptStatus(
+                    SubscriptionViewer::telegram((int) $this->private->id($bot)), $recent,
+                );
+                $this->notice($bot, $receipt === 'submitted'
+                    ? 'رسید این سفارش قبلاً دریافت شده؛ منتظر بررسی مدیر باشید.'
+                    : 'زمان دریافت رسید تمام شده است. از «سفارش‌های من» ادامه پرداخت را باز کنید.');
+            }
+
+            return;
         }
 
         $photos = $bot->message()->photo ?? [];
@@ -120,13 +229,15 @@ final readonly class ManualPaymentUi
                 TelegramBotContext::current()->key,
             );
         } catch (ValidationException|AuthorizationException|UniqueConstraintViolationException) {
-            $this->notice($bot, 'رسید پذیرفته نشد؛ وضعیت سفارش یا رسید قبلی را بررسی کنید.');
+            $this->notice($bot, 'این رسید تکراری است یا سفارش دیگر قابل پرداخت نیست. از «سفارش‌های من» وضعیت را بررسی کنید.');
 
             return;
         }
 
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$actor->userId));
-        $this->notice($bot, "🕘 رسید سفارش #{$orderId} ثبت شد.\nشماره بررسی: #{$claimId}\n\nتنها پس از تطبیق واقعی گردش بانک و تأیید مدیر، سفارش تسویه می‌شود.");
+        $this->notice($bot, TelegramBotContext::current()->key === TelegramBotContext::SALES
+            ? "✅ رسید دریافت شد؛ منتظر بررسی مدیر باشید.\nسفارش #{$orderId}"
+            : "🕘 رسید سفارش #{$orderId} ثبت شد.\nشماره بررسی: #{$claimId}\n\nتنها پس از تطبیق واقعی گردش بانک و تأیید مدیر، سفارش تسویه می‌شود.");
         // Keep the already deployed best-effort alerts until the durable
         // notification worker is explicitly enabled in Production.
         if (config('telegram_notifications.enabled', false) !== true

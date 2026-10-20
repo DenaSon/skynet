@@ -220,7 +220,7 @@ it('clearly offers the Sales plan-selection path without claiming an unverified 
 
     $bot->hearText('/catalog')->reply()->assertReplyText(
         "📋 پلن‌ها و قیمت‌ها\nصفحه 1 از 1\n\nقیمت‌ها از تعرفه فعال محاسبه می‌شوند و ممکن است تغییر کنند.\n"
-        ."برای بررسی امکان ثبت سفارش، یک پلن را انتخاب کنید.\n\nدر حال حاضر پلنی برای نمایش وجود ندارد."
+        ."با انتخاب پلن، وارد پرداخت می‌شوید؛ قیمت هنگام انتخاب دوباره بررسی می‌شود.\n\nدر حال حاضر پلنی برای نمایش وجود ندارد."
     );
     $bot->hearText('/start')->reply()->assertCalled('sendMessage', 2);
 

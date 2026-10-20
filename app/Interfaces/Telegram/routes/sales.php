@@ -96,7 +96,7 @@ $bot->onCallbackQueryData('catalog:list:{page}', function (Nutgram $bot, string 
 });
 
 $bot->onCallbackQueryData('catalog:detail:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
-    app(PlanCatalogUi::class)->detail($bot, $id, $page);
+    app(SalesCheckoutUi::class)->choosePreset($bot, $id);
 });
 
 $bot->onCallbackQueryData('menu:builder', function (Nutgram $bot): void {
@@ -137,10 +137,16 @@ $bot->onText('(?!/){volume}', function (Nutgram $bot, string $volume): void {
     if (app(ResellerBuilderUi::class)->customText($bot, $volume)) {
         return;
     }
+    if (app(ManualPaymentUi::class)->invalidInput($bot)) {
+        return;
+    }
     app(SalesHomeUi::class)->fallback($bot);
 });
 
 $bot->fallback(function (Nutgram $bot): void {
+    if (app(ManualPaymentUi::class)->invalidInput($bot)) {
+        return;
+    }
     app(SalesHomeUi::class)->fallback($bot);
 });
 
@@ -152,6 +158,10 @@ $bot->onCommand('orders', function (Nutgram $bot): void {
 
 $bot->onCallbackQueryData('sales:checkout:preview:{id}:{days}:{gb}', function (Nutgram $bot, string $id, string $days, string $gb): void {
     app(SalesCheckoutUi::class)->preview($bot, $id, $days, $gb);
+});
+
+$bot->onCallbackQueryData('sales:checkout:new:{source}', function (Nutgram $bot, string $source): void {
+    app(SalesCheckoutUi::class)->newPurchase($bot, $source);
 });
 
 $bot->onCallbackQueryData('sales:checkout:commit:{token}', function (Nutgram $bot, string $token): void {

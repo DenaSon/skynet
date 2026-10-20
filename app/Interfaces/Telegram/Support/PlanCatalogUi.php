@@ -8,6 +8,7 @@ use App\Modules\Identity\Application\TelegramActor;
 use App\Modules\Sales\Application\ListQuotedPresets;
 use App\Modules\Sales\Application\QuotedPreset;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
@@ -36,6 +37,11 @@ final readonly class PlanCatalogUi
             return;
         }
 
+        if (TelegramBotContext::current()->key === TelegramBotContext::SALES) {
+            Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$actor->userId));
+            Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:recent:'.$actor->userId));
+        }
+
         $this->pendingVolume->forget($actor->userId);
         $this->pendingBuilder->forget($actor->userId);
         $this->productDrafts->forget($actor->userId);
@@ -58,7 +64,7 @@ final readonly class PlanCatalogUi
             '',
             'قیمت‌ها از تعرفه فعال محاسبه می‌شوند و ممکن است تغییر کنند.',
             TelegramBotContext::current()->key === 'sales'
-                ? 'برای بررسی امکان ثبت سفارش، یک پلن را انتخاب کنید.'
+                ? 'با انتخاب پلن، وارد پرداخت می‌شوید؛ قیمت هنگام انتخاب دوباره بررسی می‌شود.'
                 : 'ℹ️ خرید پلن‌های این بخش فعلاً فعال نیست.',
             '',
         ];
@@ -66,7 +72,7 @@ final readonly class PlanCatalogUi
         foreach (array_slice($entries, ($page - 1) * 5, 5) as $entry) {
             $lines[] = ($entry->plan->featured ? '⭐ ' : '📦 ')
                 .$this->safe($entry->plan->name).' — '.$this->spec($entry)
-                .' — '.$this->toman($entry->quote->totalPriceRials).' تومان (تقریبی)';
+                .' — '.$this->toman($entry->quote->totalPriceRials).' تومان';
             $keyboard->addRow(InlineKeyboardButton::make(
                 mb_substr($this->safe($entry->plan->name), 0, 30),
                 callback_data: "catalog:detail:{$entry->plan->id}:{$page}",

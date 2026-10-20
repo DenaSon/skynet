@@ -1,5 +1,12 @@
 # ParsaGate — Current Context / Development Memory 
 
+## UXR-02 — Direct Sales payment and receipt input (2026-10-20)
+
+- Operator approved the Sales-only UXR-02 scope after UXR-01 merge (#128, `bfb59df`, 614 tests per PHP 8.4/8.5 + PHPStan/Pint/MySQL). Source changes are in the separate UXR-02 PR and require their **own** passing CI. Live acceptance of the UXR-01/02 screens is not yet recorded.
+- Plan selection in Sales home/catalog and existing `sales:checkout:preview` now recomputes current price, audience and verified Squad status, then creates or safely resumes an owned pending-payment order **without** invoice/confirmation pages. A buyer-scoped cache lock plus durable snapshot lookup prevents repeated taps duplicating orders; explicit new purchase remains available. Historic `sales:checkout:commit` remains accepted.
+- One Sales payment view displays the immutable order amount, volume, duration and configured authentic bank card with native copy card/amount. Operator must configure `BILLING_PAYMENT_CARD_NUMBER` (16 digits) or provide one unambiguous card in `BILLING_PAYMENT_INSTRUCTIONS`; **no fake card is shipped or Production settings changed**. Receipt photo is accepted immediately in the same step, with a small optional ForceReply prompt and existing 10-minute Sales-specific cache. Receipt storage, encryption, dedupe, review, outbox and backend authorization remain in existing Actions.
+- Reopen an owned pending order via purchase history, while submitted receipt displays waiting state; text/document/expired photo/duplicate and cancel give short guidance. `sales:payment:start` and legacy callbacks remain safe. No Admin financial review, notifications #117, auto RW fulfillment #118/#119, account overhaul or provider writes are introduced. For scope, tests and operator checklist see [docs/026](026-SALES-UX-ROADMAP.md).
+
 ## UXR-01 — Sales navigation and support (2026-10-20)
 
 - Operator explicitly authorized phase 1 implementation and merge to `master`. [UXR roadmap](026-SALES-UX-ROADMAP.md), parent [#115](https://github.com/DenaSon/skynet/issues/115); later phases remain planned. Earlier tests are complete **as reported by the operator**; this does not close the missing Admin receipt alert [#117](https://github.com/DenaSon/skynet/issues/117). Multiple accounts activated after manual `/fulfillment`, not automatic fulfillment.
