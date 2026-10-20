@@ -14,7 +14,7 @@ Reuse the existing identity, dual-bot boundaries, pricing/checkout Actions, rece
 | UXR-02 | Direct plan → payment → photo, copy/resume: #116; finish #127 | Implemented in UXR-02 branch; CI and live acceptance separately verified |
 | UXR-03 | Receipt alert/decision → automatic RW activation → customer notification: #117/#118/#119 | Implemented across PRs #130/#131/#132; CI and LIVE acceptance remain separate |
 | UXR-04 | Real account statistics and recognizable services/details: #123/#124; finish #126 | Implemented in UXR-04 PR; source CI and live acceptance tracked separately |
-| UXR-05 | Compatible official RW Subscription Page and delivery integration: #121/#119 | Planned |
+| UXR-05 | Compatible official RW Subscription Page and delivery integration: #121/#119 | Source integration in PR; external page deployment & live acceptance pending |
 
 ## UXR-01 implementation
 
@@ -93,3 +93,10 @@ New CI includes DB-backed/fake-Telegram/provider HTTP contract assertions only. 
 - «سرویس‌های من» pages contain **only linked provisioning subscriptions** with owned plan/volume/duration and local state; unfulfilled/unpaid purchases remain available under order history. Counts query the full permitted owned set, not just six displayed services, and pagination uses the existing descending order cursor. Detail reuses previously authorized provider usage and connection Actions, with direct connection/help/support and safe error display.
 - **Accuracy boundary:** local `provisioning_subscriptions` lacks actual provider expiry and state synchronization. UI labels its count «فعال در سوابق» and obtains independently confirmed live status, usage and expiry only when a customer's service detail is opened. It never misreports provider read errors as zero or expires a service from a missing date. A real aggregate expired-service count is unavailable with existing records; this remains explicitly unverified rather than creating a second remote polling/snapshot system outside the approved MVP. This is a documented limitation of #124 and may require a separate operator decision if aggregate expiry is mandatory before closing that Issue.
 - Read-only improvements preserve all existing Admin and UXR-03 paths, no migration/dependency/RW writes, no change in prices or billing rules. Source CI: PHP 8.4/8.5 Pest, PHPStan/Pint and MySQL; live Persian Telegram keyboard and real RW service status checks require operator smoke after deployment.
+
+
+## UXR-05 — Official Remnawave Subscription Page, source checkpoint (2026-10-21)
+
+- Choose official Remnawave Subscription Page rather than Laravel customer web page. Exact setup, branding, security, browser/client, eligibility and rollback criteria: [docs/027](027-UXR05-SUBSCRIPTION-PAGE-RUNBOOK.md). Official bundled deployment uses `SUB_PUBLIC_DOMAIN`, a new customer DNS/HTTPS host, scoped page API token, reverse proxy and Remnawave Subpage Builder; **these external actions were not performed in GitHub**.
+- Source change: optional single host `SALES_SUBSCRIPTION_PAGE_HOST` (empty by default). Add Sales-only callback on active service detail and UXR-03 activation notification, using the **existing** validated owner-only `GetSubscriptionLink` on each click and requiring exact returned HTTPS URL hostname match. Only authorized private Telegram response contains credential and browser/copy button. Existing link delivery and client subscription format are preserved, no new domain synthesis and no RW API write.
+- Full #121 completion needs real RW page deployed and branded on permitted infrastructure, real supported QR/import/connection-key behavior, Persian mobile UI, old-client HTTP content negotiation and privacy/rollback verified. Do not close #121 or #115 on CI alone. Keep financial/Provider gates unchanged.
