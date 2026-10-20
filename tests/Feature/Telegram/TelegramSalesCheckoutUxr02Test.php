@@ -186,7 +186,7 @@ it('keeps receipt input private, scoped to Sales, expiring and cancelable withou
     $otherBot->hearCallbackQueryData('sales:checkout:view:'.$order)->reply()->assertCalled('editMessageText');
     $otherBot->hearMessage(['message_id' => 99, 'photo' => [
         ['file_id' => 'unauthorized-photo', 'file_unique_id' => 'unauthorized-id', 'width' => 400, 'height' => 400],
-    ]])->reply()->assertCalled('sendMessage');
+    ]])->reply()->assertNoReply();
     expect(DB::table('sales_bank_payment_claims')->count())->toBe(0);
 
     $key = TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$buyer->id);
