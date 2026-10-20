@@ -199,6 +199,7 @@ TELEGRAM_SALES_ENABLED=false
 TELEGRAM_SALES_TOKEN=
 TELEGRAM_SALES_WEBHOOK_SECRET=
 TELEGRAM_SALES_BOT_USERNAME=
+TELEGRAM_SALES_SUPPORT_USERNAME=
 ```
 - Existing admin registration continues with `php artisan telegram:webhook:set`; optional `--bot=admin` is equivalent. A later **explicitly approved** setup can use `telegram:webhook:set --bot=sales` only after `TELEGRAM_SALES_ENABLED=true` and independently configured credentials. The Sales handler set is currently empty; **do not enable/register it for customers**.
 - Secret-token validation occurs before any Update claim. The two routes require their respective secrets and reject shared Sales/Admin token or shared secrets.
@@ -237,3 +238,10 @@ Actual Production smoke confirmed `/payments` returns the correct read-only pend
 A deployed sanitized diagnostic from an actual `bank:list` refresh showed `telegram_error_code=400` and `telegram_error_type=message_not_modified` for one repeatedly retried `update_id`. The source is the reply/edit presentation path, **not** a failed bank approval or ledger mutation. The shared Telegram text-edit helper used by the existing receipt list and Admin menu now treats **only** HTTP 400 `message is not modified` as a successful already-rendered state. Other Telegram API errors (including missing edit targets, permission failures and 429/5xx) still propagate. Handler authorization, early callback acknowledgement, no-op button semantics, financial settlement, and old command routes are unchanged.
 
 **Live acceptance:** After the new code deploys, open the trusted Admin Bot's `/payments`, tap **🔄 تازه‌سازی** twice on unchanged data, and use **◀️ مدیریت** to navigate back. Confirm the screen remains responsive and the count of newly failed webhook updates from `php artisan telegram:ops:status` does not increase. Legacy `failed` rows are historical and are **not** reset or deleted. This is not acceptance of the complete financial approval/payment flow or the deferred two-bot notification/Remnawave tests.
+
+
+## UXR-01 Sales support configuration and smoke
+
+`TELEGRAM_SALES_SUPPORT_USERNAME` is the actual operator's public Telegram username (with or without `@`, not a URL). Leave it empty until known; the Sales support screen then offers guides and honestly reports direct contact unavailable. Never copy an example identity into Production. `TELEGRAM_SALES_BOT_USERNAME` must be the Sales bot's real username for its invitation deep links. After changing deployment environment values, run `php artisan config:cache`; no webhook change is needed for these settings.
+
+After deploying UXR-01, use a private member and reseller account: `/start` shows four persistent buttons and real plan prices; open all four destinations and guide/back buttons; verify the configured support button opens the intended Telegram account. Check Home/Cancel during a pending builder/receipt prompt, unknown text/button guidance, invitation pointing to the Sales bot, and reseller-only builder access after role revocation. Verify the two Node paths retain their existing callbacks and label distinction. This smoke covers changed navigation only, without repeating a purchase or provider operation. Record it separately from source CI.

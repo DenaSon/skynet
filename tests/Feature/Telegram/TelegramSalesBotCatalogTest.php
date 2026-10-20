@@ -93,7 +93,7 @@ it('presents only current published plans to the linked member with working home
     $member = User::factory()->create(['name' => 'Buyer']);
     $bot = sb02Bot(977010, $member);
 
-    $bot->hearText('/start')->reply()->assertCalled('sendMessage');
+    $bot->hearText('/start')->reply()->assertCalled('sendMessage', 2);
     $bot->hearText('/catalog')->reply()->assertCalled('sendMessage');
     $bot->hearCallbackQueryData('menu:plan-catalog')->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('catalog:list:1')->reply()->assertCalled('editMessageText');
@@ -116,7 +116,7 @@ it('shows reseller discounts once and safely previews custom builder volume and 
     $reseller->assignRole('reseller');
     $bot = sb02Bot(977011, $reseller);
 
-    $bot->hearText('/start')->reply()->assertCalled('sendMessage');
+    $bot->hearText('/start')->reply()->assertCalled('sendMessage', 2);
     $bot->hearText('/catalog')->reply()->assertCalled('sendMessage');
     $bot->hearCallbackQueryData("catalog:detail:{$presetId}:1")->reply()->assertCalled('editMessageText');
     $bot->hearText('/builder')->reply()->assertCalled('sendMessage');
@@ -186,10 +186,10 @@ it('keeps orders, settlement, provisioning and admin commands unavailable in the
     $bot = sb02Bot(977014, $user);
 
     foreach (['/buy', '/paid 1 ref', '/payments', '/roles', '/admin'] as $text) {
-        $bot->hearText($text)->reply()->assertNoReply();
+        $bot->hearText($text)->reply()->assertReplyText('برای ادامه، یکی از دکمه‌های منو را انتخاب کنید.');
     }
     foreach (['shop:order:forged', 'bank:apply:forged', 'menu:admin:users'] as $callback) {
-        $bot->hearCallbackQueryData($callback)->reply()->assertNoReply();
+        $bot->hearCallbackQueryData($callback)->reply()->assertCalled('answerCallbackQuery')->assertCalled('editMessageText');
     }
     expect(DB::table('sales_orders')->count())->toBe(0)
         ->and(DB::table('sales_bank_payment_claims')->count())->toBe(0)
@@ -220,7 +220,7 @@ it('clearly offers the Sales plan-selection path without claiming an unverified 
         "📋 پلن‌ها و قیمت‌ها\nصفحه 1 از 1\n\nقیمت‌ها از تعرفه فعال محاسبه می‌شوند و ممکن است تغییر کنند.\n"
         ."برای بررسی امکان ثبت سفارش، یک پلن را انتخاب کنید.\n\nدر حال حاضر پلنی برای نمایش وجود ندارد."
     );
-    $bot->hearText('/start')->reply()->assertCalled('sendMessage');
+    $bot->hearText('/start')->reply()->assertCalled('sendMessage', 2);
 
     expect(DB::table('sales_orders')->count())->toBe(0);
     Http::assertNothingSent();
@@ -240,5 +240,65 @@ it('gives Sales resellers truthful custom-plan guidance without unlocking financ
     );
 
     expect(DB::table('sales_orders')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('shows bounded ready plan prices on home using current buyer quotes and preserves checkout boundaries', function (): void {
+    sb02SalesWebhookContext();
+    config()->set('services.remnawave.squad_bindings_live_verified', true);
+    $root = sb02Root();
+    $ready = [];
+    for ($i = 1; $i <= 6; $i++) {
+        $ready[] = sb02Plan($root, 'home-'.$i);
+    }
+    $restricted = sb02Plan($root, 'private-home', 'reseller');
+    $unready = sb02Plan($root, 'unready-home');
+    foreach ([...$ready, $restricted] as $id) {
+        DB::table('sales_plan_internal_squad_bindings')->insert([
+            'plan_id' => $id, 'plan_revision' => 2,
+            'internal_squad_uuid' => '123e4567-e89b-12d3-a456-426614174000',
+            'verified_at' => now(), 'created_at' => now(), 'updated_at' => now(),
+        ]);
+    }
+    DB::table('sales_plans')->where('id', $ready[0])->update(['name' => '<Home> & offer']);
+    $buyer = User::factory()->create();
+    $bot = sb02Bot(977030, $buyer);
+    $bot->hearText('/start')->reply()->assertCalled('sendMessage', 2)
+        ->assertRaw(static function (\GuzzleHttp\Psr7\Request $request) use ($ready, $restricted, $unready): bool {
+            $body = json_decode((string) $request->getBody(), true, flags: JSON_THROW_ON_ERROR);
+            $encoded = json_encode($body, JSON_THROW_ON_ERROR);
+
+            return $body['parse_mode'] === 'HTML'
+                && str_contains($body['text'], '&lt;Home&gt; &amp; offer')
+                && str_contains($body['text'], '<b>100,000 تومان</b>')
+                && substr_count($body['text'], 'مبلغ:') === 5
+                && str_contains($encoded, 'catalog:detail:'.$ready[0].':1')
+                && ! str_contains($encoded, 'catalog:detail:'.$ready[5].':1')
+                && ! str_contains($encoded, 'catalog:detail:'.$restricted.':1')
+                && ! str_contains($encoded, 'catalog:detail:'.$unready.':1');
+        }, index: 1);
+    $bot->hearCallbackQueryData('sales:home:2')->reply()->assertCalled('sendMessage', 0)
+        ->assertCalled('answerCallbackQuery')->assertCalled('editMessageText')
+        ->assertRaw(static function (\GuzzleHttp\Psr7\Request $request): bool {
+            $body = json_decode((string) $request->getBody(), true, flags: JSON_THROW_ON_ERROR);
+
+            return substr_count($body['text'], 'مبلغ:') === 1 && str_contains($body['text'], 'صفحه 2 از 2');
+        }, index: 1);
+    $buyer->assignRole('reseller');
+    $bot->hearCallbackQueryData('sales:home:1')->reply()->assertRaw(static function (\GuzzleHttp\Psr7\Request $request): bool {
+        $body = json_decode((string) $request->getBody(), true, flags: JSON_THROW_ON_ERROR);
+
+        return str_contains($body['text'], '<b>90,000 تومان</b>');
+    }, index: 1);
+    config()->set('services.remnawave.squad_bindings_live_verified', false);
+    $bot->hearCallbackQueryData('sales:home:invalid')->reply()->assertRaw(static function (\GuzzleHttp\Psr7\Request $request): bool {
+        $body = json_decode((string) $request->getBody(), true, flags: JSON_THROW_ON_ERROR);
+
+        return str_contains($body['text'], 'فعلاً پلن آماده خریدی وجود ندارد')
+            && ! str_contains($body['text'], 'مبلغ:');
+    }, index: 1);
+    expect(DB::table('sales_orders')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe(0)
+        ->and(DB::table('provisioning_operations')->count())->toBe(0);
     Http::assertNothingSent();
 });

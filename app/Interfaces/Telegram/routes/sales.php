@@ -5,12 +5,13 @@ use App\Interfaces\Telegram\Support\PlanCatalogUi;
 use App\Interfaces\Telegram\Support\ResellerBuilderUi;
 use App\Interfaces\Telegram\Support\SalesCheckoutUi;
 use App\Interfaces\Telegram\Support\SalesHomeUi;
+use App\Interfaces\Telegram\Support\SalesSupportUi;
 use App\Interfaces\Telegram\Support\SalesSubscriptionsUi;
 use SergiX44\Nutgram\Nutgram;
 
 /** @var Nutgram $bot */
-// SB-01: isolated Sales entry/identity only. Admin and legacy purchasing
-// routers must not be loaded here. Checkout/payment belong to later phases.
+// Sales-only identity, customer navigation and existing checkout handlers.
+// Admin and legacy purchasing routers must never be loaded here.
 $bot->onCommand('start {payload}', function (Nutgram $bot, string $payload): void {
     app(SalesHomeUi::class)->start($bot, $payload);
 });
@@ -33,6 +34,34 @@ $bot->onCommand('link {code}', function (Nutgram $bot, string $code): void {
 
 $bot->onCallbackQueryData('sales:home', function (Nutgram $bot): void {
     app(SalesHomeUi::class)->start($bot);
+});
+
+$bot->onCallbackQueryData('sales:home:{page}', function (Nutgram $bot, string $page): void {
+    app(SalesHomeUi::class)->start($bot, page: ctype_digit($page) && strlen($page) <= 4 ? (int) $page : 1);
+});
+
+$bot->onCallbackQueryData('sales:invite', function (Nutgram $bot): void {
+    app(SalesHomeUi::class)->invite($bot);
+});
+
+$bot->onCommand('invite', function (Nutgram $bot): void {
+    app(SalesHomeUi::class)->invite($bot);
+});
+
+$bot->onCallbackQueryData('sales:support', function (Nutgram $bot): void {
+    app(SalesSupportUi::class)->show($bot);
+});
+
+$bot->onCommand('help', function (Nutgram $bot): void {
+    app(SalesSupportUi::class)->show($bot);
+});
+
+$bot->onCommand('cancel', function (Nutgram $bot): void {
+    app(SalesHomeUi::class)->start($bot);
+});
+
+$bot->onCallbackQueryData('sales:help:{page}', function (Nutgram $bot, string $page): void {
+    app(SalesSupportUi::class)->show($bot, $page);
 });
 
 $bot->onCallbackQueryData('sales:account', function (Nutgram $bot): void {
@@ -98,10 +127,19 @@ $bot->onCallbackQueryData('builder:cancel', function (Nutgram $bot): void {
     app(ResellerBuilderUi::class)->cancel($bot);
 });
 
-// Only a pending reseller builder may consume uncommanded text; no fallback
-// into legacy admin forms, sales checkout or payment submission.
+// Primary menu labels always win over pending free-text forms. Unmatched
+// input gets guidance, never a fallback into Admin or legacy purchase routes.
 $bot->onText('{volume}', function (Nutgram $bot, string $volume): void {
-    app(ResellerBuilderUi::class)->customText($bot, $volume);
+    if (app(SalesHomeUi::class)->navigate($bot, $volume)) {
+        return;
+    }
+    if (! app(ResellerBuilderUi::class)->customText($bot, $volume)) {
+        app(SalesHomeUi::class)->fallback($bot);
+    }
+});
+
+$bot->fallback(function (Nutgram $bot): void {
+    app(SalesHomeUi::class)->fallback($bot);
 });
 
 // SB-03: buyer-owned managed-plan pending orders. No payment, bank review,

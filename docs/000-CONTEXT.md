@@ -1,5 +1,15 @@
 # ParsaGate — Current Context / Development Memory 
 
+## UXR-01 — Sales navigation and support (2026-10-20)
+
+- Operator explicitly authorized phase 1 implementation and merge to `master`. [UXR roadmap](026-SALES-UX-ROADMAP.md), parent [#115](https://github.com/DenaSon/skynet/issues/115); later phases remain planned. Earlier tests are complete **as reported by the operator**; this does not close the missing Admin receipt alert [#117](https://github.com/DenaSon/skynet/issues/117). Multiple accounts activated after manual `/fulfillment`, not automatic fulfillment.
+- Source: Sales-only persistent four-button menu; home displays up to five buyer-authorized, published, current Squad-ready plan quotes with paging and existing detail callbacks. Basic account retains order history, invite and role-checked reseller builder. No new wallet or account statistics.
+- New support uses `TELEGRAM_SALES_SUPPORT_USERNAME` for a real Telegram operator, plus short Hiddify installation/connection, purchase and troubleshooting guides. Missing/invalid operator config hides the contact button and explains availability; no sample username ships. Operator must set the real username and rebuild effective config.
+- New/changed UI uses DenaGate, escaped HTML, bold title/price, sparse emoji and short blockquotes. Generic text/unknown callbacks get safe guidance. Primary Reply labels, Home and Cancel retire only the current bot's builder/receipt input draft; early callback acknowledgement/typing precedes live subscription-usage reads. Admin and legacy routes remain isolated and unchanged.
+- Admin Node menu prioritizes «افزودن سرور جدید» and names manual registration «ثبت نود آماده», with an explanation that the two routes are alternatives. Installer, ports, Actions and callbacks are preserved.
+- Verification: focused fake Telegram/HTTP regressions plus PHP 8.4/8.5, PHPStan, Pint and disposable MySQL checks are required in this phase's PR. New live Telegram keyboard, guide and operator-contact acceptance is **not yet recorded**; previous-version live acceptance does not cover these changed screens.
+- UXR-02 checkout/receipt simplification, UXR-03 review/automatic RW activation/notifications, UXR-04 account/services redesign and UXR-05 official subscription page are not implemented here. #111 remains deferred. No migration, dependency, production flag or provider resource is changed by this phase.
+
 ## Controlled Sales purchase → activation — LIVE PASS, operator-reported (2026-10-20, 20:13 Tehran)
 
 - The operator confirmed the fresh-preview/cache fix after [PR #113](https://github.com/DenaSon/skynet/pull/113): Sales created the managed-plan order, accepted its receipt, and displayed payment approved / awaiting activation after the operator's Admin review. The operator then reported the test complete and the subscription activated. This closes the controlled purchase-to-activation happy path; it is live operator evidence, separate from CI.

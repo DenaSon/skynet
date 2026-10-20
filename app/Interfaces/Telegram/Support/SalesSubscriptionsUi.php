@@ -131,8 +131,12 @@ final readonly class SalesSubscriptionsUi
             '',
         ];
         $keyboard = InlineKeyboardMarkup::make();
+        $acknowledged = false;
 
         if ($details->canRequestLink) {
+            TelegramUi::answerCallback($bot);
+            $acknowledged = $bot->isCallbackQuery();
+            TelegramUi::activity($bot);
             try {
                 $live = $this->usage->handle($viewer, $orderId);
                 $lines[] = 'وضعیت فعلی: 🟢 فعال (بررسی‌شده)';
@@ -162,7 +166,7 @@ final readonly class SalesSubscriptionsUi
             ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'sales:subs:list:'.$cursor))
             ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
 
-        $this->render($bot, implode("\n", $lines), $keyboard);
+        $this->render($bot, implode("\n", $lines), $keyboard, ! $acknowledged);
     }
 
     public function link(Nutgram $bot, string $id, string $cursor = '0'): void
@@ -275,10 +279,12 @@ final readonly class SalesSubscriptionsUi
         $this->render($bot, "📦 اشتراک‌های من\n\n".$message, $keyboard);
     }
 
-    private function render(Nutgram $bot, string $message, InlineKeyboardMarkup $keyboard): void
+    private function render(Nutgram $bot, string $message, InlineKeyboardMarkup $keyboard, bool $acknowledge = true): void
     {
         if ($bot->isCallbackQuery()) {
-            TelegramUi::answerCallback($bot);
+            if ($acknowledge) {
+                TelegramUi::answerCallback($bot);
+            }
             TelegramUi::editText($bot, $message, $keyboard);
 
             return;

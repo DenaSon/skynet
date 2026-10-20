@@ -1,14 +1,14 @@
-# ParsaGate — Telegram UI/UX Identity (Normative)
+# DenaGate — Telegram UI/UX Identity (Normative)
 
 **Status:** Permanent, normative presentation contract for every future Telegram feature, including Super Admin. Adopted 2026-10-13. [PR #48](https://github.com/DenaSon/skynet/pull/48) implements shared language/copy components, grouped administration and guided Sales forms. Broad customer/finance workflow redesign and actual live Telegram smoke remain separate work.
 
 ## Product promise
 
-ParsaGate is a practical Persian Telegram bot. A person can administer products, plans, users and prices without knowing databases, frameworks, or internal architecture. Preserve **every existing capability and Action**: simplification must never remove functions, bypass authorization, or change price, money, order or provisioning rules.
+DenaGate is a practical Persian Telegram bot. A person can administer products, plans, users and prices without knowing databases, frameworks, or internal architecture. Preserve **every existing capability and Action**: simplification must never remove functions, bypass authorization, or change price, money, order or provisioning rules.
 
 ## Visible language
 
-- The public-facing product name is **ParsaGate** (پارساگیت) in both Telegram bots, web screens and notifications. Never show SkyNet/SkyNetwork as a brand; retain legacy technical identifiers and historical records to prevent breaking changes.
+- The public-facing product name in new/changed UI is **DenaGate** (updated 2026-10-20, UXR plan). Older ParsaGate text is migrated only in the current feature scope. Retain technical identifiers and historical records; do not rebrand infrastructure or stored references.
 - Warm, direct, concise Persian. One screen means one goal or decision. Use short headings, labeled values, one primary call to action, clear Back/Cancel.
 - No engineering vocabulary in Telegram: milestones F09/F10/F11, UX labels, Laravel, Nutgram, Remnawave, API, CI, PR, E2E, database, migration, DTO, provider, revision, implementation status, operation codes, or developer commentary. Engineering detail belongs in code, documentation, logs and audits. Human record identifiers are allowed when needed for copy/reconciliation.
 - Say what a feature can actually do. For an unpurchasable plan, say 'خرید این پلن فعلاً فعال نیست.' Do not simulate a purchase CTA.
@@ -36,6 +36,16 @@ ParsaGate is a practical Persian Telegram bot. A person can administer products,
 - Persistent ReplyKeyboard (when opt-in enabled) only has small role-aware primary destinations. Admin subfunctions are grouped, not placed in a wall of buttons.
 - InlineKeyboard is for object actions, selections, Back, Cancel and confirmations. Stale historic Reply labels plus old commands and callbacks MUST remain routable and re-authorized; never delete an Action to simplify a menu.
 - Navigation is contextual; Back returns to a parent, Cancel makes no mutation. No inert buttons. Never assume hiding a button replaces server authorization.
+
+## UXR-01 — Sales presentation contract (2026-10-20)
+
+- Sales always installs its own persistent two-column Reply menu on `/start`/entry: «🛒 خرید سرویس», «📋 سرویس‌های من», «👤 حساب کاربری», «💬 پشتیبانی». The separate legacy/Admin hybrid-menu opt-in does not control Sales. Existing callbacks edit their page instead of sending another home greeting. Reply and inline keyboards use separate messages, as required by Telegram.
+- Home shows at most five current buyer-priced, published, Squad-ready presets per page. This is discovery only: retain existing checkout/repricing/financial guards. No readiness/preflight screen removal before UXR-02.
+- Account retains invitations and reseller builder access; applications live under support/training. Guides are short and static; use verified official client links. Support uses the configured real Telegram account. If unset/invalid, show an honest unavailable message and guides, without an inert contact button.
+- Use Telegram HTML with escaped dynamic values: bold headings/prices, optional short blockquote for one useful instruction, sparse functional emoji, blank lines between groups. Avoid walls of text or all-bold screens. Existing unmodified finance/service templates are completed in later UXR phases.
+- Primary labels/Home/Cancel take precedence over pending free text and clear only this bot's UI input draft. Unknown text/buttons offer a safe way home and never fall through to Admin handlers. Recheck active/private identity and reseller role on each action.
+- Acknowledge before a slow remote read; a best-effort `typing` indicator is optional feedback, never proof of business success and never a reason to retry a write. Keep shared Telegram transport helpers.
+- In Admin Node management, «افزودن سرور جدید» is for an unprepared VPS; «ثبت نود آماده» registers a preinstalled node. Explain that users choose one route. Do not change ports or installation behavior in a naming change.
 
 ## Input, clipboard, confirmation
 

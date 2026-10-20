@@ -1,5 +1,16 @@
 # ParsaGate — EPIC-SB Sales Bot roadmap
 
+## UXR-01 — Four-button Sales navigation (2026-10-20)
+
+The operator authorized implementing phase 1 and merging it to `master`. [UXR roadmap](026-SALES-UX-ROADMAP.md) defines all five phases independently from the older SB/MVP names.
+
+- Persistent two-column home: «خرید سرویس / سرویس‌های من / حساب کاربری / پشتیبانی». The first screen also lists bounded ready-plan quotes, with paging through the existing buyer-scoped catalog/pricing and verified Squad gate. Selection retains current plan details/checkout until UXR-02.
+- Basic account links own services/orders, Sales-specific invitation link and the existing reseller builder. Full account/service statistics and a new wallet flow are outside UXR-01.
+- Support links a configured Telegram operator; short guides cover Android, iPhone/iPad, Windows/Mac, purchase and basic connection problems. Configure `TELEGRAM_SALES_SUPPORT_USERNAME` with the actual account, then rebuild config. No placeholder operator or ticket system.
+- HTML escaping/formatting, safe text and unknown-button fallback, primary navigation before pending custom input and bot-scoped cancellation are included. Slow usage reads acknowledge first and show best-effort typing. Receipt ForceReply belongs to UXR-02; approval/auto fulfillment and final buyer notification belong to UXR-03.
+- Admin manual-node registration is renamed «ثبت نود آماده»; new-server installation stays first and both retain existing callbacks/Actions.
+- New/changed public text uses DenaGate. Existing technical identifiers, Admin/legacy routing, finance/ownership checks and provider writes are preserved. CI verifies source; new live Telegram/operator-contact acceptance remains pending.
+
 ## Controlled live purchase-to-activation checkpoint — 2026-10-20
 
 - Operator-confirmed: the fixed fresh preview produced a real pending-payment order, receipt submission reached review, Admin approval produced paid / awaiting activation, and the subscription was subsequently activated. Mark this controlled happy path **LIVE PASS (operator-reported)**; earlier blanket live-pending wording is historical for these confirmed steps.

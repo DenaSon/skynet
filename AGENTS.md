@@ -1,5 +1,7 @@
 # ParsaGate — Agent Instructions
 
+**Current authorized scope — 2026-10-20:** The operator approved implementing **UXR-01** and merging it to `master`. Follow [docs/026](docs/026-SALES-UX-ROADMAP.md): four-button Sales navigation, bounded ready-plan prices, invitations, configured Telegram support/static guides, general feedback and the ready-node label. UXR-02–05 remain planned; payment simplification and automatic fulfillment are not part of this phase. Use **DenaGate** in new/changed public UI; preserve historical/technical identifiers. Earlier staging-unavailable and planning-only checkpoints below are historical; current live evidence is in [docs/000](docs/000-CONTEXT.md). Source/CI and live acceptance remain distinct.
+
 **EPIC-SB (approved 2026-10-17):** Follow [docs/025](docs/025-SALES-BOT-ROADMAP.md). SB-01 adds only an isolated Sales Bot identity/navigation entry, without any checkout, money, provider writes, public activation or Admin route removal. Source/CI and live Telegram acceptance are distinct.
 
 **Latest operator staging/plan checkpoint (2026-10-16):** Remnawave 3.4.4 staging is live and read-only API + scoped direct test-user CRUD were operator-verified; RW-03 remains partial (no Node, no live Laravel idempotency); next **planning-only** Admin Bot scope is SRO-01–03 / MB-05B-live P0 server overview. See [docs/024](docs/024-REMNAWAVE-LIVE-CHECKPOINT-ADMIN-READ-PLAN.md). All older 'server unavailable' text reflects its original date. Keep provider writes OFF, root-only/private UI, Sales OFF; this update does not authorize production flags or code.\n\n
@@ -11,7 +13,7 @@ ParsaGate is a Laravel 13 application being developed as a **modular monolith**.
 
 ## Mandatory Telegram UI/UX identity
 
-**Brand naming:** ParsaGate is the public-facing product name across both Telegram bots, web views, operator-facing messages and notifications. Preserve technical identifiers (repository name, existing stored references, provider ownership markers, DB names, URLs and webhook contracts) to prevent regressions. Production `APP_NAME` and BotFather profiles require independent operator updates.
+**Brand naming (updated 2026-10-20):** DenaGate is the public-facing product name in new/changed Telegram UI. Older ParsaGate messages are migrated only within the approved feature scope; do not perform a broad rebrand. Preserve technical identifiers (repository name, existing stored references, provider ownership markers, DB names, URLs and webhook contracts) to prevent regressions. Production `APP_NAME` and BotFather profiles require independent operator updates.
 
 Read [docs/017-TELEGRAM-UX-IDENTITY.md](docs/017-TELEGRAM-UX-IDENTITY.md) BEFORE any Telegram presenter/menu/form/message change. The user requires extremely simple Persian UX even for Super Admin; do not expose developer vocabulary, milestones, implementation notes or framework names in Telegram UI. Use native CopyTextButton and escaped HTML code for user-editable examples. Preserve all Actions, legacy callbacks/commands, security guards, and financial/provisioning boundaries. Use guided forms with a fast-entry fallback. Test copy text, cancel/back, role revocation and original commands on PHP 8.4/8.5. Keep the normative identity document current for future development.
 

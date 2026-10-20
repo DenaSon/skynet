@@ -40,9 +40,9 @@ it('shows a real Sales-only home and account for linked members without commerce
     $bot = sb01Bot(771001);
 
     $bot->hearText('/start')->reply()
-        ->assertReplyText("🏠 ParsaGate\n\nخوش آمدید، Buyer.\nنوع حساب: کاربر\n\nبرای مشاهده پلن‌ها و قیمت‌ها، گزینه زیر را انتخاب کنید.\nثبت سفارش فقط برای پلن‌های آماده امکان‌پذیر است.\nپرداخت فعلاً فعال نیست.");
+        ->assertReplyText("<b>🏠 DenaGate</b>\n\nخوش آمدید، Buyer.\nنوع حساب: کاربر");
     $bot->hearText('/account')->reply()
-        ->assertReplyText("👤 حساب من\n\nنام: Buyer\nشناسه ParsaGate: {$user->id}\nنوع حساب: کاربر\nوضعیت: 🟢 فعال");
+        ->assertReplyText("<b>👤 حساب کاربری</b>\n\nنام: Buyer\nشناسه DenaGate: {$user->id}\nنوع حساب: کاربر\nوضعیت: 🟢 فعال");
     $bot->hearCallbackQueryData('sales:home')->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('sales:account')->reply()->assertCalled('editMessageText');
 
@@ -60,18 +60,18 @@ it('uses current roles without making Admin or legacy checkout routes available 
     $bot = sb01Bot(771002);
 
     $bot->hearText('/start')->reply()->assertReplyText(
-        "🏠 ParsaGate\n\nخوش آمدید، Dealer Ignored.\nنوع حساب: نماینده فروش\n\nبرای مشاهده پلن‌ها و قیمت‌ها، گزینه زیر را انتخاب کنید.\nثبت سفارش فقط برای پلن‌های آماده امکان‌پذیر است.\nپرداخت فعلاً فعال نیست."
+        "<b>🏠 DenaGate</b>\n\nخوش آمدید، Dealer Ignored.\nنوع حساب: نماینده فروش"
     );
     $user->syncRoles(['member']);
     $bot->hearText('/start')->reply()->assertReplyText(
-        "🏠 ParsaGate\n\nخوش آمدید، Dealer Ignored.\nنوع حساب: کاربر\n\nبرای مشاهده پلن‌ها و قیمت‌ها، گزینه زیر را انتخاب کنید.\nثبت سفارش فقط برای پلن‌های آماده امکان‌پذیر است.\nپرداخت فعلاً فعال نیست."
+        "<b>🏠 DenaGate</b>\n\nخوش آمدید، Dealer Ignored.\nنوع حساب: کاربر"
     );
 
     foreach (['/admin', '/roles', '/payments', '/buy'] as $command) {
-        $bot->hearText($command)->reply()->assertNoReply();
+        $bot->hearText($command)->reply()->assertReplyText('برای ادامه، یکی از دکمه‌های منو را انتخاب کنید.');
     }
     foreach (['menu:admin:users', 'rbac:apply:forged', 'shop:order:forged'] as $callback) {
-        $bot->hearCallbackQueryData($callback)->reply()->assertNoReply();
+        $bot->hearCallbackQueryData($callback)->reply()->assertCalled('answerCallbackQuery')->assertCalled('editMessageText');
     }
 
     Http::assertNothingSent();
@@ -80,7 +80,7 @@ it('uses current roles without making Admin or legacy checkout routes available 
 it('keeps public signup disabled by default even for stale consent callbacks', function (): void {
     $bot = sb01Bot(771003);
     $bot->hearText('/start')->reply()->assertReplyText(
-        "🔒 برای استفاده از ParsaGate ابتدا حساب خود را متصل کنید.\n\nکد یک‌بارمصرف دریافتی از مدیر را با دستور /link وارد کنید."
+        "🔒 برای استفاده از DenaGate ابتدا حساب خود را متصل کنید.\n\nکد یک‌بارمصرف دریافتی از مدیر را با دستور /link وارد کنید."
     );
     $bot->hearCallbackQueryData('sales:join')->reply()->assertCalled('editMessageText');
 
@@ -94,7 +94,7 @@ it('requires explicit callback consent for member-only registration when the exi
     $bot = sb01Bot(771004);
 
     $bot->hearText('/start')->reply()->assertReplyText(
-        "👋 به ParsaGate خوش آمدید.\n\nبرای ساخت حساب کاربری، دکمه زیر را انتخاب کنید.\nاگر از قبل حساب دارید، کد اتصال دریافتی را با دستور /link وارد کنید."
+        "👋 به DenaGate خوش آمدید.\n\nبرای ساخت حساب کاربری، دکمه زیر را انتخاب کنید.\nاگر از قبل حساب دارید، کد اتصال دریافتی را با دستور /link وارد کنید."
     );
     expect(User::query()->count())->toBe(0);
 
@@ -114,7 +114,7 @@ it('reuses single-use account links and never revives disabled linked accounts',
     $code = app(IssueTelegramLinkCode::class)->handle($user->id);
     $bot = sb01Bot(771005);
 
-    $bot->hearText('/link '.$code)->reply()->assertCalled('sendMessage');
+    $bot->hearText('/link '.$code)->reply()->assertCalled('sendMessage', 2);
     expect(TelegramAccount::query()->where('telegram_user_id', 771005)->value('user_id'))->toBe($user->id);
 
     $bot->hearText('/link '.$code)->reply()
