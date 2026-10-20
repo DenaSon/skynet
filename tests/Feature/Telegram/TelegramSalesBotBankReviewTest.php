@@ -302,6 +302,6 @@ it('renders direct review actions in the durable Admin receipt alert without lea
 
     expect(DB::table('telegram_notification_deliveries')->where('id', $deliveryId)->value('state'))->toBe('sent');
     Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '12345:admin_test/sendPhoto')
-        && str_contains((string) $request['reply_markup'], 'bank:decide:'.$claimId.':a')
-        && str_contains((string) $request['reply_markup'], 'bank:decide:'.$claimId.':r'));
+        && str_contains($request->body(), 'bank:decide:'.$claimId.':a')
+        && str_contains($request->body(), 'bank:decide:'.$claimId.':r'));
 });
