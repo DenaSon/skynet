@@ -56,7 +56,7 @@ final readonly class CompleteNodeSetup
             // Mark before POST: never repeat a request with uncertain outcome.
             $this->installations->checkpoint($actorId, $id, ['nodeStage' => 'uncertain']);
             $uuid = $this->nodes->create($actorId, $state['name'], $state['ip'],
-                $state['profileUuid'], [$state['inboundUuid']]);
+                $state['profileUuid'], [$state['inboundUuid']], port: 2222);
             $this->installations->checkpoint($actorId, $id, [
                 'nodeUuid' => $uuid,
                 'nodeStage' => 'registered',

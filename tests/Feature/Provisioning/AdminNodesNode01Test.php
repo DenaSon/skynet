@@ -170,6 +170,7 @@ it('guides Admin name/address, profile, inbound, preview and a one-use provider 
         && $r->url() === 'https://remna.node01.test/api/nodes'
         && $r['name'] === 'Germany-01'
         && $r['address'] === 'node.example.com'
+        && ! array_key_exists('port', $r->data())
         && $r['configProfile'] === [
             'activeConfigProfileUuid' => NODE01_PROFILE,
             'activeInbounds' => [NODE01_INBOUND],
