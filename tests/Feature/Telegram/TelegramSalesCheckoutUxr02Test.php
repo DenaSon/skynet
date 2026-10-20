@@ -141,7 +141,8 @@ it('reuses a pending owned order on repeat taps and creates a distinct order onl
     $bot->hearCallbackQueryData('sales:checkout:view:'.$first)->reply()->assertCalled('editMessageText');
     expect(DB::table('sales_orders')->count())->toBe(1);
 
-    $bot->hearCallbackQueryData("sales:checkout:new:{$plan}:30:30")->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:checkout:new:'.$first)->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:checkout:new:'.$first)->reply()->assertCalled('editMessageText');
     expect(DB::table('sales_orders')->count())->toBe(2)
         ->and(DB::table('sales_orders')->where('buyer_user_id', $buyer->id)->distinct()->count('id'))->toBe(2);
     $bot->hearCallbackQueryData("catalog:detail:{$plan}:1")->reply()->assertCalled('editMessageText');
