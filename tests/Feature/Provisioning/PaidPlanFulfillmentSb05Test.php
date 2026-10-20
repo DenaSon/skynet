@@ -679,6 +679,7 @@ it('recovers an approved pending bank order using the same guarded queue and no 
 });
 
 it('emits one durable Sales activation notice only after verified RW completion and linked ownership', function (): void {
+    config()->set('sales.subscription_page_host', 'sub.example.test');
     $data = sb05Order();
     config()->set('telegram_notifications.enabled', true);
     config()->set('telegram.sales.enabled', true);
@@ -710,7 +711,9 @@ it('emits one durable Sales activation notice only after verified RW completion 
 
     expect(DB::table('telegram_notification_deliveries')->where('id', $delivery->id)->value('state'))->toBe('sent');
     Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '54321:sales_test/sendMessage')
-        && str_contains((string) ($request['reply_markup'] ?? ''), 'sales:subs:link:'.$data['order'].':0'));
+        && str_contains((string) ($request['reply_markup'] ?? ''), 'sales:subs:link:'.$data['order'].':0')
+        && str_contains((string) ($request['reply_markup'] ?? ''), 'sales:subs:page:'.$data['order'].':0')
+        && ! str_contains((string) ($request['reply_markup'] ?? ''), 'sub.example.test'));
     expect(fn () => app(FulfillPaidPlanOrder::class)->handle($data['order']))->toThrow(RuntimeException::class);
     expect(DB::table('telegram_notification_deliveries')->where('event_type', 'SubscriptionActivated')->count())->toBe(1);
 });

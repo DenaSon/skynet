@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Interfaces\Telegram\Support\SubscriptionPageLink;
 use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
@@ -10,6 +11,7 @@ use App\Modules\Sales\Application\CalculateQuote;
 use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\ConfigureRate;
 use App\Modules\Sales\Application\CreatePendingOrder;
+use GuzzleHttp\Psr7\Request as NutgramRequest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
@@ -18,6 +20,7 @@ use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
+use SergiX44\Nutgram\Testing\FakeNutgram;
 
 uses(RefreshDatabase::class);
 
@@ -26,6 +29,7 @@ beforeEach(function (): void {
     config()->set('services.remnawave.token', 'fake-token');
     config()->set('services.remnawave.writes_enabled', false);
     config()->set('sales.manual_bank_review_enabled', false);
+    config()->set('sales.subscription_page_host', '');
     config()->set('telegram.public_signup_enabled', false);
     Http::preventStrayRequests();
     app(ConfigureProduct::class)->handle('sb06-vpn', 'اشتراک آزمایشی');
@@ -326,4 +330,101 @@ it('keeps private link delivery fail-closed when remote usage is temporarily una
 
     Http::assertSentCount(2);
     expect(DB::table('provisioning_order_links')->count())->toBe(1);
+});
+
+it('rejects unsafe subscription page hosts and foreign or non-https URLs without leaking credentials', function (): void {
+    $page = app(SubscriptionPageLink::class);
+    foreach (['', 'https://sub.example.test', 'sub.example.test/path', 'sub.example.test:443', '*.example.test'] as $invalid) {
+        config()->set('sales.subscription_page_host', $invalid);
+        expect($page->configured())->toBeFalse();
+    }
+
+    config()->set('sales.subscription_page_host', 'Sub.Example.Test');
+    expect($page->configured())->toBeTrue()
+        ->and($page->matches('https://sub.example.test/short-user'))->toBeTrue();
+    foreach ([
+        'http://sub.example.test/short-user',
+        'https://other.example.test/short-user',
+        'https://sub.example.test.evil.test/short-user',
+        'https://user:password@sub.example.test/short-user',
+        'https://sub.example.test:443/short-user',
+        'https://sub.example.test/short-user#private',
+        "https://sub.example.test/short-user\r\nInjected: true",
+        'https://sub.example.test/',
+    ] as $unsafe) {
+        expect($page->matches($unsafe))->toBeFalse();
+    }
+});
+
+it('keeps the official page hidden by default and denies unlinked or unpaid callbacks', function (): void {
+    $buyer = User::factory()->create();
+    $order = sb06Order($buyer);
+    $bot = sb06Bot(976101, $buyer);
+    Http::fake();
+
+    $bot->hearCallbackQueryData('sales:subs:page:'.$order.':0')->reply()
+        ->assertCalled('editMessageText')->assertCalled('sendMessage', 0);
+    config()->set('sales.subscription_page_host', 'sub.example.test');
+    $bot->hearCallbackQueryData('sales:subs:page:'.$order.':0')->reply()
+        ->assertCalled('editMessageText')->assertCalled('sendMessage', 0);
+    $bot->hearCallbackQueryData('sales:subs:page:invalid:0')->reply()
+        ->assertCalled('editMessageText')->assertCalled('sendMessage', 0);
+    $bot->hearCallbackQueryData('sales:subs:page:'.$order.':-1')->reply()
+        ->assertCalled('editMessageText')->assertCalled('sendMessage', 0);
+    Http::assertNothingSent();
+});
+
+it('offers the exact verified official page URL only in the owner private chat', function (): void {
+    config()->set('sales.subscription_page_host', 'sub.example.test');
+    $buyer = User::factory()->create();
+    $order = sb06Order($buyer);
+    sb06Activated($order);
+    $bot = sb06Bot(976102, $buyer);
+    $url = 'https://sub.example.test/short-user';
+    Http::fake(['https://remna.test/api/users/42' => Http::response([
+        'response' => sb06Provider($order, ['subscriptionUrl' => $url]),
+    ])]);
+
+    $bot->hearCallbackQueryData('sales:subs:page:'.$order.':0')->reply()
+        ->assertCalled('answerCallbackQuery')
+        ->assertCalled('sendMessage')
+        ->assertCalled('editMessageText', 0)
+        ->assertRaw(static function (NutgramRequest $request) use ($url): bool {
+            $data = FakeNutgram::getActualData($request);
+            $keyboard = $data['reply_markup'] ?? [];
+            if (is_string($keyboard)) {
+                $keyboard = json_decode($keyboard, true, flags: JSON_THROW_ON_ERROR);
+            }
+
+            return ($keyboard['inline_keyboard'][0][0]['url'] ?? null) === $url
+                && str_contains(json_encode($keyboard, JSON_THROW_ON_ERROR), 'sales:subs:link:');
+        }, index: 1);
+    Http::assertSentCount(1);
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
+    expect(config('services.remnawave.writes_enabled'))->toBeFalse();
+});
+
+it('fails closed when RW returns a non-matching page URL or a stale/foreign owner', function (): void {
+    config()->set('sales.subscription_page_host', 'sub.example.test');
+    $buyer = User::factory()->create();
+    $order = sb06Order($buyer);
+    sb06Activated($order);
+    $other = sb06Bot(976103, User::factory()->create());
+    $owner = sb06Bot(976104, $buyer);
+    Http::fake(['https://remna.test/api/users/42' => Http::response([
+        'response' => sb06Provider($order, ['subscriptionUrl' => 'https://another.example.test/credential']),
+    ])]);
+    $other->hearCallbackQueryData('sales:subs:page:'.$order.':0')->reply()
+        ->assertCalled('editMessageText')->assertCalled('sendMessage', 0);
+    $owner->hearCallbackQueryData('sales:subs:page:'.$order.':0')->reply()
+        ->assertCalled('editMessageText')->assertCalled('sendMessage', 0);
+    Http::assertSentCount(1);
+
+    Http::fake(['https://remna.test/api/users/42' => Http::response([
+        'response' => sb06Provider($order, ['subscriptionUrl' => 'https://sub.example.test/short-user']),
+    ])]);
+    DB::table('sales_orders')->where('id', $order)->update(['status' => 'refunded']);
+    $owner->hearCallbackQueryData('sales:subs:page:'.$order.':0')->reply()
+        ->assertCalled('editMessageText')->assertCalled('sendMessage', 0);
+    Http::assertNothingSent();
 });

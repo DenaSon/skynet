@@ -252,6 +252,7 @@ it('keeps Sales identity, navigation and buyer routes isolated from Admin callba
         'command:subscriptions',
         'callback:sales:subs:list:{cursor}',
         'callback:sales:subs:view:{id}:{cursor}',
+        'callback:sales:subs:page:{id}:{cursor}',
         'callback:sales:subs:link:{id}:{cursor}',
     ]);
 

@@ -204,6 +204,10 @@ $bot->onCallbackQueryData('sales:subs:view:{id}:{cursor}', function (Nutgram $bo
     app(SalesSubscriptionsUi::class)->detail($bot, $id, $cursor);
 });
 
+$bot->onCallbackQueryData('sales:subs:page:{id}:{cursor}', function (Nutgram $bot, string $id, string $cursor): void {
+    app(SalesSubscriptionsUi::class)->page($bot, $id, $cursor);
+});
+
 $bot->onCallbackQueryData('sales:subs:link:{id}:{cursor}', function (Nutgram $bot, string $id, string $cursor): void {
     app(SalesSubscriptionsUi::class)->link($bot, $id, $cursor);
 });

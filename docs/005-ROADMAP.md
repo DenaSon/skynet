@@ -1,5 +1,9 @@
 # Roadmap
 
+
+> **UXR-05 source milestone (2026-10-21):** The operator authorized official Remnawave Subscription Page integration (#121) after UXR-04 PR #133. The Sales Bot integration uses optional exact-host validation and existing owner-checked subscription reads; deployment of the official page, DNS/TLS, builder branding, panel config and genuine browser/client acceptance are separate **not executed** operations. See [docs/026](026-SALES-UX-ROADMAP.md) and [docs/027](027-UXR05-SUBSCRIPTION-PAGE-RUNBOOK.md). Preserve previously completed financial/provider flows and default-OFF flags.
+
+
 > **UXR-02 (2026-10-20):** The Sales-only direct plan → payment → photo receipt phase follows merged UXR-01 PR #128. See [docs/026](026-SALES-UX-ROADMAP.md) for code scope, operator-only real card configuration, verification and live acceptance. UXR-03 (Admin receipt decisions/notifications/automatic activation) is **not started**. Source implementation must pass new PR CI before a merge; no Production flag or provider operation is authorized.\n\n
 ## UXR — Approved five-phase Sales UX roadmap (2026-10-20)
 

@@ -9,4 +9,6 @@ return [
     'manual_bank_review_enabled' => env('SALES_MANUAL_BANK_REVIEW_ENABLED', false),
     'one_click_bank_review_enabled' => env('SALES_ONE_CLICK_BANK_REVIEW_ENABLED', false),
     'auto_fulfillment_enabled' => env('SALES_AUTO_FULFILLMENT_ENABLED', false),
+    // Official RW Subpage domain, not the API/panel host. Empty disables UI.
+    'subscription_page_host' => env('SALES_SUBSCRIPTION_PAGE_HOST', ''),
 ];
