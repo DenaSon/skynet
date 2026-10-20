@@ -269,7 +269,7 @@ final readonly class SalesSubscriptionsUi
             // linked order, current provider status, expiry and unchanged identity.
             $url = $this->link->handle($viewer, $orderId)->subscriptionUrl;
             if (! $this->pages->matches($url)) {
-                throw new \\RuntimeException('Subscription Page host mismatch.');
+                throw new \RuntimeException('Subscription Page host mismatch.');
             }
         } catch (AuthorizationException|ValidationException) {
             $this->notice($bot, 'صفحه این اشتراک برای حساب شما در دسترس نیست.', $this->backButtons($cursor));
@@ -296,10 +296,10 @@ final readonly class SalesSubscriptionsUi
 
         TelegramUi::answerCallback($bot);
         $bot->sendMessage(
-            text: "🌐 صفحه اختصاصی سرویس #{$orderId}\\n\\n"
-                ."با دکمه زیر صفحه وضعیت و راهنمای اتصال را باز کنید.\\n"
-                .(mb_strlen($url) <= 256 ? 'برای کپی لینک از دکمه استفاده کنید.' : "لینک قابل انتخاب:\\n{$url}")
-                ."\\nاین لینک خصوصی است؛ آن را به دیگران ندهید.",
+            text: "🌐 صفحه اختصاصی سرویس #{$orderId}\n\n"
+                ."با دکمه زیر صفحه وضعیت و راهنمای اتصال را باز کنید.\n"
+                .(mb_strlen($url) <= 256 ? 'برای کپی لینک از دکمه استفاده کنید.' : "لینک قابل انتخاب:\n{$url}")
+                ."\nاین لینک خصوصی است؛ آن را به دیگران ندهید.",
             link_preview_options: LinkPreviewOptions::make(is_disabled: true),
             reply_markup: $keyboard,
             protect_content: true,
