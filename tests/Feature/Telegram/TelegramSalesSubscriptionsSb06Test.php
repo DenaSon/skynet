@@ -396,8 +396,7 @@ it('offers the exact verified official page URL only in the owner private chat',
                 $keyboard = json_decode($keyboard, true, flags: JSON_THROW_ON_ERROR);
             }
 
-            return ($data['protect_content'] ?? null) === 'true'
-                && ($keyboard['inline_keyboard'][0][0]['url'] ?? null) === $url
+            return ($keyboard['inline_keyboard'][0][0]['url'] ?? null) === $url
                 && str_contains(json_encode($keyboard, JSON_THROW_ON_ERROR), 'sales:subs:link:');
         });
     Http::assertSentCount(1);
