@@ -8,21 +8,21 @@ use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Billing\Application\ViewWallet;
 use App\Modules\Identity\Application\LinkTelegramAccount;
 use App\Modules\Identity\Application\ReadAccountCreatedAt;
-use App\Modules\Identity\Application\SubscriptionViewer;
-use App\Modules\Provisioning\Application\ListMyServices;
-use App\Modules\Sales\Application\SummarizeSalesPurchases;
-use Throwable;
 use App\Modules\Identity\Application\ResolveTelegramActor;
+use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Identity\Application\TelegramActor;
 use App\Modules\Onboarding\Application\JoinFromTelegram;
 use App\Modules\Provisioning\Application\CheckPlanSquadReadiness;
+use App\Modules\Provisioning\Application\ListMyServices;
 use App\Modules\Referral\Application\GetReferralInvite;
 use App\Modules\Sales\Application\ListQuotedPresets;
 use App\Modules\Sales\Application\QuotedPreset;
+use App\Modules\Sales\Application\SummarizeSalesPurchases;
 use Illuminate\Support\Facades\Cache;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use Throwable;
 
 /** Sales-only navigation; shared Application Actions retain all business authority. */
 final readonly class SalesHomeUi
