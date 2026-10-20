@@ -8,7 +8,7 @@ use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Provisioning\Application\GetMySubscription;
 use App\Modules\Provisioning\Application\GetSubscriptionLink;
 use App\Modules\Provisioning\Application\GetSubscriptionUsage;
-use App\Modules\Provisioning\Application\ListMySubscriptions;
+use App\Modules\Provisioning\Application\ListMyServices;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
@@ -27,7 +27,7 @@ final readonly class SalesSubscriptionsUi
 
     public function __construct(
         private PrivateTelegramUser $privateUser,
-        private ListMySubscriptions $list,
+        private ListMyServices $list,
         private GetMySubscription $details,
         private GetSubscriptionUsage $usage,
         private GetSubscriptionLink $link,
@@ -48,49 +48,59 @@ final readonly class SalesSubscriptionsUi
         }
 
         try {
+            $counts = $this->list->counts($viewer);
             $page = $this->list->handle($viewer, self::PER_PAGE, $before === 0 ? null : $before);
         } catch (AuthorizationException) {
             $this->notice($bot, 'برای استفاده، حساب فعال خود را متصل کنید.', $this->homeButtons());
 
             return;
         } catch (Throwable) {
-            $this->notice($bot, 'نمایش اشتراک‌ها فعلاً ممکن نیست. دوباره تلاش کنید.', $this->homeButtons());
+            $this->notice($bot, 'اطلاعات سرویس‌ها فعلاً در دسترس نیست؛ دوباره تلاش کنید.', $this->homeButtons());
 
             return;
         }
 
+        $lines = [
+            '<b>📋 سرویس‌های من</b>',
+            '',
+            'سرویس‌های ثبت‌شده: <b>'.$counts['total'].'</b>',
+            'فعال در سوابق: '.$counts['activeRecorded'],
+        ];
+        if ($counts['needsReview'] > 0) {
+            $lines[] = 'در انتظار بررسی: '.$counts['needsReview'];
+        }
+        $lines[] = '';
         $keyboard = InlineKeyboardMarkup::make();
+
         if ($page->items === []) {
-            $message = $before === 0
-                ? 'هنوز سفارش یا اشتراکی ندارید.'
+            $lines[] = $before === 0 ? 'هنوز سرویس فعالی برای این حساب ثبت نشده است.'
                 : 'مورد دیگری در این صفحه وجود ندارد.';
+            $lines[] = 'سفارش‌های در انتظار پرداخت در «سوابق خرید» هستند.';
         } else {
-            $lines = ['📋 سرویس‌های من', ''];
             foreach ($page->items as $item) {
-                $lines[] = '#'.$item->orderId.' · '.$this->clean($item->productName)
-                    .' · '.$this->status($item->status);
+                $label = 'سرویس #'.$item->orderId;
+                $summary = $item->trafficGb === null ? 'حجم نامحدود' : $item->trafficGb.' گیگ';
+                $lines[] = '🔹 <b>'.TelegramUi::escape($label).'</b> · '.TelegramUi::escape($this->clean($item->productName));
+                $lines[] = $summary.' · '.$item->durationDays.' روز · '.$this->status($item->status);
+                $lines[] = '';
                 $keyboard->addRow(InlineKeyboardButton::make(
-                    '📄 سفارش #'.$item->orderId,
+                    $label.' · '.$this->shortStatus($item->status),
                     callback_data: 'sales:subs:view:'.$item->orderId.':'.$cursor,
                 ));
             }
-            $lines[] = '';
-            $lines[] = 'اطلاعات مصرف و انقضا در جزئیات اشتراک فعال نمایش داده می‌شود.';
-            $message = implode("\n", $lines);
-
+            $lines[] = '<blockquote>وضعیت لحظه‌ای و تاریخ انقضا در جزئیات هر سرویس بررسی می‌شود.</blockquote>';
             if ($page->nextBeforeOrderId !== null) {
-                $keyboard->addRow(InlineKeyboardButton::make(
-                    'موارد بیشتر ◀️',
-                    callback_data: 'sales:subs:list:'.$page->nextBeforeOrderId,
-                ));
+                $keyboard->addRow(InlineKeyboardButton::make('موارد بیشتر ◀️',
+                    callback_data: 'sales:subs:list:'.$page->nextBeforeOrderId));
             }
         }
 
         $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'sales:subs:list:'.$cursor))
-            ->addRow(InlineKeyboardButton::make('📋 پلن‌ها', callback_data: 'menu:plan-catalog'))
+            ->addRow(InlineKeyboardButton::make('🛒 خرید سرویس', callback_data: 'menu:plan-catalog'))
+            ->addRow(InlineKeyboardButton::make('🧾 سوابق خرید', callback_data: 'sales:checkout:orders'))
             ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
 
-        $this->render($bot, $page->items === [] ? "📋 سرویس‌های من\n\n".$message : $message, $keyboard);
+        $this->render($bot, trim(implode("\n", $lines)), $keyboard);
     }
 
     public function detail(Nutgram $bot, string $id, string $cursor = '0'): void
@@ -121,13 +131,13 @@ final readonly class SalesSubscriptionsUi
 
         $item = $details->summary;
         $lines = [
-            '📄 اشتراک #'.$item->orderId,
+            '<b>📋 سرویس #'.$item->orderId.'</b>',
             '',
-            'سرویس: '.$this->clean($item->productName),
+            'پلن: '.TelegramUi::escape($this->clean($item->productName)),
             'وضعیت ثبت‌شده: '.$this->status($item->status),
             'حجم خرید: '.($item->trafficGb === null ? 'نامحدود' : $item->trafficGb.' گیگابایت'),
             'مدت خرید: '.$item->durationDays.' روز',
-            'مبلغ: '.TelegramUi::toman($item->totalPriceRials).' تومان',
+            'مبلغ: <b>'.TelegramUi::toman($item->totalPriceRials).' تومان</b>',
             '',
         ];
         $keyboard = InlineKeyboardMarkup::make();
@@ -139,14 +149,14 @@ final readonly class SalesSubscriptionsUi
             TelegramUi::activity($bot);
             try {
                 $live = $this->usage->handle($viewer, $orderId);
-                $lines[] = 'وضعیت فعلی: 🟢 فعال (بررسی‌شده)';
+                $lines[] = 'وضعیت لحظه‌ای: 🟢 فعال (بررسی‌شده)';
                 $lines[] = 'مصرف: '.$this->gb($live->usedBytes).' گیگابایت';
                 $lines[] = 'باقی‌مانده: '.($live->limitBytes === 0
                     ? 'نامحدود'
                     : $this->gb(max(0, $live->limitBytes - $live->usedBytes)).' گیگابایت');
                 $lines[] = 'انقضا (UTC): '.substr(str_replace('T', ' ', $live->expireAt), 0, 16);
                 $keyboard->addRow(InlineKeyboardButton::make(
-                    '🔗 دریافت لینک اختصاصی',
+                    '🔐 نمایش کد اتصال',
                     callback_data: 'sales:subs:link:'.$orderId.':'.$cursor,
                 ));
             } catch (Throwable) {
@@ -162,7 +172,9 @@ final readonly class SalesSubscriptionsUi
             ));
         }
 
-        $keyboard->addRow(InlineKeyboardButton::make('🔄 بررسی دوباره', callback_data: 'sales:subs:view:'.$orderId.':'.$cursor))
+        $keyboard->addRow(InlineKeyboardButton::make('📚 آموزش اتصال', callback_data: 'sales:help:apps'))
+            ->addRow(InlineKeyboardButton::make('💬 پشتیبانی', callback_data: 'sales:support'))
+            ->addRow(InlineKeyboardButton::make('🔄 بررسی دوباره', callback_data: 'sales:subs:view:'.$orderId.':'.$cursor))
             ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'sales:subs:list:'.$cursor))
             ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
 
@@ -208,6 +220,8 @@ final readonly class SalesSubscriptionsUi
         if ($canCopy) {
             $keyboard->addRow(TelegramUi::copy($link->subscriptionUrl, '📋 کپی لینک'));
         }
+        $keyboard->addRow(InlineKeyboardButton::make('📚 آموزش اتصال', callback_data: 'sales:help:apps'));
+        $keyboard->addRow(InlineKeyboardButton::make('💬 پشتیبانی', callback_data: 'sales:support'));
         $keyboard->addRow(InlineKeyboardButton::make(
             '◀️ اشتراک من', callback_data: 'sales:subs:view:'.$orderId.':'.$cursor,
         ));
@@ -243,14 +257,25 @@ final readonly class SalesSubscriptionsUi
         return mb_substr(trim((string) preg_replace('/[\x00-\x1F\x7F\x{202A}-\x{202E}]+/u', ' ', $value)), 0, 70);
     }
 
+    private function shortStatus(string $status): string
+    {
+        return match ($status) {
+            'active' => 'فعال ثبت‌شده',
+            'provisioning' => 'در حال آماده‌سازی',
+            'needs_review' => 'در حال بررسی',
+            'failed' => 'غیرفعال',
+            default => 'نامشخص',
+        };
+    }
+
     private function status(string $status): string
     {
         return match ($status) {
             'pending_payment' => '🟠 در انتظار پرداخت',
             'provisioning' => '🔵 در انتظار فعال‌سازی',
-            'active' => '🟢 فعال (ثبت‌شده)',
+            'active' => '🟢 فعال ثبت‌شده',
             'needs_review' => '🟡 در حال بررسی',
-            'failed' => '🔴 ناموفق یا لغوشده',
+            'failed' => '🔴 غیرفعال یا ناموفق',
             default => '⚪ نامشخص',
         };
     }
@@ -285,11 +310,11 @@ final readonly class SalesSubscriptionsUi
             if ($acknowledge) {
                 TelegramUi::answerCallback($bot);
             }
-            TelegramUi::editText($bot, $message, $keyboard);
+            TelegramUi::editText($bot, $message, $keyboard, 'HTML');
 
             return;
         }
 
-        $bot->sendMessage(text: $message, reply_markup: $keyboard);
+        $bot->sendMessage(text: $message, reply_markup: $keyboard, parse_mode: 'HTML');
     }
 }
