@@ -5,7 +5,13 @@ declare(strict_types=1);
 namespace App\Interfaces\Telegram\Support;
 
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
+use App\Modules\Billing\Application\ViewWallet;
 use App\Modules\Identity\Application\LinkTelegramAccount;
+use App\Modules\Identity\Application\ReadAccountCreatedAt;
+use App\Modules\Identity\Application\SubscriptionViewer;
+use App\Modules\Provisioning\Application\ListMyServices;
+use App\Modules\Sales\Application\SummarizeSalesPurchases;
+use Throwable;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\TelegramActor;
 use App\Modules\Onboarding\Application\JoinFromTelegram;
@@ -32,6 +38,10 @@ final readonly class SalesHomeUi
         private ListQuotedPresets $catalog,
         private CheckPlanSquadReadiness $squads,
         private GetReferralInvite $invites,
+        private ReadAccountCreatedAt $memberSince,
+        private SummarizeSalesPurchases $purchases,
+        private ListMyServices $services,
+        private ViewWallet $wallets,
     ) {}
 
     public function start(Nutgram $bot, ?string $payload = null, int $page = 1, bool $showKeyboard = false): void
@@ -169,19 +179,77 @@ final readonly class SalesHomeUi
         if ($actor === null) {
             return;
         }
+
+        try {
+            $joined = $this->memberSince->handle($actor->userId);
+            $purchases = $this->purchases->handle($actor->userId);
+            $viewer = SubscriptionViewer::telegram((int) $this->privateUser->id($bot));
+            $services = $this->services->counts($viewer);
+        } catch (Throwable) {
+            $this->render($bot, '<b>👤 حساب کاربری</b>'."\n\nاطلاعات حساب فعلاً در دسترس نیست. لطفاً دوباره تلاش کنید.",
+                $this->back());
+
+            return;
+        }
+
         $keyboard = InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('📋 سرویس‌های من', callback_data: 'sales:subs:list:0'))
             ->addRow(InlineKeyboardButton::make('🧾 سوابق خرید', callback_data: 'sales:checkout:orders'))
             ->addRow(InlineKeyboardButton::make('👥 دعوت دوستان', callback_data: 'sales:invite'));
+
+        $balance = '';
         if (in_array('reseller', $actor->roles, true)) {
-            $keyboard->addRow(InlineKeyboardButton::make('💼 پلن‌ساز نماینده', callback_data: 'menu:builder'));
+            try {
+                $balance = "\n💼 موجودی نمایندگی: <b>".TelegramUi::toman($this->wallets->handle($actor->userId)->balanceRials).' تومان</b>';
+                $keyboard->addRow(InlineKeyboardButton::make('💼 کیف پول نمایندگی', callback_data: 'sales:wallet'));
+            } catch (Throwable) {
+                $balance = "\n💼 موجودی نمایندگی: فعلاً در دسترس نیست";
+            }
+            $keyboard->addRow(InlineKeyboardButton::make('🧩 پلن‌ساز نماینده', callback_data: 'menu:builder'));
         }
+
         $keyboard->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
-        $this->render($bot,
-            '<b>👤 حساب کاربری</b>'."\n\nنام: ".$this->name($actor->name)
-                ."\nشناسه DenaGate: {$actor->userId}\nنوع حساب: ".$this->salesRole($actor)
-                ."\nوضعیت: 🟢 فعال",
-            $keyboard);
+
+        $text = '<b>👤 حساب کاربری</b>'
+            ."\n\nنام: ".$this->name($actor->name)
+            ."\nشناسه: ".TelegramUi::code((string) $actor->userId)
+            ."\nنوع حساب: ".$this->salesRole($actor)
+            ."\nوضعیت: 🟢 فعال"
+            ."\nعضویت: ".($joined === null ? 'نامشخص' : TelegramUi::escape($joined))
+            ."\n\n<b>📊 خلاصه حساب</b>"
+            ."\nسرویس‌های ثبت‌شده: ".$services['total']
+            ."\nفعال در سوابق: ".$services['activeRecorded']
+            ."\nخریدهای پرداخت‌شده: ".$purchases['count']
+            ."\nمجموع پرداخت‌ها: <b>".TelegramUi::toman($purchases['amountRials']).' تومان</b>'
+            .$balance
+            ."\n\n<blockquote>برای وضعیت لحظه‌ای و انقضا، جزئیات هر سرویس را ببینید.</blockquote>";
+
+        $this->render($bot, $text, $keyboard);
+    }
+
+    public function wallet(Nutgram $bot): void
+    {
+        $actor = $this->navigationActor($bot);
+        if ($actor === null) {
+            return;
+        }
+        if (! in_array('reseller', $actor->roles, true)) {
+            $this->render($bot, 'کیف پول فقط برای نمایندگان فعال است.', $this->back());
+
+            return;
+        }
+        try {
+            $balance = $this->wallets->handle($actor->userId)->balanceRials;
+            $message = '<b>💼 کیف پول نمایندگی</b>'
+                ."\n\nموجودی: <b>".TelegramUi::toman($balance).' تومان</b>'
+                ."\n\n<blockquote>موجودی براساس تراکنش‌های ثبت‌شده محاسبه شده است.</blockquote>";
+        } catch (Throwable) {
+            $message = '<b>💼 کیف پول نمایندگی</b>'."\n\nموجودی فعلاً در دسترس نیست.";
+        }
+
+        $this->render($bot, $message, InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('◀️ حساب کاربری', callback_data: 'sales:account'))
+            ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home')));
     }
 
     public function invite(Nutgram $bot): void
