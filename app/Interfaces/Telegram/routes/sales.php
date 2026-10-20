@@ -5,8 +5,8 @@ use App\Interfaces\Telegram\Support\PlanCatalogUi;
 use App\Interfaces\Telegram\Support\ResellerBuilderUi;
 use App\Interfaces\Telegram\Support\SalesCheckoutUi;
 use App\Interfaces\Telegram\Support\SalesHomeUi;
-use App\Interfaces\Telegram\Support\SalesSupportUi;
 use App\Interfaces\Telegram\Support\SalesSubscriptionsUi;
+use App\Interfaces\Telegram\Support\SalesSupportUi;
 use SergiX44\Nutgram\Nutgram;
 
 /** @var Nutgram $bot */
