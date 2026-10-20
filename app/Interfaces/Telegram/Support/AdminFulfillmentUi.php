@@ -141,7 +141,7 @@ final readonly class AdminFulfillmentUi
             return;
         }
         try {
-            $this->reviews->authorizeRequest($root, $order, $mode === 'reconcile');
+            $this->reviews->authorizeRequest($root, $order, true);
         } catch (Throwable) {
             $this->render($bot, 'این سفارش برای عملیات انتخاب‌شده آماده نیست.', $this->home());
 
@@ -186,8 +186,8 @@ final readonly class AdminFulfillmentUi
         }
         $order = $state['id'];
         try {
-            $this->reviews->authorizeRequest($root, $order, $state['mode'] === 'reconcile');
-            FulfillPaidPlanOrderJob::dispatch($order, $state['mode'] === 'reconcile', $root);
+            $this->reviews->authorizeRequest($root, $order, true);
+            FulfillPaidPlanOrderJob::dispatch($order, true, $root);
             $this->render($bot,
                 '✅ درخواست سفارش #'.$order.' ثبت شد.'."\n\nنتیجه را از فهرست سفارش‌ها بررسی کنید.",
                 $this->home());
