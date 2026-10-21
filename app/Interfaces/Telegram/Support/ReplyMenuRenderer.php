@@ -88,10 +88,7 @@ final class ReplyMenuRenderer
 
             $labels[] = ReplyMenuLabels::SERVERS;
 
-            if (config('billing.topups_enabled', false) === true
-                || config('sales.manual_bank_review_enabled', false) === true) {
-                $labels[] = ReplyMenuLabels::FINANCE_SECTION;
-            }
+            $labels[] = ReplyMenuLabels::FINANCE_SECTION;
         }
 
         // A primary-menu HOME button would only reopen this same Admin screen.
