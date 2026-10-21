@@ -16,7 +16,7 @@ final class ListTopupReviews
 
         return DB::table('billing_topups as t')
             ->join('billing_wallets as w', 'w.id', '=', 't.wallet_id')
-            ->where('t.status', 'submitted')->orderBy('t.id')->limit(10)
+            ->where('t.status', 'submitted')->whereNotNull('t.payment_reference')->orderBy('t.id')->limit(10)
             ->get(['t.id', 'w.user_id', 't.amount_rials', 't.payment_reference'])
             ->map(static fn (object $row): array => [
                 'id' => (int) $row->id,

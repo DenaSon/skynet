@@ -18,7 +18,7 @@ final class RequestTopup
         }
 
         return DB::transaction(function () use ($userId, $amountRials, $requestKey): int {
-            $walletId = app(WalletAccess::class)->walletId($userId);
+            $walletId = app(WalletAccess::class)->customerWalletId($userId);
 
             $existing = DB::table('billing_topups')->where('request_key', $requestKey)->first();
 

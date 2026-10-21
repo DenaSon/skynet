@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Sales\Application;
 
 use App\Interfaces\Telegram\Notifications\PaymentNotificationOutbox;
+use App\Modules\Billing\Application\HasTopupPhotoFingerprint;
 use App\Modules\Billing\Application\RecordDirectBankPayment;
 use App\Modules\Identity\Application\AssertBillingAccess;
 use App\Modules\Identity\Application\AuthorizeSubscriptionViewer;
@@ -25,6 +26,7 @@ final readonly class ManualBankPayments
         private AuthorizeSubscriptionViewer $authorize,
         private AssertBillingAccess $access,
         private RecordDirectBankPayment $bankPayments,
+        private HasTopupPhotoFingerprint $topupPhotos,
         private PaymentNotificationOutbox $notifications,
     ) {}
 
@@ -71,7 +73,8 @@ final readonly class ManualBankPayments
                 throw ValidationException::withMessages(['receipt' => 'This order already has a receipt pending review.']);
             }
 
-            if (DB::table('sales_bank_payment_claims')->where('photo_fingerprint', $fingerprint)->exists()) {
+            if (DB::table('sales_bank_payment_claims')->where('photo_fingerprint', $fingerprint)->exists()
+                || $this->topupPhotos->handle($fingerprint)) {
                 throw ValidationException::withMessages(['receipt' => 'This receipt was already submitted.']);
             }
 

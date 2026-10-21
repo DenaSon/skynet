@@ -233,6 +233,7 @@ it('keeps Sales identity, navigation and buyer routes isolated from Admin callba
         'command:cancel',
         'callback:sales:help:{page}',
         'callback:sales:wallet',
+        'callback:sales:wallet:topup',
         'callback:sales:account',
         'callback:sales:join',
         'command:catalog',

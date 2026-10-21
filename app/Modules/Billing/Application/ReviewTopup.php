@@ -4,6 +4,7 @@ namespace App\Modules\Billing\Application;
 
 use App\Modules\Identity\Application\AssertBillingAccess;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 final class ReviewTopup
@@ -17,7 +18,14 @@ final class ReviewTopup
 
             $topup = DB::table('billing_topups')->where('id', $topupId)->lockForUpdate()->first();
 
-            if ($topup === null || $topup->status !== 'submitted' || $topup->payment_reference !== $expectedReference) {
+            // A photo-only request has no payer-declared bank reference. The
+            // reviewer must supply the real verified reference on approval.
+            $photoOnly = $topup !== null && $topup->payment_reference === null
+                && Schema::hasTable('billing_topup_photos')
+                && DB::table('billing_topup_photos')->where('topup_id', $topupId)->exists();
+
+            if ($topup === null || $topup->status !== 'submitted'
+                || (! $photoOnly && $topup->payment_reference !== $expectedReference)) {
                 throw ValidationException::withMessages(['topup' => 'Review request is stale or missing.']);
             }
 
@@ -57,6 +65,7 @@ final class ReviewTopup
             }
 
             DB::table('billing_topups')->where('id', $topupId)->update([
+                'payment_reference' => $approve && $photoOnly ? $expectedReference : $topup->payment_reference,
                 'status' => $approve ? 'approved' : 'rejected',
                 'reviewed_by' => $operatorId,
                 'reviewed_at' => now(),
