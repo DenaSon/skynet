@@ -118,7 +118,7 @@ final readonly class WalletTopupUi
             ->addRow(TelegramUi::copy($card, '📋 کپی شماره کارت'))
             ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'sales:wallet')));
 
-return true4716;
+        return true;
     }
 
     /** Only consume the photo if this authenticated Sales user awaits a top-up receipt. */
@@ -140,7 +140,7 @@ return true4716;
         if ($photo === null || ! is_int($messageId)) {
             $this->notice($bot, 'لطفاً تصویر معمولی رسید را بفرستید.');
 
-return true5497;
+            return true;
         }
 
         try {
@@ -151,13 +151,13 @@ return true5497;
         } catch (AuthorizationException|ValidationException|UniqueConstraintViolationException) {
             $this->notice($bot, 'رسید قابل ثبت نیست یا قبلاً استفاده شده است. وضعیت کیف پول را بررسی کنید.');
 
-return true5951;
+            return true;
         }
 
         Cache::forget($this->key($userId));
         $this->notice($bot, "🕘 عکس رسید شارژ #{$state['topup_id']} دریافت شد.\n\nدر انتظار بررسی پرداخت توسط مدیر است. موجودی هنوز افزایش نیافته است.");
 
-return true6185;
+        return true;
     }
 
     public function invalidInput(Nutgram $bot): bool
@@ -176,7 +176,7 @@ return true6185;
             ? 'لطفاً مبلغ شارژ را به تومان وارد کنید یا از کیف پول خارج شوید.'
             : 'لطفاً عکس رسید شارژ را بفرستید یا از کیف پول خارج شوید.');
 
-return true6719;
+        return true;
     }
 
     private function buyer(Nutgram $bot): ?int
