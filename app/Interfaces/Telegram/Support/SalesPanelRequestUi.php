@@ -118,6 +118,7 @@ final readonly class SalesPanelRequestUi
                 ->addRow(InlineKeyboardButton::make('✅ ثبت درخواست', callback_data: 'sales:panel:confirm', style: ButtonStyle::SUCCESS))
                 ->addRow(InlineKeyboardButton::make('✏️ اصلاح اطلاعات', callback_data: 'sales:panel:request'))
                 ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'sales:panel:cancel')));
+
         return true;
     }
 
