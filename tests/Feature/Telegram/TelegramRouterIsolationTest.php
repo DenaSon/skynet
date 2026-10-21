@@ -224,6 +224,7 @@ it('keeps Sales identity, navigation and buyer routes isolated from Admin callba
         'command:account',
         'command:link {code}',
         'callback:sales:home',
+        'callback:sales:buy',
         'callback:sales:home:{page}',
         'callback:sales:invite',
         'command:invite',
