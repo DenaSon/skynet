@@ -69,6 +69,15 @@ jobs:
     name: MySQL migration and rollback
     runs-on: ubuntu-latest
     services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=10
       mysql:
         image: mysql:8.4
         env:
@@ -100,7 +109,7 @@ jobs:
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
         with:
           php-version: '8.4'
-          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, pdo_mysql
+          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, pdo_mysql, redis
           coverage: none
 
       - name: Install Composer dependencies
@@ -113,6 +122,13 @@ jobs:
 
       - name: Migrate disposable MySQL database
         run: php artisan migrate --force
+
+      - name: Verify real Redis provider queue and legacy database drain
+        env:
+          PROVIDER_REDIS_SMOKE: '1'
+          REDIS_HOST: 127.0.0.1
+          REDIS_DB: '15'
+        run: php tests/Smoke/provider_queue_redis.php
 
       - name: Verify concurrent wallet payment safety on MySQL REPEATABLE READ
         env:
