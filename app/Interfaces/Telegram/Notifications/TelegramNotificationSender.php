@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Interfaces\Telegram\Notifications;
 
 use App\Interfaces\Telegram\Support\SubscriptionPageLink;
+use App\Modules\Billing\Application\BrowsePhotoTopups;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\TelegramRecipient;
 use App\Modules\Sales\Application\ManualBankPayments;
@@ -201,7 +202,7 @@ final readonly class TelegramNotificationSender
             throw new NotificationUnavailable('not_authorized');
         }
 
-        $row = app(\App\Modules\Billing\Application\BrowsePhotoTopups::class)->photo($rootId, $topupId);
+        $row = app(BrowsePhotoTopups::class)->photo($rootId, $topupId);
         $keyboard = json_encode([
             'inline_keyboard' => [
                 [
