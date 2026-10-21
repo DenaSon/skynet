@@ -7,6 +7,8 @@ namespace App\Modules\Provisioning\Application;
 use App\Interfaces\Telegram\Notifications\PaymentNotificationOutbox;
 use DateTimeImmutable;
 use DateTimeZone;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 use Throwable;
@@ -37,6 +39,22 @@ final readonly class FulfillPaidRenewalOrder
 
         try {
             $remote = $this->lifecycle->subscription($source->reference);
+        } catch (ConnectionException $error) {
+            $this->releaseBeforeWrite($orderId);
+            throw new RuntimeException('Provider read temporarily unavailable; no renewal write attempted.', 0, $error);
+        } catch (RequestException $error) {
+            if ($error->response->serverError() || $error->response->status() === 429) {
+                $this->releaseBeforeWrite($orderId);
+            } else {
+                $this->needsReview($orderId);
+            }
+            throw new RuntimeException('Provider preflight failed; no renewal write attempted.', 0, $error);
+        } catch (Throwable $error) {
+            $this->needsReview($orderId);
+            throw new RuntimeException('Provider identity check needs operator review.', 0, $error);
+        }
+
+        try {
             if (! in_array($remote->status, ['ACTIVE', 'LIMITED', 'EXPIRED'], true)
                 || $remote->trafficLimitStrategy !== 'NO_RESET'
                 || $remote->activeInternalSquadUuids !== [strtolower((string) $source->internal_squad_uuid)]
@@ -122,7 +140,6 @@ final readonly class FulfillPaidRenewalOrder
         return $this->complete($orderId, $id);
     }
 
-    /** @return object */
     private function claim(int $orderId): object
     {
         return DB::transaction(function () use ($orderId): object {
@@ -200,6 +217,33 @@ final readonly class FulfillPaidRenewalOrder
 
             return $remoteId;
         }, 3);
+    }
+
+    /**
+     * Retry ONLY proven transport failures of the initial GET. No target,
+     * provisioning reservation or remote write exists, so the existing
+     * untouched-intent recovery may safely dispatch another read.
+     */
+    private function releaseBeforeWrite(int $orderId): void
+    {
+        DB::transaction(function () use ($orderId): void {
+            $intent = DB::table('sales_fulfillment_outbox')->where('sales_order_id', $orderId)
+                ->lockForUpdate()->first();
+            $mapping = DB::table('sales_renewal_orders')->where('sales_order_id', $orderId)
+                ->lockForUpdate()->first();
+            if ($intent === null || $intent->state !== 'processing'
+                || $mapping === null || $mapping->target_expire_at !== null
+                || $mapping->target_traffic_limit_bytes !== null
+                || DB::table('provisioning_operations')->where('idempotency_key', self::key($orderId))->exists()) {
+                $this->needsReview($orderId);
+
+                return;
+            }
+
+            DB::table('sales_fulfillment_outbox')->where('id', $intent->id)->update([
+                'state' => 'pending', 'attempts' => 0, 'updated_at' => now(),
+            ]);
+        });
     }
 
     private function needsReview(int $orderId): void

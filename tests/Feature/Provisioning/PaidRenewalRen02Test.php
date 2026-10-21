@@ -290,3 +290,26 @@ it('rejects a disabled remote service and never creates a payable renewal', func
     ))->toThrow(ValidationException::class);
     expect(DB::table('sales_renewal_orders')->count())->toBe(0);
 });
+
+
+it('retries only a failed provider preflight GET and never issues an uncertain PATCH twice', function (): void {
+    $data = ren02Fixture();
+    $remote = ren02Remote($data['source']);
+    $fail = false;
+    ren02Http($remote, $fail);
+    $order = app(CreatePendingRenewalOrder::class)
+        ->handle(SubscriptionViewer::telegram($data['telegram']), $data['source'])->id;
+    ren02WalletPay($data, $order);
+
+    Http::fake(['https://rw-ren02.test/api/users/52' => Http::response(['message' => 'gateway timeout'], 503)]);
+    expect(fn () => app(FulfillPaidRenewalOrder::class)->handle($order))->toThrow(RuntimeException::class);
+    expect(DB::table('sales_fulfillment_outbox')->where('sales_order_id', $order)->value('state'))->toBe('pending')
+        ->and((int) DB::table('sales_fulfillment_outbox')->where('sales_order_id', $order)->value('attempts'))->toBe(0)
+        ->and(DB::table('provisioning_operations')->where('kind', 'renewal')->count())->toBe(0)
+        ->and(DB::table('sales_renewal_orders')->where('sales_order_id', $order)->value('target_expire_at'))->toBeNull();
+    Http::assertNotSent(static fn (Request $r): bool => $r->method() === 'PATCH');
+
+    ren02Http($remote, $fail);
+    expect(app(FulfillPaidRenewalOrder::class)->handle($order))->toBe(52);
+    Http::assertSent(static fn (Request $r): bool => $r->method() === 'PATCH');
+});
