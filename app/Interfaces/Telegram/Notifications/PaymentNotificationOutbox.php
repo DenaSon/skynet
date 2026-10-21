@@ -80,6 +80,39 @@ final readonly class PaymentNotificationOutbox
     }
 
     /**
+     * A verified customer-wallet debit and paid outbox were committed by the
+     * caller transaction. Auto-fulfillment is queued after commit only.
+     */
+    public function walletSettled(int $orderId, int $buyerId): void
+    {
+        if ($orderId < 1 || $buyerId < 1) {
+            return;
+        }
+
+        if (config('sales.auto_fulfillment_enabled', false) === true) {
+            DB::afterCommit(static function () use ($orderId): void {
+                if (config('sales.auto_fulfillment_enabled', false) === true
+                    && config('services.remnawave.writes_enabled') === true
+                    && config('services.remnawave.squad_bindings_live_verified') === true) {
+                    FulfillPaidPlanOrderJob::dispatch($orderId, false, 0);
+                }
+            });
+        }
+
+        if ($this->recipients->forActiveUser($buyerId) === null
+            || config('telegram.sales.enabled', false) !== true
+            || ! DB::table('telegram_bot_contacts')->where('user_id', $buyerId)
+                ->where('bot_key', 'sales')->where('delivery_status', 'reachable')->exists()) {
+            return;
+        }
+
+        $this->record(
+            'wallet:purchase:order:'.$orderId.':buyer:'.$buyerId,
+            'WalletPurchaseSettled', $buyerId, 'sales', null, $orderId,
+        );
+    }
+
+    /**
      * Called INSIDE the transaction that completed the existing RW order link.
      * Never emits a success notice on payment approval or a queued CREATE.
      */

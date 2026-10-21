@@ -191,6 +191,18 @@ $bot->onCallbackQueryData('sales:checkout:commit:{token}', function (Nutgram $bo
     app(SalesCheckoutUi::class)->commit($bot, $token);
 });
 
+$bot->onCallbackQueryData('sales:walletpay:confirm:{id}:{token}', function (Nutgram $bot, string $id, string $token): void {
+    app(SalesCheckoutUi::class)->walletConfirm($bot, $id, $token);
+});
+
+$bot->onCallbackQueryData('sales:walletpay:cancel:{id}', function (Nutgram $bot, string $id): void {
+    app(SalesCheckoutUi::class)->walletCancel($bot, $id);
+});
+
+$bot->onCallbackQueryData('sales:checkout:wallet:{id}', function (Nutgram $bot, string $id): void {
+    app(SalesCheckoutUi::class)->walletPreview($bot, $id);
+});
+
 $bot->onCallbackQueryData('sales:checkout:orders', function (Nutgram $bot): void {
     app(SalesCheckoutUi::class)->listOrders($bot);
 });

@@ -146,7 +146,8 @@ final readonly class FulfillPaidPlanOrder
         }
 
         if ($wallet !== null) {
-            if ($wallet->method !== 'reseller_wallet' || (int) $wallet->amount_rials !== $amount
+            if (! in_array($wallet->method, ['reseller_wallet', 'customer_wallet'], true)
+                || (int) $wallet->amount_rials !== $amount
                 || ! $this->wallet->handle((int) $order->buyer_user_id, $orderId, (int) $wallet->billing_journal_id, $amount)) {
                 throw new RuntimeException('Wallet settlement integrity check failed.');
             }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Provisioning\Jobs;
 
+use App\Modules\Billing\Application\VerifyWalletOrderDebit;
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
 use App\Modules\Provisioning\Application\FulfillPaidPlanOrder;
 use Illuminate\Bus\Queueable;
@@ -12,6 +13,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -37,11 +39,28 @@ final class FulfillPaidPlanOrderJob implements ShouldBeUnique, ShouldQueue
         return 'parsa:fulfillment:'.$this->orderId;
     }
 
-    public function handle(FulfillPaidPlanOrder $fulfill, AssertCatalogManagementAccess $access): void
+    public function handle(FulfillPaidPlanOrder $fulfill, AssertCatalogManagementAccess $access, ?VerifyWalletOrderDebit $wallet = null): void
     {
         try {
-            // Older queued payloads have no actorId and must fail closed.
-            $access->handle($this->actorId);
+            if ($this->actorId > 0) {
+                $access->handle($this->actorId);
+            } elseif ($this->actorId === 0 && ! $this->reconcile) {
+                // Internal auto-dispatch is permitted ONLY when an authentic
+                // buyer-owned customer_wallet settlement and exact balanced
+                // Billing postings already exist. No root impersonation.
+                $row = DB::table('sales_orders as o')
+                    ->join('sales_order_settlements as s', 's.sales_order_id', '=', 'o.id')
+                    ->where('o.id', $this->orderId)->where('o.status', 'paid')
+                    ->whereNotNull('o.plan_id')->where('s.method', 'customer_wallet')
+                    ->first(['o.buyer_user_id', 'o.total_price_rials', 's.billing_journal_id', 's.amount_rials']);
+                if ($row === null || (int) $row->amount_rials !== (int) $row->total_price_rials
+                    || ! ($wallet ?? app(VerifyWalletOrderDebit::class))->handle((int) $row->buyer_user_id, $this->orderId,
+                        (int) $row->billing_journal_id, (int) $row->total_price_rials)) {
+                    return;
+                }
+            } else {
+                return;
+            }
             if ($this->reconcile) {
                 // The lifecycle resolves an uncertain CREATE with GET only.
                 $fulfill->reconcile($this->orderId);

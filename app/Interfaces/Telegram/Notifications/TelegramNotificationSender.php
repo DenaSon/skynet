@@ -7,6 +7,7 @@ namespace App\Interfaces\Telegram\Notifications;
 use App\Interfaces\Telegram\Support\SubscriptionPageLink;
 use App\Interfaces\Telegram\Support\TelegramUi;
 use App\Modules\Billing\Application\BrowsePhotoTopups;
+use App\Modules\Billing\Application\VerifyWalletOrderDebit;
 use App\Modules\Billing\Application\ViewWallet;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\TelegramRecipient;
@@ -140,6 +141,45 @@ final readonly class TelegramNotificationSender
                     ['text' => '💼 مشاهده کیف پول', 'callback_data' => 'sales:wallet'],
                 ]],
             ], JSON_THROW_ON_ERROR);
+            $this->text($bot, $chat, $message, $keyboard, 'HTML');
+
+            return;
+        }
+
+        if ($delivery->event_type === 'WalletPurchaseSettled') {
+            $orderId = (int) $delivery->order_id;
+            if ($bot !== 'sales' || $orderId < 1) {
+                throw new NotificationUnavailable('invalid_recipient');
+            }
+
+            $order = DB::table('sales_orders as o')
+                ->join('sales_order_settlements as s', 's.sales_order_id', '=', 'o.id')
+                ->where('o.id', $orderId)->where('o.buyer_user_id', $userId)
+                ->whereIn('o.status', ['paid', 'fulfilled'])
+                ->where('s.method', 'customer_wallet')
+                ->first(['o.total_price_rials', 's.amount_rials', 's.billing_journal_id']);
+            if ($order === null || (int) $order->total_price_rials !== (int) $order->amount_rials
+                || ! app(VerifyWalletOrderDebit::class)->handle(
+                    $userId, $orderId, (int) $order->billing_journal_id, (int) $order->total_price_rials,
+                )) {
+                throw new NotificationUnavailable('invalid_settlement');
+            }
+
+            try {
+                $balance = app(ViewWallet::class)->handle($userId)->balanceRials;
+            } catch (Throwable) {
+                throw new NotificationUnavailable('inactive_wallet');
+            }
+
+            $amount = TelegramUi::toman((int) $order->amount_rials);
+            $message = '<b>✅ پرداخت از کیف پول موفق بود</b>'
+                ."\n\nسفارش #{$orderId}"
+                ."\nمبلغ کسرشده: <b>{$amount} تومان</b>"
+                ."\nموجودی فعلی: <b>".TelegramUi::toman($balance).' تومان</b>'
+                ."\n\nوضعیت فعال‌سازی سرویس را در سفارش‌های خود ببینید.";
+            $keyboard = json_encode(['inline_keyboard' => [[
+                ['text' => '📋 مشاهده سفارش', 'callback_data' => 'sales:checkout:view:'.$orderId],
+            ]]], JSON_THROW_ON_ERROR);
             $this->text($bot, $chat, $message, $keyboard, 'HTML');
 
             return;

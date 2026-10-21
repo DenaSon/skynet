@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Sales\Application;
 
+use App\Interfaces\Telegram\Notifications\PaymentNotificationOutbox;
 use App\Modules\Billing\Application\DebitWalletForOrder;
 use App\Modules\Billing\Application\VerifyWalletOrderDebit;
 use App\Modules\Identity\Application\AuthorizeSubscriptionViewer;
@@ -28,6 +29,7 @@ final readonly class SettleWalletOrder
         private DebitWalletForOrder $debit,
         private VerifyWalletOrderDebit $verifyDebit,
         private OrderReader $orders,
+        private PaymentNotificationOutbox $notifications,
     ) {}
 
     public function handle(SubscriptionViewer $viewer, int $orderId): OrderDetails
@@ -43,9 +45,9 @@ final readonly class SettleWalletOrder
         return DB::transaction(function () use ($viewer, $orderId): OrderDetails {
             $buyerId = $this->authorize->userId($viewer);
 
-            if (! $this->buyers->isReseller($buyerId)) {
-                throw new AuthorizationException;
-            }
+            // Existing reseller checkout and ordinary active members share
+            // the same ledger, but only managed plans allow member payment.
+            $reseller = $this->buyers->isReseller($buyerId);
 
             $order = DB::table('sales_orders')
                 ->where('id', $orderId)
@@ -70,7 +72,8 @@ final readonly class SettleWalletOrder
                         (int) $order->total_price_rials,
                     );
 
-                if ($settlement === null || $outbox === null || ! $balanced || $settlement->method !== 'reseller_wallet'
+                if ($settlement === null || $outbox === null || ! $balanced
+                    || ! in_array($settlement->method, ['reseller_wallet', 'customer_wallet'], true)
                     || (int) $settlement->amount_rials !== (int) $order->total_price_rials
                     || $outbox->event_key !== 'sales-order:'.$orderId.':create') {
                     throw ValidationException::withMessages(['order' => 'Paid order requires reconciliation.']);
@@ -83,6 +86,17 @@ final readonly class SettleWalletOrder
                 throw ValidationException::withMessages(['order' => 'Order is not payable.']);
             }
 
+            if (! $reseller && $order->plan_id === null) {
+                throw new AuthorizationException;
+            }
+            // A pending/approved bank receipt must never race a wallet debit;
+            // rejected receipts are eligible for the alternative full payment.
+            if (DB::table('sales_bank_payment_claims')
+                ->where('sales_order_id', $orderId)->whereIn('status', ['submitted', 'approved'])->exists()
+                || DB::table('sales_bank_settlements')->where('sales_order_id', $orderId)->exists()) {
+                throw ValidationException::withMessages(['payment' => 'Bank payment already submitted; cannot use wallet.']);
+            }
+
             $amount = (int) $order->total_price_rials;
 
             // Billing locks the wallet and posts exactly two entries.
@@ -92,7 +106,7 @@ final readonly class SettleWalletOrder
             DB::table('sales_order_settlements')->insert([
                 'sales_order_id' => $orderId,
                 'billing_journal_id' => $journalId,
-                'method' => 'reseller_wallet',
+                'method' => $order->plan_id === null ? 'reseller_wallet' : 'customer_wallet',
                 'amount_rials' => $amount,
                 'settled_at' => now(),
             ]);
@@ -115,6 +129,12 @@ final readonly class SettleWalletOrder
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
+
+            if ($order->plan_id !== null) {
+                // Dispatch only after verified settlement + fulfillment intent
+                // have been committed. No provider operation in a bot callback.
+                $this->notifications->walletSettled($orderId, $buyerId);
+            }
 
             return $this->orders->find($buyerId, $orderId);
         }, 3);
