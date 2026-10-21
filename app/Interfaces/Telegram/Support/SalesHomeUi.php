@@ -38,7 +38,6 @@ final readonly class SalesHomeUi
         private JoinFromTelegram $onboard,
         private LinkTelegramAccount $linkAccount,
         private PendingBuilderSelection $pendingBuilder,
-        private ReplyMenuRenderer $replyMenus,
         private ListQuotedPresets $catalog,
         private CheckPlanSquadReadiness $squads,
         private GetReferralInvite $invites,
