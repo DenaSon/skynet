@@ -84,10 +84,21 @@ final readonly class SalesSubscriptionsUi
                 $lines[] = '🔹 <b>'.TelegramUi::escape($label).'</b> · '.TelegramUi::escape($this->clean($item->productName));
                 $lines[] = $summary.' · '.$item->durationDays.' روز · '.$this->status($item->status);
                 $lines[] = '';
-                $keyboard->addRow(InlineKeyboardButton::make(
-                    $label.' · '.$this->shortStatus($item->status),
-                    callback_data: 'sales:subs:view:'.$item->orderId.':'.$cursor,
-                ));
+                if ($item->status === 'active') {
+                    // Never expose bearer credentials in the directory. The
+                    // private link Action rechecks owner and remote expiry.
+                    $keyboard->addRow(
+                        InlineKeyboardButton::make('📋 جزئیات #'.$item->orderId,
+                            callback_data: 'sales:subs:view:'.$item->orderId.':'.$cursor),
+                        InlineKeyboardButton::make('🔐 لینک #'.$item->orderId,
+                            callback_data: 'sales:subs:link:'.$item->orderId.':'.$cursor),
+                    );
+                } else {
+                    $keyboard->addRow(InlineKeyboardButton::make(
+                        $label.' · '.$this->shortStatus($item->status),
+                        callback_data: 'sales:subs:view:'.$item->orderId.':'.$cursor,
+                    ));
+                }
             }
             $lines[] = '<blockquote>وضعیت لحظه‌ای و تاریخ انقضا در جزئیات هر سرویس بررسی می‌شود.</blockquote>';
             if ($page->nextBeforeOrderId !== null) {
