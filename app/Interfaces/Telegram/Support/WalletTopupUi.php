@@ -220,6 +220,7 @@ final readonly class WalletTopupUi
         if ($bot->isCallbackQuery()) {
             TelegramUi::answerCallback($bot);
             TelegramUi::editText($bot, $message, $keyboard, 'HTML');
+
             return;
         }
 
