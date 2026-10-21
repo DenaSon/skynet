@@ -6,8 +6,8 @@ namespace App\Interfaces\Telegram\Notifications;
 
 use App\Interfaces\Telegram\Support\SubscriptionPageLink;
 use App\Interfaces\Telegram\Support\TelegramUi;
-use App\Modules\Billing\Application\ViewWallet;
 use App\Modules\Billing\Application\BrowsePhotoTopups;
+use App\Modules\Billing\Application\ViewWallet;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\TelegramRecipient;
 use App\Modules\Sales\Application\ManualBankPayments;
@@ -75,7 +75,7 @@ final readonly class TelegramNotificationSender
 
             $caption = "🧾 درخواست شارژ کیف پول #{$topupId}"
                 ."\nکاربر #{$row['user_id']}"
-                ."\nمبلغ: ".TelegramUi::toman($row['amount_rials'])." تومان"
+                ."\nمبلغ: ".TelegramUi::toman($row['amount_rials']).' تومان'
                 ."\n\n⚠️ فقط پس از مشاهده واریز واقعی در بانک تأیید کنید.";
             try {
                 $this->showWalletTopupPhotoToRoot($topupId, $userId, $chat, $caption);
@@ -133,7 +133,7 @@ final readonly class TelegramNotificationSender
             } catch (Throwable) {
                 throw new NotificationUnavailable('inactive_wallet');
             }
-            $message .= "\nموجودی فعلی: <b>".TelegramUi::toman($balance)." تومان</b>";
+            $message .= "\nموجودی فعلی: <b>".TelegramUi::toman($balance).' تومان</b>';
 
             $keyboard = json_encode([
                 'inline_keyboard' => [[
