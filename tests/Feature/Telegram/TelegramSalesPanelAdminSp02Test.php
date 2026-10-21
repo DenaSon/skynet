@@ -64,26 +64,26 @@ it('shows the root application queue, confirms one decision and cannot replay th
     $bot->hearCallbackQueryData('menu:admin:sales')->reply()->assertRaw(static function (Request $request): bool {
         $data = sp02Payload($request);
 
-        return str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sp:list:1');
+        return str_contains(json_encode($data['reply_markup'] ?? null, JSON_THROW_ON_ERROR), 'sp:list:1');
     });
-    $bot->hearCallbackQueryData('sp:list:1')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sp:list:1')->reply()->assertCalled('answerCallbackQuery');
     $bot->hearCallbackQueryData('sp:detail:'.$id)->reply()->assertRaw(static function (Request $request): bool {
         $data = sp02Payload($request);
 
-        return str_contains($data['text'], '09123456789')
-            && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sp:prepare:');
+        return str_contains((string) ($data['text'] ?? ''), '09123456789')
+            && str_contains(json_encode($data['reply_markup'] ?? null, JSON_THROW_ON_ERROR), 'sp:prepare:');
     });
 
     $token = '';
     $bot->hearCallbackQueryData('sp:prepare:'.$id.':a')->reply()->assertRaw(static function (Request $request) use (&$token): bool {
         $data = sp02Payload($request);
-        $markup = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+        $markup = json_encode($data['reply_markup'] ?? null, JSON_THROW_ON_ERROR);
         if (preg_match('/sp:apply:([a-f0-9]{32})/', $markup, $matches) !== 1) {
             return false;
         }
         $token = $matches[1];
 
-        return str_contains($data['text'], 'تأیید و فعال‌سازی پنل فروش');
+        return str_contains((string) ($data['text'] ?? ''), 'تأیید و فعال‌سازی پنل فروش');
     });
     expect($token)->not->toBe('')
         ->and(DB::table('sales_panel_requests')->where('id', $id)->value('status'))->toBe('pending')
@@ -104,10 +104,10 @@ it('denies ordinary Admin Bot users from reading applicant phone or changing rol
     $buyer = User::factory()->create();
     $id = app(SalesPanelRequests::class)->submit($buyer->id, 'محمد', 'کریمی', '09123456789')['id'];
 
-    $bot->hearCallbackQueryData('sp:list:1')->reply()->assertCalled('editMessageText');
-    $bot->hearCallbackQueryData('sp:detail:'.$id)->reply()->assertCalled('editMessageText');
-    $bot->hearCallbackQueryData('sp:prepare:'.$id.':a')->reply()->assertCalled('editMessageText');
-    $bot->hearCallbackQueryData('sp:apply:00000000000000000000000000000000')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sp:list:1')->reply()->assertCalled('answerCallbackQuery');
+    $bot->hearCallbackQueryData('sp:detail:'.$id)->reply()->assertCalled('answerCallbackQuery');
+    $bot->hearCallbackQueryData('sp:prepare:'.$id.':a')->reply()->assertCalled('answerCallbackQuery');
+    $bot->hearCallbackQueryData('sp:apply:00000000000000000000000000000000')->reply()->assertCalled('answerCallbackQuery');
 
     expect(DB::table('sales_panel_requests')->where('id', $id)->value('status'))->toBe('pending')
         ->and($buyer->fresh()->hasRole('reseller'))->toBeFalse();
@@ -120,7 +120,7 @@ it('the old pending SP-01 application appears in the new Admin queue without ret
     $buyer = User::factory()->create();
     app(SalesPanelRequests::class)->submit($buyer->id, 'نازنین', 'فرهادی', '09120000000');
 
-    $bot->hearCommand('panelrequests')->reply()->assertCalled('sendMessage');
+    $bot->hearText('/panelrequests')->reply()->assertCalled('sendMessage');
     expect(DB::table('telegram_notification_deliveries')->count())->toBe(0)
         ->and(DB::table('sales_panel_requests')->where('status', 'pending')->count())->toBe(1);
 });
