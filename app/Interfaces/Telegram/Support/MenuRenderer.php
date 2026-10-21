@@ -111,10 +111,7 @@ final class MenuRenderer
                 InlineKeyboardButton::make('👥 کاربران پنل', callback_data: 'menu:admin:panelusers'),
             );
 
-            if (config('billing.topups_enabled', false) === true
-                || config('sales.manual_bank_review_enabled', false) === true) {
-                $keyboard->addRow(InlineKeyboardButton::make('💳 امور مالی', callback_data: 'menu:admin:finance'));
-            }
+            $keyboard->addRow(InlineKeyboardButton::make('💳 امور مالی', callback_data: 'menu:admin:finance'));
         } else {
             $keyboard->addRow(InlineKeyboardButton::make('👥 کاربران', callback_data: 'menu:admin:users'));
         }
@@ -139,20 +136,18 @@ final class MenuRenderer
 
     public function showAdminFinance(Nutgram $bot): void
     {
-        $keyboard = InlineKeyboardMarkup::make();
+        $keyboard = InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('💼 کیف پول کاربران', callback_data: 'finance:wallets:1'));
         if (config('billing.topups_enabled', false)) {
-            $keyboard->addRow(InlineKeyboardButton::make('💳 بررسی شارژها', callback_data: 'menu:billing-reviews'));
+            $keyboard->addRow(InlineKeyboardButton::make('🖼️ رسیدهای شارژ کیف پول', callback_data: 'finance:topups:1'))
+                ->addRow(InlineKeyboardButton::make('💳 بررسی شارژهای قبلی', callback_data: 'menu:billing-reviews'));
         }
         if (config('sales.manual_bank_review_enabled', false)) {
             $keyboard->addRow(InlineKeyboardButton::make('🧾 بررسی رسیدهای خرید', callback_data: 'bank:list'));
         }
         $keyboard->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
 
-        $this->render($bot, "💳 امور مالی\n\n".(
-            config('billing.topups_enabled', false) || config('sales.manual_bank_review_enabled', false)
-                ? 'بخش موردنظر را انتخاب کنید.'
-                : 'در حال حاضر عملیاتی برای بررسی وجود ندارد.'
-        ), $keyboard);
+        $this->render($bot, "💳 امور مالی\n\nبخش موردنظر را انتخاب کنید.", $keyboard);
     }
 
     public function showUserList(Nutgram $bot, UserDirectoryPage $results, bool $search = false): void
