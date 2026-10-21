@@ -80,7 +80,7 @@ final readonly class SalesHomeUi
         if (! $bot->isCallbackQuery() || $showKeyboard) {
             $bot->sendMessage(
                 text: '<b>🏠 DenaGate</b>'."\n\nخوش آمدید، ".$this->name($actor->name)
-                    .".\nنوع حساب: <b>".$this->salesRole($actor)."</b>",
+                    .".\nنوع حساب: <b>".$this->salesRole($actor).'</b>',
                 parse_mode: 'HTML',
                 reply_markup: $this->replyMenus->salesKeyboard(),
             );
@@ -299,7 +299,7 @@ final readonly class SalesHomeUi
         $text = '<b>👤 حساب کاربری</b>'
             ."\n\nنام: ".$this->name($actor->name)
             ."\nشناسه: ".TelegramUi::code((string) $actor->userId)
-            ."\nنوع حساب: <b>".$this->salesRole($actor)."</b>"
+            ."\nنوع حساب: <b>".$this->salesRole($actor).'</b>'
             ."\nوضعیت: 🟢 فعال"
             ."\nعضویت: ".($joined === null ? 'نامشخص' : TelegramUi::escape($joined))
             ."\n\n<b>📊 خلاصه حساب</b>"
