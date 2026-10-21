@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Interfaces\Telegram\Support;
 
 use App\Interfaces\Telegram\Notifications\TelegramNotificationSender;
+use App\Interfaces\Telegram\Notifications\WalletTopupNotificationOutbox;
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Billing\Application\BrowseCustomerWallets;
 use App\Modules\Billing\Application\BrowsePhotoTopups;
@@ -15,6 +16,7 @@ use App\Modules\Identity\Application\TelegramActor;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
@@ -33,6 +35,7 @@ final readonly class AdminFinanceWalletUi
         private BrowsePhotoTopups $photos,
         private BillingReviewTokens $tokens,
         private ReviewTopup $review,
+        private WalletTopupNotificationOutbox $notifications,
         private TelegramNotificationSender $sender,
         private MenuRenderer $menus,
     ) {}
@@ -343,7 +346,10 @@ final readonly class AdminFinanceWalletUi
             return;
         }
         try {
-            $this->review->handle($actor->userId, $data['topup'], $data['approve'], $data['reference']);
+            DB::transaction(function () use ($actor, $data): void {
+                $this->review->handle($actor->userId, $data['topup'], $data['approve'], $data['reference']);
+                $this->notifications->reviewed($data['topup']);
+            });
         } catch (AuthorizationException|ValidationException|UniqueConstraintViolationException) {
             $this->notice($bot, 'پرداخت ثبت نشد؛ درخواست تغییر کرده یا شناسه بانک قبلاً استفاده شده است.');
 
