@@ -122,7 +122,7 @@ final class TelegramUi
     {
         return match ($role) {
             'member' => 'کاربر',
-            'reseller' => 'نماینده فروش',
+            'reseller' => 'پنل فروش',
             'admin' => 'مدیر',
             'super-admin' => 'مدیر اصلی',
             'accountant' => 'حسابدار',
@@ -150,7 +150,7 @@ final class TelegramUi
     {
         return match ($mode) {
             'preset' => 'ثابت',
-            'builder' => 'سفارشی نماینده',
+            'builder' => 'سفارشی پنل فروش',
             default => 'نامشخص',
         };
     }
@@ -169,7 +169,7 @@ final class TelegramUi
     {
         return match ($audience) {
             'public' => 'کاربران عادی',
-            'reseller' => 'نمایندگان فروش',
+            'reseller' => 'پنل‌های فروش',
             'both' => 'همه کاربران',
             default => 'نامشخص',
         };
