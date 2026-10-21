@@ -85,14 +85,14 @@ it('shows panel request status for an ordinary member but never promotes via nav
     $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(static function (Request $request): bool {
         $body = polish152Payload($request);
 
-        return str_contains(json_encode($body['reply_markup'], JSON_THROW_ON_ERROR), '🧩 درخواست پنل فروش');
+        return str_contains(json_encode($body['reply_markup'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), '🧩 درخواست پنل فروش');
     }, index: 1);
 
     app(SalesPanelRequests::class)->submit($member->id, 'سارا', 'محمدی', '09123456789');
     $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(static function (Request $request): bool {
         $body = polish152Payload($request);
 
-        return str_contains(json_encode($body['reply_markup'], JSON_THROW_ON_ERROR), '📨 وضعیت درخواست پنل فروش');
+        return str_contains(json_encode($body['reply_markup'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), '📨 وضعیت درخواست پنل فروش');
     }, index: 1);
 
     expect($member->fresh()->hasRole('reseller'))->toBeFalse()
