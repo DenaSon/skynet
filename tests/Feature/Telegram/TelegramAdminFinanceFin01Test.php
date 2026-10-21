@@ -12,7 +12,6 @@ use App\Modules\Identity\Infrastructure\Models\User;
 use GuzzleHttp\Psr7\Request;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Route;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use SergiX44\Nutgram\Nutgram;
@@ -77,16 +76,19 @@ it('navigates the Admin Finance customer wallet read and bounded lookup with no 
 
     $bot->hearCallbackQueryData('menu:admin:finance')->reply()->assertRaw(static function (Request $request): bool {
         $data = fin01Data($request);
+
         return str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'finance:wallets:1');
     }, index: 1);
     $bot->hearCallbackQueryData('finance:wallets:1')->reply()->assertRaw(static function (Request $request) use ($customer): bool {
         $data = fin01Data($request);
+
         return str_contains($data['text'], '&lt;Buyer&gt;')
             && str_contains($data['text'], '0 تومان')
             && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'finance:wallet:'.$customer->id);
     }, index: 1);
     $bot->hearCallbackQueryData('finance:wallet:'.$customer->id)->reply()->assertRaw(static function (Request $request): bool {
         $data = fin01Data($request);
+
         return str_contains($data['text'], 'موجودی: <b>0 تومان</b>')
             && str_contains($data['text'], 'گردش‌های اخیر')
             && ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'adjust');
@@ -106,6 +108,7 @@ it('requires the real bank reference and one-use confirmation for a Sales photo 
 
     $bot->hearCallbackQueryData('finance:topups:1')->reply()->assertRaw(static function (Request $request) use ($id): bool {
         $data = fin01Data($request);
+
         return str_contains($data['text'], '80,000 تومان')
             && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'finance:topup:photo:'.$id);
     }, index: 1);
@@ -114,6 +117,7 @@ it('requires the real bank reference and one-use confirmation for a Sales photo 
     expect(DB::table('billing_journals')->count())->toBe(0);
     $bot->hearText('BANKVERIFIED9876')->reply()->assertRaw(static function (Request $request): bool {
         $data = fin01Data($request);
+
         return str_contains($data['text'], 'BANKVERIFIED9876')
             && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'finance:topup:apply:');
     });
