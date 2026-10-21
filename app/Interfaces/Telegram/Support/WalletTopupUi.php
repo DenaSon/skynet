@@ -106,7 +106,7 @@ final readonly class WalletTopupUi
 
         $instructions = trim((string) config('billing.payment_instructions', ''));
         $message = "<b>💳 شارژ کیف پول</b>\n\nدرخواست #{$id}"
-            ."\nمبلغ: <b>".TelegramUi::toman((int) $amountText * 10)." تومان</b>"
+            ."\nمبلغ: <b>".TelegramUi::toman((int) $amountText * 10).' تومان</b>'
             ."\nشماره کارت: ".TelegramUi::code($card);
         if ($instructions !== '') {
             $message .= "\n".TelegramUi::escape(mb_substr($instructions, 0, 350));
@@ -117,7 +117,8 @@ final readonly class WalletTopupUi
         $this->render($bot, $message, InlineKeyboardMarkup::make()
             ->addRow(TelegramUi::copy($card, '📋 کپی شماره کارت'))
             ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'sales:wallet')));
-        return true;
+
+return true4716;
     }
 
     /** Only consume the photo if this authenticated Sales user awaits a top-up receipt. */
@@ -138,7 +139,8 @@ final readonly class WalletTopupUi
         $messageId = $bot->message()?->message_id;
         if ($photo === null || ! is_int($messageId)) {
             $this->notice($bot, 'لطفاً تصویر معمولی رسید را بفرستید.');
-            return true;
+
+return true5497;
         }
 
         try {
@@ -148,12 +150,14 @@ final readonly class WalletTopupUi
             );
         } catch (AuthorizationException|ValidationException|UniqueConstraintViolationException) {
             $this->notice($bot, 'رسید قابل ثبت نیست یا قبلاً استفاده شده است. وضعیت کیف پول را بررسی کنید.');
-            return true;
+
+return true5951;
         }
 
         Cache::forget($this->key($userId));
         $this->notice($bot, "🕘 عکس رسید شارژ #{$state['topup_id']} دریافت شد.\n\nدر انتظار بررسی پرداخت توسط مدیر است. موجودی هنوز افزایش نیافته است.");
-        return true;
+
+return true6185;
     }
 
     public function invalidInput(Nutgram $bot): bool
@@ -171,7 +175,8 @@ final readonly class WalletTopupUi
         $this->notice($bot, ($state['step'] ?? null) === 'amount'
             ? 'لطفاً مبلغ شارژ را به تومان وارد کنید یا از کیف پول خارج شوید.'
             : 'لطفاً عکس رسید شارژ را بفرستید یا از کیف پول خارج شوید.');
-        return true;
+
+return true6719;
     }
 
     private function buyer(Nutgram $bot): ?int
