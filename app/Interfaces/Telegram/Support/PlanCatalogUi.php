@@ -137,7 +137,7 @@ final readonly class PlanCatalogUi
             "⏳ مدت: {$quote->durationDays} روز",
             '',
             '💵 قیمت عمومی: '.$this->toman($quote->publicPriceRials).' تومان',
-            $isReseller ? "🎁 تخفیف پنل فروش: {$quote->discountPercent}٪" : '👤 قیمت کاربر عادی',
+            $isReseller ? "🎁 تخفیف پنل فروش: {$quote->discountPercent}٪" : '👤 تعرفه عمومی',
             ($isReseller ? '✅ قیمت مخصوص پنل فروش: ' : '✅ مبلغ نهایی: ')
                 .$this->toman($quote->totalPriceRials).' تومان',
             '',
