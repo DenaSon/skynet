@@ -155,16 +155,16 @@ it('renders Admin as fresh text from a photo callback without trying to edit the
     $actor = app(ResolveTelegramActor::class)->handle(984101);
     expect($actor)->not->toBeNull();
 
-    $photo = new \\SergiX44\\Nutgram\\Telegram\\Types\\Message\\Message;
+    $photo = new \SergiX44\Nutgram\Telegram\Types\Message\Message;
     $photo->photo = [['file_id' => 'test-receipt', 'width' => 600, 'height' => 600]];
 
-    $bot = \\Mockery::mock(Nutgram::class);
+    $bot = \Mockery::mock(Nutgram::class);
     $bot->shouldReceive('isCallbackQuery')->twice()->andReturn(true);
     $bot->shouldReceive('answerCallbackQuery')->once()->andReturn(true);
     $bot->shouldReceive('message')->once()->andReturn($photo);
-    $bot->shouldReceive('sendMessage')->once()->andReturn(new \\SergiX44\\Nutgram\\Telegram\\Types\\Message\\Message);
+    $bot->shouldReceive('sendMessage')->once()->andReturn(new \SergiX44\Nutgram\Telegram\Types\Message\Message);
     $bot->shouldNotReceive('editMessageText');
-    app(\\App\\Interfaces\\Telegram\\Support\\MenuRenderer::class)->showAdmin($bot, $actor);
+    app(\App\Interfaces\Telegram\Support\MenuRenderer::class)->showAdmin($bot, $actor);
 });
 
 it('keeps in-place Admin text menu edits for ordinary callbacks', function (): void {
@@ -173,14 +173,14 @@ it('keeps in-place Admin text menu edits for ordinary callbacks', function (): v
     $actor = app(ResolveTelegramActor::class)->handle(984102);
     expect($actor)->not->toBeNull();
 
-    $textMessage = new \\SergiX44\\Nutgram\\Telegram\\Types\\Message\\Message;
+    $textMessage = new \SergiX44\Nutgram\Telegram\Types\Message\Message;
     $textMessage->text = 'Previous Admin page';
 
-    $bot = \\Mockery::mock(Nutgram::class);
+    $bot = \Mockery::mock(Nutgram::class);
     $bot->shouldReceive('isCallbackQuery')->twice()->andReturn(true);
     $bot->shouldReceive('answerCallbackQuery')->once()->andReturn(true);
     $bot->shouldReceive('message')->once()->andReturn($textMessage);
-    $bot->shouldReceive('editMessageText')->once()->andReturn(new \\SergiX44\\Nutgram\\Telegram\\Types\\Message\\Message);
+    $bot->shouldReceive('editMessageText')->once()->andReturn(new \SergiX44\Nutgram\Telegram\Types\Message\Message);
     $bot->shouldNotReceive('sendMessage');
-    app(\\App\\Interfaces\\Telegram\\Support\\MenuRenderer::class)->showAdmin($bot, $actor);
+    app(\App\Interfaces\Telegram\Support\MenuRenderer::class)->showAdmin($bot, $actor);
 });
