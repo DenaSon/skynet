@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Interfaces\Telegram\Support;
 
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
-use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Billing\Application\ViewWallet;
+use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Provisioning\Application\CheckPlanSquadReadiness;
 use App\Modules\Sales\Application\CalculatePlanQuote;
@@ -20,9 +20,9 @@ use App\Modules\Sales\Application\SettleWalletOrder;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
-use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 
