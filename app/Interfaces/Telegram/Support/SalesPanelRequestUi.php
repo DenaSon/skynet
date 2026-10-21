@@ -29,6 +29,8 @@ final readonly class SalesPanelRequestUi
         if ($userId === null) {
             return;
         }
+        // Switching to this form cancels old checkout/top-up drafts first.
+        app(SalesHomeUi::class)->navigationActor($bot);
         $current = $this->requests->find($userId);
         $actor = $this->actors->handle((int) $this->private->id($bot));
         if (in_array('reseller', $actor?->roles ?? [], true)) {
