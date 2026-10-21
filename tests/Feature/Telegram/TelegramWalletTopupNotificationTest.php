@@ -5,7 +5,6 @@ declare(strict_types=1);
 use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
 use App\Interfaces\Telegram\Notifications\TelegramNotificationSender;
 use App\Interfaces\Telegram\Notifications\WalletTopupNotificationOutbox;
-use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Interfaces\Telegram\Support\BillingReviewTokens;
 use App\Modules\Billing\Application\RequestTopup;
 use App\Modules\Billing\Application\ReviewTopup;
@@ -20,7 +19,6 @@ use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
-use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
@@ -128,6 +126,7 @@ it('forwards a protected photo to an eligible root, then suppresses stale or rev
         if (str_contains($url, '12345:admin_test/sendPhoto')) {
             return Http::response(['ok' => true, 'result' => ['message_id' => 1]]);
         }
+
         return Http::response(['ok' => false], 503);
     });
 
@@ -136,8 +135,7 @@ it('forwards a protected photo to an eligible root, then suppresses stale or rev
         ->handle(app(TelegramNotificationSender::class));
     expect(DB::table('telegram_notification_deliveries')->value('state'))->toBe('sent');
     Http::assertSentCount(3);
-    Http::assertSent(static fn (Request $request): bool =>
-        str_contains($request->url(), '/sendPhoto')
+    Http::assertSent(static fn (Request $request): bool => str_contains($request->url(), '/sendPhoto')
         && str_contains((string) $request->body(), 'finance:topup:decision:'.$data['topup'].':a')
     );
     app(DispatchTelegramNotification::class, ['deliveryId' => (int) $notice->id])
@@ -182,13 +180,11 @@ it('records one Sales review result after Admin confirms; never before or on a r
 
     Http::swap(new Factory);
     Http::preventStrayRequests();
-    Http::fake(['https://api.telegram.org/bot54321:sales_test/sendMessage' =>
-        Http::response(['ok' => true, 'result' => ['message_id' => 1]])]);
+    Http::fake(['https://api.telegram.org/bot54321:sales_test/sendMessage' => Http::response(['ok' => true, 'result' => ['message_id' => 1]])]);
     app(DispatchTelegramNotification::class, ['deliveryId' => (int) $review->id])
         ->handle(app(TelegramNotificationSender::class));
     expect(DB::table('telegram_notification_deliveries')->where('id', $review->id)->value('state'))->toBe('sent');
-    Http::assertSent(static fn (Request $request): bool =>
-        str_contains($request->url(), '54321:sales_test/sendMessage')
+    Http::assertSent(static fn (Request $request): bool => str_contains($request->url(), '54321:sales_test/sendMessage')
         && str_contains((string) $request['text'], '50,000 تومان')
         && str_contains((string) $request['reply_markup'], 'sales:wallet')
     );
