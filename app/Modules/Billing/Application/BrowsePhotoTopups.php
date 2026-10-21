@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Billing\Application;
 
 use App\Modules\Identity\Application\AssertBillingAccess;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -60,7 +61,7 @@ final readonly class BrowsePhotoTopups
         ];
     }
 
-    private function query(): \Illuminate\Database\Query\Builder
+    private function query(): Builder
     {
         return DB::table('billing_topups as t')
             ->join('billing_wallets as w', 'w.id', '=', 't.wallet_id')
