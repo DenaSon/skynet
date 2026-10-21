@@ -51,7 +51,7 @@ final readonly class ResellerBuilderUi
 
         $pages = max(1, (int) ceil(count($builders) / 5));
         $page = min(max(1, $page), $pages);
-        $lines = ['💼 پلن‌ساز نمایندگان', "صفحه {$page} از {$pages}", '',
+        $lines = ['💼 پلن‌ساز پنل فروش', "صفحه {$page} از {$pages}", '',
             TelegramBotContext::current()->key === 'sales'
                 ? 'حجم و مدت دلخواه را انتخاب کنید؛ امکان ثبت سفارش پس از بررسی آمادگی سرویس مشخص می‌شود.'
                 : 'پلن‌های زیر دارای تعرفه فعال هستند. فقط پیش‌نمایش قیمت است؛ سفارش و پرداخت در دسترس نیست.', ''];
@@ -66,7 +66,7 @@ final readonly class ResellerBuilderUi
         }
 
         if ($builders === []) {
-            $lines[] = 'در حال حاضر پلن سفارشی فعالی برای نمایندگان وجود ندارد.';
+            $lines[] = 'در حال حاضر پلن سفارشی فعالی برای پنل فروش وجود ندارد.';
         }
 
         if ($page > 1) {
@@ -305,8 +305,8 @@ final readonly class ResellerBuilderUi
             "⏳ مدت: {$quote->durationDays} روز",
             '',
             '💵 قیمت عمومی: '.number_format(intdiv($quote->publicPriceRials + 9, 10)).' تومان',
-            "🎁 تخفیف نماینده: {$quote->discountPercent}٪",
-            '✅ قیمت شما: '.number_format(intdiv($quote->totalPriceRials + 9, 10)).' تومان',
+            "🎁 تخفیف پنل فروش: {$quote->discountPercent}٪",
+            '✅ قیمت مخصوص پنل فروش: '.number_format(intdiv($quote->totalPriceRials + 9, 10)).' تومان',
             '',
             TelegramBotContext::current()->key === 'sales'
                 ? 'برای ادامه، امکان ثبت سفارش را بررسی کنید.'
@@ -415,7 +415,7 @@ final readonly class ResellerBuilderUi
 
     private function notice(Nutgram $bot, string $message, int $page): void
     {
-        $this->render($bot, "💼 پلن‌ساز نمایندگان\n\n{$message}", InlineKeyboardMarkup::make()
+        $this->render($bot, "💼 پلن‌ساز پنل فروش\n\n{$message}", InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('◀️ فهرست پلن‌سازها', callback_data: 'builder:list:'.$page)));
     }
 
