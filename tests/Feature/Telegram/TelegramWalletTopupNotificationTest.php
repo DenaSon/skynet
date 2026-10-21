@@ -217,6 +217,48 @@ it('notifies the buyer of a rejection without credit and never replays suppresse
     Http::assertNothingSent();
 });
 
+it('falls back to a finance-queue message if the protected root photo is unavailable', function (): void {
+    finNotSubmitted();
+    Http::swap(new Factory);
+    Http::preventStrayRequests();
+    Http::fake(static function (Request $request) {
+        if (str_contains($request->url(), '/getFile')) {
+            return Http::response(['ok' => true, 'result' => ['file_path' => '../invalid', 'file_size' => 100]]);
+        }
+
+        return Http::response(['ok' => true, 'result' => ['message_id' => 1]]);
+    });
+
+    $id = (int) DB::table('telegram_notification_deliveries')->value('id');
+    app(DispatchTelegramNotification::class, ['deliveryId' => $id])->handle(app(TelegramNotificationSender::class));
+
+    expect(DB::table('telegram_notification_deliveries')->where('id', $id)->value('state'))->toBe('sent');
+    Http::assertSentCount(2);
+    Http::assertSent(static fn (Request $request): bool => str_contains($request->url(), '12345:admin_test/sendMessage')
+        && str_contains((string) $request['text'], 'تصویر فعلاً قابل ارسال نیست')
+        && str_contains((string) $request['reply_markup'], 'finance:topups:1'));
+});
+
+it('sends a rejection result to the buyer Sales Bot without a financial posting', function (): void {
+    $data = finNotSubmitted();
+    DB::transaction(static function () use ($data): void {
+        app(ReviewTopup::class)->handle($data['root']->id, $data['topup'], false, 'PHOTO-REJECT');
+        app(WalletTopupNotificationOutbox::class)->reviewed($data['topup']);
+    });
+
+    Http::swap(new Factory);
+    Http::preventStrayRequests();
+    Http::fake(['https://api.telegram.org/bot54321:sales_test/sendMessage' => Http::response(['ok' => true, 'result' => ['message_id' => 1]])]);
+    $id = (int) DB::table('telegram_notification_deliveries')->where('event_type', 'WalletTopupRejected')->value('id');
+    app(DispatchTelegramNotification::class, ['deliveryId' => $id])->handle(app(TelegramNotificationSender::class));
+
+    expect(DB::table('telegram_notification_deliveries')->where('id', $id)->value('state'))->toBe('sent')
+        ->and(DB::table('billing_journals')->count())->toBe(0);
+    Http::assertSent(static fn (Request $request): bool => str_contains($request->url(), '54321:sales_test/sendMessage')
+        && str_contains((string) $request['text'], 'تأیید نشد')
+        && str_contains((string) $request['reply_markup'], 'sales:wallet'));
+});
+
 it('rejects a destructive rollback once wallet notification evidence exists', function (): void {
     finNotSubmitted();
     $migration = require database_path('migrations/2026_10_21_000002_add_topup_id_to_telegram_notification_deliveries.php');
