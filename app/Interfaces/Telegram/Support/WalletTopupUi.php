@@ -133,7 +133,7 @@ final readonly class WalletTopupUi
             return false;
         }
 
-        $photos = $bot->message()?->photo ?? [];
+        $photos = $bot->message()->photo ?? [];
         $photo = $photos === [] ? null : $photos[array_key_last($photos)];
         $messageId = $bot->message()?->message_id;
         if ($photo === null || ! is_int($messageId)) {
