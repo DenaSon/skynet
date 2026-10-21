@@ -7,6 +7,7 @@ namespace App\Interfaces\Telegram\Notifications;
 use App\Interfaces\Telegram\Support\SubscriptionPageLink;
 use App\Interfaces\Telegram\Support\TelegramUi;
 use App\Modules\Billing\Application\BrowsePhotoTopups;
+use App\Modules\Billing\Application\VerifyWalletOrderDebit;
 use App\Modules\Billing\Application\ViewWallet;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\TelegramRecipient;
@@ -158,7 +159,7 @@ final readonly class TelegramNotificationSender
                 ->where('s.method', 'customer_wallet')
                 ->first(['o.total_price_rials', 's.amount_rials', 's.billing_journal_id']);
             if ($order === null || (int) $order->total_price_rials !== (int) $order->amount_rials
-                || ! app(\App\Modules\Billing\Application\VerifyWalletOrderDebit::class)->handle(
+                || ! app(VerifyWalletOrderDebit::class)->handle(
                     $userId, $orderId, (int) $order->billing_journal_id, (int) $order->total_price_rials,
                 )) {
                 throw new NotificationUnavailable('invalid_settlement');
@@ -171,7 +172,7 @@ final readonly class TelegramNotificationSender
             }
 
             $amount = TelegramUi::toman((int) $order->amount_rials);
-            $message = "<b>✅ پرداخت از کیف پول موفق بود</b>"
+            $message = '<b>✅ پرداخت از کیف پول موفق بود</b>'
                 ."\n\nسفارش #{$orderId}"
                 ."\nمبلغ کسرشده: <b>{$amount} تومان</b>"
                 ."\nموجودی فعلی: <b>".TelegramUi::toman($balance).' تومان</b>'
