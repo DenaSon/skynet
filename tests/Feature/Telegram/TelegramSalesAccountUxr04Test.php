@@ -139,8 +139,31 @@ it('counts all linked owned services regardless of pagination and never calls th
     expect($next->items)->toHaveCount(2);
     $bot = uxr04Bot(988103);
     $bot->hearCallbackQueryData('sales:subs:list:0')->reply()->assertRaw(
-        static fn (Request $request): bool => str_contains(uxr04Payload($request)['text'], 'سرویس‌های ثبت‌شده: <b>8</b>'),
-        index: 1,
+        static function (Request $request) use ($first): bool {
+            $payload = uxr04Payload($request);
+            $buttons = $payload['reply_markup']['inline_keyboard'];
+            $encoded = json_encode($buttons, JSON_THROW_ON_ERROR);
+            $activeIds = array_map(
+                static fn ($item): int => $item->orderId,
+                array_filter($first->items, static fn ($item): bool => $item->status === 'active'),
+            );
+            foreach ($activeIds as $id) {
+                if (! str_contains($encoded, 'sales:subs:link:'.$id.':0')) {
+                    return false;
+                }
+            }
+            $notActive = array_filter($first->items, static fn ($item): bool => $item->status !== 'active');
+            foreach ($notActive as $item) {
+                if (str_contains($encoded, 'sales:subs:link:'.$item->orderId.':0')) {
+                    return false;
+                }
+            }
+
+            return str_contains($payload['text'], 'سرویس‌های ثبت‌شده: <b>8</b>')
+                && ! str_contains($encoded, 'subscriptionUrl')
+                && ! str_contains($encoded, 'remote_user_id')
+                && ! str_contains($encoded, 'https://');
+        }, index: 1,
     );
     Http::assertNothingSent();
 });
