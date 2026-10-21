@@ -1,3 +1,7 @@
+## WAL-01 — Member wallet read with unchanged finance write boundaries (2026-10-21, source pending CI)
+
+Issue #148 / parent #144: authenticated active member and reseller can read their own uniquely keyed ledger-derived wallet in Sales Account → Wallet, with clear toman amount, bounded top-up states and familiar Back/Home. All privileged Billing write Actions (`RequestTopup`, `DebitWalletForOrder`, existing root review) still use their existing role and feature gates; guest, inactive and revoked identities cannot read. No funds, top-up request, settlement, migration, flags or provider writes in this phase; WAL-02 implements photo top-ups separately. Live Sales wallet E2E must be verified after deploy.
+
 ## REF-01 — Sales invitation usability (2026-10-21, source pending CI)
 
 Operator-approved issue #147 / EPIC-REF #143: retain the existing unique `GetReferralInvite` code, stable `ref_<code>` start payload, native `TelegramUi::copy` and one-time `JoinFromTelegram` attribution. Add only native Telegram `t.me/share/url` share for the verified configured Sales-bot URL and show truthful successful-registration count; no referral reward, wallet write, new schema or dependency. Actual new-account deep-link & share-sheet need separate real Telegram smoke, not just fake transport tests. Real Runflare Sales `/start` was confirmed functional by operator after the deployment incident.
