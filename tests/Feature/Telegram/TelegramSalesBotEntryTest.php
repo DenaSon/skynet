@@ -42,7 +42,7 @@ it('shows a real Sales-only home and account for linked members without commerce
     $bot = sb01Bot(771001);
 
     $bot->hearText('/start')->reply()
-        ->assertReplyText("<b>🏠 DenaGate</b>\n\nخوش آمدید، Buyer.\nنوع حساب: کاربر");
+        ->assertReplyText("<b>🏠 DenaGate</b>\n\nخوش آمدید، Buyer.\nنوع حساب: <b>👤 کاربر عادی</b>");
     $bot->hearText('/account')->reply()
         ->assertCalled('sendMessage');
     $bot->hearCallbackQueryData('sales:home')->reply()->assertCalled('editMessageText');
@@ -62,11 +62,11 @@ it('uses current roles without making Admin or legacy checkout routes available 
     $bot = sb01Bot(771002);
 
     $bot->hearText('/start')->reply()->assertReplyText(
-        "<b>🏠 DenaGate</b>\n\nخوش آمدید، Dealer Ignored.\nنوع حساب: نماینده فروش"
+        "<b>🏠 DenaGate</b>\n\nخوش آمدید، Dealer Ignored.\nنوع حساب: <b>🧩 پنل فروش</b>"
     );
     $user->syncRoles(['member']);
     $bot->hearText('/start')->reply()->assertReplyText(
-        "<b>🏠 DenaGate</b>\n\nخوش آمدید، Dealer Ignored.\nنوع حساب: کاربر"
+        "<b>🏠 DenaGate</b>\n\nخوش آمدید، Dealer Ignored.\nنوع حساب: <b>👤 کاربر عادی</b>"
     );
 
     foreach (['/admin', '/roles', '/payments', '/buy'] as $command) {
@@ -83,7 +83,7 @@ it('automatically enrolls a new private Sales buyer on /start even when global s
     $bot = sb01Bot(771003);
     $bot->hearText('/start')->reply()
         ->assertCalled('sendMessage', 2)
-        ->assertReplyText("<b>🏠 DenaGate</b>\n\nخوش آمدید، Sales Buyer.\nنوع حساب: کاربر");
+        ->assertReplyText("<b>🏠 DenaGate</b>\n\nخوش آمدید، Sales Buyer.\nنوع حساب: <b>👤 کاربر عادی</b>");
 
     $account = TelegramAccount::query()->where('telegram_user_id', 771003)->firstOrFail();
     expect($account->user->is_active)->toBeTrue()
