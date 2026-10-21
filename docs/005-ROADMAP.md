@@ -1,5 +1,25 @@
 # Roadmap
 
+## Latest reconciliation — code complete vs live TODO (2026-10-21)
+
+**Authoritative current status for the Sales MVP (supersedes the historical "planned"/"not started"/default-OFF paragraphs below):** UXR-01..05 source delivered in #128–#134; CLOSE-01/02 source delivered in #135/#136. #137 made **four specific flags default true only when ENV is absent** (explicit false still wins and other flags remain independent); #138 repaired Admin media-origin callback/Home and Sales Home routing; #139 delivered native green Buy/blue Services button styles and legacy-text compatibility. All are on `master`; the latest #139 PR CI passed PHP 8.4/8.5, 642 Pest tests / 4,030 assertions, PHPStan, Pint and MySQL. No claim of deployed production configuration or all-client live acceptance is implied.
+
+**Permanent UI baseline:** [Normative Telegram identity / UI standard](017-TELEGRAM-UX-IDENTITY.md) applies to every future scoped change in either bot: semantic native colors, relevant restrained emojis, Persian RTL readability and spacing, selective escaped HTML bold/blockquote/code and native copy, clean Reply-vs-Inline navigation, contextual Back/Cancel, and no regressions or broad refactor. Keep [AGENTS.md](../AGENTS.md) in sync.
+
+**Outstanding, prioritized by acceptance dependency rather than new features:**
+
+| Priority | Live verification / decision still required | Tracker |
+| --- | --- | --- |
+| P0 — operational readiness | Read effective Production Sales/notifications/four activation gates, queue worker, scheduler/outbox, root permission and two-bot reachability. Default values in source do **not** prove runtime readiness. Review and mitigate the cross-order same-deposit evidence risk before real bank approval. No unilateral ENV/money/RW changes. | [#115](https://github.com/DenaSon/skynet/issues/115), [#117](https://github.com/DenaSon/skynet/issues/117) |
+| P0 — controlled real flow | Test receipt photo → Admin approve/reject only → one approved ledger event → one actual RW CREATE with failure/replay/timeout checks → preparation and final customer notification → owner-only link; verify reject/no CREATE. Current source implementation is merged, but this version lacks end-to-end sign-off. | [#117](https://github.com/DenaSon/skynet/issues/117), [#118](https://github.com/DenaSon/skynet/issues/118), [#119](https://github.com/DenaSon/skynet/issues/119) |
+| P1 — customer/UI live smoke | Check correct Sales Home from Reply and Inline, old Buy label, Admin media-origin return, color compatibility, service list and direct link, actual support contact and importing subscriptions with Android/iOS/Windows/macOS supported clients. Do not infer device import from mocked API tests. | [#124](https://github.com/DenaSon/skynet/issues/124), [#125](https://github.com/DenaSon/skynet/issues/125), [#115](https://github.com/DenaSon/skynet/issues/115) |
+| P1 — external page rollout | With separate authorization and [runbook](027-UXR05-SUBSCRIPTION-PAGE-RUNBOOK.md), install the **official** RW Subscription Page with safe DNS/TLS, DenaGate branding, provider URL compatibility, exact host and real browser/client checks; only then enable the bot's exact-host handoff. | [#121](https://github.com/DenaSon/skynet/issues/121) |
+| Decision, not pre-approved development | Accurate **all-services** active/expired totals cannot be derived from local history; choose a small evidence-backed alternative or accept clearly labeled local counts before adding synchronization/remote reads. | [#124](https://github.com/DenaSon/skynet/issues/124) |
+| Deferred TD | Host detail displays zero Config Profile UUID; diagnose read/mapping later, no unauthorized Host/Provider writes or new features. | [#111](https://github.com/DenaSon/skynet/issues/111) |
+
+**Closure rule:** [#115](https://github.com/DenaSon/skynet/issues/115) stays open until its child live-acceptance criteria are truly evidenced. Source CI and operator-reported historical happy paths cannot substitute for new negative-case smoke. This checkpoint only updates documentation, not runtime behavior, infrastructure or financial operations.
+
+
 
 > **UXR-05 source milestone (2026-10-21):** The operator authorized official Remnawave Subscription Page integration (#121) after UXR-04 PR #133. The Sales Bot integration uses optional exact-host validation and existing owner-checked subscription reads; deployment of the official page, DNS/TLS, builder branding, panel config and genuine browser/client acceptance are separate **not executed** operations. See [docs/026](026-SALES-UX-ROADMAP.md) and [docs/027](027-UXR05-SUBSCRIPTION-PAGE-RUNBOOK.md). Preserve previously completed financial/provider flows and default-OFF flags.
 
