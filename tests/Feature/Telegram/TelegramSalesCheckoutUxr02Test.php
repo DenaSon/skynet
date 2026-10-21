@@ -96,6 +96,111 @@ function uxr02Payload(Request $request): array
     return $data;
 }
 
+/** Credit the existing real ledger for a member with a root-reviewed test receipt. */
+function wal03Credit(User $buyer, User $root, int $amount, string $ref): void
+{
+    config()->set('billing.topups_enabled', true);
+    $id = app(\App\Modules\Billing\Application\RequestTopup::class)->handle($buyer->id, $amount, 'wal03:topup:'.bin2hex(random_bytes(7)));
+    app(\App\Modules\Billing\Application\SubmitTopupPhoto::class)->handle(
+        $buyer->id, $id, 989001, 'wallet-photo-'.$ref, 'unique-wallet-'.$ref, random_int(1001, 90001),
+    );
+    app(\App\Modules\Billing\Application\ReviewTopup::class)->handle($root->id, $id, true, $ref);
+}
+
+it('confirms member wallet purchase once and retains existing bank payment as an alternative', function (): void {
+    $data = uxr02Plan();
+    $buyer = User::factory()->create();
+    $bot = uxr02Bot(973301, $buyer);
+    wal03Credit($buyer, $data['root'], 1_500_000, 'WAL03REF101');
+    config()->set('sales.wallet_settlement_enabled', true);
+
+    $bot->hearCallbackQueryData('catalog:detail:'.$data['plan'].':1')->reply()->assertRaw(static function (Request $req): bool {
+        $body = uxr02Payload($req);
+        $kb = json_encode($body['reply_markup'], JSON_THROW_ON_ERROR);
+
+        return str_contains($kb, 'sales:checkout:wallet:')
+            && str_contains($kb, 'sales:payment:start:')
+            && ! str_contains($body['text'], 'پرداخت سفارش');
+    }, index: 1);
+
+    $order = (int) DB::table('sales_orders')->value('id');
+    $bot->hearCallbackQueryData('sales:checkout:wallet:'.$order)->reply()->assertRaw(static function (Request $req): bool {
+        $body = uxr02Payload($req);
+        return str_contains($body['text'], 'تأیید پرداخت از کیف پول')
+            && str_contains($body['text'], '<b>100,000 تومان</b>')
+            && str_contains($body['text'], '<b>50,000 تومان</b>')
+            && ($body['parse_mode'] ?? null) === 'HTML';
+    }, index: 1);
+    $key = TelegramBotContext::current()->cacheKey('telegram:sales:walletpay:'.$buyer->id.':'.$order);
+    $token = Cache::get($key)['token'];
+    expect(DB::table('sales_order_settlements')->count())->toBe(0);
+
+    $bot->hearCallbackQueryData('sales:checkout:wallet:confirm:'.$order.':'.$token)->reply()
+        ->assertCalled('editMessageText');
+    expect(DB::table('sales_orders')->where('id', $order)->value('status'))->toBe('paid')
+        ->and(DB::table('sales_order_settlements')->where('sales_order_id', $order)->value('method'))->toBe('customer_wallet')
+        ->and(DB::table('sales_order_settlements')->count())->toBe(1)
+        ->and(DB::table('sales_fulfillment_outbox')->count())->toBe(1)
+        ->and(DB::table('billing_journals')->where('kind', 'purchase')->count())->toBe(1)
+        ->and(DB::table('billing_postings')->where('account_code', 'order_liability')->count())->toBe(1)
+        ->and(app(\App\Modules\Billing\Application\ViewWallet::class)->handle($buyer->id)->balanceRials)->toBe(500_000);
+
+    $bot->hearCallbackQueryData('sales:checkout:wallet:confirm:'.$order.':'.$token)->reply()->assertCalled('editMessageText');
+    expect(DB::table('sales_order_settlements')->count())->toBe(1)
+        ->and(DB::table('billing_journals')->where('kind', 'purchase')->count())->toBe(1);
+    Http::assertNothingSent();
+});
+
+it('does not show or execute a wallet debit without enough credit or against an active bank receipt', function (): void {
+    $data = uxr02Plan();
+    $buyer = User::factory()->create();
+    $bot = uxr02Bot(973302, $buyer);
+    config()->set('sales.wallet_settlement_enabled', true);
+    $bot->hearCallbackQueryData('catalog:detail:'.$data['plan'].':1')->reply()->assertCalled('sendMessage');
+    $order = (int) DB::table('sales_orders')->value('id');
+    $bot->hearCallbackQueryData('sales:checkout:wallet:'.$order)->reply()->assertCalled('editMessageText');
+    expect(DB::table('sales_order_settlements')->count())->toBe(0);
+
+    wal03Credit($buyer, $data['root'], 1_500_000, 'WAL03REF102');
+    $bot->hearCallbackQueryData('sales:checkout:view:'.$order)->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:checkout:wallet:'.$order)->reply()->assertCalled('editMessageText');
+    $key = TelegramBotContext::current()->cacheKey('telegram:sales:walletpay:'.$buyer->id.':'.$order);
+    $token = Cache::get($key)['token'];
+
+    DB::table('sales_bank_payment_claims')->insert([
+        'sales_order_id' => $order,
+        'buyer_user_id' => $buyer->id,
+        'photo_encrypted' => 'test-only',
+        'photo_fingerprint' => hash('sha256', 'wal03-bank-claim'),
+        'telegram_message_key' => 'tg:sales:973302:944',
+        'source_bot_key' => 'sales',
+        'status' => 'submitted',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+    $bot->hearCallbackQueryData('sales:checkout:wallet:confirm:'.$order.':'.$token)->reply()->assertCalled('editMessageText');
+    expect(DB::table('sales_orders')->where('id', $order)->value('status'))->toBe('pending_payment')
+        ->and(DB::table('sales_order_settlements')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->where('kind', 'purchase')->count())->toBe(0);
+});
+
+it('allows wallet-only managed plan checkout without configured bank card, but not without funds', function (): void {
+    $data = uxr02Plan();
+    $buyer = User::factory()->create();
+    $bot = uxr02Bot(973303, $buyer);
+    config()->set('sales.wallet_settlement_enabled', true);
+    config()->set('sales.manual_bank_review_enabled', false);
+    config()->set('billing.payment_card_number', '');
+
+    $bot->hearCallbackQueryData('catalog:detail:'.$data['plan'].':1')->reply()->assertCalled('editMessageText');
+    expect(DB::table('sales_orders')->count())->toBe(0);
+
+    wal03Credit($buyer, $data['root'], 1_000_000, 'WAL03REF103');
+    $bot->hearCallbackQueryData('catalog:detail:'.$data['plan'].':1')->reply()->assertCalled('editMessageText');
+    expect(DB::table('sales_orders')->count())->toBe(1);
+    Http::assertNothingSent();
+});
+
 it('selects a ready plan from home or catalog into one price-and-card payment page with ForceReply', function (): void {
     expect(Cache::getStore())->toBeInstanceOf(DatabaseStore::class);
     $data = uxr02Plan();
