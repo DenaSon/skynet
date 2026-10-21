@@ -38,7 +38,7 @@ it('preserves linked Member and Reseller read-only legacy paths while denying pr
     $memberBot = mb06aLegacyActor(990601, $member);
 
     $memberBot->hearText('/start')->reply()
-        ->assertReplyText("🏠 ParsaGate\n\nخوش آمدید، Acceptance Member.");
+        ->assertReplyText("🏠 DenaGate\n\nخوش آمدید، Acceptance Member.");
     foreach (['/buy', '/catalog', '/orders', '/subscriptions'] as $command) {
         $memberBot->hearText($command)->reply()->assertCalled('sendMessage');
     }
@@ -54,7 +54,7 @@ it('preserves linked Member and Reseller read-only legacy paths while denying pr
     $resellerBot = mb06aLegacyActor(990602, $reseller);
 
     $resellerBot->hearText('/start')->reply()
-        ->assertReplyText("🏠 ParsaGate\n\nخوش آمدید، Acceptance Reseller.");
+        ->assertReplyText("🏠 DenaGate\n\nخوش آمدید، Acceptance Reseller.");
     $resellerBot->hearText('/builder')->reply()->assertCalled('sendMessage');
     $resellerBot->hearText('/catalog')->reply()->assertCalled('sendMessage');
     $resellerBot->hearText('/admin')->reply()->assertReplyText('دسترسی مجاز نیست.');
@@ -80,7 +80,7 @@ it('keeps ordinary Admin read navigation without granting trusted root privilege
     $admin = User::factory()->admin()->create();
     $bot = mb06aLegacyActor(990603, $admin);
     $bot->hearText('/start')->reply()
-        ->assertReplyText("🛡️ مدیریت ParsaGate\n\nبخش موردنظر را انتخاب کنید.");
+        ->assertReplyText("🛡️ مدیریت DenaGate\n\nبخش موردنظر را انتخاب کنید.");
     $bot->hearText('/users')->reply()->assertCalled('sendMessage');
     $bot->hearText('/roles')->reply()->assertReplyText('دسترسی مجاز نیست.');
     $bot->hearText('/payments')->reply()->assertReplyText('دسترسی مجاز نیست.');
