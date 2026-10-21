@@ -147,39 +147,40 @@ it('keeps private chat guards and refuses stale Admin keyboards for inactive use
         ->assertReplyText('🔒 حساب شما به ParsaGate متصل نیست. برای اتصال، کد یک‌بارمصرف صادرشده توسط مدیر را در گفت‌وگوی خصوصی با دستور /link وارد کنید.');
 });
 
-it('opens Admin as a fresh text message from a photo receipt and preserves text callback editing', function (): void {
-    config()->set('telegram.hybrid_menu_enabled', false);
+it('renders Admin as fresh text from a photo callback without trying to edit the media', function (): void {
+    // Routing/RBAC are covered by earlier tests. This isolates the media
+    // transport path without Nutgram Fake's synthetic-photo routing limits.
     $admin = User::factory()->admin()->create();
-    $bot = mb04Bot(984101, $admin);
-    $bot->onException(static function (Nutgram $bot, \Throwable $exception): void {
-        throw $exception;
-    });
+    TelegramAccount::query()->create(['user_id' => $admin->id, 'telegram_user_id' => 984101]);
+    $actor = app(ResolveTelegramActor::class)->handle(984101);
+    expect($actor)->not->toBeNull();
 
-    $bot->hearCallbackQueryData('menu:admin')->reply()
-        ->assertCalled('answerCallbackQuery')->assertCalled('editMessageText');
+    $photo = new \\SergiX44\\Nutgram\\Telegram\\Types\\Message\\Message;
+    $photo->photo = [['file_id' => 'test-receipt', 'width' => 600, 'height' => 600]];
 
-    // Start with Nutgram's standard, routable fake callback, then attach
-    // a photo to its message. This avoids forging a second test-only router.
-    $bot->hearCallbackQueryData('menu:admin');
-    $mode = $bot->getContainer()->get(\SergiX44\Nutgram\RunningMode\RunningMode::class);
-    $update = (new \ReflectionProperty(\SergiX44\Nutgram\RunningMode\Fake::class, 'update'))->getValue($mode);
-    $update->callback_query->message->photo = [
-        ['file_id' => 'receipt-file', 'file_unique_id' => 'receipt-unique', 'width' => 600, 'height' => 600],
-    ];
-    $bot->hearUpdate($update);
-    expect($update->getType())->toBe(\SergiX44\Nutgram\Telegram\Properties\UpdateType::CALLBACK_QUERY)
-        ->and($update->getUser()?->id)->toBe(984101)
-        ->and($update->getChat()?->id)->toBe(984101)
-        ->and($update->getMessage()?->photo)->not->toBeEmpty();
+    $bot = \\Mockery::mock(Nutgram::class);
+    $bot->shouldReceive('isCallbackQuery')->twice()->andReturn(true);
+    $bot->shouldReceive('answerCallbackQuery')->once()->andReturn(true);
+    $bot->shouldReceive('message')->once()->andReturn($photo);
+    $bot->shouldReceive('sendMessage')->once()->andReturn(new \\SergiX44\\Nutgram\\Telegram\\Types\\Message\\Message);
+    $bot->shouldNotReceive('editMessageText');
+    app(\\App\\Interfaces\\Telegram\\Support\\MenuRenderer::class)->showAdmin($bot, $actor);
+});
 
-    $bot->reply()
-        ->assertCalled('answerCallbackQuery')
-        ->assertCalled('sendMessage', 1)
-        ->assertCalled('editMessageText', 0)
-        ->assertReplyText("🛡️ مدیریت ParsaGate\n\nبخش موردنظر را انتخاب کنید.");
+it('keeps in-place Admin text menu edits for ordinary callbacks', function (): void {
+    $admin = User::factory()->admin()->create();
+    TelegramAccount::query()->create(['user_id' => $admin->id, 'telegram_user_id' => 984102]);
+    $actor = app(ResolveTelegramActor::class)->handle(984102);
+    expect($actor)->not->toBeNull();
 
-    $bot->hearCallbackQueryData('menu:admin')->reply()
-        ->assertCalled('answerCallbackQuery')
-        ->assertCalled('editMessageText', 1)
-        ->assertCalled('sendMessage', 0);
+    $textMessage = new \\SergiX44\\Nutgram\\Telegram\\Types\\Message\\Message;
+    $textMessage->text = 'Previous Admin page';
+
+    $bot = \\Mockery::mock(Nutgram::class);
+    $bot->shouldReceive('isCallbackQuery')->twice()->andReturn(true);
+    $bot->shouldReceive('answerCallbackQuery')->once()->andReturn(true);
+    $bot->shouldReceive('message')->once()->andReturn($textMessage);
+    $bot->shouldReceive('editMessageText')->once()->andReturn(new \\SergiX44\\Nutgram\\Telegram\\Types\\Message\\Message);
+    $bot->shouldNotReceive('sendMessage');
+    app(\\App\\Interfaces\\Telegram\\Support\\MenuRenderer::class)->showAdmin($bot, $actor);
 });
