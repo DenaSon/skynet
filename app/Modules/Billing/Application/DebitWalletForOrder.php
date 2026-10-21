@@ -27,9 +27,9 @@ final readonly class DebitWalletForOrder
             throw ValidationException::withMessages(['payment' => 'Invalid wallet purchase amount.']);
         }
 
-        // WalletAccess freshly checks the active reseller role. Lock the wallet row
+        // WalletAccess freshly checks the active member/reseller role. Lock the wallet row
         // before measuring liability so two different orders cannot overspend it.
-        $walletId = $this->wallets->walletId($buyerId);
+        $walletId = $this->wallets->customerWalletId($buyerId);
         $wallet = DB::table('billing_wallets')->where('id', $walletId)->lockForUpdate()->first();
 
         if ($wallet === null) {
