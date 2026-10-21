@@ -1,3 +1,9 @@
+## Prelaunch customer signup correction (2026-10-21, operator-approved)
+
+Sales is a public-facing bot. Private new Telegram IDs now auto-enroll as ordinary members on `/start` (or `/menu`) using the already existing transactional `JoinFromTelegram` and `RegisterTelegramMember`; existing linked accounts retain roles/IDs; disabled accounts stay blocked. Welcome + persistent Sales Reply menu are sent in the same entry. The global Admin/legacy `TELEGRAM_PUBLIC_SIGNUP_ENABLED` gate remains OFF and is not read by Sales signup; do not enable it globally as a workaround. Existing `/link` stays compatible for previously issued accounts, while stale Sales `sales:join` callbacks show the `/start` guidance. No schema, role elevation, new registration service, wallet/bank/provider write or unrelated UI scope.
+
+**Verification:** Test unseen/known/disabled identities, repeat `/start`/`/menu`, separate user IDs, deep-link referral once, old callback, group/mismatched chat denial, and Admin unknown visitor denial. CI only proves source; run an independent real new-account Sales test after production deployment.
+
 ## Operator acceptance and follow-up — 2026-10-21
 
 - #117 receipt review, #118 automatic fulfillment and #119 activation notification are CLOSED on operator-reported real PASS. Core flow #115 is CLOSED at operator request, independently of open #124/#125/#121.
