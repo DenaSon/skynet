@@ -269,8 +269,8 @@ final readonly class SalesSubscriptionsUi
             ."\nحجم پلن: {$traffic}"
             ."\nقیمت فعلی: <b>".TelegramUi::toman($draft->priceRials).' تومان</b>'
             ."\n\n<blockquote>این پیش‌نمایش فقط برای همین سرویس ذخیره شد."
-            ." پرداخت تمدید هنوز فعال نیست و هیچ مبلغی دریافت نشده است."
-            ." قیمت در زمان فعال شدن پرداخت دوباره بررسی می‌شود.</blockquote>";
+            .' پرداخت تمدید هنوز فعال نیست و هیچ مبلغی دریافت نشده است.'
+            .' قیمت در زمان فعال شدن پرداخت دوباره بررسی می‌شود.</blockquote>';
 
         $this->render($bot, $message, $this->renewalButtons($sourceId, $cursor), ! $acknowledged);
     }

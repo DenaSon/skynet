@@ -169,7 +169,9 @@ it('shows an owner-only Sales preview with escaped plan name and no payment or p
     $bot->hearCallbackQueryData('sales:subs:view:'.$data['order'].':0')->reply()
         ->assertRaw(static function (NutgramRequest $r): bool {
             $data = ren01Payload($r);
+
             $markup = $data['reply_markup']['inline_keyboard'] ?? [];
+
             foreach ($markup as $row) {
                 foreach ($row as $button) {
                     if (str_contains($button['callback_data'] ?? '', 'sales:subs:renew:')) {
@@ -184,6 +186,7 @@ it('shows an owner-only Sales preview with escaped plan name and no payment or p
         ->assertRaw(static function (NutgramRequest $r): bool {
             $p = ren01Payload($r);
             $markup = json_encode($p['reply_markup'], JSON_THROW_ON_ERROR);
+
             return str_contains($p['text'], 'پیش‌نمایش تمدید')
                 && str_contains($p['text'], '&lt;Dena &amp; Name&gt;')
                 && str_contains($p['text'], '<b>100,000 تومان</b>')

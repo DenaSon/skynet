@@ -16,8 +16,7 @@ final readonly class ReadRenewableSubscription
     {
         return $this->access->read(
             $viewer, $orderId,
-            static fn (RemnawaveUserSnapshot $remote): bool =>
-                in_array($remote->status, ['ACTIVE', 'LIMITED', 'EXPIRED'], true)
+            static fn (RemnawaveUserSnapshot $remote): bool => in_array($remote->status, ['ACTIVE', 'LIMITED', 'EXPIRED'], true)
                 && $remote->trafficLimitStrategy === 'NO_RESET'
                 && $remote->activeInternalSquadUuids === [strtolower($expectedSquadUuid)],
             requireUsable: false,

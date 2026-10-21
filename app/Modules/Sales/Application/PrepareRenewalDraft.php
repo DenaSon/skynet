@@ -6,8 +6,8 @@ namespace App\Modules\Sales\Application;
 
 use App\Modules\Identity\Application\AuthorizeSubscriptionViewer;
 use App\Modules\Identity\Application\SubscriptionViewer;
-use App\Modules\Provisioning\Application\ReadRenewableSubscription;
 use App\Modules\Provisioning\Application\CheckPlanSquadReadiness;
+use App\Modules\Provisioning\Application\ReadRenewableSubscription;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
