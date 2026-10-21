@@ -160,6 +160,8 @@ it('never renders a successful provider state on failed, malformed or missing-co
 });
 
 it('prepares version-bound Plan to Squad readiness without enabling provider writes or sales', function (): void {
+    // Prove the read-only Action does not flip an explicitly disabled RW switch.
+    config()->set('services.remnawave.writes_enabled', false);
     [$root] = mb05bRoot();
     app(ConfigureProduct::class)->handle('vpn-access', 'VPN');
     $plan = app(ManagePlans::class)->create($root->id, new PlanDefinition(
