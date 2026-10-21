@@ -8,7 +8,7 @@ final class ViewWallet
 {
     public function handle(int $userId): WalletSnapshot
     {
-        $walletId = app(WalletAccess::class)->walletId($userId);
+        $walletId = app(WalletAccess::class)->customerWalletId($userId);
 
         // The wallet liability postings, not a mutable user.balance, are authoritative.
         $credits = (int) DB::table('billing_postings')

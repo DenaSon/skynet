@@ -171,6 +171,33 @@ it('does not invent a referral share destination when Sales username is not vali
     Http::assertNothingSent();
 });
 
+it('shows an ordinary active member their own zero wallet balance without a top-up write', function (): void {
+    $user = User::factory()->create();
+    $user->assignRole('member');
+    $bot = uxr01Bot($user);
+
+    $bot->hearText('/account')->reply()->assertRaw(static function (Request $request): bool {
+        $data = uxr01Payload($request);
+        $buttons = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+
+        return str_contains($data['text'], 'موجودی کیف پول: <b>0 تومان</b>')
+            && str_contains($buttons, 'sales:wallet')
+            && ! str_contains($buttons, 'menu:builder');
+    });
+    $bot->hearCallbackQueryData('sales:wallet')->reply()->assertRaw(static function (Request $request): bool {
+        $data = uxr01Payload($request);
+
+        return str_contains($data['text'], '<b>💼 کیف پول من</b>')
+            && str_contains($data['text'], 'موجودی: <b>0 تومان</b>')
+            && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:account');
+    }, index: 1);
+
+    expect(DB::table('billing_wallets')->where('user_id', $user->id)->count())->toBe(1)
+        ->and(DB::table('billing_topups')->count())->toBe(0)
+        ->and(DB::table('billing_postings')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
 it('offers a real configured Telegram contact and short guides with working back navigation', function (): void {
     $user = User::factory()->create();
     $bot = uxr01Bot($user);

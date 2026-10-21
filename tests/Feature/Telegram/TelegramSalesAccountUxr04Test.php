@@ -168,16 +168,16 @@ it('counts all linked owned services regardless of pagination and never calls th
     Http::assertNothingSent();
 });
 
-it('gates wallet behind fresh reseller authorization and keeps unauthorized or revoked users private', function (): void {
+it('shows wallet to active members and resellers but denies inactive and revoked accounts', function (): void {
     $member = uxr04Buyer(988105);
     $bot = uxr04Bot(988105);
     $bot->hearText('/account')->reply()->assertRaw(static function (Request $request): bool {
         $markup = json_encode(uxr04Payload($request)['reply_markup'], JSON_THROW_ON_ERROR);
 
-        return ! str_contains($markup, 'sales:wallet');
+        return str_contains($markup, 'sales:wallet');
     });
     $bot->hearCallbackQueryData('sales:wallet')->reply()->assertRaw(static function (Request $request): bool {
-        return str_contains(uxr04Payload($request)['text'], 'فقط برای نمایندگان');
+        return str_contains(uxr04Payload($request)['text'], 'موجودی: <b>0 تومان</b>');
     }, index: 1);
 
     $member->syncRoles(['reseller']);
@@ -187,8 +187,11 @@ it('gates wallet behind fresh reseller authorization and keeps unauthorized or r
         return str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:wallet')
             && str_contains($data['text'], 'موجودی نمایندگی');
     });
+    $member->syncRoles([]);
+    $bot->hearCallbackQueryData('sales:wallet')->reply()->assertRaw(static function (Request $request): bool {
+        return str_contains(uxr04Payload($request)['text'], 'برای این حساب در دسترس نیست');
+    }, index: 1);
     $member->syncRoles(['member']);
-    $bot->hearCallbackQueryData('sales:wallet')->reply()->assertCalled('editMessageText');
     $member->forceFill(['is_active' => false])->save();
     $bot->hearCallbackQueryData('sales:wallet')->reply()->assertCalled('editMessageText');
     Http::assertNothingSent();

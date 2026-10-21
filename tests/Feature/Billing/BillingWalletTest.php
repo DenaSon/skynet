@@ -34,7 +34,7 @@ function billingRoot(int $telegramId = 747474): User
     return $root;
 }
 
-it('creates an empty wallet for a reseller but never grants wallet access to ordinary members', function (): void {
+it('creates one empty wallet for active members and resellers without granting member write permissions', function (): void {
     $reseller = billingReseller();
     $snapshot = app(ViewWallet::class)->handle($reseller->id);
     expect($snapshot->balanceRials)->toBe(0)
@@ -45,6 +45,17 @@ it('creates an empty wallet for a reseller but never grants wallet access to ord
         ->and(DB::table('billing_wallets')->count())->toBe(1);
 
     $member = User::factory()->create();
+    $member->assignRole('member');
+    expect(app(ViewWallet::class)->handle($member->id)->balanceRials)->toBe(0)
+        ->and(app(ViewWallet::class)->handle($member->id)->topups)->toBe([])
+        ->and(DB::table('billing_wallets')->count())->toBe(2)
+        ->and(fn () => app(RequestTopup::class)->handle($member->id, 500000, 'tg:member:123456'))
+        ->toThrow(AuthorizationException::class);
+
+    $outsider = User::factory()->create();
+    $outsider->syncRoles([]);
+    expect(fn () => app(ViewWallet::class)->handle($outsider->id))->toThrow(AuthorizationException::class);
+    $member->forceFill(['is_active' => false])->save();
     expect(fn () => app(ViewWallet::class)->handle($member->id))->toThrow(AuthorizationException::class);
     $reseller->forceFill(['is_active' => false])->save();
     expect(fn () => app(ViewWallet::class)->handle($reseller->id))->toThrow(AuthorizationException::class);

@@ -240,13 +240,17 @@ final readonly class SalesHomeUi
             ->addRow(InlineKeyboardButton::make('👥 دعوت دوستان', callback_data: 'sales:invite'));
 
         $balance = '';
-        if (in_array('reseller', $actor->roles, true)) {
+        if (in_array('member', $actor->roles, true) || in_array('reseller', $actor->roles, true)) {
+            $reseller = in_array('reseller', $actor->roles, true);
+            $label = $reseller ? 'موجودی نمایندگی' : 'موجودی کیف پول';
             try {
-                $balance = "\n💼 موجودی نمایندگی: <b>".TelegramUi::toman($this->wallets->handle($actor->userId)->balanceRials).' تومان</b>';
-                $keyboard->addRow(InlineKeyboardButton::make('💼 کیف پول نمایندگی', callback_data: 'sales:wallet'));
+                $balance = "\n💼 {$label}: <b>".TelegramUi::toman($this->wallets->handle($actor->userId)->balanceRials).' تومان</b>';
+                $keyboard->addRow(InlineKeyboardButton::make('💼 کیف پول', callback_data: 'sales:wallet'));
             } catch (Throwable) {
-                $balance = "\n💼 موجودی نمایندگی: فعلاً در دسترس نیست";
+                $balance = "\n💼 {$label}: فعلاً در دسترس نیست";
             }
+        }
+        if (in_array('reseller', $actor->roles, true)) {
             $keyboard->addRow(InlineKeyboardButton::make('🧩 پلن‌ساز نماینده', callback_data: 'menu:builder'));
         }
 
@@ -275,18 +279,24 @@ final readonly class SalesHomeUi
         if ($actor === null) {
             return;
         }
-        if (! in_array('reseller', $actor->roles, true)) {
-            $this->render($bot, 'کیف پول فقط برای نمایندگان فعال است.', $this->back());
+        if (! in_array('member', $actor->roles, true) && ! in_array('reseller', $actor->roles, true)) {
+            $this->render($bot, 'کیف پول برای این حساب در دسترس نیست.', $this->back());
 
             return;
         }
         try {
-            $balance = $this->wallets->handle($actor->userId)->balanceRials;
-            $message = '<b>💼 کیف پول نمایندگی</b>'
-                ."\n\nموجودی: <b>".TelegramUi::toman($balance).' تومان</b>'
-                ."\n\n<blockquote>موجودی براساس تراکنش‌های ثبت‌شده محاسبه شده است.</blockquote>";
+            $wallet = $this->wallets->handle($actor->userId);
+            $message = '<b>💼 کیف پول من</b>'
+                ."\n\nموجودی: <b>".TelegramUi::toman($wallet->balanceRials).' تومان</b>';
+            if ($wallet->topups !== []) {
+                $message .= "\n\n<b>آخرین درخواست‌های شارژ</b>";
+                foreach (array_slice($wallet->topups, 0, 5) as $topup) {
+                    $message .= "\n#".$topup['id'].' · '.TelegramUi::toman($topup['amount_rials']).' تومان · '.TelegramUi::topupStatus($topup['status']);
+                }
+            }
+            $message .= "\n\n<blockquote>موجودی براساس تراکنش‌های تأییدشده محاسبه می‌شود.</blockquote>";
         } catch (Throwable) {
-            $message = '<b>💼 کیف پول نمایندگی</b>'."\n\nموجودی فعلاً در دسترس نیست.";
+            $message = '<b>💼 کیف پول من</b>'."\n\nموجودی فعلاً در دسترس نیست.";
         }
 
         $this->render($bot, $message, InlineKeyboardMarkup::make()
