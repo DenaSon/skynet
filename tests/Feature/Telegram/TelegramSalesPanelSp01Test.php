@@ -99,7 +99,7 @@ it('cancels or expires the private form without creating an application', functi
 
     $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertCalled('editMessageText');
     $this->travel(11)->minutes();
-    $bot->hearText('علی')->reply()->assertCalled('editMessageText');
+    $bot->hearText('علی')->reply()->assertCalled('sendMessage');
     expect(DB::table('sales_panel_requests')->count())->toBe(0);
     Http::assertNothingSent();
 });
