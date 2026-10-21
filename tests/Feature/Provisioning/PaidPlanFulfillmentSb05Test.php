@@ -29,6 +29,7 @@ use App\Modules\Sales\Application\PlanDefinition;
 use App\Modules\Sales\Application\PlanPricingDefinition;
 use App\Modules\Sales\Application\SettleWalletOrder;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Bus\UniqueLock;
 use Illuminate\Database\Events\TransactionRolledBack;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
@@ -128,6 +129,58 @@ function sb05FakeCreate(int $orderId): void
         )], 201);
     }]);
 }
+
+/** @return array{buyer: User, root: User, order: int, plan: int} */
+function sb05WalletOrder(): array
+{
+    $data = sb05Order(pay: false);
+    config()->set('billing.topups_enabled', true);
+    $topup = app(RequestTopup::class)->handle($data['buyer']->id, 1_500_000, 'patch02:wallet:credit');
+    app(SubmitTopupPhoto::class)->handle($data['buyer']->id, $topup, 975099, 'patch02-wallet-file', 'patch02-wallet-unique', 9200);
+    app(ReviewTopup::class)->handle($data['root']->id, $topup, true, 'PATCH02WALLET100');
+    config()->set('sales.wallet_settlement_enabled', true);
+    config()->set('sales.auto_fulfillment_enabled', true);
+    config()->set('services.remnawave.writes_enabled', true);
+    config()->set('telegram_notifications.enabled', true);
+    config()->set('telegram.sales.enabled', true);
+    config()->set('telegram.sales.token', '54321:sales_test');
+    config()->set('nutgram.token', '12345:admin_test');
+    Queue::fake();
+    app(SettleWalletOrder::class)->handle(SubscriptionViewer::telegram(975099), $data['order']);
+
+    return $data;
+}
+
+it('routes both provider jobs to the configured safe async connection', function (string $connection, string $driver, string $expected): void {
+    config()->set('queue.default', $connection);
+    config()->set('queue.connections.'.$connection.'.driver', $driver);
+    $create = new FulfillPaidPlanOrderJob(42);
+    $status = new ChangeFulfilledSubscriptionStatusJob(42, 1, 'disable');
+
+    expect($create->connection)->toBe($expected)
+        ->and($status->connection)->toBe($expected)
+        ->and($create->tries)->toBe(1)->and($status->tries)->toBe(1)
+        ->and($create->timeout)->toBe(55)->and($status->timeout)->toBe(55);
+    Http::assertNothingSent();
+})->with([
+    ['database', 'database', 'database'],
+    ['redis', 'redis', 'redis'],
+    ['custom-redis', 'redis', 'custom-redis'],
+    ['sync', 'sync', 'database'],
+    ['null', 'null', 'database'],
+    ['deferred', 'deferred', 'database'],
+    ['background', 'background', 'database'],
+    ['failover', 'failover', 'database'],
+    ['unknown', 'unsupported', 'database'],
+]);
+
+it('fails closed if even the database fallback is configured to run inline', function (): void {
+    config()->set('queue.default', 'sync');
+    config()->set('queue.connections.database.driver', 'sync');
+    expect(fn () => new FulfillPaidPlanOrderJob(42))->toThrow(RuntimeException::class)
+        ->and(fn () => new ChangeFulfilledSubscriptionStatusJob(42, 1, 'disable'))->toThrow(RuntimeException::class);
+    Http::assertNothingSent();
+});
 
 it('keeps the existing fulfillment outbox dormant when provider writes are disabled', function (): void {
     $data = sb05Order();
@@ -799,12 +852,91 @@ it('recovers an approved pending bank order using the same guarded queue and no 
     Queue::fake();
     config()->set('sales.auto_fulfillment_enabled', true);
     config()->set('services.remnawave.writes_enabled', true);
+    config()->set('queue.default', 'redis');
 
     $this->artisan('sales:fulfillment:dispatch')->assertSuccessful();
 
     Queue::assertPushed(FulfillPaidPlanOrderJob::class,
         static fn (FulfillPaidPlanOrderJob $job): bool => $job->orderId === $data['order']
-            && $job->actorId === $data['root']->id);
+            && $job->actorId === $data['root']->id && $job->connection === 'redis');
+    Http::assertNothingSent();
+});
+
+it('recovers a lost wallet enqueue without another debit or duplicate provider create', function (): void {
+    $data = sb05WalletOrder();
+    // Discard the post-commit queue fake to model loss before enqueue. Durable
+    // payment + intent remain; recovery must not charge or impersonate a root.
+    Queue::fake();
+    config()->set('queue.default', 'redis');
+    // The enqueue failure may leave a unique lock until its 180s TTL expires.
+    app(UniqueLock::class)->release(new FulfillPaidPlanOrderJob($data['order']));
+    $postings = DB::table('billing_postings')->count();
+    $this->artisan('sales:fulfillment:dispatch')->assertSuccessful();
+    Queue::assertPushed(FulfillPaidPlanOrderJob::class, 1);
+    Queue::assertPushed(FulfillPaidPlanOrderJob::class,
+        static fn (FulfillPaidPlanOrderJob $job): bool => $job->orderId === $data['order']
+            && $job->actorId === 0 && ! $job->reconcile && $job->connection === 'redis');
+    Http::assertNothingSent();
+
+    sb05FakeCreate($data['order']);
+    $job = new FulfillPaidPlanOrderJob($data['order']);
+    $job->handle(app(FulfillPaidPlanOrder::class), app(AssertCatalogManagementAccess::class));
+    // A legacy database job may still arrive after the Redis worker succeeds.
+    $job->onConnection('database');
+    $job->handle(app(FulfillPaidPlanOrder::class), app(AssertCatalogManagementAccess::class));
+    Queue::fake();
+    $this->artisan('sales:fulfillment:dispatch')->assertSuccessful();
+    Queue::assertNotPushed(FulfillPaidPlanOrderJob::class);
+    expect(DB::table('billing_postings')->count())->toBe($postings)
+        ->and(app(ViewWallet::class)->handle($data['buyer']->id)->balanceRials)->toBe(500_000)
+        ->and(DB::table('provisioning_order_links')->count())->toBe(1);
+    Http::assertSentCount(1);
+});
+
+it('does not recover wallet intents that are unsafe or ineligible', function (string $case): void {
+    $data = sb05WalletOrder();
+    Queue::fake();
+    match ($case) {
+        'auto-off' => config()->set('sales.auto_fulfillment_enabled', false),
+        'writes-off' => config()->set('services.remnawave.writes_enabled', false),
+        'squads-off' => config()->set('services.remnawave.squad_bindings_live_verified', false),
+        'unpaid' => DB::table('sales_orders')->where('id', $data['order'])->update(['status' => 'pending_payment']),
+        'legacy' => DB::table('sales_order_settlements')->update(['method' => 'reseller_wallet']),
+        'amount' => DB::table('sales_order_settlements')->update(['amount_rials' => 1]),
+        'ledger' => DB::table('billing_postings')->where('account_code', 'order_liability')->update(['amount_rials' => 1]),
+        'attempted' => DB::table('sales_fulfillment_outbox')->update(['attempts' => 1]),
+        'event-key' => DB::table('sales_fulfillment_outbox')->update(['event_key' => 'forged-event']),
+        default => DB::table('sales_fulfillment_outbox')->update(['state' => $case]),
+    };
+    $this->artisan('sales:fulfillment:dispatch')->assertSuccessful();
+    Queue::assertNotPushed(FulfillPaidPlanOrderJob::class);
+    Http::assertNothingSent();
+})->with(['auto-off', 'writes-off', 'squads-off', 'unpaid', 'legacy', 'amount', 'ledger', 'attempted', 'event-key', 'processing', 'needs_review', 'completed']);
+
+it('never redispatches a reserved uncertain create even if its intent is incorrectly reset to pending', function (): void {
+    $data = sb05Order();
+    config()->set('services.remnawave.writes_enabled', true);
+    config()->set('sales.auto_fulfillment_enabled', true);
+    Http::fake(['https://remna.test/api/users' => Http::response('unavailable', 503)]);
+    expect(fn () => app(FulfillPaidPlanOrder::class)->handle($data['order']))->toThrow(RuntimeException::class);
+    DB::table('sales_fulfillment_outbox')->update(['state' => 'pending', 'attempts' => 0]);
+    Queue::fake();
+    $this->artisan('sales:fulfillment:dispatch')->assertSuccessful();
+    Queue::assertNotPushed(FulfillPaidPlanOrderJob::class);
+    Http::assertSentCount(1);
+});
+
+it('rechecks bank reviewer authorization on the recovery worker', function (): void {
+    $data = sb05Order();
+    config()->set('services.remnawave.writes_enabled', true);
+    config()->set('sales.auto_fulfillment_enabled', true);
+    Queue::fake();
+    $this->artisan('sales:fulfillment:dispatch')->assertSuccessful();
+    Queue::assertPushed(FulfillPaidPlanOrderJob::class, 1);
+    $data['root']->syncRoles(['admin']);
+    (new FulfillPaidPlanOrderJob($data['order'], false, $data['root']->id))
+        ->handle(app(FulfillPaidPlanOrder::class), app(AssertCatalogManagementAccess::class));
+    expect(DB::table('sales_fulfillment_outbox')->value('state'))->toBe('pending');
     Http::assertNothingSent();
 });
 

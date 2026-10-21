@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
-/** OP-03: only explicitly confirmed Admin actions enqueue this one-order job. */
+/** One-order worker for authorized bank review, wallet settlement or recovery. */
 final class FulfillPaidPlanOrderJob implements ShouldBeUnique, ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
@@ -30,8 +30,7 @@ final class FulfillPaidPlanOrderJob implements ShouldBeUnique, ShouldQueue
 
     public function __construct(public int $orderId, public bool $reconcile = false, public int $actorId = 0)
     {
-        // Never let a sync queue run the provider operation in a Telegram webhook.
-        $this->onConnection('database');
+        $this->onConnection(ProviderQueueConnection::name());
     }
 
     public function uniqueId(): string

@@ -31,7 +31,7 @@ final class ChangeFulfilledSubscriptionStatusJob implements ShouldBeUnique, Shou
         public string $mode,
         public string $operationKey = '',
     ) {
-        $this->onConnection('database');
+        $this->onConnection(ProviderQueueConnection::name());
     }
 
     public function uniqueId(): string

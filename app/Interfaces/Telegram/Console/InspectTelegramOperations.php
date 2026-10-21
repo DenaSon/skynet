@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Telegram\Console;
 
+use App\Modules\Provisioning\Jobs\ProviderQueueConnection;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -47,7 +48,10 @@ final class InspectTelegramOperations extends Command
         $this->line('Telegram delivery: '.(config('telegram_notifications.enabled', false) === true ? 'enabled' : 'disabled'));
         $this->line('Sales Bot runtime: '.(config('telegram.sales.enabled', false) === true ? 'enabled' : 'disabled'));
         $this->line('Provider writes: '.(config('services.remnawave.writes_enabled', false) === true ? 'enabled' : 'disabled'));
-        $this->line('Queue jobs awaiting worker: '.DB::table('jobs')->count());
+        $driver = config('queue.connections.'.ProviderQueueConnection::name().'.driver');
+        $this->line('Provider queue driver: '.(in_array($driver, ['database', 'redis'], true) ? $driver : 'unsupported'));
+        $this->line('Database queue backlog (including legacy jobs): '.DB::table('jobs')->count());
+        $this->comment('Database backlog is not Redis queue depth. Inspect the active worker separately; old database jobs need a database worker.');
 
         foreach (['admin', 'sales'] as $bot) {
             $updates = DB::table('telegram_updates')->where('bot_key', $bot);

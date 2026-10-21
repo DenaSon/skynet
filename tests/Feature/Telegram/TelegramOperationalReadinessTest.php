@@ -15,6 +15,7 @@ it('shows safe aggregate operational evidence without calling external providers
     config()->set('services.remnawave.token', 'do-not-print-provider-token');
     config()->set('telegram.sales.enabled', false);
     config()->set('telegram_notifications.enabled', false);
+    config()->set('queue.default', 'redis');
     Http::preventStrayRequests();
     Http::fake();
 
@@ -53,7 +54,9 @@ it('shows safe aggregate operational evidence without calling external providers
         ->toContain('Notification unavailable: 1')
         ->toContain('Notification suppressed: 1')
         ->toContain('Notifications due for recovery: 1')
-        ->toContain('Queue jobs awaiting worker: 0')
+        ->toContain('Provider queue driver: redis')
+        ->toContain('Database queue backlog (including legacy jobs): 0')
+        ->toContain('Database backlog is not Redis queue depth.')
         ->not->toContain('do-not-print', '994006', '80601', 'ops-safe-event', 'transport');
 
     Http::assertNothingSent();
@@ -68,7 +71,7 @@ it('fails closed on missing migration instead of reporting misleading queue heal
 
     expect(Artisan::call('telegram:ops:status'))->toBe(1)
         ->and(Artisan::output())->toContain('Schema incomplete: telegram_notification_deliveries')
-        ->not->toContain('Queue jobs awaiting worker: 0');
+        ->not->toContain('Database queue backlog (including legacy jobs): 0');
 
     Http::assertNothingSent();
 });

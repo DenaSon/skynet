@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Billing\Application\VerifyWalletOrderDebit;
 use App\Modules\Provisioning\Jobs\FulfillPaidPlanOrderJob;
 use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\ConfigureRate;
@@ -17,9 +18,8 @@ Schedule::command('telegram:prune-updates')->daily();
 Schedule::command('telegram:notifications:dispatch')->everyMinute()->withoutOverlapping();
 Schedule::command('sales:fulfillment:dispatch')->everyMinute()->withoutOverlapping();
 
-// Recovery for a committed bank approval whose post-commit enqueue was lost.
-// Never dispatch while provider/price-binding gates are disabled. The existing
-// unique queue job checks reviewer access and settlement before any write.
+// Recover a committed payment whose post-commit enqueue was lost. Only untouched
+// pending intents qualify; an uncertain CREATE must never be replayed by cron.
 Artisan::command('sales:fulfillment:dispatch', function (): int {
     if (config('sales.auto_fulfillment_enabled', false) !== true
         || config('services.remnawave.writes_enabled') !== true
@@ -27,21 +27,65 @@ Artisan::command('sales:fulfillment:dispatch', function (): int {
         return 0;
     }
 
-    $rows = DB::table('sales_fulfillment_outbox as outbox')
+    $pending = DB::table('sales_fulfillment_outbox as outbox')
         ->join('sales_orders as orders', 'orders.id', '=', 'outbox.sales_order_id')
+        ->where('orders.status', 'paid')->whereNotNull('orders.plan_id')
+        ->where('outbox.state', 'pending')->where('outbox.attempts', 0)
+        ->whereNotExists(function ($query): void {
+            $query->selectRaw('1')->from('provisioning_operations as operation')
+                ->whereColumn('operation.idempotency_key', 'outbox.event_key');
+        })
+        ->whereNotExists(function ($query): void {
+            $query->selectRaw('1')->from('provisioning_order_links as link')
+                ->whereColumn('link.sales_order_id', 'orders.id');
+        });
+
+    // Each payment method has its own bounded batch so a bank backlog does not
+    // prevent recovery of wallet payments. Existing jobs recheck all authority.
+    $bank = (clone $pending)
         ->join('sales_bank_settlements as bank', 'bank.sales_order_id', '=', 'orders.id')
         ->join('sales_bank_payment_claims as claim', 'claim.id', '=', 'bank.payment_claim_id')
-        ->where('orders.status', 'paid')->where('outbox.state', 'pending')
+        ->whereColumn('claim.sales_order_id', 'orders.id')
+        ->whereColumn('bank.amount_rials', 'orders.total_price_rials')
         ->where('claim.status', 'approved')->whereNotNull('claim.reviewed_by')
+        ->where('claim.reviewed_by', '>', 0)
+        ->whereNotExists(function ($query): void {
+            $query->selectRaw('1')->from('sales_order_settlements as wallet')
+                ->whereColumn('wallet.sales_order_id', 'orders.id');
+        })
         ->orderBy('orders.id')->limit(20)
-        ->get(['orders.id', 'claim.reviewed_by']);
+        ->get(['orders.id', 'outbox.event_key', 'claim.reviewed_by']);
 
-    foreach ($rows as $row) {
-        FulfillPaidPlanOrderJob::dispatch((int) $row->id, false, (int) $row->reviewed_by);
+    $wallet = (clone $pending)
+        ->join('sales_order_settlements as wallet', 'wallet.sales_order_id', '=', 'orders.id')
+        ->where('wallet.method', 'customer_wallet')
+        ->whereColumn('wallet.amount_rials', 'orders.total_price_rials')
+        ->whereNotExists(function ($query): void {
+            $query->selectRaw('1')->from('sales_bank_settlements as bank')
+                ->whereColumn('bank.sales_order_id', 'orders.id');
+        })
+        ->orderBy('orders.id')->limit(20)
+        ->get(['orders.id', 'outbox.event_key', 'orders.buyer_user_id', 'orders.total_price_rials', 'wallet.billing_journal_id']);
+
+    foreach ([$bank, $wallet] as $rows) {
+        foreach ($rows as $row) {
+            $orderId = (int) $row->id;
+            if ($row->event_key !== 'sales-order:'.$orderId.':create'
+                || DB::table('provisioning_subscriptions')->where('reference', 'sales-order:'.$orderId)->exists()) {
+                continue;
+            }
+            $actorId = (int) ($row->reviewed_by ?? 0);
+            if ($actorId === 0 && ! app(VerifyWalletOrderDebit::class)->handle(
+                (int) $row->buyer_user_id, $orderId, (int) $row->billing_journal_id, (int) $row->total_price_rials,
+            )) {
+                continue;
+            }
+            FulfillPaidPlanOrderJob::dispatch($orderId, false, $actorId);
+        }
     }
 
     return 0;
-})->purpose('Recover approved paid-plan activation intents through the existing authorized queue');
+})->purpose('Recover untouched paid bank/wallet plan intents through the existing authorized queue');
 
 /*
 |--------------------------------------------------------------------------
