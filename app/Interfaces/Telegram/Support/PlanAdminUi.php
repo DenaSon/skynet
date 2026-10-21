@@ -72,7 +72,7 @@ final readonly class PlanAdminUi
 
         $keyboard->addRow(
             InlineKeyboardButton::make('➕ پلن ثابت', callback_data: 'plan:begin:preset:0'),
-            InlineKeyboardButton::make('➕ پلن‌ساز نماینده', callback_data: 'plan:begin:builder:0'),
+            InlineKeyboardButton::make('➕ پلن‌ساز پنل فروش', callback_data: 'plan:begin:builder:0'),
         );
         $keyboard->addRow(InlineKeyboardButton::make('📚 محصولات پایه', callback_data: 'plan:products'));
         $keyboard->addRow(InlineKeyboardButton::make('📋 نمونه پلن‌های قابل کپی', callback_data: 'plan:examples'));
@@ -107,7 +107,7 @@ final readonly class PlanAdminUi
             ['استاندارد ۳۰ گیگ / ۳۰ روز', "{$slug} | standard-30 | استاندارد ۳۰ گیگ | hybrid | both | 30 | 30"],
             ['حرفه‌ای ۶۰ گیگ / ۳۰ روز', "{$slug} | premium-60 | حرفه‌ای ۶۰ گیگ | hybrid | both | 60 | 30"],
             ['نامحدود زمانی ۳۰ روز', "{$slug} | unlimited-30 | نامحدود ۳۰ روزه | time | both | - | 30"],
-            ['پلن‌ساز نماینده', "{$slug} | reseller-builder | سفارشی نماینده | hybrid | 1 | 100 | 15 | 90"],
+            ['پلن‌ساز پنل فروش', "{$slug} | reseller-builder | سفارشی پنل فروش | hybrid | 1 | 100 | 15 | 90"],
         ];
 
         $lines = ['📋 <b>نمونه‌های آماده پلن</b>', 'روی دکمه هر نمونه بزنید تا کپی شود.', ''];
@@ -536,14 +536,14 @@ final readonly class PlanAdminUi
             'fixed' => [
                 ['قیمت ثابت (تومان)', '120000', true],
                 ['حداقل قیمت (تومان)', '60000', true],
-                ['تخفیف نماینده (درصد)', '5', true],
+                ['تخفیف پنل فروش (درصد)', '5', true],
             ],
             'formula' => [
                 ['قیمت پایه (تومان)', '50000', true],
                 ['قیمت هر گیگ (تومان)', '10000', true],
                 ['قیمت هر روز (تومان)', '2000', true],
                 ['حداقل قیمت (تومان)', '20000', true],
-                ['تخفیف نماینده (درصد)', '5', true],
+                ['تخفیف پنل فروش (درصد)', '5', true],
             ],
             default => [],
         };
@@ -989,7 +989,7 @@ final readonly class PlanAdminUi
                 ."\nهر روز: ".TelegramUi::toman($tariff->perDayRials).' تومان';
 
         return $value."\nحداقل قیمت: ".TelegramUi::toman($tariff->minimumTotalRials)
-            ." تومان | تخفیف نماینده: {$tariff->resellerDiscountPercent}٪";
+            ." تومان | تخفیف پنل فروش: {$tariff->resellerDiscountPercent}٪";
     }
 
     private function id(string $value): ?int
