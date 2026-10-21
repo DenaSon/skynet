@@ -7,6 +7,7 @@ use App\Interfaces\Telegram\Support\SalesCheckoutUi;
 use App\Interfaces\Telegram\Support\SalesHomeUi;
 use App\Interfaces\Telegram\Support\SalesSubscriptionsUi;
 use App\Interfaces\Telegram\Support\SalesSupportUi;
+use App\Interfaces\Telegram\Support\WalletTopupUi;
 use SergiX44\Nutgram\Nutgram;
 
 /** @var Nutgram $bot */
@@ -71,6 +72,10 @@ $bot->onCallbackQueryData('sales:help:{page}', function (Nutgram $bot, string $p
 
 $bot->onCallbackQueryData('sales:wallet', function (Nutgram $bot): void {
     app(SalesHomeUi::class)->wallet($bot);
+});
+
+$bot->onCallbackQueryData('sales:wallet:topup', function (Nutgram $bot): void {
+    app(WalletTopupUi::class)->start($bot);
 });
 
 $bot->onCallbackQueryData('sales:account', function (Nutgram $bot): void {
@@ -143,7 +148,13 @@ $bot->onText('(?!/){volume}', function (Nutgram $bot, string $volume): void {
     if (app(SalesHomeUi::class)->navigate($bot, $volume)) {
         return;
     }
+    if (app(WalletTopupUi::class)->text($bot, $volume)) {
+        return;
+    }
     if (app(ResellerBuilderUi::class)->customText($bot, $volume)) {
+        return;
+    }
+    if (app(WalletTopupUi::class)->invalidInput($bot)) {
         return;
     }
     if (app(ManualPaymentUi::class)->invalidInput($bot)) {
@@ -153,6 +164,9 @@ $bot->onText('(?!/){volume}', function (Nutgram $bot, string $volume): void {
 });
 
 $bot->fallback(function (Nutgram $bot): void {
+    if (app(WalletTopupUi::class)->invalidInput($bot)) {
+        return;
+    }
     if (app(ManualPaymentUi::class)->invalidInput($bot)) {
         return;
     }
@@ -192,6 +206,9 @@ $bot->onCallbackQueryData('sales:payment:start:{id}', function (Nutgram $bot, st
 });
 
 $bot->onPhoto(function (Nutgram $bot): void {
+    if (app(WalletTopupUi::class)->photo($bot)) {
+        return;
+    }
     app(ManualPaymentUi::class)->photo($bot);
 });
 
