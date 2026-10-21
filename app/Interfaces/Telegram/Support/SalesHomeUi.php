@@ -252,6 +252,8 @@ final readonly class SalesHomeUi
         }
         if (in_array('reseller', $actor->roles, true)) {
             $keyboard->addRow(InlineKeyboardButton::make('🧩 پلن‌ساز نماینده', callback_data: 'menu:builder'));
+        } elseif (in_array('member', $actor->roles, true)) {
+            $keyboard->addRow(InlineKeyboardButton::make('🧩 درخواست پنل فروش', callback_data: 'sales:panel:request'));
         }
 
         $keyboard->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
@@ -399,6 +401,7 @@ final readonly class SalesHomeUi
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$buyerId));
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:recent:'.$buyerId));
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:wallet:topup:'.$buyerId));
+        app(SalesPanelRequestUi::class)->clear($buyerId);
     }
 
     private function salesRole(TelegramActor $actor): string
