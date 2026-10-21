@@ -274,26 +274,31 @@ final readonly class AdminFinanceWalletUi
             $id = trim($value);
             if (preg_match('/\A[1-9][0-9]{0,14}\z/D', $id) !== 1) {
                 $this->notice($bot, 'شناسه عددی معتبر کاربر را وارد کنید.');
+
                 return true;
             }
             $this->detail($bot, $id);
+
             return true;
         }
 
         if (! $this->enabled() || ! is_int($state['topup'] ?? null)) {
             $this->clear($actor->userId);
             $this->notice($bot, 'زمان بررسی تمام شده است؛ از صف شارژ دوباره شروع کنید.');
+
             return true;
         }
         $reference = strtoupper(trim($value));
         if (preg_match('/\A[A-Z0-9_-]{6,64}\z/D', $reference) !== 1) {
             $this->notice($bot, 'شناسه بانکی معتبر (۶ تا ۶۴ نویسه انگلیسی یا عدد) وارد کنید.');
+
             return true;
         }
         $row = $this->photo($actor->userId, (string) $state['topup']);
         $this->clear($actor->userId);
         if ($row === null) {
             $this->notice($bot, 'این رسید دیگر در صف بررسی نیست.');
+
             return true;
         }
 
@@ -306,6 +311,7 @@ final readonly class AdminFinanceWalletUi
             InlineKeyboardMarkup::make()
                 ->addRow(InlineKeyboardButton::make('✅ تأیید و افزایش موجودی', callback_data: 'finance:topup:apply:'.$token, style: ButtonStyle::SUCCESS))
                 ->addRow(InlineKeyboardButton::make('◀️ انصراف', callback_data: 'finance:topups:1')));
+
         return true;
     }
 
@@ -356,6 +362,7 @@ final readonly class AdminFinanceWalletUi
             $this->access->reviewer($actor->userId);
         } catch (AuthorizationException) {
             $this->menus->denyAccess($bot);
+
             return null;
         }
 
