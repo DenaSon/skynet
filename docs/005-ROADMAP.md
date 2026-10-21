@@ -1,3 +1,7 @@
+## SP-01 — Sales Panel customer applications (approved 2026-10-21; implementation pending CI)
+
+The Sales Bot offers an existing active `member` a short, private «درخواست پنل فروش» form in their account submenu: first name, last name and canonical Iranian mobile with a ten-minute draft and explicit review/confirm; one durable request per linked user, initial `pending` status, future reviewer metadata reserved in `sales_panel_requests`. Repeat/stale/foreign/disabled/active reseller applicants are denied or shown the current state. Application does **not** grant `reseller` privileges; all role edits and the trusted Super Admin approval queue/notifications belong to SP-02. Current catalog, per-plan discount, buyer wallet, referral attribution, payments and Remnawave remain unchanged. Exact tests include PHP 8.4/8.5 Nutgram router/RBAC/form state, MySQL migration/rollback and distinct real Telegram E2E. New UI obeys docs/017; the wallet-on-home button and broader customer-facing «پنل فروش» wording pass belong to UX #152 and are not introduced silently here.
+
 # Roadmap
 
 ## Sales Bot public customer entry correction — 2026-10-21
