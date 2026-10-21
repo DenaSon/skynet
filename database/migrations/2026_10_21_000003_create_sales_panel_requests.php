@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -27,7 +28,7 @@ return new class extends Migration
     {
         // Future SP-02 review evidence must never be dropped by an implicit rollback.
         if (Schema::hasTable('sales_panel_requests')
-            && \Illuminate\Support\Facades\DB::table('sales_panel_requests')->exists()) {
+            && DB::table('sales_panel_requests')->exists()) {
             throw new RuntimeException('Sales Panel application evidence exists; preserve it before rollback.');
         }
         Schema::dropIfExists('sales_panel_requests');
