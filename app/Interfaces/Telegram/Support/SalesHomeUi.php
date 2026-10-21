@@ -80,7 +80,7 @@ final readonly class SalesHomeUi
         if (! $bot->isCallbackQuery() || $showKeyboard) {
             $bot->sendMessage(
                 text: '<b>🏠 DenaGate</b>'."\n\nخوش آمدید، ".$this->name($actor->name)
-                    ."\nنوع حساب: <b>".$this->salesRole($actor)."</b>",
+                    .".\nنوع حساب: <b>".$this->salesRole($actor)."</b>",
                 parse_mode: 'HTML',
                 reply_markup: $this->replyMenus->salesKeyboard(),
             );
