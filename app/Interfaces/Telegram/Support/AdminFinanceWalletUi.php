@@ -47,6 +47,7 @@ final readonly class AdminFinanceWalletUi
         $number = $this->page($page);
         if ($number === null) {
             $this->notice($bot, 'صفحه معتبر نیست.');
+
             return;
         }
         $rows = $this->wallets->page($actor->userId, $number);
@@ -87,12 +88,14 @@ final readonly class AdminFinanceWalletUi
         $this->clear($actor->userId);
         if (preg_match('/\A[1-9][0-9]{0,14}\z/D', $id) !== 1) {
             $this->notice($bot, 'شناسه کاربر معتبر نیست.');
+
             return;
         }
         try {
             $row = $this->wallets->detail($actor->userId, (int) $id);
         } catch (ValidationException) {
             $this->notice($bot, 'کیف پول این کاربر پیدا نشد.');
+
             return;
         }
 
@@ -143,6 +146,7 @@ final readonly class AdminFinanceWalletUi
         $number = $this->page($page);
         if ($number === null) {
             $this->notice($bot, 'صفحه معتبر نیست.');
+
             return;
         }
         $rows = $this->photos->pending($actor->userId, $number);
@@ -181,11 +185,13 @@ final readonly class AdminFinanceWalletUi
         }
         if (! $this->enabled()) {
             $this->notice($bot, 'بررسی شارژ فعلاً در دسترس نیست.');
+
             return;
         }
         $row = $this->photo($actor->userId, $id);
         if ($row === null) {
             $this->notice($bot, 'این رسید دیگر در صف بررسی موجود نیست.');
+
             return;
         }
 
@@ -197,6 +203,7 @@ final readonly class AdminFinanceWalletUi
             );
         } catch (Throwable) {
             $this->notice($bot, 'تصویر فعلاً قابل نمایش نیست. بدون مشاهده رسید و تأیید مستقل بانک، شارژ را تأیید نکنید.');
+
             return;
         }
         TelegramUi::answerCallback($bot);
@@ -210,11 +217,13 @@ final readonly class AdminFinanceWalletUi
         }
         if (! $this->enabled() || ! in_array($decision, ['a', 'r'], true)) {
             $this->notice($bot, 'امکان بررسی این درخواست وجود ندارد.');
+
             return;
         }
         $row = $this->photo($actor->userId, $id);
         if ($row === null) {
             $this->notice($bot, 'درخواست دیگر در انتظار بررسی نیست.');
+
             return;
         }
         $this->clear($actor->userId);
@@ -226,6 +235,7 @@ final readonly class AdminFinanceWalletUi
                 ."\n\nشناسه <b>واقعی و یکتای تراکنش تأییدشده در بانک</b> را ارسال کنید."
                 ."\n<blockquote>تصویر رسید به‌تنهایی دلیل واریز نیست. مبلغ و دریافت وجه باید جداگانه بررسی شوند.</blockquote>",
                 $this->backTopups());
+
             return;
         }
 
@@ -324,16 +334,19 @@ final readonly class AdminFinanceWalletUi
         $data = $this->tokens->consume($actor->userId, $token);
         if ($data === null) {
             $this->notice($bot, 'این تأیید منقضی، نامعتبر یا قبلاً استفاده شده است.');
+
             return;
         }
         if (! $this->enabled() || $this->photo($actor->userId, (string) $data['topup']) === null) {
             $this->notice($bot, 'درخواست دیگر قابل بررسی نیست.');
+
             return;
         }
         try {
             $this->review->handle($actor->userId, $data['topup'], $data['approve'], $data['reference']);
         } catch (AuthorizationException|ValidationException|UniqueConstraintViolationException) {
             $this->notice($bot, 'پرداخت ثبت نشد؛ درخواست تغییر کرده یا شناسه بانک قبلاً استفاده شده است.');
+
             return;
         }
         $this->render($bot,
@@ -417,9 +430,11 @@ final readonly class AdminFinanceWalletUi
                 || $message?->video !== null || $message?->animation !== null
                 || $message?->audio !== null || $message?->voice !== null || $message?->sticker !== null) {
                 $bot->sendMessage(text: $text, reply_markup: $keyboard, parse_mode: 'HTML');
+
                 return;
             }
             TelegramUi::editText($bot, $text, $keyboard, 'HTML');
+
             return;
         }
         $bot->sendMessage(text: $text, reply_markup: $keyboard, parse_mode: 'HTML');
