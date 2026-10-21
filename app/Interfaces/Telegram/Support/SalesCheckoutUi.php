@@ -378,6 +378,8 @@ final readonly class SalesCheckoutUi
             default => '🟠 در انتظار پرداخت',
         };
 
+        $isReseller = in_array('reseller',
+            $this->resolve->handle((int) $bot->user()->id)?->roles ?? [], true);
         $balance = $this->walletBalance($order->buyerUserId);
         $walletEligible = $order->status === 'pending_payment' && $latestReceipt !== 'submitted'
             && $balance !== null && $balance >= $order->totalPriceRials;
@@ -417,7 +419,8 @@ final readonly class SalesCheckoutUi
         $this->render($bot, "✅ سفارش #{$order->id}\n\nپلن: ".$this->safe($order->productName)
             ."\nحجم: ".($order->trafficGb === null ? 'نامحدود' : $order->trafficGb.' گیگابایت')
             ."\nمدت: {$order->durationDays} روز"
-            ."\nمبلغ ثبت‌شده: ".TelegramUi::toman($order->totalPriceRials).' تومان'
+            ."\n".($isReseller ? 'قیمت مخصوص پنل فروش' : 'مبلغ ثبت‌شده').': '
+            .TelegramUi::toman($order->totalPriceRials).' تومان'
             ."\nوضعیت: {$status}"
             ."\n\n".$this->orderHint($order, $latestReceipt),
             $keyboard,
