@@ -5,6 +5,7 @@ use App\Interfaces\Telegram\Support\PlanCatalogUi;
 use App\Interfaces\Telegram\Support\ResellerBuilderUi;
 use App\Interfaces\Telegram\Support\SalesCheckoutUi;
 use App\Interfaces\Telegram\Support\SalesHomeUi;
+use App\Interfaces\Telegram\Support\SalesPanelRequestUi;
 use App\Interfaces\Telegram\Support\SalesSubscriptionsUi;
 use App\Interfaces\Telegram\Support\SalesSupportUi;
 use App\Interfaces\Telegram\Support\WalletTopupUi;
@@ -78,6 +79,18 @@ $bot->onCallbackQueryData('sales:wallet:topup', function (Nutgram $bot): void {
     app(WalletTopupUi::class)->start($bot);
 });
 
+$bot->onCallbackQueryData('sales:panel:request', function (Nutgram $bot): void {
+    app(SalesPanelRequestUi::class)->start($bot);
+});
+
+$bot->onCallbackQueryData('sales:panel:confirm', function (Nutgram $bot): void {
+    app(SalesPanelRequestUi::class)->confirm($bot);
+});
+
+$bot->onCallbackQueryData('sales:panel:cancel', function (Nutgram $bot): void {
+    app(SalesPanelRequestUi::class)->cancel($bot);
+});
+
 $bot->onCallbackQueryData('sales:account', function (Nutgram $bot): void {
     app(SalesHomeUi::class)->account($bot);
 });
@@ -148,10 +161,16 @@ $bot->onText('(?!/){volume}', function (Nutgram $bot, string $volume): void {
     if (app(SalesHomeUi::class)->navigate($bot, $volume)) {
         return;
     }
+    if (app(SalesPanelRequestUi::class)->text($bot, $volume)) {
+        return;
+    }
     if (app(WalletTopupUi::class)->text($bot, $volume)) {
         return;
     }
     if (app(ResellerBuilderUi::class)->customText($bot, $volume)) {
+        return;
+    }
+    if (app(SalesPanelRequestUi::class)->invalidInput($bot)) {
         return;
     }
     if (app(WalletTopupUi::class)->invalidInput($bot)) {
@@ -164,6 +183,9 @@ $bot->onText('(?!/){volume}', function (Nutgram $bot, string $volume): void {
 });
 
 $bot->fallback(function (Nutgram $bot): void {
+    if (app(SalesPanelRequestUi::class)->invalidInput($bot)) {
+        return;
+    }
     if (app(WalletTopupUi::class)->invalidInput($bot)) {
         return;
     }
