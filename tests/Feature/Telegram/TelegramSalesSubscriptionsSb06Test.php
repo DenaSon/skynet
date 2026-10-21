@@ -436,16 +436,24 @@ it('shows actual remote expiry, disability and exhausted traffic without a conne
     sb06Activated($order);
     $bot = sb06Bot(976050, $buyer);
 
-    foreach ([
+    $cases = [
         ['status' => 'EXPIRED', 'message' => 'منقضی شده'],
         ['status' => 'DISABLED', 'message' => 'غیرفعال'],
         ['status' => 'LIMITED', 'message' => 'محدود شده'],
         ['status' => 'ACTIVE', 'expireAt' => '2020-01-01T00:00:00.000Z', 'message' => 'منقضی شده'],
         ['status' => 'ACTIVE', 'userTraffic' => ['usedTrafficBytes' => 2147483648, 'lifetimeUsedTrafficBytes' => 2147483648], 'message' => 'حجم به پایان رسیده'],
-    ] as $case) {
+    ];
+    $sequence = Http::sequence();
+    foreach ($cases as $case) {
+        $overrides = $case;
+        unset($overrides['message']);
+        $payload = ['response' => sb06Provider($order, $overrides)];
+        $sequence->push($payload)->push($payload);
+    }
+    Http::fake(['https://remna.test/api/users/42' => $sequence]);
+
+    foreach ($cases as $case) {
         $expected = $case['message'];
-        unset($case['message']);
-        Http::fake(['https://remna.test/api/users/42' => Http::response(['response' => sb06Provider($order, $case)])]);
         $bot->hearCallbackQueryData('sales:subs:view:'.$order.':0')->reply()
             ->assertRaw(static function (NutgramRequest $request) use ($expected): bool {
                 $data = FakeNutgram::getActualData($request);
