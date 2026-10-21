@@ -30,7 +30,7 @@ uses(RefreshDatabase::class);
 const REN01_SQUAD = '123e4567-e89b-12d3-a456-426614174000';
 
 beforeEach(function (): void {
-    config()->set('super_admin.telegram_ids', ['995001']);
+    config()->set('super_admin.telegram_ids', ['995001', '995002']);
     config()->set('services.remnawave.url', 'https://ren.test');
     config()->set('services.remnawave.token', 'test-only');
     config()->set('services.remnawave.writes_enabled', false);
