@@ -100,6 +100,14 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:full:service:prepare:{id}:{mode}';
     $expected['ADMIN'][] = 'callback:full:service:apply:{token}';
     $expected['ADMIN'][] = 'callback:full:service:check:{id}';
+    // FIN-01 keeps photo finance routes private to the Admin Bot.
+    $expected['ADMIN'][] = 'callback:finance:wallets:{page}';
+    $expected['ADMIN'][] = 'callback:finance:wallet:{id}';
+    $expected['ADMIN'][] = 'callback:finance:wallet:find';
+    $expected['ADMIN'][] = 'callback:finance:topups:{page}';
+    $expected['ADMIN'][] = 'callback:finance:topup:photo:{id}';
+    $expected['ADMIN'][] = 'callback:finance:topup:decision:{id}:{decision}';
+    $expected['ADMIN'][] = 'callback:finance:topup:apply:{token}';
     // MET-01 adds only read-only private Super Admin routes.
     $expected['ADMIN'][] = 'command:metrics';
     $expected['ADMIN'][] = 'callback:metrics:refresh';
