@@ -151,6 +151,9 @@ it('opens Admin as a fresh text message from a photo receipt and preserves text 
     config()->set('telegram.hybrid_menu_enabled', false);
     $admin = User::factory()->admin()->create();
     $bot = mb04Bot(984101, $admin);
+    $bot->onException(static function (Nutgram $bot, \Throwable $exception): void {
+        throw $exception;
+    });
 
     $bot->hearCallbackQueryData('menu:admin')->reply()
         ->assertCalled('answerCallbackQuery')->assertCalled('editMessageText');
@@ -168,9 +171,6 @@ it('opens Admin as a fresh text message from a photo receipt and preserves text 
         ->and($update->getUser()?->id)->toBe(984101)
         ->and($update->getChat()?->id)->toBe(984101)
         ->and($update->getMessage()?->photo)->not->toBeEmpty();
-    $bot->onException(static function (Nutgram $bot, \Throwable $exception): void {
-        throw $exception;
-    });
 
     $bot->reply()
         ->assertCalled('answerCallbackQuery')
