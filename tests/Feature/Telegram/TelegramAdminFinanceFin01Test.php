@@ -157,7 +157,7 @@ it('does not expose a photo when Sales-to-Admin secure transfer is unavailable',
     app(SubmitTopupPhoto::class)->handle($buyer->id, $id, 991003, 'sales-file-123', 'sales-unique-id', 125);
 
     // The default fake blocks Telegram getFile. The UI must not invent a successful image preview.
-    $bot->hearCallbackQueryData('finance:topup:photo:'.$id)->reply()->assertCalled('sendMessage');
+    $bot->hearCallbackQueryData('finance:topup:photo:'.$id)->reply()->assertCalled('editMessageText');
     expect(DB::table('billing_topups')->where('id', $id)->value('status'))->toBe('submitted')
         ->and(DB::table('billing_journals')->count())->toBe(0);
 });
