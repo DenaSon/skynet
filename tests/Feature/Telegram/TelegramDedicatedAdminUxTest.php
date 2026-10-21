@@ -154,19 +154,16 @@ it('opens Admin as a fresh text message from a photo receipt and preserves text 
     $bot = mb04Bot(984101, $admin);
 
     $bot->hearUpdateType(UpdateType::CALLBACK_QUERY, partialAttributes: [
-        'id' => 'admin-media-test',
-        'from' => ['id' => 984101, 'is_bot' => false, 'first_name' => 'Admin'],
-        'chat_instance' => 'private-admin-test',
-        'data' => 'menu:admin',
+        // Match Nutgram's native hearCallbackQueryData fixture shape.
         'message' => [
-            'message_id' => 45,
-            'date' => now()->timestamp,
-            'chat' => ['id' => 984101, 'type' => 'private'],
+            'from' => [],
+            'date' => 1703892479,
             'caption' => '🧾 رسید تصویری',
             'photo' => [
                 ['file_id' => 'receipt-file', 'file_unique_id' => 'receipt-unique', 'width' => 600, 'height' => 600],
             ],
         ],
+        'data' => 'menu:admin',
     ])->reply()
         ->assertCalled('answerCallbackQuery')
         ->assertCalled('sendMessage', 1)
