@@ -424,6 +424,22 @@ final class MenuRenderer
     {
         if ($bot->isCallbackQuery()) {
             TelegramUi::answerCallback($bot);
+
+            $message = $bot->message();
+            // Telegram cannot edit a photo/document caption into a text message.
+            // Keep the original receipt/media intact and open a fresh menu.
+            if (($message?->photo ?? []) !== []
+                || $message?->document !== null
+                || $message?->video !== null
+                || $message?->animation !== null
+                || $message?->audio !== null
+                || $message?->voice !== null
+                || $message?->sticker !== null) {
+                $bot->sendMessage(text: $text, reply_markup: $keyboard);
+
+                return;
+            }
+
             TelegramUi::editText($bot, $text, $keyboard);
 
             return;
