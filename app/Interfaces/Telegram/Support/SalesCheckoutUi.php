@@ -20,6 +20,7 @@ use App\Modules\Sales\Application\SettleWalletOrder;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
@@ -85,6 +86,11 @@ final readonly class SalesCheckoutUi
             $source = $this->orders->findPlan($buyer, (int) $sourceId);
         } catch (AuthorizationException|ValidationException) {
             $this->notice($bot, 'سفارش در دسترس نیست.');
+
+            return;
+        }
+        if (DB::table('sales_renewal_orders')->where('sales_order_id', $source->id)->exists()) {
+            $this->notice($bot, 'برای تمدید دوباره، از بخش سرویس‌های من اقدام کنید.');
 
             return;
         }
@@ -374,9 +380,11 @@ final readonly class SalesCheckoutUi
             SubscriptionViewer::telegram((int) $bot->user()->id),
             $order->id,
         );
+        $sourceRenewal = DB::table('sales_renewal_orders')
+            ->where('sales_order_id', $order->id)->value('source_order_id');
 
         $status = match (true) {
-            $order->status === 'fulfilled' => '✅ اشتراک فعال شد',
+            $order->status === 'fulfilled' => $sourceRenewal === null ? '✅ اشتراک فعال شد' : '✅ اشتراک تمدید شد',
             $order->status === 'paid' => '✅ پرداخت تأیید شده؛ در انتظار فعال‌سازی',
             $latestReceipt === 'submitted' => '🕘 رسید ثبت شد؛ در انتظار بررسی مدیر',
             $latestReceipt === 'rejected' => '❌ رسید تأیید نشده؛ امکان ارسال رسید جدید',
@@ -409,19 +417,24 @@ final readonly class SalesCheckoutUi
                 callback_data: 'sales:payment:start:'.$order->id,
             ));
         }
-        if ($order->planId !== null) {
+        if ($order->planId !== null && $sourceRenewal === null) {
             $keyboard->addRow(InlineKeyboardButton::make(
                 '🛒 خرید جدید همین پلن',
                 callback_data: 'sales:checkout:new:'.$order->id,
             ));
         }
         if ($order->status === 'fulfilled') {
-            $keyboard->addRow(InlineKeyboardButton::make('📦 مشاهده اشتراک', callback_data: 'sales:subs:view:'.$order->id.':0'));
+            $keyboard->addRow(InlineKeyboardButton::make('📦 مشاهده اشتراک',
+                callback_data: 'sales:subs:view:'.($sourceRenewal ?? $order->id).':0'));
+        } elseif ($sourceRenewal !== null) {
+            $keyboard->addRow(InlineKeyboardButton::make('📦 سرویس اصلی',
+                callback_data: 'sales:subs:view:'.$sourceRenewal.':0'));
         }
         $keyboard->addRow(InlineKeyboardButton::make('📋 سفارش‌های من', callback_data: 'sales:checkout:orders'))
             ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'menu:home'));
 
-        $this->render($bot, "✅ سفارش #{$order->id}\n\nپلن: ".$this->safe($order->productName)
+        $this->render($bot, ($sourceRenewal === null ? "✅ سفارش #{$order->id}" : "🔄 سفارش تمدید #{$order->id}")
+            ."\n\nپلن: ".$this->safe($order->productName)
             ."\nحجم: ".($order->trafficGb === null ? 'نامحدود' : $order->trafficGb.' گیگابایت')
             ."\nمدت: {$order->durationDays} روز"
             ."\n".($isReseller ? 'قیمت مخصوص پنل فروش' : 'مبلغ ثبت‌شده').': '

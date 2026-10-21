@@ -80,8 +80,12 @@ Artisan::command('sales:fulfillment:dispatch', function (): int {
     foreach ([$bank, $wallet] as $rows) {
         foreach ($rows as $row) {
             $orderId = (int) $row->id;
-            if ($row->event_key !== 'sales-order:'.$orderId.':create'
-                || DB::table('provisioning_subscriptions')->where('reference', 'sales-order:'.$orderId)->exists()) {
+            $renewal = DB::table('sales_renewal_orders')->where('sales_order_id', $orderId)->exists();
+            $event = 'sales-order:'.$orderId.($renewal ? ':renew' : ':create');
+            if ($row->event_key !== $event
+                || ($renewal && config('sales.renewal_enabled', false) !== true)
+                || (! $renewal && DB::table('provisioning_subscriptions')
+                    ->where('reference', 'sales-order:'.$orderId)->exists())) {
                 continue;
             }
             $actorId = (int) ($row->reviewed_by ?? 0);

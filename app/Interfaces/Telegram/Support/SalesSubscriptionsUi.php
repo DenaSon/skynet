@@ -9,6 +9,7 @@ use App\Modules\Provisioning\Application\GetMySubscription;
 use App\Modules\Provisioning\Application\GetSubscriptionLink;
 use App\Modules\Provisioning\Application\GetSubscriptionUsage;
 use App\Modules\Provisioning\Application\ListMyServices;
+use App\Modules\Sales\Application\CreatePendingRenewalOrder;
 use App\Modules\Sales\Application\PrepareRenewalDraft;
 use DateTimeImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -36,6 +37,7 @@ final readonly class SalesSubscriptionsUi
         private GetSubscriptionLink $link,
         private SubscriptionPageLink $pages,
         private PrepareRenewalDraft $renewals,
+        private CreatePendingRenewalOrder $renewalOrders,
     ) {}
 
     public function browse(Nutgram $bot, string $cursor = '0'): void
@@ -269,10 +271,55 @@ final readonly class SalesSubscriptionsUi
             ."\nحجم پلن: {$traffic}"
             ."\nقیمت فعلی: <b>".TelegramUi::toman($draft->priceRials).' تومان</b>'
             ."\n\n<blockquote>این پیش‌نمایش فقط برای همین سرویس ذخیره شد."
-            .' پرداخت تمدید هنوز فعال نیست و هیچ مبلغی دریافت نشده است.'
-            .' قیمت در زمان فعال شدن پرداخت دوباره بررسی می‌شود.</blockquote>';
+            .(config('sales.renewal_enabled', false) === true
+                ? ' پرداخت بعد از تأیید شما آغاز می‌شود؛ اعتبار همان سرویس افزایش خواهد یافت.</blockquote>'
+                : ' پرداخت تمدید هنوز فعال نیست و هیچ مبلغی دریافت نشده است.</blockquote>');
 
-        $this->render($bot, $message, $this->renewalButtons($sourceId, $cursor), ! $acknowledged);
+        $buttons = $this->renewalButtons($sourceId, $cursor);
+        if (config('sales.renewal_enabled', false) === true) {
+            $buttons = InlineKeyboardMarkup::make()
+                ->addRow(InlineKeyboardButton::make('✅ ادامه و انتخاب پرداخت',
+                    callback_data: 'sales:subs:renew:checkout:'.$sourceId.':'.$cursor,
+                    style: ButtonStyle::SUCCESS))
+                ->addRow(InlineKeyboardButton::make('🔄 بررسی دوباره',
+                    callback_data: 'sales:subs:renew:'.$sourceId.':'.$cursor))
+                ->addRow(InlineKeyboardButton::make('◀️ بازگشت به سرویس',
+                    callback_data: 'sales:subs:view:'.$sourceId.':'.$cursor))
+                ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
+        }
+
+        $this->render($bot, $message, $buttons, ! $acknowledged);
+    }
+
+    /** Explicit, private conversion. Never posts a payment without a separate confirmation. */
+    public function renewalCheckout(Nutgram $bot, string $id, string $cursor = '0'): void
+    {
+        $viewer = $this->viewer($bot);
+        if ($viewer === null) {
+            return;
+        }
+        $sourceId = $this->id($id);
+        if ($sourceId === null || $this->id($cursor, true) === null) {
+            $this->notice($bot, 'این سرویس برای تمدید در دسترس نیست.', $this->homeButtons());
+
+            return;
+        }
+
+        try {
+            $order = $this->renewalOrders->handle($viewer, $sourceId);
+        } catch (AuthorizationException|ValidationException) {
+            $this->notice($bot, 'قیمت یا وضعیت اشتراک تغییر کرده است. دوباره تمدید را بررسی کنید.',
+                $this->renewalButtons($sourceId, $cursor));
+
+            return;
+        } catch (Throwable) {
+            $this->notice($bot, 'آماده‌سازی تمدید فعلاً ممکن نیست. دوباره تلاش کنید.',
+                $this->renewalButtons($sourceId, $cursor));
+
+            return;
+        }
+
+        app(SalesCheckoutUi::class)->viewOrder($bot, (string) $order->id);
     }
 
     private function renewalButtons(int $sourceId, string $cursor): InlineKeyboardMarkup

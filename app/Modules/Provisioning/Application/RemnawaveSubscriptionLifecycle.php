@@ -85,6 +85,19 @@ final class RemnawaveSubscriptionLifecycle
         return $this->mutate($reference, $idempotencyKey, 'quota', ['trafficLimitBytes' => $bytes]);
     }
 
+    /** Single absolute UPDATE, never additive, for an already owned subscription. */
+    public function renew(string $reference, string $idempotencyKey, string $expireAt, int $totalLimitBytes): int
+    {
+        CreateRemnawaveUser::validateExpiry($expireAt);
+        CreateRemnawaveUser::validateLimit($totalLimitBytes);
+
+        return $this->mutate($reference, $idempotencyKey, 'renewal', [
+            'expireAt' => $expireAt,
+            'trafficLimitBytes' => $totalLimitBytes,
+            'status' => 'ACTIVE',
+        ]);
+    }
+
     public function disable(string $reference, string $idempotencyKey): int
     {
         return $this->mutate($reference, $idempotencyKey, 'disable', ['status' => 'DISABLED']);
@@ -168,7 +181,7 @@ final class RemnawaveSubscriptionLifecycle
             || ! in_array($row->state, ['reserved', 'needs_review'], true)
             || ! in_array($op->state, ['reserved', 'needs_review'], true)
             || $row->last_operation_key !== $idempotencyKey
-            || ! in_array($op->kind, ['expiration', 'quota', 'disable', 'enable'], true)
+            || ! in_array($op->kind, ['expiration', 'quota', 'disable', 'enable', 'renewal'], true)
             || ! is_numeric($row->remote_user_id)) {
             throw new RuntimeException('No uncertain absolute update to reconcile.');
         }

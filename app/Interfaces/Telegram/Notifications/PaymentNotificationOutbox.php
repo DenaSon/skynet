@@ -112,6 +112,20 @@ final readonly class PaymentNotificationOutbox
         );
     }
 
+    /** Only after the same existing subscription was updated and fully reconciled. */
+    public function renewed(int $orderId, int $buyerId): void
+    {
+        if ($orderId < 1 || $buyerId < 1 || $this->recipients->forActiveUser($buyerId) === null
+            || config('telegram.sales.enabled', false) !== true
+            || ! DB::table('telegram_bot_contacts')->where('user_id', $buyerId)
+                ->where('bot_key', 'sales')->where('delivery_status', 'reachable')->exists()) {
+            return;
+        }
+
+        $this->record('subscription:renewed:order:'.$orderId.':buyer:'.$buyerId,
+            'SubscriptionRenewed', $buyerId, 'sales', null, $orderId);
+    }
+
     /**
      * Called INSIDE the transaction that completed the existing RW order link.
      * Never emits a success notice on payment approval or a queued CREATE.

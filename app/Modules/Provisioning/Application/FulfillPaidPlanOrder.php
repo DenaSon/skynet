@@ -27,6 +27,9 @@ final readonly class FulfillPaidPlanOrder
 
     public function handle(int $orderId): int
     {
+        if (DB::table('sales_renewal_orders')->where('sales_order_id', $orderId)->exists()) {
+            throw new RuntimeException('Renewal order cannot create a second provider user.');
+        }
         if (config('services.remnawave.writes_enabled') !== true
             || config('services.remnawave.squad_bindings_live_verified') !== true) {
             throw new RuntimeException('Paid-order provisioning is disabled.');
@@ -62,6 +65,9 @@ final readonly class FulfillPaidPlanOrder
      */
     public function reconcile(int $orderId): int
     {
+        if (DB::table('sales_renewal_orders')->where('sales_order_id', $orderId)->exists()) {
+            throw new RuntimeException('Renewal needs the separate read-only reconciliation path.');
+        }
         $this->assertOrderId($orderId);
         $state = DB::transaction(function () use ($orderId): string {
             $order = DB::table('sales_orders')->where('id', $orderId)->lockForUpdate()->first();
@@ -150,7 +156,7 @@ final readonly class FulfillPaidPlanOrder
     }
 
     /** Verify an actual, settled Billing journal, never the Sales status alone. */
-    private function assertSettlement(object $order): void
+    public function assertSettlement(object $order): void
     {
         $orderId = (int) $order->id;
         $amount = (int) $order->total_price_rials;

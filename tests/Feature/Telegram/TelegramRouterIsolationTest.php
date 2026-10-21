@@ -285,6 +285,7 @@ it('keeps Sales identity, navigation and buyer routes isolated from Admin callba
         'callback:sales:subs:page:{id}:{cursor}',
         'callback:sales:subs:link:{id}:{cursor}',
         'callback:sales:subs:renew:{id}:{cursor}',
+        'callback:sales:subs:renew:checkout:{id}:{cursor}',
     ]);
 
     $runtime = file_get_contents(app_path('Interfaces/Telegram/Processing/SalesTelegramRuntime.php'));
