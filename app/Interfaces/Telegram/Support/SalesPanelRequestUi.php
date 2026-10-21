@@ -33,7 +33,7 @@ final readonly class SalesPanelRequestUi
         app(SalesHomeUi::class)->navigationActor($bot);
         $current = $this->requests->find($userId);
         $actor = $this->actors->handle((int) $this->private->id($bot));
-        if (in_array('reseller', $actor?->roles ?? [], true)) {
+        if (in_array('reseller', $actor->roles, true)) {
             $this->clear($userId);
             $this->notice($bot, '<b>🧩 پنل فروش</b>'."\n\n✅ پنل فروش برای حساب شما فعال است.");
 
@@ -45,7 +45,7 @@ final readonly class SalesPanelRequestUi
 
             return;
         }
-        if (! in_array('member', $actor?->roles ?? [], true)) {
+        if (! in_array('member', $actor->roles, true)) {
             $this->notice($bot, 'امکان درخواست پنل فروش برای این حساب وجود ندارد.');
 
             return;
