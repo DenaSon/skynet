@@ -171,7 +171,8 @@ final readonly class SalesHomeUi
             $keyboard->addRow(InlineKeyboardButton::make('بعدی ▶️', callback_data: 'sales:home:'.($page + 1)));
         }
         $keyboard->addRow(InlineKeyboardButton::make('📋 همه پلن‌ها و قیمت‌ها', callback_data: 'menu:plan-catalog'));
-        if (config('sales.manual_bank_review_enabled', false) !== true) {
+        if (config('sales.manual_bank_review_enabled', false) !== true
+            && config('sales.wallet_settlement_enabled', false) !== true) {
             $lines[] = '';
             $lines[] = 'پرداخت فعلاً فعال نیست.';
         }
