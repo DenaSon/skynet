@@ -299,9 +299,13 @@ final readonly class SalesHomeUi
             $message = '<b>💼 کیف پول من</b>'."\n\nموجودی فعلاً در دسترس نیست.";
         }
 
-        $this->render($bot, $message, InlineKeyboardMarkup::make()
-            ->addRow(InlineKeyboardButton::make('◀️ حساب کاربری', callback_data: 'sales:account'))
-            ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home')));
+        $keyboard = InlineKeyboardMarkup::make();
+        if (config('billing.topups_enabled', false) === true) {
+            $keyboard->addRow(InlineKeyboardButton::make('➕ افزایش موجودی', callback_data: 'sales:wallet:topup'));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('◀️ حساب کاربری', callback_data: 'sales:account'))
+            ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
+        $this->render($bot, $message, $keyboard);
     }
 
     public function invite(Nutgram $bot): void
@@ -394,6 +398,7 @@ final readonly class SalesHomeUi
         $this->pendingBuilder->forget($buyerId);
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$buyerId));
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:recent:'.$buyerId));
+        Cache::forget(TelegramBotContext::current()->cacheKey('telegram:wallet:topup:'.$buyerId));
     }
 
     private function salesRole(TelegramActor $actor): string
