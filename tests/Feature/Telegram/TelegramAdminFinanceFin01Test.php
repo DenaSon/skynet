@@ -91,7 +91,7 @@ it('navigates the Admin Finance customer wallet read and bounded lookup with no 
             && str_contains($data['text'], 'گردش‌های اخیر')
             && ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'adjust');
     }, index: 1);
-    $bot->hearCallbackQueryData('finance:wallet:find')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('finance:find-wallet')->reply()->assertCalled('editMessageText');
     $bot->hearText((string) $customer->id)->reply()->assertCalled('sendMessage');
     expect(DB::table('billing_journals')->count())->toBe(0)
         ->and(DB::table('billing_topups')->count())->toBe(0);
