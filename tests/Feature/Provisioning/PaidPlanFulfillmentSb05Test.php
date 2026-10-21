@@ -29,9 +29,11 @@ use App\Modules\Sales\Application\PlanDefinition;
 use App\Modules\Sales\Application\PlanPricingDefinition;
 use App\Modules\Sales\Application\SettleWalletOrder;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\Events\TransactionRolledBack;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Validation\ValidationException;
@@ -191,10 +193,16 @@ it('holds a paid order with revoked squad verification before any provider attem
     Http::fake();
     DB::table('sales_plan_internal_squad_bindings')->where('plan_id', $data['plan'])
         ->update(['verified_at' => null]);
+    $rollbacks = 0;
+    Event::listen(TransactionRolledBack::class, static function () use (&$rollbacks): void {
+        $rollbacks++;
+    });
     expect(fn () => app(FulfillPaidPlanOrder::class)->handle($data['order']))
         ->toThrow(RuntimeException::class, 'Squad');
     expect(DB::table('sales_fulfillment_outbox')->value('state'))->toBe('needs_review')
-        ->and(DB::table('sales_fulfillment_outbox')->value('attempts'))->toBe(0);
+        ->and(DB::table('sales_fulfillment_outbox')->value('attempts'))->toBe(0)
+        // No rollback may release readiness locks before committing the hold.
+        ->and($rollbacks)->toBe(0);
     Http::assertNothingSent();
 });
 
