@@ -1,10 +1,10 @@
 <?php
 
-use App\Modules\Identity\Application\IssueTelegramLinkCode;
-use App\Modules\Referral\Application\GetReferralInvite;
 use App\Interfaces\Telegram\Handlers\StartHandler;
+use App\Modules\Identity\Application\IssueTelegramLinkCode;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
+use App\Modules\Referral\Application\GetReferralInvite;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
