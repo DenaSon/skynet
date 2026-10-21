@@ -36,8 +36,13 @@ $bot->onCallbackQueryData('sales:home', function (Nutgram $bot): void {
     app(SalesHomeUi::class)->start($bot);
 });
 
+$bot->onCallbackQueryData('sales:buy', function (Nutgram $bot): void {
+    app(SalesHomeUi::class)->buy($bot);
+});
+
+// Preserve pagination callbacks already present on older buying messages.
 $bot->onCallbackQueryData('sales:home:{page}', function (Nutgram $bot, string $page): void {
-    app(SalesHomeUi::class)->start($bot, page: ctype_digit($page) && strlen($page) <= 4 ? (int) $page : 1);
+    app(SalesHomeUi::class)->buy($bot, ctype_digit($page) && strlen($page) <= 4 ? (int) $page : 1);
 });
 
 $bot->onCallbackQueryData('sales:invite', function (Nutgram $bot): void {

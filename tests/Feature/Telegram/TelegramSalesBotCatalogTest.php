@@ -245,7 +245,7 @@ it('gives Sales resellers truthful custom-plan guidance without unlocking financ
     Http::assertNothingSent();
 });
 
-it('shows bounded ready plan prices on home using current buyer quotes and preserves checkout boundaries', function (): void {
+it('shows real Sales main navigation and keeps bounded buyer-quoted ready plans under Buy', function (): void {
     sb02SalesWebhookContext();
     config()->set('services.remnawave.squad_bindings_live_verified', true);
     $root = sb02Root();
@@ -266,6 +266,21 @@ it('shows bounded ready plan prices on home using current buyer quotes and prese
     $buyer = User::factory()->create();
     $bot = sb02Bot(977030, $buyer);
     $bot->hearText('/start')->reply()->assertCalled('sendMessage', 2)
+        ->assertRaw(static function (Request $request): bool {
+            $body = FakeNutgram::getActualData($request);
+            $encoded = json_encode($body, JSON_THROW_ON_ERROR);
+
+            return $body['parse_mode'] === 'HTML'
+                && str_contains($body['text'], '🏠 صفحه اصلی DenaGate')
+                && ! str_contains($body['text'], 'مبلغ:')
+                && str_contains($encoded, 'sales:buy')
+                && str_contains($encoded, 'sales:subs:list:0')
+                && str_contains($encoded, 'sales:account')
+                && str_contains($encoded, 'sales:support');
+        }, index: 1);
+
+    $bot->hearCallbackQueryData('sales:buy')->reply()
+        ->assertCalled('answerCallbackQuery')->assertCalled('editMessageText')
         ->assertRaw(static function (Request $request) use ($ready, $restricted, $unready): bool {
             $body = FakeNutgram::getActualData($request);
             $encoded = json_encode($body, JSON_THROW_ON_ERROR);

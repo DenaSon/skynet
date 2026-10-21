@@ -1,5 +1,6 @@
 <?php
 
+use App\Interfaces\Telegram\Support\MenuRenderer;
 use App\Interfaces\Telegram\Support\ReplyMenuLabels;
 use App\Interfaces\Telegram\Support\ReplyMenuRenderer;
 use App\Modules\Identity\Application\ResolveTelegramActor;
@@ -11,6 +12,7 @@ use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\ReplyKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\Message\Message;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 
 uses(RefreshDatabase::class);
@@ -145,4 +147,42 @@ it('keeps private chat guards and refuses stale Admin keyboards for inactive use
     $admin->forceFill(['is_active' => false])->save();
     $bot->hearText(ReplyMenuLabels::USERS)->reply()
         ->assertReplyText('🔒 حساب شما به ParsaGate متصل نیست. برای اتصال، کد یک‌بارمصرف صادرشده توسط مدیر را در گفت‌وگوی خصوصی با دستور /link وارد کنید.');
+});
+
+it('renders Admin as fresh text from a photo callback without trying to edit the media', function (): void {
+    // Routing/RBAC are covered by earlier tests. This isolates the media
+    // transport path without Nutgram Fake's synthetic-photo routing limits.
+    $admin = User::factory()->admin()->create();
+    TelegramAccount::query()->create(['user_id' => $admin->id, 'telegram_user_id' => 984101]);
+    $actor = app(ResolveTelegramActor::class)->handle(984101);
+    expect($actor)->not->toBeNull();
+
+    $photo = new Message;
+    $photo->photo = [['file_id' => 'test-receipt', 'width' => 600, 'height' => 600]];
+
+    $bot = Mockery::mock(Nutgram::class);
+    $bot->shouldReceive('isCallbackQuery')->twice()->andReturn(true);
+    $bot->shouldReceive('answerCallbackQuery')->once()->andReturn(true);
+    $bot->shouldReceive('message')->once()->andReturn($photo);
+    $bot->shouldReceive('sendMessage')->once()->andReturn(new Message);
+    $bot->shouldNotReceive('editMessageText');
+    app(MenuRenderer::class)->showAdmin($bot, $actor);
+});
+
+it('keeps in-place Admin text menu edits for ordinary callbacks', function (): void {
+    $admin = User::factory()->admin()->create();
+    TelegramAccount::query()->create(['user_id' => $admin->id, 'telegram_user_id' => 984102]);
+    $actor = app(ResolveTelegramActor::class)->handle(984102);
+    expect($actor)->not->toBeNull();
+
+    $textMessage = new Message;
+    $textMessage->text = 'Previous Admin page';
+
+    $bot = Mockery::mock(Nutgram::class);
+    $bot->shouldReceive('isCallbackQuery')->twice()->andReturn(true);
+    $bot->shouldReceive('answerCallbackQuery')->once()->andReturn(true);
+    $bot->shouldReceive('message')->once()->andReturn($textMessage);
+    $bot->shouldReceive('editMessageText')->once()->andReturn(new Message);
+    $bot->shouldNotReceive('sendMessage');
+    app(MenuRenderer::class)->showAdmin($bot, $actor);
 });
