@@ -24,7 +24,7 @@ use SergiX44\Nutgram\Testing\FakeNutgram;
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
-    config()->set('super_admin.telegram_ids', ['987601']);
+    config()->set('super_admin.telegram_ids', ['987601', '987602']);
     config()->set('billing.topups_enabled', true);
     config()->set('sales.manual_bank_review_enabled', true);
     config()->set('nutgram.token', '87654321:admin-secret');
