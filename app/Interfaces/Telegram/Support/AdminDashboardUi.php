@@ -81,7 +81,7 @@ final readonly class AdminDashboardUi
             ->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
 
         if ($bot->isCallbackQuery()) {
-            TelegramUi::editText($bot, $text, $keyboard, ['parse_mode' => 'HTML']);
+            TelegramUi::editText($bot, $text, $keyboard, 'HTML');
 
             return;
         }
