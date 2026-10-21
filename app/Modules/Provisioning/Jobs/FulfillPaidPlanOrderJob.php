@@ -39,7 +39,7 @@ final class FulfillPaidPlanOrderJob implements ShouldBeUnique, ShouldQueue
         return 'parsa:fulfillment:'.$this->orderId;
     }
 
-    public function handle(FulfillPaidPlanOrder $fulfill, AssertCatalogManagementAccess $access, VerifyWalletOrderDebit $wallet): void
+    public function handle(FulfillPaidPlanOrder $fulfill, AssertCatalogManagementAccess $access, ?VerifyWalletOrderDebit $wallet = null): void
     {
         try {
             if ($this->actorId > 0) {
@@ -54,7 +54,7 @@ final class FulfillPaidPlanOrderJob implements ShouldBeUnique, ShouldQueue
                     ->whereNotNull('o.plan_id')->where('s.method', 'customer_wallet')
                     ->first(['o.buyer_user_id', 'o.total_price_rials', 's.billing_journal_id', 's.amount_rials']);
                 if ($row === null || (int) $row->amount_rials !== (int) $row->total_price_rials
-                    || ! $wallet->handle((int) $row->buyer_user_id, $this->orderId,
+                    || ! ($wallet ?? app(VerifyWalletOrderDebit::class))->handle((int) $row->buyer_user_id, $this->orderId,
                         (int) $row->billing_journal_id, (int) $row->total_price_rials)) {
                     return;
                 }
