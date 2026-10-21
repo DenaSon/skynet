@@ -379,7 +379,7 @@ final readonly class SalesCheckoutUi
         };
 
         $isReseller = in_array('reseller',
-            $this->resolve->handle((int) $bot->user()->id)?->roles ?? [], true);
+            $this->resolve->handle((int) $bot->user()->id)->roles, true);
         $balance = $this->walletBalance($order->buyerUserId);
         $walletEligible = $order->status === 'pending_payment' && $latestReceipt !== 'submitted'
             && $balance !== null && $balance >= $order->totalPriceRials;
