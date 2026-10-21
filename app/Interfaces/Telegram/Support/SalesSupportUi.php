@@ -33,27 +33,56 @@ final readonly class SalesSupportUi
                 $keyboard->addRow(
                     InlineKeyboardButton::make('🤖 اندروید', callback_data: 'sales:help:android'),
                     InlineKeyboardButton::make('🍎 آیفون / آیپد', callback_data: 'sales:help:ios'),
-                )->addRow(InlineKeyboardButton::make('💻 کامپیوتر (ویندوز / مک)', callback_data: 'sales:help:desktop'))
-                    ->addRow(InlineKeyboardButton::make('🛒 آموزش خرید', callback_data: 'sales:help:purchase'))
+                )->addRow(
+                    InlineKeyboardButton::make('🪟 ویندوز', callback_data: 'sales:help:windows'),
+                    InlineKeyboardButton::make('💻 مک', callback_data: 'sales:help:macos'),
+                )->addRow(InlineKeyboardButton::make('🛒 آموزش خرید', callback_data: 'sales:help:purchase'))
                     ->addRow(InlineKeyboardButton::make('🔧 رفع مشکل اتصال', callback_data: 'sales:help:troubleshoot'));
+                break;
+
+            case 'desktop':
+                // Existing keyboards may still carry the combined desktop callback.
+                $text = '<b>💻 اتصال در کامپیوتر</b>'."\n\n".'سیستم‌عامل خود را انتخاب کنید.';
+                $keyboard->addRow(
+                    InlineKeyboardButton::make('🪟 ویندوز', callback_data: 'sales:help:windows'),
+                    InlineKeyboardButton::make('💻 مک', callback_data: 'sales:help:macos'),
+                );
                 break;
 
             case 'android':
             case 'ios':
-            case 'desktop':
+            case 'windows':
+            case 'macos':
                 $device = match ($page) {
-                    'android' => 'اندروید',
-                    'ios' => 'آیفون / آیپد',
-                    default => 'ویندوز / مک',
+                    'android' => '🤖 اندروید',
+                    'ios' => '🍎 آیفون / آیپد',
+                    'windows' => '🪟 ویندوز',
+                    default => '💻 مک',
+                };
+                $client = match ($page) {
+                    'android' => 'v2rayNG',
+                    'windows' => 'v2rayN',
+                    default => 'V2Box',
+                };
+                $download = match ($page) {
+                    'android' => 'https://github.com/2dust/v2rayNG/releases/latest',
+                    'ios', 'macos' => 'https://apps.apple.com/app/v2box-v2ray-client/id6446814690',
+                    default => 'https://github.com/2dust/v2rayN/releases/latest',
+                };
+                $import = match ($page) {
+                    'android' => 'در v2rayNG، بخش گروه‌های اشتراک (Subscription group) را باز کنید، URL را اضافه کنید و اشتراک را به‌روز کنید.',
+                    'windows' => 'در v2rayN، بخش گروه اشتراک (Subscription group) را باز کنید، URL را وارد و گروه را به‌روز کنید.',
+                    default => 'در V2Box، بخش اشتراک‌ها (Subscriptions) را باز کنید، URL را اضافه و سپس به‌روز کنید.',
                 };
                 $text = '<b>📱 اتصال در '.$device.'</b>'."\n\n"
-                    ."۱. از سایت رسمی Hiddify، نسخه مناسب دستگاه خود را نصب کنید.\n\n"
-                    ."۲. در «سرویس‌های من»، سرویس فعال را باز کنید و لینک اختصاصی را کپی کنید.\n\n"
-                    ."۳. در Hiddify دکمه + و سپس «افزودن از کلیپ‌بورد» (Add from clipboard) را بزنید.\n\n"
-                    ."۴. پروفایل را انتخاب کنید و دکمه اتصال را بزنید؛ اگر دستگاه اجازه اتصال خواست، آن را تأیید کنید.\n\n"
-                    .'<blockquote>لینک اتصال شخصی است؛ آن را برای دیگران نفرستید.</blockquote>';
-                $keyboard->addRow(InlineKeyboardButton::make('⬇️ دریافت Hiddify از سایت رسمی', url: 'https://hiddify.com/'))
-                    ->addRow(InlineKeyboardButton::make('📖 راهنمای رسمی برنامه', url: 'https://hiddify.com/app/How-to-use-Hiddify-app/'))
+                    .'برنامه پیشنهادی: <b>'.$client.'</b>'."\n\n"
+                    ."۱. از لینک رسمی زیر برنامه را نصب کنید.\n\n"
+                    ."۲. از «سرویس‌های من» لینک <b>اشتراک</b> اختصاصی خود را کپی کنید.\n\n"
+                    .'۳. '.$import."\n\n"
+                    ."۴. سرور دریافت‌شده را انتخاب و اتصال را فعال کنید. اگر مجوز VPN درخواست شد، تأیید کنید.\n\n"
+                    .'<blockquote>نام منوها ممکن است بین نسخه‌ها فرق کند. سازگاری فرمت اشتراک با نوع کلاینت و تنظیمات Remnawave بررسی می‌شود؛ لینک خصوصی خود را به کسی ندهید.</blockquote>';
+                $keyboard->addRow(InlineKeyboardButton::make('⬇️ دریافت '.$client, url: $download))
+                    ->addRow(InlineKeyboardButton::make('📚 فهرست رسمی کلاینت‌های Remnawave', url: 'https://docs.rw/clients/'))
                     ->addRow(InlineKeyboardButton::make('📋 سرویس‌های من', callback_data: 'sales:subs:list:0'));
                 break;
 
@@ -85,7 +114,7 @@ final readonly class SalesSupportUi
         if ($operator !== null) {
             $keyboard->addRow(InlineKeyboardButton::make('💬 ارتباط با پشتیبان', url: $operator));
         }
-        if (in_array($page, ['android', 'ios', 'desktop', 'purchase', 'troubleshoot'], true)) {
+        if (in_array($page, ['android', 'ios', 'windows', 'macos', 'desktop', 'purchase', 'troubleshoot'], true)) {
             $keyboard->addRow(InlineKeyboardButton::make('◀️ آموزش‌ها', callback_data: 'sales:help:apps'));
         } elseif ($page === 'apps') {
             $keyboard->addRow(InlineKeyboardButton::make('◀️ پشتیبانی', callback_data: 'sales:support'));
