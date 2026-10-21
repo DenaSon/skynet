@@ -160,9 +160,7 @@ final class ReplyMenuHandler
                 return true;
 
             case ReplyMenuLabels::FINANCE_SECTION:
-                if (! $actor->canManageRoles()
-                    || (config('billing.topups_enabled', false) !== true
-                        && config('sales.manual_bank_review_enabled', false) !== true)) {
+                if (! $actor->canManageRoles()) {
                     $this->deny($bot, $actor);
 
                     return true;

@@ -29,13 +29,6 @@ final readonly class AdminSectionsUi
             return;
         }
 
-        if (config('billing.topups_enabled', false) !== true
-            && config('sales.manual_bank_review_enabled', false) !== true) {
-            $this->menus->denyAccess($bot);
-
-            return;
-        }
-
         $this->menus->showAdminFinance($bot);
     }
 

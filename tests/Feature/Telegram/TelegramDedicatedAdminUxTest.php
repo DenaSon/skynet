@@ -93,7 +93,8 @@ it('shows only authorized real Admin operations for trusted roots and gates fina
     $keyboard = app(ReplyMenuRenderer::class)->homeKeyboard($actor);
     $labels = mb04Labels($keyboard);
     expect($labels)->toContain(ReplyMenuLabels::USERS, ReplyMenuLabels::ROLES, ReplyMenuLabels::SALES_SECTION, ReplyMenuLabels::ACCOUNT)
-        ->not->toContain(ReplyMenuLabels::FINANCE_SECTION, ReplyMenuLabels::TOPUPS, ReplyMenuLabels::RECEIPTS,
+        ->toContain(ReplyMenuLabels::FINANCE_SECTION)
+        ->not->toContain(ReplyMenuLabels::TOPUPS, ReplyMenuLabels::RECEIPTS,
             ReplyMenuLabels::BUY, ReplyMenuLabels::SUBSCRIPTIONS, ReplyMenuLabels::HOME)
         ->and(count($keyboard->keyboard[0]))->toBe(2);
 
@@ -101,10 +102,8 @@ it('shows only authorized real Admin operations for trusted roots and gates fina
     $bot->hearCallbackQueryData('menu:admin:sales')->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('menu:admin:products')->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('menu:admin:plans')->reply()->assertCalled('editMessageText');
-    $bot->hearText(ReplyMenuLabels::FINANCE_SECTION)->reply()
-        ->assertReplyText('دسترسی مجاز نیست. منوی شما به‌روز شد.');
-    $bot->hearCallbackQueryData('menu:admin:finance')->reply()
-        ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.']);
+    $bot->hearText(ReplyMenuLabels::FINANCE_SECTION)->reply()->assertCalled('sendMessage');
+    $bot->hearCallbackQueryData('menu:admin:finance')->reply()->assertCalled('editMessageText');
 
     config()->set('sales.manual_bank_review_enabled', true);
     expect(mb04Labels(app(ReplyMenuRenderer::class)->homeKeyboard($actor)))

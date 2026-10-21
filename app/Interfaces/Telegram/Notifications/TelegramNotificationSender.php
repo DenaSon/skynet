@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Interfaces\Telegram\Notifications;
 
 use App\Interfaces\Telegram\Support\SubscriptionPageLink;
+use App\Modules\Billing\Application\BrowsePhotoTopups;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\TelegramRecipient;
 use App\Modules\Sales\Application\ManualBankPayments;
@@ -191,6 +192,28 @@ final readonly class TelegramNotificationSender
         ], JSON_THROW_ON_ERROR);
 
         $this->photo('admin', $chatId, $row->photoFileId, (string) $row->sourceBotKey, $caption, $keyboard);
+    }
+
+    /** Protected Admin-only photo; reuses the existing Sales→Admin Telegram bridge. */
+    public function showWalletTopupPhotoToRoot(int $topupId, int $rootId, int $chatId, string $caption): void
+    {
+        $actor = $this->actors->handle($chatId);
+        if ($actor === null || $actor->userId !== $rootId || ! $actor->canManageRoles()) {
+            throw new NotificationUnavailable('not_authorized');
+        }
+
+        $row = app(BrowsePhotoTopups::class)->photo($rootId, $topupId);
+        $keyboard = json_encode([
+            'inline_keyboard' => [
+                [
+                    ['text' => '✅ بررسی تأیید', 'callback_data' => 'finance:topup:decision:'.$topupId.':a'],
+                    ['text' => '❌ رد رسید', 'callback_data' => 'finance:topup:decision:'.$topupId.':r'],
+                ],
+                [['text' => '◀️ صف شارژ', 'callback_data' => 'finance:topups:1']],
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $this->photo('admin', $chatId, $row['file_id'], 'sales', $caption, $keyboard);
     }
 
     private function text(string $bot, int $chat, string $text, ?string $keyboard = null): void

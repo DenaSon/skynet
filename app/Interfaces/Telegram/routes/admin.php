@@ -5,6 +5,7 @@ use App\Interfaces\Telegram\Handlers\AdminRolesHandler;
 use App\Interfaces\Telegram\Handlers\AdminUsersHandler;
 use App\Interfaces\Telegram\Support\AdminConfigProfileOperationsUi;
 use App\Interfaces\Telegram\Support\AdminConfigProfilesUi;
+use App\Interfaces\Telegram\Support\AdminFinanceWalletUi;
 use App\Interfaces\Telegram\Support\AdminFulfillmentUi;
 use App\Interfaces\Telegram\Support\AdminHostBatchUi;
 use App\Interfaces\Telegram\Support\AdminHostOperationsUi;
@@ -366,6 +367,29 @@ $bot->onCallbackQueryData('bank:show:{claim}', function (Nutgram $bot, string $c
 
 $bot->onCallbackQueryData('bank:decide:{claim}:{decision}', function (Nutgram $bot, string $claim, string $decision): void {
     app(ManualPaymentUi::class)->decide($bot, $claim, $decision);
+});
+
+// FIN-01: protected wallet reads and top-up photo review, separate from purchase receipts.
+$bot->onCallbackQueryData('finance:wallets:{page}', function (Nutgram $bot, string $page): void {
+    app(AdminFinanceWalletUi::class)->wallets($bot, $page);
+});
+$bot->onCallbackQueryData('finance:wallet:{id}', function (Nutgram $bot, string $id): void {
+    app(AdminFinanceWalletUi::class)->detail($bot, $id);
+});
+$bot->onCallbackQueryData('finance:find-wallet', function (Nutgram $bot): void {
+    app(AdminFinanceWalletUi::class)->find($bot);
+});
+$bot->onCallbackQueryData('finance:topups:{page}', function (Nutgram $bot, string $page): void {
+    app(AdminFinanceWalletUi::class)->pending($bot, $page);
+});
+$bot->onCallbackQueryData('finance:topup:photo:{id}', function (Nutgram $bot, string $id): void {
+    app(AdminFinanceWalletUi::class)->showPhoto($bot, $id);
+});
+$bot->onCallbackQueryData('finance:topup:decision:{id}:{decision}', function (Nutgram $bot, string $id, string $decision): void {
+    app(AdminFinanceWalletUi::class)->decision($bot, $id, $decision);
+});
+$bot->onCallbackQueryData('finance:topup:apply:{token}', function (Nutgram $bot, string $token): void {
+    app(AdminFinanceWalletUi::class)->apply($bot, $token);
 });
 
 $bot->onCallbackQueryData('menu:billing-reviews', function (Nutgram $bot): void {
