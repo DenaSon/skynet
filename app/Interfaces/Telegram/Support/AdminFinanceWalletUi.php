@@ -73,7 +73,7 @@ final readonly class AdminFinanceWalletUi
         if ($arrows !== []) {
             $keyboard->addRow(...$arrows);
         }
-        $keyboard->addRow(InlineKeyboardButton::make('🔎 جستجو با شناسه کاربر', callback_data: 'finance:wallet:find'))
+        $keyboard->addRow(InlineKeyboardButton::make('🔎 جستجو با شناسه کاربر', callback_data: 'finance:find-wallet'))
             ->addRow(InlineKeyboardButton::make('◀️ امور مالی', callback_data: 'menu:admin:finance'));
         $this->render($bot, trim(implode("\n", $lines)), $keyboard);
     }
