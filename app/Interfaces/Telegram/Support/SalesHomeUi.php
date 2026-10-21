@@ -20,6 +20,7 @@ use App\Modules\Sales\Application\QuotedPreset;
 use App\Modules\Sales\Application\SummarizeSalesPurchases;
 use Illuminate\Support\Facades\Cache;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 use Throwable;
@@ -75,8 +76,8 @@ final readonly class SalesHomeUi
 
         $keyboard = InlineKeyboardMarkup::make()
             ->addRow(
-                InlineKeyboardButton::make('🛒 خرید سرویس', callback_data: 'sales:buy'),
-                InlineKeyboardButton::make('📋 سرویس‌های من', callback_data: 'sales:subs:list:0'),
+                InlineKeyboardButton::make('🟢 خرید سرویس', callback_data: 'sales:buy', style: ButtonStyle::SUCCESS),
+                InlineKeyboardButton::make('📋 سرویس‌های من', callback_data: 'sales:subs:list:0', style: ButtonStyle::PRIMARY),
             )
             ->addRow(
                 InlineKeyboardButton::make('👤 حساب کاربری', callback_data: 'sales:account'),
@@ -115,6 +116,7 @@ final readonly class SalesHomeUi
             $keyboard->addRow(InlineKeyboardButton::make(
                 mb_substr($this->plain($entry->plan->name), 0, 35),
                 callback_data: 'catalog:detail:'.$entry->plan->id.':1',
+                style: ButtonStyle::PRIMARY,
             ));
         }
         if ($entries === []) {
@@ -140,7 +142,7 @@ final readonly class SalesHomeUi
     public function navigate(Nutgram $bot, string $text): bool
     {
         $action = match (trim($text)) {
-            ReplyMenuLabels::SALES_BUY, ReplyMenuLabels::BUY, '🛒 انتخاب پلن' => 'buy',
+            ReplyMenuLabels::SALES_BUY, ReplyMenuLabels::BUY, '🛒 خرید سرویس', '🛒 انتخاب پلن' => 'buy',
             ReplyMenuLabels::CATALOG => 'catalog',
             ReplyMenuLabels::SALES_SUBSCRIPTIONS, ReplyMenuLabels::SUBSCRIPTIONS, '📦 اشتراک‌های من' => 'subscriptions',
             ReplyMenuLabels::SALES_ACCOUNT, ReplyMenuLabels::ACCOUNT => 'account',

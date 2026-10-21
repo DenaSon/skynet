@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
@@ -71,6 +72,15 @@ it('installs exactly four persistent Sales buttons and escapes dynamic HTML in h
             [ReplyMenuLabels::SALES_BUY, ReplyMenuLabels::SALES_SUBSCRIPTIONS],
             [ReplyMenuLabels::SALES_ACCOUNT, ReplyMenuLabels::SALES_SUPPORT],
         ]);
+
+    expect($keyboard->keyboard[0][0]->style)->toBe(ButtonStyle::SUCCESS)
+        ->and($keyboard->keyboard[0][1]->style)->toBe(ButtonStyle::PRIMARY)
+        ->and($keyboard->keyboard[1][0]->style)->toBeNull()
+        ->and($keyboard->keyboard[1][1]->style)->toBeNull();
+
+    $encoded = json_decode(json_encode($keyboard, JSON_THROW_ON_ERROR), true, flags: JSON_THROW_ON_ERROR);
+    expect($encoded['keyboard'][0][0]['style'])->toBe('success')
+        ->and($encoded['keyboard'][0][1]['style'])->toBe('primary');
 
     $bot->hearText('/start')->reply()->assertCalled('sendMessage', 2)
         ->assertReply('sendMessage', ['parse_mode' => 'HTML'])
@@ -249,5 +259,24 @@ it('keeps Home separate from purchase offers for all Sales home entry callbacks'
         static fn (Request $request): bool => str_contains(uxr01Payload($request)['text'], '🏠 صفحه اصلی DenaGate'),
         index: 1,
     );
+    Http::assertNothingSent();
+});
+
+it('accepts old Sales keyboard labels while using native colored buttons for current navigation', function (): void {
+    $bot = uxr01Bot(User::factory()->create());
+
+    $bot->hearText('🛒 خرید سرویس')->reply()->assertRaw(static function (Request $request): bool {
+        $body = uxr01Payload($request);
+
+        return str_contains($body['text'], '🛒 پلن‌های آماده خرید');
+    });
+    $bot->hearCallbackQueryData('sales:home')->reply()->assertRaw(static function (Request $request): bool {
+        $body = uxr01Payload($request);
+        $buttons = $body['reply_markup']['inline_keyboard'];
+
+        return $buttons[0][0]['style'] === 'success'
+            && $buttons[0][1]['style'] === 'primary'
+            && $buttons[0][0]['callback_data'] === 'sales:buy';
+    }, index: 1);
     Http::assertNothingSent();
 });
