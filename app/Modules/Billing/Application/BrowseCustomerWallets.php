@@ -58,6 +58,7 @@ final readonly class BrowseCustomerWallets
                     $key = (string) $row->idempotency_key;
                     $source = preg_match('/\A(?:topup|wallet:order|order):[0-9]+\z/D', $key) === 1
                         ? $key : '';
+
                     return [
                         'journal' => (int) $row->journal_id,
                         'kind' => (string) $row->kind,
