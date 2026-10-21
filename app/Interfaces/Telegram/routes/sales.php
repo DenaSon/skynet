@@ -26,6 +26,11 @@ $bot->onCommand('menu', function (Nutgram $bot): void {
     app(SalesHomeUi::class)->start($bot);
 });
 
+// MENU-01: native Telegram commands use the original authorized Sales presenter.
+$bot->onCommand('buy', function (Nutgram $bot): void {
+    app(SalesHomeUi::class)->buy($bot);
+});
+
 $bot->onCommand('account', function (Nutgram $bot): void {
     app(SalesHomeUi::class)->account($bot);
 });

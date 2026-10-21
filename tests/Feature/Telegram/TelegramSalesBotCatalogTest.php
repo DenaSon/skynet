@@ -187,7 +187,9 @@ it('keeps orders, settlement, provisioning and admin commands unavailable in the
     $user = User::factory()->create();
     $bot = sb02Bot(977014, $user);
 
-    foreach (['/buy', '/paid 1 ref', '/payments', '/roles', '/admin'] as $text) {
+    // MENU-01 deliberately allows only /buy as a new Sales navigation command.
+    $bot->hearText('/buy')->reply()->assertReply('sendMessage', ['parse_mode' => 'HTML']);
+    foreach (['/paid 1 ref', '/payments', '/roles', '/admin'] as $text) {
         $bot->hearText($text)->reply()->assertReplyText('برای ادامه، یکی از دکمه‌های منو را انتخاب کنید.');
     }
     foreach (['shop:order:forged', 'bank:apply:forged', 'menu:admin:users'] as $callback) {
