@@ -1,3 +1,11 @@
+## SUB-ALERT-01 — operational warning runbook (2026-10-21)
+
+PR [#168](https://github.com/DenaSon/skynet/pull/168) reuses `telegram_notification_deliveries` for expiration/traffic warnings and adds only `subscription_alert_states` (additive migration, stores last remote quota observation and generation). The existing `sales:subscriptions:alerts` command is scheduled every five minutes with overlap protection; the current minute notification-dispatch command and single configured Queue worker remain unchanged. Manual read-only one-off scan: `php artisan sales:subscriptions:alerts`. No provider writes, credentials or financial actions. **Do not schedule a second cron or worker**; Runflare already calls `schedule:run` each minute.
+
+Preflight: migrate additively; verify deployed code and schema, Sales Bot enabled with distinct configured token and *positively started*, reachable private Sales chat for the buyer, `TELEGRAM_NOTIFICATIONS_ENABLED=true`, existing real queue worker and scheduler running. If Sales or notification gate is disabled, the scan does not send or create suppressed historical alerts. A pending event is sent only if remote GET still confirms same owner/reference, same expiry instant or volume epoch, and the threshold remains true. State `unavailable` may indicate stale/renewed warning; **do not blindly retry** these messages. Failed Telegram transport follows the existing capped outbox recovery and may deliver twice only if Telegram accepted an ambiguous prior attempt. A bot cannot proactively message an account that never started it.
+
+Operator E2E evidence required after deploy: expiry 24h → expiry 1h, below 350 MiB, exact 350 MiB does not trigger, reset/recharge above threshold then below again, renewal invalidating old queue, blocked contact and provider outage. Check protected Sales service-detail callback; no subscription URL in messages, queue rows or logs. Fake-HTTP CI verifies source behavior but does not demonstrate live delivery. Production operations remain separate from source merge and require operator supervision.
+
 # MB-05A — Durable Telegram delivery / recovery
 
 ## Current prelaunch queue checkpoint — 2026-10-21
