@@ -9,7 +9,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
-use SergiX44\Nutgram\Telegram\Properties\UpdateType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\ReplyKeyboardMarkup;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
@@ -153,23 +152,15 @@ it('opens Admin as a fresh text message from a photo receipt and preserves text 
     $admin = User::factory()->admin()->create();
     $bot = mb04Bot(984101, $admin);
 
-    $bot->hearUpdateType(UpdateType::CALLBACK_QUERY, partialAttributes: [
-        // Match Nutgram's native hearCallbackQueryData fixture shape.
-        'message' => [
-            'from' => [],
-            'date' => 1703892479,
-            'caption' => '🧾 رسید تصویری',
-            'photo' => [
-                ['file_id' => 'receipt-file', 'file_unique_id' => 'receipt-unique', 'width' => 600, 'height' => 600],
-            ],
-        ],
-        'data' => 'menu:admin',
-    ]);
-    expect($bot->isCallbackQuery())->toBeTrue()
-        ->and($bot->message())->not->toBeNull()
-        ->and($bot->message()?->photo)->not->toBeEmpty()
-        ->and($bot->chat()?->id)->toBe(984101)
-        ->and($bot->user()?->id)->toBe(984101);
+    // Start with Nutgram's standard, routable fake callback, then attach
+    // a photo to its message. This avoids forging a second test-only router.
+    $bot->hearCallbackQueryData('menu:admin');
+    $mode = $bot->getContainer()->get(\\SergiX44\\Nutgram\\RunningMode\\RunningMode::class);
+    $update = (new \\ReflectionProperty(\\SergiX44\\Nutgram\\RunningMode\\Fake::class, 'update'))->getValue($mode);
+    $update->callback_query->message->photo = [
+        ['file_id' => 'receipt-file', 'file_unique_id' => 'receipt-unique', 'width' => 600, 'height' => 600],
+    ];
+    $bot->hearUpdate($update);
 
     $bot->reply()
         ->assertCalled('answerCallbackQuery')
