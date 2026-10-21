@@ -164,7 +164,14 @@ it('opens Admin as a fresh text message from a photo receipt and preserves text 
             ],
         ],
         'data' => 'menu:admin',
-    ])->reply()
+    ]);
+    expect($bot->isCallbackQuery())->toBeTrue()
+        ->and($bot->message())->not->toBeNull()
+        ->and($bot->message()?->photo)->not->toBeEmpty()
+        ->and($bot->chat()?->id)->toBe(984101)
+        ->and($bot->user()?->id)->toBe(984101);
+
+    $bot->reply()
         ->assertCalled('answerCallbackQuery')
         ->assertCalled('sendMessage', 1)
         ->assertCalled('editMessageText', 0)
