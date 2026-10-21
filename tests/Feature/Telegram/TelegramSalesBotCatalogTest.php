@@ -219,7 +219,7 @@ it('clearly offers the Sales plan-selection path without claiming an unverified 
     $bot = sb02Bot(977020, $member);
 
     $bot->hearText('/catalog')->reply()->assertReplyText(
-        "📋 پلن‌ها و قیمت‌ها\nصفحه 1 از 1\n\nقیمت‌ها از تعرفه فعال محاسبه می‌شوند و ممکن است تغییر کنند.\n"
+        "📋 پلن‌ها و قیمت‌ها\nصفحه 1 از 1\n\nقیمت‌ها از تعرفه فعال محاسبه می‌شوند و ممکن است تغییر کنند.\nمبلغ نمایش‌داده‌شده، قیمت خرید شماست.\n"
         ."با انتخاب پلن، وارد پرداخت می‌شوید؛ قیمت هنگام انتخاب دوباره بررسی می‌شود.\n\nدر حال حاضر پلنی برای نمایش وجود ندارد."
     );
     $bot->hearText('/start')->reply()->assertCalled('sendMessage', 2);
@@ -236,9 +236,9 @@ it('gives Sales resellers truthful custom-plan guidance without unlocking financ
     $bot = sb02Bot(977021, $reseller);
 
     $bot->hearText('/builder')->reply()->assertReplyText(
-        "💼 پلن‌ساز نمایندگان\nصفحه 1 از 1\n\n"
+        "💼 پلن‌ساز پنل فروش\nصفحه 1 از 1\n\n"
         ."حجم و مدت دلخواه را انتخاب کنید؛ امکان ثبت سفارش پس از بررسی آمادگی سرویس مشخص می‌شود.\n\n"
-        .'در حال حاضر پلن سفارشی فعالی برای نمایندگان وجود ندارد.'
+        .'در حال حاضر پلن سفارشی فعالی برای پنل فروش وجود ندارد.'
     );
 
     expect(DB::table('sales_orders')->count())->toBe(0);
