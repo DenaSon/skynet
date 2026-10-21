@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Modules\Identity\Application;
 
 use App\Modules\Identity\Infrastructure\Models\User;
-use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Validation\ValidationException;
 
 /** Only promotes an active ordinary member through the audited Identity role Action. */
