@@ -155,13 +155,13 @@ final readonly class WalletTopupUi
                 $this->notifications->submitted($state['topup_id']);
             });
         } catch (AuthorizationException|ValidationException|UniqueConstraintViolationException) {
-            $this->notice($bot, 'رسید قابل ثبت نیست یا قبلاً استفاده شده است. وضعیت کیف پول را بررسی کنید.');
+            $this->notice($bot, 'این رسید قبلاً استفاده شده یا درخواست دیگر معتبر نیست. برای بررسی وضعیت به کیف پول برگردید.');
 
             return true;
         }
 
         Cache::forget($this->key($userId));
-        $this->notice($bot, "🕘 عکس رسید شارژ #{$state['topup_id']} دریافت شد.\n\nدر انتظار بررسی پرداخت توسط مدیر است. موجودی هنوز افزایش نیافته است.");
+        $this->notice($bot, "<b>🕘 رسید شارژ #{$state['topup_id']} ثبت شد</b>\n\nوضعیت: <b>در انتظار بررسی</b>\nاعتبار پس از تأیید واریز توسط مدیر اضافه می‌شود. تا آن زمان موجودی تغییری نمی‌کند.");
 
         return true;
     }
