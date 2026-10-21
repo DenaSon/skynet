@@ -8,7 +8,7 @@ use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveUserSnapshot;
 
 /**
- * Read-only, credential-free live usage for a currently usable, owned order.
+ * Read-only, credential-free live usage and status for an owned linked order, even if expired.
  * The existing access action verifies provider identity and reauthorizes after GET.
  */
 final readonly class GetSubscriptionUsage
@@ -24,7 +24,9 @@ final readonly class GetSubscriptionUsage
                 expireAt: $remote->expireAt,
                 usedBytes: $remote->usedTrafficBytes,
                 limitBytes: $remote->trafficLimitBytes,
+                status: $remote->status,
             ),
+            requireUsable: false,
         );
     }
 }
