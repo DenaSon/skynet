@@ -171,7 +171,7 @@ final readonly class SalesCheckoutUi
 
         $expected = $this->tokens->peek($buyer, $token);
         if ($expected === null) {
-            $this->notice($bot, 'پیش‌فاکتور معتبر نیست یا منقضی شده است. قیمت را دوباره بررسی کنید.');
+            $this->notice($bot, 'این پیش‌فاکتور منقضی یا قبلاً استفاده شده است. پلن را دوباره انتخاب و مبلغ را بررسی کنید.');
 
             return;
         }
@@ -267,7 +267,7 @@ final readonly class SalesCheckoutUi
                 throw ValidationException::withMessages(['wallet' => 'Wallet is insufficient or unavailable.']);
             }
         } catch (AuthorizationException|ValidationException) {
-            $this->notice($bot, 'پرداخت کیف پول ممکن نیست؛ موجودی یا وضعیت سفارش را بررسی کنید.');
+            $this->notice($bot, 'موجودی برای این سفارش کافی نیست، یا رسید بانکی در انتظار بررسی است. از صفحه سفارش وضعیت را بررسی کنید.');
 
             return;
         }
@@ -321,7 +321,7 @@ final readonly class SalesCheckoutUi
         $key = $this->walletTokenKey($buyer, (int) $id);
         $expected = Cache::get($key);
         if (! is_array($expected) || ! hash_equals((string) ($expected['token'] ?? ''), $token)) {
-            $this->notice($bot, 'این تأیید پرداخت منقضی یا قبلاً استفاده شده است.');
+            $this->notice($bot, 'این دکمه منقضی یا قبلاً استفاده شده است. از سفارش‌های من دوباره وارد پرداخت شوید.');
 
             return;
         }
@@ -338,7 +338,7 @@ final readonly class SalesCheckoutUi
                 SubscriptionViewer::telegram((int) $this->private->id($bot)), (int) $id,
             );
         } catch (AuthorizationException|ValidationException) {
-            $this->notice($bot, 'موجودی یا وضعیت سفارش تغییر کرده است. دوباره از صفحه سفارش اقدام کنید.');
+            $this->notice($bot, 'مبلغ، موجودی یا وضعیت سفارش تغییر کرده است؛ برداشت انجام نشد. از صفحه سفارش دوباره اقدام کنید.');
 
             return;
         }
@@ -373,11 +373,13 @@ final readonly class SalesCheckoutUi
         $status = match (true) {
             $order->status === 'fulfilled' => '✅ اشتراک فعال شد',
             $order->status === 'paid' => '✅ پرداخت تأیید شده؛ در انتظار فعال‌سازی',
-            $latestReceipt === 'submitted' => '🕘 رسید در انتظار بررسی',
-            $latestReceipt === 'rejected' => '❌ رسید رد شده؛ نیاز به ارسال رسید صحیح',
+            $latestReceipt === 'submitted' => '🕘 رسید ثبت شد؛ در انتظار بررسی مدیر',
+            $latestReceipt === 'rejected' => '❌ رسید تأیید نشده؛ امکان ارسال رسید جدید',
             default => '🟠 در انتظار پرداخت',
         };
 
+        $isReseller = in_array('reseller',
+            $this->resolve->handle((int) $bot->user()->id)->roles, true);
         $balance = $this->walletBalance($order->buyerUserId);
         $walletEligible = $order->status === 'pending_payment' && $latestReceipt !== 'submitted'
             && $balance !== null && $balance >= $order->totalPriceRials;
@@ -417,7 +419,8 @@ final readonly class SalesCheckoutUi
         $this->render($bot, "✅ سفارش #{$order->id}\n\nپلن: ".$this->safe($order->productName)
             ."\nحجم: ".($order->trafficGb === null ? 'نامحدود' : $order->trafficGb.' گیگابایت')
             ."\nمدت: {$order->durationDays} روز"
-            ."\nمبلغ ثبت‌شده: ".TelegramUi::toman($order->totalPriceRials).' تومان'
+            ."\n".($isReseller ? 'قیمت مخصوص پنل فروش' : 'مبلغ ثبت‌شده').': '
+            .TelegramUi::toman($order->totalPriceRials).' تومان'
             ."\nوضعیت: {$status}"
             ."\n\n".$this->orderHint($order, $latestReceipt),
             $keyboard,
@@ -433,7 +436,7 @@ final readonly class SalesCheckoutUi
             return 'پرداخت تأیید شده است. سرویس هنوز فعال نشده است.';
         }
         if ($receipt === 'submitted') {
-            return 'رسید شما ثبت شده و در انتظار بررسی پرداخت است.';
+            return 'رسید دریافت شده است. تا بررسی واریز توسط مدیر، موجودی و وضعیت پرداخت تغییر نمی‌کند.';
         }
         if (config('sales.manual_bank_review_enabled', false) !== true) {
             return 'ارسال رسید پرداخت فعلاً در دسترس نیست.';

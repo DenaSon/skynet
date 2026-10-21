@@ -17,7 +17,7 @@ it('responds to start for an unlinked private Telegram user', function (): void 
     $bot->setCommonChat(Chat::make(11111, ChatType::PRIVATE));
 
     $bot->hearText('/start')->reply()
-        ->assertReplyText('🔒 حساب شما به ParsaGate متصل نیست. برای اتصال، کد یک‌بارمصرف صادرشده توسط مدیر را در گفت‌وگوی خصوصی با دستور /link وارد کنید.');
+        ->assertReplyText('🔒 حساب شما به DenaGate متصل نیست. برای اتصال، کد یک‌بارمصرف صادرشده توسط مدیر را در گفت‌وگوی خصوصی با دستور /link وارد کنید.');
 });
 
 it('renders an admin menu only after verified account linking', function (): void {
@@ -29,7 +29,7 @@ it('renders an admin menu only after verified account linking', function (): voi
     $bot->setCommonChat(Chat::make(22222, ChatType::PRIVATE));
 
     $bot->hearText('/admin')->reply()
-        ->assertReplyText("🛡️ مدیریت ParsaGate\n\nبخش موردنظر را انتخاب کنید.");
+        ->assertReplyText("🛡️ مدیریت DenaGate\n\nبخش موردنظر را انتخاب کنید.");
 });
 
 it('does not disclose the admin menu to linked members', function (): void {
@@ -76,7 +76,7 @@ it('shows actual account roles and status, and exposes a settings screen', funct
     $bot->setCommonChat(Chat::make(66666, ChatType::PRIVATE));
 
     $bot->hearText('/account')->reply()
-        ->assertReplyText("👤 حساب من\n\nنام: Test Member\nشناسه ParsaGate: {$user->id}\nنقش‌ها: کاربر\nوضعیت: 🟢 فعال");
+        ->assertReplyText("👤 حساب من\n\nنام: Test Member\nشناسه DenaGate: {$user->id}\nنقش‌ها: کاربر\nوضعیت: 🟢 فعال");
 
     $bot->hearText('/settings')->reply()
         ->assertReplyText("⚙️ تنظیمات\n\nدر حال حاضر گزینه‌ای برای تغییر تنظیمات وجود ندارد.");
@@ -175,5 +175,5 @@ it('does not open protected settings for a deactivated account', function (): vo
     $bot->setCommonChat(Chat::make(24680, ChatType::PRIVATE));
 
     $bot->hearText('/settings')->reply()
-        ->assertReplyText('🔒 حساب شما به ParsaGate متصل نیست. برای اتصال، کد یک‌بارمصرف صادرشده توسط مدیر را در گفت‌وگوی خصوصی با دستور /link وارد کنید.');
+        ->assertReplyText('🔒 حساب شما به DenaGate متصل نیست. برای اتصال، کد یک‌بارمصرف صادرشده توسط مدیر را در گفت‌وگوی خصوصی با دستور /link وارد کنید.');
 });

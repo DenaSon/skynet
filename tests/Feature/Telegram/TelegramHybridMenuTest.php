@@ -50,7 +50,7 @@ it('shows a two-column persistent home keyboard for active members', function ()
     $bot = hybridBot(931001, $user);
 
     $bot->hearText('/start')->reply()
-        ->assertReplyText("🏠 ParsaGate\n\nخوش آمدید، Hybrid Member.");
+        ->assertReplyText("🏠 DenaGate\n\nخوش آمدید، Hybrid Member.");
 
     $actor = app(ResolveTelegramActor::class)->handle(931001);
     $keyboard = app(ReplyMenuRenderer::class)->homeKeyboard($actor);
@@ -68,7 +68,7 @@ it('routes reply labels before the custom-volume text matcher', function (): voi
     app(PendingShopVolume::class)->remember($user->id, 'vpn', 30);
 
     $bot->hearText(ReplyMenuLabels::ACCOUNT)->reply()
-        ->assertReplyText("👤 حساب من\n\nنام: {$user->name}\nشناسه ParsaGate: {$user->id}\nنقش‌ها: کاربر\nوضعیت: 🟢 فعال");
+        ->assertReplyText("👤 حساب من\n\nنام: {$user->name}\nشناسه DenaGate: {$user->id}\nنقش‌ها: کاربر\nوضعیت: 🟢 فعال");
 
     expect(app(PendingShopVolume::class)->peek($user->id))->toBeNull();
 
@@ -77,7 +77,7 @@ it('routes reply labels before the custom-volume text matcher', function (): voi
 
     $bot->hearText(ReplyMenuLabels::SUBSCRIPTIONS)->reply()->assertCalled('sendMessage');
     $bot->hearText(ReplyMenuLabels::HOME)->reply()
-        ->assertReplyText("🏠 ParsaGate\n\nخوش آمدید، {$user->name}.");
+        ->assertReplyText("🏠 DenaGate\n\nخوش آمدید، {$user->name}.");
 
     expect(DB::table('sales_orders')->count())->toBe(0)
         ->and(DB::table('billing_journals')->count())->toBe(0);
@@ -119,7 +119,7 @@ it('shows normal admins only user management and protects against revocation', f
         ->not->toContain(ReplyMenuLabels::HOME, ReplyMenuLabels::ROLES, ReplyMenuLabels::TOPUPS, ReplyMenuLabels::RECEIPTS);
 
     $bot->hearText('/admin')->reply()
-        ->assertReplyText("🛡️ مدیریت ParsaGate\n\nبخش موردنظر را از منوی پایین انتخاب کنید.");
+        ->assertReplyText("🛡️ مدیریت DenaGate\n\nبخش موردنظر را از منوی پایین انتخاب کنید.");
     $bot->hearText(ReplyMenuLabels::USERS)->reply()->assertCalled('sendMessage');
     $bot->hearText(ReplyMenuLabels::ROLES)->reply()
         ->assertReplyText('دسترسی مجاز نیست. منوی شما به‌روز شد.');
@@ -180,13 +180,13 @@ it('ignores group labels and removes stale keyboard for disabled or unlinked use
 
     $unlinked = hybridBot(931009);
     $unlinked->hearText(ReplyMenuLabels::ACCOUNT)->reply()
-        ->assertReplyText('🔒 حساب شما به ParsaGate متصل نیست. برای اتصال، کد یک‌بارمصرف صادرشده توسط مدیر را در گفت‌وگوی خصوصی با دستور /link وارد کنید.');
+        ->assertReplyText('🔒 حساب شما به DenaGate متصل نیست. برای اتصال، کد یک‌بارمصرف صادرشده توسط مدیر را در گفت‌وگوی خصوصی با دستور /link وارد کنید.');
 
     $user->forceFill(['is_active' => false])->save();
     $bot->setCommonUser(TelegramUser::make(931008, false, 'Disabled'));
     $bot->setCommonChat(Chat::make(931008, ChatType::PRIVATE));
     $bot->hearText('/start')->reply()
-        ->assertReplyText('🔒 حساب شما به ParsaGate متصل نیست. برای اتصال، کد یک‌بارمصرف صادرشده توسط مدیر را در گفت‌وگوی خصوصی با دستور /link وارد کنید.');
+        ->assertReplyText('🔒 حساب شما به DenaGate متصل نیست. برای اتصال، کد یک‌بارمصرف صادرشده توسط مدیر را در گفت‌وگوی خصوصی با دستور /link وارد کنید.');
 });
 
 it('can be rolled back by disabling the feature flag without intercepting messages', function (): void {
@@ -196,7 +196,7 @@ it('can be rolled back by disabling the feature flag without intercepting messag
 
     $bot->hearText(ReplyMenuLabels::ACCOUNT)->reply()->assertNoReply();
     $bot->hearText('/start')->reply()
-        ->assertReplyText("🏠 ParsaGate\n\nخوش آمدید، {$user->name}.");
+        ->assertReplyText("🏠 DenaGate\n\nخوش آمدید، {$user->name}.");
 });
 
 it('lets private users remove an old persistent keyboard after rollback', function (): void {

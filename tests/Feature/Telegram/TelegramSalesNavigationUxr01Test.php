@@ -84,7 +84,7 @@ it('installs exactly four persistent Sales buttons and escapes dynamic HTML in h
 
     $bot->hearText('/start')->reply()->assertCalled('sendMessage', 2)
         ->assertReply('sendMessage', ['parse_mode' => 'HTML'])
-        ->assertReplyText("<b>🏠 DenaGate</b>\n\nخوش آمدید، &lt;Buyer&gt; &amp; &quot;Name&quot;.\nنوع حساب: کاربر");
+        ->assertReplyText("<b>🏠 DenaGate</b>\n\nخوش آمدید، &lt;Buyer&gt; &amp; &quot;Name&quot;.\nنوع حساب: <b>👤 کاربر عادی</b>");
     $bot->hearText(ReplyMenuLabels::SALES_ACCOUNT)->reply()->assertRaw(static function (Request $request): bool {
         $body = uxr01Payload($request);
 

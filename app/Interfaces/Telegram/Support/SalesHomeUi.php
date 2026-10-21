@@ -18,6 +18,7 @@ use App\Modules\Provisioning\Application\ListMyServices;
 use App\Modules\Referral\Application\GetReferralInvite;
 use App\Modules\Sales\Application\ListQuotedPresets;
 use App\Modules\Sales\Application\QuotedPreset;
+use App\Modules\Sales\Application\SalesPanelRequests;
 use App\Modules\Sales\Application\SummarizeSalesPurchases;
 use Illuminate\Support\Facades\Cache;
 use SergiX44\Nutgram\Nutgram;
@@ -44,6 +45,7 @@ final readonly class SalesHomeUi
         private SummarizeSalesPurchases $purchases,
         private ListMyServices $services,
         private ViewWallet $wallets,
+        private SalesPanelRequests $panelRequests,
     ) {}
 
     public function start(Nutgram $bot, ?string $payload = null, bool $showKeyboard = false): void
@@ -78,24 +80,50 @@ final readonly class SalesHomeUi
         if (! $bot->isCallbackQuery() || $showKeyboard) {
             $bot->sendMessage(
                 text: '<b>🏠 DenaGate</b>'."\n\nخوش آمدید، ".$this->name($actor->name)
-                    .".\nنوع حساب: ".$this->salesRole($actor),
+                    .".\nنوع حساب: <b>".$this->salesRole($actor).'</b>',
                 parse_mode: 'HTML',
                 reply_markup: $this->replyMenus->salesKeyboard(),
             );
+        }
+
+        $isReseller = in_array('reseller', $actor->roles, true);
+        $hasWallet = $isReseller || in_array('member', $actor->roles, true);
+        $walletLine = '';
+        if ($hasWallet) {
+            try {
+                $walletLine = "\n💼 موجودی کیف پول: <b>"
+                    .TelegramUi::toman($this->wallets->handle($actor->userId)->balanceRials).' تومان</b>';
+            } catch (Throwable) {
+                $walletLine = "\n💼 موجودی کیف پول: فعلاً در دسترس نیست";
+            }
         }
 
         $keyboard = InlineKeyboardMarkup::make()
             ->addRow(
                 InlineKeyboardButton::make('🟢 خرید سرویس', callback_data: 'sales:buy', style: ButtonStyle::SUCCESS),
                 InlineKeyboardButton::make('📋 سرویس‌های من', callback_data: 'sales:subs:list:0', style: ButtonStyle::PRIMARY),
-            )
-            ->addRow(
+            );
+        if ($hasWallet) {
+            $keyboard->addRow(
+                InlineKeyboardButton::make('💼 کیف پول', callback_data: 'sales:wallet'),
                 InlineKeyboardButton::make('👤 حساب کاربری', callback_data: 'sales:account'),
-                InlineKeyboardButton::make('💬 پشتیبانی', callback_data: 'sales:support'),
-            )
+            );
+        } else {
+            $keyboard->addRow(InlineKeyboardButton::make('👤 حساب کاربری', callback_data: 'sales:account'));
+        }
+        if ($isReseller) {
+            $keyboard->addRow(InlineKeyboardButton::make('🧩 پلن‌ساز', callback_data: 'menu:builder'));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('💬 پشتیبانی', callback_data: 'sales:support'))
             ->addRow(InlineKeyboardButton::make('📋 همه پلن‌ها و قیمت‌ها', callback_data: 'menu:plan-catalog'));
 
-        $this->render($bot, '<b>🏠 صفحه اصلی DenaGate</b>'."\n\nاز منوی زیر، بخش موردنظر را انتخاب کنید.", $keyboard);
+        $this->render($bot,
+            '<b>🏠 صفحه اصلی DenaGate</b>'
+            ."\n\nنوع حساب: <b>".$this->salesRole($actor).'</b>'
+            .$walletLine
+            ."\n\nبخش موردنظر را انتخاب کنید.",
+            $keyboard,
+        );
     }
 
     /**
@@ -115,13 +143,15 @@ final readonly class SalesHomeUi
         ));
         $pages = max(1, (int) ceil(count($entries) / 5));
         $page = min(max(1, $page), $pages);
+        $isReseller = in_array('reseller', $actor->roles, true);
         $lines = ['<b>🛒 پلن‌های آماده خرید</b>', '', 'یک پلن را انتخاب کنید تا مستقیماً وارد پرداخت شوید.', ''];
         $keyboard = InlineKeyboardMarkup::make();
         foreach (array_slice($entries, ($page - 1) * 5, 5) as $entry) {
             $lines[] = '📦 <b>'.$this->name($entry->plan->name).'</b>';
             $lines[] = ($entry->quote->trafficGb === null ? 'حجم نامحدود' : $entry->quote->trafficGb.' گیگابایت')
                 .' · '.$entry->quote->durationDays.' روز';
-            $lines[] = 'مبلغ: <b>'.TelegramUi::toman($entry->quote->totalPriceRials).' تومان</b>';
+            $lines[] = ($isReseller ? 'قیمت مخصوص پنل فروش: <b>' : 'مبلغ: <b>')
+                .TelegramUi::toman($entry->quote->totalPriceRials).' تومان</b>';
             $lines[] = '';
             $keyboard->addRow(InlineKeyboardButton::make(
                 mb_substr($this->plain($entry->plan->name), 0, 35),
@@ -141,7 +171,8 @@ final readonly class SalesHomeUi
             $keyboard->addRow(InlineKeyboardButton::make('بعدی ▶️', callback_data: 'sales:home:'.($page + 1)));
         }
         $keyboard->addRow(InlineKeyboardButton::make('📋 همه پلن‌ها و قیمت‌ها', callback_data: 'menu:plan-catalog'));
-        if (config('sales.manual_bank_review_enabled', false) !== true) {
+        if (config('sales.manual_bank_review_enabled', false) !== true
+            && config('sales.wallet_settlement_enabled', false) !== true) {
             $lines[] = '';
             $lines[] = 'پرداخت فعلاً فعال نیست.';
         }
@@ -159,7 +190,7 @@ final readonly class SalesHomeUi
             ReplyMenuLabels::SALES_SUPPORT => 'support',
             ReplyMenuLabels::HOME, '🏠 صفحه اصلی', '❌ انصراف', '/cancel' => 'home',
             ReplyMenuLabels::INVITE => 'invite',
-            ReplyMenuLabels::BUILDER => 'builder',
+            ReplyMenuLabels::BUILDER, ReplyMenuLabels::LEGACY_BUILDER => 'builder',
             default => null,
         };
         if ($action === null) {
@@ -241,8 +272,7 @@ final readonly class SalesHomeUi
 
         $balance = '';
         if (in_array('member', $actor->roles, true) || in_array('reseller', $actor->roles, true)) {
-            $reseller = in_array('reseller', $actor->roles, true);
-            $label = $reseller ? 'موجودی نمایندگی' : 'موجودی کیف پول';
+            $label = 'موجودی کیف پول';
             try {
                 $balance = "\n💼 {$label}: <b>".TelegramUi::toman($this->wallets->handle($actor->userId)->balanceRials).' تومان</b>';
                 $keyboard->addRow(InlineKeyboardButton::make('💼 کیف پول', callback_data: 'sales:wallet'));
@@ -251,9 +281,17 @@ final readonly class SalesHomeUi
             }
         }
         if (in_array('reseller', $actor->roles, true)) {
-            $keyboard->addRow(InlineKeyboardButton::make('🧩 پلن‌ساز نماینده', callback_data: 'menu:builder'));
+            $keyboard->addRow(InlineKeyboardButton::make('🧩 پلن‌ساز', callback_data: 'menu:builder'));
         } elseif (in_array('member', $actor->roles, true)) {
-            $keyboard->addRow(InlineKeyboardButton::make('🧩 درخواست پنل فروش', callback_data: 'sales:panel:request'));
+            $requestLabel = '🧩 درخواست پنل فروش';
+            try {
+                if ($this->panelRequests->find($actor->userId) !== null) {
+                    $requestLabel = '📨 وضعیت درخواست پنل فروش';
+                }
+            } catch (Throwable) {
+                // Request status does not block the existing account screen.
+            }
+            $keyboard->addRow(InlineKeyboardButton::make($requestLabel, callback_data: 'sales:panel:request'));
         }
 
         $keyboard->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
@@ -261,7 +299,7 @@ final readonly class SalesHomeUi
         $text = '<b>👤 حساب کاربری</b>'
             ."\n\nنام: ".$this->name($actor->name)
             ."\nشناسه: ".TelegramUi::code((string) $actor->userId)
-            ."\nنوع حساب: ".$this->salesRole($actor)
+            ."\nنوع حساب: <b>".$this->salesRole($actor).'</b>'
             ."\nوضعیت: 🟢 فعال"
             ."\nعضویت: ".($joined === null ? 'نامشخص' : TelegramUi::escape($joined))
             ."\n\n<b>📊 خلاصه حساب</b>"
@@ -320,6 +358,7 @@ final readonly class SalesHomeUi
             ->addRow(InlineKeyboardButton::make('◀️ حساب کاربری', callback_data: 'sales:account'));
         $username = config('telegram.sales.bot_username');
         if (! is_string($username) || preg_match('/\A[A-Za-z][A-Za-z0-9_]{4,31}\z/D', $username) !== 1) {
+            $keyboard->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
             $this->render($bot, '<b>👥 دعوت دوستان</b>'."\n\nلینک دعوت فعلاً در دسترس نیست. کمی بعد دوباره بررسی کنید.", $keyboard);
 
             return;
@@ -331,10 +370,11 @@ final readonly class SalesHomeUi
                 '📤 اشتراک‌گذاری در تلگرام',
                 url: 'https://t.me/share/url?url='.rawurlencode($url).'&text='.rawurlencode('با لینک من به DenaGate بپیوند 👇'),
             ));
+        $keyboard->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
         $this->render($bot,
             '<b>👥 دعوت دوستان</b>'."\n\nلینک اختصاصی شما:\n".TelegramUi::code($url)
-                ."\n\nدعوت‌های موفق: <b>{$invite->joinedCount}</b>"
-                ."\n\n<blockquote>با این لینک دوستانت می‌توانند مستقیماً وارد بات فروش شوند. فعلاً پاداش مالی برای دعوت وجود ندارد.</blockquote>",
+                ."\n\n👥 دعوت‌های موفق: <b>{$invite->joinedCount}</b>"
+                ."\n\n<blockquote>این لینک را برای دوستانتان بفرستید. دعوت موفق فعلاً پاداش مالی ندارد.</blockquote>",
             $keyboard);
     }
 
@@ -406,7 +446,7 @@ final readonly class SalesHomeUi
 
     private function salesRole(TelegramActor $actor): string
     {
-        return in_array('reseller', $actor->roles, true) ? 'نماینده فروش' : 'کاربر';
+        return in_array('reseller', $actor->roles, true) ? '🧩 پنل فروش' : '👤 کاربر عادی';
     }
 
     private function plain(string $value): string

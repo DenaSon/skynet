@@ -136,6 +136,7 @@ final readonly class AdminFinanceWalletUi
         }
         $this->render($bot, implode("\n", $lines), InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('◀️ کیف پول کاربران', callback_data: 'finance:wallets:1'))
+            ->addRow(InlineKeyboardButton::make('🧾 رسیدهای شارژ', callback_data: 'finance:topups:1'))
             ->addRow(InlineKeyboardButton::make('🏠 امور مالی', callback_data: 'menu:admin:finance')));
     }
 

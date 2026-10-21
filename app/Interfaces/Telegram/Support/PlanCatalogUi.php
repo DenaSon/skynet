@@ -54,6 +54,7 @@ final readonly class PlanCatalogUi
             return;
         }
 
+        $reseller = in_array('reseller', $actor->roles, true);
         $lastPage = max(1, (int) ceil(count($entries) / 5));
         $page = min(max(1, $page), $lastPage);
         $keyboard = InlineKeyboardMarkup::make();
@@ -63,6 +64,7 @@ final readonly class PlanCatalogUi
             "صفحه {$page} از {$lastPage}",
             '',
             'قیمت‌ها از تعرفه فعال محاسبه می‌شوند و ممکن است تغییر کنند.',
+            $reseller ? '🏷️ قیمت‌های این فهرست مخصوص پنل فروش هستند.' : 'مبلغ نمایش‌داده‌شده، قیمت خرید شماست.',
             TelegramBotContext::current()->key === 'sales'
                 ? 'با انتخاب پلن، وارد پرداخت می‌شوید؛ قیمت هنگام انتخاب دوباره بررسی می‌شود.'
                 : 'ℹ️ خرید پلن‌های این بخش فعلاً فعال نیست.',
@@ -92,7 +94,7 @@ final readonly class PlanCatalogUi
         }
 
         if (in_array('reseller', $actor->roles, true)) {
-            $keyboard->addRow(InlineKeyboardButton::make('💼 پلن‌ساز نماینده', callback_data: 'menu:builder'));
+            $keyboard->addRow(InlineKeyboardButton::make('🧩 پلن‌ساز', callback_data: 'menu:builder'));
         }
         $keyboard->addRow(InlineKeyboardButton::make('🏠 صفحه اصلی', callback_data: 'menu:home'));
         $this->render($bot, implode("\n", $lines), $keyboard);
@@ -125,6 +127,7 @@ final readonly class PlanCatalogUi
         }
 
         $quote = $entry->quote;
+        $isReseller = in_array('reseller', $actor->roles, true);
         $lines = [
             '🔎 پیش‌نمایش پلن',
             '',
@@ -134,8 +137,9 @@ final readonly class PlanCatalogUi
             "⏳ مدت: {$quote->durationDays} روز",
             '',
             '💵 قیمت عمومی: '.$this->toman($quote->publicPriceRials).' تومان',
-            "🎁 تخفیف نماینده: {$quote->discountPercent}٪",
-            '✅ مبلغ نهایی: '.$this->toman($quote->totalPriceRials).' تومان',
+            $isReseller ? "🎁 تخفیف پنل فروش: {$quote->discountPercent}٪" : '👤 تعرفه عمومی',
+            ($isReseller ? '✅ قیمت مخصوص پنل فروش: ' : '✅ مبلغ نهایی: ')
+                .$this->toman($quote->totalPriceRials).' تومان',
             '',
             TelegramBotContext::current()->key === 'sales'
                 ? 'ℹ️ ثبت سفارش تنها پس از تأیید آمادگی سرویس امکان‌پذیر است.'
