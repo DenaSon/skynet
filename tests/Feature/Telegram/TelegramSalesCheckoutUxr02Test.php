@@ -21,6 +21,7 @@ use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
@@ -111,7 +112,21 @@ function wal03Credit(User $buyer, User $root, int $amount, string $ref): void
     app(ReviewTopup::class)->handle($root->id, $id, true, $ref);
 }
 
+function wal03Ready(): void
+{
+    config()->set('sales.wallet_settlement_enabled', true);
+    config()->set('sales.auto_fulfillment_enabled', true);
+    config()->set('services.remnawave.writes_enabled', true);
+    config()->set('services.remnawave.squad_bindings_live_verified', true);
+    config()->set('telegram_notifications.enabled', true);
+    config()->set('telegram.sales.enabled', true);
+    config()->set('telegram.sales.token', '54321:sales_test');
+    config()->set('nutgram.token', '12345:admin_test');
+    Queue::fake();
+}
+
 it('confirms member wallet purchase once and retains existing bank payment as an alternative', function (): void {
+    wal03Ready();
     $data = uxr02Plan();
     $buyer = User::factory()->create();
     $bot = uxr02Bot(973301, $buyer);
@@ -153,6 +168,64 @@ it('confirms member wallet purchase once and retains existing bank payment as an
     $bot->hearCallbackQueryData('sales:walletpay:confirm:'.$order.':'.$token)->reply()->assertCalled('editMessageText');
     expect(DB::table('sales_order_settlements')->count())->toBe(1)
         ->and(DB::table('billing_journals')->where('kind', 'purchase')->count())->toBe(1);
+    Http::assertNothingSent();
+});
+
+it('does not debit managed wallet orders when activation or customer notices are unavailable', function (string $key, mixed $value): void {
+    wal03Ready();
+    $data = uxr02Plan();
+    $buyer = User::factory()->create();
+    $bot = uxr02Bot(973306, $buyer);
+    wal03Credit($buyer, $data['root'], 1_500_000, 'PATCH01READY');
+    $bot->hearCallbackQueryData('catalog:detail:'.$data['plan'].':1')->reply();
+    $order = (int) DB::table('sales_orders')->value('id');
+    $bot->hearCallbackQueryData('sales:checkout:wallet:'.$order)->reply();
+    $tokenKey = TelegramBotContext::current()->cacheKey('telegram:sales:walletpay:'.$buyer->id.':'.$order);
+    $token = Cache::get($tokenKey)['token'];
+    config()->set($key, $value);
+
+    $bot->hearCallbackQueryData('sales:walletpay:confirm:'.$order.':'.$token)->reply()->assertRaw(
+        static fn (Request $request): bool => str_contains(uxr02Payload($request)['text'], 'مبلغی از کیف پول شما برداشت نشد'),
+        index: 1,
+    );
+    expect(DB::table('sales_orders')->value('status'))->toBe('pending_payment')
+        ->and(DB::table('sales_order_settlements')->count())->toBe(0)
+        ->and(DB::table('sales_fulfillment_outbox')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->where('kind', 'purchase')->count())->toBe(0)
+        ->and(app(ViewWallet::class)->handle($buyer->id)->balanceRials)->toBe(1_500_000);
+    Queue::assertNothingPushed();
+    Http::assertNothingSent();
+})->with([
+    ['sales.auto_fulfillment_enabled', false],
+    ['services.remnawave.writes_enabled', false],
+    ['services.remnawave.squad_bindings_live_verified', false],
+    ['telegram_notifications.enabled', false],
+    ['telegram.sales.enabled', false],
+    ['telegram.sales.token', ''],
+    ['telegram.sales.token', '12345:admin_test'],
+]);
+
+it('keeps a changed-plan wallet order unpaid and does not reprice its snapshot', function (): void {
+    wal03Ready();
+    $data = uxr02Plan();
+    $buyer = User::factory()->create();
+    $bot = uxr02Bot(973307, $buyer);
+    wal03Credit($buyer, $data['root'], 1_500_000, 'PATCH01PLAN');
+    $bot->hearCallbackQueryData('catalog:detail:'.$data['plan'].':1')->reply();
+    $order = (int) DB::table('sales_orders')->value('id');
+    $snapshot = DB::table('sales_orders')->first();
+    $bot->hearCallbackQueryData('sales:checkout:wallet:'.$order)->reply();
+    $tokenKey = TelegramBotContext::current()->cacheKey('telegram:sales:walletpay:'.$buyer->id.':'.$order);
+    $token = Cache::get($tokenKey)['token'];
+    DB::table('sales_plans')->where('id', $data['plan'])->increment('revision');
+
+    $bot->hearCallbackQueryData('sales:walletpay:confirm:'.$order.':'.$token)->reply()->assertRaw(
+        static fn (Request $request): bool => str_contains(uxr02Payload($request)['text'], 'مشخصات این پلن تغییر کرده'),
+        index: 1,
+    );
+    expect(DB::table('sales_orders')->first())->toEqual($snapshot)
+        ->and(DB::table('billing_journals')->where('kind', 'purchase')->count())->toBe(0)
+        ->and(app(ViewWallet::class)->handle($buyer->id)->balanceRials)->toBe(1_500_000);
     Http::assertNothingSent();
 });
 

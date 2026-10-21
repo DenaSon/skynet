@@ -7,6 +7,7 @@ namespace App\Modules\Provisioning\Application;
 use App\Interfaces\Telegram\Notifications\PaymentNotificationOutbox;
 use App\Modules\Billing\Application\VerifyWalletOrderDebit;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use RuntimeException;
 use Throwable;
 
@@ -31,7 +32,12 @@ final readonly class FulfillPaidPlanOrder
             throw new RuntimeException('Paid-order provisioning is disabled.');
         }
 
-        $order = $this->claim($orderId);
+        try {
+            $order = $this->claim($orderId);
+        } catch (ValidationException $error) {
+            $this->holdUnreadyOrder($orderId);
+            throw new RuntimeException('Managed-plan snapshot or verified Squad binding is not ready; operator review required.', 0, $error);
+        }
         $reference = self::reference($orderId);
 
         try {
@@ -107,13 +113,14 @@ final readonly class FulfillPaidPlanOrder
                 || ! in_array($order->plan_kind, ['volume', 'hybrid', 'time'], true)
                 || (int) $order->duration_days < 1 || (int) $order->duration_days > 3650
                 || (int) $order->total_price_rials < 1
-                || (int) $order->plan_revision !== (int) DB::table('sales_plans')->where('id', $order->plan_id)->value('revision')
                 || ($order->traffic_gb === null && $order->plan_kind !== 'time')
                 || ($order->traffic_gb !== null && (int) $order->traffic_gb < 1)
-                || ! is_string($order->internal_squad_uuid)
-                || $this->squads->verifiedSquadForCheckout((int) $order->plan_id) !== $order->internal_squad_uuid) {
-                throw new RuntimeException('Managed-plan snapshot or verified Squad binding is not ready.');
+                || ! is_string($order->internal_squad_uuid)) {
+                throw ValidationException::withMessages(['plan' => 'Invalid managed-plan snapshot.']);
             }
+            $this->squads->assertOrderReady(
+                (int) $order->plan_id, (int) $order->plan_revision, $order->internal_squad_uuid,
+            );
 
             $this->assertSettlement($order);
 
@@ -217,6 +224,24 @@ final readonly class FulfillPaidPlanOrder
             $this->notifications->activated($orderId, (int) $order->buyer_user_id);
 
             return $remoteId;
+        });
+    }
+
+    /** A paid order blocked before CREATE needs a human, not repeated dispatch. */
+    private function holdUnreadyOrder(int $orderId): void
+    {
+        DB::transaction(function () use ($orderId): void {
+            $order = DB::table('sales_orders')->where('id', $orderId)->lockForUpdate()->first();
+            $outbox = DB::table('sales_fulfillment_outbox')->where('sales_order_id', $orderId)->lockForUpdate()->first();
+            if ($order === null || $order->status !== 'paid' || $outbox === null || $outbox->state !== 'pending'
+                || DB::table('provisioning_operations')->where('idempotency_key', self::operationKey($orderId))->exists()) {
+                return;
+            }
+            $this->assertSettlement($order);
+            DB::table('sales_fulfillment_outbox')->where('id', $outbox->id)->update([
+                'state' => 'needs_review', 'updated_at' => now(),
+            ]);
+            $this->notifications->planBlocked($orderId);
         });
     }
 

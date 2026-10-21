@@ -448,3 +448,8 @@ Remnawave is chosen for the subscription panel API (F10). ParsaGate's own SSH/Wi
 - F09-C adds no balance debit, wallet reservation, payment confirmation, bank integration, subscriptions, Remnawave API or server/network code. Any future paid order transition must be implemented and verified separately.
 - Tests cover ownership, duplicated callback, token expiry, stale quotes, role revocation, inactive buyer and zero Billing postings.
 
+## PATCH-01 — payment safety before launch (2026-10-21; CI pending)
+
+Authorized scope: current ledger reads under wallet serialization with a real two-process MySQL REPEATABLE READ regression; managed-wallet backend readiness before debit; immutable plan/Squad validation before wallet/bank settlement; safe held state plus trusted-root alert for already paid plans blocked before CREATE. Preserve legacy reseller wallet settlement, ledger/idempotency, bank attestation, original recorded prices and no-blind-provider-retry boundaries. No migration, new dependency, Production flags, Redis/Supervisor change or actual financial/provider test. PHP 8.4/8.5 Pest/PHPStan/Pint and MySQL smoke must pass; real deployed two-bot/bank/RW acceptance remains independent.
+
+Remaining separately authorized work: PATCH-02 queue connection alignment and wallet outbox recovery; expiry/90%-usage alerts are a separate feature. Neither is implemented by PATCH-01.

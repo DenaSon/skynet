@@ -10,6 +10,7 @@ use App\Modules\Billing\Application\RecordDirectBankPayment;
 use App\Modules\Identity\Application\AssertBillingAccess;
 use App\Modules\Identity\Application\AuthorizeSubscriptionViewer;
 use App\Modules\Identity\Application\SubscriptionViewer;
+use App\Modules\Provisioning\Application\CheckPlanSquadReadiness;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
@@ -28,6 +29,7 @@ final readonly class ManualBankPayments
         private RecordDirectBankPayment $bankPayments,
         private HasTopupPhotoFingerprint $topupPhotos,
         private PaymentNotificationOutbox $notifications,
+        private CheckPlanSquadReadiness $squads,
     ) {}
 
     public function submit(SubscriptionViewer $viewer, int $orderId, string $fileId, string $fileUniqueId, int $telegramMessageId, string $sourceBotKey = 'admin'): int
@@ -212,6 +214,11 @@ final readonly class ManualBankPayments
             }
 
             if ($approve) {
+                if ($order->plan_id !== null) {
+                    $this->squads->assertOrderReady(
+                        (int) $order->plan_id, (int) $order->plan_revision, (string) $order->internal_squad_uuid,
+                    );
+                }
                 // The financial journal and unique reference are Billing-owned.
                 // This call is inside the same transaction as the Sales state.
                 $journalId = $this->bankPayments->handle(

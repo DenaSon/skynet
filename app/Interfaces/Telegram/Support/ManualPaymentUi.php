@@ -390,8 +390,10 @@ final readonly class ManualPaymentUi
 
         try {
             $result = $this->payments->review($actor->userId, $id, $choice === 'a');
-        } catch (AuthorizationException|ValidationException|UniqueConstraintViolationException) {
-            $this->notice($bot, 'این رسید قبلاً بررسی شده یا دیگر معتبر نیست.');
+        } catch (AuthorizationException|ValidationException|UniqueConstraintViolationException $error) {
+            $this->notice($bot, $error instanceof ValidationException && isset($error->errors()['plan'])
+                ? 'تأیید انجام نشد؛ مشخصات پلن تغییر کرده یا خرید آن متوقف شده است. رسید در انتظار بررسی محفوظ است؛ واریز مشتری را بررسی کنید.'
+                : 'این رسید قبلاً بررسی شده یا دیگر معتبر نیست.');
 
             return;
         }

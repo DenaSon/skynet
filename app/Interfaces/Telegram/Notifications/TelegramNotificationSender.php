@@ -253,6 +253,33 @@ final readonly class TelegramNotificationSender
             return;
         }
 
+        if ($delivery->event_type === 'FulfillmentPlanBlocked') {
+            $actor = $this->actors->handle($chat);
+            if ($bot !== 'admin' || $actor === null || $actor->userId !== $userId || ! $actor->canManageRoles()) {
+                throw new NotificationUnavailable('not_authorized');
+            }
+            $orderId = (int) $delivery->order_id;
+            $blocked = DB::table('sales_orders as orders')
+                ->join('sales_fulfillment_outbox as intent', 'intent.sales_order_id', '=', 'orders.id')
+                ->where('orders.id', $orderId)->where('orders.status', 'paid')
+                ->where('intent.state', 'needs_review')->exists();
+            if (! $blocked) {
+                throw new NotificationUnavailable('already_resolved');
+            }
+            $keyboard = json_encode(['inline_keyboard' => [[
+                ['text' => '📋 بررسی سفارش', 'callback_data' => 'full:view:'.$orderId, 'style' => 'primary'],
+            ]]], JSON_THROW_ON_ERROR);
+            $this->text($bot, $chat,
+                '<b>⚠️ سفارش پرداخت‌شده نیازمند بررسی است</b>'
+                ."\n\nسفارش #{$orderId}"
+                ."\nمشخصات پلن یا سرویس مرتبط تغییر کرده است."
+                ."\nفعال‌سازی پیش از ساخت اشتراک متوقف شد؛ پرداخت محفوظ است.",
+                $keyboard, 'HTML',
+            );
+
+            return;
+        }
+
         if ($delivery->event_type === 'ReceiptSubmitted') {
             $actor = $this->actors->handle($chat);
 

@@ -3,7 +3,12 @@
 declare(strict_types=1);
 
 use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
+use App\Interfaces\Telegram\Notifications\NotificationUnavailable;
 use App\Interfaces\Telegram\Notifications\TelegramNotificationSender;
+use App\Modules\Billing\Application\RequestTopup;
+use App\Modules\Billing\Application\ReviewTopup;
+use App\Modules\Billing\Application\SubmitTopupPhoto;
+use App\Modules\Billing\Application\ViewWallet;
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
 use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
@@ -22,6 +27,7 @@ use App\Modules\Sales\Application\ManagePlans;
 use App\Modules\Sales\Application\ManualBankPayments;
 use App\Modules\Sales\Application\PlanDefinition;
 use App\Modules\Sales\Application\PlanPricingDefinition;
+use App\Modules\Sales\Application\SettleWalletOrder;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
@@ -179,7 +185,7 @@ it('makes one verified provider CREATE and links exactly one subscription to its
     Http::assertSentCount(1);
 });
 
-it('refuses a revoked squad verification or tampered bank claim without touching the provider', function (): void {
+it('holds a paid order with revoked squad verification before any provider attempt', function (): void {
     $data = sb05Order();
     config()->set('services.remnawave.writes_enabled', true);
     Http::fake();
@@ -187,15 +193,130 @@ it('refuses a revoked squad verification or tampered bank claim without touching
         ->update(['verified_at' => null]);
     expect(fn () => app(FulfillPaidPlanOrder::class)->handle($data['order']))
         ->toThrow(RuntimeException::class, 'Squad');
+    expect(DB::table('sales_fulfillment_outbox')->value('state'))->toBe('needs_review')
+        ->and(DB::table('sales_fulfillment_outbox')->value('attempts'))->toBe(0);
+    Http::assertNothingSent();
+});
 
-    DB::table('sales_plan_internal_squad_bindings')->where('plan_id', $data['plan'])
-        ->update(['verified_at' => now()]);
+it('refuses a tampered bank claim without touching the provider', function (): void {
+    $data = sb05Order();
+    config()->set('services.remnawave.writes_enabled', true);
+    Http::fake();
     DB::table('sales_bank_payment_claims')->where('sales_order_id', $data['order'])
         ->update(['status' => 'rejected']);
     expect(fn () => app(FulfillPaidPlanOrder::class)->handle($data['order']))
         ->toThrow(RuntimeException::class, 'settlement');
     expect(DB::table('sales_fulfillment_outbox')->value('state'))->toBe('pending');
     Http::assertNothingSent();
+});
+
+it('leaves stale managed bank receipts unapproved and preserves their original order', function (string $change): void {
+    $data = sb05Order(pay: false);
+    config()->set('sales.manual_bank_review_enabled', true);
+    Http::fake();
+    $bank = app(ManualBankPayments::class);
+    $claim = $bank->submit(SubscriptionViewer::telegram(975099), $data['order'],
+        'patch01-file-100', 'patch01-unique-100', 9100, 'sales');
+    $snapshot = DB::table('sales_orders')->where('id', $data['order'])->first();
+
+    match ($change) {
+        'revision' => DB::table('sales_plans')->where('id', $data['plan'])->increment('revision'),
+        'inactive' => DB::table('sales_plans')->where('id', $data['plan'])->update(['status' => 'inactive']),
+        'squad' => DB::table('sales_plan_internal_squad_bindings')->where('plan_id', $data['plan'])
+            ->update(['internal_squad_uuid' => '123e4567-e89b-12d3-a456-426614174001']),
+        'unverified' => DB::table('sales_plan_internal_squad_bindings')->where('plan_id', $data['plan'])
+            ->update(['verified_at' => null]),
+    };
+
+    expect(fn () => $bank->review($data['root']->id, $claim, true, 'PATCH01BANK100'))
+        ->toThrow(ValidationException::class)
+        ->and(DB::table('sales_orders')->where('id', $data['order'])->first())->toEqual($snapshot)
+        ->and(DB::table('sales_bank_payment_claims')->where('id', $claim)->value('status'))->toBe('submitted')
+        ->and(DB::table('sales_bank_settlements')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe(0)
+        ->and(DB::table('sales_fulfillment_outbox')->count())->toBe(0);
+    // A catalog change must never prevent a human from rejecting the receipt.
+    expect($bank->review($data['root']->id, $claim, false)->approved)->toBeFalse();
+    Http::assertNothingSent();
+})->with(['revision', 'inactive', 'squad', 'unverified']);
+
+it('holds a changed paid plan once and alerts only a freshly authorized root', function (): void {
+    $data = sb05Order();
+    config()->set('services.remnawave.writes_enabled', true);
+    config()->set('telegram_notifications.enabled', true);
+    config()->set('nutgram.token', '12345:admin_test');
+    Queue::fake();
+    Http::fake(['https://api.telegram.org/bot12345:admin_test/sendMessage' => Http::response(['ok' => true, 'result' => ['message_id' => 1]])]);
+    DB::table('sales_plans')->where('id', $data['plan'])->increment('revision');
+    $snapshot = DB::table('sales_orders')->where('id', $data['order'])->first();
+
+    expect(fn () => app(FulfillPaidPlanOrder::class)->handle($data['order']))->toThrow(RuntimeException::class, 'operator review')
+        ->and(DB::table('sales_orders')->where('id', $data['order'])->first())->toEqual($snapshot)
+        ->and(DB::table('sales_fulfillment_outbox')->value('state'))->toBe('needs_review')
+        ->and(DB::table('sales_fulfillment_outbox')->value('attempts'))->toBe(0)
+        ->and(DB::table('provisioning_operations')->count())->toBe(0);
+    $notice = DB::table('telegram_notification_deliveries')->where('event_type', 'FulfillmentPlanBlocked')->first();
+    expect($notice)->not->toBeNull()
+        ->and((int) $notice->recipient_user_id)->toBe($data['root']->id)
+        ->and($notice->bot_key)->toBe('admin');
+    expect(fn () => app(FulfillPaidPlanOrder::class)->handle($data['order']))->toThrow(RuntimeException::class);
+    expect(DB::table('telegram_notification_deliveries')->where('event_type', 'FulfillmentPlanBlocked')->count())->toBe(1);
+    Http::assertNothingSent();
+
+    $bot = Nutgram::fake();
+    require base_path('app/Interfaces/Telegram/routes/admin.php');
+    $bot->setCommonUser(TelegramUser::make(975001, false, 'Root'));
+    $bot->setCommonChat(Chat::make(975001, ChatType::PRIVATE));
+    $bot->hearCallbackQueryData('full:view:'.$data['order'])->reply()->assertRaw(
+        static fn (\GuzzleHttp\Psr7\Request $request): bool =>
+            str_contains((string) $request->getBody(), 'full:prepare:') === false,
+        index: 1,
+    );
+    expect(fn () => app(ReviewPaidFulfillment::class)->authorizeRequest($data['root']->id, $data['order'], true))
+        ->toThrow(ValidationException::class);
+
+    app(TelegramNotificationSender::class)->send($notice);
+    Http::assertSentCount(1);
+    Http::assertSent(static fn (Request $request): bool => str_contains((string) $request['text'], 'پیش از ساخت اشتراک')
+        && str_contains((string) $request['reply_markup'], 'full:view:'.$data['order']));
+    $data['root']->syncRoles(['admin']);
+    expect(fn () => app(TelegramNotificationSender::class)->send($notice))->toThrow(NotificationUnavailable::class);
+    Http::assertSentCount(1);
+});
+
+it('fulfills a ready customer wallet order once through the existing provider job', function (): void {
+    $data = sb05Order(pay: false);
+    config()->set('billing.topups_enabled', true);
+    $topup = app(RequestTopup::class)->handle($data['buyer']->id, 1_500_000, 'patch01:wallet:credit');
+    app(SubmitTopupPhoto::class)->handle($data['buyer']->id, $topup, 975099, 'patch01-wallet-file', 'patch01-wallet-unique', 9200);
+    app(ReviewTopup::class)->handle($data['root']->id, $topup, true, 'PATCH01WALLET100');
+    config()->set('sales.wallet_settlement_enabled', true);
+    config()->set('sales.auto_fulfillment_enabled', true);
+    config()->set('services.remnawave.writes_enabled', true);
+    config()->set('telegram_notifications.enabled', true);
+    config()->set('telegram.sales.enabled', true);
+    config()->set('telegram.sales.token', '54321:sales_test');
+    config()->set('nutgram.token', '12345:admin_test');
+    Queue::fake();
+    sb05FakeCreate($data['order']);
+    $viewer = SubscriptionViewer::telegram(975099);
+    app(SettleWalletOrder::class)->handle($viewer, $data['order']);
+    Queue::assertPushed(FulfillPaidPlanOrderJob::class,
+        static fn (FulfillPaidPlanOrderJob $job): bool => $job->orderId === $data['order'] && $job->actorId === 0);
+
+    // An already paid replay remains read-only even if payment gates close.
+    config()->set('services.remnawave.writes_enabled', false);
+    app(SettleWalletOrder::class)->handle($viewer, $data['order']);
+    config()->set('services.remnawave.writes_enabled', true);
+    $job = new FulfillPaidPlanOrderJob($data['order']);
+    $job->handle(app(FulfillPaidPlanOrder::class), app(AssertCatalogManagementAccess::class));
+    $job->handle(app(FulfillPaidPlanOrder::class), app(AssertCatalogManagementAccess::class));
+
+    expect(DB::table('sales_orders')->where('id', $data['order'])->value('status'))->toBe('fulfilled')
+        ->and(app(ViewWallet::class)->handle($data['buyer']->id)->balanceRials)->toBe(500_000)
+        ->and(DB::table('billing_journals')->where('kind', 'purchase')->count())->toBe(1)
+        ->and(DB::table('provisioning_order_links')->count())->toBe(1);
+    Http::assertSentCount(1);
 });
 
 it('never repeats a provider POST after an uncertain outcome and reconciles with GET only', function (): void {

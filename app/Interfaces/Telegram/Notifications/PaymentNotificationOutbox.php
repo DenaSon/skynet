@@ -134,6 +134,20 @@ final readonly class PaymentNotificationOutbox
         );
     }
 
+    /** Inside the transaction holding an authentic paid order before CREATE. */
+    public function planBlocked(int $orderId): void
+    {
+        foreach ($this->trust->allowedTelegramIds() as $telegramId) {
+            $root = $this->actors->handle((int) $telegramId);
+            if ($root?->canManageRoles() === true) {
+                $this->record(
+                    'fulfillment:plan-blocked:'.$orderId.':root:'.$root->userId,
+                    'FulfillmentPlanBlocked', $root->userId, 'admin', null, $orderId,
+                );
+            }
+        }
+    }
+
     private function record(
         string $key, string $type, int $recipientId, string $bot, ?int $claimId, int $orderId,
     ): void {
