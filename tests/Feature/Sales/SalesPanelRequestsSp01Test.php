@@ -19,13 +19,13 @@ it('persists one member application with normalized phone and immutable owner da
     expect($requests->find($member->id))->toBeNull()
         ->and($requests->find($other->id))->toBeNull();
 
-    $first = $requests->submit($member->id, 'علی', 'محمدی', '+۹۸۹۱۲۳۴۵۶۷۸');
+    $first = $requests->submit($member->id, 'علی', 'محمدی', '+۹۸۹۱۲۳۴۵۶۷۸۹');
     $again = $requests->submit($member->id, 'حسین', 'رضایی', '09121112233');
 
     expect($first['status'])->toBe('pending')
         ->and($first['first_name'])->toBe('علی')
         ->and($first['last_name'])->toBe('محمدی')
-        ->and($first['mobile'])->toBe('0912345678')
+        ->and($first['mobile'])->toBe('09123456789')
         ->and($again)->toBe($first)
         ->and($requests->find($member->id))->toBe($first)
         ->and($requests->find($other->id))->toBeNull()
