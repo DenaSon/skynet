@@ -4,7 +4,7 @@ namespace App\Interfaces\Telegram\Support;
 
 final class ReplyMenuLabels
 {
-    public const SALES_BUY = '🛒 خرید سرویس';
+    public const SALES_BUY = '🟢 خرید سرویس';
 
     public const SALES_SUBSCRIPTIONS = '📋 سرویس‌های من';
 
