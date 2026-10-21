@@ -29,7 +29,7 @@ final class SalesNativeMenu
             throw new RuntimeException('Sales command registration was not acknowledged.');
         }
 
-        if ($bot->setChatMenuButton(menu_button: new MenuButtonCommands()) !== true) {
+        if ($bot->setChatMenuButton(menu_button: new MenuButtonCommands) !== true) {
             throw new RuntimeException('Sales native menu registration was not acknowledged.');
         }
     }
