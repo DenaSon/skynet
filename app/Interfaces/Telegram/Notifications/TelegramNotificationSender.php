@@ -77,7 +77,7 @@ final readonly class TelegramNotificationSender
                 ['text' => '🧩 بررسی درخواست', 'callback_data' => 'sp:detail:'.$requestId],
             ]]], JSON_THROW_ON_ERROR);
             $this->text($bot, $chat,
-                "<b>🧩 درخواست جدید پنل فروش</b>"
+                '<b>🧩 درخواست جدید پنل فروش</b>'
                 ."\n\nدرخواست #{$requestId}"
                 ."\nنام: ".TelegramUi::escape($row['first_name'].' '.$row['last_name'])
                 ."\nموبایل: ".TelegramUi::code($row['mobile'])
@@ -111,7 +111,7 @@ final readonly class TelegramNotificationSender
             $message = $expected === 'approved'
                 ? "<b>✅ پنل فروش شما فعال شد</b>\n\nدرخواست #{$requestId} تأیید شد."
                     ."\nاکنون می‌توانید پلن‌ها را با قیمت ویژه پنل فروش تهیه کنید."
-                : "<b>❌ درخواست پنل فروش تأیید نشد</b>"
+                : '<b>❌ درخواست پنل فروش تأیید نشد</b>'
                     ."\n\nدرخواست #{$requestId}"
                     ."\nحساب فعلی شما بدون تغییر باقی مانده است."
                     ."\nبرای راهنمایی بیشتر با پشتیبانی گفتگو کنید.";
