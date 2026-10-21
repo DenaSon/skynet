@@ -9,6 +9,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
+use SergiX44\Nutgram\Telegram\Properties\UpdateType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\ReplyKeyboardMarkup;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
@@ -145,4 +146,30 @@ it('keeps private chat guards and refuses stale Admin keyboards for inactive use
     $admin->forceFill(['is_active' => false])->save();
     $bot->hearText(ReplyMenuLabels::USERS)->reply()
         ->assertReplyText('🔒 حساب شما به ParsaGate متصل نیست. برای اتصال، کد یک‌بارمصرف صادرشده توسط مدیر را در گفت‌وگوی خصوصی با دستور /link وارد کنید.');
+});
+
+it('opens Admin as a fresh text message from a photo receipt and preserves text callback editing', function (): void {
+    config()->set('telegram.hybrid_menu_enabled', false);
+    $admin = User::factory()->admin()->create();
+    $bot = mb04Bot(984101, $admin);
+
+    $bot->hearUpdateType(UpdateType::CALLBACK_QUERY, partialAttributes: [
+        'data' => 'menu:admin',
+        'message' => [
+            'message_id' => 45,
+            'caption' => '🧾 رسید تصویری',
+            'photo' => [
+                ['file_id' => 'receipt-file', 'file_unique_id' => 'receipt-unique', 'width' => 600, 'height' => 600],
+            ],
+        ],
+    ])->reply()
+        ->assertCalled('answerCallbackQuery')
+        ->assertCalled('sendMessage', 1)
+        ->assertCalled('editMessageText', 0)
+        ->assertReplyText("🛡️ مدیریت ParsaGate\n\nبخش موردنظر را انتخاب کنید.");
+
+    $bot->hearCallbackQueryData('menu:admin')->reply()
+        ->assertCalled('answerCallbackQuery')
+        ->assertCalled('editMessageText', 1)
+        ->assertCalled('sendMessage', 0);
 });
