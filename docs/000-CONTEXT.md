@@ -1,3 +1,7 @@
+## STAT-01 menu visibility correction — 2026-10-22
+
+Fixes the Admin hybrid persistent-keyboard omission after the merged STAT-01 dashboard: `/start` with `telegram.hybrid_menu_enabled=true` uses `ReplyMenuRenderer` rather than the Inline `MenuRenderer`. Add «📊 آمار و گزارش‌ها» to the **existing** root-only Admin ReplyKeyboard as well as the already working Inline menu and `/stats` route, reusing the same `AdminDashboardUi` Action and role verification. Preserve all six original Admin keyboard entries, old label handlers, Sales routes and provider/accounting behavior. Reply label remains unavailable/denied to ordinary admins, members, revoked users and group chats. No new schema, config, provider write or dependency. Live operator acceptance: redeploy, `/start`, tap the new keyboard button; `/stats` stays a fallback.
+
 ## STAT-01 — Super Admin overview dashboard (2026-10-22)
 
 Operator-approved **read-only** management statistics in the existing Admin Bot. The new «📊 آمار و گزارش‌ها» root-only home entry, private \`/stats\` command, \`stats:overview\` and \`stats:refresh\` callbacks use existing Access/Telegram guards and the shared \`ReadAdminProviderOverview\` Remnawave GET actions. No Admin/Sales route removal or role expansion, no new schema, dependency, provider mutation, scheduler, queue or caching. Return always rechecks the original protected Admin session. Existing detailed node metrics and historical traffic pages remain available through buttons.

@@ -89,6 +89,7 @@ final class ReplyMenuRenderer
             $labels[] = ReplyMenuLabels::SERVERS;
 
             $labels[] = ReplyMenuLabels::FINANCE_SECTION;
+            $labels[] = ReplyMenuLabels::STATS;
         }
 
         // A primary-menu HOME button would only reopen this same Admin screen.
