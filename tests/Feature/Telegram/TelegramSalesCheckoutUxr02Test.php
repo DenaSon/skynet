@@ -135,7 +135,7 @@ it('confirms member wallet purchase once and retains existing bank payment as an
     $token = Cache::get($key)['token'];
     expect(DB::table('sales_order_settlements')->count())->toBe(0);
 
-    $bot->hearCallbackQueryData('sales:checkout:wallet:confirm:'.$order.':'.$token)->reply()
+    $bot->hearCallbackQueryData('sales:walletpay:confirm:'.$order.':'.$token)->reply()
         ->assertCalled('editMessageText');
     expect(DB::table('sales_orders')->where('id', $order)->value('status'))->toBe('paid')
         ->and(DB::table('sales_order_settlements')->where('sales_order_id', $order)->value('method'))->toBe('customer_wallet')
@@ -145,7 +145,7 @@ it('confirms member wallet purchase once and retains existing bank payment as an
         ->and(DB::table('billing_postings')->where('account_code', 'order_liability')->count())->toBe(1)
         ->and(app(\App\Modules\Billing\Application\ViewWallet::class)->handle($buyer->id)->balanceRials)->toBe(500_000);
 
-    $bot->hearCallbackQueryData('sales:checkout:wallet:confirm:'.$order.':'.$token)->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:walletpay:confirm:'.$order.':'.$token)->reply()->assertCalled('editMessageText');
     expect(DB::table('sales_order_settlements')->count())->toBe(1)
         ->and(DB::table('billing_journals')->where('kind', 'purchase')->count())->toBe(1);
     Http::assertNothingSent();
@@ -178,7 +178,7 @@ it('does not show or execute a wallet debit without enough credit or against an 
         'created_at' => now(),
         'updated_at' => now(),
     ]);
-    $bot->hearCallbackQueryData('sales:checkout:wallet:confirm:'.$order.':'.$token)->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:walletpay:confirm:'.$order.':'.$token)->reply()->assertCalled('editMessageText');
     expect(DB::table('sales_orders')->where('id', $order)->value('status'))->toBe('pending_payment')
         ->and(DB::table('sales_order_settlements')->count())->toBe(0)
         ->and(DB::table('billing_journals')->where('kind', 'purchase')->count())->toBe(0);
