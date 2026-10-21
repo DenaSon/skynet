@@ -161,7 +161,7 @@ it('opens Admin as a fresh text message from a photo receipt and preserves text 
         ['file_id' => 'receipt-file', 'file_unique_id' => 'receipt-unique', 'width' => 600, 'height' => 600],
     ];
     $bot->hearUpdate($update);
-    expect($update->getType())->toBe(\SergiX44\Nutgram\Telegram\Properties\\UpdateType::CALLBACK_QUERY)
+    expect($update->getType())->toBe(\SergiX44\Nutgram\Telegram\Properties\UpdateType::CALLBACK_QUERY)
         ->and($update->getUser()?->id)->toBe(984101)
         ->and($update->getChat()?->id)->toBe(984101)
         ->and($update->getMessage()?->photo)->not->toBeEmpty();
