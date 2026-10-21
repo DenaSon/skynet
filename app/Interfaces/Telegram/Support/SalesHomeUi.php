@@ -357,6 +357,7 @@ final readonly class SalesHomeUi
             ->addRow(InlineKeyboardButton::make('◀️ حساب کاربری', callback_data: 'sales:account'));
         $username = config('telegram.sales.bot_username');
         if (! is_string($username) || preg_match('/\A[A-Za-z][A-Za-z0-9_]{4,31}\z/D', $username) !== 1) {
+            $keyboard->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
             $this->render($bot, '<b>👥 دعوت دوستان</b>'."\n\nلینک دعوت فعلاً در دسترس نیست. کمی بعد دوباره بررسی کنید.", $keyboard);
 
             return;
