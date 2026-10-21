@@ -16,6 +16,7 @@ use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 use SergiX44\Nutgram\Testing\FakeNutgram;
+use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
 
@@ -106,6 +107,7 @@ it('cancels or expires the private form without creating an application', functi
 
 it('denies group callbacks, disabled users, forged cross-user confirmation and active reseller requests', function (): void {
     $member = User::factory()->create();
+    Role::firstOrCreate(['name' => 'reseller', 'guard_name' => 'web']);
     $reseller = User::factory()->create();
     $reseller->syncRoles(['reseller']);
     $bot = panel01Bot(986103, $member);
