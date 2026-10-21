@@ -11,7 +11,6 @@ use App\Modules\Billing\Application\VerifyWalletOrderDebit;
 use App\Modules\Billing\Application\ViewWallet;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\TelegramRecipient;
-use App\Modules\Provisioning\Application\SubscriptionAlertMonitor;
 use App\Modules\Sales\Application\ManualBankPayments;
 use App\Modules\Sales\Application\ReviewSalesPanelRequest;
 use Illuminate\Http\Client\Response;
@@ -377,7 +376,7 @@ final readonly class TelegramNotificationSender
             // No credential or remote identifier is placed in callback data.
             $orderId = (int) $delivery->order_id;
             $keyboard = json_encode(['inline_keyboard' => [[
-                ['text' => '📋 سرویس من', 'callback_data' => 'sales:subs:view:'.$orderId.':0'],
+                ['text' => '📋 سرویس من', 'callback_data' => 'sales:subs:view:'.$orderId.':0', 'style' => 'primary'],
             ]]], JSON_THROW_ON_ERROR);
             $this->text($bot, $chat, $message, $keyboard, 'HTML');
 

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace App\Modules\Provisioning\Application;
+namespace App\Interfaces\Telegram\Notifications;
 
-use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
+use App\Modules\Provisioning\Application\RemnawaveSubscriptionLifecycle;
 use DateTimeImmutable;
 use Illuminate\Support\Facades\DB;
 use Throwable;
@@ -67,7 +67,7 @@ final readonly class SubscriptionAlertMonitor
             return null;
         }
 
-        $live = $this->live((int) $delivery->order_id, (int) $delivery->recipient_user_id);
+        $live = $this->live((int) $delivery->order_id, (int) $delivery->recipient_user_id, retryRemoteFailure: true);
         if ($live === null || $live['expires'] <= now()->getTimestamp()) {
             return null;
         }
@@ -111,7 +111,7 @@ final readonly class SubscriptionAlertMonitor
     /**
      * @return array{order:int,buyer:int,subscription:int,remote:int,reference:string,expires:int,used:int,limit:int,remaining:int,status:string}|null
      */
-    private function live(int $orderId, int $buyerId): ?array
+    private function live(int $orderId, int $buyerId, bool $retryRemoteFailure = false): ?array
     {
         if ($orderId < 1 || $buyerId < 1) {
             return null;
@@ -127,7 +127,14 @@ final readonly class SubscriptionAlertMonitor
             // immutable ownership marker before returning the snapshot.
             $remote = $this->lifecycle->subscription((string) $binding->reference);
             $expires = (new DateTimeImmutable($remote->expireAt))->getTimestamp();
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            // The scanner skips a failed GET and tries on its next run.
+            // The delivery worker MUST use its existing backoff/recovery
+            // instead of permanently discarding a queued warning on a 503.
+            if ($retryRemoteFailure) {
+                throw new \RuntimeException('Subscription alert provider read failed.', 0, $exception);
+            }
+
             return null;
         }
 

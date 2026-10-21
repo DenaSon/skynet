@@ -3,10 +3,10 @@
 declare(strict_types=1);
 
 use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
+use App\Interfaces\Telegram\Notifications\SubscriptionAlertMonitor;
 use App\Interfaces\Telegram\Notifications\TelegramNotificationSender;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
-use App\Modules\Provisioning\Application\SubscriptionAlertMonitor;
 use App\Modules\Sales\Application\CalculateQuote;
 use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\ConfigureRate;
@@ -235,4 +235,37 @@ it('keeps scanning gated and the command registered without touching Remnawave w
     expect(DB::table('subscription_alert_states')->count())->toBe(0)
         ->and(DB::table('telegram_notification_deliveries')->count())->toBe(0);
     Http::assertNothingSent();
+});
+
+it('backs off and retries a warning after a temporary Remnawave outage', function (): void {
+    $data = subAlertFixture();
+    $remote = subAlertRemote($data['reference'], now()->addHours(12)->toIso8601String());
+    $offline = false;
+
+    Http::fake(static function (Request $request) use (&$offline, &$remote) {
+        if ($request->method() === 'GET' && $request->url() === 'https://remna.test/api/users/42') {
+            return $offline ? Http::response([], 503) : Http::response(['response' => $remote]);
+        }
+
+        if (str_contains($request->url(), '54321:sales_test/sendMessage')) {
+            return Http::response(['ok' => true, 'result' => ['message_id' => 100]]);
+        }
+
+        return Http::response(['ok' => false], 503);
+    });
+
+    app(SubscriptionAlertMonitor::class)->scan();
+    $id = (int) DB::table('telegram_notification_deliveries')->value('id');
+
+    $offline = true;
+    app(DispatchTelegramNotification::class, ['deliveryId' => $id])->handle(app(TelegramNotificationSender::class));
+    $row = DB::table('telegram_notification_deliveries')->where('id', $id)->first();
+    expect($row->state)->toBe('pending')->and((int) $row->attempts)->toBe(1);
+
+    $this->travel(6)->seconds();
+    $offline = false;
+    app(DispatchTelegramNotification::class, ['deliveryId' => $id])->handle(app(TelegramNotificationSender::class));
+
+    expect(DB::table('telegram_notification_deliveries')->where('id', $id)->value('state'))->toBe('sent');
+    Http::assertSentCount(4); // source GET, unavailable GET, successful GET, private Telegram POST.
 });

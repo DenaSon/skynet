@@ -1,7 +1,7 @@
 <?php
 
+use App\Interfaces\Telegram\Notifications\SubscriptionAlertMonitor;
 use App\Modules\Billing\Application\VerifyWalletOrderDebit;
-use App\Modules\Provisioning\Application\SubscriptionAlertMonitor;
 use App\Modules\Provisioning\Jobs\FulfillPaidPlanOrderJob;
 use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\ConfigureRate;
