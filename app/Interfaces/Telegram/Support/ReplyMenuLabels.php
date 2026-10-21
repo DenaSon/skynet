@@ -26,9 +26,9 @@ final class ReplyMenuLabels
 
     public const ADMIN = '🛡️ مدیریت';
 
-    public const WALLET = '💼 کیف پول نماینده';
+    public const WALLET = '💼 کیف پول پنل فروش';
 
-    public const BUILDER = '💼 پلن‌ساز نماینده';
+    public const BUILDER = '💼 پلن‌ساز پنل فروش';
 
     public const USERS = '👥 کاربران';
 
