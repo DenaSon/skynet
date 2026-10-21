@@ -217,3 +217,37 @@ it('gives safe fallback guidance and rechecks private identity on every new dest
     $bot->hearCallbackQueryData('unknown:callback')->reply()->assertNoReply();
     Http::assertNothingSent();
 });
+
+it('keeps Home separate from purchase offers for all Sales home entry callbacks', function (): void {
+    $bot = uxr01Bot(User::factory()->create());
+
+    foreach (['menu:home', 'sales:home'] as $callback) {
+        $bot->hearCallbackQueryData($callback)->reply()
+            ->assertCalled('answerCallbackQuery')
+            ->assertCalled('editMessageText')
+            ->assertCalled('sendMessage', 0)
+            ->assertRaw(static function (Request $request): bool {
+                $data = uxr01Payload($request);
+                $buttons = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+
+                return str_contains($data['text'], '🏠 صفحه اصلی DenaGate')
+                    && ! str_contains($data['text'], '🛒 پلن‌های آماده خرید')
+                    && str_contains($buttons, 'sales:buy')
+                    && str_contains($buttons, 'sales:subs:list:0')
+                    && str_contains($buttons, 'sales:account')
+                    && str_contains($buttons, 'sales:support');
+            }, index: 1);
+    }
+
+    $bot->hearCallbackQueryData('sales:buy')->reply()
+        ->assertRaw(static function (Request $request): bool {
+            $data = uxr01Payload($request);
+
+            return str_contains($data['text'], '🛒 پلن‌های آماده خرید');
+        }, index: 1);
+    $bot->hearText('/menu')->reply()->assertRaw(
+        static fn (Request $request): bool => str_contains(uxr01Payload($request)['text'], '🏠 صفحه اصلی DenaGate'),
+        index: 1,
+    );
+    Http::assertNothingSent();
+});
