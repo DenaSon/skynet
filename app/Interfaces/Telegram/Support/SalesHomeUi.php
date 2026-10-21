@@ -11,6 +11,7 @@ use App\Modules\Identity\Application\ReadAccountCreatedAt;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Identity\Application\TelegramActor;
+use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Onboarding\Application\JoinFromTelegram;
 use App\Modules\Provisioning\Application\CheckPlanSquadReadiness;
 use App\Modules\Provisioning\Application\ListMyServices;
@@ -52,10 +53,19 @@ final readonly class SalesHomeUi
             return;
         }
         $actor = $this->resolve->handle($telegramId);
+        if ($actor === null && ! $bot->isCallbackQuery()) {
+            // Sales-only enrollment: /start (or /menu) is the user's registration action.
+            // The Admin Bot's public-signup gate stays closed and is never consulted here.
+            $this->referrals->remember($telegramId, $payload ?? '');
+            $this->onboard->handle(
+                $telegramId,
+                (string) ($bot->user()->first_name ?? 'کاربر'),
+                $this->referrals->take($telegramId),
+            );
+            $actor = $this->resolve->handle($telegramId);
+        }
+
         if ($actor === null) {
-            if (! $bot->isCallbackQuery()) {
-                $this->referrals->remember($telegramId, $payload ?? '');
-            }
             $this->guest($bot);
 
             return;
@@ -325,34 +335,12 @@ final readonly class SalesHomeUi
             $this->back());
     }
 
+    /** Old Sales signup buttons remain harmless: new members enroll on /start. */
     public function join(Nutgram $bot): void
     {
-        if (! $bot->isCallbackQuery()) {
-            return;
-        }
-        $telegramId = $this->privateUser->id($bot);
-        if ($telegramId === null) {
-            return;
-        }
-        if (config('telegram.public_signup_enabled', false) !== true) {
-            $this->render($bot, '🔒 ثبت‌نام در حال حاضر غیرفعال است.', $this->back());
-
-            return;
-        }
-        $actor = $this->resolve->handle($telegramId);
-        if ($actor !== null) {
+        if ($bot->isCallbackQuery()) {
             $this->start($bot);
-
-            return;
         }
-        $this->onboard->handle($telegramId, (string) ($bot->user()->first_name ?? 'کاربر'), $this->referrals->take($telegramId));
-        $actor = $this->resolve->handle($telegramId);
-        if ($actor === null) {
-            $this->render($bot, 'حساب شما غیرفعال است. برای پیگیری با پشتیبانی تماس بگیرید.', $this->back());
-
-            return;
-        }
-        $this->start($bot, showKeyboard: true);
     }
 
     public function link(Nutgram $bot, string $code): void
@@ -371,15 +359,18 @@ final readonly class SalesHomeUi
 
     private function guest(Nutgram $bot): void
     {
-        if (config('telegram.public_signup_enabled', false) === true) {
+        $telegramId = $this->privateUser->id($bot);
+        if ($telegramId !== null && TelegramAccount::query()->where('telegram_user_id', $telegramId)->exists()) {
             $this->render($bot,
-                "👋 به DenaGate خوش آمدید.\n\nبرای ساخت حساب کاربری، دکمه زیر را انتخاب کنید.\nاگر از قبل حساب دارید، کد اتصال دریافتی را با دستور /link وارد کنید.",
-                InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make('✅ ایجاد حساب', callback_data: 'sales:join')));
+                '<b>⛔ حساب غیرفعال</b>'."\n\nحساب شما غیرفعال است. برای پیگیری با پشتیبانی تماس بگیرید.",
+                $this->back());
 
             return;
         }
+
+        // Old callbacks and unexpected messages must not create users implicitly.
         $this->render($bot,
-            "🔒 برای استفاده از DenaGate ابتدا حساب خود را متصل کنید.\n\nکد یک‌بارمصرف دریافتی از مدیر را با دستور /link وارد کنید.",
+            '<b>👋 به DenaGate خوش آمدید</b>'."\n\nبرای شروع خرید، دستور /start را ارسال کنید.",
             $this->back());
     }
 
