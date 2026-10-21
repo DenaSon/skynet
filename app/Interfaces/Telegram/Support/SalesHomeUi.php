@@ -140,7 +140,8 @@ final readonly class SalesHomeUi
     public function navigate(Nutgram $bot, string $text): bool
     {
         $action = match (trim($text)) {
-            ReplyMenuLabels::SALES_BUY, ReplyMenuLabels::BUY, ReplyMenuLabels::CATALOG, '🛒 انتخاب پلن' => 'catalog',
+            ReplyMenuLabels::SALES_BUY, ReplyMenuLabels::BUY, '🛒 انتخاب پلن' => 'buy',
+            ReplyMenuLabels::CATALOG => 'catalog',
             ReplyMenuLabels::SALES_SUBSCRIPTIONS, ReplyMenuLabels::SUBSCRIPTIONS, '📦 اشتراک‌های من' => 'subscriptions',
             ReplyMenuLabels::SALES_ACCOUNT, ReplyMenuLabels::ACCOUNT => 'account',
             ReplyMenuLabels::SALES_SUPPORT => 'support',
@@ -156,6 +157,9 @@ final readonly class SalesHomeUi
             return true;
         }
         switch ($action) {
+            case 'buy':
+                $this->buy($bot);
+                break;
             case 'catalog':
                 app(PlanCatalogUi::class)->browse($bot);
                 break;
