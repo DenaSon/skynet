@@ -59,7 +59,7 @@ final readonly class AdminDashboardUi
                 ."\nقابل دسترس در مدیریت: ".self::count($report['adminReachable'])
                 ."\nتعامل با بات فروش در ۳۰ روز: ".self::count($report['salesRecent'])
                 ."\n\n<b>💳 فروش امروز</b>"
-                ."\n<b>".number_format(intdiv($report['salesTodayRials'], 10))." تومان</b>"
+                ."\n<b>".number_format(intdiv($report['salesTodayRials'], 10)).' تومان</b>'
                 ."\n\n<b>⚠️ پیگیری‌ها</b>"
                 ."\nعملیات اشتراک: ".self::count($report['provisioningReview'])
                 .' | سفارش‌ها: '.self::count($report['fulfillmentReview'])

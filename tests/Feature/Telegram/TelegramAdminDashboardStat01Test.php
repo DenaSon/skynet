@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use App\Interfaces\Telegram\Support\AdminDashboardUi;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Application\ReadAdminDashboard;
