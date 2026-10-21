@@ -53,6 +53,7 @@ it('creates one empty wallet for active members and resellers without granting m
         ->toThrow(AuthorizationException::class);
 
     $outsider = User::factory()->create();
+    $outsider->syncRoles([]);
     expect(fn () => app(ViewWallet::class)->handle($outsider->id))->toThrow(AuthorizationException::class);
     $member->forceFill(['is_active' => false])->save();
     expect(fn () => app(ViewWallet::class)->handle($member->id))->toThrow(AuthorizationException::class);
