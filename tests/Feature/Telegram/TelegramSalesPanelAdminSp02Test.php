@@ -59,6 +59,7 @@ it('shows the root application queue, confirms one decision and cannot replay th
     $bot = sp02AdminBot(977001, $root);
     $root->syncRoles(['super-admin']);
     $buyer = User::factory()->create();
+    TelegramAccount::query()->create(['user_id' => $buyer->id, 'telegram_user_id' => 977099]);
     $id = app(SalesPanelRequests::class)->submit($buyer->id, 'سارا', 'رضایی', '09123456789')['id'];
 
     $bot->hearCallbackQueryData('menu:admin:sales')->reply()->assertRaw(static function (Request $request): bool {
