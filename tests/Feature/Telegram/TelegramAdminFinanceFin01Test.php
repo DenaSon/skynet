@@ -162,6 +162,9 @@ it('reuploads a private Sales top-up photo to Admin using the existing protected
 
     $image = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNgYGAAAAAEAAH2FzhVAAAAAElFTkSuQmCC', true);
     expect($image)->toBeString();
+    // The default test fake is catch-all; replace it before asserting the actual media bridge.
+    Http::swap(new \Illuminate\Http\Client\Factory);
+    Http::preventStrayRequests();
     Http::fake([
         'https://api.telegram.org/bot12345678:sales-secret/getFile' => Http::response([
             'ok' => true, 'result' => ['file_path' => 'photos/topup.png', 'file_size' => strlen($image)],
