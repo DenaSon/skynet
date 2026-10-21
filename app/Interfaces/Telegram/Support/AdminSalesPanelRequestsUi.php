@@ -67,7 +67,8 @@ final readonly class AdminSalesPanelRequestsUi
         if ($paging !== []) {
             $keyboard->addRow(...$paging);
         }
-        $keyboard->addRow(InlineKeyboardButton::make('◀️ محصولات و پلن‌ها', callback_data: 'menu:admin:sales'));
+        $keyboard->addRow(InlineKeyboardButton::make('◀️ محصولات و پلن‌ها', callback_data: 'menu:admin:sales'))
+            ->addRow(InlineKeyboardButton::make('🏠 مدیریت', callback_data: 'menu:admin'));
         $this->render($bot, implode("\n", $lines), $keyboard);
     }
 
@@ -106,7 +107,8 @@ final readonly class AdminSalesPanelRequestsUi
                 '❌ رد درخواست', callback_data: 'sp:prepare:'.$number.':r', style: ButtonStyle::DANGER,
             ));
         }
-        $keyboard->addRow(InlineKeyboardButton::make('◀️ درخواست‌ها', callback_data: 'sp:list:1'));
+        $keyboard->addRow(InlineKeyboardButton::make('◀️ درخواست‌ها', callback_data: 'sp:list:1'))
+            ->addRow(InlineKeyboardButton::make('🏠 مدیریت', callback_data: 'menu:admin'));
         $this->render($bot,
             '<b>🧩 بررسی پنل فروش #'.$row['id'].'</b>'
             ."\n\n👤 نام: <b>{$name}</b>"
@@ -157,7 +159,8 @@ final readonly class AdminSalesPanelRequestsUi
                     callback_data: 'sp:apply:'.$token,
                     style: $decision === 'a' ? ButtonStyle::SUCCESS : ButtonStyle::DANGER,
                 ))
-                ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'sp:detail:'.$number)));
+                ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'sp:detail:'.$number))
+                ->addRow(InlineKeyboardButton::make('🏠 مدیریت', callback_data: 'menu:admin')));
     }
 
     public function apply(Nutgram $bot, string $token): void
