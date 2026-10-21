@@ -152,6 +152,9 @@ it('opens Admin as a fresh text message from a photo receipt and preserves text 
     $admin = User::factory()->admin()->create();
     $bot = mb04Bot(984101, $admin);
 
+    $bot->hearCallbackQueryData('menu:admin')->reply()
+        ->assertCalled('answerCallbackQuery')->assertCalled('editMessageText');
+
     // Start with Nutgram's standard, routable fake callback, then attach
     // a photo to its message. This avoids forging a second test-only router.
     $bot->hearCallbackQueryData('menu:admin');
