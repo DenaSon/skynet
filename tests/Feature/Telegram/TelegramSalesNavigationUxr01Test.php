@@ -131,14 +131,43 @@ it('uses the Sales identity for invitations and retains reseller access only whi
         ->assertRaw(static function (Request $request) use ($url): bool {
             $body = uxr01Payload($request);
 
+            $buttons = $body['reply_markup']['inline_keyboard'];
+            $share = $buttons[2][0]['url'] ?? '';
+            $query = parse_url($share, PHP_URL_QUERY);
+            parse_str(is_string($query) ? $query : '', $params);
+
             return str_contains($body['text'], $url)
-                && $body['reply_markup']['inline_keyboard'][1][0]['copy_text']['text'] === $url;
+                && str_contains($body['text'], 'دعوت‌های موفق: <b>0</b>')
+                && $buttons[1][0]['copy_text']['text'] === $url
+                && parse_url($share, PHP_URL_HOST) === 't.me'
+                && parse_url($share, PHP_URL_PATH) === '/share/url'
+                && ($params['url'] ?? '') === $url
+                && ($params['text'] ?? '') === 'با لینک من به DenaGate بپیوند 👇';
         }, index: 1);
     $bot->hearText('/account')->reply()->assertRaw(static fn (Request $request): bool => str_contains(json_encode(uxr01Payload($request), JSON_THROW_ON_ERROR), 'menu:builder'));
     $user->syncRoles(['member']);
     $bot->hearText('/account')->reply()->assertRaw(static fn (Request $request): bool => ! str_contains(json_encode(uxr01Payload($request), JSON_THROW_ON_ERROR), 'menu:builder'));
     $bot->hearCallbackQueryData('menu:builder')->reply()
         ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.']);
+    Http::assertNothingSent();
+});
+
+it('does not invent a referral share destination when Sales username is not valid', function (): void {
+    $bot = uxr01Bot(User::factory()->create());
+    foreach (['', '@bad-bot', 'https://t.me/fake', '12345', '<script>'] as $username) {
+        config()->set('telegram.sales.bot_username', $username);
+        $bot->hearCallbackQueryData('sales:invite')->reply()->assertRaw(
+            static function (Request $request): bool {
+                $data = uxr01Payload($request);
+                $markup = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+
+                return str_contains($data['text'], 'لینک دعوت فعلاً در دسترس نیست')
+                    && ! str_contains($markup, 'share/url')
+                    && ! str_contains($markup, 'copy_text');
+            }, index: 1,
+        );
+    }
+    expect(DB::table('referrals')->count())->toBe(0);
     Http::assertNothingSent();
 });
 

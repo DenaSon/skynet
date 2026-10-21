@@ -310,10 +310,15 @@ final readonly class SalesHomeUi
         }
         $invite = $this->invites->handle($actor->userId);
         $url = "https://t.me/{$username}?start=ref_{$invite->code}";
-        $keyboard->addRow(TelegramUi::copy($url, '📋 کپی لینک دعوت'));
+        $keyboard->addRow(TelegramUi::copy($url, '📋 کپی لینک دعوت'))
+            ->addRow(InlineKeyboardButton::make(
+                '📤 اشتراک‌گذاری در تلگرام',
+                url: 'https://t.me/share/url?url='.rawurlencode($url).'&text='.rawurlencode('با لینک من به DenaGate بپیوند 👇'),
+            ));
         $this->render($bot,
             '<b>👥 دعوت دوستان</b>'."\n\nلینک اختصاصی شما:\n".TelegramUi::code($url)
-                ."\n\nدعوت‌های ثبت‌شده: {$invite->joinedCount}\n\nفعلاً برای دعوت دوستان اعتباری اضافه نمی‌شود.",
+                ."\n\nدعوت‌های موفق: <b>{$invite->joinedCount}</b>"
+                ."\n\n<blockquote>با این لینک دوستانت می‌توانند مستقیماً وارد بات فروش شوند. فعلاً پاداش مالی برای دعوت وجود ندارد.</blockquote>",
             $keyboard);
     }
 

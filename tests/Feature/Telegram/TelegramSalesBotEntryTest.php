@@ -141,6 +141,28 @@ it('keeps referral attribution only for a new Telegram ID on its first Sales /st
     Http::assertNothingSent();
 });
 
+it('does not reattribute an existing invited account or allow a self-invitation', function (): void {
+    $referrer = User::factory()->create();
+    $referrer->assignRole('member');
+    TelegramAccount::query()->create(['user_id' => $referrer->id, 'telegram_user_id' => 771055]);
+    $firstCode = app(GetReferralInvite::class)->handle($referrer->id)->code;
+    sb01Bot(771055)->hearText('/start ref_'.$firstCode)->reply()->assertCalled('sendMessage', 2);
+    expect(DB::table('referrals')->count())->toBe(0);
+
+    $other = User::factory()->create();
+    $other->assignRole('member');
+    $secondCode = app(GetReferralInvite::class)->handle($other->id)->code;
+    $buyer = sb01Bot(771056);
+    $buyer->hearText('/start ref_'.$firstCode)->reply()->assertCalled('sendMessage', 2);
+    $buyer->hearText('/start ref_'.$secondCode)->reply()->assertCalled('sendMessage', 2);
+    $buyerId = (int) TelegramAccount::query()->where('telegram_user_id', 771056)->value('user_id');
+
+    expect(DB::table('referrals')->count())->toBe(1)
+        ->and(DB::table('referrals')->where('invited_user_id', $buyerId)->value('referrer_user_id'))->toBe($referrer->id)
+        ->and(User::query()->count())->toBe(3);
+    Http::assertNothingSent();
+});
+
 it('does not allow the Admin start handler to enroll an unlinked Telegram identity', function (): void {
     config()->set('telegram.public_signup_enabled', false);
     $bot = Nutgram::fake();

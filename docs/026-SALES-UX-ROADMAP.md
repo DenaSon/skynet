@@ -1,3 +1,7 @@
+## REF-01 — Sales invitation usability (2026-10-21, source pending CI)
+
+Operator-approved issue #147 / EPIC-REF #143: retain the existing unique `GetReferralInvite` code, stable `ref_<code>` start payload, native `TelegramUi::copy` and one-time `JoinFromTelegram` attribution. Add only native Telegram `t.me/share/url` share for the verified configured Sales-bot URL and show truthful successful-registration count; no referral reward, wallet write, new schema or dependency. Actual new-account deep-link & share-sheet need separate real Telegram smoke, not just fake transport tests. Real Runflare Sales `/start` was confirmed functional by operator after the deployment incident.
+
 ## Prelaunch customer signup correction (2026-10-21, operator-approved)
 
 Sales is a public-facing bot. Private new Telegram IDs now auto-enroll as ordinary members on `/start` (or `/menu`) using the already existing transactional `JoinFromTelegram` and `RegisterTelegramMember`; existing linked accounts retain roles/IDs; disabled accounts stay blocked. Welcome + persistent Sales Reply menu are sent in the same entry. The global Admin/legacy `TELEGRAM_PUBLIC_SIGNUP_ENABLED` gate remains OFF and is not read by Sales signup; do not enable it globally as a workaround. Existing `/link` stays compatible for previously issued accounts, while stale Sales `sales:join` callbacks show the `/start` guidance. No schema, role elevation, new registration service, wallet/bank/provider write or unrelated UI scope.
