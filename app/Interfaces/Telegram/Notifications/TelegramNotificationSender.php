@@ -395,7 +395,7 @@ final readonly class TelegramNotificationSender
                 ->join('provisioning_subscriptions as sub', 'sub.id', '=', 'link.provisioning_subscription_id')
                 ->where('orders.id', $orderId)->where('orders.buyer_user_id', $userId)
                 ->where('orders.status', 'fulfilled')->where('outbox.state', 'completed')
-                ->where('sub.id', DB::raw('renewal.provisioning_subscription_id'))
+                ->whereColumn('sub.id', 'renewal.provisioning_subscription_id')
                 ->where('sub.state', 'active')->value('renewal.source_order_id');
             if ($source === null) {
                 throw new NotificationUnavailable('renewal_not_complete');

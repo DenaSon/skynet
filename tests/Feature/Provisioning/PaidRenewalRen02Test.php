@@ -200,7 +200,7 @@ it('settles wallet exactly once and sends one absolute renewal UPDATE without CR
     Http::assertNotSent(static fn (Request $r): bool => $r->method() === 'POST');
     expect(fn () => app(FulfillPaidRenewalOrder::class)->handle($order))->toThrow(RuntimeException::class);
     expect(fn () => app(FulfillPaidPlanOrder::class)->handle($order))->toThrow(RuntimeException::class);
-    Http::assertSentCount(4); // Two draft GETs, one fulfillment GET, one PATCH.
+    Http::assertSentCount(3); // Draft GET, fulfillment GET, one PATCH.
 });
 
 it('uses the existing verified bank review and renewal outbox without an extra provider user', function (): void {
@@ -270,7 +270,7 @@ it('does not allow foreign ownership or disabled feature to create or debit orde
 
     expect(fn () => app(CreatePendingRenewalOrder::class)->handle(
         SubscriptionViewer::telegram(991999), $data['source'],
-    ))->toThrow(Throwable::class);
+    ))->toThrow(ValidationException::class);
     config()->set('sales.renewal_enabled', false);
     expect(fn () => app(CreatePendingRenewalOrder::class)->handle(
         SubscriptionViewer::telegram($data['telegram']), $data['source'],

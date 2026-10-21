@@ -218,6 +218,13 @@ final readonly class ManualBankPayments
             }
 
             if ($approve) {
+                $renewal = DB::table('sales_renewal_orders')->where('sales_order_id', $order->id)->first();
+                if ($renewal !== null && (config('sales.renewal_enabled', false) !== true
+                    || config('sales.auto_fulfillment_enabled') !== true
+                    || config('services.remnawave.writes_enabled') !== true
+                    || config('services.remnawave.squad_bindings_live_verified') !== true)) {
+                    throw ValidationException::withMessages(['renewal' => 'Renewal not ready.']);
+                }
                 if ($order->plan_id !== null) {
                     $this->squads->assertOrderReady(
                         (int) $order->plan_id, (int) $order->plan_revision, (string) $order->internal_squad_uuid,
@@ -248,7 +255,7 @@ final readonly class ManualBankPayments
 
                 DB::table('sales_fulfillment_outbox')->insert([
                     'sales_order_id' => $order->id,
-                    'event_key' => 'sales-order:'.$order->id.':create',
+                    'event_key' => 'sales-order:'.$order->id.($renewal === null ? ':create' : ':renew'),
                     'state' => 'pending',
                     'attempts' => 0,
                     'created_at' => now(),
