@@ -38,3 +38,8 @@ Official references (verify versions with the live panel before any changes):
 - [ ] Real staging/browser/device evidence, actual approved infra changes and a safe rollback are recorded separately from GitHub CI. Close #121 only after these checks.
 
 **Rollback order:** unset `SALES_SUBSCRIPTION_PAGE_HOST` in Laravel to remove buttons; leave original private connection callback available. If external Subscription Page must be rolled back, use the verified old DNS/proxy and RW `SUB_PUBLIC_DOMAIN` / template setup, preserving working old subscription URLs and client compatibility. Do not blindly switch domain on a live production customer base.
+
+
+## Why the customer cannot see the browser page yet (CLOSE-02 acceptance note)
+
+The DenaGate Sales Bot **does not generate or host** this webpage. It only shows the «🌐 صفحه اشتراک» button if `SALES_SUBSCRIPTION_PAGE_HOST` matches an existing HTTPS subscription URL returned by Remnawave. Until the official service is actually running on an approved subscription hostname and Remnawave returns that host, the button is deliberately absent; «🔐 نمایش کد اتصال» still works. This is an **external deployment task**, not a Telegram UI bug. For final validation, note the actual redacted panel version, Docker/proxy type, existing subscription hostname, DNS/TLS setup and confirmed operator-approved destination. No blind compose/proxy replacement or forced migration of customer URLs.
