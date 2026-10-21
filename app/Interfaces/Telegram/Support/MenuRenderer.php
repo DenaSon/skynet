@@ -112,6 +112,7 @@ final class MenuRenderer
             );
 
             $keyboard->addRow(InlineKeyboardButton::make('💳 امور مالی', callback_data: 'menu:admin:finance'));
+            $keyboard->addRow(InlineKeyboardButton::make('📊 آمار و گزارش‌ها', callback_data: 'stats:overview'));
         } else {
             $keyboard->addRow(InlineKeyboardButton::make('👥 کاربران', callback_data: 'menu:admin:users'));
         }

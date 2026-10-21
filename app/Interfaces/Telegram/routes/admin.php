@@ -3,6 +3,7 @@
 use App\Interfaces\Telegram\Handlers\AdminHandler;
 use App\Interfaces\Telegram\Handlers\AdminRolesHandler;
 use App\Interfaces\Telegram\Handlers\AdminUsersHandler;
+use App\Interfaces\Telegram\Support\AdminDashboardUi;
 use App\Interfaces\Telegram\Support\AdminConfigProfileOperationsUi;
 use App\Interfaces\Telegram\Support\AdminConfigProfilesUi;
 use App\Interfaces\Telegram\Support\AdminFinanceWalletUi;
@@ -277,6 +278,17 @@ $bot->onCallbackQueryData('node3:apply:{token}', function (Nutgram $bot, string 
 });
 $bot->onCallbackQueryData('node3:cancel', function (Nutgram $bot): void {
     app(AdminNodeBatchUi::class)->cancel($bot);
+});
+
+// STAT-01: read-only, private Super Admin dashboard with bounded provider GETs.
+$bot->onCommand('stats', function (Nutgram $bot): void {
+    app(AdminDashboardUi::class)->show($bot);
+});
+$bot->onCallbackQueryData('stats:overview', function (Nutgram $bot): void {
+    app(AdminDashboardUi::class)->show($bot);
+});
+$bot->onCallbackQueryData('stats:refresh', function (Nutgram $bot): void {
+    app(AdminDashboardUi::class)->show($bot);
 });
 
 // MET-01: root-only, read-only Node and traffic snapshot.

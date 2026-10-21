@@ -79,6 +79,10 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:sp:detail:{id}';
     $expected['ADMIN'][] = 'callback:sp:prepare:{id}:{decision}';
     $expected['ADMIN'][] = 'callback:sp:apply:{token}';
+    // STAT-01: scoped Admin read-only statistics routes.
+    $expected['ADMIN'][] = 'command:stats';
+    $expected['ADMIN'][] = 'callback:stats:overview';
+    $expected['ADMIN'][] = 'callback:stats:refresh';
     // MB-05B adds one guarded, unadvertised Admin-only read command.
     $expected['ADMIN'][] = 'command:servers';
     // SRO-02 adds two guarded, read-only Admin callbacks without changing the MB-01 baseline.
