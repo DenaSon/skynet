@@ -339,10 +339,8 @@ final readonly class SalesCheckoutUi
             );
         } catch (AuthorizationException|ValidationException $error) {
             $message = match (true) {
-                $error instanceof ValidationException && isset($error->errors()['activation']) =>
-                    'پرداخت فعلاً آماده نیست؛ مبلغی از کیف پول شما برداشت نشد. کمی بعد دوباره اقدام کنید.',
-                $error instanceof ValidationException && isset($error->errors()['plan']) =>
-                    'مشخصات این پلن تغییر کرده یا خرید آن متوقف شده است؛ مبلغی برداشت نشد. از بخش خرید، پلن را دوباره انتخاب کنید.',
+                $error instanceof ValidationException && isset($error->errors()['activation']) => 'پرداخت فعلاً آماده نیست؛ مبلغی از کیف پول شما برداشت نشد. کمی بعد دوباره اقدام کنید.',
+                $error instanceof ValidationException && isset($error->errors()['plan']) => 'مشخصات این پلن تغییر کرده یا خرید آن متوقف شده است؛ مبلغی برداشت نشد. از بخش خرید، پلن را دوباره انتخاب کنید.',
                 default => 'مبلغ، موجودی یا وضعیت سفارش تغییر کرده است؛ برداشت انجام نشد. از صفحه سفارش دوباره اقدام کنید.',
             };
             $this->notice($bot, $message);

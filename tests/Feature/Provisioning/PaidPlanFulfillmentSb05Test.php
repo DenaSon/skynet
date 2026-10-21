@@ -268,8 +268,7 @@ it('holds a changed paid plan once and alerts only a freshly authorized root', f
     $bot->setCommonUser(TelegramUser::make(975001, false, 'Root'));
     $bot->setCommonChat(Chat::make(975001, ChatType::PRIVATE));
     $bot->hearCallbackQueryData('full:view:'.$data['order'])->reply()->assertRaw(
-        static fn (\GuzzleHttp\Psr7\Request $request): bool =>
-            str_contains((string) $request->getBody(), 'full:prepare:') === false,
+        static fn (GuzzleHttp\Psr7\Request $request): bool => str_contains((string) $request->getBody(), 'full:prepare:') === false,
         index: 1,
     );
     expect(fn () => app(ReviewPaidFulfillment::class)->authorizeRequest($data['root']->id, $data['order'], true))
