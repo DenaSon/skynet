@@ -3,6 +3,7 @@
 use App\Modules\Billing\Application\ListTopupReviews;
 use App\Modules\Billing\Application\RequestTopup;
 use App\Modules\Billing\Application\ReviewTopup;
+use App\Modules\Billing\Application\SubmitTopupPhoto;
 use App\Modules\Billing\Application\SubmitTopupReference;
 use App\Modules\Billing\Application\ViewWallet;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
@@ -155,13 +156,12 @@ it('requires current allowlisted root privileges to review even if a review butt
     expect(app(ViewWallet::class)->handle($reseller->id)->balanceRials)->toBe(0);
 });
 
-
 it('records a member top-up photo without credit and only credits after a real reviewed bank reference', function (): void {
     config()->set('billing.topups_enabled', true);
     $member = User::factory()->create();
     $root = billingRoot();
     $id = app(RequestTopup::class)->handle($member->id, 500000, 'member:topup:123');
-    app(\App\Modules\Billing\Application\SubmitTopupPhoto::class)->handle($member->id, $id, 900001, 'tg-photo-file-one', 'tg-unique-one', 71);
+    app(SubmitTopupPhoto::class)->handle($member->id, $id, 900001, 'tg-photo-file-one', 'tg-unique-one', 71);
 
     expect(DB::table('billing_topup_photos')->count())->toBe(1)
         ->and(DB::table('billing_topups')->where('id', $id)->value('status'))->toBe('submitted')
@@ -169,7 +169,7 @@ it('records a member top-up photo without credit and only credits after a real r
         ->and(DB::table('billing_journals')->count())->toBe(0)
         ->and(DB::table('billing_topup_photos')->where('topup_id', $id)->value('file_encrypted'))->not->toBe('tg-photo-file-one');
 
-    app(\App\Modules\Billing\Application\SubmitTopupPhoto::class)->handle($member->id, $id, 900001, 'tg-photo-file-one', 'tg-unique-one', 71);
+    app(SubmitTopupPhoto::class)->handle($member->id, $id, 900001, 'tg-photo-file-one', 'tg-unique-one', 71);
     expect(DB::table('billing_topup_photos')->count())->toBe(1);
 
     app(ReviewTopup::class)->handle($root->id, $id, true, 'REALBANK123');
@@ -187,9 +187,9 @@ it('blocks foreign, repeated and cross-purpose photo reuse without creating cred
     $first = app(RequestTopup::class)->handle($one->id, 500000, 'one:topup:101');
     $second = app(RequestTopup::class)->handle($two->id, 700000, 'two:topup:101');
 
-    expect(fn () => app(\App\Modules\Billing\Application\SubmitTopupPhoto::class)->handle($two->id, $first, 900002, 'foreign-file-id', 'foreign-unique-id', 71))->toThrow(ValidationException::class);
-    app(\App\Modules\Billing\Application\SubmitTopupPhoto::class)->handle($one->id, $first, 900001, 'valid-file-id', 'shared-unique-id', 72);
-    expect(fn () => app(\App\Modules\Billing\Application\SubmitTopupPhoto::class)->handle($two->id, $second, 900002, 'another-file-id', 'shared-unique-id', 73))->toThrow(ValidationException::class);
+    expect(fn () => app(SubmitTopupPhoto::class)->handle($two->id, $first, 900002, 'foreign-file-id', 'foreign-unique-id', 71))->toThrow(ValidationException::class);
+    app(SubmitTopupPhoto::class)->handle($one->id, $first, 900001, 'valid-file-id', 'shared-unique-id', 72);
+    expect(fn () => app(SubmitTopupPhoto::class)->handle($two->id, $second, 900002, 'another-file-id', 'shared-unique-id', 73))->toThrow(ValidationException::class);
 
     expect(DB::table('billing_journals')->count())->toBe(0)
         ->and(app(ViewWallet::class)->handle($two->id)->balanceRials)->toBe(0);
@@ -198,9 +198,8 @@ it('requires a positive top-up flag before accepting customer photo', function (
     $member = User::factory()->create();
     $id = app(RequestTopup::class)->handle($member->id, 500000, 'member:topup:999');
     config()->set('billing.topups_enabled', false);
-    expect(fn () => app(\App\Modules\Billing\Application\SubmitTopupPhoto::class)->handle($member->id, $id, 900001, 'valid-photo-file', 'valid-unique-id', 72))
+    expect(fn () => app(SubmitTopupPhoto::class)->handle($member->id, $id, 900001, 'valid-photo-file', 'valid-unique-id', 72))
         ->toThrow(AuthorizationException::class);
     expect(DB::table('billing_topup_photos')->count())->toBe(0)
         ->and(DB::table('billing_journals')->count())->toBe(0);
 });
-
