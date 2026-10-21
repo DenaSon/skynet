@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use App\Interfaces\Telegram\Support\SalesSubscriptionsUi;
 use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;

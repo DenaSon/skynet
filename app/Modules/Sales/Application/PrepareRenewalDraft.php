@@ -6,9 +6,8 @@ namespace App\Modules\Sales\Application;
 
 use App\Modules\Identity\Application\AuthorizeSubscriptionViewer;
 use App\Modules\Identity\Application\SubscriptionViewer;
-use App\Modules\Provisioning\Application\ActiveSubscriptionAccess;
+use App\Modules\Provisioning\Application\ReadRenewableSubscription;
 use App\Modules\Provisioning\Application\CheckPlanSquadReadiness;
-use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveUserSnapshot;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -22,7 +21,7 @@ final readonly class PrepareRenewalDraft
     public function __construct(
         private AuthorizeSubscriptionViewer $authorize,
         private OrderReader $orders,
-        private ActiveSubscriptionAccess $access,
+        private ReadRenewableSubscription $read,
         private CalculatePlanQuote $quotes,
         private RevalidatePlanQuote $revalidate,
         private CheckPlanSquadReadiness $squads,
@@ -53,19 +52,8 @@ final readonly class PrepareRenewalDraft
 
         // The provider read verifies its immutable remote identity and repeats
         // owner/revocation checks *after* the GET, without exposing credentials.
-        $remote = $this->access->read(
-            $viewer, $sourceOrderId,
-            static fn (RemnawaveUserSnapshot $snapshot): array => [
-                'status' => $snapshot->status,
-                'strategy' => $snapshot->trafficLimitStrategy,
-                'squads' => $snapshot->activeInternalSquadUuids,
-            ],
-            requireUsable: false,
-        );
         $originalSquad = strtolower((string) $source->internalSquadUuid);
-        if (! in_array($remote['status'], ['ACTIVE', 'LIMITED', 'EXPIRED'], true)
-            || $remote['strategy'] !== 'NO_RESET'
-            || $remote['squads'] !== [$originalSquad]) {
+        if (! $this->read->eligible($viewer, $sourceOrderId, $originalSquad)) {
             throw ValidationException::withMessages(['renewal' => 'Service configuration is not eligible for renewal.']);
         }
 
