@@ -14,6 +14,7 @@ use DateTimeImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 use SergiX44\Nutgram\Telegram\Types\Message\LinkPreviewOptions;
@@ -181,13 +182,13 @@ final readonly class SalesSubscriptionsUi
                     ? 'نامحدود'
                     : $this->gb(max(0, $live->limitBytes - $live->usedBytes)).' گیگابایت');
                 $lines[] = 'تاریخ انقضا (UTC): '.substr(str_replace('T', ' ', $live->expireAt), 0, 16);
-                $canRenew = $live->status !== 'DISABLED'
-                    && $live->status !== 'ACTIVE' && $live->status !== 'LIMITED' && $live->status !== 'EXPIRED'
-                    ? false : $this->renewals->available($viewer, $orderId);
+                $canRenew = in_array($live->status, ['ACTIVE', 'LIMITED', 'EXPIRED'], true)
+                    && $this->renewals->available($viewer, $orderId);
                 if ($canRenew) {
                     $keyboard->addRow(InlineKeyboardButton::make(
                         '🔄 بررسی تمدید',
                         callback_data: 'sales:subs:renew:'.$orderId.':'.$cursor,
+                        style: ButtonStyle::PRIMARY,
                     ));
                 }
                 if ($usable) {
