@@ -155,8 +155,8 @@ it('opens Admin as a fresh text message from a photo receipt and preserves text 
     // Start with Nutgram's standard, routable fake callback, then attach
     // a photo to its message. This avoids forging a second test-only router.
     $bot->hearCallbackQueryData('menu:admin');
-    $mode = $bot->getContainer()->get(\\SergiX44\\Nutgram\\RunningMode\\RunningMode::class);
-    $update = (new \\ReflectionProperty(\\SergiX44\\Nutgram\\RunningMode\\Fake::class, 'update'))->getValue($mode);
+    $mode = $bot->getContainer()->get(\SergiX44\Nutgram\RunningMode\RunningMode::class);
+    $update = (new \ReflectionProperty(\SergiX44\Nutgram\RunningMode\Fake::class, 'update'))->getValue($mode);
     $update->callback_query->message->photo = [
         ['file_id' => 'receipt-file', 'file_unique_id' => 'receipt-unique', 'width' => 600, 'height' => 600],
     ];
