@@ -3,6 +3,7 @@
 namespace App\Interfaces\Telegram\Support;
 
 use App\Modules\Identity\Application\TelegramActor;
+use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\KeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\ReplyKeyboardMarkup;
@@ -103,12 +104,18 @@ final class ReplyMenuRenderer
     /** Sales has its own registry; never expose the legacy/Admin keyboard here. */
     public function salesKeyboard(): ReplyKeyboardMarkup
     {
-        return $this->keyboard([
+        $keyboard = $this->keyboard([
             ReplyMenuLabels::SALES_BUY,
             ReplyMenuLabels::SALES_SUBSCRIPTIONS,
             ReplyMenuLabels::SALES_ACCOUNT,
             ReplyMenuLabels::SALES_SUPPORT,
         ]);
+
+        // Native Telegram styles apply only to Sales, not legacy/Admin menus.
+        $keyboard->keyboard[0][0]->style = ButtonStyle::SUCCESS;
+        $keyboard->keyboard[0][1]->style = ButtonStyle::PRIMARY;
+
+        return $keyboard;
     }
 
     /**
