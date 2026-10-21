@@ -109,6 +109,8 @@ it('stores encrypted receipt IDs, enforces ownership and accepts a single pendin
 });
 
 it('requires trusted super-admin and a verified bank reference, then books balanced accounting and one outbox', function (): void {
+    // Legacy explicit bank reference mode remains available when one-click is disabled.
+    config()->set('sales.one_click_bank_review_enabled', false);
     a2Setup();
     config()->set('sales.manual_bank_review_enabled', true);
     $buyer = a2Account(990113);
