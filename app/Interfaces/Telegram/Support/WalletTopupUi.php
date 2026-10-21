@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Telegram\Support;
 
+use App\Interfaces\Telegram\Notifications\WalletTopupNotificationOutbox;
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Billing\Application\RequestTopup;
 use App\Modules\Billing\Application\SubmitTopupPhoto;
@@ -11,6 +12,7 @@ use App\Modules\Identity\Application\ResolveTelegramActor;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
@@ -24,6 +26,7 @@ final readonly class WalletTopupUi
         private ResolveTelegramActor $actors,
         private RequestTopup $requests,
         private SubmitTopupPhoto $photos,
+        private WalletTopupNotificationOutbox $notifications,
     ) {}
 
     public function start(Nutgram $bot): void
@@ -144,10 +147,13 @@ final readonly class WalletTopupUi
         }
 
         try {
-            $this->photos->handle(
-                $userId, $state['topup_id'], (int) $this->private->id($bot),
-                $photo->file_id, $photo->file_unique_id, $messageId,
-            );
+            DB::transaction(function () use ($userId, $state, $bot, $photo, $messageId): void {
+                $this->photos->handle(
+                    $userId, $state['topup_id'], (int) $this->private->id($bot),
+                    $photo->file_id, $photo->file_unique_id, $messageId,
+                );
+                $this->notifications->submitted($state['topup_id']);
+            });
         } catch (AuthorizationException|ValidationException|UniqueConstraintViolationException) {
             $this->notice($bot, 'رسید قابل ثبت نیست یا قبلاً استفاده شده است. وضعیت کیف پول را بررسی کنید.');
 

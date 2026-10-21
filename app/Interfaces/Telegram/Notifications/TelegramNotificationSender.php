@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Interfaces\Telegram\Notifications;
 
 use App\Interfaces\Telegram\Support\SubscriptionPageLink;
+use App\Interfaces\Telegram\Support\TelegramUi;
 use App\Modules\Billing\Application\BrowsePhotoTopups;
+use App\Modules\Billing\Application\ViewWallet;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\TelegramRecipient;
 use App\Modules\Sales\Application\ManualBankPayments;
@@ -51,6 +53,97 @@ final readonly class TelegramNotificationSender
         }
 
         $token = $this->token($bot);
+
+        if ($delivery->event_type === 'WalletTopupSubmitted') {
+            $topupId = (int) $delivery->topup_id;
+            if ($bot !== 'admin' || $topupId < 1) {
+                throw new NotificationUnavailable('invalid_recipient');
+            }
+
+            $actor = $this->actors->handle($chat);
+            if ($actor === null || $actor->userId !== $userId || ! $actor->canManageRoles()) {
+                throw new NotificationUnavailable('not_authorized');
+            }
+
+            // Fresh reviewer authorization and submitted status are checked again
+            // by the existing protected finance-photo read Action.
+            try {
+                $row = app(BrowsePhotoTopups::class)->photo($userId, $topupId);
+            } catch (Throwable) {
+                throw new NotificationUnavailable('already_reviewed');
+            }
+
+            $caption = "🧾 درخواست شارژ کیف پول #{$topupId}"
+                ."\nکاربر #{$row['user_id']}"
+                ."\nمبلغ: ".TelegramUi::toman($row['amount_rials']).' تومان'
+                ."\n\n⚠️ فقط پس از مشاهده واریز واقعی در بانک تأیید کنید.";
+            try {
+                $this->showWalletTopupPhotoToRoot($topupId, $userId, $chat, $caption);
+
+                return;
+            } catch (NotificationUnavailable $e) {
+                if (in_array($e->category, ['not_authorized', 'blocked', 'missing_credentials'], true)) {
+                    throw $e;
+                }
+            } catch (Throwable $e) {
+                if ($e instanceof RuntimeException && $e->getCode() === 429) {
+                    throw $e;
+                }
+            }
+
+            $keyboard = json_encode([
+                'inline_keyboard' => [[
+                    ['text' => '🧾 بررسی در امور مالی', 'callback_data' => 'finance:topups:1'],
+                ]],
+            ], JSON_THROW_ON_ERROR);
+            $this->text($bot, $chat,
+                "🧾 رسید شارژ کیف پول #{$topupId} دریافت شد.\n"
+                ."کاربر #{$row['user_id']} · مبلغ: ".TelegramUi::toman($row['amount_rials'])
+                ." تومان\nتصویر فعلاً قابل ارسال نیست؛ درخواست در صف امور مالی محفوظ است.",
+                $keyboard,
+            );
+
+            return;
+        }
+
+        if (in_array($delivery->event_type, ['WalletTopupApproved', 'WalletTopupRejected'], true)) {
+            $topupId = (int) $delivery->topup_id;
+            if ($bot !== 'sales' || $topupId < 1) {
+                throw new NotificationUnavailable('invalid_recipient');
+            }
+
+            $topup = DB::table('billing_topups as t')
+                ->join('billing_wallets as w', 'w.id', '=', 't.wallet_id')
+                ->where('t.id', $topupId)->where('w.user_id', $userId)
+                ->first(['t.id', 't.status', 't.amount_rials']);
+            $expected = $delivery->event_type === 'WalletTopupApproved' ? 'approved' : 'rejected';
+            if ($topup === null || $topup->status !== $expected) {
+                throw new NotificationUnavailable('invalid_topup');
+            }
+
+            $amount = TelegramUi::toman((int) $topup->amount_rials);
+            $message = $expected === 'approved'
+                ? "<b>✅ کیف پول شما شارژ شد</b>\n\nدرخواست #{$topupId}"
+                    ."\nمبلغ افزوده‌شده: <b>{$amount} تومان</b>"
+                : "<b>❌ درخواست شارژ تأیید نشد</b>\n\nدرخواست #{$topupId}"
+                    ."\nمبلغ درخواست: <b>{$amount} تومان</b>"
+                    ."\n\nبرای پیگیری با پشتیبانی تماس بگیرید.";
+            try {
+                $balance = app(ViewWallet::class)->handle($userId)->balanceRials;
+            } catch (Throwable) {
+                throw new NotificationUnavailable('inactive_wallet');
+            }
+            $message .= "\nموجودی فعلی: <b>".TelegramUi::toman($balance).' تومان</b>';
+
+            $keyboard = json_encode([
+                'inline_keyboard' => [[
+                    ['text' => '💼 مشاهده کیف پول', 'callback_data' => 'sales:wallet'],
+                ]],
+            ], JSON_THROW_ON_ERROR);
+            $this->text($bot, $chat, $message, $keyboard, 'HTML');
+
+            return;
+        }
 
         if ($delivery->event_type === 'ReceiptSubmitted') {
             $actor = $this->actors->handle($chat);
@@ -216,9 +309,12 @@ final readonly class TelegramNotificationSender
         $this->photo('admin', $chatId, $row['file_id'], 'sales', $caption, $keyboard);
     }
 
-    private function text(string $bot, int $chat, string $text, ?string $keyboard = null): void
+    private function text(string $bot, int $chat, string $text, ?string $keyboard = null, ?string $parseMode = null): void
     {
         $fields = ['chat_id' => $chat, 'text' => $text, 'protect_content' => 'true'];
+        if ($parseMode !== null) {
+            $fields['parse_mode'] = $parseMode;
+        }
         if ($keyboard !== null) {
             $fields['reply_markup'] = $keyboard;
         }
