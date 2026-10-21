@@ -18,6 +18,7 @@ use App\Interfaces\Telegram\Support\AdminNodesUi;
 use App\Interfaces\Telegram\Support\AdminPanelUsersUi;
 use App\Interfaces\Telegram\Support\AdminProviderOverviewUi;
 use App\Interfaces\Telegram\Support\AdminSectionsUi;
+use App\Interfaces\Telegram\Support\AdminSalesPanelRequestsUi;
 use App\Interfaces\Telegram\Support\AdminSubscriptionStatusUi;
 use App\Interfaces\Telegram\Support\AdminTrafficReportUi;
 use App\Interfaces\Telegram\Support\BillingUi;
@@ -33,6 +34,23 @@ use SergiX44\Nutgram\Nutgram;
 // Admin-only registrations. Existing authorization and confirmation checks remain inside the handlers.
 
 // Operator-only provider reads. Status writes are separate, confirmed and default-disabled.
+// SP-02: private Super Admin review of Sales Panel applications.
+$bot->onCommand('panelrequests', function (Nutgram $bot): void {
+    app(AdminSalesPanelRequestsUi::class)->browse($bot);
+});
+$bot->onCallbackQueryData('sp:list:{page}', function (Nutgram $bot, string $page): void {
+    app(AdminSalesPanelRequestsUi::class)->browse($bot, $page);
+});
+$bot->onCallbackQueryData('sp:detail:{id}', function (Nutgram $bot, string $id): void {
+    app(AdminSalesPanelRequestsUi::class)->detail($bot, $id);
+});
+$bot->onCallbackQueryData('sp:prepare:{id}:{decision}', function (Nutgram $bot, string $id, string $decision): void {
+    app(AdminSalesPanelRequestsUi::class)->prepare($bot, $id, $decision);
+});
+$bot->onCallbackQueryData('sp:apply:{token}', function (Nutgram $bot, string $token): void {
+    app(AdminSalesPanelRequestsUi::class)->apply($bot, $token);
+});
+
 $bot->onCommand('panelusers', function (Nutgram $bot): void {
     app(AdminPanelUsersUi::class)->browse($bot);
 });
