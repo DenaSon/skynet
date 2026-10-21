@@ -1,8 +1,10 @@
 <?php
 
+use App\Interfaces\Telegram\Handlers\StartHandler;
 use App\Modules\Identity\Application\IssueTelegramLinkCode;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
+use App\Modules\Referral\Application\GetReferralInvite;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -77,35 +79,77 @@ it('uses current roles without making Admin or legacy checkout routes available 
     Http::assertNothingSent();
 });
 
-it('keeps public signup disabled by default even for stale consent callbacks', function (): void {
+it('automatically enrolls a new private Sales buyer on /start even when global signup is disabled', function (): void {
     $bot = sb01Bot(771003);
-    $bot->hearText('/start')->reply()->assertReplyText(
-        "🔒 برای استفاده از DenaGate ابتدا حساب خود را متصل کنید.\n\nکد یک‌بارمصرف دریافتی از مدیر را با دستور /link وارد کنید."
-    );
-    $bot->hearCallbackQueryData('sales:join')->reply()->assertCalled('editMessageText');
+    $bot->hearText('/start')->reply()
+        ->assertCalled('sendMessage', 2)
+        ->assertReplyText("<b>🏠 DenaGate</b>\n\nخوش آمدید، Sales Buyer.\nنوع حساب: کاربر");
 
-    expect(User::query()->count())->toBe(0)
-        ->and(TelegramAccount::query()->count())->toBe(0);
+    $account = TelegramAccount::query()->where('telegram_user_id', 771003)->firstOrFail();
+    expect($account->user->is_active)->toBeTrue()
+        ->and($account->user->hasRole('member'))->toBeTrue()
+        ->and($account->user->hasRole('admin'))->toBeFalse()
+        ->and($account->user->hasRole('reseller'))->toBeFalse()
+        ->and($account->user->hasRole('super-admin'))->toBeFalse()
+        ->and(User::query()->count())->toBe(1)
+        ->and(TelegramAccount::query()->count())->toBe(1)
+        ->and(DB::table('sales_orders')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe(0)
+        ->and(DB::table('provisioning_operations')->count())->toBe(0);
+
+    $bot->hearText('/start')->reply()->assertCalled('sendMessage', 2);
+    $bot->hearText('/menu')->reply()->assertCalled('sendMessage', 2);
+    $bot->hearCallbackQueryData('sales:join')->reply()->assertCalled('editMessageText');
+    expect(User::query()->count())->toBe(1)
+        ->and(TelegramAccount::query()->count())->toBe(1)
+        ->and(TelegramAccount::query()->where('telegram_user_id', 771003)->value('user_id'))->toBe($account->user_id);
     Http::assertNothingSent();
 });
 
-it('requires explicit callback consent for member-only registration when the existing gate is on', function (): void {
+it('keeps Sales enrollment independent of Admin signup and isolates distinct Telegram IDs', function (): void {
     config()->set('telegram.public_signup_enabled', true);
-    $bot = sb01Bot(771004);
+    $first = sb01Bot(771004);
+    $first->hearText('/start')->reply()->assertCalled('sendMessage', 2);
+    $second = sb01Bot(771014);
+    $second->hearText('/start')->reply()->assertCalled('sendMessage', 2);
 
-    $bot->hearText('/start')->reply()->assertReplyText(
-        "👋 به DenaGate خوش آمدید.\n\nبرای ساخت حساب کاربری، دکمه زیر را انتخاب کنید.\nاگر از قبل حساب دارید، کد اتصال دریافتی را با دستور /link وارد کنید."
-    );
-    expect(User::query()->count())->toBe(0);
+    $ids = TelegramAccount::query()->orderBy('telegram_user_id')->pluck('user_id')->all();
+    expect(User::query()->count())->toBe(2)
+        ->and(TelegramAccount::query()->count())->toBe(2)
+        ->and($ids[0])->not->toBe($ids[1]);
 
-    $bot->hearCallbackQueryData('sales:join')->reply()->assertCalled('editMessageText');
-    $linked = TelegramAccount::query()->where('telegram_user_id', 771004)->firstOrFail();
-    expect($linked->user->hasRole('member'))->toBeTrue()
-        ->and($linked->user->hasRole('admin'))->toBeFalse()
-        ->and(User::query()->count())->toBe(1);
+    // A callback from a stale Sales invite/signup button cannot create an account.
+    $unknown = sb01Bot(771024);
+    $unknown->hearCallbackQueryData('sales:join')->reply()->assertCalled('editMessageText');
+    expect(User::query()->count())->toBe(2);
+    Http::assertNothingSent();
+});
 
-    $bot->hearCallbackQueryData('sales:join')->reply()->assertCalled('editMessageText');
-    expect(User::query()->count())->toBe(1);
+it('keeps referral attribution only for a new Telegram ID on its first Sales /start', function (): void {
+    $referrer = User::factory()->create();
+    $referrer->assignRole('member');
+    $code = app(GetReferralInvite::class)->handle($referrer->id)->code;
+    $bot = sb01Bot(771034);
+
+    $bot->hearText('/start ref_'.$code)->reply()->assertCalled('sendMessage', 2);
+    $buyerId = (int) TelegramAccount::query()->where('telegram_user_id', 771034)->value('user_id');
+    expect(DB::table('referrals')->where('invited_user_id', $buyerId)->value('referrer_user_id'))->toBe($referrer->id);
+
+    $bot->hearText('/start')->reply()->assertCalled('sendMessage', 2);
+    expect(DB::table('referrals')->where('invited_user_id', $buyerId)->count())->toBe(1)
+        ->and(TelegramAccount::query()->where('telegram_user_id', 771034)->count())->toBe(1);
+    Http::assertNothingSent();
+});
+
+it('does not allow the Admin start handler to enroll an unlinked Telegram identity', function (): void {
+    config()->set('telegram.public_signup_enabled', false);
+    $bot = Nutgram::fake();
+    $bot->setCommonUser(TelegramUser::make(771044, false, 'Unlinked Admin'));
+    $bot->setCommonChat(Chat::make(771044, ChatType::PRIVATE));
+    app(StartHandler::class)->__invoke($bot);
+
+    expect(User::query()->count())->toBe(0)
+        ->and(TelegramAccount::query()->count())->toBe(0);
     Http::assertNothingSent();
 });
 
@@ -121,15 +165,18 @@ it('reuses single-use account links and never revives disabled linked accounts',
         ->assertReplyText('کد اتصال نامعتبر، منقضی یا قبلاً مصرف شده است.');
     $user->forceFill(['is_active' => false])->save();
     config()->set('telegram.public_signup_enabled', true);
+    $bot->hearText('/start')->reply()->assertReplyText(
+        "<b>⛔ حساب غیرفعال</b>\n\nحساب شما غیرفعال است. برای پیگیری با پشتیبانی تماس بگیرید."
+    );
     $bot->hearCallbackQueryData('sales:join')->reply()->assertCalled('editMessageText');
 
     expect(User::query()->count())->toBe(1)
+        ->and(TelegramAccount::query()->where('telegram_user_id', 771005)->value('user_id'))->toBe($user->id)
         ->and($user->fresh()->is_active)->toBeFalse();
     Http::assertNothingSent();
 });
 
 it('refuses group and mismatched private chats before resolving identity or registration', function (): void {
-    config()->set('telegram.public_signup_enabled', true);
     $bot = sb01Bot(771006);
     $bot->setCommonChat(Chat::make(-7700, ChatType::GROUP));
     $bot->hearText('/start')->reply()->assertNoReply();

@@ -1,5 +1,11 @@
 # Roadmap
 
+## Sales Bot public customer entry correction — 2026-10-21
+
+Operator approved a prelaunch correction: the **Sales Bot** treats a new private user's `/start` (or `/menu`) as the enrollment action. Existing `JoinFromTelegram` performs transactional, uniquely Telegram-ID-bound `member` creation; a returning user keeps the same account and RBAC. An inactive linked user stays blocked. Initial referral deep links are still honored only on first registration. No account is created by group/mismatched updates or stale Inline callback; obsolete `sales:join` directs guests to `/start`. The dedicated Admin Bot keeps its default-closed public signup and its invitation/link flow untouched. This does not require globally enabling `TELEGRAM_PUBLIC_SIGNUP_ENABLED` and does not change DB schema, bank, RBAC elevation, checkout, provider or notification actions.
+
+**Acceptance:** New Telegram ID gets a `member` and Sales four-button home on one `/start`; repeat `/start` or `/menu` yields no duplicates; two Telegram IDs remain isolated; disabled users cannot re-enroll; Admin unknown Telegram ID remains unregistered; existing `/link` compatibility and referrals survive. Verify Pest, PHP 8.4/8.5, PHPStan, Pint, MySQL and a separate real Telegram smoke after deploy.
+
 ## Latest acceptance correction — 2026-10-21 (operator-confirmed)
 
 The operator confirms live PASS for [#117](https://github.com/DenaSon/skynet/issues/117) receipt review, [#118](https://github.com/DenaSon/skynet/issues/118) automatic Remnawave provisioning and [#119](https://github.com/DenaSon/skynet/issues/119) private activation notice. These issues were closed **on operator testimony**, not independently replayed in this documentation session. Core-flow parent [#115](https://github.com/DenaSon/skynet/issues/115) was also closed on explicit instruction, without closing the independently open customer/live issues.

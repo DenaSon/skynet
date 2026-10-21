@@ -219,7 +219,7 @@ it('gives safe fallback guidance and rechecks private identity on every new dest
     $user->forceFill(['is_active' => false])->save();
     foreach ([ReplyMenuLabels::SALES_ACCOUNT, ReplyMenuLabels::SALES_SUPPORT] as $label) {
         $bot->hearText($label)->reply()->assertReplyText(
-            "🔒 برای استفاده از DenaGate ابتدا حساب خود را متصل کنید.\n\nکد یک‌بارمصرف دریافتی از مدیر را با دستور /link وارد کنید."
+            "<b>⛔ حساب غیرفعال</b>\n\nحساب شما غیرفعال است. برای پیگیری با پشتیبانی تماس بگیرید."
         );
     }
     $bot->setCommonChat(Chat::make(-975001, ChatType::GROUP));
