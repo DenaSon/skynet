@@ -44,7 +44,7 @@ final readonly class SalesHomeUi
         private ViewWallet $wallets,
     ) {}
 
-    public function start(Nutgram $bot, ?string $payload = null, int $page = 1, bool $showKeyboard = false): void
+    public function start(Nutgram $bot, ?string $payload = null, bool $showKeyboard = false): void
     {
         $telegramId = $this->privateUser->id($bot);
         if ($telegramId === null) {
@@ -59,10 +59,11 @@ final readonly class SalesHomeUi
 
             return;
         }
+
         $this->clearInput($actor->userId);
 
-        // Reply and inline keyboards require separate messages. Install the
-        // persistent menu on entry; callback navigation edits only its own page.
+        // Persistent Reply and Inline keyboards are separate messages.
+        // A Home callback updates its page, never sends a second greeting.
         if (! $bot->isCallbackQuery() || $showKeyboard) {
             $bot->sendMessage(
                 text: '<b>🏠 DenaGate</b>'."\n\nخوش آمدید، ".$this->name($actor->name)
@@ -70,6 +71,31 @@ final readonly class SalesHomeUi
                 parse_mode: 'HTML',
                 reply_markup: $this->replyMenus->salesKeyboard(),
             );
+        }
+
+        $keyboard = InlineKeyboardMarkup::make()
+            ->addRow(
+                InlineKeyboardButton::make('🛒 خرید سرویس', callback_data: 'sales:buy'),
+                InlineKeyboardButton::make('📋 سرویس‌های من', callback_data: 'sales:subs:list:0'),
+            )
+            ->addRow(
+                InlineKeyboardButton::make('👤 حساب کاربری', callback_data: 'sales:account'),
+                InlineKeyboardButton::make('💬 پشتیبانی', callback_data: 'sales:support'),
+            )
+            ->addRow(InlineKeyboardButton::make('📋 همه پلن‌ها و قیمت‌ها', callback_data: 'menu:plan-catalog'));
+
+        $this->render($bot, '<b>🏠 صفحه اصلی DenaGate</b>'."\n\nاز منوی زیر، بخش موردنظر را انتخاب کنید.", $keyboard);
+    }
+
+    /**
+     * Keep the existing bounded, buyer-quoted ready-plan view behind Buy,
+     * including old sales:home:{page} pagination callbacks.
+     */
+    public function buy(Nutgram $bot, int $page = 1): void
+    {
+        $actor = $this->navigationActor($bot);
+        if ($actor === null) {
+            return;
         }
 
         $entries = array_values(array_filter(
