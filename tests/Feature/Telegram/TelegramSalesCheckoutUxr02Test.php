@@ -206,6 +206,35 @@ it('allows wallet-only managed plan checkout without configured bank card, but n
     Http::assertNothingSent();
 });
 
+it('invalidates a cancelled wallet confirmation and cannot charge another buyer order', function (): void {
+    $data = uxr02Plan();
+    $buyer = User::factory()->create();
+    $other = User::factory()->create();
+    $bot = uxr02Bot(973304, $buyer);
+    $otherBot = uxr02Bot(973305, $other);
+    wal03Credit($buyer, $data['root'], 1_500_000, 'WAL03REF104');
+    config()->set('sales.wallet_settlement_enabled', true);
+
+    $bot->hearCallbackQueryData('catalog:detail:'.$data['plan'].':1')->reply()->assertCalled('editMessageText');
+    $id = (int) DB::table('sales_orders')->value('id');
+    $otherBot->hearCallbackQueryData('sales:checkout:wallet:'.$id)->reply()->assertCalled('editMessageText');
+    expect(DB::table('sales_order_settlements')->count())->toBe(0);
+
+    $bot->hearCallbackQueryData('sales:checkout:wallet:'.$id)->reply()->assertCalled('editMessageText');
+    $key = TelegramBotContext::current()->cacheKey('telegram:sales:walletpay:'.$buyer->id.':'.$id);
+    $token = Cache::get($key)['token'];
+
+    $bot->hearCallbackQueryData('sales:walletpay:cancel:'.$id)->reply()->assertCalled('editMessageText');
+    expect(Cache::has($key))->toBeFalse();
+    $bot->hearCallbackQueryData('sales:walletpay:confirm:'.$id.':'.$token)->reply()->assertCalled('editMessageText');
+
+    expect(DB::table('sales_orders')->where('id', $id)->value('status'))->toBe('pending_payment')
+        ->and(DB::table('sales_order_settlements')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->where('kind', 'purchase')->count())->toBe(0)
+        ->and(app(ViewWallet::class)->handle($buyer->id)->balanceRials)->toBe(1_500_000);
+    Http::assertNothingSent();
+});
+
 it('selects a ready plan from home or catalog into one price-and-card payment page with ForceReply', function (): void {
     expect(Cache::getStore())->toBeInstanceOf(DatabaseStore::class);
     $data = uxr02Plan();
