@@ -44,7 +44,7 @@ final readonly class ActiveSubscriptionAccess
             if ($remote->id !== (int) $binding->remote_user_id
                 || ($requireUsable && ($remote->status !== 'ACTIVE'
                 || $remote->trafficLimitBytes > 0 && $remote->usedTrafficBytes >= $remote->trafficLimitBytes
-                || (new DateTimeImmutable($remote->expireAt)) <= new DateTimeImmutable('now'))) {
+                || (new DateTimeImmutable($remote->expireAt)) <= new DateTimeImmutable('now')))) {
                 throw new RuntimeException('Remote subscription is not usable.');
             }
 
