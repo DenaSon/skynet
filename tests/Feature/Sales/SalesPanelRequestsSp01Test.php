@@ -8,6 +8,7 @@ use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
 
@@ -55,6 +56,7 @@ it('rejects malformed names or mobile without creating a request', function (): 
 
 it('denies disabled members, admins and resellers and never escalates privileges', function (): void {
     $disabled = User::factory()->create(['is_active' => false]);
+    Role::firstOrCreate(['name' => 'reseller', 'guard_name' => 'web']);
     $reseller = User::factory()->create();
     $reseller->syncRoles(['reseller']);
     $admin = User::factory()->admin()->create();
