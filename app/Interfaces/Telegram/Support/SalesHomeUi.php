@@ -189,7 +189,7 @@ final readonly class SalesHomeUi
             ReplyMenuLabels::SALES_SUPPORT => 'support',
             ReplyMenuLabels::HOME, '🏠 صفحه اصلی', '❌ انصراف', '/cancel' => 'home',
             ReplyMenuLabels::INVITE => 'invite',
-            ReplyMenuLabels::BUILDER => 'builder',
+            ReplyMenuLabels::BUILDER, ReplyMenuLabels::LEGACY_BUILDER => 'builder',
             default => null,
         };
         if ($action === null) {
@@ -271,7 +271,6 @@ final readonly class SalesHomeUi
 
         $balance = '';
         if (in_array('member', $actor->roles, true) || in_array('reseller', $actor->roles, true)) {
-            $reseller = in_array('reseller', $actor->roles, true);
             $label = 'موجودی کیف پول';
             try {
                 $balance = "\n💼 {$label}: <b>".TelegramUi::toman($this->wallets->handle($actor->userId)->balanceRials).' تومان</b>';
