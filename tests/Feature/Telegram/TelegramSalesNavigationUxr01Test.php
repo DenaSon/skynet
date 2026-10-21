@@ -60,7 +60,7 @@ function uxr01Payload(Request $request): array
     return $data;
 }
 
-it('installs exactly four persistent Sales buttons and escapes dynamic HTML in home and account', function (): void {
+it('retains old Sales keyboard label compatibility but removes the keyboard on /start', function (): void {
     $user = User::factory()->create(['name' => '<Buyer> & "Name"']);
     $bot = uxr01Bot($user);
     $keyboard = app(ReplyMenuRenderer::class)->salesKeyboard();
@@ -83,6 +83,11 @@ it('installs exactly four persistent Sales buttons and escapes dynamic HTML in h
         ->and($encoded['keyboard'][0][1]['style'])->toBe('primary');
 
     $bot->hearText('/start')->reply()->assertCalled('sendMessage', 2)
+        ->assertRaw(static function (Request $request): bool {
+            $body = uxr01Payload($request);
+
+            return ($body['reply_markup']['remove_keyboard'] ?? false) === true;
+        }, index: 0)
         ->assertReply('sendMessage', ['parse_mode' => 'HTML'])
         ->assertReplyText("<b>🏠 DenaGate</b>\n\nخوش آمدید، &lt;Buyer&gt; &amp; &quot;Name&quot;.\nنوع حساب: <b>👤 کاربر عادی</b>");
     $bot->hearText(ReplyMenuLabels::SALES_ACCOUNT)->reply()->assertRaw(static function (Request $request): bool {
@@ -319,10 +324,15 @@ it('keeps Home separate from purchase offers for all Sales home entry callbacks'
     Http::assertNothingSent();
 });
 
-it('accepts old Sales keyboard labels while using native colored buttons for current navigation', function (): void {
+it('accepts old Sales keyboard labels and the new /buy command with existing authorization', function (): void {
     $bot = uxr01Bot(User::factory()->create());
 
     $bot->hearText('🛒 خرید سرویس')->reply()->assertRaw(static function (Request $request): bool {
+        $body = uxr01Payload($request);
+
+        return str_contains($body['text'], '🛒 پلن‌های آماده خرید');
+    });
+    $bot->hearText('/buy')->reply()->assertRaw(static function (Request $request): bool {
         $body = uxr01Payload($request);
 
         return str_contains($body['text'], '🛒 پلن‌های آماده خرید');

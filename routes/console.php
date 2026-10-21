@@ -1,6 +1,8 @@
 <?php
 
 use App\Interfaces\Telegram\Notifications\SubscriptionAlertMonitor;
+use App\Interfaces\Telegram\Processing\SalesTelegramRuntime;
+use App\Interfaces\Telegram\Support\SalesNativeMenu;
 use App\Modules\Billing\Application\VerifyWalletOrderDebit;
 use App\Modules\Provisioning\Jobs\FulfillPaidPlanOrderJob;
 use App\Modules\Sales\Application\ConfigureProduct;
@@ -14,6 +16,34 @@ use Illuminate\Validation\ValidationException;
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
+
+// One-time, explicitly invoked operator action. Never register commands in a webhook
+// or in the Scheduler, and never target the Admin Bot token.
+Artisan::command('sales:telegram:menu:register', function (): int {
+    $salesToken = config('telegram.sales.token');
+    $adminToken = config('nutgram.token');
+
+    if (config('telegram.sales.enabled') !== true
+        || ! is_string($salesToken) || trim($salesToken) === ''
+        || ! is_string($adminToken) || trim($adminToken) === ''
+        || hash_equals($salesToken, $adminToken)) {
+        $this->error('Sales Bot or separate Admin Bot credentials are not configured correctly.');
+
+        return 1;
+    }
+
+    try {
+        SalesNativeMenu::register(app(SalesTelegramRuntime::class)->make());
+    } catch (Throwable) {
+        $this->error('Could not register the Sales native command menu. Check Sales Bot connectivity.');
+
+        return 1;
+    }
+
+    $this->info('Sales native command menu registered. Existing users can send /start to remove the old keyboard.');
+
+    return 0;
+})->purpose('Register the native Telegram command menu on the Sales Bot only');
 
 Schedule::command('telegram:prune-updates')->daily();
 Schedule::command('telegram:notifications:dispatch')->everyMinute()->withoutOverlapping();

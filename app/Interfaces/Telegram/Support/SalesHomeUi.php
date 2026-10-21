@@ -25,6 +25,7 @@ use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\Keyboard\ReplyKeyboardRemove;
 use Throwable;
 
 /** Sales-only navigation; shared Application Actions retain all business authority. */
@@ -75,14 +76,15 @@ final readonly class SalesHomeUi
 
         $this->clearInput($actor->userId);
 
-        // Persistent Reply and Inline keyboards are separate messages.
-        // A Home callback updates its page, never sends a second greeting.
+        // Native Telegram command menu replaces the persistent Sales keyboard.
+        // Explicitly remove any old keyboard on /start, /menu or legacy Home text.
+        // Home callbacks still only edit their inline page.
         if (! $bot->isCallbackQuery() || $showKeyboard) {
             $bot->sendMessage(
                 text: '<b>🏠 DenaGate</b>'."\n\nخوش آمدید، ".$this->name($actor->name)
                     .".\nنوع حساب: <b>".$this->salesRole($actor).'</b>',
                 parse_mode: 'HTML',
-                reply_markup: $this->replyMenus->salesKeyboard(),
+                reply_markup: ReplyKeyboardRemove::make(true),
             );
         }
 
