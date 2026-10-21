@@ -1,5 +1,6 @@
 <?php
 
+use App\Interfaces\Telegram\Notifications\SubscriptionAlertMonitor;
 use App\Modules\Billing\Application\VerifyWalletOrderDebit;
 use App\Modules\Provisioning\Jobs\FulfillPaidPlanOrderJob;
 use App\Modules\Sales\Application\ConfigureProduct;
@@ -17,6 +18,15 @@ Artisan::command('inspire', function () {
 Schedule::command('telegram:prune-updates')->daily();
 Schedule::command('telegram:notifications:dispatch')->everyMinute()->withoutOverlapping();
 Schedule::command('sales:fulfillment:dispatch')->everyMinute()->withoutOverlapping();
+Schedule::command('sales:subscriptions:alerts')->everyFiveMinutes()->withoutOverlapping();
+
+// Scan only linked, authorized Sales subscriptions. Uses provider GET only.
+Artisan::command('sales:subscriptions:alerts', function (): int {
+    $checked = app(SubscriptionAlertMonitor::class)->scan();
+    $this->info("Checked {$checked} owned subscription(s).");
+
+    return 0;
+})->purpose('Queue expiry and remaining-traffic warnings for owned Sales subscriptions');
 
 // Recover a committed payment whose post-commit enqueue was lost. Only untouched
 // pending intents qualify; an uncertain CREATE must never be replayed by cron.

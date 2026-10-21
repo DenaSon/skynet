@@ -362,6 +362,27 @@ final readonly class TelegramNotificationSender
             return;
         }
 
+        if (in_array($delivery->event_type, ['SubscriptionExpiry24h', 'SubscriptionExpiry1h', 'SubscriptionLowTraffic'], true)) {
+            if ($bot !== 'sales' || (int) $delivery->order_id < 1) {
+                throw new NotificationUnavailable('invalid_recipient');
+            }
+
+            $message = app(SubscriptionAlertMonitor::class)->messageFor($delivery);
+            if ($message === null) {
+                throw new NotificationUnavailable('stale_subscription');
+            }
+
+            // Always open the existing authenticated Sales service detail.
+            // No credential or remote identifier is placed in callback data.
+            $orderId = (int) $delivery->order_id;
+            $keyboard = json_encode(['inline_keyboard' => [[
+                ['text' => '📋 سرویس من', 'callback_data' => 'sales:subs:view:'.$orderId.':0', 'style' => 'primary'],
+            ]]], JSON_THROW_ON_ERROR);
+            $this->text($bot, $chat, $message, $keyboard, 'HTML');
+
+            return;
+        }
+
         if ($delivery->event_type === 'SubscriptionActivated') {
             $orderId = (int) $delivery->order_id;
             if ($bot !== 'sales' || $orderId < 1) {
