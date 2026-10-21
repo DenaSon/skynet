@@ -220,8 +220,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(199)
-        ->and(count(array_unique($legacy)))->toBe(199);
+        ->and(count($legacy))->toBe(206)
+        ->and(count(array_unique($legacy)))->toBe(206);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {
