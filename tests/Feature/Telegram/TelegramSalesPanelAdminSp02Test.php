@@ -65,14 +65,14 @@ it('shows the root application queue, confirms one decision and cannot replay th
         $data = sp02Payload($request);
 
         return str_contains(json_encode($data['reply_markup'] ?? null, JSON_THROW_ON_ERROR), 'sp:list:1');
-    });
+    }, index: 1);
     $bot->hearCallbackQueryData('sp:list:1')->reply()->assertCalled('answerCallbackQuery');
     $bot->hearCallbackQueryData('sp:detail:'.$id)->reply()->assertRaw(static function (Request $request): bool {
         $data = sp02Payload($request);
 
         return str_contains((string) ($data['text'] ?? ''), '09123456789')
             && str_contains(json_encode($data['reply_markup'] ?? null, JSON_THROW_ON_ERROR), 'sp:prepare:');
-    });
+    }, index: 1);
 
     $token = '';
     $bot->hearCallbackQueryData('sp:prepare:'.$id.':a')->reply()->assertRaw(static function (Request $request) use (&$token): bool {
@@ -84,7 +84,7 @@ it('shows the root application queue, confirms one decision and cannot replay th
         $token = $matches[1];
 
         return str_contains((string) ($data['text'] ?? ''), 'تأیید و فعال‌سازی پنل فروش');
-    });
+    }, index: 1);
     expect($token)->not->toBe('')
         ->and(DB::table('sales_panel_requests')->where('id', $id)->value('status'))->toBe('pending')
         ->and($buyer->fresh()->hasRole('member'))->toBeTrue();
