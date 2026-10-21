@@ -286,11 +286,25 @@ final readonly class SalesCheckoutUi
             ."\nموجودی پس از خرید: <b>".TelegramUi::toman($balance - $order->totalPriceRials).' تومان</b>'
             ."\n\n<blockquote>با تأیید، کل مبلغ یک‌بار از کیف پول شما کسر می‌شود.</blockquote>",
             InlineKeyboardMarkup::make()
-                ->addRow(InlineKeyboardButton::make('✅ تأیید و پرداخت', callback_data: 'sales:checkout:wallet:confirm:'.$order->id.':'.$token, style: ButtonStyle::SUCCESS))
-                ->addRow(InlineKeyboardButton::make('◀️ بازگشت به سفارش', callback_data: 'sales:checkout:view:'.$order->id))
+                ->addRow(InlineKeyboardButton::make('✅ تأیید و پرداخت', callback_data: 'sales:walletpay:confirm:'.$order->id.':'.$token, style: ButtonStyle::SUCCESS))
+                ->addRow(InlineKeyboardButton::make('◀️ لغو و بازگشت', callback_data: 'sales:walletpay:cancel:'.$order->id))
                 ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'menu:home')),
             html: true,
         );
+    }
+
+    /** Explicit cancellation invalidates even previously displayed buttons. */
+    public function walletCancel(Nutgram $bot, string $id): void
+    {
+        $buyer = $this->buyer($bot);
+        if ($buyer === null || ! $this->positive($id)) {
+            $this->notice($bot, 'سفارش در دسترس نیست.');
+
+            return;
+        }
+
+        Cache::forget($this->walletTokenKey($buyer, (int) $id));
+        $this->viewOrder($bot, $id);
     }
 
     /** A consumed confirmation is never allowed to debit another order. */
