@@ -103,7 +103,7 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     // FIN-01 keeps photo finance routes private to the Admin Bot.
     $expected['ADMIN'][] = 'callback:finance:wallets:{page}';
     $expected['ADMIN'][] = 'callback:finance:wallet:{id}';
-    $expected['ADMIN'][] = 'callback:finance:wallet:find';
+    $expected['ADMIN'][] = 'callback:finance:find-wallet';
     $expected['ADMIN'][] = 'callback:finance:topups:{page}';
     $expected['ADMIN'][] = 'callback:finance:topup:photo:{id}';
     $expected['ADMIN'][] = 'callback:finance:topup:decision:{id}:{decision}';
