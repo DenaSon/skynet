@@ -42,14 +42,22 @@ final readonly class DebitWalletForOrder
             throw ValidationException::withMessages(['payment' => 'Order debit already exists; reconcile the settlement.']);
         }
 
-        $credits = (int) DB::table('billing_postings')
+        // A plain SUM can reuse the snapshot established by earlier Identity
+        // reads under MySQL REPEATABLE READ, even after waiting for the wallet
+        // lock. Read the actual postings with a current locking read instead.
+        $postings = DB::table('billing_postings')
             ->where('wallet_id', $walletId)
             ->where('account_code', 'wallet_liability')
-            ->where('side', 'credit')->sum('amount_rials');
-        $debits = (int) DB::table('billing_postings')
-            ->where('wallet_id', $walletId)
-            ->where('account_code', 'wallet_liability')
-            ->where('side', 'debit')->sum('amount_rials');
+            ->orderBy('id')->lockForUpdate()->get(['side', 'amount_rials']);
+        $credits = 0;
+        $debits = 0;
+        foreach ($postings as $posting) {
+            if ($posting->side === 'credit') {
+                $credits += (int) $posting->amount_rials;
+            } else {
+                $debits += (int) $posting->amount_rials;
+            }
+        }
 
         if ($credits < $debits || $credits - $debits < $amountRials) {
             throw ValidationException::withMessages(['wallet' => 'Insufficient verified wallet credit.']);

@@ -114,6 +114,11 @@ jobs:
       - name: Migrate disposable MySQL database
         run: php artisan migrate --force
 
+      - name: Verify concurrent wallet payment safety on MySQL REPEATABLE READ
+        env:
+          PAYMENT_MYSQL_SMOKE: '1'
+        run: php tests/Smoke/payment_wallet_mysql_concurrency.php
+
       - name: Validate historical receipts and guarded rollback on MySQL
         run: php tests/Smoke/mb02_mysql_migration.php
 

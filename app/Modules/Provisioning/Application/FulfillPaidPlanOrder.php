@@ -7,6 +7,7 @@ namespace App\Modules\Provisioning\Application;
 use App\Interfaces\Telegram\Notifications\PaymentNotificationOutbox;
 use App\Modules\Billing\Application\VerifyWalletOrderDebit;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use RuntimeException;
 use Throwable;
 
@@ -32,6 +33,9 @@ final readonly class FulfillPaidPlanOrder
         }
 
         $order = $this->claim($orderId);
+        if ($order === null) {
+            throw new RuntimeException('Managed-plan snapshot or verified Squad binding is not ready; operator review required.');
+        }
         $reference = self::reference($orderId);
 
         try {
@@ -90,11 +94,11 @@ final readonly class FulfillPaidPlanOrder
         return $this->complete($orderId, $remoteId);
     }
 
-    private function claim(int $orderId): object
+    private function claim(int $orderId): ?object
     {
         $this->assertOrderId($orderId);
 
-        return DB::transaction(function () use ($orderId): object {
+        return DB::transaction(function () use ($orderId): ?object {
             $order = DB::table('sales_orders')->where('id', $orderId)->lockForUpdate()->first();
             $outbox = DB::table('sales_fulfillment_outbox')->where('sales_order_id', $orderId)->lockForUpdate()->first();
 
@@ -103,24 +107,36 @@ final readonly class FulfillPaidPlanOrder
                 throw new RuntimeException('Order is unpaid, already claimed, or lacks its immutable fulfillment intent.');
             }
 
-            if ($order->plan_id === null || $order->plan_revision === null || $order->pricing_revision === null
-                || ! in_array($order->plan_kind, ['volume', 'hybrid', 'time'], true)
-                || (int) $order->duration_days < 1 || (int) $order->duration_days > 3650
-                || (int) $order->total_price_rials < 1
-                || (int) $order->plan_revision !== (int) DB::table('sales_plans')->where('id', $order->plan_id)->value('revision')
-                || ($order->traffic_gb === null && $order->plan_kind !== 'time')
-                || ($order->traffic_gb !== null && (int) $order->traffic_gb < 1)
-                || ! is_string($order->internal_squad_uuid)
-                || $this->squads->verifiedSquadForCheckout((int) $order->plan_id) !== $order->internal_squad_uuid) {
-                throw new RuntimeException('Managed-plan snapshot or verified Squad binding is not ready.');
-            }
-
             $this->assertSettlement($order);
 
             if (DB::table('provisioning_order_links')->where('sales_order_id', $orderId)->exists()
                 || DB::table('provisioning_subscriptions')->where('reference', self::reference($orderId))->exists()
                 || DB::table('provisioning_operations')->where('idempotency_key', self::operationKey($orderId))->exists()) {
                 throw new RuntimeException('Provisioning already reserved; manual reconciliation required.');
+            }
+
+            try {
+                if ($order->plan_id === null || $order->plan_revision === null || $order->pricing_revision === null
+                    || ! in_array($order->plan_kind, ['volume', 'hybrid', 'time'], true)
+                    || (int) $order->duration_days < 1 || (int) $order->duration_days > 3650
+                    || (int) $order->total_price_rials < 1
+                    || ($order->traffic_gb === null && $order->plan_kind !== 'time')
+                    || ($order->traffic_gb !== null && (int) $order->traffic_gb < 1)
+                    || ! is_string($order->internal_squad_uuid)) {
+                    throw ValidationException::withMessages(['plan' => 'Invalid managed-plan snapshot.']);
+                }
+                $this->squads->assertOrderReady(
+                    (int) $order->plan_id, (int) $order->plan_revision, $order->internal_squad_uuid,
+                );
+            } catch (ValidationException) {
+                // Keep the readiness decision and hold under the same locks.
+                // Throw only AFTER this transaction commits the review state.
+                DB::table('sales_fulfillment_outbox')->where('id', $outbox->id)->update([
+                    'state' => 'needs_review', 'updated_at' => now(),
+                ]);
+                $this->notifications->planBlocked($orderId);
+
+                return null;
             }
 
             DB::table('sales_fulfillment_outbox')->where('id', $outbox->id)->update([

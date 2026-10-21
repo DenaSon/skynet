@@ -10,6 +10,7 @@ use App\Modules\Billing\Application\VerifyWalletOrderDebit;
 use App\Modules\Identity\Application\AuthorizeSubscriptionViewer;
 use App\Modules\Identity\Application\ResolveSalesBuyer;
 use App\Modules\Identity\Application\SubscriptionViewer;
+use App\Modules\Provisioning\Application\CheckPlanSquadReadiness;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -30,6 +31,7 @@ final readonly class SettleWalletOrder
         private VerifyWalletOrderDebit $verifyDebit,
         private OrderReader $orders,
         private PaymentNotificationOutbox $notifications,
+        private CheckPlanSquadReadiness $squads,
     ) {}
 
     public function handle(SubscriptionViewer $viewer, int $orderId): OrderDetails
@@ -88,6 +90,24 @@ final readonly class SettleWalletOrder
 
             if (! $reseller && $order->plan_id === null) {
                 throw new AuthorizationException;
+            }
+            if ($order->plan_id !== null) {
+                // Legacy reseller settlements retain their original contract.
+                // Customer purchases may debit only when automatic delivery
+                // and customer notices are enabled. No network call here.
+                if (config('sales.auto_fulfillment_enabled') !== true
+                    || config('services.remnawave.writes_enabled') !== true
+                    || config('services.remnawave.squad_bindings_live_verified') !== true
+                    || config('telegram_notifications.enabled') !== true
+                    || config('telegram.sales.enabled') !== true
+                    || ! is_string(config('telegram.sales.token'))
+                    || config('telegram.sales.token') === ''
+                    || config('telegram.sales.token') === config('nutgram.token')) {
+                    throw ValidationException::withMessages(['activation' => 'Automatic activation and customer notices are not ready.']);
+                }
+                $this->squads->assertOrderReady(
+                    (int) $order->plan_id, (int) $order->plan_revision, (string) $order->internal_squad_uuid,
+                );
             }
             // A pending/approved bank receipt must never race a wallet debit;
             // rejected receipts are eligible for the alternative full payment.

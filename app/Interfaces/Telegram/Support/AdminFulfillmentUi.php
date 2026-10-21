@@ -111,7 +111,11 @@ final readonly class AdminFulfillmentUi
                 '🔌 مدیریت وضعیت اشتراک', callback_data: 'full:service:view:'.$orderId,
             ));
         }
-        if (in_array($order->intent_state, ['processing', 'needs_review'], true)) {
+        if ($order->intent_state === 'needs_review' && $order->create_operation_id === null) {
+            $lines[] = '';
+            $lines[] = '⚠️ مشخصات پلن یا سرویس مرتبط تغییر کرده است؛ فعال‌سازی پیش از ساخت اشتراک متوقف شد.';
+            $lines[] = 'پرداخت محفوظ است. ابتدا سفارش و پلن را برای رفع مشکل بررسی کنید.';
+        } elseif (in_array($order->intent_state, ['processing', 'needs_review'], true)) {
             $lines[] = '';
             $lines[] = 'در صورت نامشخص‌بودن نتیجه، فقط وضعیت سرویس موجود بررسی می‌شود.';
             $buttons->addRow(InlineKeyboardButton::make(

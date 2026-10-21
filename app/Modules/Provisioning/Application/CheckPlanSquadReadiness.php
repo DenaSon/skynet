@@ -7,6 +7,7 @@ namespace App\Modules\Provisioning\Application;
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Offline-only, fail-closed read contract for future Plan → Internal Squad.
@@ -27,7 +28,7 @@ final readonly class CheckPlanSquadReadiness
      * Internal read-only buyer-checkout gate. Caller must first authorize and
      * revalidate its buyer and plan; this method does not grant any provider write.
      */
-    public function verifiedSquadForCheckout(int $planId): ?string
+    public function verifiedSquadForCheckout(int $planId, ?int $expectedRevision = null): ?string
     {
         if ($planId < 1
             || config('services.remnawave.squad_bindings_live_verified', false) !== true
@@ -48,11 +49,21 @@ final readonly class CheckPlanSquadReadiness
             && $row->status === 'active'
             && (bool) $row->is_active
             && (int) $row->revision > 0
+            && ($expectedRevision === null || $expectedRevision === (int) $row->revision)
             && (int) $row->plan_revision === (int) $row->revision
             && $row->verified_at !== null
             && is_string($row->internal_squad_uuid)
             && preg_match('/\A[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}\z/D', $row->internal_squad_uuid) === 1;
 
         return $ready ? (string) $row->internal_squad_uuid : null;
+    }
+
+    /** Recheck the immutable order under the caller's payment/claim transaction. */
+    public function assertOrderReady(int $planId, int $revision, string $squadUuid): void
+    {
+        if ($revision < 1 || $squadUuid === ''
+            || $this->verifiedSquadForCheckout($planId, $revision) !== $squadUuid) {
+            throw ValidationException::withMessages(['plan' => 'Managed plan or Squad changed; payment requires review.']);
+        }
     }
 }

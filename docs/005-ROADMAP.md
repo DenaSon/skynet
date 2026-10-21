@@ -1,3 +1,9 @@
+## PATCH-01 — payment safety before launch (2026-10-21; implemented; live acceptance pending)
+
+Authorized scope: current ledger reads under wallet serialization with a real two-process MySQL REPEATABLE READ regression; managed-wallet backend readiness before debit; immutable plan/Squad validation before wallet/bank settlement; safe held state plus trusted-root alert for already paid plans blocked before CREATE. Preserve legacy reseller wallet settlement, ledger/idempotency, bank attestation, original recorded prices and no-blind-provider-retry boundaries. No migration, new dependency, Production flags, Redis/Supervisor change or actual financial/provider test. PHP 8.4/8.5 Pest/PHPStan/Pint and MySQL smoke must pass; real deployed two-bot/bank/RW acceptance remains independent.
+
+Remaining separately authorized work: PATCH-02 queue connection alignment and wallet outbox recovery; expiry/90%-usage alerts are a separate feature. Neither is implemented by PATCH-01.
+
 ## UXR-REF-WAL-01 — role-aware home and safe navigation polish (#152, operator-approved 2026-10-21; code pending CI)
 
 The approved 11-item UI scope is enumerated in [Issue #152](https://github.com/DenaSon/skynet/issues/152). Sales Inline home now always shows bold ordinary-member vs «پنل فروش» account identity, read-only owner-scoped ledger balance with truthful unavailable fallback, direct wallet button for both and guarded builder shortcut only for `reseller`. Four persistent Sales Reply buttons are unchanged; pre-existing legacy reply strings remain accepted. Existing owner-only SP-01/SP-02 request status chooses «درخواست پنل فروش» vs «وضعیت درخواست پنل فروش», disappears for an activated Sales Panel role. Referrals retain true counts/copy/share and concise no-reward disclosure. Catalog, reseller builder and checkout explicitly label panel prices without changing quote/discount computation. Topup/pay status and expired/duplicate button copy is clearer; Admin finance/Panel review screens provide contextual Back/Home without changing reviewer checks, financial Actions or queue.
@@ -447,4 +453,3 @@ Remnawave is chosen for the subscription panel API (F10). ParsaGate's own SSH/Wi
 - Customer sees only their own orders (latest ten and individual detail). Snapshot never silently changes after operator modifies catalog prices.
 - F09-C adds no balance debit, wallet reservation, payment confirmation, bank integration, subscriptions, Remnawave API or server/network code. Any future paid order transition must be implemented and verified separately.
 - Tests cover ownership, duplicated callback, token expiry, stale quotes, role revocation, inactive buyer and zero Billing postings.
-

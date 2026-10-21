@@ -63,6 +63,10 @@ final readonly class ReviewPaidFulfillment
             throw ValidationException::withMessages(['order' => 'Order is no longer eligible.']);
         }
 
+        if ($reconcile && $row->create_operation_id === null) {
+            throw ValidationException::withMessages(['order' => 'No recorded provider operation to reconcile.']);
+        }
+
         if (! $reconcile && (config('services.remnawave.writes_enabled') !== true
             || config('services.remnawave.squad_bindings_live_verified') !== true)) {
             throw ValidationException::withMessages(['order' => 'Provider activation disabled.']);
@@ -75,6 +79,7 @@ final readonly class ReviewPaidFulfillment
     {
         return DB::table('sales_orders as orders')
             ->join('sales_fulfillment_outbox as intent', 'intent.sales_order_id', '=', 'orders.id')
+            ->leftJoin('provisioning_operations as operation', 'operation.idempotency_key', '=', 'intent.event_key')
             ->whereNotNull('orders.plan_id')
             ->select(
                 'orders.id',
@@ -85,6 +90,7 @@ final readonly class ReviewPaidFulfillment
                 'orders.traffic_gb',
                 'intent.state as intent_state',
                 'intent.attempts as attempt_count',
+                'operation.id as create_operation_id',
             );
     }
 }

@@ -194,6 +194,9 @@ it('records a single root-verified bank decision and allows Sales buyer to see a
 
     $payments = app(ManualBankPayments::class);
     expect(fn () => $payments->review($data['root']->id, $claim, true, null))->toThrow(ValidationException::class);
+    expect(fn () => $payments->review($data['root']->id, $claim, true, 'SB04BANK12345'))->toThrow(ValidationException::class);
+    expect(DB::table('billing_journals')->count())->toBe(0);
+    config()->set('services.remnawave.squad_bindings_live_verified', true);
     $payments->review($data['root']->id, $claim, true, 'SB04BANK12345');
     expect(fn () => $payments->review($data['root']->id, $claim, true, 'SB04BANK12345'))->toThrow(ValidationException::class);
 
@@ -262,6 +265,9 @@ it('gates the one-click operator attestation and settles only once with an inter
         ->toThrow(ValidationException::class);
 
     config()->set('sales.one_click_bank_review_enabled', true);
+    expect(fn () => $review->review($data['root']->id, $claimId, true))->toThrow(ValidationException::class);
+    expect(DB::table('billing_journals')->count())->toBe(0);
+    config()->set('services.remnawave.squad_bindings_live_verified', true);
     expect($review->review($data['root']->id, $claimId, true)->approved)->toBeTrue();
     expect(DB::table('sales_bank_settlements')->value('payment_reference'))
         ->toBe('MANUAL-CLAIM-'.$claimId);
