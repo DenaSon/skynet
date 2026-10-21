@@ -8,6 +8,7 @@ use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
@@ -93,7 +94,7 @@ it('shows only authorized real Admin operations for trusted roots and gates fina
     $keyboard = app(ReplyMenuRenderer::class)->homeKeyboard($actor);
     $labels = mb04Labels($keyboard);
     expect($labels)->toContain(ReplyMenuLabels::USERS, ReplyMenuLabels::ROLES, ReplyMenuLabels::SALES_SECTION, ReplyMenuLabels::ACCOUNT)
-        ->toContain(ReplyMenuLabels::FINANCE_SECTION)
+        ->toContain(ReplyMenuLabels::FINANCE_SECTION, ReplyMenuLabels::STATS)
         ->not->toContain(ReplyMenuLabels::TOPUPS, ReplyMenuLabels::RECEIPTS,
             ReplyMenuLabels::BUY, ReplyMenuLabels::SUBSCRIPTIONS, ReplyMenuLabels::HOME)
         ->and(count($keyboard->keyboard[0]))->toBe(2);
@@ -184,4 +185,34 @@ it('keeps in-place Admin text menu edits for ordinary callbacks', function (): v
     $bot->shouldReceive('editMessageText')->once()->andReturn(new Message);
     $bot->shouldNotReceive('sendMessage');
     app(MenuRenderer::class)->showAdmin($bot, $actor);
+});
+
+it('keeps the stats entry in the persistent root Admin keyboard and denies stale or ordinary-admin taps', function (): void {
+    config()->set('telegram.hybrid_menu_enabled', true);
+    config()->set('super_admin.telegram_ids', ['984201', '984299']);
+    Http::fake(['*' => Http::response([], 503)]);
+
+    $root = User::factory()->create();
+    $root->syncRoles(['super-admin']);
+    $rootBot = mb04Bot(984201, $root);
+    expect(mb04Labels(app(ReplyMenuRenderer::class)->adminKeyboard(
+        app(ResolveTelegramActor::class)->handle(984201),
+    )))->toContain(ReplyMenuLabels::STATS);
+
+    $rootBot->hearText(ReplyMenuLabels::STATS)->reply()->assertCalled('sendMessage');
+
+    $ordinary = User::factory()->admin()->create();
+    $ordinaryBot = mb04Bot(984202, $ordinary);
+    expect(mb04Labels(app(ReplyMenuRenderer::class)->adminKeyboard(
+        app(ResolveTelegramActor::class)->handle(984202),
+    )))->not->toContain(ReplyMenuLabels::STATS);
+    $ordinaryBot->hearText(ReplyMenuLabels::STATS)->reply()
+        ->assertReplyText('دسترسی مجاز نیست. منوی شما به‌روز شد.');
+
+    $root->syncRoles(['member']);
+    $rootBot->hearText(ReplyMenuLabels::STATS)->reply()
+        ->assertReplyText('دسترسی مجاز نیست. منوی شما به‌روز شد.');
+
+    $ordinaryBot->setCommonChat(Chat::make(-984202, ChatType::GROUP));
+    $ordinaryBot->hearText(ReplyMenuLabels::STATS)->reply()->assertNoReply();
 });
