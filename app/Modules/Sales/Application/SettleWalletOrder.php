@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Modules\Sales\Application;
 
+use App\Interfaces\Telegram\Notifications\PaymentNotificationOutbox;
 use App\Modules\Billing\Application\DebitWalletForOrder;
 use App\Modules\Billing\Application\VerifyWalletOrderDebit;
-use App\Interfaces\Telegram\Notifications\PaymentNotificationOutbox;
 use App\Modules\Identity\Application\AuthorizeSubscriptionViewer;
 use App\Modules\Identity\Application\ResolveSalesBuyer;
 use App\Modules\Identity\Application\SubscriptionViewer;
