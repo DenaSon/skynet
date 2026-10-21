@@ -100,7 +100,7 @@ final readonly class SalesHomeUi
 
         $keyboard = InlineKeyboardMarkup::make()
             ->addRow(
-                InlineKeyboardButton::make('🛒 خرید سرویس', callback_data: 'sales:buy', style: ButtonStyle::SUCCESS),
+                InlineKeyboardButton::make('🟢 خرید سرویس', callback_data: 'sales:buy', style: ButtonStyle::SUCCESS),
                 InlineKeyboardButton::make('📋 سرویس‌های من', callback_data: 'sales:subs:list:0', style: ButtonStyle::PRIMARY),
             );
         if ($hasWallet) {
