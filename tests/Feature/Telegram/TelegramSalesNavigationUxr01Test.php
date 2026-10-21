@@ -142,15 +142,42 @@ it('offers a real configured Telegram contact and short guides with working back
         return $body['parse_mode'] === 'HTML'
             && $body['reply_markup']['inline_keyboard'][1][0]['url'] === 'https://t.me/DenaGateOperator';
     });
-    foreach (['apps', 'android', 'ios', 'desktop', 'purchase', 'troubleshoot'] as $page) {
+    foreach (['apps', 'android', 'ios', 'windows', 'macos', 'desktop', 'purchase', 'troubleshoot'] as $page) {
         $bot->hearCallbackQueryData('sales:help:'.$page)->reply()
             ->assertCalled('answerCallbackQuery')->assertCalled('editMessageText')->assertCalled('sendMessage', 0);
     }
-    $bot->hearCallbackQueryData('sales:help:android')->reply()->assertRaw(static function (Request $request): bool {
-        $body = uxr01Payload($request);
+    foreach ([
+        'android' => ['v2rayNG', 'https://github.com/2dust/v2rayNG/releases/latest'],
+        'ios' => ['V2Box', 'https://apps.apple.com/app/v2box-v2ray-client/id6446814690'],
+        'windows' => ['v2rayN', 'https://github.com/2dust/v2rayN/releases/latest'],
+        'macos' => ['V2Box', 'https://apps.apple.com/app/v2box-v2ray-client/id6446814690'],
+    ] as $page => [$client, $download]) {
+        $bot->hearCallbackQueryData('sales:help:'.$page)->reply()->assertRaw(
+            static function (Request $request) use ($client, $download): bool {
+                $body = uxr01Payload($request);
+                $keyboard = $body['reply_markup']['inline_keyboard'];
 
-        return str_contains($body['text'], '<blockquote>')
-            && $body['reply_markup']['inline_keyboard'][0][0]['url'] === 'https://hiddify.com/';
+                return str_contains($body['text'], '<blockquote>')
+                    && str_contains($body['text'], '<b>'.$client.'</b>')
+                    && str_contains($body['text'], 'لینک <b>اشتراک</b>')
+                    && $keyboard[0][0]['url'] === $download
+                    && $keyboard[1][0]['url'] === 'https://docs.rw/clients/'
+                    && str_contains(json_encode($keyboard, JSON_THROW_ON_ERROR), 'sales:subs:list:0');
+            }, index: 1,
+        );
+    }
+    $bot->hearCallbackQueryData('sales:help:apps')->reply()->assertRaw(static function (Request $request): bool {
+        $keyboard = uxr01Payload($request)['reply_markup']['inline_keyboard'];
+        $encoded = json_encode($keyboard, JSON_THROW_ON_ERROR);
+
+        return str_contains($encoded, 'sales:help:windows')
+            && str_contains($encoded, 'sales:help:macos')
+            && ! str_contains($encoded, 'sales:help:desktop');
+    }, index: 1);
+    $bot->hearCallbackQueryData('sales:help:desktop')->reply()->assertRaw(static function (Request $request): bool {
+        $encoded = json_encode(uxr01Payload($request)['reply_markup']['inline_keyboard'], JSON_THROW_ON_ERROR);
+
+        return str_contains($encoded, 'sales:help:windows') && str_contains($encoded, 'sales:help:macos');
     }, index: 1);
     $bot->hearCallbackQueryData('sales:support')->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('sales:home')->reply()->assertCalled('editMessageText')->assertCalled('sendMessage', 0);
