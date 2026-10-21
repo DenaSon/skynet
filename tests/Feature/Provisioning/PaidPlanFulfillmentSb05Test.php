@@ -464,6 +464,13 @@ it('never authorizes an unapproved or unavailable fulfillment state', function (
 
     DB::table('sales_fulfillment_outbox')->where('sales_order_id', $data['order'])
         ->update(['state' => 'needs_review']);
+    expect(fn () => $reader->authorizeRequest($data['root']->id, $data['order'], true))
+        ->toThrow(ValidationException::class);
+    // Only a genuinely recorded uncertain CREATE offers GET reconciliation.
+    DB::table('sales_fulfillment_outbox')->where('sales_order_id', $data['order'])
+        ->update(['state' => 'pending']);
+    Http::fake(['https://remna.test/api/users' => Http::response('provider timeout', 503)]);
+    expect(fn () => app(FulfillPaidPlanOrder::class)->handle($data['order']))->toThrow(RuntimeException::class);
     expect($reader->authorizeRequest($data['root']->id, $data['order'], true)->id)->toBe($data['order']);
     expect(fn () => $reader->authorizeRequest($data['root']->id, $data['order'], false))
         ->toThrow(ValidationException::class);
