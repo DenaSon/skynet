@@ -169,9 +169,10 @@ it('offers a real configured Telegram contact and short guides with working back
 
                 return str_contains($body['text'], '<blockquote>')
                     && str_contains($body['text'], '<b>'.$client.'</b>')
-                    && str_contains($body['text'], 'لینک <b>اشتراک</b>')
+                    && str_contains($body['text'], '<b>لینک اتصال</b>')
                     && $keyboard[0][0]['url'] === $download
-                    && $keyboard[1][0]['url'] === 'https://docs.rw/clients/'
+                    && ! str_contains($body['text'], 'Remnawave')
+                    && ! str_contains(json_encode($keyboard, JSON_THROW_ON_ERROR), 'docs.rw')
                     && str_contains(json_encode($keyboard, JSON_THROW_ON_ERROR), 'sales:subs:list:0');
             }, index: 1,
         );

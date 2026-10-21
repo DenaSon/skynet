@@ -9,6 +9,7 @@ use App\Modules\Provisioning\Application\GetMySubscription;
 use App\Modules\Provisioning\Application\GetSubscriptionLink;
 use App\Modules\Provisioning\Application\GetSubscriptionUsage;
 use App\Modules\Provisioning\Application\ListMyServices;
+use DateTimeImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
@@ -146,7 +147,7 @@ final readonly class SalesSubscriptionsUi
             '<b>📋 سرویس #'.$item->orderId.'</b>',
             '',
             'پلن: '.TelegramUi::escape($this->clean($item->productName)),
-            'وضعیت ثبت‌شده: '.$this->status($item->status),
+            ...($details->canRequestLink ? [] : ['وضعیت ثبت‌شده: '.$this->status($item->status)]),
             'حجم خرید: '.($item->trafficGb === null ? 'نامحدود' : $item->trafficGb.' گیگابایت'),
             'مدت خرید: '.$item->durationDays.' روز',
             'مبلغ: <b>'.TelegramUi::toman($item->totalPriceRials).' تومان</b>',
@@ -161,26 +162,42 @@ final readonly class SalesSubscriptionsUi
             TelegramUi::activity($bot);
             try {
                 $live = $this->usage->handle($viewer, $orderId);
-                $lines[] = 'وضعیت لحظه‌ای: 🟢 فعال (بررسی‌شده)';
+                $expired = (new DateTimeImmutable($live->expireAt)) <= new DateTimeImmutable('now');
+                $exhausted = $live->limitBytes > 0 && $live->usedBytes >= $live->limitBytes;
+                $usable = $live->status === 'ACTIVE' && ! $expired && ! $exhausted;
+
+                $status = match (true) {
+                    $live->status === 'EXPIRED', $expired => '🔴 منقضی شده',
+                    $live->status === 'DISABLED' => '⏸️ غیرفعال',
+                    $live->status === 'LIMITED' => '🟠 محدود شده',
+                    $exhausted => '🟠 حجم به پایان رسیده',
+                    default => '🟢 فعال',
+                };
+                $lines[] = 'وضعیت سرویس: <b>'.$status.'</b>';
                 $lines[] = 'مصرف: '.$this->gb($live->usedBytes).' گیگابایت';
                 $lines[] = 'باقی‌مانده: '.($live->limitBytes === 0
                     ? 'نامحدود'
                     : $this->gb(max(0, $live->limitBytes - $live->usedBytes)).' گیگابایت');
-                $lines[] = 'انقضا (UTC): '.substr(str_replace('T', ' ', $live->expireAt), 0, 16);
-                $keyboard->addRow(InlineKeyboardButton::make(
-                    '🔐 نمایش کد اتصال',
-                    callback_data: 'sales:subs:link:'.$orderId.':'.$cursor,
-                ));
-                if ($this->pages->configured()) {
+                $lines[] = 'تاریخ انقضا (UTC): '.substr(str_replace('T', ' ', $live->expireAt), 0, 16);
+                if ($usable) {
                     $keyboard->addRow(InlineKeyboardButton::make(
-                        '🌐 صفحه اشتراک',
-                        callback_data: 'sales:subs:page:'.$orderId.':'.$cursor,
+                        '🔐 نمایش کد اتصال',
+                        callback_data: 'sales:subs:link:'.$orderId.':'.$cursor,
                     ));
+                    if ($this->pages->configured()) {
+                        $keyboard->addRow(InlineKeyboardButton::make(
+                            '🌐 صفحه اشتراک',
+                            callback_data: 'sales:subs:page:'.$orderId.':'.$cursor,
+                        ));
+                    }
+                } else {
+                    $lines[] = '';
+                    $lines[] = '<blockquote>این سرویس در حال حاضر قابل اتصال نیست. برای خرید سرویس جدید یا دریافت راهنمایی از دکمه‌های زیر استفاده کنید.</blockquote>';
+                    $keyboard->addRow(InlineKeyboardButton::make('🟢 خرید سرویس', callback_data: 'sales:buy'));
                 }
             } catch (Throwable) {
-                $lines[] = 'اطلاعات لحظه‌ای مصرف و انقضا در دسترس نیست.';
-                $lines[] = 'وضعیت ثبت‌شده به معنی اتصال تأییدشده نیست.';
-                $lines[] = 'برای دریافت لینک، کمی بعد دوباره بررسی کنید.';
+                $lines[] = 'وضعیت سرویس: <b>⚪ فعلاً قابل بررسی نیست</b>';
+                $lines[] = '<blockquote>دریافت وضعیت لحظه‌ای ممکن نشد. کمی بعد «بررسی دوباره» را بزنید.</blockquote>';
             }
         } else {
             $lines[] = 'لینک اتصال فقط پس از پرداخت و فعال‌سازی در دسترس است.';

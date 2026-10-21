@@ -183,6 +183,7 @@ it('shows verified usage, remaining quota and UTC expiration without leaking the
     expect($usage->limitBytes)->toBe(2 * 1073741824)
         ->and($usage->usedBytes)->toBe(1073741824)
         ->and($usage->expireAt)->toBe('2027-10-12T00:00:00.000Z')
+        ->and($usage->status)->toBe('ACTIVE')
         ->and(json_encode($usage, JSON_THROW_ON_ERROR))->not->toContain('private-sb06-credential');
 
     $bot->hearCallbackQueryData('sales:subs:view:'.$order.':0')->reply()
@@ -427,4 +428,63 @@ it('fails closed when RW returns a non-matching page URL or a stale/foreign owne
     $owner->hearCallbackQueryData('sales:subs:page:'.$order.':0')->reply()
         ->assertCalled('editMessageText')->assertCalled('sendMessage', 0);
     Http::assertNothingSent();
+});
+
+it('shows actual remote expiry, disability and exhausted traffic without a connection button', function (): void {
+    $buyer = User::factory()->create();
+    $order = sb06Order($buyer);
+    sb06Activated($order);
+    $bot = sb06Bot(976050, $buyer);
+
+    $cases = [
+        ['status' => 'EXPIRED', 'message' => 'منقضی شده'],
+        ['status' => 'DISABLED', 'message' => 'غیرفعال'],
+        ['status' => 'LIMITED', 'message' => 'محدود شده'],
+        ['status' => 'ACTIVE', 'expireAt' => '2020-01-01T00:00:00.000Z', 'message' => 'منقضی شده'],
+        ['status' => 'ACTIVE', 'userTraffic' => ['usedTrafficBytes' => 2147483648, 'lifetimeUsedTrafficBytes' => 2147483648], 'message' => 'حجم به پایان رسیده'],
+    ];
+    $sequence = Http::sequence();
+    foreach ($cases as $case) {
+        $overrides = $case;
+        unset($overrides['message']);
+        $payload = ['response' => sb06Provider($order, $overrides)];
+        $sequence->push($payload)->push($payload);
+    }
+    Http::fake(['https://remna.test/api/users/42' => $sequence]);
+
+    foreach ($cases as $case) {
+        $expected = $case['message'];
+        $bot->hearCallbackQueryData('sales:subs:view:'.$order.':0')->reply()
+            ->assertRaw(static function (NutgramRequest $request) use ($expected): bool {
+                $data = FakeNutgram::getActualData($request);
+                $markup = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+
+                return str_contains($data['text'], 'وضعیت سرویس: <b>')
+                    && str_contains($data['text'], $expected)
+                    && ! str_contains($data['text'], 'وضعیت ثبت‌شده: 🟢')
+                    && ! str_contains($markup, 'sales:subs:link:')
+                    && str_contains($markup, 'sales:buy');
+            }, index: 2);
+        $bot->hearCallbackQueryData('sales:subs:link:'.$order.':0')->reply()
+            ->assertCalled('sendMessage', 0);
+        Http::assertSent(static fn (Request $r): bool => $r->method() === 'GET');
+    }
+    expect(DB::table('provisioning_subscriptions')->where('remote_user_id', 42)->value('state'))->toBe('active');
+});
+
+it('shows an unknown status for transport failure, not a false active or expired label', function (): void {
+    $buyer = User::factory()->create();
+    $order = sb06Order($buyer);
+    sb06Activated($order);
+    $bot = sb06Bot(976051, $buyer);
+    Http::fake(['https://remna.test/api/users/42' => Http::response([], 503)]);
+
+    $bot->hearCallbackQueryData('sales:subs:view:'.$order.':0')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $data = FakeNutgram::getActualData($request);
+
+            return str_contains($data['text'], 'فعلاً قابل بررسی نیست')
+                && ! str_contains($data['text'], 'وضعیت ثبت‌شده: 🟢')
+                && ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:subs:link:');
+        }, index: 2);
 });

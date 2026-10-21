@@ -1,3 +1,10 @@
+## Operator acceptance and follow-up — 2026-10-21
+
+- #117 receipt review, #118 automatic fulfillment and #119 activation notification are CLOSED on operator-reported real PASS. Core flow #115 is CLOSED at operator request, independently of open #124/#125/#121.
+- #124 remains open: provider EXPIRED on customer service #16 showed only generic error and misleading local green because status access was gated like credentials. Fix is scoped to read-only remote detail, ownership and matching remote identity; preserve credential restrictions; operator live acceptance remains necessary.
+- #125 remains open: improve short Persian client help, remove backend brand and documentation-directory link from buyer UI, use direct publisher GitHub releases/Apple App Store and preserve guides/support. Real device smoke remains.
+- #121 external official subscription page is not tested/deployed; #111 Host UUID technical debt not investigated. No Production settings or provider/bank writes.
+
 ## Current source rollout and acceptance — 2026-10-21 (supersedes older phase-plan text)
 
 - **Merged source:** UXR-01..05 (#128–#134); CLOSE-01 and CLOSE-02 (#135/#136); activation flags default-true-if-absent (#137, with explicit ENV false unchanged); Admin media/Sales Home correction (#138); native Sales green Buy / blue Services Reply+Inline buttons (#139, `0f843898a`). No new Sales/Finance/Provider domain feature is authorized by this documentation update.

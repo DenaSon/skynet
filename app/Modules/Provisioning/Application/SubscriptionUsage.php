@@ -11,5 +11,6 @@ final readonly class SubscriptionUsage
         public string $expireAt,
         public int $usedBytes,
         public int $limitBytes,
+        public string $status,
     ) {}
 }

@@ -1,5 +1,13 @@
 # Roadmap
 
+## Latest acceptance correction — 2026-10-21 (operator-confirmed)
+
+The operator confirms live PASS for [#117](https://github.com/DenaSon/skynet/issues/117) receipt review, [#118](https://github.com/DenaSon/skynet/issues/118) automatic Remnawave provisioning and [#119](https://github.com/DenaSon/skynet/issues/119) private activation notice. These issues were closed **on operator testimony**, not independently replayed in this documentation session. Core-flow parent [#115](https://github.com/DenaSon/skynet/issues/115) was also closed on explicit instruction, without closing the independently open customer/live issues.
+
+**Current focused patch:** [#124](https://github.com/DenaSon/skynet/issues/124) live customer service detail has a real defect: an expired provider account (operator example service #16) fell through the strict *credential* access check and showed a misleading green local marker plus generic usage-unavailable text. Only authorized, linked, credential-free detail status is expanded to show the actual remotely read ACTIVE/EXPIRED/DISABLED/LIMITED and usage/expiry; credential delivery remains restricted to usable remote state and current ownership. The all-services authoritative expired count is still unresolved and is **not** synthesized here. [#125](https://github.com/DenaSon/skynet/issues/125) guide copy now avoids the provider brand/docs in customer-facing messages and links directly to the source developer's GitHub releases (Android/Windows) or Apple App Store (iOS/macOS). Both issues remain OPEN until real updated bot/device verification.
+
+**Still pending, unchanged:** [#121](https://github.com/DenaSon/skynet/issues/121) is an untested operator-controlled official subscription-page deployment; [#111](https://github.com/DenaSon/skynet/issues/111) is deferred Host zero-UUID technical debt. Do not change Production flags, bank data or any Provider resource as part of UI read/test changes.
+
 ## Latest reconciliation — code complete vs live TODO (2026-10-21)
 
 **Authoritative current status for the Sales MVP (supersedes the historical "planned"/"not started"/default-OFF paragraphs below):** UXR-01..05 source delivered in #128–#134; CLOSE-01/02 source delivered in #135/#136. #137 made **four specific flags default true only when ENV is absent** (explicit false still wins and other flags remain independent); #138 repaired Admin media-origin callback/Home and Sales Home routing; #139 delivered native green Buy/blue Services button styles and legacy-text compatibility. All are on `master`; the latest #139 PR CI passed PHP 8.4/8.5, 642 Pest tests / 4,030 assertions, PHPStan, Pint and MySQL. No claim of deployed production configuration or all-client live acceptance is implied.

@@ -30,9 +30,10 @@ final readonly class ActiveSubscriptionAccess
      * @template TResult
      *
      * @param  \Closure(RemnawaveUserSnapshot): TResult  $read
+     * @param  bool  $requireUsable  Credential reads stay strict; status/usage may display remote inactive states.
      * @return TResult
      */
-    public function read(SubscriptionViewer $viewer, int $orderId, \Closure $read): mixed
+    public function read(SubscriptionViewer $viewer, int $orderId, \Closure $read, bool $requireUsable = true): mixed
     {
         $actorId = $this->authorize->userId($viewer);
         $binding = $this->binding($actorId, $orderId);
@@ -41,9 +42,9 @@ final readonly class ActiveSubscriptionAccess
             $remote = $this->lifecycle->subscription((string) $binding->reference);
 
             if ($remote->id !== (int) $binding->remote_user_id
-                || $remote->status !== 'ACTIVE'
+                || ($requireUsable && ($remote->status !== 'ACTIVE'
                 || $remote->trafficLimitBytes > 0 && $remote->usedTrafficBytes >= $remote->trafficLimitBytes
-                || (new DateTimeImmutable($remote->expireAt)) <= new DateTimeImmutable('now')) {
+                || (new DateTimeImmutable($remote->expireAt)) <= new DateTimeImmutable('now')))) {
                 throw new RuntimeException('Remote subscription is not usable.');
             }
 
