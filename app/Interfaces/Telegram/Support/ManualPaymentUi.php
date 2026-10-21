@@ -15,6 +15,7 @@ use App\Modules\Sales\Application\OrderReader;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\ForceReply;
@@ -64,6 +65,13 @@ final readonly class ManualPaymentUi
             if ($order->status !== 'pending_payment') {
                 throw ValidationException::withMessages(['order' => 'Not payable']);
             }
+            if (DB::table('sales_renewal_orders')->where('sales_order_id', $order->id)->exists()
+                && (config('sales.renewal_enabled', false) !== true
+                    || config('sales.auto_fulfillment_enabled') !== true
+                    || config('services.remnawave.writes_enabled') !== true
+                    || config('services.remnawave.squad_bindings_live_verified') !== true)) {
+                throw ValidationException::withMessages(['renewal' => 'Renewal is not ready.']);
+            }
         } catch (AuthorizationException|ValidationException) {
             $this->notice($bot, 'سفارش قابل پرداخت نیست.');
 
@@ -92,15 +100,20 @@ final readonly class ManualPaymentUi
         $instructions = trim((string) config('billing.payment_instructions', ''));
         $instructions = mb_substr($instructions, 0, 350);
 
-        $back = $sales ? 'menu:plan-catalog' : 'shop:order:view:'.$order->id;
+        $sourceRenewal = DB::table('sales_renewal_orders')
+            ->where('sales_order_id', $order->id)->value('source_order_id');
+        $back = $sales ? ($sourceRenewal === null ? 'menu:plan-catalog' : 'sales:subs:view:'.$sourceRenewal.':0')
+            : 'shop:order:view:'.$order->id;
         $keyboard = InlineKeyboardMarkup::make();
         if ($sales) {
             $amount = (string) intdiv($order->totalPriceRials + 9, 10);
             $keyboard->addRow(TelegramUi::copy($card, '📋 کپی شماره کارت'), TelegramUi::copy($amount, '📋 کپی مبلغ'));
-            $keyboard->addRow(InlineKeyboardButton::make('🛒 خرید جدید همین پلن',
-                callback_data: 'sales:checkout:new:'.$order->id));
+            if ($sourceRenewal === null) {
+                $keyboard->addRow(InlineKeyboardButton::make('🛒 خرید جدید همین پلن',
+                    callback_data: 'sales:checkout:new:'.$order->id));
+            }
         }
-        $keyboard->addRow(InlineKeyboardButton::make('◀️ پلن‌ها', callback_data: $back))
+        $keyboard->addRow(InlineKeyboardButton::make($sourceRenewal === null ? '◀️ پلن‌ها' : '◀️ سرویس اصلی', callback_data: $back))
             ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'menu:home'));
 
         if ($sales) {

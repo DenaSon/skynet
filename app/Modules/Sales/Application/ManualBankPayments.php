@@ -64,6 +64,10 @@ final readonly class ManualBankPayments
                 throw ValidationException::withMessages(['order' => 'Order not payable or not owned.']);
             }
 
+            if (DB::table('sales_renewal_orders')->where('sales_order_id', $orderId)->exists()
+                && config('sales.renewal_enabled', false) !== true) {
+                throw ValidationException::withMessages(['renewal' => 'Renewal payment is not enabled.']);
+            }
             $existing = DB::table('sales_bank_payment_claims')->where('telegram_message_key', $messageKey)->first();
 
             if ($existing !== null && (int) $existing->buyer_user_id === $buyerId

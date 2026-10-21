@@ -7,6 +7,7 @@ namespace App\Modules\Provisioning\Jobs;
 use App\Modules\Billing\Application\VerifyWalletOrderDebit;
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
 use App\Modules\Provisioning\Application\FulfillPaidPlanOrder;
+use App\Modules\Provisioning\Application\FulfillPaidRenewalOrder;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -38,7 +39,7 @@ final class FulfillPaidPlanOrderJob implements ShouldBeUnique, ShouldQueue
         return 'parsa:fulfillment:'.$this->orderId;
     }
 
-    public function handle(FulfillPaidPlanOrder $fulfill, AssertCatalogManagementAccess $access, ?VerifyWalletOrderDebit $wallet = null): void
+    public function handle(FulfillPaidPlanOrder $fulfill, AssertCatalogManagementAccess $access, ?VerifyWalletOrderDebit $wallet = null, ?FulfillPaidRenewalOrder $renewals = null): void
     {
         try {
             if ($this->actorId > 0) {
@@ -60,12 +61,17 @@ final class FulfillPaidPlanOrderJob implements ShouldBeUnique, ShouldQueue
             } else {
                 return;
             }
-            if ($this->reconcile) {
-                // The lifecycle resolves an uncertain CREATE with GET only.
+            $renewal = DB::table('sales_renewal_orders')->where('sales_order_id', $this->orderId)->exists();
+            if ($renewal) {
+                $handler = $renewals ?? app(FulfillPaidRenewalOrder::class);
+                if ($this->reconcile) {
+                    $handler->reconcile($this->orderId);
+                } else {
+                    $handler->handle($this->orderId);
+                }
+            } elseif ($this->reconcile) {
                 $fulfill->reconcile($this->orderId);
             } else {
-                // Paid settlement, Squad, idempotency and default-OFF flags
-                // are checked again on the worker before any provider POST.
                 $fulfill->handle($this->orderId);
             }
         } catch (Throwable) {

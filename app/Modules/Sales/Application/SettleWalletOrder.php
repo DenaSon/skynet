@@ -74,10 +74,11 @@ final readonly class SettleWalletOrder
                         (int) $order->total_price_rials,
                     );
 
+                $renewal = DB::table('sales_renewal_orders')->where('sales_order_id', $orderId)->exists();
                 if ($settlement === null || $outbox === null || ! $balanced
                     || ! in_array($settlement->method, ['reseller_wallet', 'customer_wallet'], true)
                     || (int) $settlement->amount_rials !== (int) $order->total_price_rials
-                    || $outbox->event_key !== 'sales-order:'.$orderId.':create') {
+                    || $outbox->event_key !== 'sales-order:'.$orderId.($renewal ? ':renew' : ':create')) {
                     throw ValidationException::withMessages(['order' => 'Paid order requires reconciliation.']);
                 }
 
@@ -90,6 +91,19 @@ final readonly class SettleWalletOrder
 
             if (! $reseller && $order->plan_id === null) {
                 throw new AuthorizationException;
+            }
+            $renewal = DB::table('sales_renewal_orders')->where('sales_order_id', $orderId)->first();
+            if ($renewal !== null && config('sales.renewal_enabled', false) !== true) {
+                throw ValidationException::withMessages(['activation' => 'Renewal payment is not enabled.']);
+            }
+            if ($renewal !== null && ! DB::table('sales_orders as source')
+                ->join('provisioning_order_links as links', 'links.sales_order_id', '=', 'source.id')
+                ->join('provisioning_subscriptions as sub', 'sub.id', '=', 'links.provisioning_subscription_id')
+                ->where('source.id', $renewal->source_order_id)
+                ->where('source.buyer_user_id', $buyerId)->where('source.status', 'fulfilled')
+                ->where('sub.id', $renewal->provisioning_subscription_id)->where('sub.state', 'active')
+                ->exists()) {
+                throw ValidationException::withMessages(['activation' => 'Original subscription is not available.']);
             }
             if ($order->plan_id !== null) {
                 // Legacy reseller settlements retain their original contract.
@@ -143,7 +157,7 @@ final readonly class SettleWalletOrder
 
             DB::table('sales_fulfillment_outbox')->insert([
                 'sales_order_id' => $orderId,
-                'event_key' => 'sales-order:'.$orderId.':create',
+                'event_key' => 'sales-order:'.$orderId.($renewal === null ? ':create' : ':renew'),
                 'state' => 'pending',
                 'attempts' => 0,
                 'created_at' => now(),

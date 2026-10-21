@@ -383,6 +383,34 @@ final readonly class TelegramNotificationSender
             return;
         }
 
+        if ($delivery->event_type === 'SubscriptionRenewed') {
+            $orderId = (int) $delivery->order_id;
+            if ($bot !== 'sales' || $orderId < 1) {
+                throw new NotificationUnavailable('invalid_recipient');
+            }
+            $source = DB::table('sales_renewal_orders as renewal')
+                ->join('sales_orders as orders', 'orders.id', '=', 'renewal.sales_order_id')
+                ->join('sales_fulfillment_outbox as outbox', 'outbox.sales_order_id', '=', 'orders.id')
+                ->join('provisioning_order_links as link', 'link.sales_order_id', '=', 'renewal.source_order_id')
+                ->join('provisioning_subscriptions as sub', 'sub.id', '=', 'link.provisioning_subscription_id')
+                ->where('orders.id', $orderId)->where('orders.buyer_user_id', $userId)
+                ->where('orders.status', 'fulfilled')->where('outbox.state', 'completed')
+                ->where('sub.id', DB::raw('renewal.provisioning_subscription_id'))
+                ->where('sub.state', 'active')->value('renewal.source_order_id');
+            if ($source === null) {
+                throw new NotificationUnavailable('renewal_not_complete');
+            }
+            $keyboard = json_encode(['inline_keyboard' => [[
+                ['text' => '📦 سرویس من', 'callback_data' => 'sales:subs:view:'.$source.':0',
+                    'style' => 'primary'],
+            ]]], JSON_THROW_ON_ERROR);
+            $this->text($bot, $chat,
+                "<b>✅ اشتراک شما تمدید شد</b>\n\nسفارش تمدید #{$orderId}\nاعتبار و حجم سرویس قبلی شما به‌روزرسانی شد.",
+                $keyboard, 'HTML');
+
+            return;
+        }
+
         if ($delivery->event_type === 'SubscriptionActivated') {
             $orderId = (int) $delivery->order_id;
             if ($bot !== 'sales' || $orderId < 1) {
