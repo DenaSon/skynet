@@ -376,7 +376,7 @@ $bot->onCallbackQueryData('finance:wallets:{page}', function (Nutgram $bot, stri
 $bot->onCallbackQueryData('finance:wallet:{id}', function (Nutgram $bot, string $id): void {
     app(AdminFinanceWalletUi::class)->detail($bot, $id);
 });
-$bot->onCallbackQueryData('finance:wallet:find', function (Nutgram $bot): void {
+$bot->onCallbackQueryData('finance:find-wallet', function (Nutgram $bot): void {
     app(AdminFinanceWalletUi::class)->find($bot);
 });
 $bot->onCallbackQueryData('finance:topups:{page}', function (Nutgram $bot, string $page): void {
