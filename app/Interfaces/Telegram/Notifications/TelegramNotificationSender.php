@@ -12,6 +12,7 @@ use App\Modules\Billing\Application\ViewWallet;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\TelegramRecipient;
 use App\Modules\Sales\Application\ManualBankPayments;
+use App\Modules\Provisioning\Application\SubscriptionAlertMonitor;
 use App\Modules\Sales\Application\ReviewSalesPanelRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\DB;
@@ -358,6 +359,27 @@ final readonly class TelegramNotificationSender
                 : "❌ رسید سفارش #{$order} رد شد. در صورت نیاز می‌توانید رسید جدید بفرستید.";
 
             $this->text($bot, $chat, $text);
+
+            return;
+        }
+
+        if (in_array($delivery->event_type, ['SubscriptionExpiry24h', 'SubscriptionExpiry1h', 'SubscriptionLowTraffic'], true)) {
+            if ($bot !== 'sales' || (int) $delivery->order_id < 1) {
+                throw new NotificationUnavailable('invalid_recipient');
+            }
+
+            $message = app(SubscriptionAlertMonitor::class)->messageFor($delivery);
+            if ($message === null) {
+                throw new NotificationUnavailable('stale_subscription');
+            }
+
+            // Always open the existing authenticated Sales service detail.
+            // No credential or remote identifier is placed in callback data.
+            $orderId = (int) $delivery->order_id;
+            $keyboard = json_encode(['inline_keyboard' => [[
+                ['text' => '📋 سرویس من', 'callback_data' => 'sales:subs:view:'.$orderId.':0'],
+            ]]], JSON_THROW_ON_ERROR);
+            $this->text($bot, $chat, $message, $keyboard, 'HTML');
 
             return;
         }
