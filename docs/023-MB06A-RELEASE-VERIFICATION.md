@@ -1,5 +1,11 @@
 # MB-06A — Admin foundation offline release & operator verification
 
+## Current prelaunch evidence — 2026-10-21
+
+PATCH-01 is merged as [#165](https://github.com/DenaSon/skynet/pull/165) (`df275eef`); PATCH-02 is merged as [#166](https://github.com/DenaSon/skynet/pull/166) (`e3b1623f`). [Post-merge master CI](https://github.com/DenaSon/skynet/actions/runs/39647346184) passed PHP 8.4/8.5 regression, PHPStan/Pint, MySQL migration/rollback and wallet contention, plus actual Redis queue/worker and legacy database-drain smoke. PATCH-02's PHP suites each passed 735 tests / 4,724 assertions. Its merged tree equals the tested tree `38f0716bc18a61f183cfc552c42b48ecc4cbb41b`.
+
+Source/CI is complete for both patches. Post-deploy acceptance still needs effective queue/worker configuration, worker restart, scheduler execution, old DB-backlog handling and controlled activation/customer-delivery evidence for the new paths. Use [current context](000-CONTEXT.md) and [queue runbook](021-MB05A-NOTIFICATION-OPERATIONS.md). Older MB-06A flags, worker process snapshots and test results below retain their original dated scope; they are not a current Production configuration or a fresh live acceptance.
+
 **Scope:** Provider-independent regression and rollout checkpoint of [approved MB-06A](018-REMNAWAVE-STAGING-MULTIBOT-ROADMAP.md). PR #59. The code is **not** proof of actual Telegram/BotFather or production acceptance. Admin Bot still carries old member/reseller flows; the Sales Bot is a non-public technical shell.
 
 ## Production operator evidence — 2026-10-16 (ParsaGate, not legacy NVL Core)
@@ -89,7 +95,7 @@ php artisan queue:failed
 php artisan route:list --path=api/telegram
 ```
 
-The `telegram:ops:status` command is **read only**: it prints no tokens, user IDs, file IDs, bank references, addresses or media. It reports whether delivery, Sales runtime and provider writes are enabled, pending DB jobs, Admin/Sales webhook failures and expired processing leases, reachable private contacts, each notification state (including `suppressed`), due recoveries, failed jobs, provisioning `needs_review` and unconsumed fulfillment intents. Missing schema returns failure; never infer live worker health from zero pending jobs.
+The `telegram:ops:status` command is **read only**: it prints no tokens, user IDs, file IDs, bank references, addresses or media. It reports whether delivery, Sales runtime and provider writes are enabled, the selected provider queue driver, `Database queue backlog (including legacy jobs)`, Admin/Sales webhook failures and expired processing leases, reachable private contacts, each notification state (including `suppressed`), due recoveries, failed jobs, provisioning `needs_review` and unconsumed fulfillment intents. Missing schema returns failure. This local snapshot does not inspect Redis depth or establish worker uptime; inspect the active worker and any remaining legacy database worker separately.
 
 Review the environment configuration **without printing secret values**: Admin token/secret must be provisioned, Sales runtime remains OFF, `TELEGRAM_NOTIFICATIONS_ENABLED` OFF until queue/two-token smoke passes, `REMNAWAVE_WRITES_ENABLED` OFF, `REMNAWAVE_ADMIN_READS_VERIFIED` and `REMNAWAVE_SQUAD_BINDINGS_LIVE_VERIFIED` OFF until actual panel validation.
 

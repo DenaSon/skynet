@@ -1,5 +1,13 @@
 # MB-05A — Durable Telegram delivery / recovery
 
+## Current prelaunch queue checkpoint — 2026-10-21
+
+PATCH-01 [#165](https://github.com/DenaSon/skynet/pull/165) and PATCH-02 [#166](https://github.com/DenaSon/skynet/pull/166) are merged with source/CI complete; [post-merge master CI](https://github.com/DenaSon/skynet/actions/runs/39647346184) passed PHP 8.4/8.5, MySQL and real Redis-worker checks. The older MB-05A implementation notes below describe that phase's baseline. Current completion and remaining live acceptance are recorded in [docs/000](000-CONTEXT.md).
+
+Notification jobs use the application's default queue. Both provider job types now select that default when its driver is `redis` or `database`; unsupported defaults fall back to a real database worker, or fail closed if that fallback is misconfigured. Check the effective configuration and actual worker connection/queue, then restart long-lived workers through the deployment's normal process management after release. Keep the minute scheduler running for both `telegram:notifications:dispatch` and `sales:fulfillment:dispatch`.
+
+Existing serialized database jobs retain their original backend. If a database backlog remains after Redis adoption, supervise a worker on its original database connection/queue until it drains, using one try for provider jobs; preserve queued payloads and financial/provider evidence. Shared scheduler/worker cache must support the existing unique locks (180-second provider-job TTL). Provider recovery checks the committed settlement and untouched intent; a previously reserved/uncertain CREATE requires the existing operator investigation/GET-only reconciliation.
+
 **Implementation checkpoint:** PR #57 (code/offline only); no live two-bot send or BotFather webhook change is claimed. Sales Bot remains OFF by default.
 
 ## Boundaries and correctness
@@ -15,12 +23,11 @@
 
 ## Operator setup (after database migration, queue and two non-public bot tests)
 
-1. Verify the migration `2026_10_15_000003_create_telegram_notification_deliveries` is applied and `telegram_bot_contacts` exists. Keep `TELEGRAM_SALES_ENABLED=false` until an independent Sales cutover is approved.
-2. Run the existing Laravel **database queue worker** on the deployment (e.g. `php artisan queue:work database --queue=default` under the usual process supervisor) and the existing Scheduler (`php artisan schedule:run` every minute). Do not run polling against an active webhook.
+1. Verify the migration `2026_10_15_000003_create_telegram_notification_deliveries` is applied and `telegram_bot_contacts` exists. Preserve the already approved Admin/Sales token and webhook configuration; the prelaunch patches do not require a token switch.
+2. Run the existing Laravel worker for the **effective default connection and configured queue** under the deployment's process supervisor (for a queue named `default`, e.g. `php artisan queue:work --queue=default --tries=1 --timeout=60`). This consumes Redis when `QUEUE_CONNECTION=redis`; check any explicit connection in the startup command and drain remaining legacy database jobs separately. Keep the existing Scheduler (`php artisan schedule:run` every minute). Do not run polling against an active webhook.
 3. After fake-endpoint tests and a real **non-public** Admin Telegram smoke, set `TELEGRAM_NOTIFICATIONS_ENABLED=true` in persistent deployment env; redeploy/rebuild config cache via the standard pipeline. Events created earlier in the disabled compatibility mode remain `suppressed` and **must not be replayed**. New events use the durable delivery worker. No tokens or bank details in Git, tickets, logs or test screenshots.
 4. `php artisan telegram:notifications:dispatch` enqueues at most 50 due pending/expired-lease events manually; Scheduler runs it every minute for recovery. This is a fallback; immediate enqueue happens after the originating DB transaction commits. `available_at` provides exponential backoff, capped at 5 attempts. Statuses: `suppressed` (legacy direct-send mode; not retryable), `pending`, `processing`, `sent`, `dead`, `unavailable`.
-5. To inspect counts **without PII**, run:
-   `php artisan tinker --execute='dump(DB::table("telegram_notification_deliveries")->select("state", DB::raw("count(*) as count"))->groupBy("state")->get());'`
+5. To inspect counts **without PII**, run `php artisan telegram:ops:status`. It reports the selected provider driver, `Database queue backlog (including legacy jobs)`, notification delivery states and fulfillment review/pending counts. It does not connect to Redis or measure its queue depth; a zero database backlog does not establish active-worker health.
 6. Fix the underlying bot/contact/queue issue first. Operator-only manual resubmission for a `dead` or `unavailable` delivery: `php artisan telegram:notifications:dispatch --retry-id=123`. This **retries the notification only**; it cannot create another bank settlement. Do not retry a `sent` row, and be aware of message duplication when prior Telegram acceptance was ambiguous.
 7. To pause outbound traffic, change `TELEGRAM_NOTIFICATIONS_ENABLED=false` in the persistent deployment environment. The outbox remains intact and resumes on re-enable; do **not** truncate it.
 
@@ -34,10 +41,10 @@
 Do not conflate CI fake Telegram responses with a real two-token BotFather delivery.
 
 
-## UXR-03 notification extension (source PRs #130–#132; release flags still OFF)
+## UXR-03 notification extension (source PRs #130–#132; updated through PATCH-02)
 
-- ReceiptSubmitted now supports an Admin-photo message showing plan, amount and the **two direct operator decisions** when `SALES_ONE_CLICK_BANK_REVIEW_ENABLED=true`; legacy multistep bank verification remains when false. Admin review always requires actual independent bank-statement checking.
+- ReceiptSubmitted shows the Admin photo, plan, amount and **two final Approve/Reject actions**. Approval checks the one-click/automatic-activation/customer-notice gates and current plan/Squad readiness; the operator still independently verifies the actual bank transfer. CLOSE-01 retired the old multistep bank-confirmation routes; an unavailable approval gate does not restore those routes.
 - A Sales-origin photo cannot be forwarded via its foreign `file_id`; use the existing secure reupload and keep `/payments` as the operational fallback. When durable delivery is enabled, do not also send a legacy best-effort duplicate.
-- Approved bank payment optionally enqueues the existing fulfillment job **after commit**; `sales:fulfillment:dispatch` runs every minute as recovery for genuinely paid pending bank orders only. It does not call Remnawave.
+- Approved bank payment and genuine managed-plan customer-wallet settlement enqueue the existing fulfillment job **after commit** when the existing gates allow it. `sales:fulfillment:dispatch` recovers up to 20 untouched pending intents per payment method each minute: paid managed orders, zero attempts, exact event key, unique verified settlement source and no prior provider operation/subscription/link. Wallet recovery verifies Billing postings and uses actor 0; bank jobs freshly recheck the recorded reviewer's root authority. Recovery itself performs no Remnawave request or wallet debit.
 - `SubscriptionActivated` is a unique existing-outbox delivery for a fulfilled, locally linked, active owned service; always target an independently reachable Sales Bot contact. Final messages include a private callback to the existing owner-authorized connection action, never a subscription token in callback data.
-- Keep `TELEGRAM_NOTIFICATIONS_ENABLED`, `SALES_ONE_CLICK_BANK_REVIEW_ENABLED`, `SALES_AUTO_FULFILLMENT_ENABLED` and RW write flags **OFF until separate live sign-off**. Failure of notification does not reverse settlement or create a second RW account. Record sanitized status counts and exact staging/real delivery evidence separately from CI.
+- The operator-approved defaults in #137 make `SALES_ONE_CLICK_BANK_REVIEW_ENABLED`, `SALES_AUTO_FULFILLMENT_ENABLED`, `REMNAWAVE_WRITES_ENABLED` and `REMNAWAVE_SQUAD_BINDINGS_LIVE_VERIFIED` true only when their ENV keys are absent; explicit false still wins. Sales/notification, wallet-settlement and manual-bank gates retain their separate configuration. Inspect effective values without printing tokens. Failure of notification does not reverse settlement or create a second RW account. Record actual delivery/activation evidence separately from CI.
