@@ -153,6 +153,30 @@ it('rejects a topup without credit and denies revoked, non-root or nonprivate ac
     expect(DB::table('billing_journals')->count())->toBe(0);
 });
 
+it('reuploads a private Sales top-up photo to Admin using the existing protected bridge', function (): void {
+    $root = fin01Admin();
+    $buyer = User::factory()->create();
+    $bot = fin01Bot(987601, $root);
+    $id = app(RequestTopup::class)->handle($buyer->id, 720000, 'fin01:admin:topup4');
+    app(SubmitTopupPhoto::class)->handle($buyer->id, $id, 991004, 'secure-sales-file-id', 'secure-sales-photo-id', 126);
+
+    $image = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNgYGAAAAAEAAH2FzhVAAAAAElFTkSuQmCC', true);
+    expect($image)->toBeString();
+    Http::fake([
+        'https://api.telegram.org/bot12345678:sales-secret/getFile' => Http::response([
+            'ok' => true, 'result' => ['file_path' => 'photos/topup.png', 'file_size' => strlen($image)],
+        ]),
+        'https://api.telegram.org/file/bot12345678:sales-secret/photos/topup.png' => Http::response($image, 200, ['Content-Type' => 'image/png']),
+        'https://api.telegram.org/bot87654321:admin-secret/sendPhoto' => Http::response(['ok' => true, 'result' => ['message_id' => 1001]]),
+    ]);
+
+    $bot->hearCallbackQueryData('finance:topup:photo:'.$id)->reply()->assertCalled('answerCallbackQuery');
+    Http::assertSent(static fn ($request): bool => str_contains($request->url(), '/bot12345678:sales-secret/getFile'));
+    Http::assertSent(static fn ($request): bool => str_contains($request->url(), '/bot87654321:admin-secret/sendPhoto'));
+    expect(DB::table('billing_topups')->where('id', $id)->value('status'))->toBe('submitted')
+        ->and(DB::table('billing_postings')->count())->toBe(0);
+});
+
 it('does not expose a photo when Sales-to-Admin secure transfer is unavailable', function (): void {
     $root = fin01Admin();
     $buyer = User::factory()->create();
