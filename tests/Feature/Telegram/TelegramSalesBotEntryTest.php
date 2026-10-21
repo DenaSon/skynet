@@ -69,7 +69,9 @@ it('uses current roles without making Admin or legacy checkout routes available 
         "<b>🏠 DenaGate</b>\n\nخوش آمدید، Dealer Ignored.\nنوع حساب: <b>👤 کاربر عادی</b>"
     );
 
-    foreach (['/admin', '/roles', '/payments', '/buy'] as $command) {
+    // MENU-01 exposes only the existing safe plan-list view via /buy.
+    $bot->hearText('/buy')->reply()->assertReply('sendMessage', ['parse_mode' => 'HTML']);
+    foreach (['/admin', '/roles', '/payments'] as $command) {
         $bot->hearText($command)->reply()->assertReplyText('برای ادامه، یکی از دکمه‌های منو را انتخاب کنید.');
     }
     foreach (['menu:admin:users', 'rbac:apply:forged', 'shop:order:forged'] as $callback) {
