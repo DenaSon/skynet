@@ -370,7 +370,7 @@ final readonly class AdminFinanceWalletUi
         }
         try {
             return $this->photos->photo($rootId, (int) $id);
-        } catch (ValidationException|Throwable) {
+        } catch (Throwable) {
             return null;
         }
     }
