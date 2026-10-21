@@ -263,6 +263,8 @@ it('keeps Sales identity, navigation and buyer routes isolated from Admin callba
         'callback:sales:checkout:preview:{id}:{days}:{gb}',
         'callback:sales:checkout:new:{source}',
         'callback:sales:checkout:commit:{token}',
+        'callback:sales:checkout:wallet:confirm:{id}:{token}',
+        'callback:sales:checkout:wallet:{id}',
         'callback:sales:checkout:orders',
         'callback:sales:checkout:view:{id}',
         'callback:sales:payment:start:{id}',
