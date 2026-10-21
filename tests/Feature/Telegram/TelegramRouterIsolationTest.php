@@ -187,6 +187,14 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
         'SHARED' => 'app/Interfaces/Telegram/routes/shared.php',
     ];
 
+    // CLOSE-01 removes the legacy typed bank review routes from the Admin
+    // registry while preserving the immutable historical MB-01 inventory.
+    $expected['ADMIN'] = array_values(array_diff($expected['ADMIN'], [
+        'command:bankconfirm {claim} {reference}',
+        'callback:bank:choose:{claim}:{decision}',
+        'callback:bank:apply:{token}',
+    ]));
+
     foreach ($files as $owner => $path) {
         $actual = mb03Registrations($path);
         sort($expected[$owner]);
@@ -204,8 +212,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(202)
-        ->and(count(array_unique($legacy)))->toBe(202);
+        ->and(count($legacy))->toBe(199)
+        ->and(count(array_unique($legacy)))->toBe(199);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {

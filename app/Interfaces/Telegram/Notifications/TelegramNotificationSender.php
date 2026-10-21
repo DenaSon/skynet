@@ -71,13 +71,10 @@ final readonly class TelegramNotificationSender
                 ."\nپلن: ".mb_substr((string) $row->productName, 0, 60)
                 ."\nمبلغ: ".number_format(intdiv($row->amountRials + 9, 10)).' تومان'
                 ."\n\n⚠️ فقط پس از بررسی گردش واقعی بانک تأیید کنید.";
-            $direct = config('sales.one_click_bank_review_enabled', false) === true;
             $buttons = json_encode([
-                'inline_keyboard' => [$direct ? [
+                'inline_keyboard' => [[
                     ['text' => '✅ تأیید پرداخت', 'callback_data' => 'bank:decide:'.$claimId.':a'],
                     ['text' => '❌ رد رسید', 'callback_data' => 'bank:decide:'.$claimId.':r'],
-                ] : [
-                    ['text' => '🧾 بررسی رسید', 'callback_data' => 'bank:show:'.$claimId],
                 ]],
             ], JSON_THROW_ON_ERROR);
 
@@ -186,12 +183,10 @@ final readonly class TelegramNotificationSender
         }
 
         $row = $this->payments->detail($rootId, $claimId);
-        $direct = config('sales.one_click_bank_review_enabled', false) === true;
-        $callback = $direct ? 'bank:decide:' : 'bank:choose:';
         $keyboard = json_encode([
             'inline_keyboard' => [[
-                ['text' => $direct ? '✅ تأیید پرداخت' : '✅ بررسی تأیید', 'callback_data' => $callback.$claimId.':a'],
-                ['text' => '❌ رد رسید', 'callback_data' => $callback.$claimId.':r'],
+                ['text' => '✅ تأیید پرداخت', 'callback_data' => 'bank:decide:'.$claimId.':a'],
+                ['text' => '❌ رد رسید', 'callback_data' => 'bank:decide:'.$claimId.':r'],
             ]],
         ], JSON_THROW_ON_ERROR);
 

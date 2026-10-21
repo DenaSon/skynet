@@ -1,4 +1,4 @@
-# ParsaGate — Current Context / Development Memory 
+## CLOSE-01 — One-decision receipt-to-activation source (2026-10-21)\n\nOperator rejected the previous live flow because it still required `/bankconfirm` then `/fulfillment`. Latest source scope removes typed/multi-step Admin review and manual pending CREATE UI; receipt photo always offers final Approve/Reject; approve is fail-closed when the existing opt-in single-click, automatic fulfillment, RW write/Squad and Sales notification readiness flags are OFF. Normal approval commits existing bank journal and queues existing safe RW fulfillment after DB commit; activation sent only after actual RW success. Reject notifies via existing durable outbox. Existing old review tokens are unregistered, provider reconciliation remains exceptional; real Production rollout and bank/Provider tests require separate authority. See [docs/026](026-SALES-UX-ROADMAP.md).\n\n# ParsaGate — Current Context / Development Memory 
 
 
 ## UXR-05 — official RW Subscription Page app integration (2026-10-21)

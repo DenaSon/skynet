@@ -5,6 +5,7 @@ use App\Interfaces\Telegram\Notifications\TelegramNotificationSender;
 use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
+use App\Modules\Provisioning\Jobs\FulfillPaidPlanOrderJob;
 use App\Modules\Sales\Application\CalculatePlanQuote;
 use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\CreatePendingPlanOrder;
@@ -275,7 +276,8 @@ it('gates the one-click operator attestation and settles only once with an inter
 it('renders direct review actions in the durable Admin receipt alert without leaking Sales file IDs', function (): void {
     $data = sb04Order();
     config()->set('sales.manual_bank_review_enabled', true);
-    config()->set('sales.one_click_bank_review_enabled', true);
+    // Direct actions are the only available buttons even before rollout.
+    config()->set('sales.one_click_bank_review_enabled', false);
     config()->set('telegram_notifications.enabled', true);
     config()->set('telegram.sales.enabled', true);
     Queue::fake();
@@ -304,4 +306,84 @@ it('renders direct review actions in the durable Admin receipt alert without lea
     Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '12345:admin_test/sendPhoto')
         && str_contains($request->body(), 'bank:decide:'.$claimId.':a')
         && str_contains($request->body(), 'bank:decide:'.$claimId.':r'));
+});
+
+it('requires all gates before final approval and then queues one automatic RW activation without an Admin command', function (): void {
+    $data = sb04Order();
+    config()->set('sales.manual_bank_review_enabled', true);
+    config()->set('telegram_notifications.enabled', true);
+    config()->set('telegram.sales.enabled', true);
+    Queue::fake();
+    $claim = app(ManualBankPayments::class)->submit(
+        SubscriptionViewer::telegram(974099), $data['order'],
+        'sale-test-receipt-a', 'sale-test-unique-a', 702, 'sales',
+    );
+
+    $admin = Nutgram::fake();
+    (static function (Nutgram $bot): void {
+        require base_path('app/Interfaces/Telegram/routes/admin.php');
+    })($admin);
+    $admin->setCommonUser(TelegramUser::make(974001, false, 'Root'));
+    $admin->setCommonChat(Chat::make(974001, ChatType::PRIVATE));
+
+    // The former choose/bankconfirm path is gone. No writes when not ready.
+    $admin->hearCallbackQueryData('bank:decide:'.$claim.':a')->reply()
+        ->assertCalled('editMessageText');
+    expect(DB::table('sales_orders')->where('id', $data['order'])->value('status'))->toBe('pending_payment')
+        ->and(DB::table('billing_journals')->count())->toBe(0)
+        ->and(DB::table('sales_bank_payment_claims')->where('id', $claim)->value('status'))->toBe('submitted');
+    Queue::assertNotPushed(FulfillPaidPlanOrderJob::class);
+
+    config()->set('sales.one_click_bank_review_enabled', true);
+    config()->set('sales.auto_fulfillment_enabled', true);
+    config()->set('services.remnawave.writes_enabled', true);
+    config()->set('services.remnawave.squad_bindings_live_verified', true);
+
+    $admin->hearCallbackQueryData('bank:decide:'.$claim.':a')->reply()
+        ->assertCalled('editMessageText');
+    expect(DB::table('sales_orders')->where('id', $data['order'])->value('status'))->toBe('paid')
+        ->and(DB::table('sales_bank_payment_claims')->where('id', $claim)->value('status'))->toBe('approved')
+        ->and(DB::table('sales_bank_settlements')->count())->toBe(1)
+        ->and(DB::table('billing_journals')->count())->toBe(1);
+    Queue::assertPushed(
+        FulfillPaidPlanOrderJob::class,
+        static fn ($job): bool => $job->orderId === $data['order'] && $job->actorId === $data['root']->id,
+    );
+
+    $admin->hearCallbackQueryData('bank:decide:'.$claim.':a')->reply()
+        ->assertCalled('editMessageText');
+    $admin->hearCallbackQueryData('bank:decide:'.$claim.':r')->reply()
+        ->assertCalled('editMessageText');
+    expect(DB::table('billing_journals')->count())->toBe(1)
+        ->and(DB::table('sales_payment_review_audits')->count())->toBe(1)
+        ->and(DB::table('sales_bank_settlements')->count())->toBe(1);
+    Http::assertNothingSent();
+});
+
+it('finishes receipt rejection with one button and never enqueues provider creation', function (): void {
+    $data = sb04Order();
+    config()->set('sales.manual_bank_review_enabled', true);
+    config()->set('telegram_notifications.enabled', true);
+    config()->set('telegram.sales.enabled', true);
+    Queue::fake();
+    $claim = app(ManualBankPayments::class)->submit(
+        SubscriptionViewer::telegram(974099), $data['order'],
+        'sale-test-receipt-r', 'sale-test-unique-r', 703, 'sales',
+    );
+    $admin = Nutgram::fake();
+    (static function (Nutgram $bot): void {
+        require base_path('app/Interfaces/Telegram/routes/admin.php');
+    })($admin);
+    $admin->setCommonUser(TelegramUser::make(974001, false, 'Root'));
+    $admin->setCommonChat(Chat::make(974001, ChatType::PRIVATE));
+    $admin->hearCallbackQueryData('bank:decide:'.$claim.':r')->reply()
+        ->assertCalled('editMessageText');
+
+    expect(DB::table('sales_bank_payment_claims')->where('id', $claim)->value('status'))->toBe('rejected')
+        ->and(DB::table('sales_orders')->where('id', $data['order'])->value('status'))->toBe('pending_payment')
+        ->and(DB::table('sales_bank_settlements')->count())->toBe(0)
+        ->and(DB::table('telegram_notification_deliveries')->where('event_type', 'PaymentReviewed')->count())->toBe(1);
+    Queue::assertNotPushed(
+        FulfillPaidPlanOrderJob::class,
+    );
 });

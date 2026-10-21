@@ -306,18 +306,13 @@ it('delivers no remote write during Admin confirmation and queues only the trust
     $bot->hearText('/fulfillment')->reply()->assertCalled('sendMessage');
     $bot->hearCallbackQueryData('full:prepare:'.$data['order'].':start')->reply()
         ->assertCalled('editMessageText');
-    // The issued confirmation token exists in cache and is not derived from the
-    // buyer/order identifier. Obtain it only from the fake outbound keyboard.
+    // The old manual CREATE confirmation is gone, even for a paid
+    // pending order. Only automatic dispatch or explicit GET reconciliation
+    // is allowed in the new Admin UX.
     $bot->hearCallbackQueryData('full:view:'.$data['order'])->reply()->assertCalled('editMessageText');
-    expect(DB::table('sales_fulfillment_outbox')->value('state'))->toBe('pending');
+    expect(DB::table('sales_fulfillment_outbox')->value('state'))->toBe('pending')
+        ->and(DB::table('provisioning_subscriptions')->count())->toBe(0);
     Queue::assertNothingPushed();
-    Http::assertNothingSent();
-
-    $reader = app(ReviewPaidFulfillment::class);
-    expect($reader->authorizeRequest($data['root']->id, $data['order'], false)->id)->toBe($data['order']);
-    FulfillPaidPlanOrderJob::dispatch($data['order'], false, $data['root']->id);
-    Queue::assertPushed(FulfillPaidPlanOrderJob::class, static fn (FulfillPaidPlanOrderJob $job): bool => $job->actorId === $data['root']->id);
-    expect(DB::table('provisioning_subscriptions')->count())->toBe(0);
     Http::assertNothingSent();
 });
 

@@ -10,7 +10,6 @@ use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Identity\Application\SuperAdminTrust;
 use App\Modules\Identity\Application\TelegramActor;
-use App\Modules\Identity\Application\TelegramRecipient;
 use App\Modules\Sales\Application\ManualBankPayments;
 use App\Modules\Sales\Application\OrderReader;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -29,11 +28,9 @@ final readonly class ManualPaymentUi
         private PrivateTelegramUser $private,
         private ResolveTelegramActor $actors,
         private SuperAdminTrust $trust,
-        private TelegramRecipient $recipients,
         private TelegramNotificationSender $sender,
         private ManualBankPayments $payments,
         private OrderReader $orders,
-        private PaymentDecisionTokens $tokens,
         private MenuRenderer $menus,
     ) {}
 
@@ -228,8 +225,19 @@ final readonly class ManualPaymentUi
                 $messageId,
                 TelegramBotContext::current()->key,
             );
-        } catch (ValidationException|AuthorizationException|UniqueConstraintViolationException) {
-            $this->notice($bot, 'این رسید تکراری است یا سفارش دیگر قابل پرداخت نیست. از «سفارش‌های من» وضعیت را بررسی کنید.');
+        } catch (ValidationException $e) {
+            $errors = $e->errors();
+            $reason = $errors['receipt'][0] ?? null;
+            $message = match ($reason) {
+                'This order already has a receipt pending review.' => 'رسید این سفارش قبلاً دریافت شده و در انتظار بررسی است.',
+                'This receipt was already submitted.' => 'این تصویر قبلاً برای یک رسید ثبت شده است؛ تصویر جدید ارسال کنید.',
+                default => 'سفارش دیگر قابل پرداخت نیست یا تصویر معتبر نیست. وضعیت سفارش را در «سوابق خرید» بررسی کنید.',
+            };
+            $this->notice($bot, $message);
+
+            return;
+        } catch (AuthorizationException|UniqueConstraintViolationException) {
+            $this->notice($bot, 'این سفارش قابل پرداخت نیست یا قبلاً رسید دریافت شده است. «سوابق خرید» را بررسی کنید.');
 
             return;
         }
@@ -360,12 +368,26 @@ final readonly class ManualPaymentUi
             return;
         }
         $id = $this->parseId($claim);
-        if (config('sales.one_click_bank_review_enabled', false) !== true
-            || $id === null || ! in_array($choice, ['a', 'r'], true)) {
+        if ($id === null || ! in_array($choice, ['a', 'r'], true)) {
             $this->notice($bot, 'درخواست معتبر نیست. رسیدها را دوباره بررسی کنید.');
 
             return;
         }
+        if (config('telegram_notifications.enabled', false) !== true
+            || config('telegram.sales.enabled', false) !== true) {
+            $this->notice($bot, 'ارسال نتیجه بررسی به مشتری هنوز آماده نیست. رسید در انتظار بررسی باقی مانده است.');
+
+            return;
+        }
+
+        // Never commit a bank settlement into a paid-but-stuck order: the
+        // one-decision path is enabled only when queued activation can start.
+        if ($choice === 'a' && ! $this->automaticActivationReady()) {
+            $this->notice($bot, 'تأیید پرداخت انجام نشد؛ فعال‌سازی خودکار هنوز آماده نیست. رسید در انتظار بررسی باقی مانده است.');
+
+            return;
+        }
+
         try {
             $result = $this->payments->review($actor->userId, $id, $choice === 'a');
         } catch (AuthorizationException|ValidationException|UniqueConstraintViolationException) {
@@ -373,13 +395,8 @@ final readonly class ManualPaymentUi
 
             return;
         }
-        $autoReady = config('sales.auto_fulfillment_enabled', false) === true
-            && config('services.remnawave.writes_enabled') === true
-            && config('services.remnawave.squad_bindings_live_verified') === true;
         $message = $result->approved
-            ? ($autoReady
-                ? "✅ پرداخت سفارش #{$result->orderId} تأیید شد.\nاشتراک در حال آماده‌سازی است."
-                : "✅ پرداخت سفارش #{$result->orderId} تأیید شد.\nدرخواست فعال‌سازی ثبت شد.")
+            ? "✅ پرداخت سفارش #{$result->orderId} تأیید شد.\nاشتراک در حال آماده‌سازی است."
             : "❌ رسید سفارش #{$result->orderId} رد شد.\nمشتری می‌تواند رسید جدیدی ارسال کند.";
         try {
             if (($bot->message()->photo ?? []) !== []) {
@@ -389,147 +406,6 @@ final readonly class ManualPaymentUi
             }
         } catch (Throwable) {
             // The committed settlement/rejection must not be undone by Telegram.
-        }
-        if (config('telegram_notifications.enabled', false) !== true) {
-            $recipient = $this->recipients->forActiveUser($result->buyerUserId);
-            if ($recipient !== null) {
-                try {
-                    $bot->sendMessage(text: $message, chat_id: $recipient, protect_content: true);
-                } catch (Throwable) {
-                    // Buyer can still read the authoritative order state.
-                }
-            }
-        }
-    }
-
-    public function choose(Nutgram $bot, string $claim, string $choice): void
-    {
-        $actor = $this->root($bot);
-        if ($actor === null) {
-            return;
-        }
-
-        $id = $this->parseId($claim);
-
-        if ($id === null || in_array($choice, ['a', 'r'], true) === false) {
-            $this->notice($bot, 'درخواست معتبر نیست.');
-
-            return;
-        }
-
-        try {
-            $row = $this->payments->detail($actor->userId, $id);
-        } catch (AuthorizationException|ValidationException) {
-            $this->notice($bot, 'این درخواست قبلاً بررسی شده یا دیگر معتبر نیست.');
-
-            return;
-        }
-
-        if (($bot->message()->photo ?? []) !== []) {
-            Cache::put(TelegramBotContext::current()->cacheKey('telegram:bankreview:origin:'.$actor->userId.':'.$id), $bot->message()->message_id, now()->addMinutes(10));
-        }
-
-        if ($choice === 'a') {
-            $this->render($bot, "✅ بررسی تأیید رسید #{$id}\n\nبرای تأیید، ابتدا مبلغ و شناسه تراکنش را از گردش واقعی بانک بررسی کنید و در همین گفت‌وگو بنویسید:\n/bankconfirm {$id} BANK123456\n\nشناسه تصویر کاربر به‌تنهایی کافی نیست.", $this->backKeyboard());
-
-            return;
-        }
-
-        $token = $this->tokens->issue($actor->userId, $id, false, null, $bot->message()?->message_id);
-        $this->render($bot, "⚠️ رد رسید #{$id}\n\nسفارش #{$row->orderId}، مبلغ ".number_format(intdiv($row->amountRials + 9, 10))." تومان\n\nرد این رسید بدون تغییر وضعیت پرداخت سفارش ثبت می‌شود.", InlineKeyboardMarkup::make()
-            ->addRow(InlineKeyboardButton::make('❌ تأیید نهایی رد', callback_data: 'bank:apply:'.$token))
-            ->addRow(InlineKeyboardButton::make('انصراف', callback_data: 'bank:list')));
-    }
-
-    public function bankConfirm(Nutgram $bot, string $claim, string $reference): void
-    {
-        $actor = $this->root($bot);
-        if ($actor === null) {
-            return;
-        }
-
-        $id = $this->parseId($claim);
-
-        if ($id === null || preg_match('/\A[A-Za-z0-9_-]{6,64}\z/D', $reference) !== 1) {
-            $this->notice($bot, 'شناسه بانکی معتبر نیست. مثال: /bankconfirm 12 BANK123456');
-
-            return;
-        }
-
-        try {
-            $row = $this->payments->detail($actor->userId, $id);
-        } catch (AuthorizationException|ValidationException) {
-            $this->notice($bot, 'این رسید دیگر قابل بررسی نیست.');
-
-            return;
-        }
-
-        $reference = strtoupper($reference);
-        $origin = Cache::get(TelegramBotContext::current()->cacheKey('telegram:bankreview:origin:'.$actor->userId.':'.$id));
-        $token = $this->tokens->issue($actor->userId, $id, true, $reference, is_int($origin) ? $origin : null);
-        $keyboard = InlineKeyboardMarkup::make()
-            ->addRow(InlineKeyboardButton::make('✅ تأیید نهایی پرداخت', callback_data: 'bank:apply:'.$token))
-            ->addRow(InlineKeyboardButton::make('انصراف', callback_data: 'bank:list'));
-
-        $this->render($bot, "⚠️ تأیید نهایی تراکنش\n\nسفارش #{$row->orderId} · رسید #{$id}\nمبلغ: ".number_format(intdiv($row->amountRials + 9, 10))." تومان\nشناسه تطبیق‌داده‌شده: {$reference}\n\nاین تأیید یک‌بارمصرف و ۳ دقیقه معتبر است و فقط در صورت واریز واقعی باید انجام شود.", $keyboard);
-    }
-
-    public function apply(Nutgram $bot, string $token): void
-    {
-        $actor = $this->root($bot);
-        if ($actor === null) {
-            return;
-        }
-
-        $decision = $this->tokens->consume($actor->userId, $token);
-
-        if ($decision === null) {
-            $this->notice($bot, 'تأیید منقضی یا قبلاً مصرف شده است.');
-
-            return;
-        }
-
-        try {
-            $result = $this->payments->review(
-                $actor->userId, $decision['claim'], $decision['approve'], $decision['reference'],
-            );
-        } catch (AuthorizationException|ValidationException|UniqueConstraintViolationException) {
-            $this->notice($bot, 'درخواست تغییر کرده یا شناسه تراکنش قبلاً استفاده شده است. دوباره بررسی کنید.');
-
-            return;
-        }
-
-        $message = $result->approved
-            ? "✅ پرداخت سفارش #{$result->orderId} تأیید شد.\nدرخواست فعال‌سازی ثبت شد؛ سرویس هنوز ساخته نشده است."
-            : "❌ رسید سفارش #{$result->orderId} رد شد.\nدر صورت نیاز می‌توانید رسید صحیح دیگری بفرستید.";
-
-        $this->notice($bot, $message);
-
-        if ($decision['approve'] && is_int($decision['photo_message_id']) && $decision['photo_message_id'] > 0) {
-            try {
-                TelegramUi::editCaption(
-                    $bot,
-                    "✅ پرداخت سفارش #{$result->orderId} تأیید شد.\nشناسه رسید #{$decision['claim']}\nدر انتظار فعال‌سازی.",
-                    InlineKeyboardMarkup::make(),
-                    $this->private->id($bot),
-                    $decision['photo_message_id'],
-                );
-            } catch (Throwable) {
-                // A failure to update an old Telegram photo does not undo settlement.
-            }
-        }
-
-        if (config('telegram_notifications.enabled', false) !== true) {
-            $recipient = $this->recipients->forActiveUser($result->buyerUserId);
-
-            if ($recipient !== null) {
-                try {
-                    $bot->sendMessage(text: $message, chat_id: $recipient, protect_content: true);
-                } catch (Throwable) {
-                    // Review is committed. Failed delivery cannot roll back a bank decision.
-                    // Status remains accessible in the customer's order history.
-                }
-            }
         }
     }
 
@@ -564,13 +440,21 @@ final readonly class ManualPaymentUi
 
     private function reviewKeyboard(int $id): InlineKeyboardMarkup
     {
-        $direct = config('sales.one_click_bank_review_enabled', false) === true;
-        $callback = $direct ? 'bank:decide:' : 'bank:choose:';
-
         return InlineKeyboardMarkup::make()->addRow(
-            InlineKeyboardButton::make($direct ? '✅ تأیید پرداخت' : '✅ بررسی تأیید', callback_data: $callback.$id.':a'),
-            InlineKeyboardButton::make('❌ رد رسید', callback_data: $callback.$id.':r'),
+            InlineKeyboardButton::make('✅ تأیید پرداخت', callback_data: 'bank:decide:'.$id.':a'),
+            InlineKeyboardButton::make('❌ رد رسید', callback_data: 'bank:decide:'.$id.':r'),
         );
+    }
+
+    /** A single-click approval cannot leave paid orders awaiting a manual CREATE. */
+    private function automaticActivationReady(): bool
+    {
+        return config('sales.one_click_bank_review_enabled', false) === true
+            && config('sales.auto_fulfillment_enabled', false) === true
+            && config('services.remnawave.writes_enabled') === true
+            && config('services.remnawave.squad_bindings_live_verified') === true
+            && config('telegram_notifications.enabled', false) === true
+            && config('telegram.sales.enabled', false) === true;
     }
 
     private function backKeyboard(): InlineKeyboardMarkup

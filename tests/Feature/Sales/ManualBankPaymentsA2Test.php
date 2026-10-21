@@ -252,23 +252,15 @@ it('handles the private Nutgram photo submission and root action without sending
     $root->hearText('/payments')->reply()->assertCalled('sendMessage');
     $claim = (int) DB::table('sales_bank_payment_claims')->value('id');
     $root->hearCallbackQueryData('bank:show:'.$claim)->reply()->assertCalled('sendPhoto');
-    $root->hearCallbackQueryData('bank:choose:'.$claim.':a')->reply()->assertCalled('editMessageText');
-    $root->hearText('/bankconfirm '.$claim.' A2BANKBANK')->reply()->assertCalled('sendMessage');
+    // The legacy typed-command review path is retired. If automatic
+    // provisioning is not ready, the final button must not settle money.
+    $root->hearCallbackQueryData('bank:decide:'.$claim.':a')->reply()->assertCalled('editMessageText');
 
-    $token = app(PaymentDecisionTokens::class)->issue(
-        (int) DB::table('sales_bank_payment_claims')->where('id', $claim)->value('reviewed_by') ?: a2RootId(),
-        $claim, true, 'A2BANKBANK', null,
-    );
-    $root->hearCallbackQueryData('bank:apply:'.$token)->reply()->assertCalled('editMessageText');
-
-    expect(DB::table('sales_orders')->where('id', $order)->value('status'))->toBe('paid');
+    expect(DB::table('sales_orders')->where('id', $order)->value('status'))->toBe('pending_payment')
+        ->and(DB::table('billing_journals')->count())->toBe(0)
+        ->and(DB::table('sales_bank_payment_claims')->where('id', $claim)->value('status'))->toBe('submitted');
     Http::assertNothingSent();
 });
-
-function a2RootId(): int
-{
-    return (int) DB::table('telegram_accounts')->where('telegram_user_id', 990101)->value('user_id');
-}
 
 it('stores direct bank payments in the same Billing journal and postings tables as wallet payments', function (): void {
     a2Setup();
