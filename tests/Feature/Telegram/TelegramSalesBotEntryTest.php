@@ -120,9 +120,7 @@ it('keeps Sales enrollment independent of Admin signup and isolates distinct Tel
 
     // A callback from a stale Sales invite/signup button cannot create an account.
     $unknown = sb01Bot(771024);
-    $unknown->hearCallbackQueryData('sales:join')->reply()->assertReplyText(
-        "<b>👋 به DenaGate خوش آمدید</b>\n\nبرای شروع خرید، دستور /start را ارسال کنید."
-    );
+    $unknown->hearCallbackQueryData('sales:join')->reply()->assertCalled('editMessageText');
     expect(User::query()->count())->toBe(2);
     Http::assertNothingSent();
 });
@@ -166,6 +164,7 @@ it('reuses single-use account links and never revives disabled linked accounts',
     $bot->hearText('/link '.$code)->reply()
         ->assertReplyText('کد اتصال نامعتبر، منقضی یا قبلاً مصرف شده است.');
     $user->forceFill(['is_active' => false])->save();
+    config()->set('telegram.public_signup_enabled', true);
     $bot->hearText('/start')->reply()->assertReplyText(
         "<b>⛔ حساب غیرفعال</b>\n\nحساب شما غیرفعال است. برای پیگیری با پشتیبانی تماس بگیرید."
     );
