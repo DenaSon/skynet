@@ -57,7 +57,7 @@ it('offers private step-by-step wallet recharge and records photo without any cr
 
     $bot->hearMessage(['message_id' => 101, 'photo' => [
         ['file_id' => 'wallet-photo-file', 'file_unique_id' => 'wallet-unique-photo', 'width' => 400, 'height' => 400],
-    ]])->reply()->assertReplyText("🕘 عکس رسید شارژ #{$topup->id} دریافت شد.\n\nدر انتظار بررسی پرداخت توسط مدیر است. موجودی هنوز افزایش نیافته است.");
+    ]])->reply()->assertReplyText("<b>🕘 رسید شارژ #{$topup->id} ثبت شد</b>\n\nوضعیت: <b>در انتظار بررسی</b>\nاعتبار پس از تأیید واریز توسط مدیر اضافه می‌شود. تا آن زمان موجودی تغییری نمی‌کند.");
 
     expect(DB::table('billing_topup_photos')->count())->toBe(1)
         ->and(DB::table('billing_topups')->value('status'))->toBe('submitted')
