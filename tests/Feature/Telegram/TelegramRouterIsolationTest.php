@@ -73,6 +73,12 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
 
     expect(count($matches))->toBe(111); // Immutable MB-01 baseline
 
+    // SP-02: protected Sales Panel review queue, only on Admin.
+    $expected['ADMIN'][] = 'command:panelrequests';
+    $expected['ADMIN'][] = 'callback:sp:list:{page}';
+    $expected['ADMIN'][] = 'callback:sp:detail:{id}';
+    $expected['ADMIN'][] = 'callback:sp:prepare:{id}:{decision}';
+    $expected['ADMIN'][] = 'callback:sp:apply:{token}';
     // MB-05B adds one guarded, unadvertised Admin-only read command.
     $expected['ADMIN'][] = 'command:servers';
     // SRO-02 adds two guarded, read-only Admin callbacks without changing the MB-01 baseline.
@@ -220,8 +226,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(206)
-        ->and(count(array_unique($legacy)))->toBe(206);
+        ->and(count($legacy))->toBe(211)
+        ->and(count(array_unique($legacy)))->toBe(211);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {

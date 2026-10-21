@@ -12,6 +12,7 @@ use App\Modules\Billing\Application\ViewWallet;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\TelegramRecipient;
 use App\Modules\Sales\Application\ManualBankPayments;
+use App\Modules\Sales\Application\ReviewSalesPanelRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -54,6 +55,73 @@ final readonly class TelegramNotificationSender
         }
 
         $token = $this->token($bot);
+
+        if ($delivery->event_type === 'SalesPanelSubmitted') {
+            $requestId = (int) $delivery->panel_request_id;
+            if ($bot !== 'admin' || $requestId < 1) {
+                throw new NotificationUnavailable('invalid_recipient');
+            }
+            $actor = $this->actors->handle($chat);
+            if ($actor === null || $actor->userId !== $userId || ! $actor->canManageRoles()) {
+                throw new NotificationUnavailable('not_authorized');
+            }
+            try {
+                $row = app(ReviewSalesPanelRequest::class)->find($userId, $requestId);
+            } catch (Throwable) {
+                throw new NotificationUnavailable('not_authorized');
+            }
+            if ($row['status'] !== 'pending') {
+                throw new NotificationUnavailable('already_reviewed');
+            }
+            $keyboard = json_encode(['inline_keyboard' => [[
+                ['text' => '🧩 بررسی درخواست', 'callback_data' => 'sp:detail:'.$requestId],
+            ]]], JSON_THROW_ON_ERROR);
+            $this->text($bot, $chat,
+                '<b>🧩 درخواست جدید پنل فروش</b>'
+                ."\n\nدرخواست #{$requestId}"
+                ."\nنام: ".TelegramUi::escape($row['first_name'].' '.$row['last_name'])
+                ."\nموبایل: ".TelegramUi::code($row['mobile'])
+                ."\n\n🕒 منتظر بررسی شماست.",
+                $keyboard, 'HTML',
+            );
+
+            return;
+        }
+
+        if (in_array($delivery->event_type, ['SalesPanelApproved', 'SalesPanelRejected'], true)) {
+            $requestId = (int) $delivery->panel_request_id;
+            if ($bot !== 'sales' || $requestId < 1) {
+                throw new NotificationUnavailable('invalid_recipient');
+            }
+            $expected = $delivery->event_type === 'SalesPanelApproved' ? 'approved' : 'rejected';
+            $row = DB::table('sales_panel_requests')
+                ->where('id', $requestId)->where('user_id', $userId)->where('status', $expected)
+                ->first(['id', 'status']);
+            if ($row === null) {
+                throw new NotificationUnavailable('invalid_panel');
+            }
+            if ($expected === 'approved') {
+                $actor = $this->actors->handle($chat);
+                if ($actor === null || $actor->userId !== $userId
+                    || ! in_array('reseller', $actor->roles, true)) {
+                    throw new NotificationUnavailable('role_revoked');
+                }
+            }
+
+            $message = $expected === 'approved'
+                ? "<b>✅ پنل فروش شما فعال شد</b>\n\nدرخواست #{$requestId} تأیید شد."
+                    ."\nاکنون می‌توانید پلن‌ها را با قیمت ویژه پنل فروش تهیه کنید."
+                : '<b>❌ درخواست پنل فروش تأیید نشد</b>'
+                    ."\n\nدرخواست #{$requestId}"
+                    ."\nحساب فعلی شما بدون تغییر باقی مانده است."
+                    ."\nبرای راهنمایی بیشتر با پشتیبانی گفتگو کنید.";
+            $keyboard = json_encode(['inline_keyboard' => [[
+                ['text' => '👤 حساب کاربری', 'callback_data' => 'sales:account'],
+            ]]], JSON_THROW_ON_ERROR);
+            $this->text($bot, $chat, $message, $keyboard, 'HTML');
+
+            return;
+        }
 
         if ($delivery->event_type === 'WalletTopupSubmitted') {
             $topupId = (int) $delivery->topup_id;

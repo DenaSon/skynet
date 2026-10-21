@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Telegram\Support;
 
+use App\Interfaces\Telegram\Notifications\SalesPanelNotificationOutbox;
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Sales\Application\SalesPanelRequests;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
@@ -21,6 +23,7 @@ final readonly class SalesPanelRequestUi
         private PrivateTelegramUser $private,
         private ResolveTelegramActor $actors,
         private SalesPanelRequests $requests,
+        private SalesPanelNotificationOutbox $notifications,
     ) {}
 
     public function start(Nutgram $bot): void
@@ -137,7 +140,12 @@ final readonly class SalesPanelRequestUi
             return;
         }
         try {
-            $row = $this->requests->submit($userId, $draft['first'], $draft['last'], $draft['mobile']);
+            $row = DB::transaction(function () use ($userId, $draft): array {
+                $result = $this->requests->submit($userId, $draft['first'], $draft['last'], $draft['mobile']);
+                $this->notifications->submitted($result['id']);
+
+                return $result;
+            });
         } catch (AuthorizationException|ValidationException) {
             $this->notice($bot, 'ثبت درخواست ممکن نیست. لطفاً وضعیت حساب خود را بررسی کنید.');
 
