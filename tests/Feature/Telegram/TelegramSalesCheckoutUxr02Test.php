@@ -3,6 +3,10 @@
 declare(strict_types=1);
 
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
+use App\Modules\Billing\Application\RequestTopup;
+use App\Modules\Billing\Application\ReviewTopup;
+use App\Modules\Billing\Application\SubmitTopupPhoto;
+use App\Modules\Billing\Application\ViewWallet;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Sales\Application\ConfigureProduct;
@@ -100,11 +104,11 @@ function uxr02Payload(Request $request): array
 function wal03Credit(User $buyer, User $root, int $amount, string $ref): void
 {
     config()->set('billing.topups_enabled', true);
-    $id = app(\App\Modules\Billing\Application\RequestTopup::class)->handle($buyer->id, $amount, 'wal03:topup:'.bin2hex(random_bytes(7)));
-    app(\App\Modules\Billing\Application\SubmitTopupPhoto::class)->handle(
+    $id = app(RequestTopup::class)->handle($buyer->id, $amount, 'wal03:topup:'.bin2hex(random_bytes(7)));
+    app(SubmitTopupPhoto::class)->handle(
         $buyer->id, $id, 989001, 'wallet-photo-'.$ref, 'unique-wallet-'.$ref, random_int(1001, 90001),
     );
-    app(\App\Modules\Billing\Application\ReviewTopup::class)->handle($root->id, $id, true, $ref);
+    app(ReviewTopup::class)->handle($root->id, $id, true, $ref);
 }
 
 it('confirms member wallet purchase once and retains existing bank payment as an alternative', function (): void {
@@ -126,6 +130,7 @@ it('confirms member wallet purchase once and retains existing bank payment as an
     $order = (int) DB::table('sales_orders')->value('id');
     $bot->hearCallbackQueryData('sales:checkout:wallet:'.$order)->reply()->assertRaw(static function (Request $req): bool {
         $body = uxr02Payload($req);
+
         return str_contains($body['text'], 'تأیید پرداخت از کیف پول')
             && str_contains($body['text'], '<b>100,000 تومان</b>')
             && str_contains($body['text'], '<b>50,000 تومان</b>')
@@ -143,7 +148,7 @@ it('confirms member wallet purchase once and retains existing bank payment as an
         ->and(DB::table('sales_fulfillment_outbox')->count())->toBe(1)
         ->and(DB::table('billing_journals')->where('kind', 'purchase')->count())->toBe(1)
         ->and(DB::table('billing_postings')->where('account_code', 'order_liability')->count())->toBe(1)
-        ->and(app(\App\Modules\Billing\Application\ViewWallet::class)->handle($buyer->id)->balanceRials)->toBe(500_000);
+        ->and(app(ViewWallet::class)->handle($buyer->id)->balanceRials)->toBe(500_000);
 
     $bot->hearCallbackQueryData('sales:walletpay:confirm:'.$order.':'.$token)->reply()->assertCalled('editMessageText');
     expect(DB::table('sales_order_settlements')->count())->toBe(1)
