@@ -428,7 +428,7 @@ final class MenuRenderer
             $message = $bot->message();
             // Telegram cannot edit a photo/document caption into a text message.
             // Keep the original receipt/media intact and open a fresh menu.
-            if (($message?->photo ?? []) !== []
+            if (($message->photo ?? []) !== []
                 || $message?->document !== null
                 || $message?->video !== null
                 || $message?->animation !== null
