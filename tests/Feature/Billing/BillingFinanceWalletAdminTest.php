@@ -102,7 +102,7 @@ it('blocks stale, missing or reused deposit approvals and leaves rejected photos
     expect(fn () => app(BrowsePhotoTopups::class)->photo($root->id, 999999))->toThrow(ValidationException::class);
     app(ReviewTopup::class)->handle($root->id, $a, true, 'BANK-REF-UNIQUE');
     expect(fn () => app(ReviewTopup::class)->handle($root->id, $b, true, 'BANK-REF-UNIQUE'))
-        ->toThrow(\Illuminate\Database\UniqueConstraintViolationException::class);
+        ->toThrow(ValidationException::class);
     expect(app(ViewWallet::class)->handle($second->id)->balanceRials)->toBe(0);
     app(ReviewTopup::class)->handle($root->id, $b, false, 'PHOTO-REJECT');
     expect(app(ViewWallet::class)->handle($second->id)->balanceRials)->toBe(0)
