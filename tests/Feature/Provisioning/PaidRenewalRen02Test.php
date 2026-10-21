@@ -293,7 +293,6 @@ it('rejects a disabled remote service and never creates a payable renewal', func
     expect(DB::table('sales_renewal_orders')->count())->toBe(0);
 });
 
-
 it('retries only a failed provider preflight GET and never issues an uncertain PATCH twice', function (): void {
     $data = ren02Fixture();
     $remote = ren02Remote($data['source']);
