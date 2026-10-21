@@ -19,7 +19,7 @@ uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
     config()->set('billing.topups_enabled', true);
-    config()->set('super_admin.telegram_ids', ['889901']);
+    config()->set('super_admin.telegram_ids', ['889901', '889902']);
 });
 
 function fin01Root(): User
@@ -84,7 +84,7 @@ it('refuses untrusted finance reads and photo access after allowlist revocation'
         expect(fn () => app(BrowsePhotoTopups::class)->photo($forgedId, $request))->toThrow(AuthorizationException::class);
     }
 
-    config()->set('super_admin.telegram_ids', ['889902']);
+    config()->set('super_admin.telegram_ids', ['889902', '889903']);
     expect(fn () => app(BrowsePhotoTopups::class)->photo($root->id, $request))->toThrow(AuthorizationException::class);
     expect(fn () => app(BrowseCustomerWallets::class)->page($root->id))->toThrow(AuthorizationException::class);
     expect(app(ViewWallet::class)->handle($member->id)->balanceRials)->toBe(0);
