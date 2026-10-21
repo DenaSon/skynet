@@ -4,6 +4,7 @@ namespace App\Modules\Billing\Application;
 
 use App\Modules\Identity\Application\AssertBillingAccess;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 final class ReviewTopup
@@ -20,7 +21,7 @@ final class ReviewTopup
             // A photo-only request has no payer-declared bank reference. The
             // reviewer must supply the real verified reference on approval.
             $photoOnly = $topup !== null && $topup->payment_reference === null
-                && \Illuminate\Support\Facades\Schema::hasTable('billing_topup_photos')
+                && Schema::hasTable('billing_topup_photos')
                 && DB::table('billing_topup_photos')->where('topup_id', $topupId)->exists();
 
             if ($topup === null || $topup->status !== 'submitted'
