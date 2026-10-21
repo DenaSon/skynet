@@ -9,6 +9,7 @@ use App\Modules\Provisioning\Application\GetMySubscription;
 use App\Modules\Provisioning\Application\GetSubscriptionLink;
 use App\Modules\Provisioning\Application\GetSubscriptionUsage;
 use App\Modules\Provisioning\Application\ListMyServices;
+use App\Modules\Sales\Application\PrepareRenewalDraft;
 use DateTimeImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Validation\ValidationException;
@@ -33,6 +34,7 @@ final readonly class SalesSubscriptionsUi
         private GetSubscriptionUsage $usage,
         private GetSubscriptionLink $link,
         private SubscriptionPageLink $pages,
+        private PrepareRenewalDraft $renewals,
     ) {}
 
     public function browse(Nutgram $bot, string $cursor = '0'): void
@@ -179,6 +181,15 @@ final readonly class SalesSubscriptionsUi
                     ? 'نامحدود'
                     : $this->gb(max(0, $live->limitBytes - $live->usedBytes)).' گیگابایت');
                 $lines[] = 'تاریخ انقضا (UTC): '.substr(str_replace('T', ' ', $live->expireAt), 0, 16);
+                $canRenew = $live->status !== 'DISABLED'
+                    && $live->status !== 'ACTIVE' && $live->status !== 'LIMITED' && $live->status !== 'EXPIRED'
+                    ? false : $this->renewals->available($viewer, $orderId);
+                if ($canRenew) {
+                    $keyboard->addRow(InlineKeyboardButton::make(
+                        '🔄 بررسی تمدید',
+                        callback_data: 'sales:subs:renew:'.$orderId.':'.$cursor,
+                    ));
+                }
                 if ($usable) {
                     $keyboard->addRow(InlineKeyboardButton::make(
                         '🔐 نمایش کد اتصال',
@@ -214,6 +225,63 @@ final readonly class SalesSubscriptionsUi
             ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
 
         $this->render($bot, implode("\n", $lines), $keyboard, ! $acknowledged);
+    }
+
+    /** REN-01: quote a non-payable renewal draft; no bank, wallet or RW mutation. */
+    public function renewal(Nutgram $bot, string $id, string $cursor = '0'): void
+    {
+        $viewer = $this->viewer($bot);
+        if ($viewer === null) {
+            return;
+        }
+
+        $sourceId = $this->id($id);
+        if ($sourceId === null || $this->id($cursor, true) === null) {
+            $this->notice($bot, 'این سرویس برای تمدید در دسترس نیست.', $this->homeButtons());
+
+            return;
+        }
+
+        TelegramUi::answerCallback($bot);
+        $acknowledged = $bot->isCallbackQuery();
+        TelegramUi::activity($bot);
+
+        try {
+            $draft = $this->renewals->handle($viewer, $sourceId);
+        } catch (AuthorizationException|ValidationException) {
+            $this->notice($bot, 'تمدید این سرویس با پلن فعلی ممکن نیست. برای راهنمایی از پشتیبانی کمک بگیرید.',
+                $this->renewalButtons($sourceId, $cursor));
+
+            return;
+        } catch (Throwable) {
+            $this->notice($bot, 'استعلام تمدید فعلاً در دسترس نیست. کمی بعد دوباره تلاش کنید.',
+                $this->renewalButtons($sourceId, $cursor));
+
+            return;
+        }
+
+        $name = TelegramUi::escape($this->clean($draft->planName));
+        $traffic = $draft->trafficGb === null ? 'نامحدود' : $draft->trafficGb.' گیگابایت';
+        $message = '<b>🔄 پیش‌نمایش تمدید سرویس #'.$draft->sourceOrderId.'</b>'
+            ."\n\nپلن: {$name}"
+            ."\nمدت تمدید: {$draft->durationDays} روز"
+            ."\nحجم پلن: {$traffic}"
+            ."\nقیمت فعلی: <b>".TelegramUi::toman($draft->priceRials).' تومان</b>'
+            ."\n\n<blockquote>این پیش‌نمایش فقط برای همین سرویس ذخیره شد."
+            ." پرداخت تمدید هنوز فعال نیست و هیچ مبلغی دریافت نشده است."
+            ." قیمت در زمان فعال شدن پرداخت دوباره بررسی می‌شود.</blockquote>";
+
+        $this->render($bot, $message, $this->renewalButtons($sourceId, $cursor), ! $acknowledged);
+    }
+
+    private function renewalButtons(int $sourceId, string $cursor): InlineKeyboardMarkup
+    {
+        return InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('🔄 بررسی دوباره',
+                callback_data: 'sales:subs:renew:'.$sourceId.':'.$cursor))
+            ->addRow(InlineKeyboardButton::make('◀️ بازگشت به سرویس',
+                callback_data: 'sales:subs:view:'.$sourceId.':'.$cursor))
+            ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
     }
 
     public function link(Nutgram $bot, string $id, string $cursor = '0'): void

@@ -267,3 +267,7 @@ $bot->onCallbackQueryData('sales:subs:page:{id}:{cursor}', function (Nutgram $bo
 $bot->onCallbackQueryData('sales:subs:link:{id}:{cursor}', function (Nutgram $bot, string $id, string $cursor): void {
     app(SalesSubscriptionsUi::class)->link($bot, $id, $cursor);
 });
+
+$bot->onCallbackQueryData('sales:subs:renew:{id}:{cursor}', function (Nutgram $bot, string $id, string $cursor): void {
+    app(SalesSubscriptionsUi::class)->renewal($bot, $id, $cursor);
+});
