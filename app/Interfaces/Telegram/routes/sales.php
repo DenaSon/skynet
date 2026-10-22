@@ -4,7 +4,6 @@ use App\Interfaces\Telegram\Support\ManualPaymentUi;
 use App\Interfaces\Telegram\Support\PlanCatalogUi;
 use App\Interfaces\Telegram\Support\ResellerBuilderUi;
 use App\Interfaces\Telegram\Support\ResellerSalesReportUi;
-use App\Interfaces\Telegram\Support\ResellerSalesReportUi;
 use App\Interfaces\Telegram\Support\SalesCheckoutUi;
 use App\Interfaces\Telegram\Support\SalesHomeUi;
 use App\Interfaces\Telegram\Support\SalesPanelRequestUi;
