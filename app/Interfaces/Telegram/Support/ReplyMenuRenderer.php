@@ -111,6 +111,7 @@ final class ReplyMenuRenderer
         if ($actor !== null && in_array('reseller', $actor->roles, true)) {
             $labels[] = ReplyMenuLabels::WALLET;
             $labels[] = ReplyMenuLabels::BUILDER;
+            $labels[] = ReplyMenuLabels::SALES_REPORTS;
         }
         $keyboard = $this->keyboard($labels);
 
