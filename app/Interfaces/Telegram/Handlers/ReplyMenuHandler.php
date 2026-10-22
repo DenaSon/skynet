@@ -24,6 +24,7 @@ use App\Interfaces\Telegram\Support\SubscriptionUi;
 use App\Interfaces\Telegram\Support\UserManagementUi;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\TelegramActor;
+use Illuminate\Support\Facades\Cache;
 use SergiX44\Nutgram\Nutgram;
 
 final class ReplyMenuHandler
@@ -68,6 +69,8 @@ final class ReplyMenuHandler
         $this->planDrafts->forget($actor->userId);
         $this->productDrafts->forget($actor->userId);
         $this->pendingBuilder->forget($actor->userId);
+        // Navigation also retires an abandoned personal accounting text draft.
+        Cache::forget('admin:accounting:draft:'.$actor->userId);
 
         switch ($text) {
             case ReplyMenuLabels::BUY:

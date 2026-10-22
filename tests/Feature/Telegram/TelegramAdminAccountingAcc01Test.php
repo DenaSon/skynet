@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Interfaces\Telegram\Support\AdminAccountingUi;
+use App\Interfaces\Telegram\Support\ReplyMenuLabels;
 use App\Modules\Billing\Application\RecordBusinessEntry;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
@@ -223,4 +224,17 @@ it('coordinates competing Admin text drafts and supports the inclusive 100-billi
     Cache::put($financeKey, ['kind' => 'find'], now()->addMinutes(10));
     expect(app(AdminAccountingUi::class)->text($bot, '12345'))->toBeFalse()
         ->and(Cache::has('admin:accounting:draft:'.$root->id))->toBeFalse();
+});
+
+
+it('clears a stale accounting wizard when returning with the existing Admin reply keyboard', function (): void {
+    config()->set('telegram.hybrid_menu_enabled', true);
+    $root = acc01Root();
+    $bot = acc01Bot(996101, $root);
+    $bot->hearCallbackQueryData('acc:begin:owner_draw')->reply()->assertCalled('editMessageText');
+    expect(Cache::has('admin:accounting:draft:'.$root->id))->toBeTrue();
+
+    $bot->hearText(ReplyMenuLabels::FINANCE_SECTION)->reply()->assertCalled('sendMessage');
+    expect(Cache::has('admin:accounting:draft:'.$root->id))->toBeFalse()
+        ->and(DB::table('accounting_entries')->count())->toBe(0);
 });
