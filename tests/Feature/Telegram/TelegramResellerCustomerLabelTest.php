@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
+use App\Modules\Provisioning\Application\ReadResellerLiveSubscriptions;
 use App\Modules\Sales\Application\CalculateQuote;
 use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\ConfigureRate;
@@ -503,4 +504,101 @@ it('makes the Sales report visible only to resellers and provides 7/30 day navig
             return str_contains($data['text'], 'فقط برای نمایندگان');
         }, index: 1);
     Http::assertNothingSent();
+});
+
+it('returns unknown live subscription metrics on unavailable provider without pretending zero', function (): void {
+    $buyer = rslUser();
+    $foreign = rslUser();
+    $action = app(ReadResellerLiveSubscriptions::class);
+    $empty = $action->handle($buyer->id);
+    expect($empty['available'])->toBeTrue()
+        ->and($empty['checked'])->toBe(0)
+        ->and($empty['active'])->toBe(0);
+
+    rslOrder($buyer);
+    $result = $action->handle($buyer->id);
+    expect($result['available'])->toBeFalse()
+        ->and($result['active'])->toBeNull()
+        ->and($result['expired'])->toBeNull()
+        ->and($result['attentionOrderIds'])->toBe([])
+        ->and($action->handle($foreign->id)['checked'])->toBe(0);
+    $buyer->syncRoles(['member']);
+    expect(fn () => $action->handle($buyer->id))->toThrow(AuthorizationException::class);
+});
+
+it('does not scan the remote provider when a reseller exceeds the explicit live-report service bound', function (): void {
+    $buyer = rslUser();
+    for ($i = 0; $i < 51; $i++) {
+        rslOrder($buyer);
+    }
+
+    $result = app(ReadResellerLiveSubscriptions::class)->handle($buyer->id);
+    expect($result['available'])->toBeFalse()
+        ->and($result['checked'])->toBeNull()
+        ->and($result['active'])->toBeNull();
+    Http::assertNothingSent();
+});
+
+it('shows an unknown-safe private subscription status page and denies a revoked reseller', function (): void {
+    $buyer = rslUser();
+    rslOrder($buyer);
+    $bot = rslBot($buyer, 977922);
+    $bot->hearCallbackQueryData('sales:report:subscriptions')->reply()
+        ->assertRaw(static function (Request $request): bool {
+            $data = FakeNutgram::getActualData($request);
+
+            return str_contains($data['text'], 'دریافت وضعیت همه سرویس‌ها')
+                && ! str_contains($data['text'], '🟢 فعال: 0');
+        }, index: 1);
+
+    $buyer->syncRoles(['member']);
+    $bot->hearCallbackQueryData('sales:report:subscriptions')->reply()
+        ->assertRaw(static function (Request $request): bool {
+            $data = FakeNutgram::getActualData($request);
+
+            return str_contains($data['text'], 'فقط برای نمایندگان فعال');
+        }, index: 1);
+});
+
+it('counts live active, expired, nearing expiry and low quota from verified RW reads only', function (): void {
+    $buyer = rslUser();
+    $another = rslUser();
+    $activeOrder = rslOrder($buyer);
+    $expiredOrder = rslOrder($buyer);
+    $foreignOrder = rslOrder($another);
+    $remote = static function (int $orderId, string $status, string $expire, int $used): array {
+        return [
+            'id' => $orderId + 2000,
+            'username' => 'sk_'.substr(hash('sha256', 'rsl-label:'.$orderId), 0, 24),
+            'shortUuid' => 'private-'.$orderId,
+            'status' => $status,
+            'expireAt' => $expire,
+            'trafficLimitBytes' => 2 * 1073741824,
+            'trafficLimitStrategy' => 'NO_RESET',
+            'subscriptionUrl' => 'https://private.test/user/'.$orderId,
+            'userTraffic' => ['usedTrafficBytes' => $used],
+            'description' => null,
+            'activeInternalSquads' => [],
+        ];
+    };
+    Http::fake(['https://rw-label.test/api/users*' => Http::response(['response' => [
+        'users' => [
+            $remote($activeOrder, 'ACTIVE', now()->addDays(3)->toISOString(), 2 * 1073741824 - 100 * 1024 * 1024),
+            $remote($expiredOrder, 'EXPIRED', now()->subDays(1)->toISOString(), 0),
+            $remote($foreignOrder, 'ACTIVE', now()->addDays(25)->toISOString(), 0),
+        ],
+        'total' => 3,
+    ]])]);
+    $report = app(ReadResellerLiveSubscriptions::class)->handle($buyer->id);
+    expect($report['available'])->toBeTrue()
+        ->and($report['checked'])->toBe(2)
+        ->and($report['active'])->toBe(1)
+        ->and($report['expired'])->toBe(1)
+        ->and($report['limited'])->toBe(0)
+        ->and($report['expiringSoon'])->toBe(1)
+        ->and($report['lowTraffic'])->toBe(1)
+        ->and($report['attentionOrderIds'])->toBe([$activeOrder]);
+    Http::assertSentCount(1);
+    Http::assertSent(static fn (\Illuminate\Http\Client\Request $request): bool =>
+        $request->method() === 'GET' && str_contains($request->url(), '/api/users?'));
 });
