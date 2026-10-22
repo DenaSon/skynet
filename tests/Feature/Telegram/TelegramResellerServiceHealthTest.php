@@ -115,6 +115,13 @@ it('counts only a bounded owner-scoped page and marks confirmed live status with
     Http::fake(['https://rw-health.test/api/users/'.($owned + 2300) =>
         Http::response(['response' => rshRemote($owned)])]);
 
+    try {
+        app(\App\Modules\Provisioning\Application\GetSubscriptionUsage::class)
+            ->handle(SubscriptionViewer::telegram(981001), $owned);
+    } catch (\Throwable $e) {
+        throw new \RuntimeException('DIAGNOSTIC_GSU: '.$e::class.' '.$e->getMessage().' requests='.Http::recorded()->count());
+    }
+
     $page = app(ReadResellerServiceHealth::class)->handle(SubscriptionViewer::telegram(981001));
     expect($page['total'])->toBe(1)
         ->and($page['checked'])->toBe(1)
