@@ -226,7 +226,6 @@ it('coordinates competing Admin text drafts and supports the inclusive 100-billi
         ->and(Cache::has('admin:accounting:draft:'.$root->id))->toBeFalse();
 });
 
-
 it('clears a stale accounting wizard when returning with the existing Admin reply keyboard', function (): void {
     config()->set('telegram.hybrid_menu_enabled', true);
     $root = acc01Root();
