@@ -272,6 +272,7 @@ it('keeps Sales identity, navigation and buyer routes isolated from Admin callba
         'callback:sales:account',
         'callback:sales:join',
         'command:catalog',
+        'command:reports',
         'command:builder',
         'callback:menu:home',
         'callback:menu:plan-catalog',
