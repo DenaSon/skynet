@@ -10,6 +10,7 @@ use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\ConfigureRate;
 use App\Modules\Sales\Application\CreatePendingOrder;
 use App\Modules\Sales\Application\ManageResellerServiceLabels;
+use App\Modules\Sales\Application\ReadResellerSalesReport;
 use GuzzleHttp\Psr7\Request;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -451,5 +452,55 @@ it('edits and removes a reseller phone through the private Sales bot', function 
         ->assertCalled('editMessageText');
     expect($action->phone($buyer->id, $order))->toBeNull()
         ->and($action->get($buyer->id, $order))->toBe('محمد اسدی');
+    Http::assertNothingSent();
+});
+
+it('isolates reseller reports and counts verified services and distinct customer phones', function (): void {
+    $buyer = rslUser();
+    $other = rslUser();
+    $first = rslOrder($buyer);
+    $second = rslOrder($buyer);
+    $unlinked = rslOrder($buyer, false);
+    $foreign = rslOrder($other);
+    $labels = app(ManageResellerServiceLabels::class);
+    $labels->save($buyer->id, $first, 'محمد');
+    $labels->savePhone($buyer->id, $first, '09123456789');
+    $labels->save($buyer->id, $second, 'علی');
+    $labels->savePhone($other->id, $foreign, '09123456789');
+    $reports = app(ReadResellerSalesReport::class);
+    $data = $reports->handle($buyer->id, 30);
+    expect($data['services'])->toBe(2)
+        ->and($data['phoneCustomers'])->toBe(1)
+        ->and($data['withoutPhone'])->toBe(1)
+        ->and($data['namedServices'])->toBe(2)
+        ->and($data['pending'])->toBe(1)
+        ->and($data['transactions'])->toBe(0)
+        ->and($data['revenueRials'])->toBe(0)
+        ->and($reports->handle($other->id, 7)['services'])->toBe(1)
+        ->and($unlinked)->toBeGreaterThan(0);
+    expect(fn () => $reports->handle($buyer->id, 365))->toThrow(ValidationException::class);
+    $buyer->syncRoles(['member']);
+    expect(fn () => $reports->handle($buyer->id, 7))->toThrow(AuthorizationException::class);
+    Http::assertNothingSent();
+});
+
+it('makes the Sales report visible only to resellers and provides 7/30 day navigation', function (): void {
+    $buyer = rslUser();
+    $bot = rslBot($buyer, 977920);
+    $bot->hearCallbackQueryData('sales:report:30')->reply()
+        ->assertRaw(static function (Request $request): bool {
+            $data = FakeNutgram::getActualData($request);
+
+            return str_contains($data['text'], 'گزارش‌های من')
+                && str_contains($data['text'], 'مجموع فروش')
+                && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:report:7');
+        }, index: 1);
+    $buyer->syncRoles(['member']);
+    $bot->hearCallbackQueryData('sales:report:30')->reply()
+        ->assertRaw(static function (Request $request): bool {
+            $data = FakeNutgram::getActualData($request);
+
+            return str_contains($data['text'], 'فقط برای نمایندگان');
+        }, index: 1);
     Http::assertNothingSent();
 });
