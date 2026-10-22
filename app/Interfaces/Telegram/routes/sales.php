@@ -82,10 +82,6 @@ $bot->onCallbackQueryData('sales:report:{days}', function (Nutgram $bot, string 
     app(ResellerSalesReportUi::class)->show($bot, $days);
 });
 
-$bot->onCallbackQueryData('sales:report:{days}', function (Nutgram $bot, string $days): void {
-    app(ResellerSalesReportUi::class)->show($bot, $days);
-});
-
 $bot->onCallbackQueryData('sales:wallet', function (Nutgram $bot): void {
     app(SalesHomeUi::class)->wallet($bot);
 });
