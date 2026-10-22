@@ -34,7 +34,6 @@ beforeEach(function (): void {
     config()->set('services.remnawave.writes_enabled', false);
     config()->set('sales.manual_bank_review_enabled', false);
     Http::preventStrayRequests();
-    Http::fake();
     app(ConfigureProduct::class)->handle('health-vpn', 'پلن نمایندگی');
     app(ConfigureRate::class)->handle('health-vpn', 30, 100_000, 20_000);
     $route = new Route('POST', 'api/telegram/sales/webhook', static fn (): null => null);
@@ -126,7 +125,7 @@ it('counts only a bounded owner-scoped page and marks confirmed live status with
         ->and($page['rows'][0]['name'])->toBe('علی & <دوست>')
         ->and(json_encode($page, JSON_THROW_ON_ERROR))->not->toContain('private-health.test');
 
-    $bot->hearCallbackQueryData('sales:report:health:0')->reply()
+    $bot->hearCallbackQueryData('sales:health:0')->reply()
         ->assertRaw(static function (NutgramRequest $request) use ($owned, $foreign): bool {
             $data = FakeNutgram::getActualData($request);
 
@@ -172,6 +171,7 @@ it('bounds remote checks to six latest services and keeps unauthorized users and
     }
     $foreign = rshOrder($other);
     $bot = rshBot($buyer, 981003);
+    Http::fake();
     $r = app(ReadResellerServiceHealth::class)->handle(SubscriptionViewer::telegram(981003));
     expect($r['total'])->toBe(8)
         ->and($r['checked'])->toBe(6)
@@ -180,12 +180,12 @@ it('bounds remote checks to six latest services and keeps unauthorized users and
         ->and(array_column($r['rows'], 'orderId'))->not->toContain($foreign);
     Http::assertSentCount(6);
     $bot->setCommonChat(Chat::make(-981003, ChatType::GROUP));
-    $bot->hearCallbackQueryData('sales:report:health:0')->reply()->assertNoReply();
+    $bot->hearCallbackQueryData('sales:health:0')->reply()->assertNoReply();
     $bot->setCommonChat(Chat::make(981003, ChatType::PRIVATE));
     $buyer->syncRoles(['member']);
     expect(fn () => app(ReadResellerServiceHealth::class)->handle(SubscriptionViewer::telegram(981003)))
         ->toThrow(AuthorizationException::class);
-    $bot->hearCallbackQueryData('sales:report:health:0')->reply()
+    $bot->hearCallbackQueryData('sales:health:0')->reply()
         ->assertCalled('editMessageText');
     Http::assertSentCount(6);
 });
