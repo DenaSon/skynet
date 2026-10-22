@@ -14,7 +14,7 @@ final readonly class ManageResellerServiceLabels
     public function __construct(private ResolveSalesBuyer $buyers) {}
 
     /** @param list<int> $orderIds
-     *  @return array<int, string>
+     * @return array<int, string>
      */
     public function forOrders(int $buyerId, array $orderIds): array
     {
