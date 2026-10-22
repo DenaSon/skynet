@@ -75,7 +75,7 @@ final readonly class ResellerSalesReportUi
                 InlineKeyboardButton::make('۷ روز', callback_data: 'sales:report:7'),
                 InlineKeyboardButton::make('۳۰ روز', callback_data: 'sales:report:30'),
             )
-            ->addRow(InlineKeyboardButton::make('📡 وضعیت سرویس‌ها', callback_data: 'sales:report:health:0'))
+            ->addRow(InlineKeyboardButton::make('📡 وضعیت سرویس‌ها', callback_data: 'sales:health:0'))
             ->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'sales:report:'.$days))
             ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
     }
