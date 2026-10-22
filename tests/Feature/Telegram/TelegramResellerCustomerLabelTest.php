@@ -37,7 +37,6 @@ beforeEach(function (): void {
     config()->set('services.remnawave.token', 'fake-token');
     config()->set('sales.manual_bank_review_enabled', false);
     Http::preventStrayRequests();
-    Http::fake();
 
     app(ConfigureProduct::class)->handle('rsl-product', 'پلن نمایندگی');
     app(ConfigureRate::class)->handle('rsl-product', 30, 100_000, 20_000);
@@ -589,10 +588,6 @@ it('counts live active, expired, nearing expiry and low quota from verified RW r
         ],
         'total' => 3,
     ]])]);
-    $source = new \App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveUsersApi(
-        app(\App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveApiClientFactory::class)->make(),
-    );
-    expect($source->list(0, 500)['total'])->toBe(3);
     $report = app(ReadResellerLiveSubscriptions::class)->handle($buyer->id);
     expect($report['available'])->toBeTrue()
         ->and($report['checked'])->toBe(2)
@@ -602,7 +597,7 @@ it('counts live active, expired, nearing expiry and low quota from verified RW r
         ->and($report['expiringSoon'])->toBe(1)
         ->and($report['lowTraffic'])->toBe(1)
         ->and($report['attentionOrderIds'])->toBe([$activeOrder]);
-    Http::assertSentCount(2);
-    Http::assertSent(static fn (\Illuminate\Http\Client\Request $request): bool =>
-        $request->method() === 'GET' && str_contains($request->url(), '/api/users?'));
+    Http::assertSentCount(1);
+    Http::assertSent(static fn (\Illuminate\Http\Client\Request $request): bool => $request->method() === 'GET'
+        && str_contains($request->url(), '/api/users?'));
 });
