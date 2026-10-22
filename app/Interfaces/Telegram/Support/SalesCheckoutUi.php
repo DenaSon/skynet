@@ -462,17 +462,17 @@ final readonly class SalesCheckoutUi
     {
         $actor = $this->resolve->handle((int) $bot->user()->id);
         $isReseller = $actor !== null && in_array('reseller', $actor->roles, true);
-        if ($isReseller && $order->status === 'pending_payment'
+        $latestReceipt = $this->payments->latestReceiptStatus(
+            SubscriptionViewer::telegram((int) $bot->user()->id),
+            $order->id,
+        );
+        // Older submitted receipts remain visible; never obstruct an existing review.
+        if ($isReseller && $order->status === 'pending_payment' && $latestReceipt !== 'submitted'
             && $this->customerLabels->pendingName($order->buyerUserId, $order->id) === null) {
             $this->beginCustomerName($bot, $order->id);
 
             return;
         }
-
-        $latestReceipt = $this->payments->latestReceiptStatus(
-            SubscriptionViewer::telegram((int) $bot->user()->id),
-            $order->id,
-        );
         $sourceRenewal = DB::table('sales_renewal_orders')
             ->where('sales_order_id', $order->id)->value('source_order_id');
 
