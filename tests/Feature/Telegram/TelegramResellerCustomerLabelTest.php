@@ -559,3 +559,46 @@ it('shows an unknown-safe private subscription status page and denies a revoked 
             return str_contains($data['text'], 'فقط برای نمایندگان فعال');
         }, index: 1);
 });
+
+it('counts live active, expired, nearing expiry and low quota from verified RW reads only', function (): void {
+    $buyer = rslUser();
+    $another = rslUser();
+    $activeOrder = rslOrder($buyer);
+    $expiredOrder = rslOrder($buyer);
+    $foreignOrder = rslOrder($another);
+    $remote = static function (int $orderId, string $status, string $expire, int $used): array {
+        return [
+            'id' => $orderId + 2000,
+            'username' => 'sk_'.substr(hash('sha256', 'rsl-label:'.$orderId), 0, 24),
+            'shortUuid' => 'private-'.$orderId,
+            'status' => $status,
+            'expireAt' => $expire,
+            'trafficLimitBytes' => 2 * 1073741824,
+            'trafficLimitStrategy' => 'NO_RESET',
+            'subscriptionUrl' => 'https://private.test/user/'.$orderId,
+            'userTraffic' => ['usedTrafficBytes' => $used],
+            'description' => null,
+            'activeInternalSquads' => [],
+        ];
+    };
+    Http::fake(['https://rw-label.test/api/users*' => Http::response(['response' => [
+        'users' => [
+            $remote($activeOrder, 'ACTIVE', now()->addDays(3)->toISOString(), 2 * 1073741824 - 100 * 1024 * 1024),
+            $remote($expiredOrder, 'EXPIRED', now()->subDays(1)->toISOString(), 0),
+            $remote($foreignOrder, 'ACTIVE', now()->addDays(25)->toISOString(), 0),
+        ],
+        'total' => 3,
+    ]])]);
+    $report = app(ReadResellerLiveSubscriptions::class)->handle($buyer->id);
+    expect($report['available'])->toBeTrue()
+        ->and($report['checked'])->toBe(2)
+        ->and($report['active'])->toBe(1)
+        ->and($report['expired'])->toBe(1)
+        ->and($report['limited'])->toBe(0)
+        ->and($report['expiringSoon'])->toBe(1)
+        ->and($report['lowTraffic'])->toBe(1)
+        ->and($report['attentionOrderIds'])->toBe([$activeOrder]);
+    Http::assertSentCount(1);
+    Http::assertSent(static fn (\Illuminate\Http\Client\Request $request): bool =>
+        $request->method() === 'GET' && str_contains($request->url(), '/api/users?'));
+});
