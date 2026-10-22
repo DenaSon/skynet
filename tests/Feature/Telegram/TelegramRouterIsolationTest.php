@@ -120,6 +120,15 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:finance:topup:photo:{id}';
     $expected['ADMIN'][] = 'callback:finance:topup:decision:{id}:{decision}';
     $expected['ADMIN'][] = 'callback:finance:topup:apply:{token}';
+    // ACC-01 adds private root-only accounting, no Sales routes.
+    $expected['ADMIN'][] = 'callback:acc:home';
+    $expected['ADMIN'][] = 'callback:acc:begin:{kind}';
+    $expected['ADMIN'][] = 'callback:acc:category:{category}';
+    $expected['ADMIN'][] = 'callback:acc:apply:{token}';
+    $expected['ADMIN'][] = 'callback:acc:history:{page}';
+    $expected['ADMIN'][] = 'callback:acc:reverse:prepare:{id}';
+    $expected['ADMIN'][] = 'callback:acc:reverse:apply:{id}:{token}';
+    $expected['ADMIN'][] = 'callback:acc:cancel';
     // MET-01 adds only read-only private Super Admin routes.
     $expected['ADMIN'][] = 'command:metrics';
     $expected['ADMIN'][] = 'callback:metrics:refresh';
@@ -232,8 +241,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(215)
-        ->and(count(array_unique($legacy)))->toBe(215);
+        ->and(count($legacy))->toBe(223)
+        ->and(count(array_unique($legacy)))->toBe(223);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {

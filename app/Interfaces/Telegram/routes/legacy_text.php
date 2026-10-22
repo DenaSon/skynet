@@ -1,6 +1,7 @@
 <?php
 
 use App\Interfaces\Telegram\Handlers\ReplyMenuHandler;
+use App\Interfaces\Telegram\Support\AdminAccountingUi;
 use App\Interfaces\Telegram\Support\AdminConfigProfileOperationsUi;
 use App\Interfaces\Telegram\Support\AdminFinanceWalletUi;
 use App\Interfaces\Telegram\Support\AdminHostOperationsUi;
@@ -25,6 +26,10 @@ $bot->onText('{volume}', function (Nutgram $bot, string $volume): void {
     }
 
     if (app(ReplyMenuHandler::class)->handle($bot, $volume)) {
+        return;
+    }
+
+    if (app(AdminAccountingUi::class)->text($bot, $volume)) {
         return;
     }
 
