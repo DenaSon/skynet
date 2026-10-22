@@ -112,6 +112,7 @@ final readonly class SalesHomeUi
         }
         if ($isReseller) {
             $keyboard->addRow(InlineKeyboardButton::make('🧩 پلن‌ساز', callback_data: 'menu:builder'));
+            $keyboard->addRow(InlineKeyboardButton::make('📊 گزارش‌های من', callback_data: 'sales:report:30'));
         }
         $keyboard->addRow(InlineKeyboardButton::make('💬 پشتیبانی', callback_data: 'sales:support'))
             ->addRow(InlineKeyboardButton::make('📋 همه پلن‌ها و قیمت‌ها', callback_data: 'menu:plan-catalog'));
@@ -187,6 +188,7 @@ final readonly class SalesHomeUi
             ReplyMenuLabels::SALES_SUBSCRIPTIONS, ReplyMenuLabels::SUBSCRIPTIONS, '📦 اشتراک‌های من' => 'subscriptions',
             ReplyMenuLabels::SALES_ACCOUNT, ReplyMenuLabels::ACCOUNT => 'account',
             ReplyMenuLabels::SALES_SUPPORT => 'support',
+            ReplyMenuLabels::SALES_REPORTS => 'report',
             ReplyMenuLabels::HOME, '🏠 صفحه اصلی', '❌ انصراف', '/cancel' => 'home',
             ReplyMenuLabels::INVITE => 'invite',
             ReplyMenuLabels::BUILDER, ReplyMenuLabels::LEGACY_BUILDER => 'builder',
@@ -228,6 +230,9 @@ final readonly class SalesHomeUi
                 break;
             case 'wallet':
                 $this->wallet($bot);
+                break;
+            case 'report':
+                app(ResellerSalesReportUi::class)->show($bot);
                 break;
             default:
                 $this->start($bot);
@@ -290,6 +295,7 @@ final readonly class SalesHomeUi
         }
         if (in_array('reseller', $actor->roles, true)) {
             $keyboard->addRow(InlineKeyboardButton::make('🧩 پلن‌ساز', callback_data: 'menu:builder'));
+            $keyboard->addRow(InlineKeyboardButton::make('📊 گزارش‌های من', callback_data: 'sales:report:30'));
         } elseif (in_array('member', $actor->roles, true)) {
             $requestLabel = '🧩 درخواست پنل فروش';
             try {
