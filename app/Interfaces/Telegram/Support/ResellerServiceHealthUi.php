@@ -82,12 +82,12 @@ final readonly class ResellerServiceHealthUi
 
         if ($page['nextBeforeOrderId'] !== null) {
             $buttons->addRow(InlineKeyboardButton::make('موارد بیشتر ◀️',
-                callback_data: 'sales:report:health:'.$page['nextBeforeOrderId']));
+                callback_data: 'sales:health:'.$page['nextBeforeOrderId']));
         }
         $lines[] = '<blockquote>آمار لحظه‌ای فقط برای همین صفحه است (حداکثر ۶ سرویس). '
             .'اگر استعلامی ممکن نباشد، «نامشخص» نمایش داده می‌شود؛ وضعیت داخلی به‌معنای تأیید لحظه‌ای نیست.</blockquote>';
         $buttons->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی صفحه',
-            callback_data: 'sales:report:health:'.$cursor))
+            callback_data: 'sales:health:'.$cursor))
             ->addRow(InlineKeyboardButton::make('📊 گزارش فروش', callback_data: 'sales:report:30'))
             ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
 
