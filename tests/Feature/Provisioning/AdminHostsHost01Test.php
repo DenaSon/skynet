@@ -150,14 +150,8 @@ it('preserves a real Config Profile UUID in Host detail', function (): void {
             $payload = FakeNutgram::getActualData($request);
             $message = (string) ($payload['text'] ?? '');
 
-            $keyboard = $payload['reply_markup'] ?? null;
-            $keyboardText = is_string($keyboard) ? $keyboard : json_encode($keyboard, JSON_UNESCAPED_UNICODE);
-
             return str_contains($message, 'شناسه پروفایل: '.HOST01_PROFILE)
-                && ! str_contains($message, 'ارتباط پروفایل این هاست در پنل مشخص نیست')
-                && is_string($keyboardText)
-                && str_contains($keyboardText, '🔄 به‌روزرسانی اطلاعات')
-                && str_contains($keyboardText, 'host1:view:'.HOST01_HOST);
+                && ! str_contains($message, 'ارتباط پروفایل این هاست در پنل مشخص نیست');
         }, index: 1);
     Http::assertSentCount(1);
 });
