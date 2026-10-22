@@ -13,6 +13,7 @@ use App\Modules\Sales\Application\CalculatePlanQuote;
 use App\Modules\Sales\Application\CreatePendingPlanOrder;
 use App\Modules\Sales\Application\ListQuotedPresets;
 use App\Modules\Sales\Application\ListResellerBuilders;
+use App\Modules\Sales\Application\ManageResellerServiceLabels;
 use App\Modules\Sales\Application\ManualBankPayments;
 use App\Modules\Sales\Application\OrderDetails;
 use App\Modules\Sales\Application\OrderReader;
@@ -43,6 +44,7 @@ final readonly class SalesCheckoutUi
         private ManualBankPayments $payments,
         private ViewWallet $wallets,
         private SettleWalletOrder $walletPayments,
+        private ManageResellerServiceLabels $customerLabels,
     ) {}
 
     /** The old preview callback is still accepted, but no extra confirmation is shown. */
@@ -374,12 +376,103 @@ final readonly class SalesCheckoutUi
         }
     }
 
+    /** Existing pending order gets a private display name before payment options appear. */
+    private function beginCustomerName(Nutgram $bot, int $orderId): void
+    {
+        $buyer = $this->buyer($bot);
+        if ($buyer === null) {
+            return;
+        }
+
+        app(SalesSubscriptionsUi::class)->clearCustomerLabelDraft($buyer);
+        app(SalesSubscriptionsUi::class)->clearCustomerSearch($buyer);
+        Cache::put($this->customerNameKey($buyer), $orderId, now()->addMinutes(10));
+        $this->render($bot, "<b>👤 نام مشتری</b>\n\nنام مشتری این سرویس را ارسال کنید (۱ تا ۶۰ کاراکتر)."
+            ."\nاین نام در سرویس‌های شما نمایش داده می‌شود و شناسه فنی اشتراک تغییر نمی‌کند.",
+            InlineKeyboardMarkup::make()
+                ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'sales:checkout:name:cancel'))
+                ->addRow(InlineKeyboardButton::make('📋 سفارش‌های من', callback_data: 'sales:checkout:orders')),
+            true,
+        );
+    }
+
+    /** Consume a name only while its owner has a live checkout draft. */
+    public function customerNameText(Nutgram $bot, string $text): bool
+    {
+        $telegramId = $this->private->id($bot);
+        if ($telegramId === null || str_starts_with(trim($text), '/')) {
+            return false;
+        }
+        $actor = $this->resolve->handle($telegramId);
+        if ($actor === null) {
+            return false;
+        }
+        $orderId = Cache::get($this->customerNameKey($actor->userId));
+        if (! is_int($orderId)) {
+            return false;
+        }
+
+        try {
+            $this->customerLabels->savePending($actor->userId, $orderId, $text);
+            $order = $this->orders->findPlan($actor->userId, $orderId);
+        } catch (ValidationException $error) {
+            if (isset($error->errors()['label'])) {
+                $this->notice($bot, 'نام مشتری باید بین ۱ تا ۶۰ کاراکتر و در یک خط باشد. دوباره ارسال کنید.');
+
+                return true;
+            }
+            $this->clearCustomerName($actor->userId);
+            $this->notice($bot, 'این سفارش برای ثبت نام مشتری در دسترس نیست.');
+
+            return true;
+        } catch (AuthorizationException) {
+            $this->clearCustomerName($actor->userId);
+            $this->notice($bot, 'دسترسی ثبت نام مشتری فعال نیست.');
+
+            return true;
+        }
+
+        $this->clearCustomerName($actor->userId);
+        $this->showOrder($bot, $order);
+
+        return true;
+    }
+
+    public function cancelCustomerName(Nutgram $bot): void
+    {
+        $buyer = $this->buyer($bot);
+        if ($buyer === null) {
+            return;
+        }
+        $this->clearCustomerName($buyer);
+        $this->notice($bot, 'ثبت نام مشتری لغو شد؛ پرداختی انجام نشده است.');
+    }
+
+    public function clearCustomerName(int $buyerId): void
+    {
+        Cache::forget($this->customerNameKey($buyerId));
+    }
+
+    private function customerNameKey(int $buyerId): string
+    {
+        return TelegramBotContext::current()->cacheKey('telegram:sales:customer_name:'.$buyerId);
+    }
+
     private function showOrder(Nutgram $bot, OrderDetails $order): void
     {
+        $actor = $this->resolve->handle((int) $bot->user()->id);
+        $isReseller = $actor !== null && in_array('reseller', $actor->roles, true);
         $latestReceipt = $this->payments->latestReceiptStatus(
             SubscriptionViewer::telegram((int) $bot->user()->id),
             $order->id,
         );
+        // Older submitted receipts remain visible; never obstruct an existing review.
+        if ($isReseller && $order->status === 'pending_payment' && $latestReceipt !== 'submitted'
+            && $this->customerLabels->pendingName($order->buyerUserId, $order->id) === null) {
+            $this->beginCustomerName($bot, $order->id);
+
+            return;
+        }
         $sourceRenewal = DB::table('sales_renewal_orders')
             ->where('sales_order_id', $order->id)->value('source_order_id');
 
@@ -391,8 +484,6 @@ final readonly class SalesCheckoutUi
             default => '🟠 در انتظار پرداخت',
         };
 
-        $isReseller = in_array('reseller',
-            $this->resolve->handle((int) $bot->user()->id)->roles, true);
         $balance = $this->walletBalance($order->buyerUserId);
         $walletEligible = $order->status === 'pending_payment' && $latestReceipt !== 'submitted'
             && $balance !== null && $balance >= $order->totalPriceRials;

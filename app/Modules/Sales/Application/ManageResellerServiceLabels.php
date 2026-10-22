@@ -127,6 +127,56 @@ final readonly class ManageResellerServiceLabels
         }, 3);
     }
 
+    /** Save the customer's display name on a pending managed-plan order before payment. */
+    public function savePending(int $buyerId, int $orderId, string $name): void
+    {
+        if (str_contains($name, "\n") || str_contains($name, "\r")) {
+            throw ValidationException::withMessages(['label' => 'Multiline names are not permitted.']);
+        }
+        $clean = preg_replace('/[\x00-\x1F\x7F\x{202A}-\x{202E}\x{2066}-\x{2069}]+/u', ' ', $name);
+        if ($clean === null) {
+            throw ValidationException::withMessages(['label' => 'Invalid name.']);
+        }
+        $name = trim((string) preg_replace('/\s+/u', ' ', $clean));
+        if ($name === '' || mb_strlen($name) > 60) {
+            throw ValidationException::withMessages(['label' => 'Name must be 1 to 60 characters.']);
+        }
+
+        DB::transaction(function () use ($buyerId, $orderId, $name): void {
+            $this->authorize($buyerId);
+            $order = DB::table('sales_orders')->where('id', $orderId)
+                ->where('buyer_user_id', $buyerId)->lockForUpdate()->first(['id', 'status', 'plan_id']);
+            if ($order === null || $order->status !== 'pending_payment' || $order->plan_id === null
+                || DB::table('sales_renewal_orders')->where('sales_order_id', $orderId)->exists()) {
+                throw ValidationException::withMessages(['service' => 'Checkout name cannot be updated.']);
+            }
+
+            DB::table('sales_service_customer_labels')->upsert([[
+                'sales_order_id' => $orderId,
+                'label' => $name,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]], ['sales_order_id'], ['label', 'updated_at']);
+        }, 3);
+    }
+
+    /** Only the original pending-order owner may inspect the checkout label. */
+    public function pendingName(int $buyerId, int $orderId): ?string
+    {
+        $this->authorize($buyerId);
+        $order = DB::table('sales_orders')->where('id', $orderId)
+            ->where('buyer_user_id', $buyerId)->where('status', 'pending_payment')
+            ->whereNotNull('plan_id')->first(['id']);
+        if ($order === null || DB::table('sales_renewal_orders')->where('sales_order_id', $orderId)->exists()) {
+            return null;
+        }
+
+        $name = DB::table('sales_service_customer_labels')
+            ->where('sales_order_id', $orderId)->value('label');
+
+        return $name === null ? null : (string) $name;
+    }
+
     private function authorize(int $buyerId): void
     {
         if (! $this->buyers->isReseller($buyerId)) {

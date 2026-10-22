@@ -202,6 +202,7 @@ final readonly class SalesHomeUi
         }
         app(SalesSubscriptionsUi::class)->clearCustomerLabelDraft($actor->userId);
         app(SalesSubscriptionsUi::class)->clearCustomerSearch($actor->userId);
+        app(SalesCheckoutUi::class)->clearCustomerName($actor->userId);
         switch ($action) {
             case 'buy':
                 $this->buy($bot);
@@ -450,6 +451,7 @@ final readonly class SalesHomeUi
         app(SalesPanelRequestUi::class)->clear($buyerId);
         app(SalesSubscriptionsUi::class)->clearCustomerLabelDraft($buyerId);
         app(SalesSubscriptionsUi::class)->clearCustomerSearch($buyerId);
+        app(SalesCheckoutUi::class)->clearCustomerName($buyerId);
     }
 
     private function salesRole(TelegramActor $actor): string
