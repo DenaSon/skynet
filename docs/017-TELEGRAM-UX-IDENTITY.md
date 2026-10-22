@@ -6,6 +6,12 @@
 
 DenaGate is a practical Persian Telegram bot. A person can administer products, plans, users and prices without knowing databases, frameworks, or internal architecture. Preserve **every existing capability and Action**: simplification must never remove functions, bypass authorization, or change price, money, order or provisioning rules.
 
+## Prelaunch branding guard — 2026-10-22
+
+Admin product and plan list titles, the web login heading and the operator's Telegram account-link instruction now use Laravel `config('app.name')` rather than the retired ParsaGate brand. The application fallback and `.env.example` identify DenaGate. Static Artisan metadata is worded neutrally where modified.
+
+Keep historical documentation, remote `SkyNetwork ref:` ownership markers, existing helper environment variable identifiers, synthetic account email domains, and persistent database identifiers unchanged: these are internal compatibility contracts, not UI copy. Verify the deployed `APP_NAME` separately; changing this setting can also change default Redis/cache prefixes and the session cookie name. Any production config adjustment must preserve queue and session continuity. GitHub CI is not live Telegram acceptance.
+
 ## Visible language
 
 - The public-facing product name in new/changed UI is **DenaGate** (updated 2026-10-20, UXR plan). Older ParsaGate text is migrated only in the current feature scope. Retain technical identifiers and historical records; do not rebrand infrastructure or stored references.
