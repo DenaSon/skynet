@@ -124,12 +124,12 @@ final readonly class ManualPaymentUi
                 ."\n\nمبلغ دقیق: <b>".TelegramUi::toman($order->totalPriceRials).' تومان</b>'
                 ."\nشماره کارت: ".TelegramUi::code($card)
                 .($instructions === '' ? '' : "\n".TelegramUi::escape($instructions))
-                ."\n\n<blockquote>بعد از واریز، عکس رسید را همین‌جا بفرستید. ثبت رسید به معنای تأیید پرداخت نیست.</blockquote>";
+                ."\n\n<blockquote>✅ بعد از واریز، عکس رسید را همین‌جا بفرستید تا پرداختتان بررسی شود. نتیجه را از همین بات دریافت می‌کنید.</blockquote>";
             $this->renderPayment($bot, $details, $keyboard);
             // ForceReply is a lightweight prompt, not another required step.
             // Ownership and order state are rechecked on receipt submission.
             $bot->sendMessage(
-                text: '📷 عکس رسید را برای همین سفارش ارسال کنید (۱۰ دقیقه فرصت دارید).',
+                text: '📷 لطفاً عکس رسید واریز را همین‌جا بفرستید (۱۰ دقیقه فرصت دارید).',
                 reply_markup: ForceReply::make(
                     force_reply: true,
                     input_field_placeholder: 'عکس رسید پرداخت',
@@ -140,7 +140,7 @@ final readonly class ManualPaymentUi
             return;
         }
 
-        $this->render($bot, "🧾 ثبت رسید سفارش #{$order->id}\n\nمبلغ دقیق: ".TelegramUi::toman($order->totalPriceRials)." تومان\n\n{$instructions}\n\nپس از انتقال وجه، تصویر رسید را در همین گفت‌وگوی خصوصی ارسال کنید.\nاین درخواست ۱۰ دقیقه اعتبار دارد؛ تصویر به‌تنهایی پرداخت را اثبات نمی‌کند.", $keyboard);
+        $this->render($bot, "🧾 ثبت رسید سفارش #{$order->id}\n\nمبلغ دقیق: ".TelegramUi::toman($order->totalPriceRials)." تومان\n\n{$instructions}\n\nبعد از واریز، تصویر رسید را همین‌جا بفرستید تا پرداخت بررسی شود.\nبرای ارسال رسید ۱۰ دقیقه فرصت دارید.", $keyboard);
     }
 
     /** The configured card is real operator data, never a default/demo identity. */
@@ -257,7 +257,7 @@ final readonly class ManualPaymentUi
 
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$actor->userId));
         $this->notice($bot, TelegramBotContext::current()->key === TelegramBotContext::SALES
-            ? "✅ رسید دریافت شد؛ منتظر بررسی مدیر باشید.\nسفارش #{$orderId}"
+            ? "✅ رسیدتان دریافت شد و برای بررسی ارسال شد.\nنتیجه را در همین بات دریافت می‌کنید.\nسفارش #{$orderId}"
             : "🕘 رسید سفارش #{$orderId} ثبت شد.\nشماره بررسی: #{$claimId}\n\nتنها پس از تطبیق واقعی گردش بانک و تأیید مدیر، سفارش تسویه می‌شود.");
         // Keep the already deployed best-effort alerts until the durable
         // notification worker is explicitly enabled in Production.
