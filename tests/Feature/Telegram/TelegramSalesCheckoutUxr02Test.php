@@ -473,7 +473,7 @@ it('collects a reseller customer name before payment while preserving the manage
     $order = (int) DB::table('sales_orders')->value('id');
     $key = TelegramBotContext::current()->cacheKey('telegram:sales:customer_name:'.$buyer->id);
     expect($order)->toBeGreaterThan(0)
-        ->and(Cache::get($key))->toBe($order)
+        ->and(Cache::get($key))->toBe(['order_id' => $order])
         ->and(DB::table('billing_journals')->where('kind', 'purchase')->count())->toBe(0)
         ->and(DB::table('sales_service_customer_labels')->count())->toBe(0);
 
@@ -514,5 +514,52 @@ it('rejects forged pending labels and keeps abandoned customer-name drafts payme
         ->and(DB::table('billing_journals')->where('kind', 'purchase')->count())->toBe(0);
     $bot->hearText('نام بعد از انصراف')->reply();
     expect(DB::table('sales_service_customer_labels')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('accepts a numeric-string legacy checkout draft and continues after a Persian full name', function (): void {
+    $data = uxr02Plan();
+    Role::findOrCreate('reseller', 'web');
+    $buyer = User::factory()->create();
+    $buyer->syncRoles(['reseller']);
+    $bot = uxr02Bot(973012, $buyer);
+
+    $bot->hearCallbackQueryData('catalog:detail:'.$data['plan'].':1')->reply();
+    $order = (int) DB::table('sales_orders')->value('id');
+    $key = TelegramBotContext::current()->cacheKey('telegram:sales:customer_name:'.$buyer->id);
+
+    // Simulates RedisStore's numeric scalar read after the prompt was sent.
+    Cache::put($key, (string) $order, now()->addMinutes(10));
+    $bot->hearText('محمد اسدی')->reply()
+        ->assertCalled('sendMessage', 2)
+        ->assertRaw(static function (Request $request): bool {
+            $body = uxr02Payload($request);
+
+            return str_contains($body['text'], 'عکس رسید')
+                && ($body['reply_markup']['force_reply'] ?? false) === true;
+        }, index: 1);
+
+    expect(Cache::has($key))->toBeFalse()
+        ->and(DB::table('sales_service_customer_labels')->where('sales_order_id', $order)->value('label'))
+        ->toBe('محمد اسدی')
+        ->and(DB::table('sales_orders')->where('id', $order)->value('status'))->toBe('pending_payment')
+        ->and(DB::table('billing_journals')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('ignores malformed checkout draft values without writing labels or payments', function (): void {
+    $data = uxr02Plan();
+    Role::findOrCreate('reseller', 'web');
+    $buyer = User::factory()->create();
+    $buyer->syncRoles(['reseller']);
+    $bot = uxr02Bot(973013, $buyer);
+    $bot->hearCallbackQueryData('catalog:detail:'.$data['plan'].':1')->reply();
+
+    $key = TelegramBotContext::current()->cacheKey('telegram:sales:customer_name:'.$buyer->id);
+    Cache::put($key, ['order_id' => '1 OR 1=1'], now()->addMinutes(10));
+    $bot->hearText('محمد اسدی')->reply();
+
+    expect(DB::table('sales_service_customer_labels')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe(0);
     Http::assertNothingSent();
 });
