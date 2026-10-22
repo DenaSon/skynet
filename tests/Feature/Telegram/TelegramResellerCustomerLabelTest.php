@@ -598,6 +598,6 @@ it('counts live active, expired, nearing expiry and low quota from verified RW r
         ->and($report['lowTraffic'])->toBe(1)
         ->and($report['attentionOrderIds'])->toBe([$activeOrder]);
     Http::assertSentCount(1);
-    Http::assertSent(static fn (\Illuminate\Http\Client\Request $request): bool => $request->method() === 'GET'
+    Http::assertSent(static fn (Illuminate\Http\Client\Request $request): bool => $request->method() === 'GET'
         && str_contains($request->url(), '/api/users?'));
 });
