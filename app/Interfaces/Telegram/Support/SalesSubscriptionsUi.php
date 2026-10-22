@@ -505,7 +505,7 @@ final readonly class SalesSubscriptionsUi
             ."\n\n<blockquote>فرم تا ۱۰ دقیقه اعتبار دارد.</blockquote>",
             InlineKeyboardMarkup::make()
                 ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'sales:subs:search:cancel'))
-                ->addRow(InlineKeyboardButton::make('◀️ بازگشت به سرویس‌ها', callback_data: 'sales:subs:list:0')));
+                ->addRow(InlineKeyboardButton::make('◀️ بازگشت به سرویس‌ها', callback_data: 'sales:subs:search:cancel')));
     }
 
     /** Consume only the pending search input; unrelated free-text routes remain untouched. */
