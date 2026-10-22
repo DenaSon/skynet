@@ -247,7 +247,7 @@ final readonly class SalesSubscriptionsUi
 
         if ($resellerId !== null) {
             $keyboard->addRow(InlineKeyboardButton::make(
-                $customerLabel === null ? '➕ ثبت نام مشتری' : '✏️ ویرایش نام مشتری',
+                '✏️ ویرایش نام مشتری',
                 callback_data: 'sales:subs:label:edit:'.$orderId.':'.$cursor,
             ));
         }
