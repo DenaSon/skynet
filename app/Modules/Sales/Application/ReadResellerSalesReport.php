@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Sales\Application;
 
 use App\Modules\Identity\Application\ResolveSalesBuyer;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -20,7 +21,9 @@ final readonly class ReadResellerSalesReport
      */
     public function handle(int $buyerId, int $days): array
     {
-        $this->buyers->isReseller($buyerId);
+        if (! $this->buyers->isReseller($buyerId)) {
+            throw new AuthorizationException;
+        }
         if (! in_array($days, [7, 30], true)) {
             throw ValidationException::withMessages(['days' => 'Unsupported report window.']);
         }
