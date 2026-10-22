@@ -1,3 +1,7 @@
+## RES-REPORT-02 — owner-scoped live status read (2026-10-23)
+
+Private reseller reports additionally provide read-only live RW status: active/expired/limited, near-expiry and low-quota with up to 6 own-service follow-up shortcuts. Bounded to 50 local owner-linked paid subscriptions and at most two paginated RW list GETs for up to 1000 provider users. Any incomplete list, mismatched exact remote ID+username, absent provider configuration or failed response displays unavailable/unknown rather than fabricated zero. No provider writes, credentials in Bot/DB, unbounded scans, new dependencies or migrations; authorized live Telegram checks and provider staging acceptance separate from CI.
+
 ## Sales copy/catalog and reseller builder help — phase 2 (2026-10-23)
 
 Sales payment copy now asks customers to send their receipt after transfer for review with a friendly promise of notice in the same Bot; the actual bank-settlement requirement, approval permissions, payment state, idempotency and receipt validation are preserved unchanged. The shared Plan Catalog displays published plans on separated lines for plan, traffic/duration and actual quoted price (no fabricated numbers), maintaining original buttons and pagination. Sales Support adds one short reseller-only builder tutorial with current-actor role verification; ordinary members cannot access it via forged callback. No migration, payment writes, new dependencies or provider changes. CI and live UX approval separate.
