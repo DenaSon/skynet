@@ -54,10 +54,11 @@ function host01Bot(int $telegramId = 957001, bool $private = true): Nutgram
 }
 
 /** @param array<string,mixed>|null $override */
-function host01Fake(bool $postFails = false, bool $profilesStale = false, bool $inboundsStale = false, ?array $override = null): void
+function host01Fake(bool $postFails = false, bool $profilesStale = false, bool $inboundsStale = false, ?array $override = null, bool $profilesFail = false): void
 {
-    Http::fake(static function (Request $r) use ($postFails, $profilesStale, $inboundsStale, $override) {
+    Http::fake(static function (Request $r) use ($postFails, $profilesStale, $inboundsStale, $override, $profilesFail) {
         $url = $r->url();
+        $profileUuid = $override['inbound']['configProfileUuid'] ?? HOST01_PROFILE;
         if ($url === 'https://host01.test/api/hosts' && $r->method() === 'GET') {
             return Http::response(['response' => [$override ?? [
                 'uuid' => HOST01_HOST, 'remark' => 'TLS-Host', 'address' => 'edge.example.com',
@@ -75,14 +76,21 @@ function host01Fake(bool $postFails = false, bool $profilesStale = false, bool $
             ]]);
         }
         if ($url === 'https://host01.test/api/config-profiles' && $r->method() === 'GET') {
+            if ($profilesFail) {
+                return Http::response(['message' => 'unavailable'], 503);
+            }
+
             return Http::response(['response' => [
                 'total' => $profilesStale ? 0 : 1,
-                'configProfiles' => $profilesStale ? [] : [['uuid' => HOST01_PROFILE, 'name' => 'Main']],
+                'configProfiles' => $profilesStale ? [] : [[
+                    'uuid' => $profileUuid,
+                    'name' => $profileUuid === '00000000-0000-0000-0000-000000000000' ? 'Default-Profile' : 'Main',
+                ]],
             ]]);
         }
-        if ($url === 'https://host01.test/api/config-profiles/'.HOST01_PROFILE.'/inbounds' && $r->method() === 'GET') {
+        if ($url === 'https://host01.test/api/config-profiles/'.$profileUuid.'/inbounds' && $r->method() === 'GET') {
             return Http::response(['response' => [
-                'inbounds' => $inboundsStale ? [] : [['uuid' => HOST01_INBOUND, 'tag' => 'VLESS', 'profileUuid' => HOST01_PROFILE]],
+                'inbounds' => $inboundsStale ? [] : [['uuid' => HOST01_INBOUND, 'tag' => 'VLESS', 'profileUuid' => $profileUuid]],
             ]]);
         }
         if ($url === 'https://host01.test/api/hosts' && $r->method() === 'POST') {
@@ -114,7 +122,7 @@ it('shows bounded safe Host list and detail using only GETs', function (): void 
         && $item[0]->hasHeader('Authorization', 'Bearer fake-token')))->toBeTrue();
 });
 
-it('labels an all-zero provider profile UUID as unknown without changing the read model', function (): void {
+it('shows the verified real Default Profile name for the all-zero profile UUID', function (): void {
     $root = host01User();
     $zero = '00000000-0000-0000-0000-000000000000';
     host01Fake(override: [
@@ -131,14 +139,55 @@ it('labels an all-zero provider profile UUID as unknown without changing the rea
             $payload = FakeNutgram::getActualData($request);
             $message = (string) ($payload['text'] ?? '');
 
-            return str_contains($message, 'شناسه پروفایل: نامشخص')
+            return str_contains($message, 'شناسه پروفایل: 00000000-0000-0000-0000-000000000000')
+                && str_contains($message, 'نام پروفایل: Default-Profile')
                 && str_contains($message, 'شناسه ورودی: '.HOST01_INBOUND)
-                && str_contains($message, 'ارتباط پروفایل این هاست در پنل مشخص نیست')
-                && ! str_contains($message, '00000000-0000-0000-0000-000000000000');
+                && ! str_contains($message, '⚠️ ارتباط پروفایل و ورودی قابل تأیید نیست');
         }, index: 1);
 
     expect(collect(Http::recorded())->every(static fn (array $item): bool => $item[0]->method() === 'GET'))
         ->toBeTrue();
+});
+
+it('does not invent a profile name when the remote profile or inbound is absent', function (bool $missingProfile): void {
+    host01User();
+    $zero = '00000000-0000-0000-0000-000000000000';
+    host01Fake(profilesStale: $missingProfile, inboundsStale: ! $missingProfile, override: [
+        'uuid' => HOST01_HOST, 'remark' => 'TLS-Host', 'address' => 'edge.example.com',
+        'port' => 443, 'isDisabled' => false,
+        'inbound' => ['configProfileUuid' => $zero, 'configProfileInboundUuid' => HOST01_INBOUND],
+    ]);
+
+    host01Bot()->hearCallbackQueryData('host1:view:'.HOST01_HOST)->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $message = (string) (FakeNutgram::getActualData($request)['text'] ?? '');
+
+            return str_contains($message, 'شناسه پروفایل: 00000000-0000-0000-0000-000000000000')
+                && str_contains($message, 'نام پروفایل: تأیید نشده')
+                && str_contains($message, '⚠️ ارتباط پروفایل و ورودی قابل تأیید نیست')
+                && ! str_contains($message, 'نام پروفایل: Default-Profile');
+        }, index: 1);
+    expect(collect(Http::recorded())->every(static fn (array $entry): bool => $entry[0]->method() === 'GET'))->toBeTrue();
+})->with([true, false]);
+
+it('keeps Host details usable when the optional profile lookup fails', function (): void {
+    host01User();
+    $zero = '00000000-0000-0000-0000-000000000000';
+    host01Fake(override: [
+        'uuid' => HOST01_HOST, 'remark' => 'TLS-Host', 'address' => 'edge.example.com',
+        'port' => 443, 'isDisabled' => false,
+        'inbound' => ['configProfileUuid' => $zero, 'configProfileInboundUuid' => HOST01_INBOUND],
+    ], profilesFail: true);
+
+    host01Bot()->hearCallbackQueryData('host1:view:'.HOST01_HOST)->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $message = (string) (FakeNutgram::getActualData($request)['text'] ?? '');
+
+            return str_contains($message, '🌐 جزئیات هاست')
+                && str_contains($message, 'نام پروفایل: تأیید نشده')
+                && str_contains($message, 'شناسه ورودی: '.HOST01_INBOUND);
+        }, index: 1);
+    Http::assertSentCount(2);
 });
 
 it('preserves a real Config Profile UUID in Host detail', function (): void {
