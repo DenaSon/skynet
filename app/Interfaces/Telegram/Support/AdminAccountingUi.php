@@ -44,7 +44,6 @@ final readonly class AdminAccountingUi
                 ->addRow(InlineKeyboardButton::make('◀️ امور مالی', callback_data: 'menu:admin:finance')));
     }
 
-
     public function report(Nutgram $bot, string $period): void
     {
         $id = $this->actor($bot);
