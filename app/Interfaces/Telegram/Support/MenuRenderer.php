@@ -136,7 +136,8 @@ final class MenuRenderer
         $this->render($bot, "📦 محصولات و پلن‌ها\n\nاز این بخش می‌توانید محصولات، پلن‌ها و قیمت‌های فروش را مدیریت کنید.", $keyboard);
     }
 
-    public function showAdminFinance(Nutgram $bot): void
+    /** @param array{balanceRials:int,walletsTotal:int,walletsPositive:int,walletsNegative:int,pendingTopups:int}|null $walletSummary */
+    public function showAdminFinance(Nutgram $bot, ?array $walletSummary = null): void
     {
         $keyboard = InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('💼 کیف پول کاربران', callback_data: 'finance:wallets:1'));
@@ -149,7 +150,24 @@ final class MenuRenderer
         }
         $keyboard->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
 
-        $this->render($bot, "💳 امور مالی\n\nبخش موردنظر را انتخاب کنید.", $keyboard);
+        $lines = ['💳 امور مالی', ''];
+        if ($walletSummary === null) {
+            $lines[] = 'آمار کیف پول فعلاً در دسترس نیست.';
+        } else {
+            $lines[] = '💼 مجموع مانده کیف پول‌ها: '
+                .number_format(intdiv($walletSummary['balanceRials'], 10)).' تومان';
+            $lines[] = 'کیف پول‌ها: '.number_format($walletSummary['walletsTotal'])
+                .' | دارای موجودی: '.number_format($walletSummary['walletsPositive']);
+            $lines[] = 'شارژهای در انتظار تأیید: '.number_format($walletSummary['pendingTopups']);
+            if ($walletSummary['walletsNegative'] > 0) {
+                $lines[] = '⚠️ کیف پول با مانده منفی: '.number_format($walletSummary['walletsNegative']);
+            }
+            $lines[] = 'مانده کیف پول درآمد فروش نیست.';
+        }
+        $lines[] = '';
+        $lines[] = 'بخش موردنظر را انتخاب کنید.';
+
+        $this->render($bot, implode("\n", $lines), $keyboard);
     }
 
     public function showUserList(Nutgram $bot, UserDirectoryPage $results, bool $search = false): void

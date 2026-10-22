@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Interfaces\Telegram\Support\BillingReviewTokens;
+use App\Modules\Billing\Application\ReadAdminWalletSummary;
 use App\Modules\Billing\Application\RequestTopup;
 use App\Modules\Billing\Application\SubmitTopupPhoto;
 use App\Modules\Billing\Application\ViewWallet;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use GuzzleHttp\Psr7\Request;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Routing\Route;
@@ -192,4 +194,112 @@ it('does not expose a photo when Sales-to-Admin secure transfer is unavailable',
     $bot->hearCallbackQueryData('finance:topup:photo:'.$id)->reply()->assertCalled('editMessageText');
     expect(DB::table('billing_topups')->where('id', $id)->value('status'))->toBe('submitted')
         ->and(DB::table('billing_journals')->count())->toBe(0);
+});
+
+it('summarizes the complete wallet ledger rather than just one page and flags negative balances', function (): void {
+    $root = fin01Admin();
+    $bot = fin01Bot(987601, $root);
+    $users = User::factory()->count(10)->create();
+    $walletIds = [];
+    foreach ($users as $user) {
+        $walletIds[] = (int) DB::table('billing_wallets')->insertGetId([
+            'user_id' => $user->id, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+    }
+    // The oldest wallet is on page two in the existing newest-first browser.
+    $users[0]->forceFill(['is_active' => false])->save();
+    $journal = (int) DB::table('billing_journals')->insertGetId([
+        'wallet_id' => $walletIds[0], 'kind' => 'topup',
+        'idempotency_key' => 'fin-stat-01-fixture', 'created_at' => now(),
+    ]);
+    DB::table('billing_postings')->insert([
+        ['journal_id' => $journal, 'wallet_id' => $walletIds[0],
+            'account_code' => 'wallet_liability', 'side' => 'credit', 'amount_rials' => 1_500_000],
+        ['journal_id' => $journal, 'wallet_id' => $walletIds[0],
+            'account_code' => 'wallet_liability', 'side' => 'debit', 'amount_rials' => 250_000],
+        ['journal_id' => $journal, 'wallet_id' => $walletIds[1],
+            'account_code' => 'wallet_liability', 'side' => 'credit', 'amount_rials' => 350_000],
+        ['journal_id' => $journal, 'wallet_id' => $walletIds[1],
+            'account_code' => 'wallet_liability', 'side' => 'debit', 'amount_rials' => 500_000],
+        // Different accounting account must never inflate customer wallet totals.
+        ['journal_id' => $journal, 'wallet_id' => null,
+            'account_code' => 'order_liability', 'side' => 'credit', 'amount_rials' => 9_000_000],
+    ]);
+    DB::table('billing_topups')->insert([
+        ['wallet_id' => $walletIds[2], 'request_key' => 'finstat-submitted',
+            'amount_rials' => 8_000_000, 'status' => 'submitted',
+            'created_at' => now(), 'updated_at' => now()],
+        ['wallet_id' => $walletIds[3], 'request_key' => 'finstat-pending',
+            'amount_rials' => 7_000_000, 'status' => 'pending',
+            'created_at' => now(), 'updated_at' => now()],
+    ]);
+
+    $summary = app(ReadAdminWalletSummary::class)->handle($root->id);
+    expect($summary)->toBe([
+        'balanceRials' => 1_100_000,
+        'walletsTotal' => 10,
+        'walletsPositive' => 1,
+        'walletsNegative' => 1,
+        'pendingTopups' => 1,
+    ]);
+
+    $bot->hearCallbackQueryData('menu:admin:finance')->reply()->assertRaw(static function (Request $req): bool {
+        $data = fin01Data($req);
+
+        return str_contains($data['text'], 'مجموع مانده کیف پول‌ها: 110,000 تومان')
+            && str_contains($data['text'], 'کیف پول‌ها: 10 | دارای موجودی: 1')
+            && str_contains($data['text'], 'شارژهای در انتظار تأیید: 1')
+            && str_contains($data['text'], 'کیف پول با مانده منفی: 1')
+            && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'finance:wallets:1');
+    }, index: 1);
+
+    foreach ([1, 2] as $page) {
+        $bot->hearCallbackQueryData('finance:wallets:'.$page)->reply()
+            ->assertRaw(static function (Request $req): bool {
+                $data = fin01Data($req);
+
+                return str_contains($data['text'], 'مجموع مانده: <b>110,000 تومان</b>')
+                    && str_contains($data['text'], 'کل کیف پول‌ها: 10')
+                    && str_contains($data['text'], 'دارای موجودی: 1')
+                    && str_contains($data['text'], 'مانده منفی نیازمند بررسی: 1')
+                    && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'menu:admin:finance');
+            }, index: 1);
+    }
+
+    expect(DB::table('billing_postings')->count())->toBe(5)
+        ->and(DB::table('billing_journals')->count())->toBe(1)
+        ->and(DB::table('billing_topups')->count())->toBe(2);
+    Http::assertNothingSent();
+});
+
+it('shows zero when no wallets exist and denies revoked or ordinary Admin actors', function (): void {
+    $root = fin01Admin();
+    $bot = fin01Bot(987601, $root);
+    expect(app(ReadAdminWalletSummary::class)->handle($root->id))->toBe([
+        'balanceRials' => 0,
+        'walletsTotal' => 0,
+        'walletsPositive' => 0,
+        'walletsNegative' => 0,
+        'pendingTopups' => 0,
+    ]);
+    $bot->hearCallbackQueryData('menu:admin:finance')->reply()->assertRaw(static function (Request $req): bool {
+        $data = fin01Data($req);
+
+        return str_contains($data['text'], 'مجموع مانده کیف پول‌ها: 0 تومان');
+    }, index: 1);
+
+    $ordinary = User::factory()->create();
+    $ordinary->syncRoles(['admin']);
+    expect(fn () => app(ReadAdminWalletSummary::class)->handle($ordinary->id))
+        ->toThrow(AuthorizationException::class);
+
+    $root->syncRoles(['admin']);
+    expect(fn () => app(ReadAdminWalletSummary::class)->handle($root->id))
+        ->toThrow(AuthorizationException::class);
+    $bot->hearCallbackQueryData('menu:admin:finance')->reply()->assertCalled('answerCallbackQuery');
+    $bot->hearCallbackQueryData('finance:wallets:1')->reply()->assertCalled('answerCallbackQuery');
+
+    $bot->setCommonChat(Chat::make(-987601, ChatType::GROUP));
+    $bot->hearCallbackQueryData('menu:admin:finance')->reply()->assertNoReply();
+    Http::assertNothingSent();
 });
