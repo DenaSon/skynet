@@ -201,6 +201,7 @@ final readonly class SalesHomeUi
             return true;
         }
         app(SalesSubscriptionsUi::class)->clearCustomerLabelDraft($actor->userId);
+        app(SalesSubscriptionsUi::class)->clearCustomerPhoneDraft($actor->userId);
         app(SalesSubscriptionsUi::class)->clearCustomerSearch($actor->userId);
         app(SalesCheckoutUi::class)->clearCustomerName($actor->userId);
         switch ($action) {
@@ -450,6 +451,7 @@ final readonly class SalesHomeUi
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:wallet:topup:'.$buyerId));
         app(SalesPanelRequestUi::class)->clear($buyerId);
         app(SalesSubscriptionsUi::class)->clearCustomerLabelDraft($buyerId);
+        app(SalesSubscriptionsUi::class)->clearCustomerPhoneDraft($buyerId);
         app(SalesSubscriptionsUi::class)->clearCustomerSearch($buyerId);
         app(SalesCheckoutUi::class)->clearCustomerName($buyerId);
     }
