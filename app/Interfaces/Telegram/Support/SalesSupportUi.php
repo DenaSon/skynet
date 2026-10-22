@@ -15,7 +15,13 @@ final readonly class SalesSupportUi
 
     public function show(Nutgram $bot, string $page = 'support'): void
     {
-        if ($this->home->navigationActor($bot) === null) {
+        $actor = $this->home->navigationActor($bot);
+        if ($actor === null) {
+            return;
+        }
+        if ($page === 'builder' && ! in_array('reseller', $actor->roles, true)) {
+            $this->home->fallback($bot);
+
             return;
         }
         $operator = $this->operatorUrl();
@@ -26,6 +32,9 @@ final readonly class SalesSupportUi
                     ? 'ارتباط مستقیم فعلاً در دسترس نیست. راهنمای اتصال و خرید را ببینید.'
                     : 'برای گفتگو با اپراتور، دکمه «ارتباط با پشتیبان» را بزنید. گفتگوی خصوصی تلگرام باز می‌شود.');
                 $keyboard->addRow(InlineKeyboardButton::make('📚 آموزش اتصال و خرید', callback_data: 'sales:help:apps'));
+                if (in_array('reseller', $actor->roles, true)) {
+                    $keyboard->addRow(InlineKeyboardButton::make('🧩 راهنمای پلن‌ساز', callback_data: 'sales:help:builder'));
+                }
                 break;
 
             case 'apps':
@@ -38,6 +47,16 @@ final readonly class SalesSupportUi
                     InlineKeyboardButton::make('💻 مک', callback_data: 'sales:help:macos'),
                 )->addRow(InlineKeyboardButton::make('🛒 آموزش خرید', callback_data: 'sales:help:purchase'))
                     ->addRow(InlineKeyboardButton::make('🔧 رفع مشکل اتصال', callback_data: 'sales:help:troubleshoot'));
+                break;
+
+            case 'builder':
+                $text = '<b>🧩 راهنمای پلن‌ساز</b>'."\n\n"
+                    ."۱. از منوی نماینده، «پلن‌ساز» را انتخاب کنید.\n\n"
+                    ."۲. پلن مناسب و حجم و مدت دلخواه مشتری را مشخص کنید.\n\n"
+                    ."۳. قیمت نهایی را بررسی کنید و ثبت سفارش را ادامه دهید.\n\n"
+                    ."۴. پس از پرداخت و تأیید، سرویس در «سرویس‌های من» نمایش داده می‌شود."
+                    ."\n\n<blockquote>قیمت و امکان خرید قبل از ثبت سفارش بررسی می‌شود.</blockquote>";
+                $keyboard->addRow(InlineKeyboardButton::make('🧩 ورود به پلن‌ساز', callback_data: 'menu:builder'));
                 break;
 
             case 'desktop':
@@ -113,7 +132,7 @@ final readonly class SalesSupportUi
         if ($operator !== null) {
             $keyboard->addRow(InlineKeyboardButton::make('💬 ارتباط با پشتیبان', url: $operator));
         }
-        if (in_array($page, ['android', 'ios', 'windows', 'macos', 'desktop', 'purchase', 'troubleshoot'], true)) {
+        if (in_array($page, ['android', 'ios', 'windows', 'macos', 'desktop', 'purchase', 'troubleshoot', 'builder'], true)) {
             $keyboard->addRow(InlineKeyboardButton::make('◀️ آموزش‌ها', callback_data: 'sales:help:apps'));
         } elseif ($page === 'apps') {
             $keyboard->addRow(InlineKeyboardButton::make('◀️ پشتیبانی', callback_data: 'sales:support'));
