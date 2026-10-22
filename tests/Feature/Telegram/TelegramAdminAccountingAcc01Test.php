@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Interfaces\Telegram\Support\AdminAccountingUi;
 use App\Modules\Billing\Application\RecordBusinessEntry;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
@@ -195,15 +196,13 @@ it('denies ordinary admin, revoked root and group before any bookkeeping write',
     Http::assertNothingSent();
 });
 
-
 it('coordinates competing Admin text drafts and supports the inclusive 100-billion-toman amount limit', function (): void {
     $root = acc01Root();
     $bot = acc01Bot(996101, $root);
-    $foreign = 'admin:nw01:draft:'.$root->id;
     // Existing Admin Node wizards are scoped by the runtime cache prefix.
-    $nodeKey = \App\Interfaces\Telegram\Processing\TelegramBotContext::current()
+    $nodeKey = TelegramBotContext::current()
         ->cacheKey('nw01:draft:'.$root->id);
-    $financeKey = \App\Interfaces\Telegram\Processing\TelegramBotContext::current()
+    $financeKey = TelegramBotContext::current()
         ->cacheKey('telegram:finance:wallet:'.$root->id);
     Cache::put($nodeKey, ['stage' => 'password'], now()->addMinutes(10));
     Cache::put($financeKey, ['kind' => 'find'], now()->addMinutes(10));

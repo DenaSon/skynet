@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Billing\Application;
 
 use App\Modules\Identity\Application\AssertBillingAccess;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -112,7 +113,7 @@ final readonly class RecordBusinessEntry
         return $entry;
     }
 
-    /** @return array{entries:\Illuminate\Support\Collection<int,\stdClass>,total:int,page:int} */
+    /** @return array{entries:Collection<int,\stdClass>,total:int,page:int} */
     public function history(int $actorId, int $page = 1): array
     {
         $this->access->reviewer($actorId);
