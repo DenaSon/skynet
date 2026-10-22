@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
@@ -504,9 +505,9 @@ it('rejects forged pending labels and keeps abandoned customer-name drafts payme
     $order = (int) DB::table('sales_orders')->value('id');
     $labels = app(ManageResellerServiceLabels::class);
     expect(fn () => $labels->savePending($foreign->id, $order, 'غیرمجاز'))
-        ->toThrow(\Illuminate\Validation\ValidationException::class);
+        ->toThrow(ValidationException::class);
     expect(fn () => $labels->savePending($buyer->id, $order, "دو خط\nغیرمجاز"))
-        ->toThrow(\Illuminate\Validation\ValidationException::class);
+        ->toThrow(ValidationException::class);
 
     $bot->hearCallbackQueryData('sales:checkout:name:cancel')->reply()->assertCalled('editMessageText');
     expect(DB::table('sales_service_customer_labels')->count())->toBe(0)
