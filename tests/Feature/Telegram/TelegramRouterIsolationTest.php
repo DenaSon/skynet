@@ -301,6 +301,10 @@ it('keeps Sales identity, navigation and buyer routes isolated from Admin callba
         'callback:sales:subs:view:{id}:{cursor}',
         'callback:sales:subs:page:{id}:{cursor}',
         'callback:sales:subs:link:{id}:{cursor}',
+        'callback:sales:subs:label:edit:{id}:{cursor}',
+        'callback:sales:subs:label:remove:{id}:{cursor}',
+        'callback:sales:subs:label:clear:{id}:{cursor}',
+        'callback:sales:subs:label:cancel',
         'callback:sales:subs:renew:{id}:{cursor}',
         'callback:sales:subs:renew:checkout:{id}:{cursor}',
     ]);

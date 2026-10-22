@@ -16,8 +16,8 @@ use App\Modules\Sales\Application\ManageResellerServiceLabels;
 use App\Modules\Sales\Application\PrepareRenewalDraft;
 use DateTimeImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
@@ -477,6 +477,10 @@ final readonly class SalesSubscriptionsUi
     /** Start a private, 10-minute customer-name draft for an existing owned service. */
     public function beginCustomerLabel(Nutgram $bot, string $id, string $cursor): void
     {
+        if ($this->privateUser->id($bot) === null) {
+            return;
+        }
+
         $buyerId = $this->resellerId($bot);
         $orderId = $this->id($id);
         if ($buyerId === null || $orderId === null || $this->id($cursor, true) === null) {
@@ -557,6 +561,10 @@ final readonly class SalesSubscriptionsUi
 
     public function confirmCustomerLabelRemoval(Nutgram $bot, string $id, string $cursor): void
     {
+        if ($this->privateUser->id($bot) === null) {
+            return;
+        }
+
         $buyerId = $this->resellerId($bot);
         $orderId = $this->id($id);
         if ($buyerId === null || $orderId === null || $this->id($cursor, true) === null) {
@@ -585,6 +593,10 @@ final readonly class SalesSubscriptionsUi
 
     public function clearCustomerLabel(Nutgram $bot, string $id, string $cursor): void
     {
+        if ($this->privateUser->id($bot) === null) {
+            return;
+        }
+
         $buyerId = $this->resellerId($bot);
         $orderId = $this->id($id);
         if ($buyerId === null || $orderId === null || $this->id($cursor, true) === null) {
@@ -605,6 +617,10 @@ final readonly class SalesSubscriptionsUi
 
     public function cancelCustomerLabel(Nutgram $bot): void
     {
+        if ($this->privateUser->id($bot) === null) {
+            return;
+        }
+
         $buyerId = $this->resellerId($bot);
         if ($buyerId !== null) {
             $this->clearCustomerLabelDraft($buyerId);
