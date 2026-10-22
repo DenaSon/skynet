@@ -95,16 +95,36 @@ final readonly class RecordBusinessEntry
         }, 3);
     }
 
+    /** @return \stdClass */
+    public function previewReversal(int $actorId, int $entryId): object
+    {
+        $this->access->reviewer($actorId);
+        if ($entryId < 1) {
+            throw ValidationException::withMessages(['accounting' => 'Invalid correction.']);
+        }
+
+        $entry = DB::table('accounting_entries')->where('id', $entryId)->first();
+        if ($entry === null || $entry->reversal_of_id !== null
+            || DB::table('accounting_entries')->where('reversal_of_id', $entryId)->exists()) {
+            throw ValidationException::withMessages(['accounting' => 'Entry cannot be reversed.']);
+        }
+
+        return $entry;
+    }
+
     /** @return array{entries:\Illuminate\Support\Collection<int,\stdClass>,total:int,page:int} */
     public function history(int $actorId, int $page = 1): array
     {
         $this->access->reviewer($actorId);
         $page = max(1, min(1000, $page));
-        $query = DB::table('accounting_entries');
+        $query = DB::table('accounting_entries as e')
+            ->leftJoin('accounting_entries as reversal', 'reversal.reversal_of_id', '=', 'e.id')
+            ->select('e.*')
+            ->selectRaw('CASE WHEN reversal.id IS NULL THEN 0 ELSE 1 END as is_reversed');
 
         return [
-            'entries' => (clone $query)->orderByDesc('id')->offset(($page - 1) * 8)->limit(8)->get(),
-            'total' => (clone $query)->count(),
+            'entries' => (clone $query)->orderByDesc('e.id')->offset(($page - 1) * 8)->limit(8)->get(),
+            'total' => DB::table('accounting_entries')->count(),
             'page' => $page,
         ];
     }

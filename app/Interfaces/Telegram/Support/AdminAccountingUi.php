@@ -4,14 +4,15 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Telegram\Support;
 
+use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Billing\Application\RecordBusinessEntry;
 use App\Modules\Identity\Application\AssertBillingAccess;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 
@@ -56,6 +57,7 @@ final readonly class AdminAccountingUi
         $data = ['kind' => $kind, 'category' => $kind === 'owner_draw' ? 'owner' : null,
             'step' => $kind === 'expense' ? 'category' : 'amount',
             'token' => bin2hex(random_bytes(16))];
+        $this->clearCompeting($id);
         Cache::put($this->key($id), $data, now()->addMinutes(15));
 
         if ($kind === 'owner_draw') {
@@ -113,6 +115,14 @@ final readonly class AdminAccountingUi
             return false;
         }
 
+        // If a different Admin form was opened afterward, yield its text;
+        // do not consume host/node/finance input under an older ACC draft.
+        if ($this->hasCompeting($id)) {
+            Cache::forget($key);
+
+            return false;
+        }
+
         // Existing command/ReplyKeyboard navigation keeps priority. Clear a
         // stale draft rather than interpreting navigation as a memo.
         if (str_starts_with($value, '/') || in_array($value, ReplyMenuLabels::all(), true)) {
@@ -128,7 +138,7 @@ final readonly class AdminAccountingUi
                 '٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4',
                 '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
             ]);
-            if (preg_match('/\A[1-9][0-9]{0,10}\z/D', $number) !== 1
+            if (preg_match('/\A[1-9][0-9]{0,11}\z/D', $number) !== 1
                 || (int) $number < 10_000 || (int) $number > 100_000_000_000) {
                 $this->render($bot, 'مبلغ را به تومان، بین ۱۰ هزار تا ۱۰۰ میلیارد وارد کنید.',
                     $this->cancelKeyboard());
@@ -164,7 +174,7 @@ final readonly class AdminAccountingUi
             ."\nتوضیح: ".TelegramUi::escape($data['memo'] ?? 'ندارد')
             ."\n\n<blockquote>این ثبت فقط در دفتر شخصی ذخیره می‌شود و هیچ وجهی جابه‌جا نمی‌شود.</blockquote>",
             InlineKeyboardMarkup::make()
-                ->addRow(InlineKeyboardButton::make('✅ ثبت نهایی', callback_data: 'acc:apply:'.$data['token']))
+                ->addRow(InlineKeyboardButton::make('✅ ثبت نهایی', callback_data: 'acc:apply:'.$data['token'], style: ButtonStyle::SUCCESS))
                 ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'acc:cancel')));
 
         return true;
@@ -234,8 +244,7 @@ final readonly class AdminAccountingUi
 
         $keyboard = InlineKeyboardMarkup::make();
         foreach ($data['entries'] as $entry) {
-            if ($entry->reversal_of_id === null
-                && ! DB::table('accounting_entries')->where('reversal_of_id', $entry->id)->exists()) {
+            if ($entry->reversal_of_id === null && (int) $entry->is_reversed === 0) {
                 $keyboard->addRow(InlineKeyboardButton::make('↩️ اصلاح ثبت #'.$entry->id,
                     callback_data: 'acc:reverse:prepare:'.$entry->id));
             }
@@ -258,9 +267,9 @@ final readonly class AdminAccountingUi
         }
 
         $number = filter_var($entryId, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
-        $entry = $number === false ? null : DB::table('accounting_entries')->where('id', $number)->first();
-        if ($entry === null || $entry->reversal_of_id !== null
-            || DB::table('accounting_entries')->where('reversal_of_id', $number)->exists()) {
+        try {
+            $entry = $this->entries->previewReversal($id, $number === false ? 0 : $number);
+        } catch (ValidationException) {
             $this->expired($bot);
 
             return;
@@ -275,7 +284,7 @@ final readonly class AdminAccountingUi
             ."\n\nهیچ پولی جابه‌جا نمی‌شود.",
             InlineKeyboardMarkup::make()
                 ->addRow(InlineKeyboardButton::make('✅ ثبت اصلاحیه',
-                    callback_data: 'acc:reverse:apply:'.$number.':'.$token))
+                    callback_data: 'acc:reverse:apply:'.$number.':'.$token, style: ButtonStyle::SUCCESS))
                 ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'acc:cancel')));
     }
 
@@ -349,7 +358,9 @@ final readonly class AdminAccountingUi
     private function amountPrompt(Nutgram $bot): void
     {
         $this->render($bot, "💰 مبلغ را به <b>تومان</b> وارد کنید.\nمثلاً: <code>250000</code>",
-            $this->cancelKeyboard());
+            InlineKeyboardMarkup::make()
+                ->addRow(TelegramUi::copy('250000', '📋 کپی مبلغ نمونه'))
+                ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'acc:cancel')));
     }
 
     private function expired(Nutgram $bot): void
@@ -363,6 +374,46 @@ final readonly class AdminAccountingUi
     {
         return InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'acc:cancel'));
+    }
+
+    /**
+     * Existing Admin flows keep temporary free-text state in the same Cache;
+     * retire them before accepting accounting inputs. No user data is changed.
+     */
+    private function clearCompeting(int $id): void
+    {
+        foreach (self::competingKeys($id) as $key) {
+            Cache::forget($key);
+        }
+    }
+
+    private function hasCompeting(int $id): bool
+    {
+        foreach (self::competingKeys($id) as $key) {
+            if (Cache::has($key)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** @return list<string> */
+    private static function competingKeys(int $id): array
+    {
+        $prefixes = [
+            'nw01:draft:', 'node01:draft:', 'node02:draft:', 'node03:draft:',
+            'host01:draft:', 'host02:draft:', 'host02:batch:', 'cfg02:draft:',
+            'telegram:finance:wallet:',
+        ];
+        $keys = [];
+        foreach ($prefixes as $prefix) {
+            $keys[] = TelegramBotContext::current()->cacheKey($prefix.$id);
+        }
+        $keys[] = 'nw03:hostDraft:'.$id;
+        $keys[] = 'nw03:confirm:'.$id;
+
+        return $keys;
     }
 
     private function key(int $id): string

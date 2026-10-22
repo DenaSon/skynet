@@ -126,7 +126,8 @@ it('opens a private expense wizard with category, Persian amount, memo and a one
 
         return str_contains($p['text'], '250,000 تومان')
             && str_contains($p['text'], 'هزینه VPS')
-            && str_contains(json_encode($p['reply_markup'], JSON_THROW_ON_ERROR), 'acc:apply:');
+            && str_contains(json_encode($p['reply_markup'], JSON_THROW_ON_ERROR), 'acc:apply:')
+            && str_contains(json_encode($p['reply_markup'], JSON_THROW_ON_ERROR), '"style":"success"');
     });
 
     $state = Cache::get('admin:accounting:draft:'.$root->id);
@@ -145,7 +146,11 @@ it('opens a private expense wizard with category, Persian amount, memo and a one
         return str_contains($p['text'], 'هزینه VPS')
             && str_contains(json_encode($p['reply_markup'], JSON_THROW_ON_ERROR), 'acc:reverse:prepare:1');
     }, index: 1);
-    $bot->hearCallbackQueryData('acc:reverse:prepare:1')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('acc:reverse:prepare:1')->reply()->assertRaw(static function (Request $request): bool {
+        $p = acc01Payload($request);
+
+        return str_contains(json_encode($p['reply_markup'], JSON_THROW_ON_ERROR), '"style":"success"');
+    }, index: 1);
     $reverse = Cache::get('admin:accounting:draft:'.$root->id);
     $bot->hearCallbackQueryData('acc:reverse:apply:1:'.$reverse['token'])->reply()->assertCalled('editMessageText');
     expect(DB::table('accounting_entries')->count())->toBe(2);
@@ -188,4 +193,35 @@ it('denies ordinary admin, revoked root and group before any bookkeeping write',
     $bot->hearCallbackQueryData('acc:home')->reply()->assertNoReply();
     expect(DB::table('accounting_entries')->count())->toBe(0);
     Http::assertNothingSent();
+});
+
+
+it('coordinates competing Admin text drafts and supports the inclusive 100-billion-toman amount limit', function (): void {
+    $root = acc01Root();
+    $bot = acc01Bot(996101, $root);
+    $foreign = 'admin:nw01:draft:'.$root->id;
+    // Existing Admin Node wizards are scoped by the runtime cache prefix.
+    $nodeKey = \App\Interfaces\Telegram\Processing\TelegramBotContext::current()
+        ->cacheKey('nw01:draft:'.$root->id);
+    $financeKey = \App\Interfaces\Telegram\Processing\TelegramBotContext::current()
+        ->cacheKey('telegram:finance:wallet:'.$root->id);
+    Cache::put($nodeKey, ['stage' => 'password'], now()->addMinutes(10));
+    Cache::put($financeKey, ['kind' => 'find'], now()->addMinutes(10));
+
+    $bot->hearCallbackQueryData('acc:begin:owner_draw')->reply()->assertCalled('editMessageText');
+    expect(Cache::has($nodeKey))->toBeFalse()
+        ->and(Cache::has($financeKey))->toBeFalse();
+
+    $bot->hearText('100000000000')->reply()->assertCalled('sendMessage');
+    $state = Cache::get('admin:accounting:draft:'.$root->id);
+    expect($state['amount_rials'])->toBe(1_000_000_000_000);
+
+    $bot->hearCallbackQueryData('acc:begin:expense')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('acc:category:other')->reply()->assertCalled('editMessageText');
+
+    // Another Admin wizard started after this accounting draft. The accounting
+    // text router must yield the next amount to it instead of treating it as money.
+    Cache::put($financeKey, ['kind' => 'find'], now()->addMinutes(10));
+    expect(app(AdminAccountingUi::class)->text($bot, '12345'))->toBeFalse()
+        ->and(Cache::has('admin:accounting:draft:'.$root->id))->toBeFalse();
 });
