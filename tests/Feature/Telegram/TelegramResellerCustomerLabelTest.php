@@ -213,7 +213,6 @@ it('confirms deletion, cancels drafts on Home and refuses forged edit or revoked
     Http::assertNothingSent();
 });
 
-
 it('uses a plan-based title for unnamed services and page positions only for visible buttons', function (): void {
     $buyer = rslUser();
     $older = rslOrder($buyer);
