@@ -3,6 +3,7 @@
 use App\Interfaces\Telegram\Support\ManualPaymentUi;
 use App\Interfaces\Telegram\Support\PlanCatalogUi;
 use App\Interfaces\Telegram\Support\ResellerBuilderUi;
+use App\Interfaces\Telegram\Support\ResellerSalesReportUi;
 use App\Interfaces\Telegram\Support\SalesCheckoutUi;
 use App\Interfaces\Telegram\Support\SalesHomeUi;
 use App\Interfaces\Telegram\Support\SalesPanelRequestUi;
@@ -76,6 +77,10 @@ $bot->onCallbackQueryData('sales:help:{page}', function (Nutgram $bot, string $p
     app(SalesSupportUi::class)->show($bot, $page);
 });
 
+$bot->onCallbackQueryData('sales:report:{days}', function (Nutgram $bot, string $days): void {
+    app(ResellerSalesReportUi::class)->show($bot, $days);
+});
+
 $bot->onCallbackQueryData('sales:wallet', function (Nutgram $bot): void {
     app(SalesHomeUi::class)->wallet($bot);
 });
@@ -108,6 +113,10 @@ $bot->onCallbackQueryData('sales:join', function (Nutgram $bot): void {
 // register legacy Shop, Admin, payment or provider actions on this token.
 $bot->onCommand('catalog', function (Nutgram $bot): void {
     app(PlanCatalogUi::class)->browse($bot);
+});
+
+$bot->onCommand('reports', function (Nutgram $bot): void {
+    app(ResellerSalesReportUi::class)->show($bot);
 });
 
 $bot->onCommand('builder', function (Nutgram $bot): void {
