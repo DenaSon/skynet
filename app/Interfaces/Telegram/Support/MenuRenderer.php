@@ -148,6 +148,7 @@ final class MenuRenderer
         if (config('sales.manual_bank_review_enabled', false)) {
             $keyboard->addRow(InlineKeyboardButton::make('🧾 بررسی رسیدهای خرید', callback_data: 'bank:list'));
         }
+        $keyboard->addRow(InlineKeyboardButton::make('📒 دفتر مالی', callback_data: 'acc:home'));
         $keyboard->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
 
         $lines = ['💳 امور مالی', ''];

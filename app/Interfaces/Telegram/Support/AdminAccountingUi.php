@@ -9,6 +9,7 @@ use App\Modules\Identity\Application\AssertBillingAccess;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;

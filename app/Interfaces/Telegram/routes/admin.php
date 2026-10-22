@@ -3,6 +3,7 @@
 use App\Interfaces\Telegram\Handlers\AdminHandler;
 use App\Interfaces\Telegram\Handlers\AdminRolesHandler;
 use App\Interfaces\Telegram\Handlers\AdminUsersHandler;
+use App\Interfaces\Telegram\Support\AdminAccountingUi;
 use App\Interfaces\Telegram\Support\AdminBusinessReportUi;
 use App\Interfaces\Telegram\Support\AdminConfigProfileOperationsUi;
 use App\Interfaces\Telegram\Support\AdminConfigProfilesUi;
@@ -406,6 +407,32 @@ $bot->onCallbackQueryData('bank:decide:{claim}:{decision}', function (Nutgram $b
 });
 
 // FIN-01: protected wallet reads and top-up photo review, separate from purchase receipts.
+// ACC-01: Super Admin-only, private accounting notes; never moves actual money.
+$bot->onCallbackQueryData('acc:home', function (Nutgram $bot): void {
+    app(AdminAccountingUi::class)->home($bot);
+});
+$bot->onCallbackQueryData('acc:begin:{kind}', function (Nutgram $bot, string $kind): void {
+    app(AdminAccountingUi::class)->begin($bot, $kind);
+});
+$bot->onCallbackQueryData('acc:category:{category}', function (Nutgram $bot, string $category): void {
+    app(AdminAccountingUi::class)->category($bot, $category);
+});
+$bot->onCallbackQueryData('acc:apply:{token}', function (Nutgram $bot, string $token): void {
+    app(AdminAccountingUi::class)->apply($bot, $token);
+});
+$bot->onCallbackQueryData('acc:history:{page}', function (Nutgram $bot, string $page): void {
+    app(AdminAccountingUi::class)->history($bot, $page);
+});
+$bot->onCallbackQueryData('acc:reverse:prepare:{id}', function (Nutgram $bot, string $id): void {
+    app(AdminAccountingUi::class)->prepareReverse($bot, $id);
+});
+$bot->onCallbackQueryData('acc:reverse:apply:{id}:{token}', function (Nutgram $bot, string $id, string $token): void {
+    app(AdminAccountingUi::class)->applyReverse($bot, $id, $token);
+});
+$bot->onCallbackQueryData('acc:cancel', function (Nutgram $bot): void {
+    app(AdminAccountingUi::class)->cancel($bot);
+});
+
 $bot->onCallbackQueryData('finance:wallets:{page}', function (Nutgram $bot, string $page): void {
     app(AdminFinanceWalletUi::class)->wallets($bot, $page);
 });
