@@ -101,6 +101,8 @@ final readonly class AdminHostsUi
             false => '🟢 فعال',
             default => 'نامشخص',
         };
+        // All-zero is a provider placeholder, not a verified Config Profile association.
+        $profileUnknown = $host['profileUuid'] === '00000000-0000-0000-0000-000000000000';
         $keyboard = InlineKeyboardMarkup::make();
         if (config('services.remnawave.writes_enabled') === true) {
             $keyboard->addRow(InlineKeyboardButton::make('✏️ ویرایش', callback_data: 'host2:prepare:'.$host['uuid'].':edit'));
@@ -123,9 +125,10 @@ final readonly class AdminHostsUi
             .'آدرس: '.self::safe($host['address'])."\n"
             .'پورت: '.$host['port']."\n"
             .'وضعیت: '.$status."\n"
-            .'شناسه پروفایل: '.($host['profileUuid'] ?? 'نامشخص')."\n"
-            .'شناسه ورودی: '.($host['inboundUuid'] ?? 'نامشخص')."\n\n"
-            .'ثبت هاست به‌معنای تأیید اتصال کاربران نیست.'
+            .'شناسه پروفایل: '.($profileUnknown ? 'نامشخص' : ($host['profileUuid'] ?? 'نامشخص'))."\n"
+            .'شناسه ورودی: '.($host['inboundUuid'] ?? 'نامشخص')."\n"
+            .($profileUnknown ? "⚠️ ارتباط پروفایل این هاست در پنل مشخص نیست.\n" : '')
+            ."\nثبت هاست به‌معنای تأیید اتصال کاربران نیست."
             .(config('services.remnawave.writes_enabled') === true ? '' : "\n\n🔒 تغییرات فعلاً غیرفعال است."),
             $keyboard,
         );

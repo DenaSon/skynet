@@ -6,6 +6,7 @@ use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Application\ManageAdminHosts;
+use GuzzleHttp\Psr7\Request as NutgramRequest;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
@@ -16,6 +17,7 @@ use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
+use SergiX44\Nutgram\Testing\FakeNutgram;
 
 uses(RefreshDatabase::class);
 
@@ -110,6 +112,48 @@ it('shows bounded safe Host list and detail using only GETs', function (): void 
     Http::assertSentCount(5);
     expect(collect(Http::recorded())->every(static fn (array $item): bool => $item[0]->method() === 'GET'
         && $item[0]->hasHeader('Authorization', 'Bearer fake-token')))->toBeTrue();
+});
+
+it('labels an all-zero provider profile UUID as unknown without changing the read model', function (): void {
+    $root = host01User();
+    $zero = '00000000-0000-0000-0000-000000000000';
+    host01Fake(override: [
+        'uuid' => HOST01_HOST, 'remark' => 'TLS-Host', 'address' => 'edge.example.com',
+        'port' => 443, 'isDisabled' => false,
+        'inbound' => ['configProfileUuid' => $zero, 'configProfileInboundUuid' => HOST01_INBOUND],
+    ]);
+
+    // Preserve the provider payload in Application reads and mutation snapshots.
+    expect(app(ManageAdminHosts::class)->one($root->id, HOST01_HOST)['profileUuid'])->toBe($zero);
+
+    host01Bot()->hearCallbackQueryData('host1:view:'.HOST01_HOST)->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $payload = FakeNutgram::getActualData($request);
+            $message = (string) ($payload['text'] ?? '');
+
+            return str_contains($message, 'شناسه پروفایل: نامشخص')
+                && str_contains($message, 'شناسه ورودی: '.HOST01_INBOUND)
+                && str_contains($message, 'ارتباط پروفایل این هاست در پنل مشخص نیست')
+                && ! str_contains($message, '00000000-0000-0000-0000-000000000000');
+        }, index: 1);
+
+    expect(collect(Http::recorded())->every(static fn (array $item): bool => $item[0]->method() === 'GET'))
+        ->toBeTrue();
+});
+
+it('preserves a real Config Profile UUID in Host detail', function (): void {
+    host01User();
+    host01Fake();
+
+    host01Bot()->hearCallbackQueryData('host1:view:'.HOST01_HOST)->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $payload = FakeNutgram::getActualData($request);
+            $message = (string) ($payload['text'] ?? '');
+
+            return str_contains($message, 'شناسه پروفایل: '.HOST01_PROFILE)
+                && ! str_contains($message, 'ارتباط پروفایل این هاست در پنل مشخص نیست');
+        }, index: 1);
+    Http::assertSentCount(1);
 });
 
 it('denies ordinary admins, disabled roots, and group-chat Host actions before provider requests', function (): void {
