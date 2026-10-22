@@ -131,6 +131,10 @@ final readonly class SalesSubscriptionsUi
             }
         }
 
+        if ($resellerId !== null) {
+            $keyboard->addRow(InlineKeyboardButton::make('🔎 جستجوی نام مشتری', callback_data: 'sales:subs:search:start'));
+        }
+
         $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'sales:subs:list:'.$cursor))
             ->addRow(InlineKeyboardButton::make('🛒 خرید سرویس', callback_data: 'menu:plan-catalog'))
             ->addRow(InlineKeyboardButton::make('🧾 سوابق خرید', callback_data: 'sales:checkout:orders'))
@@ -477,6 +481,184 @@ final readonly class SalesSubscriptionsUi
         );
     }
 
+    /** Begin a short private customer-name search; no query is exposed in callback data. */
+    public function beginCustomerSearch(Nutgram $bot): void
+    {
+        $buyerId = $this->resellerId($bot);
+        if ($buyerId === null) {
+            if ($this->privateUser->id($bot) !== null) {
+                $this->notice($bot, 'جستجو فقط برای نمایندگان فعال است.', $this->homeButtons());
+            }
+
+            return;
+        }
+
+        $this->clearCustomerLabelDraft($buyerId);
+        app(PendingBuilderSelection::class)->forget($buyerId);
+        app(SalesPanelRequestUi::class)->clear($buyerId);
+        Cache::forget(TelegramBotContext::current()->cacheKey('telegram:wallet:topup:'.$buyerId));
+        Cache::put($this->searchKey($buyerId), ['mode' => 'input'], now()->addMinutes(10));
+
+        $this->render($bot, '<b>🔎 جستجوی نام مشتری</b>'
+            ."\n\nنام مشتری یا بخشی از نام او را ارسال کنید."
+            ."\nفقط سرویس‌هایی که برایشان نام ثبت کرده‌اید جستجو می‌شوند."
+            ."\n\n<blockquote>فرم تا ۱۰ دقیقه اعتبار دارد.</blockquote>",
+            InlineKeyboardMarkup::make()
+                ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'sales:subs:search:cancel'))
+                ->addRow(InlineKeyboardButton::make('◀️ بازگشت به سرویس‌ها', callback_data: 'sales:subs:list:0')));
+    }
+
+    /** Consume only the pending search input; unrelated free-text routes remain untouched. */
+    public function customerSearchText(Nutgram $bot, string $text): bool
+    {
+        $telegramId = $this->privateUser->id($bot);
+        if ($telegramId === null || str_starts_with(trim($text), '/')) {
+            return false;
+        }
+
+        $actor = $this->actors->handle($telegramId);
+        if ($actor === null) {
+            return false;
+        }
+
+        $state = Cache::get($this->searchKey($actor->userId));
+        if (! is_array($state) || ($state['mode'] ?? null) !== 'input') {
+            return false;
+        }
+
+        if (! in_array('reseller', $actor->roles, true)) {
+            $this->clearCustomerSearch($actor->userId);
+            $this->notice($bot, 'دسترسی پنل فروش برای این حساب فعال نیست.', $this->homeButtons());
+
+            return true;
+        }
+
+        try {
+            // Reuse the owner-scoped Action to validate search input before caching it.
+            $this->customerLabels->search($actor->userId, $text, 1);
+        } catch (ValidationException) {
+            $this->notice($bot, 'نام مورد جستجو باید بین ۱ تا ۶۰ کاراکتر و در یک خط باشد. دوباره وارد کنید.',
+                InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'sales:subs:search:cancel')));
+
+            return true;
+        } catch (AuthorizationException) {
+            $this->clearCustomerSearch($actor->userId);
+            $this->notice($bot, 'جستجو برای این حساب در دسترس نیست.', $this->homeButtons());
+
+            return true;
+        }
+
+        Cache::put($this->searchKey($actor->userId),
+            ['mode' => 'results', 'term' => trim($text)], now()->addMinutes(10));
+        $this->customerSearchResults($bot);
+
+        return true;
+    }
+
+    public function customerSearchResults(Nutgram $bot, string $cursor = '0'): void
+    {
+        $buyerId = $this->resellerId($bot);
+        if ($buyerId === null) {
+            if ($this->privateUser->id($bot) !== null) {
+                $this->notice($bot, 'جستجو برای این حساب در دسترس نیست.', $this->homeButtons());
+            }
+
+            return;
+        }
+
+        $before = $this->id($cursor, true);
+        if ($before === null) {
+            $this->notice($bot, 'صفحه انتخاب‌شده معتبر نیست.', $this->searchButtons());
+
+            return;
+        }
+
+        $state = Cache::get($this->searchKey($buyerId));
+        if (! is_array($state) || ($state['mode'] ?? null) !== 'results'
+            || ! is_string($state['term'] ?? null)) {
+            $this->notice($bot, 'زمان جستجو پایان یافته است. دوباره جستجو کنید.', $this->searchButtons());
+
+            return;
+        }
+
+        try {
+            $page = $this->customerLabels->search($buyerId, $state['term'], self::PER_PAGE, $before ?: null);
+            $viewer = $this->viewer($bot);
+            if ($viewer === null) {
+                return;
+            }
+
+            $items = [];
+            foreach ($page['items'] as $row) {
+                // Existing Provisioning read Action freshly rechecks service ownership.
+                $details = $this->details->handle($viewer, $row['orderId']);
+                $items[] = ['orderId' => $row['orderId'], 'name' => $row['label'], 'summary' => $details->summary];
+            }
+        } catch (Throwable) {
+            $this->notice($bot, 'نمایش نتایج فعلاً ممکن نیست. دوباره تلاش کنید.', $this->searchButtons());
+
+            return;
+        }
+
+        $lines = ['<b>🔎 نتایج جستجو</b>', 'نام: <b>'.TelegramUi::escape($state['term']).'</b>', ''];
+        $keyboard = InlineKeyboardMarkup::make();
+        if ($items === []) {
+            $lines[] = 'مشتری‌ای با این نام در سرویس‌های شما پیدا نشد.';
+        } else {
+            foreach ($items as $index => $item) {
+                $position = $index + 1;
+                $summary = $item['summary'];
+                $lines[] = '🔹 <b>'.$position.'. 👤 '.TelegramUi::escape($this->clean($item['name'])).'</b>';
+                $lines[] = TelegramUi::escape($this->clean($summary->productName))
+                    .' · '.($summary->trafficGb === null ? 'نامحدود' : $summary->trafficGb.' گیگ')
+                    .' · '.$this->status($summary->status);
+                $lines[] = '';
+                $keyboard->addRow(InlineKeyboardButton::make('📋 جزئیات '.$position,
+                    callback_data: 'sales:subs:view:'.$item['orderId'].':0'));
+            }
+
+            if ($page['nextBeforeOrderId'] !== null) {
+                $keyboard->addRow(InlineKeyboardButton::make('موارد بیشتر ◀️',
+                    callback_data: 'sales:subs:search:page:'.$page['nextBeforeOrderId']));
+            }
+        }
+
+        $keyboard->addRow(InlineKeyboardButton::make('🔎 جستجوی جدید', callback_data: 'sales:subs:search:start'))
+            ->addRow(InlineKeyboardButton::make('◀️ بازگشت به سرویس‌ها', callback_data: 'sales:subs:search:cancel'))
+            ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
+        $this->render($bot, trim(implode("\n", $lines)), $keyboard);
+    }
+
+    public function cancelCustomerSearch(Nutgram $bot): void
+    {
+        $id = $this->privateUser->id($bot);
+        if ($id === null) {
+            return;
+        }
+        $actor = $this->actors->handle($id);
+        if ($actor !== null) {
+            $this->clearCustomerSearch($actor->userId);
+        }
+        $this->browse($bot);
+    }
+
+    public function clearCustomerSearch(int $userId): void
+    {
+        Cache::forget($this->searchKey($userId));
+    }
+
+    private function searchKey(int $userId): string
+    {
+        return TelegramBotContext::current()->cacheKey('telegram:subs:customer_search:'.$userId);
+    }
+
+    private function searchButtons(): InlineKeyboardMarkup
+    {
+        return InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('🔎 جستجوی جدید', callback_data: 'sales:subs:search:start'))
+            ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'sales:subs:list:0'));
+    }
+
     /** Start a private, 10-minute customer-name draft for an existing owned service. */
     public function beginCustomerLabel(Nutgram $bot, string $id, string $cursor): void
     {
@@ -501,6 +683,7 @@ final readonly class SalesSubscriptionsUi
         }
 
         // This form takes precedence over other pending Sales text forms.
+        $this->clearCustomerSearch($buyerId);
         app(PendingBuilderSelection::class)->forget($buyerId);
         app(SalesPanelRequestUi::class)->clear($buyerId);
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:wallet:topup:'.$buyerId));
