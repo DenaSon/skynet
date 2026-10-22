@@ -480,7 +480,8 @@ it('collects a reseller customer name before payment while preserving the manage
         ->assertRaw(static function (Request $request): bool {
             $body = uxr02Payload($request);
 
-            return str_contains(json_encode($body['reply_markup'], JSON_THROW_ON_ERROR), 'sales:payment:start:');
+            return ($body['reply_markup']['force_reply'] ?? false) === true
+                && str_contains($body['text'], 'پرداخت');
         });
 
     expect(Cache::has($key))->toBeFalse()
