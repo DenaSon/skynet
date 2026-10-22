@@ -169,6 +169,9 @@ $bot->onText('(?!/){volume}', function (Nutgram $bot, string $volume): void {
     if (app(SalesSubscriptionsUi::class)->customerLabelText($bot, $volume)) {
         return;
     }
+    if (app(SalesSubscriptionsUi::class)->customerSearchText($bot, $volume)) {
+        return;
+    }
     if (app(SalesPanelRequestUi::class)->text($bot, $volume)) {
         return;
     }
@@ -274,6 +277,18 @@ $bot->onCallbackQueryData('sales:subs:page:{id}:{cursor}', function (Nutgram $bo
 
 $bot->onCallbackQueryData('sales:subs:link:{id}:{cursor}', function (Nutgram $bot, string $id, string $cursor): void {
     app(SalesSubscriptionsUi::class)->link($bot, $id, $cursor);
+});
+
+$bot->onCallbackQueryData('sales:subs:search:start', function (Nutgram $bot): void {
+    app(SalesSubscriptionsUi::class)->beginCustomerSearch($bot);
+});
+
+$bot->onCallbackQueryData('sales:subs:search:page:{cursor}', function (Nutgram $bot, string $cursor): void {
+    app(SalesSubscriptionsUi::class)->customerSearchResults($bot, $cursor);
+});
+
+$bot->onCallbackQueryData('sales:subs:search:cancel', function (Nutgram $bot): void {
+    app(SalesSubscriptionsUi::class)->cancelCustomerSearch($bot);
 });
 
 $bot->onCallbackQueryData('sales:subs:label:edit:{id}:{cursor}', function (Nutgram $bot, string $id, string $cursor): void {

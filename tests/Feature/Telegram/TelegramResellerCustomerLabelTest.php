@@ -243,3 +243,145 @@ it('uses a plan-based title for unnamed services and page positions only for vis
                 && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), "sales:subs:label:edit:{$newer}:0");
         }, index: 2);
 });
+
+it('finds only linked paid reseller-owned labels by name fragment with bounded pagination', function (): void {
+    $buyer = rslUser();
+    $other = rslUser();
+    $labels = app(ManageResellerServiceLabels::class);
+
+    $first = rslOrder($buyer);
+    $second = rslOrder($buyer);
+    $third = rslOrder($buyer);
+    $unnamed = rslOrder($buyer);
+    $foreign = rslOrder($other);
+    $unlinked = rslOrder($buyer, false);
+
+    $labels->save($buyer->id, $first, 'علی احمدی');
+    $labels->save($buyer->id, $second, 'علی رضایی');
+    $labels->save($buyer->id, $third, 'رضا علی‌پور');
+    $labels->save($other->id, $foreign, 'علی همسایه');
+    DB::table('sales_service_customer_labels')->insert([
+        'sales_order_id' => $unlinked,
+        'label' => 'علی بدون اشتراک',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $page1 = $labels->search($buyer->id, ' علی ', 2);
+    expect(array_column($page1['items'], 'orderId'))->toBe([$third, $second])
+        ->and($page1['nextBeforeOrderId'])->toBe($second);
+    $page2 = $labels->search($buyer->id, 'علی', 2, $page1['nextBeforeOrderId']);
+    expect(array_column($page2['items'], 'orderId'))->toBe([$first])
+        ->and($page2['nextBeforeOrderId'])->toBeNull()
+        ->and($labels->search($buyer->id, 'غیرموجود')['items'])->toBe([])
+        ->and($labels->search($other->id, 'علی')['items'])->toBe([['orderId' => $foreign, 'label' => 'علی همسایه']])
+        ->and($unnamed)->toBeGreaterThan(0);
+
+    Http::assertNothingSent();
+});
+
+it('treats percent and underscore as literal fragments and denies revoked roles and invalid terms', function (): void {
+    $buyer = rslUser();
+    $labels = app(ManageResellerServiceLabels::class);
+    $literal = rslOrder($buyer);
+    $plain = rslOrder($buyer);
+    $labels->save($buyer->id, $literal, 'نام %_ خاص');
+    $labels->save($buyer->id, $plain, 'نام ABC خاص');
+
+    expect(array_column($labels->search($buyer->id, '%_')['items'], 'orderId'))->toBe([$literal])
+        ->and(array_column($labels->search($buyer->id, '_')['items'], 'orderId'))->toBe([$literal])
+        ->and(fn () => $labels->search($buyer->id, ''))->toThrow(ValidationException::class)
+        ->and(fn () => $labels->search($buyer->id, str_repeat('a', 61)))->toThrow(ValidationException::class)
+        ->and(fn () => $labels->search($buyer->id, "علی\nرضا"))->toThrow(ValidationException::class)
+        ->and(fn () => $labels->search($buyer->id, 'علی', 6, -1))->toThrow(ValidationException::class);
+
+    $buyer->syncRoles(['member']);
+    expect(fn () => $labels->search($buyer->id, 'نام'))->toThrow(AuthorizationException::class);
+    Http::assertNothingSent();
+});
+
+it('searches only private reseller customer names and routes results to original service details', function (): void {
+    $buyer = rslUser();
+    $labels = app(ManageResellerServiceLabels::class);
+    $named = rslOrder($buyer);
+    $unmatched = rslOrder($buyer);
+    $labels->save($buyer->id, $named, 'علی & <دوست>');
+    $labels->save($buyer->id, $unmatched, 'سارا');
+    $bot = rslBot($buyer, 977905);
+    $key = TelegramBotContext::current()->cacheKey('telegram:subs:customer_search:'.$buyer->id);
+
+    $bot->hearCallbackQueryData('sales:subs:list:0')->reply()
+        ->assertRaw(static function (Request $request): bool {
+            $data = FakeNutgram::getActualData($request);
+
+            return str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:subs:search:start');
+        }, index: 1);
+
+    $bot->hearCallbackQueryData('sales:subs:search:start')->reply()
+        ->assertCalled('editMessageText');
+    expect(Cache::has($key))->toBeTrue();
+
+    $bot->hearText('علی')->reply()
+        ->assertRaw(static function (Request $request) use ($named, $unmatched): bool {
+            $data = FakeNutgram::getActualData($request);
+            $markup = is_string($data['reply_markup'])
+                ? json_decode($data['reply_markup'], true, 512, JSON_THROW_ON_ERROR)
+                : $data['reply_markup'];
+
+            return str_contains($data['text'], 'علی &amp; &lt;دوست&gt;')
+                && ! str_contains($data['text'], 'سارا')
+                && ! str_contains($data['text'], 'علی & <دوست>')
+                && ($markup['inline_keyboard'][0][0]['callback_data'] ?? null) === "sales:subs:view:{$named}:0"
+                && ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), "sales:subs:view:{$unmatched}:0");
+        });
+    expect(Cache::get($key)['mode'])->toBe('results');
+
+    $bot->hearCallbackQueryData('sales:subs:search:page:0')->reply()
+        ->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:subs:search:cancel')->reply()
+        ->assertCalled('editMessageText');
+    expect(Cache::has($key))->toBeFalse();
+    $bot->hearText('علی')->reply();
+    expect(Cache::has($key))->toBeFalse();
+    Http::assertNothingSent();
+});
+
+it('pages matching names and protects missing state, group chats and revoked reseller input', function (): void {
+    $buyer = rslUser();
+    $labels = app(ManageResellerServiceLabels::class);
+    for ($i = 1; $i <= 8; $i++) {
+        $labels->save($buyer->id, rslOrder($buyer), 'مشتری آزمایشی '.$i);
+    }
+    $bot = rslBot($buyer, 977906);
+    $key = TelegramBotContext::current()->cacheKey('telegram:subs:customer_search:'.$buyer->id);
+
+    $bot->hearCallbackQueryData('sales:subs:search:start')->reply();
+    $bot->hearText('مشتری')->reply()
+        ->assertRaw(static function (Request $request): bool {
+            $data = FakeNutgram::getActualData($request);
+
+            return str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:subs:search:page:');
+        });
+    $cursor = $labels->search($buyer->id, 'مشتری', 6)['nextBeforeOrderId'];
+    expect($cursor)->not->toBeNull();
+    $bot->hearCallbackQueryData('sales:subs:search:page:'.$cursor)->reply()
+        ->assertRaw(static function (Request $request): bool {
+            $data = FakeNutgram::getActualData($request);
+
+            return str_contains($data['text'], 'نتایج جستجو')
+                && str_contains($data['text'], 'مشتری آزمایشی 2')
+                && ! str_contains($data['text'], 'مشتری آزمایشی 8');
+        }, index: 1);
+
+    $bot->hearCallbackQueryData('sales:home')->reply();
+    expect(Cache::has($key))->toBeFalse();
+    $bot->hearCallbackQueryData('sales:subs:search:page:'.$cursor)->reply()
+        ->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:subs:search:start')->reply();
+    $buyer->syncRoles(['member']);
+    $bot->hearText('مشتری')->reply()->assertCalled('sendMessage');
+    expect(Cache::has($key))->toBeFalse();
+    $bot->setCommonChat(Chat::make(-977906, ChatType::GROUP));
+    $bot->hearCallbackQueryData('sales:subs:search:start')->reply()->assertNoReply();
+    Http::assertNothingSent();
+});
