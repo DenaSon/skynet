@@ -47,7 +47,7 @@ final readonly class PlanAdminUi
         $page = min($page, $pages);
         $entries = array_slice($all, ($page - 1) * 5, 5);
 
-        $lines = ['📦 مدیریت پلن‌های ParsaGate', 'تعداد: '.count($all)." | صفحه {$page} از {$pages}", '',
+        $lines = ['📦 مدیریت پلن‌های '.config('app.name'), 'تعداد: '.count($all)." | صفحه {$page} از {$pages}", '',
             'برای بررسی امکان ثبت سفارش، جزئیات هر پلن را باز کنید.'];
         $keyboard = InlineKeyboardMarkup::make();
 
