@@ -169,6 +169,9 @@ $bot->onText('(?!/){volume}', function (Nutgram $bot, string $volume): void {
     if (app(SalesCheckoutUi::class)->customerNameText($bot, $volume)) {
         return;
     }
+    if (app(SalesSubscriptionsUi::class)->customerPhoneText($bot, $volume)) {
+        return;
+    }
     if (app(SalesSubscriptionsUi::class)->customerLabelText($bot, $volume)) {
         return;
     }
@@ -296,6 +299,22 @@ $bot->onCallbackQueryData('sales:subs:search:page:{cursor}', function (Nutgram $
 
 $bot->onCallbackQueryData('sales:subs:search:cancel', function (Nutgram $bot): void {
     app(SalesSubscriptionsUi::class)->cancelCustomerSearch($bot);
+});
+
+$bot->onCallbackQueryData('sales:subs:phone:edit:{id}:{cursor}', function (Nutgram $bot, string $id, string $cursor): void {
+    app(SalesSubscriptionsUi::class)->beginCustomerPhone($bot, $id, $cursor);
+});
+
+$bot->onCallbackQueryData('sales:subs:phone:remove:{id}:{cursor}', function (Nutgram $bot, string $id, string $cursor): void {
+    app(SalesSubscriptionsUi::class)->confirmCustomerPhoneRemoval($bot, $id, $cursor);
+});
+
+$bot->onCallbackQueryData('sales:subs:phone:clear:{id}:{cursor}', function (Nutgram $bot, string $id, string $cursor): void {
+    app(SalesSubscriptionsUi::class)->clearCustomerPhone($bot, $id, $cursor);
+});
+
+$bot->onCallbackQueryData('sales:subs:phone:cancel', function (Nutgram $bot): void {
+    app(SalesSubscriptionsUi::class)->cancelCustomerPhone($bot);
 });
 
 $bot->onCallbackQueryData('sales:subs:label:edit:{id}:{cursor}', function (Nutgram $bot, string $id, string $cursor): void {
