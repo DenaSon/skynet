@@ -11,6 +11,7 @@ use App\Modules\Billing\Application\ViewWallet;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use GuzzleHttp\Psr7\Request;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Routing\Route;
@@ -195,7 +196,6 @@ it('does not expose a photo when Sales-to-Admin secure transfer is unavailable',
         ->and(DB::table('billing_journals')->count())->toBe(0);
 });
 
-
 it('summarizes the complete wallet ledger rather than just one page and flags negative balances', function (): void {
     $root = fin01Admin();
     $bot = fin01Bot(987601, $root);
@@ -291,11 +291,11 @@ it('shows zero when no wallets exist and denies revoked or ordinary Admin actors
     $ordinary = User::factory()->create();
     $ordinary->syncRoles(['admin']);
     expect(fn () => app(ReadAdminWalletSummary::class)->handle($ordinary->id))
-        ->toThrow(\Illuminate\Auth\Access\AuthorizationException::class);
+        ->toThrow(AuthorizationException::class);
 
     $root->syncRoles(['admin']);
     expect(fn () => app(ReadAdminWalletSummary::class)->handle($root->id))
-        ->toThrow(\Illuminate\Auth\Access\AuthorizationException::class);
+        ->toThrow(AuthorizationException::class);
     $bot->hearCallbackQueryData('menu:admin:finance')->reply()->assertCalled('answerCallbackQuery');
     $bot->hearCallbackQueryData('finance:wallets:1')->reply()->assertCalled('answerCallbackQuery');
 

@@ -6,8 +6,8 @@ namespace App\Interfaces\Telegram\Support;
 
 use App\Modules\Billing\Application\ReadAdminWalletSummary;
 use App\Modules\Identity\Application\ResolveTelegramActor;
-use Illuminate\Auth\Access\AuthorizationException;
 use App\Modules\Identity\Application\TelegramActor;
+use Illuminate\Auth\Access\AuthorizationException;
 use SergiX44\Nutgram\Nutgram;
 
 final readonly class AdminSectionsUi
