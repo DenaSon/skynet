@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Interfaces\Telegram\Support;
 
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
+use App\Modules\Billing\Application\ReadAdminAccountingReport;
 use App\Modules\Billing\Application\RecordBusinessEntry;
 use App\Modules\Identity\Application\AssertBillingAccess;
 use App\Modules\Identity\Application\ResolveTelegramActor;
@@ -24,6 +25,7 @@ final readonly class AdminAccountingUi
         private ResolveTelegramActor $actors,
         private AssertBillingAccess $access,
         private RecordBusinessEntry $entries,
+        private ReadAdminAccountingReport $reports,
         private MenuRenderer $menus,
     ) {}
 
@@ -38,7 +40,58 @@ final readonly class AdminAccountingUi
                 ->addRow(InlineKeyboardButton::make('➖ ثبت هزینه', callback_data: 'acc:begin:expense'))
                 ->addRow(InlineKeyboardButton::make('💸 برداشت مالک', callback_data: 'acc:begin:owner_draw'))
                 ->addRow(InlineKeyboardButton::make('📋 سوابق ثبت‌ها', callback_data: 'acc:history:1'))
+                ->addRow(InlineKeyboardButton::make('📊 گزارش مالی', callback_data: 'acc:report:month'))
                 ->addRow(InlineKeyboardButton::make('◀️ امور مالی', callback_data: 'menu:admin:finance')));
+    }
+
+    public function report(Nutgram $bot, string $period): void
+    {
+        $id = $this->actor($bot);
+        if ($id === null) {
+            return;
+        }
+
+        if (! in_array($period, ['7', '30', 'month'], true)) {
+            $this->expired($bot);
+
+            return;
+        }
+
+        try {
+            $data = $this->reports->handle($id, $period);
+            $heading = match ($period) {
+                '7' => '۷ روز اخیر',
+                '30' => '۳۰ روز اخیر',
+                'month' => 'ماه جاری',
+            };
+            $text = '<b>📊 گزارش مالی · '.$heading.'</b>'
+                ."\n📅 ".$data['start'].' تا '.$data['end'].' (تهران)'
+                ."\n\n💳 فروش تأییدشده: <b>".self::toman($data['salesRials']).' تومان</b>'
+                ."\n➖ هزینه‌های خالص ثبت‌شده: ".self::toman($data['expensesRials']).' تومان'
+                ."\n📈 سود برآوردی: <b>".self::toman($data['profitRials']).' تومان</b>'
+                ."\n\n💸 برداشت خالص مالک: ".self::toman($data['drawsRials']).' تومان'
+                ."\n📒 مانده محاسباتی پس از برداشت: <b>".self::toman($data['afterDrawsRials']).' تومان</b>'
+                ."\n\nثبت‌های هزینه: ".number_format($data['expenseEntries'])
+                .' | ثبت‌های برداشت: '.number_format($data['drawEntries'])
+                ."\n\n<blockquote>سود، برآورد حاصل از فروش ناخالص تسویه‌شده و هزینه‌های ثبت‌شده است؛ سود قطعی یا موجودی نقدی نیست. برداشت مالک هزینه محسوب نمی‌شود. اصلاحیه‌ها در تاریخ ثبت خود اثر می‌گذارند.</blockquote>"
+                ."\n🕒 ".$data['generatedAt'];
+        } catch (\Throwable) {
+            $text = "📊 گزارش مالی\n\nدریافت گزارش فعلاً ممکن نیست. دوباره تلاش کنید.";
+        }
+
+        $this->render($bot, $text, InlineKeyboardMarkup::make()
+            ->addRow(
+                InlineKeyboardButton::make('۷ روز', callback_data: 'acc:report:7'),
+                InlineKeyboardButton::make('۳۰ روز', callback_data: 'acc:report:30'),
+                InlineKeyboardButton::make('ماه جاری', callback_data: 'acc:report:month'),
+            )
+            ->addRow(InlineKeyboardButton::make('📋 سوابق', callback_data: 'acc:history:1'))
+            ->addRow(InlineKeyboardButton::make('◀️ دفتر مالی', callback_data: 'acc:home')));
+    }
+
+    private static function toman(int $rials): string
+    {
+        return number_format(intdiv($rials, 10));
     }
 
     public function begin(Nutgram $bot, string $kind): void
