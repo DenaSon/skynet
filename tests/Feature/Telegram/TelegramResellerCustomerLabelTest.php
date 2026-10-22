@@ -163,7 +163,7 @@ it('lets a reseller name their service in Sales Bot and displays escaped labels 
                 && str_contains($data['text'], 'پلن: پلن نمایندگی')
                 && ! str_contains($data['text'], 'سرویس #')
                 && ! str_contains($data['text'], 'علی & <دوست>')
-                && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'جزئیات 1')
+                && str_contains(json_encode($data['reply_markup'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), 'جزئیات 1')
                 && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), "sales:subs:view:");
         }, index: 1);
 
@@ -222,7 +222,7 @@ it('uses a plan-based title for unnamed services and page positions only for vis
     $bot->hearCallbackQueryData('sales:subs:list:0')->reply()
         ->assertRaw(static function (Request $request) use ($older, $newer): bool {
             $data = FakeNutgram::getActualData($request);
-            $keyboard = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+            $keyboard = json_encode($data['reply_markup'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
 
             return str_contains($data['text'], '1. پلن نمایندگی')
                 && str_contains($data['text'], '2. پلن نمایندگی')
