@@ -429,6 +429,7 @@ it('takes a photo directly without requiring a reply and never turns repeat rece
     $order = (int) DB::table('sales_orders')->value('id');
     $bot->hearMessage(['message_id' => 60, 'photo' => [
         ['file_id' => 'receipt-test-photo', 'file_unique_id' => 'receipt-unique-id', 'width' => 400, 'height' => 400],
+    // The friendly copy must not claim that a receipt is settled payment.
     ]])->reply()->assertReplyText("✅ رسیدتان دریافت شد و برای بررسی ارسال شد.\nنتیجه را در همین بات دریافت می‌کنید.\nسفارش #{$order}");
     $bot->hearCallbackQueryData('sales:checkout:view:'.$order)->reply()->assertCalled('editMessageText');
     $bot->hearMessage(['message_id' => 61, 'photo' => [
