@@ -35,8 +35,6 @@ final class ReplyMenuLabels
 
     public const BUILDER = '💼 پلن‌ساز پنل فروش';
 
-    public const RESELLER_REPORTS = '📊 گزارش‌های من';
-
     public const LEGACY_BUILDER = '💼 پلن‌ساز نماینده';
 
     public const USERS = '👥 کاربران';
