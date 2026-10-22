@@ -117,7 +117,7 @@ final readonly class AdminHostsUi
                 $keyboard->addRow(InlineKeyboardButton::make('🗑️ حذف هاست', callback_data: 'host2:prepare:'.$host['uuid'].':delete'));
             }
         }
-        $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'host1:view:'.$host['uuid']));
+        $keyboard->addRow(InlineKeyboardButton::make('🔄 به‌روزرسانی اطلاعات', callback_data: 'host1:view:'.$host['uuid']));
         $keyboard->addRow(InlineKeyboardButton::make('◀️ فهرست هاست‌ها', callback_data: 'host1:list:1'));
         $this->render($bot,
             "🌐 جزئیات هاست\n\n"
