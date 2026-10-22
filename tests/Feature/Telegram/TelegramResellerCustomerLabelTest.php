@@ -242,4 +242,5 @@ it('uses a plan-based title for unnamed services and page positions only for vis
                 && ! str_contains($data['text'], "سرویس #{$newer}")
                 && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), "sales:subs:label:edit:{$newer}:0");
         }, index: 2);
-\n});
+
+});
