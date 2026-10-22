@@ -132,7 +132,7 @@ final readonly class SalesSubscriptionsUi
         }
 
         if ($resellerId !== null) {
-            $keyboard->addRow(InlineKeyboardButton::make('🔎 جستجوی نام مشتری', callback_data: 'sales:subs:search:start'));
+            $keyboard->addRow(InlineKeyboardButton::make('🔎 جستجوی مشتری', callback_data: 'sales:subs:search:start'));
         }
 
         $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'sales:subs:list:'.$cursor))
@@ -172,10 +172,12 @@ final readonly class SalesSubscriptionsUi
         $item = $details->summary;
         $resellerId = $this->resellerId($bot);
         $customerLabel = $resellerId === null ? null : $this->customerLabels->get($resellerId, $orderId);
+        $customerPhone = $resellerId === null ? null : $this->customerLabels->phone($resellerId, $orderId);
         $lines = [
             '<b>📋 '.($customerLabel === null ? TelegramUi::escape($this->clean($item->productName)) : '👤 '.TelegramUi::escape($this->clean($customerLabel))).'</b>',
             '',
             'پلن: '.TelegramUi::escape($this->clean($item->productName)),
+            ...($customerPhone === null ? [] : ['📱 موبایل مشتری: <code>'.TelegramUi::escape($customerPhone).'</code>']),
             ...($details->canRequestLink ? [] : ['وضعیت ثبت‌شده: '.$this->status($item->status)]),
             'حجم خرید: '.($item->trafficGb === null ? 'نامحدود' : $item->trafficGb.' گیگابایت'),
             'مدت خرید: '.$item->durationDays.' روز',
@@ -249,6 +251,10 @@ final readonly class SalesSubscriptionsUi
             $keyboard->addRow(InlineKeyboardButton::make(
                 '✏️ ویرایش نام مشتری',
                 callback_data: 'sales:subs:label:edit:'.$orderId.':'.$cursor,
+            ));
+            $keyboard->addRow(InlineKeyboardButton::make(
+                $customerPhone === null ? '📱 افزودن شماره موبایل' : '📱 ویرایش شماره موبایل',
+                callback_data: 'sales:subs:phone:edit:'.$orderId.':'.$cursor,
             ));
         }
 
@@ -492,14 +498,15 @@ final readonly class SalesSubscriptionsUi
         }
 
         $this->clearCustomerLabelDraft($buyerId);
+        $this->clearCustomerPhoneDraft($buyerId);
         app(PendingBuilderSelection::class)->forget($buyerId);
         app(SalesPanelRequestUi::class)->clear($buyerId);
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:wallet:topup:'.$buyerId));
         Cache::put($this->searchKey($buyerId), ['mode' => 'input'], now()->addMinutes(10));
 
-        $this->render($bot, '<b>🔎 جستجوی نام مشتری</b>'
-            ."\n\nنام مشتری یا بخشی از نام او را ارسال کنید."
-            ."\nفقط سرویس‌هایی که برایشان نام ثبت کرده‌اید جستجو می‌شوند."
+        $this->render($bot, '<b>🔎 جستجوی مشتری</b>'
+            ."\n\nنام مشتری، بخشی از نام یا شماره موبایل را ارسال کنید."
+            ."\nفقط اطلاعات مشتریان سرویس‌های شما جستجو می‌شوند."
             ."\n\n<blockquote>فرم تا ۱۰ دقیقه اعتبار دارد.</blockquote>",
             InlineKeyboardMarkup::make()
                 ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'sales:subs:search:cancel'))
@@ -535,7 +542,7 @@ final readonly class SalesSubscriptionsUi
             // Reuse the owner-scoped Action to validate search input before caching it.
             $this->customerLabels->search($actor->userId, $text, 1);
         } catch (ValidationException) {
-            $this->notice($bot, 'نام مورد جستجو باید بین ۱ تا ۶۰ کاراکتر و در یک خط باشد. دوباره وارد کنید.',
+            $this->notice($bot, 'عبارت جستجو باید بین ۱ تا ۶۰ کاراکتر و در یک خط باشد. دوباره وارد کنید.',
                 InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'sales:subs:search:cancel')));
 
             return true;
@@ -590,7 +597,10 @@ final readonly class SalesSubscriptionsUi
             foreach ($page['items'] as $row) {
                 // Existing Provisioning read Action freshly rechecks service ownership.
                 $details = $this->details->handle($viewer, $row['orderId']);
-                $items[] = ['orderId' => $row['orderId'], 'name' => $row['label'], 'summary' => $details->summary];
+                $items[] = [
+                    'orderId' => $row['orderId'], 'name' => $row['label'],
+                    'phone' => $row['phone'], 'summary' => $details->summary,
+                ];
             }
         } catch (Throwable) {
             $this->notice($bot, 'نمایش نتایج فعلاً ممکن نیست. دوباره تلاش کنید.', $this->searchButtons());
@@ -598,15 +608,19 @@ final readonly class SalesSubscriptionsUi
             return;
         }
 
-        $lines = ['<b>🔎 نتایج جستجو</b>', 'نام: <b>'.TelegramUi::escape($state['term']).'</b>', ''];
+        $lines = ['<b>🔎 نتایج جستجو</b>', 'جستجو: <b>'.TelegramUi::escape($state['term']).'</b>', ''];
         $keyboard = InlineKeyboardMarkup::make();
         if ($items === []) {
-            $lines[] = 'مشتری‌ای با این نام در سرویس‌های شما پیدا نشد.';
+            $lines[] = 'مشتری‌ای با این نام یا شماره در سرویس‌های شما پیدا نشد.';
         } else {
             foreach ($items as $index => $item) {
                 $position = $index + 1;
                 $summary = $item['summary'];
-                $lines[] = '🔹 <b>'.$position.'. 👤 '.TelegramUi::escape($this->clean($item['name'])).'</b>';
+                $display = $item['name'] ?? $item['phone'] ?? 'مشتری بدون نام';
+                $lines[] = '🔹 <b>'.$position.'. 👤 '.TelegramUi::escape($this->clean($display)).'</b>';
+                if ($item['phone'] !== null && $item['name'] !== null) {
+                    $lines[] = '📱 '.TelegramUi::escape($item['phone']);
+                }
                 $lines[] = TelegramUi::escape($this->clean($summary->productName))
                     .' · '.($summary->trafficGb === null ? 'نامحدود' : $summary->trafficGb.' گیگ')
                     .' · '.$this->status($summary->status);
@@ -657,6 +671,160 @@ final readonly class SalesSubscriptionsUi
             ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'sales:subs:list:0'));
     }
 
+    /** Private, 10-minute phone editor for an owned, provisioned reseller service. */
+    public function beginCustomerPhone(Nutgram $bot, string $id, string $cursor): void
+    {
+        $buyerId = $this->resellerId($bot);
+        $orderId = $this->id($id);
+        if ($buyerId === null || $orderId === null || $this->id($cursor, true) === null) {
+            $this->notice($bot, 'این سرویس برای ویرایش اطلاعات مشتری در دسترس نیست.', $this->homeButtons());
+
+            return;
+        }
+        try {
+            $phone = $this->customerLabels->phone($buyerId, $orderId);
+        } catch (AuthorizationException|ValidationException) {
+            $this->notice($bot, 'این سرویس متعلق به حساب شما نیست.', $this->homeButtons());
+
+            return;
+        }
+        $this->clearCustomerLabelDraft($buyerId);
+        $this->clearCustomerSearch($buyerId);
+        app(PendingBuilderSelection::class)->forget($buyerId);
+        app(SalesPanelRequestUi::class)->clear($buyerId);
+        Cache::put($this->phoneKey($buyerId), [
+            'order_id' => $orderId, 'cursor' => $cursor,
+        ], now()->addMinutes(10));
+
+        $buttons = InlineKeyboardMarkup::make();
+        if ($phone !== null) {
+            $buttons->addRow(InlineKeyboardButton::make('🗑 حذف شماره',
+                callback_data: "sales:subs:phone:remove:{$orderId}:{$cursor}"));
+        }
+        $buttons->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'sales:subs:phone:cancel'))
+            ->addRow(InlineKeyboardButton::make('◀️ بازگشت به سرویس', callback_data: "sales:subs:view:{$orderId}:{$cursor}"));
+        $this->render($bot, '<b>📱 شماره موبایل مشتری</b>'
+            .($phone === null ? '' : "\nشماره فعلی: <code>".TelegramUi::escape($phone).'</code>')
+            ."\n\nشماره موبایل ایرانی را ارسال کنید."
+            ."\nمثال: <code>09123456789</code>"
+            ."\n\n<blockquote>این شماره فقط برای مدیریت مشتریان خودتان نمایش داده می‌شود.</blockquote>",
+            $buttons);
+    }
+
+    public function customerPhoneText(Nutgram $bot, string $text): bool
+    {
+        $telegramId = $this->privateUser->id($bot);
+        if ($telegramId === null || str_starts_with(trim($text), '/')) {
+            return false;
+        }
+        $actor = $this->actors->handle($telegramId);
+        if ($actor === null) {
+            return false;
+        }
+        $draft = Cache::get($this->phoneKey($actor->userId));
+        if (! is_array($draft) || ! is_int($draft['order_id'] ?? null)
+            || ! is_string($draft['cursor'] ?? null)) {
+            return false;
+        }
+        if (! in_array('reseller', $actor->roles, true)) {
+            $this->clearCustomerPhoneDraft($actor->userId);
+            $this->notice($bot, 'این بخش فقط برای نمایندگان فعال است.', $this->homeButtons());
+
+            return true;
+        }
+        try {
+            $this->customerLabels->savePhone($actor->userId, $draft['order_id'], $text);
+        } catch (ValidationException) {
+            $this->notice($bot, 'شماره معتبر نیست. لطفاً یک موبایل ایرانی مثل ۰۹۱۲۳۴۵۶۷۸۹ بفرستید.',
+                InlineKeyboardMarkup::make()->addRow(
+                    InlineKeyboardButton::make('❌ انصراف', callback_data: 'sales:subs:phone:cancel'),
+                ));
+
+            return true;
+        } catch (AuthorizationException) {
+            $this->clearCustomerPhoneDraft($actor->userId);
+            $this->notice($bot, 'امکان ویرایش اطلاعات این سرویس وجود ندارد.', $this->homeButtons());
+
+            return true;
+        }
+        $this->clearCustomerPhoneDraft($actor->userId);
+        $this->notice($bot, '✅ شماره موبایل مشتری ذخیره شد.',
+            $this->labelBackButtons($draft['order_id'], $draft['cursor']));
+
+        return true;
+    }
+
+    public function confirmCustomerPhoneRemoval(Nutgram $bot, string $id, string $cursor): void
+    {
+        $buyerId = $this->resellerId($bot);
+        $orderId = $this->id($id);
+        if ($buyerId === null || $orderId === null || $this->id($cursor, true) === null) {
+            $this->notice($bot, 'این سرویس در دسترس شما نیست.', $this->homeButtons());
+
+            return;
+        }
+        try {
+            $phone = $this->customerLabels->phone($buyerId, $orderId);
+        } catch (AuthorizationException|ValidationException) {
+            $this->notice($bot, 'امکان ویرایش اطلاعات این سرویس وجود ندارد.', $this->homeButtons());
+
+            return;
+        }
+        if ($phone === null) {
+            $this->notice($bot, 'شماره‌ای برای این سرویس ثبت نشده است.', $this->labelBackButtons($orderId, $cursor));
+
+            return;
+        }
+        $this->render($bot, 'شماره <code>'.TelegramUi::escape($phone).'</code> از اطلاعات مشتری حذف شود؟'
+            ."\n\nخود سرویس و نام مشتری بدون تغییر باقی می‌مانند.",
+            InlineKeyboardMarkup::make()
+                ->addRow(InlineKeyboardButton::make('🗑 تأیید حذف شماره',
+                    callback_data: "sales:subs:phone:clear:{$orderId}:{$cursor}", style: ButtonStyle::DANGER))
+                ->addRow(InlineKeyboardButton::make('◀️ انصراف',
+                    callback_data: "sales:subs:view:{$orderId}:{$cursor}")));
+    }
+
+    public function clearCustomerPhone(Nutgram $bot, string $id, string $cursor): void
+    {
+        $buyerId = $this->resellerId($bot);
+        $orderId = $this->id($id);
+        if ($buyerId === null || $orderId === null || $this->id($cursor, true) === null) {
+            $this->notice($bot, 'این سرویس در دسترس شما نیست.', $this->homeButtons());
+
+            return;
+        }
+        try {
+            $this->customerLabels->savePhone($buyerId, $orderId, null);
+        } catch (AuthorizationException|ValidationException) {
+            $this->notice($bot, 'امکان حذف این شماره وجود ندارد.', $this->homeButtons());
+
+            return;
+        }
+        $this->clearCustomerPhoneDraft($buyerId);
+        $this->notice($bot, '✅ شماره حذف شد؛ نام مشتری و سرویس تغییری نکرد.',
+            $this->labelBackButtons($orderId, $cursor));
+    }
+
+    public function cancelCustomerPhone(Nutgram $bot): void
+    {
+        $buyerId = $this->resellerId($bot);
+        if ($buyerId === null) {
+            return;
+        }
+        $this->clearCustomerPhoneDraft($buyerId);
+        $this->notice($bot, 'ویرایش شماره لغو شد.', $this->homeButtons());
+    }
+
+    public function clearCustomerPhoneDraft(int $userId): void
+    {
+        Cache::forget($this->phoneKey($userId));
+    }
+
+    private function phoneKey(int $userId): string
+    {
+        return TelegramBotContext::current()->cacheKey('telegram:subs:customer_phone:'.$userId);
+    }
+
     /** Start a private, 10-minute customer-name draft for an existing owned service. */
     public function beginCustomerLabel(Nutgram $bot, string $id, string $cursor): void
     {
@@ -682,6 +850,7 @@ final readonly class SalesSubscriptionsUi
 
         // This form takes precedence over other pending Sales text forms.
         $this->clearCustomerSearch($buyerId);
+        $this->clearCustomerPhoneDraft($buyerId);
         app(PendingBuilderSelection::class)->forget($buyerId);
         app(SalesPanelRequestUi::class)->clear($buyerId);
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:wallet:topup:'.$buyerId));
