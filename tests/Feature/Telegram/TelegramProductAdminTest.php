@@ -73,6 +73,13 @@ it('restricts products navigation to linked allowlisted active root and private 
         ->and(DB::table('sales_products')->count())->toBe(0);
 });
 
+it('renders the configured application brand in the Admin product title', function (): void {
+    config()->set('app.name', 'DenaGate Test');
+    [, $bot] = baseProductRoot();
+
+    $bot->hearText('/products')->reply()->assertReplyText("📚 محصولات پایه DenaGate Test\nتعداد: 0 | صفحه 1 از 1\n\nمحصول موردنظر را برای مشاهده قیمت‌ها یا ویرایش انتخاب کنید.\n\nهنوز محصول پایه‌ای تعریف نشده است.");
+});
+
 it('creates an inactive product with an owner-bound one-time preview and audit', function (): void {
     [$root, $bot] = baseProductRoot();
     Http::preventStrayRequests();

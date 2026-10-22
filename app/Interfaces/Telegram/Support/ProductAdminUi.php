@@ -44,7 +44,7 @@ final readonly class ProductAdminUi
         $pages = max(1, (int) ceil(count($products) / 5));
         $page = min(max($page, 1), $pages);
         $keyboard = InlineKeyboardMarkup::make();
-        $lines = ['📚 محصولات پایه ParsaGate', 'تعداد: '.count($products)." | صفحه {$page} از {$pages}", '',
+        $lines = ['📚 محصولات پایه '.config('app.name'), 'تعداد: '.count($products)." | صفحه {$page} از {$pages}", '',
             'محصول موردنظر را برای مشاهده قیمت‌ها یا ویرایش انتخاب کنید.', ''];
 
         foreach (array_slice($products, ($page - 1) * 5, 5) as $entry) {

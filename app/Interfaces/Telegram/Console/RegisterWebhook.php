@@ -11,7 +11,7 @@ final class RegisterWebhook extends Command
 {
     protected $signature = 'telegram:webhook:set {url? : Public HTTPS webhook URL (default: existing legacy Admin URL)} {--bot=admin : admin or sales}';
 
-    protected $description = 'Register a protected ParsaGate Telegram webhook';
+    protected $description = 'Register a protected Telegram webhook';
 
     public function handle(Nutgram $adminBot, SalesTelegramRuntime $salesRuntime): int
     {
