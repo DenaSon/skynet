@@ -159,15 +159,20 @@ it('lets a reseller name their service in Sales Bot and displays escaped labels 
         ->assertRaw(static function (Request $request): bool {
             $data = FakeNutgram::getActualData($request);
 
-            return str_contains($data['text'], 'علی &amp; &lt;دوست&gt;')
-                && ! str_contains($data['text'], 'علی & <دوست>');
+            return str_contains($data['text'], '1. 👤 علی &amp; &lt;دوست&gt;')
+                && str_contains($data['text'], 'پلن: پلن نمایندگی')
+                && ! str_contains($data['text'], 'سرویس #')
+                && ! str_contains($data['text'], 'علی & <دوست>')
+                && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'جزئیات 1')
+                && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), "sales:subs:view:");
         }, index: 1);
 
     $bot->hearCallbackQueryData("sales:subs:view:{$order}:0")->reply()
         ->assertRaw(static function (Request $request) use ($order): bool {
             $data = FakeNutgram::getActualData($request);
 
-            return str_contains($data['text'], 'علی &amp; &lt;دوست&gt;')
+            return str_contains($data['text'], '📋 👤 علی &amp; &lt;دوست&gt;')
+                && ! str_contains($data['text'], "سرویس #{$order}")
                 && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), "sales:subs:label:edit:{$order}:0");
         }, index: 2);
 });
@@ -204,5 +209,39 @@ it('confirms deletion, cancels drafts on Home and refuses forged edit or revoked
 
     $bot->setCommonChat(Chat::make(-977902, ChatType::GROUP));
     $bot->hearCallbackQueryData("sales:subs:label:edit:{$order}:0")->reply()->assertNoReply();
+    Http::assertNothingSent();
+});
+
+
+it('uses a plan-based title for unnamed services and page positions only for visible buttons', function (): void {
+    $buyer = rslUser();
+    $older = rslOrder($buyer);
+    $newer = rslOrder($buyer);
+    $bot = rslBot($buyer, 977904);
+
+    $bot->hearCallbackQueryData('sales:subs:list:0')->reply()
+        ->assertRaw(static function (Request $request) use ($older, $newer): bool {
+            $data = FakeNutgram::getActualData($request);
+            $keyboard = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return str_contains($data['text'], '1. پلن نمایندگی')
+                && str_contains($data['text'], '2. پلن نمایندگی')
+                && ! str_contains($data['text'], "سرویس #{$older}")
+                && ! str_contains($data['text'], "سرویس #{$newer}")
+                && str_contains($keyboard, 'جزئیات 1')
+                && str_contains($keyboard, 'جزئیات 2')
+                && str_contains($keyboard, "sales:subs:view:{$newer}:0")
+                && str_contains($keyboard, "sales:subs:view:{$older}:0");
+        }, index: 1);
+
+    $bot->hearCallbackQueryData("sales:subs:view:{$newer}:0")->reply()
+        ->assertRaw(static function (Request $request) use ($newer): bool {
+            $data = FakeNutgram::getActualData($request);
+
+            return str_contains($data['text'], '<b>📋 پلن نمایندگی</b>')
+                && ! str_contains($data['text'], "سرویس #{$newer}")
+                && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), "sales:subs:label:edit:{$newer}:0");
+        }, index: 2);
+
     Http::assertNothingSent();
 });
