@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Interfaces\Telegram\Support;
 
 use App\Modules\Identity\Application\ResolveTelegramActor;
+use App\Modules\Provisioning\Application\ReadResellerLiveSubscriptions;
 use App\Modules\Sales\Application\ReadResellerSalesReport;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
@@ -18,6 +19,7 @@ final readonly class ResellerSalesReportUi
         private PrivateTelegramUser $private,
         private ResolveTelegramActor $actors,
         private ReadResellerSalesReport $reports,
+        private ReadResellerLiveSubscriptions $subscriptions,
     ) {}
 
     public function show(Nutgram $bot, string $days = '30'): void
@@ -68,6 +70,54 @@ final readonly class ResellerSalesReportUi
         $this->render($bot, $text, $this->keyboard($days));
     }
 
+    public function subscriptions(Nutgram $bot): void
+    {
+        $id = $this->private->id($bot);
+        if ($id === null) {
+            return;
+        }
+        $actor = $this->actors->handle($id);
+        if ($bot->isCallbackQuery()) {
+            TelegramUi::answerCallback($bot);
+        }
+        if ($actor === null || ! in_array('reseller', $actor->roles, true)) {
+            $this->render($bot, 'گزارش سرویس‌ها فقط برای نمایندگان فعال در دسترس است.',
+                $this->keyboard('30'));
+
+            return;
+        }
+
+        try {
+            $data = $this->subscriptions->handle($actor->userId);
+        } catch (Throwable) {
+            $data = ['available' => false];
+        }
+        $keyboard = InlineKeyboardMarkup::make();
+        if ($data['available'] !== true) {
+            $text = '<b>📡 وضعیت سرویس‌ها</b>'
+                ."\n\nدریافت وضعیت همه سرویس‌ها فعلاً ممکن نیست. کمی بعد دوباره تلاش کنید."
+                ."\n<blockquote>تا زمانی که اطلاعات کامل نباشد، آماری نمایش داده نمی‌شود.</blockquote>";
+        } else {
+            $text = '<b>📡 وضعیت سرویس‌های من</b>'
+                ."\n\n🔎 سرویس‌های بررسی‌شده: ".number_format($data['checked'])
+                ."\n🟢 فعال: ".number_format($data['active'])
+                ."\n🔴 منقضی: ".number_format($data['expired'])
+                ."\n🟠 محدود یا بدون حجم: ".number_format($data['limited'])
+                ."\n⏳ نزدیک به انقضا (۷ روز): ".number_format($data['expiringSoon'])
+                ."\n🔋 حجم کمتر از ۳۵۰ مگابایت: ".number_format($data['lowTraffic'])
+                ."\n\n<blockquote>این آمار بر اساس وضعیت فعلی سرویس‌های قابل بررسی در پنل است.</blockquote>";
+            foreach ($data['attentionOrderIds'] as $index => $orderId) {
+                $keyboard->addRow(InlineKeyboardButton::make('📋 سرویس نیازمند پیگیری '.($index + 1),
+                    callback_data: 'sales:subs:view:'.$orderId.':0'));
+            }
+        }
+
+        $keyboard->addRow(InlineKeyboardButton::make('🔄 بررسی دوباره', callback_data: 'sales:report:subscriptions'))
+            ->addRow(InlineKeyboardButton::make('◀️ گزارش‌های فروش', callback_data: 'sales:report:30'))
+            ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
+        $this->render($bot, $text, $keyboard);
+    }
+
     private function keyboard(string $days): InlineKeyboardMarkup
     {
         return InlineKeyboardMarkup::make()
@@ -75,6 +125,7 @@ final readonly class ResellerSalesReportUi
                 InlineKeyboardButton::make('۷ روز', callback_data: 'sales:report:7'),
                 InlineKeyboardButton::make('۳۰ روز', callback_data: 'sales:report:30'),
             )
+            ->addRow(InlineKeyboardButton::make('📡 وضعیت سرویس‌ها', callback_data: 'sales:report:subscriptions'))
             ->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'sales:report:'.$days))
             ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
     }
