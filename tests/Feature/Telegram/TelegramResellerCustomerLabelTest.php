@@ -159,6 +159,8 @@ it('lets a reseller name their service in Sales Bot and displays escaped labels 
         ->assertRaw(static function (Request $request): bool {
             $data = FakeNutgram::getActualData($request);
 
+            throw new \RuntimeException('RSL NAMED OUTPUT: '.json_encode(['text' => $data['text'], 'keyboard' => $data['reply_markup']], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
+
             return str_contains($data['text'], '1. 👤 علی &amp; &lt;دوست&gt;')
                 && str_contains($data['text'], 'پلن: پلن نمایندگی')
                 && ! str_contains($data['text'], 'سرویس #')
@@ -223,6 +225,8 @@ it('uses a plan-based title for unnamed services and page positions only for vis
         ->assertRaw(static function (Request $request) use ($older, $newer): bool {
             $data = FakeNutgram::getActualData($request);
             $keyboard = json_encode($data['reply_markup'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+
+            throw new \RuntimeException('RSL UNNAMED OUTPUT: '.json_encode(['text' => $data['text'], 'keyboard' => $data['reply_markup']], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
 
             return str_contains($data['text'], '1. پلن نمایندگی')
                 && str_contains($data['text'], '2. پلن نمایندگی')
