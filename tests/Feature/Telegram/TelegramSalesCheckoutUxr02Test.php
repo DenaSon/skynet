@@ -481,8 +481,8 @@ it('collects a reseller customer name before payment while preserving the manage
             $body = uxr02Payload($request);
 
             return ($body['reply_markup']['force_reply'] ?? false) === true
-                && str_contains($body['text'], 'پرداخت');
-        });
+                && str_contains($body['text'], 'عکس رسید');
+        }, index: 1);
 
     expect(Cache::has($key))->toBeFalse()
         ->and(DB::table('sales_service_customer_labels')->where('sales_order_id', $order)->value('label'))
