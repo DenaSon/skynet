@@ -95,12 +95,16 @@ final readonly class SalesSubscriptionsUi
                 : 'مورد دیگری در این صفحه وجود ندارد.';
             $lines[] = 'سفارش‌های در انتظار پرداخت در «سوابق خرید» هستند.';
         } else {
-            foreach ($page->items as $item) {
-                $label = 'سرویس #'.$item->orderId;
+            foreach ($page->items as $index => $item) {
+                // Page position is only a visible navigation aid, never the order identifier.
+                $position = $index + 1;
+                $planName = $this->clean($item->productName);
+                $customerLabel = $labels[$item->orderId] ?? null;
+                $title = $customerLabel === null ? $planName : $this->clean($customerLabel);
                 $summary = $item->trafficGb === null ? 'حجم نامحدود' : $item->trafficGb.' گیگ';
-                $lines[] = '🔹 <b>'.TelegramUi::escape($label).'</b> · '.TelegramUi::escape($this->clean($item->productName));
-                if (isset($labels[$item->orderId])) {
-                    $lines[] = '👤 مشتری: <b>'.TelegramUi::escape($this->clean($labels[$item->orderId])).'</b>';
+                $lines[] = '🔹 <b>'.$position.'. '.($customerLabel === null ? '' : '👤 ').TelegramUi::escape($title).'</b>';
+                if ($customerLabel !== null) {
+                    $lines[] = 'پلن: '.TelegramUi::escape($planName);
                 }
                 $lines[] = $summary.' · '.$item->durationDays.' روز · '.$this->status($item->status);
                 $lines[] = '';
@@ -108,14 +112,14 @@ final readonly class SalesSubscriptionsUi
                     // Never expose bearer credentials in the directory. The
                     // private link Action rechecks owner and remote expiry.
                     $keyboard->addRow(
-                        InlineKeyboardButton::make('📋 جزئیات #'.$item->orderId,
+                        InlineKeyboardButton::make('📋 جزئیات '.$position,
                             callback_data: 'sales:subs:view:'.$item->orderId.':'.$cursor),
-                        InlineKeyboardButton::make('🔐 لینک #'.$item->orderId,
+                        InlineKeyboardButton::make('🔐 لینک '.$position,
                             callback_data: 'sales:subs:link:'.$item->orderId.':'.$cursor),
                     );
                 } else {
                     $keyboard->addRow(InlineKeyboardButton::make(
-                        $label.' · '.$this->shortStatus($item->status),
+                        '📋 جزئیات '.$position.' · '.$this->shortStatus($item->status),
                         callback_data: 'sales:subs:view:'.$item->orderId.':'.$cursor,
                     ));
                 }
@@ -165,10 +169,9 @@ final readonly class SalesSubscriptionsUi
         $resellerId = $this->resellerId($bot);
         $customerLabel = $resellerId === null ? null : $this->customerLabels->get($resellerId, $orderId);
         $lines = [
-            '<b>📋 سرویس #'.$item->orderId.'</b>',
+            '<b>📋 '.($customerLabel === null ? TelegramUi::escape($this->clean($item->productName)) : '👤 '.TelegramUi::escape($this->clean($customerLabel))).'</b>',
             '',
             'پلن: '.TelegramUi::escape($this->clean($item->productName)),
-            ...($customerLabel === null ? [] : ['👤 مشتری: <b>'.TelegramUi::escape($this->clean($customerLabel)).'</b>']),
             ...($details->canRequestLink ? [] : ['وضعیت ثبت‌شده: '.$this->status($item->status)]),
             'حجم خرید: '.($item->trafficGb === null ? 'نامحدود' : $item->trafficGb.' گیگابایت'),
             'مدت خرید: '.$item->durationDays.' روز',
