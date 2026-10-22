@@ -40,13 +40,14 @@ function acc01Root(): User
 {
     $user = User::factory()->create();
     $user->syncRoles(['super-admin']);
+    TelegramAccount::query()->create(['user_id' => $user->id, 'telegram_user_id' => 996101]);
 
     return $user;
 }
 
 function acc01Bot(int $telegram, User $user): Nutgram
 {
-    TelegramAccount::query()->create(['user_id' => $user->id, 'telegram_user_id' => $telegram]);
+    TelegramAccount::query()->firstOrCreate(['user_id' => $user->id], ['telegram_user_id' => $telegram]);
     $bot = Nutgram::fake();
     require base_path('app/Interfaces/Telegram/routes/admin.php');
     require base_path('app/Interfaces/Telegram/routes/legacy_text.php');
