@@ -75,6 +75,10 @@ final readonly class AdminDashboardUi
         $keyboard = InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'stats:refresh'))
             ->addRow(
+                InlineKeyboardButton::make('💳 گزارش فروش', callback_data: 'stats:detail:sales:7'),
+                InlineKeyboardButton::make('👥 گزارش کاربران', callback_data: 'stats:detail:people:7'),
+            )
+            ->addRow(
                 InlineKeyboardButton::make('🖥️ نودها', callback_data: 'metrics:refresh'),
                 InlineKeyboardButton::make('📈 گزارش مصرف', callback_data: 'metrics:range:7'),
             )
