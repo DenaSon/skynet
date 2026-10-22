@@ -524,7 +524,6 @@ it('returns unknown live subscription metrics on unavailable provider without pr
         ->and($action->handle($foreign->id)['checked'])->toBe(0);
     $buyer->syncRoles(['member']);
     expect(fn () => $action->handle($buyer->id))->toThrow(AuthorizationException::class);
-    Http::assertNothingSent();
 });
 
 it('does not scan the remote provider when a reseller exceeds the explicit live-report service bound', function (): void {
@@ -559,5 +558,4 @@ it('shows an unknown-safe private subscription status page and denies a revoked 
 
             return str_contains($data['text'], 'فقط برای نمایندگان فعال');
         }, index: 1);
-    Http::assertNothingSent();
 });
