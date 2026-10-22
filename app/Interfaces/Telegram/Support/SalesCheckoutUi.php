@@ -386,7 +386,7 @@ final readonly class SalesCheckoutUi
 
         app(SalesSubscriptionsUi::class)->clearCustomerLabelDraft($buyer);
         app(SalesSubscriptionsUi::class)->clearCustomerSearch($buyer);
-        Cache::put($this->customerNameKey($buyer), $orderId, now()->addMinutes(10));
+        Cache::put($this->customerNameKey($buyer), ['order_id' => $orderId], now()->addMinutes(10));
         $this->render($bot, "<b>👤 نام مشتری</b>\n\nنام مشتری این سرویس را ارسال کنید (۱ تا ۶۰ کاراکتر)."
             ."\nاین نام در سرویس‌های شما نمایش داده می‌شود و شناسه فنی اشتراک تغییر نمی‌کند.",
             InlineKeyboardMarkup::make()
@@ -407,10 +407,15 @@ final readonly class SalesCheckoutUi
         if ($actor === null) {
             return false;
         }
-        $orderId = Cache::get($this->customerNameKey($actor->userId));
-        if (! is_int($orderId)) {
+        // Redis can return numeric cache scalars as strings. New drafts use a
+        // structured payload; accept old numeric drafts until their TTL expires.
+        $pending = Cache::get($this->customerNameKey($actor->userId));
+        $orderId = is_array($pending) ? ($pending['order_id'] ?? null) : $pending;
+        if ((! is_int($orderId) && ! is_string($orderId))
+            || preg_match('/\A[1-9][0-9]{0,14}\z/D', (string) $orderId) !== 1) {
             return false;
         }
+        $orderId = (int) $orderId;
 
         try {
             $this->customerLabels->savePending($actor->userId, $orderId, $text);
