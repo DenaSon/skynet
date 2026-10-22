@@ -112,8 +112,7 @@ it('counts only a bounded owner-scoped page and marks confirmed live status with
     app(ManageResellerServiceLabels::class)->save($buyer->id, $owned, 'علی & <دوست>');
     $bot = rshBot($buyer, 981001);
 
-    Http::fake(['https://rw-health.test/api/users/'.($owned + 2300) =>
-        Http::response(['response' => rshRemote($owned)])]);
+    Http::fake(['https://rw-health.test/api/users/'.($owned + 2300) => Http::response(['response' => rshRemote($owned)])]);
 
     $page = app(ReadResellerServiceHealth::class)->handle(SubscriptionViewer::telegram(981001));
     expect($page['total'])->toBe(1)
@@ -146,10 +145,8 @@ it('reports expired, imminent expiration and failed provider reads without guess
     $unavailable = rshOrder($buyer);
     rshBot($buyer, 981002);
     Http::fake([
-        'https://rw-health.test/api/users/'.($expired + 2300) =>
-            Http::response(['response' => rshRemote($expired, ['status' => 'EXPIRED', 'expireAt' => now()->subDay()->toIso8601String()])]),
-        'https://rw-health.test/api/users/'.($soon + 2300) =>
-            Http::response(['response' => rshRemote($soon, ['expireAt' => now()->addDays(3)->toIso8601String()])]),
+        'https://rw-health.test/api/users/'.($expired + 2300) => Http::response(['response' => rshRemote($expired, ['status' => 'EXPIRED', 'expireAt' => now()->subDay()->toIso8601String()])]),
+        'https://rw-health.test/api/users/'.($soon + 2300) => Http::response(['response' => rshRemote($soon, ['expireAt' => now()->addDays(3)->toIso8601String()])]),
         'https://rw-health.test/api/users/'.($unavailable + 2300) => Http::response([], 503),
     ]);
 
