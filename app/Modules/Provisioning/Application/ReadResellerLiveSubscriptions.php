@@ -16,7 +16,9 @@ use Throwable;
 final readonly class ReadResellerLiveSubscriptions
 {
     private const MAX_OWNED = 50;
+
     private const MAX_PROVIDER_USERS = 1000;
+
     private const LOW_TRAFFIC_BYTES = 350 * 1024 * 1024;
 
     public function __construct(
