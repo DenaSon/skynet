@@ -101,8 +101,26 @@ final readonly class AdminHostsUi
             false => '🟢 فعال',
             default => 'نامشخص',
         };
-        // All-zero is a provider placeholder, not a verified Config Profile association.
-        $profileUnknown = $host['profileUuid'] === '00000000-0000-0000-0000-000000000000';
+        // In some Remnawave installations the all-zero UUID identifies a real Default Profile.
+        // Show its name only after the profile and inbound membership are both confirmed by GET.
+        $zeroProfile = $host['profileUuid'] === '00000000-0000-0000-0000-000000000000';
+        $profileName = null;
+        if ($zeroProfile && $host['inboundUuid'] !== null) {
+            try {
+                foreach ($this->nodes->profiles($root) as $profile) {
+                    if ($profile['uuid'] !== $host['profileUuid']) {
+                        continue;
+                    }
+                    $inbounds = $this->nodes->inbounds($root, $profile['uuid']);
+                    if (in_array($host['inboundUuid'], array_column($inbounds, 'uuid'), true)) {
+                        $profileName = self::safe($profile['name']);
+                    }
+                    break;
+                }
+            } catch (Throwable) {
+                // A failed optional lookup must not prevent the Host detail from rendering.
+            }
+        }
         $keyboard = InlineKeyboardMarkup::make();
         if (config('services.remnawave.writes_enabled') === true) {
             $keyboard->addRow(InlineKeyboardButton::make('✏️ ویرایش', callback_data: 'host2:prepare:'.$host['uuid'].':edit'));
@@ -125,9 +143,10 @@ final readonly class AdminHostsUi
             .'آدرس: '.self::safe($host['address'])."\n"
             .'پورت: '.$host['port']."\n"
             .'وضعیت: '.$status."\n"
-            .'شناسه پروفایل: '.($profileUnknown ? 'نامشخص' : ($host['profileUuid'] ?? 'نامشخص'))."\n"
+            .'شناسه پروفایل: '.($host['profileUuid'] ?? 'نامشخص')."\n"
+            .($zeroProfile ? 'نام پروفایل: '.($profileName ?? 'تأیید نشده')."\n" : '')
             .'شناسه ورودی: '.($host['inboundUuid'] ?? 'نامشخص')."\n"
-            .($profileUnknown ? "⚠️ ارتباط پروفایل این هاست در پنل مشخص نیست.\n" : '')
+            .($zeroProfile && $profileName === null ? "⚠️ ارتباط پروفایل و ورودی قابل تأیید نیست.\n" : '')
             ."\nثبت هاست به‌معنای تأیید اتصال کاربران نیست."
             .(config('services.remnawave.writes_enabled') === true ? '' : "\n\n🔒 تغییرات فعلاً غیرفعال است."),
             $keyboard,
