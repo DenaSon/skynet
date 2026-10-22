@@ -8,6 +8,7 @@ use App\Modules\Identity\Application\ResolveSalesBuyer;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveApiClientFactory;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveUsersApi;
 use DateTimeImmutable;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -29,7 +30,9 @@ final readonly class ReadResellerLiveSubscriptions
      */
     public function handle(int $buyerId): array
     {
-        $this->buyers->isReseller($buyerId);
+        if (! $this->buyers->isReseller($buyerId)) {
+            throw new AuthorizationException;
+        }
         $unknown = [
             'available' => false, 'active' => null, 'expired' => null,
             'limited' => null, 'expiringSoon' => null, 'lowTraffic' => null,
