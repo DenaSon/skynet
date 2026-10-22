@@ -100,14 +100,19 @@ final class ReplyMenuRenderer
     }
 
     /** Sales has its own registry; never expose the legacy/Admin keyboard here. */
-    public function salesKeyboard(): ReplyKeyboardMarkup
+    public function salesKeyboard(?TelegramActor $actor = null): ReplyKeyboardMarkup
     {
-        $keyboard = $this->keyboard([
+        $labels = [
             ReplyMenuLabels::SALES_BUY,
             ReplyMenuLabels::SALES_SUBSCRIPTIONS,
             ReplyMenuLabels::SALES_ACCOUNT,
             ReplyMenuLabels::SALES_SUPPORT,
-        ]);
+        ];
+        if ($actor !== null && in_array('reseller', $actor->roles, true)) {
+            $labels[] = ReplyMenuLabels::WALLET;
+            $labels[] = ReplyMenuLabels::BUILDER;
+        }
+        $keyboard = $this->keyboard($labels);
 
         // Native Telegram styles apply only to Sales, not legacy/Admin menus.
         $keyboard->keyboard[0][0]->style = ButtonStyle::SUCCESS;

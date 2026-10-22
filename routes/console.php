@@ -45,10 +45,19 @@ Artisan::command('sales:telegram:menu:register', function (): int {
     return 0;
 })->purpose('Register the native Telegram command menu on the Sales Bot only');
 
-Schedule::command('telegram:prune-updates')->daily();
+// Reuse the existing proven pruning logic without a second deletion path.
+Schedule::command('system:cleanup')->weekly()->withoutOverlapping();
 Schedule::command('telegram:notifications:dispatch')->everyMinute()->withoutOverlapping();
 Schedule::command('sales:fulfillment:dispatch')->everyMinute()->withoutOverlapping();
 Schedule::command('sales:subscriptions:alerts')->everyFiveMinutes()->withoutOverlapping();
+
+Artisan::command('system:cleanup', function (): int {
+    // Only processed, 7+ day-old Telegram webhook receipts; never Sales or ledger rows.
+    $result = Artisan::call('telegram:prune-updates');
+    $this->output->write(Artisan::output());
+
+    return $result;
+})->purpose('Safely clean processed old Telegram webhook receipts');
 
 // Scan only linked, authorized Sales subscriptions. Uses provider GET only.
 Artisan::command('sales:subscriptions:alerts', function (): int {

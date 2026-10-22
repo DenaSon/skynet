@@ -252,9 +252,7 @@ final readonly class SalesSubscriptionsUi
             ));
         }
 
-        $keyboard->addRow(InlineKeyboardButton::make('📚 آموزش اتصال', callback_data: 'sales:help:apps'))
-            ->addRow(InlineKeyboardButton::make('💬 پشتیبانی', callback_data: 'sales:support'))
-            ->addRow(InlineKeyboardButton::make('🔄 بررسی دوباره', callback_data: 'sales:subs:view:'.$orderId.':'.$cursor))
+        $keyboard->addRow(InlineKeyboardButton::make('🔄 بررسی دوباره', callback_data: 'sales:subs:view:'.$orderId.':'.$cursor))
             ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'sales:subs:list:'.$cursor))
             ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
 
