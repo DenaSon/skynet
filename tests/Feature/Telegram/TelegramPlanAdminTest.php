@@ -82,6 +82,13 @@ it('restricts plan management to active linked allowlisted Super Admins in priva
     expect(DB::table('sales_plans')->count())->toBe(0);
 });
 
+it('renders the configured application brand in the Admin plans title', function (): void {
+    config()->set('app.name', 'DenaGate Test');
+    [, $bot] = b14Root();
+
+    $bot->hearText('/plans')->reply()->assertReplyText("📦 مدیریت پلن‌های DenaGate Test\nتعداد: 0 | صفحه 1 از 1\n\nبرای بررسی امکان ثبت سفارش، جزئیات هر پلن را باز کنید.\nهنوز پلنی تعریف نشده است.");
+});
+
 it('browses products and paged plans using existing authorized Sales Actions', function (): void {
     [$root, $bot] = b14Root();
 
