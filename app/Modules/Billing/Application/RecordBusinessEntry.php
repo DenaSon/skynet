@@ -95,7 +95,7 @@ final readonly class RecordBusinessEntry
         }, 3);
     }
 
-    /** @return array{entries:\Illuminate\Support\Collection<int,object>,total:int,page:int} */
+    /** @return array{entries:\Illuminate\Support\Collection<int,\stdClass>,total:int,page:int} */
     public function history(int $actorId, int $page = 1): array
     {
         $this->access->reviewer($actorId);
