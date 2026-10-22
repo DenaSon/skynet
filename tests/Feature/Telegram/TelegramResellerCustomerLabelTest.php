@@ -315,8 +315,8 @@ it('searches only private reseller customer names and routes results to original
         ->assertRaw(static function (Request $request): bool {
             $data = FakeNutgram::getActualData($request);
 
-            return str_contains($data['reply_markup'], 'sales:subs:search:start');
-        });
+            return str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:subs:search:start');
+        }, index: 1);
 
     $bot->hearCallbackQueryData('sales:subs:search:start')->reply()
         ->assertCalled('editMessageText');
@@ -325,13 +325,15 @@ it('searches only private reseller customer names and routes results to original
     $bot->hearText('علی')->reply()
         ->assertRaw(static function (Request $request) use ($named, $unmatched): bool {
             $data = FakeNutgram::getActualData($request);
-            $markup = json_decode($data['reply_markup'], true, 512, JSON_THROW_ON_ERROR);
+            $markup = is_string($data['reply_markup'])
+                ? json_decode($data['reply_markup'], true, 512, JSON_THROW_ON_ERROR)
+                : $data['reply_markup'];
 
             return str_contains($data['text'], 'علی &amp; &lt;دوست&gt;')
                 && ! str_contains($data['text'], 'سارا')
                 && ! str_contains($data['text'], 'علی & <دوست>')
                 && ($markup['inline_keyboard'][0][0]['callback_data'] ?? null) === "sales:subs:view:{$named}:0"
-                && ! str_contains($data['reply_markup'], "sales:subs:view:{$unmatched}:0");
+                && ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), "sales:subs:view:{$unmatched}:0");
         });
     expect(Cache::get($key)['mode'])->toBe('results');
 
@@ -359,7 +361,7 @@ it('pages matching names and protects missing state, group chats and revoked res
         ->assertRaw(static function (Request $request): bool {
             $data = FakeNutgram::getActualData($request);
 
-            return str_contains($data['reply_markup'], 'sales:subs:search:page:');
+            return str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:subs:search:page:');
         });
     $cursor = $labels->search($buyer->id, 'مشتری', 6)['nextBeforeOrderId'];
     expect($cursor)->not->toBeNull();
@@ -370,7 +372,7 @@ it('pages matching names and protects missing state, group chats and revoked res
             return str_contains($data['text'], 'نتایج جستجو')
                 && str_contains($data['text'], 'مشتری آزمایشی 2')
                 && ! str_contains($data['text'], 'مشتری آزمایشی 8');
-        });
+        }, index: 1);
 
     $bot->hearCallbackQueryData('sales:home')->reply();
     expect(Cache::has($key))->toBeFalse();
