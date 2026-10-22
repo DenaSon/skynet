@@ -12,6 +12,7 @@ use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\ManagePlanPricing;
 use App\Modules\Sales\Application\ManagePlans;
+use App\Modules\Sales\Application\ManageResellerServiceLabels;
 use App\Modules\Sales\Application\PlanDefinition;
 use App\Modules\Sales\Application\PlanPricingDefinition;
 use GuzzleHttp\Psr7\Request;
@@ -27,6 +28,7 @@ use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 use SergiX44\Nutgram\Testing\FakeNutgram;
+use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
 
@@ -450,5 +452,65 @@ it('refuses to create a payment order without a real configured card or with the
     config()->set('sales.manual_bank_review_enabled', false);
     $bot->hearCallbackQueryData("catalog:detail:{$plan}:1")->reply()->assertCalled('editMessageText');
     expect(DB::table('sales_orders')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+it('collects a reseller customer name before payment while preserving the managed order identity', function (): void {
+    $data = uxr02Plan();
+    Role::findOrCreate('reseller', 'web');
+    $buyer = User::factory()->create();
+    $buyer->syncRoles(['reseller']);
+    $bot = uxr02Bot(973010, $buyer);
+
+    $bot->hearCallbackQueryData('catalog:detail:'.$data['plan'].':1')->reply()
+        ->assertRaw(static function (Request $request): bool {
+            $body = uxr02Payload($request);
+
+            return str_contains($body['text'], 'نام مشتری')
+                && ! str_contains(json_encode($body['reply_markup'], JSON_THROW_ON_ERROR), 'sales:payment:start:');
+        }, index: 1);
+
+    $order = (int) DB::table('sales_orders')->value('id');
+    $key = TelegramBotContext::current()->cacheKey('telegram:sales:customer_name:'.$buyer->id);
+    expect($order)->toBeGreaterThan(0)
+        ->and(Cache::get($key))->toBe($order)
+        ->and(DB::table('billing_journals')->where('kind', 'purchase')->count())->toBe(0)
+        ->and(DB::table('sales_service_customer_labels')->count())->toBe(0);
+
+    $bot->hearText('علی & <احمدی>')->reply()
+        ->assertRaw(static function (Request $request): bool {
+            $body = uxr02Payload($request);
+
+            return str_contains(json_encode($body['reply_markup'], JSON_THROW_ON_ERROR), 'sales:payment:start:');
+        });
+
+    expect(Cache::has($key))->toBeFalse()
+        ->and(DB::table('sales_service_customer_labels')->where('sales_order_id', $order)->value('label'))
+        ->toBe('علی & <احمدی>')
+        ->and(DB::table('sales_orders')->where('id', $order)->value('status'))->toBe('pending_payment')
+        ->and(DB::table('billing_journals')->where('kind', 'purchase')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('rejects forged pending labels and keeps abandoned customer-name drafts payment-free', function (): void {
+    $data = uxr02Plan();
+    Role::findOrCreate('reseller', 'web');
+    $buyer = User::factory()->create();
+    $buyer->syncRoles(['reseller']);
+    $foreign = User::factory()->create();
+    $foreign->syncRoles(['reseller']);
+    $bot = uxr02Bot(973011, $buyer);
+    $bot->hearCallbackQueryData('catalog:detail:'.$data['plan'].':1')->reply();
+    $order = (int) DB::table('sales_orders')->value('id');
+    $labels = app(ManageResellerServiceLabels::class);
+    expect(fn () => $labels->savePending($foreign->id, $order, 'غیرمجاز'))
+        ->toThrow(\Illuminate\Validation\ValidationException::class);
+    expect(fn () => $labels->savePending($buyer->id, $order, "دو خط\nغیرمجاز"))
+        ->toThrow(\Illuminate\Validation\ValidationException::class);
+
+    $bot->hearCallbackQueryData('sales:checkout:name:cancel')->reply()->assertCalled('editMessageText');
+    expect(DB::table('sales_service_customer_labels')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->where('kind', 'purchase')->count())->toBe(0);
+    $bot->hearText('نام بعد از انصراف')->reply();
+    expect(DB::table('sales_service_customer_labels')->count())->toBe(0);
     Http::assertNothingSent();
 });
