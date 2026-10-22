@@ -29,7 +29,7 @@ final readonly class ManageResellerServiceLabels
             ->where('orders.buyer_user_id', $buyerId)
             ->whereIn('orders.status', ['paid', 'fulfilled'])
             ->whereIn('orders.id', $orderIds)
-            ->select('orders.id', 'labels.label')
+            ->whereNotNull('labels.label')->select('orders.id', 'labels.label')
             ->get();
 
         $labels = [];
@@ -41,9 +41,9 @@ final readonly class ManageResellerServiceLabels
     }
 
     /**
-     * Search only private customer labels on linked, paid reseller-owned services.
+     * Search only private customer names or phone fragments on linked, paid reseller-owned services.
      *
-     * @return array{items: list<array{orderId: int, label: string}>, nextBeforeOrderId: ?int}
+     * @return array{items: list<array{orderId: int, label: ?string, phone: ?string}>, nextBeforeOrderId: ?int}
      */
     public function search(int $buyerId, string $term, int $limit = 6, ?int $beforeOrderId = null): array
     {
@@ -57,23 +57,33 @@ final readonly class ManageResellerServiceLabels
 
         // Treat %, _ and the escape character literally, never as user SQL wildcards.
         $escaped = str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $term);
+        $digits = $this->digits($term);
+        $phoneTerm = $digits !== null && preg_match('/\A\+?[0-9]{2,14}\z/D', $digits) === 1
+            ? $this->searchPhoneTerm($digits) : null;
+        $phoneEscaped = $phoneTerm === null ? null : str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $phoneTerm);
         $query = DB::table('sales_service_customer_labels as labels')
             ->join('sales_orders as orders', 'orders.id', '=', 'labels.sales_order_id')
             ->join('provisioning_order_links as links', 'links.sales_order_id', '=', 'orders.id')
             ->where('orders.buyer_user_id', $buyerId)
             ->whereIn('orders.status', ['paid', 'fulfilled'])
-            ->whereRaw("labels.label LIKE ? ESCAPE '!'", ['%'.$escaped.'%']);
+            ->where(function ($query) use ($escaped, $phoneEscaped): void {
+                $query->whereRaw("labels.label LIKE ? ESCAPE '!'", ['%'.$escaped.'%']);
+                if ($phoneEscaped !== null) {
+                    $query->orWhereRaw("labels.phone LIKE ? ESCAPE '!'", ['%'.$phoneEscaped.'%']);
+                }
+            });
 
         if ($beforeOrderId !== null) {
             $query->where('orders.id', '<', $beforeOrderId);
         }
 
         $rows = $query->orderByDesc('orders.id')->limit($limit + 1)
-            ->get(['orders.id as order_id', 'labels.label']);
+            ->get(['orders.id as order_id', 'labels.label', 'labels.phone']);
         $hasNext = $rows->count() > $limit;
         $items = $rows->take($limit)->map(static fn ($row): array => [
             'orderId' => (int) $row->order_id,
-            'label' => (string) $row->label,
+            'label' => $row->label === null ? null : (string) $row->label,
+            'phone' => $row->phone === null ? null : (string) $row->phone,
         ])->values()->all();
 
         return [
@@ -113,7 +123,14 @@ final readonly class ManageResellerServiceLabels
             $this->assertOwnedService($buyerId, $orderId, true);
 
             if ($label === null) {
-                DB::table('sales_service_customer_labels')->where('sales_order_id', $orderId)->delete();
+                $phone = DB::table('sales_service_customer_labels')
+                    ->where('sales_order_id', $orderId)->value('phone');
+                if ($phone === null) {
+                    DB::table('sales_service_customer_labels')->where('sales_order_id', $orderId)->delete();
+                } else {
+                    DB::table('sales_service_customer_labels')->where('sales_order_id', $orderId)
+                        ->update(['label' => null, 'updated_at' => now()]);
+                }
 
                 return;
             }
@@ -125,6 +142,91 @@ final readonly class ManageResellerServiceLabels
                 'updated_at' => now(),
             ]], ['sales_order_id'], ['label', 'updated_at']);
         }, 3);
+    }
+
+
+    /** A contact number is optional, owner-scoped and never sent to Remnawave. */
+    public function phone(int $buyerId, int $orderId): ?string
+    {
+        $this->authorize($buyerId);
+        $this->assertOwnedService($buyerId, $orderId);
+
+        $value = DB::table('sales_service_customer_labels')
+            ->where('sales_order_id', $orderId)->value('phone');
+
+        return $value === null ? null : (string) $value;
+    }
+
+    /** A null number removes only the phone, preserving any saved customer name. */
+    public function savePhone(int $buyerId, int $orderId, ?string $input): void
+    {
+        $number = $input === null ? null : $this->normalizePhone($input);
+        DB::transaction(function () use ($buyerId, $orderId, $number): void {
+            $this->authorize($buyerId);
+            $this->assertOwnedService($buyerId, $orderId, true);
+            $row = DB::table('sales_service_customer_labels')->where('sales_order_id', $orderId)->first(['label']);
+            if ($row === null && $number === null) {
+                return;
+            }
+            if ($row === null) {
+                DB::table('sales_service_customer_labels')->insert([
+                    'sales_order_id' => $orderId, 'label' => null, 'phone' => $number,
+                    'created_at' => now(), 'updated_at' => now(),
+                ]);
+
+                return;
+            }
+            if ($row->label === null && $number === null) {
+                DB::table('sales_service_customer_labels')->where('sales_order_id', $orderId)->delete();
+
+                return;
+            }
+            DB::table('sales_service_customer_labels')->where('sales_order_id', $orderId)
+                ->update(['phone' => $number, 'updated_at' => now()]);
+        }, 3);
+    }
+
+    private function normalizePhone(string $input): string
+    {
+        $digits = $this->digits(trim($input));
+        if ($digits === null) {
+            throw ValidationException::withMessages(['phone' => 'Invalid mobile number.']);
+        }
+        if (preg_match('/\A09[0-9]{9}\z/D', $digits) === 1) {
+            return '+98'.substr($digits, 1);
+        }
+        if (preg_match('/\A(?:\+98|0098|98)9[0-9]{9}\z/D', $digits) === 1) {
+            return '+98'.substr($digits, -10);
+        }
+
+        throw ValidationException::withMessages(['phone' => 'Invalid Iranian mobile number.']);
+    }
+
+    private function digits(string $value): ?string
+    {
+        $normalized = strtr($value, [
+            '۰'=>'0', '۱'=>'1', '۲'=>'2', '۳'=>'3', '۴'=>'4',
+            '۵'=>'5', '۶'=>'6', '۷'=>'7', '۸'=>'8', '۹'=>'9',
+            '٠'=>'0', '١'=>'1', '٢'=>'2', '٣'=>'3', '٤'=>'4',
+            '٥'=>'5', '٦'=>'6', '٧'=>'7', '٨'=>'8', '٩'=>'9',
+        ]);
+
+        return preg_match('/\A\+?[0-9]+\z/D', $normalized) === 1 ? $normalized : null;
+    }
+
+    private function searchPhoneTerm(string $digits): string
+    {
+        if (str_starts_with($digits, '0098')) {
+            return '+98'.substr($digits, 4);
+        }
+        if (str_starts_with($digits, '09')) {
+            return '+98'.substr($digits, 1);
+        }
+        if (str_starts_with($digits, '98') && ! str_starts_with($digits, '+')) {
+            return '+'.$digits;
+        }
+
+        return $digits;
     }
 
     /** Save the customer's display name on a pending managed-plan order before payment. */
