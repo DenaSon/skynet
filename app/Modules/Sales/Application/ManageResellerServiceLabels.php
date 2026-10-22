@@ -130,6 +130,9 @@ final readonly class ManageResellerServiceLabels
     /** Save the customer's display name on a pending managed-plan order before payment. */
     public function savePending(int $buyerId, int $orderId, string $name): void
     {
+        if (str_contains($name, "\n") || str_contains($name, "\r")) {
+            throw ValidationException::withMessages(['label' => 'Multiline names are not permitted.']);
+        }
         $clean = preg_replace('/[\x00-\x1F\x7F\x{202A}-\x{202E}\x{2066}-\x{2069}]+/u', ' ', $name);
         if ($clean === null) {
             throw ValidationException::withMessages(['label' => 'Invalid name.']);
