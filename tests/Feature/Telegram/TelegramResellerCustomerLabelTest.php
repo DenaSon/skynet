@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
+use App\Modules\Provisioning\Application\ReadResellerLiveSubscriptions;
 use App\Modules\Sales\Application\CalculateQuote;
 use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\ConfigureRate;
@@ -501,6 +502,62 @@ it('makes the Sales report visible only to resellers and provides 7/30 day navig
             $data = FakeNutgram::getActualData($request);
 
             return str_contains($data['text'], 'فقط برای نمایندگان');
+        }, index: 1);
+    Http::assertNothingSent();
+});
+
+it('returns unknown live subscription metrics on unavailable provider without pretending zero', function (): void {
+    $buyer = rslUser();
+    $foreign = rslUser();
+    $action = app(ReadResellerLiveSubscriptions::class);
+    $empty = $action->handle($buyer->id);
+    expect($empty['available'])->toBeTrue()
+        ->and($empty['checked'])->toBe(0)
+        ->and($empty['active'])->toBe(0);
+
+    rslOrder($buyer);
+    $result = $action->handle($buyer->id);
+    expect($result['available'])->toBeFalse()
+        ->and($result['active'])->toBeNull()
+        ->and($result['expired'])->toBeNull()
+        ->and($result['attentionOrderIds'])->toBe([])
+        ->and($action->handle($foreign->id)['checked'])->toBe(0);
+    $buyer->syncRoles(['member']);
+    expect(fn () => $action->handle($buyer->id))->toThrow(AuthorizationException::class);
+    Http::assertNothingSent();
+});
+
+it('does not scan the remote provider when a reseller exceeds the explicit live-report service bound', function (): void {
+    $buyer = rslUser();
+    for ($i = 0; $i < 51; $i++) {
+        rslOrder($buyer);
+    }
+
+    $result = app(ReadResellerLiveSubscriptions::class)->handle($buyer->id);
+    expect($result['available'])->toBeFalse()
+        ->and($result['checked'])->toBeNull()
+        ->and($result['active'])->toBeNull();
+    Http::assertNothingSent();
+});
+
+it('shows an unknown-safe private subscription status page and denies a revoked reseller', function (): void {
+    $buyer = rslUser();
+    rslOrder($buyer);
+    $bot = rslBot($buyer, 977922);
+    $bot->hearCallbackQueryData('sales:report:subscriptions')->reply()
+        ->assertRaw(static function (Request $request): bool {
+            $data = FakeNutgram::getActualData($request);
+
+            return str_contains($data['text'], 'دریافت وضعیت همه سرویس‌ها')
+                && ! str_contains($data['text'], '🟢 فعال: 0');
+        }, index: 1);
+
+    $buyer->syncRoles(['member']);
+    $bot->hearCallbackQueryData('sales:report:subscriptions')->reply()
+        ->assertRaw(static function (Request $request): bool {
+            $data = FakeNutgram::getActualData($request);
+
+            return str_contains($data['text'], 'فقط برای نمایندگان فعال');
         }, index: 1);
     Http::assertNothingSent();
 });
