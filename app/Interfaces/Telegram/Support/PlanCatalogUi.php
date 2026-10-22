@@ -72,9 +72,10 @@ final readonly class PlanCatalogUi
         ];
 
         foreach (array_slice($entries, ($page - 1) * 5, 5) as $entry) {
-            $lines[] = ($entry->plan->featured ? '⭐ ' : '📦 ')
-                .$this->safe($entry->plan->name).' — '.$this->spec($entry)
-                .' — '.$this->toman($entry->quote->totalPriceRials).' تومان';
+            $lines[] = ($entry->plan->featured ? '⭐ ' : '📦 ').$this->safe($entry->plan->name);
+            $lines[] = '📊 حجم و مدت: '.$this->spec($entry);
+            $lines[] = '💰 مبلغ: '.$this->toman($entry->quote->totalPriceRials).' تومان';
+            $lines[] = '';
             $keyboard->addRow(InlineKeyboardButton::make(
                 mb_substr($this->safe($entry->plan->name), 0, 30),
                 callback_data: "catalog:detail:{$entry->plan->id}:{$page}",
