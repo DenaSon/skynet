@@ -81,6 +81,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:sp:apply:{token}';
     // STAT-01: scoped Admin read-only statistics routes.
     $expected['ADMIN'][] = 'command:stats';
+    // STAT-02: bounded Admin-only business reports.
+    $expected['ADMIN'][] = 'callback:stats:detail:{section}:{days}';
     $expected['ADMIN'][] = 'callback:stats:overview';
     $expected['ADMIN'][] = 'callback:stats:refresh';
     // MB-05B adds one guarded, unadvertised Admin-only read command.
@@ -230,8 +232,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(214)
-        ->and(count(array_unique($legacy)))->toBe(214);
+        ->and(count($legacy))->toBe(215)
+        ->and(count(array_unique($legacy)))->toBe(215);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {

@@ -3,6 +3,7 @@
 use App\Interfaces\Telegram\Handlers\AdminHandler;
 use App\Interfaces\Telegram\Handlers\AdminRolesHandler;
 use App\Interfaces\Telegram\Handlers\AdminUsersHandler;
+use App\Interfaces\Telegram\Support\AdminBusinessReportUi;
 use App\Interfaces\Telegram\Support\AdminConfigProfileOperationsUi;
 use App\Interfaces\Telegram\Support\AdminConfigProfilesUi;
 use App\Interfaces\Telegram\Support\AdminDashboardUi;
@@ -289,6 +290,11 @@ $bot->onCallbackQueryData('stats:overview', function (Nutgram $bot): void {
 });
 $bot->onCallbackQueryData('stats:refresh', function (Nutgram $bot): void {
     app(AdminDashboardUi::class)->show($bot);
+});
+
+// STAT-02: Admin-only, read-only 7/30 day Sales and Telegram summaries.
+$bot->onCallbackQueryData('stats:detail:{section}:{days}', function (Nutgram $bot, string $section, string $days): void {
+    app(AdminBusinessReportUi::class)->show($bot, $section, $days);
 });
 
 // MET-01: root-only, read-only Node and traffic snapshot.
