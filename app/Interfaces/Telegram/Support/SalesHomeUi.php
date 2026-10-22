@@ -197,9 +197,11 @@ final readonly class SalesHomeUi
         if ($action === null) {
             return false;
         }
-        if ($this->navigationActor($bot) === null) {
+        $actor = $this->navigationActor($bot);
+        if ($actor === null) {
             return true;
         }
+        app(SalesSubscriptionsUi::class)->clearCustomerLabelDraft($actor->userId);
         switch ($action) {
             case 'buy':
                 $this->buy($bot);
@@ -443,6 +445,7 @@ final readonly class SalesHomeUi
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:recent:'.$buyerId));
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:wallet:topup:'.$buyerId));
         app(SalesPanelRequestUi::class)->clear($buyerId);
+        app(SalesSubscriptionsUi::class)->clearCustomerLabelDraft($buyerId);
     }
 
     private function salesRole(TelegramActor $actor): string
