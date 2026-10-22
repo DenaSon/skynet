@@ -12,6 +12,8 @@ final class ReplyMenuLabels
 
     public const SALES_SUPPORT = '💬 پشتیبانی';
 
+    public const SALES_REPORTS = '📊 گزارش‌های من';
+
     public const BUY = '🛒 خرید اشتراک';
 
     public const SUBSCRIPTIONS = '📦 سرویس‌های من';
@@ -64,7 +66,7 @@ final class ReplyMenuLabels
     {
         return [
             self::BUY, self::SUBSCRIPTIONS, self::CATALOG, self::ACCOUNT, self::INVITE,
-            self::SETTINGS, self::ADMIN, self::WALLET, self::BUILDER,
+            self::SETTINGS, self::ADMIN, self::WALLET, self::BUILDER, self::SALES_REPORTS,
             self::LEGACY_WALLET, self::LEGACY_BUILDER, self::USERS,
             self::ROLES, self::PLANS, self::PRODUCTS, self::SALES_SECTION,
             self::FINANCE_SECTION, self::SERVERS, self::STATS, self::TOPUPS, self::RECEIPTS, self::HOME,

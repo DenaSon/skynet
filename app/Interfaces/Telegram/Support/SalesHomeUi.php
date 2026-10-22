@@ -112,6 +112,7 @@ final readonly class SalesHomeUi
         }
         if ($isReseller) {
             $keyboard->addRow(InlineKeyboardButton::make('🧩 پلن‌ساز', callback_data: 'menu:builder'));
+            $keyboard->addRow(InlineKeyboardButton::make('📊 گزارش‌های من', callback_data: 'sales:report:30'));
         }
         $keyboard->addRow(InlineKeyboardButton::make('💬 پشتیبانی', callback_data: 'sales:support'))
             ->addRow(InlineKeyboardButton::make('📋 همه پلن‌ها و قیمت‌ها', callback_data: 'menu:plan-catalog'));
@@ -187,6 +188,7 @@ final readonly class SalesHomeUi
             ReplyMenuLabels::SALES_SUBSCRIPTIONS, ReplyMenuLabels::SUBSCRIPTIONS, '📦 اشتراک‌های من' => 'subscriptions',
             ReplyMenuLabels::SALES_ACCOUNT, ReplyMenuLabels::ACCOUNT => 'account',
             ReplyMenuLabels::SALES_SUPPORT => 'support',
+            ReplyMenuLabels::SALES_REPORTS => 'report',
             ReplyMenuLabels::HOME, '🏠 صفحه اصلی', '❌ انصراف', '/cancel' => 'home',
             ReplyMenuLabels::INVITE => 'invite',
             ReplyMenuLabels::BUILDER, ReplyMenuLabels::LEGACY_BUILDER => 'builder',
@@ -201,6 +203,7 @@ final readonly class SalesHomeUi
             return true;
         }
         app(SalesSubscriptionsUi::class)->clearCustomerLabelDraft($actor->userId);
+        app(SalesSubscriptionsUi::class)->clearCustomerPhoneDraft($actor->userId);
         app(SalesSubscriptionsUi::class)->clearCustomerSearch($actor->userId);
         app(SalesCheckoutUi::class)->clearCustomerName($actor->userId);
         switch ($action) {
@@ -227,6 +230,9 @@ final readonly class SalesHomeUi
                 break;
             case 'wallet':
                 $this->wallet($bot);
+                break;
+            case 'report':
+                app(ResellerSalesReportUi::class)->show($bot);
                 break;
             default:
                 $this->start($bot);
@@ -289,6 +295,7 @@ final readonly class SalesHomeUi
         }
         if (in_array('reseller', $actor->roles, true)) {
             $keyboard->addRow(InlineKeyboardButton::make('🧩 پلن‌ساز', callback_data: 'menu:builder'));
+            $keyboard->addRow(InlineKeyboardButton::make('📊 گزارش‌های من', callback_data: 'sales:report:30'));
         } elseif (in_array('member', $actor->roles, true)) {
             $requestLabel = '🧩 درخواست پنل فروش';
             try {
@@ -450,6 +457,7 @@ final readonly class SalesHomeUi
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:wallet:topup:'.$buyerId));
         app(SalesPanelRequestUi::class)->clear($buyerId);
         app(SalesSubscriptionsUi::class)->clearCustomerLabelDraft($buyerId);
+        app(SalesSubscriptionsUi::class)->clearCustomerPhoneDraft($buyerId);
         app(SalesSubscriptionsUi::class)->clearCustomerSearch($buyerId);
         app(SalesCheckoutUi::class)->clearCustomerName($buyerId);
     }
