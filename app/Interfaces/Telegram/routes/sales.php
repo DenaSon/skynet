@@ -78,7 +78,7 @@ $bot->onCallbackQueryData('sales:help:{page}', function (Nutgram $bot, string $p
     app(SalesSupportUi::class)->show($bot, $page);
 });
 
-$bot->onCallbackQueryData('sales:report:health:{cursor}', function (Nutgram $bot, string $cursor): void {
+$bot->onCallbackQueryData('sales:health:{cursor}', function (Nutgram $bot, string $cursor): void {
     app(ResellerServiceHealthUi::class)->show($bot, $cursor);
 });
 
