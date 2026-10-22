@@ -78,6 +78,11 @@ $bot->onCallbackQueryData('sales:help:{page}', function (Nutgram $bot, string $p
 });
 
 $bot->onCallbackQueryData('sales:report:{days}', function (Nutgram $bot, string $days): void {
+    if ($days === 'subscriptions') {
+        app(ResellerSalesReportUi::class)->subscriptions($bot);
+
+        return;
+    }
     app(ResellerSalesReportUi::class)->show($bot, $days);
 });
 
