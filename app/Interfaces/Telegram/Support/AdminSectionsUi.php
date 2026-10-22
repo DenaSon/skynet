@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Telegram\Support;
 
+use App\Modules\Billing\Application\ReadAdminWalletSummary;
 use App\Modules\Identity\Application\ResolveTelegramActor;
+use Illuminate\Auth\Access\AuthorizationException;
 use App\Modules\Identity\Application\TelegramActor;
 use SergiX44\Nutgram\Nutgram;
 
@@ -13,6 +15,7 @@ final readonly class AdminSectionsUi
     public function __construct(
         private PrivateTelegramUser $privateUser,
         private ResolveTelegramActor $resolve,
+        private ReadAdminWalletSummary $walletSummary,
         private MenuRenderer $menus,
     ) {}
 
@@ -25,11 +28,23 @@ final readonly class AdminSectionsUi
 
     public function finance(Nutgram $bot): void
     {
-        if ($this->actor($bot) === null) {
+        $actor = $this->actor($bot);
+        if ($actor === null) {
             return;
         }
 
-        $this->menus->showAdminFinance($bot);
+        try {
+            $summary = $this->walletSummary->handle($actor->userId);
+        } catch (AuthorizationException) {
+            $this->menus->denyAccess($bot);
+
+            return;
+        } catch (\Throwable) {
+            // Preserve existing finance navigation when a read fails.
+            $summary = null;
+        }
+
+        $this->menus->showAdminFinance($bot, $summary);
     }
 
     private function actor(Nutgram $bot): ?TelegramActor

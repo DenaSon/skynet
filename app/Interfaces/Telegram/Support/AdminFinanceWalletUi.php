@@ -9,6 +9,7 @@ use App\Interfaces\Telegram\Notifications\WalletTopupNotificationOutbox;
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Billing\Application\BrowseCustomerWallets;
 use App\Modules\Billing\Application\BrowsePhotoTopups;
+use App\Modules\Billing\Application\ReadAdminWalletSummary;
 use App\Modules\Billing\Application\ReviewTopup;
 use App\Modules\Identity\Application\AssertBillingAccess;
 use App\Modules\Identity\Application\ResolveTelegramActor;
@@ -32,6 +33,7 @@ final readonly class AdminFinanceWalletUi
         private ResolveTelegramActor $actors,
         private AssertBillingAccess $access,
         private BrowseCustomerWallets $wallets,
+        private ReadAdminWalletSummary $summary,
         private BrowsePhotoTopups $photos,
         private BillingReviewTokens $tokens,
         private ReviewTopup $review,
@@ -54,9 +56,23 @@ final readonly class AdminFinanceWalletUi
             return;
         }
         $rows = $this->wallets->page($actor->userId, $number);
+        $summary = $this->summary->handle($actor->userId);
         $next = count($rows) > 8;
         $keyboard = InlineKeyboardMarkup::make();
-        $lines = ['<b>💼 کیف پول کاربران</b>', '', 'موجودی از گردش مالی تأییدشده محاسبه می‌شود.', ''];
+        $lines = [
+            '<b>💼 کیف پول کاربران</b>',
+            '',
+            'مجموع مانده: <b>'.number_format(intdiv($summary['balanceRials'], 10)).' تومان</b>',
+            'کل کیف پول‌ها: '.number_format($summary['walletsTotal']),
+            'دارای موجودی: '.number_format($summary['walletsPositive']),
+            'شارژهای منتظر تأیید: '.number_format($summary['pendingTopups']),
+        ];
+        if ($summary['walletsNegative'] > 0) {
+            $lines[] = '⚠️ مانده منفی نیازمند بررسی: '.number_format($summary['walletsNegative']);
+        }
+        $lines[] = '<blockquote>مانده از گردش مالی تأییدشده محاسبه می‌شود؛ درآمد فروش نیست.</blockquote>';
+        $lines[] = '';
+        $lines[] = '<b>فهرست کیف پول‌ها</b>';
         foreach (array_slice($rows, 0, 8) as $row) {
             $name = TelegramUi::escape(mb_substr($row['name'], 0, 45));
             $lines[] = '👤 #'.$row['id'].' · '.$name.' · <b>'.TelegramUi::toman($row['balance_rials']).' تومان</b>';
