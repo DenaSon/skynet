@@ -60,7 +60,7 @@ function uxr01Payload(Request $request): array
     return $data;
 }
 
-it('retains old Sales keyboard label compatibility but removes the keyboard on /start', function (): void {
+it('shows persistent Sales keyboard on start while accepting old button labels', function (): void {
     $user = User::factory()->create(['name' => '<Buyer> & "Name"']);
     $bot = uxr01Bot($user);
     $keyboard = app(ReplyMenuRenderer::class)->salesKeyboard();
@@ -86,7 +86,9 @@ it('retains old Sales keyboard label compatibility but removes the keyboard on /
         ->assertRaw(static function (Request $request): bool {
             $body = uxr01Payload($request);
 
-            return ($body['reply_markup']['remove_keyboard'] ?? false) === true;
+            return ($body['reply_markup']['is_persistent'] ?? false) === true
+                && ($body['reply_markup']['keyboard'][0][0]['text'] ?? null) === ReplyMenuLabels::SALES_BUY
+                && ($body['reply_markup']['keyboard'][1][1]['text'] ?? null) === ReplyMenuLabels::SALES_SUPPORT;
         }, index: 0)
         ->assertReply('sendMessage', ['parse_mode' => 'HTML'])
         ->assertReplyText("<b>🏠 DenaGate</b>\n\nخوش آمدید، &lt;Buyer&gt; &amp; &quot;Name&quot;.\nنوع حساب: <b>👤 کاربر عادی</b>");
@@ -346,4 +348,20 @@ it('accepts old Sales keyboard labels and the new /buy command with existing aut
             && $buttons[0][0]['callback_data'] === 'sales:buy';
     }, index: 1);
     Http::assertNothingSent();
+});
+
+it('shows reseller-only persistent wallet and builder buttons with working navigation', function (): void {
+    $buyer = User::factory()->create();
+    $buyer->syncRoles(['reseller']);
+    $bot = uxr01Bot($buyer);
+    $bot->hearText('/start')->reply()->assertRaw(static function (Request $request): bool {
+        $data = uxr01Payload($request);
+        $keyboard = $data['reply_markup']['keyboard'] ?? [];
+
+        return ($data['reply_markup']['is_persistent'] ?? false) === true
+            && ($keyboard[2][0]['text'] ?? null) === ReplyMenuLabels::WALLET
+            && ($keyboard[2][1]['text'] ?? null) === ReplyMenuLabels::BUILDER;
+    }, index: 0);
+    $bot->hearText(ReplyMenuLabels::WALLET)->reply()->assertCalled('sendMessage');
+    $bot->hearText(ReplyMenuLabels::BUILDER)->reply()->assertCalled('sendMessage');
 });
