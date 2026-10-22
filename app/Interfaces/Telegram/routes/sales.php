@@ -3,6 +3,7 @@
 use App\Interfaces\Telegram\Support\ManualPaymentUi;
 use App\Interfaces\Telegram\Support\PlanCatalogUi;
 use App\Interfaces\Telegram\Support\ResellerBuilderUi;
+use App\Interfaces\Telegram\Support\ResellerSalesReportUi;
 use App\Interfaces\Telegram\Support\SalesCheckoutUi;
 use App\Interfaces\Telegram\Support\SalesHomeUi;
 use App\Interfaces\Telegram\Support\SalesPanelRequestUi;
@@ -74,6 +75,10 @@ $bot->onCommand('cancel', function (Nutgram $bot): void {
 
 $bot->onCallbackQueryData('sales:help:{page}', function (Nutgram $bot, string $page): void {
     app(SalesSupportUi::class)->show($bot, $page);
+});
+
+$bot->onCallbackQueryData('sales:report:{days}', function (Nutgram $bot, string $days): void {
+    app(ResellerSalesReportUi::class)->show($bot, $days);
 });
 
 $bot->onCallbackQueryData('sales:wallet', function (Nutgram $bot): void {
