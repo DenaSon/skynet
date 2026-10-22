@@ -146,3 +146,31 @@ it('keeps referral unavailable-state navigation open to home and account', funct
     }, index: 1);
     Http::assertNothingSent();
 });
+
+it('shows reseller-only builder guidance under Sales support without exposing it to members', function (): void {
+    Role::findOrCreate('reseller', 'web');
+    $reseller = User::factory()->create();
+    $reseller->syncRoles(['reseller']);
+    $bot = polish152Bot(987050, $reseller);
+    $bot->hearCallbackQueryData('sales:support')->reply()
+        ->assertRaw(static function (Request $request): bool {
+            $body = polish152Payload($request);
+
+            return str_contains(json_encode($body['reply_markup'], JSON_THROW_ON_ERROR), 'sales:help:builder');
+        }, index: 1);
+    $bot->hearCallbackQueryData('sales:help:builder')->reply()
+        ->assertRaw(static function (Request $request): bool {
+            $body = polish152Payload($request);
+
+            return str_contains($body['text'], 'راهنمای پلن‌ساز')
+                && str_contains(json_encode($body['reply_markup'], JSON_THROW_ON_ERROR), 'menu:builder');
+        }, index: 1);
+    $reseller->syncRoles(['member']);
+    $bot->hearCallbackQueryData('sales:support')->reply()
+        ->assertRaw(static function (Request $request): bool {
+            $body = polish152Payload($request);
+
+            return ! str_contains(json_encode($body['reply_markup'], JSON_THROW_ON_ERROR), 'sales:help:builder');
+        }, index: 1);
+    Http::assertNothingSent();
+});
