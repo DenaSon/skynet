@@ -274,7 +274,7 @@ it('finds only linked paid reseller-owned labels by name fragment with bounded p
     expect(array_column($page2['items'], 'orderId'))->toBe([$first])
         ->and($page2['nextBeforeOrderId'])->toBeNull()
         ->and($labels->search($buyer->id, 'غیرموجود')['items'])->toBe([])
-        ->and($labels->search($other->id, 'علی')['items'])->toBe([['orderId' => $foreign, 'label' => 'علی همسایه']])
+        ->and($labels->search($other->id, 'علی')['items'])->toBe([['orderId' => $foreign, 'label' => 'علی همسایه', 'phone' => null]])
         ->and($unnamed)->toBeGreaterThan(0);
 
     Http::assertNothingSent();
@@ -383,5 +383,73 @@ it('pages matching names and protects missing state, group chats and revoked res
     expect(Cache::has($key))->toBeFalse();
     $bot->setCommonChat(Chat::make(-977906, ChatType::GROUP));
     $bot->hearCallbackQueryData('sales:subs:search:start')->reply()->assertNoReply();
+    Http::assertNothingSent();
+});
+
+it('normalizes reseller phones and searches only owner-scoped customer names or mobile fragments', function (): void {
+    $buyer = rslUser();
+    $other = rslUser();
+    $order = rslOrder($buyer);
+    $action = app(ManageResellerServiceLabels::class);
+    $before = DB::table('sales_orders')->where('id', $order)->first();
+
+    $action->savePhone($buyer->id, $order, '۰۹۱۲۳۴۵۶۷۸۹');
+    expect($action->phone($buyer->id, $order))->toBe('+989123456789')
+        ->and($action->get($buyer->id, $order))->toBeNull()
+        ->and($action->search($buyer->id, '0912')['items'][0]['phone'])->toBe('+989123456789')
+        ->and($action->search($buyer->id, '۹۱۲۳۴')['items'][0]['orderId'])->toBe($order)
+        ->and($action->search($buyer->id, '+989123456789')['items'][0]['orderId'])->toBe($order)
+        ->and(DB::table('sales_orders')->where('id', $order)->first())->toEqual($before);
+    $action->save($buyer->id, $order, 'محمد احمدی');
+    $action->save($buyer->id, $order, null);
+    expect($action->get($buyer->id, $order))->toBeNull()
+        ->and($action->phone($buyer->id, $order))->toBe('+989123456789');
+    $action->savePhone($buyer->id, $order, null);
+    expect($action->phone($buyer->id, $order))->toBeNull()
+        ->and(DB::table('sales_service_customer_labels')->where('sales_order_id', $order)->exists())->toBeFalse()
+        ->and(fn () => $action->savePhone($other->id, $order, '09123456789'))->toThrow(ValidationException::class);
+    Http::assertNothingSent();
+});
+
+it('rejects malformed and unlinked phone changes and revoked reseller access', function (): void {
+    $buyer = rslUser();
+    $other = rslUser();
+    $order = rslOrder($buyer);
+    $unlinked = rslOrder($buyer, false);
+    $action = app(ManageResellerServiceLabels::class);
+
+    expect(fn () => $action->savePhone($buyer->id, $order, '123456'))->toThrow(ValidationException::class)
+        ->and(fn () => $action->savePhone($buyer->id, $order, '0912345678'))->toThrow(ValidationException::class)
+        ->and(fn () => $action->savePhone($buyer->id, $unlinked, '09123456789'))->toThrow(ValidationException::class)
+        ->and(fn () => $action->phone($other->id, $order))->toThrow(ValidationException::class)
+        ->and($action->search($other->id, '0912')['items'])->toBe([]);
+    $buyer->syncRoles(['member']);
+    expect(fn () => $action->savePhone($buyer->id, $order, '09123456789'))->toThrow(AuthorizationException::class);
+    Http::assertNothingSent();
+});
+
+it('edits and removes a reseller phone through the private Sales bot', function (): void {
+    $buyer = rslUser();
+    $order = rslOrder($buyer);
+    $action = app(ManageResellerServiceLabels::class);
+    $action->save($buyer->id, $order, 'محمد اسدی');
+    $bot = rslBot($buyer, 977910);
+    $key = TelegramBotContext::current()->cacheKey('telegram:subs:customer_phone:'.$buyer->id);
+
+    $bot->hearCallbackQueryData("sales:subs:phone:edit:{$order}:0")->reply()
+        ->assertCalled('editMessageText');
+    expect(Cache::has($key))->toBeTrue();
+    $bot->hearText('۰۹۱۲۳۴۵۶۷۸۹')->reply()->assertCalled('sendMessage');
+    expect(Cache::has($key))->toBeFalse()
+        ->and($action->phone($buyer->id, $order))->toBe('+989123456789')
+        ->and($action->get($buyer->id, $order))->toBe('محمد اسدی');
+
+    $bot->hearCallbackQueryData("sales:subs:phone:remove:{$order}:0")->reply()
+        ->assertCalled('editMessageText');
+    expect($action->phone($buyer->id, $order))->toBe('+989123456789');
+    $bot->hearCallbackQueryData("sales:subs:phone:clear:{$order}:0")->reply()
+        ->assertCalled('editMessageText');
+    expect($action->phone($buyer->id, $order))->toBeNull()
+        ->and($action->get($buyer->id, $order))->toBe('محمد اسدی');
     Http::assertNothingSent();
 });
