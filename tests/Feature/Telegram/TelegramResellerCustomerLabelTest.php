@@ -244,7 +244,6 @@ it('uses a plan-based title for unnamed services and page positions only for vis
         }, index: 2);
 });
 
-
 it('finds only linked paid reseller-owned labels by name fragment with bounded pagination', function (): void {
     $buyer = rslUser();
     $other = rslUser();
