@@ -40,7 +40,6 @@ final readonly class ManageResellerServiceLabels
         return $labels;
     }
 
-
     /**
      * Search only private customer labels on linked, paid reseller-owned services.
      *
