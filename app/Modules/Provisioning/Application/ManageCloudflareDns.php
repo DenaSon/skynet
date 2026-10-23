@@ -163,7 +163,7 @@ final readonly class ManageCloudflareDns
         }
         $recordId = $expected['id'] ?? null;
         $hostname = $expected['name'] ?? null;
-        if (! self::zoneId($recordId) || ! is_string($hostname)) {
+        if (! is_string($recordId) || ! self::zoneId($recordId) || ! is_string($hostname)) {
             throw new RuntimeException('Invalid record identity.');
         }
         $this->validate($zoneId, $zone, $hostname, $ip);
