@@ -499,6 +499,7 @@ it('delivers no remote write during Admin confirmation and queues only the trust
 
 it('does not replay uncertain provider writes from a queued job', function (): void {
     $data = sb05Order();
+    config()->set('sales.auto_fulfillment_enabled', true);
     config()->set('services.remnawave.writes_enabled', true);
     Http::fake(['https://remna.test/api/users' => Http::response('provider timeout', 503)]);
     $job = new FulfillPaidPlanOrderJob($data['order'], false, $data['root']->id);
@@ -512,6 +513,84 @@ it('does not replay uncertain provider writes from a queued job', function (): v
     $job->handle(app(FulfillPaidPlanOrder::class), app(AssertCatalogManagementAccess::class));
     Http::assertSentCount(1);
 });
+
+it('pauses an already queued create at execution time and resumes without settling again', function (string $payment): void {
+    $data = $payment === 'wallet' ? sb05WalletOrder() : sb05Order();
+    config()->set('sales.auto_fulfillment_enabled', true);
+    config()->set('services.remnawave.writes_enabled', true);
+    $job = new FulfillPaidPlanOrderJob($data['order'], false, $payment === 'wallet' ? 0 : $data['root']->id);
+    // Preserve the existing queue payload: the flag changes AFTER enqueue.
+    $queued = unserialize(serialize($job), ['allowed_classes' => [FulfillPaidPlanOrderJob::class]]);
+    $order = DB::table('sales_orders')->where('id', $data['order'])->first();
+    $intent = DB::table('sales_fulfillment_outbox')->where('sales_order_id', $data['order'])->first();
+    $journals = DB::table('billing_journals')->orderBy('id')->get()->all();
+    $postings = DB::table('billing_postings')->orderBy('id')->get()->all();
+    $bank = DB::table('sales_bank_settlements')->get()->all();
+    $wallet = DB::table('sales_order_settlements')->get()->all();
+    $notices = DB::table('telegram_notification_deliveries')->get()->all();
+    sb05FakeCreate($data['order']);
+
+    config()->set('sales.auto_fulfillment_enabled', false);
+    $queued->handle(app(FulfillPaidPlanOrder::class), app(AssertCatalogManagementAccess::class));
+
+    expect(DB::table('sales_orders')->where('id', $data['order'])->first())->toEqual($order)
+        ->and(DB::table('sales_fulfillment_outbox')->where('sales_order_id', $data['order'])->first())->toEqual($intent)
+        ->and(DB::table('provisioning_subscriptions')->count())->toBe(0)
+        ->and(DB::table('provisioning_operations')->count())->toBe(0)
+        ->and(DB::table('provisioning_order_links')->count())->toBe(0)
+        ->and(DB::table('telegram_notification_deliveries')->get()->all())->toEqual($notices);
+    Http::assertNothingSent();
+
+    // The untouched pending intent can use the existing recovery job once ON.
+    config()->set('sales.auto_fulfillment_enabled', true);
+    $queued->handle(app(FulfillPaidPlanOrder::class), app(AssertCatalogManagementAccess::class));
+    expect(DB::table('sales_orders')->where('id', $data['order'])->value('status'))->toBe('fulfilled')
+        ->and(DB::table('sales_fulfillment_outbox')->value('state'))->toBe('completed')
+        ->and(DB::table('provisioning_operations')->count())->toBe(1)
+        ->and(DB::table('provisioning_order_links')->count())->toBe(1)
+        ->and(DB::table('billing_journals')->orderBy('id')->get()->all())->toEqual($journals)
+        ->and(DB::table('billing_postings')->orderBy('id')->get()->all())->toEqual($postings)
+        ->and(DB::table('sales_bank_settlements')->get()->all())->toEqual($bank)
+        ->and(DB::table('sales_order_settlements')->get()->all())->toEqual($wallet);
+    Http::assertSentCount(1);
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'POST');
+})->with(['bank', 'wallet']);
+
+it('allows authorized queued GET reconciliation while automatic activation and provider writes are off', function (string $payment): void {
+    $data = $payment === 'wallet' ? sb05WalletOrder() : sb05Order();
+    config()->set('services.remnawave.writes_enabled', true);
+    Http::fake(['https://remna.test/api/users' => Http::response(['message' => 'lost response'], 503)]);
+    expect(fn () => app(FulfillPaidPlanOrder::class)->handle($data['order']))->toThrow(RuntimeException::class);
+    $expected = json_decode((string) DB::table('provisioning_operations')->value('expected_payload'), true, 512, JSON_THROW_ON_ERROR);
+    $postings = DB::table('billing_postings')->orderBy('id')->get()->all();
+    $journals = DB::table('billing_journals')->orderBy('id')->get()->all();
+
+    config()->set('sales.auto_fulfillment_enabled', false);
+    config()->set('services.remnawave.writes_enabled', false);
+    Http::fake(['https://remna.test/api/users/by-username/*' => Http::response([
+        'response' => sb05Remote($data['order'], $expected['expireAt'], $expected['trafficLimitBytes']),
+    ], 200)]);
+    $job = new FulfillPaidPlanOrderJob($data['order'], true, $data['root']->id);
+
+    // GET recovery retains the same fresh root authorization checks.
+    $data['root']->syncRoles(['member']);
+    $job->handle(app(FulfillPaidPlanOrder::class), app(AssertCatalogManagementAccess::class));
+    expect(DB::table('sales_fulfillment_outbox')->value('state'))->toBe('needs_review');
+    Http::assertNothingSent();
+
+    $data['root']->syncRoles(['super-admin']);
+    $job->handle(app(FulfillPaidPlanOrder::class), app(AssertCatalogManagementAccess::class));
+    expect(DB::table('sales_orders')->where('id', $data['order'])->value('status'))->toBe('fulfilled')
+        ->and(DB::table('sales_fulfillment_outbox')->value('state'))->toBe('completed')
+        ->and(DB::table('provisioning_operations')->count())->toBe(1)
+        ->and(DB::table('provisioning_operations')->value('state'))->toBe('completed')
+        ->and(DB::table('provisioning_order_links')->count())->toBe(1)
+        ->and(DB::table('billing_journals')->orderBy('id')->get()->all())->toEqual($journals)
+        ->and(DB::table('billing_postings')->orderBy('id')->get()->all())->toEqual($postings);
+    Http::assertSentCount(1);
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
+    Http::assertNotSent(static fn (Request $request): bool => $request->method() !== 'GET');
+})->with(['bank', 'wallet']);
 
 it('never authorizes an unapproved or unavailable fulfillment state', function (): void {
     $data = sb05Order();
@@ -763,6 +842,7 @@ it('keeps private status callbacks read-only when provider writes are disabled',
 
 it('rechecks queued Admin fulfillment trust and refuses revoked or legacy rootless jobs', function (): void {
     $data = sb05Order();
+    config()->set('sales.auto_fulfillment_enabled', true);
     config()->set('services.remnawave.writes_enabled', true);
     Http::fake();
     $job = new FulfillPaidPlanOrderJob($data['order'], false, $data['root']->id);
