@@ -10,6 +10,7 @@ use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Identity\Application\SuperAdminTrust;
 use App\Modules\Identity\Application\TelegramActor;
+use App\Modules\Sales\Application\ManageResellerServiceLabels;
 use App\Modules\Sales\Application\ManualBankPayments;
 use App\Modules\Sales\Application\OrderReader;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -33,6 +34,7 @@ final readonly class ManualPaymentUi
         private ManualBankPayments $payments,
         private OrderReader $orders,
         private MenuRenderer $menus,
+        private ManageResellerServiceLabels $customerLabels,
     ) {}
 
     public function start(Nutgram $bot, string $orderId): void
@@ -90,6 +92,16 @@ final readonly class ManualPaymentUi
                 $this->notice($bot, 'اطلاعات پرداخت هنوز تنظیم نشده است. با پشتیبانی تماس بگیرید.');
 
                 return;
+            }
+            try {
+                $this->customerLabels->assertPendingDetails($actor->userId, $order->id);
+            } catch (ValidationException $error) {
+                if (isset($error->errors()['customer'])) {
+                    app(SalesCheckoutUi::class)->viewOrder($bot, (string) $order->id);
+
+                    return;
+                }
+                throw $error;
             }
         }
 
@@ -244,6 +256,7 @@ final readonly class ManualPaymentUi
             $message = match ($reason) {
                 'This order already has a receipt pending review.' => 'رسید این سفارش قبلاً دریافت شده و در انتظار بررسی است.',
                 'This receipt was already submitted.' => 'این تصویر قبلاً برای یک رسید ثبت شده است؛ تصویر جدید ارسال کنید.',
+                'Complete customer name and mobile before payment.' => 'ابتدا نام و شماره موبایل مشتری را در صفحه سفارش تکمیل کنید؛ رسید ثبت نشد.',
                 default => 'سفارش دیگر قابل پرداخت نیست یا تصویر معتبر نیست. وضعیت سفارش را در «سوابق خرید» بررسی کنید.',
             };
             $this->notice($bot, $message);
