@@ -12,6 +12,7 @@ use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\ConfigureRate;
 use App\Modules\Sales\Application\CreatePendingOrder;
 use App\Modules\Sales\Application\ManualBankPayments;
+use GuzzleHttp\Psr7\Request;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -24,6 +25,7 @@ use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
+use SergiX44\Nutgram\Testing\FakeNutgram;
 use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
@@ -392,8 +394,8 @@ it('requires the two-stage Admin bank confirmation and cannot settle before fina
 
     $token = null;
     $admin->hearText('VERIFIED-BANK-141')->reply()->assertRaw(
-        static function (\GuzzleHttp\Psr7\Request $request) use (&$token): bool {
-            $data = \SergiX44\Nutgram\Testing\FakeNutgram::getActualData($request);
+        static function (Request $request) use (&$token): bool {
+            $data = FakeNutgram::getActualData($request);
             $keyboard = $data['reply_markup'] ?? null;
             if (is_string($keyboard)) {
                 $keyboard = json_decode($keyboard, true, flags: JSON_THROW_ON_ERROR);

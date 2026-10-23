@@ -14,6 +14,7 @@ use App\Modules\Sales\Application\ManageResellerServiceLabels;
 use App\Modules\Sales\Application\ManualBankPayments;
 use App\Modules\Sales\Application\OrderReader;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -451,7 +452,7 @@ final readonly class ManualPaymentUi
             Cache::put($this->referenceKey($actor->userId), ['claim' => $row->id], now()->addMinutes(10));
             $this->render($bot,
                 "🔎 بررسی پرداخت · مرحله ۱ از ۲\n\nدرخواست #{$row->id} · سفارش #{$row->orderId}"
-                ."\nمبلغ: ".TelegramUi::toman($row->amountRials)." تومان"
+                ."\nمبلغ: ".TelegramUi::toman($row->amountRials).' تومان'
                 ."\n\nپس از مشاهده واریز واقعی در بانک، شناسه یکتای تراکنش را ارسال کنید."
                 ."\nهنوز هیچ پرداختی تأیید نشده است.",
                 $this->backKeyboard());
@@ -481,7 +482,6 @@ final readonly class ManualPaymentUi
             // The committed settlement/rejection must not be undone by Telegram.
         }
     }
-
 
     /** Consume Admin-only reference input; this never settles an order. */
     public function text(Nutgram $bot, string $value): bool
@@ -526,9 +526,9 @@ final readonly class ManualPaymentUi
         $token = $this->decisionTokens->issue($actor->userId, $row->id, true, $reference, null);
         Cache::forget($key);
         $bot->sendMessage(
-            text: "<b>✅ تأیید نهایی پرداخت · مرحله ۲ از ۲</b>"
+            text: '<b>✅ تأیید نهایی پرداخت · مرحله ۲ از ۲</b>'
                 ."\n\nسفارش #{$row->orderId} · درخواست #{$row->id}"
-                ."\nمبلغ: <b>".TelegramUi::toman($row->amountRials)." تومان</b>"
+                ."\nمبلغ: <b>".TelegramUi::toman($row->amountRials).' تومان</b>'
                 ."\nشناسه بانک: ".TelegramUi::code($reference)
                 ."\n\nتا زدن دکمه تأیید نهایی، هیچ مبلغی ثبت نمی‌شود."
                 ."\nآیا واریز واقعی را در بانک بررسی کرده‌اید؟",
@@ -561,7 +561,7 @@ final readonly class ManualPaymentUi
         }
         try {
             $result = $this->payments->review($actor->userId, $data['claim'], true, $data['reference']);
-        } catch (AuthorizationException|ValidationException|UniqueConstraintViolationException|\Illuminate\Database\QueryException $error) {
+        } catch (AuthorizationException|ValidationException|UniqueConstraintViolationException|QueryException $error) {
             $this->notice($bot, $error instanceof ValidationException && isset($error->errors()['plan'])
                 ? 'مشخصات پلن تغییر کرده است؛ رسید برای بررسی در صف باقی می‌ماند.'
                 : 'تأیید انجام نشد؛ رسید تغییر کرده یا شناسه بانکی قبلاً ثبت شده است.');
