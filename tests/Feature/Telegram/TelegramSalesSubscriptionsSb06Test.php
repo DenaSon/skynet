@@ -617,3 +617,30 @@ it('navigates QR photo Back to owned subscription without text-editing a photo',
     Http::assertSentCount(1);
     expect(DB::table('sales_orders')->where('id', $order)->value('status'))->toBe('fulfilled');
 })->with(['member', 'reseller']);
+
+
+it('shows Persian Tehran expiry and remaining days to both members and resellers', function (string $role): void {
+    Role::findOrCreate($role, 'web');
+    $buyer = User::factory()->create();
+    $buyer->syncRoles([$role]);
+    $order = sb06Order($buyer);
+    sb06Activated($order);
+    $bot = sb06Bot(976097, $buyer);
+    Http::fake([
+        'https://remna.test/api/users/42' => Http::response(['response' => sb06Provider($order)]),
+    ]);
+
+    $bot->hearCallbackQueryData('sales:subs:view:'.$order.':0')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $data = FakeNutgram::getActualData($request);
+            $text = (string) ($data['text'] ?? '');
+
+            return str_contains($text, 'تاریخ انقضا: <b>۱۴۰۶/۰۷/۲۰</b>')
+                && str_contains($text, 'ساعت <b>۰۳:۳۰</b> (ایران)')
+                && str_contains($text, 'روزهای باقی‌مانده: <b>')
+                && ! str_contains($text, 'تاریخ انقضا (UTC)')
+                && ! str_contains($text, 'private-sb06-credential');
+        }, index: 2);
+
+    Http::assertSentCount(1);
+})->with(['member', 'reseller']);
