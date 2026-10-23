@@ -173,6 +173,9 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:nw3:resume:{identifier}';
     $expected['ADMIN'][] = 'callback:nw3:node:prepare:{identifier}';
     $expected['ADMIN'][] = 'callback:nw3:node:apply:{token}';
+    $expected['ADMIN'][] = 'callback:nw3:dns:prepare:{identifier}';
+    $expected['ADMIN'][] = 'callback:nw3:dns:apply:{token}';
+    $expected['ADMIN'][] = 'callback:nw3:dns:reconcile:{identifier}';
     $expected['ADMIN'][] = 'callback:nw3:host:begin:{identifier}';
     $expected['ADMIN'][] = 'callback:nw3:host:apply:{token}';
     // NW-02 adds two separately gated private Admin-only installer callbacks.
@@ -180,6 +183,9 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:nw2:status:{identifier}';
     // NW-01 adds root-only read-only SSH readiness callbacks, no Sales routes.
     $expected['ADMIN'][] = 'callback:nw1:begin';
+    $expected['ADMIN'][] = 'callback:nw1:dns:zones';
+    $expected['ADMIN'][] = 'callback:nw1:dns:zone:{index}';
+    $expected['ADMIN'][] = 'callback:nw1:dns:skip';
     $expected['ADMIN'][] = 'callback:nw1:profile:{index}';
     $expected['ADMIN'][] = 'callback:nw1:inbound:{index}';
     $expected['ADMIN'][] = 'callback:nw1:scan:{token}';
