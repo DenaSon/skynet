@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 namespace App\Interfaces\Telegram\Support;
-
 use App\Support\PersianCalendar;
 
 use DateTimeImmutable;
@@ -35,5 +34,4 @@ final readonly class SubscriptionExpiryDisplay
             '⏳ روزهای باقی‌مانده: <b>'.$remaining.'</b>',
         ];
     }
-
 }

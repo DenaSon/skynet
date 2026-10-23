@@ -231,7 +231,6 @@ it('rejects ordinary admins, a revoked Super Admin and group reports before DB f
     Http::assertNothingSent();
 });
 
-
 it('starts a new Persian month at Tehran midnight, not the Gregorian month boundary', function (): void {
     $root = acc02Root();
     // 2026-10-23 00:10 in Tehran is 1405/08/01.
