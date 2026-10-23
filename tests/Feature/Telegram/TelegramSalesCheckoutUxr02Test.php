@@ -489,6 +489,131 @@ it('accepts a numeric-string order ID from cache and registers the member receip
     Http::assertNothingSent();
 });
 
+it('routes the next photo to the newly opened purchase without changing a pending wallet top-up', function (string $entry): void {
+    config()->set('billing.topups_enabled', true);
+    $data = uxr02Plan();
+    $buyer = User::factory()->create();
+    $other = User::factory()->create();
+    $bot = uxr02Bot(973181, $buyer);
+    $bot->hearCallbackQueryData('catalog:detail:'.$data['plan'].':1')->reply();
+    $orderId = (int) DB::table('sales_orders')->value('id');
+
+    $bot->hearCallbackQueryData('sales:wallet:topup')->reply();
+    $bot->hearText('250000')->reply();
+    $topup = DB::table('billing_topups')->sole();
+    $topupKey = TelegramBotContext::current()->cacheKey('telegram:wallet:topup:'.$buyer->id);
+    expect(Cache::get($topupKey))->toBe(['step' => 'photo', 'topup_id' => (int) $topup->id]);
+
+    $adminKey = 'telegram:wallet:topup:'.$buyer->id;
+    $otherKey = TelegramBotContext::current()->cacheKey('telegram:wallet:topup:'.$other->id);
+    $unrelatedDraft = ['step' => 'amount'];
+    Cache::put($adminKey, $unrelatedDraft, now()->addMinutes(10));
+    Cache::put($otherKey, $unrelatedDraft, now()->addMinutes(10));
+    config()->set('telegram_notifications.enabled', true);
+    Queue::fake();
+
+    // Existing message buttons bypass Home and must still retire the old intake.
+    $callback = match ($entry) {
+        'receipt-button' => 'sales:payment:start:'.$orderId,
+        'order-details' => 'sales:checkout:view:'.$orderId,
+        'new-plan' => 'catalog:detail:'.$data['plan'].':1',
+    };
+    $bot->hearUpdateType(UpdateType::CALLBACK_QUERY, [
+        'id' => 'switch-wallet-to-purchase', 'message' => ['from' => [], 'date' => 1703892479],
+        'data' => $callback,
+    ])->reply()->assertCalled('editMessageText');
+    $purchaseId = (int) DB::table('sales_orders')->orderByDesc('id')->value('id');
+
+    $bot->hearMessage(['message_id' => 181, 'photo' => [
+        ['file_id' => 'purchase-switch-photo', 'file_unique_id' => 'purchase-switch-unique', 'width' => 400, 'height' => 400],
+    ]])->reply();
+
+    // A receipt is evidence only: the correct destination changes, never money.
+    expect(DB::table('billing_topup_photos')->count())->toBe(0)
+        ->and(DB::table('billing_topups')->sole())->toEqual($topup)
+        ->and(Cache::has($topupKey))->toBeFalse()
+        ->and(Cache::get($adminKey))->toBe($unrelatedDraft)
+        ->and(Cache::get($otherKey))->toBe($unrelatedDraft);
+    $claim = DB::table('sales_bank_payment_claims')->sole();
+    $notice = DB::table('telegram_notification_deliveries')->where('event_type', 'ReceiptSubmitted')->sole();
+    expect((int) $claim->sales_order_id)->toBe($purchaseId)
+        ->and((int) $claim->buyer_user_id)->toBe($buyer->id)
+        ->and($claim->status)->toBe('submitted')
+        ->and($claim->source_bot_key)->toBe('sales')
+        ->and((int) $notice->claim_id)->toBe((int) $claim->id)
+        ->and((int) $notice->recipient_user_id)->toBe($data['root']->id)
+        ->and($notice->bot_key)->toBe('admin')
+        ->and(DB::table('sales_orders')->where('id', $purchaseId)->value('status'))->toBe('pending_payment')
+        ->and(DB::table('billing_journals')->count())->toBe(0)
+        ->and(DB::table('billing_postings')->count())->toBe(0)
+        ->and(DB::table('sales_fulfillment_outbox')->count())->toBe(0)
+        ->and(DB::table('provisioning_subscriptions')->count())->toBe(0);
+    Http::assertNothingSent();
+})->with(['receipt-button', 'order-details', 'new-plan']);
+
+it('preserves wallet top-up intake when purchase receipt entry is rejected', function (string $reason): void {
+    config()->set('billing.topups_enabled', true);
+    $plan = uxr02Plan()['plan'];
+    $buyer = User::factory()->create();
+    $bot = uxr02Bot(973182, $buyer);
+    $orderBot = $reason === 'foreign' ? uxr02Bot(973183, User::factory()->create()) : $bot;
+    $orderBot->hearCallbackQueryData('catalog:detail:'.$plan.':1')->reply();
+    $orderId = (int) DB::table('sales_orders')->value('id');
+
+    if ($reason === 'already-submitted') {
+        app(ManualBankPayments::class)->submit(SubscriptionViewer::telegram(973182), $orderId,
+            'existing-purchase-photo', 'existing-purchase-unique', 182, 'sales');
+    }
+    $bot->hearCallbackQueryData('sales:wallet:topup')->reply();
+    $bot->hearText('250000')->reply();
+    $key = TelegramBotContext::current()->cacheKey('telegram:wallet:topup:'.$buyer->id);
+    $draft = Cache::get($key);
+    $topup = DB::table('billing_topups')->sole();
+
+    match ($reason) {
+        'paid' => DB::table('sales_orders')->where('id', $orderId)->update(['status' => 'paid']),
+        'gate-off' => config()->set('sales.manual_bank_review_enabled', false),
+        'missing-card' => config()->set('billing.payment_card_number', ''),
+        'reseller' => $buyer->syncRoles(['reseller']),
+        default => null,
+    };
+    $bot->hearCallbackQueryData('sales:payment:start:'.$orderId)->reply();
+
+    expect(Cache::get($key))->toBe($draft)
+        ->and(Cache::has(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$buyer->id)))->toBeFalse()
+        ->and(DB::table('billing_topups')->sole())->toEqual($topup)
+        ->and(DB::table('billing_topup_photos')->count())->toBe(0)
+        ->and(DB::table('sales_bank_payment_claims')->count())->toBe($reason === 'already-submitted' ? 1 : 0)
+        ->and(DB::table('billing_journals')->count())->toBe(0)
+        ->and(DB::table('provisioning_subscriptions')->count())->toBe(0);
+    Http::assertNothingSent();
+})->with(['foreign', 'paid', 'gate-off', 'missing-card', 'already-submitted', 'reseller']);
+
+it('keeps the existing switch from purchase receipt intake to wallet top-up working', function (): void {
+    config()->set('billing.topups_enabled', true);
+    $plan = uxr02Plan()['plan'];
+    $buyer = User::factory()->create();
+    $bot = uxr02Bot(973184, $buyer);
+    $bot->hearCallbackQueryData('catalog:detail:'.$plan.':1')->reply();
+    $purchaseKey = TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$buyer->id);
+    expect(Cache::has($purchaseKey))->toBeTrue();
+
+    $bot->hearCallbackQueryData('sales:wallet:topup')->reply();
+    $bot->hearText('250000')->reply();
+    $bot->hearMessage(['message_id' => 184, 'photo' => [
+        ['file_id' => 'wallet-switch-photo', 'file_unique_id' => 'wallet-switch-unique', 'width' => 400, 'height' => 400],
+    ]])->reply();
+
+    expect(Cache::has($purchaseKey))->toBeFalse()
+        ->and(DB::table('billing_topup_photos')->count())->toBe(1)
+        ->and(DB::table('billing_topups')->value('status'))->toBe('submitted')
+        ->and(DB::table('sales_bank_payment_claims')->count())->toBe(0)
+        ->and(DB::table('sales_orders')->value('status'))->toBe('pending_payment')
+        ->and(DB::table('billing_journals')->count())->toBe(0)
+        ->and(DB::table('provisioning_subscriptions')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
 it('recognizes numeric-string recent orders after the active receipt window expires', function (): void {
     $plan = uxr02Plan()['plan'];
     $buyer = User::factory()->create();
