@@ -12,6 +12,7 @@ use Database\Seeders\LaunchSalesCatalogSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
@@ -186,7 +187,7 @@ it('preserves an inactive parent and rolls back missing plan setup instead of re
     $before = launchCatalogSnapshot();
 
     expect(fn () => $this->seed(LaunchSalesCatalogSeeder::class))
-        ->toThrow(\Illuminate\Validation\ValidationException::class);
+        ->toThrow(ValidationException::class);
 
     expect(launchCatalogSnapshot())->toEqual($before);
 });
