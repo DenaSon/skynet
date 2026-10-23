@@ -121,18 +121,32 @@ function ren02Remote(int $source, int $limit = 21474836480, string $status = 'AC
 }
 
 /** @param array<string,mixed> $remote */
-function ren02Http(array &$remote, bool &$failUpdate, ?bool &$failRead = null): void
+function ren02Http(array &$remote, bool &$failUpdate, ?bool &$failRead = null, bool $disableAfterRead = false): void
 {
-    Http::fake(static function (Request $r) use (&$remote, &$failUpdate, &$failRead) {
+    Http::fake(static function (Request $r) use (&$remote, &$failUpdate, &$failRead, $disableAfterRead) {
         if ($r->method() === 'GET' && $r->url() === 'https://rw-ren02.test/api/users/52') {
-            return $failRead === true
+            $response = $failRead === true
                 ? Http::response(['message' => 'gateway timeout'], 503)
                 : Http::response(['response' => $remote]);
+            if ($disableAfterRead) {
+                // The response is the old snapshot; the panel changes before PATCH.
+                $remote['status'] = 'DISABLED';
+            }
+
+            return $response;
         }
         if ($r->method() === 'PATCH' && $r->url() === 'https://rw-ren02.test/api/users') {
+            // Remnawave 3.4.4 updateUser: quota/expiry restore LIMITED/EXPIRED,
+            // while DISABLED is preserved unless ACTIVE is explicitly requested.
+            if (isset($r['status'])) {
+                $remote['status'] = $r['status'];
+            } elseif (($remote['status'] === 'LIMITED' && $r['trafficLimitBytes'] > $remote['trafficLimitBytes'])
+                || ($remote['status'] === 'EXPIRED' && $r['expireAt'] !== $remote['expireAt']
+                    && new DateTimeImmutable($r['expireAt']) > new DateTimeImmutable('now'))) {
+                $remote['status'] = 'ACTIVE';
+            }
             $remote['expireAt'] = $r['expireAt'];
             $remote['trafficLimitBytes'] = $r['trafficLimitBytes'];
-            $remote['status'] = $r['status'];
 
             return $failUpdate
                 ? Http::response(['error' => 'lost-response'], 504)
@@ -197,7 +211,7 @@ it('settles wallet exactly once and sends one absolute renewal UPDATE without CR
         ->and(DB::table('telegram_notification_deliveries')->where('event_type', 'SubscriptionRenewed')->count())->toBe(1);
     Http::assertSent(static fn (Request $r): bool => $r->method() === 'PATCH'
         && $r->url() === 'https://rw-ren02.test/api/users'
-        && $r['id'] === 52 && $r['status'] === 'ACTIVE'
+        && $r['id'] === 52 && ! array_key_exists('status', $r->data())
         && $r['trafficLimitBytes'] === 40 * 1073741824);
     Http::assertNotSent(static fn (Request $r): bool => $r->method() === 'POST');
     expect(fn () => app(FulfillPaidRenewalOrder::class)->handle($order))->toThrow(RuntimeException::class);
@@ -239,6 +253,69 @@ it('preserves unlimited traffic and changes the actual expiry only', function ()
     expect($remote['trafficLimitBytes'])->toBe(0)
         ->and(DB::table('provisioning_subscriptions')->count())->toBe(1);
 });
+
+it('renews eligible provider states through quota and expiry without requesting a status change', function (string $status, bool $unlimited): void {
+    $data = ren02Fixture($unlimited);
+    $remote = ren02Remote($data['source'], $unlimited ? 0 : 21474836480, $status);
+    if ($status === 'EXPIRED') {
+        $remote['expireAt'] = now()->utc()->subDay()->format('Y-m-d\TH:i:s\Z');
+    }
+    $fail = false;
+    ren02Http($remote, $fail);
+    $order = app(CreatePendingRenewalOrder::class)
+        ->handle(SubscriptionViewer::telegram($data['telegram']), $data['source'])->id;
+    ren02WalletPay($data, $order);
+    $postings = DB::table('billing_postings')->orderBy('id')->get()->all();
+
+    expect(app(FulfillPaidRenewalOrder::class)->handle($order))->toBe(52)
+        ->and($remote['status'])->toBe('ACTIVE')
+        ->and($remote['trafficLimitBytes'])->toBe($unlimited ? 0 : 40 * 1073741824)
+        ->and(DB::table('billing_postings')->orderBy('id')->get()->all())->toEqual($postings)
+        ->and(DB::table('provisioning_order_links')->count())->toBe(1);
+    $expected = json_decode(DB::table('provisioning_operations')->where('kind', 'renewal')->value('expected_payload'), true, 512, JSON_THROW_ON_ERROR);
+    expect($expected['status'])->toBe('ACTIVE');
+    Http::assertSent(static fn (Request $r): bool => $r->method() === 'PATCH'
+        && ! array_key_exists('status', $r->data()));
+    Http::assertNotSent(static fn (Request $r): bool => $r->method() === 'POST');
+})->with([['ACTIVE', false], ['LIMITED', false], ['EXPIRED', false], ['EXPIRED', true]]);
+
+it('preserves an administrative disable between renewal GET and PATCH without announcing success or replaying', function (string $payment): void {
+    $data = ren02Fixture();
+    $remote = ren02Remote($data['source']);
+    $fail = false;
+    ren02Http($remote, $fail);
+    $order = app(CreatePendingRenewalOrder::class)
+        ->handle(SubscriptionViewer::telegram($data['telegram']), $data['source'])->id;
+    if ($payment === 'wallet') {
+        ren02WalletPay($data, $order);
+    } else {
+        $bank = app(ManualBankPayments::class);
+        $claim = $bank->submit(SubscriptionViewer::telegram($data['telegram']), $order,
+            'race-bank-'.$order, 'race-bank-unique-'.$order, 8000 + $order, 'sales');
+        $bank->review($data['root']->id, $claim, true, 'REN02RACE'.$order);
+    }
+    $journals = DB::table('billing_journals')->orderBy('id')->get()->all();
+    $postings = DB::table('billing_postings')->orderBy('id')->get()->all();
+    $failRead = false;
+    ren02Http($remote, $fail, $failRead, disableAfterRead: true);
+
+    expect(fn () => app(FulfillPaidRenewalOrder::class)->handle($order))->toThrow(RuntimeException::class);
+    expect($remote['status'])->toBe('DISABLED')
+        ->and(DB::table('sales_orders')->where('id', $order)->value('status'))->toBe('paid')
+        ->and(DB::table('sales_fulfillment_outbox')->where('sales_order_id', $order)->value('state'))->toBe('needs_review')
+        ->and(DB::table('provisioning_operations')->where('kind', 'renewal')->value('state'))->toBe('needs_review')
+        ->and(DB::table('telegram_notification_deliveries')->where('event_type', 'SubscriptionRenewed')->count())->toBe(0);
+    expect(fn () => app(FulfillPaidRenewalOrder::class)->handle($order))->toThrow(RuntimeException::class);
+    config()->set('services.remnawave.writes_enabled', false);
+    expect(fn () => app(FulfillPaidRenewalOrder::class)->reconcile($order))->toThrow(RuntimeException::class);
+    expect(DB::table('billing_journals')->orderBy('id')->get()->all())->toEqual($journals)
+        ->and(DB::table('billing_postings')->orderBy('id')->get()->all())->toEqual($postings)
+        ->and(DB::table('provisioning_order_links')->count())->toBe(1);
+    Http::assertSent(static fn (Request $r): bool => $r->method() === 'PATCH'
+        && ! array_key_exists('status', $r->data()));
+    expect(collect(Http::recorded())->filter(static fn ($pair): bool => $pair[0]->method() === 'PATCH')->count())->toBe(1);
+    Http::assertNotSent(static fn (Request $r): bool => $r->method() === 'POST');
+})->with(['bank', 'wallet']);
 
 it('does not retry a timed-out provider UPDATE and only reconciles frozen targets using GET', function (): void {
     $data = ren02Fixture();
