@@ -95,6 +95,13 @@ The operator explicitly approved replacing the **Sales-only** permanent four-but
 
 Review this standard before every future Telegram UI feature.
 
+## CF-01 — optional DNS in the existing server wizard
+
+- After server name/IP, offer «انتخاب دامنه» only when a scoped Cloudflare token, explicitly allowed zones and an enabled DNS write switch exist; «ادامه بدون دامنه» must preserve the original IP-only steps.
+- Ask for one selectable domain and one copyable/example subdomain. Never use Cloudflare as a substitute for SSH/Node IP or show token/zone IDs to users.
+- Only after a freshly connected Node, show the exact FQDN/IP/DNS Only preview and require one-use confirmation before creating a DNS record. A matching existing A is reused; different records are not silently overwritten. Failure/uncertainty is not success and never automatically repeated; a separate button checks the remote state read-only.
+- Create the existing Remnawave Host disabled with the verified FQDN, preserving manual Host enablement, Back/Cancel, legacy Node paths and clear Persian error messages. CF-02 standalone DNS UI is separate.
+
 ## NW-01 — Guided server readiness
 
 - Only private trusted root and when NODE_SSH_SETUP_ENABLED is on; one prompt at a time, Cancel and contextual Back. Never echo SSH password or raw key material.

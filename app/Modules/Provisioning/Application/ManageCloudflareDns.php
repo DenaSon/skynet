@@ -96,7 +96,7 @@ final readonly class ManageCloudflareDns
         }
         $this->validate($zoneId, $zone, $hostname, $ip);
 
-        return Cache::lock('cloudflare:dns:'.hash('sha256', $zoneId.':'.$hostname), 40)
+        return Cache::lock('cloudflare:dns:'.hash('sha256', $zoneId.':'.$hostname), 90)
             ->block(2, function () use ($actorId, $zoneId, $zone, $hostname, $ip, $beforeCreate): string {
                 $this->verifyZone($actorId, $zoneId, $zone);
                 if ($this->recordState($zoneId, $hostname, $ip) === 'existing') {
