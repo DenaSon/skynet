@@ -108,21 +108,17 @@ final readonly class SalesSubscriptionsUi
                 }
                 $lines[] = $summary.' · '.$item->durationDays.' روز · '.$this->status($item->status);
                 $lines[] = '';
-                if ($item->status === 'active') {
-                    // Never expose bearer credentials in the directory. The
-                    // private link Action rechecks owner and remote expiry.
-                    $keyboard->addRow(
-                        InlineKeyboardButton::make('📋 جزئیات '.$position,
-                            callback_data: 'sales:subs:view:'.$item->orderId.':'.$cursor),
-                        InlineKeyboardButton::make('🔐 لینک '.$position,
-                            callback_data: 'sales:subs:link:'.$item->orderId.':'.$cursor),
-                    );
-                } else {
-                    $keyboard->addRow(InlineKeyboardButton::make(
-                        '📋 جزئیات '.$position.' · '.$this->shortStatus($item->status),
-                        callback_data: 'sales:subs:view:'.$item->orderId.':'.$cursor,
-                    ));
-                }
+                // One entry per service: the detail view retains link, renewal
+                // and customer-edit actions, with fresh owner/provider checks.
+                $buttonTitle = $resellerId !== null
+                    ? '👤 '.($customerLabel === null
+                        ? 'مشتری بدون نام'
+                        : mb_strimwidth($this->clean($customerLabel), 0, 36, '…', 'UTF-8'))
+                    : '📦 '.mb_strimwidth($planName, 0, 36, '…', 'UTF-8');
+                $keyboard->addRow(InlineKeyboardButton::make(
+                    $buttonTitle.' · '.$position,
+                    callback_data: 'sales:subs:view:'.$item->orderId.':'.$cursor,
+                ));
             }
             $lines[] = '<blockquote>وضعیت لحظه‌ای و تاریخ انقضا در جزئیات هر سرویس بررسی می‌شود.</blockquote>';
             if ($page->nextBeforeOrderId !== null) {
