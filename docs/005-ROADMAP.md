@@ -1,3 +1,9 @@
+## Checkout purchase-intent / QR photo back regression repair (2026-10-23)
+
+- New plan selection and “buy again same plan” must create distinct owner-scoped pending orders, even if an identical previous order is awaiting payment or has complete customer details. Preserve the existing Application Action's idempotent handling of the same retried Telegram callback-query ID; prior orders resume only from order details. New reseller purchases restart name + phone; member flow remains unchanged.
+- Back/navigation from QR photo must send a new text message instead of calling `editMessageText` on the photo (Telegram HTTP 400). Preserve QR/copy link and existing media caption; other text callbacks remain edited normally.
+- Validate with true photo callback and distinct/same callback IDs, authorization and no payment/provider writes, full PHP 8.4/Pest/PHPStan/Pint and MySQL CI. No production logs or user data mutation; operator tests the live bot after merge.
+
 ## Wallet-only reseller purchase + top-up final approval clarity (2026-10-23)
 
 - Root top-up review retains bank-confirmed unique reference and explicit final step. Clarify button and step messaging, preserve immutable double-entry audit, test full Admin callback sequence, no auto-credit.

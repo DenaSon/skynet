@@ -53,6 +53,7 @@ it('keeps existing optional callback denial text without altering its message', 
 
 it('accepts only a confirmed unchanged Telegram message edit as an already-rendered success', function (): void {
     $bot = Mockery::mock(Nutgram::class);
+    $bot->shouldReceive('isCallbackQuery')->once()->andReturn(false);
     $bot->shouldReceive('editMessageText')->once()->andThrow(
         new TelegramException(
             'Bad Request: message is not modified: specified new message content and reply markup are exactly the same',
@@ -70,6 +71,7 @@ it('preserves actionable edit errors, including other HTTP 400 and non-400 uncha
         new TelegramException('Too Many Requests: retry after 5', 429),
     ] as $exception) {
         $bot = Mockery::mock(Nutgram::class);
+        $bot->shouldReceive('isCallbackQuery')->once()->andReturn(false);
         $bot->shouldReceive('editMessageText')->once()->andThrow($exception);
 
         expect(fn () => TelegramUi::editText($bot, 'متن جدید'))
@@ -79,6 +81,7 @@ it('preserves actionable edit errors, including other HTTP 400 and non-400 uncha
 
 it('keeps normal Telegram message edits intact', function (): void {
     $bot = Mockery::mock(Nutgram::class);
+    $bot->shouldReceive('isCallbackQuery')->once()->andReturn(false);
     $bot->shouldReceive('editMessageText')->once()->andReturn(null);
 
     TelegramUi::editText($bot, '◀️ مدیریت');
@@ -86,6 +89,7 @@ it('keeps normal Telegram message edits intact', function (): void {
 
 it('accepts repeated HTML-mode edits without changing the original formatting contract', function (): void {
     $bot = Mockery::mock(Nutgram::class);
+    $bot->shouldReceive('isCallbackQuery')->once()->andReturn(false);
     $bot->shouldReceive('editMessageText')->once()->andThrow(
         new TelegramException('Bad Request: message is not modified', 400),
     );

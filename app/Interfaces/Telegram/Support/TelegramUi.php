@@ -11,6 +11,7 @@ use SergiX44\Nutgram\Telegram\Properties\ChatAction;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\CopyTextButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\Message\Message;
 
 final class TelegramUi
 {
@@ -53,6 +54,16 @@ final class TelegramUi
         ?InlineKeyboardMarkup $keyboard = null,
         ?string $parseMode = null,
     ): void {
+        // The QR/link card is a Telegram *photo*. editMessageText cannot turn
+        // a photo caption into a text message (HTTP 400); navigate with a new
+        // text message instead. Do not mutate or erase the private QR.
+        $callbackMessage = $bot->isCallbackQuery() ? $bot->callbackQuery()?->message : null;
+        if ($callbackMessage instanceof Message && $callbackMessage->photo !== null) {
+            $bot->sendMessage(text: $text, reply_markup: $keyboard, parse_mode: $parseMode);
+
+            return;
+        }
+
         try {
             $bot->editMessageText(text: $text, reply_markup: $keyboard, parse_mode: $parseMode);
         } catch (TelegramException $exception) {
