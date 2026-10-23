@@ -72,6 +72,11 @@ final class FulfillPaidPlanOrderJob implements ShouldBeUnique, ShouldQueue
             } elseif ($this->reconcile) {
                 $fulfill->reconcile($this->orderId);
             } else {
+                // Already queued jobs must honor the current activation switch.
+                // Keep untouched intents pending for the recovery dispatcher.
+                if (config('sales.auto_fulfillment_enabled', false) !== true) {
+                    return;
+                }
                 $fulfill->handle($this->orderId);
             }
         } catch (Throwable) {
