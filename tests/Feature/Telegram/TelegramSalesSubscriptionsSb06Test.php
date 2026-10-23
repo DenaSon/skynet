@@ -618,7 +618,6 @@ it('navigates QR photo Back to owned subscription without text-editing a photo',
     expect(DB::table('sales_orders')->where('id', $order)->value('status'))->toBe('fulfilled');
 })->with(['member', 'reseller']);
 
-
 it('shows Persian Tehran expiry and remaining days to both members and resellers', function (string $role): void {
     Role::findOrCreate($role, 'web');
     $buyer = User::factory()->create();
