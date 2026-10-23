@@ -162,6 +162,11 @@ final readonly class CompleteNodeSetup
         if (isset($state['dnsName']) && ($state['dnsStage'] ?? null) !== 'verified') {
             throw new RuntimeException('DNS record has not been verified.');
         }
+        if (isset($state['dnsName']) && $this->dns->inspectA(
+            $actorId, $state['dnsZoneId'], $state['dnsZone'], $state['dnsName'], $state['ip'],
+        ) !== 'existing') {
+            throw new RuntimeException('DNS record changed since confirmation.');
+        }
         $address = $state['dnsName'] ?? $state['ip'];
         $remark = $this->remark($state['name']);
         $this->hosts->validateIdentity($actorId, $remark, $address, $port);
