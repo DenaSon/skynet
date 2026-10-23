@@ -144,12 +144,19 @@ it('CF-01 surfaces ambiguous external failures without a write retry', function 
     $dns = app(ManageCloudflareDns::class);
     $marked = 0;
 
-    expect(fn () => $dns->ensureA($actors['root']->id, CF01_ZONE_ID,
-        'denagate.ir', 'usa.denagate.ir', '194.5.192.133',
-        static function () use (&$marked): void {
-            $marked++;
-        }))->toThrow(RuntimeException::class);
-    expect($state->posts)->toBe(1)->and($marked)->toBe(1);
+    $message = null;
+    try {
+        $dns->ensureA($actors['root']->id, CF01_ZONE_ID,
+            'denagate.ir', 'uncertain.denagate.ir', '194.5.192.133',
+            static function () use (&$marked): void {
+                $marked++;
+            });
+    } catch (RuntimeException $e) {
+        $message = $e->getMessage();
+    }
+    expect($message)->toBe('Cloudflare request failed or returned an invalid response.')
+        ->and($state->posts)->toBe(1)
+        ->and($marked)->toBe(1);
 });
 
 /** @return array{root:User,id:string,state:object} */
