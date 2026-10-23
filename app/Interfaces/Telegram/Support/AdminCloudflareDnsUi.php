@@ -136,7 +136,7 @@ final readonly class AdminCloudflareDnsUi
         try {
             $row = $this->dns->one($id, $zone['id'], $zone['name'], $list['items'][$i]['id']);
             $token = bin2hex(random_bytes(4));
-            Cache::put($this->key($id, 'selected'), ['token' => $token, 'row' => $row], now()->addMinutes(10));
+            Cache::put($this->key($id, 'selected'), ['token' => $token, 'row' => $row, 'zoneId' => $zone['id']], now()->addMinutes(10));
             $buttons = InlineKeyboardMarkup::make();
             if ($row['editable'] && $this->dns->wizardEnabled()) {
                 $buttons->addRow(InlineKeyboardButton::make('✏️ تغییر IP',
@@ -186,7 +186,8 @@ final readonly class AdminCloudflareDnsUi
         $zone = $this->zone($id);
         $selected = Cache::get($this->key($id, 'selected'));
         if ($zone === null || ! $this->dns->wizardEnabled() || $this->conflict($id)
-            || ! is_array($selected) || ! is_string($selected['token'] ?? null)
+            || ! is_array($selected) || ($selected['zoneId'] ?? null) !== $zone['id']
+            || ! is_string($selected['token'] ?? null)
             || ! hash_equals($selected['token'], $token) || ! in_array($mode, ['ip', 'proxy'], true)) {
             $this->expired($bot);
 

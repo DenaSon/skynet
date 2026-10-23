@@ -213,7 +213,8 @@ final readonly class ManageCloudflareDns
         $type = $remote['type'] ?? null;
         if (! self::zoneId($id) || ! is_string($name) || strlen($name) > 253
             || ! is_string($type) || preg_match('/\A[A-Z0-9]{1,12}\z/D', $type) !== 1
-            || ($name !== $zone && ! $this->hostnameShape($zone, $name))) {
+            || preg_match('/\A(?:\*\.)?[a-z0-9_-]+(?:\.[a-z0-9_-]+)*\z/D', $name) !== 1
+            || ($name !== $zone && ! str_ends_with($name, '.'.$zone))) {
             throw new RuntimeException('Malformed or out-of-zone DNS record.');
         }
         $isA = $type === 'A';
@@ -232,7 +233,7 @@ final readonly class ManageCloudflareDns
             'content' => $content,
             'proxied' => $proxy,
             'proxiable' => $proxiable,
-            'editable' => $isA && $name !== $zone
+            'editable' => $isA && $this->hostnameShape($zone, $name)
                 && filter_var($content, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false,
             'modified' => is_string($remote['modified_on'] ?? null) ? $remote['modified_on'] : null,
         ];
