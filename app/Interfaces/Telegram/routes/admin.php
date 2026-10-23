@@ -5,6 +5,7 @@ use App\Interfaces\Telegram\Handlers\AdminRolesHandler;
 use App\Interfaces\Telegram\Handlers\AdminUsersHandler;
 use App\Interfaces\Telegram\Support\AdminAccountingUi;
 use App\Interfaces\Telegram\Support\AdminBusinessReportUi;
+use App\Interfaces\Telegram\Support\AdminCloudflareDnsUi;
 use App\Interfaces\Telegram\Support\AdminConfigProfileOperationsUi;
 use App\Interfaces\Telegram\Support\AdminConfigProfilesUi;
 use App\Interfaces\Telegram\Support\AdminDashboardUi;
@@ -68,6 +69,35 @@ $bot->onCallbackQueryData('rw:users:page:{page}', function (Nutgram $bot, string
 
 $bot->onCallbackQueryData('rw:users:view:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
     app(AdminPanelUsersUi::class)->detail($bot, $id, $page);
+});
+
+// CF-02: small Super Admin DNS directory and one-use A mutations.
+$bot->onCommand('dns', function (Nutgram $bot): void {
+    app(AdminCloudflareDnsUi::class)->browse($bot);
+});
+$bot->onCallbackQueryData('cf2:zones', function (Nutgram $bot): void {
+    app(AdminCloudflareDnsUi::class)->browse($bot);
+});
+$bot->onCallbackQueryData('cf2:zone:{index}', function (Nutgram $bot, string $index): void {
+    app(AdminCloudflareDnsUi::class)->selectZone($bot, $index);
+});
+$bot->onCallbackQueryData('cf2:list:{page}', function (Nutgram $bot, string $page): void {
+    app(AdminCloudflareDnsUi::class)->records($bot, $page);
+});
+$bot->onCallbackQueryData('cf2:view:{index}:{token}', function (Nutgram $bot, string $index, string $token): void {
+    app(AdminCloudflareDnsUi::class)->detail($bot, $index, $token);
+});
+$bot->onCallbackQueryData('cf2:create', function (Nutgram $bot): void {
+    app(AdminCloudflareDnsUi::class)->create($bot);
+});
+$bot->onCallbackQueryData('cf2:edit:{mode}:{token}', function (Nutgram $bot, string $mode, string $token): void {
+    app(AdminCloudflareDnsUi::class)->edit($bot, $mode, $token);
+});
+$bot->onCallbackQueryData('cf2:apply:{token}', function (Nutgram $bot, string $token): void {
+    app(AdminCloudflareDnsUi::class)->apply($bot, $token);
+});
+$bot->onCallbackQueryData('cf2:cancel', function (Nutgram $bot): void {
+    app(AdminCloudflareDnsUi::class)->cancel($bot);
 });
 
 // NODE-01: private Super Admin Node browsing and guarded, one-use CREATE.

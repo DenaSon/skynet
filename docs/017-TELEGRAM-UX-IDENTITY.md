@@ -1,3 +1,10 @@
+## CF-02 — DNS management UX
+
+- One private root-only «🌐 مدیریت DNS» entry under Admin server overview; no new persistent main Reply button. Zone selection uses only the approved Cloudflare allowlist.
+- Page through record names/types in small groups; do not display TXT or other sensitive DNS values. Only subordinate A records with public IPv4 expose edit and Proxy actions. Apex records remain read-only.
+- Single-field prompts for subdomain and IPv4, native copyable sample domain, clear Back/Cancel. Show old/new IP and DNS Only/Proxied mode with a warning that Proxy can disrupt direct connections. Apply a one-use confirmation; if outcome is uncertain do not replay automatically, direct operator back to fresh read.
+- Reuse CF-01 Application authorization and DNS transport; no additional menu for Sales or role expansion. Native Telegram semantic colors for positive actions and concise Persian labels; no framework/phase names in Telegram text.
+
 # DenaGate — Telegram UI/UX Identity (Normative)
 
 **Status:** Permanent, normative presentation contract for every future Telegram feature, including Super Admin. Adopted 2026-10-13. [PR #48](https://github.com/DenaSon/skynet/pull/48) implements shared language/copy components, grouped administration and guided Sales forms. Broad customer/finance workflow redesign and actual live Telegram smoke remain separate work.
