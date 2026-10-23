@@ -21,6 +21,7 @@ use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 use SergiX44\Nutgram\Testing\FakeNutgram;
+use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
 
@@ -519,4 +520,32 @@ it('shows an unknown status for transport failure, not a false active or expired
                 && ! str_contains($data['text'], 'وضعیت ثبت‌شده: 🟢')
                 && ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:subs:link:');
         }, index: 2);
+});
+
+
+it('sends a private PNG QR after the existing link for both member and reseller owners', function (): void {
+    Role::findOrCreate('member', 'web');
+    Role::findOrCreate('reseller', 'web');
+
+    foreach (['member', 'reseller'] as $index => $role) {
+        $buyer = User::factory()->create();
+        $buyer->syncRoles([$role]);
+        $order = sb06Order($buyer);
+        sb06Activated($order);
+        $bot = sb06Bot(976080 + $index, $buyer);
+
+        Http::fake([
+            'https://remna.test/api/users/42' => Http::response(['response' => sb06Provider($order)]),
+        ]);
+
+        $bot->hearCallbackQueryData('sales:subs:link:'.$order.':0')->reply()
+            ->assertCalled('sendMessage')
+            ->assertCalled('sendPhoto')
+            ->assertCalled('editMessageText', 0);
+
+        Http::assertSentCount(1);
+        Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
+    }
+
+    expect(config('services.remnawave.writes_enabled'))->toBeFalse();
 });
