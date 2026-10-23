@@ -433,7 +433,6 @@ final readonly class SalesSubscriptionsUi
             $bot->sendPhoto(
                 photo: InputFile::make($stream, 'denagate-subscription-qr.png'),
                 caption: '📷 کد QR همین لینک اشتراک؛ برای اتصال آن را اسکن کنید.',
-                protect_content: true,
             );
         } catch (Throwable) {
             // Preserve the already delivered private link when GD or Telegram
