@@ -483,7 +483,7 @@ final readonly class TelegramNotificationSender
         $keyboard = json_encode([
             'inline_keyboard' => [
                 [
-                    ['text' => '✅ بررسی تأیید', 'callback_data' => 'finance:topup:decision:'.$topupId.':a'],
+                    ['text' => '🔎 بررسی واریز', 'callback_data' => 'finance:topup:decision:'.$topupId.':a'],
                     ['text' => '❌ رد رسید', 'callback_data' => 'finance:topup:decision:'.$topupId.':r'],
                 ],
                 [['text' => '◀️ صف شارژ', 'callback_data' => 'finance:topups:1']],
