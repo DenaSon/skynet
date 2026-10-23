@@ -161,7 +161,7 @@ it('forwards a protected photo to an eligible root, then suppresses stale or rev
     app(DispatchTelegramNotification::class, ['deliveryId' => $latest])
         ->handle(app(TelegramNotificationSender::class));
     expect(DB::table('telegram_notification_deliveries')->where('id', $latest)->value('state'))->toBe('unavailable');
-    Http::assertSentCount(3);
+    Http::assertSentCount(4);
 });
 
 it('records one Sales review result after Admin confirms; never before or on a repeated decision', function (): void {
