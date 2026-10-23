@@ -550,7 +550,6 @@ it('sends a private PNG QR after the existing link for authorized Sales accounts
     expect(config('services.remnawave.writes_enabled'))->toBeFalse();
 })->with(['member', 'reseller']);
 
-
 it('renders an inline QR/photo and the full selectable URL in one Persian card', function (string $role): void {
     Role::findOrCreate($role, 'web');
     $buyer = User::factory()->create();
