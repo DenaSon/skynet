@@ -170,6 +170,15 @@ $bot->onCallbackQueryData('node1:tags', function (Nutgram $bot): void {
 $bot->onCallbackQueryData('nw1:begin', function (Nutgram $bot): void {
     app(AdminNodeSetupUi::class)->begin($bot);
 });
+$bot->onCallbackQueryData('nw1:dns:zones', function (Nutgram $bot): void {
+    app(AdminNodeSetupUi::class)->dnsZones($bot);
+});
+$bot->onCallbackQueryData('nw1:dns:zone:{index}', function (Nutgram $bot, string $index): void {
+    app(AdminNodeSetupUi::class)->dnsZone($bot, $index);
+});
+$bot->onCallbackQueryData('nw1:dns:skip', function (Nutgram $bot): void {
+    app(AdminNodeSetupUi::class)->dnsSkip($bot);
+});
 $bot->onCallbackQueryData('nw1:profile:{index}', function (Nutgram $bot, string $index): void {
     app(AdminNodeSetupUi::class)->profile($bot, $index);
 });
@@ -194,6 +203,15 @@ $bot->onCallbackQueryData('nw3:node:prepare:{identifier}', function (Nutgram $bo
 });
 $bot->onCallbackQueryData('nw3:node:apply:{token}', function (Nutgram $bot, string $token): void {
     app(AdminNodeSetupUi::class)->applyNodeRegistration($bot, $token);
+});
+$bot->onCallbackQueryData('nw3:dns:prepare:{identifier}', function (Nutgram $bot, string $identifier): void {
+    app(AdminNodeSetupUi::class)->prepareDns($bot, $identifier);
+});
+$bot->onCallbackQueryData('nw3:dns:apply:{token}', function (Nutgram $bot, string $token): void {
+    app(AdminNodeSetupUi::class)->applyDns($bot, $token);
+});
+$bot->onCallbackQueryData('nw3:dns:reconcile:{identifier}', function (Nutgram $bot, string $identifier): void {
+    app(AdminNodeSetupUi::class)->reconcileDns($bot, $identifier);
 });
 $bot->onCallbackQueryData('nw3:host:begin:{identifier}', function (Nutgram $bot, string $identifier): void {
     app(AdminNodeSetupUi::class)->beginHostCreation($bot, $identifier);

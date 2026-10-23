@@ -28,6 +28,12 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'cloudflare' => [
+        'token' => env('CLOUDFLARE_API_TOKEN'),
+        'allowed_zones' => env('CLOUDFLARE_ALLOWED_ZONES', ''),
+        'dns_writes_enabled' => (bool) env('CLOUDFLARE_DNS_WRITES_ENABLED', false),
+    ],
+
     'remnawave' => [
         'url' => env('REMNAWAVE_PANEL_URL'),
         'token' => env('REMNAWAVE_API_TOKEN'),

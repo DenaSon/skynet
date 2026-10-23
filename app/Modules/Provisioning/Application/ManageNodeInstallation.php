@@ -62,6 +62,13 @@ final readonly class ManageNodeInstallation
                 'profileUuid' => $ready['profile']['uuid'],
                 'inboundUuid' => $ready['inbound']['uuid'],
                 'state' => 'queued',
+                ...((isset($ready['dnsName'], $ready['dnsZone'], $ready['dnsZoneId']))
+                    ? [
+                        'dnsName' => $ready['dnsName'],
+                        'dnsZone' => $ready['dnsZone'],
+                        'dnsZoneId' => $ready['dnsZoneId'],
+                    ]
+                    : []),
             ], now()->addHours(3));
             InstallRemnawaveNode::dispatch($identifier);
             // Non-secret pointer for returning to the latest setup from Node management.
@@ -195,7 +202,8 @@ final readonly class ManageNodeInstallation
     {
         $state = $this->context($actorId, $identifier);
         foreach ($changes as $key => $value) {
-            if (! in_array($key, ['nodeStage', 'nodeUuid', 'hostStage', 'hostUuid'], true)) {
+            if (! in_array($key, ['nodeStage', 'nodeUuid', 'hostStage', 'hostUuid', 'dnsStage'], true)
+                || ($key === 'dnsStage' && ! in_array($value, ['uncertain', 'verified'], true))) {
                 throw new RuntimeException('Unsupported setup checkpoint field.');
             }
             $state[$key] = $value;

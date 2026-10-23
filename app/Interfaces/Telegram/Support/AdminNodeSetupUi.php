@@ -8,11 +8,13 @@ use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Provisioning\Application\CompleteNodeSetup;
 use App\Modules\Provisioning\Application\ManageAdminNodes;
+use App\Modules\Provisioning\Application\ManageCloudflareDns;
 use App\Modules\Provisioning\Application\ManageNodeInstallation;
 use App\Modules\Provisioning\Application\NodeSetupReadiness;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 use Throwable;
@@ -27,6 +29,7 @@ final readonly class AdminNodeSetupUi
         private NodeSetupReadiness $ssh,
         private ManageNodeInstallation $installer,
         private CompleteNodeSetup $completion,
+        private ManageCloudflareDns $dns,
         private MenuRenderer $menus,
     ) {}
 
@@ -66,7 +69,7 @@ final readonly class AdminNodeSetupUi
         }
         $draft = $this->draft($id);
         $stage = $draft['stage'] ?? null;
-        if (! in_array($stage, ['identity', 'port', 'username', 'password'], true)) {
+        if (! in_array($stage, ['identity', 'dns_name', 'port', 'username', 'password'], true)) {
             return false;
         }
 
@@ -132,6 +135,28 @@ final readonly class AdminNodeSetupUi
             }
             $draft['name'] = $name;
             $draft['ip'] = $ip;
+            if ($this->dns->wizardEnabled()) {
+                $draft['stage'] = 'dns_choice';
+                $this->save($id, $draft);
+                $this->render($bot, "🌐 دامنه سرور\n\nمی‌خواهید یک دامنه برای اتصال کاربران تنظیم کنید؟\n\nدر غیر این صورت، اتصال با IP انجام می‌شود.",
+                    InlineKeyboardMarkup::make()
+                        ->addRow(InlineKeyboardButton::make('🌐 انتخاب دامنه', callback_data: 'nw1:dns:zones', style: ButtonStyle::PRIMARY))
+                        ->addRow(InlineKeyboardButton::make('➡️ ادامه بدون دامنه', callback_data: 'nw1:dns:skip'))
+                        ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'nw1:cancel')));
+
+                return true;
+            }
+            $draft['stage'] = 'port';
+            $next = "🖥️ اتصال به سرور\n\nپورت SSH را وارد کنید (معمولاً 22).";
+        } elseif ($stage === 'dns_name') {
+            try {
+                $draft['dnsName'] = $this->dns->hostname($id, $draft['dnsZone'], $value);
+            } catch (Throwable) {
+                $this->render($bot, 'زیردامنه معتبر نیست. مانند usa یا usa.denagate.ir وارد کنید.', $this->cancelButton());
+
+                return true;
+            }
+            unset($draft['dnsZones']);
             $draft['stage'] = 'port';
             $next = "🖥️ اتصال به سرور\n\nپورت SSH را وارد کنید (معمولاً 22).";
         } elseif ($stage === 'port') {
@@ -158,6 +183,88 @@ final readonly class AdminNodeSetupUi
         $this->render($bot, $next, $this->cancelButton());
 
         return true;
+    }
+
+    public function dnsZones(Nutgram $bot): void
+    {
+        $id = $this->root($bot);
+        if ($id === null) {
+            return;
+        }
+        $draft = $this->draft($id);
+        if (($draft['stage'] ?? null) !== 'dns_choice' || ! $this->dns->wizardEnabled()) {
+            $this->expired($bot);
+
+            return;
+        }
+        try {
+            $zones = $this->dns->zones($id);
+            if ($zones === []) {
+                throw new \RuntimeException('No available domains.');
+            }
+            $draft['dnsZones'] = $zones;
+            $draft['stage'] = 'dns_zone';
+            $this->save($id, $draft);
+            $keyboard = InlineKeyboardMarkup::make();
+            foreach ($zones as $index => $zone) {
+                $keyboard->addRow(InlineKeyboardButton::make('🌐 '.$zone['name'], callback_data: 'nw1:dns:zone:'.$index, style: ButtonStyle::PRIMARY));
+            }
+            $keyboard->addRow(InlineKeyboardButton::make('➡️ ادامه بدون دامنه', callback_data: 'nw1:dns:skip'));
+            $keyboard->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'nw1:cancel'));
+            $this->render($bot, 'دامنه اصلی را انتخاب کنید.', $keyboard);
+        } catch (Throwable) {
+            $this->render($bot, 'دریافت دامنه‌ها ممکن نشد. می‌توانید بدون دامنه ادامه دهید.',
+                InlineKeyboardMarkup::make()
+                    ->addRow(InlineKeyboardButton::make('🔄 تلاش دوباره', callback_data: 'nw1:dns:zones', style: ButtonStyle::PRIMARY))
+                    ->addRow(InlineKeyboardButton::make('➡️ ادامه بدون دامنه', callback_data: 'nw1:dns:skip'))
+                    ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'nw1:cancel')));
+        }
+    }
+
+    public function dnsZone(Nutgram $bot, string $index): void
+    {
+        $id = $this->root($bot);
+        if ($id === null) {
+            return;
+        }
+        $draft = $this->draft($id);
+        $zone = $this->select($draft, 'dns_zone', 'dnsZones', $index);
+        if ($zone === null) {
+            $this->expired($bot);
+
+            return;
+        }
+        $draft['dnsZone'] = $zone['name'];
+        $draft['dnsZoneId'] = $zone['id'];
+        $draft['stage'] = 'dns_name';
+        $this->save($id, $draft);
+        $example = 'usa.'.$zone['name'];
+        $this->render($bot, "🌐 زیردامنه سرور\n\nنام زیردامنه را ارسال کنید، مثلاً:\n"
+            .TelegramUi::code($example)
+            ."\n\nبعد از راه‌اندازی سرور، ثبت دامنه را جداگانه تأیید می‌کنید.",
+            InlineKeyboardMarkup::make()
+                ->addRow(TelegramUi::copy($example, '📋 کپی نمونه'))
+                ->addRow(InlineKeyboardButton::make('➡️ ادامه بدون دامنه', callback_data: 'nw1:dns:skip'))
+                ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'nw1:cancel', style: ButtonStyle::DANGER)),
+            true);
+    }
+
+    public function dnsSkip(Nutgram $bot): void
+    {
+        $id = $this->root($bot);
+        if ($id === null) {
+            return;
+        }
+        $draft = $this->draft($id);
+        if (! in_array($draft['stage'] ?? null, ['dns_choice', 'dns_zone', 'dns_name'], true)) {
+            $this->expired($bot);
+
+            return;
+        }
+        unset($draft['dnsZones'], $draft['dnsZone'], $draft['dnsZoneId'], $draft['dnsName']);
+        $draft['stage'] = 'port';
+        $this->save($id, $draft);
+        $this->render($bot, "🖥️ اتصال به سرور\n\nپورت SSH را وارد کنید (معمولاً 22).", $this->cancelButton());
     }
 
     public function profile(Nutgram $bot, string $index): void
@@ -206,6 +313,7 @@ final readonly class AdminNodeSetupUi
         $this->render($bot, "🖥️ بازبینی مشخصات سرور\n\n"
             .'نام: '.$draft['name']."\nIP: ".$draft['ip']."\nپورت: ".$draft['port']."\n"
             .'کاربر: '.$draft['username']."\nپروفایل: ".$draft['profile']['name']."\nورودی: ".$inbound['name']
+            .(isset($draft['dnsName']) ? "\nدامنه: ".$draft['dnsName'] : '')
             ."\n\nدر این مرحله هیچ تغییری روی سرور انجام نمی‌شود.",
             InlineKeyboardMarkup::make()
                 ->addRow(InlineKeyboardButton::make('🔎 بررسی هویت سرور', callback_data: 'nw1:scan:'.$draft['token']))
@@ -411,8 +519,16 @@ final readonly class AdminNodeSetupUi
                 $node = $this->completion->nodeStatus($root, $identifier);
                 if (! $node['connected'] || $node['disabled']) {
                     $message .= "\n\n⏳ سرور ثبت شده است، ولی هنوز اتصال فعال آن از پنل تأیید نشده است.";
+                } elseif ($step['dnsStage'] === 'ready') {
+                    $message .= "\n\n🌐 دامنه «".$step['dnsName'].'» آماده ثبت است. ابتدا رکورد دامنه را بررسی و تأیید کنید.';
+                    $keyboard->addRow(InlineKeyboardButton::make('🌐 تنظیم دامنه سرور', callback_data: 'nw3:dns:prepare:'.$identifier, style: ButtonStyle::PRIMARY));
+                } elseif ($step['dnsStage'] === 'uncertain') {
+                    $message .= "\n\n⚠️ نتیجه ثبت دامنه روشن نیست. فقط وضعیت رکورد بررسی می‌شود؛ ثبت دوباره انجام نمی‌شود.";
+                    $keyboard->addRow(InlineKeyboardButton::make('🔎 بررسی مجدد دامنه', callback_data: 'nw3:dns:reconcile:'.$identifier, style: ButtonStyle::PRIMARY));
                 } elseif ($step['hostStage'] === 'ready') {
-                    $message .= "\n\n✅ سرور به پنل متصل است. اکنون می‌توانید هاست را ایجاد کنید.";
+                    $message .= "\n\n✅ سرور به پنل متصل است."
+                        .($step['dnsStage'] === 'verified' ? "\n🌐 دامنه ".$step['dnsName'].' تأیید شد.' : '')
+                        ."\nاکنون می‌توانید هاست را ایجاد کنید.";
                     $keyboard->addRow(InlineKeyboardButton::make('➕ ساخت هاست', callback_data: 'nw3:host:begin:'.$identifier));
                 } elseif ($step['hostStage'] !== 'created') {
                     $message .= "\n\n⚠️ نتیجه ساخت هاست مشخص نیست؛ فهرست هاست‌ها را بررسی کنید.";
@@ -460,6 +576,53 @@ final readonly class AdminNodeSetupUi
     public function applyNodeRegistration(Nutgram $bot, string $token): void
     {
         $this->applyConfirmation($bot, $token, 'node');
+    }
+
+    public function prepareDns(Nutgram $bot, string $identifier): void
+    {
+        $root = $this->root($bot);
+        if ($root === null) {
+            return;
+        }
+        try {
+            $review = $this->completion->previewDns($root, $identifier);
+            $token = bin2hex(random_bytes(16));
+            Cache::put('nw03:confirm:'.$root, [
+                'kind' => 'dns', 'id' => $identifier, 'token' => $token,
+            ], now()->addMinutes(10));
+            $this->render($bot, "🌐 تأیید دامنه سرور\n\nآدرس: ".$review['name']."\nIP: ".$review['ip']
+                ."\nحالت: DNS Only\n\n"
+                .($review['state'] === 'existing'
+                    ? 'این رکورد از قبل با مشخصات درست وجود دارد و تغییر نمی‌کند.'
+                    : 'پس از تأیید، یک رکورد A جدید ایجاد خواهد شد.'),
+                InlineKeyboardMarkup::make()
+                    ->addRow(InlineKeyboardButton::make('✅ تأیید تنظیم دامنه', callback_data: 'nw3:dns:apply:'.$token, style: ButtonStyle::SUCCESS))
+                    ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'nw3:resume:'.$identifier)));
+        } catch (Throwable) {
+            $this->render($bot, 'دامنه موجود با مشخصات سرور مطابقت ندارد، یا بررسی آن ممکن نیست. رکوردها را بررسی کنید.', $this->back());
+        }
+    }
+
+    public function applyDns(Nutgram $bot, string $token): void
+    {
+        $this->applyConfirmation($bot, $token, 'dns');
+    }
+
+    public function reconcileDns(Nutgram $bot, string $identifier): void
+    {
+        $root = $this->root($bot);
+        if ($root === null) {
+            return;
+        }
+        try {
+            $this->completion->reconcileDns($root, $identifier);
+            $this->completionOverview($bot, $identifier);
+        } catch (Throwable) {
+            $this->render($bot, 'رکورد هنوز تأیید نشده است. بدون ساخت دوباره، وضعیت آن را در پنل دامنه بررسی کنید.',
+                InlineKeyboardMarkup::make()
+                    ->addRow(InlineKeyboardButton::make('🔎 بررسی دوباره', callback_data: 'nw3:dns:reconcile:'.$identifier, style: ButtonStyle::PRIMARY))
+                    ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'nw3:resume:'.$identifier)));
+        }
     }
 
     public function beginHostCreation(Nutgram $bot, string $identifier): void
@@ -561,12 +724,14 @@ final readonly class AdminNodeSetupUi
             }
             if ($kind === 'node') {
                 $this->completion->registerNode($root, $state['id']);
+            } elseif ($kind === 'dns') {
+                $this->completion->ensureDns($root, $state['id']);
             } else {
                 $this->completion->createHost($root, $state['id'], $state['port']);
             }
             $this->completionOverview($bot, $state['id']);
         } catch (Throwable) {
-            $this->render($bot, 'نتیجه عملیات تأیید نشد. پیش از هر تلاش جدید، فهرست سرورها یا هاست‌ها را بررسی کنید.', $this->back());
+            $this->render($bot, 'نتیجه عملیات تأیید نشد. پیش از تلاش جدید، وضعیت سرور، هاست یا دامنه را بررسی کنید.', $this->back());
         }
     }
 
@@ -684,14 +849,14 @@ final readonly class AdminNodeSetupUi
         $this->render($bot, 'این مرحله منقضی شده یا تمام شده است.', $this->back());
     }
 
-    private function render(Nutgram $bot, string $message, InlineKeyboardMarkup $keyboard): void
+    private function render(Nutgram $bot, string $message, InlineKeyboardMarkup $keyboard, bool $html = false): void
     {
         if ($bot->isCallbackQuery()) {
             TelegramUi::answerCallback($bot);
-            TelegramUi::editText($bot, $message, $keyboard);
+            TelegramUi::editText($bot, $message, $keyboard, $html ? 'HTML' : null);
 
             return;
         }
-        $bot->sendMessage(text: $message, reply_markup: $keyboard);
+        $bot->sendMessage(text: $message, reply_markup: $keyboard, parse_mode: $html ? 'HTML' : null);
     }
 }
