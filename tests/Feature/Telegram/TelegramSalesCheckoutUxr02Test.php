@@ -460,6 +460,7 @@ it('refuses to create a payment order without a real configured card or with the
 });
 it('collects a reseller customer name before payment while preserving the managed order identity', function (): void {
     $data = uxr02Plan();
+    config()->set('sales.wallet_settlement_enabled', true);
     Role::findOrCreate('reseller', 'web');
     $buyer = User::factory()->create();
     $buyer->syncRoles(['reseller']);
@@ -495,9 +496,9 @@ it('collects a reseller customer name before payment while preserving the manage
         ->assertRaw(static function (Request $request): bool {
             $body = uxr02Payload($request);
 
-            return ($body['reply_markup']['force_reply'] ?? false) === true
-                && str_contains($body['text'], 'عکس رسید');
-        }, index: 1);
+            return str_contains($body['text'], 'افزایش موجودی')
+                && ! str_contains($body['text'], 'عکس رسید');
+        }, index: 0);
 
     expect(DB::table('sales_service_customer_labels')->where('sales_order_id', $order)->value('phone'))
         ->toBe('+989123456789')
@@ -508,6 +509,7 @@ it('collects a reseller customer name before payment while preserving the manage
 
 it('rejects forged pending labels and keeps abandoned customer-name drafts payment-free', function (): void {
     $data = uxr02Plan();
+    config()->set('sales.wallet_settlement_enabled', true);
     Role::findOrCreate('reseller', 'web');
     $buyer = User::factory()->create();
     $buyer->syncRoles(['reseller']);
@@ -532,6 +534,7 @@ it('rejects forged pending labels and keeps abandoned customer-name drafts payme
 
 it('accepts a numeric-string legacy checkout draft and continues after a Persian full name', function (): void {
     $data = uxr02Plan();
+    config()->set('sales.wallet_settlement_enabled', true);
     Role::findOrCreate('reseller', 'web');
     $buyer = User::factory()->create();
     $buyer->syncRoles(['reseller']);
@@ -548,13 +551,13 @@ it('accepts a numeric-string legacy checkout draft and continues after a Persian
             return str_contains(uxr02Payload($request)['text'], 'شماره موبایل مشتری');
         }, index: 0);
     $bot->hearText('۰۹۱۲۳۴۵۶۷۸۹')->reply()
-        ->assertCalled('sendMessage', 2)
+        ->assertCalled('sendMessage')
         ->assertRaw(static function (Request $request): bool {
             $body = uxr02Payload($request);
 
-            return str_contains($body['text'], 'عکس رسید')
-                && ($body['reply_markup']['force_reply'] ?? false) === true;
-        }, index: 1);
+            return str_contains($body['text'], 'افزایش موجودی')
+                && ! str_contains($body['text'], 'عکس رسید');
+        }, index: 0);
 
     expect(Cache::has($key))->toBeFalse()
         ->and(DB::table('sales_service_customer_labels')->where('sales_order_id', $order)->value('label'))
@@ -566,6 +569,7 @@ it('accepts a numeric-string legacy checkout draft and continues after a Persian
 
 it('ignores malformed checkout draft values without writing labels or payments', function (): void {
     $data = uxr02Plan();
+    config()->set('sales.wallet_settlement_enabled', true);
     Role::findOrCreate('reseller', 'web');
     $buyer = User::factory()->create();
     $buyer->syncRoles(['reseller']);
@@ -583,6 +587,7 @@ it('ignores malformed checkout draft values without writing labels or payments',
 
 it('blocks direct Sales bank receipt and payment callback until reseller name and mobile are complete', function (): void {
     $data = uxr02Plan();
+    config()->set('sales.wallet_settlement_enabled', true);
     Role::findOrCreate('reseller', 'web');
     $buyer = User::factory()->create();
     $buyer->syncRoles(['reseller']);
@@ -614,7 +619,7 @@ it('blocks direct Sales bank receipt and payment callback until reseller name an
 
     $bot->hearCallbackQueryData('sales:payment:start:'.$orderId)->reply()
         ->assertCalled('editMessageText');
-    expect(Cache::get(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$buyer->id)))->toBe($orderId)
+    expect(Cache::has(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$buyer->id)))->toBeFalse()
         ->and(DB::table('sales_bank_payment_claims')->count())->toBe(0)
         ->and(DB::table('sales_orders')->where('id', $orderId)->value('status'))->toBe('pending_payment');
     Http::assertNothingSent();
@@ -622,6 +627,7 @@ it('blocks direct Sales bank receipt and payment callback until reseller name an
 
 it('blocks forged wallet confirmation and does not debit incomplete reseller orders', function (): void {
     $data = uxr02Plan();
+    config()->set('sales.wallet_settlement_enabled', true);
     Role::findOrCreate('reseller', 'web');
     $buyer = User::factory()->create();
     $buyer->syncRoles(['reseller']);
@@ -639,6 +645,7 @@ it('blocks forged wallet confirmation and does not debit incomplete reseller ord
 
 it('keeps resumable customer mobile draft isolated and refuses foreign mobile changes', function (): void {
     $data = uxr02Plan();
+    config()->set('sales.wallet_settlement_enabled', true);
     Role::findOrCreate('reseller', 'web');
     $buyer = User::factory()->create();
     $buyer->syncRoles(['reseller']);
@@ -661,4 +668,63 @@ it('keeps resumable customer mobile draft isolated and refuses foreign mobile ch
     $bot->hearText('09123456789')->reply();
     expect($label->pendingPhone($buyer->id, $id))->toBe('+989123456789')
         ->and(DB::table('sales_orders')->where('id', $id)->value('status'))->toBe('pending_payment');
+});
+
+
+it('settles a credited reseller purchase from wallet without a bank claim', function (): void {
+    wal03Ready();
+    $data = uxr02Plan();
+    Role::findOrCreate('reseller', 'web');
+    $buyer = User::factory()->create();
+    $buyer->syncRoles(['reseller']);
+    $bot = uxr02Bot(973017, $buyer);
+    wal03Credit($buyer, $data['root'], 1_500_000, 'RESELLERWALLET01');
+
+    $bot->hearCallbackQueryData('catalog:detail:'.$data['plan'].':1')->reply();
+    $id = (int) DB::table('sales_orders')->value('id');
+    $bot->hearText('سارا احمدی')->reply();
+    $bot->hearText('09123456789')->reply()->assertRaw(static function (Request $req): bool {
+        $body = uxr02Payload($req);
+        $keyboard = json_encode($body['reply_markup'], JSON_THROW_ON_ERROR);
+
+        return str_contains($keyboard, 'sales:checkout:wallet:')
+            && ! str_contains($keyboard, 'sales:payment:start:');
+    }, index: 0);
+    $bot->hearCallbackQueryData('sales:payment:start:'.$id)->reply()->assertCalled('editMessageText');
+    expect(fn () => app(ManualBankPayments::class)->submit(
+        SubscriptionViewer::telegram(973017), $id,
+        'sample-receipt-file-id', 'sample-unique-receipt', 201, 'sales',
+    ))->toThrow(ValidationException::class);
+
+    $bot->hearCallbackQueryData('sales:checkout:wallet:'.$id)->reply()->assertCalled('editMessageText');
+    $key = TelegramBotContext::current()->cacheKey('telegram:sales:walletpay:'.$buyer->id.':'.$id);
+    $token = Cache::get($key)['token'];
+    $bot->hearCallbackQueryData('sales:walletpay:confirm:'.$id.':'.$token)->reply()->assertCalled('editMessageText');
+
+    expect(DB::table('sales_orders')->where('id', $id)->value('status'))->toBe('paid')
+        ->and(DB::table('sales_bank_payment_claims')->count())->toBe(0)
+        ->and(DB::table('sales_order_settlements')->where('sales_order_id', $id)->value('method'))->toBe('customer_wallet')
+        ->and(app(ViewWallet::class)->handle($buyer->id)->balanceRials)->toBe(500_000);
+});
+
+it('sends zero-balance reseller to wallet top-up without purchase receipt', function (): void {
+    config()->set('sales.wallet_settlement_enabled', true);
+    config()->set('billing.topups_enabled', true);
+    $data = uxr02Plan();
+    Role::findOrCreate('reseller', 'web');
+    $buyer = User::factory()->create();
+    $buyer->syncRoles(['reseller']);
+    $bot = uxr02Bot(973018, $buyer);
+    $bot->hearCallbackQueryData('catalog:detail:'.$data['plan'].':1')->reply();
+    $id = (int) DB::table('sales_orders')->value('id');
+    $bot->hearText('نیما احمدی')->reply();
+    $bot->hearText('09123456789')->reply()->assertRaw(static function (Request $req): bool {
+        $body = uxr02Payload($req);
+        $buttons = json_encode($body['reply_markup'], JSON_THROW_ON_ERROR);
+
+        return str_contains($buttons, 'sales:wallet:topup')
+            && ! str_contains($buttons, 'sales:payment:start:');
+    }, index: 0);
+    expect(DB::table('sales_orders')->where('id', $id)->value('status'))->toBe('pending_payment')
+        ->and(DB::table('sales_bank_payment_claims')->count())->toBe(0);
 });

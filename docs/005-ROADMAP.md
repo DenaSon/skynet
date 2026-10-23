@@ -1,3 +1,9 @@
+## Wallet-only reseller purchase + top-up final approval clarity (2026-10-23)
+
+- Root top-up review retains bank-confirmed unique reference and explicit final step. Clarify button and step messaging, preserve immutable double-entry audit, test full Admin callback sequence, no auto-credit.
+- Reseller Sales checkout uses existing wallet debit for new purchases and renewals, without bank receipt alternative; if funds are insufficient show wallet top-up link. Protect old payment callbacks and new direct Sales bank-claim creation. Preserve already submitted purchase claims, ordinary member bank checkout and historical data.
+- Source CI required and deployed environment wallet settlement flag/real data must be inspected read-only separately; no destructive migration or financial/provider writes.
+
 ## Reseller checkout full-name + phone guard / CI speed (2026-10-23)
 
 - Enforce new Sales reseller managed-plan purchase flow: select plan → enter full name in one message → customer Iranian mobile → bank/wallet payment; every old callback and application receipt/wallet entrypoint must reject incomplete pending customer details. Existing labels/phones table, status and idempotent pending reuse are retained. Preserve normal members, renewal payments, legacy reseller orders and already-submitted/settled receipt records.
