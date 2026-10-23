@@ -1,3 +1,10 @@
+## Reseller checkout full-name + phone guard / CI speed (2026-10-23)
+
+- Enforce new Sales reseller managed-plan purchase flow: select plan → enter full name in one message → customer Iranian mobile → bank/wallet payment; every old callback and application receipt/wallet entrypoint must reject incomplete pending customer details. Existing labels/phones table, status and idempotent pending reuse are retained. Preserve normal members, renewal payments, legacy reseller orders and already-submitted/settled receipt records.
+- Sales Reply Keyboard: 💰 کیف پول پنل فروش vs 🧩 پلن‌ساز پنل فروش; preserve old-label text compatibility.
+- Explicit operator CI decision: keep full PHP **8.4** Pest/PHPStan/Pint job plus MySQL/Redis smoke on 8.4, remove PHP 8.5 duplication. No CI compatibility claim for 8.5 until separately tested.
+- Production Telegram purchase, bank review and customer-data smoke must be operator verified after green source CI.
+
 ## QR-02 — one-message connection QR and Sales coverage (2026-10-23; source CI passed, live pending)
 
 - **Operator-approved execution:** Use the established `GetSubscriptionLink` owner/provider verification and `SubscriptionQrPng` renderer to replace duplicate link-text plus photo with one Sales photo/HTML caption card (QR above selectable URL) on ordinary member and reseller link callbacks. Preserve native copy control, help/back/support, forged/unpaid/refunded/expired denial, client subscription credentials and all existing notification/order routing.
