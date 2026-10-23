@@ -89,8 +89,8 @@ Artisan::command('sales:fulfillment:dispatch', function (): int {
                 ->whereColumn('link.sales_order_id', 'orders.id');
         });
 
-    // Each payment method has its own bounded batch so a bank backlog does not
-    // prevent recovery of wallet payments. Existing jobs recheck all authority.
+    // Stream candidates in bounded pages, then cap eligible jobs per payment
+    // method. Rejected old rows must not hide later recoverable paid intents.
     $bank = (clone $pending)
         ->join('sales_bank_settlements as bank', 'bank.sales_order_id', '=', 'orders.id')
         ->join('sales_bank_payment_claims as claim', 'claim.id', '=', 'bank.payment_claim_id')
@@ -102,8 +102,8 @@ Artisan::command('sales:fulfillment:dispatch', function (): int {
             $query->selectRaw('1')->from('sales_order_settlements as wallet')
                 ->whereColumn('wallet.sales_order_id', 'orders.id');
         })
-        ->orderBy('orders.id')->limit(20)
-        ->get(['orders.id', 'outbox.event_key', 'claim.reviewed_by']);
+        ->select(['orders.id', 'outbox.event_key', 'claim.reviewed_by'])
+        ->lazyById(20, 'orders.id', 'id');
 
     $wallet = (clone $pending)
         ->join('sales_order_settlements as wallet', 'wallet.sales_order_id', '=', 'orders.id')
@@ -113,10 +113,11 @@ Artisan::command('sales:fulfillment:dispatch', function (): int {
             $query->selectRaw('1')->from('sales_bank_settlements as bank')
                 ->whereColumn('bank.sales_order_id', 'orders.id');
         })
-        ->orderBy('orders.id')->limit(20)
-        ->get(['orders.id', 'outbox.event_key', 'orders.buyer_user_id', 'orders.total_price_rials', 'wallet.billing_journal_id']);
+        ->select(['orders.id', 'outbox.event_key', 'orders.buyer_user_id', 'orders.total_price_rials', 'wallet.billing_journal_id'])
+        ->lazyById(20, 'orders.id', 'id');
 
     foreach ([$bank, $wallet] as $rows) {
+        $dispatched = 0;
         foreach ($rows as $row) {
             $orderId = (int) $row->id;
             $renewal = DB::table('sales_renewal_orders')->where('sales_order_id', $orderId)->exists();
@@ -134,6 +135,9 @@ Artisan::command('sales:fulfillment:dispatch', function (): int {
                 continue;
             }
             FulfillPaidPlanOrderJob::dispatch($orderId, false, $actorId);
+            if (++$dispatched === 20) {
+                break;
+            }
         }
     }
 

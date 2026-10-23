@@ -85,7 +85,7 @@ final class RemnawaveSubscriptionLifecycle
         return $this->mutate($reference, $idempotencyKey, 'quota', ['trafficLimitBytes' => $bytes]);
     }
 
-    /** Single absolute UPDATE, never additive, for an already owned subscription. */
+    /** Renew quota/expiry without overwriting an administrative remote disable. */
     public function renew(string $reference, string $idempotencyKey, string $expireAt, int $totalLimitBytes): int
     {
         CreateRemnawaveUser::validateExpiry($expireAt);
@@ -94,6 +94,9 @@ final class RemnawaveSubscriptionLifecycle
         return $this->mutate($reference, $idempotencyKey, 'renewal', [
             'expireAt' => $expireAt,
             'trafficLimitBytes' => $totalLimitBytes,
+        ], [
+            // Activation is a verified outcome of the provider's quota/expiry
+            // rules, never a requested status change. Preserve the stored tuple.
             'status' => 'ACTIVE',
         ]);
     }
@@ -249,13 +252,17 @@ final class RemnawaveSubscriptionLifecycle
         }
     }
 
-    /** @param array<string, mixed> $fields */
-    private function mutate(string $reference, string $key, string $kind, array $fields): int
+    /**
+     * @param  array<string, mixed>  $fields
+     * @param  array<string, mixed>  $postconditions
+     */
+    private function mutate(string $reference, string $key, string $kind, array $fields, array $postconditions = []): int
     {
         $this->assertEnabled();
         $this->assertKeys($reference, $key);
 
-        $reserved = $this->reserve($reference, $key, $kind, $fields, false);
+        $expected = array_merge($fields, $postconditions);
+        $reserved = $this->reserve($reference, $key, $kind, $expected, false);
 
         if ($reserved['alreadyComplete']) {
             return $reserved['remoteId'];
@@ -264,7 +271,7 @@ final class RemnawaveSubscriptionLifecycle
         try {
             $remote = $this->api()->update($reserved['remoteId'], $fields);
             $this->assertIdentity($remote, $reference);
-            $this->assertExpected($remote, $fields);
+            $this->assertExpected($remote, $expected);
 
             return $this->complete($reference, $key, $remote);
         } catch (Throwable $e) {
