@@ -156,21 +156,15 @@ final readonly class SalesCheckoutUi
             $key = TelegramBotContext::current()->cacheKey(
                 'telegram:sales:purchase:'.$buyer.':'.$quote->planId.':'.$quote->durationDays.':'.($quote->trafficGb ?? 0),
             );
-            $order = Cache::lock($key, 10)->block(3, function () use ($buyer, $quote, $sourceOrderId): OrderDetails {
-                if ($sourceOrderId === null) {
-                    $existing = $this->orders->pendingForQuote($buyer, $quote);
-                    if ($existing !== null) {
-                        return $existing;
-                    }
-                }
-
-                // Stable intent for the button on this particular owned order.
-                // The *next* order has a new button, so intentional repeat purchases work.
-                $key = $sourceOrderId === null
-                    ? bin2hex(random_bytes(16))
-                    : substr(hash('sha256', 'sales-new-order:'.$buyer.':'.$sourceOrderId), 0, 32);
-
-                return $this->create->handle($buyer, $quote, $key);
+            // A plan tap is a NEW purchase, never an implicit resume of an
+            // older pending order. Telegram retries of the same callback keep
+            // one stable idempotency key; a separate tap gets a new key.
+            $callbackId = $bot->isCallbackQuery() ? $bot->callbackQuery()?->id : null;
+            $intentKey = is_string($callbackId) && $callbackId !== ''
+                ? substr(hash('sha256', 'sales-new-intent:'.$buyer.':'.$callbackId), 0, 32)
+                : bin2hex(random_bytes(16));
+            $order = Cache::lock($key, 10)->block(3, function () use ($buyer, $quote, $intentKey): OrderDetails {
+                return $this->create->handle($buyer, $quote, $intentKey);
             });
         } catch (AuthorizationException|ValidationException|LockTimeoutException) {
             $this->notice($bot, 'قیمت یا دسترسی تغییر کرده است. لطفاً پلن را دوباره انتخاب کنید.');
