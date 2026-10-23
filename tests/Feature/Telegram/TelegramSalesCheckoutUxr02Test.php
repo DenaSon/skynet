@@ -351,7 +351,7 @@ it('selects a ready plan from home or catalog into one price-and-card payment pa
     Http::assertNothingSent();
 });
 
-it('reuses a pending owned order on repeat taps and creates a distinct order only with explicit new purchase', function (): void {
+it('creates a fresh member order for every new plan tap and continues old only via details', function (): void {
     $plan = uxr02Plan()['plan'];
     $buyer = User::factory()->create();
     $bot = uxr02Bot(973102, $buyer);
@@ -360,14 +360,17 @@ it('reuses a pending owned order on repeat taps and creates a distinct order onl
     $bot->hearCallbackQueryData("catalog:detail:{$plan}:1")->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData("sales:checkout:preview:{$plan}:30:30")->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('sales:checkout:view:'.$first)->reply()->assertCalled('editMessageText');
-    expect(DB::table('sales_orders')->count())->toBe(1);
+    expect(DB::table('sales_orders')->count())->toBe(3);
 
     $bot->hearCallbackQueryData('sales:checkout:new:'.$first)->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('sales:checkout:new:'.$first)->reply()->assertCalled('editMessageText');
-    expect(DB::table('sales_orders')->count())->toBe(2)
-        ->and(DB::table('sales_orders')->where('buyer_user_id', $buyer->id)->distinct()->count('id'))->toBe(2);
+    expect(DB::table('sales_orders')->count())->toBe(5)
+        ->and(DB::table('sales_orders')->where('buyer_user_id', $buyer->id)->distinct()->count('id'))->toBe(5);
     $bot->hearCallbackQueryData("catalog:detail:{$plan}:1")->reply()->assertCalled('editMessageText');
-    expect(DB::table('sales_orders')->count())->toBe(2);
+    expect(DB::table('sales_orders')->count())->toBe(6);
+    $bot->hearCallbackQueryData('sales:checkout:view:'.$first)->reply()->assertCalled('editMessageText');
+    expect(DB::table('sales_orders')->count())->toBe(6)
+        ->and(DB::table('sales_orders')->where('id', $first)->value('status'))->toBe('pending_payment');
     Http::assertNothingSent();
 });
 

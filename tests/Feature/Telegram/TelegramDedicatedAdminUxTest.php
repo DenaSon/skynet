@@ -182,6 +182,7 @@ it('keeps in-place Admin text menu edits for ordinary callbacks', function (): v
     $bot->shouldReceive('isCallbackQuery')->twice()->andReturn(true);
     $bot->shouldReceive('answerCallbackQuery')->once()->andReturn(true);
     $bot->shouldReceive('message')->once()->andReturn($textMessage);
+    $bot->shouldReceive('callbackQuery')->once()->andReturn(null);
     $bot->shouldReceive('editMessageText')->once()->andReturn(new Message);
     $bot->shouldNotReceive('sendMessage');
     app(MenuRenderer::class)->showAdmin($bot, $actor);
