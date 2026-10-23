@@ -6,6 +6,7 @@ namespace App\Interfaces\Telegram\Support;
 
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Billing\Application\ViewWallet;
+use App\Modules\Identity\Application\ResolveSalesBuyer;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Provisioning\Application\CheckPlanSquadReadiness;
@@ -113,6 +114,15 @@ final readonly class SalesCheckoutUi
             return;
         }
 
+        // Reseller purchases use wallet settlement exclusively; receipts are
+        // reserved for wallet top-ups, not new subscription purchases.
+        if (app(ResolveSalesBuyer::class)->isReseller($buyer)
+            && config('sales.wallet_settlement_enabled', false) !== true) {
+            $this->notice($bot, 'پرداخت سرویس برای پنل فروش فعلاً در دسترس نیست.');
+
+            return;
+        }
+
         // Never create an unpaid order when no genuine payment destination exists.
         $bankAvailable = config('sales.manual_bank_review_enabled', false) === true
             && app(ManualPaymentUi::class)->cardNumber() !== null;
@@ -134,7 +144,8 @@ final readonly class SalesCheckoutUi
 
                 return;
             }
-            if (! $bankAvailable && ($this->walletBalance($buyer) ?? 0) < $quote->totalPriceRials) {
+            if (! $bankAvailable && ! app(ResolveSalesBuyer::class)->isReseller($buyer)
+                && ($this->walletBalance($buyer) ?? 0) < $quote->totalPriceRials) {
                 $this->notice($bot, 'موجودی کیف پول برای این پلن کافی نیست و پرداخت بانکی فعلاً در دسترس نیست.');
 
                 return;
@@ -592,7 +603,7 @@ final readonly class SalesCheckoutUi
         $balance = $this->walletBalance($order->buyerUserId);
         $walletEligible = $order->status === 'pending_payment' && $latestReceipt !== 'submitted'
             && $balance !== null && $balance >= $order->totalPriceRials;
-        if (! $walletEligible && $order->status === 'pending_payment' && $latestReceipt !== 'submitted'
+        if (! $isReseller && ! $walletEligible && $order->status === 'pending_payment' && $latestReceipt !== 'submitted'
             && TelegramBotContext::current()->key === TelegramBotContext::SALES
             && config('sales.manual_bank_review_enabled', false) === true) {
             app(ManualPaymentUi::class)->start($bot, (string) $order->id);
@@ -606,12 +617,21 @@ final readonly class SalesCheckoutUi
                 '💳 پرداخت از کیف پول', callback_data: 'sales:checkout:wallet:'.$order->id, style: ButtonStyle::SUCCESS,
             ));
         }
-        if ($order->status === 'pending_payment' && $latestReceipt !== 'submitted'
+        if (! $isReseller && $order->status === 'pending_payment' && $latestReceipt !== 'submitted'
             && config('sales.manual_bank_review_enabled', false) === true) {
             $keyboard->addRow(InlineKeyboardButton::make(
                 $latestReceipt === 'rejected' ? '🧾 ارسال رسید جدید' : '🧾 ارسال رسید پرداخت',
                 callback_data: 'sales:payment:start:'.$order->id,
             ));
+        }
+        if ($isReseller && $order->status === 'pending_payment' && $latestReceipt !== 'submitted'
+            && ! $walletEligible) {
+            if (config('billing.topups_enabled', false) === true) {
+                $keyboard->addRow(InlineKeyboardButton::make(
+                    '➕ افزایش موجودی کیف پول', callback_data: 'sales:wallet:topup',
+                ));
+            }
+            $keyboard->addRow(InlineKeyboardButton::make('💰 کیف پول من', callback_data: 'sales:wallet'));
         }
         if ($order->planId !== null && $sourceRenewal === null) {
             $keyboard->addRow(InlineKeyboardButton::make(
@@ -636,7 +656,11 @@ final readonly class SalesCheckoutUi
             ."\n".($isReseller ? 'قیمت مخصوص پنل فروش' : 'مبلغ ثبت‌شده').': '
             .TelegramUi::toman($order->totalPriceRials).' تومان'
             ."\nوضعیت: {$status}"
-            ."\n\n".$this->orderHint($order, $latestReceipt),
+            ."\n\n".($isReseller && $order->status === 'pending_payment' && $latestReceipt !== 'submitted'
+                ? ($walletEligible
+                    ? 'موجودی کیف پول کافی است. برای خرید، «پرداخت از کیف پول» را انتخاب کنید.'
+                    : 'برای خرید سرویس از کیف پول استفاده کنید. موجودی کافی نیست یا پرداخت کیف پول موقتاً غیرفعال است؛ از بخش کیف پول موجودی را افزایش دهید.')
+                : $this->orderHint($order, $latestReceipt)),
             $keyboard,
         );
     }
