@@ -126,7 +126,8 @@ it('forwards a protected photo to an eligible root, then suppresses stale or rev
         if (str_contains($url, '/file/bot54321:sales_test/photos/test.png')) {
             return Http::response($image, 200, ['Content-Type' => 'image/png']);
         }
-        if (str_contains($url, '12345:admin_test/sendPhoto')) {
+        if (str_contains($url, '12345:admin_test/sendMessage')
+            || str_contains($url, '12345:admin_test/sendPhoto')) {
             return Http::response(['ok' => true, 'result' => ['message_id' => 1]]);
         }
 
@@ -137,13 +138,18 @@ it('forwards a protected photo to an eligible root, then suppresses stale or rev
     app(DispatchTelegramNotification::class, ['deliveryId' => (int) $notice->id])
         ->handle(app(TelegramNotificationSender::class));
     expect(DB::table('telegram_notification_deliveries')->value('state'))->toBe('sent');
-    Http::assertSentCount(3);
+    Http::assertSentCount(4);
+    Http::assertSent(static fn (Request $request): bool => str_contains($request->url(), '/sendMessage')
+        && str_contains((string) $request['text'], 'رسید جدید شارژ کیف پول #'.$data['topup'])
+        && str_contains((string) $request['reply_markup'], 'finance:topup:photo:'.$data['topup'])
+        && $request['parse_mode'] === 'HTML'
+    );
     Http::assertSent(static fn (Request $request): bool => str_contains($request->url(), '/sendPhoto')
         && str_contains((string) $request->body(), 'finance:topup:decision:'.$data['topup'].':a')
     );
     app(DispatchTelegramNotification::class, ['deliveryId' => (int) $notice->id])
         ->handle(app(TelegramNotificationSender::class));
-    Http::assertSentCount(3);
+    Http::assertSentCount(4);
 
     $next = app(RequestTopup::class)->handle($data['buyer']->id, 600000, 'fin:not:topup:2');
     DB::transaction(static function () use ($data, $next): void {
@@ -155,7 +161,7 @@ it('forwards a protected photo to an eligible root, then suppresses stale or rev
     app(DispatchTelegramNotification::class, ['deliveryId' => $latest])
         ->handle(app(TelegramNotificationSender::class));
     expect(DB::table('telegram_notification_deliveries')->where('id', $latest)->value('state'))->toBe('unavailable');
-    Http::assertSentCount(3);
+    Http::assertSentCount(4);
 });
 
 it('records one Sales review result after Admin confirms; never before or on a repeated decision', function (): void {
@@ -220,7 +226,7 @@ it('notifies the buyer of a rejection without credit and never replays suppresse
     Http::assertNothingSent();
 });
 
-it('falls back to a finance-queue message if the protected root photo is unavailable', function (): void {
+it('keeps the admin text alert when cross-bot receipt photo transfer is unavailable', function (): void {
     finNotSubmitted();
     Http::swap(new Factory);
     Http::preventStrayRequests();
@@ -238,8 +244,8 @@ it('falls back to a finance-queue message if the protected root photo is unavail
     expect(DB::table('telegram_notification_deliveries')->where('id', $id)->value('state'))->toBe('sent');
     Http::assertSentCount(2);
     Http::assertSent(static fn (Request $request): bool => str_contains($request->url(), '12345:admin_test/sendMessage')
-        && str_contains((string) $request['text'], 'تصویر فعلاً قابل ارسال نیست')
-        && str_contains((string) $request['reply_markup'], 'finance:topups:1'));
+        && str_contains((string) $request['text'], '🔔')
+        && str_contains((string) $request['reply_markup'], 'finance:topup:photo:'));
 });
 
 it('sends a rejection result to the buyer Sales Bot without a financial posting', function (): void {
@@ -305,4 +311,24 @@ it('keeps wallet pending until a verified bank reference and the explicit final 
         ->and(app(ViewWallet::class)->handle($data['buyer']->id)->balanceRials)->toBe(500000)
         ->and(DB::table('billing_journals')->where('kind', 'topup')->count())->toBe(1)
         ->and(DB::table('billing_postings')->count())->toBe(2);
+});
+
+it('retries a new receipt notification if the primary admin text transport fails', function (): void {
+    finNotSubmitted();
+    Http::swap(new Factory);
+    Http::preventStrayRequests();
+    Http::fake(static function (Request $request) {
+        return Http::response(['ok' => false], 503);
+    });
+
+    $id = (int) DB::table('telegram_notification_deliveries')->value('id');
+    app(DispatchTelegramNotification::class, ['deliveryId' => $id])
+        ->handle(app(TelegramNotificationSender::class));
+
+    expect(DB::table('telegram_notification_deliveries')->where('id', $id)->value('state'))
+        ->toBe('pending')
+        ->and(DB::table('telegram_notification_deliveries')->where('id', $id)->value('last_failure'))
+        ->toBe('transport');
+    Http::assertSentCount(1);
+    Http::assertSent(static fn (Request $request): bool => str_contains($request->url(), '/sendMessage'));
 });

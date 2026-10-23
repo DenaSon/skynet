@@ -142,35 +142,35 @@ final readonly class TelegramNotificationSender
                 throw new NotificationUnavailable('already_reviewed');
             }
 
+            // First deliver an explicit, independently acknowledged text alert.
+            // Cross-bot photo transfer must not determine whether a manager
+            // receives the submission notice at all. The finance queue remains
+            // the authoritative place for reviewing the receipt.
+            $keyboard = json_encode(['inline_keyboard' => [
+                [['text' => '🧾 مشاهده رسید #'.$topupId, 'callback_data' => 'finance:topup:photo:'.$topupId]],
+                [['text' => '📋 صف رسیدهای شارژ', 'callback_data' => 'finance:topups:1']],
+            ]], JSON_THROW_ON_ERROR);
+            $this->text(
+                $bot, $chat,
+                "🔔 <b>رسید جدید شارژ کیف پول #{$topupId}</b>"
+                    ."\nکاربر #{$row['user_id']}"
+                    ."\nمبلغ: <b>".TelegramUi::toman($row['amount_rials']).' تومان</b>'
+                    ."\n\n🕒 در انتظار بررسی واریز توسط مدیر.",
+                $keyboard, 'HTML',
+            );
+
+            // Photo is a convenience copy; successful notification delivery
+            // does not depend on getFile/download/reupload across bot tokens.
             $caption = "🧾 درخواست شارژ کیف پول #{$topupId}"
                 ."\nکاربر #{$row['user_id']}"
                 ."\nمبلغ: ".TelegramUi::toman($row['amount_rials']).' تومان'
                 ."\n\n⚠️ فقط پس از مشاهده واریز واقعی در بانک تأیید کنید.";
             try {
                 $this->showWalletTopupPhotoToRoot($topupId, $userId, $chat, $caption);
-
-                return;
-            } catch (NotificationUnavailable $e) {
-                if (in_array($e->category, ['not_authorized', 'blocked', 'missing_credentials'], true)) {
-                    throw $e;
-                }
-            } catch (Throwable $e) {
-                if ($e instanceof RuntimeException && $e->getCode() === 429) {
-                    throw $e;
-                }
+            } catch (Throwable) {
+                // No duplicate alert or failed financial state: the text
+                // reached Telegram and the photo is available in Admin finance.
             }
-
-            $keyboard = json_encode([
-                'inline_keyboard' => [[
-                    ['text' => '🧾 بررسی در امور مالی', 'callback_data' => 'finance:topups:1'],
-                ]],
-            ], JSON_THROW_ON_ERROR);
-            $this->text($bot, $chat,
-                "🧾 رسید شارژ کیف پول #{$topupId} دریافت شد.\n"
-                ."کاربر #{$row['user_id']} · مبلغ: ".TelegramUi::toman($row['amount_rials'])
-                ." تومان\nتصویر فعلاً قابل ارسال نیست؛ درخواست در صف امور مالی محفوظ است.",
-                $keyboard,
-            );
 
             return;
         }
