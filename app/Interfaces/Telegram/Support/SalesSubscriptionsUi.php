@@ -1026,17 +1026,6 @@ final readonly class SalesSubscriptionsUi
         return mb_substr(trim((string) preg_replace('/[\x00-\x1F\x7F\x{202A}-\x{202E}]+/u', ' ', $value)), 0, 70);
     }
 
-    private function shortStatus(string $status): string
-    {
-        return match ($status) {
-            'active' => 'فعال ثبت‌شده',
-            'provisioning' => 'در حال آماده‌سازی',
-            'needs_review' => 'در حال بررسی',
-            'failed' => 'غیرفعال',
-            default => 'نامشخص',
-        };
-    }
-
     private function status(string $status): string
     {
         return match ($status) {
