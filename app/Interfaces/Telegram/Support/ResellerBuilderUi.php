@@ -51,7 +51,7 @@ final readonly class ResellerBuilderUi
 
         $pages = max(1, (int) ceil(count($builders) / 5));
         $page = min(max(1, $page), $pages);
-        $lines = ['💼 پلن‌ساز پنل فروش', "صفحه {$page} از {$pages}", '',
+        $lines = ['🧩 پلن‌ساز پنل فروش', "صفحه {$page} از {$pages}", '',
             TelegramBotContext::current()->key === 'sales'
                 ? 'حجم و مدت دلخواه را انتخاب کنید؛ امکان ثبت سفارش پس از بررسی آمادگی سرویس مشخص می‌شود.'
                 : 'پلن‌های زیر دارای تعرفه فعال هستند. فقط پیش‌نمایش قیمت است؛ سفارش و پرداخت در دسترس نیست.', ''];
@@ -415,7 +415,7 @@ final readonly class ResellerBuilderUi
 
     private function notice(Nutgram $bot, string $message, int $page): void
     {
-        $this->render($bot, "💼 پلن‌ساز پنل فروش\n\n{$message}", InlineKeyboardMarkup::make()
+        $this->render($bot, "🧩 پلن‌ساز پنل فروش\n\n{$message}", InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('◀️ فهرست پلن‌سازها', callback_data: 'builder:list:'.$page)));
     }
 
