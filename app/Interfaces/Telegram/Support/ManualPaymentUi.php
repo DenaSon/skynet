@@ -191,8 +191,8 @@ final readonly class ManualPaymentUi
             || config('sales.manual_bank_review_enabled', false) !== true) {
             return false;
         }
-        $orderId = Cache::get(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$actor->userId));
-        if (! is_int($orderId)) {
+        $orderId = $this->cachedOrderId(Cache::get(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$actor->userId)));
+        if ($orderId === null) {
             return false;
         }
         $this->notice($bot, 'لطفاً عکس رسید را بفرستید، یا از «خانه» خارج شوید. برای ادامه بعدی، «سفارش‌های من» را باز کنید.');
@@ -219,13 +219,13 @@ final readonly class ManualPaymentUi
             return;
         }
 
-        $orderId = Cache::get(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$actor->userId));
+        $orderId = $this->cachedOrderId(Cache::get(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$actor->userId)));
 
-        if (is_int($orderId) === false) {
+        if ($orderId === null) {
             $recent = TelegramBotContext::current()->key === TelegramBotContext::SALES
-                ? Cache::get(TelegramBotContext::current()->cacheKey('telegram:payphoto:recent:'.$actor->userId))
+                ? $this->cachedOrderId(Cache::get(TelegramBotContext::current()->cacheKey('telegram:payphoto:recent:'.$actor->userId)))
                 : null;
-            if (is_int($recent)) {
+            if ($recent !== null) {
                 $receipt = $this->payments->latestReceiptStatus(
                     SubscriptionViewer::telegram((int) $this->private->id($bot)), $recent,
                 );
@@ -526,6 +526,20 @@ final readonly class ManualPaymentUi
         }
 
         return $actor;
+    }
+
+    /** Keep receipt drafts compatible with cache stores returning numeric strings. */
+    private function cachedOrderId(mixed $value): ?int
+    {
+        if (is_int($value)) {
+            return $value > 0 ? $value : null;
+        }
+
+        if (! is_string($value) || preg_match('/\\A[1-9][0-9]{0,14}\\z/D', $value) !== 1) {
+            return null;
+        }
+
+        return (int) $value;
     }
 
     private function parseId(string $id): ?int
