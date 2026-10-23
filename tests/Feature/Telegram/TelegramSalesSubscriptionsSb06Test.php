@@ -522,7 +522,6 @@ it('shows an unknown status for transport failure, not a false active or expired
         }, index: 2);
 });
 
-
 it('sends a private PNG QR after the existing link for authorized Sales accounts', function (string $role): void {
     Role::findOrCreate($role, 'web');
 
