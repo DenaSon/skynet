@@ -35,6 +35,7 @@ final readonly class ManualPaymentUi
         private OrderReader $orders,
         private MenuRenderer $menus,
         private ManageResellerServiceLabels $customerLabels,
+        private PaymentDecisionTokens $decisionTokens,
     ) {}
 
     public function start(Nutgram $bot, string $orderId): void
@@ -304,12 +305,20 @@ final readonly class ManualPaymentUi
         }
     }
 
-    public function list(Nutgram $bot): void
+    public function list(Nutgram $bot, string $page = '1'): void
     {
         $actor = $this->root($bot);
         if ($actor === null) {
             return;
         }
+
+        $number = $this->parseId($page);
+        if ($number === null || $number > 10000) {
+            $this->notice($bot, 'صفحه معتبر نیست.');
+
+            return;
+        }
+        Cache::forget($this->referenceKey($actor->userId));
 
         // Acknowledge before querying financial rows: Telegram expires callback
         // IDs after a short deadline even if the requested list still works.
@@ -319,7 +328,7 @@ final readonly class ManualPaymentUi
         }
 
         try {
-            $rows = $this->payments->pending($actor->userId);
+            $rows = $this->payments->pending($actor->userId, 9, ($number - 1) * 8);
         } catch (AuthorizationException) {
             if (! $acknowledged) {
                 $this->menus->denyAccess($bot);
@@ -328,10 +337,10 @@ final readonly class ManualPaymentUi
             return;
         }
 
-        $text = "🧾 رسیدهای در انتظار بررسی\n";
+        $text = "🧾 رسیدهای در انتظار بررسی · صفحه {$number}\n";
         $keyboard = InlineKeyboardMarkup::make();
 
-        foreach ($rows as $row) {
+        foreach (array_slice($rows, 0, 8) as $row) {
             $text .= "\n#{$row->id} · سفارش #{$row->sales_order_id} · ".number_format(intdiv((int) $row->total_price_rials + 9, 10)).' تومان';
             $keyboard->addRow(InlineKeyboardButton::make(
                 '🖼️ مشاهده رسید #'.$row->id,
@@ -344,7 +353,17 @@ final readonly class ManualPaymentUi
         }
 
         $text .= "\n\n⚠️ عکس رسید، اثبات واریز نیست؛ گردش بانک را بررسی کنید.";
-        $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'bank:list'))
+        $arrows = [];
+        if ($number > 1) {
+            $arrows[] = InlineKeyboardButton::make('◀️ قبلی', callback_data: 'bank:list:'.($number - 1));
+        }
+        if (count($rows) > 8) {
+            $arrows[] = InlineKeyboardButton::make('بعدی ▶️', callback_data: 'bank:list:'.($number + 1));
+        }
+        if ($arrows !== []) {
+            $keyboard->addRow(...$arrows);
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'bank:list:'.$number))
             ->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
         $this->render($bot, $text, $keyboard, $acknowledged);
     }
@@ -392,7 +411,7 @@ final readonly class ManualPaymentUi
         }
     }
 
-    /** A root's first click is the final audited receipt decision. */
+    /** The approval button starts review; money changes only after a final reference-bound confirmation. */
     public function decide(Nutgram $bot, string $claim, string $choice): void
     {
         $actor = $this->root($bot);
@@ -420,8 +439,28 @@ final readonly class ManualPaymentUi
             return;
         }
 
+        Cache::forget($this->referenceKey($actor->userId));
+        if ($choice === 'a') {
+            try {
+                $row = $this->payments->detail($actor->userId, $id);
+            } catch (AuthorizationException|ValidationException) {
+                $this->notice($bot, 'رسید دیگر در انتظار بررسی نیست.');
+
+                return;
+            }
+            Cache::put($this->referenceKey($actor->userId), ['claim' => $row->id], now()->addMinutes(10));
+            $this->render($bot,
+                "🔎 بررسی پرداخت · مرحله ۱ از ۲\n\nدرخواست #{$row->id} · سفارش #{$row->orderId}"
+                ."\nمبلغ: ".TelegramUi::toman($row->amountRials)." تومان"
+                ."\n\nپس از مشاهده واریز واقعی در بانک، شناسه یکتای تراکنش را ارسال کنید."
+                ."\nهنوز هیچ پرداختی تأیید نشده است.",
+                $this->backKeyboard());
+
+            return;
+        }
+
         try {
-            $result = $this->payments->review($actor->userId, $id, $choice === 'a');
+            $result = $this->payments->review($actor->userId, $id, false);
         } catch (AuthorizationException|ValidationException|UniqueConstraintViolationException $error) {
             $this->notice($bot, $error instanceof ValidationException && isset($error->errors()['plan'])
                 ? 'تأیید انجام نشد؛ مشخصات پلن تغییر کرده یا خرید آن متوقف شده است. رسید در انتظار بررسی محفوظ است؛ واریز مشتری را بررسی کنید.'
@@ -441,6 +480,103 @@ final readonly class ManualPaymentUi
         } catch (Throwable) {
             // The committed settlement/rejection must not be undone by Telegram.
         }
+    }
+
+
+    /** Consume Admin-only reference input; this never settles an order. */
+    public function text(Nutgram $bot, string $value): bool
+    {
+        $chat = $this->private->id($bot);
+        if ($chat === null || TelegramBotContext::current()->key !== TelegramBotContext::ADMIN) {
+            return false;
+        }
+        $actor = $this->actors->handle($chat);
+        if ($actor === null) {
+            return false;
+        }
+        $key = $this->referenceKey($actor->userId);
+        $draft = Cache::get($key);
+        if (! is_array($draft) || ! is_int($draft['claim'] ?? null)) {
+            return false;
+        }
+        if ($this->root($bot) === null) {
+            return true;
+        }
+        if (! $this->automaticActivationReady()) {
+            Cache::forget($key);
+            $this->notice($bot, 'بررسی پرداخت فعلاً آماده نیست. رسید در صف محفوظ است.');
+
+            return true;
+        }
+        $reference = strtoupper(trim($value));
+        if (preg_match('/\A[A-Z0-9_-]{6,64}\z/D', $reference) !== 1
+            || str_starts_with($reference, 'MANUAL-CLAIM-')) {
+            $this->notice($bot, 'شناسه بانکی معتبر (۶ تا ۶۴ نویسه انگلیسی یا عدد) وارد کنید.');
+
+            return true;
+        }
+        try {
+            $row = $this->payments->detail($actor->userId, $draft['claim']);
+        } catch (AuthorizationException|ValidationException) {
+            Cache::forget($key);
+            $this->notice($bot, 'رسید دیگر در انتظار بررسی نیست.');
+
+            return true;
+        }
+        $token = $this->decisionTokens->issue($actor->userId, $row->id, true, $reference, null);
+        Cache::forget($key);
+        $bot->sendMessage(
+            text: "<b>✅ تأیید نهایی پرداخت · مرحله ۲ از ۲</b>"
+                ."\n\nسفارش #{$row->orderId} · درخواست #{$row->id}"
+                ."\nمبلغ: <b>".TelegramUi::toman($row->amountRials)." تومان</b>"
+                ."\nشناسه بانک: ".TelegramUi::code($reference)
+                ."\n\nتا زدن دکمه تأیید نهایی، هیچ مبلغی ثبت نمی‌شود."
+                ."\nآیا واریز واقعی را در بانک بررسی کرده‌اید؟",
+            parse_mode: 'HTML',
+            reply_markup: InlineKeyboardMarkup::make()
+                ->addRow(InlineKeyboardButton::make('✅ تأیید نهایی پرداخت', callback_data: 'bank:apply:'.$token))
+                ->addRow(InlineKeyboardButton::make('◀️ انصراف', callback_data: 'bank:list:1')),
+        );
+
+        return true;
+    }
+
+    /** Single-use, root-bound final bank settlement. */
+    public function apply(Nutgram $bot, string $token): void
+    {
+        $actor = $this->root($bot);
+        if ($actor === null) {
+            return;
+        }
+        $data = $this->decisionTokens->consume($actor->userId, $token);
+        if ($data === null || $data['approve'] !== true || ! is_string($data['reference'])) {
+            $this->notice($bot, 'این تأیید منقضی، نامعتبر یا قبلاً استفاده شده است.');
+
+            return;
+        }
+        if (! $this->automaticActivationReady()) {
+            $this->notice($bot, 'فعال‌سازی خودکار آماده نیست؛ پرداخت تأیید نشد.');
+
+            return;
+        }
+        try {
+            $result = $this->payments->review($actor->userId, $data['claim'], true, $data['reference']);
+        } catch (AuthorizationException|ValidationException|UniqueConstraintViolationException|\Illuminate\Database\QueryException $error) {
+            $this->notice($bot, $error instanceof ValidationException && isset($error->errors()['plan'])
+                ? 'مشخصات پلن تغییر کرده است؛ رسید برای بررسی در صف باقی می‌ماند.'
+                : 'تأیید انجام نشد؛ رسید تغییر کرده یا شناسه بانکی قبلاً ثبت شده است.');
+
+            return;
+        }
+
+        $this->render($bot,
+            "✅ پرداخت سفارش #{$result->orderId} تأیید شد.\nاشتراک در حال آماده‌سازی است.",
+            $this->backKeyboard());
+    }
+
+    private function referenceKey(int $operatorId): string
+    {
+        return TelegramBotContext::current()->cacheKey('telegram:bankreview:reference:'.$operatorId);
     }
 
     private function alertRoots(Nutgram $bot, int $claimId): void

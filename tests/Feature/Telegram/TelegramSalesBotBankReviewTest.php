@@ -250,7 +250,7 @@ it('routes the Sales-origin receipt photo across tokens only through the guarded
     ]);
 });
 
-it('gates the one-click operator attestation and settles only once with an internal audit reference', function (): void {
+it('requires an explicitly verified bank reference even when one-click activation is enabled', function (): void {
     $data = sb04Order();
     config()->set('sales.manual_bank_review_enabled', true);
     config()->set('telegram_notifications.enabled', true);
@@ -268,9 +268,12 @@ it('gates the one-click operator attestation and settles only once with an inter
     expect(fn () => $review->review($data['root']->id, $claimId, true))->toThrow(ValidationException::class);
     expect(DB::table('billing_journals')->count())->toBe(0);
     config()->set('services.remnawave.squad_bindings_live_verified', true);
-    expect($review->review($data['root']->id, $claimId, true)->approved)->toBeTrue();
+    expect(fn () => $review->review($data['root']->id, $claimId, true))->toThrow(ValidationException::class);
+    expect(fn () => $review->review($data['root']->id, $claimId, true, 'MANUAL-CLAIM-'.$claimId))
+        ->toThrow(ValidationException::class);
+    expect($review->review($data['root']->id, $claimId, true, 'REALBANK9751')->approved)->toBeTrue();
     expect(DB::table('sales_bank_settlements')->value('payment_reference'))
-        ->toBe('MANUAL-CLAIM-'.$claimId);
+        ->toBe('REALBANK9751');
     expect(DB::table('sales_bank_settlements')->count())->toBe(1)
         ->and(DB::table('billing_journals')->where('kind', 'direct_bank_sale')->count())->toBe(1)
         ->and(DB::table('sales_fulfillment_outbox')->count())->toBe(1);

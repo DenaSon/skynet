@@ -149,16 +149,19 @@ final readonly class ManualBankPayments
     }
 
     /** @return list<object> */
-    public function pending(int $rootId, int $limit = 12): array
+    public function pending(int $rootId, int $limit = 12, int $offset = 0): array
     {
         $this->enabled();
         $this->access->reviewer($rootId);
+        if ($offset < 0 || $offset > 79992) {
+            throw ValidationException::withMessages(['page' => 'Invalid receipt page.']);
+        }
 
         return DB::table('sales_bank_payment_claims as claims')
             ->join('sales_orders as orders', 'orders.id', '=', 'claims.sales_order_id')
             ->where('claims.status', 'submitted')
             ->select('claims.id', 'claims.sales_order_id', 'orders.buyer_user_id', 'orders.total_price_rials', 'orders.product_name')
-            ->orderBy('claims.id')->limit(min(20, max(1, $limit)))->get()->all();
+            ->orderByDesc('claims.id')->offset($offset)->limit(min(20, max(1, $limit)))->get()->all();
     }
 
     public function detail(int $rootId, int $claimId): object
@@ -197,15 +200,10 @@ final readonly class ManualBankPayments
 
         $reference = strtoupper(trim($verifiedBankReference ?? ''));
 
-        if ($approve && $reference === '' && config('sales.one_click_bank_review_enabled', false) === true) {
-            // This internal audit key identifies the operator-reviewed receipt.
-            // It is NOT a bank-issued reference and cannot dedupe two separate
-            // screenshots representing the same real transfer. The operator
-            // must independently verify incoming bank funds before clicking.
-            $reference = 'MANUAL-CLAIM-'.$claimId;
-        }
-
-        if ($approve && preg_match('/\A[A-Z0-9_-]{6,64}\z/D', $reference) !== 1) {
+        // Every new bank sale must carry the independently verified bank
+        // reference. Historical MANUAL-CLAIM rows stay untouched.
+        if ($approve && (preg_match('/\A[A-Z0-9_-]{6,64}\z/D', $reference) !== 1
+            || str_starts_with($reference, 'MANUAL-CLAIM-'))) {
             throw ValidationException::withMessages(['reference' => 'Verified bank reference required.']);
         }
 

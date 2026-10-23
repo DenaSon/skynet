@@ -6,6 +6,7 @@ use App\Interfaces\Telegram\Support\AdminConfigProfileOperationsUi;
 use App\Interfaces\Telegram\Support\AdminFinanceWalletUi;
 use App\Interfaces\Telegram\Support\AdminHostOperationsUi;
 use App\Interfaces\Telegram\Support\AdminHostsUi;
+use App\Interfaces\Telegram\Support\ManualPaymentUi;
 use App\Interfaces\Telegram\Support\AdminNodeBatchUi;
 use App\Interfaces\Telegram\Support\AdminNodeOperationsUi;
 use App\Interfaces\Telegram\Support\AdminNodeSetupUi;
@@ -22,6 +23,10 @@ use SergiX44\Nutgram\Nutgram;
 $bot->onText('{volume}', function (Nutgram $bot, string $volume): void {
     // Consume a pending private SSH secret before generic reply-menu matching.
     if (app(AdminNodeSetupUi::class)->text($bot, $volume)) {
+        return;
+    }
+
+    if (app(ManualPaymentUi::class)->text($bot, $volume)) {
         return;
     }
 
