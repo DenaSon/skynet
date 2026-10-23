@@ -535,7 +535,7 @@ final readonly class ManualPaymentUi
             return $value > 0 ? $value : null;
         }
 
-        if (! is_string($value) || preg_match('/\\A[1-9][0-9]{0,14}\\z/D', $value) !== 1) {
+        if (! is_string($value) || preg_match('/\A[1-9][0-9]{0,14}\z/D', $value) !== 1) {
             return null;
         }
 
