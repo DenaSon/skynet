@@ -1,4 +1,4 @@
-## QR-02 — one-message connection QR and Sales coverage (2026-10-23)
+## QR-02 — one-message connection QR and Sales coverage (2026-10-23; source CI passed, live pending)
 
 - **Operator-approved execution:** Use the established `GetSubscriptionLink` owner/provider verification and `SubscriptionQrPng` renderer to replace duplicate link-text plus photo with one Sales photo/HTML caption card (QR above selectable URL) on ordinary member and reseller link callbacks. Preserve native copy control, help/back/support, forged/unpaid/refunded/expired denial, client subscription credentials and all existing notification/order routing.
 - **Official Subscription Page:** preserve the extra exact-host gate, protected media, open-page and navigation controls, with the same QR+URL card. If Telegram caption size is unsafe, keep the complete text link in a separate message with a QR; on PNG/transport failure preserve text-only. No third-party QR, schema, dependency, RW write, finance or Admin change.
