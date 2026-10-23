@@ -12,17 +12,20 @@ use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\ConfigureRate;
 use App\Modules\Sales\Application\CreatePendingOrder;
 use App\Modules\Sales\Application\ManualBankPayments;
+use GuzzleHttp\Psr7\Request;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
+use SergiX44\Nutgram\Testing\FakeNutgram;
 use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
@@ -359,4 +362,130 @@ it('acknowledges financial receipt-list callbacks once and preserves pending rec
         ->and(DB::table('billing_journals')->count())->toBe(0);
 
     $rootBot->hearText('/payments')->reply()->assertCalled('sendMessage');
+});
+
+it('requires the two-stage Admin bank confirmation and cannot settle before final approval', function (): void {
+    a2Setup();
+    config()->set('sales.manual_bank_review_enabled', true);
+    config()->set('sales.one_click_bank_review_enabled', true);
+    config()->set('sales.auto_fulfillment_enabled', true);
+    config()->set('services.remnawave.writes_enabled', true);
+    config()->set('services.remnawave.squad_bindings_live_verified', true);
+    config()->set('telegram_notifications.enabled', true);
+    config()->set('telegram.sales.enabled', true);
+    Queue::fake();
+    Http::preventStrayRequests();
+    Http::fake();
+
+    $buyer = a2Account(990141);
+    $root = a2Account(990101, 'super-admin');
+    a2Account(990102, 'super-admin');
+    $order = a2Order($buyer);
+    $claim = a2Submit(990141, $order, 141);
+
+    $admin = a2Bot(990101);
+    $admin->hearCallbackQueryData('bank:decide:'.$claim.':a')->reply()->assertCalled('editMessageText');
+    expect(DB::table('sales_bank_settlements')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe(0)
+        ->and(DB::table('sales_orders')->where('id', $order)->value('status'))->toBe('pending_payment');
+
+    $admin->hearText('invalid?')->reply()->assertCalled('sendMessage');
+    expect(DB::table('sales_bank_settlements')->count())->toBe(0);
+
+    $token = null;
+    $admin->hearText('VERIFIED-BANK-141')->reply()->assertRaw(
+        static function (Request $request) use (&$token): bool {
+            $data = FakeNutgram::getActualData($request);
+            $keyboard = $data['reply_markup'] ?? null;
+            if (is_string($keyboard)) {
+                $keyboard = json_decode($keyboard, true, flags: JSON_THROW_ON_ERROR);
+            }
+            $callback = $keyboard['inline_keyboard'][0][0]['callback_data'] ?? null;
+            if (! is_string($callback) || ! str_starts_with($callback, 'bank:apply:')) {
+                return false;
+            }
+            $token = substr($callback, strlen('bank:apply:'));
+
+            return str_contains((string) ($data['text'] ?? ''), 'VERIFIED-BANK-141')
+                && str_contains((string) ($data['text'] ?? ''), 'تأیید نهایی')
+                && strlen($token) === 32;
+        },
+    );
+    expect(DB::table('sales_bank_settlements')->count())->toBe(0)
+        ->and(DB::table('billing_bank_reference_claims')->count())->toBe(0);
+
+    $other = a2Bot(990102);
+    $other->hearCallbackQueryData('bank:apply:'.$token)->reply()->assertCalled('editMessageText');
+    expect(DB::table('sales_bank_settlements')->count())->toBe(0);
+
+    // a2Bot uses the shared Nutgram service; restore root-one identity.
+    $admin = a2Bot(990101);
+    $admin->hearCallbackQueryData('bank:apply:'.$token)->reply()->assertCalled('editMessageText');
+    expect(DB::table('sales_bank_settlements')->where('payment_reference', 'VERIFIED-BANK-141')->count())->toBe(1)
+        ->and(DB::table('billing_bank_reference_claims')->where('payment_reference', 'VERIFIED-BANK-141')->count())->toBe(1)
+        ->and(DB::table('billing_postings')->count())->toBe(2)
+        ->and(DB::table('sales_orders')->where('id', $order)->value('status'))->toBe('paid')
+        ->and(DB::table('sales_fulfillment_outbox')->count())->toBe(1)
+        ->and(DB::table('sales_payment_review_audits')->where('decision', 'approved')->count())->toBe(1);
+
+    $admin->hearCallbackQueryData('bank:apply:'.$token)->reply()->assertCalled('editMessageText');
+    expect(DB::table('sales_bank_settlements')->count())->toBe(1)
+        ->and(DB::table('billing_journals')->count())->toBe(1);
+    Http::assertNothingSent();
+});
+
+it('keeps the final bank approval token expiring without approving payment', function (): void {
+    a2Setup();
+    config()->set('sales.manual_bank_review_enabled', true);
+    config()->set('sales.one_click_bank_review_enabled', true);
+    config()->set('sales.auto_fulfillment_enabled', true);
+    config()->set('services.remnawave.writes_enabled', true);
+    config()->set('services.remnawave.squad_bindings_live_verified', true);
+    config()->set('telegram_notifications.enabled', true);
+    config()->set('telegram.sales.enabled', true);
+    $buyer = a2Account(990142);
+    $root = a2Account(990101, 'super-admin');
+    $order = a2Order($buyer);
+    $claim = a2Submit(990142, $order, 142);
+    $token = app(PaymentDecisionTokens::class)->issue($root->id, $claim, true, 'BANKEXPIRY142', null);
+
+    $bot = a2Bot(990101);
+    $this->travel(4)->minutes();
+    $bot->hearCallbackQueryData('bank:apply:'.$token)->reply()->assertCalled('editMessageText');
+    expect(DB::table('sales_bank_settlements')->count())->toBe(0)
+        ->and(DB::table('sales_orders')->where('id', $order)->value('status'))->toBe('pending_payment');
+});
+
+it('paginates purchase receipts newest-first without hiding the thirteenth and later requests', function (): void {
+    a2Setup();
+    config()->set('sales.manual_bank_review_enabled', true);
+    $buyer = a2Account(990143);
+    $root = a2Account(990101, 'super-admin');
+    $ids = [];
+    for ($i = 1; $i <= 19; $i++) {
+        $order = a2Order($buyer);
+        $ids[] = a2Submit(990143, $order, 200 + $i);
+    }
+    $action = app(ManualBankPayments::class);
+    $page1 = $action->pending($root->id, 9, 0);
+    $page2 = $action->pending($root->id, 9, 8);
+    $page3 = $action->pending($root->id, 9, 16);
+
+    expect(count($page1))->toBe(9)
+        ->and(count($page2))->toBe(9)
+        ->and(count($page3))->toBe(3)
+        ->and((int) $page1[0]->id)->toBe($ids[18])
+        ->and((int) $page2[0]->id)->toBe($ids[10])
+        ->and((int) $page3[0]->id)->toBe($ids[2])
+        ->and((int) $page3[2]->id)->toBe($ids[0]);
+
+    $bot = a2Bot(990101);
+    $bot->hearCallbackQueryData('bank:list:1')->reply()
+        ->assertCalled('answerCallbackQuery', 1)->assertCalled('editMessageText', 1);
+    $bot->hearCallbackQueryData('bank:list:2')->reply()
+        ->assertCalled('answerCallbackQuery', 1)->assertCalled('editMessageText', 1);
+    $bot->hearCallbackQueryData('bank:list:3')->reply()
+        ->assertCalled('answerCallbackQuery', 1)->assertCalled('editMessageText', 1);
+    expect(DB::table('sales_bank_payment_claims')->where('status', 'submitted')->count())->toBe(19)
+        ->and(DB::table('billing_journals')->count())->toBe(0);
 });

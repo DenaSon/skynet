@@ -398,12 +398,20 @@ $bot->onCallbackQueryData('bank:list', function (Nutgram $bot): void {
     app(ManualPaymentUi::class)->list($bot);
 });
 
+$bot->onCallbackQueryData('bank:list:{page}', function (Nutgram $bot, string $page): void {
+    app(ManualPaymentUi::class)->list($bot, $page);
+});
+
 $bot->onCallbackQueryData('bank:show:{claim}', function (Nutgram $bot, string $claim): void {
     app(ManualPaymentUi::class)->show($bot, $claim);
 });
 
 $bot->onCallbackQueryData('bank:decide:{claim}:{decision}', function (Nutgram $bot, string $claim, string $decision): void {
     app(ManualPaymentUi::class)->decide($bot, $claim, $decision);
+});
+
+$bot->onCallbackQueryData('bank:apply:{token}', function (Nutgram $bot, string $token): void {
+    app(ManualPaymentUi::class)->apply($bot, $token);
 });
 
 // FIN-01: protected wallet reads and top-up photo review, separate from purchase receipts.

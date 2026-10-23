@@ -108,6 +108,7 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:full:prepare:{id}:{mode}';
     $expected['ADMIN'][] = 'callback:full:apply:{token}';
     $expected['ADMIN'][] = 'callback:bank:decide:{claim}:{decision}';
+    $expected['ADMIN'][] = 'callback:bank:list:{page}';
     $expected['ADMIN'][] = 'callback:full:service:view:{id}';
     $expected['ADMIN'][] = 'callback:full:service:prepare:{id}:{mode}';
     $expected['ADMIN'][] = 'callback:full:service:apply:{token}';
@@ -222,7 +223,6 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'] = array_values(array_diff($expected['ADMIN'], [
         'command:bankconfirm {claim} {reference}',
         'callback:bank:choose:{claim}:{decision}',
-        'callback:bank:apply:{token}',
     ]));
 
     foreach ($files as $owner => $path) {
@@ -242,8 +242,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(224)
-        ->and(count(array_unique($legacy)))->toBe(224);
+        ->and(count($legacy))->toBe(226)
+        ->and(count(array_unique($legacy)))->toBe(226);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {
