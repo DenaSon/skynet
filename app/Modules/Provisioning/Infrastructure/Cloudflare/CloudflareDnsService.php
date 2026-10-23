@@ -28,6 +28,58 @@ final readonly class CloudflareDnsService
         ]);
     }
 
+    /**
+     * Read a single bounded page of all DNS record types, without exposing their
+     * data beyond the trusted Application projection.
+     *
+     * @return array{items:list<array<string,mixed>>,page:int,pages:int}
+     */
+    public function pageRecords(string $zoneId, int $page): array
+    {
+        if ($page < 1 || $page > 100) {
+            throw new RuntimeException('Invalid DNS page.');
+        }
+
+        $body = $this->request('get', '/zones/'.$zoneId.'/dns_records', [
+            'page' => $page, 'per_page' => 8,
+        ]);
+        $items = $body['result'] ?? null;
+        $info = $body['result_info'] ?? null;
+        if (! is_array($items) || ! array_is_list($items) || count($items) > 8
+            || ! is_array($info) || ! is_int($info['total_pages'] ?? null)
+            || $info['total_pages'] < 0 || $info['total_pages'] > 100
+            || ! is_int($info['page'] ?? null) || $info['page'] !== $page) {
+            throw new RuntimeException('Invalid Cloudflare pagination.');
+        }
+
+        foreach ($items as $item) {
+            if (! is_array($item)) {
+                throw new RuntimeException('Invalid Cloudflare DNS record.');
+            }
+        }
+
+        return ['items' => $items, 'page' => $page, 'pages' => max(1, $info['total_pages'])];
+    }
+
+    /** @return array<string,mixed> */
+    public function record(string $zoneId, string $recordId): array
+    {
+        $body = $this->request('get', '/zones/'.$zoneId.'/dns_records/'.$recordId, []);
+        $result = $body['result'] ?? null;
+        if (! is_array($result) || array_is_list($result) || ($result['id'] ?? null) !== $recordId) {
+            throw new RuntimeException('Invalid Cloudflare DNS record.');
+        }
+
+        return $result;
+    }
+
+    public function patchA(string $zoneId, string $recordId, string $ip, bool $proxied): void
+    {
+        $this->request('patch', '/zones/'.$zoneId.'/dns_records/'.$recordId, [
+            'content' => $ip, 'proxied' => $proxied,
+        ]);
+    }
+
     public function createA(string $zoneId, string $hostname, string $ip): void
     {
         $this->request('post', '/zones/'.$zoneId.'/dns_records', [
@@ -76,9 +128,12 @@ final readonly class CloudflareDnsService
 
         $request = Http::withToken($token)->acceptJson()->timeout(12);
         $url = 'https://api.cloudflare.com/client/v4'.$path;
-        $response = $method === 'get'
-            ? $request->get($url, $data)
-            : $request->post($url, $data);
+        $response = match ($method) {
+            'get' => $request->get($url, $data),
+            'post' => $request->post($url, $data),
+            'patch' => $request->patch($url, $data),
+            default => throw new RuntimeException('Unsupported Cloudflare HTTP method.'),
+        };
 
         $body = $response->json();
         if (! $response->successful() || ! is_array($body) || ($body['success'] ?? null) !== true) {
