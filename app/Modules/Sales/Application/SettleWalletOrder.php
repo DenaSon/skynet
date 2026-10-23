@@ -32,6 +32,7 @@ final readonly class SettleWalletOrder
         private OrderReader $orders,
         private PaymentNotificationOutbox $notifications,
         private CheckPlanSquadReadiness $squads,
+        private ManageResellerServiceLabels $customerLabels,
     ) {}
 
     public function handle(SubscriptionViewer $viewer, int $orderId): OrderDetails
@@ -92,6 +93,7 @@ final readonly class SettleWalletOrder
             if (! $reseller && $order->plan_id === null) {
                 throw new AuthorizationException;
             }
+            $this->customerLabels->assertPendingDetails($buyerId, $orderId);
             $renewal = DB::table('sales_renewal_orders')->where('sales_order_id', $orderId)->first();
             if ($renewal !== null && config('sales.renewal_enabled', false) !== true) {
                 throw ValidationException::withMessages(['activation' => 'Renewal payment is not enabled.']);
