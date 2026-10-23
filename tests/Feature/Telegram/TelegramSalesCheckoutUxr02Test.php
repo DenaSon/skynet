@@ -448,6 +448,87 @@ it('takes a photo directly without requiring a reply and never turns repeat rece
     Http::assertNothingSent();
 });
 
+it('accepts a numeric-string order ID from cache and registers the member receipt and root notice', function (): void {
+    $root = uxr02Plan()['root'];
+    $buyer = User::factory()->create();
+    $bot = uxr02Bot(973108, $buyer);
+    $bot->hearCallbackQueryData('catalog:detail:'.DB::table('sales_plans')->value('id').':1')
+        ->reply()->assertCalled('editMessageText');
+
+    $orderId = (int) DB::table('sales_orders')->value('id');
+    $key = TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$buyer->id);
+    Cache::put($key, (string) $orderId, now()->addMinutes(10));
+    expect(Cache::get($key))->toBe((string) $orderId);
+
+    config()->set('telegram_notifications.enabled', true);
+    Queue::fake();
+
+    $bot->hearText('رسید پرداخت')->reply()->assertReplyText(
+        'لطفاً عکس رسید را بفرستید، یا از «خانه» خارج شوید. برای ادامه بعدی، «سفارش‌های من» را باز کنید.'
+    );
+    $bot->hearMessage(['message_id' => 105, 'photo' => [
+        ['file_id' => 'member-string-photo-105', 'file_unique_id' => 'member-string-unique-105', 'width' => 400, 'height' => 400],
+    ]])->reply()->assertReplyText(
+        "✅ رسیدتان دریافت شد و برای بررسی ارسال شد.\nنتیجه را در همین بات دریافت می‌کنید.\nسفارش #{$orderId}"
+    );
+
+    $claim = DB::table('sales_bank_payment_claims')->sole();
+    $delivery = DB::table('telegram_notification_deliveries')->where('event_type', 'ReceiptSubmitted')->sole();
+
+    expect((int) $claim->sales_order_id)->toBe($orderId)
+        ->and((string) $claim->source_bot_key)->toBe('sales')
+        ->and($claim->status)->toBe('submitted')
+        ->and((int) $delivery->claim_id)->toBe((int) $claim->id)
+        ->and((int) $delivery->order_id)->toBe($orderId)
+        ->and((int) $delivery->recipient_user_id)->toBe($root->id)
+        ->and($delivery->bot_key)->toBe('admin')
+        ->and($delivery->state)->toBe('pending')
+        ->and(Cache::has($key))->toBeFalse()
+        ->and(DB::table('billing_journals')->count())->toBe(0)
+        ->and(DB::table('provisioning_subscriptions')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('recognizes numeric-string recent orders after the active receipt window expires', function (): void {
+    $plan = uxr02Plan()['plan'];
+    $buyer = User::factory()->create();
+    $bot = uxr02Bot(973109, $buyer);
+    $bot->hearCallbackQueryData("catalog:detail:{$plan}:1")->reply()->assertCalled('editMessageText');
+    $orderId = (int) DB::table('sales_orders')->value('id');
+    Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$buyer->id));
+    Cache::put(
+        TelegramBotContext::current()->cacheKey('telegram:payphoto:recent:'.$buyer->id),
+        (string) $orderId,
+        now()->addHour(),
+    );
+
+    $bot->hearMessage(['message_id' => 106, 'photo' => [
+        ['file_id' => 'stale-member-photo-106', 'file_unique_id' => 'stale-member-unique-106', 'width' => 400, 'height' => 400],
+    ]])->reply()->assertReplyText(
+        'زمان دریافت رسید تمام شده است. از «سفارش‌های من» ادامه پرداخت را باز کنید.'
+    );
+    expect(DB::table('sales_bank_payment_claims')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('rejects malformed cached order identifiers without submitting an unauthorized receipt', function (string $invalid): void {
+    $plan = uxr02Plan()['plan'];
+    $buyer = User::factory()->create();
+    $bot = uxr02Bot(973110, $buyer);
+    $bot->hearCallbackQueryData("catalog:detail:{$plan}:1")->reply()->assertCalled('editMessageText');
+
+    $key = TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$buyer->id);
+    Cache::put($key, $invalid, now()->addMinutes(10));
+    $bot->hearMessage(['message_id' => 107, 'photo' => [
+        ['file_id' => 'invalid-member-photo-107', 'file_unique_id' => 'invalid-member-unique-107', 'width' => 400, 'height' => 400],
+    ]])->reply()->assertCalled('sendMessage');
+
+    expect(DB::table('sales_bank_payment_claims')->count())->toBe(0)
+        ->and(DB::table('telegram_notification_deliveries')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe(0);
+    Http::assertNothingSent();
+})->with(['0', '-1', '01', '1e2', ' 1', '1 ', '1234567890123456']);
+
 it('refuses to create a payment order without a real configured card or with the receipt gate off', function (): void {
     $plan = uxr02Plan()['plan'];
     $buyer = User::factory()->create();
