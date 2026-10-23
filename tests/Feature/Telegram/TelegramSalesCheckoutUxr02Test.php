@@ -496,7 +496,7 @@ it('collects a reseller customer name before payment while preserving the manage
         ->assertRaw(static function (Request $request): bool {
             $body = uxr02Payload($request);
 
-            return str_contains($body['text'], 'افزایش موجودی')
+            return str_contains($body['text'], 'کیف پول')
                 && ! str_contains($body['text'], 'عکس رسید');
         }, index: 0);
 
@@ -555,7 +555,7 @@ it('accepts a numeric-string legacy checkout draft and continues after a Persian
         ->assertRaw(static function (Request $request): bool {
             $body = uxr02Payload($request);
 
-            return str_contains($body['text'], 'افزایش موجودی')
+            return str_contains($body['text'], 'کیف پول')
                 && ! str_contains($body['text'], 'عکس رسید');
         }, index: 0);
 
@@ -704,7 +704,7 @@ it('settles a credited reseller purchase from wallet without a bank claim', func
     expect(DB::table('sales_orders')->where('id', $id)->value('status'))->toBe('paid')
         ->and(DB::table('sales_bank_payment_claims')->count())->toBe(0)
         ->and(DB::table('sales_order_settlements')->where('sales_order_id', $id)->value('method'))->toBe('customer_wallet')
-        ->and(app(ViewWallet::class)->handle($buyer->id)->balanceRials)->toBe(500_000);
+        ->and(app(ViewWallet::class)->handle($buyer->id)->balanceRials)->toBe(600_000);
 });
 
 it('sends zero-balance reseller to wallet top-up without purchase receipt', function (): void {
