@@ -197,6 +197,38 @@ it('shows verified usage, remaining quota and UTC expiration without leaking the
     expect(config('services.remnawave.writes_enabled'))->toBeFalse();
 });
 
+it('shows one plan-named member entry while retaining private link access inside details', function (): void {
+    $buyer = User::factory()->create();
+    $order = sb06Order($buyer);
+    sb06Activated($order);
+    $bot = sb06Bot(976013, $buyer);
+    Http::fake([
+        'https://remna.test/api/users/42' => Http::response(['response' => sb06Provider($order)]),
+    ]);
+
+    $bot->hearCallbackQueryData('sales:subs:list:0')->reply()
+        ->assertRaw(static function (NutgramRequest $request) use ($order): bool {
+            $data = FakeNutgram::getActualData($request);
+            $keyboard = json_decode($data['reply_markup'], true, 512, JSON_THROW_ON_ERROR);
+
+            return ($keyboard['inline_keyboard'][0][0]['text'] ?? null) === '📦 اشتراک آزمایشی · 1'
+                && ($keyboard['inline_keyboard'][0][0]['callback_data'] ?? null) === "sales:subs:view:{$order}:0"
+                && count($keyboard['inline_keyboard'][0]) === 1
+                && ! str_contains(json_encode($keyboard, JSON_THROW_ON_ERROR), 'sales:subs:link:');
+        }, index: 1);
+
+    $bot->hearCallbackQueryData("sales:subs:view:{$order}:0")->reply()
+        ->assertRaw(static function (NutgramRequest $request) use ($order): bool {
+            $data = FakeNutgram::getActualData($request);
+            $keyboard = json_decode($data['reply_markup'], true, 512, JSON_THROW_ON_ERROR);
+
+            return str_contains(json_encode($keyboard, JSON_THROW_ON_ERROR), "sales:subs:link:{$order}:0")
+                && ! str_contains($data['text'], 'private-sb06-credential');
+        }, index: 2);
+
+    Http::assertSentCount(1);
+});
+
 it('sends the secret only after an explicit, freshly authorized private-link request', function (): void {
     $buyer = User::factory()->create();
     $order = sb06Order($buyer);
