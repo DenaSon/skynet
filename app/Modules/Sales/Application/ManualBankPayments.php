@@ -9,6 +9,7 @@ use App\Modules\Billing\Application\HasTopupPhotoFingerprint;
 use App\Modules\Billing\Application\RecordDirectBankPayment;
 use App\Modules\Identity\Application\AssertBillingAccess;
 use App\Modules\Identity\Application\AuthorizeSubscriptionViewer;
+use App\Modules\Identity\Application\ResolveSalesBuyer;
 use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Provisioning\Application\CheckPlanSquadReadiness;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -31,6 +32,7 @@ final readonly class ManualBankPayments
         private PaymentNotificationOutbox $notifications,
         private CheckPlanSquadReadiness $squads,
         private ManageResellerServiceLabels $customerLabels,
+        private ResolveSalesBuyer $buyers,
     ) {}
 
     public function submit(SubscriptionViewer $viewer, int $orderId, string $fileId, string $fileUniqueId, int $telegramMessageId, string $sourceBotKey = 'admin'): int
@@ -74,6 +76,12 @@ final readonly class ManualBankPayments
             if ($existing !== null && (int) $existing->buyer_user_id === $buyerId
                 && (int) $existing->sales_order_id === $orderId && $existing->status === 'submitted') {
                 return (int) $existing->id;
+            }
+
+            // Existing submitted claims remain reviewable; new reseller Sales
+            // order receipts cannot bypass wallet-only checkout via old buttons.
+            if ($sourceBotKey === 'sales' && $this->buyers->isReseller($buyerId)) {
+                throw ValidationException::withMessages(['receipt' => 'Reseller purchase requires wallet settlement.']);
             }
 
             // Check inside the receipt transaction; stale payment forms cannot

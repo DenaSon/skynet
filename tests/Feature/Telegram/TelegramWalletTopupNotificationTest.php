@@ -6,12 +6,14 @@ use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
 use App\Interfaces\Telegram\Notifications\TelegramNotificationSender;
 use App\Interfaces\Telegram\Notifications\WalletTopupNotificationOutbox;
 use App\Interfaces\Telegram\Support\BillingReviewTokens;
+use App\Modules\Billing\Application\BrowsePhotoTopups;
 use App\Modules\Billing\Application\RequestTopup;
 use App\Modules\Billing\Application\ReviewTopup;
 use App\Modules\Billing\Application\SubmitTopupPhoto;
 use App\Modules\Billing\Application\ViewWallet;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
+use GuzzleHttp\Psr7\Request as PsrRequest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
@@ -23,6 +25,7 @@ use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
+use SergiX44\Nutgram\Testing\FakeNutgram;
 
 uses(RefreshDatabase::class);
 
@@ -263,4 +266,43 @@ it('rejects a destructive rollback once wallet notification evidence exists', fu
     finNotSubmitted();
     $migration = require database_path('migrations/2026_10_21_000002_add_topup_id_to_telegram_notification_deliveries.php');
     expect(fn () => $migration->down())->toThrow(RuntimeException::class);
+});
+
+it('keeps wallet pending until a verified bank reference and the explicit final approval', function (): void {
+    $data = finNotSubmitted();
+    finNotRoute('admin');
+    $bot = Nutgram::fake();
+    require base_path('app/Interfaces/Telegram/routes/admin.php');
+    require base_path('app/Interfaces/Telegram/routes/legacy_text.php');
+    $bot->setCommonUser(TelegramUser::make(916001, false, 'Root'));
+    $bot->setCommonChat(Chat::make(916001, ChatType::PRIVATE));
+
+    $bot->hearCallbackQueryData('finance:topup:decision:'.$data['topup'].':a')->reply()
+        ->assertCalled('editMessageText');
+    expect(app(ViewWallet::class)->handle($data['buyer']->id)->balanceRials)->toBe(0)
+        ->and(count(app(BrowsePhotoTopups::class)->pending($data['root']->id)))->toBe(1);
+
+    $callback = '';
+    $bot->hearText('BANKVERIFIED889900')->reply()->assertRaw(
+        static function (PsrRequest $request) use (&$callback): bool {
+            $payload = FakeNutgram::getActualData($request);
+            $markup = $payload['reply_markup'] ?? [];
+            if (is_string($markup)) {
+                $markup = json_decode($markup, true, flags: JSON_THROW_ON_ERROR);
+            }
+            $callback = $markup['inline_keyboard'][0][0]['callback_data'] ?? '';
+
+            return str_contains((string) ($payload['text'] ?? ''), 'تأیید نهایی شارژ')
+                && str_starts_with($callback, 'finance:topup:apply:');
+        }, index: 0,
+    );
+    expect(DB::table('billing_topups')->where('id', $data['topup'])->value('status'))->toBe('submitted')
+        ->and(app(ViewWallet::class)->handle($data['buyer']->id)->balanceRials)->toBe(0);
+
+    $bot->hearCallbackQueryData($callback)->reply()->assertCalled('editMessageText');
+    expect(DB::table('billing_topups')->where('id', $data['topup'])->value('status'))->toBe('approved')
+        ->and(count(app(BrowsePhotoTopups::class)->pending($data['root']->id)))->toBe(0)
+        ->and(app(ViewWallet::class)->handle($data['buyer']->id)->balanceRials)->toBe(500000)
+        ->and(DB::table('billing_journals')->where('kind', 'topup')->count())->toBe(1)
+        ->and(DB::table('billing_postings')->count())->toBe(2);
 });

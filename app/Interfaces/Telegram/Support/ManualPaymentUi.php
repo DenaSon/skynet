@@ -87,6 +87,12 @@ final readonly class ManualPaymentUi
 
                 return;
             }
+            if (in_array('reseller', $actor->roles, true)) {
+                Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$actor->userId));
+                $this->notice($bot, 'پرداخت خرید سرویس از کیف پول انجام می‌شود. ارسال رسید فقط در بخش «افزایش موجودی» کیف پول است.');
+
+                return;
+            }
             $card = $this->cardNumber();
             if ($card === null) {
                 $this->notice($bot, 'اطلاعات پرداخت هنوز تنظیم نشده است. با پشتیبانی تماس بگیرید.');
