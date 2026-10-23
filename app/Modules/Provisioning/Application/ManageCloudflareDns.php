@@ -65,7 +65,7 @@ final readonly class ManageCloudflareDns
     }
 
     /** Examine the exact current record without modifying it.
-     *  @return 'missing'|'existing'
+     * @return 'missing'|'existing'
      */
     public function inspectA(int $actorId, string $zoneId, string $zone, string $hostname, string $ip): string
     {

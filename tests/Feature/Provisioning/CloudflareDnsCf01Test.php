@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
+use App\Modules\Provisioning\Application\CompleteNodeSetup;
 use App\Modules\Provisioning\Application\ManageCloudflareDns;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 uses(RefreshDatabase::class);
@@ -40,6 +42,7 @@ function cf01FakeDns(?array $existing = null, bool $failPost = false): object
         $base = 'https://api.cloudflare.com/client/v4/zones';
         if ($r->method() === 'GET' && str_starts_with($url, $base.'?')) {
             $name = $r->data()['name'] ?? '';
+
             return Http::response(['success' => true, 'result' => $name === 'denagate.ir'
                 ? [['id' => CF01_ZONE_ID, 'name' => 'denagate.ir', 'status' => 'active']]
                 : []]);
@@ -59,6 +62,7 @@ function cf01FakeDns(?array $existing = null, bool $failPost = false): object
                     'name' => $data['name'], 'type' => $data['type'],
                     'content' => $data['content'], 'proxied' => $data['proxied'],
                 ]];
+
                 return Http::response(['success' => true, 'result' => $state->records[0]], 201);
             }
         }
@@ -185,7 +189,7 @@ function cf01InstalledNode(bool $withDns = true, bool $failDns = false): array
             'dnsName' => 'usa.denagate.ir', 'dnsZone' => 'denagate.ir', 'dnsZoneId' => CF01_ZONE_ID,
         ];
     }
-    \Illuminate\Support\Facades\Cache::put('nw02:status:'.$id, $data, now()->addHour());
+    Cache::put('nw02:status:'.$id, $data, now()->addHour());
     $state = (object) ['records' => [], 'posts' => 0, 'hostPosts' => 0, 'failDns' => $failDns];
     Http::fake(static function (Request $r) use ($nodeId, $profile, $inbound, $hostId, $name, $state) {
         $url = $r->url();
@@ -212,6 +216,7 @@ function cf01InstalledNode(bool $withDns = true, bool $failDns = false): array
                     'name' => $data['name'], 'content' => $data['content'],
                     'proxied' => $data['proxied'],
                 ]];
+
                 return Http::response(['success' => true, 'result' => $state->records[0]], 201);
             }
         }
@@ -236,6 +241,7 @@ function cf01InstalledNode(bool $withDns = true, bool $failDns = false): array
         }
         if ($method === 'POST' && $url === $rw.'hosts') {
             $state->hostPosts++;
+
             return Http::response(['response' => ['uuid' => $hostId]], 201);
         }
         if ($method === 'GET' && $url === $rw.'hosts/'.$hostId) {
@@ -256,7 +262,7 @@ function cf01InstalledNode(bool $withDns = true, bool $failDns = false): array
 
 it('CF-01 waits for confirmed DNS before creating the existing disabled Host with FQDN', function (): void {
     $fixture = cf01InstalledNode();
-    $action = app(\App\Modules\Provisioning\Application\CompleteNodeSetup::class);
+    $action = app(CompleteNodeSetup::class);
     $id = $fixture['id'];
     $root = $fixture['root']->id;
 
@@ -277,7 +283,7 @@ it('CF-01 waits for confirmed DNS before creating the existing disabled Host wit
 
 it('CF-01 never retries an uncertain DNS POST and allows read-only reconciliation', function (): void {
     $fixture = cf01InstalledNode(failDns: true);
-    $action = app(\App\Modules\Provisioning\Application\CompleteNodeSetup::class);
+    $action = app(CompleteNodeSetup::class);
     $id = $fixture['id'];
     $root = $fixture['root']->id;
     $state = $fixture['state'];
@@ -298,7 +304,7 @@ it('CF-01 never retries an uncertain DNS POST and allows read-only reconciliatio
 
 it('CF-01 leaves the original IP-only Host wizard path unchanged', function (): void {
     $fixture = cf01InstalledNode(withDns: false);
-    $action = app(\App\Modules\Provisioning\Application\CompleteNodeSetup::class);
+    $action = app(CompleteNodeSetup::class);
     expect($action->progress($fixture['root']->id, $fixture['id'])['dnsStage'])->toBe('skipped')
         ->and($action->previewHost($fixture['root']->id, $fixture['id'], 1234)['address'])->toBe('194.5.192.133');
     expect($fixture['state']->posts)->toBe(0);

@@ -7,8 +7,8 @@ namespace App\Interfaces\Telegram\Support;
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Provisioning\Application\CompleteNodeSetup;
-use App\Modules\Provisioning\Application\ManageCloudflareDns;
 use App\Modules\Provisioning\Application\ManageAdminNodes;
+use App\Modules\Provisioning\Application\ManageCloudflareDns;
 use App\Modules\Provisioning\Application\ManageNodeInstallation;
 use App\Modules\Provisioning\Application\NodeSetupReadiness;
 use Illuminate\Support\Facades\Cache;
@@ -514,14 +514,14 @@ final readonly class AdminNodeSetupUi
                 if (! $node['connected'] || $node['disabled']) {
                     $message .= "\n\n⏳ سرور ثبت شده است، ولی هنوز اتصال فعال آن از پنل تأیید نشده است.";
                 } elseif ($step['dnsStage'] === 'ready') {
-                    $message .= "\n\n🌐 دامنه «".$step['dnsName']."» آماده ثبت است. ابتدا رکورد دامنه را بررسی و تأیید کنید.";
+                    $message .= "\n\n🌐 دامنه «".$step['dnsName'].'» آماده ثبت است. ابتدا رکورد دامنه را بررسی و تأیید کنید.';
                     $keyboard->addRow(InlineKeyboardButton::make('🌐 تنظیم دامنه سرور', callback_data: 'nw3:dns:prepare:'.$identifier));
                 } elseif ($step['dnsStage'] === 'uncertain') {
                     $message .= "\n\n⚠️ نتیجه ثبت دامنه روشن نیست. فقط وضعیت رکورد بررسی می‌شود؛ ثبت دوباره انجام نمی‌شود.";
                     $keyboard->addRow(InlineKeyboardButton::make('🔎 بررسی مجدد دامنه', callback_data: 'nw3:dns:reconcile:'.$identifier));
                 } elseif ($step['hostStage'] === 'ready') {
                     $message .= "\n\n✅ سرور به پنل متصل است."
-                        .($step['dnsStage'] === 'verified' ? "\n🌐 دامنه ".$step['dnsName']." تأیید شد." : '')
+                        .($step['dnsStage'] === 'verified' ? "\n🌐 دامنه ".$step['dnsName'].' تأیید شد.' : '')
                         ."\nاکنون می‌توانید هاست را ایجاد کنید.";
                     $keyboard->addRow(InlineKeyboardButton::make('➕ ساخت هاست', callback_data: 'nw3:host:begin:'.$identifier));
                 } elseif ($step['hostStage'] !== 'created') {

@@ -40,7 +40,7 @@ final readonly class CloudflareDnsService
     }
 
     /** @param array<string, int|string> $query
-     *  @return list<array<string, mixed>>
+     * @return list<array<string, mixed>>
      */
     private function getList(string $path, array $query): array
     {
@@ -65,7 +65,7 @@ final readonly class CloudflareDnsService
     }
 
     /** @param array<string, mixed> $data
-     *  @return array<string, mixed>
+     * @return array<string, mixed>
      */
     private function request(string $method, string $path, array $data): array
     {
