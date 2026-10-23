@@ -96,11 +96,11 @@ final class LaunchSalesCatalogSeeder extends Seeder
             return [$created, $skipped];
         });
 
-        $this->command?->info('Launch catalog: '.count($created).' created, '.count($skipped)." preserved; audit actor #{$root->id}.");
+        $this->command->info('Launch catalog: '.count($created).' created, '.count($skipped)." preserved; audit actor #{$root->id}.");
         if ($skipped !== []) {
-            $this->command?->warn('Existing plans left unchanged: '.implode(', ', $skipped));
+            $this->command->warn('Existing plans left unchanged: '.implode(', ', $skipped));
         }
-        $this->command?->warn('Before selling, verify each plan tariff and bind it to its real Internal Squad in the Admin Bot.');
+        $this->command->warn('Before selling, verify each plan tariff and bind it to its real Internal Squad in the Admin Bot.');
     }
 
     private function product(int $rootId, ManageBaseCatalog $catalog): int
