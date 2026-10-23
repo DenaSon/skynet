@@ -1,3 +1,8 @@
+## QR-01 / QR-02 — private Sales subscription QR rollout (2026-10-23)
+
+- **QR-01 authorized for implementation:** install `endroid/qr-code:^6.1` with committed portable Composer lockfile; require GD in CI, use an ephemeral in-memory PNG, and append the QR photo to the existing private, owner/provider-verified Sales link callback used by `member` and `reseller`. Keep original text/copy link first and intact as fallback; no log, storage, external QR API, migrations, privileged Admin or provider writes. CI + code PR before merge; real Runflare GD and Telegram smoke are a separate acceptance gate.
+- **QR-02 not started:** inventory and polish all remaining authorized Sales entry points that expose existing subscription/connection credentials (including fulfilled-order and activation routes), without adding new provider reads or changing permissions, checkout, remote URLs, ownership or financial flows. Separate PR, tests and authorization.
+
 ## ACC-02 — read-only business profit and draw reports (2026-10-22)
 
 Approved follow-up to pending ACC-01, implemented as a separate stacked PR. Extends **the same** Super Admin «📒 دفتر مالی» with «📊 گزارش مالی» and private \`acc:report:{period}\` callback, limited to \`7\`, \`30\`, and \`month\` (current *Tehran calendar month*). Each includes today, compares date boundaries in UTC and presents source dates and time of retrieval. No new tables, billing journal/postings, provider API, queue, cron, or dependency; no cash movement. Role and trusted Telegram contact are rechecked on each read, group chats denied. Existing Sales/Admin workflows and correction flows preserved.

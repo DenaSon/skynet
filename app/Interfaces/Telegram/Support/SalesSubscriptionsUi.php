@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
+use SergiX44\Nutgram\Telegram\Types\Internal\InputFile;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 use SergiX44\Nutgram\Telegram\Types\Message\LinkPreviewOptions;
@@ -39,6 +40,7 @@ final readonly class SalesSubscriptionsUi
         private GetMySubscription $details,
         private GetSubscriptionUsage $usage,
         private GetSubscriptionLink $link,
+        private SubscriptionQrPng $qr,
         private SubscriptionPageLink $pages,
         private PrepareRenewalDraft $renewals,
         private CreatePendingRenewalOrder $renewalOrders,
@@ -416,6 +418,30 @@ final readonly class SalesSubscriptionsUi
             link_preview_options: LinkPreviewOptions::make(is_disabled: true),
             reply_markup: $keyboard,
         );
+
+        // The selectable link above is the guaranteed fallback. QR upload is
+        // best-effort and only happens after fresh owner/provider verification.
+        // Neither image nor credential is written to disk, cache or logs.
+        $stream = null;
+        try {
+            $png = $this->qr->render($link->subscriptionUrl);
+            $stream = fopen('php://memory', 'w+b');
+            if ($stream === false || fwrite($stream, $png) !== strlen($png)) {
+                throw new \RuntimeException('Could not prepare QR image.');
+            }
+            rewind($stream);
+            $bot->sendPhoto(
+                photo: InputFile::make($stream, 'denagate-subscription-qr.png'),
+                caption: '📷 کد QR همین لینک اشتراک؛ برای اتصال آن را اسکن کنید.',
+            );
+        } catch (Throwable) {
+            // Preserve the already delivered private link when GD or Telegram
+            // media upload is unavailable. Never log the credential or PNG.
+        } finally {
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+        }
     }
 
     public function page(Nutgram $bot, string $id, string $cursor = '0'): void
