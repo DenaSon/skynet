@@ -2,6 +2,7 @@
 
 use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
 use App\Interfaces\Telegram\Notifications\TelegramNotificationSender;
+use App\Interfaces\Telegram\Support\PaymentDecisionTokens;
 use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
@@ -349,6 +350,15 @@ it('requires all gates before final approval and then queues one automatic RW ac
     config()->set('services.remnawave.squad_bindings_live_verified', true);
 
     $admin->hearCallbackQueryData('bank:decide:'.$claim.':a')->reply()
+        ->assertCalled('editMessageText');
+    expect(DB::table('sales_orders')->where('id', $data['order'])->value('status'))->toBe('pending_payment')
+        ->and(DB::table('billing_journals')->count())->toBe(0);
+    // The text input issues this existing one-use token after verifying the
+    // entered bank reference; the dedicated Admin UI regression covers that step.
+    $token = app(PaymentDecisionTokens::class)->issue(
+        $data['root']->id, $claim, true, 'SB04VERIFIED702', null,
+    );
+    $admin->hearCallbackQueryData('bank:apply:'.$token)->reply()
         ->assertCalled('editMessageText');
     expect(DB::table('sales_orders')->where('id', $data['order'])->value('status'))->toBe('paid')
         ->and(DB::table('sales_bank_payment_claims')->where('id', $claim)->value('status'))->toBe('approved')

@@ -416,6 +416,8 @@ it('requires the two-stage Admin bank confirmation and cannot settle before fina
     $other->hearCallbackQueryData('bank:apply:'.$token)->reply()->assertCalled('editMessageText');
     expect(DB::table('sales_bank_settlements')->count())->toBe(0);
 
+    // a2Bot uses the shared Nutgram service; restore root-one identity.
+    $admin = a2Bot(990101);
     $admin->hearCallbackQueryData('bank:apply:'.$token)->reply()->assertCalled('editMessageText');
     expect(DB::table('sales_bank_settlements')->where('payment_reference', 'VERIFIED-BANK-141')->count())->toBe(1)
         ->and(DB::table('billing_bank_reference_claims')->where('payment_reference', 'VERIFIED-BANK-141')->count())->toBe(1)
