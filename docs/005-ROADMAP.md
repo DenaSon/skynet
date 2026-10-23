@@ -1,3 +1,7 @@
+## Approved launch catalog setup (2026-10-24)
+
+Add only the opt-in `LaunchSalesCatalogSeeder` and focused regression tests/runbook for the four approved 10 GB/15-day, 20/30, 50/30 and 100/90 plans, public toman prices 50k/100k/240k/520k and one 25% Sales Panel discount. Reuse existing product/plan/pricing Actions and eligible-root audits; create/publish missing entries transactionally and preserve all existing operator edits on rerun. Keep default seeding, provider bindings, credentials, payments and deployment behavior unchanged. Full PHP 8.4/8.5, PHPStan/Pint and MySQL/Redis checks precede merge; production seed execution, real Squad selection and Sales purchase acceptance remain separate operator steps. See [runbook](029-LAUNCH-SALES-CATALOG.md).
+
 ## CF-02 — root-only DNS directory and guarded record management (2026-10-23)
 
 Reuse the exact CF-01 Cloudflare Application Action and HTTP service to add the Admin «مدیریت DNS» menu: allowlisted zones, remote paginated records (all types displayed, sensitive non-A values withheld), read-only detail, and confirmed create/Edit-A IPv4 + Proxy. Non-A/apex/deletion/advanced Cloudflare policies remain out of scope. Use actor-scoped ten-minute snapshots, one-time confirmation and fresh record concurrency checks; never replay an ambiguous POST/PATCH. Keep existing wizard, provider and Sales/Billing paths intact; gate writes by existing `CLOUDFLARE_DNS_WRITES_ENABLED=false` default. Full CI and separate real Telegram/Cloudflare smoke required before calling live acceptance.

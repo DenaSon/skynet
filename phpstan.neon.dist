@@ -4,4 +4,5 @@ includes:
 parameters:
     paths:
         - app
+        - database/seeders
     level: 5
