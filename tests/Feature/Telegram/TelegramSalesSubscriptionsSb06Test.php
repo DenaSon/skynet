@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
+use SergiX44\Nutgram\Telegram\Properties\UpdateType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 use SergiX44\Nutgram\Testing\FakeNutgram;
@@ -584,3 +585,36 @@ it('keeps a full text link and QR for URLs beyond Telegram media caption limits'
 
     Http::assertSentCount(1);
 });
+
+
+it('navigates QR photo Back to owned subscription without text-editing a photo', function (string $role): void {
+    Role::findOrCreate($role, 'web');
+    $buyer = User::factory()->create();
+    $buyer->syncRoles([$role]);
+    $order = sb06Order($buyer);
+    sb06Activated($order);
+    $bot = sb06Bot(976095, $buyer);
+    Http::fake([
+        'https://remna.test/api/users/42' => Http::response(['response' => sb06Provider($order)]),
+    ]);
+
+    // Exact kind of incoming update produced by tapping Back under the QR.
+    $bot->hearUpdateType(UpdateType::CALLBACK_QUERY, [
+        'id' => 'qr-back-fixture',
+        'data' => 'sales:subs:view:'.$order.':0',
+        'message' => [
+            'from' => [], 'date' => 1703892479,
+            'photo' => [
+                ['file_id' => 'qr-test', 'file_unique_id' => 'qr-test', 'width' => 480, 'height' => 480],
+            ],
+            'caption' => '🔐 لینک اتصال',
+        ],
+    ])->reply()
+        ->assertCalled('answerCallbackQuery')
+        ->assertCalled('sendMessage')
+        ->assertCalled('editMessageText', 0)
+        ->assertCalled('sendPhoto', 0);
+
+    Http::assertSentCount(1);
+    expect(DB::table('sales_orders')->where('id', $order)->value('status'))->toBe('fulfilled');
+})->with(['member', 'reseller']);
