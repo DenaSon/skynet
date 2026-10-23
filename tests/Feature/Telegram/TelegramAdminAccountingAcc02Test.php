@@ -135,7 +135,7 @@ function acc02Payload(NutgramRequest $request): array
     return $data;
 }
 
-it('reports 7, 30 and calendar-month periods from verified settlements and signed correction entries', function (): void {
+it('reports 7, 30 and Persian-calendar-month periods from verified settlements and signed correction entries', function (): void {
     $data = acc02Fixture();
     $reports = app(ReadAdminAccountingReport::class);
     $seven = $reports->handle($data['root']->id, '7');
@@ -154,11 +154,11 @@ it('reports 7, 30 and calendar-month periods from verified settlements and signe
         ->and($thirty['drawsRials'])->toBe(1_000_000)
         ->and($thirty['profitRials'])->toBe(6_200_000)
         ->and($thirty['afterDrawsRials'])->toBe(5_200_000)
-        ->and($month['salesRials'])->toBe(6_000_000)
+        ->and($month['salesRials'])->toBe(7_000_000)
         ->and($month['expensesRials'])->toBe(800_000)
-        ->and($month['profitRials'])->toBe(5_200_000)
-        ->and($month['afterDrawsRials'])->toBe(4_200_000)
-        ->and($month['start'])->toBe('2026-10-01')
+        ->and($month['profitRials'])->toBe(6_200_000)
+        ->and($month['afterDrawsRials'])->toBe(5_200_000)
+        ->and($month['start'])->toBe('2026-09-23')
         ->and($month['end'])->toBe('2026-10-22');
 
     expect(DB::table('billing_postings')->count())->toBe(0)
@@ -198,6 +198,8 @@ it('navigates the three Finance reports only in a private trusted Admin chat', f
         $body = acc02Payload($req);
 
         return str_contains($body['text'], 'گزارش مالی · ۷ روز اخیر')
+            && str_contains($body['text'], '۱۴۰۵/')
+            && ! str_contains($body['text'], '2026-10-')
             && str_contains($body['text'], '290,000 تومان')
             && str_contains($body['text'], 'برداشت خالص مالک')
             && str_contains($body['text'], 'سود قطعی یا موجودی نقدی نیست')
@@ -226,5 +228,38 @@ it('rejects ordinary admins, a revoked Super Admin and group reports before DB f
 
     $bot->setCommonChat(Chat::make(-998201, ChatType::GROUP));
     $bot->hearCallbackQueryData('acc:report:30')->reply()->assertNoReply();
+    Http::assertNothingSent();
+});
+
+it('starts a new Persian month at Tehran midnight, not the Gregorian month boundary', function (): void {
+    $root = acc02Root();
+    // 2026-10-23 00:10 in Tehran is 1405/08/01.
+    $this->travelTo(Carbon::parse('2026-10-23 00:10:00', 'Asia/Tehran')->utc());
+    acc02Purchase($root, 2_000_000, 'bank', Carbon::parse('2026-10-22 23:59:59', 'Asia/Tehran')->utc());
+    acc02Purchase($root, 3_000_000, 'wallet', Carbon::parse('2026-10-23 00:00:00', 'Asia/Tehran')->utc());
+
+    $action = app(ReadAdminAccountingReport::class);
+    $month = $action->handle($root->id, 'month');
+    $seven = $action->handle($root->id, '7');
+
+    expect($month['start'])->toBe('2026-10-23')
+        ->and($month['end'])->toBe('2026-10-23')
+        ->and($month['salesRials'])->toBe(3_000_000)
+        ->and($seven['salesRials'])->toBe(5_000_000)
+        ->and(DB::table('sales_bank_settlements')->count())->toBe(1)
+        ->and(DB::table('sales_order_settlements')->count())->toBe(1);
+    Http::assertNothingSent();
+});
+
+it('uses first Farvardin as the accounting month boundary through Nowruz', function (): void {
+    $root = acc02Root();
+    $this->travelTo(Carbon::parse('2026-03-21 00:20:00', 'Asia/Tehran')->utc());
+    acc02Purchase($root, 4_000_000, 'bank', Carbon::parse('2026-03-20 23:59:00', 'Asia/Tehran')->utc());
+    acc02Purchase($root, 5_000_000, 'wallet', Carbon::parse('2026-03-21 00:00:00', 'Asia/Tehran')->utc());
+    $month = app(ReadAdminAccountingReport::class)->handle($root->id, 'month');
+
+    expect($month['start'])->toBe('2026-03-21')
+        ->and($month['end'])->toBe('2026-03-21')
+        ->and($month['salesRials'])->toBe(5_000_000);
     Http::assertNothingSent();
 });

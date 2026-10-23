@@ -20,6 +20,7 @@ use App\Modules\Sales\Application\ListQuotedPresets;
 use App\Modules\Sales\Application\QuotedPreset;
 use App\Modules\Sales\Application\SalesPanelRequests;
 use App\Modules\Sales\Application\SummarizeSalesPurchases;
+use App\Support\PersianCalendar;
 use Illuminate\Support\Facades\Cache;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
@@ -318,7 +319,7 @@ final readonly class SalesHomeUi
             ."\nشناسه: ".TelegramUi::code((string) $actor->userId)
             ."\nنوع حساب: <b>".$this->salesRole($actor).'</b>'
             ."\nوضعیت: 🟢 فعال"
-            ."\nعضویت: ".($joined === null ? 'نامشخص' : TelegramUi::escape($joined))
+            ."\nعضویت: ".($joined === null ? 'نامشخص' : PersianCalendar::date($joined))
             ."\n\n<b>📊 خلاصه حساب</b>"
             ."\nسرویس‌های ثبت‌شده: ".$services['total']
             ."\nفعال در سوابق: ".$services['activeRecorded']

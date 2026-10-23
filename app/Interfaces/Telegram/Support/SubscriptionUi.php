@@ -9,6 +9,7 @@ use App\Modules\Provisioning\Application\GetMySubscription;
 use App\Modules\Provisioning\Application\GetSubscriptionLink;
 use App\Modules\Provisioning\Application\ListAccessibleNodes;
 use App\Modules\Provisioning\Application\ListMySubscriptions;
+use App\Support\PersianCalendar;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
@@ -148,7 +149,7 @@ final readonly class SubscriptionUi
             'حجم: '.($item->trafficGb === null ? 'نامحدود' : $item->trafficGb.' گیگابایت'),
             'دوره: '.$item->durationDays.' روز',
             'مبلغ سفارش: '.$this->toman($item->totalPriceRials).' تومان',
-            'تاریخ سفارش: '.substr($item->orderedAt, 0, 10),
+            'تاریخ سفارش: '.PersianCalendar::date(substr($item->orderedAt, 0, 10)).' (شمسی)',
             '',
             $detail->canRequestLink
                 ? 'برای اتصال، لینک اختصاصی یا سرورهای مجاز را انتخاب کنید.'

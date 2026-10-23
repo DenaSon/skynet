@@ -6,6 +6,7 @@ namespace App\Interfaces\Telegram\Support;
 
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Provisioning\Application\ReadAdminNodeMetrics;
+use App\Support\PersianCalendar;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
@@ -47,7 +48,7 @@ final readonly class AdminNodeMetricsUi
             $message = "📊 مانیتورینگ سرورها\n\n"
                 ."🖥️ نودها: {$snapshot['total']} | فعال: {$snapshot['enabled']} | متصل: {$snapshot['connected']}\n"
                 .'👥 کاربران آنلاین کل: '.self::counter($snapshot['onlineTotal'])."\n"
-                .'📈 مصرف تاریخ '.$snapshot['trafficDate'].': '.self::bytes($snapshot['todayBytes'])."\n"
+                .'📈 مصرف تاریخ '.PersianCalendar::date($snapshot['trafficDate']).' (روز UTC): '.self::bytes($snapshot['todayBytes'])."\n"
                 .'📈 مصرف ۷ روز اخیر: '.self::bytes($snapshot['weekBytes'])."\n"
                 ."\n".'وضعیت نودها:'."\n";
 
@@ -64,7 +65,7 @@ final readonly class AdminNodeMetricsUi
                 }
             }
 
-            $message .= "\n\n".'🕒 زمان دریافت: '.$snapshot['receivedAt'].' (تهران)'
+            $message .= "\n\n".'🕒 زمان دریافت: '.PersianCalendar::localDateTime($snapshot['receivedAt']).' (تهران)'
                 ."\n".'— آمار لحظه دریافت است؛ صفر با اطلاعات ناموجود تفاوت دارد.';
         }
 

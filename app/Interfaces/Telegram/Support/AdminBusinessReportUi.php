@@ -6,6 +6,7 @@ namespace App\Interfaces\Telegram\Support;
 
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Sales\Application\ReadAdminBusinessReport;
+use App\Support\PersianCalendar;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
@@ -59,7 +60,7 @@ final readonly class AdminBusinessReportUi
     private function sales(array $data): string
     {
         return '<b>💳 گزارش فروش · '.$data['days'].' روز اخیر</b>'
-            ."\n📅 ".$data['start'].' تا '.$data['end'].' (تهران)'
+            ."\n📅 ".PersianCalendar::date((string) $data['start']).' تا '.PersianCalendar::date((string) $data['end']).' (شمسی، تهران)'
             ."\n\n<b>مجموع پرداخت‌های تأییدشده</b>"
             ."\n<b>".number_format(intdiv((int) $data['revenueRials'], 10)).' تومان</b>'
             ."\n\n🧾 تراکنش‌های فروش: ".self::n($data['settled'])
@@ -69,14 +70,14 @@ final readonly class AdminBusinessReportUi
             ."\n✅ سفارش‌های تکمیل‌شده از این پرداخت‌ها: ".self::n($data['fulfilled'])
             ."\n⏳ سفارش‌های در انتظار پرداخت (اکنون): ".self::n($data['pendingNow'])
             ."\n\n<blockquote>مبالغ ناخالص پرداخت‌های تسویه‌شده هستند؛ شارژ کیف پول و سفارش‌های پرداخت‌نشده حساب نشده‌اند. تکمیل‌شدن سفارش با زمان تسویه فرق دارد.</blockquote>"
-            ."\n🕒 ".$data['generatedAt'];
+            ."\n🕒 ".PersianCalendar::localDateTime((string) $data['generatedAt']);
     }
 
     /** @param array<string,int|string> $data */
     private function people(array $data): string
     {
         return '<b>👥 گزارش کاربران و تلگرام · '.$data['days'].' روز اخیر</b>'
-            ."\n📅 ".$data['start'].' تا '.$data['end'].' (تهران)'
+            ."\n📅 ".PersianCalendar::date((string) $data['start']).' تا '.PersianCalendar::date((string) $data['end']).' (شمسی، تهران)'
             ."\n\n👤 حساب‌های جدید: ".self::n($data['newUsers'])
             ."\n🔗 Telegram IDهای متصل (اکنون): ".self::n($data['linkedTelegram'])
             ."\n\n<b>🤖 بات فروش</b>"
@@ -90,7 +91,7 @@ final readonly class AdminBusinessReportUi
             ."\nمخاطبان جدید در بازه: ".self::n($data['adminNewContacts'])
             ."\nتعامل در بازه: ".self::n($data['adminEngaged'])
             ."\n\n<blockquote>تعامل یعنی آخرین ارتباط ثبت‌شده در بازه؛ نه کاربر آنلاین یا تعداد پیام‌ها. مخاطبان هر بات مستقل شمارش شده‌اند.</blockquote>"
-            ."\n🕒 ".$data['generatedAt'];
+            ."\n🕒 ".PersianCalendar::localDateTime((string) $data['generatedAt']);
     }
 
     private function keyboard(string $section, string $days): InlineKeyboardMarkup

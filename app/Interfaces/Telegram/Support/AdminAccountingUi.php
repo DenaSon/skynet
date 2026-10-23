@@ -9,6 +9,7 @@ use App\Modules\Billing\Application\ReadAdminAccountingReport;
 use App\Modules\Billing\Application\RecordBusinessEntry;
 use App\Modules\Identity\Application\AssertBillingAccess;
 use App\Modules\Identity\Application\ResolveTelegramActor;
+use App\Support\PersianCalendar;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
@@ -65,7 +66,7 @@ final readonly class AdminAccountingUi
                 'month' => 'ماه جاری',
             };
             $text = '<b>📊 گزارش مالی · '.$heading.'</b>'
-                ."\n📅 ".$data['start'].' تا '.$data['end'].' (تهران)'
+                ."\n📅 ".PersianCalendar::date($data['start']).' تا '.PersianCalendar::date($data['end']).' (شمسی، تهران)'
                 ."\n\n💳 فروش تأییدشده: <b>".self::toman($data['salesRials']).' تومان</b>'
                 ."\n➖ هزینه‌های خالص ثبت‌شده: ".self::toman($data['expensesRials']).' تومان'
                 ."\n📈 سود برآوردی: <b>".self::toman($data['profitRials']).' تومان</b>'
@@ -74,7 +75,7 @@ final readonly class AdminAccountingUi
                 ."\n\nثبت‌های هزینه: ".number_format($data['expenseEntries'])
                 .' | ثبت‌های برداشت: '.number_format($data['drawEntries'])
                 ."\n\n<blockquote>سود، برآورد حاصل از فروش ناخالص تسویه‌شده و هزینه‌های ثبت‌شده است؛ سود قطعی یا موجودی نقدی نیست. برداشت مالک هزینه محسوب نمی‌شود. اصلاحیه‌ها در تاریخ ثبت خود اثر می‌گذارند.</blockquote>"
-                ."\n🕒 ".$data['generatedAt'];
+                ."\n🕒 ".PersianCalendar::localDateTime($data['generatedAt']);
         } catch (\Throwable) {
             $text = "📊 گزارش مالی\n\nدریافت گزارش فعلاً ممکن نیست. دوباره تلاش کنید.";
         }
@@ -287,6 +288,7 @@ final readonly class AdminAccountingUi
             $sign = $entry->reversal_of_id !== null ? '↩️ اصلاح' :
                 ($entry->kind === 'expense' ? '➖ هزینه' : '💸 برداشت مالک');
             $lines[] = $sign.' #'.$entry->id.' · '.TelegramUi::toman((int) $entry->amount_rials).' تومان';
+            $lines[] = '  📅 '.PersianCalendar::utcDateTime((string) $entry->created_at).' (ایران)';
             $lines[] = '  '.self::categoryLabel($entry->category)
                 .' · '.TelegramUi::escape(mb_strimwidth($entry->memo ?? 'بدون توضیح', 0, 85));
         }

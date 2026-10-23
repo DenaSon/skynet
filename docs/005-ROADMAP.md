@@ -1,3 +1,7 @@
+## UX-DATE-01 — unified Persian calendar display (2026-10-23; separate from FIN-POLISH-01)
+
+Scope approved: reuse existing Jalali conversion in one shared PHP date presenter; show Solar Hijri dates on customer account/order and Admin accounting, sales, reseller, traffic and metrics screens without changing UTC storage/transport. Preserve UTC daily traffic aggregation with explicit bucket labeling. For ACC-02 `month` only, change query start to first day of Persian month in Tehran and keep stored UTC query bounds; `7` and `30` remain unchanged. Test Persian month/Nowruz/clock boundaries, full CI, review, then merge independently; real Telegram acceptance is separate. No SQL schema change, Composer package or Remnawave write.
+
 ## Checkout purchase-intent / QR photo back regression repair (2026-10-23)
 
 - New plan selection and “buy again same plan” must create distinct owner-scoped pending orders, even if an identical previous order is awaiting payment or has complete customer details. Preserve the existing Application Action's idempotent handling of the same retried Telegram callback-query ID; prior orders resume only from order details. New reseller purchases restart name + phone; member flow remains unchanged.
