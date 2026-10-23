@@ -16,12 +16,7 @@ jobs:
   tests:
     runs-on: ubuntu-latest
 
-    strategy:
-      fail-fast: true
-      matrix:
-        php: [8.4, 8.5]
-
-    name: PHP ${{ matrix.php }}
+    name: PHP 8.4
 
     steps:
       - name: Checkout code
@@ -32,7 +27,7 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
         with:
-          php-version: ${{ matrix.php }}
+          php-version: '8.4'
           extensions: dom, curl, libxml, gd, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite
           coverage: none
 
