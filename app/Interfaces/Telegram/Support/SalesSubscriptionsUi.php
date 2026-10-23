@@ -41,6 +41,7 @@ final readonly class SalesSubscriptionsUi
         private GetSubscriptionUsage $usage,
         private GetSubscriptionLink $link,
         private SubscriptionQrPng $qr,
+        private SubscriptionExpiryDisplay $expiryDisplay,
         private SubscriptionPageLink $pages,
         private PrepareRenewalDraft $renewals,
         private CreatePendingRenewalOrder $renewalOrders,
@@ -191,7 +192,9 @@ final readonly class SalesSubscriptionsUi
             TelegramUi::activity($bot);
             try {
                 $live = $this->usage->handle($viewer, $orderId);
-                $expired = (new DateTimeImmutable($live->expireAt)) <= new DateTimeImmutable('now');
+                $expiresAt = new DateTimeImmutable($live->expireAt);
+                $now = new DateTimeImmutable('now');
+                $expired = $expiresAt <= $now;
                 $exhausted = $live->limitBytes > 0 && $live->usedBytes >= $live->limitBytes;
                 $usable = $live->status === 'ACTIVE' && ! $expired && ! $exhausted;
 
@@ -207,7 +210,7 @@ final readonly class SalesSubscriptionsUi
                 $lines[] = 'باقی‌مانده: '.($live->limitBytes === 0
                     ? 'نامحدود'
                     : $this->gb(max(0, $live->limitBytes - $live->usedBytes)).' گیگابایت');
-                $lines[] = 'تاریخ انقضا (UTC): '.substr(str_replace('T', ' ', $live->expireAt), 0, 16);
+                array_push($lines, ...$this->expiryDisplay->lines($expiresAt, $now));
                 $canRenew = in_array($live->status, ['ACTIVE', 'LIMITED', 'EXPIRED'], true)
                     && $this->renewals->available($viewer, $orderId);
                 if ($canRenew) {
