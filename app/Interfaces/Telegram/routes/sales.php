@@ -183,6 +183,9 @@ $bot->onText('(?!/){volume}', function (Nutgram $bot, string $volume): void {
     if (app(SalesCheckoutUi::class)->customerNameText($bot, $volume)) {
         return;
     }
+    if (app(SalesCheckoutUi::class)->customerPhoneText($bot, $volume)) {
+        return;
+    }
     if (app(SalesSubscriptionsUi::class)->customerPhoneText($bot, $volume)) {
         return;
     }
@@ -258,6 +261,10 @@ $bot->onCallbackQueryData('sales:checkout:wallet:{id}', function (Nutgram $bot, 
 
 $bot->onCallbackQueryData('sales:checkout:name:cancel', function (Nutgram $bot): void {
     app(SalesCheckoutUi::class)->cancelCustomerName($bot);
+});
+
+$bot->onCallbackQueryData('sales:checkout:phone:cancel', function (Nutgram $bot): void {
+    app(SalesCheckoutUi::class)->cancelCustomerPhone($bot);
 });
 
 $bot->onCallbackQueryData('sales:checkout:orders', function (Nutgram $bot): void {
