@@ -275,7 +275,12 @@ final readonly class SalesCheckoutUi
                 || $balance === null || $balance < $order->totalPriceRials) {
                 throw ValidationException::withMessages(['wallet' => 'Wallet is insufficient or unavailable.']);
             }
-        } catch (AuthorizationException|ValidationException) {
+        } catch (AuthorizationException|ValidationException $error) {
+            if ($error instanceof ValidationException && isset($error->errors()['customer'])) {
+                $this->viewOrder($bot, $id);
+
+                return;
+            }
             $this->notice($bot, 'موجودی برای این سفارش کافی نیست، یا رسید بانکی در انتظار بررسی است. از صفحه سفارش وضعیت را بررسی کنید.');
 
             return;
@@ -390,7 +395,7 @@ final readonly class SalesCheckoutUi
         app(SalesSubscriptionsUi::class)->clearCustomerLabelDraft($buyer);
         app(SalesSubscriptionsUi::class)->clearCustomerSearch($buyer);
         Cache::put($this->customerNameKey($buyer), ['order_id' => $orderId], now()->addMinutes(10));
-        $this->render($bot, "<b>👤 نام مشتری</b>\n\nنام و نام خانوادگی مشتری را در یک پیام ارسال کنید (حداکثر ۶۰ کاراکتر)."
+        $this->render($bot, "<b>👤 نام و نام خانوادگی مشتری</b>\n\n<b>مرحله ۱ از ۲</b>\nنام و نام خانوادگی مشتری را در یک پیام ارسال کنید (حداکثر ۶۰ کاراکتر)."
             ."\nاین نام در سرویس‌های شما نمایش داده می‌شود و شناسه فنی اشتراک تغییر نمی‌کند.",
             InlineKeyboardMarkup::make()
                 ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'sales:checkout:name:cancel'))
@@ -480,7 +485,7 @@ final readonly class SalesCheckoutUi
         $this->render($bot,
             "<b>📱 شماره موبایل مشتری</b>\n\n<b>مرحله ۲ از ۲</b>\n"
             ."شماره موبایل مشتری را ارسال کنید.\nمثال: <code>09123456789</code>\n"
-            ."این شماره فقط برای مدیریت مشتریان شما استفاده می‌شود.",
+            .'این شماره فقط برای مدیریت مشتریان شما استفاده می‌شود.',
             InlineKeyboardMarkup::make()
                 ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'sales:checkout:phone:cancel'))
                 ->addRow(InlineKeyboardButton::make('📋 سفارش‌های من', callback_data: 'sales:checkout:orders')),

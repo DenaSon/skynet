@@ -15,9 +15,9 @@ use App\Modules\Sales\Application\ManagePlanPricing;
 use App\Modules\Sales\Application\ManagePlans;
 use App\Modules\Sales\Application\ManageResellerServiceLabels;
 use App\Modules\Sales\Application\ManualBankPayments;
-use App\Modules\Sales\Application\SettleWalletOrder;
 use App\Modules\Sales\Application\PlanDefinition;
 use App\Modules\Sales\Application\PlanPricingDefinition;
+use App\Modules\Sales\Application\SettleWalletOrder;
 use GuzzleHttp\Psr7\Request;
 use Illuminate\Cache\DatabaseStore;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -580,7 +580,6 @@ it('ignores malformed checkout draft values without writing labels or payments',
         ->and(DB::table('billing_journals')->count())->toBe(0);
     Http::assertNothingSent();
 });
-
 
 it('blocks direct Sales bank receipt and payment callback until reseller name and mobile are complete', function (): void {
     $data = uxr02Plan();

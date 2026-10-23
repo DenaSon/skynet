@@ -252,7 +252,7 @@ final readonly class ManualPaymentUi
             );
         } catch (ValidationException $e) {
             $errors = $e->errors();
-            $reason = $errors['receipt'][0] ?? null;
+            $reason = ($errors['customer'][0] ?? null) ?: ($errors['receipt'][0] ?? null);
             $message = match ($reason) {
                 'This order already has a receipt pending review.' => 'رسید این سفارش قبلاً دریافت شده و در انتظار بررسی است.',
                 'This receipt was already submitted.' => 'این تصویر قبلاً برای یک رسید ثبت شده است؛ تصویر جدید ارسال کنید.',
