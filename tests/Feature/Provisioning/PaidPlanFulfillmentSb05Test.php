@@ -993,6 +993,105 @@ it('does not recover wallet intents that are unsafe or ineligible', function (st
     Http::assertNothingSent();
 })->with(['auto-off', 'writes-off', 'squads-off', 'unpaid', 'legacy', 'amount', 'ledger', 'attempted', 'event-key', 'processing', 'needs_review', 'completed']);
 
+it('reaches later eligible recovery orders past a full rejected batch while retaining the per-payment limit', function (string $payment, string $blocked): void {
+    $data = sb05Order(pay: false);
+    config()->set('sales.manual_bank_review_enabled', true);
+    config()->set('sales.wallet_settlement_enabled', true);
+    config()->set('sales.auto_fulfillment_enabled', true);
+    config()->set('services.remnawave.writes_enabled', true);
+    config()->set('telegram_notifications.enabled', true);
+    config()->set('telegram.sales.enabled', true);
+    config()->set('telegram.sales.token', '54321:sales_test');
+    config()->set('nutgram.token', '12345:admin_test');
+    Queue::fake();
+    if ($payment === 'wallet') {
+        config()->set('billing.topups_enabled', true);
+        $topup = app(RequestTopup::class)->handle($data['buyer']->id, 43_000_000, 'recovery-batch-topup');
+        app(SubmitTopupPhoto::class)->handle($data['buyer']->id, $topup, 975099, 'batch-photo', 'batch-unique', 9300);
+        app(ReviewTopup::class)->handle($data['root']->id, $topup, true, 'BATCHWALLET100');
+    }
+    $quote = app(CalculatePlanQuote::class)->handle($data['buyer']->id, $data['plan'], 30, 20);
+    $orders = [];
+    for ($i = 0; $i < 42; $i++) {
+        $id = $i === 0 ? $data['order'] : app(CreatePendingPlanOrder::class)
+            ->handle($data['buyer']->id, $quote, bin2hex(random_bytes(16)))->id;
+        if ($payment === 'wallet') {
+            app(SettleWalletOrder::class)->handle(SubscriptionViewer::telegram(975099), $id);
+        } else {
+            $claim = app(ManualBankPayments::class)->submit(SubscriptionViewer::telegram(975099), $id,
+                'batch-receipt-'.$id, 'batch-unique-'.$id, 9400 + $id, 'sales');
+            app(ManualBankPayments::class)->review($data['root']->id, $claim, true, 'BATCHBANK'.$id);
+        }
+        $orders[] = $id;
+        app(UniqueLock::class)->release(new FulfillPaidPlanOrderJob($id));
+        if ($i >= 21) {
+            continue;
+        }
+        if ($blocked === 'event-key') {
+            DB::table('sales_fulfillment_outbox')->where('sales_order_id', $id)->update(['event_key' => 'invalid-event:'.$id]);
+        } elseif ($blocked === 'ledger') {
+            $journal = DB::table('sales_order_settlements')->where('sales_order_id', $id)->value('billing_journal_id');
+            DB::table('billing_postings')->where('journal_id', $journal)->where('account_code', 'order_liability')
+                ->update(['amount_rials' => 1]);
+        } else {
+            // A separate source per paused renewal models a real old backlog.
+            $source = $blocked === 'renewal-off' ? app(CreatePendingPlanOrder::class)
+                ->handle($data['buyer']->id, $quote, bin2hex(random_bytes(16)))->id : $id;
+            if ($blocked === 'renewal-off') {
+                DB::table('sales_orders')->where('id', $source)->update(['status' => 'fulfilled']);
+            }
+            $subscription = DB::table('provisioning_subscriptions')->insertGetId([
+                'reference' => 'sales-order:'.$source,
+                'remote_username' => 'sk_'.substr(hash('sha256', 'sales-order:'.$source), 0, 24),
+                'remote_user_id' => 1000 + $source, 'state' => 'active',
+                'last_operation_key' => 'sales-order:'.$source.':create',
+                'created_at' => now(), 'updated_at' => now(),
+            ]);
+            if ($blocked === 'renewal-off') {
+                DB::table('provisioning_order_links')->insert([
+                    'sales_order_id' => $source, 'provisioning_subscription_id' => $subscription, 'created_at' => now(),
+                ]);
+                DB::table('sales_renewal_orders')->insert([
+                    'sales_order_id' => $id, 'source_order_id' => $source,
+                    'provisioning_subscription_id' => $subscription, 'created_at' => now(), 'updated_at' => now(),
+                ]);
+                DB::table('sales_fulfillment_outbox')->where('sales_order_id', $id)->update(['event_key' => 'sales-order:'.$id.':renew']);
+            }
+        }
+    }
+    config()->set('sales.renewal_enabled', false);
+    $intents = DB::table('sales_fulfillment_outbox')->orderBy('id')->get()->all();
+    $journals = DB::table('billing_journals')->orderBy('id')->get()->all();
+    $postings = DB::table('billing_postings')->orderBy('id')->get()->all();
+    Queue::fake();
+
+    $this->artisan('sales:fulfillment:dispatch')->assertSuccessful();
+    $expected = array_slice($orders, 21, 20);
+    Queue::assertPushed(FulfillPaidPlanOrderJob::class, 20);
+    expect(Queue::pushed(FulfillPaidPlanOrderJob::class)->map(static fn (FulfillPaidPlanOrderJob $job): int => $job->orderId)->all())
+        ->toBe($expected);
+    Queue::assertPushed(FulfillPaidPlanOrderJob::class,
+        static fn (FulfillPaidPlanOrderJob $job): bool => $job->actorId === ($payment === 'wallet' ? 0 : $data['root']->id) && ! $job->reconcile);
+    expect(DB::table('sales_fulfillment_outbox')->orderBy('id')->get()->all())->toEqual($intents);
+
+    // Completed workers leave the final eligible order recoverable next tick.
+    DB::table('sales_fulfillment_outbox')->whereIn('sales_order_id', $expected)->update(['state' => 'completed']);
+    Queue::fake();
+    $this->artisan('sales:fulfillment:dispatch')->assertSuccessful();
+    Queue::assertPushed(FulfillPaidPlanOrderJob::class, 1);
+    Queue::assertPushed(FulfillPaidPlanOrderJob::class,
+        static fn (FulfillPaidPlanOrderJob $job): bool => $job->orderId === $orders[41]);
+    expect(DB::table('billing_journals')->orderBy('id')->get()->all())->toEqual($journals)
+        ->and(DB::table('billing_postings')->orderBy('id')->get()->all())->toEqual($postings)
+        ->and(DB::table('provisioning_operations')->count())->toBe(0);
+    Http::assertNothingSent();
+})->with([
+    ['bank', 'renewal-off'], ['wallet', 'renewal-off'],
+    ['bank', 'event-key'], ['wallet', 'event-key'],
+    ['bank', 'local-reference'], ['wallet', 'local-reference'],
+    ['wallet', 'ledger'],
+]);
+
 it('never redispatches a reserved uncertain create even if its intent is incorrectly reset to pending', function (): void {
     $data = sb05Order();
     config()->set('services.remnawave.writes_enabled', true);
