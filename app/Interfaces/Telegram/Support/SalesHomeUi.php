@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 namespace App\Interfaces\Telegram\Support;
+
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Billing\Application\ViewWallet;
 use App\Modules\Identity\Application\LinkTelegramAccount;
