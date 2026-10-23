@@ -17,6 +17,7 @@ final readonly class CompleteNodeSetup
         private ManageNodeInstallation $installations,
         private ManageAdminNodes $nodes,
         private ManageAdminHosts $hosts,
+        private ManageCloudflareDns $dns,
     ) {}
 
     /** @return array{name:string,address:string,profile:string,inbound:string} */
@@ -81,6 +82,70 @@ final readonly class CompleteNodeSetup
         return $node;
     }
 
+    /** @return array{name:string,ip:string,state:string} */
+    public function previewDns(int $actorId, string $id): array
+    {
+        $this->writes();
+        $state = $this->installations->context($actorId, $id);
+        if (! is_string($state['dnsName'] ?? null) || ($state['dnsStage'] ?? null) !== null) {
+            throw new RuntimeException('DNS setup is not pending.');
+        }
+        $this->connectedNode($actorId, $id);
+
+        return [
+            'name' => $state['dnsName'],
+            'ip' => $state['ip'],
+            'state' => $this->dns->inspectA(
+                $actorId, $state['dnsZoneId'], $state['dnsZone'], $state['dnsName'], $state['ip'],
+            ),
+        ];
+    }
+
+    public function ensureDns(int $actorId, string $id): void
+    {
+        $this->writes();
+
+        Cache::lock('nw03:flow:'.$id, 90)->block(1, function () use ($actorId, $id): void {
+            $state = $this->installations->context($actorId, $id);
+            if (! is_string($state['dnsName'] ?? null) || ($state['dnsStage'] ?? null) !== null) {
+                throw new RuntimeException('DNS setup already attempted or not selected.');
+            }
+            $this->connectedNode($actorId, $id);
+            $this->dns->ensureA(
+                $actorId, $state['dnsZoneId'], $state['dnsZone'], $state['dnsName'], $state['ip'],
+                fn () => $this->installations->checkpoint($actorId, $id, ['dnsStage' => 'uncertain']),
+            );
+            $this->installations->checkpoint($actorId, $id, ['dnsStage' => 'verified']);
+        });
+    }
+
+    /** GET-only recovery for an uncertain Cloudflare write; never repeats POST. */
+    public function reconcileDns(int $actorId, string $id): void
+    {
+        $this->writes();
+
+        Cache::lock('nw03:flow:'.$id, 90)->block(1, function () use ($actorId, $id): void {
+            $state = $this->installations->context($actorId, $id);
+            if (($state['dnsStage'] ?? null) !== 'uncertain') {
+                throw new RuntimeException('No uncertain DNS action to reconcile.');
+            }
+            if ($this->dns->inspectA(
+                $actorId, $state['dnsZoneId'], $state['dnsZone'], $state['dnsName'], $state['ip'],
+            ) !== 'existing') {
+                throw new RuntimeException('DNS record not yet present; manual review required.');
+            }
+            $this->installations->checkpoint($actorId, $id, ['dnsStage' => 'verified']);
+        });
+    }
+
+    private function connectedNode(int $actorId, string $id): void
+    {
+        $node = $this->nodeStatus($actorId, $id);
+        if (! $node['connected'] || $node['disabled']) {
+            throw new RuntimeException('Node is not connected and enabled.');
+        }
+    }
+
     /** @return array{remark:string,address:string,port:int} */
     public function previewHost(int $actorId, string $id, int $port): array
     {
@@ -94,11 +159,15 @@ final readonly class CompleteNodeSetup
             throw new RuntimeException('Node is not connected and enabled.');
         }
         $this->checkSelections($actorId, $state);
+        if (isset($state['dnsName']) && ($state['dnsStage'] ?? null) !== 'verified') {
+            throw new RuntimeException('DNS record has not been verified.');
+        }
+        $address = $state['dnsName'] ?? $state['ip'];
         $remark = $this->remark($state['name']);
-        $this->hosts->validateIdentity($actorId, $remark, $state['ip'], $port);
-        $this->checkHostUnique($actorId, $state, $remark, $port);
+        $this->hosts->validateIdentity($actorId, $remark, $address, $port);
+        $this->checkHostUnique($actorId, $state, $remark, $address, $port);
 
-        return ['remark' => $remark, 'address' => $state['ip'], 'port' => $port];
+        return ['remark' => $remark, 'address' => $address, 'port' => $port];
     }
 
     public function createHost(int $actorId, string $id, int $port): string
@@ -134,14 +203,14 @@ final readonly class CompleteNodeSetup
         return [
             ...$host,
             'verified' => $host['remark'] === $expected
-                && $host['address'] === $state['ip']
+                && $host['address'] === ($state['dnsName'] ?? $state['ip'])
                 && $host['disabled'] === true
                 && $host['profileUuid'] === $state['profileUuid']
                 && $host['inboundUuid'] === $state['inboundUuid'],
         ];
     }
 
-    /** @return array{nodeStage:string,hostStage:string} */
+    /** @return array{nodeStage:string,hostStage:string,dnsStage:string,dnsName:string|null} */
     public function progress(int $actorId, string $id): array
     {
         $state = $this->installations->context($actorId, $id);
@@ -149,6 +218,9 @@ final readonly class CompleteNodeSetup
         return [
             'nodeStage' => is_string($state['nodeStage'] ?? null) ? $state['nodeStage'] : 'ready',
             'hostStage' => is_string($state['hostStage'] ?? null) ? $state['hostStage'] : 'ready',
+            'dnsStage' => ! isset($state['dnsName']) ? 'skipped'
+                : (is_string($state['dnsStage'] ?? null) ? $state['dnsStage'] : 'ready'),
+            'dnsName' => is_string($state['dnsName'] ?? null) ? $state['dnsName'] : null,
         ];
     }
 
@@ -173,11 +245,11 @@ final readonly class CompleteNodeSetup
         }
     }
 
-    private function checkHostUnique(int $actorId, array $state, string $remark, int $port): void
+    private function checkHostUnique(int $actorId, array $state, string $remark, string $address, int $port): void
     {
         foreach ($this->hosts->all($actorId) as $host) {
             if (mb_strtolower($host['remark']) === mb_strtolower($remark)
-                || ($host['address'] === $state['ip'] && $host['port'] === $port
+                || ($host['address'] === $address && $host['port'] === $port
                     && ($host['inboundUuid'] === null || $host['inboundUuid'] === $state['inboundUuid']))) {
                 throw new RuntimeException('Host already exists: reconcile before proceeding.');
             }
