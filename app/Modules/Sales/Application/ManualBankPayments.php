@@ -30,6 +30,7 @@ final readonly class ManualBankPayments
         private HasTopupPhotoFingerprint $topupPhotos,
         private PaymentNotificationOutbox $notifications,
         private CheckPlanSquadReadiness $squads,
+        private ManageResellerServiceLabels $customerLabels,
     ) {}
 
     public function submit(SubscriptionViewer $viewer, int $orderId, string $fileId, string $fileUniqueId, int $telegramMessageId, string $sourceBotKey = 'admin'): int
@@ -73,6 +74,12 @@ final readonly class ManualBankPayments
             if ($existing !== null && (int) $existing->buyer_user_id === $buyerId
                 && (int) $existing->sales_order_id === $orderId && $existing->status === 'submitted') {
                 return (int) $existing->id;
+            }
+
+            // Check inside the receipt transaction; stale payment forms cannot
+            // bypass the reseller name/mobile requirement.
+            if ($sourceBotKey === 'sales') {
+                $this->customerLabels->assertPendingDetails($buyerId, $orderId);
             }
 
             if (DB::table('sales_bank_payment_claims')->where('sales_order_id', $orderId)->where('status', 'submitted')->exists()) {

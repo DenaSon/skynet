@@ -296,6 +296,7 @@ it('keeps Sales identity, navigation and buyer routes isolated from Admin callba
         'callback:sales:walletpay:cancel:{id}',
         'callback:sales:checkout:wallet:{id}',
         'callback:sales:checkout:name:cancel',
+        'callback:sales:checkout:phone:cancel',
         'callback:sales:checkout:orders',
         'callback:sales:checkout:view:{id}',
         'callback:sales:payment:start:{id}',

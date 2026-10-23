@@ -7,14 +7,17 @@ use App\Modules\Billing\Application\RequestTopup;
 use App\Modules\Billing\Application\ReviewTopup;
 use App\Modules\Billing\Application\SubmitTopupPhoto;
 use App\Modules\Billing\Application\ViewWallet;
+use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\ManagePlanPricing;
 use App\Modules\Sales\Application\ManagePlans;
 use App\Modules\Sales\Application\ManageResellerServiceLabels;
+use App\Modules\Sales\Application\ManualBankPayments;
 use App\Modules\Sales\Application\PlanDefinition;
 use App\Modules\Sales\Application\PlanPricingDefinition;
+use App\Modules\Sales\Application\SettleWalletOrder;
 use GuzzleHttp\Psr7\Request;
 use Illuminate\Cache\DatabaseStore;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -466,7 +469,7 @@ it('collects a reseller customer name before payment while preserving the manage
         ->assertRaw(static function (Request $request): bool {
             $body = uxr02Payload($request);
 
-            return str_contains($body['text'], 'نام مشتری')
+            return str_contains($body['text'], 'نام و نام خانوادگی مشتری')
                 && ! str_contains(json_encode($body['reply_markup'], JSON_THROW_ON_ERROR), 'sales:payment:start:');
         }, index: 1);
 
@@ -481,13 +484,23 @@ it('collects a reseller customer name before payment while preserving the manage
         ->assertRaw(static function (Request $request): bool {
             $body = uxr02Payload($request);
 
+            return str_contains($body['text'], 'شماره موبایل مشتری')
+                && ! str_contains($body['text'], 'عکس رسید');
+        }, index: 0);
+
+    expect(Cache::has($key))->toBeFalse()
+        ->and(DB::table('sales_service_customer_labels')->where('sales_order_id', $order)->value('label'))
+        ->toBe('علی & <احمدی>');
+    $bot->hearText('09123456789')->reply()
+        ->assertRaw(static function (Request $request): bool {
+            $body = uxr02Payload($request);
+
             return ($body['reply_markup']['force_reply'] ?? false) === true
                 && str_contains($body['text'], 'عکس رسید');
         }, index: 1);
 
-    expect(Cache::has($key))->toBeFalse()
-        ->and(DB::table('sales_service_customer_labels')->where('sales_order_id', $order)->value('label'))
-        ->toBe('علی & <احمدی>')
+    expect(DB::table('sales_service_customer_labels')->where('sales_order_id', $order)->value('phone'))
+        ->toBe('+989123456789')
         ->and(DB::table('sales_orders')->where('id', $order)->value('status'))->toBe('pending_payment')
         ->and(DB::table('billing_journals')->where('kind', 'purchase')->count())->toBe(0);
     Http::assertNothingSent();
@@ -531,6 +544,10 @@ it('accepts a numeric-string legacy checkout draft and continues after a Persian
     // Simulates RedisStore's numeric scalar read after the prompt was sent.
     Cache::put($key, (string) $order, now()->addMinutes(10));
     $bot->hearText('محمد اسدی')->reply()
+        ->assertRaw(static function (Request $request): bool {
+            return str_contains(uxr02Payload($request)['text'], 'شماره موبایل مشتری');
+        }, index: 0);
+    $bot->hearText('۰۹۱۲۳۴۵۶۷۸۹')->reply()
         ->assertCalled('sendMessage', 2)
         ->assertRaw(static function (Request $request): bool {
             $body = uxr02Payload($request);
@@ -562,4 +579,86 @@ it('ignores malformed checkout draft values without writing labels or payments',
     expect(DB::table('sales_service_customer_labels')->count())->toBe(0)
         ->and(DB::table('billing_journals')->count())->toBe(0);
     Http::assertNothingSent();
+});
+
+it('blocks direct Sales bank receipt and payment callback until reseller name and mobile are complete', function (): void {
+    $data = uxr02Plan();
+    Role::findOrCreate('reseller', 'web');
+    $buyer = User::factory()->create();
+    $buyer->syncRoles(['reseller']);
+    $bot = uxr02Bot(973014, $buyer);
+    $bot->hearCallbackQueryData('catalog:detail:'.$data['plan'].':1')->reply();
+    $orderId = (int) DB::table('sales_orders')->value('id');
+    $action = app(ManualBankPayments::class);
+
+    expect(fn () => $action->submit(SubscriptionViewer::telegram(973014), $orderId,
+        'test-photo-file-guard', 'unique-photo-guard', 1404, 'sales'))
+        ->toThrow(ValidationException::class);
+    $bot->hearCallbackQueryData('sales:payment:start:'.$orderId)->reply()
+        ->assertCalled('editMessageText');
+    expect(Cache::has(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$buyer->id)))->toBeFalse()
+        ->and(DB::table('sales_bank_payment_claims')->count())->toBe(0);
+
+    $bot->hearText('علی احمدی')->reply();
+    expect(app(ManageResellerServiceLabels::class)->pendingName($buyer->id, $orderId))
+        ->toBe('علی احمدی');
+    expect(fn () => $action->submit(SubscriptionViewer::telegram(973014), $orderId,
+        'test-photo-file-guard', 'unique-photo-guard', 1404, 'sales'))
+        ->toThrow(ValidationException::class);
+
+    $bot->hearText('123')->reply();
+    expect(app(ManageResellerServiceLabels::class)->pendingPhone($buyer->id, $orderId))->toBeNull();
+    $bot->hearText('09123456789')->reply();
+    expect(app(ManageResellerServiceLabels::class)->pendingPhone($buyer->id, $orderId))
+        ->toBe('+989123456789');
+
+    $bot->hearCallbackQueryData('sales:payment:start:'.$orderId)->reply()
+        ->assertCalled('editMessageText');
+    expect(Cache::get(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$buyer->id)))->toBe($orderId)
+        ->and(DB::table('sales_bank_payment_claims')->count())->toBe(0)
+        ->and(DB::table('sales_orders')->where('id', $orderId)->value('status'))->toBe('pending_payment');
+    Http::assertNothingSent();
+});
+
+it('blocks forged wallet confirmation and does not debit incomplete reseller orders', function (): void {
+    $data = uxr02Plan();
+    Role::findOrCreate('reseller', 'web');
+    $buyer = User::factory()->create();
+    $buyer->syncRoles(['reseller']);
+    $bot = uxr02Bot(973015, $buyer);
+    $bot->hearCallbackQueryData('catalog:detail:'.$data['plan'].':1')->reply();
+    $id = (int) DB::table('sales_orders')->value('id');
+
+    config()->set('sales.wallet_settlement_enabled', true);
+    expect(fn () => app(SettleWalletOrder::class)->handle(SubscriptionViewer::telegram(973015), $id))
+        ->toThrow(ValidationException::class);
+    expect(DB::table('sales_order_settlements')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe(0)
+        ->and(DB::table('sales_bank_payment_claims')->count())->toBe(0);
+});
+
+it('keeps resumable customer mobile draft isolated and refuses foreign mobile changes', function (): void {
+    $data = uxr02Plan();
+    Role::findOrCreate('reseller', 'web');
+    $buyer = User::factory()->create();
+    $buyer->syncRoles(['reseller']);
+    $other = User::factory()->create();
+    $other->syncRoles(['reseller']);
+    $bot = uxr02Bot(973016, $buyer);
+    $bot->hearCallbackQueryData('catalog:detail:'.$data['plan'].':1')->reply();
+    $id = (int) DB::table('sales_orders')->value('id');
+
+    $bot->hearText('سارا احمدی')->reply();
+    $label = app(ManageResellerServiceLabels::class);
+    expect(fn () => $label->savePendingPhone($other->id, $id, '09123456789'))
+        ->toThrow(ValidationException::class);
+    $bot->hearCallbackQueryData('sales:checkout:phone:cancel')->reply()
+        ->assertCalled('editMessageText');
+    $bot->hearText('09123456789')->reply();
+    expect($label->pendingPhone($buyer->id, $id))->toBeNull();
+    $bot->hearCallbackQueryData('sales:checkout:view:'.$id)->reply()
+        ->assertCalled('editMessageText');
+    $bot->hearText('09123456789')->reply();
+    expect($label->pendingPhone($buyer->id, $id))->toBe('+989123456789')
+        ->and(DB::table('sales_orders')->where('id', $id)->value('status'))->toBe('pending_payment');
 });

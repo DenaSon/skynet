@@ -28,12 +28,16 @@ final class ReplyMenuLabels
 
     public const ADMIN = '🛡️ مدیریت';
 
-    public const WALLET = '💼 کیف پول پنل فروش';
+    public const WALLET = '💰 کیف پول پنل فروش';
+
+    public const OLD_WALLET_PANEL = '💼 کیف پول پنل فروش';
 
     /** Stale reply keyboards remain supported after text-only rename. */
     public const LEGACY_WALLET = '💼 کیف پول نماینده';
 
-    public const BUILDER = '💼 پلن‌ساز پنل فروش';
+    public const BUILDER = '🧩 پلن‌ساز پنل فروش';
+
+    public const OLD_BUILDER_PANEL = '💼 پلن‌ساز پنل فروش';
 
     public const LEGACY_BUILDER = '💼 پلن‌ساز نماینده';
 
@@ -67,7 +71,8 @@ final class ReplyMenuLabels
         return [
             self::BUY, self::SUBSCRIPTIONS, self::CATALOG, self::ACCOUNT, self::INVITE,
             self::SETTINGS, self::ADMIN, self::WALLET, self::BUILDER, self::SALES_REPORTS,
-            self::LEGACY_WALLET, self::LEGACY_BUILDER, self::USERS,
+            self::LEGACY_WALLET, self::LEGACY_BUILDER,
+            self::OLD_WALLET_PANEL, self::OLD_BUILDER_PANEL, self::USERS,
             self::ROLES, self::PLANS, self::PRODUCTS, self::SALES_SECTION,
             self::FINANCE_SECTION, self::SERVERS, self::STATS, self::TOPUPS, self::RECEIPTS, self::HOME,
         ];
