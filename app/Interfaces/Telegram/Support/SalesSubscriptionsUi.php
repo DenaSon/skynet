@@ -396,52 +396,11 @@ final readonly class SalesSubscriptionsUi
             return;
         }
 
-        // Credentials only in the explicit private delivery message. The native
-        // Telegram copy button is available for URLs within its 256-char limit.
-        // Longer URLs stay selectable in the message, never in callback data.
-        $canCopy = mb_strlen($link->subscriptionUrl) <= 256;
-        $keyboard = InlineKeyboardMarkup::make();
-        if ($canCopy) {
-            $keyboard->addRow(TelegramUi::copy($link->subscriptionUrl, '📋 کپی لینک'));
-        }
-        $keyboard->addRow(InlineKeyboardButton::make('📚 آموزش اتصال', callback_data: 'sales:help:apps'));
-        $keyboard->addRow(InlineKeyboardButton::make('💬 پشتیبانی', callback_data: 'sales:support'));
-        $keyboard->addRow(InlineKeyboardButton::make(
-            '◀️ اشتراک من', callback_data: 'sales:subs:view:'.$orderId.':'.$cursor,
-        ));
-
+        // Both roles use the same owner-checked Action and presentation path.
+        // The media caption contains the exact URL below its QR, not a second
+        // independent credential message.
         TelegramUi::answerCallback($bot);
-        $bot->sendMessage(
-            text: "🔐 لینک اختصاصی اشتراک #{$orderId}\n\n{$link->subscriptionUrl}\n\n"
-                .($canCopy ? 'برای کپی، دکمه زیر را انتخاب کنید.' : 'برای کپی، متن لینک را نگه دارید.')
-                ."\nاین لینک خصوصی است؛ با دیگران به اشتراک نگذارید.",
-            link_preview_options: LinkPreviewOptions::make(is_disabled: true),
-            reply_markup: $keyboard,
-        );
-
-        // The selectable link above is the guaranteed fallback. QR upload is
-        // best-effort and only happens after fresh owner/provider verification.
-        // Neither image nor credential is written to disk, cache or logs.
-        $stream = null;
-        try {
-            $png = $this->qr->render($link->subscriptionUrl);
-            $stream = fopen('php://memory', 'w+b');
-            if ($stream === false || fwrite($stream, $png) !== strlen($png)) {
-                throw new \RuntimeException('Could not prepare QR image.');
-            }
-            rewind($stream);
-            $bot->sendPhoto(
-                photo: InputFile::make($stream, 'denagate-subscription-qr.png'),
-                caption: '📷 کد QR همین لینک اشتراک؛ برای اتصال آن را اسکن کنید.',
-            );
-        } catch (Throwable) {
-            // Preserve the already delivered private link when GD or Telegram
-            // media upload is unavailable. Never log the credential or PNG.
-        } finally {
-            if (is_resource($stream)) {
-                fclose($stream);
-            }
-        }
+        $this->deliverLinkCard($bot, $orderId, $link->subscriptionUrl, $cursor, false);
     }
 
     public function page(Nutgram $bot, string $id, string $cursor = '0'): void
@@ -483,28 +442,105 @@ final readonly class SalesSubscriptionsUi
             return;
         }
 
-        $keyboard = InlineKeyboardMarkup::make()
-            ->addRow(InlineKeyboardButton::make('🌐 باز کردن صفحه اشتراک', url: $url));
+        TelegramUi::answerCallback($bot);
+        $this->deliverLinkCard($bot, $orderId, $url, $cursor, true);
+    }
 
-        if (mb_strlen($url) <= 256) {
-            $keyboard->addRow(TelegramUi::copy($url, '📋 کپی لینک اشتراک'));
+    /**
+     * Presentation only: never retrieve or persist credentials here. Caller has
+     * already passed fresh ownership and remote subscription verification.
+     */
+    private function deliverLinkCard(
+        Nutgram $bot,
+        int $orderId,
+        string $url,
+        string $cursor,
+        bool $subscriptionPage,
+    ): void {
+        $canCopy = mb_strlen($url) <= 256;
+        $keyboard = InlineKeyboardMarkup::make();
+        if ($subscriptionPage) {
+            $keyboard->addRow(InlineKeyboardButton::make('🌐 باز کردن صفحه اشتراک', url: $url));
+        }
+        if ($canCopy) {
+            $keyboard->addRow(TelegramUi::copy($url, '📋 کپی لینک'));
+        }
+        if ($subscriptionPage) {
+            $keyboard->addRow(InlineKeyboardButton::make('🔐 نمایش کد اتصال',
+                callback_data: 'sales:subs:link:'.$orderId.':'.$cursor));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('📚 آموزش اتصال', callback_data: 'sales:help:apps'));
+        if (! $subscriptionPage) {
+            $keyboard->addRow(InlineKeyboardButton::make('💬 پشتیبانی', callback_data: 'sales:support'));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make(
+            '◀️ بازگشت به سرویس', callback_data: 'sales:subs:view:'.$orderId.':'.$cursor,
+        ));
+
+        $heading = $subscriptionPage ? '🌐 صفحه اشتراک' : '🔐 لینک اتصال';
+        $caption = "<b>{$heading} #{$orderId}</b>\n\n".TelegramUi::code($url)
+            ."\n\n📷 کد بالا را اسکن کنید یا لینک را کپی کنید."
+            ."\n🔒 این لینک اختصاصی است؛ فقط با فرد موردنظر به اشتراک بگذارید.";
+
+        // Telegram limits media captions to 1024 UTF-16 code units *after*
+        // entity parsing. Use a conservative ceiling for emoji and Unicode.
+        // Ordinary URLs fit in one photo+caption; exceptionally long URLs
+        // retain their full selectable message and receive a separate QR.
+        if (mb_strlen($caption) <= 900
+            && $this->sendLinkPhoto($bot, $url, $caption, $keyboard, $subscriptionPage)) {
+            return;
         }
 
-        $keyboard->addRow(InlineKeyboardButton::make('🔐 نمایش کد اتصال',
-            callback_data: 'sales:subs:link:'.$orderId.':'.$cursor))
-            ->addRow(InlineKeyboardButton::make('📚 آموزش اتصال', callback_data: 'sales:help:apps'))
-            ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'sales:subs:view:'.$orderId.':'.$cursor));
+        if (mb_strlen($caption) > 900) {
+            $this->sendLinkPhoto(
+                $bot, $url, '📷 کد اتصال این سرویس را اسکن کنید.', null, $subscriptionPage,
+            );
+        }
 
-        TelegramUi::answerCallback($bot);
+        // A failed GD render or Telegram media upload must never hide the URL.
         $bot->sendMessage(
-            text: "🌐 صفحه اختصاصی سرویس #{$orderId}\n\n"
-                ."با دکمه زیر صفحه وضعیت و راهنمای اتصال را باز کنید.\n"
-                .(mb_strlen($url) <= 256 ? 'برای کپی لینک از دکمه استفاده کنید.' : "لینک قابل انتخاب:\n{$url}")
-                ."\nاین لینک خصوصی است؛ آن را به دیگران ندهید.",
+            text: "<b>{$heading} #{$orderId}</b>\n\n".TelegramUi::code($url)
+                ."\n\n".($canCopy ? 'برای کپی از دکمه زیر استفاده کنید.' : 'برای کپی، متن لینک را نگه دارید.')
+                ."\n🔒 این لینک اختصاصی است؛ فقط با فرد موردنظر به اشتراک بگذارید.",
+            parse_mode: 'HTML',
             link_preview_options: LinkPreviewOptions::make(is_disabled: true),
             reply_markup: $keyboard,
-            protect_content: true,
+            protect_content: $subscriptionPage,
         );
+    }
+
+    private function sendLinkPhoto(
+        Nutgram $bot,
+        string $url,
+        string $caption,
+        ?InlineKeyboardMarkup $keyboard,
+        bool $protectContent,
+    ): bool {
+        $stream = null;
+        try {
+            $png = $this->qr->render($url);
+            $stream = fopen('php://memory', 'w+b');
+            if ($stream === false || fwrite($stream, $png) !== strlen($png)) {
+                throw new \RuntimeException('Unable to prepare connection QR.');
+            }
+            rewind($stream);
+            $bot->sendPhoto(
+                photo: InputFile::make($stream, 'denagate-subscription-qr.png'),
+                caption: $caption,
+                parse_mode: 'HTML',
+                reply_markup: $keyboard,
+                protect_content: $protectContent,
+            );
+
+            return true;
+        } catch (Throwable) {
+            // Media is best-effort. Never log the subscription URL or PNG.
+            return false;
+        } finally {
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+        }
     }
 
     /** Begin a short private customer-name search; no query is exposed in callback data. */

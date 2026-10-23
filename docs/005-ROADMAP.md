@@ -1,3 +1,9 @@
+## QR-02 — one-message connection QR and Sales coverage (2026-10-23; source CI passed, live pending)
+
+- **Operator-approved execution:** Use the established `GetSubscriptionLink` owner/provider verification and `SubscriptionQrPng` renderer to replace duplicate link-text plus photo with one Sales photo/HTML caption card (QR above selectable URL) on ordinary member and reseller link callbacks. Preserve native copy control, help/back/support, forged/unpaid/refunded/expired denial, client subscription credentials and all existing notification/order routing.
+- **Official Subscription Page:** preserve the extra exact-host gate, protected media, open-page and navigation controls, with the same QR+URL card. If Telegram caption size is unsafe, keep the complete text link in a separate message with a QR; on PNG/transport failure preserve text-only. No third-party QR, schema, dependency, RW write, finance or Admin change.
+- **Acceptance:** PHPUnit/Pest including real generated PNG checks, PHP 8.4/8.5, PHPStan, Pint, MySQL + rollback CI, then separately a live member and reseller smoke on Runflare.
+
 ## QR-01 / QR-02 — private Sales subscription QR rollout (2026-10-23)
 
 - **QR-01 authorized for implementation:** install `endroid/qr-code:^6.1` with committed portable Composer lockfile; require GD in CI, use an ephemeral in-memory PNG, and append the QR photo to the existing private, owner/provider-verified Sales link callback used by `member` and `reseller`. Keep original text/copy link first and intact as fallback; no log, storage, external QR API, migrations, privileged Admin or provider writes. CI + code PR before merge; real Runflare GD and Telegram smoke are a separate acceptance gate.

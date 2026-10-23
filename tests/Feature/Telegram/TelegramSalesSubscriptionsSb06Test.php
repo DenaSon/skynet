@@ -241,7 +241,8 @@ it('sends the secret only after an explicit, freshly authorized private-link req
 
     $bot->hearCallbackQueryData('sales:subs:link:'.$order.':0')->reply()
         ->assertCalled('answerCallbackQuery')
-        ->assertCalled('sendMessage')
+        ->assertCalled('sendPhoto')
+        ->assertCalled('sendMessage', 0)
         ->assertCalled('editMessageText', 0);
     Http::assertSentCount(1);
 
@@ -325,7 +326,8 @@ it('delivers both short copyable and long selectable URLs only through a private
     ]);
     $bot->hearCallbackQueryData('sales:subs:link:'.$order.':0')->reply()
         ->assertCalled('answerCallbackQuery')
-        ->assertCalled('sendMessage')
+        ->assertCalled('sendPhoto')
+        ->assertCalled('sendMessage', 0)
         ->assertCalled('editMessageText', 0);
     Http::assertSentCount(1);
 
@@ -338,7 +340,8 @@ it('delivers both short copyable and long selectable URLs only through a private
         ]),
     ]);
     $bot->hearCallbackQueryData('sales:subs:link:'.$order.':0')->reply()
-        ->assertCalled('sendMessage')
+        ->assertCalled('sendPhoto')
+        ->assertCalled('sendMessage', 0)
         ->assertCalled('editMessageText', 0);
     Http::assertSentCount(1);
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
@@ -421,18 +424,9 @@ it('offers the exact verified official page URL only in the owner private chat',
 
     $bot->hearCallbackQueryData('sales:subs:page:'.$order.':0')->reply()
         ->assertCalled('answerCallbackQuery')
-        ->assertCalled('sendMessage')
-        ->assertCalled('editMessageText', 0)
-        ->assertRaw(static function (NutgramRequest $request) use ($url): bool {
-            $data = FakeNutgram::getActualData($request);
-            $keyboard = $data['reply_markup'] ?? [];
-            if (is_string($keyboard)) {
-                $keyboard = json_decode($keyboard, true, flags: JSON_THROW_ON_ERROR);
-            }
-
-            return ($keyboard['inline_keyboard'][0][0]['url'] ?? null) === $url
-                && str_contains(json_encode($keyboard, JSON_THROW_ON_ERROR), 'sales:subs:link:');
-        }, index: 1);
+        ->assertCalled('sendPhoto')
+        ->assertCalled('sendMessage', 0)
+        ->assertCalled('editMessageText', 0);
     Http::assertSentCount(1);
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
     expect(config('services.remnawave.writes_enabled'))->toBeFalse();
@@ -536,8 +530,8 @@ it('sends a private PNG QR after the existing link for authorized Sales accounts
     ]);
 
     $bot->hearCallbackQueryData('sales:subs:link:'.$order.':0')->reply()
-        ->assertCalled('sendMessage')
         ->assertCalled('sendPhoto')
+        ->assertCalled('sendMessage', 0)
         ->assertCalled('editMessageText', 0);
 
     Http::assertSentCount(1);
@@ -545,3 +539,48 @@ it('sends a private PNG QR after the existing link for authorized Sales accounts
 
     expect(config('services.remnawave.writes_enabled'))->toBeFalse();
 })->with(['member', 'reseller']);
+
+it('renders an inline QR/photo and the full selectable URL in one Persian card', function (string $role): void {
+    Role::findOrCreate($role, 'web');
+    $buyer = User::factory()->create();
+    $buyer->syncRoles([$role]);
+    $order = sb06Order($buyer);
+    sb06Activated($order);
+    $bot = sb06Bot(976092, $buyer);
+    Http::fake([
+        'https://remna.test/api/users/42' => Http::response(['response' => sb06Provider($order)]),
+    ]);
+
+    // Nutgram's fake retains the stream reference, which is intentionally
+    // closed after sending; do not reparse the expired multipart image body.
+    $bot->hearCallbackQueryData('sales:subs:link:'.$order.':0')->reply()
+        ->assertCalled('sendPhoto')
+        ->assertCalled('sendMessage', 0);
+
+    Http::assertSentCount(1);
+})->with(['member', 'reseller']);
+
+it('keeps a full text link and QR for URLs beyond Telegram media caption limits', function (): void {
+    $buyer = User::factory()->create();
+    $order = sb06Order($buyer);
+    sb06Activated($order);
+    $bot = sb06Bot(976093, $buyer);
+    $url = 'https://test.example.test/'.str_repeat('a', 1100);
+    Http::fake([
+        'https://remna.test/api/users/42' => Http::response([
+            'response' => sb06Provider($order, ['subscriptionUrl' => $url]),
+        ]),
+    ]);
+
+    $bot->hearCallbackQueryData('sales:subs:link:'.$order.':0')->reply()
+        ->assertCalled('sendPhoto')
+        ->assertCalled('sendMessage')
+        ->assertRaw(static function (NutgramRequest $request) use ($url): bool {
+            $data = FakeNutgram::getActualData($request);
+
+            return str_contains((string) ($data['text'] ?? ''), $url)
+                && ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'copy_text');
+        }, index: 2);
+
+    Http::assertSentCount(1);
+});
