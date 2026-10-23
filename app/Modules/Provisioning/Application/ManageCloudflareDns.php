@@ -147,7 +147,7 @@ final readonly class ManageCloudflareDns
      * Revalidates every write with a fresh remote snapshot under the same
      * zone+hostname lock used by CF-01; a lost PATCH response is never retried.
      *
-     * @param array<string,mixed> $expected
+     * @param  array<string,mixed>  $expected
      */
     public function changeA(
         int $actorId,
@@ -203,7 +203,7 @@ final readonly class ManageCloudflareDns
     /** Only IP of permitted A subdomains is editable. Other records are read-only.
      * Never return TXT/CNAME/etc content to a Telegram presenter.
      *
-     * @param array<string,mixed> $remote
+     * @param  array<string,mixed>  $remote
      * @return array<string,mixed>
      */
     private function safeRecord(string $zone, array $remote): array
