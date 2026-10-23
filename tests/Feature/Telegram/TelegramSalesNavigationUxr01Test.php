@@ -194,7 +194,7 @@ it('shows an ordinary active member their own zero wallet balance without a top-
     $bot->hearCallbackQueryData('sales:wallet')->reply()->assertRaw(static function (Request $request): bool {
         $data = uxr01Payload($request);
 
-        return str_contains($data['text'], '<b>💼 کیف پول من</b>')
+        return str_contains($data['text'], '<b>💰 کیف پول من</b>')
             && str_contains($data['text'], 'موجودی: <b>0 تومان</b>')
             && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:account');
     }, index: 1);

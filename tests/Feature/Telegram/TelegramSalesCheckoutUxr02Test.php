@@ -486,7 +486,7 @@ it('collects a reseller customer name before payment while preserving the manage
 
             return str_contains($body['text'], 'شماره موبایل مشتری')
                 && ! str_contains($body['text'], 'عکس رسید');
-        }, index: 1);
+        }, index: 0);
 
     expect(Cache::has($key))->toBeFalse()
         ->and(DB::table('sales_service_customer_labels')->where('sales_order_id', $order)->value('label'))
@@ -546,7 +546,7 @@ it('accepts a numeric-string legacy checkout draft and continues after a Persian
     $bot->hearText('محمد اسدی')->reply()
         ->assertRaw(static function (Request $request): bool {
             return str_contains(uxr02Payload($request)['text'], 'شماره موبایل مشتری');
-        }, index: 1);
+        }, index: 0);
     $bot->hearText('۰۹۱۲۳۴۵۶۷۸۹')->reply()
         ->assertCalled('sendMessage', 2)
         ->assertRaw(static function (Request $request): bool {
