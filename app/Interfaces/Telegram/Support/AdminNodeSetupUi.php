@@ -612,7 +612,7 @@ final readonly class AdminNodeSetupUi
             $this->completion->reconcileDns($root, $identifier);
             $this->completionOverview($bot, $identifier);
         } catch (Throwable) {
-            $this->render($bot, 'رکورد هنوز تأیید نشده است. بدون ساخت دوباره، وضعیت آن را در Cloudflare بررسی کنید.',
+            $this->render($bot, 'رکورد هنوز تأیید نشده است. بدون ساخت دوباره، وضعیت آن را در پنل دامنه بررسی کنید.',
                 InlineKeyboardMarkup::make()
                     ->addRow(InlineKeyboardButton::make('🔎 بررسی دوباره', callback_data: 'nw3:dns:reconcile:'.$identifier))
                     ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'nw3:resume:'.$identifier)));

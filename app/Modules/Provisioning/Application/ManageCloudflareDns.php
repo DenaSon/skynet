@@ -142,8 +142,12 @@ final readonly class ManageCloudflareDns
 
     private function verifyZone(int $actorId, string $zoneId, string $zone): void
     {
-        foreach ($this->zones($actorId) as $item) {
-            if ($item['id'] === $zoneId && $item['name'] === $zone) {
+        $this->access->handle($actorId);
+        if (! in_array($zone, $this->allowedZones(), true)) {
+            throw new RuntimeException('DNS zone is not allowed.');
+        }
+        foreach ($this->api->zonesByName($zone) as $remote) {
+            if (($remote['id'] ?? null) === $zoneId && ($remote['name'] ?? null) === $zone) {
                 return;
             }
         }
@@ -174,7 +178,9 @@ final readonly class ManageCloudflareDns
         return is_string($id) && preg_match('/\A[a-f0-9]{32}\z/D', $id) === 1;
     }
 
-    /** @return 'missing'|'existing' */
+    /** @return 'missing'|'existing'
+     *  @phpstan-impure
+     */
     private function recordState(string $zoneId, string $hostname, string $ip): string
     {
         $records = $this->api->records($zoneId, $hostname);
