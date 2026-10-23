@@ -250,9 +250,9 @@ final readonly class AdminFinanceWalletUi
         if ($decision === 'a') {
             Cache::put($this->key($actor->userId), ['kind' => 'reference', 'topup' => $row['id']], now()->addMinutes(10));
             $this->render($bot,
-                '<b>✅ بررسی تأیید شارژ</b>'."\n\nدرخواست #{$row['id']} · کاربر #{$row['user_id']}"
+                '<b>🔎 بررسی شارژ · مرحله ۱ از ۲</b>'."\n\nدرخواست #{$row['id']} · کاربر #{$row['user_id']}"
                 ."\nمبلغ: <b>".TelegramUi::toman($row['amount_rials']).' تومان</b>'
-                ."\n\nشناسه <b>واقعی و یکتای تراکنش تأییدشده در بانک</b> را ارسال کنید."
+                ."\n\nهنوز شارژی ثبت نشده است. پس از تطبیق مبلغ در بانک، شناسه <b>واقعی و یکتای تراکنش</b> را ارسال کنید."
                 ."\n<blockquote>تصویر رسید به‌تنهایی دلیل واریز نیست. مبلغ و دریافت وجه باید جداگانه بررسی شوند.</blockquote>",
                 $this->backTopups());
 
@@ -334,10 +334,11 @@ final readonly class AdminFinanceWalletUi
 
         $token = $this->tokens->issue($actor->userId, $row['id'], true, $reference);
         $this->render($bot,
-            '<b>⚠️ تأیید نهایی شارژ</b>'."\n\nکاربر #{$row['user_id']} · درخواست #{$row['id']}"
+            '<b>✅ تأیید نهایی شارژ · مرحله ۲ از ۲</b>'."\n\nکاربر #{$row['user_id']} · درخواست #{$row['id']}"
             ."\nمبلغ: <b>".TelegramUi::toman($row['amount_rials']).' تومان</b>'
             ."\nشناسه بانک: ".TelegramUi::code($reference)
-            ."\n\nبا این تأیید، همین مبلغ <b>فقط یک‌بار</b> به کیف پول اضافه می‌شود. آیا واریز واقعی را مستقل بررسی کرده‌اید؟",
+            ."\n\n<b>تا زدن دکمه «تأیید و افزایش موجودی»، شارژ در صف باقی می‌ماند.</b>"
+            ."\nبا تأیید نهایی، این مبلغ فقط یک‌بار اضافه می‌شود. آیا دریافت واقعی وجه را بررسی کرده‌اید؟",
             InlineKeyboardMarkup::make()
                 ->addRow(InlineKeyboardButton::make('✅ تأیید و افزایش موجودی', callback_data: 'finance:topup:apply:'.$token, style: ButtonStyle::SUCCESS))
                 ->addRow(InlineKeyboardButton::make('◀️ انصراف', callback_data: 'finance:topups:1')));
