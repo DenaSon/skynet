@@ -670,7 +670,6 @@ it('keeps resumable customer mobile draft isolated and refuses foreign mobile ch
         ->and(DB::table('sales_orders')->where('id', $id)->value('status'))->toBe('pending_payment');
 });
 
-
 it('settles a credited reseller purchase from wallet without a bank claim', function (): void {
     wal03Ready();
     $data = uxr02Plan();

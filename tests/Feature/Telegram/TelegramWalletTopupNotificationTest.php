@@ -6,14 +6,14 @@ use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
 use App\Interfaces\Telegram\Notifications\TelegramNotificationSender;
 use App\Interfaces\Telegram\Notifications\WalletTopupNotificationOutbox;
 use App\Interfaces\Telegram\Support\BillingReviewTokens;
-use GuzzleHttp\Psr7\Request as PsrRequest;
+use App\Modules\Billing\Application\BrowsePhotoTopups;
 use App\Modules\Billing\Application\RequestTopup;
 use App\Modules\Billing\Application\ReviewTopup;
 use App\Modules\Billing\Application\SubmitTopupPhoto;
 use App\Modules\Billing\Application\ViewWallet;
-use App\Modules\Billing\Application\BrowsePhotoTopups;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
+use GuzzleHttp\Psr7\Request as PsrRequest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
@@ -267,7 +267,6 @@ it('rejects a destructive rollback once wallet notification evidence exists', fu
     $migration = require database_path('migrations/2026_10_21_000002_add_topup_id_to_telegram_notification_deliveries.php');
     expect(fn () => $migration->down())->toThrow(RuntimeException::class);
 });
-
 
 it('keeps wallet pending until a verified bank reference and the explicit final approval', function (): void {
     $data = finNotSubmitted();
