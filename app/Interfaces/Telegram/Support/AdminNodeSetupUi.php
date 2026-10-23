@@ -14,6 +14,7 @@ use App\Modules\Provisioning\Application\NodeSetupReadiness;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 use Throwable;
@@ -139,7 +140,7 @@ final readonly class AdminNodeSetupUi
                 $this->save($id, $draft);
                 $this->render($bot, "🌐 دامنه سرور\n\nمی‌خواهید یک دامنه برای اتصال کاربران تنظیم کنید؟\n\nدر غیر این صورت، اتصال با IP انجام می‌شود.",
                     InlineKeyboardMarkup::make()
-                        ->addRow(InlineKeyboardButton::make('🌐 انتخاب دامنه', callback_data: 'nw1:dns:zones'))
+                        ->addRow(InlineKeyboardButton::make('🌐 انتخاب دامنه', callback_data: 'nw1:dns:zones', style: ButtonStyle::PRIMARY))
                         ->addRow(InlineKeyboardButton::make('➡️ ادامه بدون دامنه', callback_data: 'nw1:dns:skip'))
                         ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'nw1:cancel')));
 
@@ -206,7 +207,7 @@ final readonly class AdminNodeSetupUi
             $this->save($id, $draft);
             $keyboard = InlineKeyboardMarkup::make();
             foreach ($zones as $index => $zone) {
-                $keyboard->addRow(InlineKeyboardButton::make('🌐 '.$zone['name'], callback_data: 'nw1:dns:zone:'.$index));
+                $keyboard->addRow(InlineKeyboardButton::make('🌐 '.$zone['name'], callback_data: 'nw1:dns:zone:'.$index, style: ButtonStyle::PRIMARY));
             }
             $keyboard->addRow(InlineKeyboardButton::make('➡️ ادامه بدون دامنه', callback_data: 'nw1:dns:skip'));
             $keyboard->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'nw1:cancel'));
@@ -214,7 +215,7 @@ final readonly class AdminNodeSetupUi
         } catch (Throwable) {
             $this->render($bot, 'دریافت دامنه‌ها ممکن نشد. می‌توانید بدون دامنه ادامه دهید.',
                 InlineKeyboardMarkup::make()
-                    ->addRow(InlineKeyboardButton::make('🔄 تلاش دوباره', callback_data: 'nw1:dns:zones'))
+                    ->addRow(InlineKeyboardButton::make('🔄 تلاش دوباره', callback_data: 'nw1:dns:zones', style: ButtonStyle::PRIMARY))
                     ->addRow(InlineKeyboardButton::make('➡️ ادامه بدون دامنه', callback_data: 'nw1:dns:skip'))
                     ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'nw1:cancel')));
         }
@@ -237,10 +238,15 @@ final readonly class AdminNodeSetupUi
         $draft['dnsZoneId'] = $zone['id'];
         $draft['stage'] = 'dns_name';
         $this->save($id, $draft);
-        $this->render($bot, "🌐 زیردامنه سرور\n\nنام زیردامنه را بفرستید؛ مثلاً usa یا usa.".$zone['name'].".\nبعد از نصب و تأیید اتصال سرور، ثبت دامنه را تأیید می‌کنید.",
+        $example = 'usa.'.$zone['name'];
+        $this->render($bot, "🌐 زیردامنه سرور\n\nنام زیردامنه را ارسال کنید، مثلاً:\n"
+            .TelegramUi::code($example)
+            ."\n\nبعد از راه‌اندازی سرور، ثبت دامنه را جداگانه تأیید می‌کنید.",
             InlineKeyboardMarkup::make()
+                ->addRow(TelegramUi::copy($example, '📋 کپی نمونه'))
                 ->addRow(InlineKeyboardButton::make('➡️ ادامه بدون دامنه', callback_data: 'nw1:dns:skip'))
-                ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'nw1:cancel')));
+                ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'nw1:cancel', style: ButtonStyle::DANGER)),
+            true);
     }
 
     public function dnsSkip(Nutgram $bot): void
@@ -515,10 +521,10 @@ final readonly class AdminNodeSetupUi
                     $message .= "\n\n⏳ سرور ثبت شده است، ولی هنوز اتصال فعال آن از پنل تأیید نشده است.";
                 } elseif ($step['dnsStage'] === 'ready') {
                     $message .= "\n\n🌐 دامنه «".$step['dnsName'].'» آماده ثبت است. ابتدا رکورد دامنه را بررسی و تأیید کنید.';
-                    $keyboard->addRow(InlineKeyboardButton::make('🌐 تنظیم دامنه سرور', callback_data: 'nw3:dns:prepare:'.$identifier));
+                    $keyboard->addRow(InlineKeyboardButton::make('🌐 تنظیم دامنه سرور', callback_data: 'nw3:dns:prepare:'.$identifier, style: ButtonStyle::PRIMARY));
                 } elseif ($step['dnsStage'] === 'uncertain') {
                     $message .= "\n\n⚠️ نتیجه ثبت دامنه روشن نیست. فقط وضعیت رکورد بررسی می‌شود؛ ثبت دوباره انجام نمی‌شود.";
-                    $keyboard->addRow(InlineKeyboardButton::make('🔎 بررسی مجدد دامنه', callback_data: 'nw3:dns:reconcile:'.$identifier));
+                    $keyboard->addRow(InlineKeyboardButton::make('🔎 بررسی مجدد دامنه', callback_data: 'nw3:dns:reconcile:'.$identifier, style: ButtonStyle::PRIMARY));
                 } elseif ($step['hostStage'] === 'ready') {
                     $message .= "\n\n✅ سرور به پنل متصل است."
                         .($step['dnsStage'] === 'verified' ? "\n🌐 دامنه ".$step['dnsName'].' تأیید شد.' : '')
@@ -590,7 +596,7 @@ final readonly class AdminNodeSetupUi
                     ? 'این رکورد از قبل با مشخصات درست وجود دارد و تغییر نمی‌کند.'
                     : 'پس از تأیید، یک رکورد A جدید ایجاد خواهد شد.'),
                 InlineKeyboardMarkup::make()
-                    ->addRow(InlineKeyboardButton::make('✅ تأیید تنظیم دامنه', callback_data: 'nw3:dns:apply:'.$token))
+                    ->addRow(InlineKeyboardButton::make('✅ تأیید تنظیم دامنه', callback_data: 'nw3:dns:apply:'.$token, style: ButtonStyle::SUCCESS))
                     ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'nw3:resume:'.$identifier)));
         } catch (Throwable) {
             $this->render($bot, 'دامنه موجود با مشخصات سرور مطابقت ندارد، یا بررسی آن ممکن نیست. رکوردها را بررسی کنید.', $this->back());
@@ -614,7 +620,7 @@ final readonly class AdminNodeSetupUi
         } catch (Throwable) {
             $this->render($bot, 'رکورد هنوز تأیید نشده است. بدون ساخت دوباره، وضعیت آن را در پنل دامنه بررسی کنید.',
                 InlineKeyboardMarkup::make()
-                    ->addRow(InlineKeyboardButton::make('🔎 بررسی دوباره', callback_data: 'nw3:dns:reconcile:'.$identifier))
+                    ->addRow(InlineKeyboardButton::make('🔎 بررسی دوباره', callback_data: 'nw3:dns:reconcile:'.$identifier, style: ButtonStyle::PRIMARY))
                     ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'nw3:resume:'.$identifier)));
         }
     }
@@ -843,14 +849,14 @@ final readonly class AdminNodeSetupUi
         $this->render($bot, 'این مرحله منقضی شده یا تمام شده است.', $this->back());
     }
 
-    private function render(Nutgram $bot, string $message, InlineKeyboardMarkup $keyboard): void
+    private function render(Nutgram $bot, string $message, InlineKeyboardMarkup $keyboard, bool $html = false): void
     {
         if ($bot->isCallbackQuery()) {
             TelegramUi::answerCallback($bot);
-            TelegramUi::editText($bot, $message, $keyboard);
+            TelegramUi::editText($bot, $message, $keyboard, $html ? 'HTML' : null);
 
             return;
         }
-        $bot->sendMessage(text: $message, reply_markup: $keyboard);
+        $bot->sendMessage(text: $message, reply_markup: $keyboard, parse_mode: $html ? 'HTML' : null);
     }
 }
