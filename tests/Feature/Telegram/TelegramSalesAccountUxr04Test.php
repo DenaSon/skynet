@@ -143,23 +143,17 @@ it('counts all linked owned services regardless of pagination and never calls th
             $payload = uxr04Payload($request);
             $buttons = $payload['reply_markup']['inline_keyboard'];
             $encoded = json_encode($buttons, JSON_THROW_ON_ERROR);
-            $activeIds = array_map(
-                static fn ($item): int => $item->orderId,
-                array_filter($first->items, static fn ($item): bool => $item->status === 'active'),
-            );
-            foreach ($activeIds as $id) {
-                if (! str_contains($encoded, 'sales:subs:link:'.$id.':0')) {
-                    return false;
-                }
-            }
-            $notActive = array_filter($first->items, static fn ($item): bool => $item->status !== 'active');
-            foreach ($notActive as $item) {
-                if (str_contains($encoded, 'sales:subs:link:'.$item->orderId.':0')) {
+            foreach ($first->items as $index => $item) {
+                // Both active and non-active rows now lead to the same
+                // owner-verified detail view; connection links stay there.
+                if (count($buttons[$index] ?? []) !== 1
+                    || ($buttons[$index][0]['callback_data'] ?? null) !== 'sales:subs:view:'.$item->orderId.':0') {
                     return false;
                 }
             }
 
             return str_contains($payload['text'], 'سرویس‌های ثبت‌شده: <b>8</b>')
+                && ! str_contains($encoded, 'sales:subs:link:')
                 && ! str_contains($encoded, 'subscriptionUrl')
                 && ! str_contains($encoded, 'remote_user_id')
                 && ! str_contains($encoded, 'https://');

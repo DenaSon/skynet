@@ -165,7 +165,9 @@ it('lets a reseller name their service in Sales Bot and displays escaped labels 
                 && str_contains($data['text'], 'پلن: پلن نمایندگی')
                 && ! str_contains($data['text'], 'سرویس #')
                 && ! str_contains($data['text'], 'علی & <دوست>')
-                && ($keyboard['inline_keyboard'][0][0]['text'] ?? null) === '📋 جزئیات 1'
+                && ($keyboard['inline_keyboard'][0][0]['text'] ?? null) === '👤 علی & <دوست> · 1'
+                && count($keyboard['inline_keyboard'][0]) === 1
+                && ! str_contains(json_encode($keyboard, JSON_THROW_ON_ERROR), 'sales:subs:link:')
                 && ($keyboard['inline_keyboard'][0][0]['callback_data'] ?? null) === "sales:subs:view:{$order}:0";
         }, index: 1);
 
@@ -229,8 +231,11 @@ it('uses a plan-based title for unnamed services and page positions only for vis
                 && str_contains($data['text'], '2. پلن نمایندگی')
                 && ! str_contains($data['text'], "سرویس #{$older}")
                 && ! str_contains($data['text'], "سرویس #{$newer}")
-                && ($keyboard['inline_keyboard'][0][0]['text'] ?? null) === '📋 جزئیات 1'
-                && ($keyboard['inline_keyboard'][1][0]['text'] ?? null) === '📋 جزئیات 2'
+                && ($keyboard['inline_keyboard'][0][0]['text'] ?? null) === '👤 مشتری بدون نام · 1'
+                && ($keyboard['inline_keyboard'][1][0]['text'] ?? null) === '👤 مشتری بدون نام · 2'
+                && count($keyboard['inline_keyboard'][0]) === 1
+                && count($keyboard['inline_keyboard'][1]) === 1
+                && ! str_contains(json_encode($keyboard, JSON_THROW_ON_ERROR), 'sales:subs:link:')
                 && ($keyboard['inline_keyboard'][0][0]['callback_data'] ?? null) === "sales:subs:view:{$newer}:0"
                 && ($keyboard['inline_keyboard'][1][0]['callback_data'] ?? null) === "sales:subs:view:{$older}:0";
         }, index: 1);
@@ -243,6 +248,30 @@ it('uses a plan-based title for unnamed services and page positions only for vis
                 && ! str_contains($data['text'], "سرویس #{$newer}")
                 && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), "sales:subs:label:edit:{$newer}:0");
         }, index: 2);
+});
+
+it('keeps repeated and long customer names identifiable by page position without exposing link buttons', function (): void {
+    $buyer = rslUser();
+    $first = rslOrder($buyer);
+    $second = rslOrder($buyer);
+    $labels = app(ManageResellerServiceLabels::class);
+    $labels->save($buyer->id, $first, 'محمد اسدی');
+    $labels->save($buyer->id, $second, 'محمد اسدی');
+    $bot = rslBot($buyer, 977914);
+
+    $bot->hearCallbackQueryData('sales:subs:list:0')->reply()
+        ->assertRaw(static function (Request $request) use ($first, $second): bool {
+            $data = FakeNutgram::getActualData($request);
+            $keyboard = json_decode($data['reply_markup'], true, 512, JSON_THROW_ON_ERROR);
+
+            return ($keyboard['inline_keyboard'][0][0]['text'] ?? null) === '👤 محمد اسدی · 1'
+                && ($keyboard['inline_keyboard'][1][0]['text'] ?? null) === '👤 محمد اسدی · 2'
+                && ($keyboard['inline_keyboard'][0][0]['callback_data'] ?? null) === "sales:subs:view:{$second}:0"
+                && ($keyboard['inline_keyboard'][1][0]['callback_data'] ?? null) === "sales:subs:view:{$first}:0"
+                && count($keyboard['inline_keyboard'][0]) === 1
+                && count($keyboard['inline_keyboard'][1]) === 1;
+        }, index: 1);
+    Http::assertNothingSent();
 });
 
 it('finds only linked paid reseller-owned labels by name fragment with bounded pagination', function (): void {
