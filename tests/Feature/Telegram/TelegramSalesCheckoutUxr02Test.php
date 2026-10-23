@@ -732,7 +732,6 @@ it('sends zero-balance reseller to wallet top-up without purchase receipt', func
         ->and(DB::table('sales_bank_payment_claims')->count())->toBe(0);
 });
 
-
 it('creates a fresh reseller order per purchase tap and remains idempotent for the same callback', function (): void {
     config()->set('sales.wallet_settlement_enabled', true);
     $data = uxr02Plan();

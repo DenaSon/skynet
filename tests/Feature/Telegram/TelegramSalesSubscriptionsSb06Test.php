@@ -586,7 +586,6 @@ it('keeps a full text link and QR for URLs beyond Telegram media caption limits'
     Http::assertSentCount(1);
 });
 
-
 it('navigates QR photo Back to owned subscription without text-editing a photo', function (string $role): void {
     Role::findOrCreate($role, 'web');
     $buyer = User::factory()->create();
