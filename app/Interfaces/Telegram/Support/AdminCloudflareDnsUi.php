@@ -352,8 +352,12 @@ final readonly class AdminCloudflareDnsUi
 
     private function conflict(int $id): bool
     {
+        if (Cache::has('admin:accounting:draft:'.$id)) {
+            return true;
+        }
         foreach (['nw01:draft:', 'node01:draft:', 'node02:draft:', 'node03:draft:',
-            'host01:draft:', 'host02:draft:', 'host02:batch:', 'cfg02:draft:'] as $prefix) {
+            'host01:draft:', 'host02:draft:', 'host02:batch:', 'cfg02:draft:',
+            'telegram:finance:wallet:', 'telegram:bankreview:reference:'] as $prefix) {
             if (Cache::has(TelegramBotContext::current()->cacheKey($prefix.$id))) {
                 return true;
             }

@@ -459,7 +459,7 @@ final readonly class AdminAccountingUi
         $prefixes = [
             'nw01:draft:', 'node01:draft:', 'node02:draft:', 'node03:draft:',
             'host01:draft:', 'host02:draft:', 'host02:batch:', 'cfg02:draft:',
-            'telegram:finance:wallet:',
+            'telegram:finance:wallet:', 'cf02:form:',
         ];
         $keys = [];
         foreach ($prefixes as $prefix) {

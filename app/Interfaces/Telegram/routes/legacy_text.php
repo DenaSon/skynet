@@ -35,10 +35,6 @@ $bot->onText('{volume}', function (Nutgram $bot, string $volume): void {
         return;
     }
 
-    if (app(AdminCloudflareDnsUi::class)->text($bot, $volume)) {
-        return;
-    }
-
     if (app(AdminAccountingUi::class)->text($bot, $volume)) {
         return;
     }
@@ -80,6 +76,10 @@ $bot->onText('{volume}', function (Nutgram $bot, string $volume): void {
     }
 
     if (app(ResellerBuilderUi::class)->customText($bot, $volume)) {
+        return;
+    }
+
+    if (app(AdminCloudflareDnsUi::class)->text($bot, $volume)) {
         return;
     }
 
