@@ -151,3 +151,148 @@ it('CF-01 surfaces ambiguous external failures without a write retry', function 
         }))->toThrow(RuntimeException::class);
     expect($state->posts)->toBe(1)->and($marked)->toBe(1);
 });
+
+/** @return array{root:User,id:string,state:object} */
+function cf01InstalledNode(bool $withDns = true, bool $failDns = false): array
+{
+    $actors = cf01Operator();
+    config()->set('services.remnawave.url', 'https://rw.cf01.test');
+    config()->set('services.remnawave.token', 'rw-fixture-token');
+    config()->set('services.remnawave.writes_enabled', true);
+    config()->set('services.remnawave.node_ssh_setup_enabled', true);
+    config()->set('services.remnawave.node_ssh_install_enabled', true);
+    $id = str_repeat('e', 32);
+    $nodeId = '550e8400-e29b-41d4-a716-446655440023';
+    $profile = '550e8400-e29b-41d4-a716-446655440021';
+    $inbound = '550e8400-e29b-41d4-a716-446655440022';
+    $hostId = '550e8400-e29b-41d4-a716-446655440024';
+    $name = 'CF01-Test-Node';
+    $data = [
+        'owner' => $actors['root']->id, 'state' => 'running',
+        'ip' => '194.5.192.133', 'name' => $name,
+        'profileUuid' => $profile, 'inboundUuid' => $inbound,
+        'nodeStage' => 'registered', 'nodeUuid' => $nodeId,
+    ];
+    if ($withDns) {
+        $data += [
+            'dnsName' => 'usa.denagate.ir', 'dnsZone' => 'denagate.ir', 'dnsZoneId' => CF01_ZONE_ID,
+        ];
+    }
+    \Illuminate\Support\Facades\Cache::put('nw02:status:'.$id, $data, now()->addHour());
+    $state = (object) ['records' => [], 'posts' => 0, 'hostPosts' => 0, 'failDns' => $failDns];
+    Http::fake(static function (Request $r) use ($nodeId, $profile, $inbound, $hostId, $name, $state) {
+        $url = $r->url();
+        $method = $r->method();
+        $rw = 'https://rw.cf01.test/api/';
+        $cf = 'https://api.cloudflare.com/client/v4/zones';
+        if ($method === 'GET' && str_starts_with($url, $cf.'?')) {
+            return Http::response(['success' => true, 'result' => [[
+                'id' => CF01_ZONE_ID, 'name' => 'denagate.ir',
+            ]]]);
+        }
+        if (str_starts_with($url, $cf.'/'.CF01_ZONE_ID.'/dns_records')) {
+            if ($method === 'GET') {
+                return Http::response(['success' => true, 'result' => $state->records]);
+            }
+            if ($method === 'POST') {
+                $state->posts++;
+                if ($state->failDns) {
+                    return Http::response(['success' => false], 504);
+                }
+                $data = $r->data();
+                $state->records = [[
+                    'id' => CF01_ZONE_ID, 'type' => $data['type'],
+                    'name' => $data['name'], 'content' => $data['content'],
+                    'proxied' => $data['proxied'],
+                ]];
+                return Http::response(['success' => true, 'result' => $state->records[0]], 201);
+            }
+        }
+        if ($method === 'GET' && $url === $rw.'nodes/'.$nodeId) {
+            return Http::response(['response' => [
+                'uuid' => $nodeId, 'name' => $name,
+                'isConnected' => true, 'isDisabled' => false,
+            ]]);
+        }
+        if ($method === 'GET' && $url === $rw.'config-profiles') {
+            return Http::response(['response' => ['configProfiles' => [
+                ['uuid' => $profile, 'name' => 'Default-Profile'],
+            ]]]);
+        }
+        if ($method === 'GET' && $url === $rw.'config-profiles/'.$profile.'/inbounds') {
+            return Http::response(['response' => ['inbounds' => [
+                ['uuid' => $inbound, 'tag' => 'Shadowsocks'],
+            ]]]);
+        }
+        if ($method === 'GET' && $url === $rw.'hosts') {
+            return Http::response(['response' => []]);
+        }
+        if ($method === 'POST' && $url === $rw.'hosts') {
+            $state->hostPosts++;
+            return Http::response(['response' => ['uuid' => $hostId]], 201);
+        }
+        if ($method === 'GET' && $url === $rw.'hosts/'.$hostId) {
+            return Http::response(['response' => [
+                'uuid' => $hostId, 'remark' => $name.'-Host',
+                'address' => 'usa.denagate.ir', 'port' => 1234,
+                'isDisabled' => true, 'inbound' => [
+                    'configProfileUuid' => $profile, 'configProfileInboundUuid' => $inbound,
+                ],
+            ]]);
+        }
+
+        return Http::response(['error' => 'unexpected test request'], 404);
+    });
+
+    return ['root' => $actors['root'], 'id' => $id, 'state' => $state];
+}
+
+it('CF-01 waits for confirmed DNS before creating the existing disabled Host with FQDN', function (): void {
+    $fixture = cf01InstalledNode();
+    $action = app(\App\Modules\Provisioning\Application\CompleteNodeSetup::class);
+    $id = $fixture['id'];
+    $root = $fixture['root']->id;
+
+    expect($action->previewDns($root, $id)['state'])->toBe('missing');
+    expect(fn () => $action->previewHost($root, $id, 1234))->toThrow(RuntimeException::class);
+    $action->ensureDns($root, $id);
+    expect($action->progress($root, $id)['dnsStage'])->toBe('verified')
+        ->and($action->previewHost($root, $id, 1234)['address'])->toBe('usa.denagate.ir');
+    $action->createHost($root, $id, 1234);
+    expect($action->hostStatus($root, $id)['verified'])->toBeTrue()
+        ->and($fixture['state']->posts)->toBe(1)
+        ->and($fixture['state']->hostPosts)->toBe(1);
+    Http::assertSent(static fn (Request $r): bool => $r->method() === 'POST'
+        && $r->url() === 'https://rw.cf01.test/api/hosts'
+        && ($r->data()['address'] ?? null) === 'usa.denagate.ir'
+        && ($r->data()['isDisabled'] ?? null) === true);
+});
+
+it('CF-01 never retries an uncertain DNS POST and allows read-only reconciliation', function (): void {
+    $fixture = cf01InstalledNode(failDns: true);
+    $action = app(\App\Modules\Provisioning\Application\CompleteNodeSetup::class);
+    $id = $fixture['id'];
+    $root = $fixture['root']->id;
+    $state = $fixture['state'];
+
+    expect(fn () => $action->ensureDns($root, $id))->toThrow(RuntimeException::class);
+    expect($action->progress($root, $id)['dnsStage'])->toBe('uncertain');
+    expect(fn () => $action->ensureDns($root, $id))->toThrow(RuntimeException::class);
+    expect($state->posts)->toBe(1);
+    expect(fn () => $action->reconcileDns($root, $id))->toThrow(RuntimeException::class);
+    $state->records = [[
+        'id' => CF01_ZONE_ID, 'name' => 'usa.denagate.ir', 'type' => 'A',
+        'content' => '194.5.192.133', 'proxied' => false,
+    ]];
+    $action->reconcileDns($root, $id);
+    expect($action->progress($root, $id)['dnsStage'])->toBe('verified')
+        ->and($state->posts)->toBe(1);
+});
+
+it('CF-01 leaves the original IP-only Host wizard path unchanged', function (): void {
+    $fixture = cf01InstalledNode(withDns: false);
+    $action = app(\App\Modules\Provisioning\Application\CompleteNodeSetup::class);
+    expect($action->progress($fixture['root']->id, $fixture['id'])['dnsStage'])->toBe('skipped')
+        ->and($action->previewHost($fixture['root']->id, $fixture['id'], 1234)['address'])->toBe('194.5.192.133');
+    expect($fixture['state']->posts)->toBe(0);
+});
