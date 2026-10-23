@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Billing\Application;
 
 use App\Modules\Identity\Application\AssertBillingAccess;
+use App\Support\PersianCalendar;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -37,7 +38,7 @@ final readonly class ReadAdminAccountingReport
         $start = match ($period) {
             '7' => $today->copy()->subDays(6),
             '30' => $today->copy()->subDays(29),
-            'month' => $today->copy()->startOfMonth(),
+            'month' => $today->copy()->subDays(PersianCalendar::dayOfMonth($today) - 1),
         };
         $from = $start->copy()->utc();
         $until = $today->copy()->addDay()->utc();

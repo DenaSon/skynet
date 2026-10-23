@@ -6,6 +6,7 @@ namespace App\Interfaces\Telegram\Support;
 
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Sales\Application\ReadResellerSalesReport;
+use App\Support\PersianCalendar;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
@@ -48,7 +49,7 @@ final readonly class ResellerSalesReportUi
         try {
             $r = $this->reports->handle($actor->userId, (int) $days);
             $text = '<b>📊 گزارش‌های من · '.$days.' روز اخیر</b>'
-                ."\n📅 ".$r['from'].' تا '.$r['to'].' (تهران)'
+                ."\n📅 ".PersianCalendar::date($r['from']).' تا '.PersianCalendar::date($r['to']).' (شمسی، تهران)'
                 ."\n\n<b>👥 مشتریان و سرویس‌ها</b>"
                 ."\n📦 کل سرویس‌های ثبت‌شده: ".number_format($r['services'])
                 ."\n📱 شماره موبایل یکتا: ".number_format($r['phoneCustomers'])
@@ -61,7 +62,7 @@ final readonly class ResellerSalesReportUi
                 ."\n💰 مجموع فروش: <b>".number_format(intdiv($r['revenueRials'], 10)).' تومان</b>'
                 ."\n⏳ سفارش‌های در انتظار پرداخت: ".number_format($r['pending'])
                 ."\n\n<blockquote>آمار مشتری و سرویس، وضعیت فعلی است؛ فروش مربوط به بازه انتخاب‌شده و فقط پرداخت‌های تأییدشده است. تعداد شماره‌ها الزاماً تعداد افراد واقعی نیست.</blockquote>"
-                ."\n🕒 ".$r['generatedAt'];
+                ."\n🕒 ".PersianCalendar::localDateTime($r['generatedAt']);
         } catch (Throwable) {
             $text = '<b>📊 گزارش‌های من</b>'."\n\nاطلاعات فعلاً در دسترس نیست؛ کمی بعد دوباره تلاش کنید.";
         }

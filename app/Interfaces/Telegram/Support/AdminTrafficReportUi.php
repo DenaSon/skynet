@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Telegram\Support;
 
+use App\Support\PersianCalendar;
+
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Provisioning\Application\ReadAdminTrafficReport;
 use Illuminate\Validation\ValidationException;
@@ -53,14 +55,14 @@ final readonly class AdminTrafficReportUi
             $message = "📈 گزارش مصرف\n\nدریافت آمار این بازه ممکن نیست. کمی بعد تازه‌سازی کنید.";
         } else {
             $message = "📈 گزارش مصرف {$report['days']} روزه\n"
-                ."از {$report['start']} تا {$report['end']} (UTC)\n\n"
+                .'از '.PersianCalendar::date($report['start']).' تا '.PersianCalendar::date($report['end'])." (روزهای UTC، تاریخ شمسی)\n\n"
                 ."📅 مصرف روزانه:\n";
 
             if ($report['trend'] === []) {
                 $message .= 'اطلاعات روزانه‌ای ثبت نشده است.';
             } else {
                 foreach (array_slice($report['trend'], -30) as $row) {
-                    $message .= "\n".$row['date'].' · '.self::bytes($row['total']);
+                    $message .= "\n".PersianCalendar::date($row['date']).' · '.self::bytes($row['total']);
                 }
             }
 
@@ -92,7 +94,7 @@ final readonly class AdminTrafficReportUi
                 }
             }
 
-            $message .= "\n\nزمان دریافت: {$report['receivedAt']} (تهران)"
+            $message .= "\n\nزمان دریافت: ".PersianCalendar::localDateTime($report['receivedAt']).' (تهران)'
                 ."\nمقادیر نامشخص به‌معنای مصرف صفر نیستند.";
         }
 
@@ -121,7 +123,7 @@ final readonly class AdminTrafficReportUi
             $message = "👥 کاربران پرمصرف\n\nدریافت گزارش این نود ممکن نیست. فهرست نودها را بررسی کنید.";
         } else {
             $message = '👥 کاربران پرمصرف · '.self::safe($report['name'])
-                ."\nاز {$report['start']} تا {$report['end']} (UTC)\n\n";
+                ."\nاز ".PersianCalendar::date($report['start']).' تا '.PersianCalendar::date($report['end'])." (روزهای UTC، تاریخ شمسی)\n\n";
             if ($report['users'] === []) {
                 $message .= 'در این بازه کاربری در فهرست پرمصرف‌ها ثبت نشده است.';
             } else {
@@ -129,7 +131,7 @@ final readonly class AdminTrafficReportUi
                     $message .= ($i + 1).'. '.self::safe($user['username']).' · '.self::bytes($user['total'])."\n";
                 }
             }
-            $message .= "\nزمان دریافت: {$report['receivedAt']} (تهران)";
+            $message .= "\nزمان دریافت: ".PersianCalendar::localDateTime($report['receivedAt']).' (تهران)';
         }
 
         $keyboard = InlineKeyboardMarkup::make()

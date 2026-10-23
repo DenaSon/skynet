@@ -8,6 +8,7 @@ use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Billing\Application\ViewWallet;
 use App\Modules\Identity\Application\LinkTelegramAccount;
 use App\Modules\Identity\Application\ReadAccountCreatedAt;
+use App\Support\PersianCalendar;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Identity\Application\TelegramActor;
@@ -318,7 +319,7 @@ final readonly class SalesHomeUi
             ."\nشناسه: ".TelegramUi::code((string) $actor->userId)
             ."\nنوع حساب: <b>".$this->salesRole($actor).'</b>'
             ."\nوضعیت: 🟢 فعال"
-            ."\nعضویت: ".($joined === null ? 'نامشخص' : TelegramUi::escape($joined))
+            ."\nعضویت: ".($joined === null ? 'نامشخص' : PersianCalendar::date($joined))
             ."\n\n<b>📊 خلاصه حساب</b>"
             ."\nسرویس‌های ثبت‌شده: ".$services['total']
             ."\nفعال در سوابق: ".$services['activeRecorded']

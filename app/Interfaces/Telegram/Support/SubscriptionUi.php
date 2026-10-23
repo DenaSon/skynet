@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Telegram\Support;
 
+use App\Support\PersianCalendar;
+
 use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Provisioning\Application\GetMySubscription;
 use App\Modules\Provisioning\Application\GetSubscriptionLink;
@@ -148,7 +150,7 @@ final readonly class SubscriptionUi
             'حجم: '.($item->trafficGb === null ? 'نامحدود' : $item->trafficGb.' گیگابایت'),
             'دوره: '.$item->durationDays.' روز',
             'مبلغ سفارش: '.$this->toman($item->totalPriceRials).' تومان',
-            'تاریخ سفارش: '.substr($item->orderedAt, 0, 10),
+            'تاریخ سفارش: '.PersianCalendar::date(substr($item->orderedAt, 0, 10)).' (شمسی)',
             '',
             $detail->canRequestLink
                 ? 'برای اتصال، لینک اختصاصی یا سرورهای مجاز را انتخاب کنید.'
