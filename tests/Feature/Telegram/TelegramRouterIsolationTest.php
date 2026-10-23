@@ -191,6 +191,16 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:nw1:scan:{token}';
     $expected['ADMIN'][] = 'callback:nw1:trust:{token}';
     $expected['ADMIN'][] = 'callback:nw1:cancel';
+    // CF-02: bounded read and confirmed DNS management callbacks (Admin-only).
+    $expected['ADMIN'][] = 'command:dns';
+    $expected['ADMIN'][] = 'callback:cf2:zones';
+    $expected['ADMIN'][] = 'callback:cf2:zone:{index}';
+    $expected['ADMIN'][] = 'callback:cf2:list:{page}';
+    $expected['ADMIN'][] = 'callback:cf2:view:{index}:{token}';
+    $expected['ADMIN'][] = 'callback:cf2:create';
+    $expected['ADMIN'][] = 'callback:cf2:edit:{mode}:{token}';
+    $expected['ADMIN'][] = 'callback:cf2:apply:{token}';
+    $expected['ADMIN'][] = 'callback:cf2:cancel';
     // NODE-01 adds only guarded Admin-only Node routes.
     $expected['ADMIN'][] = 'command:nodes';
     $expected['ADMIN'][] = 'callback:node1:list:{page}';
@@ -248,8 +258,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(232)
-        ->and(count(array_unique($legacy)))->toBe(232);
+        ->and(count($legacy))->toBe(241)
+        ->and(count(array_unique($legacy)))->toBe(241);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {
