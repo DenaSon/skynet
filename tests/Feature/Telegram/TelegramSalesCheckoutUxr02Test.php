@@ -29,6 +29,7 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
+use SergiX44\Nutgram\Telegram\Properties\UpdateType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 use SergiX44\Nutgram\Testing\FakeNutgram;
@@ -726,4 +727,51 @@ it('sends zero-balance reseller to wallet top-up without purchase receipt', func
     }, index: 0);
     expect(DB::table('sales_orders')->where('id', $id)->value('status'))->toBe('pending_payment')
         ->and(DB::table('sales_bank_payment_claims')->count())->toBe(0);
+});
+
+
+it('creates a fresh reseller order per purchase tap and remains idempotent for the same callback', function (): void {
+    config()->set('sales.wallet_settlement_enabled', true);
+    $data = uxr02Plan();
+    Role::findOrCreate('reseller', 'web');
+    $buyer = User::factory()->create();
+    $buyer->syncRoles(['reseller']);
+    $bot = uxr02Bot(973019, $buyer);
+    $buy = 'catalog:detail:'.$data['plan'].':1';
+
+    $tap = static function (string $id, string $callback) use ($bot) {
+        return $bot->hearUpdateType(UpdateType::CALLBACK_QUERY, [
+            'id' => $id, 'message' => ['from' => [], 'date' => 1703892479],
+            'data' => $callback,
+        ])->reply();
+    };
+
+    $tap('purchase-1', $buy)->assertCalled('editMessageText');
+    $first = (int) DB::table('sales_orders')->orderByDesc('id')->value('id');
+    $bot->hearText('مینا احمدی')->reply();
+    $bot->hearText('09123456789')->reply();
+    expect(DB::table('sales_service_customer_labels')->where('sales_order_id', $first)->value('phone'))
+        ->toBe('+989123456789');
+
+    // Replaying the *same* Telegram callback is idempotent.
+    $tap('purchase-1', $buy);
+    expect(DB::table('sales_orders')->count())->toBe(1);
+
+    // Tapping the same plan anew must start a NEW name/mobile wizard.
+    $tap('purchase-2', $buy)->assertRaw(static function (Request $request): bool {
+        return str_contains(uxr02Payload($request)['text'], 'نام و نام خانوادگی مشتری');
+    }, index: 1);
+    $second = (int) DB::table('sales_orders')->orderByDesc('id')->value('id');
+    expect($second)->not->toBe($first)
+        ->and(DB::table('sales_service_customer_labels')->where('sales_order_id', $second)->exists())->toBeFalse()
+        ->and(DB::table('sales_orders')->where('id', $first)->value('status'))->toBe('pending_payment');
+
+    // The explicit "buy new with same plan" shortcut is another fresh intent.
+    $tap('purchase-3', 'sales:checkout:new:'.$first)->assertRaw(static function (Request $request): bool {
+        return str_contains(uxr02Payload($request)['text'], 'نام و نام خانوادگی مشتری');
+    }, index: 1);
+    expect(DB::table('sales_orders')->count())->toBe(3)
+        ->and(DB::table('billing_journals')->count())->toBe(0)
+        ->and(DB::table('sales_bank_payment_claims')->count())->toBe(0);
+    Http::assertNothingSent();
 });
