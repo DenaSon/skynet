@@ -239,18 +239,13 @@ final readonly class ManageResellerServiceLabels
             throw ValidationException::withMessages(['label' => 'Invalid name.']);
         }
         $name = trim((string) preg_replace('/\s+/u', ' ', $clean));
-        if ($name === '' || mb_strlen($name) > 60) {
+        if ($name === '' || mb_strlen($name) > 60 || count(preg_split('/\s+/u', $name)) < 2) {
             throw ValidationException::withMessages(['label' => 'Name must be 1 to 60 characters.']);
         }
 
         DB::transaction(function () use ($buyerId, $orderId, $name): void {
             $this->authorize($buyerId);
-            $order = DB::table('sales_orders')->where('id', $orderId)
-                ->where('buyer_user_id', $buyerId)->lockForUpdate()->first(['id', 'status', 'plan_id']);
-            if ($order === null || $order->status !== 'pending_payment' || $order->plan_id === null
-                || DB::table('sales_renewal_orders')->where('sales_order_id', $orderId)->exists()) {
-                throw ValidationException::withMessages(['service' => 'Checkout name cannot be updated.']);
-            }
+            $this->assertPendingNewPlan($buyerId, $orderId, true);
 
             DB::table('sales_service_customer_labels')->upsert([[
                 'sales_order_id' => $orderId,
@@ -276,6 +271,68 @@ final readonly class ManageResellerServiceLabels
             ->where('sales_order_id', $orderId)->value('label');
 
         return $name === null ? null : (string) $name;
+    }
+
+    /** Store mobile for a reseller's new pending plan before payment. */
+    public function savePendingPhone(int $buyerId, int $orderId, string $phone): void
+    {
+        $number = $this->normalizePhone($phone);
+        DB::transaction(function () use ($buyerId, $orderId, $number): void {
+            $this->authorize($buyerId);
+            $this->assertPendingNewPlan($buyerId, $orderId, true);
+            DB::table('sales_service_customer_labels')->upsert([[
+                'sales_order_id' => $orderId, 'phone' => $number,
+                'created_at' => now(), 'updated_at' => now(),
+            ]], ['sales_order_id'], ['phone', 'updated_at']);
+        }, 3);
+    }
+
+    public function pendingPhone(int $buyerId, int $orderId): ?string
+    {
+        $this->authorize($buyerId);
+        $this->assertPendingNewPlan($buyerId, $orderId);
+
+        $phone = DB::table('sales_service_customer_labels')
+            ->where('sales_order_id', $orderId)->value('phone');
+
+        return $phone === null ? null : (string) $phone;
+    }
+
+    /** Shared payability check, not merely a keyboard visibility rule. */
+    public function assertPendingDetails(int $buyerId, int $orderId): void
+    {
+        if (! $this->buyers->isReseller($buyerId)) {
+            return;
+        }
+        $order = DB::table('sales_orders')->where('id', $orderId)
+            ->where('buyer_user_id', $buyerId)->first(['id', 'plan_id', 'status']);
+        if ($order === null || $order->status !== 'pending_payment') {
+            throw ValidationException::withMessages(['customer' => 'Order is not pending.']);
+        }
+        // Preserve legacy reseller products and renewals without new requirements.
+        if ($order->plan_id === null || DB::table('sales_renewal_orders')
+            ->where('sales_order_id', $orderId)->exists()) {
+            return;
+        }
+        $details = DB::table('sales_service_customer_labels')
+            ->where('sales_order_id', $orderId)->first(['label', 'phone']);
+        if ($details === null || trim((string) $details->label) === ''
+            || trim((string) $details->phone) === '') {
+            throw ValidationException::withMessages(['customer' => 'Complete customer name and mobile before payment.']);
+        }
+    }
+
+    private function assertPendingNewPlan(int $buyerId, int $orderId, bool $lock = false): void
+    {
+        $query = DB::table('sales_orders')->where('id', $orderId)
+            ->where('buyer_user_id', $buyerId)->where('status', 'pending_payment')->whereNotNull('plan_id');
+        if ($lock) {
+            $query->lockForUpdate();
+        }
+        if ($query->first(['id']) === null || DB::table('sales_renewal_orders')
+            ->where('sales_order_id', $orderId)->exists()) {
+            throw ValidationException::withMessages(['customer' => 'Customer information cannot be edited for this order.']);
+        }
     }
 
     private function authorize(int $buyerId): void
