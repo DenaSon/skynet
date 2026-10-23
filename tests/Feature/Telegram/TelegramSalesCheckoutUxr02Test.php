@@ -521,7 +521,7 @@ it('rejects malformed cached order identifiers without submitting an unauthorize
     Cache::put($key, $invalid, now()->addMinutes(10));
     $bot->hearMessage(['message_id' => 107, 'photo' => [
         ['file_id' => 'invalid-member-photo-107', 'file_unique_id' => 'invalid-member-unique-107', 'width' => 400, 'height' => 400],
-    ]])->reply()->assertNoReply();
+    ]])->reply()->assertCalled('sendMessage');
 
     expect(DB::table('sales_bank_payment_claims')->count())->toBe(0)
         ->and(DB::table('telegram_notification_deliveries')->count())->toBe(0)
