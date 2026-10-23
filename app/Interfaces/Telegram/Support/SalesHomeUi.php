@@ -90,10 +90,10 @@ final readonly class SalesHomeUi
         $walletLine = '';
         if ($hasWallet) {
             try {
-                $walletLine = "\n💼 موجودی کیف پول: <b>"
+                $walletLine = "\n💰 موجودی کیف پول: <b>"
                     .TelegramUi::toman($this->wallets->handle($actor->userId)->balanceRials).' تومان</b>';
             } catch (Throwable) {
-                $walletLine = "\n💼 موجودی کیف پول: فعلاً در دسترس نیست";
+                $walletLine = "\n💰 موجودی کیف پول: فعلاً در دسترس نیست";
             }
         }
 
@@ -104,7 +104,7 @@ final readonly class SalesHomeUi
             );
         if ($hasWallet) {
             $keyboard->addRow(
-                InlineKeyboardButton::make('💼 کیف پول', callback_data: 'sales:wallet'),
+                InlineKeyboardButton::make('💰 کیف پول', callback_data: 'sales:wallet'),
                 InlineKeyboardButton::make('👤 حساب کاربری', callback_data: 'sales:account'),
             );
         } else {
@@ -144,7 +144,7 @@ final readonly class SalesHomeUi
         $pages = max(1, (int) ceil(count($entries) / 5));
         $page = min(max(1, $page), $pages);
         $isReseller = in_array('reseller', $actor->roles, true);
-        $lines = ['<b>🛒 پلن‌های آماده خرید</b>', '', 'یک پلن را انتخاب کنید تا مستقیماً وارد پرداخت شوید.', ''];
+        $lines = ['<b>🛒 پلن‌های آماده خرید</b>', '', 'یک پلن را انتخاب کنید تا مشخصات سفارش را تکمیل کنید.', ''];
         $keyboard = InlineKeyboardMarkup::make();
         foreach (array_slice($entries, ($page - 1) * 5, 5) as $entry) {
             $lines[] = '📦 <b>'.$this->name($entry->plan->name).'</b>';
@@ -191,8 +191,10 @@ final readonly class SalesHomeUi
             ReplyMenuLabels::SALES_REPORTS => 'report',
             ReplyMenuLabels::HOME, '🏠 صفحه اصلی', '❌ انصراف', '/cancel' => 'home',
             ReplyMenuLabels::INVITE => 'invite',
-            ReplyMenuLabels::BUILDER, ReplyMenuLabels::LEGACY_BUILDER => 'builder',
-            ReplyMenuLabels::WALLET, ReplyMenuLabels::LEGACY_WALLET, '💼 کیف پول' => 'wallet',
+            ReplyMenuLabels::BUILDER, ReplyMenuLabels::LEGACY_BUILDER,
+            ReplyMenuLabels::OLD_BUILDER_PANEL => 'builder',
+            ReplyMenuLabels::WALLET, ReplyMenuLabels::LEGACY_WALLET,
+            ReplyMenuLabels::OLD_WALLET_PANEL, '💼 کیف پول' => 'wallet',
             default => null,
         };
         if ($action === null) {
@@ -206,6 +208,7 @@ final readonly class SalesHomeUi
         app(SalesSubscriptionsUi::class)->clearCustomerPhoneDraft($actor->userId);
         app(SalesSubscriptionsUi::class)->clearCustomerSearch($actor->userId);
         app(SalesCheckoutUi::class)->clearCustomerName($actor->userId);
+        app(SalesCheckoutUi::class)->clearCustomerPhone($actor->userId);
         switch ($action) {
             case 'buy':
                 $this->buy($bot);
@@ -288,7 +291,7 @@ final readonly class SalesHomeUi
             $label = 'موجودی کیف پول';
             try {
                 $balance = "\n💼 {$label}: <b>".TelegramUi::toman($this->wallets->handle($actor->userId)->balanceRials).' تومان</b>';
-                $keyboard->addRow(InlineKeyboardButton::make('💼 کیف پول', callback_data: 'sales:wallet'));
+                $keyboard->addRow(InlineKeyboardButton::make('💰 کیف پول', callback_data: 'sales:wallet'));
             } catch (Throwable) {
                 $balance = "\n💼 {$label}: فعلاً در دسترس نیست";
             }
@@ -340,7 +343,7 @@ final readonly class SalesHomeUi
         }
         try {
             $wallet = $this->wallets->handle($actor->userId);
-            $message = '<b>💼 کیف پول من</b>'
+            $message = '<b>💰 کیف پول من</b>'
                 ."\n\nموجودی: <b>".TelegramUi::toman($wallet->balanceRials).' تومان</b>';
             if ($wallet->topups !== []) {
                 $message .= "\n\n<b>آخرین درخواست‌های شارژ</b>";
@@ -350,7 +353,7 @@ final readonly class SalesHomeUi
             }
             $message .= "\n\n<blockquote>موجودی براساس تراکنش‌های تأییدشده محاسبه می‌شود.</blockquote>";
         } catch (Throwable) {
-            $message = '<b>💼 کیف پول من</b>'."\n\nموجودی فعلاً در دسترس نیست.";
+            $message = '<b>💰 کیف پول من</b>'."\n\nموجودی فعلاً در دسترس نیست.";
         }
 
         $keyboard = InlineKeyboardMarkup::make();
@@ -460,6 +463,7 @@ final readonly class SalesHomeUi
         app(SalesSubscriptionsUi::class)->clearCustomerPhoneDraft($buyerId);
         app(SalesSubscriptionsUi::class)->clearCustomerSearch($buyerId);
         app(SalesCheckoutUi::class)->clearCustomerName($buyerId);
+        app(SalesCheckoutUi::class)->clearCustomerPhone($buyerId);
     }
 
     private function salesRole(TelegramActor $actor): string
