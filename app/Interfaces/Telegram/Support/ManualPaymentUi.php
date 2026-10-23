@@ -111,6 +111,10 @@ final readonly class ManualPaymentUi
                 }
                 throw $error;
             }
+
+            // Only a valid Sales purchase may replace this buyer's receipt intake.
+            // Retire the UI draft, preserving the top-up request and any evidence.
+            Cache::forget(TelegramBotContext::current()->cacheKey('telegram:wallet:topup:'.$actor->userId));
         }
 
         Cache::put(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$actor->userId), $order->id, now()->addMinutes(10));

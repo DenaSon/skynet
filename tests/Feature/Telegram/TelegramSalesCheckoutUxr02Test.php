@@ -553,6 +553,7 @@ it('routes the next photo to the newly opened purchase without changing a pendin
 
 it('preserves wallet top-up intake when purchase receipt entry is rejected', function (string $reason): void {
     config()->set('billing.topups_enabled', true);
+    Role::findOrCreate('reseller', 'web');
     $plan = uxr02Plan()['plan'];
     $buyer = User::factory()->create();
     $bot = uxr02Bot(973182, $buyer);
