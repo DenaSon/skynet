@@ -52,16 +52,35 @@ function panel01Payload(Request $request): array
     return $data;
 }
 
-it('shows panel application in account and saves a pending request only after explicit confirmation', function (): void {
+it('shows panel application on home and saves a pending request only after terms acceptance and confirmation', function (): void {
     $member = User::factory()->create();
     $bot = panel01Bot(986101, $member);
 
+    $bot->hearCallbackQueryData('sales:home')->reply()->assertRaw(static function (Request $request): bool {
+        $data = panel01Payload($request);
+        $buttons = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+
+        return str_contains($buttons, 'sales:panel:request')
+            && str_contains($buttons, 'sales:help:apps');
+    }, index: 1);
     $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(static function (Request $request): bool {
         $data = panel01Payload($request);
 
-        return str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:panel:request');
+        return ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:panel:request');
     }, index: 1);
-    $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertRaw(static function (Request $request): bool {
+        $data = panel01Payload($request);
+
+        return str_contains($data['text'], '۷۵۰٬۰۰۰ تومان')
+            && str_contains($data['text'], 'تعرفه و تخفیف')
+            && str_contains($data['text'], 'اختلال اینترنت')
+            && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:panel:accept');
+    }, index: 1);
+    $bot->hearText('علی')->reply()->assertCalled('sendMessage');
+    expect(DB::table('sales_panel_requests')->count())->toBe(0);
+    $bot->hearCallbackQueryData('sales:panel:confirm')->reply()->assertCalled('editMessageText');
+    expect(DB::table('sales_panel_requests')->count())->toBe(0);
+    $bot->hearCallbackQueryData('sales:panel:accept')->reply()->assertCalled('editMessageText');
     $bot->hearText('علی')->reply()->assertCalled('sendMessage');
     $bot->hearText('محمدی')->reply()->assertCalled('sendMessage');
     $bot->hearText('+۹۸۹۱۲۳۴۵۶۷۸۹')->reply()->assertRaw(static function (Request $request): bool {
@@ -93,7 +112,6 @@ it('cancels or expires the private form without creating an application', functi
     $key = TelegramBotContext::current()->cacheKey('telegram:panel:request:'.$member->id);
 
     $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertCalled('editMessageText');
-    $bot->hearText('علی')->reply()->assertCalled('sendMessage');
     $bot->hearCallbackQueryData('sales:panel:cancel')->reply()->assertCalled('editMessageText');
     expect(Cache::get($key))->toBeNull();
     $bot->hearCallbackQueryData('sales:panel:confirm')->reply()->assertCalled('editMessageText');
@@ -117,6 +135,7 @@ it('denies group callbacks, disabled users, forged cross-user confirmation and a
     expect(DB::table('sales_panel_requests')->count())->toBe(0);
 
     $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:panel:accept')->reply()->assertCalled('editMessageText');
     $bot->hearText('حسین')->reply()->assertCalled('sendMessage');
     $partner->hearCallbackQueryData('sales:panel:confirm')->reply()->assertCalled('editMessageText');
     expect(DB::table('sales_panel_requests')->count())->toBe(0);
@@ -135,6 +154,7 @@ it('leaving to sales home cancels panel draft without disturbing existing wallet
     $member = User::factory()->create();
     $bot = panel01Bot(986105, $member);
     $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:panel:accept')->reply()->assertCalled('editMessageText');
     $bot->hearText('علی')->reply()->assertCalled('sendMessage');
     $bot->hearCallbackQueryData('sales:home')->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('sales:wallet')->reply()->assertCalled('editMessageText');

@@ -54,6 +54,38 @@ final readonly class SalesPanelRequestUi
             return;
         }
 
+        Cache::put($this->key($userId), ['step' => 'terms'], now()->addMinutes(10));
+        $this->render($bot,
+            '<b>🧩 قوانین پنل فروش</b>'
+            ."\n\n<blockquote>۱. مدیریت مشتریان و پاسخ‌گویی اولیه بر عهده صاحب پنل است."
+            ."\n۲. خرید سرویس‌ها مطابق تعرفه و تخفیف پنل فروش انجام می‌شود."
+            ."\n۳. سوءاستفاده، فعالیت متقلبانه یا فروش غیرمجاز ممنوع است."
+            ."\n۴. پایداری اتصال ممکن است تحت تأثیر اختلال اینترنت و محدودیت اپراتورها باشد."
+            ."\n۵. فعال‌سازی و ادامه فعالیت پنل منوط به تأیید مدیریت و رعایت مقررات است."
+            ."\n۶. فعال‌سازی پنل مستلزم شارژ کیف پول به مبلغ <b>۷۵۰٬۰۰۰ تومان</b> است.</blockquote>"
+            ."\n\nبا پذیرش قوانین می‌توانید درخواست خود را ثبت کنید.",
+            InlineKeyboardMarkup::make()
+                ->addRow(InlineKeyboardButton::make('✅ می‌پذیرم', callback_data: 'sales:panel:accept', style: ButtonStyle::SUCCESS))
+                ->addRow(InlineKeyboardButton::make('↩️ بازگشت', callback_data: 'sales:panel:cancel')));
+    }
+
+    public function accept(Nutgram $bot): void
+    {
+        $userId = $this->buyer($bot);
+        if ($userId === null) {
+            return;
+        }
+        $draft = Cache::get($this->key($userId));
+        $actor = $this->actors->handle((int) $this->private->id($bot));
+        if (! is_array($draft) || ($draft['step'] ?? null) !== 'terms'
+            || $actor === null || ! in_array('member', $actor->roles, true)
+            || in_array('reseller', $actor->roles, true)
+            || $this->requests->find($userId) !== null) {
+            $this->clear($userId);
+            $this->notice($bot, 'برای ادامه، وضعیت درخواست پنل فروش را دوباره بررسی کنید.');
+
+            return;
+        }
         Cache::put($this->key($userId), ['step' => 'first'], now()->addMinutes(10));
         $this->notice($bot,
             '<b>🧩 درخواست پنل فروش</b>'
@@ -131,6 +163,13 @@ final readonly class SalesPanelRequestUi
         if ($userId === null) {
             return;
         }
+        // A stale confirmation must not consume the terms or input draft.
+        $pending = Cache::get($this->key($userId));
+        if (! is_array($pending) || ($pending['step'] ?? null) !== 'confirm') {
+            $this->notice($bot, 'برای ثبت درخواست، ابتدا مراحل و تأیید نهایی را کامل کنید.');
+
+            return;
+        }
         $draft = Cache::pull($this->key($userId));
         if (! is_array($draft) || ($draft['step'] ?? null) !== 'confirm'
             || ! is_string($draft['first'] ?? null) || ! is_string($draft['last'] ?? null)
@@ -175,9 +214,11 @@ final readonly class SalesPanelRequestUi
             return false;
         }
 
-        $this->notice($bot, ($draft['step'] ?? null) === 'confirm'
-            ? 'برای ثبت درخواست، دکمه تأیید را بزنید یا اطلاعات را اصلاح کنید.'
-            : 'برای ادامه، اطلاعات خواسته‌شده را ارسال کنید یا انصراف بزنید.');
+        $this->notice($bot, match ($draft['step'] ?? null) {
+            'terms' => 'برای ادامه، ابتدا قوانین پنل فروش را بپذیرید یا بازگردید.',
+            'confirm' => 'برای ثبت درخواست، دکمه تأیید را بزنید یا اطلاعات را اصلاح کنید.',
+            default => 'برای ادامه، اطلاعات خواسته‌شده را ارسال کنید یا انصراف بزنید.',
+        });
 
         return true;
     }

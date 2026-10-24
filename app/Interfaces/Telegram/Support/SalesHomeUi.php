@@ -115,6 +115,18 @@ final readonly class SalesHomeUi
             $keyboard->addRow(InlineKeyboardButton::make('🧩 پلن‌ساز', callback_data: 'menu:builder'));
             $keyboard->addRow(InlineKeyboardButton::make('📊 گزارش‌های من', callback_data: 'sales:report:30'));
         }
+        if (! $isReseller && in_array('member', $actor->roles, true)) {
+            $requestLabel = '🧩 درخواست پنل فروش';
+            try {
+                if ($this->panelRequests->find($actor->userId) !== null) {
+                    $requestLabel = '📨 وضعیت درخواست پنل فروش';
+                }
+            } catch (Throwable) {
+                // A request lookup failure must not block home navigation.
+            }
+            $keyboard->addRow(InlineKeyboardButton::make($requestLabel, callback_data: 'sales:panel:request'));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('📚 آموزش', callback_data: 'sales:help:apps'));
         $keyboard->addRow(InlineKeyboardButton::make('💬 پشتیبانی', callback_data: 'sales:support'))
             ->addRow(InlineKeyboardButton::make('📋 همه پلن‌ها و قیمت‌ها', callback_data: 'menu:plan-catalog'));
 
@@ -300,16 +312,6 @@ final readonly class SalesHomeUi
         if (in_array('reseller', $actor->roles, true)) {
             $keyboard->addRow(InlineKeyboardButton::make('🧩 پلن‌ساز', callback_data: 'menu:builder'));
             $keyboard->addRow(InlineKeyboardButton::make('📊 گزارش‌های من', callback_data: 'sales:report:30'));
-        } elseif (in_array('member', $actor->roles, true)) {
-            $requestLabel = '🧩 درخواست پنل فروش';
-            try {
-                if ($this->panelRequests->find($actor->userId) !== null) {
-                    $requestLabel = '📨 وضعیت درخواست پنل فروش';
-                }
-            } catch (Throwable) {
-                // Request status does not block the existing account screen.
-            }
-            $keyboard->addRow(InlineKeyboardButton::make($requestLabel, callback_data: 'sales:panel:request'));
         }
 
         $keyboard->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
