@@ -49,6 +49,19 @@ final readonly class SalesSupportUi
                     ->addRow(InlineKeyboardButton::make('🔧 رفع مشکل اتصال', callback_data: 'sales:help:troubleshoot'));
                 break;
 
+            case 'panel':
+                $text = '<b>📚 آموزش پنل فروش</b>'."\n\n"
+                    ."۱. درخواست پنل فروش را از صفحه اصلی ثبت کنید.\n\n"
+                    ."۲. پس از بررسی مدیریت و شارژ کیف پول به مبلغ <b>۷۵۰٬۰۰۰ تومان</b>، پنل قابل فعال‌سازی است.\n\n"
+                    ."۳. پس از فعال‌سازی، با پلن‌ساز و تعرفه‌های مخصوص پنل فروش برای مشتریان سرویس تهیه کنید."
+                    ."\n\n<blockquote>ثبت درخواست یا شارژ کیف پول به‌تنهایی به معنای تأیید و فعال‌شدن پنل نیست.</blockquote>";
+                if (in_array('reseller', $actor->roles, true)) {
+                    $keyboard->addRow(InlineKeyboardButton::make('🧩 راهنمای پلن‌ساز', callback_data: 'sales:help:builder'));
+                } elseif (in_array('member', $actor->roles, true)) {
+                    $keyboard->addRow(InlineKeyboardButton::make('🧩 درخواست / وضعیت پنل', callback_data: 'sales:panel:request'));
+                }
+                break;
+
             case 'builder':
                 $text = '<b>🧩 راهنمای پلن‌ساز</b>'."\n\n"
                     ."۱. از منوی نماینده، «پلن‌ساز» را انتخاب کنید.\n\n"

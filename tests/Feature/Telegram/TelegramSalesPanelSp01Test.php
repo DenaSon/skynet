@@ -52,16 +52,33 @@ function panel01Payload(Request $request): array
     return $data;
 }
 
-it('shows panel application in account and saves a pending request only after explicit confirmation', function (): void {
+it('shows the panel rules from home and saves a pending request only after acceptance and confirmation', function (): void {
     $member = User::factory()->create();
     $bot = panel01Bot(986101, $member);
 
-    $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(static function (Request $request): bool {
+    $bot->hearCallbackQueryData('sales:home')->reply()->assertRaw(static function (Request $request): bool {
         $data = panel01Payload($request);
+        $markup = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
 
-        return str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:panel:request');
+        return str_contains($markup, 'sales:panel:request')
+            && str_contains($markup, 'sales:help:panel');
     }, index: 1);
-    $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertRaw(static function (Request $request): bool {
+        $data = panel01Payload($request);
+        $markup = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+
+        return str_contains($data['text'], 'قوانین پنل فروش')
+            && str_contains($data['text'], '۷۵۰٬۰۰۰ تومان')
+            && str_contains($data['text'], 'تعرفه و تخفیف')
+            && str_contains($data['text'], 'اختلال اینترنت')
+            && str_contains($markup, 'sales:panel:accept')
+            && str_contains($markup, 'sales:panel:cancel');
+    }, index: 1);
+    $bot->hearText('علی')->reply()->assertCalled('sendMessage');
+    expect(DB::table('sales_panel_requests')->count())->toBe(0);
+    $bot->hearCallbackQueryData('sales:panel:accept')->reply()->assertRaw(static function (Request $request): bool {
+        return str_contains(panel01Payload($request)['text'], 'مرحله ۱ از ۳');
+    }, index: 1);
     $bot->hearText('علی')->reply()->assertCalled('sendMessage');
     $bot->hearText('محمدی')->reply()->assertCalled('sendMessage');
     $bot->hearText('+۹۸۹۱۲۳۴۵۶۷۸۹')->reply()->assertRaw(static function (Request $request): bool {
@@ -93,12 +110,14 @@ it('cancels or expires the private form without creating an application', functi
     $key = TelegramBotContext::current()->cacheKey('telegram:panel:request:'.$member->id);
 
     $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:panel:accept')->reply()->assertCalled('editMessageText');
     $bot->hearText('علی')->reply()->assertCalled('sendMessage');
     $bot->hearCallbackQueryData('sales:panel:cancel')->reply()->assertCalled('editMessageText');
     expect(Cache::get($key))->toBeNull();
     $bot->hearCallbackQueryData('sales:panel:confirm')->reply()->assertCalled('editMessageText');
 
     $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:panel:accept')->reply()->assertCalled('editMessageText');
     $this->travel(11)->minutes();
     $bot->hearText('علی')->reply()->assertCalled('sendMessage');
     expect(DB::table('sales_panel_requests')->count())->toBe(0);
@@ -117,12 +136,15 @@ it('denies group callbacks, disabled users, forged cross-user confirmation and a
     expect(DB::table('sales_panel_requests')->count())->toBe(0);
 
     $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertCalled('editMessageText');
+    $partner->hearCallbackQueryData('sales:panel:accept')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:panel:accept')->reply()->assertCalled('editMessageText');
     $bot->hearText('حسین')->reply()->assertCalled('sendMessage');
     $partner->hearCallbackQueryData('sales:panel:confirm')->reply()->assertCalled('editMessageText');
     expect(DB::table('sales_panel_requests')->count())->toBe(0);
 
     $bot->setCommonChat(Chat::make(-986103, ChatType::GROUP));
     $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertNoReply();
+    $bot->hearCallbackQueryData('sales:panel:accept')->reply()->assertNoReply();
     $bot->hearCallbackQueryData('sales:panel:confirm')->reply()->assertNoReply();
 
     $bot->setCommonChat(Chat::make(986103, ChatType::PRIVATE));
@@ -135,10 +157,43 @@ it('leaving to sales home cancels panel draft without disturbing existing wallet
     $member = User::factory()->create();
     $bot = panel01Bot(986105, $member);
     $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:panel:accept')->reply()->assertCalled('editMessageText');
     $bot->hearText('علی')->reply()->assertCalled('sendMessage');
     $bot->hearCallbackQueryData('sales:home')->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('sales:wallet')->reply()->assertCalled('editMessageText');
 
     expect(Cache::get(TelegramBotContext::current()->cacheKey('telegram:panel:request:'.$member->id)))->toBeNull()
         ->and(DB::table('sales_panel_requests')->count())->toBe(0);
+});
+
+it('requires a fresh rules acceptance, preserves edits without a second acceptance and never charges the wallet', function (): void {
+    $member = User::factory()->create();
+    $bot = panel01Bot(986106, $member);
+
+    $bot->hearCallbackQueryData('sales:panel:accept')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertCalled('editMessageText');
+    $bot->hearText('بدون پذیرش')->reply()->assertRaw(static function (Request $request): bool {
+        return str_contains(panel01Payload($request)['text'], 'ابتدا قوانین');
+    });
+    $bot->hearCallbackQueryData('sales:panel:cancel')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:panel:accept')->reply()->assertCalled('editMessageText');
+    expect(DB::table('sales_panel_requests')->count())->toBe(0);
+
+    $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:panel:accept')->reply()->assertCalled('editMessageText');
+    $bot->hearText('سارا')->reply()->assertCalled('sendMessage');
+    $bot->hearText('رضایی')->reply()->assertCalled('sendMessage');
+    $bot->hearText('09123456789')->reply()->assertCalled('sendMessage');
+    $bot->hearCallbackQueryData('sales:panel:edit')->reply()->assertRaw(static function (Request $request): bool {
+        return str_contains(panel01Payload($request)['text'], 'مرحله ۱ از ۳');
+    }, index: 1);
+    $bot->hearText('سارا')->reply()->assertCalled('sendMessage');
+    $bot->hearText('احمدی')->reply()->assertCalled('sendMessage');
+    $bot->hearText('09123456789')->reply()->assertCalled('sendMessage');
+    $bot->hearCallbackQueryData('sales:panel:confirm')->reply()->assertCalled('editMessageText');
+
+    expect(DB::table('sales_panel_requests')->count())->toBe(1)
+        ->and(DB::table('sales_panel_requests')->value('last_name'))->toBe('احمدی')
+        ->and(DB::table('billing_journals')->count())->toBe(0);
+    Http::assertNothingSent();
 });

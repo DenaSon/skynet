@@ -1,3 +1,9 @@
+## Sales panel entry and terms UX (2026-10-24)
+
+- Member Sales home shows «📚 آموزش پنل فروش» and «🧩 درخواست پنل فروش» (or pending/decision status). Active reseller Sales home shows education; reseller builder/report and existing account actions are preserved. Request is removed from Account but its callback stays usable on older messages.
+- New applications first show a concise HTML quote with only the operator-selected rules: reseller tariff/discount, possible operator/network instability, and a **750,000 toman wallet top-up prerequisite** for activation. This is a disclosure, not a debit, deposit collection, automated activation or new approval guard. Activation remains subject to Admin approval; all existing wallet/billing/role policies are unchanged.
+- «✅ می‌پذیرم» requires a fresh private member draft before the existing three-step name/family/mobile form. Back cancels safely; explicit final submission remains required. Editing fields within the same draft does not ask to accept the rules again. Stale, forged and expired callbacks never create requests. Production Telegram visual smoke and manual operator compliance checks remain separate from fake-Nutgram CI evidence.
+
 ## Preset plan selection labels (2026-10-24)
 
 Ready-plan Buy and the full preset catalog use the same plain-text button label: `پایه · 10 گیگ · 15 روز`. Read volume and duration from the current buyer-authorized quote; time-only plans show `نامحدود`. Shorten only names longer than 20 characters, preserving the complete volume/day suffix. Strip control/bidi-override characters and do not HTML-encode inline button text. Existing callbacks, pagination, native styles, prices and readiness/ownership checks remain unchanged.
