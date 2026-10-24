@@ -75,7 +75,7 @@ it('shows panel application on home and saves a pending request only after terms
             && str_contains($data['text'], 'تعرفه و تخفیف')
             && str_contains($data['text'], 'اختلال اینترنت')
             && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:panel:accept');
-    });
+    }, index: 1);
     $bot->hearText('علی')->reply()->assertCalled('sendMessage');
     expect(DB::table('sales_panel_requests')->count())->toBe(0);
     $bot->hearCallbackQueryData('sales:panel:confirm')->reply()->assertCalled('editMessageText');
