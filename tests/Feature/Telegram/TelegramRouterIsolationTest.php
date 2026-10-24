@@ -284,6 +284,7 @@ it('keeps Sales identity, navigation and buyer routes isolated from Admin callba
         'callback:sales:wallet',
         'callback:sales:wallet:topup',
         'callback:sales:panel:request',
+        'callback:sales:panel:accept',
         'callback:sales:panel:confirm',
         'callback:sales:panel:cancel',
         'callback:sales:account',
