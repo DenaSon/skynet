@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Interfaces\Telegram\Support\BillingReviewTokens;
 use App\Modules\Billing\Application\ReadAdminWalletSummary;
+use App\Modules\Billing\Application\BrowseCustomerWallets;
 use App\Modules\Billing\Application\RequestTopup;
 use App\Modules\Billing\Application\SubmitTopupPhoto;
 use App\Modules\Billing\Application\ViewWallet;
@@ -209,7 +210,6 @@ it('summarizes the complete wallet ledger rather than just one page and flags ne
         ]);
     }
     // The oldest funded wallet must now rank first despite its older ID.
-    $users[0]->forceFill(['is_active' => false])->save();
     $journal = (int) DB::table('billing_journals')->insertGetId([
         'wallet_id' => $walletIds[0], 'kind' => 'topup',
         'idempotency_key' => 'fin-stat-01-fixture', 'created_at' => now(),
@@ -292,6 +292,7 @@ it('prioritizes funded older wallets across 19 rows and splits reseller and memb
     $users[4]->syncRoles(['admin']);
     PanelWalletFunding::credit($users[0]->id, 7_500_000);
     PanelWalletFunding::credit($users[1]->id, 525_000);
+    $users[0]->forceFill(['is_active' => false])->save();
 
     $summary = app(ReadAdminWalletSummary::class)->handle($root->id);
     expect($summary)->toBe([
@@ -305,7 +306,7 @@ it('prioritizes funded older wallets across 19 rows and splits reseller and memb
         'pendingTopups' => 0,
     ]);
 
-    $reader = app(\\App\\Modules\\Billing\\Application\\BrowseCustomerWallets::class);
+    $reader = app(BrowseCustomerWallets::class);
     $first = $reader->page($root->id, 1);
     $second = $reader->page($root->id, 2);
     $third = $reader->page($root->id, 3);
@@ -353,12 +354,13 @@ it('keeps negative and unrelated-role wallet balances in their own group without
     $root = fin01Admin();
     Role::findOrCreate('reseller', 'web');
     $member = User::factory()->create();
-    $staff = User::factory()->admin()->create();
+    $staff = User::factory()->create();
     $dual = User::factory()->create();
     $dual->syncRoles(['member', 'reseller']);
 
     PanelWalletFunding::credit($dual->id, 1_000_000);
     PanelWalletFunding::credit($staff->id, 250_000);
+    $staff->syncRoles(['admin']);
     PanelWalletFunding::spend($member->id, 100_000);
 
     $summary = app(ReadAdminWalletSummary::class)->handle($root->id);
@@ -369,7 +371,7 @@ it('keeps negative and unrelated-role wallet balances in their own group without
         ->and($summary['walletsTotal'])->toBe(3)
         ->and($summary['walletsNegative'])->toBe(1);
 
-    $rows = array_slice(app(\\App\\Modules\\Billing\\Application\\BrowseCustomerWallets::class)->page($root->id, 1), 0, 3);
+    $rows = array_slice(app(BrowseCustomerWallets::class)->page($root->id, 1), 0, 3);
     expect(array_column($rows, 'id'))->toBe([$dual->id, $staff->id, $member->id])
         ->and(array_column($rows, 'account_type'))->toBe(['reseller', 'other', 'member'])
         ->and(array_column($rows, 'balance_rials'))->toBe([1_000_000, 250_000, -100_000]);
