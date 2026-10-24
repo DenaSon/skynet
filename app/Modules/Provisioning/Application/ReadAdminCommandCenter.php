@@ -6,6 +6,7 @@ namespace App\Modules\Provisioning\Application;
 
 use App\Modules\Billing\Application\ReadAdminCashReceipts;
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -30,6 +31,8 @@ final readonly class ReadAdminCommandCenter
         $cash = null;
         try {
             $cash = $this->cash->handle($actorId, 'all');
+        } catch (AuthorizationException $exception) {
+            throw $exception;
         } catch (Throwable) {
             // Financial data unavailable; keep other independent sections.
         }
@@ -37,6 +40,8 @@ final readonly class ReadAdminCommandCenter
         $stats = null;
         try {
             $stats = $this->dashboard->handle($actorId);
+        } catch (AuthorizationException $exception) {
+            throw $exception;
         } catch (Throwable) {
             // STAT-01 unavailable; do not hide verified financial data.
         }

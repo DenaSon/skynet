@@ -71,7 +71,7 @@ it('puts Denaban first in both private root Admin menus and excludes ordinary ad
         $payload = denabanPayload($r);
 
         return ($payload['reply_markup']['inline_keyboard'][0][0]['callback_data'] ?? null) === 'denaban:show';
-    });
+    }, index: 1);
 
     $ordinary = User::factory()->admin()->create();
     TelegramAccount::query()->create(['user_id' => $ordinary->id, 'telegram_user_id' => 991203]);
@@ -126,7 +126,7 @@ it('shows canonical verified inflows and sales independently of unavailable RW',
             && str_contains($p['text'], 'بعضی اطلاعات کامل نیست')
             && ! str_contains($p['text'], 'صبح بخیر')
             && ($p['parse_mode'] ?? null) === 'HTML';
-    });
+    }, index: 1);
     expect(DB::table('billing_journals')->count())->toBe($before);
     Http::assertSent(static fn (Request $r): bool => $r->method() === 'GET');
     Http::assertNotSent(static fn (Request $r): bool => $r->method() !== 'GET');

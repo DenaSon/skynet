@@ -7,6 +7,7 @@ namespace App\Interfaces\Telegram\Support;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Provisioning\Application\ReadAdminCommandCenter;
 use App\Support\PersianCalendar;
+use Illuminate\Auth\Access\AuthorizationException;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
@@ -41,6 +42,10 @@ final readonly class AdminCommandCenterUi
 
         try {
             $text = $this->report($this->center->handle($actor->userId));
+        } catch (AuthorizationException) {
+            $this->menus->denyAccess($bot);
+
+            return;
         } catch (\Throwable) {
             $text = "<b>🏔️ دنابان | وضعیت دنا</b>\n\nدریافت گزارش فعلاً ممکن نیست. دوباره بررسی کنید.";
         }
