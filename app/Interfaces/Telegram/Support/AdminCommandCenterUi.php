@@ -40,8 +40,11 @@ final readonly class AdminCommandCenterUi
             TelegramUi::answerCallback($bot);
         }
 
+        $failures = null;
         try {
-            $text = $this->report($this->center->handle($actor->userId));
+            $snapshot = $this->center->handle($actor->userId);
+            $text = $this->report($snapshot);
+            $failures = self::number($snapshot['stats'], 'notificationIssues');
         } catch (AuthorizationException) {
             $this->menus->denyAccess($bot);
 
@@ -51,8 +54,16 @@ final readonly class AdminCommandCenterUi
         }
 
         $keyboard = InlineKeyboardMarkup::make()
-            ->addRow(InlineKeyboardButton::make('🔄 بررسی دوباره', callback_data: 'denaban:show'))
-            ->addRow(
+            ->addRow(InlineKeyboardButton::make('🔄 بررسی دوباره', callback_data: 'denaban:show'));
+
+        if ($failures !== null && $failures > 0) {
+            $keyboard->addRow(InlineKeyboardButton::make(
+                '🔔 بررسی اعلان‌های ناموفق ('.number_format($failures).')',
+                callback_data: 'denaban:notifications:1',
+            ));
+        }
+
+        $keyboard->addRow(
                 InlineKeyboardButton::make('💳 امور مالی', callback_data: 'menu:admin:finance'),
                 InlineKeyboardButton::make('🖥️ سرورها', callback_data: 'menu:admin:servers'),
             );
