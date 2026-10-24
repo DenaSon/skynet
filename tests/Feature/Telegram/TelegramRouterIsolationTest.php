@@ -81,6 +81,7 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:sp:apply:{token}';
     // OPS-CMD-01: read-only root-only Denaban callback.
     $expected['ADMIN'][] = 'callback:denaban:show';
+    $expected['ADMIN'][] = 'callback:denaban:notifications:{page}';
     // STAT-01: scoped Admin read-only statistics routes.
     $expected['ADMIN'][] = 'command:stats';
     // STAT-02: bounded Admin-only business reports.
@@ -262,8 +263,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(243)
-        ->and(count(array_unique($legacy)))->toBe(243);
+        ->and(count($legacy))->toBe(244)
+        ->and(count(array_unique($legacy)))->toBe(244);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {

@@ -20,6 +20,7 @@ use App\Interfaces\Telegram\Support\AdminNodeMetricsUi;
 use App\Interfaces\Telegram\Support\AdminNodeOperationsUi;
 use App\Interfaces\Telegram\Support\AdminNodeSetupUi;
 use App\Interfaces\Telegram\Support\AdminNodesUi;
+use App\Interfaces\Telegram\Support\AdminNotificationFailuresUi;
 use App\Interfaces\Telegram\Support\AdminPanelUsersUi;
 use App\Interfaces\Telegram\Support\AdminProviderOverviewUi;
 use App\Interfaces\Telegram\Support\AdminSalesPanelRequestsUi;
@@ -334,6 +335,11 @@ $bot->onCallbackQueryData('node3:cancel', function (Nutgram $bot): void {
 // OPS-CMD-01: private Super Admin Denaban snapshot and refresh.
 $bot->onCallbackQueryData('denaban:show', function (Nutgram $bot): void {
     app(AdminCommandCenterUi::class)->show($bot);
+});
+
+// OPS-CMD-01A: private, read-only investigation of terminal notification deliveries.
+$bot->onCallbackQueryData('denaban:notifications:{page}', function (Nutgram $bot, string $page): void {
+    app(AdminNotificationFailuresUi::class)->show($bot, $page);
 });
 
 // STAT-01: read-only, private Super Admin dashboard with bounded provider GETs.

@@ -1,3 +1,7 @@
+## OPS-CMD-01A — Denaban terminal notification investigation (2026-10-25)
+
+Add an optional, positive-count-only Denaban button to inspect existing dead/unavailable Telegram notification records in root-only, bounded pages of five. Expose only safe local IDs, recipient app-user ID, bot label, translated event and failure categories, delivery state, attempts, and localized timestamps; no raw tokens, chat IDs or media. No retry, status change, new schema, dependency, schedule, Provider access or changes to Sales/financial flows. Preserve existing authorization and route isolation. Require CI/PHP 8.4+8.5, Pint, static analysis, pagination/access/zero-mutation tests and real Admin smoke separately.
+
 ## OPS-CMD-01 — Denaban phase 1 (2026-10-25)
 
 Add a private Super Admin-only «🏔️ دنابان» first Reply and Inline Admin menu choice and an on-demand read-only snapshot. Reuse FIN-CASH-01 verified historical inflows/current wallet liability, STAT-01 same-day sales/identity/operational queue and safe RW summary, plus existing submitted top-up status filter. Keep sources independent, fail as unknown not zero, never confuse RW connectivity with Iranian client reachability. Offer existing finance, receipts and server navigation. Professionally warm, clock-neutral Persian copy. No Provider write, monitoring task, migration, new dependency, financial arithmetic or Sales Bot changes; existing routes survive. Test Telegram RBAC and canonical financial reporting, PHP 8.4/8.5, PHPStan/Pint and DB; live Telegram smoke separate. OPS-CMD-02 holds per-node telemetry.
