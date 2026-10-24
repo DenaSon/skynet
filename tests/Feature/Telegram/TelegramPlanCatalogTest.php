@@ -12,6 +12,7 @@ use App\Modules\Sales\Application\ManagePlanPricing;
 use App\Modules\Sales\Application\ManagePlans;
 use App\Modules\Sales\Application\PlanDefinition;
 use App\Modules\Sales\Application\PlanPricingDefinition;
+use GuzzleHttp\Psr7\Request;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -20,6 +21,7 @@ use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
+use SergiX44\Nutgram\Testing\FakeNutgram;
 use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
@@ -105,6 +107,7 @@ it('uses actual published buyer quotes including one reseller discount and unlim
     $public = b15Preset($root, 'public-30', 'both', 'hybrid', true, 1_000_000, 10);
     $exclusive = b15Preset($root, 'reseller-30', 'reseller');
     $unlimited = b15Preset($root, 'unlimited-30', 'public', 'time');
+    DB::table('sales_plans')->where('id', $public)->update(['name' => str_repeat('الف', 20)]);
 
     $member = User::factory()->create();
     $reseller = User::factory()->create();
@@ -120,7 +123,21 @@ it('uses actual published buyer quotes including one reseller discount and unlim
     expect(fn () => $catalog->find($member->id, $exclusive))->toThrow(ValidationException::class);
 
     $bot = b15Bot(955011, $reseller);
-    $bot->hearText('/catalog')->reply()->assertCalled('sendMessage');
+    $bot->hearText('/catalog')->reply()->assertCalled('sendMessage')
+        ->assertRaw(static function (Request $request) use ($public, $unlimited): bool {
+            $body = FakeNutgram::getActualData($request);
+            $markup = is_string($body['reply_markup'])
+                ? json_decode($body['reply_markup'], true, flags: JSON_THROW_ON_ERROR)
+                : $body['reply_markup'];
+            $finite = $markup['inline_keyboard'][0][0];
+            $unlimitedButton = $markup['inline_keyboard'][2][0];
+
+            return str_ends_with($finite['text'], '… · 30 گیگ · 30 روز')
+                && mb_strlen($finite['text']) < 50
+                && $finite['callback_data'] === "catalog:detail:{$public}:1"
+                && $unlimitedButton['text'] === 'Plan unlimited-30 · نامحدود · 30 روز'
+                && $unlimitedButton['callback_data'] === "catalog:detail:{$unlimited}:1";
+        });
     $bot->hearCallbackQueryData("catalog:detail:{$public}:1")->reply()
         ->assertCalled('editMessageText');
 

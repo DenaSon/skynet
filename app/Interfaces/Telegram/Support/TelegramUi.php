@@ -157,6 +157,18 @@ final class TelegramUi
         return number_format(intdiv($rials + 9, 10));
     }
 
+    public static function planButtonLabel(string $name, ?int $trafficGb, int $durationDays): string
+    {
+        $name = trim((string) preg_replace('/[\x00-\x1F\x7F\x{202A}-\x{202E}]+/u', ' ', $name));
+        if (mb_strlen($name) > 20) {
+            $name = rtrim(mb_substr($name, 0, 19)).'…';
+        }
+
+        $traffic = $trafficGb === null ? 'نامحدود' : $trafficGb.' گیگ';
+
+        return $name.' · '.$traffic.' · '.$durationDays.' روز';
+    }
+
     public static function planMode(string $mode): string
     {
         return match ($mode) {
