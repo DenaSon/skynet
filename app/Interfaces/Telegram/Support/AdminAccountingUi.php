@@ -6,6 +6,7 @@ namespace App\Interfaces\Telegram\Support;
 
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Billing\Application\ReadAdminAccountingReport;
+use App\Modules\Billing\Application\ReadAdminCashReceipts;
 use App\Modules\Billing\Application\RecordBusinessEntry;
 use App\Modules\Identity\Application\AssertBillingAccess;
 use App\Modules\Identity\Application\ResolveTelegramActor;
@@ -27,6 +28,7 @@ final readonly class AdminAccountingUi
         private AssertBillingAccess $access,
         private RecordBusinessEntry $entries,
         private ReadAdminAccountingReport $reports,
+        private ReadAdminCashReceipts $cash,
         private MenuRenderer $menus,
     ) {}
 
@@ -88,6 +90,58 @@ final readonly class AdminAccountingUi
             )
             ->addRow(InlineKeyboardButton::make('📋 سوابق', callback_data: 'acc:history:1'))
             ->addRow(InlineKeyboardButton::make('◀️ دفتر مالی', callback_data: 'acc:home')));
+    }
+
+    /** Verified recorded incoming funds; never claim to reconcile bank statements. */
+    public function cashReport(Nutgram $bot, string $period): void
+    {
+        $id = $this->actor($bot);
+        if ($id === null) {
+            return;
+        }
+
+        if (! in_array($period, ['7', '30', 'all'], true)) {
+            $this->render($bot, 'بازه گزارش معتبر نیست.',
+                InlineKeyboardMarkup::make()
+                    ->addRow(InlineKeyboardButton::make('◀️ امور مالی', callback_data: 'menu:admin:finance')));
+
+            return;
+        }
+
+        try {
+            $data = $this->cash->handle($id, $period);
+            $heading = match ($period) {
+                '7' => '۷ روز اخیر',
+                '30' => '۳۰ روز اخیر',
+                'all' => 'از ابتدای فعالیت',
+            };
+            $range = $data['start'] === null
+                ? 'تا '.PersianCalendar::date($data['end'])
+                : PersianCalendar::date($data['start']).' تا '.PersianCalendar::date($data['end']);
+
+            $text = '<b>💰 گزارش دریافتی‌ها · '.$heading.'</b>'
+                ."\n📅 ".$range.' (شمسی، تهران)'
+                ."\n\n<b>💵 کل دریافتی‌های ثبت‌شده: ".self::toman($data['cashInRials']).' تومان</b>'
+                ."\n➕ شارژ تأییدشده کیف پول: ".self::toman($data['topupsRials']).' تومان'
+                ."\n🏦 خرید مستقیم بانکی: ".self::toman($data['bankSalesRials']).' تومان'
+                ."\n\n🧾 تعداد شارژها: ".number_format($data['topupsCount'])
+                .' | پرداخت مستقیم: '.number_format($data['bankSalesCount'])
+                ."\n\n<b>🛍️ فروش تأییدشده: ".self::toman($data['salesRials']).' تومان</b>'
+                ."\n↪️ خرید با اعتبار کیف پول: ".self::toman($data['walletSalesRials']).' تومان'
+                ."\n\n💼 مانده فعلی کیف پول‌ها: ".self::toman($data['currentWalletBalanceRials']).' تومان'
+                ."\n\n<blockquote>خرید با موجودی کیف پول، واریزی جدید نیست و دوباره به دریافتی‌ها اضافه نمی‌شود. مانده کیف پول مربوط به اکنون است، نه فقط این بازه. ارقام بر اساس پرداخت‌های ثبت و تأییدشده در سامانه‌اند، نه صورت‌حساب قطعی بانک یا سود خالص.</blockquote>"
+                ."\n🕒 ".PersianCalendar::localDateTime($data['generatedAt']);
+        } catch (\Throwable) {
+            $text = "💰 گزارش دریافتی‌ها\n\nدریافت گزارش فعلاً ممکن نیست. دوباره تلاش کنید.";
+        }
+
+        $this->render($bot, $text, InlineKeyboardMarkup::make()
+            ->addRow(
+                InlineKeyboardButton::make('۷ روز', callback_data: 'finance:cash:7'),
+                InlineKeyboardButton::make('۳۰ روز', callback_data: 'finance:cash:30'),
+                InlineKeyboardButton::make('از ابتدا', callback_data: 'finance:cash:all'),
+            )
+            ->addRow(InlineKeyboardButton::make('◀️ امور مالی', callback_data: 'menu:admin:finance')));
     }
 
     private static function toman(int $rials): string
