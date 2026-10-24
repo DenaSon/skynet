@@ -287,7 +287,6 @@ it('prioritizes funded older wallets across 19 rows and splits reseller and memb
         app(ViewWallet::class)->handle($user->id);
     }
     $users[0]->syncRoles(['reseller']);
-    $users[0]->forceFill(['is_active' => false])->save();
     $users[3]->syncRoles(['member', 'reseller']);
     $users[4]->syncRoles(['admin']);
     PanelWalletFunding::credit($users[0]->id, 7_500_000);
@@ -352,6 +351,7 @@ it('prioritizes funded older wallets across 19 rows and splits reseller and memb
 
 it('keeps negative and unrelated-role wallet balances in their own group without double counting', function (): void {
     $root = fin01Admin();
+    fin01Bot(987601, $root);
     Role::findOrCreate('reseller', 'web');
     $member = User::factory()->create();
     $staff = User::factory()->create();
