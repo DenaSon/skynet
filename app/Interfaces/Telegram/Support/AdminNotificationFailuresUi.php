@@ -113,9 +113,7 @@ final readonly class AdminNotificationFailuresUi
             if ($page < $pages) {
                 $row[] = InlineKeyboardButton::make('بعدی ▶️', callback_data: 'denaban:notifications:'.($page + 1));
             }
-            if ($row !== []) {
-                $keyboard->addRow(...$row);
-            }
+            $keyboard->addRow(...$row);
         }
 
         return $keyboard->addRow(InlineKeyboardButton::make('◀️ دنابان', callback_data: 'denaban:show'));
