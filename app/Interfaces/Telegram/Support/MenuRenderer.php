@@ -100,6 +100,7 @@ final class MenuRenderer
         $keyboard = InlineKeyboardMarkup::make();
 
         if ($actor->canManageRoles()) {
+            $keyboard->addRow(InlineKeyboardButton::make('🏔️ دنابان', callback_data: 'denaban:show'));
             $keyboard->addRow(
                 InlineKeyboardButton::make('👥 کاربران', callback_data: 'menu:admin:users'),
                 InlineKeyboardButton::make('🔐 نقش‌ها', callback_data: 'menu:admin:roles'),

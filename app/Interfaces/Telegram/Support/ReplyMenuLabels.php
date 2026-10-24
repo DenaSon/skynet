@@ -55,6 +55,8 @@ final class ReplyMenuLabels
 
     public const STATS = '📊 آمار و گزارش‌ها';
 
+    public const DENABAN = '🏔️ دنابان';
+
     public const PRODUCTS = '📚 محصولات پایه';
 
     public const TOPUPS = '💳 بررسی شارژها';
@@ -74,7 +76,7 @@ final class ReplyMenuLabels
             self::LEGACY_WALLET, self::LEGACY_BUILDER,
             self::OLD_WALLET_PANEL, self::OLD_BUILDER_PANEL, self::USERS,
             self::ROLES, self::PLANS, self::PRODUCTS, self::SALES_SECTION,
-            self::FINANCE_SECTION, self::SERVERS, self::STATS, self::TOPUPS, self::RECEIPTS, self::HOME,
+            self::FINANCE_SECTION, self::SERVERS, self::STATS, self::DENABAN, self::TOPUPS, self::RECEIPTS, self::HOME,
         ];
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Interfaces\Telegram\Handlers;
 
+use App\Interfaces\Telegram\Support\AdminCommandCenterUi;
 use App\Interfaces\Telegram\Support\AdminDashboardUi;
 use App\Interfaces\Telegram\Support\AdminProviderOverviewUi;
 use App\Interfaces\Telegram\Support\AdminSectionsUi;
@@ -161,6 +162,17 @@ final class ReplyMenuHandler
                 }
 
                 app(AdminProviderOverviewUi::class)->show($bot);
+
+                return true;
+
+            case ReplyMenuLabels::DENABAN:
+                if (! $actor->canManageRoles()) {
+                    $this->deny($bot, $actor);
+
+                    return true;
+                }
+
+                app(AdminCommandCenterUi::class)->show($bot);
 
                 return true;
 

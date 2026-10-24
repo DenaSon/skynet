@@ -6,6 +6,7 @@ use App\Interfaces\Telegram\Handlers\AdminUsersHandler;
 use App\Interfaces\Telegram\Support\AdminAccountingUi;
 use App\Interfaces\Telegram\Support\AdminBusinessReportUi;
 use App\Interfaces\Telegram\Support\AdminCloudflareDnsUi;
+use App\Interfaces\Telegram\Support\AdminCommandCenterUi;
 use App\Interfaces\Telegram\Support\AdminConfigProfileOperationsUi;
 use App\Interfaces\Telegram\Support\AdminConfigProfilesUi;
 use App\Interfaces\Telegram\Support\AdminDashboardUi;
@@ -328,6 +329,11 @@ $bot->onCallbackQueryData('node3:apply:{token}', function (Nutgram $bot, string 
 });
 $bot->onCallbackQueryData('node3:cancel', function (Nutgram $bot): void {
     app(AdminNodeBatchUi::class)->cancel($bot);
+});
+
+// OPS-CMD-01: private Super Admin Denaban snapshot and refresh.
+$bot->onCallbackQueryData('denaban:show', function (Nutgram $bot): void {
+    app(AdminCommandCenterUi::class)->show($bot);
 });
 
 // STAT-01: read-only, private Super Admin dashboard with bounded provider GETs.
