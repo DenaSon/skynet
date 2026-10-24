@@ -1,3 +1,7 @@
+## Preset plan selection labels (2026-10-24)
+
+Ready-plan Buy and the full preset catalog use the same plain-text button label: `پایه · 10 گیگ · 15 روز`. Read volume and duration from the current buyer-authorized quote; time-only plans show `نامحدود`. Shorten only names longer than 20 characters, preserving the complete volume/day suffix. Strip control/bidi-override characters and do not HTML-encode inline button text. Existing callbacks, pagination, native styles, prices and readiness/ownership checks remain unchanged.
+
 ## CF-02 — DNS management UX
 
 - One private root-only «🌐 مدیریت DNS» entry under Admin server overview; no new persistent main Reply button. Zone selection uses only the approved Cloudflare allowlist.

@@ -77,7 +77,7 @@ final readonly class PlanCatalogUi
             $lines[] = '💰 مبلغ: '.$this->toman($entry->quote->totalPriceRials).' تومان';
             $lines[] = '';
             $keyboard->addRow(InlineKeyboardButton::make(
-                mb_substr($this->safe($entry->plan->name), 0, 30),
+                TelegramUi::planButtonLabel($entry->plan->name, $entry->quote->trafficGb, $entry->quote->durationDays),
                 callback_data: "catalog:detail:{$entry->plan->id}:{$page}",
             ));
         }

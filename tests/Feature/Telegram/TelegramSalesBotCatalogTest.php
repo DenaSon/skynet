@@ -96,7 +96,16 @@ it('presents only current published plans to the linked member with working home
     $bot = sb02Bot(977010, $member);
 
     $bot->hearText('/start')->reply()->assertCalled('sendMessage', 2);
-    $bot->hearText('/catalog')->reply()->assertCalled('sendMessage');
+    $bot->hearText('/catalog')->reply()->assertCalled('sendMessage')
+        ->assertRaw(static function (Request $request) use ($publicId): bool {
+            $body = FakeNutgram::getActualData($request);
+            $markup = is_string($body['reply_markup'])
+                ? json_decode($body['reply_markup'], true, flags: JSON_THROW_ON_ERROR)
+                : $body['reply_markup'];
+
+            return $markup['inline_keyboard'][0][0]['text'] === 'Plan public-30 · 30 گیگ · 30 روز'
+                && $markup['inline_keyboard'][0][0]['callback_data'] === "catalog:detail:{$publicId}:1";
+        });
     $bot->hearCallbackQueryData('menu:plan-catalog')->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('catalog:list:1')->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData("catalog:detail:{$publicId}:1")->reply()->assertCalled('editMessageText');
@@ -119,7 +128,17 @@ it('shows reseller discounts once and safely previews custom builder volume and 
     $bot = sb02Bot(977011, $reseller);
 
     $bot->hearText('/start')->reply()->assertCalled('sendMessage', 2);
-    $bot->hearText('/catalog')->reply()->assertCalled('sendMessage');
+    $bot->hearText('/catalog')->reply()->assertCalled('sendMessage')
+        ->assertRaw(static function (Request $request) use ($presetId): bool {
+            $body = FakeNutgram::getActualData($request);
+            $markup = is_string($body['reply_markup'])
+                ? json_decode($body['reply_markup'], true, flags: JSON_THROW_ON_ERROR)
+                : $body['reply_markup'];
+
+            return $markup['inline_keyboard'][0][0]['text'] === 'Plan both-plan · 30 گیگ · 30 روز'
+                && $markup['inline_keyboard'][0][0]['callback_data'] === "catalog:detail:{$presetId}:1"
+                && str_contains($body['text'], '90,000 تومان');
+        });
     $bot->hearCallbackQueryData("catalog:detail:{$presetId}:1")->reply()->assertCalled('editMessageText');
     $bot->hearText('/builder')->reply()->assertCalled('sendMessage');
     $bot->hearCallbackQueryData('menu:builder')->reply()->assertCalled('editMessageText');
@@ -286,9 +305,15 @@ it('shows real Sales main navigation and keeps bounded buyer-quoted ready plans 
         ->assertRaw(static function (Request $request) use ($ready, $restricted, $unready): bool {
             $body = FakeNutgram::getActualData($request);
             $encoded = json_encode($body, JSON_THROW_ON_ERROR);
+            $markup = is_string($body['reply_markup'])
+                ? json_decode($body['reply_markup'], true, flags: JSON_THROW_ON_ERROR)
+                : $body['reply_markup'];
 
             return $body['parse_mode'] === 'HTML'
                 && str_contains($body['text'], '&lt;Home&gt; &amp; offer')
+                && $markup['inline_keyboard'][0][0]['text'] === '<Home> & offer · 30 گیگ · 30 روز'
+                && $markup['inline_keyboard'][0][0]['callback_data'] === 'catalog:detail:'.$ready[0].':1'
+                && $markup['inline_keyboard'][0][0]['style'] === 'primary'
                 && str_contains($body['text'], '<b>100,000 تومان</b>')
                 && substr_count($body['text'], 'مبلغ:') === 5
                 && str_contains($encoded, 'catalog:detail:'.$ready[0].':1')
@@ -300,8 +325,13 @@ it('shows real Sales main navigation and keeps bounded buyer-quoted ready plans 
         ->assertCalled('answerCallbackQuery')->assertCalled('editMessageText')
         ->assertRaw(static function (Request $request): bool {
             $body = FakeNutgram::getActualData($request);
+            $markup = is_string($body['reply_markup'])
+                ? json_decode($body['reply_markup'], true, flags: JSON_THROW_ON_ERROR)
+                : $body['reply_markup'];
 
-            return substr_count($body['text'], 'مبلغ:') === 1 && str_contains($body['text'], 'صفحه 2 از 2');
+            return substr_count($body['text'], 'مبلغ:') === 1
+                && str_contains($body['text'], 'صفحه 2 از 2')
+                && $markup['inline_keyboard'][0][0]['text'] === 'Plan home-6 · 30 گیگ · 30 روز';
         }, index: 1);
     $buyer->assignRole('reseller');
     $bot->hearCallbackQueryData('sales:home:1')->reply()->assertRaw(static function (Request $request): bool {

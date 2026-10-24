@@ -155,7 +155,7 @@ final readonly class SalesHomeUi
                 .TelegramUi::toman($entry->quote->totalPriceRials).' تومان</b>';
             $lines[] = '';
             $keyboard->addRow(InlineKeyboardButton::make(
-                mb_substr($this->plain($entry->plan->name), 0, 35),
+                TelegramUi::planButtonLabel($entry->plan->name, $entry->quote->trafficGb, $entry->quote->durationDays),
                 callback_data: 'catalog:detail:'.$entry->plan->id.':1',
                 style: ButtonStyle::PRIMARY,
             ));
