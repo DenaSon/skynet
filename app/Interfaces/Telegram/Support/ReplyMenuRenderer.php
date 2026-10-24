@@ -83,6 +83,7 @@ final class ReplyMenuRenderer
         }
 
         if ($actor->canManageRoles()) {
+            $labels[] = ReplyMenuLabels::DENABAN;
             $labels[] = ReplyMenuLabels::ROLES;
             $labels[] = ReplyMenuLabels::SALES_SECTION;
 
