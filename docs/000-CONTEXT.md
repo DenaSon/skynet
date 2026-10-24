@@ -1,3 +1,7 @@
+## Sales panel application entry and terms (2026-10-24; source pending CI)
+
+Sales home now presents the existing education callback and, for eligible members, the existing panel request/status callback; the request button is removed from Account only, while old callbacks remain valid. New applicants first see six short panel rules, including the notice that activating a panel requires a 750,000-toman wallet top-up. Only a fresh explicit acceptance proceeds to the existing name/family/mobile application form. Cancel/back clears the temporary draft, and repeat requests show prior status. The top-up rule is information only: no new wallet debit, mandatory payment gate, auto-approval, permission grant, schema or configuration change is introduced. Live Telegram visual/finance acceptance is distinct from source CI.
+
 ## Preset selection button specifications — 2026-10-24
 
 The existing ready-plan Buy list and full preset catalog now share `TelegramUi::planButtonLabel`, showing name, actual quoted GB (or unlimited) and days directly on each selection button. Only long names are shortened; full specifications, plain button text and the existing callback/style/page contracts are preserved. Existing real fake-Nutgram route tests now check member/reseller labels, navigation, HTML-safe surrounding messages and long-name/unlimited handling. No catalog data, pricing, order/payment, provider, schema or dependency change; live Telegram appearance remains a post-deploy check.
