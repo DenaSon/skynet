@@ -22,6 +22,8 @@ use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 use SergiX44\Nutgram\Testing\FakeNutgram;
+use Spatie\Permission\Models\Role;
+use Tests\Support\PanelWalletFunding;
 
 uses(RefreshDatabase::class);
 
@@ -206,7 +208,7 @@ it('summarizes the complete wallet ledger rather than just one page and flags ne
             'user_id' => $user->id, 'created_at' => now(), 'updated_at' => now(),
         ]);
     }
-    // The oldest wallet is on page two in the existing newest-first browser.
+    // The oldest funded wallet must now rank first despite its older ID.
     $users[0]->forceFill(['is_active' => false])->save();
     $journal = (int) DB::table('billing_journals')->insertGetId([
         'wallet_id' => $walletIds[0], 'kind' => 'topup',
@@ -237,6 +239,9 @@ it('summarizes the complete wallet ledger rather than just one page and flags ne
     $summary = app(ReadAdminWalletSummary::class)->handle($root->id);
     expect($summary)->toBe([
         'balanceRials' => 1_100_000,
+        'memberBalanceRials' => 1_100_000,
+        'resellerBalanceRials' => 0,
+        'otherBalanceRials' => 0,
         'walletsTotal' => 10,
         'walletsPositive' => 1,
         'walletsNegative' => 1,
@@ -272,11 +277,112 @@ it('summarizes the complete wallet ledger rather than just one page and flags ne
     Http::assertNothingSent();
 });
 
+it('prioritizes funded older wallets across 19 rows and splits reseller and member totals', function (): void {
+    $root = fin01Admin();
+    $bot = fin01Bot(987601, $root);
+    Role::findOrCreate('reseller', 'web');
+    $users = User::factory()->count(19)->create();
+
+    foreach ($users as $user) {
+        app(ViewWallet::class)->handle($user->id);
+    }
+    $users[0]->syncRoles(['reseller']);
+    $users[0]->forceFill(['is_active' => false])->save();
+    $users[3]->syncRoles(['member', 'reseller']);
+    $users[4]->syncRoles(['admin']);
+    PanelWalletFunding::credit($users[0]->id, 7_500_000);
+    PanelWalletFunding::credit($users[1]->id, 525_000);
+
+    $summary = app(ReadAdminWalletSummary::class)->handle($root->id);
+    expect($summary)->toBe([
+        'balanceRials' => 8_025_000,
+        'memberBalanceRials' => 525_000,
+        'resellerBalanceRials' => 7_500_000,
+        'otherBalanceRials' => 0,
+        'walletsTotal' => 19,
+        'walletsPositive' => 2,
+        'walletsNegative' => 0,
+        'pendingTopups' => 0,
+    ]);
+
+    $reader = app(\\App\\Modules\\Billing\\Application\\BrowseCustomerWallets::class);
+    $first = $reader->page($root->id, 1);
+    $second = $reader->page($root->id, 2);
+    $third = $reader->page($root->id, 3);
+
+    expect($first)->toHaveCount(9)
+        ->and($second)->toHaveCount(9)
+        ->and($third)->toHaveCount(3)
+        ->and($first[0]['id'])->toBe($users[0]->id)
+        ->and($first[0]['account_type'])->toBe('reseller')
+        ->and($first[1]['id'])->toBe($users[1]->id)
+        ->and($first[1]['account_type'])->toBe('member')
+        ->and($first[2]['balance_rials'])->toBe(0)
+        ->and($reader->detail($root->id, $users[0]->id)['account_type'])->toBe('reseller')
+        ->and($reader->detail($root->id, $users[4]->id)['account_type'])->toBe('other');
+
+    $visible = array_merge(array_slice($first, 0, 8), array_slice($second, 0, 8), $third);
+    expect(array_column($visible, 'id'))->toHaveCount(19)
+        ->and(count(array_unique(array_column($visible, 'id'))))->toBe(19)
+        ->and(array_column($visible, 'balance_rials')[0])->toBe(7_500_000);
+
+    $bot->hearCallbackQueryData('finance:wallets:1')->reply()->assertRaw(static function (Request $req) use ($users): bool {
+        $data = fin01Data($req);
+        $text = $data['text'];
+
+        return str_contains($text, 'مجموع مانده: <b>802,500 تومان</b>')
+            && str_contains($text, '👤 کاربران عادی: 52,500 تومان')
+            && str_contains($text, '🧩 پنل‌های فروش: 750,000 تومان')
+            && str_contains($text, '🧩 پنل فروش · #'.$users[0]->id)
+            && str_contains($text, '👤 عادی · #'.$users[1]->id)
+            && strpos($text, '#'.$users[0]->id.' ·') < strpos($text, '#'.$users[1]->id.' ·')
+            && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'finance:wallets:2');
+    }, index: 1);
+    $bot->hearCallbackQueryData('finance:wallet:'.$users[0]->id)->reply()->assertRaw(static function (Request $req): bool {
+        $data = fin01Data($req);
+
+        return str_contains($data['text'], 'نوع حساب: 🧩 پنل فروش')
+            && str_contains($data['text'], '750,000 تومان');
+    }, index: 1);
+
+    expect(DB::table('billing_journals')->count())->toBe(2);
+    Http::assertNothingSent();
+});
+
+it('keeps negative and unrelated-role wallet balances in their own group without double counting', function (): void {
+    $root = fin01Admin();
+    Role::findOrCreate('reseller', 'web');
+    $member = User::factory()->create();
+    $staff = User::factory()->admin()->create();
+    $dual = User::factory()->create();
+    $dual->syncRoles(['member', 'reseller']);
+
+    PanelWalletFunding::credit($dual->id, 1_000_000);
+    PanelWalletFunding::credit($staff->id, 250_000);
+    PanelWalletFunding::spend($member->id, 100_000);
+
+    $summary = app(ReadAdminWalletSummary::class)->handle($root->id);
+    expect($summary['balanceRials'])->toBe(1_150_000)
+        ->and($summary['memberBalanceRials'])->toBe(-100_000)
+        ->and($summary['resellerBalanceRials'])->toBe(1_000_000)
+        ->and($summary['otherBalanceRials'])->toBe(250_000)
+        ->and($summary['walletsTotal'])->toBe(3)
+        ->and($summary['walletsNegative'])->toBe(1);
+
+    $rows = array_slice(app(\\App\\Modules\\Billing\\Application\\BrowseCustomerWallets::class)->page($root->id, 1), 0, 3);
+    expect(array_column($rows, 'id'))->toBe([$dual->id, $staff->id, $member->id])
+        ->and(array_column($rows, 'account_type'))->toBe(['reseller', 'other', 'member'])
+        ->and(array_column($rows, 'balance_rials'))->toBe([1_000_000, 250_000, -100_000]);
+});
+
 it('shows zero when no wallets exist and denies revoked or ordinary Admin actors', function (): void {
     $root = fin01Admin();
     $bot = fin01Bot(987601, $root);
     expect(app(ReadAdminWalletSummary::class)->handle($root->id))->toBe([
         'balanceRials' => 0,
+        'memberBalanceRials' => 0,
+        'resellerBalanceRials' => 0,
+        'otherBalanceRials' => 0,
         'walletsTotal' => 0,
         'walletsPositive' => 0,
         'walletsNegative' => 0,
