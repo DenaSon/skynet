@@ -464,6 +464,10 @@ $bot->onCallbackQueryData('bank:apply:{token}', function (Nutgram $bot, string $
 
 // FIN-01: protected wallet reads and top-up photo review, separate from purchase receipts.
 // ACC-01: Super Admin-only, private accounting notes; never moves actual money.
+$bot->onCallbackQueryData('finance:cash:{period}', function (Nutgram $bot, string $period): void {
+    app(AdminAccountingUi::class)->cashReport($bot, $period);
+});
+
 $bot->onCallbackQueryData('acc:report:{period}', function (Nutgram $bot, string $period): void {
     app(AdminAccountingUi::class)->report($bot, $period);
 });
