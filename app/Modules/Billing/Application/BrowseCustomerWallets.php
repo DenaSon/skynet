@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Billing\Application;
 
 use App\Modules\Identity\Application\AssertBillingAccess;
+use App\Modules\Identity\Infrastructure\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -56,7 +57,7 @@ final readonly class BrowseCustomerWallets
         $accountType = null;
         if ($walletId !== null) {
             $accountType = ReadAdminWalletSummary::walletBalancesQuery()
-                ->where('w.user_id', $userId)->value('account_type');
+                ->where('w.user_id', $userId)->first()?->account_type;
             $entries = DB::table('billing_postings as p')
                 ->join('billing_journals as j', 'j.id', '=', 'p.journal_id')
                 ->where('p.wallet_id', $walletId)->where('p.account_code', 'wallet_liability')
@@ -91,7 +92,7 @@ final readonly class BrowseCustomerWallets
 
         if ($accountType === null) {
             // Details are also available for users without a wallet yet.
-            $roles = \App\Modules\Identity\Infrastructure\Models\User::query()->find($userId);
+            $roles = User::query()->find($userId);
             $accountType = $roles?->hasAnyRole(['admin', 'super-admin']) ? 'other'
                 : ($roles?->hasRole('reseller') ? 'reseller'
                     : ($roles?->hasRole('member') ? 'member' : 'other'));
