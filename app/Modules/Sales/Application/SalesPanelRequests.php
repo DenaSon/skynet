@@ -32,9 +32,9 @@ final readonly class SalesPanelRequests
     }
 
     /** Only confirmed wallet liability postings count; pending top-ups do not. */
-    public function hasMinimumWalletBalance(int $userId): bool
+    public function hasMinimumWalletBalance(int $userId, bool $lockForUpdate = false): bool
     {
-        return $this->wallets->handle($userId)->balanceRials >= self::MINIMUM_WALLET_BALANCE_RIALS;
+        return $this->wallets->hasAtLeast($userId, self::MINIMUM_WALLET_BALANCE_RIALS, $lockForUpdate);
     }
 
     /** @return array{id:int,status:string,first_name:string,last_name:string,mobile:string} */
@@ -60,7 +60,7 @@ final readonly class SalesPanelRequests
             if ($existing !== null) {
                 return $this->map($existing);
             }
-            if (! $this->hasMinimumWalletBalance($userId)) {
+            if (! $this->hasMinimumWalletBalance($userId, true)) {
                 throw ValidationException::withMessages([
                     'wallet_balance' => 'At least 750,000 tomans of confirmed wallet credit is required.',
                 ]);
