@@ -148,7 +148,7 @@ it('shows bounded chronological pages, human reasons and Persian dates without m
                 && str_contains($buttons, 'denaban:show');
         }, index: 1);
 
-    expect(DB::table('telegram_notification_deliveries')->orderBy('id')->get()->toArray())->toBe($before);
+    expect(DB::table('telegram_notification_deliveries')->orderBy('id')->get()->toArray())->toEqual($before);
     Http::assertNothingSent();
 });
 
