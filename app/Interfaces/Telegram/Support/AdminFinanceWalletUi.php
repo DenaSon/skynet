@@ -63,10 +63,15 @@ final readonly class AdminFinanceWalletUi
             '<b>💼 کیف پول کاربران</b>',
             '',
             'مجموع مانده: <b>'.number_format(intdiv($summary['balanceRials'], 10)).' تومان</b>',
+            '👤 کاربران عادی: '.TelegramUi::toman($summary['memberBalanceRials']).' تومان',
+            '🧩 پنل‌های فروش: '.TelegramUi::toman($summary['resellerBalanceRials']).' تومان',
             'کل کیف پول‌ها: '.number_format($summary['walletsTotal']),
             'دارای موجودی: '.number_format($summary['walletsPositive']),
             'شارژهای منتظر تأیید: '.number_format($summary['pendingTopups']),
         ];
+        if ($summary['otherBalanceRials'] !== 0) {
+            $lines[] = '👥 سایر حساب‌ها: '.TelegramUi::toman($summary['otherBalanceRials']).' تومان';
+        }
         if ($summary['walletsNegative'] > 0) {
             $lines[] = '⚠️ مانده منفی نیازمند بررسی: '.number_format($summary['walletsNegative']);
         }
@@ -75,7 +80,7 @@ final readonly class AdminFinanceWalletUi
         $lines[] = '<b>فهرست کیف پول‌ها</b>';
         foreach (array_slice($rows, 0, 8) as $row) {
             $name = TelegramUi::escape(mb_substr($row['name'], 0, 45));
-            $lines[] = '👤 #'.$row['id'].' · '.$name.' · <b>'.TelegramUi::toman($row['balance_rials']).' تومان</b>';
+            $lines[] = self::accountLabel($row['account_type']).' · #'.$row['id'].' · '.$name.' · <b>'.TelegramUi::toman($row['balance_rials']).' تومان</b>';
             $keyboard->addRow(InlineKeyboardButton::make(
                 'مشاهده #'.$row['id'], callback_data: 'finance:wallet:'.$row['id'],
             ));
@@ -123,6 +128,7 @@ final readonly class AdminFinanceWalletUi
             'کاربر: '.TelegramUi::escape(mb_substr($row['name'], 0, 70)),
             'شناسه: '.TelegramUi::code((string) $row['id']),
             'وضعیت حساب: '.($row['active'] ? '🟢 فعال' : '⏸️ غیرفعال'),
+            'نوع حساب: '.self::accountLabel($row['account_type']),
             'موجودی: <b>'.TelegramUi::toman($row['balance_rials']).' تومان</b>',
             '', '<b>گردش‌های اخیر</b>',
         ];
@@ -378,6 +384,15 @@ final readonly class AdminFinanceWalletUi
                 ? '✅ شارژ تأیید شد و دقیقاً یک‌بار در گردش کیف پول ثبت شد.'
                 : '❌ رسید رد شد؛ موجودی افزایش نیافت.',
             $this->backTopups());
+    }
+
+    private static function accountLabel(string $accountType): string
+    {
+        return match ($accountType) {
+            'reseller' => '🧩 پنل فروش',
+            'member' => '👤 عادی',
+            default => '👥 سایر',
+        };
     }
 
     private function enabled(): bool

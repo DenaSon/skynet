@@ -1,3 +1,7 @@
+## FIN-WALLET-UX-01 (2026-10-24)
+
+Admin wallet reports remain read-only and Super Admin restricted. Display wallet holders in database-sorted order: positive balance descending, then zero and negative, stable by wallet ID across eight-item pages. The summary splits ledger-derived balances among current member, reseller and other account types; privileged roles take priority, then reseller, then member, with each wallet counted once. Show account type on directory and detail pages, retain existing totals, pending-top-up counts, navigation, financial actions, and schema. CI and live Telegram checks are separate.
+
 ## Sales Panel wallet eligibility at application submission (2026-10-24; source)
 
 A new Sales Panel request requires a current **confirmed wallet balance** of at least **7,500,000 rials (750,000 tomans)**. The Sales request entry checks the existing `ViewWallet` read Action before showing the accepted terms; insufficient balances show a Persian explanation plus Wallet, Support and Home actions. The `SalesPanelRequests::submit` Application Action rechecks the same posting-derived balance using an ordered, current locking ledger read inside its existing transaction before creating a new request, so old Telegram buttons, direct calls and stale MySQL snapshots cannot bypass the gate. Only approved journal postings count; pending/unreviewed top-ups do not. Existing recorded applications/status, cancellation, reviewer RBAC and idempotent duplicate submissions are preserved even after users spend their balance.
