@@ -54,11 +54,59 @@ final readonly class SalesPanelRequestUi
             return;
         }
 
+        Cache::put($this->key($userId), ['step' => 'terms'], now()->addMinutes(10));
+        $this->render($bot,
+            '<b>🧩 قوانین پنل فروش</b>'
+            ."\n\nپیش از ثبت درخواست، قوانین را مطالعه و تأیید کنید."
+            ."\n\n<blockquote>۱. خرید سرویس‌ها مطابق تعرفه و تخفیف تعیین‌شده برای پنل فروش انجام می‌شود."
+            ."\n۲. پایداری اتصال ممکن است تحت تأثیر اختلال اینترنت و محدودیت اپراتورها باشد."
+            ."\n۳. فعال‌سازی پنل مستلزم شارژ کیف پول به مبلغ <b>۷۵۰٬۰۰۰ تومان</b> و تأیید مدیریت است.</blockquote>"
+            ."\n\n<blockquote>پذیرش قوانین به‌معنای برداشت وجه یا فعال‌سازی خودکار نیست.</blockquote>",
+            InlineKeyboardMarkup::make()
+                ->addRow(InlineKeyboardButton::make('✅ می‌پذیرم', callback_data: 'sales:panel:accept', style: ButtonStyle::SUCCESS))
+                ->addRow(InlineKeyboardButton::make('↩️ بازگشت', callback_data: 'sales:panel:cancel')));
+    }
+
+    public function accept(Nutgram $bot): void
+    {
+        $userId = $this->buyer($bot);
+        if ($userId === null) {
+            return;
+        }
+        $draft = Cache::get($this->key($userId));
+        $actor = $this->actors->handle((int) $this->private->id($bot));
+        if (! is_array($draft) || ($draft['step'] ?? null) !== 'terms'
+            || $actor === null || ! in_array('member', $actor->roles, true)
+            || in_array('reseller', $actor->roles, true)
+            || $this->requests->find($userId) !== null) {
+            $this->clear($userId);
+            $this->notice($bot, 'درخواست قابل ادامه نیست. برای بررسی وضعیت، دوباره از خانه وارد شوید.');
+
+            return;
+        }
+
         Cache::put($this->key($userId), ['step' => 'first'], now()->addMinutes(10));
-        $this->notice($bot,
-            '<b>🧩 درخواست پنل فروش</b>'
+        $this->notice($bot, '<b>🧩 درخواست پنل فروش</b>'
             ."\n\n<b>مرحله ۱ از ۳</b> · نام خود را ارسال کنید."
-            ."\n\n<blockquote>برای بررسی درخواست، نام، نام خانوادگی و موبایل دریافت می‌شود. حساب شما تا تأیید مدیر عادی باقی می‌ماند.</blockquote>");
+            ."\n\n<blockquote>نام، نام خانوادگی و شماره موبایل برای بررسی درخواست دریافت می‌شود.</blockquote>");
+    }
+
+    public function edit(Nutgram $bot): void
+    {
+        $userId = $this->buyer($bot);
+        if ($userId === null) {
+            return;
+        }
+        $draft = Cache::get($this->key($userId));
+        if (! is_array($draft) || ($draft['step'] ?? null) !== 'confirm'
+            || $this->requests->find($userId) !== null) {
+            $this->notice($bot, 'فرم قابل اصلاح نیست. از خانه دوباره وارد شوید.');
+
+            return;
+        }
+        Cache::put($this->key($userId), ['step' => 'first'], now()->addMinutes(10));
+        $this->notice($bot, '<b>🧩 درخواست پنل فروش</b>'
+            ."\n\n<b>مرحله ۱ از ۳</b> · نام خود را ارسال کنید.");
     }
 
     public function text(Nutgram $bot, string $value): bool
@@ -119,7 +167,7 @@ final readonly class SalesPanelRequestUi
             ."\n\n<blockquote>پس از ثبت، درخواست برای بررسی مدیر آماده خواهد بود و دسترسی جدیدی تا تأیید ایجاد نمی‌شود.</blockquote>",
             InlineKeyboardMarkup::make()
                 ->addRow(InlineKeyboardButton::make('✅ ثبت درخواست', callback_data: 'sales:panel:confirm', style: ButtonStyle::SUCCESS))
-                ->addRow(InlineKeyboardButton::make('✏️ اصلاح اطلاعات', callback_data: 'sales:panel:request'))
+                ->addRow(InlineKeyboardButton::make('✏️ اصلاح اطلاعات', callback_data: 'sales:panel:edit'))
                 ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'sales:panel:cancel')));
 
         return true;
@@ -161,7 +209,7 @@ final readonly class SalesPanelRequestUi
             return;
         }
         $this->clear($userId);
-        app(SalesHomeUi::class)->account($bot);
+        app(SalesHomeUi::class)->start($bot);
     }
 
     public function invalidInput(Nutgram $bot): bool
@@ -175,9 +223,11 @@ final readonly class SalesPanelRequestUi
             return false;
         }
 
-        $this->notice($bot, ($draft['step'] ?? null) === 'confirm'
-            ? 'برای ثبت درخواست، دکمه تأیید را بزنید یا اطلاعات را اصلاح کنید.'
-            : 'برای ادامه، اطلاعات خواسته‌شده را ارسال کنید یا انصراف بزنید.');
+        $this->notice($bot, match ($draft['step'] ?? null) {
+            'terms' => 'برای ادامه، ابتدا قوانین را با دکمه «می‌پذیرم» تأیید کنید یا بازگردید.',
+            'confirm' => 'برای ثبت درخواست، دکمه تأیید را بزنید یا اطلاعات را اصلاح کنید.',
+            default => 'برای ادامه، اطلاعات خواسته‌شده را ارسال کنید یا انصراف بزنید.',
+        });
 
         return true;
     }

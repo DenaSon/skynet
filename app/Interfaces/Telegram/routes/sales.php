@@ -98,6 +98,14 @@ $bot->onCallbackQueryData('sales:panel:request', function (Nutgram $bot): void {
     app(SalesPanelRequestUi::class)->start($bot);
 });
 
+$bot->onCallbackQueryData('sales:panel:accept', function (Nutgram $bot): void {
+    app(SalesPanelRequestUi::class)->accept($bot);
+});
+
+$bot->onCallbackQueryData('sales:panel:edit', function (Nutgram $bot): void {
+    app(SalesPanelRequestUi::class)->edit($bot);
+});
+
 $bot->onCallbackQueryData('sales:panel:confirm', function (Nutgram $bot): void {
     app(SalesPanelRequestUi::class)->confirm($bot);
 });

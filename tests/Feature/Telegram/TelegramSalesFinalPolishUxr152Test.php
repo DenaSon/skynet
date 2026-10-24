@@ -82,14 +82,19 @@ it('shows panel request status for an ordinary member but never promotes via nav
     $member = User::factory()->create();
     $bot = polish152Bot(987002, $member);
 
-    $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(static function (Request $request): bool {
+    $bot->hearCallbackQueryData('sales:home')->reply()->assertRaw(static function (Request $request): bool {
         $body = polish152Payload($request);
 
         return str_contains(json_encode($body['reply_markup'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), '🧩 درخواست پنل فروش');
     }, index: 1);
+    $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(static function (Request $request): bool {
+        $body = polish152Payload($request);
+
+        return ! str_contains(json_encode($body['reply_markup'], JSON_THROW_ON_ERROR), 'sales:panel:request');
+    }, index: 1);
 
     app(SalesPanelRequests::class)->submit($member->id, 'سارا', 'محمدی', '09123456789');
-    $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(static function (Request $request): bool {
+    $bot->hearCallbackQueryData('sales:home')->reply()->assertRaw(static function (Request $request): bool {
         $body = polish152Payload($request);
 
         return str_contains(json_encode($body['reply_markup'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), '📨 وضعیت درخواست پنل فروش');
@@ -113,6 +118,7 @@ it('gives active Sales Panel holders their unique home builder action without an
         return str_contains($body['text'], 'نوع حساب: <b>🧩 پنل فروش</b>')
             && str_contains($body['text'], 'موجودی کیف پول: <b>0 تومان</b>')
             && str_contains($markup, 'menu:builder')
+            && str_contains($markup, 'sales:help:panel')
             && str_contains($markup, 'sales:wallet');
     }, index: 1);
     $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(static function (Request $request): bool {
@@ -172,5 +178,30 @@ it('shows reseller-only builder guidance under Sales support without exposing it
 
             return ! str_contains(json_encode($body['reply_markup'], JSON_THROW_ON_ERROR), 'sales:help:builder');
         }, index: 1);
+    Http::assertNothingSent();
+});
+
+it('makes panel education available from home without giving members builder access', function (): void {
+    Role::findOrCreate('reseller', 'web');
+    $member = User::factory()->create();
+    $bot = polish152Bot(987055, $member);
+
+    $bot->hearCallbackQueryData('sales:help:panel')->reply()->assertRaw(static function (Request $request): bool {
+        $body = polish152Payload($request);
+        $markup = json_encode($body['reply_markup'], JSON_THROW_ON_ERROR);
+
+        return str_contains($body['text'], 'آموزش پنل فروش')
+            && str_contains($body['text'], '۷۵۰٬۰۰۰ تومان')
+            && str_contains($markup, 'sales:panel:request')
+            && ! str_contains($markup, 'menu:builder');
+    }, index: 1);
+
+    $member->syncRoles(['reseller']);
+    $bot->hearCallbackQueryData('sales:help:panel')->reply()->assertRaw(static function (Request $request): bool {
+        $markup = json_encode(polish152Payload($request)['reply_markup'], JSON_THROW_ON_ERROR);
+
+        return str_contains($markup, 'sales:help:builder')
+            && ! str_contains($markup, 'sales:panel:request');
+    }, index: 1);
     Http::assertNothingSent();
 });
