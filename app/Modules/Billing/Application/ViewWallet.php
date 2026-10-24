@@ -6,6 +6,37 @@ use Illuminate\Support\Facades\DB;
 
 final class ViewWallet
 {
+    /** Current locking read for a decision concurrent with wallet settlement. */
+    public function hasAtLeast(int $userId, int $minimumRials, bool $lockForUpdate = false): bool
+    {
+        if (! $lockForUpdate) {
+            return $this->handle($userId)->balanceRials >= $minimumRials;
+        }
+        if (DB::transactionLevel() < 1) {
+            throw new \LogicException('A locked wallet balance check requires a transaction.');
+        }
+
+        $walletId = app(WalletAccess::class)->customerWalletId($userId);
+        if (DB::table('billing_wallets')->where('id', $walletId)->lockForUpdate()->first() === null) {
+            return false;
+        }
+
+        // A locking read avoids a stale MySQL REPEATABLE READ snapshot after
+        // another transaction has spent wallet credit on an order.
+        $postings = DB::table('billing_postings')
+            ->where('wallet_id', $walletId)->where('account_code', 'wallet_liability')
+            ->orderBy('id')->lockForUpdate()->get(['side', 'amount_rials']);
+
+        $balance = 0;
+        foreach ($postings as $posting) {
+            $balance += $posting->side === 'credit'
+                ? (int) $posting->amount_rials
+                : -((int) $posting->amount_rials);
+        }
+
+        return $balance >= $minimumRials;
+    }
+
     public function handle(int $userId): WalletSnapshot
     {
         $walletId = app(WalletAccess::class)->customerWalletId($userId);

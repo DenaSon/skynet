@@ -17,6 +17,7 @@ use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 use SergiX44\Nutgram\Testing\FakeNutgram;
 use Spatie\Permission\Models\Role;
+use Tests\Support\PanelWalletFunding;
 
 uses(RefreshDatabase::class);
 
@@ -54,6 +55,7 @@ function panel01Payload(Request $request): array
 
 it('shows panel application on home and saves a pending request only after terms acceptance and confirmation', function (): void {
     $member = User::factory()->create();
+    PanelWalletFunding::credit($member->id, 7_500_000);
     $bot = panel01Bot(986101, $member);
 
     $bot->hearCallbackQueryData('sales:home')->reply()->assertRaw(static function (Request $request): bool {
@@ -102,12 +104,72 @@ it('shows panel application on home and saves a pending request only after terms
     $bot->hearCallbackQueryData('sales:panel:confirm')->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertCalled('editMessageText');
     expect(DB::table('sales_panel_requests')->count())->toBe(1)
-        ->and(DB::table('billing_journals')->count())->toBe(0);
+        ->and(DB::table('billing_journals')->count())->toBe(1);
+    Http::assertNothingSent();
+});
+
+it('shows a wallet guidance screen with all three routes when balance is insufficient', function (): void {
+    $member = User::factory()->create();
+    $bot = panel01Bot(986106, $member);
+    $key = TelegramBotContext::current()->cacheKey('telegram:panel:request:'.$member->id);
+
+    $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertRaw(static function (Request $request): bool {
+        $data = panel01Payload($request);
+        $buttons = $data['reply_markup']['inline_keyboard'] ?? [];
+
+        return str_contains($data['text'] ?? '', '۷۵۰٬۰۰۰ تومان')
+            && str_contains($data['text'] ?? '', 'پس از تأیید پنل فروش')
+            && ($buttons[0][0]['callback_data'] ?? null) === 'sales:wallet'
+            && ($buttons[1][0]['callback_data'] ?? null) === 'sales:support'
+            && ($buttons[2][0]['callback_data'] ?? null) === 'sales:home';
+    }, index: 1);
+    expect(Cache::get($key))->toBeNull();
+    $bot->hearCallbackQueryData('sales:panel:accept')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:wallet')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:support')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:home')->reply()->assertCalled('editMessageText');
+
+    expect(DB::table('sales_panel_requests')->count())->toBe(0)
+        ->and(DB::table('telegram_notification_deliveries')->count())->toBe(0);
+    PanelWalletFunding::credit($member->id, 7_500_000);
+    $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertRaw(
+        static fn (Request $request): bool => str_contains(
+            json_encode(panel01Payload($request)['reply_markup'], JSON_THROW_ON_ERROR),
+            'sales:panel:accept',
+        ),
+        index: 1,
+    );
+    Http::assertNothingSent();
+});
+
+it('rechecks wallet credit at final confirmation after it has been spent', function (): void {
+    $member = User::factory()->create();
+    PanelWalletFunding::credit($member->id, 7_500_000);
+    $bot = panel01Bot(986107, $member);
+
+    $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:panel:accept')->reply()->assertCalled('editMessageText');
+    $bot->hearText('علی')->reply()->assertCalled('sendMessage');
+    $bot->hearText('محمدی')->reply()->assertCalled('sendMessage');
+    $bot->hearText('09123456789')->reply()->assertCalled('sendMessage');
+
+    PanelWalletFunding::spend($member->id, 1);
+    $bot->hearCallbackQueryData('sales:panel:confirm')->reply()->assertRaw(static function (Request $request): bool {
+        $data = panel01Payload($request);
+
+        return str_contains($data['text'] ?? '', 'موجودی کیف پول کافی نیست')
+            && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:support');
+    }, index: 1);
+
+    expect(DB::table('sales_panel_requests')->count())->toBe(0)
+        ->and(DB::table('telegram_notification_deliveries')->count())->toBe(0)
+        ->and($member->fresh()->hasRole('reseller'))->toBeFalse();
     Http::assertNothingSent();
 });
 
 it('cancels or expires the private form without creating an application', function (): void {
     $member = User::factory()->create();
+    PanelWalletFunding::credit($member->id, 7_500_000);
     $bot = panel01Bot(986102, $member);
     $key = TelegramBotContext::current()->cacheKey('telegram:panel:request:'.$member->id);
 
@@ -128,6 +190,7 @@ it('denies group callbacks, disabled users, forged cross-user confirmation and a
     Role::firstOrCreate(['name' => 'reseller', 'guard_name' => 'web']);
     $reseller = User::factory()->create();
     $reseller->syncRoles(['reseller']);
+    PanelWalletFunding::credit($member->id, 7_500_000);
     $bot = panel01Bot(986103, $member);
     $partner = panel01Bot(986104, $reseller);
 
@@ -152,6 +215,7 @@ it('denies group callbacks, disabled users, forged cross-user confirmation and a
 
 it('leaving to sales home cancels panel draft without disturbing existing wallet routes', function (): void {
     $member = User::factory()->create();
+    PanelWalletFunding::credit($member->id, 7_500_000);
     $bot = panel01Bot(986105, $member);
     $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('sales:panel:accept')->reply()->assertCalled('editMessageText');

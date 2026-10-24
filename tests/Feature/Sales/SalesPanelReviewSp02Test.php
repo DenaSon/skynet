@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Role;
+use Tests\Support\PanelWalletFunding;
 
 uses(RefreshDatabase::class);
 
@@ -51,6 +52,7 @@ function sp02Case(): array
         'delivery_status' => 'reachable', 'last_seen_at' => now(),
         'created_at' => now(), 'updated_at' => now(),
     ]);
+    PanelWalletFunding::credit($buyer->id, 7_500_000);
     $row = DB::transaction(static function () use ($buyer): array {
         $row = app(SalesPanelRequests::class)->submit($buyer->id, 'علی', 'محمدی', '09123456789');
         app(SalesPanelNotificationOutbox::class)->submitted($row['id']);
@@ -98,7 +100,7 @@ it('atomically approves once, assigns only reseller through Identity and notifie
         ->and(DB::table('sales_panel_requests')->where('id', $case['id'])->value('reviewed_by_user_id'))->toBe($case['root']->id)
         ->and(DB::table('sales_panel_requests')->where('status', 'pending')->count())->toBe(0)
         ->and(DB::table('telegram_notification_deliveries')->where('event_type', 'SalesPanelApproved')->count())->toBe(1)
-        ->and(DB::table('billing_journals')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe(1)
         ->and(DB::table('sales_orders')->count())->toBe(0);
     expect(fn () => $review->decide($case['root']->id, $case['id'], true))->toThrow(ValidationException::class);
     expect(DB::table('telegram_notification_deliveries')->count())->toBe(2);

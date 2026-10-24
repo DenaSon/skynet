@@ -16,6 +16,7 @@ use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use Throwable;
 
 final readonly class SalesPanelRequestUi
 {
@@ -54,6 +55,20 @@ final readonly class SalesPanelRequestUi
             return;
         }
 
+        try {
+            if (! $this->requests->hasMinimumWalletBalance($userId)) {
+                $this->clear($userId);
+                $this->insufficientWallet($bot);
+
+                return;
+            }
+        } catch (Throwable) {
+            $this->clear($userId);
+            $this->notice($bot, 'موجودی کیف پول فعلاً قابل بررسی نیست. لطفاً دوباره تلاش کنید یا با پشتیبانی تماس بگیرید.');
+
+            return;
+        }
+
         Cache::put($this->key($userId), ['step' => 'terms'], now()->addMinutes(10));
         $this->render($bot,
             '<b>🧩 قوانین پنل فروش</b>'
@@ -62,7 +77,7 @@ final readonly class SalesPanelRequestUi
             ."\n۳. سوءاستفاده، فعالیت متقلبانه یا فروش غیرمجاز ممنوع است."
             ."\n۴. پایداری اتصال ممکن است تحت تأثیر اختلال اینترنت و محدودیت اپراتورها باشد."
             ."\n۵. فعال‌سازی و ادامه فعالیت پنل منوط به تأیید مدیریت و رعایت مقررات است."
-            ."\n۶. فعال‌سازی پنل مستلزم شارژ کیف پول به مبلغ <b>۷۵۰٬۰۰۰ تومان</b> است.</blockquote>"
+            ."\n۶. برای ثبت درخواست، حداقل <b>۷۵۰٬۰۰۰ تومان</b> موجودی کیف پول لازم است. این مبلغ بابت درخواست کسر نمی‌شود.</blockquote>"
             ."\n\nبا پذیرش قوانین می‌توانید درخواست خود را ثبت کنید.",
             InlineKeyboardMarkup::make()
                 ->addRow(InlineKeyboardButton::make('✅ می‌پذیرم', callback_data: 'sales:panel:accept', style: ButtonStyle::SUCCESS))
@@ -185,7 +200,15 @@ final readonly class SalesPanelRequestUi
 
                 return $result;
             });
-        } catch (AuthorizationException|ValidationException) {
+        } catch (ValidationException $exception) {
+            if (isset($exception->errors()['wallet_balance'])) {
+                $this->insufficientWallet($bot);
+            } else {
+                $this->notice($bot, 'ثبت درخواست ممکن نیست. لطفاً وضعیت حساب خود را بررسی کنید.');
+            }
+
+            return;
+        } catch (AuthorizationException) {
             $this->notice($bot, 'ثبت درخواست ممکن نیست. لطفاً وضعیت حساب خود را بررسی کنید.');
 
             return;
@@ -261,6 +284,18 @@ final readonly class SalesPanelRequestUi
             ."\n{$text}"
             ."\n\nنام: ".TelegramUi::escape($row['first_name'].' '.$row['last_name'])
             ."\nموبایل: ".TelegramUi::code(substr($row['mobile'], 0, 4).'***'.substr($row['mobile'], -4));
+    }
+
+    private function insufficientWallet(Nutgram $bot): void
+    {
+        $this->render($bot,
+            '<b>💰 موجودی کیف پول کافی نیست</b>'
+            ."\n\nبرای ارسال درخواست پنل فروش، باید حداقل <b>۷۵۰٬۰۰۰ تومان</b> کیف پول خود را شارژ کنید."
+            ."\n\n<blockquote>این شارژ پس از تأیید پنل فروش برای خرید سرویس قابل استفاده است و بابت درخواست از کیف پول کسر نمی‌شود.</blockquote>",
+            InlineKeyboardMarkup::make()
+                ->addRow(InlineKeyboardButton::make('💰 کیف پول', callback_data: 'sales:wallet'))
+                ->addRow(InlineKeyboardButton::make('💬 پشتیبانی', callback_data: 'sales:support'))
+                ->addRow(InlineKeyboardButton::make('↩️ بازگشت', callback_data: 'sales:home')));
     }
 
     private function notice(Nutgram $bot, string $message): void

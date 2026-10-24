@@ -18,6 +18,7 @@ use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 use SergiX44\Nutgram\Testing\FakeNutgram;
 use Spatie\Permission\Models\Role;
+use Tests\Support\PanelWalletFunding;
 
 uses(RefreshDatabase::class);
 
@@ -88,6 +89,7 @@ it('shows panel request status for an ordinary member but never promotes via nav
         return str_contains(json_encode($body['reply_markup'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), '🧩 درخواست پنل فروش');
     }, index: 1);
 
+    PanelWalletFunding::credit($member->id, 7_500_000);
     app(SalesPanelRequests::class)->submit($member->id, 'سارا', 'محمدی', '09123456789');
     $bot->hearCallbackQueryData('sales:home')->reply()->assertRaw(static function (Request $request): bool {
         $body = polish152Payload($request);

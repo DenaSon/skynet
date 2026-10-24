@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Sales\Application;
 
+use App\Modules\Billing\Application\ViewWallet;
 use App\Modules\Identity\Application\ResolveActiveUser;
 use App\Modules\Identity\Application\ResolveSalesBuyer;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -13,9 +14,12 @@ use Illuminate\Validation\ValidationException;
 /** User-owned Sales Panel applications; role assignment belongs solely to SP-02. */
 final readonly class SalesPanelRequests
 {
+    public const MINIMUM_WALLET_BALANCE_RIALS = 7_500_000;
+
     public function __construct(
         private ResolveActiveUser $users,
         private ResolveSalesBuyer $buyers,
+        private ViewWallet $wallets,
     ) {}
 
     /** @return array{id:int,status:string,first_name:string,last_name:string,mobile:string}|null */
@@ -25,6 +29,12 @@ final readonly class SalesPanelRequests
         $row = DB::table('sales_panel_requests')->where('user_id', $userId)->first();
 
         return $row === null ? null : $this->map($row);
+    }
+
+    /** Only confirmed wallet liability postings count; pending top-ups do not. */
+    public function hasMinimumWalletBalance(int $userId, bool $lockForUpdate = false): bool
+    {
+        return $this->wallets->hasAtLeast($userId, self::MINIMUM_WALLET_BALANCE_RIALS, $lockForUpdate);
     }
 
     /** @return array{id:int,status:string,first_name:string,last_name:string,mobile:string} */
@@ -41,6 +51,19 @@ final readonly class SalesPanelRequests
             $this->users->handle($userId, true);
             if (! $this->buyers->isMember($userId)) {
                 throw new AuthorizationException;
+            }
+
+            // A previously submitted request retains its status even if the
+            // applicant later spends wallet credit. Only new submissions need
+            // to pass the current balance check.
+            $existing = DB::table('sales_panel_requests')->where('user_id', $userId)->first();
+            if ($existing !== null) {
+                return $this->map($existing);
+            }
+            if (! $this->hasMinimumWalletBalance($userId, true)) {
+                throw ValidationException::withMessages([
+                    'wallet_balance' => 'At least 750,000 tomans of confirmed wallet credit is required.',
+                ]);
             }
 
             DB::table('sales_panel_requests')->insertOrIgnore([

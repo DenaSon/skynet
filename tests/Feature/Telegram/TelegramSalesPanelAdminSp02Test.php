@@ -17,6 +17,7 @@ use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 use SergiX44\Nutgram\Testing\FakeNutgram;
 use Spatie\Permission\Models\Role;
+use Tests\Support\PanelWalletFunding;
 
 uses(RefreshDatabase::class);
 
@@ -60,6 +61,7 @@ it('shows the root application queue, confirms one decision and cannot replay th
     $root->syncRoles(['super-admin']);
     $buyer = User::factory()->create();
     TelegramAccount::query()->create(['user_id' => $buyer->id, 'telegram_user_id' => 977099]);
+    PanelWalletFunding::credit($buyer->id, 7_500_000);
     $id = app(SalesPanelRequests::class)->submit($buyer->id, 'سارا', 'رضایی', '09123456789')['id'];
 
     $bot->hearCallbackQueryData('menu:admin:sales')->reply()->assertRaw(static function (Request $request): bool {
@@ -103,6 +105,7 @@ it('denies ordinary Admin Bot users from reading applicant phone or changing rol
     $admin = User::factory()->admin()->create();
     $bot = sp02AdminBot(977003, $admin);
     $buyer = User::factory()->create();
+    PanelWalletFunding::credit($buyer->id, 7_500_000);
     $id = app(SalesPanelRequests::class)->submit($buyer->id, 'محمد', 'کریمی', '09123456789')['id'];
 
     $bot->hearCallbackQueryData('sp:list:1')->reply()->assertCalled('answerCallbackQuery');
@@ -119,6 +122,7 @@ it('the old pending SP-01 application appears in the new Admin queue without ret
     $bot = sp02AdminBot(977001, $root);
     $root->syncRoles(['super-admin']);
     $buyer = User::factory()->create();
+    PanelWalletFunding::credit($buyer->id, 7_500_000);
     app(SalesPanelRequests::class)->submit($buyer->id, 'نازنین', 'فرهادی', '09120000000');
 
     $bot->hearText('/panelrequests')->reply()->assertCalled('sendMessage');
