@@ -163,6 +163,13 @@ final readonly class SalesPanelRequestUi
         if ($userId === null) {
             return;
         }
+        // A stale confirmation must not consume the terms or input draft.
+        $pending = Cache::get($this->key($userId));
+        if (! is_array($pending) || ($pending['step'] ?? null) !== 'confirm') {
+            $this->notice($bot, 'برای ثبت درخواست، ابتدا مراحل و تأیید نهایی را کامل کنید.');
+
+            return;
+        }
         $draft = Cache::pull($this->key($userId));
         if (! is_array($draft) || ($draft['step'] ?? null) !== 'confirm'
             || ! is_string($draft['first'] ?? null) || ! is_string($draft['last'] ?? null)
