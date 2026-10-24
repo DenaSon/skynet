@@ -13,7 +13,7 @@ final readonly class BrowseCustomerWallets
 {
     public function __construct(private AssertBillingAccess $access) {}
 
-    /** @return list<array{id:int,name:string,balance_rials:int}> */
+    /** @return list<array{id:int,name:string,balance_rials:int,account_type:string}> */
     public function page(int $rootId, int $page = 1): array
     {
         $this->access->reviewer($rootId);
@@ -21,18 +21,23 @@ final readonly class BrowseCustomerWallets
             throw ValidationException::withMessages(['page' => 'Invalid page.']);
         }
 
-        return DB::table('billing_wallets as w')
-            ->join('users as u', 'u.id', '=', 'w.user_id')
-            ->orderByDesc('w.id')->offset(($page - 1) * 8)->limit(9)
-            ->get(['w.id', 'w.user_id', 'u.name'])
-            ->map(fn (object $item): array => [
+        // Sort the full directory BEFORE pagination; a funded older wallet must
+        // appear on page one. Stable wallet-ID tie-breaker prevents duplicates.
+        return DB::query()->fromSub(ReadAdminWalletSummary::walletBalancesQuery(), 'balances')
+            ->orderByRaw('CASE WHEN balance_rials > 0 THEN 0 WHEN balance_rials = 0 THEN 1 ELSE 2 END')
+            ->orderByDesc('balance_rials')
+            ->orderByDesc('wallet_id')
+            ->offset(($page - 1) * 8)->limit(9)
+            ->get(['user_id', 'name', 'balance_rials', 'account_type'])
+            ->map(static fn (object $item): array => [
                 'id' => (int) $item->user_id,
                 'name' => (string) $item->name,
-                'balance_rials' => $this->balance((int) $item->id),
+                'balance_rials' => (int) $item->balance_rials,
+                'account_type' => (string) $item->account_type,
             ])->all();
     }
 
-    /** @return array{id:int,name:string,active:bool,balance_rials:int,entries:list<array{journal:int,kind:string,side:string,amount_rials:int,at:string,source:string}>,topups:list<array{id:int,amount_rials:int,status:string,at:string,reference:?string}>} */
+    /** @return array{id:int,name:string,active:bool,account_type:string,balance_rials:int,entries:list<array{journal:int,kind:string,side:string,amount_rials:int,at:string,source:string}>,topups:list<array{id:int,amount_rials:int,status:string,at:string,reference:?string}>} */
     public function detail(int $rootId, int $userId): array
     {
         $this->access->reviewer($rootId);
@@ -48,7 +53,10 @@ final readonly class BrowseCustomerWallets
         $walletId = DB::table('billing_wallets')->where('user_id', $userId)->value('id');
         $entries = [];
         $topups = [];
+        $accountType = null;
         if ($walletId !== null) {
+            $accountType = ReadAdminWalletSummary::walletBalancesQuery()
+                ->where('w.user_id', $userId)->value('account_type');
             $entries = DB::table('billing_postings as p')
                 ->join('billing_journals as j', 'j.id', '=', 'p.journal_id')
                 ->where('p.wallet_id', $walletId)->where('p.account_code', 'wallet_liability')
@@ -81,9 +89,17 @@ final readonly class BrowseCustomerWallets
                 ])->all();
         }
 
+        if ($accountType === null) {
+            // Details are also available for users without a wallet yet.
+            $roles = \App\Modules\Identity\Infrastructure\Models\User::query()->find($userId);
+            $accountType = $roles?->hasAnyRole(['admin', 'super-admin']) ? 'other'
+                : ($roles?->hasRole('reseller') ? 'reseller'
+                    : ($roles?->hasRole('member') ? 'member' : 'other'));
+        }
+
         return [
             'id' => (int) $user->id, 'name' => (string) $user->name,
-            'active' => (bool) $user->is_active,
+            'active' => (bool) $user->is_active, 'account_type' => $accountType,
             'balance_rials' => $walletId === null ? 0 : $this->balance((int) $walletId),
             'entries' => $entries, 'topups' => $topups,
         ];
