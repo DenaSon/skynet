@@ -64,9 +64,9 @@ final readonly class AdminCommandCenterUi
         }
 
         $keyboard->addRow(
-                InlineKeyboardButton::make('💳 امور مالی', callback_data: 'menu:admin:finance'),
-                InlineKeyboardButton::make('🖥️ سرورها', callback_data: 'menu:admin:servers'),
-            );
+            InlineKeyboardButton::make('💳 امور مالی', callback_data: 'menu:admin:finance'),
+            InlineKeyboardButton::make('🖥️ سرورها', callback_data: 'menu:admin:servers'),
+        );
 
         if (config('billing.topups_enabled', false)) {
             $keyboard->addRow(InlineKeyboardButton::make('💳 رسیدهای شارژ', callback_data: 'finance:topups:1'));
