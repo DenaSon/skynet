@@ -268,7 +268,6 @@ it('uses first Farvardin as the accounting month boundary through Nowruz', funct
     Http::assertNothingSent();
 });
 
-
 /** Approved, balanced ledger and bank-proof fixture using the real review Action. */
 function cash01Topup(User $root, User $customer, int $amountRials, string $key, Carbon $verifiedAt): int
 {
