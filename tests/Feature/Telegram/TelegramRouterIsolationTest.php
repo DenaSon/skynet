@@ -113,6 +113,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:full:service:prepare:{id}:{mode}';
     $expected['ADMIN'][] = 'callback:full:service:apply:{token}';
     $expected['ADMIN'][] = 'callback:full:service:check:{id}';
+    // FIN-CASH-01: verified incoming money report, Admin-only and read-only.
+    $expected['ADMIN'][] = 'callback:finance:cash:{period}';
     // FIN-01 keeps photo finance routes private to the Admin Bot.
     $expected['ADMIN'][] = 'callback:finance:wallets:{page}';
     $expected['ADMIN'][] = 'callback:finance:wallet:{id}';
@@ -258,8 +260,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(241)
-        ->and(count(array_unique($legacy)))->toBe(241);
+        ->and(count($legacy))->toBe(242)
+        ->and(count(array_unique($legacy)))->toBe(242);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {

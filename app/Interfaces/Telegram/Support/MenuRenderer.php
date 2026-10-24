@@ -140,7 +140,8 @@ final class MenuRenderer
     public function showAdminFinance(Nutgram $bot, ?array $walletSummary = null): void
     {
         $keyboard = InlineKeyboardMarkup::make()
-            ->addRow(InlineKeyboardButton::make('💼 کیف پول کاربران', callback_data: 'finance:wallets:1'));
+            ->addRow(InlineKeyboardButton::make('💼 کیف پول کاربران', callback_data: 'finance:wallets:1'))
+            ->addRow(InlineKeyboardButton::make('💰 گزارش دریافتی‌ها', callback_data: 'finance:cash:30'));
         if (config('billing.topups_enabled', false)) {
             $keyboard->addRow(InlineKeyboardButton::make('🖼️ رسیدهای شارژ کیف پول', callback_data: 'finance:topups:1'))
                 ->addRow(InlineKeyboardButton::make('💳 بررسی شارژهای قبلی', callback_data: 'menu:billing-reviews'));
