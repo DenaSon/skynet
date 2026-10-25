@@ -119,7 +119,7 @@ final readonly class AdminScopedReadUi
                     ."\n\nنودها: ".$overview->nodes
                     .' | متصل: '.$overview->connectedNodes
                     ."\nهاست‌ها: ".$overview->hosts;
-                foreach (array_slice($overview->nodeSummaries, 0, 20) as $node) {
+                foreach (array_slice($overview->nodeSummaries ?? [], 0, 20) as $node) {
                     $text .= "\n".($node['connected'] ? '🟢 ' : '⚪ ')
                         .TelegramUi::escape(mb_substr($node['name'], 0, 45));
                 }
