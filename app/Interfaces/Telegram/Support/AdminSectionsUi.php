@@ -22,7 +22,10 @@ final readonly class AdminSectionsUi
     public function sales(Nutgram $bot): void
     {
         $telegramId = $this->privateUser->id($bot);
-        $actor = $telegramId === null ? null : $this->resolve->handle($telegramId);
+        if ($telegramId === null) {
+            return;
+        }
+        $actor = $this->resolve->handle($telegramId);
         if ($actor === null || (! $actor->allows('plans.manage') && ! $actor->allows('resellers.review'))) {
             $this->menus->denyAccess($bot);
 
