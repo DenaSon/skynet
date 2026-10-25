@@ -6,6 +6,7 @@ namespace App\Interfaces\Telegram\Support;
 
 use App\Modules\Identity\Application\ReadCustomerSupportProfile;
 use App\Modules\Identity\Application\ResolveTelegramActor;
+use App\Modules\Provisioning\Application\ReadCustomerLiveServices;
 use App\Support\PersianCalendar;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Validation\ValidationException;
@@ -21,6 +22,7 @@ final readonly class CustomerSupportProfileUi
         private PrivateTelegramUser $private,
         private ResolveTelegramActor $actors,
         private ReadCustomerSupportProfile $profiles,
+        private ReadCustomerLiveServices $services,
         private MenuRenderer $menus,
     ) {}
 
@@ -66,6 +68,12 @@ final readonly class CustomerSupportProfileUi
         $keyboard = InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: "users:profile:{$subjectId}:{$page}:{$mode}"));
 
+        if ($profile['servicesTotal'] > 0) {
+            $keyboard->addRow(InlineKeyboardButton::make(
+                '📡 وضعیت زنده سرویس‌ها', callback_data: "c360:l:{$subjectId}:{$page}:{$mode}:1",
+            ));
+        }
+
         if ($profile['financeAllowed']) {
             $keyboard->addRow(InlineKeyboardButton::make(
                 '💼 جزئیات کیف پول',
@@ -79,6 +87,174 @@ final readonly class CustomerSupportProfileUi
 
         TelegramUi::answerCallback($bot);
         TelegramUi::editText($bot, $text, $keyboard, 'HTML');
+    }
+
+
+    /** CUS-360-02: local service directory, no RW request until one is chosen. */
+    public function services(Nutgram $bot, string $subjectId, string $userPage, string $mode, string $servicePage): void
+    {
+        $actor = $this->reader($bot);
+        if ($actor === null) {
+            return;
+        }
+        if (! self::valid($subjectId, $userPage, $mode, $servicePage)) {
+            $this->menus->showUserNotice($bot, 'درخواست معتبر نیست.');
+
+            return;
+        }
+
+        try {
+            $list = $this->services->page($actor, (int) $subjectId, (int) $servicePage);
+        } catch (AuthorizationException) {
+            $this->menus->denyAccess($bot);
+
+            return;
+        } catch (ValidationException) {
+            $this->menus->showUserNotice($bot, 'کاربر یا صفحه موردنظر پیدا نشد.');
+
+            return;
+        } catch (Throwable) {
+            $this->menus->showUserNotice($bot, 'دریافت فهرست سرویس‌ها ممکن نیست.');
+
+            return;
+        }
+
+        $lines = ['<b>📡 سرویس‌های مشتری</b>', '', 'یک سرویس را برای بررسی وضعیت زنده انتخاب کنید.', ''];
+        $keyboard = InlineKeyboardMarkup::make();
+        foreach ($list['items'] as $item) {
+            $name = self::safe($item['name']);
+            $lines[] = '• #'.$item['id'].' · '.$name.' · '.self::serviceState($item['state']);
+            $keyboard->addRow(InlineKeyboardButton::make(
+                '#'.$item['id'].' · '.mb_substr((string) preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $item['name']), 0, 30),
+                callback_data: "c360:v:{$subjectId}:{$item['id']}:{$userPage}:{$mode}:{$servicePage}",
+            ));
+        }
+        if ($list['items'] === []) {
+            $lines[] = 'سرویسی در این صفحه ثبت نشده است.';
+        }
+        $navigation = [];
+        if ($list['page'] > 1) {
+            $navigation[] = InlineKeyboardButton::make('◀️ قبلی', callback_data: "c360:l:{$subjectId}:{$userPage}:{$mode}:".($list['page'] - 1));
+        }
+        if ($list['hasNext']) {
+            $navigation[] = InlineKeyboardButton::make('بعدی ▶️', callback_data: "c360:l:{$subjectId}:{$userPage}:{$mode}:".($list['page'] + 1));
+        }
+        if ($navigation !== []) {
+            $keyboard->addRow(...$navigation);
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: "c360:l:{$subjectId}:{$userPage}:{$mode}:{$servicePage}"))
+            ->addRow(InlineKeyboardButton::make('◀️ پرونده کاربر', callback_data: "users:profile:{$subjectId}:{$userPage}:{$mode}"));
+
+        TelegramUi::answerCallback($bot);
+        TelegramUi::editText($bot, implode("\n", $lines), $keyboard, 'HTML');
+    }
+
+    public function service(Nutgram $bot, string $subjectId, string $orderId, string $userPage, string $mode, string $servicePage): void
+    {
+        $actor = $this->reader($bot);
+        if ($actor === null) {
+            return;
+        }
+        if (! self::valid($subjectId, $userPage, $mode, $servicePage)
+            || preg_match('/\A[1-9][0-9]{0,14}\z/D', $orderId) !== 1) {
+            $this->menus->showUserNotice($bot, 'درخواست معتبر نیست.');
+
+            return;
+        }
+
+        try {
+            $data = $this->services->detail($actor, (int) $subjectId, (int) $orderId);
+        } catch (AuthorizationException) {
+            $this->menus->denyAccess($bot);
+
+            return;
+        } catch (ValidationException) {
+            $this->menus->showUserNotice($bot, 'سرویس موردنظر پیدا نشد.');
+
+            return;
+        } catch (Throwable) {
+            $this->menus->showUserNotice($bot, 'دریافت اطلاعات سرویس ممکن نیست.');
+
+            return;
+        }
+
+        $lines = ['<b>📦 وضعیت سرویس مشتری</b>', '#'.$data['orderId'].' · '.self::safe($data['name']), '',
+            'وضعیت ثبت‌شده: '.self::serviceState($data['localState'])];
+        if ($data['state'] !== 'available') {
+            $lines[] = 'وضعیت زنده: نامشخص';
+            $lines[] = 'دریافت یا تطبیق اطلاعات پنل ممکن نیست؛ این وضعیت به معنی قطع یا حذف سرویس نیست.';
+        } else {
+            $lines[] = 'وضعیت پنل: '.self::providerStatus($data['remoteStatus']);
+            $lines[] = 'تطبیق شناسه سرویس: تأیید شد';
+            $lines[] = 'حجم کل: '.self::volume($data['limitBytes'], true);
+            $lines[] = 'مصرف‌شده: '.self::volume($data['usedBytes']);
+            $lines[] = 'باقی‌مانده: '.($data['limitBytes'] === 0 ? 'نامحدود' : self::volume($data['remainingBytes']));
+            $lines[] = 'انقضا: '.($data['expiresAt'] === null ? 'نامشخص' : PersianCalendar::utcDateTime($data['expiresAt']));
+            $lines[] = 'زمان باقی‌مانده: '.($data['daysLeft'] === null ? 'نامشخص' : number_format($data['daysLeft']).' روز');
+            if ($data['remoteStatus'] !== 'ACTIVE') {
+                $lines[] = '⚠️ برای بررسی مشکل سرویس، وضعیت پنل را در نظر بگیرید.';
+            }
+        }
+        $lines[] = '';
+        $lines[] = '<i>اطلاعات از پنل خوانده می‌شود؛ آنلاین بودن دستگاه یا دسترسی از اینترنت ایران را تأیید نمی‌کند.</i>';
+        $lines[] = '🔄 زمان بررسی: '.PersianCalendar::localDateTime(now()->timezone('Asia/Tehran')->format('Y-m-d H:i'));
+
+        $keyboard = InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('🔄 بررسی دوباره', callback_data: "c360:v:{$subjectId}:{$orderId}:{$userPage}:{$mode}:{$servicePage}"))
+            ->addRow(InlineKeyboardButton::make('◀️ سرویس‌های مشتری', callback_data: "c360:l:{$subjectId}:{$userPage}:{$mode}:{$servicePage}"))
+            ->addRow(InlineKeyboardButton::make('🏠 پرونده کاربر', callback_data: "users:profile:{$subjectId}:{$userPage}:{$mode}"));
+
+        TelegramUi::answerCallback($bot);
+        TelegramUi::editText($bot, implode("\n", $lines), $keyboard, 'HTML');
+    }
+
+    private function reader(Nutgram $bot): ?int
+    {
+        $telegramId = $this->private->id($bot);
+        if ($telegramId === null) {
+            return null;
+        }
+        $actor = $this->actors->handle($telegramId);
+        if ($actor?->isAdmin() !== true) {
+            $this->menus->denyAccess($bot);
+
+            return null;
+        }
+
+        return $actor->userId;
+    }
+
+    private static function valid(string $subjectId, string $page, string $mode, string $servicePage): bool
+    {
+        return preg_match('/\A[1-9][0-9]{0,14}\z/D', $subjectId) === 1
+            && preg_match('/\A[1-9][0-9]{0,5}\z/D', $page) === 1
+            && (int) $page <= 100000
+            && in_array($mode, ['a', 's'], true)
+            && preg_match('/\A[1-9][0-9]{0,3}\z/D', $servicePage) === 1
+            && (int) $servicePage <= 1000;
+    }
+
+    private static function providerStatus(?string $value): string
+    {
+        return match ($value) {
+            'ACTIVE' => '🟢 فعال',
+            'DISABLED' => '⏸️ غیرفعال',
+            'EXPIRED' => '⌛ منقضی‌شده',
+            'LIMITED' => '⚠️ حجم تمام‌شده',
+            default => 'نامشخص',
+        };
+    }
+
+    private static function volume(?int $bytes, bool $limit = false): string
+    {
+        if ($bytes === null) {
+            return 'نامشخص';
+        }
+        if ($limit && $bytes === 0) {
+            return 'نامحدود';
+        }
+
+        return number_format($bytes / 1073741824, 2).' گیگابایت';
     }
 
     /** @param array<string,mixed> $data */
