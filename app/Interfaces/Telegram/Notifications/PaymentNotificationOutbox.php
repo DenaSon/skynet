@@ -46,7 +46,8 @@ final readonly class PaymentNotificationOutbox
                 // Actor zero must prove a committed bank settlement in the worker.
                 $user = \App\Modules\Identity\Infrastructure\Models\User::query()
                     ->with('telegramAccount')->find((int) $reviewer);
-                $actorId = $user !== null && $this->trust->eligible($user) ? (int) $reviewer : 0;
+                $actorId = $user !== null && $this->trust->eligible($user)
+                    ? (int) $reviewer : FulfillPaidPlanOrderJob::VERIFIED_BANK_REVIEW;
                 DB::afterCommit(static function () use ($orderId, $actorId): void {
                     if (config('sales.auto_fulfillment_enabled', false) === true
                         && config('services.remnawave.writes_enabled') === true
