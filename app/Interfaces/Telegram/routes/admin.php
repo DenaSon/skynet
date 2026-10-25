@@ -678,6 +678,14 @@ $bot->onCallbackQueryData('users:view:{id}:{page}:{mode}', function (Nutgram $bo
     app(UserManagementUi::class)->details($bot, $id, $page, $mode);
 });
 
+$bot->onCallbackQueryData('c360:l:{id}:{userPage}:{mode}:{servicePage}', function (Nutgram $bot, string $id, string $userPage, string $mode, string $servicePage): void {
+    app(CustomerSupportProfileUi::class)->services($bot, $id, $userPage, $mode, $servicePage);
+});
+
+$bot->onCallbackQueryData('c360:v:{id}:{orderId}:{userPage}:{mode}:{servicePage}', function (Nutgram $bot, string $id, string $orderId, string $userPage, string $mode, string $servicePage): void {
+    app(CustomerSupportProfileUi::class)->service($bot, $id, $orderId, $userPage, $mode, $servicePage);
+});
+
 $bot->onCallbackQueryData('users:profile:{id}:{page}:{mode}', function (Nutgram $bot, string $id, string $page, string $mode): void {
     app(CustomerSupportProfileUi::class)->show($bot, $id, $page, $mode);
 });
