@@ -413,3 +413,27 @@ it('finishes receipt rejection with one button and never enqueues provider creat
         FulfillPaidPlanOrderJob::class,
     );
 });
+
+it('rechecks the bank gate and order status when an old receipt button is pressed', function (): void {
+    $data = sb04Order();
+    config()->set('sales.manual_bank_review_enabled', true);
+    sb04SalesContext();
+    $bot = sb04Bot(974099);
+    $key = \App\Interfaces\Telegram\Processing\TelegramBotContext::current()
+        ->cacheKey('telegram:payphoto:'.$data['buyer']->id);
+
+    $bot->hearCallbackQueryData('sales:payment:start:'.$data['order'])->reply()->assertCalled('editMessageText');
+    expect(\Illuminate\Support\Facades\Cache::has($key))->toBeFalse();
+
+    config()->set('sales.manual_bank_review_enabled', false);
+    $bot->hearCallbackQueryData('sales:payment:receipt:'.$data['order'])->reply()->assertCalled('editMessageText');
+    expect(\Illuminate\Support\Facades\Cache::has($key))->toBeFalse();
+
+    config()->set('sales.manual_bank_review_enabled', true);
+    DB::table('sales_orders')->where('id', $data['order'])->update(['status' => 'paid']);
+    $bot->hearCallbackQueryData('sales:payment:receipt:'.$data['order'])->reply()->assertCalled('editMessageText');
+    expect(\Illuminate\Support\Facades\Cache::has($key))->toBeFalse()
+        ->and(DB::table('sales_bank_payment_claims')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe(0);
+    Http::assertNothingSent();
+});
