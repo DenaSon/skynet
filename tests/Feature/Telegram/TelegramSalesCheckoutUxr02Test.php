@@ -1040,3 +1040,61 @@ it('returns from receipt input to the payment screen without leaving a live phot
         ->and(DB::table('sales_orders')->count())->toBe(1);
     Http::assertNothingSent();
 });
+
+it('invalidates the wallet debit confirmation after /cancel or navigating to order history', function (string $destination): void {
+    wal03Ready();
+    $data = uxr02Plan();
+    $buyer = User::factory()->create();
+    $bot = uxr02Bot(973121, $buyer);
+    wal03Credit($buyer, $data['root'], 1_500_000, 'WUX03WALLET1');
+    config()->set('sales.wallet_settlement_enabled', true);
+
+    $bot->hearCallbackQueryData('catalog:detail:'.$data['plan'].':1')->reply();
+    $orderId = (int) DB::table('sales_orders')->value('id');
+    $bot->hearCallbackQueryData('sales:checkout:wallet:'.$orderId)->reply();
+    $key = TelegramBotContext::current()->cacheKey('telegram:sales:walletpay:'.$buyer->id.':'.$orderId);
+    $pointer = TelegramBotContext::current()->cacheKey('telegram:sales:walletpay:active:'.$buyer->id);
+    $token = Cache::get($key)['token'];
+    expect(Cache::has($pointer))->toBeTrue();
+
+    if ($destination === 'cancel') {
+        $bot->hearText('/cancel')->reply()->assertCalled('sendMessage', 2);
+    } else {
+        $bot->hearCallbackQueryData('sales:checkout:orders')->reply()->assertCalled('editMessageText');
+    }
+
+    expect(Cache::has($key))->toBeFalse()
+        ->and(Cache::has($pointer))->toBeFalse();
+    $bot->hearCallbackQueryData('sales:walletpay:confirm:'.$orderId.':'.$token)->reply()->assertCalled('editMessageText');
+    expect(DB::table('sales_orders')->where('id', $orderId)->value('status'))->toBe('pending_payment')
+        ->and(DB::table('sales_order_settlements')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->where('kind', 'purchase')->count())->toBe(0);
+    Http::assertNothingSent();
+})->with(['cancel', 'orders']);
+
+it('disarms the old purchase photo when selecting a fresh funded order without changing old receipts', function (): void {
+    wal03Ready();
+    $data = uxr02Plan();
+    $buyer = User::factory()->create();
+    $bot = uxr02Bot(973122, $buyer);
+    wal03Credit($buyer, $data['root'], 1_500_000, 'WUX03WALLET2');
+    config()->set('sales.wallet_settlement_enabled', true);
+
+    $bot->hearCallbackQueryData('catalog:detail:'.$data['plan'].':1')->reply();
+    $old = (int) DB::table('sales_orders')->value('id');
+    $bot->hearCallbackQueryData('sales:payment:receipt:'.$old)->reply();
+    $key = TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$buyer->id);
+    expect(Cache::has($key))->toBeTrue();
+
+    $bot->hearCallbackQueryData('catalog:detail:'.$data['plan'].':1')->reply();
+    expect(DB::table('sales_orders')->count())->toBe(2)
+        ->and(Cache::has($key))->toBeFalse();
+
+    $bot->hearMessage(['message_id' => 950, 'photo' => [
+        ['file_id' => 'other-order-photo-id', 'file_unique_id' => 'other-order-photo-unique', 'width' => 400, 'height' => 400],
+    ]])->reply();
+    expect(DB::table('sales_bank_payment_claims')->count())->toBe(0)
+        ->and(DB::table('billing_topup_photos')->count())->toBe(0)
+        ->and(DB::table('sales_order_settlements')->count())->toBe(0);
+    Http::assertNothingSent();
+});
