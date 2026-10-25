@@ -118,6 +118,9 @@ final class MenuRenderer
             if ($actor->allows('users.view') || $actor->allows('support.view')) {
                 $keyboard->addRow(InlineKeyboardButton::make('👥 کاربران', callback_data: 'menu:admin:users'));
             }
+            if ($actor->allows('plans.manage') || $actor->allows('resellers.review')) {
+                $keyboard->addRow(InlineKeyboardButton::make('📦 محصولات و پلن‌ها', callback_data: 'menu:admin:sales'));
+            }
             if ($actor->allows('reports.view')) {
                 $keyboard->addRow(InlineKeyboardButton::make('📊 گزارش‌های عملیاتی', callback_data: 'rbac2:reports'));
             }
@@ -150,18 +153,27 @@ final class MenuRenderer
         $this->render($bot, "🧾 بررسی رسیدها\n\nبخش موردنظر را انتخاب کنید.", $keyboard);
     }
 
-    public function showAdminSales(Nutgram $bot): void
+    public function showAdminSales(Nutgram $bot, ?TelegramActor $actor = null): void
     {
-        $keyboard = InlineKeyboardMarkup::make()
-            ->addRow(
+        $root = $actor === null || $actor->canManageRoles();
+        $plans = $root || $actor->allows('plans.manage');
+        $reviews = $root || $actor->allows('resellers.review');
+        $keyboard = InlineKeyboardMarkup::make();
+        if ($plans) {
+            $keyboard->addRow(
                 InlineKeyboardButton::make('📚 محصولات پایه', callback_data: 'menu:admin:products'),
                 InlineKeyboardButton::make('📦 مدیریت پلن‌ها', callback_data: 'menu:admin:plans'),
-            )
-            ->addRow(InlineKeyboardButton::make('🔌 فعال‌سازی اشتراک‌ها', callback_data: 'menu:admin:fulfillment'))
-            ->addRow(InlineKeyboardButton::make('🧩 درخواست‌های پنل فروش', callback_data: 'sp:list:1'))
-            ->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
+            );
+        }
+        if ($root) {
+            $keyboard->addRow(InlineKeyboardButton::make('🔌 فعال‌سازی اشتراک‌ها', callback_data: 'menu:admin:fulfillment'));
+        }
+        if ($reviews) {
+            $keyboard->addRow(InlineKeyboardButton::make('🧩 درخواست‌های پنل فروش', callback_data: 'sp:list:1'));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
 
-        $this->render($bot, "📦 محصولات و پلن‌ها\n\nاز این بخش می‌توانید محصولات، پلن‌ها و قیمت‌های فروش را مدیریت کنید.", $keyboard);
+        $this->render($bot, "📦 محصولات و پلن‌ها\\n\\nبخش موردنظر را انتخاب کنید.", $keyboard);
     }
 
     /** @param array{balanceRials:int,walletsTotal:int,walletsPositive:int,walletsNegative:int,pendingTopups:int}|null $walletSummary */
