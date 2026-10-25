@@ -15,7 +15,7 @@ final class ReplyMenuRenderer
 
     public function showHome(Nutgram $bot, TelegramActor $actor): void
     {
-        if ($actor->isAdmin()) {
+        if ($actor->canEnterAdmin()) {
             $this->showAdmin($bot, $actor);
 
             return;
@@ -53,7 +53,7 @@ final class ReplyMenuRenderer
 
     public function homeKeyboard(TelegramActor $actor): ReplyKeyboardMarkup
     {
-        if ($actor->isAdmin()) {
+        if ($actor->canEnterAdmin()) {
             return $this->adminKeyboard($actor);
         }
 
@@ -78,7 +78,7 @@ final class ReplyMenuRenderer
     {
         $labels = $actor->canManageRoles() ? [ReplyMenuLabels::DENABAN] : [];
 
-        if ($actor->isAdmin()) {
+        if ($actor->allows('users.view')) {
             $labels[] = ReplyMenuLabels::USERS;
         }
 
@@ -90,6 +90,15 @@ final class ReplyMenuRenderer
 
             $labels[] = ReplyMenuLabels::FINANCE_SECTION;
             $labels[] = ReplyMenuLabels::STATS;
+        }
+
+        if (! $actor->canManageRoles()) {
+            if ($actor->allows('purchases.view')) {
+                $labels[] = ReplyMenuLabels::RECEIPTS;
+            }
+            if ($actor->allows('topups.view')) {
+                $labels[] = ReplyMenuLabels::TOPUPS;
+            }
         }
 
         // A primary-menu HOME button would only reopen this same Admin screen.
