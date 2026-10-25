@@ -35,6 +35,8 @@ final readonly class TelegramActor
     public function canEnterAdmin(): bool
     {
         return $this->isAdmin() || $this->allows('users.view')
-            || $this->allows('purchases.view') || $this->allows('topups.view');
+            || $this->allows('purchases.view') || $this->allows('topups.view')
+            || $this->allows('support.view') || $this->allows('reports.view')
+            || $this->allows('finance.view') || $this->allows('servers.view');
     }
 }

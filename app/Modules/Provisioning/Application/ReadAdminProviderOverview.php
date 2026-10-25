@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Provisioning\Application;
 
-use App\Modules\Identity\Application\AssertCatalogManagementAccess;
+use App\Modules\Identity\Application\AdminCapabilityAccess;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveApiClientFactory;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveNodeSummary;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveReadApi;
@@ -12,18 +12,18 @@ use Illuminate\Support\Facades\DB;
 use Throwable;
 
 /**
- * Trusted-root read Action: no raw API passthrough, mutation or credentials.
+ * Authorized read Action: no raw API passthrough, mutation or credentials.
  */
 final readonly class ReadAdminProviderOverview
 {
     public function __construct(
-        private AssertCatalogManagementAccess $access,
+        private AdminCapabilityAccess $access,
         private RemnawaveApiClientFactory $factory,
     ) {}
 
     public function handle(int $actorUserId): AdminProviderOverview
     {
-        $this->access->handle($actorUserId);
+        $this->access->require($actorUserId, 'servers.view');
 
         try {
             $read = new RemnawaveReadApi($this->factory->make());

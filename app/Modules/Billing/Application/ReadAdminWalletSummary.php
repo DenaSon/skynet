@@ -63,7 +63,7 @@ final readonly class ReadAdminWalletSummary
      */
     public function handle(int $rootId): array
     {
-        $this->access->reviewer($rootId);
+        $this->access->financeViewer($rootId);
 
         $totals = DB::query()->fromSub(self::walletBalancesQuery(), 'balances')
             ->selectRaw("COUNT(*) as wallets_total,

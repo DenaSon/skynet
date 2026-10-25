@@ -36,7 +36,12 @@ final class AssertBillingAccess
         app(AdminCapabilityAccess::class)->require($userId, 'topups.review');
     }
 
-    /** Existing root-only Billing summaries, accounting and legacy review API. */
+    public function financeViewer(int $userId): void
+    {
+        app(AdminCapabilityAccess::class)->require($userId, 'finance.view');
+    }
+
+    /** Existing root-only accounting and legacy review API. */
     public function reviewer(int $userId): void
     {
         $user = User::query()->with('telegramAccount')->find($userId);

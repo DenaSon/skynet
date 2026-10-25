@@ -34,7 +34,7 @@ final readonly class CustomerSupportProfileUi
         }
 
         $actor = $this->actors->handle($telegramId);
-        if ($actor?->isAdmin() !== true) {
+        if ($actor?->allows('support.view') !== true) {
             $this->menus->denyAccess($bot);
 
             return;
@@ -74,7 +74,7 @@ final readonly class CustomerSupportProfileUi
             ));
         }
 
-        if ($profile['financeAllowed']) {
+        if ($profile['financeAllowed'] && $actor->canManageRoles()) {
             $keyboard->addRow(InlineKeyboardButton::make(
                 '💼 جزئیات کیف پول',
                 callback_data: "finance:wallet:{$subjectId}",
@@ -214,7 +214,7 @@ final readonly class CustomerSupportProfileUi
             return null;
         }
         $actor = $this->actors->handle($telegramId);
-        if ($actor?->isAdmin() !== true) {
+        if ($actor?->allows('support.view') !== true) {
             $this->menus->denyAccess($bot);
 
             return null;

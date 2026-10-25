@@ -78,7 +78,7 @@ final class ReplyMenuRenderer
     {
         $labels = $actor->canManageRoles() ? [ReplyMenuLabels::DENABAN] : [];
 
-        if ($actor->allows('users.view')) {
+        if ($actor->allows('users.view') || $actor->allows('support.view')) {
             $labels[] = ReplyMenuLabels::USERS;
         }
 
@@ -93,6 +93,15 @@ final class ReplyMenuRenderer
         }
 
         if (! $actor->canManageRoles()) {
+            if ($actor->allows('reports.view')) {
+                $labels[] = ReplyMenuLabels::STATS;
+            }
+            if ($actor->allows('finance.view')) {
+                $labels[] = ReplyMenuLabels::FINANCE_SECTION;
+            }
+            if ($actor->allows('servers.view')) {
+                $labels[] = ReplyMenuLabels::SERVERS;
+            }
             if ($actor->allows('purchases.view')) {
                 $labels[] = ReplyMenuLabels::RECEIPTS;
             }

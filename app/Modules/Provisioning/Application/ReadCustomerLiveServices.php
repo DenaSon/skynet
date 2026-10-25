@@ -124,7 +124,7 @@ final readonly class ReadCustomerLiveServices
     private function authorize(int $actorId, int $subjectId): void
     {
         $actor = User::query()->find($actorId);
-        if ($actor === null || ! app(AdminCapabilityAccess::class)->allowed($actor, 'users.manage')) {
+        if ($actor === null || ! app(AdminCapabilityAccess::class)->allowed($actor, 'support.view')) {
             throw new AuthorizationException;
         }
         if ($subjectId < 1 || $this->users->find($actorId, $subjectId) === null) {

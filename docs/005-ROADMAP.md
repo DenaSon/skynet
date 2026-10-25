@@ -1,3 +1,15 @@
+## RBAC-A2 — delegated read-only Admin Bot permissions (2026-10-25; implementation PR under review)
+
+User-approved Phase 2 only of [the three-phase RBAC plan](030-ADMIN-RBAC-THREE-PHASE-ROADMAP.md). Four **additive** Spatie permissions: `support.view`, `reports.view`, `finance.view`, `servers.view`. Custom roles receive these explicitly through the existing audited root-only role editor; built-in `admin` keeps `users.manage` and implicit legacy `support.view` capability, but receives **no automatic finance/report/server grant**. Root identities stay governed by the linked Telegram allowlist and existing full menus. No new bot, provider write, financial transfer, queue or secret.
+
+- `support.view` permits basic user search and customer 360 / owner-linked service GET; it cannot change user status. The legacy `users.manage` support access stays. `users.view` alone **cannot** open the customer 360 or live service Action.
+- `reports.view` provides a separate bounded local **operational counts** screen: users, active users, orders, paid orders, locally active services. No revenue, wallet balance, private accounting or special operational diagnostics.
+- `finance.view` provides ledger-derived wallet balances and a read-only paginated directory through existing Billing read Actions; no receipt approval or rejection (still `purchases.review` / `topups.review`), no accounting writes or privileged finance command center.
+- `servers.view` permits only the existing secret-free Remnawave **GET-only** overview and bounded node connection/status names, with a dedicated mutation-free screen. No Node/Host/Profile/DNS actions, tokens, provider mutation or reconciliation rights. Unavailable/failed panel read remains unknown; never fabricate offline state.
+- Permission checks apply to fresh Admin Bot entry, menu, every read Application Action and stale callbacks. Revoked/disabled accounts fail closed. Sales Bot behavior and root-only sensitive menus are unchanged.
+
+CI must pass PHP 8.4 / 8.5 Pest, PHPStan, Pint and disposable MySQL migration/rollback. CI fake/provider HTTP is **not** proof of real Admin Bot or provider acceptance; review safe outputs and read-only routes after auto-deploy. Phase 3 remains unimplemented until separately requested.
+
 ## RBAC-ADMIN-01 — approved three-phase Admin Bot permissions PLAN ONLY (2026-10-25)
 
 **Documentation-only approval; no code, schema, data, live permissions or Production flags changed.** See [docs/030 — Admin RBAC three-phase roadmap](030-ADMIN-RBAC-THREE-PHASE-ROADMAP.md) for the capability matrix, constraints, tests and stage gates. The operator explicitly requires immediate **purchase receipt**, immediate **wallet topup receipt**, and **15-minute pending receipt reminder** notifications to reach not just eligible Super Admins, but also active Admin Bot operators with the corresponding scoped review permission. Each recipient gets only their authorized receipt types/counts and buttons; no overdue matching work means **no message, no delivery row and no report**. Existing trusted roots remain recipients. Old sent deliveries must not be replayed.

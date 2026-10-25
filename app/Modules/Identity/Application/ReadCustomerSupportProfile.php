@@ -40,11 +40,12 @@ final readonly class ReadCustomerSupportProfile
         }
 
         $actor = User::query()->find($actorId);
-        if ($actor === null || ! app(AdminCapabilityAccess::class)->allowed($actor, 'users.manage')) {
+        if ($actor === null || ! app(AdminCapabilityAccess::class)->allowed($actor, 'support.view')) {
             throw new AuthorizationException;
         }
 
-        // Preserve the original users.manage support scope; users.view alone
+        // Preserve the original users.manage support scope via support.view;
+        // users.view alone
         // must not expose order history, settlement dates or service details.
         // Reuse the exact access policy of the current Admin user directory.
         // A forged callback must not reach orders, services or Billing.
@@ -101,7 +102,7 @@ final readonly class ReadCustomerSupportProfile
 
         $financeAllowed = false;
         try {
-            $this->billingAccess->reviewer($actorId);
+            $this->billingAccess->financeViewer($actorId);
             $financeAllowed = true;
         } catch (AuthorizationException) {
             // Managing users does not imply authority to view their finances.

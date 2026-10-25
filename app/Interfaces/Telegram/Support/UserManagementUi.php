@@ -94,7 +94,7 @@ final class UserManagementUi
             return;
         }
 
-        $this->menus->showUserDetails($bot, $user, $this->pageNumber($page), $mode === 's', $actor->canManageRoles(), $actor->isAdmin());
+        $this->menus->showUserDetails($bot, $user, $this->pageNumber($page), $mode === 's', $actor->canManageRoles(), $actor->allows('support.view'));
     }
 
     public function confirm(Nutgram $bot, string $id, string $page = '1', string $mode = 'a'): void
@@ -147,7 +147,7 @@ final class UserManagementUi
             return;
         }
 
-        $this->menus->showUserDetails($bot, $updated, $pending['page'], $pending['search'], $actor->canManageRoles(), $actor->isAdmin());
+        $this->menus->showUserDetails($bot, $updated, $pending['page'], $pending['search'], $actor->canManageRoles(), $actor->allows('support.view'));
     }
 
     private function actor(Nutgram $bot): ?TelegramActor
@@ -160,7 +160,7 @@ final class UserManagementUi
 
         $actor = $this->resolve->handle($telegramId);
 
-        if ($actor?->allows('users.view') !== true) {
+        if ($actor?->allows('users.view') !== true && $actor?->allows('support.view') !== true) {
             $this->menus->denyAccess($bot);
 
             return null;

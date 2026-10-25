@@ -202,6 +202,9 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:nw1:trust:{token}';
     $expected['ADMIN'][] = 'callback:nw1:cancel';
     $expected['ADMIN'][] = 'callback:menu:admin:reviews';
+    $expected['ADMIN'][] = 'callback:rbac2:reports';
+    $expected['ADMIN'][] = 'callback:rbac2:finance:{page}';
+    $expected['ADMIN'][] = 'callback:rbac2:servers';
     // CF-02: bounded read and confirmed DNS management callbacks (Admin-only).
     $expected['ADMIN'][] = 'command:dns';
     $expected['ADMIN'][] = 'callback:cf2:zones';
@@ -269,8 +272,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(248)
-        ->and(count(array_unique($legacy)))->toBe(248);
+        ->and(count($legacy))->toBe(251)
+        ->and(count(array_unique($legacy)))->toBe(251);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {
