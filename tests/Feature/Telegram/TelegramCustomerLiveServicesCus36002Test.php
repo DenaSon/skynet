@@ -26,7 +26,6 @@ beforeEach(function (): void {
     config()->set('services.remnawave.token', 'secret-token-never-in-chat');
     config()->set('services.remnawave.writes_enabled', false);
     Http::preventStrayRequests();
-    Http::fake();
 });
 
 function c360LiveBot(int $telegramId, User $actor): Nutgram
@@ -71,7 +70,7 @@ function c360LiveOrder(User $buyer, int $sequence, string $orderStatus = 'fulfil
         $id = DB::table('provisioning_subscriptions')->insertGetId([
             'reference' => $reference,
             'remote_username' => 'sk_'.substr(hash('sha256', $reference), 0, 24),
-            'remote_user_id' => 42,
+            'remote_user_id' => 41 + $orderId,
             'state' => $subStatus,
             'last_operation_key' => 'live-op-'.$orderId,
             'created_at' => now(), 'updated_at' => now(),
@@ -92,7 +91,7 @@ function c360LiveRemote(int $orderId, string $status = 'ACTIVE'): array
     $reference = 'live-ref-'.$orderId;
 
     return [
-        'id' => 42,
+        'id' => 41 + $orderId,
         'username' => 'sk_'.substr(hash('sha256', $reference), 0, 24),
         'shortUuid' => 'private-short-id',
         'status' => $status,
@@ -245,8 +244,15 @@ it('fails closed for RW errors, forged ownership markers, identity mismatches or
     $order = c360LiveOrder($buyer, 16);
     $reader = app(ReadCustomerLiveServices::class);
 
+    $httpStatus = 503;
+    $payload = ['message' => 'credential-private'];
+    Http::fake(['https://rw-live.test/api/users/42' => static function () use (&$httpStatus, &$payload) {
+        return Http::response($payload, $httpStatus);
+    }]);
+
     foreach ([401, 403, 429, 503] as $code) {
-        Http::fake(['https://rw-live.test/api/users/42' => Http::response(['message' => 'credential-private'], $code)]);
+        $httpStatus = $code;
+        $payload = ['message' => 'credential-private'];
         expect($reader->detail($admin->id, $buyer->id, $order)['state'])->toBe('unavailable');
     }
 
@@ -256,9 +262,8 @@ it('fails closed for RW errors, forged ownership markers, identity mismatches or
         ['username' => 'foreign-user'],
         ['subscriptionUrl' => 'malformed://token'],
     ] as $invalid) {
-        Http::fake(['https://rw-live.test/api/users/42' => Http::response([
-            'response' => [...c360LiveRemote($order), ...$invalid],
-        ], 200)]);
+        $httpStatus = 200;
+        $payload = ['response' => [...c360LiveRemote($order), ...$invalid]];
         expect($reader->detail($admin->id, $buyer->id, $order)['state'])->toBe('unavailable');
     }
 
