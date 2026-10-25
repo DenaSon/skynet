@@ -79,6 +79,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:sp:detail:{id}';
     $expected['ADMIN'][] = 'callback:sp:prepare:{id}:{decision}';
     $expected['ADMIN'][] = 'callback:sp:apply:{token}';
+    // CUS-360-01: user profile drilldown belongs to Admin only.
+    $expected['ADMIN'][] = 'callback:users:profile:{id}:{page}:{mode}';
     // OPS-CMD-01: read-only root-only Denaban callback.
     $expected['ADMIN'][] = 'callback:denaban:show';
     $expected['ADMIN'][] = 'callback:denaban:notifications:{page}';
@@ -263,8 +265,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(244)
-        ->and(count(array_unique($legacy)))->toBe(244);
+        ->and(count($legacy))->toBe(245)
+        ->and(count(array_unique($legacy)))->toBe(245);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {

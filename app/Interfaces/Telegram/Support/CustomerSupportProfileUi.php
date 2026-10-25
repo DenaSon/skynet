@@ -38,10 +38,6 @@ final readonly class CustomerSupportProfileUi
             return;
         }
 
-        if ($bot->isCallbackQuery()) {
-            TelegramUi::answerCallback($bot);
-        }
-
         if (preg_match('/\A[1-9][0-9]{0,14}\z/D', $subjectId) !== 1
             || preg_match('/\A[1-9][0-9]{0,5}\z/D', $page) !== 1
             || (int) $page > 100000 || ! in_array($mode, ['a', 's'], true)) {
@@ -81,6 +77,7 @@ final readonly class CustomerSupportProfileUi
             '◀️ جزئیات کاربر', callback_data: "users:view:{$subjectId}:{$page}:{$mode}",
         ))->addRow(InlineKeyboardButton::make('🏠 مدیریت', callback_data: 'menu:admin'));
 
+        TelegramUi::answerCallback($bot);
         TelegramUi::editText($bot, $text, $keyboard, 'HTML');
     }
 

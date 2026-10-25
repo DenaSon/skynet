@@ -172,7 +172,7 @@ it('scopes local service/order summary and settled purchase evidence to the sele
                 && str_contains($text, 'بات فروش: مسدودشده')
                 && str_contains($text, 'Plan &lt;VIP&gt;')
                 && ! str_contains($text, '177733300')
-                && ! str_contains($text, '#'.$other->id.' ·')
+                && ! str_contains($text, 'Plan &lt;VIP&gt; 4')
                 && str_contains($buttons, "finance:wallet:{$target->id}");
         }, index: 1);
 
