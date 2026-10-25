@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Modules\Provisioning\Application;
 
 use App\Modules\Identity\Application\BrowseUsers;
+use App\Modules\Identity\Application\AdminCapabilityAccess;
+use App\Modules\Identity\Infrastructure\Models\User;
 use DateTimeImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Query\Builder;
@@ -121,6 +123,10 @@ final readonly class ReadCustomerLiveServices
 
     private function authorize(int $actorId, int $subjectId): void
     {
+        $actor = User::query()->find($actorId);
+        if ($actor === null || ! app(AdminCapabilityAccess::class)->allowed($actor, 'users.manage')) {
+            throw new AuthorizationException;
+        }
         if ($subjectId < 1 || $this->users->find($actorId, $subjectId) === null) {
             throw ValidationException::withMessages(['user' => 'Customer not found.']);
         }
