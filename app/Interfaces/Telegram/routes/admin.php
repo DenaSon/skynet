@@ -406,7 +406,14 @@ $bot->onCommand('payments', function (Nutgram $bot): void {
 });
 
 $bot->onCommand('topups', function (Nutgram $bot): void {
-    app(BillingUi::class)->reviews($bot);
+    $telegramId = app(\App\Interfaces\Telegram\Support\PrivateTelegramUser::class)->id($bot);
+    $actor = $telegramId === null ? null
+        : app(\App\Modules\Identity\Application\ResolveTelegramActor::class)->handle($telegramId);
+    if ($actor?->canManageRoles() === true) {
+        app(BillingUi::class)->reviews($bot);
+    } else {
+        app(AdminFinanceWalletUi::class)->pending($bot);
+    }
 });
 
 $bot->onCommand('admin', AdminHandler::class);
