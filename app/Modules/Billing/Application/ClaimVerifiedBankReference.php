@@ -20,7 +20,13 @@ final readonly class ClaimVerifiedBankReference
 
     public function handle(int $reviewerId, string $sourceType, int $sourceId, string $reference): void
     {
-        $this->access->reviewer($reviewerId);
+        if ($sourceType === 'sales_order') {
+            $this->access->purchaseReviewer($reviewerId);
+        } elseif ($sourceType === 'wallet_topup') {
+            $this->access->topupReviewer($reviewerId);
+        } else {
+            throw new AuthorizationException;
+        }
 
         if (DB::transactionLevel() < 1) {
             throw new AuthorizationException;
