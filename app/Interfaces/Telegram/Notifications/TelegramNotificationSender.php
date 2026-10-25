@@ -9,6 +9,8 @@ use App\Interfaces\Telegram\Support\TelegramUi;
 use App\Modules\Billing\Application\BrowsePhotoTopups;
 use App\Modules\Billing\Application\VerifyWalletOrderDebit;
 use App\Modules\Billing\Application\ViewWallet;
+use App\Modules\Identity\Application\AdminCapabilityAccess;
+use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\TelegramRecipient;
 use App\Modules\Sales\Application\ManualBankPayments;
@@ -130,7 +132,7 @@ final readonly class TelegramNotificationSender
             }
 
             $actor = $this->actors->handle($chat);
-            if ($actor === null || $actor->userId !== $userId || ! $actor->canManageRoles()) {
+            if ($actor === null || $actor->userId !== $userId || ! $actor->allows('topups.review')) {
                 throw new NotificationUnavailable('not_authorized');
             }
 
@@ -285,28 +287,38 @@ final readonly class TelegramNotificationSender
                 throw new NotificationUnavailable('invalid_recipient');
             }
             $actor = $this->actors->handle($chat);
-            if ($actor === null || $actor->userId !== $userId || ! $actor->canManageRoles()) {
+            $user = User::query()->with('telegramAccount')->find($userId);
+            if ($actor === null || $actor->userId !== $userId || $user === null) {
                 throw new NotificationUnavailable('not_authorized');
             }
 
-            // A receipt may have been reviewed since the scheduler queued this
-            // event. Never send an empty or obsolete reminder.
-            $pending = app(PendingReceiptSummary::class)->overdue();
+            $capabilities = app(AdminCapabilityAccess::class);
+            $purchaseAllowed = $capabilities->allowed($user, 'purchases.review');
+            $topupAllowed = $capabilities->allowed($user, 'topups.review');
+            if (! $purchaseAllowed && ! $topupAllowed) {
+                throw new NotificationUnavailable('not_authorized');
+            }
+
+            // Recipient-specific counts and routes: do not leak another
+            // payment category, including after an in-flight role revocation.
+            $pending = app(PendingReceiptSummary::class)->overdue($purchaseAllowed, $topupAllowed);
             if ($pending === null) {
                 throw new NotificationUnavailable('already_reviewed');
             }
-
-            $keyboard = json_encode(['inline_keyboard' => [
-                [['text' => '🧾 رسیدهای خرید', 'callback_data' => 'bank:list']],
-                [['text' => '💰 رسیدهای شارژ', 'callback_data' => 'finance:topups:1']],
-            ]], JSON_THROW_ON_ERROR);
-            $this->text($bot, $chat,
-                '<b>🔔 یادآوری بررسی رسیدها</b>'
-                ."\n\n🧾 رسید خرید: <b>{$pending['purchases']}</b>"
-                ."\n💰 رسید شارژ کیف پول: <b>{$pending['topups']}</b>"
-                ."\n\nحداقل یک رسید بیش از ۱۵ دقیقه منتظر بررسی است. لطفاً صف پرداخت‌ها را بررسی کنید.",
-                $keyboard, 'HTML',
-            );
+            $rows = [];
+            $lines = ['<b>🔔 یادآوری بررسی رسیدها</b>', ''];
+            if ($purchaseAllowed) {
+                $lines[] = '🧾 رسید خرید: <b>'.$pending['purchases'].'</b>';
+                $rows[] = [['text' => '🧾 رسیدهای خرید', 'callback_data' => 'bank:list']];
+            }
+            if ($topupAllowed) {
+                $lines[] = '💰 رسید شارژ کیف پول: <b>'.$pending['topups'].'</b>';
+                $rows[] = [['text' => '💰 رسیدهای شارژ', 'callback_data' => 'finance:topups:1']];
+            }
+            $lines[] = '';
+            $lines[] = 'حداقل یک رسید بیش از ۱۵ دقیقه منتظر بررسی است.';
+            $keyboard = json_encode(['inline_keyboard' => $rows], JSON_THROW_ON_ERROR);
+            $this->text($bot, $chat, implode("\n", $lines), $keyboard, 'HTML');
 
             return;
         }
@@ -314,7 +326,7 @@ final readonly class TelegramNotificationSender
         if ($delivery->event_type === 'ReceiptSubmitted') {
             $actor = $this->actors->handle($chat);
 
-            if ($actor === null || $actor->userId !== $userId || ! $actor->canManageRoles()) {
+            if ($actor === null || $actor->userId !== $userId || ! $actor->allows('purchases.review')) {
                 throw new NotificationUnavailable('not_authorized');
             }
 
@@ -487,17 +499,15 @@ final readonly class TelegramNotificationSender
     {
         $actor = $this->actors->handle($chatId);
 
-        if ($actor === null || $actor->userId !== $rootId || ! $actor->canManageRoles()) {
+        if ($actor === null || $actor->userId !== $rootId || ! $actor->allows('purchases.view')) {
             throw new NotificationUnavailable('not_authorized');
         }
 
         $row = $this->payments->detail($rootId, $claimId);
-        $keyboard = json_encode([
-            'inline_keyboard' => [[
-                ['text' => '✅ تأیید پرداخت', 'callback_data' => 'bank:decide:'.$claimId.':a'],
-                ['text' => '❌ رد رسید', 'callback_data' => 'bank:decide:'.$claimId.':r'],
-            ]],
-        ], JSON_THROW_ON_ERROR);
+        $keyboard = json_encode(['inline_keyboard' => $actor->allows('purchases.review')
+            ? [[['text' => '✅ تأیید پرداخت', 'callback_data' => 'bank:decide:'.$claimId.':a'],
+                ['text' => '❌ رد رسید', 'callback_data' => 'bank:decide:'.$claimId.':r']]]
+            : [[['text' => '🧾 صف رسیدها', 'callback_data' => 'bank:list']]]], JSON_THROW_ON_ERROR);
 
         $this->photo('admin', $chatId, $row->photoFileId, (string) $row->sourceBotKey, $caption, $keyboard);
     }
@@ -506,20 +516,20 @@ final readonly class TelegramNotificationSender
     public function showWalletTopupPhotoToRoot(int $topupId, int $rootId, int $chatId, string $caption): void
     {
         $actor = $this->actors->handle($chatId);
-        if ($actor === null || $actor->userId !== $rootId || ! $actor->canManageRoles()) {
+        if ($actor === null || $actor->userId !== $rootId || ! $actor->allows('topups.view')) {
             throw new NotificationUnavailable('not_authorized');
         }
 
         $row = app(BrowsePhotoTopups::class)->photo($rootId, $topupId);
-        $keyboard = json_encode([
-            'inline_keyboard' => [
-                [
-                    ['text' => '🔎 بررسی واریز', 'callback_data' => 'finance:topup:decision:'.$topupId.':a'],
-                    ['text' => '❌ رد رسید', 'callback_data' => 'finance:topup:decision:'.$topupId.':r'],
-                ],
-                [['text' => '◀️ صف شارژ', 'callback_data' => 'finance:topups:1']],
-            ],
-        ], JSON_THROW_ON_ERROR);
+        $buttons = [];
+        if ($actor->allows('topups.review')) {
+            $buttons[] = [
+                ['text' => '🔎 بررسی واریز', 'callback_data' => 'finance:topup:decision:'.$topupId.':a'],
+                ['text' => '❌ رد رسید', 'callback_data' => 'finance:topup:decision:'.$topupId.':r'],
+            ];
+        }
+        $buttons[] = [['text' => '◀️ صف شارژ', 'callback_data' => 'finance:topups:1']];
+        $keyboard = json_encode(['inline_keyboard' => $buttons], JSON_THROW_ON_ERROR);
 
         $this->photo('admin', $chatId, $row['file_id'], 'sales', $caption, $keyboard);
     }
