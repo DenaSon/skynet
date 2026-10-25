@@ -145,7 +145,9 @@ it('confirms member wallet purchase once and retains existing bank payment as an
         $kb = json_encode($body['reply_markup'], JSON_THROW_ON_ERROR);
 
         return str_contains($kb, 'sales:checkout:wallet:')
-            && str_contains($kb, 'sales:payment:start:')
+            && str_contains($kb, 'sales:payment:receipt:')
+            && str_contains($body['text'], 'شماره کارت: 6037991234567890')
+            && str_contains($kb, 'copy_text')
             && ! str_contains($body['text'], 'پرداخت سفارش');
     }, index: 1);
 
@@ -1002,5 +1004,39 @@ it('creates a fresh reseller order per purchase tap and remains idempotent for t
     expect(DB::table('sales_orders')->count())->toBe(3)
         ->and(DB::table('billing_journals')->count())->toBe(0)
         ->and(DB::table('sales_bank_payment_claims')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('returns from receipt input to the payment screen without leaving a live photo draft', function (): void {
+    $data = uxr02Plan();
+    $buyer = User::factory()->create();
+    $bot = uxr02Bot(973111, $buyer);
+    $bot->hearCallbackQueryData('catalog:detail:'.$data['plan'].':1')->reply();
+    $orderId = (int) DB::table('sales_orders')->value('id');
+    $key = TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$buyer->id);
+
+    $bot->hearCallbackQueryData('sales:payment:start:'.$orderId)->reply()->assertCalled('editMessageText');
+    expect(Cache::has($key))->toBeFalse();
+
+    $bot->hearCallbackQueryData('sales:payment:receipt:'.$orderId)->reply()->assertRaw(static function (Request $request): bool {
+        $body = uxr02Payload($request);
+
+        return str_contains($body['text'], 'ارسال رسید پرداخت')
+            && str_contains(json_encode($body['reply_markup'], JSON_THROW_ON_ERROR), 'sales:payment:start:');
+    }, index: 1);
+    expect(Cache::get($key))->toBe($orderId);
+
+    $bot->hearCallbackQueryData('sales:payment:start:'.$orderId)->reply()->assertCalled('editMessageText');
+    expect(Cache::has($key))->toBeFalse();
+    $bot->hearMessage(['message_id' => 610, 'photo' => [
+        ['file_id' => 'after-back-photo-id', 'file_unique_id' => 'after-back-photo-unique', 'width' => 400, 'height' => 400],
+    ]])->reply()->assertNoReply();
+    expect(DB::table('sales_bank_payment_claims')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe(0);
+
+    $bot->hearCallbackQueryData('sales:payment:receipt:'.$orderId)->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('menu:home')->reply()->assertCalled('editMessageText');
+    expect(Cache::has($key))->toBeFalse()
+        ->and(DB::table('sales_orders')->count())->toBe(1);
     Http::assertNothingSent();
 });
