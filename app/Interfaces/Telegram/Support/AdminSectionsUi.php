@@ -47,6 +47,19 @@ final readonly class AdminSectionsUi
         $this->menus->showAdminFinance($bot, $summary);
     }
 
+    public function reviews(Nutgram $bot): void
+    {
+        $telegramId = $this->privateUser->id($bot);
+        $actor = $telegramId === null ? null : $this->resolve->handle($telegramId);
+        if ($actor === null || ! $actor->canEnterAdmin()
+            || (! $actor->allows('purchases.view') && ! $actor->allows('topups.view'))) {
+            $this->menus->denyAccess($bot);
+
+            return;
+        }
+        $this->menus->showAdminReceiptQueues($bot, $actor);
+    }
+
     private function actor(Nutgram $bot): ?TelegramActor
     {
         $telegramId = $this->privateUser->id($bot);
