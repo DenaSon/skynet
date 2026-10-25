@@ -6,6 +6,7 @@ use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request;
 use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -181,12 +182,12 @@ it('resumes an owned pending topup from durable SQL without making a second fina
     $key = TelegramBotContext::current()->cacheKey('telegram:wallet:topup:'.$buyer->id);
 
     Cache::forget($key);
-    $bot->hearCallbackQueryData('sales:wallet')->reply()->assertRaw(static function (\Illuminate\Http\Client\Request $request) use ($id): bool {
+    $bot->hearCallbackQueryData('sales:wallet')->reply()->assertRaw(static function (Request $request) use ($id): bool {
         $keyboard = json_encode($request->data()['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
 
         return str_contains($keyboard, 'sales:wallet:topup:resume:'.$id);
     }, index: 1);
-    $bot->hearCallbackQueryData('sales:wallet:topup')->reply()->assertRaw(static function (\Illuminate\Http\Client\Request $request) use ($id): bool {
+    $bot->hearCallbackQueryData('sales:wallet:topup')->reply()->assertRaw(static function (Request $request) use ($id): bool {
         $keyboard = json_encode($request->data()['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
 
         return str_contains($keyboard, 'sales:wallet:topup:resume:'.$id)
