@@ -14,6 +14,7 @@ final readonly class AdminCapabilityAccess
     public const CAPABILITIES = [
         'users.view', 'users.manage', 'purchases.view', 'purchases.review',
         'topups.view', 'topups.review',
+        'support.view', 'reports.view', 'finance.view', 'servers.view',
     ];
 
     public function __construct(private SuperAdminTrust $trust) {}
@@ -28,7 +29,8 @@ final readonly class AdminCapabilityAccess
             return $this->trust->eligible($user);
         }
 
-        if ($permission === 'users.view' && $user->hasPermissionTo('users.manage', 'web')) {
+        if (($permission === 'users.view' || $permission === 'support.view')
+            && $user->hasPermissionTo('users.manage', 'web')) {
             return true;
         }
 
