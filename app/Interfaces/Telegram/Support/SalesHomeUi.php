@@ -344,8 +344,12 @@ final readonly class SalesHomeUi
 
             return;
         }
+        $pendingTopups = [];
         try {
             $wallet = $this->wallets->handle($actor->userId);
+            $pendingTopups = array_values(array_filter(
+                $wallet->topups, static fn (array $topup): bool => $topup['status'] === 'pending',
+            ));
             $message = '<b>💰 اعتبار من</b>'
                 ."\n\nاعتبار فعلی: <b>".TelegramUi::toman($wallet->balanceRials).' تومان</b>';
             if ($wallet->topups !== []) {
@@ -361,6 +365,14 @@ final readonly class SalesHomeUi
 
         $keyboard = InlineKeyboardMarkup::make();
         if (config('billing.topups_enabled', false) === true) {
+            if (app(ManualPaymentUi::class)->cardNumber() !== null) {
+                foreach (array_slice($pendingTopups, 0, 3) as $topup) {
+                    $keyboard->addRow(InlineKeyboardButton::make(
+                        '▶️ ادامه شارژ #'.$topup['id'], callback_data: 'sales:wallet:topup:resume:'.$topup['id'],
+                        style: ButtonStyle::SUCCESS,
+                    ));
+                }
+            }
             $keyboard->addRow(InlineKeyboardButton::make('➕ افزایش موجودی', callback_data: 'sales:wallet:topup'));
         }
         $keyboard->addRow(InlineKeyboardButton::make('◀️ حساب کاربری', callback_data: 'sales:account'))
@@ -461,6 +473,7 @@ final readonly class SalesHomeUi
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$buyerId));
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:recent:'.$buyerId));
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:wallet:topup:'.$buyerId));
+        app(SalesCheckoutUi::class)->clearWalletDraft($buyerId);
         app(SalesPanelRequestUi::class)->clear($buyerId);
         app(SalesSubscriptionsUi::class)->clearCustomerLabelDraft($buyerId);
         app(SalesSubscriptionsUi::class)->clearCustomerPhoneDraft($buyerId);

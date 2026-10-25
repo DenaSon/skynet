@@ -207,6 +207,9 @@ final readonly class SalesCheckoutUi
             return;
         }
 
+        // Opening order history retires current photo capture, not financial records.
+        $this->retirePhotoDrafts($buyer);
+        $this->clearWalletDraft($buyer);
         try {
             $orders = $this->orders->recentPlans($buyer);
         } catch (AuthorizationException) {
@@ -291,7 +294,11 @@ final readonly class SalesCheckoutUi
             return;
         }
 
+        // Retire any other open wallet confirmation for this Sales buyer.
+        $this->clearWalletDraft($buyer);
+        $this->retirePhotoDrafts($buyer);
         $token = bin2hex(random_bytes(16));
+        Cache::put($this->walletActiveKey($buyer), $order->id, now()->addMinutes(5));
         Cache::put($this->walletTokenKey($buyer, $order->id), [
             'token' => $token, 'amount' => $order->totalPriceRials, 'balance' => $balance,
         ], now()->addMinutes(5));
@@ -322,7 +329,7 @@ final readonly class SalesCheckoutUi
             return;
         }
 
-        Cache::forget($this->walletTokenKey($buyer, (int) $id));
+        $this->forgetWalletOrder($buyer, (int) $id);
         $this->viewOrder($bot, $id);
     }
 
@@ -344,7 +351,7 @@ final readonly class SalesCheckoutUi
 
             return;
         }
-        Cache::forget($key);
+        $this->forgetWalletOrder($buyer, (int) $id);
 
         try {
             $order = $this->orders->findPlan($buyer, (int) $id);
@@ -370,6 +377,36 @@ final readonly class SalesCheckoutUi
         }
 
         $this->showOrder($bot, $paid);
+    }
+
+    /** Used by Home, /cancel and navigation; a visible confirmation must not survive leaving the flow. */
+    public function clearWalletDraft(int $buyer): void
+    {
+        $value = Cache::get($this->walletActiveKey($buyer));
+        if ((is_int($value) || is_string($value))
+            && preg_match('/\\A[1-9][0-9]{0,14}\\z/D', (string) $value) === 1) {
+            Cache::forget($this->walletTokenKey($buyer, (int) $value));
+        }
+        Cache::forget($this->walletActiveKey($buyer));
+    }
+
+    private function forgetWalletOrder(int $buyer, int $orderId): void
+    {
+        Cache::forget($this->walletTokenKey($buyer, $orderId));
+        if ((string) Cache::get($this->walletActiveKey($buyer)) === (string) $orderId) {
+            Cache::forget($this->walletActiveKey($buyer));
+        }
+    }
+
+    private function walletActiveKey(int $buyer): string
+    {
+        return TelegramBotContext::current()->cacheKey('telegram:sales:walletpay:active:'.$buyer);
+    }
+
+    private function retirePhotoDrafts(int $buyer): void
+    {
+        Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$buyer));
+        Cache::forget(TelegramBotContext::current()->cacheKey('telegram:wallet:topup:'.$buyer));
     }
 
     private function walletTokenKey(int $buyer, int $orderId): string
@@ -564,6 +601,8 @@ final readonly class SalesCheckoutUi
     private function showOrder(Nutgram $bot, OrderDetails $order): void
     {
         $actor = $this->resolve->handle((int) $bot->user()->id);
+        // Every order view is a read-only entry point, never implicit receipt intake.
+        $this->retirePhotoDrafts($order->buyerUserId);
         $isReseller = $actor !== null && in_array('reseller', $actor->roles, true);
         $latestReceipt = $this->payments->latestReceiptStatus(
             SubscriptionViewer::telegram((int) $bot->user()->id),

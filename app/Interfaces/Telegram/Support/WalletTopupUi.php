@@ -41,9 +41,52 @@ final readonly class WalletTopupUi
 
             return;
         }
+        app(SalesCheckoutUi::class)->clearWalletDraft($userId);
         // The next photo must never be associated with an older purchase.
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$userId));
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:recent:'.$userId));
+        $pending = $this->pendingTopup($userId);
+        if ($pending !== null) {
+            Cache::put($this->key($userId), ['step' => 'resume'], now()->addMinutes(10));
+            $this->render($bot,
+                '<b>🕘 درخواست شارژ نیمه‌تمام</b>'
+                ."\n\nدرخواست #{$pending->id}\nمبلغ: <b>".TelegramUi::toman((int) $pending->amount_rials).' تومان</b>'
+                ."\nوضعیت: در انتظار ارسال رسید\n\nمی‌توانید همین درخواست را ادامه دهید؛ شارژ جدید جداگانه ثبت می‌شود.",
+                InlineKeyboardMarkup::make()
+                    ->addRow(InlineKeyboardButton::make('▶️ ادامه پرداخت', callback_data: 'sales:wallet:topup:resume:'.$pending->id, style: ButtonStyle::SUCCESS))
+                    ->addRow(InlineKeyboardButton::make('➕ درخواست شارژ جدید', callback_data: 'sales:wallet:topup:new', style: ButtonStyle::PRIMARY))
+                    ->addRow(InlineKeyboardButton::make('◀️ اعتبار من', callback_data: 'sales:wallet:topup:cancel')),
+            );
+
+            return;
+        }
+        $this->chooseAmount($bot);
+    }
+
+    /** A second pending top-up must be explicitly requested. */
+    public function newRequest(Nutgram $bot): void
+    {
+        $userId = $this->buyer($bot);
+        if ($userId === null) {
+            return;
+        }
+        if (! $this->ready()) {
+            $this->notice($bot, 'افزایش اعتبار فعلاً در دسترس نیست.');
+
+            return;
+        }
+        app(SalesCheckoutUi::class)->clearWalletDraft($userId);
+        Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$userId));
+        Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:recent:'.$userId));
+        $this->chooseAmount($bot);
+    }
+
+    private function chooseAmount(Nutgram $bot): void
+    {
+        $userId = $this->buyer($bot);
+        if ($userId === null) {
+            return;
+        }
         Cache::put($this->key($userId), ['step' => 'choice'], now()->addMinutes(10));
         $this->render($bot,
             "<b>➕ افزایش اعتبار</b>\n\nمبلغ شارژ را انتخاب کنید.\n<blockquote>حداکثر هر واریز: ۱۰ میلیون تومان\nاعتبار تنها پس از تأیید واریز توسط مدیر اضافه می‌شود.</blockquote>",
@@ -53,6 +96,48 @@ final readonly class WalletTopupUi
                 ->addRow(InlineKeyboardButton::make('✏️ مبلغ دلخواه', callback_data: 'sales:wallet:topup:custom'))
                 ->addRow(InlineKeyboardButton::make('◀️ اعتبار من', callback_data: 'sales:wallet:topup:cancel')),
         );
+    }
+
+    /** Restore an owned pending request from SQL even when UI cache expired. */
+    public function resume(Nutgram $bot, string $topupId): void
+    {
+        $userId = $this->buyer($bot);
+        if ($userId === null) {
+            return;
+        }
+        if (! $this->ready() || preg_match('/\\A[1-9][0-9]{0,14}\\z/D', $topupId) !== 1) {
+            $this->notice($bot, 'ادامه این درخواست در دسترس نیست. وضعیت را در اعتبار من بررسی کنید.');
+
+            return;
+        }
+        $pending = $this->pendingTopup($userId, (int) $topupId);
+        if ($pending === null) {
+            $this->notice($bot, 'این درخواست دیگر در انتظار رسید نیست یا متعلق به شما نیست. وضعیت را در اعتبار من بررسی کنید.');
+
+            return;
+        }
+
+        app(SalesCheckoutUi::class)->clearWalletDraft($userId);
+        Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$userId));
+        Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:recent:'.$userId));
+        $toman = intdiv((int) $pending->amount_rials, 10);
+        Cache::put($this->key($userId), [
+            'step' => 'payment', 'topup_id' => (int) $pending->id, 'amount_toman' => $toman,
+        ], now()->addMinutes(10));
+        $this->showPayment($bot, (int) $pending->id, $toman);
+    }
+
+    private function pendingTopup(int $userId, ?int $topupId = null): ?object
+    {
+        $query = DB::table('billing_topups as topups')
+            ->join('billing_wallets as wallets', 'wallets.id', '=', 'topups.wallet_id')
+            ->where('wallets.user_id', $userId)->where('topups.status', 'pending')
+            ->select(['topups.id', 'topups.amount_rials']);
+        if ($topupId !== null) {
+            $query->where('topups.id', $topupId);
+        }
+
+        return $query->orderByDesc('topups.id')->first();
     }
 
     public function custom(Nutgram $bot): void
@@ -89,7 +174,8 @@ final readonly class WalletTopupUi
             return;
         }
         if (in_array($state['step'] ?? null, ['payment', 'photo'], true)) {
-            $this->showPayment($bot, (int) $state['topup_id'], (int) $state['amount_toman']);
+            // Old buttons may render payment again only after checking live SQL.
+            $this->resume($bot, (string) $state['topup_id']);
 
             return;
         }
@@ -154,10 +240,7 @@ final readonly class WalletTopupUi
 
             return;
         }
-        Cache::put($this->key($userId), [
-            'step' => 'payment', 'topup_id' => (int) $topupId, 'amount_toman' => (int) $state['amount_toman'],
-        ], now()->addMinutes(10));
-        $this->showPayment($bot, (int) $topupId, (int) $state['amount_toman']);
+        $this->resume($bot, $topupId);
     }
 
     public function cancel(Nutgram $bot): void
@@ -293,7 +376,12 @@ final readonly class WalletTopupUi
                 $this->notifications->submitted($state['topup_id']);
             });
         } catch (AuthorizationException|ValidationException|UniqueConstraintViolationException) {
-            $this->notice($bot, 'این رسید قبلاً استفاده شده یا درخواست دیگر معتبر نیست. برای بررسی وضعیت به کیف پول برگردید.');
+            if ($this->pendingTopup($userId, $state['topup_id']) === null) {
+                Cache::forget($this->key($userId));
+                $this->notice($bot, 'رسید این شارژ قبلاً ثبت شده یا درخواست بسته شده است. وضعیت را در اعتبار من بررسی کنید.');
+            } else {
+                $this->notice($bot, 'این تصویر قبلاً استفاده شده یا معتبر نیست. عکس رسید دیگری بفرستید.');
+            }
 
             return true;
         }

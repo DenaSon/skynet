@@ -102,6 +102,14 @@ $bot->onCallbackQueryData('sales:wallet:topup:custom', function (Nutgram $bot): 
     app(WalletTopupUi::class)->custom($bot);
 });
 
+$bot->onCallbackQueryData('sales:wallet:topup:new', function (Nutgram $bot): void {
+    app(WalletTopupUi::class)->newRequest($bot);
+});
+
+$bot->onCallbackQueryData('sales:wallet:topup:resume:{id}', function (Nutgram $bot, string $id): void {
+    app(WalletTopupUi::class)->resume($bot, $id);
+});
+
 $bot->onCallbackQueryData('sales:wallet:topup:receipt:{id}', function (Nutgram $bot, string $id): void {
     app(WalletTopupUi::class)->requestReceipt($bot, $id);
 });
