@@ -2,6 +2,7 @@
 
 use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
 use App\Interfaces\Telegram\Notifications\TelegramNotificationSender;
+use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Interfaces\Telegram\Support\PaymentDecisionTokens;
 use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
@@ -18,6 +19,7 @@ use App\Modules\Sales\Application\PlanPricingDefinition;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Routing\Route;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -419,20 +421,20 @@ it('rechecks the bank gate and order status when an old receipt button is presse
     config()->set('sales.manual_bank_review_enabled', true);
     sb04SalesContext();
     $bot = sb04Bot(974099);
-    $key = \App\Interfaces\Telegram\Processing\TelegramBotContext::current()
+    $key = TelegramBotContext::current()
         ->cacheKey('telegram:payphoto:'.$data['buyer']->id);
 
     $bot->hearCallbackQueryData('sales:payment:start:'.$data['order'])->reply()->assertCalled('editMessageText');
-    expect(\Illuminate\Support\Facades\Cache::has($key))->toBeFalse();
+    expect(Cache::has($key))->toBeFalse();
 
     config()->set('sales.manual_bank_review_enabled', false);
     $bot->hearCallbackQueryData('sales:payment:receipt:'.$data['order'])->reply()->assertCalled('editMessageText');
-    expect(\Illuminate\Support\Facades\Cache::has($key))->toBeFalse();
+    expect(Cache::has($key))->toBeFalse();
 
     config()->set('sales.manual_bank_review_enabled', true);
     DB::table('sales_orders')->where('id', $data['order'])->update(['status' => 'paid']);
     $bot->hearCallbackQueryData('sales:payment:receipt:'.$data['order'])->reply()->assertCalled('editMessageText');
-    expect(\Illuminate\Support\Facades\Cache::has($key))->toBeFalse()
+    expect(Cache::has($key))->toBeFalse()
         ->and(DB::table('sales_bank_payment_claims')->count())->toBe(0)
         ->and(DB::table('billing_journals')->count())->toBe(0);
     Http::assertNothingSent();
