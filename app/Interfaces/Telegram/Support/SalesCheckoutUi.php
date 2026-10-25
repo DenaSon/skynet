@@ -382,9 +382,10 @@ final readonly class SalesCheckoutUi
     /** Used by Home, /cancel and navigation; a visible confirmation must not survive leaving the flow. */
     public function clearWalletDraft(int $buyer): void
     {
-        $orderId = Cache::get($this->walletActiveKey($buyer));
-        if (is_int($orderId) && $orderId > 0) {
-            Cache::forget($this->walletTokenKey($buyer, $orderId));
+        $value = Cache::get($this->walletActiveKey($buyer));
+        if ((is_int($value) || is_string($value))
+            && preg_match('/\\A[1-9][0-9]{0,14}\\z/D', (string) $value) === 1) {
+            Cache::forget($this->walletTokenKey($buyer, (int) $value));
         }
         Cache::forget($this->walletActiveKey($buyer));
     }
@@ -392,7 +393,7 @@ final readonly class SalesCheckoutUi
     private function forgetWalletOrder(int $buyer, int $orderId): void
     {
         Cache::forget($this->walletTokenKey($buyer, $orderId));
-        if (Cache::get($this->walletActiveKey($buyer)) === $orderId) {
+        if ((string) Cache::get($this->walletActiveKey($buyer)) === (string) $orderId) {
             Cache::forget($this->walletActiveKey($buyer));
         }
     }
