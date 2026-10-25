@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Sales\Application;
 
-use App\Modules\Identity\Application\AssertCatalogManagementAccess;
+use App\Modules\Identity\Application\AdminCapabilityAccess;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -15,11 +15,11 @@ use Illuminate\Validation\ValidationException;
  */
 final readonly class ManagePlans
 {
-    public function __construct(private AssertCatalogManagementAccess $authority) {}
+    public function __construct(private AdminCapabilityAccess $authority) {}
 
     public function create(int $actorId, PlanDefinition $definition): PlanSummary
     {
-        $this->authority->handle($actorId);
+        $this->authority->require($actorId, 'plans.manage');
         $definition->validated();
 
         return DB::transaction(function () use ($actorId, $definition): PlanSummary {
@@ -46,7 +46,7 @@ final readonly class ManagePlans
 
     public function update(int $actorId, int $planId, int $expectedRevision, PlanDefinition $definition): PlanSummary
     {
-        $this->authority->handle($actorId);
+        $this->authority->require($actorId, 'plans.manage');
         $definition->validated();
 
         return DB::transaction(function () use ($actorId, $planId, $expectedRevision, $definition): PlanSummary {
@@ -83,7 +83,7 @@ final readonly class ManagePlans
      */
     public function requestChange(int $actorId, int $planId, int $expectedRevision, string $operation): string
     {
-        $this->authority->handle($actorId);
+        $this->authority->require($actorId, 'plans.manage');
 
         if (! in_array($operation, ['activate', 'deactivate', 'archive', 'delete'], true)) {
             throw ValidationException::withMessages(['operation' => 'Unsupported plan change.']);
@@ -107,7 +107,7 @@ final readonly class ManagePlans
 
     public function confirmChange(int $actorId, string $token): ?PlanSummary
     {
-        $this->authority->handle($actorId);
+        $this->authority->require($actorId, 'plans.manage');
 
         if (preg_match('/\A[a-f0-9]{32}\z/D', $token) !== 1) {
             throw ValidationException::withMessages(['confirmation' => 'Invalid confirmation token.']);
@@ -168,7 +168,7 @@ final readonly class ManagePlans
     /** @return list<PlanSummary> */
     public function all(int $actorId): array
     {
-        $this->authority->handle($actorId);
+        $this->authority->require($actorId, 'plans.manage');
 
         return $this->query()->orderBy('plans.sort_order')->orderBy('plans.id')
             ->get()->map(static fn (object $row): PlanSummary => PlanSummary::fromRecord($row))->all();
@@ -179,7 +179,7 @@ final readonly class ManagePlans
      */
     public function products(int $actorId): array
     {
-        $this->authority->handle($actorId);
+        $this->authority->require($actorId, 'plans.manage');
 
         return DB::table('sales_products')->orderBy('slug')->get()
             ->map(static fn (object $row): array => [
@@ -191,7 +191,7 @@ final readonly class ManagePlans
 
     public function find(int $actorId, int $planId): PlanSummary
     {
-        $this->authority->handle($actorId);
+        $this->authority->require($actorId, 'plans.manage');
 
         return $this->getRecord($planId);
     }
