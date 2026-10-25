@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Sales\Application;
 
-use App\Modules\Identity\Application\AssertCatalogManagementAccess;
+use App\Modules\Identity\Application\AdminCapabilityAccess;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -17,12 +17,12 @@ use Illuminate\Validation\ValidationException;
  */
 final readonly class ManageBaseCatalog
 {
-    public function __construct(private AssertCatalogManagementAccess $access) {}
+    public function __construct(private AdminCapabilityAccess $access) {}
 
     /** @return list<array<string, mixed>> */
     public function all(int $rootId): array
     {
-        $this->access->handle($rootId);
+        $this->access->require($rootId, 'plans.manage');
 
         return DB::table('sales_products')->orderBy('id')->get()
             ->map(fn (object $row): array => $this->present($row))->all();
@@ -31,7 +31,7 @@ final readonly class ManageBaseCatalog
     /** @return array<string, mixed> */
     public function find(int $rootId, int $id): array
     {
-        $this->access->handle($rootId);
+        $this->access->require($rootId, 'plans.manage');
 
         return $this->present($this->requireProduct($id));
     }
@@ -39,7 +39,7 @@ final readonly class ManageBaseCatalog
     /** Returns a nonsecret optimistic concurrency fingerprint for the selected action. */
     public function snapshot(int $rootId, string $operation, int $id, int $days = 0): string
     {
-        $this->access->handle($rootId);
+        $this->access->require($rootId, 'plans.manage');
 
         return $this->currentSnapshot($operation, $id, $days);
     }
@@ -47,7 +47,7 @@ final readonly class ManageBaseCatalog
     /** @param array<string, int|string|bool> $values */
     public function validate(int $rootId, string $operation, int $id, int $days, array $values): void
     {
-        $this->access->handle($rootId);
+        $this->access->require($rootId, 'plans.manage');
         $this->currentSnapshot($operation, $id, $days);
 
         if ($operation === 'create') {
@@ -97,7 +97,7 @@ final readonly class ManageBaseCatalog
      */
     public function apply(int $rootId, string $operation, int $id, int $days, array $values, string $expected): int
     {
-        $this->access->handle($rootId);
+        $this->access->require($rootId, 'plans.manage');
 
         return DB::transaction(function () use ($rootId, $operation, $id, $days, $values, $expected): int {
             if ($operation === 'create') {
