@@ -4,6 +4,7 @@ namespace App\Interfaces\Telegram\Handlers;
 
 use App\Interfaces\Telegram\Support\AdminCommandCenterUi;
 use App\Interfaces\Telegram\Support\AdminDashboardUi;
+use App\Interfaces\Telegram\Support\AdminFinanceWalletUi;
 use App\Interfaces\Telegram\Support\AdminProviderOverviewUi;
 use App\Interfaces\Telegram\Support\AdminSectionsUi;
 use App\Interfaces\Telegram\Support\BillingUi;
@@ -254,7 +255,7 @@ final class ReplyMenuHandler
                     // Preserve the Super Admin's original legacy review menu.
                     app(BillingUi::class)->reviews($bot);
                 } else {
-                    app(\App\Interfaces\Telegram\Support\AdminFinanceWalletUi::class)->pending($bot);
+                    app(AdminFinanceWalletUi::class)->pending($bot);
                 }
 
                 return true;
