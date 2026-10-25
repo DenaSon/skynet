@@ -199,7 +199,8 @@ final readonly class AdminFinanceWalletUi
             $keyboard->addRow(...$arrows);
         }
         $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'finance:topups:1'))
-            ->addRow(InlineKeyboardButton::make('◀️ امور مالی', callback_data: 'menu:admin:finance'));
+            ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: $actor->canManageRoles()
+                ? 'menu:admin:finance' : 'menu:admin:reviews'));
         $this->render($bot, implode("\n", $lines), $keyboard);
     }
 
