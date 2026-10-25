@@ -280,6 +280,37 @@ final readonly class TelegramNotificationSender
             return;
         }
 
+        if ($delivery->event_type === 'ReceiptReviewReminder') {
+            if ($bot !== 'admin') {
+                throw new NotificationUnavailable('invalid_recipient');
+            }
+            $actor = $this->actors->handle($chat);
+            if ($actor === null || $actor->userId !== $userId || ! $actor->canManageRoles()) {
+                throw new NotificationUnavailable('not_authorized');
+            }
+
+            // A receipt may have been reviewed since the scheduler queued this
+            // event. Never send an empty or obsolete reminder.
+            $pending = app(PendingReceiptSummary::class)->overdue();
+            if ($pending === null) {
+                throw new NotificationUnavailable('already_reviewed');
+            }
+
+            $keyboard = json_encode(['inline_keyboard' => [
+                [['text' => '🧾 رسیدهای خرید', 'callback_data' => 'bank:list']],
+                [['text' => '💰 رسیدهای شارژ', 'callback_data' => 'finance:topups:1']],
+            ]], JSON_THROW_ON_ERROR);
+            $this->text($bot, $chat,
+                '<b>🔔 یادآوری بررسی رسیدها</b>'
+                ."\n\n🧾 رسید خرید: <b>{$pending['purchases']}</b>"
+                ."\n💰 رسید شارژ کیف پول: <b>{$pending['topups']}</b>"
+                ."\n\nحداقل یک رسید بیش از ۱۵ دقیقه منتظر بررسی است. لطفاً صف پرداخت‌ها را بررسی کنید.",
+                $keyboard, 'HTML',
+            );
+
+            return;
+        }
+
         if ($delivery->event_type === 'ReceiptSubmitted') {
             $actor = $this->actors->handle($chat);
 
