@@ -243,7 +243,7 @@ it('does not show or execute a wallet debit without enough credit or against an 
     $buyer = User::factory()->create();
     $bot = uxr02Bot(973302, $buyer);
     config()->set('sales.wallet_settlement_enabled', true);
-    $bot->hearCallbackQueryData('catalog:detail:'.$data['plan'].':1')->reply()->assertCalled('sendMessage');
+    $bot->hearCallbackQueryData('catalog:detail:'.$data['plan'].':1')->reply()->assertCalled('editMessageText');
     $order = (int) DB::table('sales_orders')->value('id');
     $bot->hearCallbackQueryData('sales:checkout:wallet:'.$order)->reply()->assertCalled('editMessageText');
     expect(DB::table('sales_order_settlements')->count())->toBe(0);
@@ -669,7 +669,7 @@ it('rejects malformed cached order identifiers without submitting an unauthorize
     Cache::put($key, $invalid, now()->addMinutes(10));
     $bot->hearMessage(['message_id' => 107, 'photo' => [
         ['file_id' => 'invalid-member-photo-107', 'file_unique_id' => 'invalid-member-unique-107', 'width' => 400, 'height' => 400],
-    ]])->reply()->assertCalled('sendMessage');
+    ]])->reply()->assertNoReply();
 
     expect(DB::table('sales_bank_payment_claims')->count())->toBe(0)
         ->and(DB::table('telegram_notification_deliveries')->count())->toBe(0)
