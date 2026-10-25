@@ -89,7 +89,6 @@ final readonly class CustomerSupportProfileUi
         TelegramUi::editText($bot, $text, $keyboard, 'HTML');
     }
 
-
     /** CUS-360-02: local service directory, no RW request until one is chosen. */
     public function services(Nutgram $bot, string $subjectId, string $userPage, string $mode, string $servicePage): void
     {

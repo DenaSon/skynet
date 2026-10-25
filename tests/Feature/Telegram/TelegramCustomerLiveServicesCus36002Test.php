@@ -264,7 +264,7 @@ it('fails closed for RW errors, forged ownership markers, identity mismatches or
     ] as $invalid) {
         $httpStatus = 200;
         $payload = ['response' => [...c360LiveRemote($order), ...$invalid]];
-        expect($reader->detail($admin->id, $buyer->id, $order)['state'])->toBe('unavailable');
+        expect($reader->detail($admin->id, $buyer->id, $order)['state'])->toBe('unavailable', 'invalid: '.json_encode($invalid, JSON_THROW_ON_ERROR));
     }
 
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
