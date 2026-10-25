@@ -25,6 +25,7 @@ use App\Interfaces\Telegram\Support\AdminPanelUsersUi;
 use App\Interfaces\Telegram\Support\AdminProviderOverviewUi;
 use App\Interfaces\Telegram\Support\AdminSalesPanelRequestsUi;
 use App\Interfaces\Telegram\Support\AdminSectionsUi;
+use App\Interfaces\Telegram\Support\AdminScopedReadUi;
 use App\Interfaces\Telegram\Support\AdminSubscriptionStatusUi;
 use App\Interfaces\Telegram\Support\AdminTrafficReportUi;
 use App\Interfaces\Telegram\Support\BillingUi;
@@ -401,6 +402,18 @@ $bot->onCommand('fulfillment', function (Nutgram $bot): void {
 
 $bot->onCallbackQueryData('menu:admin:reviews', function (Nutgram $bot): void {
     app(AdminSectionsUi::class)->reviews($bot);
+});
+
+$bot->onCallbackQueryData('rbac2:reports', function (Nutgram $bot): void {
+    app(AdminScopedReadUi::class)->reports($bot);
+});
+
+$bot->onCallbackQueryData('rbac2:finance:{page}', function (Nutgram $bot, string $page): void {
+    app(AdminScopedReadUi::class)->finance($bot, $page);
+});
+
+$bot->onCallbackQueryData('rbac2:servers', function (Nutgram $bot): void {
+    app(AdminScopedReadUi::class)->servers($bot);
 });
 
 $bot->onCommand('payments', function (Nutgram $bot): void {
