@@ -3,24 +3,28 @@
 declare(strict_types=1);
 
 use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
-use App\Modules\Provisioning\Jobs\FulfillPaidPlanOrderJob;
-use App\Modules\Identity\Application\ResolveTelegramActor;
-use App\Modules\Billing\Application\BrowsePhotoTopups;
-use App\Modules\Billing\Application\ReviewTopup;
-use Illuminate\Auth\Access\AuthorizationException;
-use Spatie\Permission\Models\Role;
 use App\Interfaces\Telegram\Notifications\TelegramNotificationSender;
 use App\Interfaces\Telegram\Notifications\WalletTopupNotificationOutbox;
+use App\Modules\Billing\Application\BrowsePhotoTopups;
 use App\Modules\Billing\Application\RequestTopup;
+use App\Modules\Billing\Application\ReviewTopup;
 use App\Modules\Billing\Application\SubmitTopupPhoto;
+use App\Modules\Identity\Application\BrowseUsers;
+use App\Modules\Identity\Application\CreateRole;
+use App\Modules\Identity\Application\ReadCustomerSupportProfile;
+use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\SubscriptionViewer;
+use App\Modules\Identity\Application\ToggleRolePermission;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
+use App\Modules\Provisioning\Application\ReadCustomerLiveServices;
+use App\Modules\Provisioning\Jobs\FulfillPaidPlanOrderJob;
 use App\Modules\Sales\Application\CalculateQuote;
 use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\ConfigureRate;
 use App\Modules\Sales\Application\CreatePendingOrder;
 use App\Modules\Sales\Application\ManualBankPayments;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
@@ -28,6 +32,9 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Validation\ValidationException;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
 
@@ -381,7 +388,7 @@ it('approves a verified purchase once as a delegated bank reviewer without imper
     Queue::assertPushed(FulfillPaidPlanOrderJob::class,
         static fn (FulfillPaidPlanOrderJob $job): bool => $job->actorId === FulfillPaidPlanOrderJob::VERIFIED_BANK_REVIEW);
     expect(fn () => app(ManualBankPayments::class)->review($bank->id, $data['claim'], true, 'DELEGATEDBANK123'))
-        ->toThrow(\Illuminate\Validation\ValidationException::class);
+        ->toThrow(ValidationException::class);
     expect(DB::table('billing_journals')->where('kind', 'direct_bank_sale')->count())->toBe(1);
     Http::assertNothingSent();
 });
@@ -390,15 +397,15 @@ it('allows users.view to read basic directory details but protects customer 360 
     $viewer = reminderDelegated(987010, 'read-users', ['users.view']);
     $target = reminderRoot(987099, false);
 
-    expect(app(\App\Modules\Identity\Application\BrowseUsers::class)->find($viewer->id, $target->id))
+    expect(app(BrowseUsers::class)->find($viewer->id, $target->id))
         ->not->toBeNull();
-    expect(fn () => app(\App\Modules\Identity\Application\ReadCustomerSupportProfile::class)
+    expect(fn () => app(ReadCustomerSupportProfile::class)
         ->handle($viewer->id, $target->id))->toThrow(AuthorizationException::class);
-    expect(fn () => app(\App\Modules\Provisioning\Application\ReadCustomerLiveServices::class)
+    expect(fn () => app(ReadCustomerLiveServices::class)
         ->page($viewer->id, $target->id, 1))->toThrow(AuthorizationException::class);
 
     $legacyAdmin = User::factory()->admin()->create();
-    expect(app(\App\Modules\Identity\Application\ReadCustomerSupportProfile::class)
+    expect(app(ReadCustomerSupportProfile::class)
         ->handle($legacyAdmin->id, $target->id)['user']->id)->toBe($target->id);
 });
 
@@ -406,19 +413,19 @@ it('requires matching view permission when managing review roles through existin
     $root = reminderRoot(987001);
     reminderRoot(987002);
 
-    expect(fn () => app(\App\Modules\Identity\Application\CreateRole::class)
+    expect(fn () => app(CreateRole::class)
         ->handle($root, 'invalid-bank', ['purchases.review']))
-        ->toThrow(\Illuminate\Validation\ValidationException::class);
+        ->toThrow(ValidationException::class);
 
-    $role = app(\App\Modules\Identity\Application\CreateRole::class)
+    $role = app(CreateRole::class)
         ->handle($root, 'valid-bank', ['purchases.view']);
-    $review = \Spatie\Permission\Models\Permission::findByName('purchases.review', 'web');
-    $view = \Spatie\Permission\Models\Permission::findByName('purchases.view', 'web');
-    $toggle = app(\App\Modules\Identity\Application\ToggleRolePermission::class);
+    $review = Permission::findByName('purchases.review', 'web');
+    $view = Permission::findByName('purchases.view', 'web');
+    $toggle = app(ToggleRolePermission::class);
     $toggle->handle($root->id, $role->id, $review->id, false);
 
     expect(fn () => $toggle->handle($root->id, $role->id, $view->id, true))
-        ->toThrow(\Illuminate\Validation\ValidationException::class);
+        ->toThrow(ValidationException::class);
     expect($role->fresh()->hasPermissionTo('purchases.review'))->toBeTrue()
         ->and($role->fresh()->hasPermissionTo('purchases.view'))->toBeTrue();
 });
