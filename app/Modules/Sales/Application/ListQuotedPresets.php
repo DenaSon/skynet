@@ -41,6 +41,10 @@ final readonly class ListQuotedPresets
             $results[] = new QuotedPreset($plan, $quote);
         }
 
+        // Sort actual buyer prices before either presenter paginates. Equal
+        // prices keep the existing catalog priority through PHP's stable sort.
+        usort($results, static fn (QuotedPreset $a, QuotedPreset $b): int => $a->quote->totalPriceRials <=> $b->quote->totalPriceRials);
+
         return $results;
     }
 
