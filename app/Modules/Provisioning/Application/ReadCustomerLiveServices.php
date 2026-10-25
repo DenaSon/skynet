@@ -7,6 +7,7 @@ namespace App\Modules\Provisioning\Application;
 use App\Modules\Identity\Application\BrowseUsers;
 use DateTimeImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Throwable;
@@ -125,7 +126,7 @@ final readonly class ReadCustomerLiveServices
         }
     }
 
-    private function services(int $subjectId): \Illuminate\Database\Query\Builder
+    private function services(int $subjectId): Builder
     {
         // The exact local linked-service ownership rule used by CUS-360-01.
         return DB::table('sales_orders as orders')
