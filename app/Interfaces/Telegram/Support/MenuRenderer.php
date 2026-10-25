@@ -230,7 +230,7 @@ final class MenuRenderer
         $this->render($bot, implode("\n", $lines), $keyboard);
     }
 
-    public function showUserDetails(Nutgram $bot, UserDirectoryEntry $user, int $page = 1, bool $search = false, bool $manageRoles = false): void
+    public function showUserDetails(Nutgram $bot, UserDirectoryEntry $user, int $page = 1, bool $search = false, bool $manageRoles = false, bool $profileAllowed = true): void
     {
         $name = $this->displayName($user->name);
         $email = $this->displayName($user->email);
@@ -239,8 +239,10 @@ final class MenuRenderer
         $linked = $user->telegramLinked ? 'متصل' : 'متصل نیست';
         $mode = $search ? 's' : 'a';
 
-        $keyboard = InlineKeyboardMarkup::make()
-            ->addRow(InlineKeyboardButton::make('📋 پرونده کاربر', callback_data: "users:profile:{$user->id}:{$page}:{$mode}"));
+        $keyboard = InlineKeyboardMarkup::make();
+        if ($profileAllowed) {
+            $keyboard->addRow(InlineKeyboardButton::make('📋 پرونده کاربر', callback_data: "users:profile:{$user->id}:{$page}:{$mode}"));
+        }
 
         if ($user->canChangeStatus) {
             $label = $user->active ? '⛔ غیرفعال‌کردن' : '✅ فعال‌کردن';
