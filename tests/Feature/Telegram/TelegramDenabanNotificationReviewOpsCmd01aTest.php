@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
+use App\Modules\Provisioning\Application\ReadAdminCommandCenter;
 use App\Modules\Provisioning\Application\ReadAdminNotificationFailures;
 use GuzzleHttp\Psr7\Request as NutgramRequest;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
@@ -199,7 +201,7 @@ it('ignores only superseded activation notices while preserving the full deliver
 
     $before = DB::table('telegram_notification_deliveries')->orderBy('id')->get()->toArray();
     $read = app(ReadAdminNotificationFailures::class);
-    $snapshot = app(\App\Modules\Provisioning\Application\ReadAdminCommandCenter::class)->handle($root->id);
+    $snapshot = app(ReadAdminCommandCenter::class)->handle($root->id);
     expect($snapshot['stats']['notificationIssues'])->toBe(0)
         ->and($read->handle($root->id, '1')['total'])->toBe(0)
         ->and(DB::table('telegram_notification_deliveries')->count())->toBe(3);
@@ -215,7 +217,7 @@ it('ignores only superseded activation notices while preserving the full deliver
     // A transport failure is still actionable and must match the drill-down.
     $id = denabanIssuesInsert($root->id, 30, 'dead', 'transport');
     $issues = $read->handle($root->id, '1');
-    $snapshot = app(\App\Modules\Provisioning\Application\ReadAdminCommandCenter::class)->handle($root->id);
+    $snapshot = app(ReadAdminCommandCenter::class)->handle($root->id);
     expect($snapshot['stats']['notificationIssues'])->toBe(1)
         ->and($issues['total'])->toBe(1)
         ->and($issues['items'][0]['id'])->toBe($id);
@@ -243,7 +245,7 @@ it('ignores only superseded activation notices while preserving the full deliver
     $unknown = denabanIssuesInsert($root->id, 32, 'dead', 'transport');
     DB::table('telegram_notification_deliveries')->where('id', $unknown)->update(['last_failure' => null]);
     $issues = $read->handle($root->id, '1');
-    $snapshot = app(\App\Modules\Provisioning\Application\ReadAdminCommandCenter::class)->handle($root->id);
+    $snapshot = app(ReadAdminCommandCenter::class)->handle($root->id);
     expect($snapshot['stats']['notificationIssues'])->toBe(3)
         ->and($issues['total'])->toBe(3)
         ->and(DB::table('telegram_notification_deliveries')->count())->toBe(6)
@@ -254,6 +256,6 @@ it('ignores only superseded activation notices while preserving the full deliver
         'denaban-issues-16', 'denaban-issues-22', 'denaban-issues-26',
     ])->orderBy('id')->get()->toArray();
     expect($preserved)->toEqual($before);
-    Http::assertSent(static fn (\Illuminate\Http\Client\Request $request): bool => $request->method() === 'GET');
-    Http::assertNotSent(static fn (\Illuminate\Http\Client\Request $request): bool => $request->method() !== 'GET');
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
+    Http::assertNotSent(static fn (Request $request): bool => $request->method() !== 'GET');
 });
