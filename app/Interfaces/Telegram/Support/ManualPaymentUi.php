@@ -663,6 +663,9 @@ final readonly class ManualPaymentUi
 
     private function viewer(Nutgram $bot): ?TelegramActor
     {
+        if (TelegramBotContext::current()->key !== TelegramBotContext::ADMIN) {
+            return null;
+        }
         $actor = $this->actor($bot);
         if ($actor !== null && ! $actor->allows('purchases.view')) {
             $this->menus->denyAccess($bot);
