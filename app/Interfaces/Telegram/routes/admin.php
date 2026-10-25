@@ -32,9 +32,11 @@ use App\Interfaces\Telegram\Support\CustomerSupportProfileUi;
 use App\Interfaces\Telegram\Support\ManualPaymentUi;
 use App\Interfaces\Telegram\Support\PlanAdminUi;
 use App\Interfaces\Telegram\Support\PlanSquadUi;
+use App\Interfaces\Telegram\Support\PrivateTelegramUser;
 use App\Interfaces\Telegram\Support\ProductAdminUi;
 use App\Interfaces\Telegram\Support\RbacUi;
 use App\Interfaces\Telegram\Support\UserManagementUi;
+use App\Modules\Identity\Application\ResolveTelegramActor;
 use SergiX44\Nutgram\Nutgram;
 
 /** @var Nutgram $bot */
@@ -406,9 +408,9 @@ $bot->onCommand('payments', function (Nutgram $bot): void {
 });
 
 $bot->onCommand('topups', function (Nutgram $bot): void {
-    $telegramId = app(\App\Interfaces\Telegram\Support\PrivateTelegramUser::class)->id($bot);
+    $telegramId = app(PrivateTelegramUser::class)->id($bot);
     $actor = $telegramId === null ? null
-        : app(\App\Modules\Identity\Application\ResolveTelegramActor::class)->handle($telegramId);
+        : app(ResolveTelegramActor::class)->handle($telegramId);
     if ($actor?->canManageRoles() === true) {
         app(BillingUi::class)->reviews($bot);
     } else {
