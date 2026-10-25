@@ -614,7 +614,7 @@ final readonly class SalesCheckoutUi
         if (! $isReseller && $order->status === 'pending_payment' && $latestReceipt !== 'submitted'
             && config('sales.manual_bank_review_enabled', false) === true) {
             $keyboard->addRow(InlineKeyboardButton::make(
-                $latestReceipt === 'rejected' ? '🧾 ارسال رسید جدید' : '🧾 ارسال رسید پرداخت',
+                $latestReceipt === 'rejected' ? '💳 پرداخت بانکی و رسید جدید' : '💳 پرداخت بانکی',
                 callback_data: 'sales:payment:start:'.$order->id,
             ));
         }
