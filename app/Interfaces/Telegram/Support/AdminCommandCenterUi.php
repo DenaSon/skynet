@@ -137,12 +137,102 @@ final readonly class AdminCommandCenterUi
             'نودهای متصل: '.self::format(self::number($stats, 'connected'))
                 .' از '.self::format(self::number($stats, 'nodes')),
             'هاست‌ها: '.self::format(self::number($stats, 'hosts')),
+            ...self::nodeLines($stats),
             '',
             '<blockquote>دریافتی‌ها فقط پرداخت‌های ثبت و تأییدشده‌اند؛ موجودی بانک یا سود خالص نیستند. مانده کیف پول فروش جدید نیست. اتصال نود نیز تضمین دسترسی کاربران نیست. «نامشخص» به معنی صفر نیست.</blockquote>',
             '🔄 آخرین بررسی: '.PersianCalendar::localDateTime($snapshot['receivedAt']),
         ];
 
         return implode("\n", $lines);
+    }
+
+    /**
+     * Only the already-read /api/nodes inventory is used. Never show raw
+     * node addresses, private network metadata or provider credentials.
+     *
+     * @param  array<string,mixed>|null  $stats
+     * @return list<string>
+     */
+    private static function nodeLines(?array $stats): array
+    {
+        $nodes = $stats['nodeSummaries'] ?? null;
+        if (! is_array($nodes)) {
+            return ['جزئیات نودها: نامشخص'];
+        }
+
+        if ($nodes === []) {
+            return ['هنوز نودی ثبت نشده است.'];
+        }
+
+        if (count($nodes) > 500) {
+            return ['جزئیات نودها: نامشخص'];
+        }
+
+        foreach ($nodes as $node) {
+            if (! is_array($node)
+                || ! is_string($node['name'] ?? null)
+                || ! is_bool($node['connected'] ?? null)
+                || ! is_bool($node['disabled'] ?? null)) {
+                return ['جزئیات نودها: نامشخص'];
+            }
+        }
+
+        // Only safe Application data enters Telegram; prioritize problematic nodes.
+        usort($nodes, static function (array $a, array $b): int {
+            $priority = static fn (array $node): int => $node['disabled']
+                ? 3 : ($node['connected'] ? 2 : (($node['connecting'] ?? null) === true ? 1 : 0));
+
+            return ($priority($a) <=> $priority($b)) ?: strcmp($a['name'], $b['name']);
+        });
+
+        $lines = ['<b>جزئیات نودها (گزارش RW)</b>'];
+        foreach (array_slice($nodes, 0, 5) as $node) {
+            $status = $node['disabled'] ? '⏸️ غیرفعال'
+                : ($node['connected'] ? '🟢 متصل'
+                    : (($node['connecting'] ?? null) === true ? '🟠 در حال اتصال' : '🔴 قطع'));
+            $name = TelegramUi::escape(mb_substr(
+                (string) preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $node['name']), 0, 50,
+            ));
+            $lines[] = $status.' · '.$name;
+            $lines[] = '👥 آنلاین این نود: '.self::format(self::number($node, 'usersOnline'));
+            $lines[] = '📡 دریافت: '.self::rate(self::number($node, 'rxBytesPerSec'))
+                .' | ارسال: '.self::rate(self::number($node, 'txBytesPerSec'));
+
+            if (! $node['connected'] && ! $node['disabled']) {
+                $lines[] = '🕒 آخرین تغییر وضعیت: '.(! is_string($node['lastStatusChange'] ?? null)
+                    ? 'نامشخص' : PersianCalendar::utcDateTime($node['lastStatusChange']));
+            }
+
+            if (($node['trafficTrackingActive'] ?? null) === true
+                && ($limit = self::number($node, 'trafficLimitBytes')) !== null && $limit > 0
+                && ($used = self::number($node, 'trafficUsedBytes')) !== null) {
+                $percent = $used / $limit * 100;
+                $lines[] = '📊 مصرف از سقف نود: '.number_format($percent, 1).'٪';
+            }
+        }
+
+        if (count($nodes) > 5) {
+            $lines[] = 'برای سایر نودها، مدیریت سرورها را باز کنید.';
+        }
+
+        return $lines;
+    }
+
+    private static function rate(?int $bytesPerSecond): string
+    {
+        if ($bytesPerSecond === null) {
+            return 'نامشخص';
+        }
+
+        if ($bytesPerSecond < 1024) {
+            return number_format($bytesPerSecond).' B/s';
+        }
+
+        if ($bytesPerSecond < 1048576) {
+            return number_format($bytesPerSecond / 1024, 1).' KiB/s';
+        }
+
+        return number_format($bytesPerSecond / 1048576, 2).' MiB/s';
     }
 
     /** @param array<string,mixed>|null $data */

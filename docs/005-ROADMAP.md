@@ -1,3 +1,7 @@
+## OPS-CMD-02 — Denaban RW node telemetry (2026-10-25)
+
+Approved Phase 2: extend the already-requested `GET /api/nodes` typed safe projection (RemnawaveReadApi → AdminProviderOverview → ReadAdminDashboard) with optional connection-in-progress, online users per node, RX/TX B/s, last status change and tracked cap usage. Render up to five nodes in Denaban, problem status first, safe escaped labels and Jalali status dates; missing optional data never produces zero or fabricated ping/CPU/consumer speed. Avoid additional RW calls, node writes, probes, new schedules/schema/dependencies or edits to financial, RBAC or Sales Bot paths. Follow PHP 8.4/8.5, tests/PHPStan/Pint and MySQL gates before merge, with live read-only acceptance separate.
+
 ## OPS-CMD-01B — Exclude obsolete activation-superseded notifications (2026-10-25)
 
 As a narrowly approved Denaban corrective patch, exclude only terminal outbox entries with last_failure=`superseded_by_activation` from the STAT-01/Denaban actionable count and the root-only failure drill-down query; this keeps totals and conditional button coherent. Preserve all rows and historical evidence in the database. Retain unrelated dead/unavailable causes, including NULL failure reasons. No notification replay, status write, cleanup, scheduler, schema, dependency, or Sales/Provider changes. Add regression tests for three superseded rows, mixed genuine errors, exact counts, conditional visibility, protected detail, and persistence. Gate merge on PHP 8.4/8.5, tests, static analysis and Pint.

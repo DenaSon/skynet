@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Provisioning\Infrastructure\Remnawave;
 
+use DateTimeImmutable;
 use UnexpectedValueException;
 
 /**
@@ -99,6 +100,15 @@ final readonly class RemnawaveReadApi
                 name: $remoteNode['name'],
                 connected: $remoteNode['isConnected'],
                 disabled: $remoteNode['isDisabled'],
+                connecting: is_bool($remoteNode['isConnecting'] ?? null) ? $remoteNode['isConnecting'] : null,
+                usersOnline: RemnawaveNodeTelemetry::nonNegativeBytes($remoteNode['usersOnline'] ?? null),
+                rxBytesPerSec: self::interfaceRate($remoteNode, 'rxBytesPerSec'),
+                txBytesPerSec: self::interfaceRate($remoteNode, 'txBytesPerSec'),
+                lastStatusChange: self::statusChange($remoteNode['lastStatusChange'] ?? null),
+                trafficLimitBytes: RemnawaveNodeTelemetry::nonNegativeBytes($remoteNode['trafficLimitBytes'] ?? null),
+                trafficUsedBytes: RemnawaveNodeTelemetry::nonNegativeBytes($remoteNode['trafficUsedBytes'] ?? null),
+                trafficTrackingActive: is_bool($remoteNode['isTrafficTrackingActive'] ?? null)
+                    ? $remoteNode['isTrafficTrackingActive'] : null,
             );
         }
 
@@ -116,6 +126,32 @@ final readonly class RemnawaveReadApi
             internalSquads: $this->total($squads, 'internalSquads'),
             configProfiles: $this->total($profiles, 'configProfiles'),
         );
+    }
+
+    /** @param array<string,mixed> $node */
+    private static function interfaceRate(array $node, string $direction): ?int
+    {
+        $system = $node['system'] ?? null;
+        $stats = is_array($system) ? ($system['stats'] ?? null) : null;
+        $interface = is_array($stats) ? ($stats['interface'] ?? null) : null;
+
+        return is_array($interface)
+            ? RemnawaveNodeTelemetry::nonNegativeBytes($interface[$direction] ?? null)
+            : null;
+    }
+
+    private static function statusChange(mixed $value): ?string
+    {
+        if (! is_string($value) || strlen($value) > 48
+            || preg_match('/\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})\z/D', $value) !== 1) {
+            return null;
+        }
+
+        try {
+            return (new DateTimeImmutable($value))->format('Y-m-d\TH:i:sP');
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /**

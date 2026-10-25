@@ -10,6 +10,7 @@ namespace App\Modules\Provisioning\Application;
  */
 final readonly class AdminProviderOverview
 {
+    /** @param list<array<string, int|string|bool|null>>|null $nodeSummaries */
     public function __construct(
         public string $state,
         public ?int $instances = null,
@@ -20,5 +21,6 @@ final readonly class AdminProviderOverview
         public ?int $configProfiles = null,
         public ?int $needsReview = null,
         public ?AdminSystemStats $systemStats = null,
+        public ?array $nodeSummaries = null,
     ) {}
 }

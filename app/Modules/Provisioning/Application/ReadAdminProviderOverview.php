@@ -6,6 +6,7 @@ namespace App\Modules\Provisioning\Application;
 
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveApiClientFactory;
+use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveNodeSummary;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveReadApi;
 use Illuminate\Support\Facades\DB;
 use Throwable;
@@ -46,6 +47,19 @@ final readonly class ReadAdminProviderOverview
                 configProfiles: $inventory->configProfiles,
                 needsReview: DB::table('provisioning_operations')->where('state', 'needs_review')->count(),
                 systemStats: $systemStats,
+                nodeSummaries: array_map(static fn (RemnawaveNodeSummary $node): array => [
+                    'name' => $node->name,
+                    'connected' => $node->connected,
+                    'disabled' => $node->disabled,
+                    'connecting' => $node->connecting,
+                    'usersOnline' => $node->usersOnline,
+                    'rxBytesPerSec' => $node->rxBytesPerSec,
+                    'txBytesPerSec' => $node->txBytesPerSec,
+                    'lastStatusChange' => $node->lastStatusChange,
+                    'trafficLimitBytes' => $node->trafficLimitBytes,
+                    'trafficUsedBytes' => $node->trafficUsedBytes,
+                    'trafficTrackingActive' => $node->trafficTrackingActive,
+                ], $inventory->nodes),
             );
         } catch (Throwable) {
             // Do not leak token, endpoint, transport errors or private panel data.

@@ -149,3 +149,89 @@ it('rejects unauthorized, revoked and group callbacks without RW calls', functio
     $bot->hearCallbackQueryData('denaban:show')->reply()->assertNoReply();
     Http::assertNothingSent();
 });
+
+it('shows only safe per-node RW telemetry using the existing inventory GET without duplicate requests', function (): void {
+    denabanRoot();
+    Http::fake(static function (Request $request) {
+        $payload = match (parse_url($request->url(), PHP_URL_PATH)) {
+            '/api/system/health' => ['runtimeMetrics' => [['status' => 'HEALTHY']]],
+            '/api/system/stats' => [
+                'cpu' => ['cores' => 4],
+                'memory' => ['total' => 2147483648, 'used' => 1073741824, 'free' => 1073741824],
+                'users' => ['totalUsers' => 4], 'onlineStats' => ['onlineNow' => 2], 'uptime' => 850,
+            ],
+            '/api/nodes' => [
+                [
+                    'uuid' => '123e4567-e89b-12d3-a456-426614174001',
+                    'name' => 'EU<internal>&', 'isConnected' => true, 'isDisabled' => false,
+                    'isConnecting' => false, 'usersOnline' => 2,
+                    'system' => ['stats' => ['interface' => [
+                        'rxBytesPerSec' => 2048, 'txBytesPerSec' => 1048576,
+                    ]]],
+                    'isTrafficTrackingActive' => true, 'trafficLimitBytes' => 1000,
+                    'trafficUsedBytes' => 250, 'address' => 'super-secret.private.example',
+                ],
+                [
+                    'uuid' => '123e4567-e89b-12d3-a456-426614174002',
+                    'name' => 'UAE-01', 'isConnected' => false, 'isDisabled' => false,
+                    'isConnecting' => true, 'usersOnline' => 0,
+                    'lastStatusChange' => '2026-10-24T18:00:00.000Z',
+                    'system' => ['stats' => ['interface' => [
+                        'rxBytesPerSec' => -1, 'txBytesPerSec' => 'not a number',
+                    ]]],
+                    'isTrafficTrackingActive' => false, 'trafficLimitBytes' => 1000,
+                    'trafficUsedBytes' => 1000,
+                ],
+                [
+                    'uuid' => '123e4567-e89b-12d3-a456-426614174003',
+                    'name' => 'DE-standby', 'isConnected' => false, 'isDisabled' => true,
+                ],
+            ],
+            '/api/hosts' => [['uuid' => '1']],
+            '/api/internal-squads' => ['internalSquads' => [], 'total' => 0],
+            '/api/config-profiles' => ['configProfiles' => [], 'total' => 0],
+            '/api/users' => ['users' => [], 'total' => 0],
+            default => null,
+        };
+
+        return $payload === null
+            ? Http::response([], 404)
+            : Http::response(['response' => $payload], 200);
+    });
+
+    denabanBot(991201)->hearCallbackQueryData('denaban:show')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $payload = denabanPayload($request);
+            $text = $payload['text'];
+
+            return str_contains($text, 'نودهای متصل: 1 از 3')
+                && str_contains($text, '🟠 در حال اتصال · UAE-01')
+                && str_contains($text, '🕒 آخرین تغییر وضعیت: ۱۴۰۵/')
+                && str_contains($text, '⏸️ غیرفعال · DE-standby')
+                && str_contains($text, '🟢 متصل · EU&lt;internal&gt;&amp;')
+                && str_contains($text, '📡 دریافت: 2.0 KiB/s | ارسال: 1.00 MiB/s')
+                && str_contains($text, '📊 مصرف از سقف نود: 25.0٪')
+                && str_contains($text, '📡 دریافت: نامشخص | ارسال: نامشخص')
+                && ! str_contains($text, 'super-secret.private.example')
+                && ! str_contains($text, 'EU<internal>');
+        }, index: 1);
+
+    // The command center does not duplicate the GET /api/nodes already made by STAT-01.
+    Http::assertSentCount(7);
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
+    expect(Http::recorded(static fn (Request $request): bool => str_ends_with($request->url(), '/api/nodes')))->toHaveCount(1);
+});
+
+it('keeps Denaban financial/local stats readable when the RW node inventory fails', function (): void {
+    denabanRoot();
+    Http::fake(['https://denaban.test/*' => Http::response([], 503)]);
+    denabanBot(991201)->hearCallbackQueryData('denaban:show')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $payload = denabanPayload($request);
+
+            return str_contains($payload['text'], 'جزئیات نودها: نامشخص')
+                && str_contains($payload['text'], '<b>💰 وضعیت مالی</b>')
+                && str_contains($payload['text'], '<b>👥 کاربران و اشتراک‌ها</b>');
+        }, index: 1);
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
+});

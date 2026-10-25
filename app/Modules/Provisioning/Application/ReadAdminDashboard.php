@@ -30,7 +30,8 @@ final readonly class ReadAdminDashboard
      *   localUsers:int, localActive:int, telegramLinked:int, salesReachable:int,
      *   adminReachable:int, salesRecent:int, salesTodayRials:int,
      *   provisioningReview:int, fulfillmentReview:int, receiptsPending:int,
-     *   failedJobs:int, notificationIssues:int, receivedAt:string
+     *   failedJobs:int, notificationIssues:int, receivedAt:string,
+     *   nodeSummaries:list<array<string,int|string|bool|null>>|null
      * }
      */
     public function handle(int $actorId): array
@@ -58,6 +59,7 @@ final readonly class ReadAdminDashboard
 
         $report = [
             'nodes' => null, 'connected' => null, 'hosts' => null,
+            'nodeSummaries' => null,
             'panelUsers' => null, 'online' => null,
             'subscriptionsActive' => null, 'subscriptionsExpired' => null,
             'subscriptionsLimited' => null,
@@ -84,6 +86,7 @@ final readonly class ReadAdminDashboard
             $report['nodes'] = $provider->nodes;
             $report['connected'] = $provider->connectedNodes;
             $report['hosts'] = $provider->hosts;
+            $report['nodeSummaries'] = $provider->nodeSummaries;
             $report['panelUsers'] = $provider->systemStats?->totalUsers;
             $report['online'] = $provider->systemStats?->onlineUsers;
         }
