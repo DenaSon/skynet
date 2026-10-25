@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 
@@ -35,16 +36,138 @@ final readonly class WalletTopupUi
         if ($userId === null) {
             return;
         }
-
         if (! $this->ready()) {
-            $this->notice($bot, 'افزایش موجودی فعلاً در دسترس نیست. لطفاً بعداً تلاش کنید.');
+            $this->notice($bot, 'افزایش اعتبار فعلاً در دسترس نیست. لطفاً بعداً تلاش کنید.');
 
             return;
         }
-
+        // The next photo must never be associated with an older purchase.
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$userId));
+        Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:recent:'.$userId));
+        Cache::put($this->key($userId), ['step' => 'choice'], now()->addMinutes(10));
+        $this->render($bot,
+            "<b>➕ افزایش اعتبار</b>\n\nمبلغ شارژ را انتخاب کنید.\n<blockquote>حداکثر هر واریز: ۱۰ میلیون تومان\nاعتبار تنها پس از تأیید واریز توسط مدیر اضافه می‌شود.</blockquote>",
+            InlineKeyboardMarkup::make()
+                ->addRow(InlineKeyboardButton::make('💰 ۱,۰۰۰,۰۰۰ تومان', callback_data: 'sales:wallet:topup:quick:1000000', style: ButtonStyle::SUCCESS))
+                ->addRow(InlineKeyboardButton::make('💰 ۷۵۰,۰۰۰ تومان', callback_data: 'sales:wallet:topup:quick:750000', style: ButtonStyle::PRIMARY))
+                ->addRow(InlineKeyboardButton::make('✏️ مبلغ دلخواه', callback_data: 'sales:wallet:topup:custom'))
+                ->addRow(InlineKeyboardButton::make('◀️ اعتبار من', callback_data: 'sales:wallet:topup:cancel')),
+        );
+    }
+
+    public function custom(Nutgram $bot): void
+    {
+        $userId = $this->buyer($bot);
+        if ($userId === null) {
+            return;
+        }
+        $state = Cache::get($this->key($userId));
+        if (! $this->ready() || ! is_array($state) || ! in_array($state['step'] ?? null, ['choice', 'amount'], true)) {
+            $this->notice($bot, 'این انتخاب منقضی شده است. افزایش اعتبار را دوباره باز کنید.');
+
+            return;
+        }
         Cache::put($this->key($userId), ['step' => 'amount'], now()->addMinutes(10));
-        $this->notice($bot, "<b>➕ افزایش موجودی</b>\n\nمبلغ شارژ را به تومان ارسال کنید.\nمثلاً: <code>500000</code>\n\n<blockquote>اعتبار فقط پس از دریافت و بررسی واقعی وجه توسط مدیر اضافه می‌شود.</blockquote>");
+        $this->render($bot,
+            "<b>✏️ مبلغ دلخواه</b>\n\nمبلغ شارژ را به تومان بفرستید.\nمثلاً: <code>500000</code>\n\nحداقل ۱۰ هزار و حداکثر ۱۰ میلیون تومان.",
+            InlineKeyboardMarkup::make()
+                ->addRow(InlineKeyboardButton::make('◀️ انتخاب مبلغ', callback_data: 'sales:wallet:topup'))
+                ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'sales:wallet:topup:cancel')),
+        );
+    }
+
+    public function quick(Nutgram $bot, string $toman): void
+    {
+        $userId = $this->buyer($bot);
+        if ($userId === null) {
+            return;
+        }
+        $state = Cache::get($this->key($userId));
+        if (! $this->ready() || ! is_array($state)) {
+            $this->notice($bot, 'این انتخاب منقضی شده است. افزایش اعتبار را دوباره باز کنید.');
+
+            return;
+        }
+        if (in_array($state['step'] ?? null, ['payment', 'photo'], true)) {
+            $this->showPayment($bot, (int) $state['topup_id'], (int) $state['amount_toman']);
+
+            return;
+        }
+        if (($state['step'] ?? null) !== 'choice' || ! in_array($toman, ['750000', '1000000'], true)) {
+            $this->notice($bot, 'برای انتخاب مبلغ، افزایش اعتبار را دوباره باز کنید.');
+
+            return;
+        }
+        $callbackId = $bot->callbackQuery()?->id;
+        if (! is_string($callbackId) || $callbackId === '') {
+            $this->notice($bot, 'درخواست معتبر نیست. دوباره تلاش کنید.');
+
+            return;
+        }
+        $this->createTopup($bot, $userId, (int) $toman, 'cb:'.substr(hash('sha256', $callbackId), 0, 32));
+    }
+
+    public function requestReceipt(Nutgram $bot, string $topupId): void
+    {
+        $userId = $this->buyer($bot);
+        if ($userId === null) {
+            return;
+        }
+        $state = Cache::get($this->key($userId));
+        if (! is_array($state) || ! in_array($state['step'] ?? null, ['payment', 'photo'], true)
+            || ! ctype_digit($topupId) || (string) ($state['topup_id'] ?? '') !== $topupId) {
+            $this->notice($bot, 'درخواست فعال پیدا نشد. وضعیت شارژ را از اعتبار من بررسی کنید.');
+
+            return;
+        }
+        $pending = DB::table('billing_topups as topups')
+            ->join('billing_wallets as wallets', 'wallets.id', '=', 'topups.wallet_id')
+            ->where('topups.id', (int) $topupId)->where('wallets.user_id', $userId)
+            ->where('topups.status', 'pending')->exists();
+        if (! $pending) {
+            Cache::forget($this->key($userId));
+            $this->notice($bot, 'این درخواست دیگر منتظر رسید نیست. وضعیت آن را در اعتبار من بررسی کنید.');
+
+            return;
+        }
+        Cache::put($this->key($userId), [
+            'step' => 'photo', 'topup_id' => (int) $topupId, 'amount_toman' => (int) $state['amount_toman'],
+        ], now()->addMinutes(10));
+        $this->render($bot,
+            "<b>📷 ارسال رسید شارژ #{$topupId}</b>\n\nلطفاً یک عکس معمولی از رسید واریز را همین‌جا بفرستید.\n<blockquote>رسید برای بررسی مدیر ارسال می‌شود؛ تا زمان تأیید، اعتبار تغییری نمی‌کند.</blockquote>",
+            InlineKeyboardMarkup::make()
+                ->addRow(InlineKeyboardButton::make('◀️ بازگشت به پرداخت', callback_data: 'sales:wallet:topup:back:'.$topupId))
+                ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'sales:wallet:topup:cancel')),
+        );
+    }
+
+    public function back(Nutgram $bot, string $topupId): void
+    {
+        $userId = $this->buyer($bot);
+        if ($userId === null) {
+            return;
+        }
+        $state = Cache::get($this->key($userId));
+        if (! is_array($state) || ($state['step'] ?? null) !== 'photo'
+            || (string) ($state['topup_id'] ?? '') !== $topupId) {
+            $this->notice($bot, 'صفحه پرداخت منقضی شده است. از اعتبار من دوباره شروع کنید.');
+
+            return;
+        }
+        Cache::put($this->key($userId), [
+            'step' => 'payment', 'topup_id' => (int) $topupId, 'amount_toman' => (int) $state['amount_toman'],
+        ], now()->addMinutes(10));
+        $this->showPayment($bot, (int) $topupId, (int) $state['amount_toman']);
+    }
+
+    public function cancel(Nutgram $bot): void
+    {
+        $userId = $this->buyer($bot);
+        if ($userId === null) {
+            return;
+        }
+        Cache::forget($this->key($userId));
+        app(SalesHomeUi::class)->wallet($bot);
     }
 
     /** Return true only when the incoming text belongs to this Sales top-up form. */
@@ -54,74 +177,81 @@ final readonly class WalletTopupUi
         if ($userId === null) {
             return false;
         }
-
         $state = Cache::get($this->key($userId));
         if (! is_array($state) || ($state['step'] ?? null) !== 'amount') {
             return false;
         }
-
         if (! $this->ready()) {
             Cache::forget($this->key($userId));
-            $this->notice($bot, 'افزایش موجودی فعلاً در دسترس نیست.');
+            $this->notice($bot, 'افزایش اعتبار فعلاً در دسترس نیست.');
 
             return true;
         }
-
         $amountText = strtr(trim($value), [
             '۰' => '0', '۱' => '1', '۲' => '2', '۳' => '3', '۴' => '4',
             '۵' => '5', '۶' => '6', '۷' => '7', '۸' => '8', '۹' => '9',
             '٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4',
             '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
         ]);
-        if (preg_match('/\A[1-9][0-9]{0,11}\z/D', $amountText) !== 1
-            || (int) $amountText < 10000 || (int) $amountText > 100000000000) {
-            $this->notice($bot, 'مبلغ را به تومان، بین ۱۰ هزار تا ۱۰۰ میلیارد تومان وارد کنید.');
+        if (preg_match('/\A[1-9][0-9]{0,7}\z/D', $amountText) !== 1
+            || (int) $amountText < 10000 || (int) $amountText > 10000000) {
+            $this->notice($bot, 'مبلغ شارژ باید بین ۱۰ هزار تا ۱۰ میلیون تومان باشد.');
 
             return true;
         }
-
         $messageId = $bot->message()?->message_id;
         if (! is_int($messageId) || $messageId < 1) {
             $this->notice($bot, 'درخواست معتبر نیست. دوباره تلاش کنید.');
 
             return true;
         }
+        $this->createTopup($bot, $userId, (int) $amountText, 'msg:'.$messageId);
 
-        try {
-            $id = $this->requests->handle(
-                $userId, (int) $amountText * 10,
-                'sales:topup:'.(int) $this->private->id($bot).':'.$messageId,
-            );
-        } catch (AuthorizationException|ValidationException|UniqueConstraintViolationException) {
-            $this->notice($bot, 'درخواست قابل ثبت نیست. از کیف پول دوباره شروع کنید.');
+        return true;
+    }
 
-            return true;
+    private function createTopup(Nutgram $bot, int $userId, int $toman, string $intent): void
+    {
+        $telegramId = $this->private->id($bot);
+        if ($telegramId === null || $toman < 10000 || $toman > 10000000) {
+            $this->notice($bot, 'مبلغ شارژ معتبر نیست.');
+
+            return;
         }
+        try {
+            $id = $this->requests->handle($userId, $toman * 10, 'sales:topup:'.$telegramId.':'.$intent);
+        } catch (AuthorizationException|ValidationException|UniqueConstraintViolationException) {
+            $this->notice($bot, 'درخواست قابل ثبت نیست. از اعتبار من دوباره شروع کنید.');
 
-        Cache::put($this->key($userId), ['step' => 'photo', 'topup_id' => $id], now()->addMinutes(10));
+            return;
+        }
+        Cache::put($this->key($userId), [
+            'step' => 'payment', 'topup_id' => $id, 'amount_toman' => $toman,
+        ], now()->addMinutes(10));
+        $this->showPayment($bot, $id, $toman);
+    }
+
+    private function showPayment(Nutgram $bot, int $id, int $toman): void
+    {
         $card = app(ManualPaymentUi::class)->cardNumber();
         if ($card === null) {
-            Cache::forget($this->key($userId));
             $this->notice($bot, 'مشخصات پرداخت در دسترس نیست. لطفاً با پشتیبانی تماس بگیرید.');
 
-            return true;
+            return;
         }
-
         $instructions = trim((string) config('billing.payment_instructions', ''));
-        $message = "<b>💳 شارژ کیف پول</b>\n\nدرخواست #{$id}"
-            ."\nمبلغ: <b>".TelegramUi::toman((int) $amountText * 10).' تومان</b>'
+        $message = "<b>💳 شارژ اعتبار من</b>\n\nدرخواست #{$id}"
+            ."\nمبلغ: <b>".TelegramUi::toman($toman * 10).' تومان</b>'
             ."\nشماره کارت: ".TelegramUi::code($card);
         if ($instructions !== '') {
             $message .= "\n".TelegramUi::escape(mb_substr($instructions, 0, 350));
         }
-        $message .= "\n\nپس از واریز، <b>عکس رسید</b> را در همین گفت‌وگو بفرستید."
-            ."\n<blockquote>ارسال عکس به‌معنای تأیید پرداخت نیست.</blockquote>";
-
+        $message .= "\n\nپس از واریز، دکمه <b>ارسال رسید شارژ</b> را بزنید."
+            ."\n<blockquote>حداکثر مبلغ هر واریز ۱۰ میلیون تومان است؛ ارسال رسید به‌معنای تأیید پرداخت نیست.</blockquote>";
         $this->render($bot, $message, InlineKeyboardMarkup::make()
-            ->addRow(TelegramUi::copy($card, '📋 کپی شماره کارت'))
-            ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'sales:wallet')));
-
-        return true;
+            ->addRow(TelegramUi::copy($card, '📋 کپی شماره کارت'), TelegramUi::copy((string) $toman, '📋 کپی مبلغ'))
+            ->addRow(InlineKeyboardButton::make('📷 ارسال رسید شارژ', callback_data: 'sales:wallet:topup:receipt:'.$id, style: ButtonStyle::SUCCESS))
+            ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'sales:wallet:topup:cancel')));
     }
 
     /** Only consume the photo if this authenticated Sales user awaits a top-up receipt. */
@@ -133,7 +263,15 @@ final readonly class WalletTopupUi
         }
 
         $state = Cache::get($this->key($userId));
-        if (! is_array($state) || ($state['step'] ?? null) !== 'photo' || ! is_int($state['topup_id'] ?? null)) {
+        if (! is_array($state)) {
+            return false;
+        }
+        if (($state['step'] ?? null) === 'payment') {
+            $this->notice($bot, 'برای ارسال عکس ابتدا دکمه «📷 ارسال رسید شارژ» را بزنید.');
+
+            return true;
+        }
+        if (($state['step'] ?? null) !== 'photo' || ! is_int($state['topup_id'] ?? null)) {
             return false;
         }
 
@@ -178,9 +316,14 @@ final readonly class WalletTopupUi
             return false;
         }
 
-        $this->notice($bot, ($state['step'] ?? null) === 'amount'
-            ? 'لطفاً مبلغ شارژ را به تومان وارد کنید یا از کیف پول خارج شوید.'
-            : 'لطفاً عکس رسید شارژ را بفرستید یا از کیف پول خارج شوید.');
+        $message = match ($state['step'] ?? null) {
+            'choice' => 'برای ادامه یکی از مبلغ‌ها یا «مبلغ دلخواه» را انتخاب کنید.',
+            'amount' => 'مبلغ شارژ را بین ۱۰ هزار تا ۱۰ میلیون تومان وارد کنید.',
+            'payment' => 'پس از واریز، دکمه «ارسال رسید شارژ» را بزنید.',
+            'photo' => 'لطفاً عکس رسید شارژ را بفرستید یا انصراف دهید.',
+            default => 'از اعتبار من دوباره شروع کنید.',
+        };
+        $this->notice($bot, $message);
 
         return true;
     }
@@ -217,7 +360,7 @@ final readonly class WalletTopupUi
     private function notice(Nutgram $bot, string $message): void
     {
         $this->render($bot, $message, InlineKeyboardMarkup::make()
-            ->addRow(InlineKeyboardButton::make('◀️ کیف پول', callback_data: 'sales:wallet'))
+            ->addRow(InlineKeyboardButton::make('◀️ اعتبار من', callback_data: 'sales:wallet:topup:cancel'))
             ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home')));
     }
 
