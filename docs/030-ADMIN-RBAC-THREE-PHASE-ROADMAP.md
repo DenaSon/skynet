@@ -1,6 +1,6 @@
 # RBAC-ADMIN-01 — Three-phase granular Admin Bot permissions roadmap
 
-**Status:** APPROVED FOR PLANNING/DOCUMENTATION ONLY, 2026-10-25. **No implementation, migrations, data changes, ENV changes, real Telegram sends, or production rollout authorized by this document.** Each phase requires a separate explicit implementation instruction, scoped PR, PHP 8.4/8.5 CI, review, guarded master merge and operator-confirmed real acceptance.
+**Status:** Phase 1 source implementation authorized 2026-10-25; Phase 2 and Phase 3 remain planning-only. **This document by itself does not authorize production ENV changes, live transfers, or Phase 2/3 work.** Each phase requires a separate explicit implementation instruction, scoped PR, PHP 8.4/8.5 CI, review, guarded master merge and operator-confirmed real acceptance.
 
 **Authority:** [docs/005-ROADMAP.md](005-ROADMAP.md), [docs/007-RBAC-OPERATIONS.md](007-RBAC-OPERATIONS.md), [docs/017-TELEGRAM-UX-IDENTITY.md](017-TELEGRAM-UX-IDENTITY.md), [docs/018-REMNAWAVE-STAGING-MULTIBOT-ROADMAP.md](018-REMNAWAVE-STAGING-MULTIBOT-ROADMAP.md) and [docs/021-MB05A-NOTIFICATION-OPERATIONS.md](021-MB05A-NOTIFICATION-OPERATIONS.md).
 
@@ -84,7 +84,7 @@ Give a real Admin Bot operator only the areas and actions that the operator's ap
 
 ## Rollout / risk and decision log
 
-- **Approval:** This is an authorized plan and documentation update only; phase scope is proposed, not authorized for implementation or production mutation by this PR. Run phases in order, one scoped PR at a time, followed by implementation/tests/review/merge and explicit live acceptance.
+- **Approval:** Phase 1 implementation was separately authorized by the operator on 2026-10-25. Phase 2/3 remain documentation-only; production role assignment and live financial operations are not authorized by source merge. Run phases in order, one scoped PR at a time, followed by implementation/tests/review/merge and explicit live acceptance.
 - **Migrations:** Only when expressly approved in a phase; additive, reproducible, non-destructive role/permission backfill. No migrate:fresh, destructive cleanup, blanket grant to admin/member, unreviewed DB seeding or privileged account changes.
 - **Boundary risks:** (i) users.manage currently implies admin entry and 360 data reads, (ii) root-only finance and infrastructure Actions must not be loosened wholesale, (iii) reminder currently aggregates both finance categories and is root-only, (iv) immediate and scheduled outbox fan-out must be deduplicated and authorization rechecked, (v) token/approval idempotency, bank attestation and retry visibility.
 - **Recovery:** Per-phase revert of presentation/policy/source without deletion of existing receipts, roles or delivery evidence. Never replay already-sent notification rows or financial/provider writes. Investigate dead/unavailable intents via existing admin tooling; a successful Telegram API response is not proof of client rendering.
