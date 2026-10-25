@@ -295,6 +295,8 @@ it('keeps Sales identity, navigation and buyer routes isolated from Admin callba
         'callback:sales:wallet:topup',
         'callback:sales:wallet:topup:quick:{toman}',
         'callback:sales:wallet:topup:custom',
+        'callback:sales:wallet:topup:new',
+        'callback:sales:wallet:topup:resume:{id}',
         'callback:sales:wallet:topup:receipt:{id}',
         'callback:sales:wallet:topup:back:{id}',
         'callback:sales:wallet:topup:cancel',
