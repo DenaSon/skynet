@@ -78,9 +78,12 @@ final readonly class ReadCustomerLiveServices
         }
 
         try {
-            // Existing lifecycle GET checks exact remote user ID, deterministic
-            // username and private reference marker before releasing any data.
+            // Existing lifecycle checks deterministic username/ownership marker;
+            // this Admin path also verifies the exact linked numeric remote ID.
             $remote = $this->lifecycle->subscription((string) $binding->reference);
+            if ($remote->id !== (int) $binding->remote_user_id) {
+                throw new \UnexpectedValueException('Remote user identity mismatch.');
+            }
             $expiry = new DateTimeImmutable($remote->expireAt);
             $timestamp = $expiry->getTimestamp();
             if ($timestamp < 0 || $timestamp > 253402300799) {
