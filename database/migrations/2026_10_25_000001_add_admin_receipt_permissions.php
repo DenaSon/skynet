@@ -6,6 +6,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 
 return new class extends Migration
 {
@@ -19,7 +20,7 @@ return new class extends Migration
         // users.manage and user-directory read rights; do not grant finance.
         $admin = Role::findByName('admin', 'web');
         $admin->givePermissionTo('users.view');
-        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 
     public function down(): void
@@ -38,6 +39,6 @@ return new class extends Migration
         Role::findByName('admin', 'web')->revokePermissionTo('users.view');
         DB::table('permissions')->whereIn('name',
             ['users.view', 'purchases.view', 'purchases.review', 'topups.view', 'topups.review'])->delete();
-        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 };
