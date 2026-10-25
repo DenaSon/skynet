@@ -69,9 +69,12 @@ final readonly class AdminScopedReadUi
 
         try {
             $data = $this->summary->handle($actor->userId);
+            $approved = $this->reports->finance($actor->userId);
             $rows = $this->wallets->page($actor->userId, (int) $page);
             $text = '<b>💳 گزارش کیف پول‌ها</b>'
                 ."\n\nکل کیف پول‌ها: ".number_format($data['walletsTotal'])
+                ."\nرسیدهای خرید تأییدشده: ".number_format($approved['approvedPurchases'])
+                ."\nشارژهای تأییدشده: ".number_format($approved['approvedTopups'])
                 ."\nدارای موجودی: ".number_format($data['walletsPositive'])
                 ."\nمجموع مانده: ".TelegramUi::toman($data['balanceRials']).' تومان'
                 ."\n\n<b>فهرست مانده‌ها</b>";
