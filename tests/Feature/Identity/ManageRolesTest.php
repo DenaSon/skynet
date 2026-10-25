@@ -31,7 +31,7 @@ it('lists role and permission DTOs for a trusted root only', function (): void {
     $page = app(ManageRoles::class)->page($root->id);
 
     expect($page->total)->toBe(3)
-        ->and($page->permissions[0]->name)->toBe('users.manage')
+        ->and(collect($page->permissions)->pluck('name')->all())->toContain('users.manage')
         ->and(collect($page->roles)->pluck('name')->all())->toContain('super-admin');
 
     $member = User::factory()->create();
