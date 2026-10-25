@@ -13,6 +13,8 @@ final readonly class TelegramActor
         public array $roles,
         public bool $admin,
         public bool $manageRoles = false,
+        /** @var list<string> */
+        public array $permissions = [],
     ) {}
 
     public function isAdmin(): bool
@@ -23,5 +25,16 @@ final readonly class TelegramActor
     public function canManageRoles(): bool
     {
         return $this->manageRoles;
+    }
+
+    public function allows(string $capability): bool
+    {
+        return $this->manageRoles || in_array($capability, $this->permissions, true);
+    }
+
+    public function canEnterAdmin(): bool
+    {
+        return $this->isAdmin() || $this->allows('users.view')
+            || $this->allows('purchases.view') || $this->allows('topups.view');
     }
 }
