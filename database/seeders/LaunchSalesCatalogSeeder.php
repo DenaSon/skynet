@@ -114,7 +114,7 @@ final class LaunchSalesCatalogSeeder extends Seeder
 
     private static function increasedTomanPrice(int $originalToman): int
     {
-        // Integer-only ceil(original * 1.25 / 5000) * 5000; 124,000 -> 155,000.
+        // Integer-only ceil(original * 1.25 / 5000) * 5000; 62,500 -> 65,000.
         $numerator = $originalToman * (100 + self::PRICE_INCREASE_PERCENT);
         $denominator = 100 * self::PRICE_ROUNDING_TOMANS;
 
