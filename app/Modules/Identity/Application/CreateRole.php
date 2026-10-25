@@ -42,6 +42,12 @@ final class CreateRole
                 throw ValidationException::withMessages(['permissions' => 'Unknown permission requested.']);
             }
 
+            foreach (['purchases.review' => 'purchases.view', 'topups.review' => 'topups.view'] as $review => $view) {
+                if (in_array($review, $approved, true) && ! in_array($view, $approved, true)) {
+                    throw ValidationException::withMessages(['permissions' => 'Receipt review requires matching view permission.']);
+                }
+            }
+
             $role->syncPermissions($approved);
             app(RecordIdentityAudit::class)->handle($actor, 'identity.role.created', 'role', (int) $role->getKey(), [
                 'name' => $name,
