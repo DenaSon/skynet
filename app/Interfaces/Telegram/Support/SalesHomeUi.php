@@ -473,6 +473,7 @@ final readonly class SalesHomeUi
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$buyerId));
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:recent:'.$buyerId));
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:wallet:topup:'.$buyerId));
+        app(SalesCheckoutUi::class)->clearWalletDraft($buyerId);
         app(SalesPanelRequestUi::class)->clear($buyerId);
         app(SalesSubscriptionsUi::class)->clearCustomerLabelDraft($buyerId);
         app(SalesSubscriptionsUi::class)->clearCustomerPhoneDraft($buyerId);
