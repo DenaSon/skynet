@@ -5,7 +5,7 @@ declare(strict_types=1);
 use App\Modules\Billing\Application\BrowseCustomerWallets;
 use App\Modules\Billing\Application\ReadAdminWalletSummary;
 use App\Modules\Billing\Application\ReviewTopup;
-use App\Modules\Identity\Application\AdminCapabilityAccess;
+use App\Modules\Identity\Application\AssertCatalogManagementAccess;
 use App\Modules\Identity\Application\BrowseUsers;
 use App\Modules\Identity\Application\ReadCustomerSupportProfile;
 use App\Modules\Identity\Application\ReadDelegatedAdminReports;
@@ -135,7 +135,7 @@ it('allows servers.view only the bounded GET overview, not infrastructure mutati
 
     $overview = app(ReadAdminProviderOverview::class)->handle($observer->id);
     expect($overview->state)->toBeIn(['error', 'unavailable', 'available']);
-    expect(fn () => app(\App\Modules\Identity\Application\AssertCatalogManagementAccess::class)->handle($observer->id))
+    expect(fn () => app(AssertCatalogManagementAccess::class)->handle($observer->id))
         ->toThrow(AuthorizationException::class);
     expect(fn () => app(ReadAdminWalletSummary::class)->handle($observer->id))
         ->toThrow(AuthorizationException::class);
