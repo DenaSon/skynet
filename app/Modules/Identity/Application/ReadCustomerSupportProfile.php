@@ -102,7 +102,7 @@ final readonly class ReadCustomerSupportProfile
 
         $financeAllowed = false;
         try {
-            app(AdminCapabilityAccess::class)->require($actorId, 'finance.view');
+            $this->billingAccess->financeViewer($actorId);
             $financeAllowed = true;
         } catch (AuthorizationException) {
             // Managing users does not imply authority to view their finances.
