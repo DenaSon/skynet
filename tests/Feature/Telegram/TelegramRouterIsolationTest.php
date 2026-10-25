@@ -201,6 +201,7 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:nw1:scan:{token}';
     $expected['ADMIN'][] = 'callback:nw1:trust:{token}';
     $expected['ADMIN'][] = 'callback:nw1:cancel';
+    $expected['ADMIN'][] = 'callback:menu:admin:reviews';
     // CF-02: bounded read and confirmed DNS management callbacks (Admin-only).
     $expected['ADMIN'][] = 'command:dns';
     $expected['ADMIN'][] = 'callback:cf2:zones';
