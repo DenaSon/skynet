@@ -597,9 +597,10 @@ final readonly class SalesCheckoutUi
         $balance = $this->walletBalance($order->buyerUserId);
         $walletEligible = $order->status === 'pending_payment' && $latestReceipt !== 'submitted'
             && $balance !== null && $balance >= $order->totalPriceRials;
-        if (! $isReseller && ! $walletEligible && $order->status === 'pending_payment' && $latestReceipt !== 'submitted'
-            && TelegramBotContext::current()->key === TelegramBotContext::SALES
-            && config('sales.manual_bank_review_enabled', false) === true) {
+        $card = ! $isReseller && $order->status === 'pending_payment' && $latestReceipt !== 'submitted'
+            && config('sales.manual_bank_review_enabled', false) === true
+            ? app(ManualPaymentUi::class)->cardNumber() : null;
+        if ($card !== null && ! $walletEligible && TelegramBotContext::current()->key === TelegramBotContext::SALES) {
             app(ManualPaymentUi::class)->start($bot, (string) $order->id);
 
             return;
@@ -611,11 +612,13 @@ final readonly class SalesCheckoutUi
                 '💳 پرداخت از کیف پول', callback_data: 'sales:checkout:wallet:'.$order->id, style: ButtonStyle::SUCCESS,
             ));
         }
-        if (! $isReseller && $order->status === 'pending_payment' && $latestReceipt !== 'submitted'
-            && config('sales.manual_bank_review_enabled', false) === true) {
+        if ($card !== null && $walletEligible) {
+            // The member may choose wallet or bank on the same owned order screen.
+            $keyboard->addRow(TelegramUi::copy($card, '📋 کپی شماره کارت'),
+                TelegramUi::copy((string) intdiv($order->totalPriceRials + 9, 10), '📋 کپی مبلغ'));
             $keyboard->addRow(InlineKeyboardButton::make(
-                $latestReceipt === 'rejected' ? '💳 پرداخت بانکی و رسید جدید' : '💳 پرداخت بانکی',
-                callback_data: 'sales:payment:start:'.$order->id,
+                '📷 ارسال رسید پرداخت', callback_data: 'sales:payment:receipt:'.$order->id,
+                style: ButtonStyle::SUCCESS,
             ));
         }
         if ($isReseller && $order->status === 'pending_payment' && $latestReceipt !== 'submitted'
@@ -650,6 +653,8 @@ final readonly class SalesCheckoutUi
             ."\n".($isReseller ? 'قیمت مخصوص پنل فروش' : 'مبلغ ثبت‌شده').': '
             .TelegramUi::toman($order->totalPriceRials).' تومان'
             ."\nوضعیت: {$status}"
+            .($card !== null && $walletEligible
+                ? "\nشماره کارت: {$card}\nپس از واریز، «ارسال رسید پرداخت» را انتخاب کنید." : '')
             ."\n\n".($isReseller && $order->status === 'pending_payment' && $latestReceipt !== 'submitted'
                 ? ($walletEligible
                     ? 'موجودی کیف پول کافی است. برای خرید، «پرداخت از کیف پول» را انتخاب کنید.'
