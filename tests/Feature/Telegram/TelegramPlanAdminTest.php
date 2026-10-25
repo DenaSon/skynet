@@ -3,6 +3,7 @@
 use App\Interfaces\Telegram\Support\PlanAdminDrafts;
 use App\Interfaces\Telegram\Support\PlanAdminForms;
 use App\Interfaces\Telegram\Support\ReplyMenuLabels;
+use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Sales\Application\ConfigureProduct;
@@ -17,6 +18,7 @@ use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
+use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
 
@@ -361,4 +363,20 @@ it('reads attached service details with GET only and preserves private root plan
         ->and(DB::table('provisioning_subscriptions')->count())->toBe(0);
     Http::assertSentCount(1);
     Http::assertSent(static fn ($request): bool => $request->method() === 'GET');
+});
+
+it('allows a delegated plan manager through real Admin routes without Squad binding rights', function (): void {
+    [$root] = b14Root();
+    $id = b14Plan($root, 'a3-admin-catalog');
+    $manager = User::factory()->create();
+    Role::findOrCreate('plan-editor-a3', 'web')->givePermissionTo('plans.manage');
+    $manager->assignRole('plan-editor-a3');
+    $bot = b14Bot(944030, $manager);
+
+    $bot->hearText('/plans')->reply()->assertCalled('sendMessage');
+    $bot->hearCallbackQueryData('plan:view:'.$id)->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('plan:begin:edit:'.$id)->reply()->assertCalled('editMessageText');
+
+    expect(app(ResolveTelegramActor::class)
+        ->handle(944030)?->allows('plans.manage'))->toBeTrue();
 });

@@ -21,9 +21,17 @@ final readonly class AdminSectionsUi
 
     public function sales(Nutgram $bot): void
     {
-        if ($this->actor($bot) !== null) {
-            $this->menus->showAdminSales($bot);
+        $telegramId = $this->privateUser->id($bot);
+        if ($telegramId === null) {
+            return;
         }
+        $actor = $this->resolve->handle($telegramId);
+        if ($actor === null || (! $actor->allows('plans.manage') && ! $actor->allows('resellers.review'))) {
+            $this->menus->denyAccess($bot);
+
+            return;
+        }
+        $this->menus->showAdminSales($bot, $actor);
     }
 
     public function finance(Nutgram $bot): void

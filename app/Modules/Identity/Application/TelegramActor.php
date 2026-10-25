@@ -37,6 +37,7 @@ final readonly class TelegramActor
         return $this->isAdmin() || $this->allows('users.view')
             || $this->allows('purchases.view') || $this->allows('topups.view')
             || $this->allows('support.view') || $this->allows('reports.view')
-            || $this->allows('finance.view') || $this->allows('servers.view');
+            || $this->allows('finance.view') || $this->allows('servers.view')
+            || $this->allows('plans.manage') || $this->allows('resellers.review');
     }
 }

@@ -1,6 +1,6 @@
 # RBAC-ADMIN-01 — Three-phase granular Admin Bot permissions roadmap
 
-**Status:** Phase 1 merged and operator-tested; Phase 2 separately authorized 2026-10-25 and source implementation under CI/review; Phase 3 planning-only. **This document by itself does not authorize production ENV changes, live transfers, or Phase 2/3 work.** Each phase requires a separate explicit implementation instruction, scoped PR, PHP 8.4/8.5 CI, review, guarded master merge and operator-confirmed real acceptance.
+**Status:** Phase 1 and 2 merged; Phase 3 separately authorized 2026-10-25 and implemented via PR #233, subject to normal CI/merge and separate Production acceptance. **This document by itself does not authorize production ENV changes, live transfers, or Phase 2/3 work.** Each phase requires a separate explicit implementation instruction, scoped PR, PHP 8.4/8.5 CI, review, guarded master merge and operator-confirmed real acceptance.
 
 **Authority:** [docs/005-ROADMAP.md](005-ROADMAP.md), [docs/007-RBAC-OPERATIONS.md](007-RBAC-OPERATIONS.md), [docs/017-TELEGRAM-UX-IDENTITY.md](017-TELEGRAM-UX-IDENTITY.md), [docs/018-REMNAWAVE-STAGING-MULTIBOT-ROADMAP.md](018-REMNAWAVE-STAGING-MULTIBOT-ROADMAP.md) and [docs/021-MB05A-NOTIFICATION-OPERATIONS.md](021-MB05A-NOTIFICATION-OPERATIONS.md).
 

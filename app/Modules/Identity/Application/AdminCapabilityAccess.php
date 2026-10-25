@@ -15,6 +15,7 @@ final readonly class AdminCapabilityAccess
         'users.view', 'users.manage', 'purchases.view', 'purchases.review',
         'topups.view', 'topups.review',
         'support.view', 'reports.view', 'finance.view', 'servers.view',
+        'plans.manage', 'resellers.review',
     ];
 
     public function __construct(private SuperAdminTrust $trust) {}

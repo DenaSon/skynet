@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Sales\Application;
 
-use App\Modules\Identity\Application\AssertCatalogManagementAccess;
+use App\Modules\Identity\Application\AdminCapabilityAccess;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -14,11 +14,11 @@ use Illuminate\Validation\ValidationException;
  */
 final readonly class ManagePlanPricing
 {
-    public function __construct(private AssertCatalogManagementAccess $access) {}
+    public function __construct(private AdminCapabilityAccess $access) {}
 
     public function find(int $rootId, int $planId): ?PlanTariffSummary
     {
-        $this->access->handle($rootId);
+        $this->access->require($rootId, 'plans.manage');
 
         $row = DB::table('sales_plan_prices')->where('plan_id', $planId)->first();
 
@@ -29,7 +29,7 @@ final readonly class ManagePlanPricing
         int $rootId, int $planId, int $expectedPlanRevision,
         int $expectedPriceRevision, PlanPricingDefinition $definition,
     ): int {
-        $this->access->handle($rootId);
+        $this->access->require($rootId, 'plans.manage');
 
         return DB::transaction(function () use (
             $rootId, $planId, $expectedPlanRevision, $expectedPriceRevision, $definition,
@@ -86,7 +86,7 @@ final readonly class ManagePlanPricing
         int $rootId, int $planId, int $expectedPlanRevision,
         int $expectedPriceRevision, string $operation,
     ): string {
-        $this->access->handle($rootId);
+        $this->access->require($rootId, 'plans.manage');
 
         if (! in_array($operation, ['activate', 'deactivate'], true)) {
             throw ValidationException::withMessages(['pricing' => 'Invalid tariff operation.']);
@@ -113,7 +113,7 @@ final readonly class ManagePlanPricing
 
     public function confirmChange(int $rootId, string $token): int
     {
-        $this->access->handle($rootId);
+        $this->access->require($rootId, 'plans.manage');
 
         if (preg_match('/\A[a-f0-9]{32}\z/D', $token) !== 1) {
             throw ValidationException::withMessages(['confirmation' => 'Invalid tariff confirmation.']);

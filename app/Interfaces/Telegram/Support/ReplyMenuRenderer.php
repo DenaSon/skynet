@@ -93,6 +93,9 @@ final class ReplyMenuRenderer
         }
 
         if (! $actor->canManageRoles()) {
+            if ($actor->allows('plans.manage') || $actor->allows('resellers.review')) {
+                $labels[] = ReplyMenuLabels::SALES_SECTION;
+            }
             if ($actor->allows('reports.view')) {
                 $labels[] = ReplyMenuLabels::STATS;
             }

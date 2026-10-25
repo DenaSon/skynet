@@ -179,20 +179,23 @@ final readonly class PlanAdminUi
             return;
         }
 
-        $binding = $this->bindings->status($actor->userId, $planId);
-        $ready = $plan->status === 'active'
+        // Squad management and remote existence checks remain trusted-root-only.
+        $binding = $actor->canManageRoles()
+            ? $this->bindings->status($actor->userId, $planId)
+            : ['state' => 'unavailable', 'name' => null];
+        $ready = $actor->canManageRoles() && $plan->status === 'active'
             && $price !== null
             && $price->status === 'active'
             && $price->configuredPlanRevision === $plan->revision
             && $this->squads->handle($actor->userId, $planId);
 
-        $service = match ($binding['state']) {
+        $service = ! $actor->canManageRoles() ? 'مدیریت اتصال فقط توسط مدیر اصلی' : match ($binding['state']) {
             'connected' => $this->safe($binding['name'] ?? ''),
             'stale' => 'نیاز به انتخاب دوباره',
             'unavailable' => 'بررسی اتصال ممکن نیست',
             default => 'انتخاب نشده',
         };
-        $reason = match (true) {
+        $reason = ! $actor->canManageRoles() ? 'وضعیت اتصال سرویس را با مدیر اصلی بررسی کنید.' : match (true) {
             $plan->status !== 'active' => 'ابتدا پلن را فعال کنید.',
             $price === null => 'ابتدا تعرفه پلن را تنظیم کنید.',
             $price->configuredPlanRevision !== $plan->revision => 'تعرفه پلن را دوباره تنظیم کنید.',
@@ -223,7 +226,7 @@ final readonly class PlanAdminUi
             $price === null ? '' : $this->tariffText($price),
             '',
             '🔗 سرویس متصل: '.$service,
-            '🛒 ثبت سفارش در بات فروش: '.($ready ? '✅ آماده' : '⏳ هنوز آماده نیست'),
+            '🛒 ثبت سفارش در بات فروش: '.(! $actor->canManageRoles() ? 'نیازمند بررسی مدیر اصلی' : ($ready ? '✅ آماده' : '⏳ هنوز آماده نیست')),
             $reason === null ? '' : 'راهنما: '.$reason,
             'فعال‌سازی اشتراک پس از تأیید پرداخت، جداگانه انجام می‌شود.',
         ];
@@ -259,7 +262,7 @@ final readonly class PlanAdminUi
             }
         }
 
-        if ($plan->status !== 'archived') {
+        if ($actor->canManageRoles() && $plan->status !== 'archived') {
             $keyboard->addRow(InlineKeyboardButton::make('🔗 اتصال سرویس', callback_data: 'plan:squad:list:'.$planId));
         }
 
@@ -727,7 +730,7 @@ final readonly class PlanAdminUi
             return false;
         }
 
-        if (! $actor->canManageRoles()) {
+        if (! $actor->allows('plans.manage')) {
             $this->drafts->forget($actor->userId);
             $this->menus->denyAccess($bot);
 
@@ -971,7 +974,7 @@ final readonly class PlanAdminUi
         }
 
         $actor = $this->resolve->handle($telegramId);
-        if ($actor?->canManageRoles() !== true) {
+        if ($actor?->allows('plans.manage') !== true) {
             $this->menus->denyAccess($bot);
 
             return null;

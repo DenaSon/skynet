@@ -146,7 +146,7 @@ final class ReplyMenuHandler
                 return true;
 
             case ReplyMenuLabels::SALES_SECTION:
-                if (! $actor->canManageRoles()) {
+                if (! $actor->allows('plans.manage') && ! $actor->allows('resellers.review')) {
                     $this->deny($bot, $actor);
 
                     return true;
@@ -213,7 +213,7 @@ final class ReplyMenuHandler
                 return true;
 
             case ReplyMenuLabels::PRODUCTS:
-                if (! $actor->canManageRoles()) {
+                if (! $actor->allows('plans.manage')) {
                     $this->deny($bot, $actor);
 
                     return true;
@@ -224,7 +224,7 @@ final class ReplyMenuHandler
                 return true;
 
             case ReplyMenuLabels::PLANS:
-                if (! $actor->canManageRoles()) {
+                if (! $actor->allows('plans.manage')) {
                     $this->deny($bot, $actor);
 
                     return true;
