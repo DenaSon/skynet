@@ -1,4 +1,4 @@
-## RBAC-A3 — scoped catalog management and Sales Panel approval (2026-10-25, source PR under review)
+## RBAC-A3 — scoped catalog management and Sales Panel approval (2026-10-25; PR #233)
 
 Operator separately authorized implementation of Phase 3 of [docs/030](030-ADMIN-RBAC-THREE-PHASE-ROADMAP.md). Additive, opt-in `plans.manage` and `resellers.review` Spatie permissions via a new reversible migration. Permissions remain individually assigned only to custom roles through the existing root-only audited role UI. No default role broadening, root enrollment, ledger changes, payments, Remnawave mutation or automatic Production privileges.
 
