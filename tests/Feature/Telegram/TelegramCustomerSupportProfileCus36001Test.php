@@ -160,7 +160,7 @@ it('scopes local service/order summary and settled purchase evidence to the sele
         ->and($paid['lastSettledAt'])->not->toBeNull();
 
     c360Bot(993601, $root)->hearCallbackQueryData("users:profile:{$target->id}:1:a")->reply()
-        ->assertRaw(static function (NutgramRequest $request) use ($target, $other): bool {
+        ->assertRaw(static function (NutgramRequest $request) use ($target): bool {
             $data = c360Payload($request);
             $text = $data['text'];
             $buttons = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);

@@ -28,12 +28,12 @@ use App\Interfaces\Telegram\Support\AdminSectionsUi;
 use App\Interfaces\Telegram\Support\AdminSubscriptionStatusUi;
 use App\Interfaces\Telegram\Support\AdminTrafficReportUi;
 use App\Interfaces\Telegram\Support\BillingUi;
+use App\Interfaces\Telegram\Support\CustomerSupportProfileUi;
 use App\Interfaces\Telegram\Support\ManualPaymentUi;
 use App\Interfaces\Telegram\Support\PlanAdminUi;
 use App\Interfaces\Telegram\Support\PlanSquadUi;
 use App\Interfaces\Telegram\Support\ProductAdminUi;
 use App\Interfaces\Telegram\Support\RbacUi;
-use App\Interfaces\Telegram\Support\CustomerSupportProfileUi;
 use App\Interfaces\Telegram\Support\UserManagementUi;
 use SergiX44\Nutgram\Nutgram;
 
