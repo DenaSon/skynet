@@ -171,7 +171,7 @@ it('shows wallet to active members and resellers but denies inactive and revoked
         return str_contains($markup, 'sales:wallet');
     });
     $bot->hearCallbackQueryData('sales:wallet')->reply()->assertRaw(static function (Request $request): bool {
-        return str_contains(uxr04Payload($request)['text'], 'موجودی: <b>0 تومان</b>');
+        return str_contains(uxr04Payload($request)['text'], 'اعتبار فعلی: <b>0 تومان</b>');
     }, index: 1);
 
     $member->syncRoles(['reseller']);
@@ -179,7 +179,7 @@ it('shows wallet to active members and resellers but denies inactive and revoked
         $data = uxr04Payload($request);
 
         return str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:wallet')
-            && str_contains($data['text'], 'موجودی کیف پول');
+            && str_contains($data['text'], 'اعتبار من');
     });
     $member->syncRoles([]);
     $bot->hearCallbackQueryData('sales:wallet')->reply()->assertRaw(static function (Request $request): bool {

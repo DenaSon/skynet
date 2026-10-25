@@ -94,7 +94,10 @@ it('records one root notice on Sales photo submission and never credits or dupli
     $bot->setCommonChat(Chat::make(916099, ChatType::PRIVATE));
 
     $bot->hearCallbackQueryData('sales:wallet:topup')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:wallet:topup:custom')->reply()->assertCalled('editMessageText');
     $bot->hearText('۵۰۰۰۰')->reply()->assertCalled('sendMessage');
+    $topupId = (int) DB::table('billing_topups')->value('id');
+    $bot->hearCallbackQueryData('sales:wallet:topup:receipt:'.$topupId)->reply()->assertCalled('editMessageText');
     $bot->hearMessage(['message_id' => 501, 'photo' => [
         ['file_id' => 'topup-photo-file-101', 'file_unique_id' => 'unique-photo-101', 'width' => 300, 'height' => 300],
     ]])->reply()->assertCalled('sendMessage');

@@ -499,10 +499,12 @@ it('routes the next photo to the newly opened purchase without changing a pendin
     $orderId = (int) DB::table('sales_orders')->value('id');
 
     $bot->hearCallbackQueryData('sales:wallet:topup')->reply();
+    $bot->hearCallbackQueryData('sales:wallet:topup:custom')->reply();
     $bot->hearText('250000')->reply();
     $topup = DB::table('billing_topups')->sole();
     $topupKey = TelegramBotContext::current()->cacheKey('telegram:wallet:topup:'.$buyer->id);
-    expect(Cache::get($topupKey))->toBe(['step' => 'photo', 'topup_id' => (int) $topup->id]);
+    $bot->hearCallbackQueryData('sales:wallet:topup:receipt:'.$topup->id)->reply();
+    expect(Cache::get($topupKey))->toBe(['step' => 'photo', 'topup_id' => (int) $topup->id, 'amount_toman' => 250000]);
 
     $adminKey = 'telegram:wallet:topup:'.$buyer->id;
     $otherKey = TelegramBotContext::current()->cacheKey('telegram:wallet:topup:'.$other->id);
@@ -566,6 +568,7 @@ it('preserves wallet top-up intake when purchase receipt entry is rejected', fun
             'existing-purchase-photo', 'existing-purchase-unique', 182, 'sales');
     }
     $bot->hearCallbackQueryData('sales:wallet:topup')->reply();
+    $bot->hearCallbackQueryData('sales:wallet:topup:custom')->reply();
     $bot->hearText('250000')->reply();
     $key = TelegramBotContext::current()->cacheKey('telegram:wallet:topup:'.$buyer->id);
     $draft = Cache::get($key);
@@ -600,7 +603,10 @@ it('keeps the existing switch from purchase receipt intake to wallet top-up work
     expect(Cache::has($purchaseKey))->toBeTrue();
 
     $bot->hearCallbackQueryData('sales:wallet:topup')->reply();
+    $bot->hearCallbackQueryData('sales:wallet:topup:custom')->reply();
     $bot->hearText('250000')->reply();
+    $topupId = (int) DB::table('billing_topups')->value('id');
+    $bot->hearCallbackQueryData('sales:wallet:topup:receipt:'.$topupId)->reply();
     $bot->hearMessage(['message_id' => 184, 'photo' => [
         ['file_id' => 'wallet-switch-photo', 'file_unique_id' => 'wallet-switch-unique', 'width' => 400, 'height' => 400],
     ]])->reply();

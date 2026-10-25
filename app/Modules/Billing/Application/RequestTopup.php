@@ -9,8 +9,8 @@ final class RequestTopup
 {
     public function handle(int $userId, int $amountRials, string $requestKey): int
     {
-        if ($amountRials < 100000 || $amountRials > 1000000000000) {
-            throw ValidationException::withMessages(['amount' => 'Top-up must be between 10,000 and 100,000,000,000 tomans.']);
+        if ($amountRials < 100000 || $amountRials > 100000000) {
+            throw ValidationException::withMessages(['amount' => 'Top-up must be between 10,000 and 10,000,000 tomans.']);
         }
 
         if (preg_match('/^[a-zA-Z0-9:_-]{6,128}$/D', $requestKey) !== 1) {

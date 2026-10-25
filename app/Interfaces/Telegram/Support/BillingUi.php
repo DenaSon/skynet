@@ -108,7 +108,7 @@ final class BillingUi
         }
 
         if (preg_match('/^[1-9][0-9]{0,11}$/D', $toman) !== 1) {
-            $this->notice($bot, 'مبلغ معتبر نیست. مثال: /topup 500000 (تومان)');
+            $this->notice($bot, 'مبلغ شارژ باید بین ۱۰ هزار تا ۱۰ میلیون تومان باشد. مثال: /topup 500000');
 
             return;
         }

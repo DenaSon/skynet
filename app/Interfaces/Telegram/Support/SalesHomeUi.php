@@ -91,10 +91,10 @@ final readonly class SalesHomeUi
         $walletLine = '';
         if ($hasWallet) {
             try {
-                $walletLine = "\n💰 موجودی کیف پول: <b>"
+                $walletLine = "\n💰 اعتبار من: <b>"
                     .TelegramUi::toman($this->wallets->handle($actor->userId)->balanceRials).' تومان</b>';
             } catch (Throwable) {
-                $walletLine = "\n💰 موجودی کیف پول: فعلاً در دسترس نیست";
+                $walletLine = "\n💰 اعتبار من: فعلاً در دسترس نیست";
             }
         }
 
@@ -301,7 +301,7 @@ final readonly class SalesHomeUi
 
         $balance = '';
         if (in_array('member', $actor->roles, true) || in_array('reseller', $actor->roles, true)) {
-            $label = 'موجودی کیف پول';
+            $label = 'اعتبار من';
             try {
                 $balance = "\n💼 {$label}: <b>".TelegramUi::toman($this->wallets->handle($actor->userId)->balanceRials).' تومان</b>';
                 $keyboard->addRow(InlineKeyboardButton::make('💰 کیف پول', callback_data: 'sales:wallet'));
@@ -346,8 +346,8 @@ final readonly class SalesHomeUi
         }
         try {
             $wallet = $this->wallets->handle($actor->userId);
-            $message = '<b>💰 کیف پول من</b>'
-                ."\n\nموجودی: <b>".TelegramUi::toman($wallet->balanceRials).' تومان</b>';
+            $message = '<b>💰 اعتبار من</b>'
+                ."\n\nاعتبار فعلی: <b>".TelegramUi::toman($wallet->balanceRials).' تومان</b>';
             if ($wallet->topups !== []) {
                 $message .= "\n\n<b>آخرین درخواست‌های شارژ</b>";
                 foreach (array_slice($wallet->topups, 0, 5) as $topup) {
@@ -356,7 +356,7 @@ final readonly class SalesHomeUi
             }
             $message .= "\n\n<blockquote>موجودی براساس تراکنش‌های تأییدشده محاسبه می‌شود.</blockquote>";
         } catch (Throwable) {
-            $message = '<b>💰 کیف پول من</b>'."\n\nموجودی فعلاً در دسترس نیست.";
+            $message = '<b>💰 اعتبار من</b>'."\n\nموجودی فعلاً در دسترس نیست.";
         }
 
         $keyboard = InlineKeyboardMarkup::make();

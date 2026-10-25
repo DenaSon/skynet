@@ -94,6 +94,26 @@ $bot->onCallbackQueryData('sales:wallet:topup', function (Nutgram $bot): void {
     app(WalletTopupUi::class)->start($bot);
 });
 
+$bot->onCallbackQueryData('sales:wallet:topup:quick:{toman}', function (Nutgram $bot, string $toman): void {
+    app(WalletTopupUi::class)->quick($bot, $toman);
+});
+
+$bot->onCallbackQueryData('sales:wallet:topup:custom', function (Nutgram $bot): void {
+    app(WalletTopupUi::class)->custom($bot);
+});
+
+$bot->onCallbackQueryData('sales:wallet:topup:receipt:{id}', function (Nutgram $bot, string $id): void {
+    app(WalletTopupUi::class)->requestReceipt($bot, $id);
+});
+
+$bot->onCallbackQueryData('sales:wallet:topup:back:{id}', function (Nutgram $bot, string $id): void {
+    app(WalletTopupUi::class)->back($bot, $id);
+});
+
+$bot->onCallbackQueryData('sales:wallet:topup:cancel', function (Nutgram $bot): void {
+    app(WalletTopupUi::class)->cancel($bot);
+});
+
 $bot->onCallbackQueryData('sales:panel:request', function (Nutgram $bot): void {
     app(SalesPanelRequestUi::class)->start($bot);
 });
