@@ -6,7 +6,7 @@ use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\Client\Request;
+use GuzzleHttp\Psr7\Request;
 use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +15,7 @@ use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
+use SergiX44\Nutgram\Testing\FakeNutgram;
 
 uses(RefreshDatabase::class);
 
@@ -183,12 +184,12 @@ it('resumes an owned pending topup from durable SQL without making a second fina
 
     Cache::forget($key);
     $bot->hearCallbackQueryData('sales:wallet')->reply()->assertRaw(static function (Request $request) use ($id): bool {
-        $keyboard = json_encode($request->data()['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
+        $keyboard = json_encode(FakeNutgram::getActualData($request)['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
 
         return str_contains($keyboard, 'sales:wallet:topup:resume:'.$id);
     }, index: 1);
     $bot->hearCallbackQueryData('sales:wallet:topup')->reply()->assertRaw(static function (Request $request) use ($id): bool {
-        $keyboard = json_encode($request->data()['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
+        $keyboard = json_encode(FakeNutgram::getActualData($request)['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
 
         return str_contains($keyboard, 'sales:wallet:topup:resume:'.$id)
             && str_contains($keyboard, 'sales:wallet:topup:new')
