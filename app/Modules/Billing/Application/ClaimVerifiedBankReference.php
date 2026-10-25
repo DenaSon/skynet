@@ -32,8 +32,7 @@ final readonly class ClaimVerifiedBankReference
             throw new AuthorizationException;
         }
 
-        if (! in_array($sourceType, ['wallet_topup', 'sales_order'], true)
-            || $sourceId < 1 || preg_match('/\A[A-Z0-9_-]{6,64}\z/D', $reference) !== 1) {
+        if ($sourceId < 1 || preg_match('/\A[A-Z0-9_-]{6,64}\z/D', $reference) !== 1) {
             throw ValidationException::withMessages(['payment' => 'Invalid verified bank reference.']);
         }
 
