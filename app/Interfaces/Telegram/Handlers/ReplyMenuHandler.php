@@ -122,7 +122,7 @@ final class ReplyMenuHandler
                 return true;
 
             case ReplyMenuLabels::ADMIN:
-                if (! $actor->isAdmin()) {
+                if (! $actor->canEnterAdmin()) {
                     $this->deny($bot, $actor);
 
                     return true;
@@ -133,7 +133,7 @@ final class ReplyMenuHandler
                 return true;
 
             case ReplyMenuLabels::USERS:
-                if (! $actor->isAdmin()) {
+                if (! $actor->allows('users.view')) {
                     $this->deny($bot, $actor);
 
                     return true;
@@ -244,18 +244,18 @@ final class ReplyMenuHandler
                 return true;
 
             case ReplyMenuLabels::TOPUPS:
-                if (! $actor->canManageRoles() || config('billing.topups_enabled', false) !== true) {
+                if (! $actor->allows('topups.view') || config('billing.topups_enabled', false) !== true) {
                     $this->deny($bot, $actor);
 
                     return true;
                 }
 
-                app(BillingUi::class)->reviews($bot);
+                app(\App\Interfaces\Telegram\Support\AdminFinanceWalletUi::class)->pending($bot);
 
                 return true;
 
             case ReplyMenuLabels::RECEIPTS:
-                if (! $actor->canManageRoles() || config('sales.manual_bank_review_enabled', false) !== true) {
+                if (! $actor->allows('purchases.view') || config('sales.manual_bank_review_enabled', false) !== true) {
                     $this->deny($bot, $actor);
 
                     return true;
