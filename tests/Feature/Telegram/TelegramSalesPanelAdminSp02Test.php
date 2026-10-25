@@ -129,3 +129,45 @@ it('the old pending SP-01 application appears in the new Admin queue without ret
     expect(DB::table('telegram_notification_deliveries')->count())->toBe(0)
         ->and(DB::table('sales_panel_requests')->where('status', 'pending')->count())->toBe(1);
 });
+
+it('allows a scoped reviewer to approve a real pending request without catalog or root action buttons', function (): void {
+    $reviewer = User::factory()->create();
+    $bot = sp02AdminBot(977010, $reviewer);
+    $role = Role::findOrCreate('panel-review-a3', 'web');
+    $role->givePermissionTo('resellers.review');
+    $reviewer->assignRole($role);
+
+    $buyer = User::factory()->create();
+    PanelWalletFunding::credit($buyer->id, 7_500_000);
+    $id = app(SalesPanelRequests::class)->submit($buyer->id, 'نگین', 'امیری', '09123456789')['id'];
+
+    $bot->hearCallbackQueryData('menu:admin:sales')->reply()->assertRaw(static function (Request $request): bool {
+        $buttons = json_encode(sp02Payload($request)['reply_markup'] ?? null, JSON_THROW_ON_ERROR);
+
+        return str_contains($buttons, 'sp:list:1')
+            && ! str_contains($buttons, 'menu:admin:products')
+            && ! str_contains($buttons, 'menu:admin:plans')
+            && ! str_contains($buttons, 'menu:admin:fulfillment');
+    }, index: 1);
+    $bot->hearCallbackQueryData('sp:detail:'.$id)->reply()->assertCalled('editMessageText');
+
+    $token = '';
+    $bot->hearCallbackQueryData('sp:prepare:'.$id.':a')->reply()
+        ->assertRaw(static function (Request $request) use (&$token): bool {
+            $buttons = json_encode(sp02Payload($request)['reply_markup'] ?? null, JSON_THROW_ON_ERROR);
+            if (preg_match('/sp:apply:([a-f0-9]{32})/', $buttons, $m) !== 1) {
+                return false;
+            }
+            $token = $m[1];
+
+            return true;
+        }, index: 1);
+    expect($token)->not->toBe('');
+    $bot->hearCallbackQueryData('sp:apply:'.$token)->reply()->assertCalled('editMessageText');
+
+    expect($buyer->fresh()->getRoleNames()->all())->toBe(['reseller'])
+        ->and(DB::table('sales_panel_requests')->where('id', $id)->value('status'))->toBe('approved');
+    $bot->hearCallbackQueryData('sp:apply:'.$token)->reply()->assertCalled('editMessageText');
+    expect(DB::table('identity_audit_events')->where('event', 'identity.roles.assigned')->count())->toBe(1);
+    Http::assertNothingSent();
+});
