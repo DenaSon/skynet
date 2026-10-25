@@ -160,7 +160,7 @@ it('immediately revokes read access for removed roles and disabled users', funct
         ->toThrow(AuthorizationException::class);
 
     $operator->assignRole('all-read');
-    $operator->update(['is_active' => false]);
+    DB::table('users')->where('id', $operator->id)->update(['is_active' => false]);
     expect(app(ResolveTelegramActor::class)->handle(995015))->toBeNull();
     expect(fn () => app(ReadDelegatedAdminReports::class)->handle($operator->id))
         ->toThrow(AuthorizationException::class);
