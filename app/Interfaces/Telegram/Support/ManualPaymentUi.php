@@ -127,6 +127,7 @@ final readonly class ManualPaymentUi
                 throw $error;
             }
 
+            app(SalesCheckoutUi::class)->clearWalletDraft($actor->userId);
             // Retire only this buyer's temporary top-up/photo intake after all
             // payment checks pass. Persisted orders, top-ups and evidence remain.
             Cache::forget(TelegramBotContext::current()->cacheKey('telegram:wallet:topup:'.$actor->userId));
