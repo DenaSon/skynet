@@ -8,8 +8,6 @@ use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
 use App\Interfaces\Telegram\Notifications\PendingReceiptSummary;
 use App\Modules\Identity\Application\AdminCapabilityAccess;
 use App\Modules\Identity\Infrastructure\Models\User;
-use App\Modules\Identity\Application\ResolveTelegramActor;
-use App\Modules\Identity\Application\SuperAdminTrust;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
