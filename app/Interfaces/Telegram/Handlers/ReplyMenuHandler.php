@@ -7,6 +7,7 @@ use App\Interfaces\Telegram\Support\AdminDashboardUi;
 use App\Interfaces\Telegram\Support\AdminFinanceWalletUi;
 use App\Interfaces\Telegram\Support\AdminProviderOverviewUi;
 use App\Interfaces\Telegram\Support\AdminSectionsUi;
+use App\Interfaces\Telegram\Support\AdminScopedReadUi;
 use App\Interfaces\Telegram\Support\BillingUi;
 use App\Interfaces\Telegram\Support\ManualPaymentUi;
 use App\Interfaces\Telegram\Support\PendingBuilderSelection;
@@ -134,7 +135,7 @@ final class ReplyMenuHandler
                 return true;
 
             case ReplyMenuLabels::USERS:
-                if (! $actor->allows('users.view')) {
+                if (! $actor->allows('users.view') && ! $actor->allows('support.view')) {
                     $this->deny($bot, $actor);
 
                     return true;
@@ -156,13 +157,17 @@ final class ReplyMenuHandler
                 return true;
 
             case ReplyMenuLabels::SERVERS:
-                if (! $actor->canManageRoles()) {
+                if (! $actor->allows('servers.view')) {
                     $this->deny($bot, $actor);
 
                     return true;
                 }
 
-                app(AdminProviderOverviewUi::class)->show($bot);
+                if ($actor->canManageRoles()) {
+                    app(AdminProviderOverviewUi::class)->show($bot);
+                } else {
+                    app(AdminScopedReadUi::class)->servers($bot);
+                }
 
                 return true;
 
@@ -178,24 +183,32 @@ final class ReplyMenuHandler
                 return true;
 
             case ReplyMenuLabels::STATS:
-                if (! $actor->canManageRoles()) {
+                if (! $actor->allows('reports.view')) {
                     $this->deny($bot, $actor);
 
                     return true;
                 }
 
-                app(AdminDashboardUi::class)->show($bot);
+                if ($actor->canManageRoles()) {
+                    app(AdminDashboardUi::class)->show($bot);
+                } else {
+                    app(AdminScopedReadUi::class)->reports($bot);
+                }
 
                 return true;
 
             case ReplyMenuLabels::FINANCE_SECTION:
-                if (! $actor->canManageRoles()) {
+                if (! $actor->allows('finance.view')) {
                     $this->deny($bot, $actor);
 
                     return true;
                 }
 
-                app(AdminSectionsUi::class)->finance($bot);
+                if ($actor->canManageRoles()) {
+                    app(AdminSectionsUi::class)->finance($bot);
+                } else {
+                    app(AdminScopedReadUi::class)->finance($bot);
+                }
 
                 return true;
 
