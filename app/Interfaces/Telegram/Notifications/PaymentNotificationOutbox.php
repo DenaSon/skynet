@@ -8,6 +8,7 @@ use App\Modules\Identity\Application\AdminCapabilityAccess;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\SuperAdminTrust;
 use App\Modules\Identity\Application\TelegramRecipient;
+use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Jobs\FulfillPaidPlanOrderJob;
 use Illuminate\Support\Facades\DB;
 
@@ -44,7 +45,7 @@ final readonly class PaymentNotificationOutbox
             if (is_numeric($reviewer) && (int) $reviewer > 0) {
                 // Delegated reviewers cannot impersonate a root in Provider jobs.
                 // The internal delegated-bank marker must prove a full settlement in the worker.
-                $user = \App\Modules\Identity\Infrastructure\Models\User::query()
+                $user = User::query()
                     ->with('telegramAccount')->find((int) $reviewer);
                 $actorId = $user !== null && $this->trust->eligible($user)
                     ? (int) $reviewer : FulfillPaidPlanOrderJob::VERIFIED_BANK_REVIEW;
