@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
+use App\Modules\Provisioning\Jobs\FulfillPaidPlanOrderJob;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Billing\Application\BrowsePhotoTopups;
 use App\Modules\Billing\Application\ReviewTopup;
@@ -342,5 +343,45 @@ it('revoking a delegated reviewer blocks queued immediate and reminder notificat
 
     expect(DB::table('telegram_notification_deliveries')->where('id', $id)->value('state'))->toBe('unavailable')
         ->and(DB::table('telegram_notification_deliveries')->where('id', $id)->value('last_failure'))->toBe('not_authorized');
+    Http::assertNothingSent();
+});
+
+it('lets a delegated reviewer reject an actual purchase and a wallet photo without posting money', function (): void {
+    reminderRoot(987001);
+    reminderRoot(987002);
+    $bank = reminderDelegated(987010, 'bank-review', ['purchases.view', 'purchases.review']);
+    $wallet = reminderDelegated(987011, 'wallet-review', ['topups.view', 'topups.review']);
+    $data = reminderReceipts();
+
+    app(ManualBankPayments::class)->review($bank->id, $data['claim'], false);
+    app(ReviewTopup::class)->handle($wallet->id, $data['topup'], false, 'PHOTO-REJECT');
+
+    expect(DB::table('sales_bank_payment_claims')->where('id', $data['claim'])->value('status'))->toBe('rejected')
+        ->and(DB::table('billing_topups')->where('id', $data['topup'])->value('status'))->toBe('rejected')
+        ->and(DB::table('billing_journals')->count())->toBe(0)
+        ->and(DB::table('billing_postings')->count())->toBe(0);
+});
+
+it('approves a verified purchase once as a delegated bank reviewer without impersonating root in provider job', function (): void {
+    reminderRoot(987001);
+    reminderRoot(987002);
+    $bank = reminderDelegated(987010, 'bank-review', ['purchases.view', 'purchases.review']);
+    $data = reminderReceipts();
+    config()->set('sales.auto_fulfillment_enabled', true);
+    config()->set('services.remnawave.writes_enabled', true);
+    config()->set('services.remnawave.squad_bindings_live_verified', true);
+
+    app(ManualBankPayments::class)->review($bank->id, $data['claim'], true, 'DELEGATEDBANK123');
+
+    expect(DB::table('sales_bank_payment_claims')->where('id', $data['claim'])->value('status'))->toBe('approved')
+        ->and(DB::table('sales_bank_settlements')->where('verified_by', $bank->id)->count())->toBe(1)
+        ->and(DB::table('billing_journals')->where('kind', 'direct_bank_sale')->count())->toBe(1)
+        ->and(DB::table('billing_postings')->count())->toBe(2)
+        ->and(DB::table('sales_fulfillment_outbox')->where('state', 'pending')->count())->toBe(1);
+    Queue::assertPushed(FulfillPaidPlanOrderJob::class,
+        static fn (FulfillPaidPlanOrderJob $job): bool => $job->actorId === FulfillPaidPlanOrderJob::VERIFIED_BANK_REVIEW);
+    expect(fn () => app(ManualBankPayments::class)->review($bank->id, $data['claim'], true, 'DELEGATEDBANK123'))
+        ->toThrow(\\Illuminate\\Validation\\ValidationException::class);
+    expect(DB::table('billing_journals')->where('kind', 'direct_bank_sale')->count())->toBe(1);
     Http::assertNothingSent();
 });
