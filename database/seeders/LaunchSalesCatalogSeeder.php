@@ -18,7 +18,16 @@ use RuntimeException;
 /** Explicit launch setup only; never called by DatabaseSeeder or a migration. */
 final class LaunchSalesCatalogSeeder extends Seeder
 {
-    /** @var list<array{slug:string,name:string,gb:int,days:int,toman:int}> */
+    private const PRICE_INCREASE_PERCENT = 25;
+
+    private const PRICE_ROUNDING_TOMANS = 5_000;
+
+    private const RESELLER_DISCOUNT_PERCENT = 35;
+
+    /** Original approved prices, before the 25% increase and upward 5,000-toman rounding.
+     *
+     * @var list<array{slug:string,name:string,gb:int,days:int,toman:int}>
+     */
     private const PLANS = [
         ['slug' => 'basic-10-15', 'name' => 'پایه', 'gb' => 10, 'days' => 15, 'toman' => 50_000],
         ['slug' => 'economy-20-30', 'name' => 'اقتصادی', 'gb' => 20, 'days' => 30, 'toman' => 100_000],
@@ -78,15 +87,15 @@ final class LaunchSalesCatalogSeeder extends Seeder
                     throw new RuntimeException('Launch plan activation did not return a plan.');
                 }
 
-                $publicRials = $entry['toman'] * 10;
+                $publicRials = self::increasedTomanPrice($entry['toman']) * 10;
                 $priceRevision = $pricing->configure($root->id, $plan->id, $plan->revision, 0, new PlanPricingDefinition(
                     method: 'fixed',
                     fixedPriceRials: $publicRials,
                     basePriceRials: 0,
                     perGbRials: 0,
                     perDayRials: 0,
-                    resellerDiscountPercent: 25,
-                    minimumTotalRials: intdiv($publicRials * 75, 100),
+                    resellerDiscountPercent: self::RESELLER_DISCOUNT_PERCENT,
+                    minimumTotalRials: intdiv($publicRials * (100 - self::RESELLER_DISCOUNT_PERCENT), 100),
                 ));
                 $token = $pricing->requestChange($root->id, $plan->id, $plan->revision, $priceRevision, 'activate');
                 $pricing->confirmChange($root->id, $token);
@@ -101,6 +110,15 @@ final class LaunchSalesCatalogSeeder extends Seeder
             $this->command->warn('Existing plans left unchanged: '.implode(', ', $skipped));
         }
         $this->command->warn('Before selling, verify each plan tariff and bind it to its real Internal Squad in the Admin Bot.');
+    }
+
+    private static function increasedTomanPrice(int $originalToman): int
+    {
+        // Integer-only ceil(original * 1.25 / 5000) * 5000; 62,500 -> 65,000.
+        $numerator = $originalToman * (100 + self::PRICE_INCREASE_PERCENT);
+        $denominator = 100 * self::PRICE_ROUNDING_TOMANS;
+
+        return intdiv($numerator + $denominator - 1, $denominator) * self::PRICE_ROUNDING_TOMANS;
     }
 
     private function product(int $rootId, ManageBaseCatalog $catalog): int

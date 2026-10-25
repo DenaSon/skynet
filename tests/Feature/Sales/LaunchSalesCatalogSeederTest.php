@@ -47,7 +47,7 @@ beforeEach(function (): void {
     Http::fake();
 });
 
-it('publishes the four approved shared plans with exact member and 25 percent reseller quotes', function (): void {
+it('publishes the four 25 percent uplifted and upward-rounded plans with 35 percent reseller quotes', function (): void {
     $root = launchCatalogRoot();
     $member = User::factory()->create();
     $member->assignRole('member');
@@ -64,17 +64,22 @@ it('publishes the four approved shared plans with exact member and 25 percent re
         'min_gb' => 1, 'max_gb' => 100, 'is_active' => true,
     ]);
     $expected = [
-        ['basic-10-15', 'پایه', 10, 15, 500_000, 375_000],
-        ['economy-20-30', 'اقتصادی', 20, 30, 1_000_000, 750_000],
-        ['standard-50-30', 'استاندارد', 50, 30, 2_400_000, 1_800_000],
-        ['quarterly-100-90', 'سه‌ماهه', 100, 90, 5_200_000, 3_900_000],
+        ['basic-10-15', 'پایه', 10, 15, 650_000, 422_500],
+        ['economy-20-30', 'اقتصادی', 20, 30, 1_250_000, 812_500],
+        ['standard-50-30', 'استاندارد', 50, 30, 3_000_000, 1_950_000],
+        ['quarterly-100-90', 'سه‌ماهه', 100, 90, 6_500_000, 4_225_000],
     ];
     $visible = app(ListVisiblePlans::class)->handle($member->id);
     expect(array_column($visible, 'slug'))->toBe(array_column($expected, 0))
         ->and(app(ListVisiblePlans::class)->handle($reseller->id))->toEqual($visible);
 
+    $originalTomans = [50_000, 100_000, 240_000, 520_000];
     foreach ($expected as $index => [$slug, $name, $gb, $days, $public, $partner]) {
         $plan = $visible[$index];
+        $original = $originalTomans[$index];
+        $roundedToman = intdiv($original * 125 + 499_999, 500_000) * 5_000;
+        expect($public)->toBe($roundedToman * 10)
+            ->and($partner)->toBe(intdiv($public * 65, 100));
         $this->assertDatabaseHas('sales_plans', [
             'id' => $plan->id, 'slug' => $slug, 'name' => $name,
             'kind' => 'hybrid', 'mode' => 'preset', 'audience' => 'both', 'status' => 'active',
@@ -84,7 +89,7 @@ it('publishes the four approved shared plans with exact member and 25 percent re
         ]);
         $this->assertDatabaseHas('sales_plan_prices', [
             'plan_id' => $plan->id, 'method' => 'fixed', 'status' => 'active',
-            'fixed_price_rials' => $public, 'reseller_discount_percent' => 25,
+            'fixed_price_rials' => $public, 'reseller_discount_percent' => 35,
             'minimum_total_rials' => $partner, 'configured_plan_revision' => $plan->revision,
         ]);
         $publicQuote = app(CalculatePlanQuote::class)->handle($member->id, $plan->id, $days, $gb);
@@ -92,7 +97,7 @@ it('publishes the four approved shared plans with exact member and 25 percent re
         expect($publicQuote->totalPriceRials)->toBe($public)
             ->and($publicQuote->discountPercent)->toBe(0)
             ->and($partnerQuote->publicPriceRials)->toBe($public)
-            ->and($partnerQuote->discountPercent)->toBe(25)
+            ->and($partnerQuote->discountPercent)->toBe(35)
             ->and($partnerQuote->totalPriceRials)->toBe($partner);
     }
 
