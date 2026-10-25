@@ -16,6 +16,7 @@ use App\Modules\Sales\Application\ConfigureRate;
 use App\Modules\Sales\Application\CreatePendingOrder;
 use App\Modules\Sales\Application\ManualBankPayments;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -117,7 +118,7 @@ it('aggregates aged purchase and wallet receipts per authorized root, once per h
         ->and($rows->pluck('attempts')->unique()->all())->toBe([0])
         ->and($rows->pluck('event_key')->unique()->count())->toBe(2)
         ->and($member->hasRole('super-admin'))->toBeFalse();
-    Queue::assertPushed(DispatchTelegramNotification::class, 4); // two original receipts + two reminders
+    Queue::assertPushed(DispatchTelegramNotification::class, 6); // two originals per root + two reminders
 
     Artisan::call('telegram:receipts:remind');
     $this->travel(44)->minutes();
@@ -140,6 +141,8 @@ it('sends one private Admin text with both counters and existing protected revie
     $this->travel(16)->minutes();
     Artisan::call('telegram:receipts:remind');
 
+    Http::swap(new Factory);
+    Http::preventStrayRequests();
     Http::fake(['https://api.telegram.org/*' => Http::response(['ok' => true, 'result' => ['message_id' => 1]], 200)]);
     $id = (int) DB::table('telegram_notification_deliveries')
         ->where('event_type', 'ReceiptReviewReminder')->where('recipient_user_id', $root->id)->value('id');
