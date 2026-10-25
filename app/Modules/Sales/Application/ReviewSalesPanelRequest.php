@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Sales\Application;
 
-use App\Modules\Identity\Application\ApproveSalesPanelMember;
 use App\Modules\Identity\Application\AdminCapabilityAccess;
+use App\Modules\Identity\Application\ApproveSalesPanelMember;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
