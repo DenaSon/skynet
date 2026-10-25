@@ -3,6 +3,7 @@
 use App\Interfaces\Telegram\Support\PlanAdminDrafts;
 use App\Interfaces\Telegram\Support\PlanAdminForms;
 use App\Interfaces\Telegram\Support\ReplyMenuLabels;
+use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Sales\Application\ConfigureProduct;
@@ -376,6 +377,6 @@ it('allows a delegated plan manager through real Admin routes without Squad bind
     $bot->hearCallbackQueryData('plan:view:'.$id)->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('plan:begin:edit:'.$id)->reply()->assertCalled('editMessageText');
 
-    expect(app(\App\Modules\Identity\Application\ResolveTelegramActor::class)
+    expect(app(ResolveTelegramActor::class)
         ->handle(944030)?->allows('plans.manage'))->toBeTrue();
 });
