@@ -90,6 +90,6 @@ it('denies a forged readonly report callback after the role is revoked', functio
         $data = a2ReadPayload($request);
 
         return str_contains((string) $data['text'], 'دسترسی');
-    }, index: 1);
+    }, index: 0);
     Http::assertNothingSent();
 });
