@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Provisioning\Application;
 
-use App\Modules\Identity\Application\BrowseUsers;
 use App\Modules\Identity\Application\AdminCapabilityAccess;
+use App\Modules\Identity\Application\BrowseUsers;
 use App\Modules\Identity\Infrastructure\Models\User;
 use DateTimeImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
