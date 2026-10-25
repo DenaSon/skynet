@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Identity\Application;
 
 use App\Modules\Billing\Application\BrowseCustomerWallets;
+use App\Modules\Identity\Infrastructure\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -38,6 +39,13 @@ final readonly class ReadCustomerSupportProfile
             throw ValidationException::withMessages(['user' => 'Invalid user.']);
         }
 
+        $actor = User::query()->find($actorId);
+        if ($actor === null || ! app(AdminCapabilityAccess::class)->allowed($actor, 'users.manage')) {
+            throw new AuthorizationException;
+        }
+
+        // Preserve the original users.manage support scope; users.view alone
+        // must not expose order history, settlement dates or service details.
         // Reuse the exact access policy of the current Admin user directory.
         // A forged callback must not reach orders, services or Billing.
         $user = $this->users->find($actorId, $subjectId);
