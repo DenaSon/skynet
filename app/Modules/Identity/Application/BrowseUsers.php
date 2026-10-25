@@ -52,7 +52,8 @@ final class BrowseUsers
     {
         $actor = User::query()->find($actorId);
 
-        if ($actor === null || ! app(AdminCapabilityAccess::class)->allowed($actor, 'users.view')) {
+        if ($actor === null || ! app(AdminCapabilityAccess::class)->allowed($actor, 'users.view')
+            && ! app(AdminCapabilityAccess::class)->allowed($actor, 'support.view')) {
             throw new AuthorizationException;
         }
 
