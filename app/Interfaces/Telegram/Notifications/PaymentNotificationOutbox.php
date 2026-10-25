@@ -43,7 +43,7 @@ final readonly class PaymentNotificationOutbox
                 ->where('status', 'approved')->value('reviewed_by');
             if (is_numeric($reviewer) && (int) $reviewer > 0) {
                 // Delegated reviewers cannot impersonate a root in Provider jobs.
-                // Actor zero must prove a committed bank settlement in the worker.
+                // The internal delegated-bank marker must prove a full settlement in the worker.
                 $user = \App\Modules\Identity\Infrastructure\Models\User::query()
                     ->with('telegramAccount')->find((int) $reviewer);
                 $actorId = $user !== null && $this->trust->eligible($user)
