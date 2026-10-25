@@ -397,6 +397,10 @@ $bot->onCommand('fulfillment', function (Nutgram $bot): void {
     app(AdminFulfillmentUi::class)->browse($bot);
 });
 
+$bot->onCallbackQueryData('menu:admin:reviews', function (Nutgram $bot): void {
+    app(AdminSectionsUi::class)->reviews($bot);
+});
+
 $bot->onCommand('payments', function (Nutgram $bot): void {
     app(ManualPaymentUi::class)->list($bot);
 });
