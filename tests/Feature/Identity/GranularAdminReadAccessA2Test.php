@@ -97,6 +97,8 @@ it('requires finance.view for ledger-derived balances, not bank approval or acco
         ->and($actor?->allows('topups.review'))->toBeFalse()
         ->and($actor?->allows('purchases.review'))->toBeFalse();
 
+    $approved = app(ReadDelegatedAdminReports::class)->finance($finance->id);
+    expect($approved)->toHaveKeys(['approvedPurchases', 'approvedTopups']);
     $summary = app(ReadAdminWalletSummary::class)->handle($finance->id);
     $wallets = app(BrowseCustomerWallets::class)->page($finance->id);
     expect($summary['walletsTotal'])->toBeGreaterThanOrEqual(0)
@@ -120,6 +122,8 @@ it('returns only safe operational counts to reports.view, without bank or wallet
         ->not->toHaveKey('walletBalanceRials')
         ->not->toHaveKey('salesTodayRials')
         ->and($report['users'])->toBeGreaterThanOrEqual(2);
+    expect(fn () => app(ReadDelegatedAdminReports::class)->finance($reporter->id))
+        ->toThrow(AuthorizationException::class);
     expect(fn () => app(ReadAdminWalletSummary::class)->handle($reporter->id))
         ->toThrow(AuthorizationException::class);
     expect(fn () => app(ReadCustomerSupportProfile::class)->handle($reporter->id, $target->id))
