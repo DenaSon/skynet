@@ -115,8 +115,17 @@ final class MenuRenderer
             $keyboard->addRow(InlineKeyboardButton::make('💳 امور مالی', callback_data: 'menu:admin:finance'));
             $keyboard->addRow(InlineKeyboardButton::make('📊 آمار و گزارش‌ها', callback_data: 'stats:overview'));
         } else {
-            if ($actor->allows('users.view')) {
+            if ($actor->allows('users.view') || $actor->allows('support.view')) {
                 $keyboard->addRow(InlineKeyboardButton::make('👥 کاربران', callback_data: 'menu:admin:users'));
+            }
+            if ($actor->allows('reports.view')) {
+                $keyboard->addRow(InlineKeyboardButton::make('📊 گزارش‌های عملیاتی', callback_data: 'rbac2:reports'));
+            }
+            if ($actor->allows('finance.view')) {
+                $keyboard->addRow(InlineKeyboardButton::make('💳 گزارش مالی', callback_data: 'rbac2:finance:1'));
+            }
+            if ($actor->allows('servers.view')) {
+                $keyboard->addRow(InlineKeyboardButton::make('🖥️ وضعیت سرورها', callback_data: 'rbac2:servers'));
             }
             if ($actor->allows('purchases.view') || $actor->allows('topups.view')) {
                 $keyboard->addRow(InlineKeyboardButton::make('🧾 بررسی رسیدها', callback_data: 'menu:admin:reviews'));
