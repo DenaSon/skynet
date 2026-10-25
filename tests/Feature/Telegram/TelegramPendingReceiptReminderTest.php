@@ -3,6 +3,11 @@
 declare(strict_types=1);
 
 use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
+use App\Modules\Identity\Application\ResolveTelegramActor;
+use App\Modules\Billing\Application\BrowsePhotoTopups;
+use App\Modules\Billing\Application\ReviewTopup;
+use Illuminate\Auth\Access\AuthorizationException;
+use Spatie\Permission\Models\Role;
 use App\Interfaces\Telegram\Notifications\TelegramNotificationSender;
 use App\Interfaces\Telegram\Notifications\WalletTopupNotificationOutbox;
 use App\Modules\Billing\Application\RequestTopup;
@@ -197,6 +202,144 @@ it('refuses a reminder for a root whose permissions were revoked after enqueue',
     $root->syncRoles(['member']);
     app(DispatchTelegramNotification::class, ['deliveryId' => $id])
         ->handle(app(TelegramNotificationSender::class));
+    expect(DB::table('telegram_notification_deliveries')->where('id', $id)->value('state'))->toBe('unavailable')
+        ->and(DB::table('telegram_notification_deliveries')->where('id', $id)->value('last_failure'))->toBe('not_authorized');
+    Http::assertNothingSent();
+});
+
+/** @param list<string> $permissions */
+function reminderDelegated(int $telegramId, string $name, array $permissions): User
+{
+    $user = reminderRoot($telegramId, false);
+    $role = Role::findOrCreate($name, 'web');
+    $role->syncPermissions($permissions);
+    $user->assignRole($role);
+    DB::table('telegram_bot_contacts')->insert([
+        'user_id' => $user->id,
+        'bot_key' => 'admin',
+        'chat_id' => $telegramId,
+        'delivery_status' => 'reachable',
+        'last_seen_at' => now(),
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    return $user;
+}
+
+it('splits admin entry, purchase view, purchase review and wallet permissions without implicit users.manage', function (): void {
+    reminderRoot(987001);
+    reminderRoot(987002);
+    $viewer = reminderDelegated(987010, 'bank-viewer', ['purchases.view']);
+    $reviewer = reminderDelegated(987011, 'bank-reviewer', ['purchases.view', 'purchases.review']);
+    $topup = reminderDelegated(987012, 'wallet-reviewer', ['topups.view', 'topups.review']);
+    $unpaired = reminderDelegated(987013, 'unpaired-reviewer', ['purchases.review']);
+    $data = reminderReceipts();
+
+    $actor = app(ResolveTelegramActor::class)->handle(987010);
+    expect($actor?->canEnterAdmin())->toBeTrue()
+        ->and($actor?->isAdmin())->toBeFalse()
+        ->and($actor?->allows('users.view'))->toBeFalse()
+        ->and($actor?->allows('purchases.view'))->toBeTrue()
+        ->and($actor?->allows('purchases.review'))->toBeFalse()
+        ->and(app(ResolveTelegramActor::class)->handle(987013)?->canEnterAdmin())->toBeFalse()
+        ->and(app(ManualBankPayments::class)->pending($viewer->id))->toHaveCount(1)
+        ->and(app(ManualBankPayments::class)->pending($reviewer->id))->toHaveCount(1)
+        ->and(app(BrowsePhotoTopups::class)->pending($topup->id))->toHaveCount(1);
+    expect(fn () => app(ManualBankPayments::class)->review($viewer->id, $data['claim'], false))
+        ->toThrow(AuthorizationException::class);
+    expect(fn () => app(ManualBankPayments::class)->detail($topup->id, $data['claim']))
+        ->toThrow(AuthorizationException::class);
+    expect(fn () => app(BrowsePhotoTopups::class)->pending($reviewer->id))
+        ->toThrow(AuthorizationException::class);
+    expect(fn () => app(ReviewTopup::class)->handle($viewer->id, $data['topup'], false, 'PHOTO-REJECT'))
+        ->toThrow(AuthorizationException::class);
+    expect(DB::table('sales_bank_payment_claims')->where('id', $data['claim'])->value('status'))->toBe('submitted');
+});
+
+it('fans out both immediate receipt types to matching delegated reviewers and keeps roots', function (): void {
+    $root1 = reminderRoot(987001);
+    $root2 = reminderRoot(987002);
+    $bank = reminderDelegated(987010, 'bank-review', ['purchases.view', 'purchases.review']);
+    $wallet = reminderDelegated(987011, 'wallet-review', ['topups.view', 'topups.review']);
+    $viewOnly = reminderDelegated(987012, 'wallet-only-view', ['topups.view']);
+    reminderReceipts();
+
+    $purchaseIds = DB::table('telegram_notification_deliveries')
+        ->where('event_type', 'ReceiptSubmitted')->pluck('recipient_user_id')->all();
+    $topupIds = DB::table('telegram_notification_deliveries')
+        ->where('event_type', 'WalletTopupSubmitted')->pluck('recipient_user_id')->all();
+    expect($purchaseIds)->toHaveCount(3)
+        ->and($topupIds)->toHaveCount(3)
+        ->and($purchaseIds)->toContain($root1->id, $root2->id, $bank->id)
+        ->and($topupIds)->toContain($root1->id, $root2->id, $wallet->id)
+        ->and($purchaseIds)->not->toContain($wallet->id, $viewOnly->id)
+        ->and($topupIds)->not->toContain($bank->id, $viewOnly->id);
+});
+
+it('never leaks cross-category counts in the delegated 15-minute reminders', function (): void {
+    reminderRoot(987001);
+    reminderRoot(987002);
+    $bank = reminderDelegated(987010, 'bank-review', ['purchases.view', 'purchases.review']);
+    $wallet = reminderDelegated(987011, 'wallet-review', ['topups.view', 'topups.review']);
+    reminderReceipts();
+
+    $this->travel(16)->minutes();
+    Artisan::call('telegram:receipts:remind');
+    $bankDelivery = (int) DB::table('telegram_notification_deliveries')
+        ->where('recipient_user_id', $bank->id)->where('event_type', 'ReceiptReviewReminder')->value('id');
+    $walletDelivery = (int) DB::table('telegram_notification_deliveries')
+        ->where('recipient_user_id', $wallet->id)->where('event_type', 'ReceiptReviewReminder')->value('id');
+    expect($bankDelivery)->toBeGreaterThan(0)
+        ->and($walletDelivery)->toBeGreaterThan(0);
+
+    Http::swap(new Factory);
+    Http::preventStrayRequests();
+    Http::fake(['https://api.telegram.org/*' => Http::response(['ok' => true, 'result' => ['message_id' => 1]])]);
+    app(DispatchTelegramNotification::class, ['deliveryId' => $bankDelivery])
+        ->handle(app(TelegramNotificationSender::class));
+    app(DispatchTelegramNotification::class, ['deliveryId' => $walletDelivery])
+        ->handle(app(TelegramNotificationSender::class));
+
+    Http::assertSentCount(2);
+    Http::assertSent(static fn (Request $r): bool => (string) $r['chat_id'] === '987010'
+        && str_contains((string) $r['text'], 'رسید خرید')
+        && ! str_contains((string) $r['text'], 'رسید شارژ')
+        && str_contains((string) $r['reply_markup'], 'bank:list')
+        && ! str_contains((string) $r['reply_markup'], 'finance:topups'));
+    Http::assertSent(static fn (Request $r): bool => (string) $r['chat_id'] === '987011'
+        && ! str_contains((string) $r['text'], 'رسید خرید')
+        && str_contains((string) $r['text'], 'رسید شارژ')
+        && ! str_contains((string) $r['reply_markup'], 'bank:list')
+        && str_contains((string) $r['reply_markup'], 'finance:topups:1'));
+});
+
+it('does not create a reminder row when a delegated reviewer has no matching aged work', function (): void {
+    reminderRoot(987001);
+    reminderRoot(987002);
+    $bank = reminderDelegated(987010, 'bank-review', ['purchases.view', 'purchases.review']);
+    $data = reminderReceipts();
+    DB::table('sales_bank_payment_claims')->where('id', $data['claim'])->update(['status' => 'rejected']);
+    $this->travel(16)->minutes();
+    Artisan::call('telegram:receipts:remind');
+
+    expect(DB::table('telegram_notification_deliveries')->where('event_type', 'ReceiptReviewReminder')
+        ->where('recipient_user_id', $bank->id)->count())->toBe(0)
+        ->and(DB::table('telegram_notification_deliveries')->where('event_type', 'ReceiptReviewReminder')->count())->toBe(2);
+});
+
+it('revoking a delegated reviewer blocks queued immediate and reminder notifications', function (): void {
+    reminderRoot(987001);
+    reminderRoot(987002);
+    $bank = reminderDelegated(987010, 'bank-review', ['purchases.view', 'purchases.review']);
+    reminderReceipts();
+    $id = (int) DB::table('telegram_notification_deliveries')
+        ->where('event_type', 'ReceiptSubmitted')->where('recipient_user_id', $bank->id)->value('id');
+
+    $bank->syncRoles(['member']);
+    app(DispatchTelegramNotification::class, ['deliveryId' => $id])
+        ->handle(app(TelegramNotificationSender::class));
+
     expect(DB::table('telegram_notification_deliveries')->where('id', $id)->value('state'))->toBe('unavailable')
         ->and(DB::table('telegram_notification_deliveries')->where('id', $id)->value('last_failure'))->toBe('not_authorized');
     Http::assertNothingSent();
