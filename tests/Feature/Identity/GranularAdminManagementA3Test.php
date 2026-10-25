@@ -37,7 +37,7 @@ function a3Operator(int $telegramId, array $permissions): User
 {
     $actor = User::factory()->create();
     TelegramAccount::query()->create(['user_id' => $actor->id, 'telegram_user_id' => $telegramId]);
-    $role = Role::findOrCreate('a3-'. $telegramId, 'web');
+    $role = Role::findOrCreate('a3-'.$telegramId, 'web');
     $role->syncPermissions($permissions);
     $actor->assignRole($role);
 
@@ -77,7 +77,7 @@ it('lets a linked plan manager create a validated plan with audit, without inher
     ));
     expect($plans->find($manager->id, $plan->id)->slug)->toBe('a3-delegated-plan')
         ->and($plans->all($manager->id))->toHaveCount(1)
-        ->and(DB::table('sales_plan_management_audits')->count())->toBe(1);
+        ->and(DB::table('sales_plan_audits')->count())->toBe(1);
     expect(app(ManagePlanPricing::class)->find($manager->id, $plan->id))->toBeNull();
     expect(fn () => app(ManagePlanSquadBinding::class)->status($manager->id, $plan->id))
         ->toThrow(AuthorizationException::class);
