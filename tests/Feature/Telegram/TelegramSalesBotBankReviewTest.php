@@ -119,6 +119,8 @@ it('does not expose receipt submission or accept forged pending payment while th
     $bot->hearCallbackQueryData('sales:checkout:view:'.$data['order'])->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('sales:payment:start:'.$data['order'])->reply()
         ->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:payment:receipt:'.$data['order'])->reply()
+        ->assertCalled('editMessageText');
     sb04Photo($bot, 55, false);
 
     expect(DB::table('sales_bank_payment_claims')->count())->toBe(0)
@@ -134,6 +136,7 @@ it('accepts Sales-only photos for own SB-03 orders and keeps suppressed notifica
     $bot = sb04Bot(974099);
 
     $bot->hearCallbackQueryData('sales:payment:start:'.$data['order'])->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:payment:receipt:'.$data['order'])->reply()->assertCalled('editMessageText');
     sb04Photo($bot);
 
     $claim = DB::table('sales_bank_payment_claims')->first();
@@ -161,6 +164,7 @@ it('limits Sales receipts to owner managed-plan orders and private chats, even w
 
     $otherBot = sb04Bot(974098);
     $otherBot->hearCallbackQueryData('sales:payment:start:'.$data['order'])->reply()->assertCalled('editMessageText');
+    $otherBot->hearCallbackQueryData('sales:payment:receipt:'.$data['order'])->reply()->assertCalled('editMessageText');
     sb04Photo($otherBot, 56, false);
     expect(fn () => app(ManualBankPayments::class)->latestReceiptStatus(
         SubscriptionViewer::telegram(974098), $data['order'],
@@ -169,6 +173,7 @@ it('limits Sales receipts to owner managed-plan orders and private chats, even w
     $buyerBot = sb04Bot(974099);
     $buyerBot->setCommonChat(Chat::make(-974099, ChatType::GROUP));
     $buyerBot->hearCallbackQueryData('sales:payment:start:'.$data['order'])->reply()->assertNoReply();
+    $buyerBot->hearCallbackQueryData('sales:payment:receipt:'.$data['order'])->reply()->assertNoReply();
     $buyerBot->hearMessage(['message_id' => 57, 'photo' => [
         ['file_id' => 'sale-photo-file-123', 'file_unique_id' => 'sale-unique-photo-123', 'width' => 600, 'height' => 600],
     ]])->reply()->assertNoReply();
@@ -183,6 +188,7 @@ it('records a single root-verified bank decision and allows Sales buyer to see a
     sb04SalesContext();
     $bot = sb04Bot(974099);
     $bot->hearCallbackQueryData('sales:payment:start:'.$data['order'])->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:payment:receipt:'.$data['order'])->reply()->assertCalled('editMessageText');
     sb04Photo($bot);
 
     $claim = (int) DB::table('sales_bank_payment_claims')->value('id');
@@ -222,6 +228,7 @@ it('routes the Sales-origin receipt photo across tokens only through the guarded
     sb04SalesContext();
     $bot = sb04Bot(974099);
     $bot->hearCallbackQueryData('sales:payment:start:'.$data['order'])->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:payment:receipt:'.$data['order'])->reply()->assertCalled('editMessageText');
     sb04Photo($bot);
     $noticeId = (int) DB::table('telegram_notification_deliveries')->where('event_type', 'ReceiptSubmitted')->value('id');
 
