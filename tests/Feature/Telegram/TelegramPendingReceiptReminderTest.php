@@ -401,3 +401,24 @@ it('allows users.view to read basic directory details but protects customer 360 
     expect(app(\\App\\Modules\\Identity\\Application\\ReadCustomerSupportProfile::class)
         ->handle($legacyAdmin->id, $target->id)['user']->id)->toBe($target->id);
 });
+
+it('requires matching view permission when managing review roles through existing audited actions', function (): void {
+    $root = reminderRoot(987001);
+    reminderRoot(987002);
+
+    expect(fn () => app(\\App\\Modules\\Identity\\Application\\CreateRole::class)
+        ->handle($root, 'invalid-bank', ['purchases.review']))
+        ->toThrow(\\Illuminate\\Validation\\ValidationException::class);
+
+    $role = app(\\App\\Modules\\Identity\\Application\\CreateRole::class)
+        ->handle($root, 'valid-bank', ['purchases.view']);
+    $review = \\Spatie\\Permission\\Models\\Permission::findByName('purchases.review', 'web');
+    $view = \\Spatie\\Permission\\Models\\Permission::findByName('purchases.view', 'web');
+    $toggle = app(\\App\\Modules\\Identity\\Application\\ToggleRolePermission::class);
+    $toggle->handle($root->id, $role->id, $review->id, false);
+
+    expect(fn () => $toggle->handle($root->id, $role->id, $view->id, true))
+        ->toThrow(\\Illuminate\\Validation\\ValidationException::class);
+    expect($role->fresh()->hasPermissionTo('purchases.review'))->toBeTrue()
+        ->and($role->fresh()->hasPermissionTo('purchases.view'))->toBeTrue();
+});
