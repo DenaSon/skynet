@@ -159,3 +159,20 @@ it('denies old queued actions immediately after permission revocation or disabli
         ->toThrow(AuthorizationException::class);
     Http::assertNothingSent();
 });
+
+it('lets a scoped reviewer reject a pending Sales Panel request without mutating user roles or money', function (): void {
+    $reviewer = a3Operator(996022, ['resellers.review']);
+    $buyer = User::factory()->create();
+    $id = a3Pending($buyer);
+
+    $result = app(ReviewSalesPanelRequest::class)->decide($reviewer->id, $id, false);
+
+    expect($result['status'])->toBe('rejected')
+        ->and($buyer->fresh()->getRoleNames()->all())->toBe(['member'])
+        ->and(DB::table('identity_audit_events')->where('event', 'identity.roles.assigned')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe(0)
+        ->and(DB::table('sales_panel_requests')->where('id', $id)->value('reviewed_by_user_id'))->toBe($reviewer->id);
+    expect(fn () => app(ReviewSalesPanelRequest::class)->decide($reviewer->id, $id, false))
+        ->toThrow(ValidationException::class);
+    Http::assertNothingSent();
+});
