@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace App\Interfaces\Telegram\Notifications;
 
 use App\Modules\Identity\Application\AdminCapabilityAccess;
-use App\Modules\Identity\Application\ResolveTelegramActor;
-use App\Modules\Identity\Application\SuperAdminTrust;
 use App\Modules\Identity\Application\TelegramRecipient;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -15,8 +13,6 @@ use Illuminate\Support\Facades\Schema;
 final readonly class WalletTopupNotificationOutbox
 {
     public function __construct(
-        private SuperAdminTrust $trust,
-        private ResolveTelegramActor $actors,
         private TelegramRecipient $recipients,
         private AdminCapabilityAccess $capabilities,
     ) {}
