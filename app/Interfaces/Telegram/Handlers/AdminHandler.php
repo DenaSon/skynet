@@ -27,7 +27,7 @@ final class AdminHandler
 
         $actor = $this->resolve->handle($id);
 
-        if ($actor?->isAdmin() !== true) {
+        if ($actor?->canEnterAdmin() !== true) {
             $this->menus->denyAccess($bot);
 
             return;
