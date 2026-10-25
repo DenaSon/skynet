@@ -17,7 +17,7 @@ final readonly class BrowseCustomerWallets
     /** @return list<array{id:int,name:string,balance_rials:int,account_type:string}> */
     public function page(int $rootId, int $page = 1): array
     {
-        $this->access->reviewer($rootId);
+        $this->access->financeViewer($rootId);
         if ($page < 1 || $page > 10000) {
             throw ValidationException::withMessages(['page' => 'Invalid page.']);
         }
@@ -41,7 +41,7 @@ final readonly class BrowseCustomerWallets
     /** @return array{id:int,name:string,active:bool,account_type:string,balance_rials:int,entries:list<array{journal:int,kind:string,side:string,amount_rials:int,at:string,source:string}>,topups:list<array{id:int,amount_rials:int,status:string,at:string,reference:?string}>} */
     public function detail(int $rootId, int $userId): array
     {
-        $this->access->reviewer($rootId);
+        $this->access->financeViewer($rootId);
         if ($userId < 1) {
             throw ValidationException::withMessages(['wallet' => 'Invalid customer.']);
         }
