@@ -385,3 +385,19 @@ it('approves a verified purchase once as a delegated bank reviewer without imper
     expect(DB::table('billing_journals')->where('kind', 'direct_bank_sale')->count())->toBe(1);
     Http::assertNothingSent();
 });
+
+it('allows users.view to read basic directory details but protects customer 360 and live service read Actions', function (): void {
+    $viewer = reminderDelegated(987010, 'read-users', ['users.view']);
+    $target = reminderRoot(987099, false);
+
+    expect(app(\\App\\Modules\\Identity\\Application\\BrowseUsers::class)->find($viewer->id, $target->id))
+        ->not->toBeNull();
+    expect(fn () => app(\\App\\Modules\\Identity\\Application\\ReadCustomerSupportProfile::class)
+        ->handle($viewer->id, $target->id))->toThrow(AuthorizationException::class);
+    expect(fn () => app(\\App\\Modules\\Provisioning\\Application\\ReadCustomerLiveServices::class)
+        ->page($viewer->id, $target->id, 1))->toThrow(AuthorizationException::class);
+
+    $legacyAdmin = User::factory()->admin()->create();
+    expect(app(\\App\\Modules\\Identity\\Application\\ReadCustomerSupportProfile::class)
+        ->handle($legacyAdmin->id, $target->id)['user']->id)->toBe($target->id);
+});
