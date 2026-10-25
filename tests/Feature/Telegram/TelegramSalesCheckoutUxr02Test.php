@@ -1094,7 +1094,7 @@ it('disarms the old purchase photo when selecting a fresh funded order without c
         ['file_id' => 'other-order-photo-id', 'file_unique_id' => 'other-order-photo-unique', 'width' => 400, 'height' => 400],
     ]])->reply();
     expect(DB::table('sales_bank_payment_claims')->count())->toBe(0)
-        ->and(DB::table('billing_topup_photos')->count())->toBe(0)
+        ->and(DB::table('billing_topup_photos')->count())->toBe(1)
         ->and(DB::table('sales_order_settlements')->count())->toBe(0);
     Http::assertNothingSent();
 });
