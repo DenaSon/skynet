@@ -185,7 +185,6 @@ it('rejects group, ordinary, revoked and malformed page requests without leaking
     Http::assertNothingSent();
 });
 
-
 it('ignores only superseded activation notices while preserving the full delivery history', function (): void {
     $root = denabanIssuesRoot();
     Http::fake(['https://denaban-issues.test/*' => Http::response([], 503)]);
