@@ -34,7 +34,7 @@ final readonly class CustomerSupportProfileUi
         }
 
         $actor = $this->actors->handle($telegramId);
-        if ($actor?->isAdmin() !== true) {
+        if ($actor?->allows('support.view') !== true) {
             $this->menus->denyAccess($bot);
 
             return;
@@ -71,13 +71,6 @@ final readonly class CustomerSupportProfileUi
         if ($profile['servicesTotal'] > 0) {
             $keyboard->addRow(InlineKeyboardButton::make(
                 '📡 وضعیت زنده سرویس‌ها', callback_data: "c360:l:{$subjectId}:{$page}:{$mode}:1",
-            ));
-        }
-
-        if ($profile['financeAllowed']) {
-            $keyboard->addRow(InlineKeyboardButton::make(
-                '💼 جزئیات کیف پول',
-                callback_data: "finance:wallet:{$subjectId}",
             ));
         }
 
@@ -214,7 +207,7 @@ final readonly class CustomerSupportProfileUi
             return null;
         }
         $actor = $this->actors->handle($telegramId);
-        if ($actor?->isAdmin() !== true) {
+        if ($actor?->allows('support.view') !== true) {
             $this->menus->denyAccess($bot);
 
             return null;
