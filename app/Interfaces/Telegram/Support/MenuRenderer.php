@@ -138,7 +138,7 @@ final class MenuRenderer
             $keyboard->addRow(InlineKeyboardButton::make('💰 رسیدهای شارژ', callback_data: 'finance:topups:1'));
         }
         $keyboard->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
-        $this->render($bot, '🧾 بررسی رسیدها\n\nبخش موردنظر را انتخاب کنید.', $keyboard);
+        $this->render($bot, "🧾 بررسی رسیدها\n\nبخش موردنظر را انتخاب کنید.", $keyboard);
     }
 
     public function showAdminSales(Nutgram $bot): void
