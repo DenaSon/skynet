@@ -114,7 +114,6 @@ it('keeps wallet photo submission closed if top-up flag is off', function (): vo
     Http::assertNothingSent();
 });
 
-
 it('shows preset amounts, requires the receipt button, and keeps duplicate taps on one request', function (): void {
     $buyer = User::factory()->create();
     $bot = wallet02Bot(985105, $buyer);
