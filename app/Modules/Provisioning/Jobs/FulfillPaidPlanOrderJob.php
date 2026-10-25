@@ -23,6 +23,9 @@ final class FulfillPaidPlanOrderJob implements ShouldBeUnique, ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    /** Internal bank-review intent; requires complete immutable settlement proof. */
+    public const VERIFIED_BANK_REVIEW = -1;
+
     public int $tries = 1;
 
     public int $timeout = 55;
@@ -44,10 +47,23 @@ final class FulfillPaidPlanOrderJob implements ShouldBeUnique, ShouldQueue
         try {
             if ($this->actorId > 0) {
                 $access->handle($this->actorId);
+            } elseif ($this->actorId === self::VERIFIED_BANK_REVIEW && ! $this->reconcile) {
+                // A delegated bank approval is NOT a root identity. Prove the
+                // entire committed bank claim, ledger and immutable settlement
+                // before permitting the existing guarded provider worker.
+                if (! DB::table('sales_bank_settlements')
+                    ->where('sales_order_id', $this->orderId)->exists()) {
+                    return;
+                }
+                $order = DB::table('sales_orders')->where('id', $this->orderId)
+                    ->where('status', 'paid')->first();
+                if ($order === null) {
+                    return;
+                }
+                $fulfill->assertSettlement($order);
             } elseif ($this->actorId === 0 && ! $this->reconcile) {
-                // Internal auto-dispatch is permitted ONLY when an authentic
-                // buyer-owned customer_wallet settlement and exact balanced
-                // Billing postings already exist. No root impersonation.
+                // Preserve original customer-wallet-only automatic authorization.
+                // Old rootless bank jobs are NEVER revived by this feature.
                 $row = DB::table('sales_orders as o')
                     ->join('sales_order_settlements as s', 's.sales_order_id', '=', 'o.id')
                     ->where('o.id', $this->orderId)->where('o.status', 'paid')

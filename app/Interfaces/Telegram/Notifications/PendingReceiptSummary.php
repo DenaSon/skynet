@@ -10,23 +10,23 @@ use Illuminate\Support\Facades\DB;
 final class PendingReceiptSummary
 {
     /** @return array{purchases:int,topups:int}|null */
-    public function overdue(): ?array
+    public function overdue(bool $purchases = true, bool $topups = true): ?array
     {
         $cutoff = now()->subMinutes(15);
 
         $claims = DB::table('sales_bank_payment_claims')->where('status', 'submitted');
-        $topups = DB::table('billing_topups as topups')
+        $topupRows = DB::table('billing_topups as topups')
             ->join('billing_topup_photos as photos', 'photos.topup_id', '=', 'topups.id')
             ->where('topups.status', 'submitted')->whereNull('topups.payment_reference');
 
-        if (! (clone $claims)->where('created_at', '<=', $cutoff)->exists()
-            && ! (clone $topups)->where('photos.created_at', '<=', $cutoff)->exists()) {
+        if (! ($purchases && (clone $claims)->where('created_at', '<=', $cutoff)->exists())
+            && ! ($topups && (clone $topupRows)->where('photos.created_at', '<=', $cutoff)->exists())) {
             return null;
         }
 
         return [
-            'purchases' => (clone $claims)->count(),
-            'topups' => (clone $topups)->count(),
+            'purchases' => $purchases ? (clone $claims)->count() : 0,
+            'topups' => $topups ? (clone $topupRows)->count() : 0,
         ];
     }
 }

@@ -32,9 +32,11 @@ use App\Interfaces\Telegram\Support\CustomerSupportProfileUi;
 use App\Interfaces\Telegram\Support\ManualPaymentUi;
 use App\Interfaces\Telegram\Support\PlanAdminUi;
 use App\Interfaces\Telegram\Support\PlanSquadUi;
+use App\Interfaces\Telegram\Support\PrivateTelegramUser;
 use App\Interfaces\Telegram\Support\ProductAdminUi;
 use App\Interfaces\Telegram\Support\RbacUi;
 use App\Interfaces\Telegram\Support\UserManagementUi;
+use App\Modules\Identity\Application\ResolveTelegramActor;
 use SergiX44\Nutgram\Nutgram;
 
 /** @var Nutgram $bot */
@@ -397,12 +399,23 @@ $bot->onCommand('fulfillment', function (Nutgram $bot): void {
     app(AdminFulfillmentUi::class)->browse($bot);
 });
 
+$bot->onCallbackQueryData('menu:admin:reviews', function (Nutgram $bot): void {
+    app(AdminSectionsUi::class)->reviews($bot);
+});
+
 $bot->onCommand('payments', function (Nutgram $bot): void {
     app(ManualPaymentUi::class)->list($bot);
 });
 
 $bot->onCommand('topups', function (Nutgram $bot): void {
-    app(BillingUi::class)->reviews($bot);
+    $telegramId = app(PrivateTelegramUser::class)->id($bot);
+    $actor = $telegramId === null ? null
+        : app(ResolveTelegramActor::class)->handle($telegramId);
+    if ($actor?->canManageRoles() === true) {
+        app(BillingUi::class)->reviews($bot);
+    } else {
+        app(AdminFinanceWalletUi::class)->pending($bot);
+    }
 });
 
 $bot->onCommand('admin', AdminHandler::class);

@@ -23,7 +23,7 @@ final readonly class RecordDirectBankPayment
 
     public function handle(int $reviewerId, int $orderId, int $amountRials, string $reference): int
     {
-        $this->access->reviewer($reviewerId);
+        $this->access->purchaseReviewer($reviewerId);
 
         if (config('sales.manual_bank_review_enabled') !== true || DB::transactionLevel() < 1) {
             throw new AuthorizationException;

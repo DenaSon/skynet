@@ -20,14 +20,19 @@ final readonly class ClaimVerifiedBankReference
 
     public function handle(int $reviewerId, string $sourceType, int $sourceId, string $reference): void
     {
-        $this->access->reviewer($reviewerId);
+        if ($sourceType === 'sales_order') {
+            $this->access->purchaseReviewer($reviewerId);
+        } elseif ($sourceType === 'wallet_topup') {
+            $this->access->topupReviewer($reviewerId);
+        } else {
+            throw new AuthorizationException;
+        }
 
         if (DB::transactionLevel() < 1) {
             throw new AuthorizationException;
         }
 
-        if (! in_array($sourceType, ['wallet_topup', 'sales_order'], true)
-            || $sourceId < 1 || preg_match('/\A[A-Z0-9_-]{6,64}\z/D', $reference) !== 1) {
+        if ($sourceId < 1 || preg_match('/\A[A-Z0-9_-]{6,64}\z/D', $reference) !== 1) {
             throw ValidationException::withMessages(['payment' => 'Invalid verified bank reference.']);
         }
 

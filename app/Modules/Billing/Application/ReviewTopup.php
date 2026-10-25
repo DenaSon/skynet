@@ -14,7 +14,7 @@ final class ReviewTopup
     public function handle(int $operatorId, int $topupId, bool $approve, string $expectedReference): bool
     {
         return DB::transaction(function () use ($operatorId, $topupId, $approve, $expectedReference): bool {
-            app(AssertBillingAccess::class)->reviewer($operatorId);
+            app(AssertBillingAccess::class)->topupReviewer($operatorId);
 
             $topup = DB::table('billing_topups')->where('id', $topupId)->lockForUpdate()->first();
 

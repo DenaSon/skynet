@@ -6,8 +6,8 @@ namespace App\Interfaces\Telegram\Console;
 
 use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
 use App\Interfaces\Telegram\Notifications\PendingReceiptSummary;
-use App\Modules\Identity\Application\ResolveTelegramActor;
-use App\Modules\Identity\Application\SuperAdminTrust;
+use App\Modules\Identity\Application\AdminCapabilityAccess;
+use App\Modules\Identity\Infrastructure\Models\User;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -21,8 +21,7 @@ final class RemindPendingReceipts extends Command
 
     public function handle(
         PendingReceiptSummary $receipts,
-        SuperAdminTrust $trust,
-        ResolveTelegramActor $actors,
+        AdminCapabilityAccess $capabilities,
     ): int {
         if (config('telegram_notifications.enabled', false) !== true) {
             return self::SUCCESS;
@@ -40,9 +39,17 @@ final class RemindPendingReceipts extends Command
                 return self::SUCCESS;
             }
 
-            foreach ($trust->allowedTelegramIds() as $telegramId) {
-                $root = $actors->handle((int) $telegramId);
-                if ($root?->canManageRoles() !== true) {
+            $ids = array_unique(array_merge(
+                $capabilities->reviewerIds('purchases.review'),
+                $capabilities->reviewerIds('topups.review'),
+            ));
+            foreach ($ids as $userId) {
+                $user = User::query()->with('telegramAccount')->find((int) $userId);
+                if ($user === null || $user->telegramAccount === null
+                    || $receipts->overdue(
+                        $capabilities->allowed($user, 'purchases.review'),
+                        $capabilities->allowed($user, 'topups.review'),
+                    ) === null) {
                     continue;
                 }
 
@@ -50,16 +57,16 @@ final class RemindPendingReceipts extends Command
                 // minimum quiet period: at most one aggregate per root per hour.
                 if (DB::table('telegram_notification_deliveries')
                     ->where('event_type', 'ReceiptReviewReminder')
-                    ->where('recipient_user_id', $root->userId)
+                    ->where('recipient_user_id', $userId)
                     ->where('created_at', '>', now()->subHour())->exists()) {
                     continue;
                 }
 
-                $key = 'receipts:review:reminder:root:'.$root->userId.':'.now()->format('YmdHi');
+                $key = 'receipts:review:reminder:root:'.$userId.':'.now()->format('YmdHi');
                 $inserted = DB::table('telegram_notification_deliveries')->insertOrIgnore([
                     'event_key' => $key,
                     'event_type' => 'ReceiptReviewReminder',
-                    'recipient_user_id' => $root->userId,
+                    'recipient_user_id' => $userId,
                     'bot_key' => 'admin',
                     'state' => 'pending',
                     'attempts' => 0,

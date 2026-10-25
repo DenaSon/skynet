@@ -33,7 +33,7 @@ final class MenuRenderer
 
         // The existing BotFather chat remains backwards-compatible, but active
         // operators now land on the dedicated Admin home, never a buyer menu.
-        if ($actor->isAdmin()) {
+        if ($actor->canEnterAdmin()) {
             $this->showAdmin($bot, $actor);
 
             return;
@@ -115,12 +115,30 @@ final class MenuRenderer
             $keyboard->addRow(InlineKeyboardButton::make('💳 امور مالی', callback_data: 'menu:admin:finance'));
             $keyboard->addRow(InlineKeyboardButton::make('📊 آمار و گزارش‌ها', callback_data: 'stats:overview'));
         } else {
-            $keyboard->addRow(InlineKeyboardButton::make('👥 کاربران', callback_data: 'menu:admin:users'));
+            if ($actor->allows('users.view')) {
+                $keyboard->addRow(InlineKeyboardButton::make('👥 کاربران', callback_data: 'menu:admin:users'));
+            }
+            if ($actor->allows('purchases.view') || $actor->allows('topups.view')) {
+                $keyboard->addRow(InlineKeyboardButton::make('🧾 بررسی رسیدها', callback_data: 'menu:admin:reviews'));
+            }
         }
 
         $keyboard->addRow(InlineKeyboardButton::make('👤 حساب من', callback_data: 'menu:account'));
 
         $this->render($bot, "🛡️ مدیریت DenaGate\n\nبخش موردنظر را انتخاب کنید.", $keyboard);
+    }
+
+    public function showAdminReceiptQueues(Nutgram $bot, TelegramActor $actor): void
+    {
+        $keyboard = InlineKeyboardMarkup::make();
+        if ($actor->allows('purchases.view')) {
+            $keyboard->addRow(InlineKeyboardButton::make('🧾 رسیدهای خرید', callback_data: 'bank:list'));
+        }
+        if ($actor->allows('topups.view')) {
+            $keyboard->addRow(InlineKeyboardButton::make('💰 رسیدهای شارژ', callback_data: 'finance:topups:1'));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
+        $this->render($bot, "🧾 بررسی رسیدها\n\nبخش موردنظر را انتخاب کنید.", $keyboard);
     }
 
     public function showAdminSales(Nutgram $bot): void
@@ -212,7 +230,7 @@ final class MenuRenderer
         $this->render($bot, implode("\n", $lines), $keyboard);
     }
 
-    public function showUserDetails(Nutgram $bot, UserDirectoryEntry $user, int $page = 1, bool $search = false, bool $manageRoles = false): void
+    public function showUserDetails(Nutgram $bot, UserDirectoryEntry $user, int $page = 1, bool $search = false, bool $manageRoles = false, bool $profileAllowed = true): void
     {
         $name = $this->displayName($user->name);
         $email = $this->displayName($user->email);
@@ -221,8 +239,10 @@ final class MenuRenderer
         $linked = $user->telegramLinked ? 'متصل' : 'متصل نیست';
         $mode = $search ? 's' : 'a';
 
-        $keyboard = InlineKeyboardMarkup::make()
-            ->addRow(InlineKeyboardButton::make('📋 پرونده کاربر', callback_data: "users:profile:{$user->id}:{$page}:{$mode}"));
+        $keyboard = InlineKeyboardMarkup::make();
+        if ($profileAllowed) {
+            $keyboard->addRow(InlineKeyboardButton::make('📋 پرونده کاربر', callback_data: "users:profile:{$user->id}:{$page}:{$mode}"));
+        }
 
         if ($user->canChangeStatus) {
             $label = $user->active ? '⛔ غیرفعال‌کردن' : '✅ فعال‌کردن';

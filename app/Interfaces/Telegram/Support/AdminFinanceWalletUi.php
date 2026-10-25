@@ -164,7 +164,7 @@ final readonly class AdminFinanceWalletUi
 
     public function pending(Nutgram $bot, string $page = '1'): void
     {
-        $actor = $this->root($bot);
+        $actor = $this->topupViewer($bot);
         if ($actor === null) {
             return;
         }
@@ -199,13 +199,14 @@ final readonly class AdminFinanceWalletUi
             $keyboard->addRow(...$arrows);
         }
         $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'finance:topups:1'))
-            ->addRow(InlineKeyboardButton::make('◀️ امور مالی', callback_data: 'menu:admin:finance'));
+            ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: $actor->canManageRoles()
+                ? 'menu:admin:finance' : 'menu:admin:reviews'));
         $this->render($bot, implode("\n", $lines), $keyboard);
     }
 
     public function showPhoto(Nutgram $bot, string $id): void
     {
-        $actor = $this->root($bot);
+        $actor = $this->topupViewer($bot);
         if ($actor === null) {
             return;
         }
@@ -237,7 +238,7 @@ final readonly class AdminFinanceWalletUi
 
     public function decision(Nutgram $bot, string $id, string $decision): void
     {
-        $actor = $this->root($bot);
+        $actor = $this->topupReviewer($bot);
         if ($actor === null) {
             return;
         }
@@ -301,7 +302,7 @@ final readonly class AdminFinanceWalletUi
         if (! is_array($state) || ! in_array($state['kind'] ?? null, ['find', 'reference'], true)) {
             return false;
         }
-        $actor = $this->root($bot);
+        $actor = $state['kind'] === 'find' ? $this->root($bot) : $this->topupReviewer($bot);
         if ($actor === null) {
             return true;
         }
@@ -354,7 +355,7 @@ final readonly class AdminFinanceWalletUi
 
     public function apply(Nutgram $bot, string $token): void
     {
-        $actor = $this->root($bot);
+        $actor = $this->topupReviewer($bot);
         if ($actor === null) {
             return;
         }
@@ -412,6 +413,44 @@ final readonly class AdminFinanceWalletUi
                 throw new AuthorizationException;
             }
             $this->access->reviewer($actor->userId);
+        } catch (AuthorizationException) {
+            $this->menus->denyAccess($bot);
+
+            return null;
+        }
+
+        return $actor;
+    }
+
+    private function topupViewer(Nutgram $bot): ?TelegramActor
+    {
+        $chat = $this->private->id($bot);
+        if ($chat === null || TelegramBotContext::current()->key !== TelegramBotContext::ADMIN) {
+            return null;
+        }
+        $actor = $this->actors->handle($chat);
+        try {
+            if ($actor === null) {
+                throw new AuthorizationException;
+            }
+            $this->access->topupViewer($actor->userId);
+        } catch (AuthorizationException) {
+            $this->menus->denyAccess($bot);
+
+            return null;
+        }
+
+        return $actor;
+    }
+
+    private function topupReviewer(Nutgram $bot): ?TelegramActor
+    {
+        $actor = $this->topupViewer($bot);
+        if ($actor === null) {
+            return null;
+        }
+        try {
+            $this->access->topupReviewer($actor->userId);
         } catch (AuthorizationException) {
             $this->menus->denyAccess($bot);
 

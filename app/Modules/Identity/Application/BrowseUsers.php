@@ -52,7 +52,7 @@ final class BrowseUsers
     {
         $actor = User::query()->find($actorId);
 
-        if ($actor === null || ! app(SuperAdminTrust::class)->canManageUsers($actor)) {
+        if ($actor === null || ! app(AdminCapabilityAccess::class)->allowed($actor, 'users.view')) {
             throw new AuthorizationException;
         }
 
@@ -64,6 +64,7 @@ final class BrowseUsers
         $trust = app(SuperAdminTrust::class);
         $canChange = ! $user->hasRole('super-admin')
             && ! $actor->is($user)
+            && app(AdminCapabilityAccess::class)->allowed($actor, 'users.manage')
             && ($trust->eligible($actor) || ! $user->hasRole('admin'));
 
         return new UserDirectoryEntry(

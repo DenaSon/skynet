@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
-/** Only fresh, active, allowlisted roots can see submitted photo evidence. */
+/** Only authorized active Admin operators can see submitted photo evidence. */
 final readonly class BrowsePhotoTopups
 {
     public function __construct(private AssertBillingAccess $access) {}
@@ -19,7 +19,7 @@ final readonly class BrowsePhotoTopups
     /** @return list<array{id:int,user_id:int,name:string,amount_rials:int}> */
     public function pending(int $rootId, int $page = 1): array
     {
-        $this->access->reviewer($rootId);
+        $this->access->topupViewer($rootId);
         if ($page < 1 || $page > 10000) {
             throw ValidationException::withMessages(['page' => 'Invalid page.']);
         }
@@ -40,7 +40,7 @@ final readonly class BrowsePhotoTopups
     /** @return array{id:int,user_id:int,name:string,amount_rials:int,file_id:string,source_bot:string} */
     public function photo(int $rootId, int $topupId): array
     {
-        $this->access->reviewer($rootId);
+        $this->access->topupViewer($rootId);
         if ($topupId < 1 || ! Schema::hasTable('billing_topup_photos')) {
             throw ValidationException::withMessages(['topup' => 'Photo unavailable.']);
         }

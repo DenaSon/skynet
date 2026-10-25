@@ -334,7 +334,7 @@ final readonly class ManualPaymentUi
 
     public function list(Nutgram $bot, string $page = '1'): void
     {
-        $actor = $this->root($bot);
+        $actor = $this->viewer($bot);
         if ($actor === null) {
             return;
         }
@@ -397,7 +397,7 @@ final readonly class ManualPaymentUi
 
     public function show(Nutgram $bot, string $claim): void
     {
-        $actor = $this->root($bot);
+        $actor = $this->viewer($bot);
         if ($actor === null) {
             return;
         }
@@ -424,7 +424,8 @@ final readonly class ManualPaymentUi
             $bot->sendPhoto(
                 photo: $row->photoFileId,
                 caption: $this->caption($row),
-                reply_markup: $this->reviewKeyboard($id),
+                reply_markup: $actor->allows('purchases.review') ? $this->reviewKeyboard($id)
+                    : InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make('◀️ رسیدها', callback_data: 'bank:list')),
                 protect_content: true,
             );
 
@@ -441,7 +442,7 @@ final readonly class ManualPaymentUi
     /** The approval button starts review; money changes only after a final reference-bound confirmation. */
     public function decide(Nutgram $bot, string $claim, string $choice): void
     {
-        $actor = $this->root($bot);
+        $actor = $this->reviewer($bot);
         if ($actor === null) {
             return;
         }
@@ -525,7 +526,7 @@ final readonly class ManualPaymentUi
         if (! is_array($draft) || ! is_int($draft['claim'] ?? null)) {
             return false;
         }
-        if ($this->root($bot) === null) {
+        if ($this->reviewer($bot) === null) {
             return true;
         }
         if (! $this->automaticActivationReady()) {
@@ -570,7 +571,7 @@ final readonly class ManualPaymentUi
     /** Single-use, root-bound final bank settlement. */
     public function apply(Nutgram $bot, string $token): void
     {
-        $actor = $this->root($bot);
+        $actor = $this->reviewer($bot);
         if ($actor === null) {
             return;
         }
@@ -660,11 +661,25 @@ final readonly class ManualPaymentUi
         );
     }
 
-    private function root(Nutgram $bot): ?TelegramActor
+    private function viewer(Nutgram $bot): ?TelegramActor
     {
+        if (TelegramBotContext::current()->key !== TelegramBotContext::ADMIN) {
+            return null;
+        }
         $actor = $this->actor($bot);
+        if ($actor !== null && ! $actor->allows('purchases.view')) {
+            $this->menus->denyAccess($bot);
 
-        if ($actor !== null && $actor->canManageRoles() === false) {
+            return null;
+        }
+
+        return $actor;
+    }
+
+    private function reviewer(Nutgram $bot): ?TelegramActor
+    {
+        $actor = $this->viewer($bot);
+        if ($actor !== null && ! $actor->allows('purchases.review')) {
             $this->menus->denyAccess($bot);
 
             return null;

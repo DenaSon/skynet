@@ -16,6 +16,27 @@ final class AssertBillingAccess
         }
     }
 
+    public function purchaseViewer(int $userId): void
+    {
+        app(AdminCapabilityAccess::class)->require($userId, 'purchases.view');
+    }
+
+    public function purchaseReviewer(int $userId): void
+    {
+        app(AdminCapabilityAccess::class)->require($userId, 'purchases.review');
+    }
+
+    public function topupViewer(int $userId): void
+    {
+        app(AdminCapabilityAccess::class)->require($userId, 'topups.view');
+    }
+
+    public function topupReviewer(int $userId): void
+    {
+        app(AdminCapabilityAccess::class)->require($userId, 'topups.review');
+    }
+
+    /** Existing root-only Billing summaries, accounting and legacy review API. */
     public function reviewer(int $userId): void
     {
         $user = User::query()->with('telegramAccount')->find($userId);

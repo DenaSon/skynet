@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Telegram\Notifications;
 
+use App\Modules\Identity\Application\AdminCapabilityAccess;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\SuperAdminTrust;
 use App\Modules\Identity\Application\TelegramRecipient;
+use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Jobs\FulfillPaidPlanOrderJob;
 use Illuminate\Support\Facades\DB;
 
@@ -16,21 +18,16 @@ final readonly class PaymentNotificationOutbox
         private SuperAdminTrust $trust,
         private ResolveTelegramActor $actors,
         private TelegramRecipient $recipients,
+        private AdminCapabilityAccess $capabilities,
     ) {}
 
     // Called INSIDE the same transaction that inserts the immutable receipt.
     public function submitted(int $claimId, int $orderId): void
     {
-        foreach ($this->trust->allowedTelegramIds() as $telegramId) {
-            $root = $this->actors->handle((int) $telegramId);
-
-            if ($root?->canManageRoles() !== true) {
-                continue;
-            }
-
+        foreach ($this->capabilities->reviewerIds('purchases.review') as $userId) {
             $this->record(
-                'receipt:'.$claimId.':root:'.$root->userId,
-                'ReceiptSubmitted', $root->userId, 'admin', $claimId, $orderId,
+                'receipt:'.$claimId.':root:'.$userId,
+                'ReceiptSubmitted', $userId, 'admin', $claimId, $orderId,
             );
         }
     }
@@ -46,11 +43,17 @@ final readonly class PaymentNotificationOutbox
                 ->where('id', $claimId)->where('sales_order_id', $orderId)
                 ->where('status', 'approved')->value('reviewed_by');
             if (is_numeric($reviewer) && (int) $reviewer > 0) {
-                DB::afterCommit(static function () use ($orderId, $reviewer): void {
+                // Delegated reviewers cannot impersonate a root in Provider jobs.
+                // The internal delegated-bank marker must prove a full settlement in the worker.
+                $user = User::query()
+                    ->with('telegramAccount')->find((int) $reviewer);
+                $actorId = $user !== null && $this->trust->eligible($user)
+                    ? (int) $reviewer : FulfillPaidPlanOrderJob::VERIFIED_BANK_REVIEW;
+                DB::afterCommit(static function () use ($orderId, $actorId): void {
                     if (config('sales.auto_fulfillment_enabled', false) === true
                         && config('services.remnawave.writes_enabled') === true
                         && config('services.remnawave.squad_bindings_live_verified') === true) {
-                        FulfillPaidPlanOrderJob::dispatch($orderId, false, (int) $reviewer);
+                        FulfillPaidPlanOrderJob::dispatch($orderId, false, $actorId);
                     }
                 });
             }

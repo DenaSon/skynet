@@ -22,6 +22,7 @@ final class ResolveTelegramActor
             roles: $user->getRoleNames()->all(),
             admin: $user->isAdmin(),
             manageRoles: app(SuperAdminTrust::class)->eligible($user),
+            permissions: app(AdminCapabilityAccess::class)->grants($user),
         );
     }
 }
