@@ -32,7 +32,7 @@ final class ToggleRolePermission
                 throw ValidationException::withMessages(['permission' => 'Grant receipt view permission first.']);
             }
             if ($assigned && in_array($permission->name, $pairs, true)
-                && $role->hasPermissionTo(array_search($permission->name, $pairs, true))) {
+                && $role->hasPermissionTo($permission->name === 'purchases.view' ? 'purchases.review' : 'topups.review')) {
                 throw ValidationException::withMessages(['permission' => 'Revoke receipt review permission first.']);
             }
 
