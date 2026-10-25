@@ -250,7 +250,12 @@ final class ReplyMenuHandler
                     return true;
                 }
 
-                app(\App\Interfaces\Telegram\Support\AdminFinanceWalletUi::class)->pending($bot);
+                if ($actor->canManageRoles()) {
+                    // Preserve the Super Admin's original legacy review menu.
+                    app(BillingUi::class)->reviews($bot);
+                } else {
+                    app(\App\Interfaces\Telegram\Support\AdminFinanceWalletUi::class)->pending($bot);
+                }
 
                 return true;
 
