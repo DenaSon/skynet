@@ -72,6 +72,8 @@ The operator explicitly approved replacing the **Sales-only** permanent four-but
 - InlineKeyboard is for object actions, selections, Back, Cancel and confirmations. Stale historic Reply labels plus old commands and callbacks MUST remain routable and re-authorized; never delete an Action to simplify a menu.
 - Navigation is contextual; Back returns to a parent, Cancel makes no mutation. No inert buttons. Never assume hiding a button replaces server authorization.
 
+**WUX-03 extension (2026-10-25):** In the Sales Bot, top-up resume reads only owner-scoped SQL `pending` requests, never trusts the callback ID or a stale cache alone, and never makes a second financial request. Starting a new top-up while one is pending requires an explicit separate choice. Back/Cancel or order navigation disarms the appropriate temporary photo intake; /cancel and navigation also invalidate the current wallet debit confirmation token. Existing historical purchase-order resume remains in «سفارش‌های من»; new purchases are explicit and remain distinct. No broad restyling or business-logic change.
+
 **WUX-02 override (2026-10-25):** In the Sales Bot, an ordinary buyer's bank payment page never arms photo intake or auto-sends ForceReply. The green explicit «ارسال رسید پرداخت» action revalidates current order/payment/ownership gates and alone arms a ten-minute photo draft. The old `sales:payment:start` callback is payment *display* only. A bank+wallet eligible buyer sees both options without an extra form. Preserve legacy/Admin entry and the original receipt-submission Action. This supersedes only the earlier UXR-02 ForceReply/photo-entry timing; phase 3 state-resume polish is not part of this change.
 
 ## UXR-02 — Sales-only payment presentation (2026-10-20)
