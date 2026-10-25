@@ -12,5 +12,13 @@ final readonly class RemnawaveNodeSummary
         public string $name,
         public bool $connected,
         public bool $disabled,
+        public ?bool $connecting = null,
+        public ?int $usersOnline = null,
+        public ?int $rxBytesPerSec = null,
+        public ?int $txBytesPerSec = null,
+        public ?string $lastStatusChange = null,
+        public ?int $trafficLimitBytes = null,
+        public ?int $trafficUsedBytes = null,
+        public ?bool $trafficTrackingActive = null,
     ) {}
 }

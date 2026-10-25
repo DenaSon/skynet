@@ -46,6 +46,7 @@ final readonly class ReadAdminProviderOverview
                 configProfiles: $inventory->configProfiles,
                 needsReview: DB::table('provisioning_operations')->where('state', 'needs_review')->count(),
                 systemStats: $systemStats,
+                nodeSummaries: $inventory->nodes,
             );
         } catch (Throwable) {
             // Do not leak token, endpoint, transport errors or private panel data.
