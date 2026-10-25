@@ -147,7 +147,7 @@ final class UserManagementUi
             return;
         }
 
-        $this->menus->showUserDetails($bot, $updated, $pending['page'], $pending['search'], $actor->canManageRoles(), $actor->isAdmin());
+        $this->menus->showUserDetails($bot, $updated, $pending['page'], $pending['search'], $actor->canManageRoles(), $actor->allows('support.view'));
     }
 
     private function actor(Nutgram $bot): ?TelegramActor
