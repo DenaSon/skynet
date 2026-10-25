@@ -69,7 +69,13 @@ final readonly class ReadAdminDashboard
             'receiptsPending' => (int) DB::table('sales_bank_payment_claims')->where('status', 'submitted')->count(),
             'failedJobs' => (int) DB::table('failed_jobs')->count(),
             'notificationIssues' => (int) DB::table('telegram_notification_deliveries')
-                ->whereIn('state', ['dead', 'unavailable'])->count(),
+                ->whereIn('state', ['dead', 'unavailable'])
+                // Successful activation makes the earlier payment notice obsolete,
+                // not an outstanding issue. Preserve its immutable delivery record.
+                ->where(function ($query): void {
+                    $query->whereNull('last_failure')
+                        ->orWhere('last_failure', '!=', 'superseded_by_activation');
+                })->count(),
             'receivedAt' => now()->timezone('Asia/Tehran')->format('Y-m-d H:i'),
         ];
 

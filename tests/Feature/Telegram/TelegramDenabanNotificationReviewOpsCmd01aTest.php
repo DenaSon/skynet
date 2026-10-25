@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
+use App\Modules\Provisioning\Application\ReadAdminCommandCenter;
 use App\Modules\Provisioning\Application\ReadAdminNotificationFailures;
 use GuzzleHttp\Psr7\Request as NutgramRequest;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
@@ -183,4 +185,77 @@ it('rejects group, ordinary, revoked and malformed page requests without leaking
     $group->setCommonChat(Chat::make(-992201, ChatType::GROUP));
     $group->hearCallbackQueryData('denaban:notifications:1')->reply()->assertNoReply();
     Http::assertNothingSent();
+});
+
+it('ignores only superseded activation notices while preserving the full delivery history', function (): void {
+    $root = denabanIssuesRoot();
+    Http::fake(['https://denaban-issues.test/*' => Http::response([], 503)]);
+
+    // Payment approval notices are superseded after the service is fulfilled.
+    foreach ([16, 22, 26] as $sequence) {
+        $id = denabanIssuesInsert($root->id, $sequence, 'unavailable', 'superseded_by_activation');
+        DB::table('telegram_notification_deliveries')->where('id', $id)->update([
+            'event_type' => 'PaymentReviewed',
+        ]);
+    }
+
+    $before = DB::table('telegram_notification_deliveries')->orderBy('id')->get()->toArray();
+    $read = app(ReadAdminNotificationFailures::class);
+    $snapshot = app(ReadAdminCommandCenter::class)->handle($root->id);
+    expect($snapshot['stats']['notificationIssues'])->toBe(0)
+        ->and($read->handle($root->id, '1')['total'])->toBe(0)
+        ->and(DB::table('telegram_notification_deliveries')->count())->toBe(3);
+
+    denabanIssuesBot(992201)->hearCallbackQueryData('denaban:show')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $payload = denabanIssuesPayload($request);
+
+            return str_contains($payload['text'], 'اعلان‌های ناموفق: 0')
+                && ! str_contains(json_encode($payload['reply_markup'], JSON_THROW_ON_ERROR), 'denaban:notifications:1');
+        }, index: 1);
+
+    // A transport failure is still actionable and must match the drill-down.
+    $id = denabanIssuesInsert($root->id, 30, 'dead', 'transport');
+    $issues = $read->handle($root->id, '1');
+    $snapshot = app(ReadAdminCommandCenter::class)->handle($root->id);
+    expect($snapshot['stats']['notificationIssues'])->toBe(1)
+        ->and($issues['total'])->toBe(1)
+        ->and($issues['items'][0]['id'])->toBe($id);
+
+    denabanIssuesBot(992201)->hearCallbackQueryData('denaban:show')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $payload = denabanIssuesPayload($request);
+
+            return str_contains($payload['text'], 'اعلان‌های ناموفق: 1')
+                && str_contains(json_encode($payload['reply_markup'], JSON_THROW_ON_ERROR), 'denaban:notifications:1');
+        }, index: 1);
+
+    denabanIssuesBot(992201)->hearCallbackQueryData('denaban:notifications:1')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $payload = denabanIssuesPayload($request);
+
+            return str_contains($payload['text'], '1 سابقه · صفحه 1 از 1')
+                && str_contains($payload['text'], 'مشکل ارتباط با تلگرام')
+                && ! str_contains($payload['text'], 'اعلان با فعال‌شدن سرویس جایگزین شده');
+        }, index: 1);
+
+    // Other unavailable failures, including records without a classified reason,
+    // must not be dropped by SQL NULL comparison semantics.
+    denabanIssuesInsert($root->id, 31, 'unavailable', 'not_started');
+    $unknown = denabanIssuesInsert($root->id, 32, 'dead', 'transport');
+    DB::table('telegram_notification_deliveries')->where('id', $unknown)->update(['last_failure' => null]);
+    $issues = $read->handle($root->id, '1');
+    $snapshot = app(ReadAdminCommandCenter::class)->handle($root->id);
+    expect($snapshot['stats']['notificationIssues'])->toBe(3)
+        ->and($issues['total'])->toBe(3)
+        ->and(DB::table('telegram_notification_deliveries')->count())->toBe(6)
+        ->and(DB::table('telegram_notification_deliveries')->where('last_failure', 'superseded_by_activation')->count())->toBe(3);
+
+    // No reads or navigation may mutate previously recorded delivery evidence.
+    $preserved = DB::table('telegram_notification_deliveries')->whereIn('event_key', [
+        'denaban-issues-16', 'denaban-issues-22', 'denaban-issues-26',
+    ])->orderBy('id')->get()->toArray();
+    expect($preserved)->toEqual($before);
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
+    Http::assertNotSent(static fn (Request $request): bool => $request->method() !== 'GET');
 });

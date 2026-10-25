@@ -1,3 +1,7 @@
+## OPS-CMD-01B — Exclude obsolete activation-superseded notifications (2026-10-25)
+
+As a narrowly approved Denaban corrective patch, exclude only terminal outbox entries with last_failure=`superseded_by_activation` from the STAT-01/Denaban actionable count and the root-only failure drill-down query; this keeps totals and conditional button coherent. Preserve all rows and historical evidence in the database. Retain unrelated dead/unavailable causes, including NULL failure reasons. No notification replay, status write, cleanup, scheduler, schema, dependency, or Sales/Provider changes. Add regression tests for three superseded rows, mixed genuine errors, exact counts, conditional visibility, protected detail, and persistence. Gate merge on PHP 8.4/8.5, tests, static analysis and Pint.
+
 ## OPS-CMD-01A — Denaban terminal notification investigation (2026-10-25)
 
 Add an optional, positive-count-only Denaban button to inspect existing dead/unavailable Telegram notification records in root-only, bounded pages of five. Expose only safe local IDs, recipient app-user ID, bot label, translated event and failure categories, delivery state, attempts, and localized timestamps; no raw tokens, chat IDs or media. No retry, status change, new schema, dependency, schedule, Provider access or changes to Sales/financial flows. Preserve existing authorization and route isolation. Require CI/PHP 8.4+8.5, Pint, static analysis, pagination/access/zero-mutation tests and real Admin smoke separately.
