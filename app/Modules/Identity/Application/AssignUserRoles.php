@@ -10,6 +10,32 @@ use Spatie\Permission\Models\Role;
 final class AssignUserRoles
 {
     /**
+     * Only for an explicitly pending Sales Panel request, never a general role editor.
+     * Caller holds the application row lock; role and applicant are verified again.
+     */
+    public function approveSalesPanelRequest(int $reviewerId, int $memberId): void
+    {
+        DB::transaction(function () use ($reviewerId, $memberId): void {
+            app(AdminCapabilityAccess::class)->require($reviewerId, 'resellers.review');
+            $actor = User::query()->findOrFail($reviewerId);
+            $member = User::query()->lockForUpdate()->findOrFail($memberId);
+
+            if ($actor->is($member) || ! $member->is_active
+                || $member->getRoleNames()->all() !== ['member']
+                || ! DB::table('sales_panel_requests')->where('user_id', $memberId)
+                    ->where('status', 'pending')->lockForUpdate()->exists()) {
+                throw ValidationException::withMessages(['role' => 'Only an ordinary member with a pending application can be approved.']);
+            }
+
+            $member->syncRoles(['reseller']);
+            app(RecordIdentityAudit::class)->handle($actor, 'identity.roles.assigned', 'user', $memberId, [
+                'before' => ['member'],
+                'after' => ['reseller'],
+            ]);
+        });
+    }
+
+    /**
      * @param  list<string>  $roles
      */
     public function handle(User $actor, User $subject, array $roles): User
