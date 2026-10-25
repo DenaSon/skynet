@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Telegram\Notifications;
 
+use App\Modules\Identity\Application\AdminCapabilityAccess;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\SuperAdminTrust;
 use App\Modules\Identity\Application\TelegramRecipient;
@@ -17,6 +18,7 @@ final readonly class WalletTopupNotificationOutbox
         private SuperAdminTrust $trust,
         private ResolveTelegramActor $actors,
         private TelegramRecipient $recipients,
+        private AdminCapabilityAccess $capabilities,
     ) {}
 
     public function submitted(int $topupId): void
@@ -31,15 +33,10 @@ final readonly class WalletTopupNotificationOutbox
             return;
         }
 
-        foreach ($this->trust->allowedTelegramIds() as $telegramId) {
-            $root = $this->actors->handle((int) $telegramId);
-            if ($root?->canManageRoles() !== true) {
-                continue;
-            }
-
+        foreach ($this->capabilities->reviewerIds('topups.review') as $userId) {
             $this->record(
-                'wallet:topup:'.$topupId.':submitted:root:'.$root->userId,
-                'WalletTopupSubmitted', $root->userId, 'admin', $topupId,
+                'wallet:topup:'.$topupId.':submitted:root:'.$userId,
+                'WalletTopupSubmitted', $userId, 'admin', $topupId,
             );
         }
     }
