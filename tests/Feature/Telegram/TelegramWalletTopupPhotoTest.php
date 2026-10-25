@@ -47,6 +47,7 @@ it('offers private step-by-step wallet recharge and records photo without any cr
     $bot = wallet02Bot(985101, $buyer);
     $bot->hearCallbackQueryData('sales:wallet')->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('sales:wallet:topup')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:wallet:topup:custom')->reply()->assertCalled('editMessageText');
     $bot->hearText('۵۰۰۰۰')->reply()->assertCalled('sendMessage');
 
     $topup = DB::table('billing_topups')->first();
@@ -55,6 +56,7 @@ it('offers private step-by-step wallet recharge and records photo without any cr
         ->and($topup->status)->toBe('pending')
         ->and(DB::table('billing_journals')->count())->toBe(0);
 
+    $bot->hearCallbackQueryData('sales:wallet:topup:receipt:'.$topup->id)->reply()->assertCalled('editMessageText');
     $bot->hearMessage(['message_id' => 101, 'photo' => [
         ['file_id' => 'wallet-photo-file', 'file_unique_id' => 'wallet-unique-photo', 'width' => 400, 'height' => 400],
     ]])->reply()->assertReplyText("<b>🕘 رسید شارژ #{$topup->id} ثبت شد</b>\n\nوضعیت: <b>در انتظار بررسی</b>\nاعتبار پس از تأیید واریز توسط مدیر اضافه می‌شود. تا آن زمان موجودی تغییری نمی‌کند.");
@@ -75,6 +77,7 @@ it('keeps top-up input distinct from purchase payment and does not accept foreig
     $foreign = wallet02Bot(985103, $stranger);
 
     $bot->hearCallbackQueryData('sales:wallet:topup')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:wallet:topup:custom')->reply()->assertCalled('editMessageText');
     $bot->hearText('50000')->reply()->assertCalled('sendMessage');
 
     $foreign->hearMessage(['message_id' => 200, 'photo' => [
@@ -88,8 +91,11 @@ it('keeps top-up input distinct from purchase payment and does not accept foreig
     ]])->reply()->assertNoReply();
 
     $bot->hearCallbackQueryData('sales:wallet:topup')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:wallet:topup:custom')->reply()->assertCalled('editMessageText');
     $bot->hearText('50000')->reply()->assertCalled('sendMessage');
     $this->travel(11)->minutes();
+    $id = (int) DB::table('billing_topups')->orderByDesc('id')->value('id');
+    $bot->hearCallbackQueryData('sales:wallet:topup:receipt:'.$id)->reply()->assertCalled('editMessageText');
     $bot->hearMessage(['message_id' => 202, 'photo' => [
         ['file_id' => 'expired-photo-id', 'file_unique_id' => 'expired-photo-uid', 'width' => 400, 'height' => 400],
     ]])->reply()->assertNoReply();
@@ -106,4 +112,59 @@ it('keeps wallet photo submission closed if top-up flag is off', function (): vo
     expect(DB::table('billing_topups')->count())->toBe(0)
         ->and(Cache::get(TelegramBotContext::current()->cacheKey('telegram:wallet:topup:'.$user->id)))->toBeNull();
     Http::assertNothingSent();
+});
+
+
+it('shows preset amounts, requires the receipt button, and keeps duplicate taps on one request', function (): void {
+    $buyer = User::factory()->create();
+    $bot = wallet02Bot(985105, $buyer);
+    $bot->hearCallbackQueryData('sales:wallet:topup')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:wallet:topup:quick:1000000')->reply()->assertCalled('editMessageText');
+
+    $topup = DB::table('billing_topups')->sole();
+    expect((int) $topup->amount_rials)->toBe(10000000)->and($topup->status)->toBe('pending');
+
+    $bot->hearMessage(['message_id' => 302, 'photo' => [
+        ['file_id' => 'quick-before-button', 'file_unique_id' => 'quick-before-id', 'width' => 400, 'height' => 400],
+    ]])->reply()->assertReplyText('برای ارسال عکس ابتدا دکمه «📷 ارسال رسید شارژ» را بزنید.');
+    expect(DB::table('billing_topup_photos')->count())->toBe(0);
+
+    $bot->hearCallbackQueryData('sales:wallet:topup:quick:1000000')->reply()->assertCalled('editMessageText');
+    expect(DB::table('billing_topups')->count())->toBe(1);
+
+    $bot->hearCallbackQueryData('sales:wallet:topup:receipt:'.$topup->id)->reply()->assertCalled('editMessageText');
+    $bot->hearMessage(['message_id' => 303, 'photo' => [
+        ['file_id' => 'quick-after-button', 'file_unique_id' => 'quick-after-id', 'width' => 400, 'height' => 400],
+    ]])->reply()->assertCalled('sendMessage');
+    expect(DB::table('billing_topup_photos')->count())->toBe(1)
+        ->and(DB::table('billing_topups')->value('status'))->toBe('submitted')
+        ->and(DB::table('billing_journals')->count())->toBe(0);
+});
+
+it('supports the 750 thousand preset and caps custom amounts at 10 million tomans', function (): void {
+    $buyer = User::factory()->create();
+    $bot = wallet02Bot(985106, $buyer);
+    $bot->hearCallbackQueryData('sales:wallet:topup')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:wallet:topup:quick:750000')->reply()->assertCalled('editMessageText');
+    expect((int) DB::table('billing_topups')->value('amount_rials'))->toBe(7500000);
+
+    $bot->hearCallbackQueryData('sales:wallet:topup')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:wallet:topup:custom')->reply()->assertCalled('editMessageText');
+    $bot->hearText('۱۰۰۰۰۰۰۱')->reply()->assertReplyText('مبلغ شارژ باید بین ۱۰ هزار تا ۱۰ میلیون تومان باشد.');
+    expect(DB::table('billing_topups')->count())->toBe(1);
+    $bot->hearText('۱۰۰۰۰۰۰۰')->reply()->assertCalled('sendMessage');
+    expect((int) DB::table('billing_topups')->orderByDesc('id')->value('amount_rials'))->toBe(100000000);
+});
+
+it('clears a cancelled topup input without creating a financial request', function (): void {
+    $buyer = User::factory()->create();
+    $bot = wallet02Bot(985107, $buyer);
+    $bot->hearCallbackQueryData('sales:wallet:topup')->reply();
+    $bot->hearCallbackQueryData('sales:wallet:topup:custom')->reply();
+    $key = TelegramBotContext::current()->cacheKey('telegram:wallet:topup:'.$buyer->id);
+    expect(Cache::has($key))->toBeTrue();
+    $bot->hearCallbackQueryData('sales:wallet:topup:cancel')->reply()->assertCalled('editMessageText');
+    expect(Cache::has($key))->toBeFalse();
+    $bot->hearText('500000')->reply();
+    expect(DB::table('billing_topups')->count())->toBe(0);
 });

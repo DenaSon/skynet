@@ -63,7 +63,7 @@ it('displays an ordinary member role and real wallet balance after returning hom
         $markup = json_encode($body['reply_markup'], JSON_THROW_ON_ERROR);
 
         return str_contains($body['text'], 'نوع حساب: <b>👤 کاربر عادی</b>')
-            && str_contains($body['text'], 'موجودی کیف پول: <b>0 تومان</b>')
+            && str_contains($body['text'], 'اعتبار من: <b>0 تومان</b>')
             && str_contains($markup, 'sales:wallet')
             && str_contains($markup, 'sales:account')
             && ! str_contains($markup, 'menu:builder')
@@ -113,7 +113,7 @@ it('gives active Sales Panel holders their unique home builder action without an
         $markup = json_encode($body['reply_markup'], JSON_THROW_ON_ERROR);
 
         return str_contains($body['text'], 'نوع حساب: <b>🧩 پنل فروش</b>')
-            && str_contains($body['text'], 'موجودی کیف پول: <b>0 تومان</b>')
+            && str_contains($body['text'], 'اعتبار من: <b>0 تومان</b>')
             && str_contains($markup, 'menu:builder')
             && str_contains($markup, 'sales:wallet');
     }, index: 1);

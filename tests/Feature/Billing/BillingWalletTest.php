@@ -203,3 +203,12 @@ it('requires a positive top-up flag before accepting customer photo', function (
     expect(DB::table('billing_topup_photos')->count())->toBe(0)
         ->and(DB::table('billing_journals')->count())->toBe(0);
 });
+
+
+it('rejects recharge requests over 10 million tomans without creating a financial record', function (): void {
+    $reseller = billingReseller();
+    expect(fn () => app(RequestTopup::class)->handle($reseller->id, 100000010, 'limit:topup:over'))
+        ->toThrow(ValidationException::class);
+    expect(DB::table('billing_topups')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe(0);
+});
