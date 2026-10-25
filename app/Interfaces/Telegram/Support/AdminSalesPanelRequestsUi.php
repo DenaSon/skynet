@@ -6,7 +6,7 @@ namespace App\Interfaces\Telegram\Support;
 
 use App\Interfaces\Telegram\Notifications\SalesPanelNotificationOutbox;
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
-use App\Modules\Identity\Application\ManageRoles;
+use App\Modules\Identity\Application\AdminCapabilityAccess;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\TelegramActor;
 use App\Modules\Sales\Application\ReviewSalesPanelRequest;
@@ -19,13 +19,13 @@ use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 
-/** Root-only review queue for opt-in Sales Panel membership. */
+/** Scoped review queue for opt-in Sales Panel membership. */
 final readonly class AdminSalesPanelRequestsUi
 {
     public function __construct(
         private PrivateTelegramUser $private,
         private ResolveTelegramActor $actors,
-        private ManageRoles $roles,
+        private AdminCapabilityAccess $access,
         private ReviewSalesPanelRequest $requests,
         private SalesPanelNotificationOutbox $notifications,
         private MenuRenderer $menus,
@@ -210,10 +210,10 @@ final readonly class AdminSalesPanelRequestsUi
         }
         $actor = $this->actors->handle($id);
         try {
-            if ($actor === null || ! $actor->canManageRoles()) {
+            if ($actor === null || ! $actor->allows('resellers.review')) {
                 throw new AuthorizationException;
             }
-            $this->roles->authorize($actor->userId);
+            $this->access->require($actor->userId, 'resellers.review');
         } catch (AuthorizationException) {
             $this->menus->denyAccess($bot);
 
