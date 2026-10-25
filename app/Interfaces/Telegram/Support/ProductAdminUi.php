@@ -329,7 +329,7 @@ final readonly class ProductAdminUi
             return false;
         }
 
-        if (! $actor->canManageRoles()) {
+        if (! $actor->allows('plans.manage')) {
             $this->drafts->forget($actor->userId);
             $this->menus->denyAccess($bot);
 
@@ -495,7 +495,7 @@ final readonly class ProductAdminUi
         }
 
         $actor = $this->resolve->handle($id);
-        if ($actor?->canManageRoles() !== true) {
+        if ($actor?->allows('plans.manage') !== true) {
             $this->menus->denyAccess($bot);
 
             return null;
