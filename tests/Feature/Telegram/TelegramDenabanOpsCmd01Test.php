@@ -150,7 +150,6 @@ it('rejects unauthorized, revoked and group callbacks without RW calls', functio
     Http::assertNothingSent();
 });
 
-
 it('shows only safe per-node RW telemetry using the existing inventory GET without duplicate requests', function (): void {
     denabanRoot();
     Http::fake(static function (Request $request) {

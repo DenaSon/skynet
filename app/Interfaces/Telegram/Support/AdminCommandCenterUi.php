@@ -150,7 +150,7 @@ final readonly class AdminCommandCenterUi
      * Only the already-read /api/nodes inventory is used. Never show raw
      * node addresses, private network metadata or provider credentials.
      *
-     * @param array<string,mixed>|null $stats
+     * @param  array<string,mixed>|null  $stats
      * @return list<string>
      */
     private static function nodeLines(?array $stats): array

@@ -6,8 +6,8 @@ namespace App\Modules\Provisioning\Application;
 
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveApiClientFactory;
-use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveReadApi;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveNodeSummary;
+use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveReadApi;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
