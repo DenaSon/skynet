@@ -305,6 +305,10 @@ $bot->onCallbackQueryData('sales:payment:start:{id}', function (Nutgram $bot, st
     app(ManualPaymentUi::class)->start($bot, $id);
 });
 
+$bot->onCallbackQueryData('sales:payment:receipt:{id}', function (Nutgram $bot, string $id): void {
+    app(ManualPaymentUi::class)->requestReceipt($bot, $id);
+});
+
 $bot->onPhoto(function (Nutgram $bot): void {
     if (app(WalletTopupUi::class)->photo($bot)) {
         return;
