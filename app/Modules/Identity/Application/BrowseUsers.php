@@ -66,7 +66,7 @@ final class BrowseUsers
         $canChange = ! $user->hasRole('super-admin')
             && ! $actor->is($user)
             && app(AdminCapabilityAccess::class)->allowed($actor, 'users.manage')
-            && ($trust->eligible($actor) || ! $user->hasRole('admin'));
+            && ($trust->eligible($actor) || ! app(AdminCapabilityAccess::class)->isOperator($user));
 
         return new UserDirectoryEntry(
             id: (int) $user->getKey(),

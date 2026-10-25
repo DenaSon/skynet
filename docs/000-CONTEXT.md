@@ -1,3 +1,11 @@
+## RBAC security follow-up — worker revocation and custom operators (2026-10-25)
+
+Operator authorized review findings 1 and 2 only. Identity clears Spatie's process-local permission collection on Laravel `JobProcessing`, so each queued job reloads shared permissions after a role edit in another process. Role-permission edits invalidate the shared cache again after the outer transaction commits, preventing a concurrent pre-commit reader from leaving stale shared grants. Existing outbox states, queues and delivery authorization remain in place. Workers must load the new release through the usual deployment restart; this is not a claim that already-running old code has changed.
+
+Custom operators with any recognized Admin capability (role-based or direct) receive the existing peer-admin protection in directory DTOs, status changes and role replacement. Protection also covers disabled/unlinked subjects; only a trusted Super Admin can change these operators. Existing root account protections, member/reseller customer status management, audits, financial journals and provider guards remain intact. No migration, dependency, ENV or Production role changes. Review finding 3 (missing-migration availability) remains outside this patch.
+
+Regression-first checks reproduced 18 worker/peer failures and one shared-cache commit-race failure before their fixes; all 41 focused tests pass afterward on local PHP 8.5. Full CI and real deployment/Telegram acceptance are separate gates; see [RBAC operations](007-RBAC-OPERATIONS.md).
+
 ## RBAC-A3 — scoped catalog management and Sales Panel approval (2026-10-25; PR #233)
 
 Operator separately authorized implementation of Phase 3 of [docs/030](030-ADMIN-RBAC-THREE-PHASE-ROADMAP.md). Additive, opt-in `plans.manage` and `resellers.review` Spatie permissions via a new reversible migration. Permissions remain individually assigned only to custom roles through the existing root-only audited role UI. No default role broadening, root enrollment, ledger changes, payments, Remnawave mutation or automatic Production privileges.

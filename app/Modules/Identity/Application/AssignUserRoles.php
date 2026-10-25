@@ -56,7 +56,8 @@ final class AssignUserRoles
                 throw ValidationException::withMessages(['role' => 'You cannot revoke your own administrative access.']);
             }
 
-            if (! $trust->eligible($actor) && ($subject->hasRole('admin') || $roles !== ['member'])) {
+            if (! $trust->eligible($actor)
+                && (app(AdminCapabilityAccess::class)->isOperator($subject) || $roles !== ['member'])) {
                 throw ValidationException::withMessages(['role' => 'Only a trusted Super Admin can assign privileged or custom roles.']);
             }
 

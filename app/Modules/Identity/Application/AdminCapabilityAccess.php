@@ -55,6 +55,14 @@ final readonly class AdminCapabilityAccess
         }
     }
 
+    /** Protection only: inactive or unlinked operators remain privileged subjects. */
+    public function isOperator(User $user): bool
+    {
+        return $user->hasAnyRole(['admin', 'super-admin'])
+            || $user->getAllPermissions()->where('guard_name', 'web')
+                ->whereIn('name', self::CAPABILITIES)->isNotEmpty();
+    }
+
     /** @return list<string> */
     public function grants(User $user): array
     {
