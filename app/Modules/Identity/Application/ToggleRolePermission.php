@@ -26,6 +26,16 @@ final class ToggleRolePermission
                 throw ValidationException::withMessages(['permission' => 'Permissions changed. Refresh the role.']);
             }
 
+            $pairs = ['purchases.review' => 'purchases.view', 'topups.review' => 'topups.view'];
+            if (! $assigned && isset($pairs[$permission->name])
+                && ! $role->hasPermissionTo($pairs[$permission->name])) {
+                throw ValidationException::withMessages(['permission' => 'Grant receipt view permission first.']);
+            }
+            if ($assigned && in_array($permission->name, $pairs, true)
+                && $role->hasPermissionTo(array_search($permission->name, $pairs, true))) {
+                throw ValidationException::withMessages(['permission' => 'Revoke receipt review permission first.']);
+            }
+
             if ($assigned) {
                 $role->revokePermissionTo($permission);
             } else {
