@@ -160,7 +160,7 @@ final class UserManagementUi
 
         $actor = $this->resolve->handle($telegramId);
 
-        if ($actor?->isAdmin() !== true) {
+        if ($actor?->allows('users.view') !== true) {
             $this->menus->denyAccess($bot);
 
             return null;
