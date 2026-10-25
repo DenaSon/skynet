@@ -1,3 +1,7 @@
+## Sales preset list polish (2026-10-26)
+
+Remove the requested generic pricing/checkout prose, bold actual final amounts with escaped HTML, and order preset buttons by ascending buyer-specific final price before pagination in both plan lists. Preserve equal-price catalog priority, legacy availability/reseller guidance and all existing price rechecks, readiness/ownership/payment controls. No stored price, migration or dependency change; require existing checkout and member/reseller UI regressions plus normal PHP 8.4/8.5 CI before merge.
+
 ## Admin user directory polish (2026-10-25)
 
 Show newest users first, 11 per page, through the existing authorized directory Action. Apply the same pagination to search and preserve detail/navigation callbacks. No schema or access-policy change; validate via existing directory/Telegram tests and normal PHP 8.4/8.5 CI before merge.

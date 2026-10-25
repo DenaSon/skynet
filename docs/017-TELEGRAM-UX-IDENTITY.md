@@ -1,3 +1,9 @@
+## Preset list price hierarchy (2026-10-26)
+
+- In the Sales catalog, omit the generic price-change, buyer-price and checkout/recheck explanation lines. Keep any specific reseller-price or legacy unavailable-purchase notice.
+- Bold each final amount together with its toman unit via Telegram HTML; escape sanitized plan names. Button labels remain plain native Telegram text with volume/duration.
+- Both preset lists use ascending current buyer-quoted final prices before pagination, including reseller discounts. Equal-price plans retain the existing catalog priority. Display simplification never removes server-side repricing, publication, ownership or readiness checks.
+
 ## Preset plan selection labels (2026-10-24)
 
 Ready-plan Buy and the full preset catalog use the same plain-text button label: `پایه · 10 گیگ · 15 روز`. Read volume and duration from the current buyer-authorized quote; time-only plans show `نامحدود`. Shorten only names longer than 20 characters, preserving the complete volume/day suffix. Strip control/bidi-override characters and do not HTML-encode inline button text. Existing callbacks, pagination, native styles, prices and readiness/ownership checks remain unchanged.

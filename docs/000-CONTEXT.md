@@ -1,3 +1,9 @@
+## Sales preset list readability and price order (2026-10-26)
+
+Operator-requested presentation update: remove the three generic price/change/checkout explanation lines from the catalog shown in the Sales Bot, and render each displayed final amount plus toman in bold Telegram HTML. Escape operator-authored plan names before inserting them into HTML; legacy detail messages retain their existing plain-text mode. Keep reseller-specific price guidance and the legacy unavailable-purchase notice.
+
+`ListQuotedPresets` now stably sorts existing canonical buyer quotes by final price ascending before the catalog and ready-to-buy presenters paginate. Equal prices retain existing catalog priority; reseller discounts can change the order. No stored plan/pricing edit, financial logic, ownership, readiness, callback or checkout revalidation change. Local tests cover member/reseller order across both pages, HTML escaping, removed text and existing checkout paths (68 tests / 645 assertions, PHP 8.5). Normal CI and live Telegram appearance remain separate gates; no migration or dependency.
+
 ## Admin user directory ordering and page size (2026-10-25)
 
 Operator-requested UX adjustment: `BrowseUsers::page` lists newest registered IDs first and returns 11 users per page (previously 6). Search uses the same ordering and page size; existing Telegram callbacks, detail/back navigation and authorization remain unchanged. No migration, dependency or financial/provider change. Existing directory and Telegram pagination regressions cover the adjustment; live Telegram appearance is verified separately.

@@ -63,18 +63,21 @@ final readonly class PlanCatalogUi
             '📋 پلن‌ها و قیمت‌ها',
             "صفحه {$page} از {$lastPage}",
             '',
-            'قیمت‌ها از تعرفه فعال محاسبه می‌شوند و ممکن است تغییر کنند.',
-            $reseller ? '🏷️ قیمت‌های این فهرست مخصوص پنل فروش هستند.' : 'مبلغ نمایش‌داده‌شده، قیمت خرید شماست.',
-            TelegramBotContext::current()->key === 'sales'
-                ? 'با انتخاب پلن، وارد پرداخت می‌شوید؛ قیمت هنگام انتخاب دوباره بررسی می‌شود.'
-                : 'ℹ️ خرید پلن‌های این بخش فعلاً فعال نیست.',
-            '',
         ];
+        if ($reseller) {
+            $lines[] = '🏷️ قیمت‌های این فهرست مخصوص پنل فروش هستند.';
+        }
+        if (TelegramBotContext::current()->key !== TelegramBotContext::SALES) {
+            $lines[] = 'ℹ️ خرید پلن‌های این بخش فعلاً فعال نیست.';
+        }
+        if ($reseller || TelegramBotContext::current()->key !== TelegramBotContext::SALES) {
+            $lines[] = '';
+        }
 
         foreach (array_slice($entries, ($page - 1) * 5, 5) as $entry) {
-            $lines[] = ($entry->plan->featured ? '⭐ ' : '📦 ').$this->safe($entry->plan->name);
+            $lines[] = ($entry->plan->featured ? '⭐ ' : '📦 ').TelegramUi::escape($this->safe($entry->plan->name));
             $lines[] = '📊 حجم و مدت: '.$this->spec($entry);
-            $lines[] = '💰 مبلغ: '.$this->toman($entry->quote->totalPriceRials).' تومان';
+            $lines[] = '💰 مبلغ: <b>'.$this->toman($entry->quote->totalPriceRials).' تومان</b>';
             $lines[] = '';
             $keyboard->addRow(InlineKeyboardButton::make(
                 TelegramUi::planButtonLabel($entry->plan->name, $entry->quote->trafficGb, $entry->quote->durationDays),
@@ -98,7 +101,7 @@ final readonly class PlanCatalogUi
             $keyboard->addRow(InlineKeyboardButton::make('🧩 پلن‌ساز', callback_data: 'menu:builder'));
         }
         $keyboard->addRow(InlineKeyboardButton::make('🏠 صفحه اصلی', callback_data: 'menu:home'));
-        $this->render($bot, implode("\n", $lines), $keyboard);
+        $this->render($bot, implode("\n", $lines), $keyboard, 'HTML');
     }
 
     public function detail(Nutgram $bot, string $planId, string $fromPage = '1'): void
@@ -214,15 +217,15 @@ final readonly class PlanCatalogUi
             ->addRow(InlineKeyboardButton::make('◀️ فهرست پلن‌ها', callback_data: 'catalog:list:'.$page)));
     }
 
-    private function render(Nutgram $bot, string $text, InlineKeyboardMarkup $keyboard): void
+    private function render(Nutgram $bot, string $text, InlineKeyboardMarkup $keyboard, ?string $parseMode = null): void
     {
         if ($bot->isCallbackQuery()) {
             TelegramUi::answerCallback($bot);
-            TelegramUi::editText($bot, $text, $keyboard);
+            TelegramUi::editText($bot, $text, $keyboard, $parseMode);
 
             return;
         }
 
-        $bot->sendMessage(text: $text, reply_markup: $keyboard);
+        $bot->sendMessage(text: $text, reply_markup: $keyboard, parse_mode: $parseMode);
     }
 }

@@ -59,7 +59,7 @@ function sb02Root(): User
     return $root;
 }
 
-function sb02Plan(User $root, string $slug, string $audience = 'both', string $mode = 'preset', string $kind = 'hybrid'): int
+function sb02Plan(User $root, string $slug, string $audience = 'both', string $mode = 'preset', string $kind = 'hybrid', int $priceRials = 1_000_000, int $discount = 10): int
 {
     $builder = $mode === 'builder';
     $plan = app(ManagePlans::class)->create($root->id, new PlanDefinition(
@@ -80,7 +80,7 @@ function sb02Plan(User $root, string $slug, string $audience = 'both', string $m
         $root->id, $plan->id, 2, 0,
         $builder
             ? new PlanPricingDefinition('formula', null, 100_000, 10_000, 2_000, 10, 100_000)
-            : new PlanPricingDefinition('fixed', 1_000_000, 0, 0, 0, 10, 100_000),
+            : new PlanPricingDefinition('fixed', $priceRials, 0, 0, 0, $discount, 100_000),
     );
     $token = $prices->requestChange($root->id, $plan->id, 2, $revision, 'activate');
     $prices->confirmChange($root->id, $token);
@@ -240,14 +240,92 @@ it('clearly offers the Sales plan-selection path without claiming an unverified 
     $bot = sb02Bot(977020, $member);
 
     $bot->hearText('/catalog')->reply()->assertReplyText(
-        "📋 پلن‌ها و قیمت‌ها\nصفحه 1 از 1\n\nقیمت‌ها از تعرفه فعال محاسبه می‌شوند و ممکن است تغییر کنند.\nمبلغ نمایش‌داده‌شده، قیمت خرید شماست.\n"
-        ."با انتخاب پلن، وارد پرداخت می‌شوید؛ قیمت هنگام انتخاب دوباره بررسی می‌شود.\n\nدر حال حاضر پلنی برای نمایش وجود ندارد."
-    );
+        "📋 پلن‌ها و قیمت‌ها\nصفحه 1 از 1\n\nدر حال حاضر پلنی برای نمایش وجود ندارد."
+    )->assertReply('sendMessage', ['parse_mode' => 'HTML']);
     $bot->hearText('/start')->reply()->assertCalled('sendMessage', 2);
 
     expect(DB::table('sales_orders')->count())->toBe(0);
     Http::assertNothingSent();
 });
+
+it('shows bold escaped catalog prices and sorts both plan lists by each buyers price before pagination', function (bool $reseller): void {
+    sb02SalesWebhookContext();
+    config()->set('services.remnawave.squad_bindings_live_verified', true);
+    $root = sb02Root();
+    $expensive = sb02Plan($root, 'price-expensive', priceRials: 9_000_000, discount: 0);
+    $mid = sb02Plan($root, 'price-mid', priceRials: 2_500_000, discount: 0);
+    $discounted = sb02Plan($root, 'price-discounted', priceRials: 7_000_000, discount: 50);
+    $cheap = sb02Plan($root, 'price-cheap', priceRials: 1_500_000, discount: 0);
+    $value = sb02Plan($root, 'price-value', priceRials: 4_000_000, discount: 0);
+    $premium = sb02Plan($root, 'price-premium', priceRials: 6_000_000, discount: 0);
+    DB::table('sales_plans')->where('id', $cheap)->update(['name' => '<ارزان & "پایه">']);
+    foreach ([$expensive, $mid, $discounted, $cheap, $value, $premium] as $id) {
+        DB::table('sales_plan_internal_squad_bindings')->insert([
+            'plan_id' => $id, 'plan_revision' => 2,
+            'internal_squad_uuid' => '123e4567-e89b-12d3-a456-426614174000',
+            'verified_at' => now(), 'created_at' => now(), 'updated_at' => now(),
+        ]);
+    }
+    $buyer = User::factory()->create();
+    if ($reseller) {
+        $buyer->assignRole('reseller');
+    }
+    $expected = $reseller
+        ? [$cheap, $mid, $discounted, $value, $premium]
+        : [$cheap, $mid, $value, $premium, $discounted];
+    $bot = sb02Bot(977040, $buyer);
+    $payload = static function (Request $request): array {
+        $body = FakeNutgram::getActualData($request);
+        $body['reply_markup'] = is_string($body['reply_markup'])
+            ? json_decode($body['reply_markup'], true, flags: JSON_THROW_ON_ERROR)
+            : $body['reply_markup'];
+
+        return $body;
+    };
+    $bot->hearCallbackQueryData('catalog:list:1')->reply()
+        ->assertRaw(static function (Request $request) use ($payload, $expected): bool {
+            $body = $payload($request);
+            $callbacks = array_map(static fn (array $row): string => $row[0]['callback_data'],
+                array_slice($body['reply_markup']['inline_keyboard'], 0, 5));
+
+            return $callbacks === array_map(static fn (int $id): string => "catalog:detail:{$id}:1", $expected)
+                && $body['parse_mode'] === 'HTML'
+                && str_contains($body['text'], '<b>150,000 تومان</b>')
+                && str_contains($body['text'], '&lt;ارزان &amp; &quot;پایه&quot;&gt;')
+                && ! str_contains($body['text'], 'قیمت‌ها از تعرفه')
+                && ! str_contains($body['text'], 'مبلغ نمایش‌داده‌شده')
+                && ! str_contains($body['text'], 'قیمت هنگام انتخاب دوباره بررسی می‌شود');
+        }, index: 1);
+    $bot->hearCallbackQueryData('catalog:list:2')->reply()
+        ->assertRaw(static function (Request $request) use ($payload, $expensive): bool {
+            $body = $payload($request);
+
+            return $body['reply_markup']['inline_keyboard'][0][0]['callback_data'] === "catalog:detail:{$expensive}:2"
+                && substr_count($body['text'], '💰 مبلغ: <b>') === 1;
+        }, index: 1);
+    $bot->hearCallbackQueryData('sales:buy')->reply()
+        ->assertRaw(static function (Request $request) use ($payload, $expected): bool {
+            $body = $payload($request);
+            $callbacks = array_map(static fn (array $row): string => $row[0]['callback_data'],
+                array_slice($body['reply_markup']['inline_keyboard'], 0, 5));
+
+            return $callbacks === array_map(static fn (int $id): string => "catalog:detail:{$id}:1", $expected)
+                && str_contains($body['text'], '<b>150,000 تومان</b>');
+        }, index: 1);
+    $bot->hearCallbackQueryData('sales:home:2')->reply()
+        ->assertRaw(static function (Request $request) use ($payload, $expensive): bool {
+            $body = $payload($request);
+
+            return $body['reply_markup']['inline_keyboard'][0][0]['callback_data'] === "catalog:detail:{$expensive}:1";
+        }, index: 1);
+
+    expect(collect(app(ListQuotedPresets::class)->handle($buyer->id))->pluck('plan.id')->all())
+        ->toBe([...$expected, $expensive])
+        ->and(DB::table('sales_orders')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe(0)
+        ->and(DB::table('provisioning_operations')->count())->toBe(0);
+    Http::assertNothingSent();
+})->with(['member' => false, 'reseller' => true]);
 
 it('gives Sales resellers truthful custom-plan guidance without unlocking finance or checkout', function (): void {
     sb02SalesWebhookContext();
