@@ -20,7 +20,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
-use SergiX44\Nutgram\Telegram\Types\Keyboard\ForceReply;
+use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 use Throwable;
@@ -40,6 +40,21 @@ final readonly class ManualPaymentUi
     ) {}
 
     public function start(Nutgram $bot, string $orderId): void
+    {
+        $this->payment($bot, $orderId, false);
+    }
+
+    /** A Sales-only explicit request; displaying bank instructions never arms photo intake. */
+    public function requestReceipt(Nutgram $bot, string $orderId): void
+    {
+        if (TelegramBotContext::current()->key !== TelegramBotContext::SALES) {
+            return;
+        }
+
+        $this->payment($bot, $orderId, true);
+    }
+
+    private function payment(Nutgram $bot, string $orderId, bool $receiptRequested): void
     {
         $actor = $this->actor($bot);
 
@@ -112,14 +127,28 @@ final readonly class ManualPaymentUi
                 throw $error;
             }
 
-            // Only a valid Sales purchase may replace this buyer's receipt intake.
-            // Retire the UI draft, preserving the top-up request and any evidence.
+            // Retire only this buyer's temporary top-up/photo intake after all
+            // payment checks pass. Persisted orders, top-ups and evidence remain.
             Cache::forget(TelegramBotContext::current()->cacheKey('telegram:wallet:topup:'.$actor->userId));
-        }
+            Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$actor->userId));
+            Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:recent:'.$actor->userId));
 
-        Cache::put(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$actor->userId), $order->id, now()->addMinutes(10));
-        if ($sales) {
-            Cache::put(TelegramBotContext::current()->cacheKey('telegram:payphoto:recent:'.$actor->userId), $order->id, now()->addHour());
+            if ($receiptRequested) {
+                Cache::put(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$actor->userId), $order->id, now()->addMinutes(10));
+                Cache::put(TelegramBotContext::current()->cacheKey('telegram:payphoto:recent:'.$actor->userId), $order->id, now()->addHour());
+
+                $this->renderPayment($bot,
+                    "<b>📷 ارسال رسید پرداخت #{$order->id}</b>\n\nلطفاً عکس رسید واریز را در همین گفت‌وگو بفرستید.\n<blockquote>۱۰ دقیقه فرصت دارید. ثبت رسید به‌معنای تأیید واریز نیست.</blockquote>",
+                    InlineKeyboardMarkup::make()
+                        ->addRow(InlineKeyboardButton::make('◀️ بازگشت به پرداخت', callback_data: 'sales:payment:start:'.$order->id))
+                        ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'menu:home')),
+                );
+
+                return;
+            }
+        } else {
+            // Preserve the original Admin/legacy receipt intake unchanged.
+            Cache::put(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$actor->userId), $order->id, now()->addMinutes(10));
         }
         $instructions = trim((string) config('billing.payment_instructions', ''));
         $instructions = mb_substr($instructions, 0, 350);
@@ -132,6 +161,8 @@ final readonly class ManualPaymentUi
         if ($sales) {
             $amount = (string) intdiv($order->totalPriceRials + 9, 10);
             $keyboard->addRow(TelegramUi::copy($card, '📋 کپی شماره کارت'), TelegramUi::copy($amount, '📋 کپی مبلغ'));
+            $keyboard->addRow(InlineKeyboardButton::make('📷 ارسال رسید پرداخت',
+                callback_data: 'sales:payment:receipt:'.$order->id, style: ButtonStyle::SUCCESS));
             if ($sourceRenewal === null) {
                 $keyboard->addRow(InlineKeyboardButton::make('🛒 خرید جدید همین پلن',
                     callback_data: 'sales:checkout:new:'.$order->id));
@@ -148,18 +179,8 @@ final readonly class ManualPaymentUi
                 ."\n\nمبلغ دقیق: <b>".TelegramUi::toman($order->totalPriceRials).' تومان</b>'
                 ."\nشماره کارت: ".TelegramUi::code($card)
                 .($instructions === '' ? '' : "\n".TelegramUi::escape($instructions))
-                ."\n\n<blockquote>✅ بعد از واریز، عکس رسید را همین‌جا بفرستید تا پرداختتان بررسی شود. نتیجه را از همین بات دریافت می‌کنید.</blockquote>";
+                ."\n\n<blockquote>پس از واریز، «ارسال رسید پرداخت» را انتخاب کنید. نتیجه بررسی را در همین بات دریافت می‌کنید.</blockquote>";
             $this->renderPayment($bot, $details, $keyboard);
-            // ForceReply is a lightweight prompt, not another required step.
-            // Ownership and order state are rechecked on receipt submission.
-            $bot->sendMessage(
-                text: '📷 لطفاً عکس رسید واریز را همین‌جا بفرستید (۱۰ دقیقه فرصت دارید).',
-                reply_markup: ForceReply::make(
-                    force_reply: true,
-                    input_field_placeholder: 'عکس رسید پرداخت',
-                    selective: true,
-                ),
-            );
 
             return;
         }

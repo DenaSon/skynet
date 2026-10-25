@@ -2,6 +2,7 @@
 
 use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
 use App\Interfaces\Telegram\Notifications\TelegramNotificationSender;
+use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Interfaces\Telegram\Support\PaymentDecisionTokens;
 use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
@@ -18,6 +19,7 @@ use App\Modules\Sales\Application\PlanPricingDefinition;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Routing\Route;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -119,6 +121,8 @@ it('does not expose receipt submission or accept forged pending payment while th
     $bot->hearCallbackQueryData('sales:checkout:view:'.$data['order'])->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('sales:payment:start:'.$data['order'])->reply()
         ->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:payment:receipt:'.$data['order'])->reply()
+        ->assertCalled('editMessageText');
     sb04Photo($bot, 55, false);
 
     expect(DB::table('sales_bank_payment_claims')->count())->toBe(0)
@@ -134,6 +138,7 @@ it('accepts Sales-only photos for own SB-03 orders and keeps suppressed notifica
     $bot = sb04Bot(974099);
 
     $bot->hearCallbackQueryData('sales:payment:start:'.$data['order'])->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:payment:receipt:'.$data['order'])->reply()->assertCalled('editMessageText');
     sb04Photo($bot);
 
     $claim = DB::table('sales_bank_payment_claims')->first();
@@ -161,6 +166,7 @@ it('limits Sales receipts to owner managed-plan orders and private chats, even w
 
     $otherBot = sb04Bot(974098);
     $otherBot->hearCallbackQueryData('sales:payment:start:'.$data['order'])->reply()->assertCalled('editMessageText');
+    $otherBot->hearCallbackQueryData('sales:payment:receipt:'.$data['order'])->reply()->assertCalled('editMessageText');
     sb04Photo($otherBot, 56, false);
     expect(fn () => app(ManualBankPayments::class)->latestReceiptStatus(
         SubscriptionViewer::telegram(974098), $data['order'],
@@ -169,6 +175,7 @@ it('limits Sales receipts to owner managed-plan orders and private chats, even w
     $buyerBot = sb04Bot(974099);
     $buyerBot->setCommonChat(Chat::make(-974099, ChatType::GROUP));
     $buyerBot->hearCallbackQueryData('sales:payment:start:'.$data['order'])->reply()->assertNoReply();
+    $buyerBot->hearCallbackQueryData('sales:payment:receipt:'.$data['order'])->reply()->assertNoReply();
     $buyerBot->hearMessage(['message_id' => 57, 'photo' => [
         ['file_id' => 'sale-photo-file-123', 'file_unique_id' => 'sale-unique-photo-123', 'width' => 600, 'height' => 600],
     ]])->reply()->assertNoReply();
@@ -183,6 +190,7 @@ it('records a single root-verified bank decision and allows Sales buyer to see a
     sb04SalesContext();
     $bot = sb04Bot(974099);
     $bot->hearCallbackQueryData('sales:payment:start:'.$data['order'])->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:payment:receipt:'.$data['order'])->reply()->assertCalled('editMessageText');
     sb04Photo($bot);
 
     $claim = (int) DB::table('sales_bank_payment_claims')->value('id');
@@ -222,6 +230,7 @@ it('routes the Sales-origin receipt photo across tokens only through the guarded
     sb04SalesContext();
     $bot = sb04Bot(974099);
     $bot->hearCallbackQueryData('sales:payment:start:'.$data['order'])->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:payment:receipt:'.$data['order'])->reply()->assertCalled('editMessageText');
     sb04Photo($bot);
     $noticeId = (int) DB::table('telegram_notification_deliveries')->where('event_type', 'ReceiptSubmitted')->value('id');
 
@@ -405,4 +414,28 @@ it('finishes receipt rejection with one button and never enqueues provider creat
     Queue::assertNotPushed(
         FulfillPaidPlanOrderJob::class,
     );
+});
+
+it('rechecks the bank gate and order status when an old receipt button is pressed', function (): void {
+    $data = sb04Order();
+    config()->set('sales.manual_bank_review_enabled', true);
+    sb04SalesContext();
+    $bot = sb04Bot(974099);
+    $key = TelegramBotContext::current()
+        ->cacheKey('telegram:payphoto:'.$data['buyer']->id);
+
+    $bot->hearCallbackQueryData('sales:payment:start:'.$data['order'])->reply()->assertCalled('editMessageText');
+    expect(Cache::has($key))->toBeFalse();
+
+    config()->set('sales.manual_bank_review_enabled', false);
+    $bot->hearCallbackQueryData('sales:payment:receipt:'.$data['order'])->reply()->assertCalled('editMessageText');
+    expect(Cache::has($key))->toBeFalse();
+
+    config()->set('sales.manual_bank_review_enabled', true);
+    DB::table('sales_orders')->where('id', $data['order'])->update(['status' => 'paid']);
+    $bot->hearCallbackQueryData('sales:payment:receipt:'.$data['order'])->reply()->assertCalled('editMessageText');
+    expect(Cache::has($key))->toBeFalse()
+        ->and(DB::table('sales_bank_payment_claims')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe(0);
+    Http::assertNothingSent();
 });

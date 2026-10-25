@@ -72,6 +72,8 @@ The operator explicitly approved replacing the **Sales-only** permanent four-but
 - InlineKeyboard is for object actions, selections, Back, Cancel and confirmations. Stale historic Reply labels plus old commands and callbacks MUST remain routable and re-authorized; never delete an Action to simplify a menu.
 - Navigation is contextual; Back returns to a parent, Cancel makes no mutation. No inert buttons. Never assume hiding a button replaces server authorization.
 
+**WUX-02 override (2026-10-25):** In the Sales Bot, an ordinary buyer's bank payment page never arms photo intake or auto-sends ForceReply. The green explicit «ارسال رسید پرداخت» action revalidates current order/payment/ownership gates and alone arms a ten-minute photo draft. The old `sales:payment:start` callback is payment *display* only. A bank+wallet eligible buyer sees both options without an extra form. Preserve legacy/Admin entry and the original receipt-submission Action. This supersedes only the earlier UXR-02 ForceReply/photo-entry timing; phase 3 state-resume polish is not part of this change.
+
 ## UXR-02 — Sales-only payment presentation (2026-10-20)
 - Preset selection from Sales home or catalog opens the one-screen payment directly, with fresh buyer/price/Squad validation; no separate preflight/preview/confirmation page. Existing callbacks remain safe, Admin and legacy routes remain independent.
 - Render the **recorded order price** in bold tomans, with plan/traffic/duration and only real configured destination details. Escape all dynamic text in Telegram HTML; use native CopyTextButton for exact bank card and amount. Do not ship sample or inferred payment details.
