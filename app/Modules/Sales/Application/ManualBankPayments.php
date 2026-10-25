@@ -152,7 +152,7 @@ final readonly class ManualBankPayments
     public function pending(int $rootId, int $limit = 12, int $offset = 0): array
     {
         $this->enabled();
-        $this->access->reviewer($rootId);
+        $this->access->purchaseViewer($rootId);
         if ($offset < 0 || $offset > 79992) {
             throw ValidationException::withMessages(['page' => 'Invalid receipt page.']);
         }
@@ -167,7 +167,7 @@ final readonly class ManualBankPayments
     public function detail(int $rootId, int $claimId): object
     {
         $this->enabled();
-        $this->access->reviewer($rootId);
+        $this->access->purchaseViewer($rootId);
 
         $row = DB::table('sales_bank_payment_claims as claims')
             ->join('sales_orders as orders', 'orders.id', '=', 'claims.sales_order_id')
@@ -190,7 +190,7 @@ final readonly class ManualBankPayments
     }
 
     /**
-     * Only a live-eligible Super Admin may make the final decision.
+     * Only an actively authorized purchase reviewer may make the final decision.
      * On approve they attest separately matching a real bank transaction and
      * supply that transaction's unique reference, never just the payer caption.
      */
@@ -208,7 +208,7 @@ final readonly class ManualBankPayments
         }
 
         return DB::transaction(function () use ($rootId, $claimId, $approve, $reference): object {
-            $this->access->reviewer($rootId);
+            $this->access->purchaseReviewer($rootId);
             // Lock order before claim: the same sequence as photo submission
             // and wallet settlement, avoiding opposite-order row deadlocks.
             $snapshot = DB::table('sales_bank_payment_claims')->where('id', $claimId)->first(['sales_order_id']);
