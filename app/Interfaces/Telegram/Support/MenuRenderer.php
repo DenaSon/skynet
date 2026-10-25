@@ -173,7 +173,9 @@ final class MenuRenderer
         }
         $keyboard->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
 
-        $this->render($bot, "📦 محصولات و پلن‌ها\\n\\nبخش موردنظر را انتخاب کنید.", $keyboard);
+        $this->render($bot, $root
+            ? "📦 محصولات و پلن‌ها\n\nاز این بخش می‌توانید محصولات، پلن‌ها و قیمت‌های فروش را مدیریت کنید."
+            : "📦 محصولات و پلن‌ها\n\nبخش موردنظر را انتخاب کنید.", $keyboard);
     }
 
     /** @param array{balanceRials:int,walletsTotal:int,walletsPositive:int,walletsNegative:int,pendingTopups:int}|null $walletSummary */
