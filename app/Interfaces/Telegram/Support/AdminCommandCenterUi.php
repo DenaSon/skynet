@@ -6,7 +6,6 @@ namespace App\Interfaces\Telegram\Support;
 
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Provisioning\Application\ReadAdminCommandCenter;
-use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveNodeSummary;
 use App\Support\PersianCalendar;
 use Illuminate\Auth\Access\AuthorizationException;
 use SergiX44\Nutgram\Nutgram;
@@ -169,36 +168,45 @@ final readonly class AdminCommandCenterUi
             return ['جزئیات نودها: نامشخص'];
         }
 
-        // The reader owns the typed/sanitized snapshot; show disconnected
-        // nodes first, without hiding the active nodes in short inventories.
-        usort($nodes, static function (RemnawaveNodeSummary $a, RemnawaveNodeSummary $b): int {
-            $priority = static fn (RemnawaveNodeSummary $node): int => $node->disabled
-                ? 3 : ($node->connected ? 2 : ($node->connecting === true ? 1 : 0));
+        foreach ($nodes as $node) {
+            if (! is_array($node)
+                || ! is_string($node['name'] ?? null)
+                || ! is_bool($node['connected'] ?? null)
+                || ! is_bool($node['disabled'] ?? null)) {
+                return ['جزئیات نودها: نامشخص'];
+            }
+        }
 
-            return ($priority($a) <=> $priority($b)) ?: strcmp($a->name, $b->name);
+        // Only safe Application data enters Telegram; prioritize problematic nodes.
+        usort($nodes, static function (array $a, array $b): int {
+            $priority = static fn (array $node): int => $node['disabled']
+                ? 3 : ($node['connected'] ? 2 : (($node['connecting'] ?? null) === true ? 1 : 0));
+
+            return ($priority($a) <=> $priority($b)) ?: strcmp($a['name'], $b['name']);
         });
 
         $lines = ['<b>جزئیات نودها (گزارش RW)</b>'];
         foreach (array_slice($nodes, 0, 5) as $node) {
-            $status = $node->disabled ? '⏸️ غیرفعال'
-                : ($node->connected ? '🟢 متصل'
-                    : ($node->connecting === true ? '🟠 در حال اتصال' : '🔴 قطع'));
+            $status = $node['disabled'] ? '⏸️ غیرفعال'
+                : ($node['connected'] ? '🟢 متصل'
+                    : (($node['connecting'] ?? null) === true ? '🟠 در حال اتصال' : '🔴 قطع'));
             $name = TelegramUi::escape(mb_substr(
-                (string) preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $node->name), 0, 50,
+                (string) preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $node['name']), 0, 50,
             ));
             $lines[] = $status.' · '.$name;
-            $lines[] = '👥 آنلاین این نود: '.self::format($node->usersOnline);
-            $lines[] = '📡 دریافت: '.self::rate($node->rxBytesPerSec)
-                .' | ارسال: '.self::rate($node->txBytesPerSec);
+            $lines[] = '👥 آنلاین این نود: '.self::format(self::number($node, 'usersOnline'));
+            $lines[] = '📡 دریافت: '.self::rate(self::number($node, 'rxBytesPerSec'))
+                .' | ارسال: '.self::rate(self::number($node, 'txBytesPerSec'));
 
-            if (! $node->connected && ! $node->disabled) {
-                $lines[] = '🕒 آخرین تغییر وضعیت: '.($node->lastStatusChange === null
-                    ? 'نامشخص' : PersianCalendar::utcDateTime($node->lastStatusChange));
+            if (! $node['connected'] && ! $node['disabled']) {
+                $lines[] = '🕒 آخرین تغییر وضعیت: '.(! is_string($node['lastStatusChange'] ?? null)
+                    ? 'نامشخص' : PersianCalendar::utcDateTime($node['lastStatusChange']));
             }
 
-            if ($node->trafficTrackingActive === true && $node->trafficLimitBytes !== null
-                && $node->trafficLimitBytes > 0 && $node->trafficUsedBytes !== null) {
-                $percent = $node->trafficUsedBytes / $node->trafficLimitBytes * 100;
+            if (($node['trafficTrackingActive'] ?? null) === true
+                && ($limit = self::number($node, 'trafficLimitBytes')) !== null && $limit > 0
+                && ($used = self::number($node, 'trafficUsedBytes')) !== null) {
+                $percent = $used / $limit * 100;
                 $lines[] = '📊 مصرف از سقف نود: '.number_format($percent, 1).'٪';
             }
         }

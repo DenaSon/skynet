@@ -4,15 +4,13 @@ declare(strict_types=1);
 
 namespace App\Modules\Provisioning\Application;
 
-use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveNodeSummary;
-
 /**
  * Deliberately small, secret-free projection. Unverified/offline data is never
  * presented as a live provider result.
  */
 final readonly class AdminProviderOverview
 {
-    /** @param list<RemnawaveNodeSummary>|null $nodeSummaries */
+    /** @param list<array<string, int|string|bool|null>>|null $nodeSummaries */
     public function __construct(
         public string $state,
         public ?int $instances = null,

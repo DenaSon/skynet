@@ -6,7 +6,6 @@ namespace App\Modules\Provisioning\Application;
 
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveApiClientFactory;
-use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveNodeSummary;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveUsersApi;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -32,7 +31,7 @@ final readonly class ReadAdminDashboard
      *   adminReachable:int, salesRecent:int, salesTodayRials:int,
      *   provisioningReview:int, fulfillmentReview:int, receiptsPending:int,
      *   failedJobs:int, notificationIssues:int, receivedAt:string,
-     *   nodeSummaries:list<RemnawaveNodeSummary>|null
+     *   nodeSummaries:list<array<string,int|string|bool|null>>|null
      * }
      */
     public function handle(int $actorId): array
