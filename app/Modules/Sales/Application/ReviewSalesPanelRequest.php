@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Sales\Application;
 
 use App\Modules\Identity\Application\ApproveSalesPanelMember;
-use App\Modules\Identity\Application\ManageRoles;
+use App\Modules\Identity\Application\AdminCapabilityAccess;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -13,14 +13,14 @@ use Illuminate\Validation\ValidationException;
 final readonly class ReviewSalesPanelRequest
 {
     public function __construct(
-        private ManageRoles $roles,
+        private AdminCapabilityAccess $access,
         private ApproveSalesPanelMember $promote,
     ) {}
 
     /** @return list<array{id:int,user_id:int,first_name:string,last_name:string,mobile:string,status:string}> */
     public function page(int $rootId, int $page): array
     {
-        $this->roles->authorize($rootId);
+        $this->access->require($rootId, 'resellers.review');
         if ($page < 1 || $page > 1000) {
             throw ValidationException::withMessages(['page' => 'Invalid page.']);
         }
@@ -33,7 +33,7 @@ final readonly class ReviewSalesPanelRequest
     /** @return array{id:int,user_id:int,first_name:string,last_name:string,mobile:string,status:string} */
     public function find(int $rootId, int $id): array
     {
-        $this->roles->authorize($rootId);
+        $this->access->require($rootId, 'resellers.review');
         $row = DB::table('sales_panel_requests')->where('id', $id)->first();
 
         if ($row === null) {
@@ -47,7 +47,7 @@ final readonly class ReviewSalesPanelRequest
     public function decide(int $rootId, int $id, bool $approve): array
     {
         return DB::transaction(function () use ($rootId, $id, $approve): array {
-            $this->roles->authorize($rootId);
+            $this->access->require($rootId, 'resellers.review');
             $row = DB::table('sales_panel_requests')->where('id', $id)->lockForUpdate()->first();
             if ($row === null || $row->status !== 'pending') {
                 throw ValidationException::withMessages(['application' => 'Application already reviewed or unavailable.']);
