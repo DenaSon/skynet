@@ -41,6 +41,7 @@ final readonly class WalletTopupUi
 
             return;
         }
+        app(SalesCheckoutUi::class)->clearWalletDraft($userId);
         // The next photo must never be associated with an older purchase.
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$userId));
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:recent:'.$userId));
@@ -74,6 +75,7 @@ final readonly class WalletTopupUi
 
             return;
         }
+        app(SalesCheckoutUi::class)->clearWalletDraft($userId);
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$userId));
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:recent:'.$userId));
         $this->chooseAmount($bot);
@@ -115,6 +117,7 @@ final readonly class WalletTopupUi
             return;
         }
 
+        app(SalesCheckoutUi::class)->clearWalletDraft($userId);
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$userId));
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:recent:'.$userId));
         $toman = intdiv((int) $pending->amount_rials, 10);
