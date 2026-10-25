@@ -17,7 +17,7 @@ final class BrowseUsers
             throw ValidationException::withMessages(['search' => 'Search is limited to 64 characters.']);
         }
 
-        $query = User::query()->with(['roles', 'telegramAccount'])->orderBy('id');
+        $query = User::query()->with(['roles', 'telegramAccount'])->orderByDesc('id');
 
         if ($search !== '') {
             if (ctype_digit($search)) {
@@ -30,7 +30,7 @@ final class BrowseUsers
             }
         }
 
-        $paginator = $query->paginate(perPage: 6, page: max(1, min($page, 100000)));
+        $paginator = $query->paginate(perPage: 11, page: max(1, min($page, 100000)));
 
         return new UserDirectoryPage(
             users: $paginator->getCollection()->map(fn (User $user): UserDirectoryEntry => $this->entry($actor, $user))->all(),

@@ -11,9 +11,9 @@ use Illuminate\Validation\ValidationException;
 
 uses(RefreshDatabase::class);
 
-it('paginates consistently and searches by id, name or email', function (): void {
+it('lists eleven newest users first and preserves pagination and search', function (): void {
     $admin = User::factory()->admin()->create();
-    User::factory()->count(14)->create();
+    User::factory()->count(14)->create(['name' => 'UniqueDirectorySubject927 Older']);
     $alice = User::factory()->create(['name' => 'UniqueDirectorySubject927', 'email' => 'unique-927@example.test']);
     $directory = app(BrowseUsers::class);
 
@@ -21,11 +21,16 @@ it('paginates consistently and searches by id, name or email', function (): void
     $pageTwo = $directory->page($admin->id, page: 2);
 
     expect($pageOne->total)->toBe(16)
-        ->and($pageOne->lastPage)->toBe(3)
-        ->and(count($pageOne->users))->toBe(6)
-        ->and($pageTwo->users[0]->id)->toBeGreaterThan($pageOne->users[5]->id);
+        ->and($pageOne->lastPage)->toBe(2)
+        ->and(count($pageOne->users))->toBe(11)
+        ->and($pageOne->users[0]->id)->toBe($alice->id)
+        ->and(count($pageTwo->users))->toBe(5)
+        ->and($pageTwo->users[0]->id)->toBeLessThan($pageOne->users[10]->id)
+        ->and(collect([...$pageOne->users, ...$pageTwo->users])->pluck('id')->unique())->toHaveCount(16);
 
     expect($directory->page($admin->id, 'UniqueDirectorySubject927')->users[0]->id)->toBe($alice->id)
+        ->and(count($directory->page($admin->id, 'UniqueDirectorySubject927')->users))->toBe(11)
+        ->and(count($directory->page($admin->id, 'UniqueDirectorySubject927', 2)->users))->toBe(4)
         ->and($directory->page($admin->id, 'unique-927@example.test')->total)->toBe(1)
         ->and($directory->page($admin->id, (string) $alice->id)->total)->toBe(1)
         ->and($directory->page($admin->id, 'no-such-user')->total)->toBe(0);
