@@ -221,7 +221,8 @@ final class MenuRenderer
         $linked = $user->telegramLinked ? 'متصل' : 'متصل نیست';
         $mode = $search ? 's' : 'a';
 
-        $keyboard = InlineKeyboardMarkup::make();
+        $keyboard = InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('📋 پرونده کاربر', callback_data: "users:profile:{$user->id}:{$page}:{$mode}"));
 
         if ($user->canChangeStatus) {
             $label = $user->active ? '⛔ غیرفعال‌کردن' : '✅ فعال‌کردن';

@@ -28,6 +28,7 @@ use App\Interfaces\Telegram\Support\AdminSectionsUi;
 use App\Interfaces\Telegram\Support\AdminSubscriptionStatusUi;
 use App\Interfaces\Telegram\Support\AdminTrafficReportUi;
 use App\Interfaces\Telegram\Support\BillingUi;
+use App\Interfaces\Telegram\Support\CustomerSupportProfileUi;
 use App\Interfaces\Telegram\Support\ManualPaymentUi;
 use App\Interfaces\Telegram\Support\PlanAdminUi;
 use App\Interfaces\Telegram\Support\PlanSquadUi;
@@ -675,6 +676,10 @@ $bot->onCallbackQueryData('users:search', function (Nutgram $bot): void {
 
 $bot->onCallbackQueryData('users:view:{id}:{page}:{mode}', function (Nutgram $bot, string $id, string $page, string $mode): void {
     app(UserManagementUi::class)->details($bot, $id, $page, $mode);
+});
+
+$bot->onCallbackQueryData('users:profile:{id}:{page}:{mode}', function (Nutgram $bot, string $id, string $page, string $mode): void {
+    app(CustomerSupportProfileUi::class)->show($bot, $id, $page, $mode);
 });
 
 $bot->onCallbackQueryData('users:confirm:{id}:{page}:{mode}', function (Nutgram $bot, string $id, string $page, string $mode): void {
