@@ -1,3 +1,7 @@
+## Admin user directory ordering and page size (2026-10-25)
+
+Operator-requested UX adjustment: `BrowseUsers::page` lists newest registered IDs first and returns 11 users per page (previously 6). Search uses the same ordering and page size; existing Telegram callbacks, detail/back navigation and authorization remain unchanged. No migration, dependency or financial/provider change. Existing directory and Telegram pagination regressions cover the adjustment; live Telegram appearance is verified separately.
+
 ## RBAC security follow-up — worker revocation and custom operators (2026-10-25)
 
 Operator authorized review findings 1 and 2 only. Identity clears Spatie's process-local permission collection on Laravel `JobProcessing`, so each queued job reloads shared permissions after a role edit in another process. Role-permission edits invalidate the shared cache again after the outer transaction commits, preventing a concurrent pre-commit reader from leaving stale shared grants. Existing outbox states, queues and delivery authorization remain in place. Workers must load the new release through the usual deployment restart; this is not a claim that already-running old code has changed.

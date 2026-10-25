@@ -1,3 +1,7 @@
+## Admin user directory polish (2026-10-25)
+
+Show newest users first, 11 per page, through the existing authorized directory Action. Apply the same pagination to search and preserve detail/navigation callbacks. No schema or access-policy change; validate via existing directory/Telegram tests and normal PHP 8.4/8.5 CI before merge.
+
 ## RBAC security follow-up — authorized findings 1 and 2 (2026-10-25)
 
 Implement the reviewed fixes through one scoped PR: refresh Spatie's process-local grants before each queued job, invalidate shared grants after role-edit commit, and extend peer-admin protection to custom Admin capability holders across Telegram status controls and shared HTTP/Application role/status mutations. Add regression coverage for an independently cached permission editor, all three receipt alert types, disabled/unlinked/direct-grant operators and stale Telegram confirmations; preserve trusted-root and ordinary customer behavior. No schema/dependency/financial/provider changes. Missing-migration availability (review finding 3) is deferred by operator scope. Release requires PHP 8.4/8.5, PHPStan/Pint and existing MySQL/Redis CI; live Telegram acceptance remains distinct.
