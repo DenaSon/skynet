@@ -376,6 +376,6 @@ it('allows a delegated plan manager through real Admin routes without Squad bind
     $bot->hearCallbackQueryData('plan:view:'.$id)->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('plan:begin:edit:'.$id)->reply()->assertCalled('editMessageText');
 
-    expect(app(\\App\\Modules\\Identity\\Application\\ResolveTelegramActor::class)
+    expect(app(\App\Modules\Identity\Application\ResolveTelegramActor::class)
         ->handle(944030)?->allows('plans.manage'))->toBeTrue();
 });
