@@ -10,6 +10,7 @@ use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
+use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
 
@@ -145,4 +146,23 @@ it('ignores administrative commands from group chats', function (): void {
 
     $bot->hearText('/users')->reply()->assertNoReply();
     $bot->hearCallbackQueryData('users:page:1')->reply()->assertNoReply();
+});
+
+it('rejects a status confirmation issued before a customer became a custom operator', function (): void {
+    $admin = User::factory()->admin()->create();
+    $subject = User::factory()->create();
+    $bot = configureUserManagementBot(49701, $admin);
+    $token = app(UserStatusConfirmations::class)->issue($admin->id, $subject->id, true, 1);
+    $role = Role::findOrCreate('promoted-finance', 'web');
+    $role->givePermissionTo('finance.view');
+    $subject->syncRoles([$role]);
+
+    $bot->hearCallbackQueryData("users:confirm:{$subject->id}:1:a")->reply()
+        ->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('users:apply:'.$token)->reply()
+        ->assertCalled('editMessageText');
+
+    expect($subject->fresh()->is_active)->toBeTrue()
+        ->and($subject->fresh()->hasRole($role))->toBeTrue()
+        ->and(DB::table('identity_audit_events')->count())->toBe(0);
 });

@@ -34,7 +34,7 @@ final class UpdateUserAccess
             }
 
             if ($active !== null) {
-                if (! $trust->eligible($actor) && $subject->hasRole('admin')) {
+                if (! $trust->eligible($actor) && app(AdminCapabilityAccess::class)->isOperator($subject)) {
                     throw ValidationException::withMessages(['role' => 'Only a trusted Super Admin can change an administrator.']);
                 }
 

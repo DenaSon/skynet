@@ -28,6 +28,8 @@ use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
+use Illuminate\Queue\Events\JobProcessing;
+use Illuminate\Queue\Jobs\SyncJob;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -35,6 +37,7 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 
 uses(RefreshDatabase::class);
 
@@ -429,3 +432,44 @@ it('requires matching view permission when managing review roles through existin
     expect($role->fresh()->hasPermissionTo('purchases.review'))->toBeTrue()
         ->and($role->fresh()->hasPermissionTo('purchases.view'))->toBeTrue();
 });
+
+it('refreshes a warm worker before delivering alerts after another process revokes a role permission', function (string $eventType, string $prefix): void {
+    $root = reminderRoot(987001);
+    $operator = reminderDelegated(987010, 'warm-worker-reviewer', [$prefix.'.view', $prefix.'.review']);
+    reminderReceipts();
+    $this->travel(16)->minutes();
+    Artisan::call('telegram:receipts:remind');
+    $delivery = DB::table('telegram_notification_deliveries')
+        ->where('recipient_user_id', $operator->id)->where('event_type', $eventType)->first();
+    expect($delivery)->not->toBeNull();
+
+    $workerPermissions = app(PermissionRegistrar::class);
+    expect(app(ResolveTelegramActor::class)->handle(987010)?->allows($prefix.'.review'))->toBeTrue();
+    $role = Role::findByName('warm-worker-reviewer', 'web');
+    $permission = Permission::findByName($prefix.'.review', 'web');
+
+    // Isolate the editor's registrar as in a separate HTTP process. Its
+    // shared-cache invalidation must not clear the worker's in-memory copy.
+    app()->instance(PermissionRegistrar::class, new PermissionRegistrar(app('cache')));
+    try {
+        app(ToggleRolePermission::class)->handle($root->id, $role->id, $permission->id, true);
+    } finally {
+        app()->instance(PermissionRegistrar::class, $workerPermissions);
+    }
+    expect(DB::table('role_has_permissions')->where('role_id', $role->id)
+        ->where('permission_id', $permission->id)->exists())->toBeFalse();
+
+    event(new JobProcessing('database', new SyncJob(app(), '{}', 'database', 'default')));
+    (new DispatchTelegramNotification((int) $delivery->id))->handle(app(TelegramNotificationSender::class));
+
+    $fresh = DB::table('telegram_notification_deliveries')->where('id', $delivery->id)->first();
+    expect($fresh->state)->toBe('unavailable')
+        ->and($fresh->last_failure)->toBe('not_authorized')
+        ->and(app(ResolveTelegramActor::class)->handle(987010)?->allows($prefix.'.review'))->toBeFalse()
+        ->and(DB::table('billing_journals')->count())->toBe(0);
+    Http::assertNothingSent();
+})->with([
+    'purchase receipt' => ['ReceiptSubmitted', 'purchases'],
+    'wallet receipt' => ['WalletTopupSubmitted', 'topups'],
+    'receipt reminder' => ['ReceiptReviewReminder', 'topups'],
+]);

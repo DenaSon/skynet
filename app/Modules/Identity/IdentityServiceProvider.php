@@ -8,14 +8,23 @@ use App\Modules\Identity\Presentation\Console\BootstrapAdmin;
 use App\Modules\Identity\Presentation\Console\PromoteSuperAdmin;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Queue\Events\JobProcessing;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use Spatie\Permission\PermissionRegistrar;
 
 final class IdentityServiceProvider extends ServiceProvider
 {
     public function boot(): void
     {
+        // Role edits in another process invalidate the shared cache, but a
+        // long-lived worker also needs to discard its own hydrated copy.
+        Event::listen(JobProcessing::class, static function (): void {
+            app(PermissionRegistrar::class)->clearPermissionsCollection();
+        });
+
         // No magic root role: an active, linked, ENV-allowlisted Super Admin is required.
         Gate::before(function (User $user) {
             if (! $user->hasRole('super-admin')) {

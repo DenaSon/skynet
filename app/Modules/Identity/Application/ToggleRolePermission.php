@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 
 final class ToggleRolePermission
 {
@@ -41,6 +42,12 @@ final class ToggleRolePermission
             } else {
                 $role->givePermissionTo($permission);
             }
+
+            // A concurrent reader may refill the shared cache before this
+            // transaction commits. Invalidate again when the edit is durable.
+            DB::afterCommit(static function (): void {
+                app(PermissionRegistrar::class)->forgetCachedPermissions();
+            });
 
             app(RecordIdentityAudit::class)->handle($actor, 'identity.role.permission_changed', 'role', $roleId, [
                 'permission' => $permission->name,

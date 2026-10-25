@@ -1,3 +1,7 @@
+## RBAC security follow-up — authorized findings 1 and 2 (2026-10-25)
+
+Implement the reviewed fixes through one scoped PR: refresh Spatie's process-local grants before each queued job, invalidate shared grants after role-edit commit, and extend peer-admin protection to custom Admin capability holders across Telegram status controls and shared HTTP/Application role/status mutations. Add regression coverage for an independently cached permission editor, all three receipt alert types, disabled/unlinked/direct-grant operators and stale Telegram confirmations; preserve trusted-root and ordinary customer behavior. No schema/dependency/financial/provider changes. Missing-migration availability (review finding 3) is deferred by operator scope. Release requires PHP 8.4/8.5, PHPStan/Pint and existing MySQL/Redis CI; live Telegram acceptance remains distinct.
+
 ## RBAC-A3 — scoped catalog management and Sales Panel approval (2026-10-25; PR #233)
 
 Operator separately authorized implementation of Phase 3 of [docs/030](030-ADMIN-RBAC-THREE-PHASE-ROADMAP.md). Additive, opt-in `plans.manage` and `resellers.review` Spatie permissions via a new reversible migration. Permissions remain individually assigned only to custom roles through the existing root-only audited role UI. No default role broadening, root enrollment, ledger changes, payments, Remnawave mutation or automatic Production privileges.
