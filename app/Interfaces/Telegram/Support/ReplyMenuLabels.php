@@ -14,6 +14,8 @@ final class ReplyMenuLabels
 
     public const SALES_TUTORIAL = '📚 آموزش';
 
+    public const SALES_WALLET = '💰 اعتبار من';
+
     public const SALES_TRIAL = '🧪 تست رایگان';
 
     public const SALES_REPORTS = '📊 گزارش‌های من';
