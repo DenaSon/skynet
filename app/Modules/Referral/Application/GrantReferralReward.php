@@ -9,12 +9,20 @@ use App\Modules\Identity\Application\AssertReferralMember;
 use App\Modules\Sales\Application\ReadReferralPurchase;
 use Illuminate\Support\Facades\DB;
 
-/** REF-01 internal foundation. No route, listener, scheduler or job calls this yet. */
+/** Internal reward decision/credit; the queued Sales outbox supplies the captured policy. */
 final class GrantReferralReward
 {
-    public function handle(int $orderId): ?int
+    /** @param array{amount:int,limit:int,start:string}|null $captured */
+    public function handle(int $orderId, ?array $captured = null): ?int
     {
-        $policy = app(ReferralRewardPolicy::class)->settings();
+        $settings = app(ReferralRewardPolicy::class);
+        $policy = $settings->settings();
+        if ($captured !== null) {
+            $frozen = $settings->validateSnapshot($captured);
+            // Never reprice queued work. A lower current safety cap still wins;
+            // increasing the cap does not expand the older captured entitlement.
+            $policy = [...$frozen, 'limit' => min($policy['limit'], $frozen['limit'])];
+        }
 
         return DB::transaction(function () use ($orderId, $policy): ?int {
             $buyerId = app(ReadReferralPurchase::class)->buyerId($orderId, $policy['start']);

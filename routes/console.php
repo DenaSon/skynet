@@ -8,6 +8,7 @@ use App\Modules\Billing\Application\VerifyWalletOrderDebit;
 use App\Modules\Provisioning\Jobs\FulfillPaidPlanOrderJob;
 use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\ConfigureRate;
+use App\Modules\Sales\Application\ReferralRewardOutbox;
 use App\Modules\Trial\Application\ReadFreeTrial;
 use App\Modules\Trial\Application\TrialAvailability;
 use App\Modules\Trial\Jobs\ProvisionFreeTrialJob;
@@ -283,3 +284,18 @@ Artisan::command('sales:trials:inspect {id? : Trial claim ID; defaults to the la
 
     return 0;
 })->purpose('Inspect safe trial state, provider counters and notification delivery evidence (GET only)');
+
+// Recover only explicitly captured successful-purchase intents; never scan old sales for rewards.
+Schedule::command('sales:referrals:dispatch')->everyMinute()->withoutOverlapping();
+Artisan::command('sales:referrals:dispatch', function (): int {
+    $count = app(ReferralRewardOutbox::class)->dispatchPending();
+    $this->info("Queued {$count} referral reward intent(s).");
+
+    return 0;
+})->purpose('Recover pending referral rewards through the existing asynchronous queue');
+
+Artisan::command('sales:referrals:status', function (): int {
+    $this->line(json_encode(app(ReferralRewardOutbox::class)->status(), JSON_THROW_ON_ERROR));
+
+    return 0;
+})->purpose('Read referral worker readiness and safe delivery-state counts');

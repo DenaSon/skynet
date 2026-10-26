@@ -1,3 +1,7 @@
+## REF-02 — durable reward processing (2026-10-26)
+
+Successful paid CREATE/reconciliation now atomically captures policy in the existing fulfillment outbox; an asynchronous reward job and minute recovery dispatcher handle credit. Queue outages do not change successful provider outcomes. Frozen amount, SQL cap/replay guards, terminal suppression and bounded local retries; default OFF. REF-03 notification/UX and real acceptance remain pending. Stacked on unmerged REF-01 #244. [Contract and operations](031-REFERRAL-REWARDS-PLAN.md).
+
 ## REF-01 — referral reward foundation (2026-10-26)
 
 Internal default-disabled reward foundation for seven distinct referred buyers, 30,000 tomans each; both settings configurable. Existing signup attribution retained. Verified successful first purchase only, ordinary members only, unique lifetime awards and balanced Billing credit/cost. No automatic fulfillment hook, reward job or notification yet. [Rules, phases and acceptance](031-REFERRAL-REWARDS-PLAN.md). Source implementation pending PR verification; no Production operation.

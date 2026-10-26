@@ -28,6 +28,7 @@ use App\Modules\Sales\Application\ManagePlans;
 use App\Modules\Sales\Application\ManualBankPayments;
 use App\Modules\Sales\Application\PlanDefinition;
 use App\Modules\Sales\Application\PlanPricingDefinition;
+use App\Modules\Sales\Application\ReferralRewardOutbox;
 use App\Modules\Sales\Application\SettleWalletOrder;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Bus\UniqueLock;
@@ -1179,12 +1180,13 @@ it('does not notify activation when provider CREATE is uncertain', function (): 
         ->and(DB::table('telegram_notification_deliveries')->where('event_type', 'SubscriptionActivated')->count())->toBe(0);
 });
 
-it('makes only a verified completed bank purchase eligible for the internal referral foundation', function (): void {
+it('captures a referral only after verified bank or wallet activation and defers credit to its worker', function (string $payment): void {
+    Queue::fake();
     config()->set('referral', [
         'rewards_enabled' => true, 'reward_tomans' => 30000, 'max_rewards_per_referrer' => 7,
         'rewards_start_at' => now()->subDay()->utc()->format('Y-m-d\TH:i:s\Z'),
     ]);
-    $data = sb05Order();
+    $data = $payment === 'wallet' ? sb05WalletOrder() : sb05Order();
     $referrer = ReferralRewardFixture::member();
     DB::table('referrals')->insert([
         'referrer_user_id' => $referrer->id, 'invited_user_id' => $data['buyer']->id, 'created_at' => now(),
@@ -1194,8 +1196,69 @@ it('makes only a verified completed bank purchase eligible for the internal refe
     config()->set('services.remnawave.writes_enabled', true);
     sb05FakeCreate($data['order']);
     app(FulfillPaidPlanOrder::class)->handle($data['order']);
-    // REF-01 intentionally has no automatic fulfillment hook.
-    expect(DB::table('referral_rewards')->count())->toBe(0);
-    expect($action->handle($data['order']))->toBeInt()
-        ->and(app(ViewWallet::class)->handle($referrer->id)->balanceRials)->toBe(300000);
+    expect(DB::table('referral_rewards')->count())->toBe(0)
+        ->and(DB::table('sales_fulfillment_outbox')->where('sales_order_id', $data['order'])->value('referral_state'))->toBe('pending');
+    app(ReferralRewardOutbox::class)->process($data['order']);
+    expect(app(ViewWallet::class)->handle($referrer->id)->balanceRials)->toBe(300000);
+    Http::assertSentCount(1);
+})->with(['bank', 'wallet']);
+
+it('keeps successful provider fulfillment completed when referral enqueue is unavailable', function (): void {
+    config()->set('referral', [
+        'rewards_enabled' => true, 'reward_tomans' => 30000, 'max_rewards_per_referrer' => 7,
+        'rewards_start_at' => now()->subDay()->utc()->format('Y-m-d\TH:i:s\Z'),
+    ]);
+    $data = sb05Order();
+    config()->set('services.remnawave.writes_enabled', true);
+    sb05FakeCreate($data['order']);
+    Queue::shouldReceive('connection')->once()->andThrow(new RuntimeException('fixture transport unavailable'));
+    expect(app(FulfillPaidPlanOrder::class)->handle($data['order']))->toBe(52);
+    expect(DB::table('sales_orders')->where('id', $data['order'])->value('status'))->toBe('fulfilled')
+        ->and(DB::table('sales_fulfillment_outbox')->where('sales_order_id', $data['order'])->value('state'))->toBe('completed')
+        ->and(DB::table('sales_fulfillment_outbox')->where('sales_order_id', $data['order'])->value('referral_state'))->toBe('pending');
+    Http::assertSentCount(1);
+});
+
+it('captures a single referral intent on GET reconciliation without another CREATE', function (): void {
+    Queue::fake();
+    config()->set('referral', [
+        'rewards_enabled' => true, 'reward_tomans' => 30000, 'max_rewards_per_referrer' => 7,
+        'rewards_start_at' => now()->subDay()->utc()->format('Y-m-d\TH:i:s\Z'),
+    ]);
+    $data = sb05Order();
+    $referrer = ReferralRewardFixture::member();
+    DB::table('referrals')->insert([
+        'referrer_user_id' => $referrer->id, 'invited_user_id' => $data['buyer']->id, 'created_at' => now(),
+    ]);
+    config()->set('services.remnawave.writes_enabled', true);
+    Http::fake(['https://remna.test/api/users' => Http::response('', 503)]);
+    $action = app(FulfillPaidPlanOrder::class);
+    expect(fn () => $action->handle($data['order']))->toThrow(RuntimeException::class);
+    expect(DB::table('sales_fulfillment_outbox')->value('referral_state'))->toBeNull();
+    $expected = json_decode(DB::table('provisioning_operations')->value('expected_payload'), true);
+    config()->set('services.remnawave.writes_enabled', false);
+    Http::fake(['https://remna.test/api/users/by-username/*' => Http::response([
+        'response' => sb05Remote($data['order'], $expected['expireAt'], $expected['trafficLimitBytes']),
+    ])]);
+    $action->reconcile($data['order']);
+    $outbox = app(ReferralRewardOutbox::class);
+    $outbox->process($data['order']);
+    $outbox->process($data['order']);
+    expect(DB::table('referral_rewards')->count())->toBe(1)
+        ->and(DB::table('sales_fulfillment_outbox')->value('referral_state'))->toBe('credited');
+    Http::assertSentCount(1);
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
+});
+
+it('does not fail paid fulfillment because referral configuration is invalid', function (): void {
+    config()->set('referral.rewards_enabled', true);
+    config()->set('referral.reward_tomans', 'invalid');
+    $data = sb05Order();
+    config()->set('services.remnawave.writes_enabled', true);
+    sb05FakeCreate($data['order']);
+    expect(app(FulfillPaidPlanOrder::class)->handle($data['order']))->toBe(52);
+    expect(DB::table('sales_fulfillment_outbox')->value('state'))->toBe('completed')
+        ->and(DB::table('sales_fulfillment_outbox')->value('referral_state'))->toBe('suppressed')
+        ->and(DB::table('referral_rewards')->count())->toBe(0);
+    Http::assertSentCount(1);
 });

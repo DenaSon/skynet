@@ -6,6 +6,7 @@ namespace App\Modules\Provisioning\Application;
 
 use App\Interfaces\Telegram\Notifications\PaymentNotificationOutbox;
 use App\Modules\Billing\Application\VerifyWalletOrderDebit;
+use App\Modules\Sales\Application\ReferralRewardOutbox;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
@@ -232,7 +233,14 @@ final readonly class FulfillPaidPlanOrder
             }
 
             DB::table('sales_orders')->where('id', $orderId)->update(['status' => 'fulfilled', 'updated_at' => now()]);
-            DB::table('sales_fulfillment_outbox')->where('id', $outbox->id)->update(['state' => 'completed', 'updated_at' => now()]);
+            $referrals = app(ReferralRewardOutbox::class);
+            $rewardFields = $referrals->captureFields();
+            DB::table('sales_fulfillment_outbox')->where('id', $outbox->id)->update([
+                'state' => 'completed', 'updated_at' => now(), ...$rewardFields,
+            ]);
+            if (($rewardFields['referral_state'] ?? null) === 'pending') {
+                DB::afterCommit(static fn () => $referrals->enqueue($orderId));
+            }
 
             // No success intent until both the verified provider response AND
             // the order-to-owned-subscription linkage are committed.

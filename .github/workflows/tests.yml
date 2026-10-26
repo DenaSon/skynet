@@ -144,6 +144,13 @@ jobs:
           REFERRAL_MYSQL_SMOKE: '1'
         run: php tests/Smoke/referral_mysql_concurrency.php
 
+      - name: Verify referral reward dispatch through a real Redis worker
+        env:
+          REFERRAL_REDIS_SMOKE: '1'
+          REDIS_HOST: 127.0.0.1
+          REDIS_DB: '15'
+        run: php tests/Smoke/referral_queue_redis.php
+
       - name: Validate historical receipts and guarded rollback on MySQL
         run: php tests/Smoke/mb02_mysql_migration.php
 

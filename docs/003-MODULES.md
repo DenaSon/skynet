@@ -1,3 +1,7 @@
+## REF-02 delivery boundary
+
+Sales owns reward-delivery fields on its existing fulfillment outbox; only the Referral queue job invokes processing. Referral/Billing retain eligibility and ledger ownership. Provisioning only captures local policy with successful completion and safely enqueues after commit; reward retries never call the provider. [Contract](031-REFERRAL-REWARDS-PLAN.md).
+
 ## Referral reward boundary (REF-01)
 
 Referral composes Identity member authorization, Sales purchase evidence and Billing credit Application actions. Billing owns referral-expense/wallet-liability postings and report totals. No direct financial SQL in Referral, no provider/network operation, and no automatic caller in this phase. [Contract](031-REFERRAL-REWARDS-PLAN.md).
