@@ -100,6 +100,39 @@ final class TelegramUi
             && str_contains(strtolower($exception->getMessage()), 'message is not modified');
     }
 
+    /** Short, plain-text Admin receipt caption, shared by live and queued delivery. */
+    public static function purchaseReceiptCaption(object $receipt, bool $new = false): string
+    {
+        $name = self::receiptSingleLine((string) $receipt->buyerName, 60);
+        $plan = self::receiptSingleLine((string) $receipt->productName, 60);
+        $telegram = $receipt->buyerTelegramId === null ? 'متصل نیست' : (string) $receipt->buyerTelegramId;
+
+        return implode("\n", [
+            ($new ? '🧾 رسید جدید خرید #' : '🧾 رسید در انتظار بررسی #').$receipt->id,
+            '',
+            '👤 اطلاعات خریدار',
+            'نام ثبت‌شده: '.($name === '' ? 'ثبت نشده' : $name),
+            'شناسه کاربر: #'.$receipt->buyerUserId,
+            'شناسه تلگرام: '.$telegram,
+            '',
+            '📦 اطلاعات سفارش',
+            'سفارش: #'.$receipt->orderId,
+            'پلن: '.$plan,
+            'مبلغ: '.number_format(intdiv((int) $receipt->amountRials + 9, 10)).' تومان',
+            '',
+            '⚠️ قبل از تأیید، دریافت واقعی وجه را در بانک بررسی کنید.',
+        ]);
+    }
+
+    /** User-controlled display names must not inject fake caption lines or bidi overrides. */
+    private static function receiptSingleLine(string $value, int $limit): string
+    {
+        $value = (string) preg_replace('/[\\p{Cc}\\p{Zl}\\p{Zp}\\x{202A}-\\x{202E}\\x{2066}-\\x{2069}]/u', ' ', $value);
+        $value = trim((string) preg_replace('/\\s+/u', ' ', $value));
+
+        return mb_substr($value, 0, $limit);
+    }
+
     public static function code(string $text): string
     {
         return '<code>'.self::escape($text).'</code>';

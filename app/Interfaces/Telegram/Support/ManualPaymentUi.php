@@ -632,7 +632,7 @@ final readonly class ManualPaymentUi
 
     private function caption(object $row): string
     {
-        return "🧾 رسید در انتظار بررسی\n\nدرخواست #{$row->id} · سفارش #{$row->orderId}\nکاربر داخلی #{$row->buyerUserId}\nمبلغ: ".number_format(intdiv($row->amountRials + 9, 10))." تومان\n\n⚠️ قبل از تأیید، تراکنش واقعی بانک را مستقل بررسی کنید.";
+        return TelegramUi::purchaseReceiptCaption($row);
     }
 
     private function reviewKeyboard(int $id): InlineKeyboardMarkup

@@ -2,6 +2,7 @@
 
 use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
 use App\Interfaces\Telegram\Notifications\TelegramNotificationSender;
+use App\Interfaces\Telegram\Support\TelegramUi;
 use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
@@ -207,7 +208,7 @@ it('reuploads a bounded Sales-origin photo under the Admin token without forward
 });
 
 it('falls back to identifiers on invalid cross-bot photo and never declares photo delivery', function (): void {
-    mb05aClaim('sales');
+    $data = mb05aClaim('sales');
     config()->set('telegram.sales.enabled', true);
     config()->set('telegram.sales.token', '54321:sales_test');
     config()->set('telegram_notifications.enabled', true);
@@ -226,7 +227,30 @@ it('falls back to identifiers on invalid cross-bot photo and never declares phot
 
     expect(DB::table('telegram_notification_deliveries')->where('id', $id)->value('state'))->toBe('sent');
     Http::assertSentCount(2);
-    Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '12345:admin_test/sendMessage'));
+    Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '12345:admin_test/sendMessage')
+        && str_contains((string) $request['text'], 'شناسه کاربر: #'.$data['buyer']->id)
+        && str_contains((string) $request['text'], 'شناسه تلگرام: 996099')
+        && str_contains((string) $request['text'], 'نام ثبت‌شده: '.$data['buyer']->name)
+        && str_contains((string) $request['text'], 'تصویر فعلاً قابل ارسال نیست'));
+});
+
+it('formats the same safe buyer context for existing receipt-photo views and missing Telegram links', function (): void {
+    $data = mb05aClaim('admin');
+    $row = app(ManualBankPayments::class)->detail($data['root']->id, $data['claim']);
+
+    expect($row->buyerName)->toBe($data['buyer']->name)
+        ->and($row->buyerTelegramId)->toBe(996099);
+
+    $caption = TelegramUi::purchaseReceiptCaption($row);
+    expect($caption)->toContain('شناسه کاربر: #'.$data['buyer']->id)
+        ->toContain('شناسه تلگرام: 996099')
+        ->toContain('نام ثبت‌شده: '.$data['buyer']->name)
+        ->toContain('سفارش: #'.$data['order']);
+
+    TelegramAccount::query()->where('user_id', $data['buyer']->id)->delete();
+    $row = app(ManualBankPayments::class)->detail($data['root']->id, $data['claim']);
+    expect($row->buyerTelegramId)->toBeNull()
+        ->and(TelegramUi::purchaseReceiptCaption($row))->toContain('شناسه تلگرام: متصل نیست');
 });
 
 it('scopes receipt message identity to the source bot without changing historical Admin keys', function (): void {

@@ -432,10 +432,7 @@ final readonly class TelegramNotificationSender
 
             $row = $this->payments->detail($userId, $claimId);
 
-            $caption = "🧾 رسید جدید #{$claimId}\nسفارش #{$orderId}"
-                ."\nپلن: ".mb_substr((string) $row->productName, 0, 60)
-                ."\nمبلغ: ".number_format(intdiv($row->amountRials + 9, 10)).' تومان'
-                ."\n\n⚠️ فقط پس از بررسی گردش واقعی بانک تأیید کنید.";
+            $caption = TelegramUi::purchaseReceiptCaption($row, new: true);
             $buttons = json_encode([
                 'inline_keyboard' => [[
                     ['text' => '✅ تأیید پرداخت', 'callback_data' => 'bank:decide:'.$claimId.':a'],
@@ -462,7 +459,7 @@ final readonly class TelegramNotificationSender
                 // Never log file IDs, tokens, binary data or external exception messages.
             }
 
-            $this->text($bot, $chat, "🧾 رسید جدید #{$claimId} برای سفارش #{$orderId} ثبت شد.\nتصویر فعلاً قابل ارسال نیست؛ برای بررسی از /payments استفاده کنید.");
+            $this->text($bot, $chat, $caption."\n\nتصویر فعلاً قابل ارسال نیست؛ برای بررسی از /payments استفاده کنید.");
 
             return;
         }

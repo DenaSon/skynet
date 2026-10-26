@@ -171,8 +171,12 @@ final readonly class ManualBankPayments
 
         $row = DB::table('sales_bank_payment_claims as claims')
             ->join('sales_orders as orders', 'orders.id', '=', 'claims.sales_order_id')
+            ->join('users as buyer', 'buyer.id', '=', 'claims.buyer_user_id')
+            ->leftJoin('telegram_accounts as telegram', 'telegram.user_id', '=', 'claims.buyer_user_id')
             ->where('claims.id', $claimId)
-            ->select('claims.*', 'orders.total_price_rials', 'orders.product_name', 'orders.status as order_status')->first();
+            ->select('claims.*', 'orders.total_price_rials', 'orders.product_name',
+                'orders.status as order_status', 'buyer.name as buyer_name',
+                'telegram.telegram_user_id as buyer_telegram_id')->first();
 
         if ($row === null || $row->status !== 'submitted' || $row->order_status !== 'pending_payment') {
             throw ValidationException::withMessages(['claim' => 'Claim unavailable.']);
@@ -182,6 +186,8 @@ final readonly class ManualBankPayments
             'id' => (int) $row->id,
             'orderId' => (int) $row->sales_order_id,
             'buyerUserId' => (int) $row->buyer_user_id,
+            'buyerName' => (string) $row->buyer_name,
+            'buyerTelegramId' => $row->buyer_telegram_id === null ? null : (int) $row->buyer_telegram_id,
             'amountRials' => (int) $row->total_price_rials,
             'productName' => (string) $row->product_name,
             'photoFileId' => Crypt::decryptString($row->photo_encrypted),
