@@ -78,7 +78,7 @@ final class ReplyMenuLabels
     {
         return [
             self::BUY, self::SUBSCRIPTIONS, self::CATALOG, self::ACCOUNT, self::INVITE,
-            self::SETTINGS, self::ADMIN, self::WALLET, self::BUILDER, self::SALES_REPORTS,
+            self::SETTINGS, self::ADMIN, self::SALES_WALLET, self::WALLET, self::BUILDER, self::SALES_REPORTS,
             self::LEGACY_WALLET, self::LEGACY_BUILDER,
             self::OLD_WALLET_PANEL, self::OLD_BUILDER_PANEL, self::USERS,
             self::ROLES, self::PLANS, self::PRODUCTS, self::SALES_SECTION,
