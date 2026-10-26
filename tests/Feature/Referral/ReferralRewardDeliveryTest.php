@@ -56,7 +56,8 @@ it('recovers lost enqueue and commits the frozen reward and delivery state exact
         ->and(DB::table('referral_rewards')->count())->toBe(1)
         ->and(app(ViewWallet::class)->handle($referrer->id)->balanceRials)->toBe(300000)
         ->and($outbox->dispatchPending())->toBe(0)
-        ->and(DB::table('telegram_notification_deliveries')->count())->toBe(0);
+        ->and(DB::table('telegram_notification_deliveries')->count())->toBe(1)
+        ->and(DB::table('telegram_notification_deliveries')->value('state'))->toBe('suppressed');
     Http::assertNothingSent();
 });
 
