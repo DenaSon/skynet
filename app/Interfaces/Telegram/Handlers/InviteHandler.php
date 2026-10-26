@@ -42,6 +42,6 @@ final class InviteHandler
         }
 
         $invite = $this->referrals->handle($actor->userId);
-        $this->menus->showInvite($bot, "https://t.me/{$username}?start=ref_{$invite->code}", $invite->joinedCount);
+        $this->menus->showInvite($bot, "https://t.me/{$username}?start=ref_{$invite->code}", $invite->joinedCount, $invite, $actor->roles === ['member']);
     }
 }
