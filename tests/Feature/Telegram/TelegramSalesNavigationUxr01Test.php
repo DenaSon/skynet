@@ -180,6 +180,48 @@ it('does not invent a referral share destination when Sales username is not vali
     Http::assertNothingSent();
 });
 
+it('places My Credit beside tutorials for ordinary Sales members and accepts stale wallet labels', function (): void {
+    $user = User::factory()->create();
+    $user->assignRole('member');
+    $bot = uxr01Bot($user);
+
+    $bot->hearText('/start')->reply()->assertRaw(static function (Request $request): bool {
+        $data = uxr01Payload($request);
+        $rows = $data['reply_markup']['keyboard'] ?? [];
+
+        return ($data['reply_markup']['is_persistent'] ?? false) === true
+            && ($rows[2][0]['text'] ?? null) === ReplyMenuLabels::SALES_TUTORIAL
+            && ($rows[2][1]['text'] ?? null) === ReplyMenuLabels::SALES_WALLET;
+    }, index: 0)->assertRaw(static function (Request $request): bool {
+        $keyboard = uxr01Payload($request)['reply_markup']['inline_keyboard'] ?? [];
+
+        return ($keyboard[1][0]['text'] ?? null) === ReplyMenuLabels::SALES_WALLET
+            && ($keyboard[1][0]['callback_data'] ?? null) === 'sales:wallet';
+    }, index: 1);
+
+    $bot->hearText(ReplyMenuLabels::SALES_WALLET)->reply()->assertRaw(static function (Request $request): bool {
+        $data = uxr01Payload($request);
+
+        return str_contains($data['text'], '<b>💰 اعتبار من</b>')
+            && str_contains($data['text'], 'اعتبار فعلی: <b>0 تومان</b>');
+    });
+    $bot->hearText('💰 کیف پول')->reply()->assertReplyText(
+        "<b>💰 اعتبار من</b>\n\nاعتبار فعلی: <b>0 تومان</b>\n\n<blockquote>موجودی براساس تراکنش‌های تأییدشده محاسبه می‌شود.</blockquote>"
+    );
+    $bot->hearText(ReplyMenuLabels::WALLET)->reply()->assertCalled('sendMessage');
+
+    $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(static function (Request $request): bool {
+        $keyboard = uxr01Payload($request)['reply_markup']['inline_keyboard'] ?? [];
+
+        return ($keyboard[3][0]['text'] ?? null) === ReplyMenuLabels::SALES_WALLET
+            && ($keyboard[3][0]['callback_data'] ?? null) === 'sales:wallet';
+    }, index: 1);
+
+    expect(DB::table('billing_topups')->count())->toBe(0)
+        ->and(DB::table('billing_postings')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
 it('shows an ordinary active member their own zero wallet balance without a top-up write', function (): void {
     $user = User::factory()->create();
     $user->assignRole('member');
@@ -361,9 +403,12 @@ it('shows reseller-only persistent wallet and builder buttons with working navig
         $keyboard = $data['reply_markup']['keyboard'] ?? [];
 
         return ($data['reply_markup']['is_persistent'] ?? false) === true
-            && ($keyboard[2][0]['text'] ?? null) === ReplyMenuLabels::WALLET
-            && ($keyboard[2][1]['text'] ?? null) === ReplyMenuLabels::BUILDER;
+            && ($keyboard[2][0]['text'] ?? null) === ReplyMenuLabels::BUILDER
+            && ($keyboard[2][1]['text'] ?? null) === ReplyMenuLabels::SALES_REPORTS
+            && ($keyboard[3][0]['text'] ?? null) === ReplyMenuLabels::SALES_TUTORIAL
+            && ($keyboard[3][1]['text'] ?? null) === ReplyMenuLabels::SALES_WALLET;
     }, index: 0);
+    $bot->hearText(ReplyMenuLabels::SALES_WALLET)->reply()->assertCalled('sendMessage');
     $bot->hearText(ReplyMenuLabels::WALLET)->reply()->assertCalled('sendMessage');
     $bot->hearText(ReplyMenuLabels::BUILDER)->reply()->assertCalled('sendMessage');
 });
