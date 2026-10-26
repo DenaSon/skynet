@@ -1,3 +1,7 @@
+## Trial completion presentation (2026-10-26)
+
+After a provider-confirmed terminal trial, send one final «🎁 تست رایگان شما به پایان رسید» message with existing Buy and catalog buttons. No 24h, 1h or low-volume warning for a trial. Unknown provider state remains unavailable; unknown Telegram final-send results require review rather than a duplicate message. Trial success/end failure labels remain simple Persian in the existing Admin notification list.
+
 ## Free-trial Contact flow (2026-10-26)
 
 Sales home/account offers one optional «🧪 تست رایگان» entry to eligible ordinary members. Use a temporary private `request_contact` Reply keyboard only while collecting the native self-contact; afterward remove it and preserve MENU-01. Show a masked, read-only number with explicit one-use confirmation. Trial status uses MiB plus hours/minutes, a separate owned link/QR action, and no renewal. No engineering terms or raw phone in stored drafts/callbacks. Paid paths and Admin navigation remain unchanged.

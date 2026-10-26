@@ -1,6 +1,7 @@
 <?php
 
 use App\Interfaces\Telegram\Notifications\SubscriptionAlertMonitor;
+use App\Interfaces\Telegram\Notifications\TrialEndMonitor;
 use App\Interfaces\Telegram\Processing\SalesTelegramRuntime;
 use App\Interfaces\Telegram\Support\SalesNativeMenu;
 use App\Modules\Billing\Application\VerifyWalletOrderDebit;
@@ -231,3 +232,13 @@ Artisan::command('sales:trials:dispatch', function (): int {
 
     return 0;
 })->purpose('Recover untouched free-trial reservations through the provider queue');
+
+Schedule::command('sales:trials:monitor')->everyMinute()->withoutOverlapping();
+Artisan::command('sales:trials:monitor', function (): int {
+    $ended = app(TrialEndMonitor::class)->scan();
+    if ($ended > 0) {
+        $this->info("Finalized {$ended} free trial(s).");
+    }
+
+    return 0;
+})->purpose('Verify trial time/quota completion and queue one terminal notice');

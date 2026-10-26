@@ -1,3 +1,7 @@
+## TRIAL-03 source checkpoint (2026-10-26; unmerged)
+
+Dependent on PR #239/#238: owned RW GET verifies time/quota completion; one terminal intent uses the existing notification outbox and buy/catalog callbacks. A durable final-send fence blocks duplicate/ambiguous Telegram resends, while provider-read outages retain retry. Paid 24h/1h/350 MiB warning code is unchanged. Final review binds Contact drafts to the original numeric Telegram ID across relinking. Feature/rollout remains OFF; source/fake CI is not real Telegram/RW acceptance. [Full contract, evidence and limitations](030-TRIAL-PLAN.md).
+
 ## TRIAL-02 source checkpoint (2026-10-26; unmerged)
 
 Dependent on PR #238: private native Contact + masked confirmation, asynchronous one-create trial activation through the existing lifecycle, owned live status/link/QR and existing activation-notification outbox. Independent default-OFF trial and exact verified Squad gates. No Sales/Billing/Referral writes or Production operation. Terminal monitor is TRIAL-03; rollout remains blocked. [Scope, contract and recovery](030-TRIAL-PLAN.md).

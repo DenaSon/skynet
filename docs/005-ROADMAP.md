@@ -1,3 +1,7 @@
+## TRIAL-03 implementation checkpoint (2026-10-26; unmerged)
+
+TRIAL-02 #239 CI passed on `7161110`; no master merge. TRIAL-03 source adds GET-confirmed terminal state and one existing-outbox final notice, paid-warning isolation and Contact relink review. Exact-head full CI and independently authorized real Telegram/RW activation/end acceptance remain required before rollout. [Trial plan](030-TRIAL-PLAN.md).
+
 ## TRIAL-02 implementation checkpoint (2026-10-26; unmerged)
 
 TRIAL-01 CI passed on `e23a89d` ([run](https://github.com/DenaSon/skynet/actions/runs/40290319136)); PR #238 remains unmerged. TRIAL-02 source implements Contact/confirmation, queued existing lifecycle activation, owned status/link/QR and activation outbox. TRIAL-03 terminal detection/notification and live rollout acceptance remain separate gates. [Details](030-TRIAL-PLAN.md).
