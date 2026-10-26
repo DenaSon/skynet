@@ -155,7 +155,7 @@ it('confirms member wallet purchase once and retains existing bank payment as an
     $bot->hearCallbackQueryData('sales:checkout:wallet:'.$order)->reply()->assertRaw(static function (Request $req): bool {
         $body = uxr02Payload($req);
 
-        return str_contains($body['text'], 'تأیید پرداخت از کیف پول')
+        return str_contains($body['text'], 'تأیید پرداخت از اعتبار')
             && str_contains($body['text'], '<b>100,000 تومان</b>')
             && str_contains($body['text'], '<b>50,000 تومان</b>')
             && ($body['parse_mode'] ?? null) === 'HTML';
@@ -194,7 +194,7 @@ it('does not debit managed wallet orders when activation or customer notices are
     config()->set($key, $value);
 
     $bot->hearCallbackQueryData('sales:walletpay:confirm:'.$order.':'.$token)->reply()->assertRaw(
-        static fn (Request $request): bool => str_contains(uxr02Payload($request)['text'], 'مبلغی از کیف پول شما برداشت نشد'),
+        static fn (Request $request): bool => str_contains(uxr02Payload($request)['text'], 'مبلغی از اعتبار شما برداشت نشد'),
         index: 1,
     );
     expect(DB::table('sales_orders')->value('status'))->toBe('pending_payment')
@@ -719,7 +719,7 @@ it('collects a single-word username with minimal copy and shows payment without 
     $bot->hearText('mohammad01')->reply()->assertRaw(static function (Request $request): bool {
         $body = uxr02Payload($request);
 
-        return str_contains($body['text'], 'کیف پول')
+        return str_contains($body['text'], 'اعتبار')
             && ! str_contains($body['text'], 'شماره موبایل مشتری')
             && ! str_contains($body['text'], 'عکس رسید');
     }, index: 0);
@@ -774,7 +774,7 @@ it('accepts a numeric-string legacy checkout draft and proceeds directly to paym
     $bot->hearText('محمد اسدی')->reply()->assertRaw(static function (Request $request): bool {
         $body = uxr02Payload($request);
 
-        return str_contains($body['text'], 'کیف پول')
+        return str_contains($body['text'], 'اعتبار')
             && ! str_contains($body['text'], 'شماره موبایل مشتری');
     }, index: 0);
 
@@ -871,7 +871,7 @@ it('resumes an old pending order with phone-only metadata by requesting a userna
     $bot->hearCallbackQueryData('sales:checkout:view:'.$id)->reply()
         ->assertRaw(static fn (Request $request): bool => str_contains(uxr02Payload($request)['text'], 'نام کاربری مشتری'), index: 1);
     $bot->hearText('single_username')->reply()
-        ->assertRaw(static fn (Request $request): bool => str_contains(uxr02Payload($request)['text'], 'کیف پول'));
+        ->assertRaw(static fn (Request $request): bool => str_contains(uxr02Payload($request)['text'], 'اعتبار'));
     $labels->assertPendingDetails($buyer->id, $id);
     expect(DB::table('sales_service_customer_labels')->where('sales_order_id', $id)->value('phone'))->toBe('+989123456789')
         ->and($labels->pendingName($buyer->id, $id))->toBe('single_username')
