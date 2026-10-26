@@ -8,6 +8,7 @@ use App\Modules\Identity\Application\RoleEntry;
 use App\Modules\Identity\Application\TelegramActor;
 use App\Modules\Identity\Application\UserDirectoryEntry;
 use App\Modules\Identity\Application\UserDirectoryPage;
+use App\Modules\Referral\Application\ReferralInvite;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
@@ -57,7 +58,7 @@ final class MenuRenderer
 
     public function showInvite(
         Nutgram $bot, string $url, int $invitedCount,
-        ?\App\Modules\Referral\Application\ReferralInvite $stats = null,
+        ?ReferralInvite $stats = null,
         bool $ordinary = true,
     ): void {
         $lines = [
