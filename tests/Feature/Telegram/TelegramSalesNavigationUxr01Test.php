@@ -212,10 +212,9 @@ it('places My Credit beside tutorials for ordinary Sales members and accepts sta
 
     $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(static function (Request $request): bool {
         $keyboard = uxr01Payload($request)['reply_markup']['inline_keyboard'] ?? [];
-        $encoded = json_encode($keyboard, JSON_THROW_ON_ERROR);
 
-        return str_contains($encoded, ReplyMenuLabels::SALES_WALLET)
-            && str_contains($encoded, 'sales:wallet');
+        return ($keyboard[3][0]['text'] ?? null) === ReplyMenuLabels::SALES_WALLET
+            && ($keyboard[3][0]['callback_data'] ?? null) === 'sales:wallet';
     }, index: 1);
 
     expect(DB::table('billing_topups')->count())->toBe(0)
