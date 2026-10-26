@@ -41,9 +41,9 @@ final readonly class ManageResellerServiceLabels
     }
 
     /**
-     * Search only private customer names or phone fragments on linked, paid reseller-owned services.
+     * Search only private customer labels on linked, paid reseller-owned services.
      *
-     * @return array{items: list<array{orderId: int, label: ?string, phone: ?string}>, nextBeforeOrderId: ?int}
+     * @return array{items: list<array{orderId: int, label: ?string}>, nextBeforeOrderId: ?int}
      */
     public function search(int $buyerId, string $term, int $limit = 6, ?int $beforeOrderId = null): array
     {
@@ -57,33 +57,23 @@ final readonly class ManageResellerServiceLabels
 
         // Treat %, _ and the escape character literally, never as user SQL wildcards.
         $escaped = str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $term);
-        $digits = $this->digits($term);
-        $phoneTerm = $digits !== null && preg_match('/\A\+?[0-9]{2,14}\z/D', $digits) === 1
-            ? $this->searchPhoneTerm($digits) : null;
-        $phoneEscaped = $phoneTerm === null ? null : str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $phoneTerm);
         $query = DB::table('sales_service_customer_labels as labels')
             ->join('sales_orders as orders', 'orders.id', '=', 'labels.sales_order_id')
             ->join('provisioning_order_links as links', 'links.sales_order_id', '=', 'orders.id')
             ->where('orders.buyer_user_id', $buyerId)
             ->whereIn('orders.status', ['paid', 'fulfilled'])
-            ->where(function ($query) use ($escaped, $phoneEscaped): void {
-                $query->whereRaw("labels.label LIKE ? ESCAPE '!'", ['%'.$escaped.'%']);
-                if ($phoneEscaped !== null) {
-                    $query->orWhereRaw("labels.phone LIKE ? ESCAPE '!'", ['%'.$phoneEscaped.'%']);
-                }
-            });
+            ->whereRaw("labels.label LIKE ? ESCAPE '!'", ['%'.$escaped.'%']);
 
         if ($beforeOrderId !== null) {
             $query->where('orders.id', '<', $beforeOrderId);
         }
 
         $rows = $query->orderByDesc('orders.id')->limit($limit + 1)
-            ->get(['orders.id as order_id', 'labels.label', 'labels.phone']);
+            ->get(['orders.id as order_id', 'labels.label']);
         $hasNext = $rows->count() > $limit;
         $items = $rows->take($limit)->map(static fn ($row): array => [
             'orderId' => (int) $row->order_id,
             'label' => $row->label === null ? null : (string) $row->label,
-            'phone' => $row->phone === null ? null : (string) $row->phone,
         ])->values()->all();
 
         return [
@@ -213,21 +203,6 @@ final readonly class ManageResellerServiceLabels
         return preg_match('/\A\+?[0-9]+\z/D', $normalized) === 1 ? $normalized : null;
     }
 
-    private function searchPhoneTerm(string $digits): string
-    {
-        if (str_starts_with($digits, '0098')) {
-            return '+98'.substr($digits, 4);
-        }
-        if (str_starts_with($digits, '09')) {
-            return '+98'.substr($digits, 1);
-        }
-        if (str_starts_with($digits, '98') && ! str_starts_with($digits, '+')) {
-            return '+'.$digits;
-        }
-
-        return $digits;
-    }
-
     /** Save the customer's display name on a pending managed-plan order before payment. */
     public function savePending(int $buyerId, int $orderId, string $name): void
     {
@@ -239,8 +214,8 @@ final readonly class ManageResellerServiceLabels
             throw ValidationException::withMessages(['label' => 'Invalid name.']);
         }
         $name = trim((string) preg_replace('/\s+/u', ' ', $clean));
-        if ($name === '' || mb_strlen($name) > 60 || count(preg_split('/\s+/u', $name)) < 2) {
-            throw ValidationException::withMessages(['label' => 'Name must be 1 to 60 characters.']);
+        if ($name === '' || mb_strlen($name) > 60) {
+            throw ValidationException::withMessages(['label' => 'Customer username must be 1 to 60 characters.']);
         }
 
         DB::transaction(function () use ($buyerId, $orderId, $name): void {
@@ -315,10 +290,9 @@ final readonly class ManageResellerServiceLabels
             return;
         }
         $details = DB::table('sales_service_customer_labels')
-            ->where('sales_order_id', $orderId)->first(['label', 'phone']);
-        if ($details === null || trim((string) $details->label) === ''
-            || trim((string) $details->phone) === '') {
-            throw ValidationException::withMessages(['customer' => 'Complete customer name and mobile before payment.']);
+            ->where('sales_order_id', $orderId)->first(['label']);
+        if ($details === null || trim((string) $details->label) === '') {
+            throw ValidationException::withMessages(['customer' => 'Complete customer username before payment.']);
         }
     }
 

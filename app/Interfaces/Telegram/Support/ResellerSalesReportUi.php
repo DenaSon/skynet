@@ -52,16 +52,14 @@ final readonly class ResellerSalesReportUi
                 ."\n📅 ".PersianCalendar::date($r['from']).' تا '.PersianCalendar::date($r['to']).' (شمسی، تهران)'
                 ."\n\n<b>👥 مشتریان و سرویس‌ها</b>"
                 ."\n📦 کل سرویس‌های ثبت‌شده: ".number_format($r['services'])
-                ."\n📱 شماره موبایل یکتا: ".number_format($r['phoneCustomers'])
                 ."\n👤 سرویس‌های دارای نام: ".number_format($r['namedServices'])
-                ."\n📝 سرویس‌های بدون شماره: ".number_format($r['withoutPhone'])
                 ."\n\n<b>💳 فروش تأییدشده</b>"
                 ."\n🛒 خریدهای جدید: ".number_format($r['sales'])
                 ."\n🔄 تمدیدها: ".number_format($r['renewals'])
                 ."\n🧾 تراکنش‌ها: ".number_format($r['transactions'])
                 ."\n💰 مجموع فروش: <b>".number_format(intdiv($r['revenueRials'], 10)).' تومان</b>'
                 ."\n⏳ سفارش‌های در انتظار پرداخت: ".number_format($r['pending'])
-                ."\n\n<blockquote>آمار مشتری و سرویس، وضعیت فعلی است؛ فروش مربوط به بازه انتخاب‌شده و فقط پرداخت‌های تأییدشده است. تعداد شماره‌ها الزاماً تعداد افراد واقعی نیست.</blockquote>"
+                ."\n\n<blockquote>آمار سرویس‌ها وضعیت فعلی را نشان می‌دهد؛ فروش مربوط به بازه انتخاب‌شده و فقط پرداخت‌های تأییدشده است.</blockquote>"
                 ."\n🕒 ".PersianCalendar::localDateTime($r['generatedAt']);
         } catch (Throwable) {
             $text = '<b>📊 گزارش‌های من</b>'."\n\nاطلاعات فعلاً در دسترس نیست؛ کمی بعد دوباره تلاش کنید.";
