@@ -146,7 +146,7 @@ final readonly class SalesCheckoutUi
             }
             if (! $bankAvailable && ! app(ResolveSalesBuyer::class)->isReseller($buyer)
                 && ($this->walletBalance($buyer) ?? 0) < $quote->totalPriceRials) {
-                $this->notice($bot, 'موجودی کیف پول برای این پلن کافی نیست و پرداخت بانکی فعلاً در دسترس نیست.');
+                $this->notice($bot, 'اعتبار شما برای این پلن کافی نیست و پرداخت بانکی فعلاً در دسترس نیست.');
 
                 return;
             }
@@ -267,7 +267,7 @@ final readonly class SalesCheckoutUi
         $buyer = $this->buyer($bot);
         if ($buyer === null || ! $this->positive($id)
             || config('sales.wallet_settlement_enabled', false) !== true) {
-            $this->notice($bot, 'پرداخت کیف پول فعلاً در دسترس نیست.');
+            $this->notice($bot, 'پرداخت از اعتبار فعلاً در دسترس نیست.');
 
             return;
         }
@@ -289,7 +289,7 @@ final readonly class SalesCheckoutUi
 
                 return;
             }
-            $this->notice($bot, 'موجودی برای این سفارش کافی نیست، یا رسید بانکی در انتظار بررسی است. از صفحه سفارش وضعیت را بررسی کنید.');
+            $this->notice($bot, 'اعتبار برای این سفارش کافی نیست، یا رسید بانکی در انتظار بررسی است. از صفحه سفارش وضعیت را بررسی کنید.');
 
             return;
         }
@@ -304,13 +304,13 @@ final readonly class SalesCheckoutUi
         ], now()->addMinutes(5));
 
         $this->render($bot,
-            '<b>💳 تأیید پرداخت از کیف پول</b>'
+            '<b>💳 تأیید پرداخت از اعتبار</b>'
             ."\n\nسفارش #{$order->id}"
             ."\nپلن: ".TelegramUi::escape($this->safe($order->productName))
             ."\nمبلغ قابل برداشت: <b>".TelegramUi::toman($order->totalPriceRials).' تومان</b>'
-            ."\nموجودی فعلی: <b>".TelegramUi::toman($balance).' تومان</b>'
-            ."\nموجودی پس از خرید: <b>".TelegramUi::toman($balance - $order->totalPriceRials).' تومان</b>'
-            ."\n\n<blockquote>با تأیید، کل مبلغ یک‌بار از کیف پول شما کسر می‌شود.</blockquote>",
+            ."\nاعتبار فعلی: <b>".TelegramUi::toman($balance).' تومان</b>'
+            ."\nاعتبار پس از خرید: <b>".TelegramUi::toman($balance - $order->totalPriceRials).' تومان</b>'
+            ."\n\n<blockquote>با تأیید، کل مبلغ یک‌بار از اعتبار شما کسر می‌شود.</blockquote>",
             InlineKeyboardMarkup::make()
                 ->addRow(InlineKeyboardButton::make('✅ تأیید و پرداخت', callback_data: 'sales:walletpay:confirm:'.$order->id.':'.$token, style: ButtonStyle::SUCCESS))
                 ->addRow(InlineKeyboardButton::make('◀️ لغو و بازگشت', callback_data: 'sales:walletpay:cancel:'.$order->id))
@@ -367,7 +367,7 @@ final readonly class SalesCheckoutUi
         } catch (AuthorizationException|ValidationException $error) {
             $message = match (true) {
                 $error instanceof ValidationException && isset($error->errors()['customer']) => 'ابتدا نام کاربری مشتری را تکمیل کنید؛ مبلغی برداشت نشد.',
-                $error instanceof ValidationException && isset($error->errors()['activation']) => 'پرداخت فعلاً آماده نیست؛ مبلغی از کیف پول شما برداشت نشد. کمی بعد دوباره اقدام کنید.',
+                $error instanceof ValidationException && isset($error->errors()['activation']) => 'پرداخت فعلاً آماده نیست؛ مبلغی از اعتبار شما برداشت نشد. کمی بعد دوباره اقدام کنید.',
                 $error instanceof ValidationException && isset($error->errors()['plan']) => 'مشخصات این پلن تغییر کرده یا خرید آن متوقف شده است؛ مبلغی برداشت نشد. از بخش خرید، پلن را دوباره انتخاب کنید.',
                 default => 'مبلغ، موجودی یا وضعیت سفارش تغییر کرده است؛ برداشت انجام نشد. از صفحه سفارش دوباره اقدام کنید.',
             };
@@ -580,7 +580,7 @@ final readonly class SalesCheckoutUi
         $keyboard = InlineKeyboardMarkup::make();
         if ($walletEligible) {
             $keyboard->addRow(InlineKeyboardButton::make(
-                '💳 پرداخت از کیف پول', callback_data: 'sales:checkout:wallet:'.$order->id, style: ButtonStyle::SUCCESS,
+                '💳 پرداخت از اعتبار', callback_data: 'sales:checkout:wallet:'.$order->id, style: ButtonStyle::SUCCESS,
             ));
         }
         if ($card !== null && $walletEligible) {
@@ -596,10 +596,10 @@ final readonly class SalesCheckoutUi
             && ! $walletEligible) {
             if (config('billing.topups_enabled', false) === true) {
                 $keyboard->addRow(InlineKeyboardButton::make(
-                    '➕ افزایش موجودی کیف پول', callback_data: 'sales:wallet:topup',
+                    '➕ افزایش اعتبار', callback_data: 'sales:wallet:topup',
                 ));
             }
-            $keyboard->addRow(InlineKeyboardButton::make('💰 کیف پول من', callback_data: 'sales:wallet'));
+            $keyboard->addRow(InlineKeyboardButton::make('💰 اعتبار من', callback_data: 'sales:wallet'));
         }
         if ($order->planId !== null && $sourceRenewal === null) {
             $keyboard->addRow(InlineKeyboardButton::make(
@@ -628,8 +628,8 @@ final readonly class SalesCheckoutUi
                 ? "\nشماره کارت: {$card}\nپس از واریز، «ارسال رسید پرداخت» را انتخاب کنید." : '')
             ."\n\n".($isReseller && $order->status === 'pending_payment' && $latestReceipt !== 'submitted'
                 ? ($walletEligible
-                    ? 'موجودی کیف پول کافی است. برای خرید، «پرداخت از کیف پول» را انتخاب کنید.'
-                    : 'برای خرید سرویس از کیف پول استفاده کنید. موجودی کافی نیست یا پرداخت کیف پول موقتاً غیرفعال است؛ از بخش کیف پول موجودی را افزایش دهید.')
+                    ? 'اعتبار کافی است. برای خرید، «پرداخت از اعتبار» را انتخاب کنید.'
+                    : 'برای خرید سرویس از اعتبار خود استفاده کنید. اعتبار کافی نیست یا پرداخت از اعتبار موقتاً غیرفعال است؛ از بخش «اعتبار من» موجودی را افزایش دهید.')
                 : $this->orderHint($order, $latestReceipt)),
             $keyboard,
         );
