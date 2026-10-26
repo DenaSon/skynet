@@ -12,6 +12,10 @@ final class ReplyMenuLabels
 
     public const SALES_SUPPORT = '💬 پشتیبانی';
 
+    public const SALES_TUTORIAL = '📚 آموزش';
+
+    public const SALES_TRIAL = '🧪 تست رایگان';
+
     public const SALES_REPORTS = '📊 گزارش‌های من';
 
     public const BUY = '🛒 خرید اشتراک';

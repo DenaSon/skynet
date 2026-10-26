@@ -5,13 +5,19 @@ declare(strict_types=1);
 namespace App\Interfaces\Telegram\Notifications;
 
 use App\Modules\Trial\Application\EndFreeTrial;
+use App\Modules\Trial\Application\ReadFreeTrial;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /** Same GET-only scan pattern as paid alerts; only permanent trial claims qualify. */
 final readonly class TrialEndMonitor
 {
-    public function __construct(private EndFreeTrial $trials) {}
+    public function __construct(
+        private EndFreeTrial $trials,
+        private ReadFreeTrial $reads,
+        private TrialWarningNotifications $warnings,
+    ) {}
 
     public function scan(): int
     {
@@ -30,12 +36,16 @@ final readonly class TrialEndMonitor
             ->chunkById(40, function ($rows) use (&$ended): void {
                 foreach ($rows as $row) {
                     try {
-                        if ($this->trials->handle((int) $row->user_id, (int) $row->telegram_user_id)) {
+                        $live = $this->reads->status((int) $row->user_id, (int) $row->telegram_user_id);
+                        if (! $live->ended()) {
+                            $this->warnings->record((int) $row->user_id, $live);
+                        } elseif ($this->trials->handle((int) $row->user_id, (int) $row->telegram_user_id)) {
                             $ended++;
                         }
                     } catch (Throwable) {
                         // An unavailable/mismatched provider or revoked owner is unknown,
                         // never a terminal state. The next scheduled scan can recover.
+                        Log::warning('Trial monitoring unavailable.', ['trial_id' => (int) $row->id]);
                     }
                 }
             }, 'trial.id', 'id');

@@ -131,6 +131,8 @@ final readonly class AdminNotificationFailuresUi
             'FulfillmentPlanBlocked' => 'مشکل فعال‌سازی سفارش',
             'TrialActivated' => 'فعال‌شدن تست رایگان',
             'TrialEnded' => 'پایان تست رایگان',
+            'TrialLowTraffic' => 'حجم کم تست رایگان',
+            'TrialExpiring5m' => 'پنج دقیقه پایانی تست',
             'SubscriptionActivated' => 'فعال‌شدن اشتراک',
             'SubscriptionRenewed' => 'تمدید اشتراک',
             'SubscriptionExpiry24h' => 'هشدار انقضای اشتراک',

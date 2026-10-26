@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Telegram\Notifications;
 
+use App\Interfaces\Telegram\Support\ReplyMenuLabels;
+use App\Interfaces\Telegram\Support\ReplyMenuRenderer;
 use App\Interfaces\Telegram\Support\SubscriptionPageLink;
 use App\Interfaces\Telegram\Support\TelegramUi;
 use App\Modules\Billing\Application\BrowsePhotoTopups;
@@ -21,6 +23,7 @@ use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
+use SergiX44\Nutgram\Telegram\Types\Keyboard\KeyboardButton;
 use Throwable;
 
 final readonly class TelegramNotificationSender
@@ -71,10 +74,7 @@ final readonly class TelegramNotificationSender
             }
             try {
                 $this->text($bot, $chat, "<b>🎁 تست رایگان شما به پایان رسید</b>\n\nامیدواریم تجربه خوبی از DenaGate داشته باشید.\n\nبرای ادامه استفاده می‌توانید یکی از پلن‌های اصلی را انتخاب کنید.",
-                    json_encode(['inline_keyboard' => [
-                        [['text' => '🛒 خرید اشتراک', 'callback_data' => 'sales:buy']],
-                        [['text' => '📋 مشاهده پلن‌ها', 'callback_data' => 'menu:plan-catalog']],
-                    ]], JSON_THROW_ON_ERROR), 'HTML');
+                    $this->trialMenu($userId, $chat, ended: true), 'HTML');
                 $trials->noticeSent($trialId);
             } catch (NotificationUnavailable $error) {
                 $trials->releaseRejectedNotice($trialId);
@@ -92,6 +92,22 @@ final readonly class TelegramNotificationSender
             return;
         }
 
+        if (in_array($delivery->event_type, [TrialWarningNotifications::LOW_TRAFFIC, TrialWarningNotifications::EXPIRING], true)) {
+            if ($bot !== 'sales') {
+                throw new NotificationUnavailable('invalid_recipient');
+            }
+            $message = app(TrialWarningNotifications::class)->messageFor($delivery, $chat);
+            if ($message === null) {
+                throw new NotificationUnavailable('trial_warning_obsolete');
+            }
+            $this->text($bot, $chat, $message, json_encode(['inline_keyboard' => [
+                [['text' => '🛒 خرید اشتراک', 'callback_data' => 'sales:buy']],
+                [['text' => '📋 مشاهده پلن‌ها', 'callback_data' => 'menu:plan-catalog']],
+            ]], JSON_THROW_ON_ERROR), 'HTML');
+
+            return;
+        }
+
         if ($delivery->event_type === 'TrialActivated') {
             $trialId = (int) $delivery->trial_claim_id;
             if ($bot !== 'sales' || $trialId < 1
@@ -103,7 +119,7 @@ final readonly class TelegramNotificationSender
                 throw new NotificationUnavailable('trial_not_active');
             }
             $this->text($bot, $chat, "<b>✅ تست رایگان شما فعال شد</b>\n\nحجم: <b>۲۵۰ مگابایت</b> · اعتبار: <b>۲ ساعت</b>\nاز بخش تست رایگان، وضعیت و لینک اتصال را ببینید.",
-                json_encode(['inline_keyboard' => [[['text' => '🧪 مشاهده تست و اتصال', 'callback_data' => 'sales:trial']]]], JSON_THROW_ON_ERROR), 'HTML');
+                $this->trialMenu($userId, $chat), 'HTML');
 
             return;
         }
@@ -582,6 +598,21 @@ final readonly class TelegramNotificationSender
         $keyboard = json_encode(['inline_keyboard' => $buttons], JSON_THROW_ON_ERROR);
 
         $this->photo('admin', $chatId, $row['file_id'], 'sales', $caption, $keyboard);
+    }
+
+    /** End delivery also replaces the persistent keyboard, removing Trial immediately. */
+    private function trialMenu(int $userId, int $chat, bool $ended = false): string
+    {
+        $actor = $this->actors->handle($chat);
+        if ($actor === null || $actor->userId !== $userId) {
+            throw new NotificationUnavailable('invalid_recipient');
+        }
+        $keyboard = app(ReplyMenuRenderer::class)->salesKeyboard($actor, ! $ended);
+        if ($ended) {
+            $keyboard->addRow(KeyboardButton::make(ReplyMenuLabels::CATALOG));
+        }
+
+        return json_encode($keyboard, JSON_THROW_ON_ERROR);
     }
 
     private function text(string $bot, int $chat, string $text, ?string $keyboard = null, ?string $parseMode = null): void

@@ -71,6 +71,7 @@ it('shows persistent Sales keyboard on start while accepting old button labels',
         ->toBe([
             [ReplyMenuLabels::SALES_BUY, ReplyMenuLabels::SALES_SUBSCRIPTIONS],
             [ReplyMenuLabels::SALES_ACCOUNT, ReplyMenuLabels::SALES_SUPPORT],
+            [ReplyMenuLabels::SALES_TUTORIAL],
         ]);
 
     expect($keyboard->keyboard[0][0]->style)->toBe(ButtonStyle::SUCCESS)

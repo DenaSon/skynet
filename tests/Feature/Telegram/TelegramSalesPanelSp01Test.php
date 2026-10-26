@@ -63,7 +63,7 @@ it('shows panel application on home and saves a pending request only after terms
         $buttons = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
 
         return str_contains($buttons, 'sales:panel:request')
-            && str_contains($buttons, 'sales:help:apps');
+            && ! str_contains($buttons, 'sales:help:apps');
     }, index: 1);
     $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(static function (Request $request): bool {
         $data = panel01Payload($request);
