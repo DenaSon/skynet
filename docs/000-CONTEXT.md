@@ -1,3 +1,7 @@
+## TRIAL-01 admission review (2026-10-26; unmerged)
+
+PR #238 is draft. Trial admission now serializes daily reservations in SQL, binds unique user/Telegram/HMAC identities and uses fresh ordinary-member and Sales paid-history Application checks. Feature remains OFF; no provider/UI/financial effects in this phase. See [trial plan](030-TRIAL-PLAN.md).
+
 ## Two-column preset selection rows (2026-10-26)
 
 Operator approved one row per preset with a price button and a compact specification button. The existing ready-to-buy and full-catalog presenters now emit price first (left) and specifications second (right), using the same existing plan-selection callback on both buttons. Amounts use the current buyer quote in tomans; ready-list buttons keep native primary styling. Plan names on buttons are bounded to 14 characters and use compact GB/days or unlimited/day labels; the full list text and bold amounts remain above.

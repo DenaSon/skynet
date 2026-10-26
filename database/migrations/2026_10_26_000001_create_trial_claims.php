@@ -14,6 +14,7 @@ return new class extends Migration
         Schema::create('trial_claims', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('user_id')->unique()->constrained('users')->restrictOnDelete();
+            $table->unsignedBigInteger('telegram_user_id')->unique();
             $table->char('phone_fingerprint', 64)->unique();
             $table->string('state', 24)->default('reserved');
             $table->timestamps();

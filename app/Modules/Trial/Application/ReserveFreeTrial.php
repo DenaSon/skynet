@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace App\Modules\Trial\Application;
 
-use App\Modules\Identity\Application\ResolveSalesBuyer;
-use Illuminate\Contracts\Cache\LockTimeoutException;
+use App\Modules\Identity\Application\AssertTrialMember;
+use App\Modules\Sales\Application\HasPaidPurchaseHistory;
 use Illuminate\Database\QueryException;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -19,83 +18,90 @@ use Illuminate\Validation\ValidationException;
  */
 final readonly class ReserveFreeTrial
 {
-    public function __construct(private ResolveSalesBuyer $buyers) {}
+    public function __construct(private AssertTrialMember $identity, private HasPaidPurchaseHistory $history) {}
 
-    public function handle(int $userId, int $senderTelegramId, ?int $contactTelegramId, string $phone): int
+    public function handle(int $userId, int $senderTelegramId, ?int $contactTelegramId, #[\SensitiveParameter] string $phone): int
+    {
+        $contact = $this->contact($userId, $senderTelegramId, $contactTelegramId, $phone);
+
+        return $this->reserve($userId, $senderTelegramId, $contact['fingerprint']);
+    }
+
+    /** Validated native self-contact only; the UI keeps no raw phone in its draft.
+     * @return array{fingerprint:string,masked:string}
+     */
+    public function contact(int $userId, int $senderTelegramId, ?int $contactTelegramId, #[\SensitiveParameter] string $phone): array
+    {
+        $this->assertEligible($userId, $senderTelegramId);
+        if ($contactTelegramId !== $senderTelegramId) {
+            throw ValidationException::withMessages(['trial' => 'لطفاً فقط شماره حساب تلگرام خودتان را با دکمه ارسال کنید.']);
+        }
+        $number = self::normalizePhone($phone);
+
+        return [
+            'fingerprint' => hash_hmac('sha256', 'denagate:trial-phone:v1:'.$number, (string) config('trial.phone_hmac_key')),
+            'masked' => substr($number, 0, 3).str_repeat('*', strlen($number) - 7).substr($number, -4),
+        ];
+    }
+
+    public function assertEligible(int $userId, int $telegramId): void
+    {
+        $this->assertConfigured();
+        $this->identity->handle($userId, $telegramId);
+        if ($this->history->handle($userId)) {
+            throw ValidationException::withMessages(['trial' => 'تست رایگان فقط برای مشتریان بدون خرید قبلی است.']);
+        }
+    }
+
+    /** Internal server draft fingerprint, never accepted from Telegram input. */
+    public function reserve(int $userId, int $telegramId, string $fingerprint): int
+    {
+        $this->assertConfigured();
+        if (preg_match('/\A[a-f0-9]{64}\z/D', $fingerprint) !== 1) {
+            throw ValidationException::withMessages(['trial' => 'لطفاً دریافت تست را دوباره شروع کنید.']);
+        }
+        try {
+            return DB::transaction(function () use ($userId, $telegramId, $fingerprint): int {
+                // SQL is authoritative even with a per-process cache or an expired cache lease.
+                $day = now('Asia/Tehran')->toDateString();
+                DB::table('trial_admission_days')->insertOrIgnore(['day' => $day, 'reserved_count' => 0]);
+                $quota = DB::table('trial_admission_days')->where('day', $day)->lockForUpdate()->first();
+                $this->assertEligible($userId, $telegramId);
+
+                if (DB::table('trial_claims')->where('user_id', $userId)
+                    ->orWhere('telegram_user_id', $telegramId)->orWhere('phone_fingerprint', $fingerprint)->exists()) {
+                    throw ValidationException::withMessages(['trial' => 'برای این حساب یا شماره قبلاً تست ثبت شده است.']);
+                }
+                if ($quota === null || (int) $quota->reserved_count >= (int) config('trial.daily_limit')) {
+                    throw ValidationException::withMessages(['trial' => 'ظرفیت تست رایگان امروز تکمیل شده است.']);
+                }
+                $id = (int) DB::table('trial_claims')->insertGetId([
+                    'user_id' => $userId, 'telegram_user_id' => $telegramId,
+                    'phone_fingerprint' => $fingerprint, 'state' => 'reserved',
+                    'created_at' => now(), 'updated_at' => now(),
+                ]);
+                DB::table('trial_admission_days')->where('day', $day)->increment('reserved_count');
+
+                return $id;
+            }, 3);
+        } catch (QueryException $exception) {
+            if (in_array((string) $exception->getCode(), ['23000', '23505', '19'], true)) {
+                throw ValidationException::withMessages(['trial' => 'برای این حساب یا شماره قبلاً تست ثبت شده است.']);
+            }
+            throw $exception;
+        }
+    }
+
+    private function assertConfigured(): void
     {
         if (config('trial.enabled', false) !== true) {
             throw ValidationException::withMessages(['trial' => 'دریافت تست رایگان فعلاً فعال نیست.']);
         }
-
         $key = config('trial.phone_hmac_key');
         $limit = config('trial.daily_limit');
-        if (! is_string($key) || strlen($key) < 32 || ! is_int($limit) || $limit < 1 || $limit > 1000) {
+        if (! is_string($key) || strlen($key) < 32 || trim($key) === ''
+            || $key === config('app.key') || ! is_int($limit) || $limit < 1 || $limit > 1000) {
             throw ValidationException::withMessages(['trial' => 'تست رایگان فعلاً در دسترس نیست.']);
-        }
-
-        if ($userId < 1 || $senderTelegramId < 1 || $contactTelegramId !== $senderTelegramId
-            || ! $this->buyers->isMember($userId)
-            || ! DB::table('telegram_accounts')->where('user_id', $userId)
-                ->where('telegram_user_id', $senderTelegramId)->exists()) {
-            throw ValidationException::withMessages(['trial' => 'احراز هویت برای دریافت تست معتبر نیست.']);
-        }
-
-        $number = self::normalizePhone($phone);
-        $fingerprint = hash_hmac('sha256', 'denagate:trial-phone:v1:'.$number, $key);
-
-        try {
-            // Atomic admission cap across different users, plus two DB UNIQUE
-            // constraints. The lock is shared through the configured cache.
-            return Cache::lock('trial:admission', 10)->block(3, function () use ($userId, $fingerprint, $limit): int {
-                return DB::transaction(function () use ($userId, $fingerprint, $limit): int {
-                    if (DB::table('trial_claims')->where('user_id', $userId)
-                        ->orWhere('phone_fingerprint', $fingerprint)->exists()) {
-                        throw ValidationException::withMessages(['trial' => 'برای این حساب یا شماره قبلاً تست ثبت شده است.']);
-                    }
-
-                    // A prior paid order or verified settlement disqualifies the
-                    // user. Never mistake wallet top-ups for a purchase.
-                    $purchased = DB::table('sales_orders as orders')
-                        ->where('orders.buyer_user_id', $userId)
-                        ->where(function ($query): void {
-                            $query->whereIn('orders.status', ['paid', 'fulfilled'])
-                                ->orWhereExists(function ($settled): void {
-                                    $settled->selectRaw('1')->from('sales_order_settlements as wallet')
-                                        ->whereColumn('wallet.sales_order_id', 'orders.id');
-                                })
-                                ->orWhereExists(function ($settled): void {
-                                    $settled->selectRaw('1')->from('sales_bank_settlements as bank')
-                                        ->whereColumn('bank.sales_order_id', 'orders.id');
-                                });
-                        })->exists();
-
-                    if ($purchased) {
-                        throw ValidationException::withMessages(['trial' => 'تست رایگان فقط برای مشتریان بدون خرید قبلی است.']);
-                    }
-
-                    $from = now('Asia/Tehran')->startOfDay()->utc();
-                    if (DB::table('trial_claims')->where('created_at', '>=', $from)->count() >= $limit) {
-                        throw ValidationException::withMessages(['trial' => 'ظرفیت تست رایگان امروز تکمیل شده است.']);
-                    }
-
-                    return (int) DB::table('trial_claims')->insertGetId([
-                        'user_id' => $userId,
-                        'phone_fingerprint' => $fingerprint,
-                        'state' => 'reserved',
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ]);
-                }, 3);
-            });
-        } catch (LockTimeoutException) {
-            throw ValidationException::withMessages(['trial' => 'درخواست‌های زیادی در حال بررسی است. دوباره تلاش کنید.']);
-        } catch (QueryException $exception) {
-            // Do not reveal whether another identity owns a phone fingerprint.
-            if (in_array((string) $exception->getCode(), ['23000', '23505', '19'], true)) {
-                throw ValidationException::withMessages(['trial' => 'برای این حساب یا شماره قبلاً تست ثبت شده است.']);
-            }
-
-            throw $exception;
         }
     }
 

@@ -129,6 +129,11 @@ jobs:
           REDIS_DB: '15'
         run: php tests/Smoke/provider_queue_redis.php
 
+      - name: Verify trial admission contention and evidence retention on MySQL
+        env:
+          TRIAL_MYSQL_SMOKE: '1'
+        run: php tests/Smoke/trial_mysql_concurrency.php
+
       - name: Verify concurrent wallet payment safety on MySQL REPEATABLE READ
         env:
           PAYMENT_MYSQL_SMOKE: '1'
