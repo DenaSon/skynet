@@ -1,3 +1,9 @@
+## Two-column preset rows (2026-10-26)
+
+- Each preset row contains a plain-text toman price button first (left) and specification button second (right); both reuse the same existing plan-selection callback. No inert price cells or copy-only surprises.
+- Specifications use a sanitized name of at most 14 characters plus compact volume/duration (or unlimited duration). Full names/specifications and bold prices remain in the message body above the keyboard.
+- Use the actual buyer quote, including reseller discounts, and preserve ascending-price order and pagination. Ready-list buttons share their existing primary style; ordinary catalog rows retain their existing neutral style. Navigation remains separate. Telegram controls exact widths and client RTL presentation; confirm the final mobile rendering after deployment.
+
 ## Preset list price hierarchy (2026-10-26)
 
 - In the Sales catalog, omit the generic price-change, buyer-price and checkout/recheck explanation lines. Keep any specific reseller-price or legacy unavailable-purchase notice.
