@@ -1,3 +1,7 @@
+## Referral reward boundary (REF-01)
+
+Referral composes Identity member authorization, Sales purchase evidence and Billing credit Application actions. Billing owns referral-expense/wallet-liability postings and report totals. No direct financial SQL in Referral, no provider/network operation, and no automatic caller in this phase. [Contract](031-REFERRAL-REWARDS-PLAN.md).
+
 ## Trial module (2026-10-26; source PRs unmerged)
 
 Trial owns one-time HMAC identity claims, SQL daily reservation quota and guarded free-trial activation/read Actions. It consumes Identity ordinary-member and Sales paid-history Application checks and the existing Provisioning lifecycle. It does not create Sales orders, Billing journals, referral rewards or a parallel provider/notification system. Telegram owns the short-lived native-contact confirmation and credential presentation. [Trial contract](030-TRIAL-PLAN.md).

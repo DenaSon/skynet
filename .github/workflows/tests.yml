@@ -139,6 +139,11 @@ jobs:
           PAYMENT_MYSQL_SMOKE: '1'
         run: php tests/Smoke/payment_wallet_mysql_concurrency.php
 
+      - name: Verify referral reward cap and duplicate credit safety on MySQL
+        env:
+          REFERRAL_MYSQL_SMOKE: '1'
+        run: php tests/Smoke/referral_mysql_concurrency.php
+
       - name: Validate historical receipts and guarded rollback on MySQL
         run: php tests/Smoke/mb02_mysql_migration.php
 

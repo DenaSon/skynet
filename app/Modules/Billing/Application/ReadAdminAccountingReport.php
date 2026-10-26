@@ -69,7 +69,16 @@ final readonly class ReadAdminAccountingReport
                 THEN 1 ELSE 0 END), 0) as draw_entries")
             ->first();
 
-        $expenses = (int) ($book->expenses_rials ?? 0);
+        // Automated referral cost already lives in the balanced ledger. Do not
+        // fabricate a bank receipt or a manual accounting-entry author for it.
+        $referrals = DB::table('billing_postings as postings')
+            ->join('billing_journals as journals', 'journals.id', '=', 'postings.journal_id')
+            ->where('journals.kind', 'referral_reward')->where('postings.account_code', 'referral_expense')
+            ->where('journals.created_at', '>=', $from)->where('journals.created_at', '<', $until)
+            ->selectRaw("COALESCE(SUM(CASE WHEN postings.side = 'debit' THEN postings.amount_rials ELSE -postings.amount_rials END), 0) as amount")
+            ->selectRaw("COUNT(DISTINCT CASE WHEN postings.side = 'debit' THEN journals.id END) as entries")
+            ->first();
+        $expenses = (int) ($book->expenses_rials ?? 0) + (int) ($referrals->amount ?? 0);
         $draws = (int) ($book->draws_rials ?? 0);
         $profit = $sales - $expenses;
 
@@ -82,7 +91,7 @@ final readonly class ReadAdminAccountingReport
             'drawsRials' => $draws,
             'profitRials' => $profit,
             'afterDrawsRials' => $profit - $draws,
-            'expenseEntries' => (int) ($book->expense_entries ?? 0),
+            'expenseEntries' => (int) ($book->expense_entries ?? 0) + (int) ($referrals->entries ?? 0),
             'drawEntries' => (int) ($book->draw_entries ?? 0),
             'generatedAt' => Carbon::now('Asia/Tehran')->format('Y-m-d H:i'),
         ];

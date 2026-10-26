@@ -1,3 +1,7 @@
+## Referral rewards — REF-01/02/03 (approved 2026-10-26)
+
+REF-01 implements internal policy, additive award evidence, SQL lifetime cap and balanced wallet credit/cost; default disabled and no production callers. REF-02 durable successful-purchase integration and REF-03 notification/invite UX remain pending. [Approved scope and acceptance](031-REFERRAL-REWARDS-PLAN.md).
+
 ## TRIAL-01–03 source milestones merged (2026-10-26; operator-approved merge)
 
 [TRIAL-01 #238](https://github.com/DenaSon/skynet/pull/238) → `bac5b7f`, [TRIAL-02 #239](https://github.com/DenaSon/skynet/pull/239) → `039e44d`, [TRIAL-03 #240](https://github.com/DenaSon/skynet/pull/240) → `61e189d` are merged to master in dependency order. Final source matches the tested #240 Git tree; 1,057 tests / 7,087 assertions and PHP 8.4/8.5/PHPStan/Pint/MySQL/Redis [source CI passed](https://github.com/DenaSon/skynet/actions/runs/40294338221). The exact master SHA has its own post-merge Actions checks.

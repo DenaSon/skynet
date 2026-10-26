@@ -1,3 +1,7 @@
+## REF-01 — referral reward foundation (2026-10-26)
+
+Internal default-disabled reward foundation for seven distinct referred buyers, 30,000 tomans each; both settings configurable. Existing signup attribution retained. Verified successful first purchase only, ordinary members only, unique lifetime awards and balanced Billing credit/cost. No automatic fulfillment hook, reward job or notification yet. [Rules, phases and acceptance](031-REFERRAL-REWARDS-PLAN.md). Source implementation pending PR verification; no Production operation.
+
 ## TRIAL-01–03 merged checkpoint (2026-10-26; operator-approved merge)
 
 [TRIAL-01 #238](https://github.com/DenaSon/skynet/pull/238) → `bac5b7f`, [TRIAL-02 #239](https://github.com/DenaSon/skynet/pull/239) → `039e44d`, [TRIAL-03 #240](https://github.com/DenaSon/skynet/pull/240) → `61e189d` are merged to master in dependency order. Final source matches the tested #240 Git tree; 1,057 tests / 7,087 assertions and PHP 8.4/8.5/PHPStan/Pint/MySQL/Redis [source CI passed](https://github.com/DenaSon/skynet/actions/runs/40294338221). The exact master SHA has its own post-merge Actions checks.
