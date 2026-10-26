@@ -67,7 +67,7 @@ final class ReplyMenuRenderer
         ];
 
         if (in_array('reseller', $actor->roles, true)) {
-            $labels[] = ReplyMenuLabels::WALLET;
+            $labels[] = ReplyMenuLabels::SALES_WALLET;
             $labels[] = ReplyMenuLabels::BUILDER;
         }
 
