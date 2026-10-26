@@ -55,13 +55,30 @@ final class MenuRenderer
         $this->render($bot, "🏠 DenaGate\n\nخوش آمدید، {$this->displayName($actor->name)}.", $keyboard);
     }
 
-    public function showInvite(Nutgram $bot, string $url, int $invitedCount): void
-    {
-        $this->render(
-            $bot,
-            "🎁 دعوت دوستان\n\nلینک اختصاصی شما:\n{$url}\n\n👥 دعوت‌های ثبت‌شده: {$invitedCount}\n\nفعلاً برای دعوت دوستان اعتباری اضافه نمی‌شود.",
-            $this->homeKeyboard(),
-        );
+    public function showInvite(
+        Nutgram $bot, string $url, int $invitedCount,
+        ?\App\Modules\Referral\Application\ReferralInvite $stats = null,
+        bool $ordinary = true,
+    ): void {
+        $lines = [
+            '🎁 دعوت دوستان', '', 'لینک اختصاصی شما:', $url, '',
+            '👥 دوستان ثبت‌نام‌شده: '.$invitedCount,
+        ];
+        if ($stats !== null) {
+            $lines[] = '🎁 دوستان دارای پاداش: '.$stats->rewardedCount;
+            $lines[] = '💰 مجموع پاداش‌ها: '.TelegramUi::toman($stats->earnedRials).' تومان';
+            if ($ordinary && $stats->remainingRewards !== null && $stats->rewardAmountRials !== null) {
+                $lines[] = '🎯 ظرفیت باقی‌مانده: '.$stats->remainingRewards;
+                $lines[] = '💵 پاداش هر نفر: '.TelegramUi::toman($stats->rewardAmountRials).' تومان';
+                $lines[] = '';
+                $lines[] = 'پاداش فقط برای کاربر جدید، پس از اولین خرید پولی و فعال‌سازی موفق است؛ تست رایگان و خرید تکراری مشمول نیستند.';
+            } else {
+                $lines[] = '';
+                $lines[] = $ordinary ? 'طرح پاداش فعلاً فعال نیست.' : 'پاداش معرفی مخصوص کاربران عادی است؛ پنل فروش مشمول نیست.';
+            }
+        }
+
+        $this->render($bot, implode("\n", $lines), $this->homeKeyboard());
     }
 
     public function showInviteUnavailable(Nutgram $bot): void
