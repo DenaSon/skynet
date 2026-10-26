@@ -16,8 +16,7 @@ final readonly class ReadResellerSalesReport
     public function __construct(private ResolveSalesBuyer $buyers) {}
 
     /**
-     * @return array{days:int,from:string,to:string,services:int,phoneCustomers:int,withoutPhone:int,
-     *     namedServices:int,pending:int,sales:int,renewals:int,transactions:int,revenueRials:int,generatedAt:string}
+     * @return array{days:int,from:string,to:string,services:int,namedServices:int,pending:int,sales:int,renewals:int,transactions:int,revenueRials:int,generatedAt:string}
      */
     public function handle(int $buyerId, int $days): array
     {
@@ -61,7 +60,7 @@ final readonly class ReadResellerSalesReport
             ->leftJoin('sales_service_customer_labels as customer', 'customer.sales_order_id', '=', 'orders.id')
             ->where('orders.buyer_user_id', $buyerId)
             ->whereIn('orders.status', ['paid', 'fulfilled'])
-            ->selectRaw('COUNT(*) as services, COUNT(DISTINCT customer.phone) as phones, SUM(CASE WHEN customer.phone IS NULL THEN 1 ELSE 0 END) as without_phone, SUM(CASE WHEN customer.label IS NOT NULL THEN 1 ELSE 0 END) as named')
+            ->selectRaw('COUNT(*) as services, SUM(CASE WHEN customer.label IS NOT NULL THEN 1 ELSE 0 END) as named')
             ->first();
 
         return [
@@ -69,8 +68,6 @@ final readonly class ReadResellerSalesReport
             'from' => $from->copy()->timezone('Asia/Tehran')->format('Y-m-d'),
             'to' => $today->format('Y-m-d'),
             'services' => (int) ($services->services ?? 0),
-            'phoneCustomers' => (int) ($services->phones ?? 0),
-            'withoutPhone' => (int) ($services->without_phone ?? 0),
             'namedServices' => (int) ($services->named ?? 0),
             'pending' => (int) DB::table('sales_orders')
                 ->where('buyer_user_id', $buyerId)->where('status', 'pending_payment')->count(),
