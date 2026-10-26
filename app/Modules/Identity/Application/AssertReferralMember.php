@@ -17,8 +17,8 @@ final class AssertReferralMember
             throw new \LogicException('Referral membership requires a transaction.');
         }
         $user = User::query()->lockForUpdate()->find($userId);
-        if ($user === null || ! $user->is_active || $user->roles()->lockForUpdate()->pluck('name')->all() !== ['member']
-            || $user->permissions()->lockForUpdate()->first() !== null || ! $user->telegramAccount()->exists()) {
+        if ($user === null || ! $user->is_active || $user->roles()->sharedLock()->pluck('name')->all() !== ['member']
+            || $user->permissions()->sharedLock()->first() !== null || ! $user->telegramAccount()->exists()) {
             throw new AuthorizationException;
         }
     }
