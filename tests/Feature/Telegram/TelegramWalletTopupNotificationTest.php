@@ -200,7 +200,7 @@ it('records one Sales review result after Admin confirms; never before or on a r
         && str_contains((string) $request['text'], '50,000 تومان')
         && str_contains((string) $request['text'], '✅ اعتبار شما افزایش یافت')
         && str_contains((string) $request['text'], 'اعتبار فعلی:')
-        && str_contains((string) $request['reply_markup'], '💰 اعتبار من')
+        && (json_decode((string) $request['reply_markup'], true, 512, JSON_THROW_ON_ERROR)['inline_keyboard'][0][0]['text'] ?? null) === '💰 اعتبار من'
         && str_contains((string) $request['reply_markup'], 'sales:wallet')
     );
 });
