@@ -829,7 +829,6 @@ it('blocks reseller bank receipts before and after entering a username', functio
         'test-photo-file-guard', 'unique-photo-guard', 1404, 'sales'))
         ->toThrow(ValidationException::class);
 
-
     $bot->hearCallbackQueryData('sales:payment:start:'.$orderId)->reply()
         ->assertCalled('editMessageText');
     expect(Cache::has(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$buyer->id)))->toBeFalse()
