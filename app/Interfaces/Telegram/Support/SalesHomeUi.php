@@ -105,7 +105,7 @@ final readonly class SalesHomeUi
             );
         if ($hasWallet) {
             $keyboard->addRow(
-                InlineKeyboardButton::make('💰 کیف پول', callback_data: 'sales:wallet'),
+                InlineKeyboardButton::make(ReplyMenuLabels::SALES_WALLET, callback_data: 'sales:wallet'),
                 InlineKeyboardButton::make('👤 حساب کاربری', callback_data: 'sales:account'),
             );
         } else {
@@ -215,8 +215,8 @@ final readonly class SalesHomeUi
             ReplyMenuLabels::INVITE => 'invite',
             ReplyMenuLabels::BUILDER, ReplyMenuLabels::LEGACY_BUILDER,
             ReplyMenuLabels::OLD_BUILDER_PANEL => 'builder',
-            ReplyMenuLabels::WALLET, ReplyMenuLabels::LEGACY_WALLET,
-            ReplyMenuLabels::OLD_WALLET_PANEL, '💼 کیف پول' => 'wallet',
+            ReplyMenuLabels::SALES_WALLET, ReplyMenuLabels::WALLET, ReplyMenuLabels::LEGACY_WALLET,
+            ReplyMenuLabels::OLD_WALLET_PANEL, '💰 کیف پول', '💼 کیف پول' => 'wallet',
             default => null,
         };
         if ($action === null) {
@@ -319,7 +319,7 @@ final readonly class SalesHomeUi
             $label = 'اعتبار من';
             try {
                 $balance = "\n💼 {$label}: <b>".TelegramUi::toman($this->wallets->handle($actor->userId)->balanceRials).' تومان</b>';
-                $keyboard->addRow(InlineKeyboardButton::make('💰 کیف پول', callback_data: 'sales:wallet'));
+                $keyboard->addRow(InlineKeyboardButton::make(ReplyMenuLabels::SALES_WALLET, callback_data: 'sales:wallet'));
             } catch (Throwable) {
                 $balance = "\n💼 {$label}: فعلاً در دسترس نیست";
             }
