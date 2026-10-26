@@ -1,3 +1,7 @@
+## TRIAL implementation checkpoint (2026-10-26)
+
+TRIAL-01 PR #238 under review: additive one-time identity admission and SQL daily allowance. TRIAL-02 async activation/Contact UI and TRIAL-03 one terminal notification follow as stacked PRs; live acceptance and rollout are separate. [Scope and gates](030-TRIAL-PLAN.md).
+
 ## Two-column preset buttons (2026-10-26)
 
 Implement the approved price/specification row in the existing ready and full plan lists: price at left, compact name/volume/duration at right, both targeting the same current plan callback. Retain the existing message body, bold totals, buyer-specific price ordering and all checkout/ownership/readiness controls. No schema or dependency change; existing catalog and checkout tests plus normal PHP 8.4/8.5 CI gate merge, with native mobile layout verification separate.
