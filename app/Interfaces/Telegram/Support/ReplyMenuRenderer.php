@@ -121,7 +121,7 @@ final class ReplyMenuRenderer
     }
 
     /** Sales has its own registry; never expose the legacy/Admin keyboard here. */
-    public function salesKeyboard(?TelegramActor $actor = null): ReplyKeyboardMarkup
+    public function salesKeyboard(?TelegramActor $actor = null, bool $trialVisible = false): ReplyKeyboardMarkup
     {
         $labels = [
             ReplyMenuLabels::SALES_BUY,
@@ -133,6 +133,10 @@ final class ReplyMenuRenderer
             $labels[] = ReplyMenuLabels::WALLET;
             $labels[] = ReplyMenuLabels::BUILDER;
             $labels[] = ReplyMenuLabels::SALES_REPORTS;
+        }
+        $labels[] = ReplyMenuLabels::SALES_TUTORIAL;
+        if ($trialVisible) {
+            $labels[] = ReplyMenuLabels::SALES_TRIAL;
         }
         $keyboard = $this->keyboard($labels);
 

@@ -165,3 +165,92 @@ it('keeps one claim across a Telegram username change', function (): void {
     $bot->hearCallbackQueryData('sales:trial:confirm:'.$draft['token'])->reply();
     expect(DB::table('trial_claims')->count())->toBe(1);
 });
+
+/** @return array<string, mixed> */
+function trialUiPayload(Request $request): array
+{
+    $data = FakeNutgram::getActualData($request);
+    if (is_string($data['reply_markup'] ?? null)) {
+        $data['reply_markup'] = json_decode($data['reply_markup'], true, flags: JSON_THROW_ON_ERROR);
+    }
+
+    return $data;
+}
+
+it('puts trial and tutorial in the persistent keyboard and removes their home and account inline entries', function (): void {
+    $this->trialMember();
+    $bot = trialUiBot();
+    $bot->hearText('/start')->reply()->assertRaw(function (Request $request): bool {
+        $markup = trialUiPayload($request)['reply_markup'];
+        $labels = array_column(array_merge(...$markup['keyboard']), 'text');
+
+        return $markup['is_persistent'] === true && in_array('🧪 تست رایگان', $labels, true)
+            && in_array('📚 آموزش', $labels, true);
+    }, index: 0)->assertRaw(function (Request $request): bool {
+        $markup = json_encode(trialUiPayload($request)['reply_markup']);
+
+        return ! str_contains($markup, 'sales:trial') && ! str_contains($markup, 'sales:help:apps');
+    }, index: 1);
+    $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(function (Request $request): bool {
+        return ! str_contains(json_encode(trialUiPayload($request)['reply_markup']), 'sales:trial');
+    }, index: 1);
+    $bot->hearText('🧪 تست رایگان')->reply()->assertCalled('sendMessage');
+    Http::assertNothingSent();
+});
+
+it('keeps tutorial available to resellers without granting a trial through forged reply text', function (): void {
+    $member = $this->trialMember();
+    Role::findOrCreate('reseller', 'web');
+    $member->syncRoles(['reseller']);
+    $bot = trialUiBot();
+    $bot->hearText('/start')->reply()->assertRaw(function (Request $request): bool {
+        $labels = array_column(array_merge(...trialUiPayload($request)['reply_markup']['keyboard']), 'text');
+
+        return in_array('📚 آموزش', $labels, true) && ! in_array('🧪 تست رایگان', $labels, true);
+    }, index: 0);
+    $bot->hearText('📚 آموزش')->reply()->assertRaw(function (Request $request): bool {
+        return str_contains(trialUiPayload($request)['text'], 'دستگاه خود را انتخاب کنید');
+    });
+    $bot->hearText('🧪 تست رایگان')->reply();
+    expect(DB::table('trial_claims')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('hides a used trial immediately on menu refresh for both terminal conditions before the scheduled scan', function (bool $traffic): void {
+    $member = $this->trialMember();
+    $this->activateFreeTrial($member);
+    if ($traffic) {
+        $this->trialRemote['userTraffic']['usedTrafficBytes'] = ProvisionFreeTrial::BYTES;
+    } else {
+        $this->travel(2)->hours();
+    }
+    $bot = trialUiBot();
+    $bot->hearText('/start')->reply()->assertRaw(function (Request $request): bool {
+        $labels = array_column(array_merge(...trialUiPayload($request)['reply_markup']['keyboard']), 'text');
+
+        return in_array('📚 آموزش', $labels, true) && ! in_array('🧪 تست رایگان', $labels, true);
+    }, index: 0);
+    $bot->hearText('🧪 تست رایگان')->reply()->assertRaw(function (Request $request): bool {
+        $data = trialUiPayload($request);
+        $labels = array_column(array_merge(...$data['reply_markup']['keyboard']), 'text');
+
+        return str_contains($data['text'], 'تست به پایان رسیده است') && ! in_array('🧪 تست رایگان', $labels, true);
+    });
+    expect(DB::table('trial_claims')->count())->toBe(1);
+})->with([true, false]);
+
+it('routes tutorial navigation ahead of contact drafts and restores the normal keyboard', function (): void {
+    $member = $this->trialMember();
+    $bot = trialUiBot();
+    $bot->hearCallbackQueryData('sales:trial:contact')->reply();
+    $bot->hearText('📚 آموزش')->reply()->assertCalled('sendMessage', 2)->assertRaw(function (Request $request): bool {
+        return isset(trialUiPayload($request)['reply_markup']['keyboard']);
+    }, index: 0);
+    expect(Cache::has('telegram:sales:trial:'.$member->id))->toBeFalse();
+    $bot->hearCallbackQueryData('sales:trial:contact')->reply();
+    $bot->hearMessage(['contact' => ['phone_number' => '+989123456789', 'first_name' => 'Buyer', 'user_id' => 9210001]])
+        ->reply()->assertRaw(function (Request $request): bool {
+            return isset(trialUiPayload($request)['reply_markup']['keyboard']);
+        }, index: 0);
+    expect(DB::table('trial_claims')->count())->toBe(0);
+});

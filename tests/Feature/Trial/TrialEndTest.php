@@ -114,8 +114,10 @@ it('sends one final notice with existing buy and plan callbacks across repeated 
         $buttons = json_decode($request['reply_markup'], true);
 
         return str_contains($request['text'], 'تست رایگان شما به پایان رسید')
-            && $buttons['inline_keyboard'][0][0]['callback_data'] === 'sales:buy'
-            && $buttons['inline_keyboard'][1][0]['callback_data'] === 'menu:plan-catalog';
+            && isset($buttons['keyboard'])
+            && str_contains(json_encode($buttons, JSON_UNESCAPED_UNICODE), 'خرید سرویس')
+            && str_contains(json_encode($buttons, JSON_UNESCAPED_UNICODE), 'پلن‌ها و قیمت‌ها')
+            && ! str_contains(json_encode($buttons, JSON_UNESCAPED_UNICODE), 'تست رایگان');
     });
     expect(DB::table('sales_orders')->count())->toBe(0)
         ->and(DB::table('billing_journals')->count())->toBe(0)

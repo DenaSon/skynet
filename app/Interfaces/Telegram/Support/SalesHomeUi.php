@@ -26,7 +26,6 @@ use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
-use SergiX44\Nutgram\Telegram\Types\Keyboard\ReplyKeyboardRemove;
 use Throwable;
 
 /** Sales-only navigation; shared Application Actions retain all business authority. */
@@ -83,7 +82,7 @@ final readonly class SalesHomeUi
                 text: '<b>🏠 DenaGate</b>'."\n\nخوش آمدید، ".$this->name($actor->name)
                     .".\nنوع حساب: <b>".$this->salesRole($actor).'</b>',
                 parse_mode: 'HTML',
-                reply_markup: app(ReplyMenuRenderer::class)->salesKeyboard($actor),
+                reply_markup: app(ReplyMenuRenderer::class)->salesKeyboard($actor, app(SalesTrialUi::class)->visible($actor, (int) $telegramId)),
             );
         }
 
@@ -127,10 +126,6 @@ final readonly class SalesHomeUi
             }
             $keyboard->addRow(InlineKeyboardButton::make($requestLabel, callback_data: 'sales:panel:request'));
         }
-        if (app(SalesTrialUi::class)->visible($actor, (int) $telegramId)) {
-            $keyboard->addRow(InlineKeyboardButton::make('🧪 تست رایگان', callback_data: 'sales:trial'));
-        }
-        $keyboard->addRow(InlineKeyboardButton::make('📚 آموزش', callback_data: 'sales:help:apps'));
         $keyboard->addRow(InlineKeyboardButton::make('💬 پشتیبانی', callback_data: 'sales:support'))
             ->addRow(InlineKeyboardButton::make('📋 همه پلن‌ها و قیمت‌ها', callback_data: 'menu:plan-catalog'));
 
@@ -213,6 +208,8 @@ final readonly class SalesHomeUi
             ReplyMenuLabels::SALES_SUBSCRIPTIONS, ReplyMenuLabels::SUBSCRIPTIONS, '📦 اشتراک‌های من' => 'subscriptions',
             ReplyMenuLabels::SALES_ACCOUNT, ReplyMenuLabels::ACCOUNT => 'account',
             ReplyMenuLabels::SALES_SUPPORT => 'support',
+            ReplyMenuLabels::SALES_TUTORIAL => 'tutorial',
+            ReplyMenuLabels::SALES_TRIAL => 'trial',
             ReplyMenuLabels::SALES_REPORTS => 'report',
             ReplyMenuLabels::HOME, '🏠 صفحه اصلی', '❌ انصراف', '/cancel' => 'home',
             ReplyMenuLabels::INVITE => 'invite',
@@ -246,6 +243,12 @@ final readonly class SalesHomeUi
                 break;
             case 'account':
                 $this->account($bot);
+                break;
+            case 'trial':
+                app(SalesTrialUi::class)->show($bot);
+                break;
+            case 'tutorial':
+                app(SalesSupportUi::class)->show($bot, 'apps');
                 break;
             case 'support':
                 app(SalesSupportUi::class)->show($bot);
@@ -326,9 +329,6 @@ final readonly class SalesHomeUi
             $keyboard->addRow(InlineKeyboardButton::make('📊 گزارش‌های من', callback_data: 'sales:report:30'));
         }
 
-        if (app(SalesTrialUi::class)->visible($actor, (int) $this->privateUser->id($bot))) {
-            $keyboard->addRow(InlineKeyboardButton::make('🧪 تست رایگان', callback_data: 'sales:trial'));
-        }
         $keyboard->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
 
         $text = '<b>👤 حساب کاربری</b>'
@@ -486,7 +486,10 @@ final readonly class SalesHomeUi
     {
         $contactPending = app(SalesTrialUi::class)->clear($buyerId);
         if ($contactPending && $bot !== null) {
-            $bot->sendMessage(text: 'دریافت شماره بسته شد.', reply_markup: ReplyKeyboardRemove::make(remove_keyboard: true));
+            $actor = $this->resolve->handle((int) $this->privateUser->id($bot));
+            $bot->sendMessage(text: 'دریافت شماره بسته شد.', reply_markup: app(ReplyMenuRenderer::class)->salesKeyboard(
+                $actor, $actor !== null && app(SalesTrialUi::class)->visible($actor, (int) $this->privateUser->id($bot)),
+            ));
         }
         $this->pendingBuilder->forget($buyerId);
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$buyerId));

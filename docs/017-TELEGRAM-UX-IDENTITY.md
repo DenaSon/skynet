@@ -1,10 +1,10 @@
 ## Trial completion presentation (2026-10-26)
 
-After a provider-confirmed terminal trial, send one final «🎁 تست رایگان شما به پایان رسید» message with existing Buy and catalog buttons. No 24h, 1h or low-volume warning for a trial. Unknown provider state remains unavailable; unknown Telegram final-send results require review rather than a duplicate message. Trial success/end failure labels remain simple Persian in the existing Admin notification list.
+After a provider-confirmed terminal trial, send one final «🎁 تست رایگان شما به پایان رسید» message with existing Buy and catalog buttons. Trial-only warnings are strictly under 10 MiB and at five minutes remaining; never send the paid 24h, 1h or 350 MiB warnings. Pre-schedule the five-minute event on the existing queue; recheck provider state before delivery. Unknown provider state remains unavailable; unknown Telegram final-send results require review rather than a duplicate message. Trial success/end failure labels remain simple Persian in the existing Admin notification list.
 
 ## Free-trial Contact flow (2026-10-26)
 
-Sales home/account offers one optional «🧪 تست رایگان» entry to eligible ordinary members. Use a temporary private `request_contact` Reply keyboard only while collecting the native self-contact; afterward remove it and preserve MENU-01. Show a masked, read-only number with explicit one-use confirmation. Trial status uses MiB plus hours/minutes, a separate owned link/QR action, and no renewal. No engineering terms or raw phone in stored drafts/callbacks. Paid paths and Admin navigation remain unchanged.
+The persistent Sales Reply keyboard offers one optional «🧪 تست رایگان» entry to eligible ordinary members; hide it once the trial ends. Remove Trial and Tutorial from the home/account inline menu. Put «📚 آموزش» in the persistent Reply keyboard for both ordinary users and resellers; trial eligibility still excludes resellers. Activation/end messages refresh the persistent keyboard; the end message removes Trial and retains native Buy/catalog navigation. Use a temporary private `request_contact` Reply keyboard only while collecting the native self-contact; afterward restore the persistent Sales keyboard. Show a masked, read-only number with explicit one-use confirmation. Trial status uses MiB plus hours/minutes, a separate owned link/QR action, and no renewal. No engineering terms or raw phone in stored drafts/callbacks. Paid paths and Admin navigation remain unchanged.
 
 ## Two-column preset rows (2026-10-26)
 

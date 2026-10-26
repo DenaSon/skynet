@@ -21,7 +21,6 @@ use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\KeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\ReplyKeyboardMarkup;
-use SergiX44\Nutgram\Telegram\Types\Keyboard\ReplyKeyboardRemove;
 use SergiX44\Nutgram\Telegram\Types\Message\LinkPreviewOptions;
 use Throwable;
 
@@ -46,7 +45,7 @@ final readonly class SalesTrialUi
         }
         $actor = $this->actor($bot);
         if ($actor !== null && $this->clear($actor->userId)) {
-            $bot->sendMessage(text: 'دریافت شماره بسته شد.', reply_markup: ReplyKeyboardRemove::make(remove_keyboard: true));
+            $bot->sendMessage(text: 'دریافت شماره بسته شد.', reply_markup: app(ReplyMenuRenderer::class)->salesKeyboard($actor, $this->visible($actor, (int) $this->privateUser->id($bot))));
         }
     }
 
@@ -56,8 +55,15 @@ final readonly class SalesTrialUi
             return false;
         }
         try {
-            return $this->trials->find($actor->userId, $telegramId) !== null
-                || $this->eligible($actor->userId, $telegramId);
+            $trial = $this->trials->find($actor->userId, $telegramId);
+            if ($trial === null) {
+                return $this->eligible($actor->userId, $telegramId);
+            }
+            if ($trial['state'] === 'active') {
+                return ! $this->trials->status($actor->userId, $telegramId)->ended();
+            }
+
+            return in_array($trial['state'], ['reserved', 'provisioning', 'needs_review'], true);
         } catch (Throwable) {
             return false;
         }
@@ -113,9 +119,15 @@ final readonly class SalesTrialUi
             if (! $live->ended() && $live->providerStatus === 'ACTIVE') {
                 $keyboard->addRow(InlineKeyboardButton::make('🔐 لینک و کد اتصال', callback_data: 'sales:trial:link', style: ButtonStyle::SUCCESS));
             }
-            $this->render($bot, '<b>🧪 تست رایگان</b>'."\n\nوضعیت: {$label}"
+            $text = '<b>🧪 تست رایگان</b>'."\n\nوضعیت: {$label}"
                 ."\nحجم باقی‌مانده: <b>".number_format($live->remainingBytes / 1048576, 1).' مگابایت</b>'
-                ."\nزمان باقی‌مانده: <b>".intdiv($minutes, 60).' ساعت و '.($minutes % 60).' دقیقه</b>', $keyboard, false);
+                ."\nزمان باقی‌مانده: <b>".intdiv($minutes, 60).' ساعت و '.($minutes % 60).' دقیقه</b>';
+            if ($live->ended()) {
+                $bot->sendMessage(text: $text, parse_mode: 'HTML',
+                    reply_markup: app(ReplyMenuRenderer::class)->salesKeyboard($actor));
+            } else {
+                $this->render($bot, $text, $keyboard, false);
+            }
         } catch (ValidationException $error) {
             $this->render($bot, implode("\n", $error->validator->errors()->all()), $this->buttons());
         } catch (Throwable) {
@@ -168,7 +180,7 @@ final readonly class SalesTrialUi
                 $contact->user_id, $contact->phone_number);
             $token = bin2hex(random_bytes(16));
             Cache::put(self::key($actor->userId), ['stage' => 'confirm', 'telegram_id' => $this->privateUser->id($bot), 'token' => $token, ...$verified], now()->addMinutes(5));
-            $bot->sendMessage(text: 'شماره دریافت شد.', reply_markup: ReplyKeyboardRemove::make(remove_keyboard: true));
+            $bot->sendMessage(text: 'شماره دریافت شد.', reply_markup: app(ReplyMenuRenderer::class)->salesKeyboard($actor, $this->visible($actor, (int) $this->privateUser->id($bot))));
             $bot->sendMessage(text: '<b>✅ تأیید تست رایگان</b>'."\n\nشماره: ".TelegramUi::code($verified['masked'])
                 ."\nحجم: <b>۲۵۰ مگابایت</b> · اعتبار: <b>۲ ساعت</b>"
                 ."\n\nبا تأیید، تنها فرصت تست این حساب و شماره ثبت می‌شود.", parse_mode: 'HTML',
@@ -223,7 +235,7 @@ final readonly class SalesTrialUi
         }
         $this->clear($actor->userId);
         TelegramUi::answerCallback($bot);
-        $bot->sendMessage(text: 'دریافت تست لغو شد.', reply_markup: ReplyKeyboardRemove::make(remove_keyboard: true));
+        $bot->sendMessage(text: 'دریافت تست لغو شد.', reply_markup: app(ReplyMenuRenderer::class)->salesKeyboard($actor, $this->visible($actor, (int) $this->privateUser->id($bot))));
         $bot->sendMessage(text: 'برای ادامه، از منو یا دکمه خانه استفاده کنید.', reply_markup: $this->buttons());
     }
 

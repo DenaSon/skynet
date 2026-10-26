@@ -8,6 +8,7 @@ use App\Modules\Billing\Application\VerifyWalletOrderDebit;
 use App\Modules\Provisioning\Jobs\FulfillPaidPlanOrderJob;
 use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\ConfigureRate;
+use App\Modules\Trial\Application\ReadFreeTrial;
 use App\Modules\Trial\Application\TrialAvailability;
 use App\Modules\Trial\Jobs\ProvisionFreeTrialJob;
 use Illuminate\Foundation\Inspiring;
@@ -236,9 +237,49 @@ Artisan::command('sales:trials:dispatch', function (): int {
 Schedule::command('sales:trials:monitor')->everyMinute()->withoutOverlapping();
 Artisan::command('sales:trials:monitor', function (): int {
     $ended = app(TrialEndMonitor::class)->scan();
-    if ($ended > 0) {
-        $this->info("Finalized {$ended} free trial(s).");
-    }
+    $this->info("Finalized {$ended} free trial(s); warnings checked for active reachable trials.");
 
     return 0;
 })->purpose('Verify trial time/quota completion and queue one terminal notice');
+
+// Read-only deployment diagnosis: never reveal phone, HMAC, token or connection URL.
+Artisan::command('sales:trials:inspect {id? : Trial claim ID; defaults to the latest claim}', function (): int {
+    $query = DB::table('trial_claims');
+    $id = $this->argument('id');
+    if ($id !== null && (! ctype_digit((string) $id) || (int) $id < 1)) {
+        $this->error('Invalid trial ID.');
+
+        return 1;
+    }
+    $trial = $id === null ? $query->orderByDesc('id')->first() : $query->find((int) $id);
+    if ($trial === null) {
+        $this->info('No trial claim found.');
+
+        return 0;
+    }
+    $contact = DB::table('telegram_bot_contacts')->where('user_id', $trial->user_id)
+        ->where('bot_key', 'sales')->where('delivery_status', 'reachable')
+        ->where('chat_id', $trial->telegram_user_id)->exists();
+    $this->line(json_encode([
+        'trial_id' => (int) $trial->id, 'state' => $trial->state, 'end_reason' => $trial->end_reason,
+        'trial_enabled' => config('trial.enabled'), 'sales_enabled' => config('telegram.sales.enabled'),
+        'notifications_enabled' => config('telegram_notifications.enabled'), 'queue' => config('queue.default'),
+        'sales_contact_reachable' => $contact, 'end_notice_started' => $trial->end_notice_started_at !== null,
+        'end_notice_sent' => $trial->end_notice_sent_at !== null,
+    ], JSON_THROW_ON_ERROR));
+    try {
+        $live = app(ReadFreeTrial::class)
+            ->status((int) $trial->user_id, (int) $trial->telegram_user_id);
+        $this->line(json_encode([
+            'provider_read' => 'ok', 'provider_status' => $live->providerStatus,
+            'remaining_bytes' => $live->remainingBytes, 'remaining_seconds' => $live->remainingSeconds,
+            'ended' => $live->ended(),
+        ], JSON_THROW_ON_ERROR));
+    } catch (Throwable) {
+        $this->warn('Provider/owner verification unavailable; no completion inferred.');
+    }
+    $this->line(DB::table('telegram_notification_deliveries')->where('trial_claim_id', $trial->id)
+        ->orderBy('id')->get(['id', 'event_type', 'state', 'attempts', 'last_failure', 'available_at', 'sent_at'])->toJson());
+
+    return 0;
+})->purpose('Inspect safe trial state, provider counters and notification delivery evidence (GET only)');
