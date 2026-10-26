@@ -127,6 +127,7 @@ it('gives active Sales Panel holders their unique home builder action without an
     }, index: 1);
 
     expect(ReplyMenuLabels::all())->toContain(ReplyMenuLabels::LEGACY_BUILDER)
+        ->toContain(ReplyMenuLabels::SALES_WALLET)
         ->toContain(ReplyMenuLabels::LEGACY_WALLET)
         ->toContain(ReplyMenuLabels::BUILDER)
         ->toContain(ReplyMenuLabels::WALLET);
