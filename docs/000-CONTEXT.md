@@ -1,3 +1,7 @@
+## TRIAL-02 source checkpoint (2026-10-26; unmerged)
+
+Dependent on PR #238: private native Contact + masked confirmation, asynchronous one-create trial activation through the existing lifecycle, owned live status/link/QR and existing activation-notification outbox. Independent default-OFF trial and exact verified Squad gates. No Sales/Billing/Referral writes or Production operation. Terminal monitor is TRIAL-03; rollout remains blocked. [Scope, contract and recovery](030-TRIAL-PLAN.md).
+
 ## TRIAL-01 admission review (2026-10-26; unmerged)
 
 PR #238 is draft. Trial admission now serializes daily reservations in SQL, binds unique user/Telegram/HMAC identities and uses fresh ordinary-member and Sales paid-history Application checks. Feature remains OFF; no provider/UI/financial effects in this phase. See [trial plan](030-TRIAL-PLAN.md).

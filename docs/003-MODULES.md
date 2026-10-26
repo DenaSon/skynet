@@ -1,3 +1,7 @@
+## Trial module (2026-10-26; source PRs unmerged)
+
+Trial owns one-time HMAC identity claims, SQL daily reservation quota and guarded free-trial activation/read Actions. It consumes Identity ordinary-member and Sales paid-history Application checks and the existing Provisioning lifecycle. It does not create Sales orders, Billing journals, referral rewards or a parallel provider/notification system. Telegram owns the short-lived native-contact confirmation and credential presentation. [Trial contract](030-TRIAL-PLAN.md).
+
 # Module Boundaries
 
 **Current (2026-10-12):** F0–F10-E3 merged on `master`; Telegram Identity/RBAC, Referral, Billing top-ups, Sales orders, authorized subscription reads, and Nutgram customer UI are implemented. F11-A1 wallet settlement and F11-A2 Super Admin manual bank review **merged via PR #30/#33**, both disabled by default; no consumer, live bank or provider E2E. Administration remains a shell. See [canonical context](000-CONTEXT.md).

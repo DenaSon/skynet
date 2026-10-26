@@ -1,3 +1,7 @@
+## Free-trial Contact flow (2026-10-26)
+
+Sales home/account offers one optional «🧪 تست رایگان» entry to eligible ordinary members. Use a temporary private `request_contact` Reply keyboard only while collecting the native self-contact; afterward remove it and preserve MENU-01. Show a masked, read-only number with explicit one-use confirmation. Trial status uses MiB plus hours/minutes, a separate owned link/QR action, and no renewal. No engineering terms or raw phone in stored drafts/callbacks. Paid paths and Admin navigation remain unchanged.
+
 ## Two-column preset rows (2026-10-26)
 
 - Each preset row contains a plain-text toman price button first (left) and specification button second (right); both reuse the same existing plan-selection callback. No inert price cells or copy-only surprises.

@@ -1,3 +1,7 @@
+## TRIAL-02 implementation checkpoint (2026-10-26; unmerged)
+
+TRIAL-01 CI passed on `e23a89d` ([run](https://github.com/DenaSon/skynet/actions/runs/40290319136)); PR #238 remains unmerged. TRIAL-02 source implements Contact/confirmation, queued existing lifecycle activation, owned status/link/QR and activation outbox. TRIAL-03 terminal detection/notification and live rollout acceptance remain separate gates. [Details](030-TRIAL-PLAN.md).
+
 ## TRIAL implementation checkpoint (2026-10-26)
 
 TRIAL-01 PR #238 under review: additive one-time identity admission and SQL daily allowance. TRIAL-02 async activation/Contact UI and TRIAL-03 one terminal notification follow as stacked PRs; live acceptance and rollout are separate. [Scope and gates](030-TRIAL-PLAN.md).

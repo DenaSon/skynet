@@ -7,6 +7,8 @@ use App\Modules\Billing\Application\VerifyWalletOrderDebit;
 use App\Modules\Provisioning\Jobs\FulfillPaidPlanOrderJob;
 use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\ConfigureRate;
+use App\Modules\Trial\Application\TrialAvailability;
+use App\Modules\Trial\Jobs\ProvisionFreeTrialJob;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -214,3 +216,18 @@ Artisan::command('sales:rate:set {slug} {days} {base_toman} {per_gb_toman} {--in
 
     return 0;
 })->purpose('Create/update a Sales duration rate from integer-toman inputs');
+
+// Recover only untouched trial reservations. Claimed/uncertain writes are never replayed.
+Schedule::command('sales:trials:dispatch')->everyMinute()->withoutOverlapping();
+Artisan::command('sales:trials:dispatch', function (): int {
+    if (! TrialAvailability::ready()) {
+        return 0;
+    }
+    DB::table('trial_claims')->where('state', 'provisioning')->where('updated_at', '<', now()->subMinutes(3))
+        ->update(['state' => 'needs_review', 'updated_at' => now()]);
+    foreach (DB::table('trial_claims')->where('state', 'reserved')->orderBy('id')->limit(20)->pluck('id') as $id) {
+        ProvisionFreeTrialJob::dispatch((int) $id);
+    }
+
+    return 0;
+})->purpose('Recover untouched free-trial reservations through the provider queue');
