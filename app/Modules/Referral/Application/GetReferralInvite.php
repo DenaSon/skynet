@@ -42,8 +42,8 @@ final class GetReferralInvite
                 ->selectRaw('COUNT(*) as rewarded_count, COALESCE(SUM(amount_rials), 0) as earned_rials')
                 ->first()
             : null;
-        $rewarded = (int) ($summary?->rewarded_count ?? 0);
-        $earned = (int) ($summary?->earned_rials ?? 0);
+        $rewarded = (int) ($summary->rewarded_count ?? 0);
+        $earned = (int) ($summary->earned_rials ?? 0);
         $policy = null;
         try {
             $policy = app(ReferralRewardPolicy::class)->settings();
