@@ -198,6 +198,9 @@ it('records one Sales review result after Admin confirms; never before or on a r
     expect(DB::table('telegram_notification_deliveries')->where('id', $review->id)->value('state'))->toBe('sent');
     Http::assertSent(static fn (Request $request): bool => str_contains($request->url(), '54321:sales_test/sendMessage')
         && str_contains((string) $request['text'], '50,000 تومان')
+        && str_contains((string) $request['text'], '✅ اعتبار شما افزایش یافت')
+        && str_contains((string) $request['text'], 'اعتبار فعلی:')
+        && str_contains((string) $request['reply_markup'], '💰 اعتبار من')
         && str_contains((string) $request['reply_markup'], 'sales:wallet')
     );
 });
