@@ -6,11 +6,11 @@
 
 | Phase | Source | Evidence | Deployment |
 | --- | --- | --- | --- |
-| TRIAL-01 | [PR #238](https://github.com/DenaSon/skynet/pull/238), `e23a89d` | Local PHP 8.5: 1,021 tests / 6,928 assertions; PHP 8.4/8.5, PHPStan, Pint and concurrent MySQL [CI passed](https://github.com/DenaSon/skynet/actions/runs/40290319136) | Draft, unmerged |
-| TRIAL-02 | [PR #239](https://github.com/DenaSon/skynet/pull/239), `7161110`, based on #238 | Local PHP 8.5: 1,044 tests / 7,027 assertions; PHP 8.4/8.5, PHPStan, Pint, real Redis/MySQL worker-claim races with fake external API [CI passed](https://github.com/DenaSon/skynet/actions/runs/40292433187) | Draft, unmerged |
-| TRIAL-03 | [Stacked source](https://github.com/DenaSon/skynet/tree/feat/trial-03-terminal-notification) on #239: provider-verified completion, one terminal notice and final Contact rebind review | Local PHP 8.5: 1,057 tests / 7,087 assertions; PHPStan/Pint passed. Exact-head CI is tracked by the PR checks; real acceptance remains pending | Draft, unmerged; rollout OFF |
+| TRIAL-01 | [PR #238](https://github.com/DenaSon/skynet/pull/238), `e23a89d` | Local PHP 8.5: 1,021 tests / 6,928 assertions; PHP 8.4/8.5, PHPStan, Pint and concurrent MySQL [CI passed](https://github.com/DenaSon/skynet/actions/runs/40290319136) | Merged to master: `bac5b7f` |
+| TRIAL-02 | [PR #239](https://github.com/DenaSon/skynet/pull/239), `7161110`, based on #238 | Local PHP 8.5: 1,044 tests / 7,027 assertions; PHP 8.4/8.5, PHPStan, Pint, real Redis/MySQL worker-claim races with fake external API [CI passed](https://github.com/DenaSon/skynet/actions/runs/40292433187) | Merged to master: `039e44d` |
+| TRIAL-03 | [PR #240](https://github.com/DenaSon/skynet/pull/240), `feda9ce`, based on #239: provider-verified completion, one terminal notice and final Contact rebind review | Local PHP 8.5: 1,057 tests / 7,087 assertions; PHPStan/Pint passed. PHP 8.4/8.5/PHPStan/Pint/MySQL/Redis [CI passed](https://github.com/DenaSon/skynet/actions/runs/40294338221); real acceptance remains pending | Merged to master: `61e189d`; rollout OFF |
 
-Review/merge #238 first, then retarget #239 to master, then retarget the TRIAL-03 PR to master after #239. Do not merge or change Production flags/data/provider entities without explicit operator approval. Every master merge auto-deploys.
+The operator explicitly authorized merging all three phases on 2026-10-26. They were merged in order #238 → #239 → #240, retargeting each dependent PR to master after its prerequisite. Final implementation merge is `61e189d3f452e9c526c85e514cbc071c9fd6fec7`; its Git tree exactly matches the tested #240 head. Every master merge triggers auto-deploy, but this is not evidence that Runflare deployment/migrations completed. Production ENV/data/provider writes and public trial enablement remain separate, unperformed operator actions.
 
 ## Admission and identity
 

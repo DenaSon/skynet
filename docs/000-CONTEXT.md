@@ -1,3 +1,9 @@
+## TRIAL-01–03 merged checkpoint (2026-10-26; operator-approved merge)
+
+[TRIAL-01 #238](https://github.com/DenaSon/skynet/pull/238) → `bac5b7f`, [TRIAL-02 #239](https://github.com/DenaSon/skynet/pull/239) → `039e44d`, [TRIAL-03 #240](https://github.com/DenaSon/skynet/pull/240) → `61e189d` are merged to master in dependency order. Final source matches the tested #240 Git tree; 1,057 tests / 7,087 assertions and PHP 8.4/8.5/PHPStan/Pint/MySQL/Redis [source CI passed](https://github.com/DenaSon/skynet/actions/runs/40294338221). The exact master SHA has its own post-merge Actions checks.
+
+Source delivery is complete; real Telegram/Remnawave acceptance and rollout remain open. Four additive migrations require operator execution after deployment; no seeder is needed. Keep `TRIAL_ENABLED=false`, generate a separate stable server-only HMAC key, and leave the verified Squad gate empty until separately authorized live acceptance. No Production ENV/data/migration or real provider write was performed by merging. Earlier unmerged checkpoints below are historical. [Operational contract](030-TRIAL-PLAN.md).
+
 ## TRIAL-03 source checkpoint (2026-10-26; unmerged)
 
 Dependent on PR #239/#238: owned RW GET verifies time/quota completion; one terminal intent uses the existing notification outbox and buy/catalog callbacks. A durable final-send fence blocks duplicate/ambiguous Telegram resends, while provider-read outages retain retry. Paid 24h/1h/350 MiB warning code is unchanged. Final review binds Contact drafts to the original numeric Telegram ID across relinking. Feature/rollout remains OFF; source/fake CI is not real Telegram/RW acceptance. [Full contract, evidence and limitations](030-TRIAL-PLAN.md).
