@@ -130,11 +130,13 @@ final class ReplyMenuRenderer
             ReplyMenuLabels::SALES_SUPPORT,
         ];
         if ($actor !== null && in_array('reseller', $actor->roles, true)) {
-            $labels[] = ReplyMenuLabels::WALLET;
             $labels[] = ReplyMenuLabels::BUILDER;
             $labels[] = ReplyMenuLabels::SALES_REPORTS;
         }
         $labels[] = ReplyMenuLabels::SALES_TUTORIAL;
+        if ($actor !== null && (in_array('member', $actor->roles, true) || in_array('reseller', $actor->roles, true))) {
+            $labels[] = ReplyMenuLabels::SALES_WALLET;
+        }
         if ($trialVisible) {
             $labels[] = ReplyMenuLabels::SALES_TRIAL;
         }
