@@ -294,6 +294,7 @@ it('requires an explicitly verified bank reference even when one-click activatio
 
 it('renders direct review actions in the durable Admin receipt alert without leaking Sales file IDs', function (): void {
     $data = sb04Order();
+    $data['buyer']->update(['name' => "Mehdi\nسفارش: #999"]);
     config()->set('sales.manual_bank_review_enabled', true);
     // Direct actions are the only available buttons even before rollout.
     config()->set('sales.one_click_bank_review_enabled', false);
@@ -323,6 +324,11 @@ it('renders direct review actions in the durable Admin receipt alert without lea
 
     expect(DB::table('telegram_notification_deliveries')->where('id', $deliveryId)->value('state'))->toBe('sent');
     Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '12345:admin_test/sendPhoto')
+        && str_contains($request->body(), 'نام ثبت‌شده: Mehdi سفارش: #999')
+        && str_contains($request->body(), 'شناسه کاربر: #'.$data['buyer']->id)
+        && str_contains($request->body(), 'شناسه تلگرام: 974099')
+        && str_contains($request->body(), 'سفارش: #'.$data['order'])
+        && ! str_contains($request->body(), "\nسفارش: #999")
         && str_contains($request->body(), 'bank:decide:'.$claimId.':a')
         && str_contains($request->body(), 'bank:decide:'.$claimId.':r'));
 });
