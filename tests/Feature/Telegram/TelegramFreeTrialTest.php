@@ -121,7 +121,7 @@ it('shows live minutes and MiB and uses the existing QR renderer after activatio
     $this->activateFreeTrial($member);
     $bot = trialUiBot();
     $bot->hearCallbackQueryData('sales:trial')->reply()->assertCalled('editMessageText');
-    $bot->hearCallbackQueryData('sales:trial:link')->reply()->assertCalled('sendPhoto')->assertCalled('sendMessage');
+    $bot->hearCallbackQueryData('sales:trial:link')->reply()->assertCalled('sendPhoto', 1)->assertCalled('sendMessage', 0);
     $this->trialRemote['userTraffic']['usedTrafficBytes'] = ProvisionFreeTrial::BYTES;
     $bot->hearCallbackQueryData('sales:trial:link')->reply()->assertCalled('sendMessage')->assertCalled('sendPhoto', 0);
 });
@@ -253,4 +253,35 @@ it('routes tutorial navigation ahead of contact drafts and restores the normal k
             return isset(trialUiPayload($request)['reply_markup']['keyboard']);
         }, index: 0);
     expect(DB::table('trial_claims')->count())->toBe(0);
+});
+
+it('keeps a very long trial URL intact in one text message without a second QR message', function (): void {
+    $member = $this->trialMember();
+    $this->activateFreeTrial($member);
+    $url = 'https://sub.example.test/'.str_repeat('a', 1100);
+    $this->trialRemote['subscriptionUrl'] = $url;
+    $bot = trialUiBot();
+    $bot->hearCallbackQueryData('sales:trial:link')->reply()
+        ->assertCalled('sendPhoto', 0)->assertCalled('sendMessage', 1)
+        ->assertRaw(function (Request $request) use ($url): bool {
+            $data = trialUiPayload($request);
+
+            return str_contains($data['text'], $url)
+                && ! str_contains(json_encode($data['reply_markup']), 'copy_text');
+        }, index: 1);
+});
+
+it('retains the private trial link as text when Telegram rejects the QR upload', function (): void {
+    $member = $this->trialMember();
+    $this->activateFreeTrial($member);
+    $bot = trialUiBot();
+    $bot->willReceive(true)->willReceive([], ok: false);
+    $bot->hearCallbackQueryData('sales:trial:link')->reply()
+        ->assertCalled('sendPhoto', 1)->assertCalled('sendMessage', 1)
+        ->assertRaw(function (Request $request): bool {
+            $data = trialUiPayload($request);
+
+            return str_contains($data['text'], 'https://sub.example.test/private-trial')
+                && str_contains(json_encode($data['reply_markup']), 'copy_text');
+        }, index: 2);
 });

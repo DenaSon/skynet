@@ -54,7 +54,7 @@ The persistent Sales Reply keyboard has one optional trial entry plus `/trial`; 
 
 `ReadFreeTrial` verifies current ordinary owner, exact trial/provider reference, remote numeric ID and immutable marker before/after GET. Validate the frozen quota/expiry/Squad/NO_RESET. Safe status DTOs contain no credentials. Display actual MiB plus hours/minutes; no fabricated zero/status on a failed GET.
 
-Only an ACTIVE, unexpired, unexhausted, locally active owned trial exposes its credential through a separate action. Reuse `SubscriptionQrPng`, private Telegram delivery and copy controls; no credentials in list/outbox/callback/log. No trial renewal action exists. Existing paid services, wallet, bank receipts, renewal, Referral attribution and Admin routes remain intact.
+Only an ACTIVE, unexpired, unexhausted, locally active owned trial exposes its credential through a separate action. Reuse `SubscriptionQrPng`, private Telegram delivery and copy controls; no credentials in list/outbox/callback/log. The trial connection action sends one QR photo with the full selectable URL in its HTML caption and a single action keyboard. On media failure or an unusually long URL beyond the conservative caption bound, send one complete text link as fallback; do not unconditionally send a second credential message. No trial renewal action exists. Existing paid services, wallet, bank receipts, renewal, Referral attribution and Admin routes remain intact.
 
 ## One completion notification
 
