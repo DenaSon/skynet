@@ -50,7 +50,7 @@ final class MenuRenderer
 
         if (in_array('reseller', $actor->roles, true)) {
             $keyboard->addRow(InlineKeyboardButton::make('💼 پلن‌ساز پنل فروش', callback_data: 'menu:builder'));
-            $keyboard->addRow(InlineKeyboardButton::make('💼 کیف پول پنل فروش', callback_data: 'menu:wallet'));
+            $keyboard->addRow(InlineKeyboardButton::make('💰 اعتبار من', callback_data: 'menu:wallet'));
         }
 
         $this->render($bot, "🏠 DenaGate\n\nخوش آمدید، {$this->displayName($actor->name)}.", $keyboard);
