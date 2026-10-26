@@ -51,3 +51,18 @@ it('disallows bypassing Billing through raw Sales SQL', function (): void {
         }
     }
 });
+
+arch('referral uses application boundaries rather than other module persistence')
+    ->expect('App\\Modules\\Referral')
+    ->not->toUse([
+        'App\\Modules\\Billing\\Infrastructure',
+        'App\\Modules\\Sales\\Infrastructure',
+        'App\\Modules\\Identity\\Infrastructure',
+        'App\\Modules\\Provisioning\\Infrastructure',
+    ]);
+
+it('keeps reward financial SQL inside Billing', function (): void {
+    foreach ((new Finder)->files()->in(dirname(__DIR__, 2).'/app/Modules/Referral')->name('*.php') as $file) {
+        expect($file->getContents())->not->toContain('billing_postings', 'billing_wallets', 'billing_journals');
+    }
+});

@@ -19,6 +19,7 @@ use App\Modules\Provisioning\Application\ManageFulfilledSubscriptionStatus;
 use App\Modules\Provisioning\Application\ReviewPaidFulfillment;
 use App\Modules\Provisioning\Jobs\ChangeFulfilledSubscriptionStatusJob;
 use App\Modules\Provisioning\Jobs\FulfillPaidPlanOrderJob;
+use App\Modules\Referral\Application\GrantReferralReward;
 use App\Modules\Sales\Application\CalculatePlanQuote;
 use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\CreatePendingPlanOrder;
@@ -42,6 +43,7 @@ use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
+use Tests\Support\ReferralRewardFixture;
 
 uses(RefreshDatabase::class);
 
@@ -1175,4 +1177,25 @@ it('does not notify activation when provider CREATE is uncertain', function (): 
     expect(fn () => app(FulfillPaidPlanOrder::class)->handle($data['order']))->toThrow(RuntimeException::class);
     expect(DB::table('sales_fulfillment_outbox')->value('state'))->toBe('needs_review')
         ->and(DB::table('telegram_notification_deliveries')->where('event_type', 'SubscriptionActivated')->count())->toBe(0);
+});
+
+it('makes only a verified completed bank purchase eligible for the internal referral foundation', function (): void {
+    config()->set('referral', [
+        'rewards_enabled' => true, 'reward_tomans' => 30000, 'max_rewards_per_referrer' => 7,
+        'rewards_start_at' => now()->subDay()->utc()->format('Y-m-d\TH:i:s\Z'),
+    ]);
+    $data = sb05Order();
+    $referrer = ReferralRewardFixture::member();
+    DB::table('referrals')->insert([
+        'referrer_user_id' => $referrer->id, 'invited_user_id' => $data['buyer']->id, 'created_at' => now(),
+    ]);
+    $action = app(GrantReferralReward::class);
+    expect($action->handle($data['order']))->toBeNull();
+    config()->set('services.remnawave.writes_enabled', true);
+    sb05FakeCreate($data['order']);
+    app(FulfillPaidPlanOrder::class)->handle($data['order']);
+    // REF-01 intentionally has no automatic fulfillment hook.
+    expect(DB::table('referral_rewards')->count())->toBe(0);
+    expect($action->handle($data['order']))->toBeInt()
+        ->and(app(ViewWallet::class)->handle($referrer->id)->balanceRials)->toBe(300000);
 });
