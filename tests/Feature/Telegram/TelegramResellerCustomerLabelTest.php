@@ -304,7 +304,7 @@ it('finds only linked paid reseller-owned labels by name fragment with bounded p
     expect(array_column($page2['items'], 'orderId'))->toBe([$first])
         ->and($page2['nextBeforeOrderId'])->toBeNull()
         ->and($labels->search($buyer->id, 'غیرموجود')['items'])->toBe([])
-        ->and($labels->search($other->id, 'علی')['items'])->toBe([['orderId' => $foreign, 'label' => 'علی همسایه', 'phone' => null]])
+        ->and($labels->search($other->id, 'علی')['items'])->toBe([['orderId' => $foreign, 'label' => 'علی همسایه']])
         ->and($unnamed)->toBeGreaterThan(0);
 
     Http::assertNothingSent();
@@ -416,7 +416,7 @@ it('pages matching names and protects missing state, group chats and revoked res
     Http::assertNothingSent();
 });
 
-it('normalizes reseller phones and searches only owner-scoped customer names or mobile fragments', function (): void {
+it('preserves old reseller phone records while searching only customer names', function (): void {
     $buyer = rslUser();
     $other = rslUser();
     $order = rslOrder($buyer);
@@ -426,9 +426,9 @@ it('normalizes reseller phones and searches only owner-scoped customer names or 
     $action->savePhone($buyer->id, $order, '۰۹۱۲۳۴۵۶۷۸۹');
     expect($action->phone($buyer->id, $order))->toBe('+989123456789')
         ->and($action->get($buyer->id, $order))->toBeNull()
-        ->and($action->search($buyer->id, '0912')['items'][0]['phone'])->toBe('+989123456789')
-        ->and($action->search($buyer->id, '۹۱۲۳۴')['items'][0]['orderId'])->toBe($order)
-        ->and($action->search($buyer->id, '+989123456789')['items'][0]['orderId'])->toBe($order)
+        ->and($action->search($buyer->id, '0912')['items'])->toBe([])
+        ->and($action->search($buyer->id, '۹۱۲۳۴')['items'])->toBe([])
+        ->and($action->search($buyer->id, '+989123456789')['items'])->toBe([])
         ->and(DB::table('sales_orders')->where('id', $order)->first())->toEqual($before);
     $action->save($buyer->id, $order, 'محمد احمدی');
     $action->save($buyer->id, $order, null);
@@ -484,7 +484,7 @@ it('edits and removes a reseller phone through the private Sales bot', function 
     Http::assertNothingSent();
 });
 
-it('isolates reseller reports and counts verified services and distinct customer phones', function (): void {
+it('isolates reseller reports and counts verified named services without using phones', function (): void {
     $buyer = rslUser();
     $other = rslUser();
     $first = rslOrder($buyer);
@@ -499,8 +499,6 @@ it('isolates reseller reports and counts verified services and distinct customer
     $reports = app(ReadResellerSalesReport::class);
     $data = $reports->handle($buyer->id, 30);
     expect($data['services'])->toBe(2)
-        ->and($data['phoneCustomers'])->toBe(1)
-        ->and($data['withoutPhone'])->toBe(1)
         ->and($data['namedServices'])->toBe(2)
         ->and($data['pending'])->toBe(1)
         ->and($data['transactions'])->toBe(0)
@@ -522,7 +520,8 @@ it('makes the Sales report visible only to resellers and provides 7/30 day navig
 
             return str_contains($data['text'], 'گزارش‌های من')
                 && str_contains($data['text'], 'مجموع فروش')
-                && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:report:7');
+                && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:report:7')
+                && ! str_contains($data['text'], 'شماره موبایل');
         }, index: 1);
     $buyer->syncRoles(['member']);
     $bot->hearCallbackQueryData('sales:report:30')->reply()
