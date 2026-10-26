@@ -355,7 +355,7 @@ final readonly class SalesHomeUi
             return;
         }
         if (! in_array('member', $actor->roles, true) && ! in_array('reseller', $actor->roles, true)) {
-            $this->render($bot, 'کیف پول برای این حساب در دسترس نیست.', $this->back());
+            $this->render($bot, 'اعتبار برای این حساب در دسترس نیست.', $this->back());
 
             return;
         }
@@ -388,7 +388,7 @@ final readonly class SalesHomeUi
                     ));
                 }
             }
-            $keyboard->addRow(InlineKeyboardButton::make('➕ افزایش موجودی', callback_data: 'sales:wallet:topup'));
+            $keyboard->addRow(InlineKeyboardButton::make('➕ افزایش اعتبار', callback_data: 'sales:wallet:topup'));
         }
         $keyboard->addRow(InlineKeyboardButton::make('◀️ حساب کاربری', callback_data: 'sales:account'))
             ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
@@ -429,7 +429,7 @@ final readonly class SalesHomeUi
         } else {
             $details .= "\n🎯 ظرفیت باقی‌مانده پاداش: <b>{$invite->remainingRewards}</b>"
                 ."\n💵 مبلغ هر پاداش: <b>".TelegramUi::toman($invite->rewardAmountRials).' تومان</b>';
-            $terms = 'پاداش فقط برای دوست جدید، پس از اولین خرید پولی و فعال‌سازی موفق سرویس به کیف پول اضافه می‌شود. ثبت‌نام، تست رایگان و خرید تکراری پاداش ندارند؛ پنل‌های فروش هم مشمول نیستند.';
+            $terms = 'پاداش فقط برای دوست جدید، پس از اولین خرید پولی و فعال‌سازی موفق سرویس به اعتبار شما اضافه می‌شود. ثبت‌نام، تست رایگان و خرید تکراری پاداش ندارند؛ پنل‌های فروش هم مشمول نیستند.';
         }
         $this->render($bot,
             '<b>👥 دعوت دوستان</b>'."\n\nلینک اختصاصی شما:\n".TelegramUi::code($url)
