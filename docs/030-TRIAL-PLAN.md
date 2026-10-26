@@ -1,54 +1,74 @@
 # TRIAL — DenaGate free evaluation subscription
 
-**Decision / scope (2026-10-26).** A single **2-hour, 250 MiB** free trial for ordinary active Sales Bot members with no previous paid purchase, independently of Sales orders, Billing, pricing, resellers and Referral Rewards. Trial activation does NOT qualify for any referral credit. Only the trial feature is in scope; no loyalty, birthday or CRM work.
+**Approved scope, 2026-10-26:** one free **2-hour / 250 MiB** evaluation for an active ordinary Sales Bot member without previous paid purchases. No reseller access, renewal, Sales order, Billing journal, referral reward, new CRM, marketing engine or provider webhook. Source/CI completion is separate from live Telegram/Remnawave acceptance and Production rollout.
 
-## Release sequence and evidence gates
+## Phase status and dependencies
 
-### TRIAL-01 — Admission/identity (this branch)
-- New additive `trial_claims` table with unique `user_id` and unique keyed HMAC phone fingerprint. Never store the raw telephone number.
-- `ReserveFreeTrial` is an internal Application action. Check the existing, active `member` role, Sales-linked Telegram ID and `contact.user_id === message.from.id`. The interface must obtain this input ONLY from a private Telegram `request_contact` response, not from editable text. Admin/Reseller/disabled accounts are denied.
-- Reject users with any genuine paid history (even settled, older orders), repeat claims and duplicate numbers. Enforce a daily global reservation limit through a transactional MySQL day row and immutable claims, independent of Cache locks.
-- `TRIAL_ENABLED=false` by default; require an independent 32+ character random `TRIAL_PHONE_HMAC_KEY` and `TRIAL_DAILY_LIMIT` (default 20). Missing key fails closed. Do not reuse or rotate the key without an explicit migration plan; rotating it invalidates phone deduplication evidence.
-- **TRIAL-01 is foundation only:** no Telegram entry point, no provider CREATE, no enqueue, no activated subscription, no financial effects. Reservation state is `reserved`. Do not enable TRIAL_ENABLED in production until TRIAL-02/03 are accepted.
-- Test separate identities, different representations of a phone, role/identity rejections, previous paid history and daily ceiling. A synthetic fixture is not live Telegram contact acceptance.
+| Phase | Source | Evidence | Deployment |
+| --- | --- | --- | --- |
+| TRIAL-01 | [PR #238](https://github.com/DenaSon/skynet/pull/238), `e23a89d` | Local PHP 8.5: 1,021 tests / 6,928 assertions; PHP 8.4/8.5, PHPStan, Pint and concurrent MySQL [CI passed](https://github.com/DenaSon/skynet/actions/runs/40290319136) | Draft, unmerged |
+| TRIAL-02 | [PR #239](https://github.com/DenaSon/skynet/pull/239), `7161110`, based on #238 | Local PHP 8.5: 1,044 tests / 7,027 assertions; PHP 8.4/8.5, PHPStan, Pint, real Redis/MySQL worker-claim races with fake external API [CI passed](https://github.com/DenaSon/skynet/actions/runs/40292433187) | Draft, unmerged |
+| TRIAL-03 | [Stacked source](https://github.com/DenaSon/skynet/tree/feat/trial-03-terminal-notification) on #239: provider-verified completion, one terminal notice and final Contact rebind review | Local PHP 8.5: 1,057 tests / 7,087 assertions; PHPStan/Pint passed. Exact-head CI is tracked by the PR checks; real acceptance remains pending | Draft, unmerged; rollout OFF |
 
-### TRIAL-02 — Fulfillment + customer UI (later independent PR)
-- Read Contact via native private ReplyKeyboard `request_contact`, verify contact owner and require explicit confirmation. Restore normal Sales reply keyboard afterward.
-- Preserve one durable reservation per user/phone across repeated callbacks. Reuse `RemnawaveSubscriptionLifecycle` and its one-create/uncertain-outcome reconciliation semantics on an asynchronous provider queue. Frozen two-hour UTC expiry and exact 250 MiB bytes; distinguish finished/ambiguous outcomes. Never send a provider CREATE on Telegram webhook.
-- Add a dedicated enable/verified Squad gate; no real Provider write without operator-approved disposable user test and exact Squad verification.
-- Show trial in Sales account using owner-verified GET, credential-safe link and existing QR rendering; use hours/minutes, not the paid-plan GB/days display. No paid Sale/Order/Ledger or renewal.
+Review/merge #238 first, then retarget #239 to master, then retarget the TRIAL-03 PR to master after #239. Do not merge or change Production flags/data/provider entities without explicit operator approval. Every master merge auto-deploys.
 
-### TRIAL-03 — Trial end & conversion message (later independent PR)
-- Keep paid subscription warning path (24h, 1h, 350MiB) unchanged; trial has no warning before expiry/quota exhaustion.
-- Reuse the existing Scheduler/notification-delivery outbox to inspect trial status and issue ONE terminal message when expiry OR quota is exhausted, with CTA to existing Sales buy/plan menu. Check real provider state/owner on delivery, survive retries and outages without duplicate notification.
-- Exclude trial from Referral rewards by positive proof of a real paid+fulfilled Sales order, never from a generic provider activation.
-- Regression: bank receipts, wallet, reseller discounts, paid subscription alerts, renewals, reporting, Sales/Admin route isolation and existing callbacks.
+## Admission and identity
 
-## Safety / rollout
-- Zero live Provider writes, financial entries, migrations or production flags are authorized by source review alone.
-- CI on PHP 8.4/8.5 + MySQL, PHPStan and Pint are mandatory, with additional real Telegram private contact/Remnawave activation/end-of-life checks under separate operator permission.
-- A Telegram ID cannot be changed by editing `@username`; a separate Telegram account with another number remains a possible abuse vector. Daily quota and 250 MiB upper bound mitigate cost; they cannot prove one real human.
-- No production merge until independent review; master merge auto-deploys.
+- `ReserveFreeTrial` accepts a native private Sales self-contact only through the Telegram presenter. Require `contact.user_id === message.from.id`, the currently linked numeric Telegram ID and an active ordinary `member` without additional roles/privileges. Username is not identity.
+- Native `request_contact` Reply keyboard is temporary. No typed, forwarded or foreign contact is accepted. Display only a masked read-only phone and require an unpredictable actor-bound confirmation within five minutes. The server draft contains only HMAC, masked text, numeric Telegram ID and confirmation token; final confirmation must match the same Telegram account even after DenaGate relinking.
+- Normalize international/known Iranian forms before keyed HMAC-SHA256 with the fixed `denagate:trial-phone:v1:` namespace. Raw phone is never stored in the trial claim, queue, callback or log. The native Telegram contact itself remains in the user's private chat. A masked number is not editable input.
+- Permanent SQL uniqueness covers **user ID, Telegram ID and phone fingerprint**. Preserve evidence after expiry, failures and relinking; restrict user deletion. The Interface never imports Identity persistence to authorize admission.
+- Identity owns the fresh ordinary-member check. Sales owns prior paid/fulfilled order or wallet/bank settlement history. A wallet recharge is not a purchase. Check again inside admission and on the worker before CREATE.
 
+## Limits and switches
 
-## TRIAL-01 review corrections (2026-10-26)
+| Configuration | Default | Purpose |
+| --- | --- | --- |
+| `TRIAL_ENABLED` | `false` | New trial admission/activation and scheduled trial processing |
+| `TRIAL_DAILY_LIMIT` | `20` | 1–1000; both reservation-day and activation-attempt-day ceilings |
+| `TRIAL_PHONE_HMAC_KEY` | empty | Independent stable random secret, 32+ characters; missing/weak/reused APP_KEY fails closed |
+| `TRIAL_INTERNAL_SQUAD_UUID` | empty | Exact intended trial Squad |
+| `TRIAL_VERIFIED_SQUAD_UUID` | empty | Must equal the exact Squad after separately approved disposable-user verification |
 
-- Added durable unique Telegram ID as well as user ID and HMAC phone; relinking an account cannot reclaim with another number.
-- Replaced the expiring Cache admission lease with a locked SQL day counter (Tehran calendar). Failed/uncertain reservations remain consumed. TRIAL-02 additionally caps worker activation attempts per Tehran calendar day to cover cross-day backlogs. Rollback refuses to erase consumed quota or claims.
-- Identity owns a fresh locked, active ordinary-member check; additional/custom roles or privileges fail closed. Sales owns prior paid-order/settlement history. Repeat UI checks do not replace transactional admission.
-- Native-contact validation produces only a masked number and HMAC for the later short-lived confirmation draft. Raw phone parameters are sensitive; no raw phone is persisted in claims, queues, callbacks or logs.
-- Review and CI evidence remain separate from real Telegram contact and Remnawave acceptance. No Production merge or rollout is authorized.
+Global `REMNAWAVE_WRITES_ENABLED` is still required. Existing Sales/notification switches and separate tokens govern actual bot/notification delivery. No trial code changes any Production ENV.
 
+`trial_admission_days` serializes admission using a locked MySQL day row, independent of Cache leases. Dates use **Asia/Tehran**. TRIAL-02 adds `activation_count` in the same table: the worker claims a slot on its actual execution day, so old queued reservations cannot bypass today's activation ceiling. A claimed/rejected/uncertain CREATE consumes its slot conservatively; capacity-blocked untouched reservations wait for a later day. No automatic entitlement release or second trial.
 
-## TRIAL-02 source implementation (2026-10-26; stacked, unmerged)
+Do not rotate/reuse the HMAC secret without an explicit deduplication migration plan. Changing `@username` cannot change a Telegram ID. A person owning different Telegram accounts/numbers remains a possible abuse vector; the byte/day limits bound cost rather than proving one human.
 
-- Sales-only home/account entry and `/trial`, native self-contact request, 5-minute server-only fingerprint/masked confirmation, owner-bound random one-use callback; no typed/forwarded/foreign contacts. Cancel/Home retire the draft and remove its temporary Reply keyboard, retaining MENU-01's native menu.
-- Additive activation linkage/UTC timestamps and a trial FK in the existing notification deliveries. `ProvisionFreeTrialJob` uses the existing async provider connection; SQL claim + existing `RemnawaveSubscriptionLifecycle` reserve the single CREATE. No Sales/Billing/Referral writes or paid-plan validation changes.
-- Gate new activation with `TRIAL_ENABLED`, global RW writes and an exact match of `TRIAL_INTERNAL_SQUAD_UUID` and `TRIAL_VERIFIED_SQUAD_UUID`. Set the latter only after separately authorized disposable-user validation on that exact Squad. Defaults are false/empty. Changing the Squad requires fresh verification.
-- The pinned upstream contract at Remnawave 3.4.4 (`b22970cc88481a7e278b5767721672a18f8b2ada`, `libs/contract/commands/users/create-user.command.ts`) accepts absolute ISO UTC `expireAt`, byte `trafficLimitBytes`, `NO_RESET` and Internal Squad UUIDs. Freeze the UTC CREATE instant on the worker (never Contact/queue admission), target exactly +7200 seconds / 262144000 bytes, and confirm the response tuple through the existing lifecycle. The API has no relative activation-duration field; network/Node propagation and the real panel clock still need live acceptance. Provider success is not proof of VPN connectivity.
-- Any claimed/crashed/uncertain CREATE stays blocked. Minute Scheduler recovery dispatches **only untouched `reserved` claims**, quarantining stale provisioning claims. Privileged `ProvisionFreeTrial::reconcile(trialId, operatorId)` uses existing GET-only lifecycle reconciliation; it never reissues CREATE. No new provider API/webhook or generic provisioning engine.
-- Fresh ordinary-owner checks before and after GET validate remote ID/marker, exact quota/expiry/Squad/NO_RESET. Status DTOs never contain credentials; link retrieval is separate, active/unexpired/unexhausted only, with existing QR PNG renderer and private delivery.
-- `TrialActivated` shares the existing durable notification table/worker/sender and rechecks owner/provider on delivery. Full trial terminal monitoring and paid-warning isolation are TRIAL-03, so keep rollout OFF.
-- Source fake HTTP/Nutgram tests are not real Telegram/Remnawave acceptance. No Production ENV/data/provider action or master merge.
+## Existing provider lifecycle and precise time/volume
 
-TRIAL-02 also locks the same day row and increments a separate `activation_count` before the one CREATE attempt. Cross-day pending reservations cannot bypass today's activation ceiling. Uncertain/rejected attempts consume that slot; untouched capacity-blocked claims remain reserved for a later day.
+Reuse `RemnawaveSubscriptionLifecycle`, `provisioning_subscriptions`, `provisioning_operations`, `ProviderQueueConnection` and existing SQL at-most-one-write semantics. No Provider WRITE runs in a Telegram webhook. `ProvisionFreeTrialJob` uses only asynchronous Redis/database connections; no sync/null fallback can execute CREATE inline.
+
+The verified upstream contract is Remnawave **3.4.4**, commit `b22970cc88481a7e278b5767721672a18f8b2ada`, `libs/contract/commands/users/create-user.command.ts` and `src/modules/users/users.service.ts`. It accepts absolute ISO UTC `expireAt`, byte `trafficLimitBytes`, `NO_RESET` and Internal Squad UUIDs. There is no relative-duration/activation field in this CREATE contract.
+
+- Freeze the UTC CREATE instant **on the worker immediately before its single CREATE attempt**, never on Contact receipt, confirmation or queue admission. Persist the target first: `expireAt = frozen instant + 7200 seconds`, `trafficLimitBytes = 262144000`, strategy `NO_RESET` and the verified Squad.
+- Only a confirmed provider result with the exact identity/ownership marker, status, expiry, quota and Squad becomes locally active and gets a success intent. `activation_started_at` is the frozen CREATE clock; `activated_at` records local confirmation. Time spent waiting in Queue never reduces the window. HTTP/Node propagation and real clock accuracy still require live measurement; source tests do not prove VPN connectivity or a full 7200 seconds measured from the later HTTP response.
+- Reference `free-trial:{claimId}` and operation key `free-trial:{claimId}:create` are independent of paid order references. No free Sales order, zero-price paid plan, fractional GB or zero-day relaxation.
+- States: `reserved → provisioning → active → ended`; ineligible worker requests become `failed`; uncertain/crashed CREATEs become `needs_review`. Scheduler recovers **only untouched reserved claims** and quarantines stale provisioning claims. Never reset claimed/uncertain state to reserved.
+- Privileged `ProvisionFreeTrial::reconcile(trialId, operatorId)` uses the existing GET-only reconciliation and original frozen tuple. A missing operation or mismatch stays blocked; no blind second CREATE. Access is trusted-root only.
+
+## Customer reads and UX
+
+Sales home/account has one optional trial entry plus `/trial`. Contact/cancel/navigation restore the existing MENU-01 native menu by removing the temporary Reply keyboard. Navigation retires this draft before existing forms can receive text. A final Contact rebind check was added during TRIAL-03 review.
+
+`ReadFreeTrial` verifies current ordinary owner, exact trial/provider reference, remote numeric ID and immutable marker before/after GET. Validate the frozen quota/expiry/Squad/NO_RESET. Safe status DTOs contain no credentials. Display actual MiB plus hours/minutes; no fabricated zero/status on a failed GET.
+
+Only an ACTIVE, unexpired, unexhausted, locally active owned trial exposes its credential through a separate action. Reuse `SubscriptionQrPng`, private Telegram delivery and copy controls; no credentials in list/outbox/callback/log. No trial renewal action exists. Existing paid services, wallet, bank receipts, renewal, Referral attribution and Admin routes remain intact.
+
+## One completion notification
+
+- `TrialEndMonitor` follows the existing paid-alert GET-only scan pattern, scheduled every minute with `withoutOverlapping`. Real RW quota/time is read through the owned Trial Application action; local expiry or a failed/unavailable/mismatched GET is never sufficient evidence.
+- Time reaching zero **or** usage reaching the exact 250 MiB cap ends the trial. A disabled status alone does not prove early expiry. Both conditions together still create one terminal transition and a single unique `free-trial:{id}:ended` intent.
+- `TrialActivated` and `TrialEnded` share **the existing** `telegram_notification_deliveries`, dispatcher, worker, sender and operator failure list. No parallel transport. Final copy uses «🎁 تست رایگان شما به پایان رسید» and existing `sales:buy` / `menu:plan-catalog` callbacks.
+- Paid warnings remain unchanged. Trials have no paid order/link and therefore never enter the existing 24h, 1h or 350 MiB paid-alert query. No ordinary warning is added to trial processing.
+- Delivery rechecks current owner/provider. Read outages happen before the terminal send fence and use the existing outbox retry/backoff. SQL `end_notice_started_at` fences the final Telegram send; repeated workers, expired leases and manual outbox retry cannot send another accepted final notice.
+- **Ambiguous send tradeoff:** Telegram sendMessage has no application idempotency key. After a timeout/unknown response or process crash following the send fence, retain the fence and show a reviewable unavailable notification instead of blindly resending. Delivery can be missed in that case; do not claim guaranteed exactly-once delivery. A positively rejected 429/blocked request can safely release the fence for existing retry/recovery. Paid-notification behavior is unchanged.
+
+## Migrations and rollout/rollback
+
+All source migrations are additive: claim foundation (`000001`), SQL admission-day quota (`000002`), activation linkage/worker-day quota/outbox FK (`000003`), terminal state/send evidence (`000004`). Empty disposable schemas support rollback; populated claims/quota/activation/end evidence refuse destructive rollback. Never run `migrate:fresh` on customer data or erase trial evidence to recover a failed activation.
+
+Before rollout, independently review all three PRs and exact-head PHP 8.4/8.5/PHPStan/Pint/MySQL/Redis CI, then obtain separately authorized controlled Telegram/Remnawave acceptance. Verify native Contact owner/rebind/cancel/keyboard rendering, actual two-hour/250 MiB behavior and clock/Node propagation, one end CTA, no paid warnings, private QR/import, uncertain-write reconciliation, worker/Scheduler and rollback. No real provider write, bank transaction, Production migration, secret or ENV change is authorized by this document.
+
+Keep `TRIAL_ENABLED=false` until those gates pass. To pause trial processing after release, disable the independent trial switch through an approved operator action; RW's already-created expiry/quota still enforce limits. Preserve claims, quota rows, frozen operations and notification evidence. Existing authorized owners can still check their recorded trial through a stale private status route. Never clear terminal send fences as a routine retry mechanism.

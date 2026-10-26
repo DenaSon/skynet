@@ -129,6 +129,8 @@ final readonly class AdminNotificationFailuresUi
             'WalletTopupRejected' => 'رد شارژ کیف پول',
             'WalletPurchaseSettled' => 'پرداخت از کیف پول',
             'FulfillmentPlanBlocked' => 'مشکل فعال‌سازی سفارش',
+            'TrialActivated' => 'فعال‌شدن تست رایگان',
+            'TrialEnded' => 'پایان تست رایگان',
             'SubscriptionActivated' => 'فعال‌شدن اشتراک',
             'SubscriptionRenewed' => 'تمدید اشتراک',
             'SubscriptionExpiry24h' => 'هشدار انقضای اشتراک',
@@ -162,6 +164,9 @@ final readonly class AdminNotificationFailuresUi
     private static function reason(string $value): string
     {
         return match ($value) {
+            'trial_delivery_uncertain' => 'نتیجه ارسال نامشخص است؛ برای جلوگیری از پیام تکراری، ارسال مجدد انجام نمی‌شود',
+            'trial_already_attempted' => 'ارسال پایان تست قبلاً انجام یا ثبت شده است',
+            'trial_not_active' => 'تست دیگر فعال نیست',
             'transport' => 'مشکل ارتباط با تلگرام',
             'not_started' => 'کاربر بات مقصد را شروع نکرده',
             'blocked' => 'بات توسط کاربر مسدود شده',

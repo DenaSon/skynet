@@ -16,9 +16,9 @@ use Throwable;
 /**
  * Durable, at-most-one-write-attempt, INTERNAL subscription lifecycle.
  *
- * Intentionally not callable from a route, webhook, purchase, Telegram or job.
- * Before any production use a verified settled order & authenticated actor
- * must authorize calling this action. Default-deny ENV prevents writes.
+ * Internal only: callers prove an immutable paid settlement OR an admitted
+ * one-time free trial through their own authorized Application Action/worker.
+ * Never call CREATE directly from Telegram/HTTP. Preserve the server write gate.
  *
  * No remote calls inside a DB transaction; reserve first, then execute once.
  * After uncertain outcomes, block retries until manual reconciliation.

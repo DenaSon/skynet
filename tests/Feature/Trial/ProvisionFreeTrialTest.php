@@ -171,3 +171,22 @@ it('caps worker-day activations across a backlog admitted on earlier days', func
     expect(DB::table('trial_claims')->find($second)->state)->toBe('active');
     Http::assertSentCount(2);
 });
+
+it('recovers a lost CREATE response using only GET and permanent original intent', function (): void {
+    $member = $this->trialMember();
+    $id = app(ReserveFreeTrial::class)->handle($member->id, 9210001, 9210001, '+989123456789');
+    $this->trialProviderStatus = 0;
+    app(ProvisionFreeTrial::class)->handle($id);
+    app(ProvisionFreeTrial::class)->handle($id);
+    expect($this->trialProviderAttempts)->toBe(1)
+        ->and(DB::table('trial_claims')->find($id)->state)->toBe('needs_review');
+    $this->trialProviderStatus = 200;
+    config()->set('super_admin.telegram_ids', ['9210091', '9210092']);
+    $operator = $this->trialMember(9210091);
+    Role::findOrCreate('super-admin', 'web');
+    $operator->syncRoles(['super-admin']);
+    app(ProvisionFreeTrial::class)->reconcile($id, $operator->id);
+    expect($this->trialProviderAttempts)->toBe(2)
+        ->and(DB::table('trial_claims')->find($id)->state)->toBe('active')
+        ->and(DB::table('provisioning_operations')->count())->toBe(1);
+});

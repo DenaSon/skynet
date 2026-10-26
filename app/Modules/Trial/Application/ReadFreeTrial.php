@@ -57,7 +57,7 @@ final readonly class ReadFreeTrial
             $status = new FreeTrialStatus((int) $binding->id, $remote->status,
                 max(0, $remote->trafficLimitBytes - $remote->usedTrafficBytes),
                 max(0, $expires - now()->getTimestamp()));
-            if ($credentials && ($status->ended() || $remote->status !== 'ACTIVE'
+            if ($credentials && ($binding->state !== 'active' || $status->ended() || $remote->status !== 'ACTIVE'
                 || strlen($remote->subscriptionUrl) > 2048
                 || ! filter_var($remote->subscriptionUrl, FILTER_VALIDATE_URL)
                 || parse_url($remote->subscriptionUrl, PHP_URL_SCHEME) !== 'https'

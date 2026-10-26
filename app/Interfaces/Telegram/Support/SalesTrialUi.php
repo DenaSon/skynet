@@ -137,7 +137,7 @@ final readonly class SalesTrialUi
                 return;
             }
             app(SalesHomeUi::class)->clearInput($actor->userId, $bot);
-            Cache::put(self::key($actor->userId), ['stage' => 'contact'], now()->addMinutes(5));
+            Cache::put(self::key($actor->userId), ['stage' => 'contact', 'telegram_id' => $this->privateUser->id($bot)], now()->addMinutes(5));
             TelegramUi::answerCallback($bot);
             $bot->sendMessage(text: '📱 شماره متصل به همین حساب تلگرام را فقط با دکمه زیر ارسال کنید. برای انصراف /cancel را بفرستید.',
                 reply_markup: ReplyKeyboardMarkup::make(resize_keyboard: true, one_time_keyboard: true)
@@ -159,14 +159,15 @@ final readonly class SalesTrialUi
         $contact = $message?->contact;
         try {
             TrialAvailability::assertReady();
-            if (! is_array($draft) || ($draft['stage'] ?? null) !== 'contact' || $contact === null
+            if (! is_array($draft) || ($draft['stage'] ?? null) !== 'contact'
+                || ($draft['telegram_id'] ?? null) !== $this->privateUser->id($bot) || $contact === null
                 || $message->forward_origin !== null || $message->via_bot !== null) {
                 throw new \RuntimeException('No native contact request.');
             }
             $verified = $this->admission->contact($actor->userId, (int) $this->privateUser->id($bot),
                 $contact->user_id, $contact->phone_number);
             $token = bin2hex(random_bytes(16));
-            Cache::put(self::key($actor->userId), ['stage' => 'confirm', 'token' => $token, ...$verified], now()->addMinutes(5));
+            Cache::put(self::key($actor->userId), ['stage' => 'confirm', 'telegram_id' => $this->privateUser->id($bot), 'token' => $token, ...$verified], now()->addMinutes(5));
             $bot->sendMessage(text: 'شماره دریافت شد.', reply_markup: ReplyKeyboardRemove::make(remove_keyboard: true));
             $bot->sendMessage(text: '<b>✅ تأیید تست رایگان</b>'."\n\nشماره: ".TelegramUi::code($verified['masked'])
                 ."\nحجم: <b>۲۵۰ مگابایت</b> · اعتبار: <b>۲ ساعت</b>"
@@ -191,6 +192,7 @@ final readonly class SalesTrialUi
             $id = Cache::lock(self::key($actor->userId).':lock', 10)->block(2, function () use ($actor, $bot, $token): int {
                 $draft = Cache::get(self::key($actor->userId));
                 if (! is_array($draft) || ($draft['stage'] ?? null) !== 'confirm'
+                    || ($draft['telegram_id'] ?? null) !== $this->privateUser->id($bot)
                     || ! is_string($draft['token'] ?? null) || ! hash_equals($draft['token'], $token)
                     || ! is_string($draft['fingerprint'] ?? null)) {
                     throw new \RuntimeException('Expired confirmation.');

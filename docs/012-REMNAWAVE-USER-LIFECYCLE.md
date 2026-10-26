@@ -1,3 +1,7 @@
+## Approved free-trial caller (2026-10-26; source PRs unmerged)
+
+In addition to a verified settled paid order, the narrow TRIAL workflow may call the existing lifecycle from its asynchronous worker after permanent native-contact admission, fresh ordinary-member/no-paid-history checks, exact verified Squad and SQL day quotas. Lifecycle identity/tuple/idempotency/reconciliation behavior is unchanged. Trial reference/ownership is independent of paid orders; no direct Telegram WRITE or financial bypass. See [030](030-TRIAL-PLAN.md) for frozen UTC timing, one-create recovery and default-OFF rollout.
+
 # F10-D — Remnawave User Lifecycle and Durable Provisioning
 
 **Current live qualification — 2026-10-16:** The pinned 3.4.4 API was operator-tested against an isolated live Remnawave panel. Read-only health/inventory, typed Users/Subscriptions GET, and scoped direct staging Create/absolute quota/expiry/disable/enable tests succeeded; this does **not** prove 218 operations or live Laravel Application idempotency. No Node or Host. RW-03 incomplete; one 17/18 batch subscription ownership assertion failed and needs redacted contract review. No production writes. Current evidence and the next P0-only Admin read plan: [024](024-REMNAWAVE-LIVE-CHECKPOINT-ADMIN-READ-PLAN.md). Statements below about no available staging server are dated historical checkpoints.

@@ -15,6 +15,7 @@ use App\Modules\Identity\Application\TelegramRecipient;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Sales\Application\ManualBankPayments;
 use App\Modules\Sales\Application\ReviewSalesPanelRequest;
+use App\Modules\Trial\Application\EndFreeTrial;
 use App\Modules\Trial\Application\ReadFreeTrial;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\DB;
@@ -58,6 +59,38 @@ final readonly class TelegramNotificationSender
         }
 
         $token = $this->token($bot);
+
+        if ($delivery->event_type === 'TrialEnded') {
+            $trialId = (int) $delivery->trial_claim_id;
+            if ($bot !== 'sales' || $trialId < 1 || $delivery->event_key !== 'free-trial:'.$trialId.':ended') {
+                throw new NotificationUnavailable('invalid_recipient');
+            }
+            $trials = app(EndFreeTrial::class);
+            if (! $trials->claimNotice($trialId, $userId, $chat)) {
+                throw new NotificationUnavailable('trial_already_attempted');
+            }
+            try {
+                $this->text($bot, $chat, "<b>🎁 تست رایگان شما به پایان رسید</b>\n\nامیدواریم تجربه خوبی از DenaGate داشته باشید.\n\nبرای ادامه استفاده می‌توانید یکی از پلن‌های اصلی را انتخاب کنید.",
+                    json_encode(['inline_keyboard' => [
+                        [['text' => '🛒 خرید اشتراک', 'callback_data' => 'sales:buy']],
+                        [['text' => '📋 مشاهده پلن‌ها', 'callback_data' => 'menu:plan-catalog']],
+                    ]], JSON_THROW_ON_ERROR), 'HTML');
+                $trials->noticeSent($trialId);
+            } catch (NotificationUnavailable $error) {
+                $trials->releaseRejectedNotice($trialId);
+                throw $error;
+            } catch (Throwable $error) {
+                if ($error->getCode() === 429) {
+                    $trials->releaseRejectedNotice($trialId);
+                    throw $error;
+                }
+                // A timeout/unknown send may already have reached Telegram. Keep
+                // the fence even after lease expiry or manual outbox retry.
+                throw new NotificationUnavailable('trial_delivery_uncertain');
+            }
+
+            return;
+        }
 
         if ($delivery->event_type === 'TrialActivated') {
             $trialId = (int) $delivery->trial_claim_id;

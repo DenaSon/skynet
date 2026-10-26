@@ -138,3 +138,30 @@ it('retires native Contact drafts when navigating to an existing catalog or serv
     expect(Cache::has('telegram:sales:trial:'.$member->id))->toBeFalse()
         ->and(DB::table('trial_claims')->count())->toBe(0);
 })->with(['/catalog', 'sales:subs:list:0']);
+
+it('binds the verified contact draft to its original numeric Telegram account across relinking', function (): void {
+    $member = $this->trialMember();
+    $bot = trialUiBot();
+    $bot->hearCallbackQueryData('sales:trial:contact')->reply();
+    $bot->hearMessage(['contact' => ['phone_number' => '+989123456789', 'first_name' => 'Buyer', 'user_id' => 9210001]])->reply();
+    $draft = Cache::get('telegram:sales:trial:'.$member->id);
+    DB::table('telegram_accounts')->where('user_id', $member->id)->update(['telegram_user_id' => 9210002]);
+    $other = trialUiBot(9210002);
+    $other->hearCallbackQueryData('sales:trial:confirm:'.$draft['token'])->reply();
+    expect(DB::table('trial_claims')->count())->toBe(0);
+    Queue::assertNotPushed(ProvisionFreeTrialJob::class);
+});
+
+it('keeps one claim across a Telegram username change', function (): void {
+    $member = $this->trialMember();
+    $bot = trialUiBot();
+    $bot->hearCallbackQueryData('sales:trial:contact')->reply();
+    $bot->hearMessage(['contact' => ['phone_number' => '+989123456789', 'first_name' => 'Buyer', 'user_id' => 9210001]])->reply();
+    $draft = Cache::get('telegram:sales:trial:'.$member->id);
+    $renamed = TelegramUser::make(9210001, false, 'Buyer');
+    $renamed->username = 'changed_username';
+    $bot->setCommonUser($renamed);
+    $bot->hearCallbackQueryData('sales:trial:confirm:'.$draft['token'])->reply();
+    $bot->hearCallbackQueryData('sales:trial:confirm:'.$draft['token'])->reply();
+    expect(DB::table('trial_claims')->count())->toBe(1);
+});

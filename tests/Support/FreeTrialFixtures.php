@@ -8,7 +8,9 @@ use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Trial\Application\ProvisionFreeTrial;
 use App\Modules\Trial\Application\ReserveFreeTrial;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Spatie\Permission\Models\Role;
@@ -20,6 +22,12 @@ trait FreeTrialFixtures
     public int $trialProviderStatus = 200;
 
     public int $trialNextRemoteId = 811;
+
+    public int $trialTelegramStatus = 200;
+
+    public int $trialTelegramAttempts = 0;
+
+    public int $trialProviderAttempts = 0;
 
     protected function configureFreeTrial(): void
     {
@@ -38,7 +46,8 @@ trait FreeTrialFixtures
         Http::preventStrayRequests();
         Http::fake(function (Request $request) {
             if (str_starts_with($request->url(), 'https://trial-panel.test/api/users')) {
-                if ($this->trialProviderStatus !== 200) {
+                $this->trialProviderAttempts++;
+                if ($this->trialProviderStatus !== 200 && $this->trialProviderStatus !== 0) {
                     return Http::response([], $this->trialProviderStatus);
                 }
                 if ($request->method() === 'POST') {
@@ -50,10 +59,16 @@ trait FreeTrialFixtures
                     ];
                 }
 
+                if ($this->trialProviderStatus === 0) {
+                    throw new ConnectionException('Synthetic lost response.');
+                }
+
                 return Http::response(['response' => $this->trialRemote], 200);
             }
 
-            return Http::response(['ok' => true, 'result' => ['message_id' => 42]], 200);
+            $this->trialTelegramAttempts++;
+
+            return Http::response(['ok' => $this->trialTelegramStatus === 200, 'result' => ['message_id' => 42]], $this->trialTelegramStatus);
         });
     }
 
@@ -65,6 +80,15 @@ trait FreeTrialFixtures
         TelegramAccount::query()->create(['user_id' => $user->id, 'telegram_user_id' => $telegramId]);
 
         return $user;
+    }
+
+    protected function recordTrialSalesContact(User $user, int $telegramId = 9210001): void
+    {
+        DB::table('telegram_bot_contacts')->insert([
+            'user_id' => $user->id, 'bot_key' => 'sales', 'chat_id' => $telegramId,
+            'delivery_status' => 'reachable', 'last_seen_at' => now(),
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
     }
 
     protected function activateFreeTrial(User $user, int $telegramId = 9210001): int
