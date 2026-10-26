@@ -171,12 +171,10 @@ final readonly class SalesSubscriptionsUi
         $item = $details->summary;
         $resellerId = $this->resellerId($bot);
         $customerLabel = $resellerId === null ? null : $this->customerLabels->get($resellerId, $orderId);
-        $customerPhone = $resellerId === null ? null : $this->customerLabels->phone($resellerId, $orderId);
         $lines = [
             '<b>📋 '.($customerLabel === null ? TelegramUi::escape($this->clean($item->productName)) : '👤 '.TelegramUi::escape($this->clean($customerLabel))).'</b>',
             '',
             'پلن: '.TelegramUi::escape($this->clean($item->productName)),
-            ...($customerPhone === null ? [] : ['📱 موبایل مشتری: <code>'.TelegramUi::escape($customerPhone).'</code>']),
             ...($details->canRequestLink ? [] : ['وضعیت ثبت‌شده: '.$this->status($item->status)]),
             'حجم خرید: '.($item->trafficGb === null ? 'نامحدود' : $item->trafficGb.' گیگابایت'),
             'مدت خرید: '.$item->durationDays.' روز',
@@ -252,10 +250,6 @@ final readonly class SalesSubscriptionsUi
             $keyboard->addRow(InlineKeyboardButton::make(
                 '✏️ ویرایش نام مشتری',
                 callback_data: 'sales:subs:label:edit:'.$orderId.':'.$cursor,
-            ));
-            $keyboard->addRow(InlineKeyboardButton::make(
-                $customerPhone === null ? '📱 افزودن شماره موبایل' : '📱 ویرایش شماره موبایل',
-                callback_data: 'sales:subs:phone:edit:'.$orderId.':'.$cursor,
             ));
         }
 
@@ -566,7 +560,7 @@ final readonly class SalesSubscriptionsUi
         Cache::put($this->searchKey($buyerId), ['mode' => 'input'], now()->addMinutes(10));
 
         $this->render($bot, '<b>🔎 جستجوی مشتری</b>'
-            ."\n\nنام مشتری، بخشی از نام یا شماره موبایل را ارسال کنید."
+            ."\n\nنام کاربری مشتری یا بخشی از آن را ارسال کنید."
             ."\nفقط اطلاعات مشتریان سرویس‌های شما جستجو می‌شوند."
             ."\n\n<blockquote>فرم تا ۱۰ دقیقه اعتبار دارد.</blockquote>",
             InlineKeyboardMarkup::make()
@@ -659,8 +653,7 @@ final readonly class SalesSubscriptionsUi
                 // Existing Provisioning read Action freshly rechecks service ownership.
                 $details = $this->details->handle($viewer, $row['orderId']);
                 $items[] = [
-                    'orderId' => $row['orderId'], 'name' => $row['label'],
-                    'phone' => $row['phone'], 'summary' => $details->summary,
+                    'orderId' => $row['orderId'], 'name' => $row['label'], 'summary' => $details->summary,
                 ];
             }
         } catch (Throwable) {
@@ -672,16 +665,13 @@ final readonly class SalesSubscriptionsUi
         $lines = ['<b>🔎 نتایج جستجو</b>', 'جستجو: <b>'.TelegramUi::escape($state['term']).'</b>', ''];
         $keyboard = InlineKeyboardMarkup::make();
         if ($items === []) {
-            $lines[] = 'مشتری‌ای با این نام یا شماره در سرویس‌های شما پیدا نشد.';
+            $lines[] = 'سرویسی با این نام کاربری در سرویس‌های شما پیدا نشد.';
         } else {
             foreach ($items as $index => $item) {
                 $position = $index + 1;
                 $summary = $item['summary'];
-                $display = $item['name'] ?? $item['phone'] ?? 'مشتری بدون نام';
+                $display = $item['name'] ?? 'مشتری بدون نام';
                 $lines[] = '🔹 <b>'.$position.'. 👤 '.TelegramUi::escape($this->clean($display)).'</b>';
-                if ($item['phone'] !== null && $item['name'] !== null) {
-                    $lines[] = '📱 '.TelegramUi::escape($item['phone']);
-                }
                 $lines[] = TelegramUi::escape($this->clean($summary->productName))
                     .' · '.($summary->trafficGb === null ? 'نامحدود' : $summary->trafficGb.' گیگ')
                     .' · '.$this->status($summary->status);
