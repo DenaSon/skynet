@@ -366,7 +366,7 @@ final readonly class SalesCheckoutUi
             );
         } catch (AuthorizationException|ValidationException $error) {
             $message = match (true) {
-                $error instanceof ValidationException && isset($error->errors()['customer']) => 'ابتدا نام و شماره موبایل مشتری را تکمیل کنید؛ مبلغی برداشت نشد.',
+                $error instanceof ValidationException && isset($error->errors()['customer']) => 'ابتدا نام کاربری مشتری را تکمیل کنید؛ مبلغی برداشت نشد.',
                 $error instanceof ValidationException && isset($error->errors()['activation']) => 'پرداخت فعلاً آماده نیست؛ مبلغی از کیف پول شما برداشت نشد. کمی بعد دوباره اقدام کنید.',
                 $error instanceof ValidationException && isset($error->errors()['plan']) => 'مشخصات این پلن تغییر کرده یا خرید آن متوقف شده است؛ مبلغی برداشت نشد. از بخش خرید، پلن را دوباره انتخاب کنید.',
                 default => 'مبلغ، موجودی یا وضعیت سفارش تغییر کرده است؛ برداشت انجام نشد. از صفحه سفارش دوباره اقدام کنید.',
@@ -437,8 +437,10 @@ final readonly class SalesCheckoutUi
         app(SalesSubscriptionsUi::class)->clearCustomerLabelDraft($buyer);
         app(SalesSubscriptionsUi::class)->clearCustomerSearch($buyer);
         Cache::put($this->customerNameKey($buyer), ['order_id' => $orderId], now()->addMinutes(10));
-        $this->render($bot, "<b>👤 نام و نام خانوادگی مشتری</b>\n\n<b>مرحله ۱ از ۲</b>\nنام و نام خانوادگی مشتری را در یک پیام ارسال کنید (حداکثر ۶۰ کاراکتر)."
-            ."\nاین نام در سرویس‌های شما نمایش داده می‌شود و شناسه فنی اشتراک تغییر نمی‌کند.",
+        $this->render($bot,
+            '<b>👤 نام کاربری مشتری</b>'
+            ."\n\nنام کاربری دلخواه مشتری را وارد کنید."
+            ."\n\n<blockquote>این نام برای شناسایی سرویس در پنل فروش شما استفاده می‌شود.</blockquote>",
             InlineKeyboardMarkup::make()
                 ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'sales:checkout:name:cancel'))
                 ->addRow(InlineKeyboardButton::make('📋 سفارش‌های من', callback_data: 'sales:checkout:orders')),
@@ -472,17 +474,17 @@ final readonly class SalesCheckoutUi
             $order = $this->orders->findPlan($actor->userId, $orderId);
         } catch (ValidationException $error) {
             if (isset($error->errors()['label'])) {
-                $this->notice($bot, 'نام و نام خانوادگی را در یک خط و با فاصله وارد کنید (حداکثر ۶۰ کاراکتر).');
+                $this->notice($bot, 'نام کاربری باید بین ۱ تا ۶۰ کاراکتر و در یک خط باشد.');
 
                 return true;
             }
             $this->clearCustomerName($actor->userId);
-            $this->notice($bot, 'این سفارش برای ثبت نام مشتری در دسترس نیست.');
+            $this->notice($bot, 'این سفارش برای ثبت نام کاربری مشتری در دسترس نیست.');
 
             return true;
         } catch (AuthorizationException) {
             $this->clearCustomerName($actor->userId);
-            $this->notice($bot, 'دسترسی ثبت نام مشتری فعال نیست.');
+            $this->notice($bot, 'دسترسی ثبت نام کاربری مشتری فعال نیست.');
 
             return true;
         }
@@ -513,71 +515,7 @@ final readonly class SalesCheckoutUi
         return TelegramBotContext::current()->cacheKey('telegram:sales:customer_name:'.$buyerId);
     }
 
-    /** Second step of the existing reseller purchase: customer mobile. */
-    private function beginCustomerPhone(Nutgram $bot, int $orderId): void
-    {
-        $buyer = $this->buyer($bot);
-        if ($buyer === null) {
-            return;
-        }
-
-        $this->clearCustomerName($buyer);
-        app(SalesSubscriptionsUi::class)->clearCustomerPhoneDraft($buyer);
-        Cache::put($this->customerPhoneKey($buyer), ['order_id' => $orderId], now()->addMinutes(10));
-        $this->render($bot,
-            "<b>📱 شماره موبایل مشتری</b>\n\n<b>مرحله ۲ از ۲</b>\n"
-            ."شماره موبایل مشتری را ارسال کنید.\nمثال: <code>09123456789</code>\n"
-            .'این شماره فقط برای مدیریت مشتریان شما استفاده می‌شود.',
-            InlineKeyboardMarkup::make()
-                ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'sales:checkout:phone:cancel'))
-                ->addRow(InlineKeyboardButton::make('📋 سفارش‌های من', callback_data: 'sales:checkout:orders')),
-            true,
-        );
-    }
-
-    public function customerPhoneText(Nutgram $bot, string $text): bool
-    {
-        $telegramId = $this->private->id($bot);
-        if ($telegramId === null || str_starts_with(trim($text), '/')) {
-            return false;
-        }
-        $actor = $this->resolve->handle($telegramId);
-        if ($actor === null) {
-            return false;
-        }
-        $draft = Cache::get($this->customerPhoneKey($actor->userId));
-        $orderId = is_array($draft) ? ($draft['order_id'] ?? null) : null;
-        if ((! is_int($orderId) && ! is_string($orderId))
-            || preg_match('/\A[1-9][0-9]{0,14}\z/D', (string) $orderId) !== 1) {
-            return false;
-        }
-
-        try {
-            $this->customerLabels->savePendingPhone($actor->userId, (int) $orderId, $text);
-            $order = $this->orders->findPlan($actor->userId, (int) $orderId);
-        } catch (ValidationException $error) {
-            if (isset($error->errors()['phone'])) {
-                $this->notice($bot, 'شماره معتبر نیست. نمونه: 09123456789');
-
-                return true;
-            }
-            $this->clearCustomerPhone($actor->userId);
-            $this->notice($bot, 'این سفارش برای ثبت شماره مشتری در دسترس نیست.');
-
-            return true;
-        } catch (AuthorizationException) {
-            $this->clearCustomerPhone($actor->userId);
-            $this->notice($bot, 'دسترسی ثبت شماره مشتری فعال نیست.');
-
-            return true;
-        }
-
-        $this->clearCustomerPhone($actor->userId);
-        $this->showOrder($bot, $order);
-
-        return true;
-    }
-
+    // Old checkout phone-cancel buttons remain harmless after the prompt is retired.
     public function cancelCustomerPhone(Nutgram $bot): void
     {
         $buyer = $this->buyer($bot);
@@ -610,17 +548,11 @@ final readonly class SalesCheckoutUi
         );
         // Older submitted receipts remain visible; never obstruct an existing review.
         if ($isReseller && $order->status === 'pending_payment' && $latestReceipt !== 'submitted'
-            && ! DB::table('sales_renewal_orders')->where('sales_order_id', $order->id)->exists()) {
-            if ($this->customerLabels->pendingName($order->buyerUserId, $order->id) === null) {
-                $this->beginCustomerName($bot, $order->id);
+            && ! DB::table('sales_renewal_orders')->where('sales_order_id', $order->id)->exists()
+            && $this->customerLabels->pendingName($order->buyerUserId, $order->id) === null) {
+            $this->beginCustomerName($bot, $order->id);
 
-                return;
-            }
-            if ($this->customerLabels->pendingPhone($order->buyerUserId, $order->id) === null) {
-                $this->beginCustomerPhone($bot, $order->id);
-
-                return;
-            }
+            return;
         }
         $sourceRenewal = DB::table('sales_renewal_orders')
             ->where('sales_order_id', $order->id)->value('source_order_id');
