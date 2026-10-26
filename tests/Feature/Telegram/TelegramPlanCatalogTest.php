@@ -129,13 +129,16 @@ it('uses actual published buyer quotes including one reseller discount and unlim
             $markup = is_string($body['reply_markup'])
                 ? json_decode($body['reply_markup'], true, flags: JSON_THROW_ON_ERROR)
                 : $body['reply_markup'];
-            $finite = $markup['inline_keyboard'][0][0];
-            $unlimitedButton = $markup['inline_keyboard'][2][0];
+            $finite = $markup['inline_keyboard'][0][1];
+            $unlimitedButton = $markup['inline_keyboard'][2][1];
 
-            return str_ends_with($finite['text'], '… · 30 گیگ · 30 روز')
+            return str_ends_with($finite['text'], '… · 30گیگ/30روز')
                 && mb_strlen($finite['text']) < 50
+                && count($markup['inline_keyboard'][0]) === 2
+                && $markup['inline_keyboard'][0][0]['text'] === '90,000 تومان'
+                && $markup['inline_keyboard'][0][0]['callback_data'] === $finite['callback_data']
                 && $finite['callback_data'] === "catalog:detail:{$public}:1"
-                && $unlimitedButton['text'] === 'Plan unlimited-30 · نامحدود · 30 روز'
+                && $unlimitedButton['text'] === 'Plan unlimite… · نامحدود/30روز'
                 && $unlimitedButton['callback_data'] === "catalog:detail:{$unlimited}:1";
         });
     $bot->hearCallbackQueryData("catalog:detail:{$public}:1")->reply()

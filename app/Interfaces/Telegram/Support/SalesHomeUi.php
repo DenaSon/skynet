@@ -166,11 +166,19 @@ final readonly class SalesHomeUi
             $lines[] = ($isReseller ? 'قیمت مخصوص پنل فروش: <b>' : 'مبلغ: <b>')
                 .TelegramUi::toman($entry->quote->totalPriceRials).' تومان</b>';
             $lines[] = '';
-            $keyboard->addRow(InlineKeyboardButton::make(
-                TelegramUi::planButtonLabel($entry->plan->name, $entry->quote->trafficGb, $entry->quote->durationDays),
-                callback_data: 'catalog:detail:'.$entry->plan->id.':1',
-                style: ButtonStyle::PRIMARY,
-            ));
+            $callback = 'catalog:detail:'.$entry->plan->id.':1';
+            $keyboard->addRow(
+                InlineKeyboardButton::make(
+                    TelegramUi::toman($entry->quote->totalPriceRials).' تومان',
+                    callback_data: $callback,
+                    style: ButtonStyle::PRIMARY,
+                ),
+                InlineKeyboardButton::make(
+                    TelegramUi::planButtonLabel($entry->plan->name, $entry->quote->trafficGb, $entry->quote->durationDays),
+                    callback_data: $callback,
+                    style: ButtonStyle::PRIMARY,
+                ),
+            );
         }
         if ($entries === []) {
             $lines[] = 'فعلاً پلن آماده خریدی وجود ندارد. می‌توانید فهرست پلن‌ها را ببینید یا با پشتیبانی گفتگو کنید.';

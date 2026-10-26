@@ -160,13 +160,13 @@ final class TelegramUi
     public static function planButtonLabel(string $name, ?int $trafficGb, int $durationDays): string
     {
         $name = trim((string) preg_replace('/[\x00-\x1F\x7F\x{202A}-\x{202E}]+/u', ' ', $name));
-        if (mb_strlen($name) > 20) {
-            $name = rtrim(mb_substr($name, 0, 19)).'…';
+        if (mb_strlen($name) > 14) {
+            $name = rtrim(mb_substr($name, 0, 13)).'…';
         }
 
-        $traffic = $trafficGb === null ? 'نامحدود' : $trafficGb.' گیگ';
+        $traffic = $trafficGb === null ? 'نامحدود' : $trafficGb.'گیگ';
 
-        return $name.' · '.$traffic.' · '.$durationDays.' روز';
+        return $name.' · '.$traffic.'/'.$durationDays.'روز';
     }
 
     public static function planMode(string $mode): string

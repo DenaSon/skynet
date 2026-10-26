@@ -1,3 +1,7 @@
+## Two-column preset buttons (2026-10-26)
+
+Implement the approved price/specification row in the existing ready and full plan lists: price at left, compact name/volume/duration at right, both targeting the same current plan callback. Retain the existing message body, bold totals, buyer-specific price ordering and all checkout/ownership/readiness controls. No schema or dependency change; existing catalog and checkout tests plus normal PHP 8.4/8.5 CI gate merge, with native mobile layout verification separate.
+
 ## Sales preset list polish (2026-10-26)
 
 Remove the requested generic pricing/checkout prose, bold actual final amounts with escaped HTML, and order preset buttons by ascending buyer-specific final price before pagination in both plan lists. Preserve equal-price catalog priority, legacy availability/reseller guidance and all existing price rechecks, readiness/ownership/payment controls. No stored price, migration or dependency change; require existing checkout and member/reseller UI regressions plus normal PHP 8.4/8.5 CI before merge.

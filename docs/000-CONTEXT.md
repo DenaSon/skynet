@@ -1,3 +1,9 @@
+## Two-column preset selection rows (2026-10-26)
+
+Operator approved one row per preset with a price button and a compact specification button. The existing ready-to-buy and full-catalog presenters now emit price first (left) and specifications second (right), using the same existing plan-selection callback on both buttons. Amounts use the current buyer quote in tomans; ready-list buttons keep native primary styling. Plan names on buttons are bounded to 14 characters and use compact GB/days or unlimited/day labels; the full list text and bold amounts remain above.
+
+Existing price ordering, reseller discounts, five-plan pagination, navigation and checkout revalidation remain intact. No order/financial/provider write, new callback contract, migration or dependency. Local catalog/checkout regressions pass (68 tests / 645 assertions, PHP 8.5), including both columns, matching callbacks, real quoted member/reseller prices, pages, long/unlimited labels and HTML. Native client widths/RTL rendering still need live Telegram verification after deployment.
+
 ## Sales preset list readability and price order (2026-10-26)
 
 Operator-requested presentation update: remove the three generic price/change/checkout explanation lines from the catalog shown in the Sales Bot, and render each displayed final amount plus toman in bold Telegram HTML. Escape operator-authored plan names before inserting them into HTML; legacy detail messages retain their existing plain-text mode. Keep reseller-specific price guidance and the legacy unavailable-purchase notice.

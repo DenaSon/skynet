@@ -79,10 +79,17 @@ final readonly class PlanCatalogUi
             $lines[] = '📊 حجم و مدت: '.$this->spec($entry);
             $lines[] = '💰 مبلغ: <b>'.$this->toman($entry->quote->totalPriceRials).' تومان</b>';
             $lines[] = '';
-            $keyboard->addRow(InlineKeyboardButton::make(
-                TelegramUi::planButtonLabel($entry->plan->name, $entry->quote->trafficGb, $entry->quote->durationDays),
-                callback_data: "catalog:detail:{$entry->plan->id}:{$page}",
-            ));
+            $callback = "catalog:detail:{$entry->plan->id}:{$page}";
+            $keyboard->addRow(
+                InlineKeyboardButton::make(
+                    TelegramUi::toman($entry->quote->totalPriceRials).' تومان',
+                    callback_data: $callback,
+                ),
+                InlineKeyboardButton::make(
+                    TelegramUi::planButtonLabel($entry->plan->name, $entry->quote->trafficGb, $entry->quote->durationDays),
+                    callback_data: $callback,
+                ),
+            );
         }
 
         if ($entries === []) {
