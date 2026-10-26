@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Sales\Application;
 
+use App\Interfaces\Telegram\Notifications\ReferralRewardNotificationOutbox;
 use App\Modules\Referral\Application\GrantReferralReward;
 use App\Modules\Referral\Application\ReferralRewardPolicy;
 use App\Modules\Referral\Jobs\GrantReferralRewardJob;
@@ -100,6 +101,10 @@ final class ReferralRewardOutbox
                     $rewardId = app(GrantReferralReward::class)->handle($orderId, $policy);
                     $state = $rewardId === null ? 'suppressed' : 'credited';
                     $reason = $rewardId === null ? 'ineligible_or_limit' : null;
+                    if ($rewardId !== null) {
+                        // An outbox insert failure rolls the award and ledger back.
+                        app(ReferralRewardNotificationOutbox::class)->credited($rewardId, $orderId);
+                    }
                 } catch (AuthorizationException) {
                     $state = 'suppressed';
                     $reason = 'membership';

@@ -1,3 +1,7 @@
+## REF-03 implementation checkpoint (2026-10-26; stacked, not merged)
+
+REF-01 [#244](https://github.com/DenaSon/skynet/pull/244) and REF-02 [#245](https://github.com/DenaSon/skynet/pull/245) remain unmerged. REF-03 adds the existing Telegram notification outbox within the atomic reward ledger transaction, private Sales delivery and owner-scoped invite statistics/terms. Notification replay does not re-credit wallets; suppressed notices stay suppressed. No provider call, new schema/dependency or public activation. Keep `REFERRAL_REWARDS_ENABLED=false` and explicit UTC rollout empty until approved live acceptance. [Contract and recovery](031-REFERRAL-REWARDS-PLAN.md).
+
 ## REF-02 — durable reward processing (2026-10-26)
 
 Successful paid CREATE/reconciliation now atomically captures policy in the existing fulfillment outbox; an asynchronous reward job and minute recovery dispatcher handle credit. Queue outages do not change successful provider outcomes. Frozen amount, SQL cap/replay guards, terminal suppression and bounded local retries; default OFF. REF-03 notification/UX and real acceptance remain pending. Stacked on unmerged REF-01 #244. [Contract and operations](031-REFERRAL-REWARDS-PLAN.md).

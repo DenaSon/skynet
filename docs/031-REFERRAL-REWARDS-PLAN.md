@@ -57,9 +57,21 @@ php artisan sales:referrals:dispatch
 
 The first is read-only readiness/state counts; the second enqueues existing pending work and is already scheduled every minute. It cannot create new entitlements. `needs_review` requires evidence review and a future explicitly approved recovery action; do not delete financial history or manually reissue CREATE. Rollback refuses to drop columns once any captured/suppressed intent exists. No additional ENV key or seeder is required beyond REF-01.
 
-## REF-03 — notification and UX (NOT implemented)
+## REF-03 — notification and invite UX (stacked source implementation)
 
-In the same reward-credit transaction, record a unique intent in the existing Telegram notification outbox; network delivery occurs afterward. Notification retry cannot re-credit the wallet. Explain delivery uncertainty honestly; Telegram transport is not exactly-once. Update existing invitation screen with terms, registered friends vs rewarded purchases, earned total, and remaining reward slots. Preserve link/copy/share and owner isolation. Do not expose buyers' phone numbers or financial details to the referrer. No parallel notification stack.
+Depends on REF-02 #245, which depends on REF-01 #244. Develop and review in that order; no feature enablement, production action or unrelated changes are included.
+
+- A unique `ReferralRewardCredited` intent is inserted into the **existing** `telegram_notification_deliveries` table in the *same transaction* as the verified reward journal, reward evidence and `credited` fulfillment state. The event identity is the immutable reward ID; its `order_id` is for revalidation only. One failed SQL write rolls back the money and all states. Duplicate outbox/job deliveries neither post new money nor insert new notification intents.
+- Notification delivery is strictly asynchronous through the **existing** dispatcher/sender/recovery. When telegram notifications are disabled at credit time, the record is permanently `suppressed` and is not replayed on later enablement. When enabled, queued sends require the linked, active referrer to have a reachable Sales Bot contact. The sender checks ownership, reward/order/event-key integrity and completed award state again; it sends only the earned amount and a safe invite callback, never a buyer name, phone, Telegram ID, order details or financial ledger identifiers.
+- Telegram delivery uses the existing bounded retry/dead/unavailable states and is **not exactly once**: a transport timeout can occur after Telegram accepted the message. Retrying the notice never re-credits a wallet. Review unknown delivery outcomes operationally.
+- Sales and legacy invite screens preserve their original navigation/link/share/copy affordances and show only owner-specific counts of registered invitees, distinct credited invitees, total historical credit, current configured per-person amount and **remaining** cap when the policy is valid and the viewer is an ordinary member. Under disabled/invalid configuration the award promotion is hidden and marked inactive; reseller or elevated accounts are not promised any reward. No invitee PII is exposed.
+- No new migration, seeder, worker, queue driver, finance ledger, permission, provider call, ENV key or dependency in REF-03. Keep `REFERRAL_REWARDS_ENABLED=false` pending controlled acceptance. Notification enablement is independent and must already be operational.
+
+### REF-03 source tests and acceptance gates
+
+Cover atomic credit+notification rollback on SQL failure, unique notice on replay, suppressed notice behavior, authenticated Sales referrer delivery, forged event/ownership rejection, private content, owner-scoped live totals, changing cap/amount and unchanged invite navigation.
+
+Before merge: PHP 8.4/8.5 CI, full suite, PHPStan, Pint, disposable MySQL migration and Redis queue checks on the final commit. After merge and migrations: operator-controlled activation with a **future** explicit UTC start, real first paid settled purchase and Remnawave activation, wallet journal/notification proof through a real Sales Bot, repeat-purchase and cap rejection, blocked-contact behavior, admin reporting, and worker/Scheduler recovery. External acceptance is NOT proven by fake HTTP/SQLite/isolated MySQL/Redis tests. Never replay old purchases, move money manually, or retry provider CREATE to recover a referral.
 
 ## Acceptance
 

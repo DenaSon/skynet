@@ -145,7 +145,8 @@ it('uses the Sales identity for invitations and retains reseller access only whi
             parse_str(is_string($query) ? $query : '', $params);
 
             return str_contains($body['text'], $url)
-                && str_contains($body['text'], 'دعوت‌های موفق: <b>0</b>')
+                && str_contains($body['text'], 'دوستان ثبت‌نام‌شده: <b>0</b>')
+                && str_contains($body['text'], 'دوستان دارای پاداش: <b>0</b>')
                 && $buttons[1][0]['copy_text']['text'] === $url
                 && parse_url($share, PHP_URL_HOST) === 't.me'
                 && parse_url($share, PHP_URL_PATH) === '/share/url'

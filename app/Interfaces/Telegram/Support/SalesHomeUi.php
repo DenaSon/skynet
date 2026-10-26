@@ -418,10 +418,22 @@ final readonly class SalesHomeUi
                 url: 'https://t.me/share/url?url='.rawurlencode($url).'&text='.rawurlencode('با لینک من به DenaGate بپیوند 👇'),
             ));
         $keyboard->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
+        $details = "\n\n👥 دوستان ثبت‌نام‌شده: <b>{$invite->joinedCount}</b>"
+            ."\n🎁 دوستان دارای پاداش: <b>{$invite->rewardedCount}</b>"
+            ."\n💰 مجموع پاداش‌ها: <b>".TelegramUi::toman($invite->earnedRials).' تومان</b>';
+        $ordinary = $actor->roles === ['member'];
+        if (! $ordinary) {
+            $terms = 'پاداش معرفی مخصوص کاربران عادی است و شامل پنل‌های فروش نمی‌شود.';
+        } elseif ($invite->remainingRewards === null || $invite->rewardAmountRials === null) {
+            $terms = 'طرح پاداش معرفی فعلاً فعال نیست؛ لینک شما همچنان برای دعوت دوستان معتبر است.';
+        } else {
+            $details .= "\n🎯 ظرفیت باقی‌مانده پاداش: <b>{$invite->remainingRewards}</b>"
+                ."\n💵 مبلغ هر پاداش: <b>".TelegramUi::toman($invite->rewardAmountRials).' تومان</b>';
+            $terms = 'پاداش فقط برای دوست جدید، پس از اولین خرید پولی و فعال‌سازی موفق سرویس به کیف پول اضافه می‌شود. ثبت‌نام، تست رایگان و خرید تکراری پاداش ندارند؛ پنل‌های فروش هم مشمول نیستند.';
+        }
         $this->render($bot,
             '<b>👥 دعوت دوستان</b>'."\n\nلینک اختصاصی شما:\n".TelegramUi::code($url)
-                ."\n\n👥 دعوت‌های موفق: <b>{$invite->joinedCount}</b>"
-                ."\n\n<blockquote>این لینک را برای دوستانتان بفرستید. دعوت موفق فعلاً پاداش مالی ندارد.</blockquote>",
+                .$details."\n\n<blockquote>{$terms}</blockquote>",
             $keyboard);
     }
 

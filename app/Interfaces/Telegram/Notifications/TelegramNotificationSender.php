@@ -63,6 +63,33 @@ final readonly class TelegramNotificationSender
 
         $token = $this->token($bot);
 
+        if ($delivery->event_type === 'ReferralRewardCredited') {
+            $orderId = (int) $delivery->order_id;
+            if ($bot !== 'sales' || $orderId < 1) {
+                throw new NotificationUnavailable('invalid_recipient');
+            }
+            $reward = DB::table('referral_rewards')
+                ->where('sales_order_id', $orderId)
+                ->where('referrer_user_id', $userId)
+                ->first(['id', 'amount_rials']);
+            if ($reward === null
+                || $delivery->event_key !== 'referral:reward:'.$reward->id.':credited'
+                || ! DB::table('sales_fulfillment_outbox')
+                    ->where('sales_order_id', $orderId)->where('referral_state', 'credited')->exists()) {
+                throw new NotificationUnavailable('invalid_referral_reward');
+            }
+            $keyboard = json_encode(['inline_keyboard' => [[
+                ['text' => '🎁 دعوت دوستان', 'callback_data' => 'sales:invite'],
+            ]]], JSON_THROW_ON_ERROR);
+            $this->text($bot, $chat,
+                '<b>🎁 پاداش معرفی به کیف پول شما اضافه شد</b>'
+                    ."\n\nمبلغ پاداش: <b>".TelegramUi::toman((int) $reward->amount_rials).' تومان</b>'
+                    ."\n\nاین پاداش پس از اولین خرید و فعال‌سازی موفق دوست معرفی‌شده ثبت شده است.",
+                $keyboard, 'HTML');
+
+            return;
+        }
+
         if ($delivery->event_type === 'TrialEnded') {
             $trialId = (int) $delivery->trial_claim_id;
             if ($bot !== 'sales' || $trialId < 1 || $delivery->event_key !== 'free-trial:'.$trialId.':ended') {
