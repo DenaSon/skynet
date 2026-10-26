@@ -64,7 +64,7 @@ final readonly class SalesPanelRequestUi
             }
         } catch (Throwable) {
             $this->clear($userId);
-            $this->notice($bot, 'موجودی کیف پول فعلاً قابل بررسی نیست. لطفاً دوباره تلاش کنید یا با پشتیبانی تماس بگیرید.');
+            $this->notice($bot, 'اعتبار فعلاً قابل بررسی نیست. لطفاً دوباره تلاش کنید یا با پشتیبانی تماس بگیرید.');
 
             return;
         }
@@ -77,7 +77,7 @@ final readonly class SalesPanelRequestUi
             ."\n۳. سوءاستفاده، فعالیت متقلبانه یا فروش غیرمجاز ممنوع است."
             ."\n۴. پایداری اتصال ممکن است تحت تأثیر اختلال اینترنت و محدودیت اپراتورها باشد."
             ."\n۵. فعال‌سازی و ادامه فعالیت پنل منوط به تأیید مدیریت و رعایت مقررات است."
-            ."\n۶. برای ثبت درخواست، حداقل <b>۷۵۰٬۰۰۰ تومان</b> موجودی کیف پول لازم است. این مبلغ بابت درخواست کسر نمی‌شود.</blockquote>"
+            ."\n۶. برای ثبت درخواست، حداقل <b>۷۵۰٬۰۰۰ تومان</b> اعتبار لازم است. این مبلغ بابت درخواست کسر نمی‌شود.</blockquote>"
             ."\n\nبا پذیرش قوانین می‌توانید درخواست خود را ثبت کنید.",
             InlineKeyboardMarkup::make()
                 ->addRow(InlineKeyboardButton::make('✅ می‌پذیرم', callback_data: 'sales:panel:accept', style: ButtonStyle::SUCCESS))
@@ -289,11 +289,11 @@ final readonly class SalesPanelRequestUi
     private function insufficientWallet(Nutgram $bot): void
     {
         $this->render($bot,
-            '<b>💰 موجودی کیف پول کافی نیست</b>'
-            ."\n\nبرای ارسال درخواست پنل فروش، باید حداقل <b>۷۵۰٬۰۰۰ تومان</b> کیف پول خود را شارژ کنید."
-            ."\n\n<blockquote>این شارژ پس از تأیید پنل فروش برای خرید سرویس قابل استفاده است و بابت درخواست از کیف پول کسر نمی‌شود.</blockquote>",
+            '<b>💰 اعتبار کافی نیست</b>'
+            ."\n\nبرای ارسال درخواست پنل فروش، باید حداقل <b>۷۵۰٬۰۰۰ تومان</b> اعتبار خود را افزایش دهید."
+            ."\n\n<blockquote>این شارژ پس از تأیید پنل فروش برای خرید سرویس قابل استفاده است و بابت درخواست از اعتبار شما کسر نمی‌شود.</blockquote>",
             InlineKeyboardMarkup::make()
-                ->addRow(InlineKeyboardButton::make('💰 کیف پول', callback_data: 'sales:wallet'))
+                ->addRow(InlineKeyboardButton::make('💰 اعتبار من', callback_data: 'sales:wallet'))
                 ->addRow(InlineKeyboardButton::make('💬 پشتیبانی', callback_data: 'sales:support'))
                 ->addRow(InlineKeyboardButton::make('↩️ بازگشت', callback_data: 'sales:home')));
     }
