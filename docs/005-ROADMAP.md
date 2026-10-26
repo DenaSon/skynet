@@ -1,3 +1,7 @@
+## REF-02 source checkpoint
+
+Durable activation capture and queued reward processing implemented on REF-01, including recovery and safe status counts. No notification/UI yet, no rollout or Production operation. [Scope and acceptance](031-REFERRAL-REWARDS-PLAN.md).
+
 ## Referral rewards — REF-01/02/03 (approved 2026-10-26)
 
 REF-01 implements internal policy, additive award evidence, SQL lifetime cap and balanced wallet credit/cost; default disabled and no production callers. REF-02 durable successful-purchase integration and REF-03 notification/invite UX remain pending. [Approved scope and acceptance](031-REFERRAL-REWARDS-PLAN.md).

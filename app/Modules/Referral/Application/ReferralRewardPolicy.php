@@ -23,9 +23,26 @@ final class ReferralRewardPolicy
         return ['amount' => $amount * 10, 'limit' => $limit, 'start' => $date->format('Y-m-d H:i:s')];
     }
 
+    /** @param array<mixed> $snapshot
+     * @return array{amount:int,limit:int,start:string}
+     */
+    public function validateSnapshot(array $snapshot): array
+    {
+        $amount = $this->integer($snapshot['amount'] ?? null, 1_000_000_000_000);
+        $limit = $this->integer($snapshot['limit'] ?? null, 1_000_000);
+        $start = $snapshot['start'] ?? null;
+        $date = is_string($start) ? \DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $start, new \DateTimeZone('UTC')) : false;
+        if ($amount === null || $amount % 10 !== 0 || $limit === null || $date === false
+            || $date->format('Y-m-d H:i:s') !== $start) {
+            throw ValidationException::withMessages(['referral' => 'Invalid captured referral policy.']);
+        }
+
+        return ['amount' => $amount, 'limit' => $limit, 'start' => $date->format('Y-m-d H:i:s')];
+    }
+
     private function integer(mixed $value, int $max): ?int
     {
-        if ((! is_int($value) && ! is_string($value)) || preg_match('/\A[1-9][0-9]{0,11}\z/D', (string) $value) !== 1) {
+        if ((! is_int($value) && ! is_string($value)) || preg_match('/\A[1-9][0-9]{0,12}\z/D', (string) $value) !== 1) {
             return null;
         }
         $number = (int) $value;
