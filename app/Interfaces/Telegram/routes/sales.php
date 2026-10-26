@@ -245,9 +245,6 @@ $bot->onText('(?!/){volume}', function (Nutgram $bot, string $volume): void {
     if (app(SalesCheckoutUi::class)->customerNameText($bot, $volume)) {
         return;
     }
-    if (app(SalesCheckoutUi::class)->customerPhoneText($bot, $volume)) {
-        return;
-    }
     if (app(SalesSubscriptionsUi::class)->customerPhoneText($bot, $volume)) {
         return;
     }
