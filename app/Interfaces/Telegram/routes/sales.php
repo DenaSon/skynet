@@ -10,10 +10,15 @@ use App\Interfaces\Telegram\Support\SalesHomeUi;
 use App\Interfaces\Telegram\Support\SalesPanelRequestUi;
 use App\Interfaces\Telegram\Support\SalesSubscriptionsUi;
 use App\Interfaces\Telegram\Support\SalesSupportUi;
+use App\Interfaces\Telegram\Support\SalesTrialUi;
 use App\Interfaces\Telegram\Support\WalletTopupUi;
 use SergiX44\Nutgram\Nutgram;
 
 /** @var Nutgram $bot */
+$bot->middleware(function (Nutgram $bot, $next): void {
+    app(SalesTrialUi::class)->retireOnNavigation($bot);
+    $next($bot);
+});
 // Sales-only identity, customer navigation and existing checkout handlers.
 // Admin and legacy purchasing routers must never be loaded here.
 $bot->onCommand('start {payload}', function (Nutgram $bot, string $payload): void {
@@ -205,11 +210,36 @@ $bot->onCallbackQueryData('builder:cancel', function (Nutgram $bot): void {
     app(ResellerBuilderUi::class)->cancel($bot);
 });
 
+$bot->onCommand('trial', function (Nutgram $bot): void {
+    app(SalesTrialUi::class)->show($bot);
+});
+$bot->onCallbackQueryData('sales:trial', function (Nutgram $bot): void {
+    app(SalesTrialUi::class)->show($bot);
+});
+$bot->onCallbackQueryData('sales:trial:contact', function (Nutgram $bot): void {
+    app(SalesTrialUi::class)->requestContact($bot);
+});
+$bot->onCallbackQueryData('sales:trial:confirm:{token}', function (Nutgram $bot, string $token): void {
+    app(SalesTrialUi::class)->confirm($bot, $token);
+});
+$bot->onCallbackQueryData('sales:trial:cancel', function (Nutgram $bot): void {
+    app(SalesTrialUi::class)->cancel($bot);
+});
+$bot->onCallbackQueryData('sales:trial:link', function (Nutgram $bot): void {
+    app(SalesTrialUi::class)->link($bot);
+});
+$bot->onContact(function (Nutgram $bot): void {
+    app(SalesTrialUi::class)->contact($bot);
+});
+
 // Primary menu labels always win over pending free-text forms. Unmatched
 // input gets guidance, never a fallback into Admin or legacy purchase routes.
 // Exclude commands: Nutgram resolves every matching handler, not just the first.
 $bot->onText('(?!/){volume}', function (Nutgram $bot, string $volume): void {
     if (app(SalesHomeUi::class)->navigate($bot, $volume)) {
+        return;
+    }
+    if (app(SalesTrialUi::class)->invalidInput($bot)) {
         return;
     }
     if (app(SalesCheckoutUi::class)->customerNameText($bot, $volume)) {
@@ -249,6 +279,9 @@ $bot->onText('(?!/){volume}', function (Nutgram $bot, string $volume): void {
 });
 
 $bot->fallback(function (Nutgram $bot): void {
+    if (app(SalesTrialUi::class)->invalidInput($bot)) {
+        return;
+    }
     if (app(SalesPanelRequestUi::class)->invalidInput($bot)) {
         return;
     }

@@ -34,7 +34,21 @@
 ## TRIAL-01 review corrections (2026-10-26)
 
 - Added durable unique Telegram ID as well as user ID and HMAC phone; relinking an account cannot reclaim with another number.
-- Replaced the expiring Cache admission lease with a locked SQL day counter (Tehran calendar). Failed/uncertain reservations remain consumed; this conservative reservation cap bounds actual activations too. Rollback refuses to erase consumed quota or claims.
+- Replaced the expiring Cache admission lease with a locked SQL day counter (Tehran calendar). Failed/uncertain reservations remain consumed. TRIAL-02 additionally caps worker activation attempts per Tehran calendar day to cover cross-day backlogs. Rollback refuses to erase consumed quota or claims.
 - Identity owns a fresh locked, active ordinary-member check; additional/custom roles or privileges fail closed. Sales owns prior paid-order/settlement history. Repeat UI checks do not replace transactional admission.
 - Native-contact validation produces only a masked number and HMAC for the later short-lived confirmation draft. Raw phone parameters are sensitive; no raw phone is persisted in claims, queues, callbacks or logs.
 - Review and CI evidence remain separate from real Telegram contact and Remnawave acceptance. No Production merge or rollout is authorized.
+
+
+## TRIAL-02 source implementation (2026-10-26; stacked, unmerged)
+
+- Sales-only home/account entry and `/trial`, native self-contact request, 5-minute server-only fingerprint/masked confirmation, owner-bound random one-use callback; no typed/forwarded/foreign contacts. Cancel/Home retire the draft and remove its temporary Reply keyboard, retaining MENU-01's native menu.
+- Additive activation linkage/UTC timestamps and a trial FK in the existing notification deliveries. `ProvisionFreeTrialJob` uses the existing async provider connection; SQL claim + existing `RemnawaveSubscriptionLifecycle` reserve the single CREATE. No Sales/Billing/Referral writes or paid-plan validation changes.
+- Gate new activation with `TRIAL_ENABLED`, global RW writes and an exact match of `TRIAL_INTERNAL_SQUAD_UUID` and `TRIAL_VERIFIED_SQUAD_UUID`. Set the latter only after separately authorized disposable-user validation on that exact Squad. Defaults are false/empty. Changing the Squad requires fresh verification.
+- The pinned upstream contract at Remnawave 3.4.4 (`b22970cc88481a7e278b5767721672a18f8b2ada`, `libs/contract/commands/users/create-user.command.ts`) accepts absolute ISO UTC `expireAt`, byte `trafficLimitBytes`, `NO_RESET` and Internal Squad UUIDs. Freeze the UTC CREATE instant on the worker (never Contact/queue admission), target exactly +7200 seconds / 262144000 bytes, and confirm the response tuple through the existing lifecycle. The API has no relative activation-duration field; network/Node propagation and the real panel clock still need live acceptance. Provider success is not proof of VPN connectivity.
+- Any claimed/crashed/uncertain CREATE stays blocked. Minute Scheduler recovery dispatches **only untouched `reserved` claims**, quarantining stale provisioning claims. Privileged `ProvisionFreeTrial::reconcile(trialId, operatorId)` uses existing GET-only lifecycle reconciliation; it never reissues CREATE. No new provider API/webhook or generic provisioning engine.
+- Fresh ordinary-owner checks before and after GET validate remote ID/marker, exact quota/expiry/Squad/NO_RESET. Status DTOs never contain credentials; link retrieval is separate, active/unexpired/unexhausted only, with existing QR PNG renderer and private delivery.
+- `TrialActivated` shares the existing durable notification table/worker/sender and rechecks owner/provider on delivery. Full trial terminal monitoring and paid-warning isolation are TRIAL-03, so keep rollout OFF.
+- Source fake HTTP/Nutgram tests are not real Telegram/Remnawave acceptance. No Production ENV/data/provider action or master merge.
+
+TRIAL-02 also locks the same day row and increments a separate `activation_count` before the one CREATE attempt. Cross-day pending reservations cannot bypass today's activation ceiling. Uncertain/rejected attempts consume that slot; untouched capacity-blocked claims remain reserved for a later day.

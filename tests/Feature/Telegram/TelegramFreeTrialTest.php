@@ -1,0 +1,140 @@
+<?php
+
+declare(strict_types=1);
+
+use App\Interfaces\Telegram\Processing\TelegramBotContext;
+use App\Interfaces\Telegram\Support\SalesTrialUi;
+use App\Modules\Trial\Application\ProvisionFreeTrial;
+use App\Modules\Trial\Jobs\ProvisionFreeTrialJob;
+use GuzzleHttp\Psr7\Request;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Routing\Route;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
+use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Properties\ChatType;
+use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
+use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
+use SergiX44\Nutgram\Testing\FakeNutgram;
+use Spatie\Permission\Models\Role;
+use Tests\Support\FreeTrialFixtures;
+
+uses(RefreshDatabase::class, FreeTrialFixtures::class);
+
+beforeEach(function (): void {
+    $this->configureFreeTrial();
+    $route = new Route('POST', 'api/telegram/sales/webhook', static fn (): null => null);
+    $route->defaults('bot_key', TelegramBotContext::SALES);
+    $route->bind(request());
+    request()->setRouteResolver(static fn (): Route => $route);
+});
+
+function trialUiBot(int $id = 9210001): Nutgram
+{
+    $bot = Nutgram::fake();
+    require base_path('app/Interfaces/Telegram/routes/sales.php');
+    $bot->setCommonUser(TelegramUser::make($id, false, 'Buyer'));
+    $bot->setCommonChat(Chat::make($id, ChatType::PRIVATE));
+
+    return $bot;
+}
+
+it('requires a private native self-contact and explicit masked one-time confirmation', function (): void {
+    $member = $this->trialMember();
+    $bot = trialUiBot();
+    $bot->hearCallbackQueryData('sales:trial')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:trial:contact')->reply()->assertRaw(function (Request $request): bool {
+        $data = FakeNutgram::getActualData($request);
+
+        return str_contains(json_encode($data), 'request_contact');
+    }, index: 1);
+    $bot->hearText('09123456789')->reply()->assertCalled('sendMessage');
+    expect(DB::table('trial_claims')->count())->toBe(0);
+    $bot->hearMessage(['contact' => ['phone_number' => '+989123456789', 'first_name' => 'Buyer', 'user_id' => 9210001]])
+        ->reply()->assertCalled('sendMessage', 2);
+    $draft = Cache::get('telegram:sales:trial:'.$member->id);
+    expect($draft['stage'])->toBe('confirm')
+        ->and(json_encode($draft))->not->toContain('9123456789')
+        ->and($draft['masked'])->toBe('+98******6789')
+        ->and(DB::table('trial_claims')->count())->toBe(0);
+    $bot->hearCallbackQueryData('sales:trial:confirm:'.$draft['token'])->reply()->assertCalled('editMessageText');
+    Queue::assertPushed(ProvisionFreeTrialJob::class, fn ($job): bool => $job->connection === 'database');
+    $bot->hearCallbackQueryData('sales:trial:confirm:'.$draft['token'])->reply();
+    expect(DB::table('trial_claims')->count())->toBe(1)
+        ->and(DB::table('sales_orders')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('rejects unsolicited foreign and missing contact ownership', function (?int $contactId): void {
+    $member = $this->trialMember();
+    $bot = trialUiBot();
+    $bot->hearMessage(['contact' => ['phone_number' => '+989123456789', 'first_name' => 'Buyer', 'user_id' => 9210001]])->reply();
+    expect(Cache::has('telegram:sales:trial:'.$member->id))->toBeFalse();
+    $bot->hearCallbackQueryData('sales:trial:contact')->reply();
+    $bot->hearMessage(['contact' => ['phone_number' => '+989123456789', 'first_name' => 'Buyer', 'user_id' => $contactId]])->reply();
+    expect(Cache::get('telegram:sales:trial:'.$member->id)['stage'])->toBe('contact')
+        ->and(DB::table('trial_claims')->count())->toBe(0);
+    Http::assertNothingSent();
+})->with([null, 9210099]);
+
+it('cancels native contact intake and restores the native menu without accepting stale confirmation', function (): void {
+    $member = $this->trialMember();
+    $bot = trialUiBot();
+    $bot->hearCallbackQueryData('sales:trial:contact')->reply();
+    $bot->hearText('/cancel')->reply()->assertCalled('sendMessage', 3);
+    expect(Cache::get('telegram:sales:trial:'.$member->id))->toBeNull();
+    $bot->hearCallbackQueryData('sales:trial:confirm:'.str_repeat('a', 32))->reply();
+    expect(DB::table('trial_claims')->count())->toBe(0);
+});
+
+it('hides trial for disabled flag reseller elevated and paid identities and rejects forged entry', function (): void {
+    $member = $this->trialMember();
+    $bot = trialUiBot();
+    config()->set('trial.enabled', false);
+    $bot->hearCallbackQueryData('sales:trial:contact')->reply();
+    expect(Cache::has('telegram:sales:trial:'.$member->id))->toBeFalse();
+    config()->set('trial.enabled', true);
+    Role::findOrCreate('reseller', 'web');
+    $member->syncRoles(['reseller']);
+    $bot->hearCallbackQueryData('sales:trial:contact')->reply();
+    expect(Cache::has('telegram:sales:trial:'.$member->id))->toBeFalse()
+        ->and(DB::table('trial_claims')->count())->toBe(0);
+});
+
+it('never receives contacts from a group or Admin Bot context', function (): void {
+    $member = $this->trialMember();
+    $bot = trialUiBot();
+    $bot->setCommonChat(Chat::make(-912, ChatType::GROUP));
+    $bot->hearCallbackQueryData('sales:trial:contact')->reply();
+    expect(Cache::has('telegram:sales:trial:'.$member->id))->toBeFalse();
+    $bot->setCommonChat(Chat::make(9210001, ChatType::PRIVATE));
+    request()->route()->defaults('bot_key', 'admin');
+    app(SalesTrialUi::class)->requestContact($bot);
+    expect(Cache::has('telegram:sales:trial:'.$member->id))->toBeFalse();
+});
+
+it('shows live minutes and MiB and uses the existing QR renderer after activation', function (): void {
+    $member = $this->trialMember();
+    $this->activateFreeTrial($member);
+    $bot = trialUiBot();
+    $bot->hearCallbackQueryData('sales:trial')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:trial:link')->reply()->assertCalled('sendPhoto')->assertCalled('sendMessage');
+    $this->trialRemote['userTraffic']['usedTrafficBytes'] = ProvisionFreeTrial::BYTES;
+    $bot->hearCallbackQueryData('sales:trial:link')->reply()->assertCalled('sendMessage')->assertCalled('sendPhoto', 0);
+});
+
+it('retires native Contact drafts when navigating to an existing catalog or service route', function (string $navigation): void {
+    $member = $this->trialMember();
+    $bot = trialUiBot();
+    $bot->hearCallbackQueryData('sales:trial:contact')->reply();
+    if (str_starts_with($navigation, '/')) {
+        $bot->hearText($navigation)->reply();
+    } else {
+        $bot->hearCallbackQueryData($navigation)->reply();
+    }
+    expect(Cache::has('telegram:sales:trial:'.$member->id))->toBeFalse()
+        ->and(DB::table('trial_claims')->count())->toBe(0);
+})->with(['/catalog', 'sales:subs:list:0']);

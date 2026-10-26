@@ -21,6 +21,8 @@ function mb03Registrations(string $path): array
         /** @var array<int, string> */
         public array $routes = [];
 
+        public function middleware(mixed $handler): void {}
+
         public function onCommand(string $pattern, mixed $handler): void
         {
             $this->routes[] = 'command:'.$pattern;
@@ -34,6 +36,11 @@ function mb03Registrations(string $path): array
         public function onPhoto(mixed $handler): void
         {
             $this->routes[] = 'photo:*';
+        }
+
+        public function onContact(mixed $handler): void
+        {
+            $this->routes[] = 'contact:*';
         }
 
         public function fallback(mixed $handler): void
@@ -324,6 +331,13 @@ it('keeps Sales identity, navigation and buyer routes isolated from Admin callba
         'callback:builder:quote:{id}:{gb}:{days}:{page}',
         'callback:builder:custom:{id}:{page}',
         'callback:builder:cancel',
+        'command:trial',
+        'callback:sales:trial',
+        'callback:sales:trial:contact',
+        'callback:sales:trial:confirm:{token}',
+        'callback:sales:trial:cancel',
+        'callback:sales:trial:link',
+        'contact:*',
         'text:(?!/){volume}',
         'fallback:*',
         'command:orders',

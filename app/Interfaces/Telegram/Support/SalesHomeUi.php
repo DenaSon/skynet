@@ -26,6 +26,7 @@ use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\Keyboard\ReplyKeyboardRemove;
 use Throwable;
 
 /** Sales-only navigation; shared Application Actions retain all business authority. */
@@ -73,7 +74,7 @@ final readonly class SalesHomeUi
             return;
         }
 
-        $this->clearInput($actor->userId);
+        $this->clearInput($actor->userId, $bot);
 
         // Telegram Reply Keyboard is fixed below the input for Sales and resellers.
         // Callback pages retain their existing inline actions.
@@ -125,6 +126,9 @@ final readonly class SalesHomeUi
                 // A request lookup failure must not block home navigation.
             }
             $keyboard->addRow(InlineKeyboardButton::make($requestLabel, callback_data: 'sales:panel:request'));
+        }
+        if (app(SalesTrialUi::class)->visible($actor, (int) $telegramId)) {
+            $keyboard->addRow(InlineKeyboardButton::make('🧪 تست رایگان', callback_data: 'sales:trial'));
         }
         $keyboard->addRow(InlineKeyboardButton::make('📚 آموزش', callback_data: 'sales:help:apps'));
         $keyboard->addRow(InlineKeyboardButton::make('💬 پشتیبانی', callback_data: 'sales:support'))
@@ -278,7 +282,7 @@ final readonly class SalesHomeUi
 
             return null;
         }
-        $this->clearInput($actor->userId);
+        $this->clearInput($actor->userId, $bot);
 
         return $actor;
     }
@@ -322,6 +326,9 @@ final readonly class SalesHomeUi
             $keyboard->addRow(InlineKeyboardButton::make('📊 گزارش‌های من', callback_data: 'sales:report:30'));
         }
 
+        if (app(SalesTrialUi::class)->visible($actor, (int) $this->privateUser->id($bot))) {
+            $keyboard->addRow(InlineKeyboardButton::make('🧪 تست رایگان', callback_data: 'sales:trial'));
+        }
         $keyboard->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
 
         $text = '<b>👤 حساب کاربری</b>'
@@ -475,8 +482,12 @@ final readonly class SalesHomeUi
             $this->back());
     }
 
-    private function clearInput(int $buyerId): void
+    public function clearInput(int $buyerId, ?Nutgram $bot = null): void
     {
+        $contactPending = app(SalesTrialUi::class)->clear($buyerId);
+        if ($contactPending && $bot !== null) {
+            $bot->sendMessage(text: 'دریافت شماره بسته شد.', reply_markup: ReplyKeyboardRemove::make(remove_keyboard: true));
+        }
         $this->pendingBuilder->forget($buyerId);
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$buyerId));
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:recent:'.$buyerId));

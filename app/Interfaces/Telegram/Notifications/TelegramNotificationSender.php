@@ -15,6 +15,7 @@ use App\Modules\Identity\Application\TelegramRecipient;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Sales\Application\ManualBankPayments;
 use App\Modules\Sales\Application\ReviewSalesPanelRequest;
+use App\Modules\Trial\Application\ReadFreeTrial;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -57,6 +58,22 @@ final readonly class TelegramNotificationSender
         }
 
         $token = $this->token($bot);
+
+        if ($delivery->event_type === 'TrialActivated') {
+            $trialId = (int) $delivery->trial_claim_id;
+            if ($bot !== 'sales' || $trialId < 1
+                || $delivery->event_key !== 'free-trial:'.$trialId.':activated') {
+                throw new NotificationUnavailable('invalid_recipient');
+            }
+            $status = app(ReadFreeTrial::class)->status($userId, $chat);
+            if ($status->id !== $trialId || $status->ended() || $status->providerStatus !== 'ACTIVE') {
+                throw new NotificationUnavailable('trial_not_active');
+            }
+            $this->text($bot, $chat, "<b>✅ تست رایگان شما فعال شد</b>\n\nحجم: <b>۲۵۰ مگابایت</b> · اعتبار: <b>۲ ساعت</b>\nاز بخش تست رایگان، وضعیت و لینک اتصال را ببینید.",
+                json_encode(['inline_keyboard' => [[['text' => '🧪 مشاهده تست و اتصال', 'callback_data' => 'sales:trial']]]], JSON_THROW_ON_ERROR), 'HTML');
+
+            return;
+        }
 
         if ($delivery->event_type === 'SalesPanelSubmitted') {
             $requestId = (int) $delivery->panel_request_id;
