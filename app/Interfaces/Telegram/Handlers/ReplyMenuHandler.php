@@ -245,6 +245,7 @@ final class ReplyMenuHandler
 
                 return true;
 
+            case ReplyMenuLabels::SALES_WALLET:
             case ReplyMenuLabels::WALLET:
             case ReplyMenuLabels::LEGACY_WALLET:
                 if (! in_array('reseller', $actor->roles, true)) {
