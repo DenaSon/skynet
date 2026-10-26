@@ -369,7 +369,7 @@ final readonly class SalesCheckoutUi
                 $error instanceof ValidationException && isset($error->errors()['customer']) => 'ابتدا نام کاربری مشتری را تکمیل کنید؛ مبلغی برداشت نشد.',
                 $error instanceof ValidationException && isset($error->errors()['activation']) => 'پرداخت فعلاً آماده نیست؛ مبلغی از اعتبار شما برداشت نشد. کمی بعد دوباره اقدام کنید.',
                 $error instanceof ValidationException && isset($error->errors()['plan']) => 'مشخصات این پلن تغییر کرده یا خرید آن متوقف شده است؛ مبلغی برداشت نشد. از بخش خرید، پلن را دوباره انتخاب کنید.',
-                default => 'مبلغ، موجودی یا وضعیت سفارش تغییر کرده است؛ برداشت انجام نشد. از صفحه سفارش دوباره اقدام کنید.',
+                default => 'مبلغ، اعتبار یا وضعیت سفارش تغییر کرده است؛ برداشت انجام نشد. از صفحه سفارش دوباره اقدام کنید.',
             };
             $this->notice($bot, $message);
 
@@ -629,7 +629,7 @@ final readonly class SalesCheckoutUi
             ."\n\n".($isReseller && $order->status === 'pending_payment' && $latestReceipt !== 'submitted'
                 ? ($walletEligible
                     ? 'اعتبار کافی است. برای خرید، «پرداخت از اعتبار» را انتخاب کنید.'
-                    : 'برای خرید سرویس از اعتبار خود استفاده کنید. اعتبار کافی نیست یا پرداخت از اعتبار موقتاً غیرفعال است؛ از بخش «اعتبار من» موجودی را افزایش دهید.')
+                    : 'برای خرید سرویس از اعتبار خود استفاده کنید. اعتبار کافی نیست یا پرداخت از اعتبار موقتاً غیرفعال است؛ از بخش «اعتبار من» اعتبار خود را افزایش دهید.')
                 : $this->orderHint($order, $latestReceipt)),
             $keyboard,
         );
