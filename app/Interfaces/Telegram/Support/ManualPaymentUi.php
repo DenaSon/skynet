@@ -106,7 +106,7 @@ final readonly class ManualPaymentUi
             }
             if (in_array('reseller', $actor->roles, true)) {
                 Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:'.$actor->userId));
-                $this->notice($bot, 'پرداخت خرید سرویس از کیف پول انجام می‌شود. ارسال رسید فقط در بخش «افزایش موجودی» کیف پول است.');
+                $this->notice($bot, 'پرداخت خرید سرویس از اعتبار شما انجام می‌شود. ارسال رسید فقط در بخش «افزایش اعتبار» در دسترس است.');
 
                 return;
             }

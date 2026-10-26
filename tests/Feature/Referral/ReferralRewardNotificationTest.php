@@ -125,6 +125,7 @@ it('delivers only a verified owner reward and never leaks the invited customer i
     Http::assertSent(function (Request $request): bool {
         return str_contains($request->url(), '56789:sales-fixture/sendMessage')
             && str_contains((string) $request['text'], '30,000')
+            && str_contains((string) $request['text'], 'پاداش معرفی به اعتبار شما اضافه شد')
             && ! str_contains((string) $request['text'], 'PRIVATE_INVITEE_MARKER')
             && str_contains((string) $request['reply_markup'], 'sales:invite');
     });
@@ -178,7 +179,7 @@ it('retains existing Sales invite copy and share controls while showing live rew
             ."\n💰 مجموع پاداش‌ها: <b>30,000 تومان</b>"
             ."\n🎯 ظرفیت باقی‌مانده پاداش: <b>6</b>"
             ."\n💵 مبلغ هر پاداش: <b>30,000 تومان</b>"
-            ."\n\n<blockquote>پاداش فقط برای دوست جدید، پس از اولین خرید پولی و فعال‌سازی موفق سرویس به کیف پول اضافه می‌شود. ثبت‌نام، تست رایگان و خرید تکراری پاداش ندارند؛ پنل‌های فروش هم مشمول نیستند.</blockquote>"
+            ."\n\n<blockquote>پاداش فقط برای دوست جدید، پس از اولین خرید پولی و فعال‌سازی موفق سرویس به اعتبار شما اضافه می‌شود. ثبت‌نام، تست رایگان و خرید تکراری پاداش ندارند؛ پنل‌های فروش هم مشمول نیستند.</blockquote>"
     );
     Http::assertNothingSent();
 });

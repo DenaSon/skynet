@@ -82,7 +82,7 @@ final readonly class TelegramNotificationSender
                 ['text' => '🎁 دعوت دوستان', 'callback_data' => 'sales:invite'],
             ]]], JSON_THROW_ON_ERROR);
             $this->text($bot, $chat,
-                '<b>🎁 پاداش معرفی به کیف پول شما اضافه شد</b>'
+                '<b>🎁 پاداش معرفی به اعتبار شما اضافه شد</b>'
                     ."\n\nمبلغ پاداش: <b>".TelegramUi::toman((int) $reward->amount_rials).' تومان</b>'
                     ."\n\nاین پاداش پس از اولین خرید و فعال‌سازی موفق دوست معرفی‌شده ثبت شده است.",
                 $keyboard, 'HTML');
@@ -287,7 +287,7 @@ final readonly class TelegramNotificationSender
 
             $amount = TelegramUi::toman((int) $topup->amount_rials);
             $message = $expected === 'approved'
-                ? "<b>✅ کیف پول شما شارژ شد</b>\n\nدرخواست #{$topupId}"
+                ? "<b>✅ اعتبار شما افزایش یافت</b>\n\nدرخواست #{$topupId}"
                     ."\nمبلغ افزوده‌شده: <b>{$amount} تومان</b>"
                 : "<b>❌ درخواست شارژ تأیید نشد</b>\n\nدرخواست #{$topupId}"
                     ."\nمبلغ درخواست: <b>{$amount} تومان</b>"
@@ -297,11 +297,11 @@ final readonly class TelegramNotificationSender
             } catch (Throwable) {
                 throw new NotificationUnavailable('inactive_wallet');
             }
-            $message .= "\nموجودی فعلی: <b>".TelegramUi::toman($balance).' تومان</b>';
+            $message .= "\nاعتبار فعلی: <b>".TelegramUi::toman($balance).' تومان</b>';
 
             $keyboard = json_encode([
                 'inline_keyboard' => [[
-                    ['text' => '💼 مشاهده کیف پول', 'callback_data' => 'sales:wallet'],
+                    ['text' => '💰 اعتبار من', 'callback_data' => 'sales:wallet'],
                 ]],
             ], JSON_THROW_ON_ERROR);
             $this->text($bot, $chat, $message, $keyboard, 'HTML');
@@ -335,10 +335,10 @@ final readonly class TelegramNotificationSender
             }
 
             $amount = TelegramUi::toman((int) $order->amount_rials);
-            $message = '<b>✅ پرداخت از کیف پول موفق بود</b>'
+            $message = '<b>✅ پرداخت از اعتبار موفق بود</b>'
                 ."\n\nسفارش #{$orderId}"
                 ."\nمبلغ کسرشده: <b>{$amount} تومان</b>"
-                ."\nموجودی فعلی: <b>".TelegramUi::toman($balance).' تومان</b>'
+                ."\nاعتبار فعلی: <b>".TelegramUi::toman($balance).' تومان</b>'
                 ."\n\nوضعیت فعال‌سازی سرویس را در سفارش‌های خود ببینید.";
             $keyboard = json_encode(['inline_keyboard' => [[
                 ['text' => '📋 مشاهده سفارش', 'callback_data' => 'sales:checkout:view:'.$orderId],

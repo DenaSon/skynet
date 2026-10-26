@@ -157,7 +157,7 @@ it('rechecks wallet credit at final confirmation after it has been spent', funct
     $bot->hearCallbackQueryData('sales:panel:confirm')->reply()->assertRaw(static function (Request $request): bool {
         $data = panel01Payload($request);
 
-        return str_contains($data['text'] ?? '', 'موجودی کیف پول کافی نیست')
+        return str_contains($data['text'] ?? '', 'اعتبار کافی نیست')
             && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:support');
     }, index: 1);
 

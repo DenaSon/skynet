@@ -59,7 +59,7 @@ it('shows a two-column persistent home keyboard for active members', function ()
         ->and(count($keyboard->keyboard))->toBe(3)
         ->and(count($keyboard->keyboard[0]))->toBe(2)
         ->and(hybridLabels($keyboard))->toContain(ReplyMenuLabels::BUY, ReplyMenuLabels::SUBSCRIPTIONS)
-        ->not->toContain(ReplyMenuLabels::ADMIN, ReplyMenuLabels::WALLET);
+        ->not->toContain(ReplyMenuLabels::ADMIN, ReplyMenuLabels::SALES_WALLET, ReplyMenuLabels::WALLET);
 });
 
 it('routes reply labels before the custom-volume text matcher', function (): void {
@@ -101,7 +101,7 @@ it('rejects forged menu labels sent by ordinary members', function (): void {
     $user = User::factory()->create();
     $bot = hybridBot(931004, $user);
 
-    foreach ([ReplyMenuLabels::ADMIN, ReplyMenuLabels::ROLES, ReplyMenuLabels::WALLET] as $label) {
+    foreach ([ReplyMenuLabels::ADMIN, ReplyMenuLabels::ROLES, ReplyMenuLabels::SALES_WALLET, ReplyMenuLabels::WALLET] as $label) {
         $bot->hearText($label)->reply()
             ->assertReplyText('دسترسی مجاز نیست. منوی شما به‌روز شد.');
     }
@@ -164,9 +164,10 @@ it('shows wallet only to resellers without implying admin authority', function (
     $actor = app(ResolveTelegramActor::class)->handle(931007);
 
     $labels = hybridLabels(app(ReplyMenuRenderer::class)->homeKeyboard($actor));
-    expect($labels)->toContain(ReplyMenuLabels::WALLET)
+    expect($labels)->toContain(ReplyMenuLabels::SALES_WALLET)
         ->not->toContain(ReplyMenuLabels::ADMIN);
 
+    $bot->hearText(ReplyMenuLabels::SALES_WALLET)->reply()->assertCalled('sendMessage');
     $bot->hearText(ReplyMenuLabels::WALLET)->reply()->assertCalled('sendMessage');
 });
 

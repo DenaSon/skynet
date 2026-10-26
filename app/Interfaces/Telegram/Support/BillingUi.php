@@ -45,7 +45,7 @@ final class BillingUi
         }
 
         $summary = $this->wallets->handle($actor->userId);
-        $lines = ['💼 کیف پول نماینده', '', 'موجودی: '.number_format(intdiv($summary->balanceRials, 10)).' تومان', '', 'آخرین درخواست‌ها:'];
+        $lines = ['💰 اعتبار من', '', 'اعتبار فعلی: '.number_format(intdiv($summary->balanceRials, 10)).' تومان', '', 'آخرین درخواست‌ها:'];
 
         foreach ($summary->topups as $row) {
             $lines[] = '#'.$row['id'].' | '.number_format(intdiv($row['amount_rials'], 10)).' تومان | '.TelegramUi::topupStatus($row['status']);
@@ -55,7 +55,7 @@ final class BillingUi
             $lines[] = 'هنوز درخواستی ندارید.';
         }
 
-        $keyboard = InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make('➕ افزایش موجودی', callback_data: 'billing:help'))
+        $keyboard = InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make('➕ افزایش اعتبار', callback_data: 'billing:help'))
             ->addRow(InlineKeyboardButton::make('🏠 صفحه اصلی', callback_data: 'menu:home'));
 
         $this->render($bot, implode("\n", $lines), $keyboard);
