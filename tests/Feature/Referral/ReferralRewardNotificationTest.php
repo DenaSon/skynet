@@ -125,6 +125,7 @@ it('delivers only a verified owner reward and never leaks the invited customer i
     Http::assertSent(function (Request $request): bool {
         return str_contains($request->url(), '56789:sales-fixture/sendMessage')
             && str_contains((string) $request['text'], '30,000')
+            && str_contains((string) $request['text'], 'پاداش معرفی به اعتبار شما اضافه شد')
             && ! str_contains((string) $request['text'], 'PRIVATE_INVITEE_MARKER')
             && str_contains((string) $request['reply_markup'], 'sales:invite');
     });
