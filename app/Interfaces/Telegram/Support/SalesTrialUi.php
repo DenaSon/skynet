@@ -270,23 +270,32 @@ final readonly class SalesTrialUi
             if (mb_strlen($url) <= 256) {
                 $keyboard->addRow(InlineKeyboardButton::make('📋 کپی لینک', copy_text: CopyTextButton::make($url)));
             }
-            $stream = fopen('php://memory', 'w+b');
-            try {
-                if ($stream === false) {
-                    throw new \RuntimeException('QR stream unavailable.');
-                }
-                fwrite($stream, $this->qr->render($url));
-                rewind($stream);
-                $bot->sendPhoto(photo: InputFile::make($stream, 'denagate-trial-qr.png'),
-                    caption: '🧪 کد اتصال تست رایگان', reply_markup: $keyboard, protect_content: true);
-            } catch (Throwable) {
-                // Preserve private link access when QR rendering/upload is unavailable.
-            } finally {
-                if (is_resource($stream)) {
-                    fclose($stream);
+            $text = '<b>🔐 لینک اتصال تست رایگان</b>'."\n\n".TelegramUi::code($url);
+            $caption = $text."\n\n📷 کد بالا را اسکن کنید یا لینک را کپی کنید.";
+            // Keep one connection card. Very long links use text only, preserving
+            // the full credential beyond Telegram's media-caption limit.
+            if (mb_strlen($caption) <= 900) {
+                $stream = null;
+                try {
+                    $png = $this->qr->render($url);
+                    $stream = fopen('php://memory', 'w+b');
+                    if ($stream === false || fwrite($stream, $png) !== strlen($png)) {
+                        throw new \RuntimeException('QR stream unavailable.');
+                    }
+                    rewind($stream);
+                    $bot->sendPhoto(photo: InputFile::make($stream, 'denagate-trial-qr.png'),
+                        caption: $caption, parse_mode: 'HTML', reply_markup: $keyboard, protect_content: true);
+
+                    return;
+                } catch (Throwable) {
+                    // Preserve private link access when QR rendering/upload is unavailable.
+                } finally {
+                    if (is_resource($stream)) {
+                        fclose($stream);
+                    }
                 }
             }
-            $bot->sendMessage(text: '<b>🔐 لینک اتصال تست رایگان</b>'."\n\n".TelegramUi::code($url),
+            $bot->sendMessage(text: $text,
                 parse_mode: 'HTML', reply_markup: $keyboard, protect_content: true,
                 link_preview_options: LinkPreviewOptions::make(is_disabled: true));
         } catch (Throwable) {
