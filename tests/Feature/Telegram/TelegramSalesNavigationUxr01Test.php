@@ -107,8 +107,8 @@ it('shows persistent Sales keyboard on start while accepting old button labels',
     $bot->hearText(ReplyMenuLabels::SALES_ACCOUNT)->reply()->assertRaw(static function (Request $request): bool {
         $body = uxr01Payload($request);
 
-        return str_contains($body['text'], '&lt;Buyer&gt; &amp; &quot;Name&quot;')
-            && ! str_contains($body['text'], '<Buyer>');
+        return str_contains(uxr01RichHtml($request), '&lt;Buyer&gt; &amp; &quot;Name&quot;')
+            && ! str_contains(uxr01RichHtml($request), '<Buyer>');
     });
     Http::assertNothingSent();
 });
@@ -155,9 +155,10 @@ it('uses the Sales identity for invitations and retains reseller access only whi
             $query = parse_url($share, PHP_URL_QUERY);
             parse_str(is_string($query) ? $query : '', $params);
 
-            return str_contains($body['text'], $url)
-                && str_contains($body['text'], 'دوستان ثبت‌نام‌شده: <b>0</b>')
-                && str_contains($body['text'], 'دوستان دارای پاداش: <b>0</b>')
+            return str_contains(uxr01RichHtml($request), $url)
+                && str_contains(uxr01RichHtml($request), 'دوستان ثبت‌نام‌شده: 0')
+                && str_contains(uxr01RichHtml($request), 'دوستان دارای پاداش: <b>0</b>')
+                && str_contains(uxr01RichHtml($request), '<details><summary>📋 شرایط دریافت پاداش</summary>')
                 && $buttons[1][0]['copy_text']['text'] === $url
                 && parse_url($share, PHP_URL_HOST) === 't.me'
                 && parse_url($share, PHP_URL_PATH) === '/share/url'
@@ -169,6 +170,48 @@ it('uses the Sales identity for invitations and retains reseller access only whi
     $bot->hearText('/account')->reply()->assertRaw(static fn (Request $request): bool => ! str_contains(json_encode(uxr01Payload($request), JSON_THROW_ON_ERROR), 'menu:builder'));
     $bot->hearCallbackQueryData('menu:builder')->reply()
         ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.']);
+    Http::assertNothingSent();
+});
+
+it('keeps account and invite simple views usable with unchanged owner-safe actions', function (): void {
+    $buyer = User::factory()->create();
+    $buyer->syncRoles(['member']);
+    $bot = uxr01Bot($buyer);
+
+    $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(static function (Request $request): bool {
+        $data = uxr01Payload($request);
+        $html = uxr01RichHtml($request);
+        $rich = is_string($data['rich_message'] ?? null)
+            ? json_decode($data['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+            : ($data['rich_message'] ?? []);
+
+        return ($rich['is_rtl'] ?? false) === true
+            && str_contains($html, '📋 سرویس‌های ثبت‌شده')
+            && str_contains($html, '<summary>📊 سوابق مالی حساب</summary>')
+            && str_contains($html, '<summary>🪪 اطلاعات عضویت</summary>')
+            && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:account:simple');
+    }, index: 1);
+    $bot->hearCallbackQueryData('sales:account:simple')->reply()->assertRaw(static function (Request $request): bool {
+        $data = uxr01Payload($request);
+
+        return ! isset($data['rich_message'])
+            && str_contains((string) ($data['text'] ?? ''), 'خلاصه حساب')
+            && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:subs:list:0');
+    }, index: 1);
+
+    $bot->hearCallbackQueryData('sales:invite')->reply()->assertRaw(static function (Request $request): bool {
+        $data = uxr01Payload($request);
+
+        return str_contains(uxr01RichHtml($request), '<summary>📋 شرایط دریافت پاداش</summary>')
+            && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:invite:simple');
+    }, index: 1);
+    $bot->hearCallbackQueryData('sales:invite:simple')->reply()->assertRaw(static function (Request $request): bool {
+        $data = uxr01Payload($request);
+
+        return ! isset($data['rich_message'])
+            && str_contains((string) ($data['text'] ?? ''), 'لینک اختصاصی شما')
+            && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'copy_text');
+    }, index: 1);
     Http::assertNothingSent();
 });
 
@@ -242,7 +285,7 @@ it('shows an ordinary active member their own zero wallet balance without a top-
         $data = uxr01Payload($request);
         $buttons = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
 
-        return str_contains($data['text'], 'اعتبار من: <b>0 تومان</b>')
+        return str_contains(uxr01RichHtml($request), 'اعتبار من: <b>0 تومان</b>')
             && str_contains($buttons, 'sales:wallet')
             && ! str_contains($buttons, 'menu:builder');
     });
