@@ -14,6 +14,7 @@ use App\Modules\Trial\Jobs\ProvisionFreeTrialJob;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Internal\InputFile;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\CopyTextButton;
@@ -22,6 +23,7 @@ use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\KeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\ReplyKeyboardMarkup;
 use SergiX44\Nutgram\Telegram\Types\Message\LinkPreviewOptions;
+use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 use Throwable;
 
 final readonly class SalesTrialUi
@@ -77,7 +79,7 @@ final readonly class SalesTrialUi
         return true;
     }
 
-    public function show(Nutgram $bot): void
+    public function show(Nutgram $bot, bool $rich = true): void
     {
         $actor = $this->actor($bot);
         if ($actor === null) {
@@ -88,14 +90,23 @@ final readonly class SalesTrialUi
             $trial = $this->trials->find($actor->userId, (int) $this->privateUser->id($bot));
             if ($trial === null) {
                 $this->eligible($actor->userId, (int) $this->privateUser->id($bot));
-                $this->render($bot, '<b>🧪 تست رایگان DenaGate</b>'
+                $text = '<b>🧪 تست رایگان DenaGate</b>'
                     ."\n\nحجم: <b>۲۵۰ مگابایت</b> · اعتبار: <b>۲ ساعت</b>"
                     ."\nبا پایان زمان یا حجم، تست تمام می‌شود و قابل تمدید نیست."
                     ."\n\nهر حساب و شماره فقط یک بار، ویژه کاربران بدون خرید قبلی."
-                    ."\nبرای دریافت، شماره همین حساب تلگرام را با دکمه ارسال و سپس تأیید کنید.",
-                    InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make('📱 ارسال شماره من',
+                    ."\nبرای دریافت، شماره همین حساب تلگرام را با دکمه ارسال و سپس تأیید کنید.";
+                $buttons = InlineKeyboardMarkup::make()
+                    ->addRow(InlineKeyboardButton::make('📱 ارسال شماره من',
                         callback_data: 'sales:trial:contact', style: ButtonStyle::SUCCESS))
-                        ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home')));
+                    ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
+                $html = '<h4>🧪 تست رایگان دناگیت</h4>'
+                    .'<p>🎁 حجم: <b>۲۵۰ مگابایت</b><br>⏱ اعتبار: <b>۲ ساعت</b></p>'
+                    .'<p>برای دریافت، فقط شماره همین حساب تلگرام را با دکمه پایین ارسال و سپس تأیید کنید.</p>'
+                    .'<details><summary>📋 شرایط استفاده</summary><p>'
+                    .'این تست فقط یک‌بار برای حساب و شماره واجد شرایط، بدون خرید قبلی ارائه می‌شود. '
+                    .'با پایان زمان یا حجم، تست تمام می‌شود و قابل تمدید نیست.'
+                    .'</p></details>';
+                $this->renderOverview($bot, $text, $html, $buttons, $rich);
 
                 return;
             }
@@ -105,7 +116,12 @@ final readonly class SalesTrialUi
                     'failed' => 'فعال‌سازی انجام نشد. برای راهنمایی با پشتیبانی گفتگو کنید.',
                     default => 'نتیجه فعال‌سازی در حال بررسی است. لطفاً منتظر بمانید یا با پشتیبانی گفتگو کنید.',
                 };
-                $this->render($bot, '<b>🧪 تست رایگان</b>'."\n\n".$state, $this->buttons());
+                $text = '<b>🧪 تست رایگان</b>'."\n\n".$state;
+                $html = '<h4>🧪 وضعیت تست رایگان</h4><p>'.TelegramUi::escape($state).'</p>'
+                    .'<details><summary>💡 راهنمای پیگیری</summary><p>'
+                    .'برای بررسی دوباره، دکمه «وضعیت تست» را بزنید. در صورت ادامه مشکل با پشتیبانی گفتگو کنید.'
+                    .'</p></details>';
+                $this->renderOverview($bot, $text, $html, $this->buttons(), $rich);
 
                 return;
             }
@@ -126,7 +142,15 @@ final readonly class SalesTrialUi
                 $bot->sendMessage(text: $text, parse_mode: 'HTML',
                     reply_markup: app(ReplyMenuRenderer::class)->salesKeyboard($actor));
             } else {
-                $this->render($bot, $text, $keyboard, false);
+                $html = '<h4>🧪 وضعیت تست رایگان</h4>'
+                    .'<p>وضعیت: <b>'.TelegramUi::escape($label).'</b>'
+                    .'<br>📊 حجم باقی‌مانده: <b>'.number_format($live->remainingBytes / 1048576, 1).' مگابایت</b>'
+                    .'<br>⏱ زمان باقی‌مانده: <b>'.intdiv($minutes, 60).' ساعت و '.($minutes % 60).' دقیقه</b></p>'
+                    .'<details><summary>📋 راهنمای استفاده</summary><p>'
+                    .'برای دریافت لینک و کد اتصال از دکمه همین صفحه استفاده کنید. '
+                    .'با تمام‌شدن زمان یا حجم، تست پایان می‌یابد.'
+                    .'</p></details>';
+                $this->renderOverview($bot, $text, $html, $keyboard, $rich, false);
             }
         } catch (ValidationException $error) {
             $this->render($bot, implode("\n", $error->validator->errors()->all()), $this->buttons());
@@ -325,6 +349,36 @@ final readonly class SalesTrialUi
             ->addRow(InlineKeyboardButton::make('🛒 خرید اشتراک', callback_data: 'sales:buy'))
             ->addRow(InlineKeyboardButton::make('💬 پشتیبانی', callback_data: 'sales:support'),
                 InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
+    }
+
+    /**
+     * Presentation only. The native Contact/Confirm flow and ended-trial
+     * reply keyboard are deliberately excluded from Rich transport.
+     */
+    private function renderOverview(
+        Nutgram $bot,
+        string $text,
+        string $html,
+        InlineKeyboardMarkup $keyboard,
+        bool $rich,
+        bool $acknowledge = true,
+    ): void {
+        if (! $rich) {
+            $this->render($bot, $text, $keyboard, $acknowledge);
+
+            return;
+        }
+        $plainKeyboard = clone $keyboard;
+        $keyboard->addRow(InlineKeyboardButton::make('↩️ نمایش ساده', callback_data: 'sales:trial:simple'));
+        if ($acknowledge) {
+            TelegramUi::answerCallback($bot);
+        }
+        try {
+            TelegramUi::editRichText($bot, new InputRichMessage(html: $html, is_rtl: true), $keyboard);
+        } catch (TelegramException $exception) {
+            report($exception);
+            $this->render($bot, $text, $plainKeyboard, false);
+        }
     }
 
     private function render(Nutgram $bot, string $text, InlineKeyboardMarkup $keyboard, bool $acknowledge = true): void
