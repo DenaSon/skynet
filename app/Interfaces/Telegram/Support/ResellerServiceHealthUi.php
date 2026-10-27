@@ -8,8 +8,10 @@ use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Provisioning\Application\ReadResellerServiceHealth;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 use Throwable;
 
 /** On-demand small pages: no mass RW scans, no persisted provider response. */
@@ -21,7 +23,7 @@ final readonly class ResellerServiceHealthUi
         private ReadResellerServiceHealth $health,
     ) {}
 
-    public function show(Nutgram $bot, string $cursor = '0'): void
+    public function show(Nutgram $bot, string $cursor = '0', bool $rich = true): void
     {
         $id = $this->private->id($bot);
         if ($id === null) {
@@ -65,8 +67,15 @@ final readonly class ResellerServiceHealthUi
             '',
         ];
 
+        $html = '<h4>📡 وضعیت سرویس‌های من</h4>'
+            .'<p>📦 ثبت‌شده در سوابق: <b>'.$page['total'].'</b>'
+            .'<br>🗂 فعال در سوابق داخلی: '.$page['localActive'].'</p>'
+            .'<p>🔎 نتیجه استعلام لحظه‌ای فقط برای <b>'.$page['checked'].' سرویس این صفحه</b>:'
+            .'<br>🟢 فعال: '.$page['active'].' · 🔴 منقضی: '.$page['expired']
+            .'<br>🟠 نیازمند پیگیری: <b>'.$page['attention'].'</b> · ⚪ نامشخص: <b>'.$page['unknown'].'</b></p>';
         $buttons = InlineKeyboardMarkup::make();
         if ($page['rows'] === []) {
+            $html .= '<p>سرویسی در این صفحه پیدا نشد.</p>';
             $lines[] = 'سرویسی در این صفحه پیدا نشد.';
         }
         foreach ($page['rows'] as $index => $item) {
@@ -76,6 +85,10 @@ final readonly class ResellerServiceHealthUi
                 $lines[] = '↳ '.TelegramUi::escape($item['action']);
             }
             $lines[] = '';
+            $html .= '<p>🔹 <b>'.$position.'. '.TelegramUi::escape($item['name']).'</b>'
+                .'<br>وضعیت استعلام: '.TelegramUi::escape($item['status'])
+                .($item['action'] === '' ? '' : '<br>↳ '.TelegramUi::escape($item['action']))
+                .'</p>';
             $buttons->addRow(InlineKeyboardButton::make('📋 جزئیات '.$position,
                 callback_data: 'sales:subs:view:'.$item['orderId'].':0'));
         }
@@ -91,7 +104,26 @@ final readonly class ResellerServiceHealthUi
             ->addRow(InlineKeyboardButton::make('📊 گزارش فروش', callback_data: 'sales:report:30'))
             ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
 
-        $this->render($bot, trim(implode("\n", $lines)), $buttons);
+        $text = trim(implode("\n", $lines));
+        if ($rich) {
+            $html .= '<details><summary>ℹ️ درباره وضعیت‌ها</summary><p>'
+                .'استعلام زنده فقط همین صفحه را پوشش می‌دهد (حداکثر ۶ سرویس). '
+                .'اگر دریافت وضعیت ممکن نباشد، «نامشخص» نشان داده می‌شود. '
+                .'فعال‌بودن در سوابق داخلی، تأیید لحظه‌ای Provider نیست.'
+                .'</p></details>';
+            $plainButtons = clone $buttons;
+            $buttons->addRow(InlineKeyboardButton::make('↩️ نمایش ساده', callback_data: 'sales:health:simple:'.$cursor));
+            try {
+                TelegramUi::editRichText($bot, new InputRichMessage(html: $html, is_rtl: true), $buttons);
+            } catch (TelegramException $exception) {
+                report($exception);
+                $this->render($bot, $text, $plainButtons);
+            }
+
+            return;
+        }
+
+        $this->render($bot, $text, $buttons);
     }
 
     private function back(): InlineKeyboardMarkup
