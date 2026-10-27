@@ -25,9 +25,11 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 
 /** SB-03 Sales-only checkout. Never receives or verifies payment or calls Remnawave. */
 final readonly class SalesCheckoutUi
@@ -200,7 +202,7 @@ final readonly class SalesCheckoutUi
         $this->showOrder($bot, $order);
     }
 
-    public function listOrders(Nutgram $bot): void
+    public function listOrders(Nutgram $bot, bool $rich = true): void
     {
         $buyer = $this->buyer($bot);
         if ($buyer === null) {
@@ -220,7 +222,18 @@ final readonly class SalesCheckoutUi
 
         $keyboard = InlineKeyboardMarkup::make();
         $lines = ['📋 سفارش‌های من', ''];
+        $richHtml = '<h4>🧾 سوابق خرید</h4><p>آخرین سفارش‌ها و وضعیت ثبت‌شده هر سفارش را ببینید.</p>';
         foreach ($orders as $order) {
+            $status = match ($order->status) {
+                'pending_payment' => '🟠 در انتظار پرداخت',
+                'paid' => '🕘 پرداخت تأیید شده؛ در انتظار فعال‌سازی',
+                'fulfilled' => '✅ سرویس فعال یا تمدید شده',
+                'rejected' => '❌ تأیید نشده',
+                default => '🔎 نیازمند بررسی',
+            };
+            $richHtml .= '<p>📦 <b>#'.$order->id.' · '.TelegramUi::escape($this->safe($order->productName))
+                .'</b><br>مبلغ ثبت‌شده: <b>'.TelegramUi::toman($order->totalPriceRials)
+                .' تومان</b><br>وضعیت سفارش: '.$status.'</p>';
             $lines[] = '#'.$order->id.' — '.$this->safe($order->productName).' — '.TelegramUi::toman($order->totalPriceRials).' تومان';
             $keyboard->addRow(InlineKeyboardButton::make(
                 $order->status === 'pending_payment' ? '▶️ سفارش #'.$order->id.' · ادامه پرداخت' : '📄 سفارش #'.$order->id,
@@ -234,6 +247,15 @@ final readonly class SalesCheckoutUi
 
         $keyboard->addRow(InlineKeyboardButton::make('📋 پلن‌ها', callback_data: 'menu:plan-catalog'))
             ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'menu:home'));
+
+        if ($rich && $orders !== []) {
+            $plainKeyboard = clone $keyboard;
+            $keyboard->addRow(InlineKeyboardButton::make('↩️ نمایش ساده', callback_data: 'sales:checkout:orders:simple'));
+            $this->renderRich($bot, $richHtml, implode("\n", $lines), $keyboard, $plainKeyboard);
+
+            return;
+        }
+
         $this->render($bot, implode("\n", $lines), $keyboard);
     }
 
@@ -684,6 +706,27 @@ final readonly class SalesCheckoutUi
     {
         $this->render($bot, "🧾 سفارش\n\n{$message}", InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('◀️ پلن‌ها', callback_data: 'menu:plan-catalog')));
+    }
+
+    /** Read-only Rich order list; no change to checkout or payment confirmation. */
+    private function renderRich(
+        Nutgram $bot,
+        string $html,
+        string $plain,
+        InlineKeyboardMarkup $keyboard,
+        InlineKeyboardMarkup $plainKeyboard,
+    ): void {
+        TelegramUi::answerCallback($bot);
+        try {
+            TelegramUi::editRichText($bot, new InputRichMessage(html: $html, is_rtl: true), $keyboard);
+        } catch (TelegramException $exception) {
+            report($exception);
+            if ($bot->isCallbackQuery()) {
+                TelegramUi::editText($bot, $plain, $plainKeyboard);
+            } else {
+                $bot->sendMessage(text: $plain, reply_markup: $plainKeyboard);
+            }
+        }
     }
 
     private function render(Nutgram $bot, string $message, InlineKeyboardMarkup $keyboard, bool $html = false): void
