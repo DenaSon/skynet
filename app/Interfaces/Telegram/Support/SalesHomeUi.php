@@ -228,7 +228,11 @@ final readonly class SalesHomeUi
             TelegramUi::editRichText($bot, new InputRichMessage(html: $richHtml, is_rtl: true), $keyboard);
         } catch (TelegramException $exception) {
             report($exception);
-            TelegramUi::editText($bot, $plainText, $simpleKeyboard, 'HTML');
+            if ($bot->isCallbackQuery()) {
+                TelegramUi::editText($bot, $plainText, $simpleKeyboard, 'HTML');
+            } else {
+                $bot->sendMessage(text: $plainText, reply_markup: $simpleKeyboard, parse_mode: 'HTML');
+            }
         }
     }
 
