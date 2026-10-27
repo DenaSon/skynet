@@ -1,3 +1,5 @@
+> **Phase 02 source checkpoint — 2026-10-27:** Sales tutorial index plus device, purchase, troubleshooting, member onboarding and reseller builder guides gain scoped RTL Rich expandable sections with the existing native download/action buttons. Explicit sales:help:simple:{page} preserves plain HTML fallback. No in-content Rich buttons (reserved for Phase 03), payment/provider changes or Admin Bot restyling. **Real Telegram layout and CTA/back verification remain an operator acceptance gate. Phase 03 is blocked until accepted.**
+
 > **Phase 01 source checkpoint — 2026-10-27:** [PR #255](https://github.com/DenaSon/skynet/pull/255) promotes `sales:subs:view` Rich by default, preserves the historical `sales:subs:rich` alias and provides `sales:subs:simple` fallback. The visible trial button is retired. **Operator review of the deployed default-route Rich UI is still pending.** Do not start Phase 02 until explicit acceptance. Other phases remain planned only.
 
 # DenaGate — Sales and Reseller Rich UX roadmap (2026-10-27)
@@ -123,8 +125,8 @@ When client support is absent or a rich edit fails, use the existing accessible 
 
 | Phase | Current state | Operator acceptance |
 |---|---|---|
-| 01 Service detail default | Planned; earlier opt-in pilot merged/tested | Pending |
-| 02 Tutorials | Planned | Pending |
+| 01 Service detail default | Merged PR #255; user tested default Rich on Telegram iOS | Accepted by operator 2026-10-27; cross-client/Fallback checks remain |
+| 02 Tutorials | Source PR #256 under CI review | Real Telegram tutorial layout, CTA and Back acceptance pending |
 | 03 Catalog / in-content CTA | Planned; CTA requires live validation | Pending |
 | 04 Home/account/referrals | Planned | Pending |
 | 05 Wallet/orders/renewal presentation | Planned | Pending |

@@ -299,6 +299,7 @@ it('keeps Sales identity, navigation and buyer routes isolated from Admin callba
         'callback:sales:support',
         'command:help',
         'command:cancel',
+        'callback:sales:help:simple:{page}',
         'callback:sales:help:{page}',
         'callback:sales:health:{cursor}',
         'callback:sales:report:{days}',

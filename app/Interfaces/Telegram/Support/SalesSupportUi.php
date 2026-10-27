@@ -5,16 +5,18 @@ declare(strict_types=1);
 namespace App\Interfaces\Telegram\Support;
 
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 
 /** Small static guides and one configured Telegram contact; no ticket system. */
 final readonly class SalesSupportUi
 {
     public function __construct(private SalesHomeUi $home) {}
 
-    public function show(Nutgram $bot, string $page = 'support'): void
+    public function show(Nutgram $bot, string $page = 'support', bool $rich = true): void
     {
         $actor = $this->home->navigationActor($bot);
         if ($actor === null) {
@@ -57,6 +59,9 @@ final readonly class SalesSupportUi
                     $keyboard->addRow(InlineKeyboardButton::make('🧩 راه‌اندازی پنل فروش', callback_data: 'sales:help:panel-setup', style: ButtonStyle::PRIMARY));
                 }
                 $keyboard->addRow(InlineKeyboardButton::make('🔧 رفع مشکل اتصال', callback_data: 'sales:help:troubleshoot'));
+                if (in_array('reseller', $actor->roles, true)) {
+                    $keyboard->addRow(InlineKeyboardButton::make('🧩 راهنمای پلن‌ساز', callback_data: 'sales:help:builder'));
+                }
                 break;
 
             case 'panel-setup':
@@ -131,7 +136,7 @@ final readonly class SalesSupportUi
                 $text = '<b>🛒 آموزش خرید سرویس</b>'."\n\n"
                     ."۱. از «خرید سرویس»، پلن مناسب را انتخاب کنید.\n\n"
                     ."۲. با انتخاب پلن، مبلغ و شماره کارت را در همان صفحه پرداخت ببینید.\n\n"
-                    ."۳. واریز را انجام دهید و عکس رسید را مستقیم در همین گفت‌وگو بفرستید.\n\n"
+                    ."۳. واریز را انجام دهید، «ارسال رسید پرداخت» را بزنید و عکس رسید را در همین گفت‌وگو بفرستید.\n\n"
                     ."۴. منتظر بررسی مدیر بمانید؛ سپس وضعیت را از «سوابق خرید» بررسی کنید.\n\n"
                     .'<blockquote>پرداخت ناتمام را از «سوابق خرید» با «ادامه پرداخت» باز کنید.</blockquote>';
                 $keyboard->addRow(InlineKeyboardButton::make('🛒 خرید سرویس', callback_data: 'menu:plan-catalog'))
@@ -155,19 +160,123 @@ final readonly class SalesSupportUi
         if ($operator !== null) {
             $keyboard->addRow(InlineKeyboardButton::make('💬 ارتباط با پشتیبان', url: $operator));
         }
+
+        $richHtml = match ($page) {
+            'apps' => $this->richIndex($canSetupPanel, in_array('reseller', $actor->roles, true)),
+            'android', 'ios', 'windows', 'macos', 'purchase', 'troubleshoot', 'panel-setup', 'builder' => $this->richGuide($page, $text),
+            default => null,
+        };
+
+        // A plain HTML guide remains accessible even if a client cannot show Rich.
+        $plainKeyboard = clone $keyboard;
+        $this->appendNavigation($plainKeyboard, $page);
+        if ($rich && $richHtml !== null) {
+            $keyboard->addRow(InlineKeyboardButton::make('↩️ نمایش ساده', callback_data: 'sales:help:simple:'.$page));
+        }
+        $this->appendNavigation($keyboard, $page);
+
+        if ($rich && $richHtml !== null) {
+            try {
+                TelegramUi::answerCallback($bot);
+                TelegramUi::editRichText($bot, new InputRichMessage(html: $richHtml, is_rtl: true), $keyboard);
+            } catch (TelegramException $exception) {
+                report($exception);
+                $this->renderPlain($bot, $text, $plainKeyboard, false);
+            }
+
+            return;
+        }
+
+        $this->renderPlain($bot, $text, $keyboard);
+    }
+
+    private function appendNavigation(InlineKeyboardMarkup $keyboard, string $page): void
+    {
         if (in_array($page, ['android', 'ios', 'windows', 'macos', 'desktop', 'purchase', 'troubleshoot', 'builder', 'panel-setup'], true)) {
             $keyboard->addRow(InlineKeyboardButton::make('◀️ آموزش‌ها', callback_data: 'sales:help:apps'));
         } elseif ($page === 'apps') {
             $keyboard->addRow(InlineKeyboardButton::make('◀️ پشتیبانی', callback_data: 'sales:support'));
         }
         $keyboard->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
+    }
+
+    private function renderPlain(Nutgram $bot, string $text, InlineKeyboardMarkup $keyboard, bool $acknowledge = true): void
+    {
         if ($bot->isCallbackQuery()) {
-            TelegramUi::answerCallback($bot);
+            if ($acknowledge) {
+                TelegramUi::answerCallback($bot);
+            }
             TelegramUi::editText($bot, $text, $keyboard, 'HTML');
 
             return;
         }
         $bot->sendMessage(text: $text, reply_markup: $keyboard, parse_mode: 'HTML');
+    }
+
+    private function richIndex(bool $canSetupPanel, bool $reseller): string
+    {
+        $html = '<h4>📚 آموزش‌های دناگیت</h4>'
+            .'<p>برای مشاهده مراحل کامل، دستگاه یا موضوع را از دکمه‌های پایین انتخاب کنید.</p>'
+            .'<details><summary>🤖 اندروید</summary><p>با v2rayNG لینک سرویس را وارد کنید و سرور را انتخاب کنید.</p></details>'
+            .'<details><summary>🍎 آیفون و آیپد</summary><p>در V2Box اشتراک را اضافه، به‌روز و فعال کنید.</p></details>'
+            .'<details><summary>🪟 ویندوز</summary><p>در v2rayN لینک را به گروه اشتراک اضافه و سرور را انتخاب کنید.</p></details>'
+            .'<details><summary>💻 مک</summary><p>در V2Box لینک سرویس را وارد و اتصال را فعال کنید.</p></details>'
+            .'<details><summary>🛒 خرید سرویس</summary><p>پلن را انتخاب کنید؛ بعد از پرداخت، رسید را با دکمه مخصوص ارسال و نتیجه را پیگیری کنید.</p></details>'
+            .'<details><summary>🔧 رفع مشکل اتصال</summary><p>وضعیت سرویس، به‌روزبودن اشتراک و اینترنت خود را بررسی کنید.</p></details>';
+
+        if ($canSetupPanel) {
+            $html .= '<details><summary>🧩 راه‌اندازی پنل فروش</summary><p>با اعتبار اولیه ۷۵۰٬۰۰۰ تومان درخواست دهید؛ پس از تأیید، تخفیف نمایندگی ۳۵٪ اعمال می‌شود.</p></details>';
+        } elseif ($reseller) {
+            $html .= '<details><summary>🧩 راهنمای پلن‌ساز</summary><p>حجم و مدت دلخواه مشتری را انتخاب کنید و پیش از ثبت سفارش قیمت را ببینید.</p></details>';
+        }
+
+        return $html;
+    }
+
+    /** Reuse the existing guide copy for Rich and plain HTML presentation. */
+    private function richGuide(string $page, string $text): string
+    {
+        $blocks = explode("\n\n", $text);
+        $title = TelegramUi::escape(strip_tags((string) array_shift($blocks)));
+        $intro = '';
+        if (in_array($page, ['android', 'ios', 'windows', 'macos'], true)) {
+            $intro = '<p>'.array_shift($blocks).'</p>';
+        } elseif ($page === 'panel-setup') {
+            $intro = '<p>اعتبار اولیه: <b>۷۵۰٬۰۰۰ تومان</b><br>تخفیف نمایندگی: <b>۳۵٪</b></p>';
+        }
+
+        $steps = [];
+        $note = '';
+        foreach ($blocks as $block) {
+            if (str_starts_with($block, '<blockquote>')) {
+                $note = str_replace(['<blockquote>', '</blockquote>'], '', $block);
+            } else {
+                $steps[] = $block;
+            }
+        }
+
+        $html = '<h4>'.$title.'</h4>'.$intro;
+        if ($page === 'panel-setup') {
+            foreach ($steps as $step) {
+                if (preg_match('~\A<b>(.*?)</b>\n(.*)\z~us', $step, $matches) === 1) {
+                    $html .= '<details><summary>'.$matches[1].'</summary><p>'.$matches[2].'</p></details>';
+                }
+            }
+        } else {
+            $label = match ($page) {
+                'purchase' => '🛒 مراحل خرید',
+                'troubleshoot' => '🔧 بررسی و رفع مشکل',
+                'builder' => '🧩 مراحل ساخت پلن',
+                default => '📱 مراحل نصب و اتصال',
+            };
+            $html .= '<details><summary>'.$label.'</summary><p>'
+                .implode('<br><br>', $steps).'</p></details>';
+        }
+        if ($note !== '') {
+            $html .= '<details><summary>💡 نکته مهم</summary><p>'.$note.'</p></details>';
+        }
+
+        return $html;
     }
 
     private function operatorUrl(): ?string
