@@ -128,7 +128,7 @@ final readonly class PlanCatalogUi
         }
         $keyboard->addRow(InlineKeyboardButton::make('🏠 صفحه اصلی', callback_data: 'menu:home'));
         $plainText = implode("\n", $lines);
-        if ($sales && $rich) {
+        if ($sales && $rich && $entries !== []) {
             $simpleKeyboard = clone $keyboard;
             $keyboard->addRow(InlineKeyboardButton::make('↩️ نمایش ساده', callback_data: 'sales:catalog:simple:'.$page));
             $this->renderRich($bot, $richHtml, $plainText, $keyboard, $simpleKeyboard, 'HTML');
