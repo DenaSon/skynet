@@ -160,7 +160,8 @@ final readonly class SalesHomeUi
         $lines = ['<b>🛒 پلن‌های آماده خرید</b>', '', 'یک پلن را انتخاب کنید تا مشخصات سفارش را تکمیل کنید.', ''];
         $keyboard = InlineKeyboardMarkup::make();
         $richHtml = '<h4>🛒 پلن‌های آماده خرید</h4>'
-            .'<p>پلن موردنظر را انتخاب کنید؛ مشخصات و قیمت هر پلن پیش از خرید دوباره بررسی می‌شود.</p>';
+            .'<p>پلن موردنظر را انتخاب کنید؛ مشخصات و قیمت هر پلن پیش از خرید دوباره بررسی می‌شود.</p>'
+            .($pages > 1 ? '<p>صفحه '.$page.' از '.$pages.'</p>' : '');
         foreach (array_slice($entries, ($page - 1) * 5, 5) as $entry) {
             $lines[] = '📦 <b>'.$this->name($entry->plan->name).'</b>';
             $lines[] = ($entry->quote->trafficGb === null ? 'حجم نامحدود' : $entry->quote->trafficGb.' گیگابایت')
