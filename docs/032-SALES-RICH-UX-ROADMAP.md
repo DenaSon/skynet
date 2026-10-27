@@ -1,3 +1,5 @@
+> **Phase 06 source checkpoint — 2026-10-27:** Sales trial eligibility, in-progress and active read pages use concise RTL Rich with important live values outside expandable help. Terminal trial still sends native reply-keyboard update to hide access; one-time Contact and confirmation, QR links, anti-abuse and provider operations stay unchanged. Support gains existing troubleshooting/service/help shortcuts plus configured operator URL, with an explicit simple HTML fallback. **Operator Telegram acceptance pending**; Phase 07 reseller builder must not start without approval.
+
 > **Phase 05 source checkpoint — 2026-10-27:** Sales wallet read view, owner-scoped order history, and owner/provider-verified renewal **preview only** use RTL Rich presentation with explicit simple HTML/text callbacks. The existing receipt, top-up form, bank transfer, wallet payment confirmation and renewal conversion remain native and unchanged for safe explicit finance operations. Payment/order statuses are recorded states, not assumed live provider outcomes. **Real Telegram acceptance pending**; Phase 06 is not authorized by this source change.
 
 > **Phase 04 source checkpoint — 2026-10-27:** Sales Home and the owner-scoped service list stay fast, native and minimally polished. Rich RTL account highlights recorded services, paid purchases, account role and credit, with foldable sum paid and membership details; Rich referral highlights real totals and copy/share URL, with collapsible eligibility and reseller restrictions. Simple HTML callbacks preserve old clients. Operator live Telegram review still required for Phase 04. **Phase 05 is not authorized by this change**.
@@ -137,8 +139,8 @@ When client support is absent or a rich edit fails, use the existing accessible 
 | 02 Tutorials | Merged PR #256, actual Telegram UI operator-accepted | Accepted by operator 2026-10-27; some client variants unverified |
 | 03 Catalog / in-content CTA | Merged #257 + green Buy patch #258; operator tested | Accepted 2026-10-27 on tested Telegram client |
 | 04 Home/account/referrals | PR #259 merged, tested in actual Telegram | Operator accepted 2026-10-27 |
-| 05 Wallet/orders/renewal presentation | Source PR under CI review | Real Telegram and finance-adjacent CTA regression acceptance pending |
-| 06 Trial/support | Planned | Pending |
+| 05 Wallet/orders/renewal presentation | PR #260 merged and operator reviewed | Accepted by operator 2026-10-27 |
+| 06 Trial/support | Source PR under CI review | Live Telegram client review pending |
 | 07 Reseller builder | Planned | Pending |
 | 08 Reseller reports/customer management | Planned | Pending |
 | 09 Final cross-screen review | Planned | Pending |

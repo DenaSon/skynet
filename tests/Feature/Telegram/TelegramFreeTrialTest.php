@@ -31,6 +31,16 @@ beforeEach(function (): void {
     request()->setRouteResolver(static fn (): Route => $route);
 });
 
+function trialUiRichHtml(Request $request): string
+{
+    $data = FakeNutgram::getActualData($request);
+    $rich = is_string($data['rich_message'] ?? null)
+        ? json_decode($data['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+        : ($data['rich_message'] ?? []);
+
+    return (string) ($rich['html'] ?? '');
+}
+
 function trialUiBot(int $id = 9210001): Nutgram
 {
     $bot = Nutgram::fake();
@@ -44,7 +54,27 @@ function trialUiBot(int $id = 9210001): Nutgram
 it('requires a private native self-contact and explicit masked one-time confirmation', function (): void {
     $member = $this->trialMember();
     $bot = trialUiBot();
-    $bot->hearCallbackQueryData('sales:trial')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:trial')->reply()
+        ->assertRaw(static function (Request $request): bool {
+            $data = FakeNutgram::getActualData($request);
+            $buttons = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+            $html = trialUiRichHtml($request);
+
+            return str_contains($html, '<h4>🧪 تست رایگان دناگیت</h4>')
+                && str_contains($html, '<b>۲۵۰ مگابایت</b>')
+                && str_contains($html, '<b>۲ ساعت</b>')
+                && str_contains($html, '<summary>📋 شرایط استفاده</summary>')
+                && str_contains($buttons, 'sales:trial:contact')
+                && str_contains($buttons, 'sales:trial:simple');
+        }, index: 1);
+    $bot->hearCallbackQueryData('sales:trial:simple')->reply()
+        ->assertRaw(static function (Request $request): bool {
+            $data = FakeNutgram::getActualData($request);
+
+            return ! isset($data['rich_message'])
+                && str_contains((string) ($data['text'] ?? ''), 'هر حساب و شماره فقط یک بار')
+                && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:trial:contact');
+        }, index: 1);
     $bot->hearCallbackQueryData('sales:trial:contact')->reply()->assertRaw(function (Request $request): bool {
         $data = FakeNutgram::getActualData($request);
 
@@ -120,10 +150,61 @@ it('shows live minutes and MiB and uses the existing QR renderer after activatio
     $member = $this->trialMember();
     $this->activateFreeTrial($member);
     $bot = trialUiBot();
-    $bot->hearCallbackQueryData('sales:trial')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:trial')->reply()->assertRaw(static function (Request $request): bool {
+        $data = FakeNutgram::getActualData($request);
+        $rich = is_string($data['rich_message'] ?? null)
+            ? json_decode($data['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+            : ($data['rich_message'] ?? []);
+        $html = trialUiRichHtml($request);
+        $markup = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+
+        return ($rich['is_rtl'] ?? false) === true
+            && str_contains($html, '🟢 فعال')
+            && str_contains($html, 'حجم باقی‌مانده:')
+            && str_contains($html, 'زمان باقی‌مانده:')
+            && str_contains($html, '<summary>📋 راهنمای استفاده</summary>')
+            && str_contains($markup, 'sales:trial:link')
+            && str_contains($markup, 'sales:trial:simple')
+            && ! str_contains($html, 'vless://');
+    }, index: 1);
+    $bot->hearCallbackQueryData('sales:trial:simple')->reply()
+        ->assertRaw(static function (Request $request): bool {
+            $data = FakeNutgram::getActualData($request);
+
+            return ! isset($data['rich_message'])
+                && str_contains((string) ($data['text'] ?? ''), 'حجم باقی‌مانده:')
+                && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:trial:link');
+        }, index: 1);
     $bot->hearCallbackQueryData('sales:trial:link')->reply()->assertCalled('sendPhoto', 1)->assertCalled('sendMessage', 0);
     $this->trialRemote['userTraffic']['usedTrafficBytes'] = ProvisionFreeTrial::BYTES;
     $bot->hearCallbackQueryData('sales:trial:link')->reply()->assertCalled('sendMessage')->assertCalled('sendPhoto', 0);
+});
+
+it('renders pending trial processing without exposing a second Contact confirmation', function (): void {
+    $member = $this->trialMember();
+    $bot = trialUiBot();
+    DB::table('trial_claims')->insert([
+        'user_id' => $member->id,
+        'telegram_user_id' => 9210001,
+        'state' => 'reserved',
+        'phone_fingerprint' => str_repeat('a', 64),
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $bot->hearCallbackQueryData('sales:trial')->reply()->assertRaw(static function (Request $request): bool {
+        $data = FakeNutgram::getActualData($request);
+        $keyboard = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+
+        return str_contains(trialUiRichHtml($request), 'در حال آماده‌سازی')
+            && str_contains(trialUiRichHtml($request), 'راهنمای پیگیری')
+            && str_contains($keyboard, 'sales:trial:simple')
+            && ! str_contains($keyboard, 'sales:trial:contact');
+    }, index: 1);
+
+    expect(DB::table('trial_claims')->count())->toBe(1)
+        ->and(DB::table('sales_orders')->count())->toBe(0);
+    Http::assertNothingSent();
 });
 
 it('retires native Contact drafts when navigating to an existing catalog or service route', function (string $navigation): void {
@@ -194,7 +275,7 @@ it('puts trial and tutorial in the persistent keyboard and removes their home an
     $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(function (Request $request): bool {
         return ! str_contains(json_encode(trialUiPayload($request)['reply_markup']), 'sales:trial');
     }, index: 1);
-    $bot->hearText('🧪 تست رایگان')->reply()->assertCalled('sendMessage');
+    $bot->hearText('🧪 تست رایگان')->reply()->assertCalled('sendRichMessage');
     Http::assertNothingSent();
 });
 
@@ -242,6 +323,14 @@ it('hides a used trial immediately on menu refresh for both terminal conditions 
 
         return str_contains($data['text'], 'تست به پایان رسیده است') && ! in_array('🧪 تست رایگان', $labels, true);
     });
+    $bot->hearCallbackQueryData('sales:trial:simple')->reply()->assertRaw(function (Request $request): bool {
+        $data = trialUiPayload($request);
+        $labels = array_column(array_merge(...($data['reply_markup']['keyboard'] ?? [])), 'text');
+
+        return ! isset($data['rich_message'])
+            && str_contains((string) ($data['text'] ?? ''), 'تست به پایان رسیده است')
+            && ! in_array('🧪 تست رایگان', $labels, true);
+    }, index: 1);
     expect(DB::table('trial_claims')->count())->toBe(1);
 })->with([true, false]);
 

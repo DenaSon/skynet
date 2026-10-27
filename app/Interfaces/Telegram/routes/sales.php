@@ -77,6 +77,10 @@ $bot->onCommand('invite', function (Nutgram $bot): void {
     app(SalesHomeUi::class)->invite($bot);
 });
 
+$bot->onCallbackQueryData('sales:support:simple', function (Nutgram $bot): void {
+    app(SalesSupportUi::class)->show($bot, 'support', false);
+});
+
 $bot->onCallbackQueryData('sales:support', function (Nutgram $bot): void {
     app(SalesSupportUi::class)->show($bot);
 });
@@ -250,6 +254,10 @@ $bot->onCallbackQueryData('builder:cancel', function (Nutgram $bot): void {
 $bot->onCommand('trial', function (Nutgram $bot): void {
     app(SalesTrialUi::class)->show($bot);
 });
+$bot->onCallbackQueryData('sales:trial:simple', function (Nutgram $bot): void {
+    app(SalesTrialUi::class)->show($bot, false);
+});
+
 $bot->onCallbackQueryData('sales:trial', function (Nutgram $bot): void {
     app(SalesTrialUi::class)->show($bot);
 });
