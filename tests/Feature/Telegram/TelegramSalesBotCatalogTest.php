@@ -347,6 +347,7 @@ it('shows bold escaped catalog prices and sorts both plan lists by each buyers p
             return $callbacks === array_map(static fn (int $id): string => "catalog:detail:{$id}:1", $expected)
                 && array_map(static fn (array $row): string => $row[0]['text'], $rows) === $expectedPrices
                 && str_contains(sb02RichHtml($request), '<b>150,000 تومان</b>')
+                && str_contains(sb02RichHtml($request), '<p>صفحه 1 از 2</p>')
                 && str_contains(sb02RichHtml($request), '<tg-button type="callback_data" style="success" data="catalog:detail:'.$expected[0].':1">🛒 خرید</tg-button>')
                 && ! str_contains(sb02RichHtml($request), 'sales:catalog:preview:');
         }, index: 1);
@@ -356,7 +357,17 @@ it('shows bold escaped catalog prices and sorts both plan lists by each buyers p
 
             return $body['reply_markup']['inline_keyboard'][0][0]['callback_data'] === "catalog:detail:{$expensive}:1"
                 && $body['reply_markup']['inline_keyboard'][0][1]['callback_data'] === "catalog:detail:{$expensive}:1"
-                && $body['reply_markup']['inline_keyboard'][0][0]['text'] === '900,000 تومان';
+                && $body['reply_markup']['inline_keyboard'][0][0]['text'] === '900,000 تومان'
+                && str_contains(sb02RichHtml($request), '<p>صفحه 2 از 2</p>')
+                && str_contains(json_encode($body['reply_markup'], JSON_THROW_ON_ERROR), 'sales:buy:simple:2');
+        }, index: 1);
+    $bot->hearCallbackQueryData('sales:buy:simple:2')->reply()
+        ->assertRaw(static function (Request $request) use ($payload): bool {
+            $body = $payload($request);
+
+            return ! isset($body['rich_message'])
+                && str_contains((string) ($body['text'] ?? ''), 'صفحه 2 از 2')
+                && str_contains(json_encode($body['reply_markup'], JSON_THROW_ON_ERROR), 'catalog:detail:');
         }, index: 1);
 
     expect(collect(app(ListQuotedPresets::class)->handle($buyer->id))->pluck('plan.id')->all())
