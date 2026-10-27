@@ -12,6 +12,7 @@ use App\Modules\Sales\Application\ManagePlans;
 use App\Modules\Sales\Application\OrderReader;
 use App\Modules\Sales\Application\PlanDefinition;
 use App\Modules\Sales\Application\PlanPricingDefinition;
+use GuzzleHttp\Psr7\Request;
 use Illuminate\Cache\DatabaseStore;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
@@ -22,6 +23,7 @@ use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
+use SergiX44\Nutgram\Testing\FakeNutgram;
 use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
@@ -191,8 +193,8 @@ it('preserves unlimited traffic as NULL and lets only the owner view managed-pla
 
     $bot = sb03Bot(979010, $buyer);
     $bot->hearText('/orders')->reply()->assertCalled('sendRichMessage')
-        ->assertRaw(static function (\GuzzleHttp\Psr7\Request $request) use ($order): bool {
-            $data = \SergiX44\Nutgram\Testing\FakeNutgram::getActualData($request);
+        ->assertRaw(static function (Request $request) use ($order): bool {
+            $data = FakeNutgram::getActualData($request);
             $rich = is_string($data['rich_message'] ?? null)
                 ? json_decode($data['rich_message'], true, 512, JSON_THROW_ON_ERROR)
                 : ($data['rich_message'] ?? []);
@@ -205,8 +207,8 @@ it('preserves unlimited traffic as NULL and lets only the owner view managed-pla
                 && str_contains($markup, 'sales:checkout:orders:simple');
         });
     $bot->hearCallbackQueryData('sales:checkout:orders:simple')->reply()
-        ->assertRaw(static function (\GuzzleHttp\Psr7\Request $request): bool {
-            $data = \SergiX44\Nutgram\Testing\FakeNutgram::getActualData($request);
+        ->assertRaw(static function (Request $request): bool {
+            $data = FakeNutgram::getActualData($request);
 
             return ! isset($data['rich_message'])
                 && str_contains((string) ($data['text'] ?? ''), 'سفارش‌های من')
