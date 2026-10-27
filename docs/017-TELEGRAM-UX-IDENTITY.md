@@ -1,3 +1,7 @@
+## Sales Rich detail Phase 01 — implementation checkpoint (2026-10-27)
+
+For the scoped Phase 01 change, `sales:subs:view` renders the owner-verified Rich service detail directly, and the deprecated `sales:subs:rich` callback remains routed for old messages. The explicit `sales:subs:simple` callback renders normal Telegram HTML and refreshes in simple mode; it is also the fallback when Rich API editing fails. There is no more trial «✨ نمایش جدید» button. Rich header shows actual status, remaining quota and expiry above the three existing expandable sections. Preserve member/reseller permissions, sanitized customer/plan names, existing actions and no connection credentials inside Rich. The earlier opt-in-pilot paragraph below is historical and superseded **only for the scoped service-detail presentation**. Operator's actual client acceptance is still required before Phase 02. [Roadmap](032-SALES-RICH-UX-ROADMAP.md).
+
 ## Sales/reseller Rich UX — approved *plan*, gated rollout (2026-10-27)
 
 The nine-phase [Sales and Reseller Rich UX roadmap](032-SALES-RICH-UX-ROADMAP.md) governs **planned** (not yet implemented) improvements to the Sales Bot and its reseller-role pages. Only the previously merged opt-in service-detail pilot has actual operator-reported Telegram client validation; it remains opt-in until Phase 01 is separately implemented and accepted. The operator will inspect real Telegram UX after **each** phase's green-CI PR merge and must explicitly approve starting the next phase. Admin/Super Admin restyling is excluded.

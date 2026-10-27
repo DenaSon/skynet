@@ -46,6 +46,16 @@ beforeEach(function (): void {
     request()->setRouteResolver(static fn (): Route => $route);
 });
 
+function rslRichHtml(Request $request): string
+{
+    $data = FakeNutgram::getActualData($request);
+    $rich = is_string($data['rich_message'] ?? null)
+        ? json_decode($data['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+        : ($data['rich_message'] ?? []);
+
+    return (string) ($rich['html'] ?? '');
+}
+
 function rslUser(bool $reseller = true): User
 {
     $buyer = User::factory()->create();
@@ -175,8 +185,12 @@ it('lets a reseller name their service in Sales Bot and displays escaped labels 
         ->assertRaw(static function (Request $request) use ($order): bool {
             $data = FakeNutgram::getActualData($request);
 
-            return str_contains($data['text'], '📋 👤 علی &amp; &lt;دوست&gt;')
-                && ! str_contains($data['text'], "سرویس #{$order}")
+            $html = rslRichHtml($request);
+
+            return str_contains($html, '<h4>👤 علی &amp; &lt;دوست&gt;</h4>')
+                && str_contains($html, 'پلن: پلن نمایندگی')
+                && ! str_contains($html, "سرویس #{$order}")
+                && ! str_contains($html, 'علی & <دوست>')
                 && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), "sales:subs:label:edit:{$order}:0");
         }, index: 2);
 });
@@ -244,8 +258,10 @@ it('uses a plan-based title for unnamed services and page positions only for vis
         ->assertRaw(static function (Request $request) use ($newer): bool {
             $data = FakeNutgram::getActualData($request);
 
-            return str_contains($data['text'], '<b>📋 پلن نمایندگی</b>')
-                && ! str_contains($data['text'], "سرویس #{$newer}")
+            $html = rslRichHtml($request);
+
+            return str_contains($html, '<h4>📦 پلن نمایندگی</h4>')
+                && ! str_contains($html, "سرویس #{$newer}")
                 && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), "sales:subs:label:edit:{$newer}:0");
         }, index: 2);
 });

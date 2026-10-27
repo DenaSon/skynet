@@ -1,3 +1,5 @@
+> **Phase 01 source checkpoint — 2026-10-27:** [PR #255](https://github.com/DenaSon/skynet/pull/255) promotes `sales:subs:view` Rich by default, preserves the historical `sales:subs:rich` alias and provides `sales:subs:simple` fallback. The visible trial button is retired. **Operator review of the deployed default-route Rich UI is still pending.** Do not start Phase 02 until explicit acceptance. Other phases remain planned only.
+
 # DenaGate — Sales and Reseller Rich UX roadmap (2026-10-27)
 
 **Status: approved for planning and phased review only.** This document authorizes **no feature implementation** by itself. The operator requested CI optimization first (merged in PR #253), followed by documentation of the UX phases. Implementation of Phase 01 and each subsequent phase requires an explicit instruction; do not begin the next phase without reviewing the deployed Telegram client experience and recording the operator's acceptance.
