@@ -134,8 +134,7 @@ final readonly class SalesHomeUi
         $this->render($bot,
             '<b>🏠 صفحه اصلی DenaGate</b>'
             ."\n\nنوع حساب: <b>".$this->salesRole($actor).'</b>'
-            .$walletLine
-            ."\n\nبخش موردنظر را انتخاب کنید.",
+            .$walletLine,
             $keyboard,
         );
     }
@@ -326,7 +325,7 @@ final readonly class SalesHomeUi
         return $actor;
     }
 
-    public function account(Nutgram $bot): void
+    public function account(Nutgram $bot, bool $rich = true): void
     {
         $actor = $this->navigationActor($bot);
         if ($actor === null) {
@@ -381,6 +380,29 @@ final readonly class SalesHomeUi
             .$balance
             ."\n\n<blockquote>برای وضعیت لحظه‌ای و انقضا، جزئیات هر سرویس را ببینید.</blockquote>";
 
+        if ($rich) {
+            $html = '<h4>👤 حساب کاربری</h4>'
+                .'<p>👤 '.$this->name($actor->name)
+                .'<br>نوع حساب: <b>'.$this->salesRole($actor).'</b>'
+                .'<br>وضعیت حساب: 🟢 فعال</p>'
+                .'<p>📋 سرویس‌های ثبت‌شده: <b>'.$services['total'].'</b>'
+                .'<br>فعال در سوابق: <b>'.$services['activeRecorded'].'</b>'
+                .'<br>🧾 خریدهای پرداخت‌شده: <b>'.$purchases['count'].'</b></p>'
+                .($balance === '' ? '' : '<p>'.str_replace("\n", '', $balance).'</p>')
+                .'<details><summary>📊 سوابق مالی حساب</summary><p>مجموع پرداخت‌ها: <b>'
+                .TelegramUi::toman($purchases['amountRials']).' تومان</b></p></details>'
+                .'<details><summary>🪪 اطلاعات عضویت</summary><p>شناسه: '
+                .TelegramUi::escape((string) $actor->userId)
+                .'<br>تاریخ عضویت: '.($joined === null ? 'نامشخص' : TelegramUi::escape(PersianCalendar::date($joined)))
+                .'</p></details>'
+                .'<p>برای وضعیت لحظه‌ای و انقضا، جزئیات هر سرویس را بررسی کنید.</p>';
+            $plainKeyboard = clone $keyboard;
+            $keyboard->addRow(InlineKeyboardButton::make('↩️ نمایش ساده', callback_data: 'sales:account:simple'));
+            $this->renderRich($bot, $html, $text, $keyboard, $plainKeyboard);
+
+            return;
+        }
+
         $this->render($bot, $text, $keyboard);
     }
 
@@ -431,7 +453,7 @@ final readonly class SalesHomeUi
         $this->render($bot, $message, $keyboard);
     }
 
-    public function invite(Nutgram $bot): void
+    public function invite(Nutgram $bot, bool $rich = true): void
     {
         $actor = $this->navigationActor($bot);
         if ($actor === null) {
@@ -467,10 +489,28 @@ final readonly class SalesHomeUi
                 ."\n💵 مبلغ هر پاداش: <b>".TelegramUi::toman($invite->rewardAmountRials).' تومان</b>';
             $terms = 'پاداش فقط برای دوست جدید، پس از اولین خرید پولی و فعال‌سازی موفق سرویس به اعتبار شما اضافه می‌شود. ثبت‌نام، تست رایگان و خرید تکراری پاداش ندارند؛ پنل‌های فروش هم مشمول نیستند.';
         }
-        $this->render($bot,
-            '<b>👥 دعوت دوستان</b>'."\n\nلینک اختصاصی شما:\n".TelegramUi::code($url)
-                .$details."\n\n<blockquote>{$terms}</blockquote>",
-            $keyboard);
+        $plain = '<b>👥 دعوت دوستان</b>'."\n\nلینک اختصاصی شما:\n".TelegramUi::code($url)
+            .$details."\n\n<blockquote>{$terms}</blockquote>";
+        if ($rich) {
+            $html = '<h4>👥 دعوت دوستان</h4>'
+                .'<p>💰 مجموع پاداش‌ها: <b>'.TelegramUi::toman($invite->earnedRials).' تومان</b>'
+                .'<br>🎁 دوستان دارای پاداش: <b>'.$invite->rewardedCount.'</b>'
+                .'<br>👥 دوستان ثبت‌نام‌شده: '.$invite->joinedCount.'</p>';
+            if ($ordinary && $invite->remainingRewards !== null && $invite->rewardAmountRials !== null) {
+                $html .= '<p>🎯 ظرفیت باقی‌مانده: <b>'.$invite->remainingRewards.'</b>'
+                    .'<br>💵 پاداش هر معرفی: <b>'.TelegramUi::toman($invite->rewardAmountRials).' تومان</b></p>';
+            }
+            $html .= '<p>🔗 لینک اختصاصی شما:<br>'.TelegramUi::escape($url).'</p>'
+                .'<details><summary>📋 شرایط دریافت پاداش</summary><p>'
+                .TelegramUi::escape($terms).'</p></details>';
+            $plainKeyboard = clone $keyboard;
+            $keyboard->addRow(InlineKeyboardButton::make('↩️ نمایش ساده', callback_data: 'sales:invite:simple'));
+            $this->renderRich($bot, $html, $plain, $keyboard, $plainKeyboard);
+
+            return;
+        }
+
+        $this->render($bot, $plain, $keyboard);
     }
 
     public function fallback(Nutgram $bot): void
@@ -570,6 +610,29 @@ final readonly class SalesHomeUi
     private function back(): InlineKeyboardMarkup
     {
         return InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
+    }
+
+    /** Rich presentation only; a failed edit keeps the existing native actions. */
+    private function renderRich(
+        Nutgram $bot,
+        string $html,
+        string $plain,
+        InlineKeyboardMarkup $keyboard,
+        InlineKeyboardMarkup $plainKeyboard,
+    ): void {
+        if ($bot->isCallbackQuery()) {
+            TelegramUi::answerCallback($bot);
+        }
+        try {
+            TelegramUi::editRichText($bot, new InputRichMessage(html: $html, is_rtl: true), $keyboard);
+        } catch (TelegramException $exception) {
+            report($exception);
+            if ($bot->isCallbackQuery()) {
+                TelegramUi::editText($bot, $plain, $plainKeyboard, 'HTML');
+            } else {
+                $bot->sendMessage(text: $plain, reply_markup: $plainKeyboard, parse_mode: 'HTML');
+            }
+        }
     }
 
     private function render(Nutgram $bot, string $text, InlineKeyboardMarkup $keyboard): void

@@ -96,6 +96,16 @@ function uxr04Payload(Request $request): array
     return $data;
 }
 
+function uxr04RichHtml(Request $request): string
+{
+    $data = uxr04Payload($request);
+    $rich = is_string($data['rich_message'] ?? null)
+        ? json_decode($data['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+        : ($data['rich_message'] ?? []);
+
+    return (string) ($rich['html'] ?? '');
+}
+
 it('calculates paid purchase totals for the entire owned history without counting pending or rejected orders', function (): void {
     $buyer = uxr04Buyer(988101);
     $other = uxr04Buyer(988102);
@@ -113,10 +123,11 @@ it('calculates paid purchase totals for the entire owned history without countin
     $bot->hearText('/account')->reply()->assertRaw(static function (Request $request): bool {
         $data = uxr04Payload($request);
 
-        return str_contains($data['text'], '&lt;Customer&gt; &amp; Co.')
-            && str_contains($data['text'], 'خریدهای پرداخت‌شده: 2')
-            && str_contains($data['text'], 'عضویت:')
-            && $data['parse_mode'] === 'HTML';
+        return str_contains(uxr04RichHtml($request), '&lt;Customer&gt; &amp; Co.')
+            && str_contains(uxr04RichHtml($request), 'خریدهای پرداخت‌شده: <b>2</b>')
+            && str_contains(uxr04RichHtml($request), 'تاریخ عضویت:')
+            && str_contains(uxr04RichHtml($request), '<details>')
+            && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:account:simple');
     });
     Http::assertNothingSent();
 });
@@ -179,7 +190,7 @@ it('shows wallet to active members and resellers but denies inactive and revoked
         $data = uxr04Payload($request);
 
         return str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:wallet')
-            && str_contains($data['text'], 'اعتبار من');
+            && str_contains(uxr04RichHtml($request), 'اعتبار من');
     });
     $member->syncRoles([]);
     $bot->hearCallbackQueryData('sales:wallet')->reply()->assertRaw(static function (Request $request): bool {

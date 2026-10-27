@@ -64,6 +64,11 @@ $bot->onCallbackQueryData('sales:home:{page}', function (Nutgram $bot, string $p
     app(SalesHomeUi::class)->buy($bot, ctype_digit($page) && strlen($page) <= 4 ? (int) $page : 1);
 });
 
+// Backward-compatible plain HTML account/referral views for Rich-incompatible clients.
+$bot->onCallbackQueryData('sales:invite:simple', function (Nutgram $bot): void {
+    app(SalesHomeUi::class)->invite($bot, false);
+});
+
 $bot->onCallbackQueryData('sales:invite', function (Nutgram $bot): void {
     app(SalesHomeUi::class)->invite($bot);
 });
@@ -151,6 +156,10 @@ $bot->onCallbackQueryData('sales:panel:confirm', function (Nutgram $bot): void {
 
 $bot->onCallbackQueryData('sales:panel:cancel', function (Nutgram $bot): void {
     app(SalesPanelRequestUi::class)->cancel($bot);
+});
+
+$bot->onCallbackQueryData('sales:account:simple', function (Nutgram $bot): void {
+    app(SalesHomeUi::class)->account($bot, false);
 });
 
 $bot->onCallbackQueryData('sales:account', function (Nutgram $bot): void {

@@ -131,7 +131,7 @@ it('gives active Sales Panel holders their unique home builder action without an
         $body = polish152Payload($request);
         $markup = json_encode($body['reply_markup'], JSON_THROW_ON_ERROR);
 
-        return str_contains($body['text'], '🧩 پنل فروش')
+        return str_contains(polish152RichHtml($request), '🧩 پنل فروش')
             && str_contains($markup, 'menu:builder')
             && ! str_contains($markup, 'sales:panel:request');
     }, index: 1);
