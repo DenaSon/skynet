@@ -374,14 +374,23 @@ it('searches only private reseller customer names and routes results to original
                 ? json_decode($data['reply_markup'], true, 512, JSON_THROW_ON_ERROR)
                 : $data['reply_markup'];
 
-            return str_contains($data['text'], 'علی &amp; &lt;دوست&gt;')
-                && ! str_contains($data['text'], 'سارا')
-                && ! str_contains($data['text'], 'علی & <دوست>')
+            return str_contains(rslRichHtml($request), 'علی &amp; &lt;دوست&gt;')
+                && ! str_contains(rslRichHtml($request), 'سارا')
+                && ! str_contains(rslRichHtml($request), 'علی & <دوست>')
+                && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:subs:search:simple:0')
                 && ($markup['inline_keyboard'][0][0]['callback_data'] ?? null) === "sales:subs:view:{$named}:0"
                 && ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), "sales:subs:view:{$unmatched}:0");
         });
     expect(Cache::get($key)['mode'])->toBe('results');
 
+    $bot->hearCallbackQueryData('sales:subs:search:simple:0')->reply()
+        ->assertRaw(static function (Request $request) use ($named): bool {
+            $data = FakeNutgram::getActualData($request);
+
+            return ! isset($data['rich_message'])
+                && str_contains((string) ($data['text'] ?? ''), 'نتایج جستجو')
+                && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), "sales:subs:view:{$named}:0");
+        }, index: 1);
     $bot->hearCallbackQueryData('sales:subs:search:page:0')->reply()
         ->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('sales:subs:search:cancel')->reply()
@@ -414,9 +423,9 @@ it('pages matching names and protects missing state, group chats and revoked res
         ->assertRaw(static function (Request $request): bool {
             $data = FakeNutgram::getActualData($request);
 
-            return str_contains($data['text'], 'نتایج جستجو')
-                && str_contains($data['text'], 'مشتری آزمایشی 2')
-                && ! str_contains($data['text'], 'مشتری آزمایشی 8');
+            return str_contains(rslRichHtml($request), 'نتایج جستجو')
+                && str_contains(rslRichHtml($request), 'مشتری آزمایشی 2')
+                && ! str_contains(rslRichHtml($request), 'مشتری آزمایشی 8');
         }, index: 1);
 
     $bot->hearCallbackQueryData('sales:home')->reply();
@@ -534,12 +543,26 @@ it('makes the Sales report visible only to resellers and provides 7/30 day navig
         ->assertRaw(static function (Request $request): bool {
             $data = FakeNutgram::getActualData($request);
 
-            return str_contains($data['text'], 'گزارش‌های من')
-                && str_contains($data['text'], 'مجموع فروش')
+            return str_contains(rslRichHtml($request), 'گزارش فروش')
+                && str_contains(rslRichHtml($request), 'مجموع فروش تأییدشده')
+                && str_contains(rslRichHtml($request), '<summary>🛒 جزئیات فروش</summary>')
                 && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:report:7')
-                && ! str_contains($data['text'], 'شماره موبایل');
+                && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:report:simple:30')
+                && ! str_contains(rslRichHtml($request), 'شماره موبایل');
         }, index: 1);
+    $bot->hearCallbackQueryData('sales:report:simple:7')->reply()->assertRaw(static function (Request $request): bool {
+        $data = FakeNutgram::getActualData($request);
+
+        return ! isset($data['rich_message'])
+            && str_contains((string) ($data['text'] ?? ''), 'گزارش‌های من · 7 روز اخیر');
+    }, index: 1);
     $buyer->syncRoles(['member']);
+    $bot->hearCallbackQueryData('sales:report:simple:30')->reply()->assertRaw(static function (Request $request): bool {
+        $data = FakeNutgram::getActualData($request);
+
+        return ! isset($data['rich_message'])
+            && str_contains((string) ($data['text'] ?? ''), 'فقط برای نمایندگان');
+    }, index: 1);
     $bot->hearCallbackQueryData('sales:report:30')->reply()
         ->assertRaw(static function (Request $request): bool {
             $data = FakeNutgram::getActualData($request);
