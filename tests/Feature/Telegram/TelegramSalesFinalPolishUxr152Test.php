@@ -54,6 +54,16 @@ function polish152Payload(Request $request): array
     return $data;
 }
 
+function polish152RichHtml(Request $request): string
+{
+    $data = polish152Payload($request);
+    $rich = is_string($data['rich_message'] ?? null)
+        ? json_decode($data['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+        : ($data['rich_message'] ?? []);
+
+    return (string) ($rich['html'] ?? '');
+}
+
 it('displays an ordinary member role and real wallet balance after returning home', function (): void {
     $member = User::factory()->create();
     $bot = polish152Bot(987001, $member);
@@ -165,7 +175,7 @@ it('shows reseller-only builder guidance under Sales support without exposing it
         ->assertRaw(static function (Request $request): bool {
             $body = polish152Payload($request);
 
-            return str_contains($body['text'], 'راهنمای پلن‌ساز')
+            return str_contains(polish152RichHtml($request), 'راهنمای پلن‌ساز')
                 && str_contains(json_encode($body['reply_markup'], JSON_THROW_ON_ERROR), 'menu:builder');
         }, index: 1);
     $reseller->syncRoles(['member']);
@@ -196,13 +206,15 @@ it('offers a readable panel setup guide with existing credit and application des
             $rows = $body['reply_markup']['inline_keyboard'];
             $callbacks = array_column(array_merge(...$rows), 'callback_data');
 
-            return $body['parse_mode'] === 'HTML'
-                && str_contains($body['text'], '<b>۷۵۰٬۰۰۰ تومان</b>')
-                && str_contains($body['text'], '<b>۱ ساعت</b>')
-                && str_contains($body['text'], 'در صورت تأیید')
-                && str_contains($body['text'], '<b>۳۵٪ تخفیف نمایندگی</b>')
-                && str_contains($body['text'], '<blockquote>۷۵۰ هزار تومان، اعتبار اولیه شماست؛ هزینه راه‌اندازی نیست')
-                && str_contains($body['text'], 'نام، نام خانوادگی و شماره موبایل')
+            $html = polish152RichHtml($request);
+
+            return str_contains($html, '۷۵۰٬۰۰۰ تومان')
+                && str_contains($html, '۱ ساعت')
+                && str_contains($html, 'در صورت تأیید')
+                && str_contains($html, '۳۵٪ تخفیف نمایندگی')
+                && str_contains($html, '۷۵۰ هزار تومان، اعتبار اولیه شماست؛ هزینه راه‌اندازی نیست')
+                && str_contains($html, 'نام، نام خانوادگی و شماره موبایل')
+                && substr_count($html, '<details>') === 4
                 && $rows[0][0]['callback_data'] === 'sales:wallet:topup'
                 && $rows[0][0]['style'] === 'success'
                 && $rows[1][0]['callback_data'] === 'sales:panel:request'
