@@ -50,6 +50,16 @@ function denabanBot(int $telegramId): Nutgram
 }
 
 /** @return array<string,mixed> */
+function denabanRichHtml(NutgramRequest $request): string
+{
+    $payload = denabanPayload($request);
+    $rich = is_string($payload['rich_message'] ?? null)
+        ? json_decode($payload['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+        : ($payload['rich_message'] ?? []);
+
+    return (string) ($rich['html'] ?? '');
+}
+
 function denabanPayload(NutgramRequest $request): array
 {
     $data = FakeNutgram::getActualData($request);
@@ -116,7 +126,7 @@ it('shows canonical verified inflows and sales independently of unavailable RW',
         ->and($snap['pendingTopups'])->toBe(0);
 
     $bot = denabanBot(991201);
-    $bot->hearCallbackQueryData('denaban:show')->reply()->assertRaw(static function (NutgramRequest $r): bool {
+    $bot->hearCallbackQueryData('denaban:simple')->reply()->assertRaw(static function (NutgramRequest $r): bool {
         $p = denabanPayload($r);
 
         return str_contains($p['text'], '🏔️ دنابان | وضعیت دنا')
@@ -140,13 +150,13 @@ it('rejects unauthorized, revoked and group callbacks without RW calls', functio
 
     expect(fn () => app(ReadAdminCommandCenter::class)->handle($other->id))
         ->toThrow(AuthorizationException::class);
-    denabanBot(991203)->hearCallbackQueryData('denaban:show')->reply()->assertCalled('answerCallbackQuery');
+    denabanBot(991203)->hearCallbackQueryData('denaban:simple')->reply()->assertCalled('answerCallbackQuery');
 
     $root->syncRoles(['member']);
     $bot = denabanBot(991201);
-    $bot->hearCallbackQueryData('denaban:show')->reply()->assertCalled('answerCallbackQuery');
+    $bot->hearCallbackQueryData('denaban:simple')->reply()->assertCalled('answerCallbackQuery');
     $bot->setCommonChat(Chat::make(-991201, ChatType::GROUP));
-    $bot->hearCallbackQueryData('denaban:show')->reply()->assertNoReply();
+    $bot->hearCallbackQueryData('denaban:simple')->reply()->assertNoReply();
     Http::assertNothingSent();
 });
 
@@ -199,7 +209,7 @@ it('shows only safe per-node RW telemetry using the existing inventory GET witho
             : Http::response(['response' => $payload], 200);
     });
 
-    denabanBot(991201)->hearCallbackQueryData('denaban:show')->reply()
+    denabanBot(991201)->hearCallbackQueryData('denaban:simple')->reply()
         ->assertRaw(static function (NutgramRequest $request): bool {
             $payload = denabanPayload($request);
             $text = $payload['text'];
@@ -225,7 +235,7 @@ it('shows only safe per-node RW telemetry using the existing inventory GET witho
 it('keeps Denaban financial/local stats readable when the RW node inventory fails', function (): void {
     denabanRoot();
     Http::fake(['https://denaban.test/*' => Http::response([], 503)]);
-    denabanBot(991201)->hearCallbackQueryData('denaban:show')->reply()
+    denabanBot(991201)->hearCallbackQueryData('denaban:simple')->reply()
         ->assertRaw(static function (NutgramRequest $request): bool {
             $payload = denabanPayload($request);
 
@@ -234,4 +244,61 @@ it('keeps Denaban financial/local stats readable when the RW node inventory fail
                 && str_contains($payload['text'], '<b>👥 کاربران و اشتراک‌ها</b>');
         }, index: 1);
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
+});
+
+it('renders a bounded RTL rich executive dashboard and retains navigation and simple view', function (): void {
+    denabanRoot();
+    Http::fake(['https://denaban.test/*' => Http::response([], 503)]);
+
+    denabanBot(991201)->hearCallbackQueryData('denaban:show')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $payload = denabanPayload($request);
+            $rich = is_string($payload['rich_message'] ?? null)
+                ? json_decode($payload['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+                : ($payload['rich_message'] ?? []);
+            $html = denabanRichHtml($request);
+            $buttons = json_encode($payload['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return ($rich['is_rtl'] ?? null) === true
+                && str_contains($html, '<h2>🏔️ دنابان')
+                && substr_count($html, '<table bordered striped compact>') === 3
+                && str_contains($html, '<details><summary>جزئیات نودها</summary>')
+                && str_contains($html, 'نامشخص')
+                && str_contains($html, 'فروش امروز')
+                && ! str_contains($html, 'super-secret')
+                && str_contains($buttons, 'denaban:simple')
+                && str_contains($buttons, 'denaban:show')
+                && str_contains($buttons, 'menu:admin:finance')
+                && str_contains($buttons, 'menu:admin:servers')
+                && str_contains($buttons, 'menu:admin');
+        }, index: 1);
+
+    denabanBot(991201)->hearCallbackQueryData('denaban:simple')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $payload = denabanPayload($request);
+            $buttons = json_encode($payload['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return ($payload['parse_mode'] ?? null) === 'HTML'
+                && str_contains($payload['text'], '🏔️ دنابان | وضعیت دنا')
+                && str_contains($buttons, 'denaban:show')
+                && ! str_contains($buttons, 'denaban:simple');
+        }, index: 1);
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
+});
+
+it('keeps denied and revoked users out of both Denaban render modes', function (): void {
+    $root = denabanRoot();
+    $ordinary = User::factory()->admin()->create();
+    TelegramAccount::query()->create(['user_id' => $ordinary->id, 'telegram_user_id' => 991203]);
+    Http::fake();
+
+    denabanBot(991203)->hearCallbackQueryData('denaban:show')->reply()
+        ->assertCalled('answerCallbackQuery');
+    denabanBot(991203)->hearCallbackQueryData('denaban:simple')->reply()
+        ->assertCalled('answerCallbackQuery');
+
+    $root->syncRoles(['member']);
+    denabanBot(991201)->hearCallbackQueryData('denaban:show')->reply()
+        ->assertCalled('answerCallbackQuery');
+    Http::assertNothingSent();
 });

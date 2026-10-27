@@ -9,6 +9,8 @@ use App\Modules\Provisioning\Application\ReadAdminCommandCenter;
 use App\Support\PersianCalendar;
 use Illuminate\Auth\Access\AuthorizationException;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
+use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 
@@ -22,7 +24,7 @@ final readonly class AdminCommandCenterUi
         private MenuRenderer $menus,
     ) {}
 
-    public function show(Nutgram $bot): void
+    public function show(Nutgram $bot, bool $simple = false): void
     {
         $telegramId = $this->private->id($bot);
         if ($telegramId === null) {
@@ -41,6 +43,7 @@ final readonly class AdminCommandCenterUi
         }
 
         $failures = null;
+        $snapshot = null;
         try {
             $snapshot = $this->center->handle($actor->userId);
             $text = $this->report($snapshot);
@@ -75,6 +78,25 @@ final readonly class AdminCommandCenterUi
             $keyboard->addRow(InlineKeyboardButton::make('🧾 رسیدهای خرید', callback_data: 'bank:list'));
         }
         $keyboard->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
+        $keyboard->addRow(InlineKeyboardButton::make(
+            $simple ? '✨ نمای جدید' : '📝 نمای ساده',
+            callback_data: $simple ? 'denaban:show' : 'denaban:simple',
+        ));
+
+        if (! $simple && $snapshot !== null) {
+            try {
+                TelegramUi::editRichText(
+                    $bot,
+                    new InputRichMessage(html: $this->richReport($snapshot), is_rtl: true),
+                    $keyboard,
+                );
+
+                return;
+            } catch (TelegramException $exception) {
+                report($exception);
+                // Keep the existing authorized HTML screen and all navigation.
+            }
+        }
 
         if ($bot->isCallbackQuery()) {
             TelegramUi::editText($bot, $text, $keyboard, 'HTML');
@@ -144,6 +166,88 @@ final readonly class AdminCommandCenterUi
         ];
 
         return implode("\n", $lines);
+    }
+
+    /**
+     * Read-only Rich presentation of the exact same authorized snapshot used by
+     * the legacy HTML view. Tables are deliberately two-column for mobile RTL.
+     *
+     * @param array{cash:array<string,mixed>|null,stats:array<string,mixed>|null,pendingTopups:int|null,receivedAt:string} $snapshot
+     */
+    private function richReport(array $snapshot): string
+    {
+        $cash = $snapshot['cash'];
+        $stats = $snapshot['stats'];
+        $pendingTopups = $snapshot['pendingTopups'];
+
+        $items = [
+            $pendingTopups,
+            self::number($stats, 'receiptsPending'),
+            self::number($stats, 'provisioningReview'),
+            self::number($stats, 'fulfillmentReview'),
+            self::number($stats, 'failedJobs'),
+            self::number($stats, 'notificationIssues'),
+        ];
+        $known = array_filter($items, static fn (?int $n): bool => $n !== null);
+        $incomplete = count($known) !== count($items)
+            || $cash === null || self::number($stats, 'nodes') === null;
+        $todo = array_sum($known);
+        $summary = $todo > 0
+            ? number_format($todo).' مورد برای پیگیری ثبت شده؛ جزئیات را بررسی کنید.'
+            : ($incomplete
+                ? 'وضعیت بخش‌های در دسترس بررسی شد؛ بعضی اطلاعات کامل نیست.'
+                : 'در بخش‌های بررسی‌شده موردی برای پیگیری ثبت نشده.');
+
+        $nodes = implode('', array_map(
+            static fn (string $line): string => '<p>'.$line.'</p>',
+            self::nodeLines($stats),
+        ));
+
+        return '<h2>🏔️ دنابان | وضعیت دنا</h2>'
+            .'<p>'.TelegramUi::escape($summary).'</p>'
+            .'<h3>⚠️ نیازمند رسیدگی</h3>'
+            .self::richTable([
+                ['🧾 رسیدهای خرید', self::format(self::number($stats, 'receiptsPending'))],
+                ['💳 رسیدهای شارژ', self::format($pendingTopups)],
+                ['📦 عملیات اشتراک', self::format(self::number($stats, 'provisioningReview'))],
+                ['🔧 سفارش‌های نیازمند بررسی', self::format(self::number($stats, 'fulfillmentReview'))],
+                ['⚙️ کارهای ناموفق', self::format(self::number($stats, 'failedJobs'))],
+                ['🔔 اعلان‌های ناموفق', self::format(self::number($stats, 'notificationIssues'))],
+            ])
+            .'<h3>💰 وضعیت مالی</h3>'
+            .self::richTable([
+                ['💵 دریافتی تأییدشده از ابتدا', self::toman(self::number($cash, 'cashInRials'))],
+                ['🛒 فروش امروز', self::toman(self::number($stats, 'salesTodayRials'))],
+                ['💼 مانده اعتبار کاربران', self::toman(self::number($cash, 'currentWalletBalanceRials'))],
+            ])
+            .'<h3>👥 کاربران و اشتراک‌ها</h3>'
+            .self::richTable([
+                ['کاربران دناگیت', self::format(self::number($stats, 'localUsers'))],
+                ['اشتراک‌های فعال پنل', self::format(self::number($stats, 'subscriptionsActive'))],
+                ['آنلاین در پنل', self::format(self::number($stats, 'online'))],
+            ])
+            .'<h3>🖥️ وضعیت سرورها</h3>'
+            .'<p><b>نودهای متصل:</b> '.self::format(self::number($stats, 'connected'))
+            .' از '.self::format(self::number($stats, 'nodes'))
+            .' | <b>هاست‌ها:</b> '.self::format(self::number($stats, 'hosts')).'</p>'
+            .'<details><summary>جزئیات نودها</summary>'.$nodes.'</details>'
+            .'<details><summary>توضیحات آمار</summary><p>'
+            .'دریافتی‌ها فقط پرداخت‌های ثبت و تأییدشده‌اند؛ موجودی بانک یا سود خالص نیستند. '
+            .'مانده اعتبار کاربران فروش جدید نیست. اتصال نود نیز تضمین دسترسی کاربران نیست. '
+            .'«نامشخص» به معنی صفر نیست.</p></details>'
+            .'<footer>🔄 آخرین بررسی: '.TelegramUi::escape(PersianCalendar::localDateTime($snapshot['receivedAt'])).'</footer>';
+    }
+
+    /** @param list<array{string,string}> $rows */
+    private static function richTable(array $rows): string
+    {
+        $html = '<table bordered striped compact>';
+        foreach ($rows as [$label, $value]) {
+            $html .= '<tr><td>'.TelegramUi::escape($label).'</td><td align="left"><b>'
+                .TelegramUi::escape($value).'</b></td></tr>';
+        }
+
+        return $html.'</table>';
     }
 
     /**

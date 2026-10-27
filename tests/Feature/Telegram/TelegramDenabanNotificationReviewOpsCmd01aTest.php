@@ -78,7 +78,7 @@ it('shows the review button only with terminal notification issues and hides it 
     $root = denabanIssuesRoot();
     Http::fake(['https://denaban-issues.test/*' => Http::response([], 503)]);
 
-    denabanIssuesBot(992201)->hearCallbackQueryData('denaban:show')->reply()
+    denabanIssuesBot(992201)->hearCallbackQueryData('denaban:simple')->reply()
         ->assertRaw(static function (NutgramRequest $r): bool {
             $p = denabanIssuesPayload($r);
 
@@ -86,7 +86,7 @@ it('shows the review button only with terminal notification issues and hides it 
         }, index: 1);
 
     $id = denabanIssuesInsert($root->id, 1, 'unavailable', 'not_started');
-    denabanIssuesBot(992201)->hearCallbackQueryData('denaban:show')->reply()
+    denabanIssuesBot(992201)->hearCallbackQueryData('denaban:simple')->reply()
         ->assertRaw(static function (NutgramRequest $r): bool {
             $p = denabanIssuesPayload($r);
 
@@ -96,7 +96,7 @@ it('shows the review button only with terminal notification issues and hides it 
 
     // A status transition from the real dispatcher, not the read-only UI.
     DB::table('telegram_notification_deliveries')->where('id', $id)->update(['state' => 'sent']);
-    denabanIssuesBot(992201)->hearCallbackQueryData('denaban:show')->reply()
+    denabanIssuesBot(992201)->hearCallbackQueryData('denaban:simple')->reply()
         ->assertRaw(static function (NutgramRequest $r): bool {
             $p = denabanIssuesPayload($r);
 
@@ -206,7 +206,7 @@ it('ignores only superseded activation notices while preserving the full deliver
         ->and($read->handle($root->id, '1')['total'])->toBe(0)
         ->and(DB::table('telegram_notification_deliveries')->count())->toBe(3);
 
-    denabanIssuesBot(992201)->hearCallbackQueryData('denaban:show')->reply()
+    denabanIssuesBot(992201)->hearCallbackQueryData('denaban:simple')->reply()
         ->assertRaw(static function (NutgramRequest $request): bool {
             $payload = denabanIssuesPayload($request);
 
@@ -222,7 +222,7 @@ it('ignores only superseded activation notices while preserving the full deliver
         ->and($issues['total'])->toBe(1)
         ->and($issues['items'][0]['id'])->toBe($id);
 
-    denabanIssuesBot(992201)->hearCallbackQueryData('denaban:show')->reply()
+    denabanIssuesBot(992201)->hearCallbackQueryData('denaban:simple')->reply()
         ->assertRaw(static function (NutgramRequest $request): bool {
             $payload = denabanIssuesPayload($request);
 

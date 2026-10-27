@@ -1,3 +1,7 @@
+## Admin Denaban Rich executive view — 2026-10-28
+
+Denaban's private super-admin read view uses RTL Rich HTML and short two-column `<table bordered striped compact>` sections for actionable issues, verified finance and account counts. Keep zero distinct from unknown, meaningful financial labels and provider-connectivity caveats. Show connected/total nodes up front; place only existing bounded, sanitized per-node telemetry in `<details>`. Preserve every existing Admin inline CTA and explicit `denaban:simple` HTML fallback (including auto fallback on Telegram Rich transport errors), no new authorization or provider reads. Verify layouts in real mobile clients independently of automated transport tests; other admin screens stay unchanged.
+
 ## Sales Rich UX Phase 09 — pagination visibility and cross-screen closure (2026-10-28)
 
 When Sales ready-buy plans span multiple five-item pages, show «صفحه N از M» **in the Rich message itself**, just as the existing native fallback and full published catalog already do. Keep the prev/next callback IDs and plan-price order untouched. Cross-screen final checks cover consistent visible headings, actual amounts and units, honest historical versus live data, native payment/Contact/label forms, accessible primary buttons, simple HTML fallbacks, safe owner/role access and Admin isolation. Do not add new UX merely for consistency; fix only reproduced issues. Real Telegram acceptance and other mobile/desktop client compatibility cannot be inferred from PHP/CI tests. [Phase 09 matrix](032-SALES-RICH-UX-ROADMAP.md).
