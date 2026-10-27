@@ -340,6 +340,9 @@ $bot->onCallbackQueryData('node3:cancel', function (Nutgram $bot): void {
 $bot->onCallbackQueryData('denaban:show', function (Nutgram $bot): void {
     app(AdminCommandCenterUi::class)->show($bot);
 });
+$bot->onCallbackQueryData('denaban:simple', function (Nutgram $bot): void {
+    app(AdminCommandCenterUi::class)->show($bot, simple: true);
+});
 
 // OPS-CMD-01A: private, read-only investigation of terminal notification deliveries.
 $bot->onCallbackQueryData('denaban:notifications:{page}', function (Nutgram $bot, string $page): void {
