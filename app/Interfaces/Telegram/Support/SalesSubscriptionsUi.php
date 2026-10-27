@@ -24,6 +24,8 @@ use SergiX44\Nutgram\Telegram\Types\Internal\InputFile;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 use SergiX44\Nutgram\Telegram\Types\Message\LinkPreviewOptions;
+use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use Throwable;
 
 /**
@@ -142,7 +144,7 @@ final readonly class SalesSubscriptionsUi
         $this->render($bot, trim(implode("\n", $lines)), $keyboard);
     }
 
-    public function detail(Nutgram $bot, string $id, string $cursor = '0'): void
+    public function detail(Nutgram $bot, string $id, string $cursor = '0', bool $rich = false): void
     {
         $viewer = $this->viewer($bot);
         if ($viewer === null) {
@@ -183,6 +185,10 @@ final readonly class SalesSubscriptionsUi
         ];
         $keyboard = InlineKeyboardMarkup::make();
         $acknowledged = false;
+        $richStatus = '';
+        $richRemaining = '';
+        $richUsage = 'مصرف این سرویس هنوز قابل بررسی نیست.';
+        $richExpiry = '';
 
         if ($details->canRequestLink) {
             TelegramUi::answerCallback($bot);
@@ -203,12 +209,19 @@ final readonly class SalesSubscriptionsUi
                     $exhausted => '🟠 حجم به پایان رسیده',
                     default => '🟢 فعال',
                 };
-                $lines[] = 'وضعیت سرویس: <b>'.$status.'</b>';
-                $lines[] = 'مصرف: '.$this->gb($live->usedBytes).' گیگابایت';
-                $lines[] = 'باقی‌مانده: '.($live->limitBytes === 0
+                $remaining = $live->limitBytes === 0
                     ? 'نامحدود'
-                    : $this->gb(max(0, $live->limitBytes - $live->usedBytes)).' گیگابایت');
-                array_push($lines, ...$this->expiryDisplay->lines($expiresAt, $now));
+                    : $this->gb(max(0, $live->limitBytes - $live->usedBytes)).' گیگابایت';
+                $used = $this->gb($live->usedBytes).' گیگابایت';
+                $expiryLines = $this->expiryDisplay->lines($expiresAt, $now);
+                $lines[] = 'وضعیت سرویس: <b>'.$status.'</b>';
+                $lines[] = 'مصرف: '.$used;
+                $lines[] = 'باقی‌مانده: '.$remaining;
+                array_push($lines, ...$expiryLines);
+                $richStatus = 'وضعیت سرویس: <b>'.$status.'</b>';
+                $richRemaining = 'باقی‌مانده: <b>'.$remaining.'</b>';
+                $richUsage = 'مصرف: '.$used.'<br>باقی‌مانده: '.$remaining;
+                $richExpiry = implode('<br>', $expiryLines);
                 $canRenew = in_array($live->status, ['ACTIVE', 'LIMITED', 'EXPIRED'], true)
                     && $this->renewals->available($viewer, $orderId);
                 if ($canRenew) {
@@ -237,8 +250,12 @@ final readonly class SalesSubscriptionsUi
             } catch (Throwable) {
                 $lines[] = 'وضعیت سرویس: <b>⚪ فعلاً قابل بررسی نیست</b>';
                 $lines[] = '<blockquote>دریافت وضعیت لحظه‌ای ممکن نشد. کمی بعد «بررسی دوباره» را بزنید.</blockquote>';
+                $richStatus = 'وضعیت سرویس: <b>⚪ فعلاً قابل بررسی نیست</b>';
+                $richUsage = 'دریافت وضعیت لحظه‌ای ممکن نشد. کمی بعد بررسی دوباره را بزنید.';
             }
         } else {
+            $richStatus = 'وضعیت ثبت‌شده: '.$this->status($item->status);
+            $richUsage = 'آمار مصرف پس از فعال‌سازی سرویس در دسترس خواهد بود.';
             $lines[] = 'لینک اتصال فقط پس از پرداخت و فعال‌سازی در دسترس است.';
             $keyboard->addRow(InlineKeyboardButton::make(
                 '📋 وضعیت سفارش و پرداخت',
@@ -253,9 +270,40 @@ final readonly class SalesSubscriptionsUi
             ));
         }
 
-        $keyboard->addRow(InlineKeyboardButton::make('🔄 بررسی دوباره', callback_data: 'sales:subs:view:'.$orderId.':'.$cursor))
+        if ($rich) {
+            $keyboard->addRow(InlineKeyboardButton::make('📚 آموزش اتصال', callback_data: 'sales:help:apps'))
+                ->addRow(InlineKeyboardButton::make('↩️ نمایش ساده', callback_data: 'sales:subs:view:'.$orderId.':'.$cursor));
+        } else {
+            $keyboard->addRow(InlineKeyboardButton::make('✨ نمایش جدید', callback_data: 'sales:subs:rich:'.$orderId.':'.$cursor));
+        }
+
+        $keyboard->addRow(InlineKeyboardButton::make('🔄 بررسی دوباره', callback_data: 'sales:subs:'.($rich ? 'rich:' : 'view:').$orderId.':'.$cursor))
             ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'sales:subs:list:'.$cursor))
             ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
+
+        if ($rich) {
+            $richHtml = '<h4>'.$lines[0].'</h4>'
+                .'<p>'.$richStatus.($richRemaining === '' ? '' : '<br>'.$richRemaining)
+                .($richExpiry === '' ? '' : '<br>'.$richExpiry).'</p>'
+                .'<details><summary>📊 جزئیات مصرف</summary><p>'.$richUsage.'</p></details>'
+                .'<details><summary>🧾 مشخصات سفارش</summary><p>پلن: '.TelegramUi::escape($this->clean($item->productName))
+                .'<br>حجم خرید: '.($item->trafficGb === null ? 'نامحدود' : $item->trafficGb.' گیگابایت')
+                .'<br>مدت خرید: '.$item->durationDays.' روز'
+                .'<br>مبلغ: <b>'.TelegramUi::toman($item->totalPriceRials).' تومان</b></p></details>'
+                .'<details><summary>📱 راهنمای اتصال</summary><p>برای دریافت کد اتصال یا دیدن آموزش دستگاه خود از دکمه‌های همین صفحه استفاده کنید.</p></details>';
+            try {
+                if (! $acknowledged) {
+                    TelegramUi::answerCallback($bot);
+                }
+                TelegramUi::editRichText($bot, new InputRichMessage(html: $richHtml, is_rtl: true), $keyboard);
+            } catch (TelegramException $exception) {
+                // A preview must never strand a buyer on an unsupported rich payload.
+                report($exception);
+                $this->render($bot, implode("\n", $lines), $keyboard, false);
+            }
+
+            return;
+        }
 
         $this->render($bot, implode("\n", $lines), $keyboard, ! $acknowledged);
     }
