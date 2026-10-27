@@ -50,6 +50,17 @@ function sb02Bot(int $telegramId, ?User $user = null): Nutgram
     return $bot;
 }
 
+/** Rich HTML sent to Telegram, never plain text masquerading as HTML. */
+function sb02RichHtml(Request $request): string
+{
+    $body = FakeNutgram::getActualData($request);
+    $rich = is_string($body['rich_message'] ?? null)
+        ? json_decode($body['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+        : ($body['rich_message'] ?? []);
+
+    return (string) ($rich['html'] ?? '');
+}
+
 function sb02Root(): User
 {
     $root = User::factory()->create();
@@ -303,12 +314,11 @@ it('shows bold escaped catalog prices and sorts both plan lists by each buyers p
 
             return $callbacks === array_map(static fn (int $id): string => "catalog:detail:{$id}:1", $expected)
                 && array_map(static fn (array $row): string => $row[0]['text'], $rows) === $expectedPrices
-                && $body['parse_mode'] === 'HTML'
-                && str_contains($body['text'], '<b>150,000 تومان</b>')
-                && str_contains($body['text'], '&lt;ارزان &amp; &quot;پایه&quot;&gt;')
-                && ! str_contains($body['text'], 'قیمت‌ها از تعرفه')
-                && ! str_contains($body['text'], 'مبلغ نمایش‌داده‌شده')
-                && ! str_contains($body['text'], 'قیمت هنگام انتخاب دوباره بررسی می‌شود');
+                && str_contains(sb02RichHtml($request), '<b>150,000 تومان</b>')
+                && str_contains(sb02RichHtml($request), '&lt;ارزان &amp; &quot;پایه&quot;&gt;')
+                && str_contains(sb02RichHtml($request), '<tg-button-row>')
+                && ! str_contains(sb02RichHtml($request), 'قیمت‌ها از تعرفه')
+                && ! str_contains(sb02RichHtml($request), 'مبلغ نمایش‌داده‌شده');
         }, index: 1);
     $bot->hearCallbackQueryData('catalog:list:2')->reply()
         ->assertRaw(static function (Request $request) use ($payload, $expensive): bool {
@@ -317,7 +327,7 @@ it('shows bold escaped catalog prices and sorts both plan lists by each buyers p
             return $body['reply_markup']['inline_keyboard'][0][0]['callback_data'] === "catalog:detail:{$expensive}:2"
                 && $body['reply_markup']['inline_keyboard'][0][1]['callback_data'] === "catalog:detail:{$expensive}:2"
                 && $body['reply_markup']['inline_keyboard'][0][0]['text'] === '900,000 تومان'
-                && substr_count($body['text'], '💰 مبلغ: <b>') === 1;
+                && substr_count(sb02RichHtml($request), '<tg-button-row>') === 1;
         }, index: 1);
     $bot->hearCallbackQueryData('sales:buy')->reply()
         ->assertRaw(static function (Request $request) use ($payload, $expected, $expectedPrices): bool {
@@ -334,7 +344,7 @@ it('shows bold escaped catalog prices and sorts both plan lists by each buyers p
 
             return $callbacks === array_map(static fn (int $id): string => "catalog:detail:{$id}:1", $expected)
                 && array_map(static fn (array $row): string => $row[0]['text'], $rows) === $expectedPrices
-                && str_contains($body['text'], '<b>150,000 تومان</b>');
+                && str_contains(sb02RichHtml($request), '<b>150,000 تومان</b>');
         }, index: 1);
     $bot->hearCallbackQueryData('sales:home:2')->reply()
         ->assertRaw(static function (Request $request) use ($payload, $expensive): bool {
@@ -348,6 +358,68 @@ it('shows bold escaped catalog prices and sorts both plan lists by each buyers p
     expect(collect(app(ListQuotedPresets::class)->handle($buyer->id))->pluck('plan.id')->all())
         ->toBe([...$expected, $expensive])
         ->and(DB::table('sales_orders')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe(0)
+        ->and(DB::table('provisioning_operations')->count())->toBe(0);
+    Http::assertNothingSent();
+})->with(['member' => false, 'reseller' => true]);
+
+it('provides a read-only Rich quote with a real inline buy callback and native fallback', function (bool $isReseller): void {
+    sb02SalesWebhookContext();
+    $root = sb02Root();
+    $plan = sb02Plan($root, 'rich-preview', discount: 35);
+    $buyer = User::factory()->create();
+    if ($isReseller) {
+        $buyer->assignRole('reseller');
+    }
+    $bot = sb02Bot(977071, $buyer);
+    $expectedPrice = $isReseller ? '65,000 تومان' : '100,000 تومان';
+
+    $bot->hearCallbackQueryData('catalog:list:1')->reply()->assertRaw(static function (Request $request) use ($plan, $expectedPrice): bool {
+        $body = FakeNutgram::getActualData($request);
+        $buttons = (string) ($body['reply_markup'] ?? '');
+        $html = sb02RichHtml($request);
+
+        return str_contains($html, $expectedPrice)
+            && str_contains($html, 'sales:catalog:preview:'.$plan.':1')
+            && str_contains($buttons, 'catalog:detail:'.$plan.':1')
+            && str_contains($buttons, 'sales:catalog:simple:1');
+    }, index: 1);
+
+    $bot->hearCallbackQueryData("sales:catalog:preview:{$plan}:1")->reply()
+        ->assertCalled('editMessageText')
+        ->assertRaw(static function (Request $request) use ($plan, $isReseller, $expectedPrice): bool {
+            $html = sb02RichHtml($request);
+            $data = FakeNutgram::getActualData($request);
+            $rich = is_string($data['rich_message'] ?? null)
+                ? json_decode($data['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+                : ($data['rich_message'] ?? []);
+
+            return ($rich['is_rtl'] ?? false) === true
+                && str_contains($html, '<h4>📦 Plan rich-preview</h4>')
+                && str_contains($html, $expectedPrice)
+                && str_contains($html, '<tg-button type="callback_data" style="success" data="catalog:detail:'.$plan.':1">🛒 ادامه خرید</tg-button>')
+                && ($isReseller === str_contains($html, 'تخفیف پنل فروش: 35٪'))
+                && str_contains((string) ($data['reply_markup'] ?? ''), 'sales:catalog:preview:simple:'.$plan.':1');
+        }, index: 1);
+
+    $bot->hearCallbackQueryData("sales:catalog:preview:simple:{$plan}:1")->reply()
+        ->assertRaw(static function (Request $request) use ($plan): bool {
+            $data = FakeNutgram::getActualData($request);
+
+            return ! isset($data['rich_message'])
+                && str_contains((string) ($data['text'] ?? ''), 'پیش‌نمایش پلن')
+                && str_contains((string) ($data['reply_markup'] ?? ''), 'sales:checkout:preview:'.$plan.':30:30');
+        }, index: 1);
+
+    $bot->hearCallbackQueryData('sales:catalog:simple:1')->reply()
+        ->assertRaw(static function (Request $request): bool {
+            $data = FakeNutgram::getActualData($request);
+
+            return ! isset($data['rich_message'])
+                && str_contains((string) ($data['text'] ?? ''), 'پلن‌ها و قیمت‌ها');
+        }, index: 1);
+
+    expect(DB::table('sales_orders')->count())->toBe(0)
         ->and(DB::table('billing_journals')->count())->toBe(0)
         ->and(DB::table('provisioning_operations')->count())->toBe(0);
     Http::assertNothingSent();
@@ -413,13 +485,12 @@ it('shows real Sales main navigation and keeps bounded buyer-quoted ready plans 
                 ? json_decode($body['reply_markup'], true, flags: JSON_THROW_ON_ERROR)
                 : $body['reply_markup'];
 
-            return $body['parse_mode'] === 'HTML'
-                && str_contains($body['text'], '&lt;Home&gt; &amp; offer')
+            return str_contains(sb02RichHtml($request), '&lt;Home&gt; &amp; offer')
                 && $markup['inline_keyboard'][0][1]['text'] === '<Home> & offer · 30گیگ/30روز'
                 && $markup['inline_keyboard'][0][0]['callback_data'] === 'catalog:detail:'.$ready[0].':1'
                 && $markup['inline_keyboard'][0][0]['style'] === 'primary'
-                && str_contains($body['text'], '<b>100,000 تومان</b>')
-                && substr_count($body['text'], 'مبلغ:') === 5
+                && str_contains(sb02RichHtml($request), '<b>100,000 تومان</b>')
+                && substr_count(sb02RichHtml($request), '<tg-button-row>') === 5
                 && str_contains($encoded, 'catalog:detail:'.$ready[0].':1')
                 && ! str_contains($encoded, 'catalog:detail:'.$ready[5].':1')
                 && ! str_contains($encoded, 'catalog:detail:'.$restricted.':1')
@@ -433,15 +504,15 @@ it('shows real Sales main navigation and keeps bounded buyer-quoted ready plans 
                 ? json_decode($body['reply_markup'], true, flags: JSON_THROW_ON_ERROR)
                 : $body['reply_markup'];
 
-            return substr_count($body['text'], 'مبلغ:') === 1
-                && str_contains($body['text'], 'صفحه 2 از 2')
+            return substr_count(sb02RichHtml($request), '<tg-button-row>') === 1
+                && str_contains(json_encode($body, JSON_THROW_ON_ERROR), 'sales:buy:simple:2')
                 && $markup['inline_keyboard'][0][1]['text'] === 'Plan home-6 · 30گیگ/30روز';
         }, index: 1);
     $buyer->assignRole('reseller');
     $bot->hearCallbackQueryData('sales:home:1')->reply()->assertRaw(static function (Request $request): bool {
         $body = FakeNutgram::getActualData($request);
 
-        return str_contains($body['text'], '<b>90,000 تومان</b>');
+        return str_contains(sb02RichHtml($request), '<b>90,000 تومان</b>');
     }, index: 1);
     config()->set('services.remnawave.squad_bindings_live_verified', false);
     $bot->hearCallbackQueryData('sales:home:invalid')->reply()->assertRaw(static function (Request $request): bool {

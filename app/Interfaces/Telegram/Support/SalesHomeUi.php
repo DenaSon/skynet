@@ -23,9 +23,11 @@ use App\Modules\Sales\Application\SummarizeSalesPurchases;
 use App\Support\PersianCalendar;
 use Illuminate\Support\Facades\Cache;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 use Throwable;
 
 /** Sales-only navigation; shared Application Actions retain all business authority. */
@@ -142,7 +144,7 @@ final readonly class SalesHomeUi
      * Keep the existing bounded, buyer-quoted ready-plan view behind Buy,
      * including old sales:home:{page} pagination callbacks.
      */
-    public function buy(Nutgram $bot, int $page = 1): void
+    public function buy(Nutgram $bot, int $page = 1, bool $rich = true): void
     {
         $actor = $this->navigationActor($bot);
         if ($actor === null) {
@@ -158,6 +160,8 @@ final readonly class SalesHomeUi
         $isReseller = in_array('reseller', $actor->roles, true);
         $lines = ['<b>🛒 پلن‌های آماده خرید</b>', '', 'یک پلن را انتخاب کنید تا مشخصات سفارش را تکمیل کنید.', ''];
         $keyboard = InlineKeyboardMarkup::make();
+        $richHtml = '<h4>🛒 پلن‌های آماده خرید</h4>'
+            .'<p>پلن موردنظر را انتخاب کنید؛ مشخصات و قیمت هر پلن پیش از خرید دوباره بررسی می‌شود.</p>';
         foreach (array_slice($entries, ($page - 1) * 5, 5) as $entry) {
             $lines[] = '📦 <b>'.$this->name($entry->plan->name).'</b>';
             $lines[] = ($entry->quote->trafficGb === null ? 'حجم نامحدود' : $entry->quote->trafficGb.' گیگابایت')
@@ -166,6 +170,16 @@ final readonly class SalesHomeUi
                 .TelegramUi::toman($entry->quote->totalPriceRials).' تومان</b>';
             $lines[] = '';
             $callback = 'catalog:detail:'.$entry->plan->id.':1';
+            $preview = 'sales:catalog:preview:'.$entry->plan->id.':'.$page;
+            $richHtml .= '<p>📦 <b>'.$this->name($entry->plan->name).'</b><br>'
+                .($entry->quote->trafficGb === null ? 'حجم نامحدود' : $entry->quote->trafficGb.' گیگابایت')
+                .' · '.$entry->quote->durationDays.' روز<br>'
+                .($isReseller
+                    ? '🏷️ قیمت عمومی: '.TelegramUi::toman($entry->quote->publicPriceRials).' تومان<br>'
+                        .'🎁 تخفیف نماینده: '.$entry->quote->discountPercent.'٪<br>قیمت شما: '
+                    : 'مبلغ نهایی: ')
+                .'<b>'.TelegramUi::toman($entry->quote->totalPriceRials).' تومان</b></p>'
+                .'<tg-button-row><tg-button type="callback_data" style="link" data="'.$preview.'">🔎 جزئیات این پلن</tg-button></tg-button-row>';
             $keyboard->addRow(
                 InlineKeyboardButton::make(
                     TelegramUi::toman($entry->quote->totalPriceRials).' تومان',
@@ -181,6 +195,7 @@ final readonly class SalesHomeUi
         }
         if ($entries === []) {
             $lines[] = 'فعلاً پلن آماده خریدی وجود ندارد. می‌توانید فهرست پلن‌ها را ببینید یا با پشتیبانی گفتگو کنید.';
+            $richHtml .= '<p>فعلاً پلن آماده خریدی وجود ندارد. می‌توانید فهرست پلن‌ها را ببینید یا با پشتیبانی گفتگو کنید.</p>';
         } elseif ($pages > 1) {
             $lines[] = "صفحه {$page} از {$pages}";
         }
@@ -195,8 +210,30 @@ final readonly class SalesHomeUi
             && config('sales.wallet_settlement_enabled', false) !== true) {
             $lines[] = '';
             $lines[] = 'پرداخت فعلاً فعال نیست.';
+            $richHtml .= '<p>پرداخت فعلاً فعال نیست.</p>';
         }
-        $this->render($bot, trim(implode("\n", $lines)), $keyboard);
+        $plainText = trim(implode("\n", $lines));
+        if (! $rich || $entries === []) {
+            $this->render($bot, $plainText, $keyboard);
+
+            return;
+        }
+
+        // The existing native two-column buy buttons remain available during
+        // the in-message CTA client pilot. They continue the validated checkout.
+        $simpleKeyboard = clone $keyboard;
+        $keyboard->addRow(InlineKeyboardButton::make('↩️ نمایش ساده', callback_data: 'sales:buy:simple:'.$page));
+        try {
+            TelegramUi::answerCallback($bot);
+            TelegramUi::editRichText($bot, new InputRichMessage(html: $richHtml, is_rtl: true), $keyboard);
+        } catch (TelegramException $exception) {
+            report($exception);
+            if ($bot->isCallbackQuery()) {
+                TelegramUi::editText($bot, $plainText, $simpleKeyboard, 'HTML');
+            } else {
+                $bot->sendMessage(text: $plainText, reply_markup: $simpleKeyboard, parse_mode: 'HTML');
+            }
+        }
     }
 
     /** A menu action must take precedence over a pending free-text form. */

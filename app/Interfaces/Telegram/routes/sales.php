@@ -50,6 +50,11 @@ $bot->onCallbackQueryData('sales:home', function (Nutgram $bot): void {
     app(SalesHomeUi::class)->start($bot);
 });
 
+// Explicit native HTML fallback for Rich ready-buy lists.
+$bot->onCallbackQueryData('sales:buy:simple:{page}', function (Nutgram $bot, string $page): void {
+    app(SalesHomeUi::class)->buy($bot, ctype_digit($page) && strlen($page) <= 4 ? (int) $page : 1, false);
+});
+
 $bot->onCallbackQueryData('sales:buy', function (Nutgram $bot): void {
     app(SalesHomeUi::class)->buy($bot);
 });
@@ -177,6 +182,20 @@ $bot->onCallbackQueryData('menu:home', function (Nutgram $bot): void {
 
 $bot->onCallbackQueryData('menu:plan-catalog', function (Nutgram $bot): void {
     app(PlanCatalogUi::class)->browse($bot);
+});
+
+// Sales-only read presentation and compatibility callbacks. They never create
+// an order; existing catalog:detail continues directly to validated checkout.
+$bot->onCallbackQueryData('sales:catalog:simple:{page}', function (Nutgram $bot, string $page): void {
+    app(PlanCatalogUi::class)->browse($bot, ctype_digit($page) ? min(10000, (int) $page) : 1, false);
+});
+
+$bot->onCallbackQueryData('sales:catalog:preview:simple:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
+    app(PlanCatalogUi::class)->detail($bot, $id, $page, false);
+});
+
+$bot->onCallbackQueryData('sales:catalog:preview:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
+    app(PlanCatalogUi::class)->detail($bot, $id, $page);
 });
 
 $bot->onCallbackQueryData('catalog:list:{page}', function (Nutgram $bot, string $page): void {

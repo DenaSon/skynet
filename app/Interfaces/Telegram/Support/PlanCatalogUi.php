@@ -11,8 +11,10 @@ use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 
 /**
  * F11-B1.5: safe catalog/quote presentation. No pending order, payment,
@@ -30,7 +32,7 @@ final readonly class PlanCatalogUi
         private MenuRenderer $menus,
     ) {}
 
-    public function browse(Nutgram $bot, int $page = 1): void
+    public function browse(Nutgram $bot, int $page = 1, bool $rich = true): void
     {
         $actor = $this->actor($bot);
         if ($actor === null) {
@@ -55,6 +57,7 @@ final readonly class PlanCatalogUi
         }
 
         $reseller = in_array('reseller', $actor->roles, true);
+        $sales = TelegramBotContext::current()->key === TelegramBotContext::SALES;
         $lastPage = max(1, (int) ceil(count($entries) / 5));
         $page = min(max(1, $page), $lastPage);
         $keyboard = InlineKeyboardMarkup::make();
@@ -74,12 +77,27 @@ final readonly class PlanCatalogUi
             $lines[] = '';
         }
 
+        $richHtml = '<h4>📋 پلن‌ها و قیمت‌ها</h4><p>صفحه '.$page.' از '.$lastPage.'</p>';
+        if ($reseller) {
+            $richHtml .= '<p>🏷️ قیمت اختصاصی پنل فروش برای شما محاسبه شده است.</p>';
+        }
         foreach (array_slice($entries, ($page - 1) * 5, 5) as $entry) {
             $lines[] = ($entry->plan->featured ? '⭐ ' : '📦 ').TelegramUi::escape($this->safe($entry->plan->name));
             $lines[] = '📊 حجم و مدت: '.$this->spec($entry);
             $lines[] = '💰 مبلغ: <b>'.$this->toman($entry->quote->totalPriceRials).' تومان</b>';
             $lines[] = '';
             $callback = "catalog:detail:{$entry->plan->id}:{$page}";
+            $richHtml .= '<p>'.($entry->plan->featured ? '⭐' : '📦')
+                .' <b>'.TelegramUi::escape($this->safe($entry->plan->name)).'</b><br>'
+                .'حجم و مدت: '.$this->spec($entry).'<br>'
+                .($reseller
+                    ? 'قیمت عمومی: '.$this->toman($entry->quote->publicPriceRials).' تومان<br>'
+                        .'تخفیف شما: '.$entry->quote->discountPercent.'٪<br>قیمت نماینده: '
+                    : 'مبلغ نهایی: ')
+                .'<b>'.$this->toman($entry->quote->totalPriceRials).' تومان</b></p>';
+            if ($sales) {
+                $richHtml .= '<tg-button-row><tg-button type="callback_data" style="link" data="sales:catalog:preview:'.$entry->plan->id.':'.$page.'">🔎 جزئیات این پلن</tg-button></tg-button-row>';
+            }
             $keyboard->addRow(
                 InlineKeyboardButton::make(
                     TelegramUi::toman($entry->quote->totalPriceRials).' تومان',
@@ -94,6 +112,7 @@ final readonly class PlanCatalogUi
 
         if ($entries === []) {
             $lines[] = 'در حال حاضر پلنی برای نمایش وجود ندارد.';
+            $richHtml .= '<p>در حال حاضر پلنی برای نمایش وجود ندارد.</p>';
         }
 
         if ($page > 1) {
@@ -108,10 +127,18 @@ final readonly class PlanCatalogUi
             $keyboard->addRow(InlineKeyboardButton::make('🧩 پلن‌ساز', callback_data: 'menu:builder'));
         }
         $keyboard->addRow(InlineKeyboardButton::make('🏠 صفحه اصلی', callback_data: 'menu:home'));
-        $this->render($bot, implode("\n", $lines), $keyboard, 'HTML');
+        $plainText = implode("\n", $lines);
+        if ($sales && $rich && $entries !== []) {
+            $simpleKeyboard = clone $keyboard;
+            $keyboard->addRow(InlineKeyboardButton::make('↩️ نمایش ساده', callback_data: 'sales:catalog:simple:'.$page));
+            $this->renderRich($bot, $richHtml, $plainText, $keyboard, $simpleKeyboard, 'HTML');
+
+            return;
+        }
+        $this->render($bot, $plainText, $keyboard, 'HTML');
     }
 
-    public function detail(Nutgram $bot, string $planId, string $fromPage = '1'): void
+    public function detail(Nutgram $bot, string $planId, string $fromPage = '1', bool $rich = true): void
     {
         $actor = $this->actor($bot);
         if ($actor === null) {
@@ -165,7 +192,51 @@ final readonly class PlanCatalogUi
         $keyboard->addRow(InlineKeyboardButton::make('◀️ پلن‌ها', callback_data: 'catalog:list:'.$page))
             ->addRow(InlineKeyboardButton::make('🏠 صفحه اصلی', callback_data: 'menu:home'));
 
+        if (TelegramBotContext::current()->key === TelegramBotContext::SALES && $rich) {
+            $safeName = TelegramUi::escape($this->safe($entry->plan->name));
+            $callback = 'catalog:detail:'.$quote->planId.':'.$page;
+            $html = '<h4>📦 '.$safeName.'</h4>'
+                .'<p>حجم: '.($quote->trafficGb === null ? 'نامحدود' : $quote->trafficGb.' گیگابایت')
+                .'<br>مدت: '.$quote->durationDays.' روز'
+                .'<br>نوع: '.$this->kind($entry).'</p>'
+                .($isReseller
+                    ? '<p>قیمت عمومی: '.$this->toman($quote->publicPriceRials).' تومان'
+                        .'<br>تخفیف پنل فروش: '.$quote->discountPercent.'٪</p>'
+                    : '')
+                .'<p>✅ '.($isReseller ? 'قیمت شما: ' : 'مبلغ نهایی: ')
+                .'<b>'.$this->toman($quote->totalPriceRials).' تومان</b></p>'
+                .'<tg-button-row><tg-button type="callback_data" style="success" data="'.$callback.'">🛒 ادامه خرید</tg-button></tg-button-row>'
+                .'<details><summary>📋 شرایط پلن</summary><p>حجم و مدت اشتراک مطابق مشخصات بالا است. قیمت نهایی و آمادگی سرویس پیش از ثبت سفارش دوباره بررسی می‌شوند.</p></details>';
+            $simpleKeyboard = clone $keyboard;
+            $keyboard->addRow(InlineKeyboardButton::make('↩️ نمایش ساده', callback_data: 'sales:catalog:preview:simple:'.$quote->planId.':'.$page));
+            $this->renderRich($bot, $html, implode("\n", $lines), $keyboard, $simpleKeyboard);
+
+            return;
+        }
+
         $this->render($bot, implode("\n", $lines), $keyboard);
+    }
+
+    /** Rich-only presentation. All purchase callbacks still enter validated checkout. */
+    private function renderRich(
+        Nutgram $bot,
+        string $html,
+        string $plain,
+        InlineKeyboardMarkup $keyboard,
+        InlineKeyboardMarkup $simpleKeyboard,
+        ?string $parseMode = null,
+    ): void {
+        try {
+            TelegramUi::answerCallback($bot);
+            TelegramUi::editRichText($bot, new InputRichMessage(html: $html, is_rtl: true), $keyboard);
+        } catch (TelegramException $exception) {
+            report($exception);
+            if ($bot->isCallbackQuery()) {
+                TelegramUi::editText($bot, $plain, $simpleKeyboard, $parseMode);
+            } else {
+                $bot->sendMessage(text: $plain, reply_markup: $simpleKeyboard, parse_mode: $parseMode);
+            }
+        }
     }
 
     private function actor(Nutgram $bot): ?TelegramActor
