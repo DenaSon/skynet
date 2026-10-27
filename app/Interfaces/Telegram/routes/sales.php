@@ -368,9 +368,14 @@ $bot->onCallbackQueryData('sales:subs:view:{id}:{cursor}', function (Nutgram $bo
     app(SalesSubscriptionsUi::class)->detail($bot, $id, $cursor);
 });
 
-// Explicit preview only; the existing detail callback remains the default.
+// Keep the pilot callback routable for already-delivered messages.
 $bot->onCallbackQueryData('sales:subs:rich:{id}:{cursor}', function (Nutgram $bot, string $id, string $cursor): void {
     app(SalesSubscriptionsUi::class)->detail($bot, $id, $cursor, true);
+});
+
+// Explicit plain HTML fallback for clients that cannot show Rich Messages.
+$bot->onCallbackQueryData('sales:subs:simple:{id}:{cursor}', function (Nutgram $bot, string $id, string $cursor): void {
+    app(SalesSubscriptionsUi::class)->detail($bot, $id, $cursor, false);
 });
 
 $bot->onCallbackQueryData('sales:subs:page:{id}:{cursor}', function (Nutgram $bot, string $id, string $cursor): void {
