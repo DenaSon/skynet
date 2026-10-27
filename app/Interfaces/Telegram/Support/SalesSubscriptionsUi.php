@@ -87,7 +87,7 @@ final readonly class SalesSubscriptionsUi
             '<b>📋 سرویس‌های من</b>',
             '',
             'سرویس‌های ثبت‌شده: <b>'.$counts['total'].'</b>',
-            'فعال در سوابق: '.$counts['activeRecorded'],
+            'فعال در سوابق: <b>'.$counts['activeRecorded'].'</b>',
         ];
         if ($counts['needsReview'] > 0) {
             $lines[] = 'در انتظار بررسی: '.$counts['needsReview'];
