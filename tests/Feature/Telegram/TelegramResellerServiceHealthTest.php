@@ -42,6 +42,16 @@ beforeEach(function (): void {
     request()->setRouteResolver(static fn (): Route => $route);
 });
 
+function rshRich(NutgramRequest $request): string
+{
+    $data = FakeNutgram::getActualData($request);
+    $rich = is_string($data['rich_message'] ?? null)
+        ? json_decode($data['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+        : ($data['rich_message'] ?? []);
+
+    return (string) ($rich['html'] ?? '');
+}
+
 function rshUser(): User
 {
     $user = User::factory()->create();
@@ -128,14 +138,27 @@ it('counts only a bounded owner-scoped page and marks confirmed live status with
         ->assertRaw(static function (NutgramRequest $request) use ($owned, $foreign): bool {
             $data = FakeNutgram::getActualData($request);
 
-            return str_contains($data['text'], 'علی &amp; &lt;دوست&gt;')
-                && ! str_contains($data['text'], 'private-health.test')
+            return str_contains(rshRich($request), 'علی &amp; &lt;دوست&gt;')
+                && str_contains(rshRich($request), 'استعلام لحظه‌ای فقط برای')
+                && str_contains(rshRich($request), 'نامشخص')
+                && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:health:simple:0')
+                && ! str_contains(rshRich($request), 'private-health.test')
                 && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), "sales:subs:view:{$owned}:0")
                 && ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), "sales:subs:view:{$foreign}:0");
         }, index: 1);
 
     Http::assertSent(static fn ($request): bool => $request->method() === 'GET');
     Http::assertSentCount(2);
+
+    $bot->hearCallbackQueryData('sales:health:simple:0')->reply()
+        ->assertRaw(static function (NutgramRequest $request) use ($owned): bool {
+            $body = FakeNutgram::getActualData($request);
+
+            return ! isset($body['rich_message'])
+                && str_contains((string) ($body['text'] ?? ''), 'بررسی لحظه‌ای')
+                && str_contains(json_encode($body['reply_markup'], JSON_THROW_ON_ERROR), "sales:subs:view:{$owned}:0");
+        }, index: 1);
+    Http::assertSentCount(3);
 });
 
 it('reports expired, imminent expiration and failed provider reads without guessing active status', function (): void {
@@ -183,6 +206,8 @@ it('bounds remote checks to six latest services and keeps unauthorized users and
     expect(fn () => app(ReadResellerServiceHealth::class)->handle(SubscriptionViewer::telegram(981003)))
         ->toThrow(AuthorizationException::class);
     $bot->hearCallbackQueryData('sales:health:0')->reply()
+        ->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:health:simple:0')->reply()
         ->assertCalled('editMessageText');
     Http::assertSentCount(6);
 });
