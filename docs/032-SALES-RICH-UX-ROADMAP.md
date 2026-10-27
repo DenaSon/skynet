@@ -1,4 +1,4 @@
-> **Phase 01 source checkpoint — 2026-10-27:** Source PR under verification promotes `sales:subs:view` Rich by default, preserves the historical `sales:subs:rich` alias and provides `sales:subs:simple` fallback. The visible trial button is retired. **Operator review of the deployed default-route Rich UI is still pending.** Do not start Phase 02 until explicit acceptance. Other phases remain planned only.
+> **Phase 01 source checkpoint — 2026-10-27:** [PR #255](https://github.com/DenaSon/skynet/pull/255) promotes `sales:subs:view` Rich by default, preserves the historical `sales:subs:rich` alias and provides `sales:subs:simple` fallback. The visible trial button is retired. **Operator review of the deployed default-route Rich UI is still pending.** Do not start Phase 02 until explicit acceptance. Other phases remain planned only.
 
 # DenaGate — Sales and Reseller Rich UX roadmap (2026-10-27)
 
