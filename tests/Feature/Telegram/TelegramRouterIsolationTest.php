@@ -93,6 +93,7 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:users:profile:{id}:{page}:{mode}';
     // OPS-CMD-01: read-only root-only Denaban callback.
     $expected['ADMIN'][] = 'callback:denaban:show';
+    $expected['ADMIN'][] = 'callback:denaban:simple';
     $expected['ADMIN'][] = 'callback:denaban:notifications:{page}';
     // STAT-01: scoped Admin read-only statistics routes.
     $expected['ADMIN'][] = 'command:stats';
