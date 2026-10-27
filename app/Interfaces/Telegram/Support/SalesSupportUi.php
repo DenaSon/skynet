@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Interfaces\Telegram\Support;
 
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 
@@ -20,6 +21,12 @@ final readonly class SalesSupportUi
             return;
         }
         if ($page === 'builder' && ! in_array('reseller', $actor->roles, true)) {
+            $this->home->fallback($bot);
+
+            return;
+        }
+        $canSetupPanel = $actor->roles === ['member'];
+        if ($page === 'panel-setup' && ! $canSetupPanel) {
             $this->home->fallback($bot);
 
             return;
@@ -45,8 +52,24 @@ final readonly class SalesSupportUi
                 )->addRow(
                     InlineKeyboardButton::make('🪟 ویندوز', callback_data: 'sales:help:windows'),
                     InlineKeyboardButton::make('💻 مک', callback_data: 'sales:help:macos'),
-                )->addRow(InlineKeyboardButton::make('🛒 آموزش خرید', callback_data: 'sales:help:purchase'))
-                    ->addRow(InlineKeyboardButton::make('🔧 رفع مشکل اتصال', callback_data: 'sales:help:troubleshoot'));
+                )->addRow(InlineKeyboardButton::make('🛒 آموزش خرید', callback_data: 'sales:help:purchase'));
+                if ($canSetupPanel) {
+                    $keyboard->addRow(InlineKeyboardButton::make('🧩 راه‌اندازی پنل فروش', callback_data: 'sales:help:panel-setup', style: ButtonStyle::PRIMARY));
+                }
+                $keyboard->addRow(InlineKeyboardButton::make('🔧 رفع مشکل اتصال', callback_data: 'sales:help:troubleshoot'));
+                break;
+
+            case 'panel-setup':
+                $text = '<b>🧩 راه‌اندازی پنل فروش</b>'."\n\n"
+                    ."<b>۱. 💰 افزایش اعتبار</b>\n"
+                    ."از بخش «اعتبار من»، موجودی خود را به حداقل <b>۷۵۰٬۰۰۰ تومان</b> برسانید. رسید پرداخت را ارسال کنید و منتظر تأیید شارژ بمانید.\n\n"
+                    ."<b>۲. 📝 ثبت درخواست</b>\n"
+                    ."از منوی اصلی، «درخواست پنل فروش» را انتخاب کنید؛ قوانین را بپذیرید و نام، نام خانوادگی و شماره موبایل خود را ثبت و تأیید کنید.\n\n"
+                    ."<b>۳. ✅ شروع فروش</b>\n"
+                    ."درخواست شما در کمتر از <b>۱ ساعت</b> بررسی و در صورت تأیید، پنل فعال می‌شود. سپس اشتراک‌ها را با <b>۳۵٪ تخفیف نمایندگی</b> تهیه کنید.\n\n"
+                    .'<blockquote>۷۵۰ هزار تومان، اعتبار اولیه شماست؛ هزینه راه‌اندازی نیست و بابت درخواست کسر نمی‌شود. این اعتبار برای خرید اشتراک و فروش به مشتریانتان در حساب شما باقی می‌ماند.</blockquote>';
+                $keyboard->addRow(InlineKeyboardButton::make('💰 افزایش اعتبار', callback_data: 'sales:wallet:topup', style: ButtonStyle::SUCCESS))
+                    ->addRow(InlineKeyboardButton::make('📝 درخواست پنل فروش', callback_data: 'sales:panel:request', style: ButtonStyle::PRIMARY));
                 break;
 
             case 'builder':
@@ -132,7 +155,7 @@ final readonly class SalesSupportUi
         if ($operator !== null) {
             $keyboard->addRow(InlineKeyboardButton::make('💬 ارتباط با پشتیبان', url: $operator));
         }
-        if (in_array($page, ['android', 'ios', 'windows', 'macos', 'desktop', 'purchase', 'troubleshoot', 'builder'], true)) {
+        if (in_array($page, ['android', 'ios', 'windows', 'macos', 'desktop', 'purchase', 'troubleshoot', 'builder', 'panel-setup'], true)) {
             $keyboard->addRow(InlineKeyboardButton::make('◀️ آموزش‌ها', callback_data: 'sales:help:apps'));
         } elseif ($page === 'apps') {
             $keyboard->addRow(InlineKeyboardButton::make('◀️ پشتیبانی', callback_data: 'sales:support'));

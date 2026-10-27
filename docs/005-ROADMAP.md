@@ -1,3 +1,7 @@
+## Sales Panel setup tutorial (2026-10-27)
+
+Source adds an ordinary-member-only tutorial entry, readable three-step setup instructions, retained-credit explanation and existing credit/request CTAs. Revalidate stale guide callbacks after role changes; preserve representative training and all payment/approval rules. No migration or ENV change. Source tests/CI and real Telegram display acceptance are separate.
+
 ## REF-03 source checkpoint (2026-10-26; stacked, pending CI and merge)
 
 REF-01 [#244](https://github.com/DenaSon/skynet/pull/244) and REF-02 [#245](https://github.com/DenaSon/skynet/pull/245) remain unmerged. REF-03 adds the existing Telegram notification outbox within the atomic reward ledger transaction, private Sales delivery and owner-scoped invite statistics/terms. Notification replay does not re-credit wallets; suppressed notices stay suppressed. No provider call, new schema/dependency or public activation. Keep `REFERRAL_REWARDS_ENABLED=false` and explicit UTC rollout empty until approved live acceptance. [Contract and recovery](031-REFERRAL-REWARDS-PLAN.md).

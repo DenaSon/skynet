@@ -1,3 +1,7 @@
+## Sales Panel setup guide (2026-10-27; source change)
+
+The Sales tutorial menu now offers ordinary members «🧩 راه‌اندازی پنل فروش» directly below purchase help. The read-only guide explains confirmed credit of at least 750,000 tomans, the existing terms/name/surname/mobile request, management approval and the operator-approved under-one-hour service commitment / 35% representative offer. A blockquote clarifies that credit is retained for service purchases, not deducted as a setup fee. Existing top-up/request callbacks are the CTAs; Back returns to tutorials. The button and stale guide callbacks exclude resellers and elevated/mixed roles. No financial, approval, pricing, provider, schema or ENV behavior changes. Real Telegram rendering remains a separate check.
+
 ## REF-03 implementation checkpoint (2026-10-26; stacked, not merged)
 
 REF-01 [#244](https://github.com/DenaSon/skynet/pull/244) and REF-02 [#245](https://github.com/DenaSon/skynet/pull/245) remain unmerged. REF-03 adds the existing Telegram notification outbox within the atomic reward ledger transaction, private Sales delivery and owner-scoped invite statistics/terms. Notification replay does not re-credit wallets; suppressed notices stay suppressed. No provider call, new schema/dependency or public activation. Keep `REFERRAL_REWARDS_ENABLED=false` and explicit UTC rollout empty until approved live acceptance. [Contract and recovery](031-REFERRAL-REWARDS-PLAN.md).
