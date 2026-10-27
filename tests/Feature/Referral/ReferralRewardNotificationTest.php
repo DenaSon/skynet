@@ -8,12 +8,14 @@ use App\Interfaces\Telegram\Notifications\TelegramNotificationSender;
 use App\Modules\Billing\Application\ViewWallet;
 use App\Modules\Referral\Application\GetReferralInvite;
 use App\Modules\Sales\Application\ReferralRewardOutbox;
+use GuzzleHttp\Psr7\Request as PsrRequest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Testing\FakeNutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
@@ -172,14 +174,25 @@ it('retains existing Sales invite copy and share controls while showing live rew
     $telegramId = 9800000 + $referrer->id;
     $bot->setCommonUser(TelegramUser::make($telegramId, false, 'Referral'));
     $bot->setCommonChat(Chat::make($telegramId, ChatType::PRIVATE));
-    $bot->hearText('/invite')->reply()->assertReplyText(
-        "<b>👥 دعوت دوستان</b>\n\nلینک اختصاصی شما:\n".'<code>'.$url.'</code>'
-            ."\n\n👥 دوستان ثبت‌نام‌شده: <b>1</b>"
-            ."\n🎁 دوستان دارای پاداش: <b>1</b>"
-            ."\n💰 مجموع پاداش‌ها: <b>30,000 تومان</b>"
-            ."\n🎯 ظرفیت باقی‌مانده پاداش: <b>6</b>"
-            ."\n💵 مبلغ هر پاداش: <b>30,000 تومان</b>"
-            ."\n\n<blockquote>پاداش فقط برای دوست جدید، پس از اولین خرید پولی و فعال‌سازی موفق سرویس به اعتبار شما اضافه می‌شود. ثبت‌نام، تست رایگان و خرید تکراری پاداش ندارند؛ پنل‌های فروش هم مشمول نیستند.</blockquote>"
-    );
+    $bot->hearText('/invite')->reply()->assertRaw(static function (PsrRequest $request) use ($url): bool {
+        $data = FakeNutgram::getActualData($request);
+        $rich = is_string($data['rich_message'] ?? null)
+            ? json_decode($data['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+            : ($data['rich_message'] ?? []);
+        $html = (string) ($rich['html'] ?? '');
+        $markup = is_string($data['reply_markup'] ?? null)
+            ? json_decode($data['reply_markup'], true, 512, JSON_THROW_ON_ERROR)
+            : ($data['reply_markup'] ?? []);
+
+        return ($rich['is_rtl'] ?? false) === true
+            && str_contains($html, $url)
+            && str_contains($html, 'دوستان ثبت‌نام‌شده: 1')
+            && str_contains($html, 'دوستان دارای پاداش: <b>1</b>')
+            && str_contains($html, '30,000 تومان')
+            && str_contains($html, 'ظرفیت باقی‌مانده: <b>6</b>')
+            && str_contains($html, '<summary>📋 شرایط دریافت پاداش</summary>')
+            && ($markup['inline_keyboard'][1][0]['copy_text']['text'] ?? null) === $url
+            && str_contains(json_encode($markup, JSON_THROW_ON_ERROR), 'share/url');
+    });
     Http::assertNothingSent();
 });
