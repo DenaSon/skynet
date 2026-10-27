@@ -185,9 +185,9 @@ it('renders pending trial processing without exposing a second Contact confirmat
     $bot = trialUiBot();
     DB::table('trial_claims')->insert([
         'user_id' => $member->id,
-        'telegram_id' => 9210001,
+        'telegram_user_id' => 9210001,
         'state' => 'reserved',
-        'fingerprint' => str_repeat('a', 64),
+        'phone_fingerprint' => str_repeat('a', 64),
         'created_at' => now(),
         'updated_at' => now(),
     ]);
