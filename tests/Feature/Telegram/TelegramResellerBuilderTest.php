@@ -1,6 +1,7 @@
 <?php
 
 use App\Interfaces\Telegram\Support\PendingBuilderSelection;
+use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Interfaces\Telegram\Support\PendingShopVolume;
 use App\Interfaces\Telegram\Support\ReplyMenuLabels;
 use App\Interfaces\Telegram\Support\ReplyMenuRenderer;
@@ -15,7 +16,9 @@ use App\Modules\Sales\Application\ManagePlans;
 use App\Modules\Sales\Application\PlanDefinition;
 use App\Modules\Sales\Application\PlanPricingDefinition;
 use Illuminate\Auth\Access\AuthorizationException;
+use GuzzleHttp\Psr7\Request;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
@@ -23,6 +26,7 @@ use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
+use SergiX44\Nutgram\Testing\FakeNutgram;
 use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
@@ -85,6 +89,103 @@ function b16Builder(User $root, string $slug = 'builder-1', string $kind = 'hybr
 
     return $plan->id;
 }
+
+
+/** Exercise the real Sales registry rather than the legacy Admin-context builder tests. */
+function b16SalesBot(int $id, User $buyer): Nutgram
+{
+    $route = new Route('POST', 'api/telegram/sales/webhook', static fn (): null => null);
+    $route->defaults('bot_key', TelegramBotContext::SALES);
+    $route->bind(request());
+    request()->setRouteResolver(static fn (): Route => $route);
+
+    TelegramAccount::query()->create(['user_id' => $buyer->id, 'telegram_user_id' => $id]);
+    $bot = Nutgram::fake();
+    require base_path('app/Interfaces/Telegram/routes/sales.php');
+    $bot->setCommonUser(TelegramUser::make($id, false, 'Reseller'));
+    $bot->setCommonChat(Chat::make($id, ChatType::PRIVATE));
+
+    return $bot;
+}
+
+function b16Rich(Request $request): string
+{
+    $data = FakeNutgram::getActualData($request);
+    $rich = is_string($data['rich_message'] ?? null)
+        ? json_decode($data['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+        : ($data['rich_message'] ?? []);
+
+    return (string) ($rich['html'] ?? '');
+}
+
+it('renders real reseller prices and a guarded green checkout CTA in Rich without creating orders', function (): void {
+    Http::preventStrayRequests();
+    Http::fake();
+    $root = b16Root();
+    $id = b16Builder($root);
+    $reseller = b16Reseller();
+    $bot = b16SalesBot(966121, $reseller);
+    $checkout = 'sales:checkout:preview:'.$id.':45:30';
+
+    $bot->hearCallbackQueryData("builder:quote:{$id}:30:45:1")->reply()->assertRaw(
+        static function (Request $request) use ($id, $checkout): bool {
+            $data = FakeNutgram::getActualData($request);
+            $rich = is_string($data['rich_message'] ?? null)
+                ? json_decode($data['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+                : ($data['rich_message'] ?? []);
+            $html = b16Rich($request);
+            $buttons = (string) ($data['reply_markup'] ?? '');
+
+            return ($rich['is_rtl'] ?? false) === true
+                && str_contains($html, '49,000 تومان')
+                && str_contains($html, '10٪')
+                && str_contains($html, '44,100 تومان')
+                && str_contains($html, '<tg-button type="callback_data" style="success" data="'.$checkout.'">🛒 ادامه خرید</tg-button>')
+                && str_contains($buttons, $checkout)
+                && str_contains($buttons, "builder:quote:simple:{$id}:30:45:1")
+                && str_contains($buttons, 'builder:custom:'.$id.':1');
+        }, index: 1,
+    );
+
+    $bot->hearCallbackQueryData("builder:quote:simple:{$id}:30:45:1")->reply()->assertRaw(
+        static function (Request $request) use ($checkout): bool {
+            $data = FakeNutgram::getActualData($request);
+
+            return ! isset($data['rich_message'])
+                && str_contains((string) ($data['text'] ?? ''), 'قیمت عمومی: 49,000 تومان')
+                && str_contains((string) ($data['text'] ?? ''), 'قیمت مخصوص پنل فروش: 44,100 تومان')
+                && str_contains((string) ($data['reply_markup'] ?? ''), $checkout);
+        }, index: 1,
+    );
+
+    $bot->hearCallbackQueryData("builder:custom:{$id}:1")->reply()->assertCalled('editMessageText');
+    $bot->hearText('۳۵ | ۴۵')->reply()->assertCalled('sendRichMessage')->assertRaw(
+        static function (Request $request) use ($id): bool {
+            $html = b16Rich($request);
+
+            return str_contains($html, '48,600 تومان')
+                && str_contains($html, 'sales:checkout:preview:'.$id.':45:35')
+                && ! str_contains($html, 'sensitive-credential');
+        },
+    );
+
+    expect(DB::table('sales_orders')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe(0)
+        ->and(DB::table('billing_postings')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('rechecks reseller access on old simple quote callbacks', function (): void {
+    $root = b16Root();
+    $id = b16Builder($root);
+    $reseller = b16Reseller();
+    $bot = b16SalesBot(966122, $reseller);
+    $reseller->syncRoles(['member']);
+
+    $bot->hearCallbackQueryData("builder:quote:simple:{$id}:30:45:1")->reply()
+        ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.']);
+    expect(DB::table('sales_orders')->count())->toBe(0);
+});
 
 it('requires an active reseller for list, selection and price preview', function (): void {
     $root = b16Root();
