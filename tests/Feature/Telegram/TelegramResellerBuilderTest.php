@@ -1,7 +1,7 @@
 <?php
 
-use App\Interfaces\Telegram\Support\PendingBuilderSelection;
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
+use App\Interfaces\Telegram\Support\PendingBuilderSelection;
 use App\Interfaces\Telegram\Support\PendingShopVolume;
 use App\Interfaces\Telegram\Support\ReplyMenuLabels;
 use App\Interfaces\Telegram\Support\ReplyMenuRenderer;
@@ -15,8 +15,8 @@ use App\Modules\Sales\Application\ManagePlanPricing;
 use App\Modules\Sales\Application\ManagePlans;
 use App\Modules\Sales\Application\PlanDefinition;
 use App\Modules\Sales\Application\PlanPricingDefinition;
-use Illuminate\Auth\Access\AuthorizationException;
 use GuzzleHttp\Psr7\Request;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\DB;
@@ -89,7 +89,6 @@ function b16Builder(User $root, string $slug = 'builder-1', string $kind = 'hybr
 
     return $plan->id;
 }
-
 
 /** Exercise the real Sales registry rather than the legacy Admin-context builder tests. */
 function b16SalesBot(int $id, User $buyer): Nutgram
