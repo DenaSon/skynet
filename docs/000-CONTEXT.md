@@ -1,3 +1,7 @@
+## Opt-in Rich Message service detail pilot (2026-10-27)
+
+Sales-only `sales:subs:rich` previews an owner-verified service with Telegram Rich HTML `<details>` sections (usage, purchased order and connection-help), RTL formatting and the existing renewal/connection/subpage callbacks. The default `sales:subs:view` remains unchanged apart from a trial entry button. A simple-view return and Telegram-error fallback preserve current navigation and server-side ownership checks. No new Provider operation, connection credential in the detail, payment side effect, schema/ENV change or dependency. Source/fake CI is separate from mandatory real iOS/Android/Desktop visual and callback verification; do not roll out Rich to other pages until reviewed.
+
 ## Sales Panel setup guide (2026-10-27; source change)
 
 The Sales tutorial menu now offers ordinary members «🧩 راه‌اندازی پنل فروش» directly below purchase help. The read-only guide explains confirmed credit of at least 750,000 tomans, the existing terms/name/surname/mobile request, management approval and the operator-approved under-one-hour service commitment / 35% representative offer. A blockquote clarifies that credit is retained for service purchases, not deducted as a setup fee. Existing top-up/request callbacks are the CTAs; Back returns to tutorials. The button and stale guide callbacks exclude resellers and elevated/mixed roles. No financial, approval, pricing, provider, schema or ENV behavior changes. Real Telegram rendering remains a separate check.

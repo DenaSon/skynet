@@ -368,6 +368,11 @@ $bot->onCallbackQueryData('sales:subs:view:{id}:{cursor}', function (Nutgram $bo
     app(SalesSubscriptionsUi::class)->detail($bot, $id, $cursor);
 });
 
+// Explicit preview only; the existing detail callback remains the default.
+$bot->onCallbackQueryData('sales:subs:rich:{id}:{cursor}', function (Nutgram $bot, string $id, string $cursor): void {
+    app(SalesSubscriptionsUi::class)->detail($bot, $id, $cursor, true);
+});
+
 $bot->onCallbackQueryData('sales:subs:page:{id}:{cursor}', function (Nutgram $bot, string $id, string $cursor): void {
     app(SalesSubscriptionsUi::class)->page($bot, $id, $cursor);
 });
