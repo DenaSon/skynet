@@ -60,6 +60,17 @@ function uxr01Payload(Request $request): array
     return $data;
 }
 
+/** Decode the actual Rich HTML instead of treating a Rich payload as plain text. */
+function uxr01RichHtml(Request $request): string
+{
+    $data = uxr01Payload($request);
+    $rich = is_string($data['rich_message'] ?? null)
+        ? json_decode($data['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+        : ($data['rich_message'] ?? []);
+
+    return (string) ($rich['html'] ?? '');
+}
+
 it('shows persistent Sales keyboard on start while accepting old button labels', function (): void {
     $user = User::factory()->create(['name' => '<Buyer> & "Name"']);
     $bot = uxr01Bot($user);
@@ -259,10 +270,31 @@ it('offers a real configured Telegram contact and short guides with working back
         return $body['parse_mode'] === 'HTML'
             && $body['reply_markup']['inline_keyboard'][1][0]['url'] === 'https://t.me/DenaGateOperator';
     });
-    foreach (['apps', 'android', 'ios', 'windows', 'macos', 'desktop', 'purchase', 'troubleshoot'] as $page) {
+    foreach (['apps', 'android', 'ios', 'windows', 'macos', 'purchase', 'troubleshoot'] as $page) {
         $bot->hearCallbackQueryData('sales:help:'.$page)->reply()
-            ->assertCalled('answerCallbackQuery')->assertCalled('editMessageText')->assertCalled('sendMessage', 0);
+            ->assertCalled('answerCallbackQuery')->assertCalled('editMessageText')->assertCalled('sendMessage', 0)
+            ->assertRaw(static function (Request $request) use ($page): bool {
+                $data = uxr01Payload($request);
+                $rich = is_string($data['rich_message'] ?? null)
+                    ? json_decode($data['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+                    : ($data['rich_message'] ?? []);
+
+                return ($rich['is_rtl'] ?? false) === true
+                    && str_contains(uxr01RichHtml($request), '<details>')
+                    && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:help:simple:'.$page);
+            }, index: 1);
     }
+    // Old combined-desktop callback remains plain and navigates to each OS.
+    $bot->hearCallbackQueryData('sales:help:desktop')->reply()
+        ->assertRaw(static function (Request $request): bool {
+            $data = uxr01Payload($request);
+            $encoded = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return ! isset($data['rich_message'])
+                && str_contains($encoded, 'sales:help:windows')
+                && str_contains($encoded, 'sales:help:macos');
+        }, index: 1);
+
     foreach ([
         'android' => ['v2rayNG', 'https://github.com/2dust/v2rayNG/releases/latest'],
         'ios' => ['V2Box', 'https://apps.apple.com/app/v2box-v2ray-client/id6446814690'],
@@ -273,29 +305,34 @@ it('offers a real configured Telegram contact and short guides with working back
             static function (Request $request) use ($client, $download): bool {
                 $body = uxr01Payload($request);
                 $keyboard = $body['reply_markup']['inline_keyboard'];
+                $html = uxr01RichHtml($request);
 
-                return str_contains($body['text'], '<blockquote>')
-                    && str_contains($body['text'], '<b>'.$client.'</b>')
-                    && str_contains($body['text'], '<b>لینک اتصال</b>')
+                return str_contains($html, '<summary>📱 مراحل نصب و اتصال</summary>')
+                    && str_contains($html, '<b>'.$client.'</b>')
+                    && str_contains($html, '<b>لینک اتصال</b>')
                     && $keyboard[0][0]['url'] === $download
-                    && ! str_contains($body['text'], 'Remnawave')
+                    && ! str_contains($html, 'Remnawave')
                     && ! str_contains(json_encode($keyboard, JSON_THROW_ON_ERROR), 'docs.rw')
                     && str_contains(json_encode($keyboard, JSON_THROW_ON_ERROR), 'sales:subs:list:0');
             }, index: 1,
         );
     }
     $bot->hearCallbackQueryData('sales:help:apps')->reply()->assertRaw(static function (Request $request): bool {
-        $keyboard = uxr01Payload($request)['reply_markup']['inline_keyboard'];
-        $encoded = json_encode($keyboard, JSON_THROW_ON_ERROR);
+        $data = uxr01Payload($request);
+        $encoded = json_encode($data['reply_markup']['inline_keyboard'], JSON_THROW_ON_ERROR);
+        $html = uxr01RichHtml($request);
 
         return str_contains($encoded, 'sales:help:windows')
             && str_contains($encoded, 'sales:help:macos')
+            && str_contains($html, '<summary>🪟 ویندوز</summary>')
             && ! str_contains($encoded, 'sales:help:desktop');
     }, index: 1);
-    $bot->hearCallbackQueryData('sales:help:desktop')->reply()->assertRaw(static function (Request $request): bool {
-        $encoded = json_encode(uxr01Payload($request)['reply_markup']['inline_keyboard'], JSON_THROW_ON_ERROR);
+    $bot->hearCallbackQueryData('sales:help:simple:ios')->reply()->assertRaw(static function (Request $request): bool {
+        $data = uxr01Payload($request);
 
-        return str_contains($encoded, 'sales:help:windows') && str_contains($encoded, 'sales:help:macos');
+        return ! isset($data['rich_message'])
+            && str_contains((string) ($data['text'] ?? ''), '<b>V2Box</b>')
+            && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:help:apps');
     }, index: 1);
     $bot->hearCallbackQueryData('sales:support')->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('sales:home')->reply()->assertCalled('editMessageText')->assertCalled('sendMessage', 0);
@@ -411,4 +448,60 @@ it('shows reseller-only persistent wallet and builder buttons with working navig
     $bot->hearText(ReplyMenuLabels::SALES_WALLET)->reply()->assertCalled('sendMessage');
     $bot->hearText(ReplyMenuLabels::WALLET)->reply()->assertCalled('sendMessage');
     $bot->hearText(ReplyMenuLabels::BUILDER)->reply()->assertCalled('sendMessage');
+});
+
+
+it('shows member panel setup and reseller builder Rich guides without role escalation', function (): void {
+    Role::findOrCreate('member', 'web');
+    $member = User::factory()->create();
+    $member->syncRoles(['member']);
+    $bot = uxr01Bot($member);
+
+    $bot->hearCallbackQueryData('sales:help:apps')->reply()->assertRaw(static function (Request $request): bool {
+        $data = uxr01Payload($request);
+        $keyboard = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+
+        return str_contains(uxr01RichHtml($request), 'راه‌اندازی پنل فروش')
+            && str_contains($keyboard, 'sales:help:panel-setup')
+            && ! str_contains($keyboard, 'sales:help:builder');
+    }, index: 1);
+
+    $bot->hearCallbackQueryData('sales:help:panel-setup')->reply()->assertRaw(static function (Request $request): bool {
+        $html = uxr01RichHtml($request);
+        $keyboard = json_encode(uxr01Payload($request)['reply_markup'], JSON_THROW_ON_ERROR);
+
+        return substr_count($html, '<details>') === 4
+            && str_contains($html, '۷۵۰٬۰۰۰ تومان')
+            && str_contains($html, '۳۵٪')
+            && str_contains($html, 'هزینه راه‌اندازی نیست')
+            && str_contains($keyboard, 'sales:wallet:topup')
+            && str_contains($keyboard, 'sales:panel:request');
+    }, index: 1);
+    $bot->hearCallbackQueryData('sales:help:builder')->reply()->assertCalled('editMessageText')
+        ->assertRaw(static fn (Request $request): bool => ! isset(uxr01Payload($request)['rich_message']), index: 1);
+
+    // An actual role change invalidates old member-only guide callbacks.
+    $member->syncRoles(['reseller']);
+    $bot->hearCallbackQueryData('sales:help:panel-setup')->reply()
+        ->assertRaw(static fn (Request $request): bool => ! isset(uxr01Payload($request)['rich_message']), index: 1);
+    $bot->hearCallbackQueryData('sales:help:simple:panel-setup')->reply()
+        ->assertRaw(static fn (Request $request): bool => ! isset(uxr01Payload($request)['rich_message']), index: 1);
+
+    $bot->hearCallbackQueryData('sales:help:apps')->reply()->assertRaw(static function (Request $request): bool {
+        $data = uxr01Payload($request);
+        $keyboard = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+
+        return str_contains(uxr01RichHtml($request), 'راهنمای پلن‌ساز')
+            && str_contains($keyboard, 'sales:help:builder')
+            && ! str_contains($keyboard, 'sales:help:panel-setup');
+    }, index: 1);
+    $bot->hearCallbackQueryData('sales:help:builder')->reply()->assertRaw(static function (Request $request): bool {
+        $html = uxr01RichHtml($request);
+        $keyboard = json_encode(uxr01Payload($request)['reply_markup'], JSON_THROW_ON_ERROR);
+
+        return str_contains($html, 'مراحل ساخت پلن')
+            && str_contains($keyboard, 'menu:builder')
+            && str_contains($keyboard, 'sales:help:apps');
+    }, index: 1);
+    Http::assertNothingSent();
 });
