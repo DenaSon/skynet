@@ -190,7 +190,28 @@ it('preserves unlimited traffic as NULL and lets only the owner view managed-pla
     expect(fn () => app(OrderReader::class)->findPlan($other->id, $order->id))->toThrow(ValidationException::class);
 
     $bot = sb03Bot(979010, $buyer);
-    $bot->hearText('/orders')->reply()->assertCalled('sendMessage');
+    $bot->hearText('/orders')->reply()->assertCalled('sendRichMessage')
+        ->assertRaw(static function (\GuzzleHttp\Psr7\Request $request) use ($order): bool {
+            $data = \SergiX44\Nutgram\Testing\FakeNutgram::getActualData($request);
+            $rich = is_string($data['rich_message'] ?? null)
+                ? json_decode($data['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+                : ($data['rich_message'] ?? []);
+            $html = (string) ($rich['html'] ?? '');
+            $markup = (string) ($data['reply_markup'] ?? '');
+
+            return str_contains($html, '#'.$order->id)
+                && str_contains($html, 'در انتظار پرداخت')
+                && str_contains($markup, 'sales:checkout:view:'.$order->id)
+                && str_contains($markup, 'sales:checkout:orders:simple');
+        });
+    $bot->hearCallbackQueryData('sales:checkout:orders:simple')->reply()
+        ->assertRaw(static function (\GuzzleHttp\Psr7\Request $request): bool {
+            $data = \SergiX44\Nutgram\Testing\FakeNutgram::getActualData($request);
+
+            return ! isset($data['rich_message'])
+                && str_contains((string) ($data['text'] ?? ''), 'سفارش‌های من')
+                && str_contains((string) ($data['reply_markup'] ?? ''), 'sales:checkout:view:');
+        }, index: 1);
     $bot->hearCallbackQueryData('sales:checkout:view:'.$order->id)->reply()->assertCalled('editMessageText');
     $otherBot = sb03Bot(979011, $other);
     $otherBot->hearCallbackQueryData('sales:checkout:view:'.$order->id)->reply()->assertCalled('editMessageText');
