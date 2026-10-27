@@ -1,3 +1,9 @@
+## Sales service Rich Messages — opt-in client validation (2026-10-27)
+
+- The existing owner-authorized Sales service detail remains the default. Its «✨ نمایش جدید» action opens an opt-in Rich Message preview through the same authorized read Actions. The preview keeps essential live status/remaining/expiry visible, with collapsible usage, purchased-plan/order and device-help sections. No extra provider call is authorized by merely expanding a section.
+- Use escaped operator/customer names, RTL Rich HTML, and the current renewal, connection, subpage, reseller-label and navigation callbacks. Credentials are never embedded in rich content; opening the original connection action always re-verifies access. A simple-view button is the explicit return route; on an unsupported Rich API request, fall back to the legacy detail layout and report the Telegram error.
+- The pilot requires actual iOS/Android/Desktop client verification before making Rich the default or applying it elsewhere. Legacy text/detail screens, privacy rules and expired/provider-unavailable states remain authoritative. No migration, billing/provider write, ENV change or new dependency.
+
 ## Sales Panel onboarding tutorial (2026-10-27)
 
 Within Sales tutorials, place «🧩 راه‌اندازی پنل فروش» below «🛒 آموزش خرید» for ordinary members only; hide it from resellers and recheck access on every guide callback. Use three spaced, bold numbered headings with restrained emoji: confirmed credit (minimum 750,000 tomans), request through existing terms and identity steps, then approval and starting sales. Put the retained-credit/no-setup-fee explanation in a Telegram HTML blockquote. Use existing «💰 افزایش اعتبار» (success) and «📝 درخواست پنل فروش» (primary) actions, plus tutorial Back/Home. The under-one-hour turnaround is the operator's service commitment, not automatic timed approval; the 35% offer is approved copy, not a pricing change. Keep the existing credit and request gates authoritative.
