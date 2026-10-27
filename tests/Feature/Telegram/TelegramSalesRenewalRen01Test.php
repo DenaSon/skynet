@@ -187,15 +187,32 @@ it('shows an owner-only Sales preview with escaped plan name and no payment or p
             $p = ren01Payload($r);
             $markup = json_encode($p['reply_markup'], JSON_THROW_ON_ERROR);
 
-            return str_contains($p['text'], 'پیش‌نمایش تمدید')
-                && str_contains($p['text'], '&lt;Dena &amp; Name&gt;')
-                && str_contains($p['text'], '<b>100,000 تومان</b>')
-                && str_contains($p['text'], 'هیچ مبلغی دریافت نشده است')
+            $rich = is_string($p['rich_message'] ?? null)
+                ? json_decode($p['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+                : ($p['rich_message'] ?? []);
+            $html = (string) ($rich['html'] ?? '');
+
+            return ($rich['is_rtl'] ?? false) === true
+                && str_contains($html, 'پیش‌نمایش تمدید')
+                && str_contains($html, '&lt;Dena &amp; Name&gt;')
+                && str_contains($html, '<b>100,000 تومان</b>')
+                && str_contains($html, 'هیچ مبلغی')
+                && str_contains($html, '<summary>📋 شرایط تمدید</summary>')
                 && str_contains($markup, 'sales:subs:view:')
+                && str_contains($markup, 'sales:subs:renew:simple:')
                 && ! str_contains($markup, 'sales:payment:start:')
                 && ! str_contains($markup, 'sales:checkout:wallet:')
-                && ! str_contains($p['text'], 'sensitive-credential')
-                && ($p['parse_mode'] ?? null) === 'HTML';
+                && ! str_contains($html, 'sensitive-credential');
+        }, index: 2);
+
+    $bot->hearCallbackQueryData('sales:subs:renew:simple:'.$data['order'].':0')->reply()
+        ->assertRaw(static function (NutgramRequest $r): bool {
+            $body = ren01Payload($r);
+
+            return ! isset($body['rich_message'])
+                && str_contains((string) ($body['text'] ?? ''), 'پیش‌نمایش تمدید')
+                && str_contains((string) ($body['text'] ?? ''), 'هیچ مبلغی دریافت نشده است')
+                && ! str_contains(json_encode($body['reply_markup'], JSON_THROW_ON_ERROR), 'sales:subs:renew:checkout:');
         }, index: 2);
 
     expect(DB::table('sales_renewal_drafts')->count())->toBe(1)

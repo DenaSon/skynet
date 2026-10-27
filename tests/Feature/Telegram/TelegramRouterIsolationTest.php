@@ -305,6 +305,7 @@ it('keeps Sales identity, navigation and buyer routes isolated from Admin callba
         'callback:sales:help:{page}',
         'callback:sales:health:{cursor}',
         'callback:sales:report:{days}',
+        'callback:sales:wallet:simple',
         'callback:sales:wallet',
         'callback:sales:wallet:topup',
         'callback:sales:wallet:topup:quick:{toman}',
@@ -356,6 +357,7 @@ it('keeps Sales identity, navigation and buyer routes isolated from Admin callba
         'callback:sales:checkout:wallet:{id}',
         'callback:sales:checkout:name:cancel',
         'callback:sales:checkout:phone:cancel',
+        'callback:sales:checkout:orders:simple',
         'callback:sales:checkout:orders',
         'callback:sales:checkout:view:{id}',
         'callback:sales:payment:start:{id}',
@@ -379,6 +381,7 @@ it('keeps Sales identity, navigation and buyer routes isolated from Admin callba
         'callback:sales:subs:label:remove:{id}:{cursor}',
         'callback:sales:subs:label:clear:{id}:{cursor}',
         'callback:sales:subs:label:cancel',
+        'callback:sales:subs:renew:simple:{id}:{cursor}',
         'callback:sales:subs:renew:{id}:{cursor}',
         'callback:sales:subs:renew:checkout:{id}:{cursor}',
     ]);

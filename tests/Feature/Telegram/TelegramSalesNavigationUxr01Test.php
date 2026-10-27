@@ -261,13 +261,18 @@ it('places My Credit beside tutorials for ordinary Sales members and accepts sta
     $bot->hearText(ReplyMenuLabels::SALES_WALLET)->reply()->assertRaw(static function (Request $request): bool {
         $data = uxr01Payload($request);
 
-        return str_contains($data['text'], '<b>💰 اعتبار من</b>')
-            && str_contains($data['text'], 'اعتبار فعلی: <b>0 تومان</b>');
+        return str_contains(uxr01RichHtml($request), '<h4>💰 اعتبار من</h4>')
+            && str_contains(uxr01RichHtml($request), 'اعتبار فعلی: <b>0 تومان</b>')
+            && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:wallet:simple');
     });
-    $bot->hearText('💰 کیف پول')->reply()->assertReplyText(
-        "<b>💰 اعتبار من</b>\n\nاعتبار فعلی: <b>0 تومان</b>\n\n<blockquote>موجودی براساس تراکنش‌های تأییدشده محاسبه می‌شود.</blockquote>"
-    );
-    $bot->hearText(ReplyMenuLabels::WALLET)->reply()->assertCalled('sendMessage');
+    $bot->hearText('💰 کیف پول')->reply()->assertCalled('sendRichMessage');
+    $bot->hearCallbackQueryData('sales:wallet:simple')->reply()->assertRaw(static function (Request $request): bool {
+        $data = uxr01Payload($request);
+
+        return ! isset($data['rich_message'])
+            && str_contains((string) ($data['text'] ?? ''), 'اعتبار فعلی: <b>0 تومان</b>');
+    }, index: 1);
+    $bot->hearText(ReplyMenuLabels::WALLET)->reply()->assertCalled('sendRichMessage');
 
     $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(static function (Request $request): bool {
         $keyboard = uxr01Payload($request)['reply_markup']['inline_keyboard'] ?? [];
@@ -297,8 +302,8 @@ it('shows an ordinary active member their own zero wallet balance without a top-
     $bot->hearCallbackQueryData('sales:wallet')->reply()->assertRaw(static function (Request $request): bool {
         $data = uxr01Payload($request);
 
-        return str_contains($data['text'], '<b>💰 اعتبار من</b>')
-            && str_contains($data['text'], 'اعتبار فعلی: <b>0 تومان</b>')
+        return str_contains(uxr01RichHtml($request), '<h4>💰 اعتبار من</h4>')
+            && str_contains(uxr01RichHtml($request), 'اعتبار فعلی: <b>0 تومان</b>')
             && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:account');
     }, index: 1);
 
@@ -493,8 +498,8 @@ it('shows reseller-only persistent wallet and builder buttons with working navig
             && ($keyboard[3][0]['text'] ?? null) === ReplyMenuLabels::SALES_TUTORIAL
             && ($keyboard[3][1]['text'] ?? null) === ReplyMenuLabels::SALES_WALLET;
     }, index: 0);
-    $bot->hearText(ReplyMenuLabels::SALES_WALLET)->reply()->assertCalled('sendMessage');
-    $bot->hearText(ReplyMenuLabels::WALLET)->reply()->assertCalled('sendMessage');
+    $bot->hearText(ReplyMenuLabels::SALES_WALLET)->reply()->assertCalled('sendRichMessage');
+    $bot->hearText(ReplyMenuLabels::WALLET)->reply()->assertCalled('sendRichMessage');
     $bot->hearText(ReplyMenuLabels::BUILDER)->reply()->assertCalled('sendMessage');
 });
 
