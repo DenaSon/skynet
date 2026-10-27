@@ -128,7 +128,12 @@ it('routes every primary destination ahead of pending input and retires only Sal
         ReplyMenuLabels::HOME, '/cancel'] as $label) {
         $builder->remember($user->id, 123, 1);
         Cache::put($salesReceipt, 123, 600);
-        $bot->hearText($label)->reply()->assertCalled('sendMessage', in_array($label, [ReplyMenuLabels::HOME, '/cancel'], true) ? 2 : 1);
+        $reply = $bot->hearText($label)->reply();
+        if ($label === ReplyMenuLabels::SALES_ACCOUNT) {
+            $reply->assertCalled('sendRichMessage')->assertCalled('sendMessage', 0);
+        } else {
+            $reply->assertCalled('sendMessage', in_array($label, [ReplyMenuLabels::HOME, '/cancel'], true) ? 2 : 1);
+        }
         expect($builder->peek($user->id))->toBeNull()
             ->and(Cache::has($salesReceipt))->toBeFalse()
             ->and(Cache::get($adminReceipt))->toBe(9)
