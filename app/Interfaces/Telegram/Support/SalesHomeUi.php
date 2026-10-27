@@ -213,7 +213,7 @@ final readonly class SalesHomeUi
             $richHtml .= '<p>پرداخت فعلاً فعال نیست.</p>';
         }
         $plainText = trim(implode("\n", $lines));
-        if (! $rich) {
+        if (! $rich || $entries === []) {
             $this->render($bot, $plainText, $keyboard);
 
             return;
