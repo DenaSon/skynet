@@ -406,7 +406,7 @@ final readonly class SalesHomeUi
         $this->render($bot, $text, $keyboard);
     }
 
-    public function wallet(Nutgram $bot): void
+    public function wallet(Nutgram $bot, bool $rich = true): void
     {
         $actor = $this->navigationActor($bot);
         if ($actor === null) {
@@ -418,6 +418,7 @@ final readonly class SalesHomeUi
             return;
         }
         $pendingTopups = [];
+        $richHtml = null;
         try {
             $wallet = $this->wallets->handle($actor->userId);
             $pendingTopups = array_values(array_filter(
@@ -432,6 +433,22 @@ final readonly class SalesHomeUi
                 }
             }
             $message .= "\n\n<blockquote>موجودی براساس تراکنش‌های تأییدشده محاسبه می‌شود.</blockquote>";
+            $richHtml = '<h4>💰 اعتبار من</h4>'
+                .'<p>اعتبار فعلی: <b>'.TelegramUi::toman($wallet->balanceRials).' تومان</b></p>';
+            if ($pendingTopups !== []) {
+                $latestPending = $pendingTopups[0];
+                $richHtml .= '<p>🕘 درخواست شارژ در انتظار بررسی: #'.$latestPending['id']
+                    .' · <b>'.TelegramUi::toman($latestPending['amount_rials']).' تومان</b></p>';
+            }
+            if ($wallet->topups !== []) {
+                $richHtml .= '<details><summary>🧾 آخرین درخواست‌های شارژ</summary><p>';
+                foreach (array_slice($wallet->topups, 0, 5) as $topup) {
+                    $richHtml .= '#'.$topup['id'].' · '.TelegramUi::toman($topup['amount_rials'])
+                        .' تومان · '.TelegramUi::escape(TelegramUi::topupStatus($topup['status'])).'<br>';
+                }
+                $richHtml .= '</p></details>';
+            }
+            $richHtml .= '<p>موجودی فقط بر اساس تراکنش‌های تأییدشده محاسبه می‌شود.</p>';
         } catch (Throwable) {
             $message = '<b>💰 اعتبار من</b>'."\n\nموجودی فعلاً در دسترس نیست.";
         }
@@ -450,6 +467,14 @@ final readonly class SalesHomeUi
         }
         $keyboard->addRow(InlineKeyboardButton::make('◀️ حساب کاربری', callback_data: 'sales:account'))
             ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
+        if ($rich && $richHtml !== null) {
+            $plainKeyboard = clone $keyboard;
+            $keyboard->addRow(InlineKeyboardButton::make('↩️ نمایش ساده', callback_data: 'sales:wallet:simple'));
+            $this->renderRich($bot, $richHtml, $message, $keyboard, $plainKeyboard);
+
+            return;
+        }
+
         $this->render($bot, $message, $keyboard);
     }
 
