@@ -106,6 +106,10 @@ $bot->onCallbackQueryData('sales:report:{days}', function (Nutgram $bot, string 
     app(ResellerSalesReportUi::class)->show($bot, $days);
 });
 
+$bot->onCallbackQueryData('sales:wallet:simple', function (Nutgram $bot): void {
+    app(SalesHomeUi::class)->wallet($bot, false);
+});
+
 $bot->onCallbackQueryData('sales:wallet', function (Nutgram $bot): void {
     app(SalesHomeUi::class)->wallet($bot);
 });
@@ -362,6 +366,10 @@ $bot->onCallbackQueryData('sales:checkout:phone:cancel', function (Nutgram $bot)
     app(SalesCheckoutUi::class)->cancelCustomerPhone($bot);
 });
 
+$bot->onCallbackQueryData('sales:checkout:orders:simple', function (Nutgram $bot): void {
+    app(SalesCheckoutUi::class)->listOrders($bot, false);
+});
+
 $bot->onCallbackQueryData('sales:checkout:orders', function (Nutgram $bot): void {
     app(SalesCheckoutUi::class)->listOrders($bot);
 });
@@ -461,6 +469,10 @@ $bot->onCallbackQueryData('sales:subs:label:clear:{id}:{cursor}', function (Nutg
 
 $bot->onCallbackQueryData('sales:subs:label:cancel', function (Nutgram $bot): void {
     app(SalesSubscriptionsUi::class)->cancelCustomerLabel($bot);
+});
+
+$bot->onCallbackQueryData('sales:subs:renew:simple:{id}:{cursor}', function (Nutgram $bot, string $id, string $cursor): void {
+    app(SalesSubscriptionsUi::class)->renewal($bot, $id, $cursor, false);
 });
 
 $bot->onCallbackQueryData('sales:subs:renew:{id}:{cursor}', function (Nutgram $bot, string $id, string $cursor): void {
