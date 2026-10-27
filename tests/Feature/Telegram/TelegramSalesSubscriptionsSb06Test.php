@@ -59,6 +59,17 @@ function sb06Order(User $buyer): int
     return app(CreatePendingOrder::class)->handle($buyer->id, $quote, bin2hex(random_bytes(16)))->id;
 }
 
+/** The Rich message payload must never contain private connection credentials. */
+function sb06RichHtml(NutgramRequest $request): string
+{
+    $data = FakeNutgram::getActualData($request);
+    $rich = is_string($data['rich_message'] ?? null)
+        ? json_decode($data['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+        : ($data['rich_message'] ?? []);
+
+    return (string) ($rich['html'] ?? '');
+}
+
 function sb06Activated(int $orderId): void
 {
     DB::table('sales_orders')->where('id', $orderId)->update(['status' => 'fulfilled']);
@@ -97,7 +108,7 @@ function sb06Provider(int $orderId, array $overrides = []): array
     ];
 }
 
-it('adds simple owner-only Sales subscription navigation with an empty state and no provider calls', function (): void {
+it('adds owner-only Sales subscription navigation with an empty state and no provider calls', function (): void {
     $buyer = User::factory()->create();
     $bot = sb06Bot(976001, $buyer);
     Http::fake();
@@ -225,7 +236,7 @@ it('shows one plan-named member entry while retaining private link access inside
             $keyboard = json_decode($data['reply_markup'], true, 512, JSON_THROW_ON_ERROR);
 
             return str_contains(json_encode($keyboard, JSON_THROW_ON_ERROR), "sales:subs:link:{$order}:0")
-                && ! str_contains($data['text'], 'private-sb06-credential');
+                && ! str_contains(sb06RichHtml($request), 'private-sb06-credential');
         }, index: 2);
 
     Http::assertSentCount(1);
@@ -487,9 +498,11 @@ it('shows actual remote expiry, disability and exhausted traffic without a conne
                 $data = FakeNutgram::getActualData($request);
                 $markup = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
 
-                return str_contains($data['text'], 'وضعیت سرویس: <b>')
-                    && str_contains($data['text'], $expected)
-                    && ! str_contains($data['text'], 'وضعیت ثبت‌شده: 🟢')
+                $html = sb06RichHtml($request);
+
+                return str_contains($html, 'وضعیت سرویس: <b>')
+                    && str_contains($html, $expected)
+                    && ! str_contains($html, 'وضعیت ثبت‌شده: 🟢')
                     && ! str_contains($markup, 'sales:subs:link:')
                     && str_contains($markup, 'sales:buy');
             }, index: 2);
@@ -511,8 +524,10 @@ it('shows an unknown status for transport failure, not a false active or expired
         ->assertRaw(static function (NutgramRequest $request): bool {
             $data = FakeNutgram::getActualData($request);
 
-            return str_contains($data['text'], 'فعلاً قابل بررسی نیست')
-                && ! str_contains($data['text'], 'وضعیت ثبت‌شده: 🟢')
+            $html = sb06RichHtml($request);
+
+            return str_contains($html, 'فعلاً قابل بررسی نیست')
+                && ! str_contains($html, 'وضعیت ثبت‌شده: 🟢')
                 && ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:subs:link:');
         }, index: 2);
 });
@@ -610,7 +625,7 @@ it('navigates QR photo Back to owned subscription without text-editing a photo',
         ],
     ])->reply()
         ->assertCalled('answerCallbackQuery')
-        ->assertCalled('sendMessage')
+        ->assertCalled('sendRichMessage')
         ->assertCalled('editMessageText', 0)
         ->assertCalled('sendPhoto', 0);
 
@@ -632,19 +647,19 @@ it('shows Persian Tehran expiry and remaining days to both members and resellers
     $bot->hearCallbackQueryData('sales:subs:view:'.$order.':0')->reply()
         ->assertRaw(static function (NutgramRequest $request): bool {
             $data = FakeNutgram::getActualData($request);
-            $text = (string) ($data['text'] ?? '');
+            $html = sb06RichHtml($request);
 
-            return str_contains($text, 'تاریخ انقضا: <b>۱۴۰۶/۰۷/۲۰</b>')
-                && str_contains($text, 'ساعت <b>۰۳:۳۰</b> (ایران)')
-                && str_contains($text, 'روزهای باقی‌مانده: <b>')
-                && ! str_contains($text, 'تاریخ انقضا (UTC)')
-                && ! str_contains($text, 'private-sb06-credential');
+            return str_contains($html, 'تاریخ انقضا: <b>۱۴۰۶/۰۷/۲۰</b>')
+                && str_contains($html, 'ساعت <b>۰۳:۳۰</b> (ایران)')
+                && str_contains($html, 'روزهای باقی‌مانده: <b>')
+                && ! str_contains($html, 'تاریخ انقضا (UTC)')
+                && ! str_contains($html, 'private-sb06-credential');
         }, index: 2);
 
     Http::assertSentCount(1);
 })->with(['member', 'reseller']);
 
-it('offers an opt-in rich service detail with expandable RTL sections and existing safe actions', function (): void {
+it('opens Rich service details by default and preserves the old pilot and simple callbacks', function (): void {
     $buyer = User::factory()->create();
     $order = sb06Order($buyer);
     sb06Activated($order);
@@ -654,15 +669,6 @@ it('offers an opt-in rich service detail with expandable RTL sections and existi
     ]);
 
     $bot->hearCallbackQueryData("sales:subs:view:{$order}:0")->reply()
-        ->assertRaw(static function (NutgramRequest $request) use ($order): bool {
-            $data = FakeNutgram::getActualData($request);
-            $keyboard = (string) ($data['reply_markup'] ?? '');
-
-            return str_contains($keyboard, "sales:subs:rich:{$order}:0")
-                && ! isset($data['rich_message']);
-        }, index: 2);
-
-    $bot->hearCallbackQueryData("sales:subs:rich:{$order}:0")->reply()
         ->assertCalled('editMessageText')
         ->assertCalled('sendRichMessage', 0)
         ->assertRaw(static function (NutgramRequest $request) use ($order): bool {
@@ -670,21 +676,41 @@ it('offers an opt-in rich service detail with expandable RTL sections and existi
             $rich = is_string($data['rich_message'] ?? null)
                 ? json_decode($data['rich_message'], true, 512, JSON_THROW_ON_ERROR)
                 : ($data['rich_message'] ?? []);
-            $html = (string) ($rich['html'] ?? '');
+            $html = sb06RichHtml($request);
             $buttons = (string) ($data['reply_markup'] ?? '');
 
             return ($rich['is_rtl'] ?? false) === true
                 && substr_count($html, '<details>') === 3
+                && str_contains($html, '<h4>📦 اشتراک آزمایشی</h4>')
                 && str_contains($html, '<summary>📊 جزئیات مصرف</summary>')
                 && str_contains($html, '<summary>🧾 مشخصات سفارش</summary>')
                 && str_contains($html, '<summary>📱 راهنمای اتصال</summary>')
+                && str_contains($html, 'وضعیت سرویس:')
                 && str_contains($html, 'باقی‌مانده:')
                 && str_contains($html, 'تاریخ انقضا:')
                 && ! str_contains($html, 'private-sb06-credential')
                 && str_contains($buttons, "sales:subs:link:{$order}:0")
-                && str_contains($buttons, "sales:subs:rich:{$order}:0")
+                && str_contains($buttons, "sales:subs:simple:{$order}:0")
                 && str_contains($buttons, "sales:subs:view:{$order}:0")
-                && str_contains($buttons, 'sales:help:apps');
+                && str_contains($buttons, 'sales:help:apps')
+                && ! str_contains($buttons, '✨ نمایش جدید');
+        }, index: 2);
+
+    // Already-sent pilot buttons continue to work after the promotion.
+    $bot->hearCallbackQueryData("sales:subs:rich:{$order}:0")->reply()
+        ->assertRaw(static fn (NutgramRequest $request): bool => str_contains(sb06RichHtml($request), '<details>'), index: 2);
+
+    // The explicit compatibility route uses plain text and refreshes itself.
+    $bot->hearCallbackQueryData("sales:subs:simple:{$order}:0")->reply()
+        ->assertRaw(static function (NutgramRequest $request) use ($order): bool {
+            $data = FakeNutgram::getActualData($request);
+            $buttons = (string) ($data['reply_markup'] ?? '');
+
+            return ! isset($data['rich_message'])
+                && str_contains((string) ($data['text'] ?? ''), 'وضعیت سرویس:')
+                && str_contains($buttons, "sales:subs:simple:{$order}:0")
+                && str_contains($buttons, "sales:subs:link:{$order}:0")
+                && ! str_contains($buttons, '✨ نمایش جدید');
         }, index: 2);
 
     Http::assertSent(static fn (Request $r): bool => $r->method() === 'GET');
