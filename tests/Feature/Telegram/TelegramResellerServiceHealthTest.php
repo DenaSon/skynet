@@ -208,6 +208,6 @@ it('bounds remote checks to six latest services and keeps unauthorized users and
     $bot->hearCallbackQueryData('sales:health:0')->reply()
         ->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('sales:health:simple:0')->reply()
-        ->assertCalled('editMessageText');
+        ->assertCalled('editMessageText', 2);
     Http::assertSentCount(6);
 });
