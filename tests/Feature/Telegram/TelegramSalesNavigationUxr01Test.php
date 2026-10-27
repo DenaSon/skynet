@@ -450,7 +450,6 @@ it('shows reseller-only persistent wallet and builder buttons with working navig
     $bot->hearText(ReplyMenuLabels::BUILDER)->reply()->assertCalled('sendMessage');
 });
 
-
 it('shows member panel setup and reseller builder Rich guides without role escalation', function (): void {
     Role::findOrCreate('member', 'web');
     $member = User::factory()->create();
