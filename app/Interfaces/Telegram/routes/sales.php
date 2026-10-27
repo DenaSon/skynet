@@ -102,8 +102,17 @@ $bot->onCallbackQueryData('sales:help:{page}', function (Nutgram $bot, string $p
     app(SalesSupportUi::class)->show($bot, $page);
 });
 
+// Plain variants recheck fresh reseller/ownership/Provider rules before display.
+$bot->onCallbackQueryData('sales:health:simple:{cursor}', function (Nutgram $bot, string $cursor): void {
+    app(ResellerServiceHealthUi::class)->show($bot, $cursor, false);
+});
+
 $bot->onCallbackQueryData('sales:health:{cursor}', function (Nutgram $bot, string $cursor): void {
     app(ResellerServiceHealthUi::class)->show($bot, $cursor);
+});
+
+$bot->onCallbackQueryData('sales:report:simple:{days}', function (Nutgram $bot, string $days): void {
+    app(ResellerSalesReportUi::class)->show($bot, $days, false);
 });
 
 $bot->onCallbackQueryData('sales:report:{days}', function (Nutgram $bot, string $days): void {
@@ -442,6 +451,10 @@ $bot->onCallbackQueryData('sales:subs:link:{id}:{cursor}', function (Nutgram $bo
 
 $bot->onCallbackQueryData('sales:subs:search:start', function (Nutgram $bot): void {
     app(SalesSubscriptionsUi::class)->beginCustomerSearch($bot);
+});
+
+$bot->onCallbackQueryData('sales:subs:search:simple:{cursor}', function (Nutgram $bot, string $cursor): void {
+    app(SalesSubscriptionsUi::class)->customerSearchResults($bot, $cursor, false);
 });
 
 $bot->onCallbackQueryData('sales:subs:search:page:{cursor}', function (Nutgram $bot, string $cursor): void {
