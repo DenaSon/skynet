@@ -192,7 +192,7 @@ it('retains existing Sales invite copy and share controls while showing live rew
             && str_contains($html, 'ظرفیت باقی‌مانده: <b>6</b>')
             && str_contains($html, '<summary>📋 شرایط دریافت پاداش</summary>')
             && ($markup['inline_keyboard'][1][0]['copy_text']['text'] ?? null) === $url
-            && str_contains(json_encode($markup, JSON_THROW_ON_ERROR), 'share/url');
+            && str_starts_with((string) ($markup['inline_keyboard'][2][0]['url'] ?? ''), 'https://t.me/share/url?');
     });
     Http::assertNothingSent();
 });
