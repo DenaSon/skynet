@@ -44,7 +44,7 @@ it('shows a real Sales-only home and account for linked members without commerce
     $bot->hearText('/start')->reply()
         ->assertReplyText("<b>🏠 DenaGate</b>\n\nخوش آمدید، Buyer.\nنوع حساب: <b>👤 کاربر عادی</b>");
     $bot->hearText('/account')->reply()
-        ->assertCalled('sendMessage');
+        ->assertCalled('sendRichMessage');
     $bot->hearCallbackQueryData('sales:home')->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('sales:account')->reply()->assertCalled('editMessageText');
 
