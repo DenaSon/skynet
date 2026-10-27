@@ -10,9 +10,9 @@ use App\Support\PersianCalendar;
 use Illuminate\Auth\Access\AuthorizationException;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
-use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 
 /** OPS-CMD-01: trusted private Admin presentation; no financial/provider writes. */
 final readonly class AdminCommandCenterUi
@@ -172,7 +172,7 @@ final readonly class AdminCommandCenterUi
      * Read-only Rich presentation of the exact same authorized snapshot used by
      * the legacy HTML view. Tables are deliberately two-column for mobile RTL.
      *
-     * @param array{cash:array<string,mixed>|null,stats:array<string,mixed>|null,pendingTopups:int|null,receivedAt:string} $snapshot
+     * @param  array{cash:array<string,mixed>|null,stats:array<string,mixed>|null,pendingTopups:int|null,receivedAt:string}  $snapshot
      */
     private function richReport(array $snapshot): string
     {
