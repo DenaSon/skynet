@@ -79,6 +79,11 @@ $bot->onCommand('cancel', function (Nutgram $bot): void {
     app(SalesHomeUi::class)->start($bot);
 });
 
+// Preserve the old HTML guide for unsupported Rich clients and old devices.
+$bot->onCallbackQueryData('sales:help:simple:{page}', function (Nutgram $bot, string $page): void {
+    app(SalesSupportUi::class)->show($bot, $page, false);
+});
+
 $bot->onCallbackQueryData('sales:help:{page}', function (Nutgram $bot, string $page): void {
     app(SalesSupportUi::class)->show($bot, $page);
 });
