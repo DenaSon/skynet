@@ -209,7 +209,13 @@ it('keeps tutorial available to resellers without granting a trial through forge
         return in_array('📚 آموزش', $labels, true) && ! in_array('🧪 تست رایگان', $labels, true);
     }, index: 0);
     $bot->hearText('📚 آموزش')->reply()->assertRaw(function (Request $request): bool {
-        return str_contains(trialUiPayload($request)['text'], 'دستگاه خود را انتخاب کنید');
+        $data = trialUiPayload($request);
+        $rich = is_string($data['rich_message'] ?? null)
+            ? json_decode($data['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+            : ($data['rich_message'] ?? []);
+
+        return str_contains((string) ($rich['html'] ?? ''), 'برای مشاهده مراحل کامل')
+            && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:help:builder');
     });
     $bot->hearText('🧪 تست رایگان')->reply();
     expect(DB::table('trial_claims')->count())->toBe(0);
@@ -243,7 +249,7 @@ it('routes tutorial navigation ahead of contact drafts and restores the normal k
     $member = $this->trialMember();
     $bot = trialUiBot();
     $bot->hearCallbackQueryData('sales:trial:contact')->reply();
-    $bot->hearText('📚 آموزش')->reply()->assertCalled('sendMessage', 2)->assertRaw(function (Request $request): bool {
+    $bot->hearText('📚 آموزش')->reply()->assertCalled('sendMessage')->assertCalled('sendRichMessage')->assertRaw(function (Request $request): bool {
         return isset(trialUiPayload($request)['reply_markup']['keyboard']);
     }, index: 0);
     expect(Cache::has('telegram:sales:trial:'.$member->id))->toBeFalse();
