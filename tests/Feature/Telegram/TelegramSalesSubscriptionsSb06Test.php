@@ -643,3 +643,80 @@ it('shows Persian Tehran expiry and remaining days to both members and resellers
 
     Http::assertSentCount(1);
 })->with(['member', 'reseller']);
+
+it('offers an opt-in rich service detail with expandable RTL sections and existing safe actions', function (): void {
+    $buyer = User::factory()->create();
+    $order = sb06Order($buyer);
+    sb06Activated($order);
+    $bot = sb06Bot(976098, $buyer);
+    Http::fake([
+        'https://remna.test/api/users/42' => Http::response(['response' => sb06Provider($order)]),
+    ]);
+
+    $bot->hearCallbackQueryData("sales:subs:view:{$order}:0")->reply()
+        ->assertRaw(static function (NutgramRequest $request) use ($order): bool {
+            $data = FakeNutgram::getActualData($request);
+            $keyboard = (string) ($data['reply_markup'] ?? '');
+
+            return str_contains($keyboard, "sales:subs:rich:{$order}:0")
+                && ! isset($data['rich_message']);
+        }, index: 2);
+
+    $bot->hearCallbackQueryData("sales:subs:rich:{$order}:0")->reply()
+        ->assertCalled('editMessageText')
+        ->assertCalled('sendRichMessage', 0)
+        ->assertRaw(static function (NutgramRequest $request) use ($order): bool {
+            $data = FakeNutgram::getActualData($request);
+            $rich = is_string($data['rich_message'] ?? null)
+                ? json_decode($data['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+                : ($data['rich_message'] ?? []);
+            $html = (string) ($rich['html'] ?? '');
+            $buttons = (string) ($data['reply_markup'] ?? '');
+
+            return ($rich['is_rtl'] ?? false) === true
+                && substr_count($html, '<details>') === 3
+                && str_contains($html, '<summary>📊 جزئیات مصرف</summary>')
+                && str_contains($html, '<summary>🧾 مشخصات سفارش</summary>')
+                && str_contains($html, '<summary>📱 راهنمای اتصال</summary>')
+                && str_contains($html, 'باقی‌مانده:')
+                && str_contains($html, 'تاریخ انقضا:')
+                && ! str_contains($html, 'private-sb06-credential')
+                && str_contains($buttons, "sales:subs:link:{$order}:0")
+                && str_contains($buttons, "sales:subs:rich:{$order}:0")
+                && str_contains($buttons, "sales:subs:view:{$order}:0")
+                && str_contains($buttons, 'sales:help:apps');
+        }, index: 2);
+
+    Http::assertSent(static fn (Request $r): bool => $r->method() === 'GET');
+    expect(DB::table('sales_orders')->where('id', $order)->value('status'))->toBe('fulfilled');
+});
+
+it('keeps rich previews private, owner-checked, and honest for pending services', function (): void {
+    $buyer = User::factory()->create();
+    $other = User::factory()->create();
+    $order = sb06Order($buyer);
+    $bot = sb06Bot(976099, $buyer);
+    $foreign = sb06Bot(976100, $other);
+    Http::fake();
+
+    $foreign->hearCallbackQueryData("sales:subs:rich:{$order}:0")->reply()
+        ->assertCalled('editMessageText')->assertCalled('sendRichMessage', 0);
+
+    $bot->hearCallbackQueryData("sales:subs:rich:{$order}:0")->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $data = FakeNutgram::getActualData($request);
+            $rich = is_string($data['rich_message'] ?? null)
+                ? json_decode($data['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+                : ($data['rich_message'] ?? []);
+            $html = (string) ($rich['html'] ?? '');
+
+            return str_contains($html, 'وضعیت ثبت‌شده:')
+                && str_contains($html, 'پس از فعال‌سازی')
+                && ! str_contains($html, '🟢 فعال')
+                && ! str_contains((string) ($data['reply_markup'] ?? ''), 'sales:subs:link:');
+        }, index: 1);
+
+    $bot->setCommonChat(Chat::make(-976099, ChatType::GROUP));
+    $bot->hearCallbackQueryData("sales:subs:rich:{$order}:0")->reply()->assertNoReply();
+    Http::assertNothingSent();
+});
