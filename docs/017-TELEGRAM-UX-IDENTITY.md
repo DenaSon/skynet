@@ -1,3 +1,7 @@
+## Sales Panel onboarding tutorial (2026-10-27)
+
+Within Sales tutorials, place «🧩 راه‌اندازی پنل فروش» below «🛒 آموزش خرید» for ordinary members only; hide it from resellers and recheck access on every guide callback. Use three spaced, bold numbered headings with restrained emoji: confirmed credit (minimum 750,000 tomans), request through existing terms and identity steps, then approval and starting sales. Put the retained-credit/no-setup-fee explanation in a Telegram HTML blockquote. Use existing «💰 افزایش اعتبار» (success) and «📝 درخواست پنل فروش» (primary) actions, plus tutorial Back/Home. The under-one-hour turnaround is the operator's service commitment, not automatic timed approval; the 35% offer is approved copy, not a pricing change. Keep the existing credit and request gates authoritative.
+
 ## Trial completion presentation (2026-10-26)
 
 After a provider-confirmed terminal trial, send one final «🎁 تست رایگان شما به پایان رسید» message with existing Buy and catalog buttons. Trial-only warnings are strictly under 10 MiB and at five minutes remaining; never send the paid 24h, 1h or 350 MiB warnings. Pre-schedule the five-minute event on the existing queue; recheck provider state before delivery. Unknown provider state remains unavailable; unknown Telegram final-send results require review rather than a duplicate message. Trial success/end failure labels remain simple Persian in the existing Admin notification list.

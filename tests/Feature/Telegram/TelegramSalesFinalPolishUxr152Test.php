@@ -177,3 +177,91 @@ it('shows reseller-only builder guidance under Sales support without exposing it
         }, index: 1);
     Http::assertNothingSent();
 });
+
+it('offers a readable panel setup guide with existing credit and application destinations', function (): void {
+    $member = User::factory()->create();
+    $bot = polish152Bot(987060, $member);
+    $bot->hearCallbackQueryData('sales:help:apps')->reply()
+        ->assertRaw(static function (Request $request): bool {
+            $rows = polish152Payload($request)['reply_markup']['inline_keyboard'];
+
+            return $rows[2][0]['callback_data'] === 'sales:help:purchase'
+                && $rows[3][0]['text'] === '🧩 راه‌اندازی پنل فروش'
+                && $rows[3][0]['callback_data'] === 'sales:help:panel-setup';
+        }, index: 1);
+    $bot->hearCallbackQueryData('sales:help:panel-setup')->reply()
+        ->assertCalled('editMessageText')
+        ->assertRaw(static function (Request $request): bool {
+            $body = polish152Payload($request);
+            $rows = $body['reply_markup']['inline_keyboard'];
+            $callbacks = array_column(array_merge(...$rows), 'callback_data');
+
+            return $body['parse_mode'] === 'HTML'
+                && str_contains($body['text'], '<b>۷۵۰٬۰۰۰ تومان</b>')
+                && str_contains($body['text'], '<b>۱ ساعت</b>')
+                && str_contains($body['text'], 'در صورت تأیید')
+                && str_contains($body['text'], '<b>۳۵٪ تخفیف نمایندگی</b>')
+                && str_contains($body['text'], '<blockquote>۷۵۰ هزار تومان، اعتبار اولیه شماست؛ هزینه راه‌اندازی نیست')
+                && str_contains($body['text'], 'نام، نام خانوادگی و شماره موبایل')
+                && $rows[0][0]['callback_data'] === 'sales:wallet:topup'
+                && $rows[0][0]['style'] === 'success'
+                && $rows[1][0]['callback_data'] === 'sales:panel:request'
+                && $rows[1][0]['style'] === 'primary'
+                && in_array('sales:help:apps', $callbacks, true)
+                && in_array('sales:home', $callbacks, true);
+        }, index: 1);
+    expect(DB::table('sales_panel_requests')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe(0)
+        ->and(DB::table('sales_orders')->count())->toBe(0);
+
+    config()->set('billing.topups_enabled', true);
+    config()->set('billing.payment_card_number', '6037991234567890');
+    $bot->hearCallbackQueryData('sales:wallet:topup')->reply()->assertRaw(static function (Request $request): bool {
+        return str_contains(polish152Payload($request)['text'], 'مبلغ شارژ را انتخاب کنید');
+    }, index: 1);
+    $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertRaw(static function (Request $request): bool {
+        return str_contains(polish152Payload($request)['text'], 'اعتبار کافی نیست');
+    }, index: 1);
+    expect(DB::table('sales_panel_requests')->count())->toBe(0);
+    PanelWalletFunding::credit($member->id, 7_500_000);
+    $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertRaw(static function (Request $request): bool {
+        return str_contains(polish152Payload($request)['text'], 'قوانین پنل فروش');
+    }, index: 1);
+    expect($member->fresh()->hasRole('reseller'))->toBeFalse()
+        ->and(DB::table('sales_panel_requests')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('hides panel setup and rejects a previously delivered guide callback after a role change', function (array $roles): void {
+    Role::findOrCreate('reseller', 'web');
+    $member = User::factory()->create();
+    $bot = polish152Bot(987061, $member);
+    $bot->hearCallbackQueryData('sales:help:panel-setup')->reply()->assertCalled('editMessageText');
+    $member->syncRoles($roles);
+    $bot->hearCallbackQueryData('sales:help:apps')->reply()->assertRaw(static function (Request $request): bool {
+        return ! str_contains(json_encode(polish152Payload($request)['reply_markup'], JSON_THROW_ON_ERROR), 'sales:help:panel-setup');
+    }, index: 1);
+    $bot->hearCallbackQueryData('sales:help:panel-setup')->reply()->assertRaw(static function (Request $request): bool {
+        $body = polish152Payload($request);
+
+        return ! str_contains($body['text'], 'راه‌اندازی پنل فروش')
+            && ! str_contains(json_encode($body['reply_markup'], JSON_THROW_ON_ERROR), 'sales:panel:request');
+    }, index: 1);
+    expect(DB::table('sales_panel_requests')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe(0);
+    Http::assertNothingSent();
+})->with([['roles' => ['reseller']], ['roles' => ['member', 'reseller']], ['roles' => ['admin']]]);
+
+it('keeps panel setup private and unavailable after account deactivation', function (): void {
+    $member = User::factory()->create();
+    $bot = polish152Bot(987062, $member);
+    $bot->setCommonChat(Chat::make(-987062, ChatType::GROUP));
+    $bot->hearCallbackQueryData('sales:help:panel-setup')->reply()->assertNoReply();
+    $bot->setCommonChat(Chat::make(987062, ChatType::PRIVATE));
+    $member->forceFill(['is_active' => false])->save();
+    $bot->hearCallbackQueryData('sales:help:panel-setup')->reply()->assertRaw(static function (Request $request): bool {
+        return ! str_contains(polish152Payload($request)['text'], 'راه‌اندازی پنل فروش');
+    }, index: 1);
+    expect(DB::table('sales_panel_requests')->count())->toBe(0);
+    Http::assertNothingSent();
+});
