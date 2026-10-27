@@ -8,8 +8,10 @@ use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Sales\Application\ReadResellerSalesReport;
 use App\Support\PersianCalendar;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 use Throwable;
 
 /** Private, read-only reseller reports; never the Admin/global report. */
@@ -21,7 +23,7 @@ final readonly class ResellerSalesReportUi
         private ReadResellerSalesReport $reports,
     ) {}
 
-    public function show(Nutgram $bot, string $days = '30'): void
+    public function show(Nutgram $bot, string $days = '30', bool $rich = true): void
     {
         $id = $this->private->id($bot);
         if ($id === null) {
@@ -46,6 +48,7 @@ final readonly class ResellerSalesReportUi
         if ($bot->isCallbackQuery()) {
             TelegramUi::answerCallback($bot);
         }
+        $html = null;
         try {
             $r = $this->reports->handle($actor->userId, (int) $days);
             $text = '<b>📊 گزارش‌های من · '.$days.' روز اخیر</b>'
@@ -61,10 +64,37 @@ final readonly class ResellerSalesReportUi
                 ."\n⏳ سفارش‌های در انتظار پرداخت: ".number_format($r['pending'])
                 ."\n\n<blockquote>آمار سرویس‌ها وضعیت فعلی را نشان می‌دهد؛ فروش مربوط به بازه انتخاب‌شده و فقط پرداخت‌های تأییدشده است.</blockquote>"
                 ."\n🕒 ".PersianCalendar::localDateTime($r['generatedAt']);
+            $html = '<h4>📊 گزارش فروش · '.$days.' روز اخیر</h4>'
+                .'<p>📅 '.TelegramUi::escape(PersianCalendar::date($r['from']))
+                .' تا '.TelegramUi::escape(PersianCalendar::date($r['to'])).' (شمسی، تهران)</p>'
+                .'<p>💰 مجموع فروش تأییدشده: <b>'.TelegramUi::toman($r['revenueRials']).' تومان</b>'
+                .'<br>🧾 تراکنش‌های تأییدشده: <b>'.number_format($r['transactions']).'</b>'
+                .'<br>⏳ سفارش‌های در انتظار پرداخت: <b>'.number_format($r['pending']).'</b></p>'
+                .'<details><summary>🛒 جزئیات فروش</summary><p>خریدهای جدید: '.number_format($r['sales'])
+                .'<br>تمدیدها: '.number_format($r['renewals']).'</p></details>'
+                .'<details><summary>👥 مشتریان و سرویس‌ها</summary><p>کل سرویس‌های ثبت‌شده: '
+                .number_format($r['services']).'<br>سرویس‌های دارای نام: '
+                .number_format($r['namedServices']).'</p></details>'
+                .'<p>آمار سرویس‌ها وضعیت فعلی سوابق داخلی است؛ فروش فقط مربوط به بازه انتخاب‌شده و پرداخت‌های تأییدشده است.</p>'
+                .'<p>🕒 '.TelegramUi::escape(PersianCalendar::localDateTime($r['generatedAt'])).'</p>';
         } catch (Throwable) {
             $text = '<b>📊 گزارش‌های من</b>'."\n\nاطلاعات فعلاً در دسترس نیست؛ کمی بعد دوباره تلاش کنید.";
         }
-        $this->render($bot, $text, $this->keyboard($days));
+        $keyboard = $this->keyboard($days);
+        if ($rich && $html !== null) {
+            $plainKeyboard = clone $keyboard;
+            $keyboard->addRow(InlineKeyboardButton::make('↩️ نمایش ساده', callback_data: 'sales:report:simple:'.$days));
+            try {
+                TelegramUi::editRichText($bot, new InputRichMessage(html: $html, is_rtl: true), $keyboard);
+            } catch (TelegramException $exception) {
+                report($exception);
+                $this->render($bot, $text, $plainKeyboard);
+            }
+
+            return;
+        }
+
+        $this->render($bot, $text, $keyboard);
     }
 
     private function keyboard(string $days): InlineKeyboardMarkup
