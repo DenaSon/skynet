@@ -96,7 +96,7 @@ final readonly class PlanCatalogUi
                     : 'مبلغ نهایی: ')
                 .'<b>'.$this->toman($entry->quote->totalPriceRials).' تومان</b></p>';
             if ($sales) {
-                $richHtml .= '<tg-button-row><tg-button type="callback_data" style="link" data="sales:catalog:preview:'.$entry->plan->id.':'.$page.'">🔎 جزئیات این پلن</tg-button></tg-button-row>';
+                $richHtml .= '<tg-button-row><tg-button type="callback_data" style="success" data="'.$callback.'">🛒 خرید</tg-button></tg-button-row>';
             }
             $keyboard->addRow(
                 InlineKeyboardButton::make(

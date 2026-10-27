@@ -170,7 +170,6 @@ final readonly class SalesHomeUi
                 .TelegramUi::toman($entry->quote->totalPriceRials).' تومان</b>';
             $lines[] = '';
             $callback = 'catalog:detail:'.$entry->plan->id.':1';
-            $preview = 'sales:catalog:preview:'.$entry->plan->id.':'.$page;
             $richHtml .= '<p>📦 <b>'.$this->name($entry->plan->name).'</b><br>'
                 .($entry->quote->trafficGb === null ? 'حجم نامحدود' : $entry->quote->trafficGb.' گیگابایت')
                 .' · '.$entry->quote->durationDays.' روز<br>'
@@ -179,7 +178,7 @@ final readonly class SalesHomeUi
                         .'🎁 تخفیف نماینده: '.$entry->quote->discountPercent.'٪<br>قیمت شما: '
                     : 'مبلغ نهایی: ')
                 .'<b>'.TelegramUi::toman($entry->quote->totalPriceRials).' تومان</b></p>'
-                .'<tg-button-row><tg-button type="callback_data" style="link" data="'.$preview.'">🔎 جزئیات این پلن</tg-button></tg-button-row>';
+                .'<tg-button-row><tg-button type="callback_data" style="success" data="'.$callback.'">🛒 خرید</tg-button></tg-button-row>';
             $keyboard->addRow(
                 InlineKeyboardButton::make(
                     TelegramUi::toman($entry->quote->totalPriceRials).' تومان',

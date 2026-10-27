@@ -316,7 +316,9 @@ it('shows bold escaped catalog prices and sorts both plan lists by each buyers p
                 && array_map(static fn (array $row): string => $row[0]['text'], $rows) === $expectedPrices
                 && str_contains(sb02RichHtml($request), '<b>150,000 تومان</b>')
                 && str_contains(sb02RichHtml($request), '&lt;ارزان &amp; &quot;پایه&quot;&gt;')
-                && str_contains(sb02RichHtml($request), '<tg-button-row>')
+                && str_contains(sb02RichHtml($request), '<tg-button type="callback_data" style="success" data="catalog:detail:'.$expected[0].':1">🛒 خرید</tg-button>')
+                && ! str_contains(sb02RichHtml($request), 'sales:catalog:preview:')
+                && ! str_contains(sb02RichHtml($request), '🔎 جزئیات این پلن')
                 && ! str_contains(sb02RichHtml($request), 'قیمت‌ها از تعرفه')
                 && ! str_contains(sb02RichHtml($request), 'مبلغ نمایش‌داده‌شده');
         }, index: 1);
@@ -344,7 +346,9 @@ it('shows bold escaped catalog prices and sorts both plan lists by each buyers p
 
             return $callbacks === array_map(static fn (int $id): string => "catalog:detail:{$id}:1", $expected)
                 && array_map(static fn (array $row): string => $row[0]['text'], $rows) === $expectedPrices
-                && str_contains(sb02RichHtml($request), '<b>150,000 تومان</b>');
+                && str_contains(sb02RichHtml($request), '<b>150,000 تومان</b>')
+                && str_contains(sb02RichHtml($request), '<tg-button type="callback_data" style="success" data="catalog:detail:'.$expected[0].':1">🛒 خرید</tg-button>')
+                && ! str_contains(sb02RichHtml($request), 'sales:catalog:preview:');
         }, index: 1);
     $bot->hearCallbackQueryData('sales:home:2')->reply()
         ->assertRaw(static function (Request $request) use ($payload, $expensive): bool {
@@ -363,7 +367,7 @@ it('shows bold escaped catalog prices and sorts both plan lists by each buyers p
     Http::assertNothingSent();
 })->with(['member' => false, 'reseller' => true]);
 
-it('provides a read-only Rich quote with a real inline buy callback and native fallback', function (bool $isReseller): void {
+it('buys directly from Rich catalog but retains read-only legacy quote links and native fallback', function (bool $isReseller): void {
     sb02SalesWebhookContext();
     $root = sb02Root();
     $plan = sb02Plan($root, 'rich-preview', discount: 35);
@@ -380,11 +384,15 @@ it('provides a read-only Rich quote with a real inline buy callback and native f
         $html = sb02RichHtml($request);
 
         return str_contains($html, $expectedPrice)
-            && str_contains($html, 'sales:catalog:preview:'.$plan.':1')
+            && str_contains($html, '<tg-button type="callback_data" style="success" data="catalog:detail:'.$plan.':1">🛒 خرید</tg-button>')
+            && ! str_contains($html, 'sales:catalog:preview:')
+            && ! str_contains($html, 'جزئیات این پلن')
             && str_contains($buttons, 'catalog:detail:'.$plan.':1')
             && str_contains($buttons, 'sales:catalog:simple:1');
     }, index: 1);
 
+    // A button from an already-delivered old message must still open a
+    // read-only preview. It must never silently become an order-creating action.
     $bot->hearCallbackQueryData("sales:catalog:preview:{$plan}:1")->reply()
         ->assertCalled('editMessageText')
         ->assertRaw(static function (Request $request) use ($plan, $isReseller, $expectedPrice): bool {
