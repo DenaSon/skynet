@@ -12,6 +12,7 @@ use SergiX44\Nutgram\Telegram\Types\Keyboard\CopyTextButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 use SergiX44\Nutgram\Telegram\Types\Message\Message;
+use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 
 final class TelegramUi
 {
@@ -66,6 +67,31 @@ final class TelegramUi
 
         try {
             $bot->editMessageText(text: $text, reply_markup: $keyboard, parse_mode: $parseMode);
+        } catch (TelegramException $exception) {
+            if (! self::isUnmodified($exception)) {
+                throw $exception;
+            }
+        }
+    }
+
+    /**
+     * Rich service preview uses the same Telegram navigation semantics as text.
+     * QR/photo cards are left untouched and receive a new rich message instead.
+     */
+    public static function editRichText(
+        Nutgram $bot,
+        InputRichMessage $richMessage,
+        ?InlineKeyboardMarkup $keyboard = null,
+    ): void {
+        $callbackMessage = $bot->isCallbackQuery() ? $bot->callbackQuery()?->message : null;
+        if (! $bot->isCallbackQuery() || ($callbackMessage instanceof Message && $callbackMessage->photo !== null)) {
+            $bot->sendRichMessage(rich_message: $richMessage, reply_markup: $keyboard);
+
+            return;
+        }
+
+        try {
+            $bot->editMessageText(rich_message: $richMessage, reply_markup: $keyboard);
         } catch (TelegramException $exception) {
             if (! self::isUnmodified($exception)) {
                 throw $exception;
