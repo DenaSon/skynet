@@ -134,8 +134,7 @@ final readonly class SalesHomeUi
         $this->render($bot,
             '<b>🏠 صفحه اصلی DenaGate</b>'
             ."\n\nنوع حساب: <b>".$this->salesRole($actor).'</b>'
-            .$walletLine
-            ."\n\nبخش موردنظر را انتخاب کنید.",
+            .$walletLine,
             $keyboard,
         );
     }
