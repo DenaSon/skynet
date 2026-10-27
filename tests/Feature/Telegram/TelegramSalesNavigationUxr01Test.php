@@ -387,7 +387,25 @@ it('offers a real configured Telegram contact and short guides with working back
             && str_contains((string) ($data['text'] ?? ''), '<b>V2Box</b>')
             && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:help:apps');
     }, index: 1);
-    $bot->hearCallbackQueryData('sales:support')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:support')->reply()->assertRaw(static function (Request $request): bool {
+        $body = uxr01Payload($request);
+        $buttons = json_encode($body['reply_markup'], JSON_THROW_ON_ERROR);
+        $html = uxr01RichHtml($request);
+
+        return str_contains($html, '<h4>💬 پشتیبانی دناگیت</h4>')
+            && str_contains($html, '<summary>🔧 مشکل اتصال دارید؟</summary>')
+            && str_contains($buttons, 'sales:help:troubleshoot')
+            && str_contains($buttons, 'sales:subs:list:0')
+            && str_contains($buttons, 'sales:help:simple:support');
+    }, index: 1);
+    $bot->hearCallbackQueryData('sales:support:simple')->reply()->assertRaw(static function (Request $request): bool {
+        $body = uxr01Payload($request);
+        $buttons = json_encode($body['reply_markup'], JSON_THROW_ON_ERROR);
+
+        return ! isset($body['rich_message'])
+            && str_contains((string) ($body['text'] ?? ''), 'پشتیبانی')
+            && str_contains($buttons, 'sales:help:apps');
+    }, index: 1);
     $bot->hearCallbackQueryData('sales:home')->reply()->assertCalled('editMessageText')->assertCalled('sendMessage', 0);
     Http::assertNothingSent();
 });
@@ -399,7 +417,7 @@ it('never fabricates an operator link when configuration is missing or invalid',
         $bot->hearText('/help')->reply()->assertRaw(static function (Request $request): bool {
             $body = uxr01Payload($request);
 
-            return str_contains($body['text'], 'فعلاً در دسترس نیست')
+            return str_contains(uxr01RichHtml($request), 'ارتباط مستقیم فعلاً در دسترس نیست')
                 && ! str_contains(json_encode($body['reply_markup'], JSON_THROW_ON_ERROR), '"url"');
         });
     }
