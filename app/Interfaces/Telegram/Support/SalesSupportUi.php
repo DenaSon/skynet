@@ -40,7 +40,9 @@ final readonly class SalesSupportUi
                 $text = '<b>💬 پشتیبانی</b>'."\n\n".($operator === null
                     ? 'ارتباط مستقیم فعلاً در دسترس نیست. راهنمای اتصال و خرید را ببینید.'
                     : 'برای گفتگو با اپراتور، دکمه «ارتباط با پشتیبان» را بزنید. گفتگوی خصوصی تلگرام باز می‌شود.');
-                $keyboard->addRow(InlineKeyboardButton::make('📚 آموزش اتصال و خرید', callback_data: 'sales:help:apps'));
+                $keyboard->addRow(InlineKeyboardButton::make('📚 آموزش اتصال و خرید', callback_data: 'sales:help:apps'))
+                    ->addRow(InlineKeyboardButton::make('🔧 رفع مشکل اتصال', callback_data: 'sales:help:troubleshoot'))
+                    ->addRow(InlineKeyboardButton::make('📋 سرویس‌های من', callback_data: 'sales:subs:list:0'));
                 if (in_array('reseller', $actor->roles, true)) {
                     $keyboard->addRow(InlineKeyboardButton::make('🧩 راهنمای پلن‌ساز', callback_data: 'sales:help:builder'));
                 }
@@ -162,6 +164,7 @@ final readonly class SalesSupportUi
         }
 
         $richHtml = match ($page) {
+            'support' => $this->richSupport($operator !== null),
             'apps' => $this->richIndex($canSetupPanel, in_array('reseller', $actor->roles, true)),
             'android', 'ios', 'windows', 'macos', 'purchase', 'troubleshoot', 'panel-setup', 'builder' => $this->richGuide($page, $text),
             default => null,
@@ -211,6 +214,22 @@ final readonly class SalesSupportUi
             return;
         }
         $bot->sendMessage(text: $text, reply_markup: $keyboard, parse_mode: 'HTML');
+    }
+
+    private function richSupport(bool $hasOperator): string
+    {
+        return '<h4>💬 پشتیبانی دناگیت</h4>'
+            .'<p>'.($hasOperator
+                ? 'برای گفتگو با پشتیبان، دکمه «ارتباط با پشتیبان» را انتخاب کنید.'
+                : 'ارتباط مستقیم فعلاً در دسترس نیست. از راهنمای اتصال و خرید استفاده کنید.')
+            .'</p>'
+            .'<details><summary>🔧 مشکل اتصال دارید؟</summary><p>'
+            .'ابتدا وضعیت و حجم سرویس را در «سرویس‌های من» بررسی کنید، '
+            .'سپس راهنمای رفع مشکل اتصال را باز کنید.'
+            .'</p></details>'
+            .'<details><summary>📚 راهنمای دستگاه و خرید</summary><p>'
+            .'راهنمای نصب برنامه، واردکردن لینک اتصال و خرید را از بخش آموزش‌ها ببینید.'
+            .'</p></details>';
     }
 
     private function richIndex(bool $canSetupPanel, bool $reseller): string
