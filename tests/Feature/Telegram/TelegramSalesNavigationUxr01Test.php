@@ -129,7 +129,7 @@ it('routes every primary destination ahead of pending input and retires only Sal
         $builder->remember($user->id, 123, 1);
         Cache::put($salesReceipt, 123, 600);
         $reply = $bot->hearText($label)->reply();
-        if ($label === ReplyMenuLabels::SALES_ACCOUNT) {
+        if (in_array($label, [ReplyMenuLabels::SALES_ACCOUNT, ReplyMenuLabels::SALES_SUPPORT], true)) {
             $reply->assertCalled('sendRichMessage')->assertCalled('sendMessage', 0);
         } else {
             $reply->assertCalled('sendMessage', in_array($label, [ReplyMenuLabels::HOME, '/cancel'], true) ? 2 : 1);
@@ -320,8 +320,10 @@ it('offers a real configured Telegram contact and short guides with working back
     $bot->hearText(ReplyMenuLabels::SALES_SUPPORT)->reply()->assertRaw(static function (Request $request): bool {
         $body = uxr01Payload($request);
 
-        return $body['parse_mode'] === 'HTML'
-            && $body['reply_markup']['inline_keyboard'][1][0]['url'] === 'https://t.me/DenaGateOperator';
+        $buttons = array_merge(...$body['reply_markup']['inline_keyboard']);
+
+        return str_contains(uxr01RichHtml($request), 'ارتباط با پشتیبان')
+            && in_array('https://t.me/DenaGateOperator', array_column($buttons, 'url'), true);
     });
     foreach (['apps', 'android', 'ios', 'windows', 'macos', 'purchase', 'troubleshoot'] as $page) {
         $bot->hearCallbackQueryData('sales:help:'.$page)->reply()
