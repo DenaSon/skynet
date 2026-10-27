@@ -1,3 +1,5 @@
+> **Phase 03 source checkpoint — 2026-10-27:** Rich quoted Sales ready-list and catalog list retain the existing native two-column buy buttons. In-content buttons open a NEW read-only per-plan quote, where the in-content «ادامه خرید» button uses the existing role/price/provider-validated checkout callback; old direct-checkout callbacks remain unchanged. Three explicit simple-view callbacks and Telegram-error fallback are preserved. No purchase is made merely by opening quote details. **Operator visual and real inline CTA testing on Telegram remains pending after successful CI/merge; Phase 04 must not start before explicit acceptance.**
+
 > **Phase 02 source checkpoint — 2026-10-27:** Sales tutorial index plus device, purchase, troubleshooting, member onboarding and reseller builder guides gain scoped RTL Rich expandable sections with the existing native download/action buttons. Explicit sales:help:simple:{page} preserves plain HTML fallback. No in-content Rich buttons (reserved for Phase 03), payment/provider changes or Admin Bot restyling. **Real Telegram layout and CTA/back verification remain an operator acceptance gate. Phase 03 is blocked until accepted.**
 
 > **Phase 01 source checkpoint — 2026-10-27:** [PR #255](https://github.com/DenaSon/skynet/pull/255) promotes `sales:subs:view` Rich by default, preserves the historical `sales:subs:rich` alias and provides `sales:subs:simple` fallback. The visible trial button is retired. **Operator review of the deployed default-route Rich UI is still pending.** Do not start Phase 02 until explicit acceptance. Other phases remain planned only.
@@ -126,8 +128,8 @@ When client support is absent or a rich edit fails, use the existing accessible 
 | Phase | Current state | Operator acceptance |
 |---|---|---|
 | 01 Service detail default | Merged PR #255; user tested default Rich on Telegram iOS | Accepted by operator 2026-10-27; cross-client/Fallback checks remain |
-| 02 Tutorials | Source PR #256 under CI review | Real Telegram tutorial layout, CTA and Back acceptance pending |
-| 03 Catalog / in-content CTA | Planned; CTA requires live validation | Pending |
+| 02 Tutorials | Merged PR #256, actual Telegram UI operator-accepted | Accepted by operator 2026-10-27; some client variants unverified |
+| 03 Catalog / in-content CTA | Source implementation under PR review | Real Telegram in-content CTA and layout acceptance pending |
 | 04 Home/account/referrals | Planned | Pending |
 | 05 Wallet/orders/renewal presentation | Planned | Pending |
 | 06 Trial/support | Planned | Pending |
