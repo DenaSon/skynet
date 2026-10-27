@@ -316,7 +316,7 @@ final readonly class SalesSubscriptionsUi
     }
 
     /** REN-01: quote a non-payable renewal draft; no bank, wallet or RW mutation. */
-    public function renewal(Nutgram $bot, string $id, string $cursor = '0'): void
+    public function renewal(Nutgram $bot, string $id, string $cursor = '0', bool $rich = true): void
     {
         $viewer = $this->viewer($bot);
         if ($viewer === null) {
@@ -371,6 +371,34 @@ final readonly class SalesSubscriptionsUi
                 ->addRow(InlineKeyboardButton::make('◀️ بازگشت به سرویس',
                     callback_data: 'sales:subs:view:'.$sourceId.':'.$cursor))
                 ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
+        }
+
+        if ($rich) {
+            $html = '<h4>🔄 پیش‌نمایش تمدید سرویس #'.$draft->sourceOrderId.'</h4>'
+                .'<p>پلن: <b>'.$name.'</b>'
+                .'<br>مدت تمدید: '.$draft->durationDays.' روز'
+                .'<br>حجم پلن: '.$traffic.'</p>'
+                .'<p>💰 قیمت فعلی: <b>'.TelegramUi::toman($draft->priceRials).' تومان</b></p>'
+                .'<details><summary>📋 شرایط تمدید</summary><p>'
+                .(config('sales.renewal_enabled', false) === true
+                    ? 'این پیش‌نمایش فقط برای همین سرویس است. پرداخت فقط بعد از انتخاب و تأیید شما آغاز می‌شود و اعتبار همان اشتراک افزایش می‌یابد.'
+                    : 'پرداخت تمدید فعلاً فعال نیست؛ هیچ مبلغی بابت این پیش‌نمایش دریافت نشده است.')
+                .'</p></details>';
+            $plainButtons = clone $buttons;
+            $buttons->addRow(InlineKeyboardButton::make('↩️ نمایش ساده',
+                callback_data: 'sales:subs:renew:simple:'.$sourceId.':'.$cursor));
+            try {
+                TelegramUi::editRichText($bot, new InputRichMessage(html: $html, is_rtl: true), $buttons);
+            } catch (TelegramException $exception) {
+                report($exception);
+                if ($bot->isCallbackQuery()) {
+                    TelegramUi::editText($bot, $message, $plainButtons, 'HTML');
+                } else {
+                    $bot->sendMessage(text: $message, reply_markup: $plainButtons, parse_mode: 'HTML');
+                }
+            }
+
+            return;
         }
 
         $this->render($bot, $message, $buttons, ! $acknowledged);
