@@ -166,7 +166,7 @@ it('shows live minutes and MiB and uses the existing QR renderer after activatio
             && str_contains($markup, 'sales:trial:link')
             && str_contains($markup, 'sales:trial:simple')
             && ! str_contains($html, 'vless://');
-    }, index: 2);
+    }, index: 1);
     $bot->hearCallbackQueryData('sales:trial:simple')->reply()
         ->assertRaw(static function (Request $request): bool {
             $data = FakeNutgram::getActualData($request);
@@ -174,7 +174,7 @@ it('shows live minutes and MiB and uses the existing QR renderer after activatio
             return ! isset($data['rich_message'])
                 && str_contains((string) ($data['text'] ?? ''), 'حجم باقی‌مانده:')
                 && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:trial:link');
-        }, index: 2);
+        }, index: 1);
     $bot->hearCallbackQueryData('sales:trial:link')->reply()->assertCalled('sendPhoto', 1)->assertCalled('sendMessage', 0);
     $this->trialRemote['userTraffic']['usedTrafficBytes'] = ProvisionFreeTrial::BYTES;
     $bot->hearCallbackQueryData('sales:trial:link')->reply()->assertCalled('sendMessage')->assertCalled('sendPhoto', 0);
@@ -330,7 +330,7 @@ it('hides a used trial immediately on menu refresh for both terminal conditions 
         return ! isset($data['rich_message'])
             && str_contains((string) ($data['text'] ?? ''), 'تست به پایان رسیده است')
             && ! in_array('🧪 تست رایگان', $labels, true);
-    });
+    }, index: 1);
     expect(DB::table('trial_claims')->count())->toBe(1);
 })->with([true, false]);
 
