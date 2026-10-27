@@ -12,8 +12,10 @@ use App\Modules\Sales\Application\PlanSummary;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 
 /**
  * F11-B1.6: reseller custom GB/day preview, without ANY order/settlement or
@@ -161,7 +163,7 @@ final readonly class ResellerBuilderUi
             ."\nمدت مجاز: {$plan->minDays} تا {$plan->maxDays} روز\n\nمدت را انتخاب کنید:", $keyboard);
     }
 
-    public function quote(Nutgram $bot, string $id, string $gb, string $days, string $page): void
+    public function quote(Nutgram $bot, string $id, string $gb, string $days, string $page, bool $rich = true): void
     {
         $actor = $this->actor($bot);
         if ($actor === null) {
@@ -190,7 +192,7 @@ final readonly class ResellerBuilderUi
             return;
         }
 
-        $this->showQuote($bot, $plan, $price, $pg);
+        $this->showQuote($bot, $plan, $price, $pg, $rich);
     }
 
     public function custom(Nutgram $bot, string $id, string $page): void
@@ -295,7 +297,7 @@ final readonly class ResellerBuilderUi
         $this->browse($bot);
     }
 
-    private function showQuote(Nutgram $bot, PlanSummary $plan, PlanPriceQuote $quote, int $page): void
+    private function showQuote(Nutgram $bot, PlanSummary $plan, PlanPriceQuote $quote, int $page, bool $rich = true): void
     {
         $lines = [
             '🧮 پیش‌نمایش پلن سفارشی',
@@ -323,6 +325,42 @@ final readonly class ResellerBuilderUi
         $keyboard->addRow(InlineKeyboardButton::make('✏️ تغییر حجم یا مدت', callback_data: "builder:custom:{$plan->id}:{$page}"))
             ->addRow(InlineKeyboardButton::make('◀️ پلن‌سازها', callback_data: 'builder:list:'.$page))
             ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'menu:home'));
+
+        // Sales-only Rich quote: never mutate a draft, place an order, or
+        // bypass the existing checkout validation. Admin stays plain text.
+        if ($rich && TelegramBotContext::current()->key === 'sales') {
+            $checkout = "sales:checkout:preview:{$quote->planId}:{$quote->durationDays}:".($quote->trafficGb ?? 0);
+            $plainKeyboard = clone $keyboard;
+            $keyboard->addRow(InlineKeyboardButton::make(
+                '↩️ نمایش ساده',
+                callback_data: "builder:quote:simple:{$quote->planId}:".($quote->trafficGb ?? 0).":{$quote->durationDays}:{$page}",
+            ));
+            $html = '<h4>🧮 پیش‌نمایش پلن سفارشی</h4>'
+                .'<p>📦 <b>'.TelegramUi::escape($this->safe($plan->name)).'</b>'
+                .'<br>📊 حجم: '.($quote->trafficGb === null ? 'نامحدود' : $quote->trafficGb.' گیگابایت')
+                .'<br>⏳ مدت: '.$quote->durationDays.' روز</p>'
+                .'<p>💵 قیمت عمومی: <b>'.TelegramUi::toman($quote->publicPriceRials).' تومان</b>'
+                .'<br>🎁 تخفیف نماینده: <b>'.$quote->discountPercent.'٪</b>'
+                .'<br>✅ مبلغ شما: <b>'.TelegramUi::toman($quote->totalPriceRials).' تومان</b></p>'
+                .'<tg-button-row><tg-button type="callback_data" style="success" data="'.$checkout.'">'
+                .'🛒 ادامه خرید</tg-button></tg-button-row>'
+                .'<details><summary>📋 نکته پیش از خرید</summary><p>'
+                .'این مبلغ پیش‌نمایش است؛ قیمت، شرایط پلن و امکان خرید قبل از ثبت سفارش دوباره بررسی می‌شوند.'
+                .'</p></details>';
+            try {
+                TelegramUi::answerCallback($bot);
+                TelegramUi::editRichText($bot, new InputRichMessage(html: $html, is_rtl: true), $keyboard);
+            } catch (TelegramException $exception) {
+                report($exception);
+                if ($bot->isCallbackQuery()) {
+                    TelegramUi::editText($bot, implode("\n", $lines), $plainKeyboard);
+                } else {
+                    $bot->sendMessage(text: implode("\n", $lines), reply_markup: $plainKeyboard);
+                }
+            }
+
+            return;
+        }
 
         $this->render($bot, implode("\n", $lines), $keyboard);
     }
