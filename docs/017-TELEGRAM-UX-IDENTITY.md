@@ -1,3 +1,11 @@
+## Sales/reseller Rich UX — approved *plan*, gated rollout (2026-10-27)
+
+The nine-phase [Sales and Reseller Rich UX roadmap](032-SALES-RICH-UX-ROADMAP.md) governs **planned** (not yet implemented) improvements to the Sales Bot and its reseller-role pages. Only the previously merged opt-in service-detail pilot has actual operator-reported Telegram client validation; it remains opt-in until Phase 01 is separately implemented and accepted. The operator will inspect real Telegram UX after **each** phase's green-CI PR merge and must explicitly approve starting the next phase. Admin/Super Admin restyling is excluded.
+
+**Permanent design guidance for these Sales scopes:** show status, final quoted price, balance and primary action without requiring a `<details>` expansion; use Rich expandable blocks only for secondary data. Prefer in-content contextual CTA buttons (`RichMessageButton`/`callback_data`) on supported clients, but **do not presume** they work everywhere: pilot them in Phase 03 and preserve native InlineKeyboard fallback. Native multi-step forms, Contact input and all sensitive payment confirmations remain unchanged. Every callback must recheck role, owner, current quote/plan readiness and transaction safety. Preserve old callback navigation, copy, RTL, Persian calendar and safe escapes. Never add public credentials to a Rich body.
+
+**Current CI release contract (PR #253):** full PHP 8.4 test suite plus PHPStan/Pint on every PR; conservative MySQL/Redis trigger on PR changes, full MySQL/Redis on master and nightly, PHP 8.5 full suite nightly. Run additional sensitive checks when warranted. Historical PHP 8.4/8.5-per-PR statements elsewhere in this document describe earlier policy and are superseded for future Sales UI PRs; they are not evidence of live acceptance.
+
 ## Sales service Rich Messages — opt-in client validation (2026-10-27)
 
 - The existing owner-authorized Sales service detail remains the default. Its «✨ نمایش جدید» action opens an opt-in Rich Message preview through the same authorized read Actions. The preview keeps essential live status/remaining/expiry visible, with collapsible usage, purchased-plan/order and device-help sections. No extra provider call is authorized by merely expanding a section.
@@ -133,7 +141,7 @@ The operator explicitly approved replacing the **Sales-only** permanent four-but
 
 - Shared transport-only presentation helpers live under app/Interfaces/Telegram/Support/TelegramUi.php. All presenters must use `TelegramUi::answerCallback`, `TelegramUi::editText` or `TelegramUi::editCaption` instead of calling Nutgram callback acknowledgement or message/caption edit methods directly. Only Telegram HTTP 400 `message is not modified` and expired callback acknowledgements are benign; every other error must still surface. A source-regression test enforces this boundary. Keep business rules in modules. No new payment or provider side effects in UX work.
 - Every change should test: command/callback reachability, role and private-chat guards, copy payload and HTML escaping, cancellation, one-time/expiry/stale replay, existing order behavior and no extra provider calls.
-- PHP 8.4/8.5 Pest, PHPStan and Pint must pass before merge. GitHub CI is not proof of live Telegram E2E; separately record which screens are manually verified.
+- Follow the current CI policy recorded above: full PHP 8.4 Pest, PHPStan and Pint before merge, conditional MySQL/Redis for PRs and nightly PHP 8.5. GitHub CI is not proof of live Telegram E2E; separately record which screens are manually verified.
 - Preserve Back/Cancel, old callbacks and commands, and the enabled/disabled behavior of all flags.
 - Release increments: UX-01 shared language/design vocabulary; UX-02 grouped navigation; UX-03 guided admin forms; UX-04 user catalog/builder/shop/order polish; UX-05 users/RBAC/finance polish; UX-06 exhaustive regression and live smoke.
 - A PR may finish only a subset. Mark incomplete flows explicitly in docs/000-CONTEXT.md, rather than calling the entire redesign done.
