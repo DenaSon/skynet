@@ -1,3 +1,5 @@
+> **Phase 08 source checkpoint — 2026-10-27:** Sales reseller-only reports, bounded service-health pages and customer search results now use RTL Rich presentation with existing reports/health/service-detail/Back controls. Financial numbers and chosen date ranges remain Application Action sourced; live health covers at most six current owner-owned GETs per page and unknown state is explicit; customer edits and text input remain native. `sales:report:simple`, `sales:health:simple`, `sales:subs:search:simple` revalidate the same owner/role checks and reuse HTML fallback. **Real Telegram acceptance pending; Phase 09 not started.**
+
 > **Phase 07 source checkpoint — 2026-10-27:** Sales-only final reseller builder price quote uses Rich RTL with current computed public price/discount/final price and a green in-content CTA to unchanged guarded checkout preview. Size/day selection, custom 10-minute text form, safe native keyboard checkout and Admin Bot behavior remain. Explicit `builder:quote:simple` refreshes/revalidates the quote; transport failure has native fallback. **Real Telegram visual/button acceptance pending**. Do not start Phase 08 until user approval.
 
 > **Phase 06 source checkpoint — 2026-10-27:** Sales trial eligibility, in-progress and active read pages use concise RTL Rich with important live values outside expandable help. Terminal trial still sends native reply-keyboard update to hide access; one-time Contact and confirmation, QR links, anti-abuse and provider operations stay unchanged. Support gains existing troubleshooting/service/help shortcuts plus configured operator URL, with an explicit simple HTML fallback. **Operator Telegram acceptance pending**; Phase 07 reseller builder must not start without approval.
@@ -143,7 +145,7 @@ When client support is absent or a rich edit fails, use the existing accessible 
 | 04 Home/account/referrals | PR #259 merged, tested in actual Telegram | Operator accepted 2026-10-27 |
 | 05 Wallet/orders/renewal presentation | PR #260 merged and operator reviewed | Accepted by operator 2026-10-27 |
 | 06 Trial/support | Merged PR #261, user reviewed real Telegram | Accepted 2026-10-27 |
-| 07 Reseller builder | Phase 07 source PR pending CI/merge | Real Telegram acceptance required |
+| 07 Reseller builder | PR #262 merged and operator reviewed actual Telegram | Operator accepted 2026-10-27 |
 | 08 Reseller reports/customer management | Planned | Pending |
 | 09 Final cross-screen review | Planned | Pending |
 
