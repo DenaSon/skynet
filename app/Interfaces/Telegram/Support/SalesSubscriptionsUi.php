@@ -144,7 +144,7 @@ final readonly class SalesSubscriptionsUi
         $this->render($bot, trim(implode("\n", $lines)), $keyboard);
     }
 
-    public function detail(Nutgram $bot, string $id, string $cursor = '0', bool $rich = false): void
+    public function detail(Nutgram $bot, string $id, string $cursor = '0', bool $rich = true): void
     {
         $viewer = $this->viewer($bot);
         if ($viewer === null) {
@@ -270,42 +270,49 @@ final readonly class SalesSubscriptionsUi
             ));
         }
 
-        if ($rich) {
-            $keyboard->addRow(InlineKeyboardButton::make('📚 آموزش اتصال', callback_data: 'sales:help:apps'))
-                ->addRow(InlineKeyboardButton::make('↩️ نمایش ساده', callback_data: 'sales:subs:view:'.$orderId.':'.$cursor));
-        } else {
-            $keyboard->addRow(InlineKeyboardButton::make('✨ نمایش جدید', callback_data: 'sales:subs:rich:'.$orderId.':'.$cursor));
-        }
-
-        $keyboard->addRow(InlineKeyboardButton::make('🔄 بررسی دوباره', callback_data: 'sales:subs:'.($rich ? 'rich:' : 'view:').$orderId.':'.$cursor))
+        // Both layouts retain exactly the same authorized service actions.
+        // A failed Rich edit must fall back to buttons that refresh simple HTML.
+        $simpleKeyboard = clone $keyboard;
+        $simpleKeyboard->addRow(InlineKeyboardButton::make('📚 آموزش اتصال', callback_data: 'sales:help:apps'))
+            ->addRow(InlineKeyboardButton::make('🔄 بررسی دوباره', callback_data: 'sales:subs:simple:'.$orderId.':'.$cursor))
             ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'sales:subs:list:'.$cursor))
             ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
 
-        if ($rich) {
-            $richHtml = '<h4>'.$lines[0].'</h4>'
-                .'<p>'.$richStatus.($richRemaining === '' ? '' : '<br>'.$richRemaining)
-                .($richExpiry === '' ? '' : '<br>'.$richExpiry).'</p>'
-                .'<details><summary>📊 جزئیات مصرف</summary><p>'.$richUsage.'</p></details>'
-                .'<details><summary>🧾 مشخصات سفارش</summary><p>پلن: '.TelegramUi::escape($this->clean($item->productName))
-                .'<br>حجم خرید: '.($item->trafficGb === null ? 'نامحدود' : $item->trafficGb.' گیگابایت')
-                .'<br>مدت خرید: '.$item->durationDays.' روز'
-                .'<br>مبلغ: <b>'.TelegramUi::toman($item->totalPriceRials).' تومان</b></p></details>'
-                .'<details><summary>📱 راهنمای اتصال</summary><p>برای دریافت کد اتصال یا دیدن آموزش دستگاه خود از دکمه‌های همین صفحه استفاده کنید.</p></details>';
-            try {
-                if (! $acknowledged) {
-                    TelegramUi::answerCallback($bot);
-                }
-                TelegramUi::editRichText($bot, new InputRichMessage(html: $richHtml, is_rtl: true), $keyboard);
-            } catch (TelegramException $exception) {
-                // A preview must never strand a buyer on an unsupported rich payload.
-                report($exception);
-                $this->render($bot, implode("\n", $lines), $keyboard, false);
-            }
+        if (! $rich) {
+            $this->render($bot, implode("\n", $lines), $simpleKeyboard, ! $acknowledged);
 
             return;
         }
 
-        $this->render($bot, implode("\n", $lines), $keyboard, ! $acknowledged);
+        $keyboard->addRow(InlineKeyboardButton::make('📚 آموزش اتصال', callback_data: 'sales:help:apps'))
+            ->addRow(InlineKeyboardButton::make('↩️ نمایش ساده', callback_data: 'sales:subs:simple:'.$orderId.':'.$cursor))
+            ->addRow(InlineKeyboardButton::make('🔄 بررسی دوباره', callback_data: 'sales:subs:view:'.$orderId.':'.$cursor))
+            ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'sales:subs:list:'.$cursor))
+            ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
+
+        $heading = $customerLabel === null
+            ? '📦 '.TelegramUi::escape($this->clean($item->productName))
+            : '👤 '.TelegramUi::escape($this->clean($customerLabel));
+        $richHtml = '<h4>'.$heading.'</h4>'
+            .($customerLabel === null ? '' : '<p>پلن: '.TelegramUi::escape($this->clean($item->productName)).'</p>')
+            .'<p>'.$richStatus.($richRemaining === '' ? '' : '<br>'.$richRemaining)
+            .($richExpiry === '' ? '' : '<br>'.$richExpiry).'</p>'
+            .'<details><summary>📊 جزئیات مصرف</summary><p>'.$richUsage.'</p></details>'
+            .'<details><summary>🧾 مشخصات سفارش</summary><p>پلن: '.TelegramUi::escape($this->clean($item->productName))
+            .'<br>حجم خرید: '.($item->trafficGb === null ? 'نامحدود' : $item->trafficGb.' گیگابایت')
+            .'<br>مدت خرید: '.$item->durationDays.' روز'
+            .'<br>مبلغ: <b>'.TelegramUi::toman($item->totalPriceRials).' تومان</b></p></details>'
+            .'<details><summary>📱 راهنمای اتصال</summary><p>برای دریافت کد اتصال یا دیدن آموزش دستگاه خود از دکمه‌های همین صفحه استفاده کنید.</p></details>';
+        try {
+            if (! $acknowledged) {
+                TelegramUi::answerCallback($bot);
+            }
+            TelegramUi::editRichText($bot, new InputRichMessage(html: $richHtml, is_rtl: true), $keyboard);
+        } catch (TelegramException $exception) {
+            // Rich transport failures remain observable; the buyer keeps a usable simple view.
+            report($exception);
+            $this->render($bot, implode("\n", $lines), $simpleKeyboard, false);
+        }
     }
 
     /** REN-01: quote a non-payable renewal draft; no bank, wallet or RW mutation. */
