@@ -148,7 +148,22 @@ When client support is absent or a rich edit fails, use the existing accessible 
 | 05 Wallet/orders/renewal presentation | PR #260 merged and operator reviewed | Accepted by operator 2026-10-27 |
 | 06 Trial/support | Merged PR #261, user reviewed real Telegram | Accepted 2026-10-27 |
 | 07 Reseller builder | PR #262 merged and operator reviewed actual Telegram | Operator accepted 2026-10-27 |
-| 08 Reseller reports/customer management | Planned | Pending |
-| 09 Final cross-screen review | Planned | Pending |
+| 08 Reseller reports/customer management | Merged PR #263; role-scoped reporting and customer search operator-reviewed | Accepted by operator 2026-10-28 |
+| 09 Final cross-screen review | Source patch in PR/CI review; real client checks remain | Final operator acceptance **pending** |
+
+## Phase 09 cross-screen acceptance matrix — source audit, 2026-10-28
+
+| Surface | Primary callback/fallback evidence | Authorization and state safety | Live acceptance |
+|---|---|---|---|
+| 01 Service details | `sales:subs:view`; `sales:subs:simple`, old `sales:subs:rich` | Owner-only, unknown remote state and protected QR/link remain gated | Phase accepted; other client versions unverified |
+| 02 Tutorials/support guides | `sales:help:{page}` / `sales:help:simple:{page}` | Role-specific builder and member onboarding; existing URLs/Back | Phase accepted; other client versions unverified |
+| 03 Ready buy and catalog | `sales:buy`, `catalog:list`, green in-message Buy, `sales:buy:simple`, `sales:catalog:simple` | Buyer-repriced order flow; old read-only detail callback preserved; Phase 09 fixes page fraction | Phase accepted; revised pager requires final review |
+| 04 Home/account/referrals | `sales:account:simple`, `sales:invite:simple` | Paid vs historical counts, wallet read and native invite copy/share, no new award writes | Phase accepted |
+| 05 Credit/orders/renewal | `sales:wallet:simple`, `sales:checkout:orders:simple`, `sales:subs:renew:simple` | Native receipt/payment confirmations, owner checks and idempotent renewal untouched | Phase accepted; real financial/provider end-to-end not claimed |
+| 06 Trial/support | `sales:trial:simple`, `sales:support:simple` | One-time private Contact/QR and terminal reply-keyboard hiding preserved | Phase accepted; all provider failure states not live-observed |
+| 07 Reseller builder | `builder:quote:simple`, green guarded checkout CTA | Current calculated discount, temporary owner-only text entry and reprice | Phase accepted |
+| 08 Reports/health/customers | `sales:report:simple`, `sales:health:simple`, `sales:subs:search:simple` | Only authorized reseller, six bounded remote reads per health page, unknown status and owned customer edit | Phase accepted |
+
+**Acceptance evidence boundary:** Operator has explicitly accepted the delivered screens through Phase 08 in this conversation. Their tested Telegram client details and app versions are not documented for every screen. No Android/Desktop version-specific end-to-end verification was provided; do not claim universal Rich rendering. Prior source CI includes full PHP 8.4, PHPStan/Pint and MySQL/Redis where applicable; each UI regression is tested with fake Nutgram and/or stubbed Provider, **not a live checkout, Provider mutation or client screenshot**. Final Phase 09 client test and sign-off remain open until the operator confirms the deployed corrected pager and fallback. Admin Bot, provider writes, wallet/receipt business logic and schema remain outside this phase.
 
 **No Phase 01–09 implementation is authorized by the mere merge of this document.** The operator will explicitly start and accept each phase in order.
