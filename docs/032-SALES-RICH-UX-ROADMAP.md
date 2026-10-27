@@ -125,8 +125,8 @@ When client support is absent or a rich edit fails, use the existing accessible 
 
 | Phase | Current state | Operator acceptance |
 |---|---|---|
-| 01 Service detail default | Planned; earlier opt-in pilot merged/tested | Pending |
-| 02 Tutorials | Planned | Pending |
+| 01 Service detail default | Merged PR #255; user tested default Rich on Telegram iOS | Accepted by operator 2026-10-27; cross-client/Fallback checks remain |
+| 02 Tutorials | Source PR #256 under CI review | Real Telegram tutorial layout, CTA and Back acceptance pending |
 | 03 Catalog / in-content CTA | Planned; CTA requires live validation | Pending |
 | 04 Home/account/referrals | Planned | Pending |
 | 05 Wallet/orders/renewal presentation | Planned | Pending |
