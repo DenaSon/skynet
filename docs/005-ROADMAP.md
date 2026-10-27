@@ -1,3 +1,9 @@
+## Rich UX roadmap for Sales and reseller (2026-10-27; documentation-only)
+
+The operator approved **nine sequential, separately accepted UX phases**, starting with promoting the already field-tested opt-in service-detail Rich preview to the default (Phase 01), then tutorials (Phase 02) and catalog/in-content purchase CTA pilot (Phase 03). Later phases cover home/account/referrals, wallet/orders/renewal presentation, trial/support, reseller builder, reseller reports/customer management, and final cross-screen review. The complete scope, security invariants, fallbacks, tests and operator acceptance gates are specified in [docs/032-SALES-RICH-UX-ROADMAP.md](032-SALES-RICH-UX-ROADMAP.md). **Do not implement or advance a phase without the next explicit operator instruction and prior phase's actual Telegram acceptance.** Super Admin/Admin Bot is excluded. This paragraph documents the roadmap; it makes no claim that any of Phases 01–09 has been delivered.
+
+**CI prerequisite completed:** [PR #253](https://github.com/DenaSon/skynet/pull/253) merges faster PR checks while retaining full PHP 8.4 tests, PHPStan, Pint, conservative MySQL/Redis rules and nightly PHP 8.5. CI and real-client acceptance remain distinct.
+
 ## Sales Panel setup tutorial (2026-10-27)
 
 Source adds an ordinary-member-only tutorial entry, readable three-step setup instructions, retained-credit explanation and existing credit/request CTAs. Revalidate stale guide callbacks after role changes; preserve representative training and all payment/approval rules. No migration or ENV change. Source tests/CI and real Telegram display acceptance are separate.
