@@ -698,7 +698,7 @@ final readonly class SalesSubscriptionsUi
         return true;
     }
 
-    public function customerSearchResults(Nutgram $bot, string $cursor = '0'): void
+    public function customerSearchResults(Nutgram $bot, string $cursor = '0', bool $rich = true): void
     {
         $buyerId = $this->resellerId($bot);
         if ($buyerId === null) {
@@ -746,6 +746,8 @@ final readonly class SalesSubscriptionsUi
         }
 
         $lines = ['<b>🔎 نتایج جستجو</b>', 'جستجو: <b>'.TelegramUi::escape($state['term']).'</b>', ''];
+        $html = '<h4>🔎 نتایج جستجوی مشتری</h4><p>عبارت: <b>'
+            .TelegramUi::escape($state['term']).'</b></p>';
         $keyboard = InlineKeyboardMarkup::make();
         if ($items === []) {
             $lines[] = 'سرویسی با این نام کاربری در سرویس‌های شما پیدا نشد.';
@@ -759,6 +761,10 @@ final readonly class SalesSubscriptionsUi
                     .' · '.($summary->trafficGb === null ? 'نامحدود' : $summary->trafficGb.' گیگ')
                     .' · '.$this->status($summary->status);
                 $lines[] = '';
+                $html .= '<p>👤 <b>'.$position.'. '.TelegramUi::escape($this->clean($display)).'</b>'
+                    .'<br>'.TelegramUi::escape($this->clean($summary->productName))
+                    .' · '.($summary->trafficGb === null ? 'نامحدود' : $summary->trafficGb.' گیگ')
+                    .'<br>وضعیت ثبت‌شده: '.TelegramUi::escape($this->status($summary->status)).'</p>';
                 $keyboard->addRow(InlineKeyboardButton::make('📋 جزئیات '.$position,
                     callback_data: 'sales:subs:view:'.$item['orderId'].':0'));
             }
@@ -772,7 +778,26 @@ final readonly class SalesSubscriptionsUi
         $keyboard->addRow(InlineKeyboardButton::make('🔎 جستجوی جدید', callback_data: 'sales:subs:search:start'))
             ->addRow(InlineKeyboardButton::make('◀️ بازگشت به سرویس‌ها', callback_data: 'sales:subs:search:cancel'))
             ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
-        $this->render($bot, trim(implode("\n", $lines)), $keyboard);
+
+        $text = trim(implode("\n", $lines));
+        if ($rich && $items !== []) {
+            $plainKeyboard = clone $keyboard;
+            $keyboard->addRow(InlineKeyboardButton::make('↩️ نمایش ساده', callback_data: 'sales:subs:search:simple:'.$cursor));
+            $html .= '<p>برای بررسی وضعیت لحظه‌ای یا ویرایش نام، «جزئیات» همان سرویس را انتخاب کنید.</p>';
+            if ($bot->isCallbackQuery()) {
+                TelegramUi::answerCallback($bot);
+            }
+            try {
+                TelegramUi::editRichText($bot, new InputRichMessage(html: $html, is_rtl: true), $keyboard);
+            } catch (TelegramException $exception) {
+                report($exception);
+                $this->render($bot, $text, $plainKeyboard, false);
+            }
+
+            return;
+        }
+
+        $this->render($bot, $text, $keyboard);
     }
 
     public function cancelCustomerSearch(Nutgram $bot): void
