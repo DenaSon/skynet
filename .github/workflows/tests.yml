@@ -9,19 +9,62 @@ on:
   schedule:
     - cron: '0 0 * * *'
 
+concurrency:
+  group: tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
+  changes:
+    name: Detect MySQL-sensitive changes
+    runs-on: ubuntu-latest
+    outputs:
+      mysql: ${{ steps.detect.outputs.mysql }}
+    steps:
+      - name: Check changed paths (unknown changes require MySQL)
+        id: detect
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" != "pull_request" ]]; then
+            echo "mysql=true" >> "${GITHUB_OUTPUT}"
+            echo "Full MySQL smoke required for push/scheduled run."
+            exit 0
+          fi
+
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files?per_page=100" \
+            --jq '.[].filename' > "${RUNNER_TEMP}/pr_changed_files.txt"
+          mysql=false
+          if [[ ! -s "${RUNNER_TEMP}/pr_changed_files.txt" ]]; then
+            mysql=true
+          fi
+          while IFS= read -r path; do
+            case "${path}" in
+              docs/*|README.md|AGENTS.md|app/Interfaces/Telegram/Support/SalesHomeUi.php|app/Interfaces/Telegram/Support/SalesSupportUi.php|app/Interfaces/Telegram/Support/SalesSubscriptionsUi.php|app/Interfaces/Telegram/Support/PlanCatalogUi.php|app/Interfaces/Telegram/Support/ResellerSalesReportUi.php|app/Interfaces/Telegram/Support/ResellerServiceHealthUi.php|app/Interfaces/Telegram/Support/TelegramUi.php|app/Interfaces/Telegram/Support/SalesNativeMenu.php|app/Interfaces/Telegram/Support/ReplyMenuLabels.php|app/Interfaces/Telegram/Support/ReplyMenuRenderer.php|tests/Feature/Telegram/*)
+                ;;
+              *)
+                mysql=true
+                echo "Requires MySQL: ${path}"
+                break
+                ;;
+            esac
+          done < "${RUNNER_TEMP}/pr_changed_files.txt"
+          echo "mysql=${mysql}" >> "${GITHUB_OUTPUT}"
+          echo "Run MySQL smoke: ${mysql}"
+
   tests:
     runs-on: ubuntu-latest
-
     name: PHP ${{ matrix.php }}
     strategy:
       fail-fast: false
       matrix:
-        php: ['8.4', '8.5']
-
+        php: ${{ fromJSON(github.event_name == 'schedule' && '["8.4","8.5"]' || '["8.4"]') }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -35,15 +78,13 @@ jobs:
           extensions: dom, curl, libxml, gd, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite
           coverage: none
 
-      - name: Verify portable Composer lockfile
-        run: |
-          if grep -qi 'mirror-composer.runflare.com' composer.lock; then
-            echo 'ERROR: local Composer mirror URL found in composer.lock'
-            exit 1
-          fi
-
-      - name: Validate Composer metadata
-        run: composer validate --no-check-publish
+      - name: Cache Composer downloads
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/composer/files
+          key: ${{ runner.os }}-composer-php${{ matrix.php }}-${{ hashFiles('composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-php${{ matrix.php }}-
 
       - name: Install Composer dependencies
         run: composer install --prefer-dist --no-interaction --no-progress
@@ -54,17 +95,94 @@ jobs:
       - name: Generate app key
         run: php artisan key:generate
 
+      - name: Verify portable Composer lockfile
+        run: |
+          if grep -qi 'mirror-composer.runflare.com' composer.lock; then
+            echo 'ERROR: local Composer mirror URL found in composer.lock'
+            exit 1
+          fi
+
+      - name: Validate Composer metadata
+        run: composer validate --no-check-publish
+
       - name: Execute tests
         run: php artisan test
+
+  static-analysis:
+    name: Static analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.4'
+          extensions: dom, curl, libxml, gd, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite
+          coverage: none
+
+      - name: Cache Composer downloads
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/composer/files
+          key: ${{ runner.os }}-composer-php8.4-${{ hashFiles('composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-php8.4-
+
+      - name: Install Composer dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Copy environment file
+        run: cp .env.example .env
+
+      - name: Generate app key
+        run: php artisan key:generate
 
       - name: Static analysis
         run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
 
+  formatting:
+    name: Formatting verification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.4'
+          extensions: dom, curl, libxml, gd, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite
+          coverage: none
+
+      - name: Cache Composer downloads
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/composer/files
+          key: ${{ runner.os }}-composer-php8.4-${{ hashFiles('composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-php8.4-
+
+      - name: Install Composer dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Copy environment file
+        run: cp .env.example .env
+
+      - name: Generate app key
+        run: php artisan key:generate
+
       - name: Formatting verification
         run: vendor/bin/pint --test -v
 
-
   mysql-migration:
+    needs: changes
+    if: ${{ needs.changes.outputs.mysql == 'true' }}
     name: MySQL migration and rollback
     runs-on: ubuntu-latest
     services:
@@ -110,6 +228,14 @@ jobs:
           php-version: '8.4'
           extensions: dom, curl, libxml, gd, mbstring, zip, pcntl, pdo, pdo_mysql, redis
           coverage: none
+
+      - name: Cache Composer downloads
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/composer/files
+          key: ${{ runner.os }}-composer-php8.4-${{ hashFiles('composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-php'8.4'-
 
       - name: Install Composer dependencies
         run: composer install --prefer-dist --no-interaction --no-progress
