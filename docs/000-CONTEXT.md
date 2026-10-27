@@ -1,4 +1,4 @@
-## Sales Rich service detail Phase 01 — default presentation (2026-10-27; source under review)
+## Sales Rich service detail Phase 01 — default presentation (2026-10-27; source PR #255, live acceptance pending)
 
 Promote the previously field-tested opt-in Rich service detail to the normal owner-verified `sales:subs:view` route for Sales members and resellers. Retain `sales:subs:rich` for previously delivered pilot buttons; the explicit `sales:subs:simple` renders the original HTML layout and refreshes itself for unsupported Rich clients/API errors. Remove the visible «✨ نمایش جدید» button. The Rich header now keeps verified status, remaining traffic and real Persian expiry before expandable usage/order/help; customer names are escaped and existing authorized link/QR, renewal, reseller label and navigation buttons remain. No new provider writes, finances, schema, flags or dependencies. Fake CI must pass; actual default-route live client/RTL/fallback acceptance remains open until the operator verifies it. Phase 02 is **not authorized** by Phase 01 merge. See [Phase 01 contract](032-SALES-RICH-UX-ROADMAP.md).
 
