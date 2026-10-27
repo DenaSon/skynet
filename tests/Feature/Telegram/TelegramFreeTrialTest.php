@@ -323,6 +323,14 @@ it('hides a used trial immediately on menu refresh for both terminal conditions 
 
         return str_contains($data['text'], 'تست به پایان رسیده است') && ! in_array('🧪 تست رایگان', $labels, true);
     });
+    $bot->hearCallbackQueryData('sales:trial:simple')->reply()->assertRaw(function (Request $request): bool {
+        $data = trialUiPayload($request);
+        $labels = array_column(array_merge(...($data['reply_markup']['keyboard'] ?? [])), 'text');
+
+        return ! isset($data['rich_message'])
+            && str_contains((string) ($data['text'] ?? ''), 'تست به پایان رسیده است')
+            && ! in_array('🧪 تست رایگان', $labels, true);
+    });
     expect(DB::table('trial_claims')->count())->toBe(1);
 })->with([true, false]);
 
