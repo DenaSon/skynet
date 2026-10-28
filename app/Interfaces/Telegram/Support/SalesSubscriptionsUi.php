@@ -174,7 +174,7 @@ final readonly class SalesSubscriptionsUi
         $item = $details->summary;
         $resellerId = $this->resellerId($bot);
         $isOrdinaryMember = $resellerId === null
-            && in_array('member', $this->actors->handle((int) $this->privateUser->id($bot))?->roles ?? [], true);
+            && in_array('member', $this->actors->handle((int) $this->privateUser->id($bot))->roles, true);
         $customerLabel = $resellerId === null ? null : $this->customerLabels->get($resellerId, $orderId);
         $lines = [
             '<b>📋 '.($customerLabel === null ? TelegramUi::escape($this->clean($item->productName)) : '👤 '.TelegramUi::escape($this->clean($customerLabel))).'</b>',
