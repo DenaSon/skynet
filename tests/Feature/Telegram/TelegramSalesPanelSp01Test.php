@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
+use App\Modules\Sales\Application\SalesPanelRequests;
 use GuzzleHttp\Psr7\Request;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Route;
@@ -257,7 +258,7 @@ it('shows existing application status instead of duplicate request in persistent
     $member = User::factory()->create();
     $bot = panel01Bot(986112, $member);
     PanelWalletFunding::credit($member->id, 3_500_000);
-    $existing = app(\App\Modules\Sales\Application\SalesPanelRequests::class)
+    $existing = app(SalesPanelRequests::class)
         ->submit($member->id, 'علی', 'محمدی', '09123456789');
 
     $bot->hearText('/start')->reply()->assertRaw(static function (Request $request): bool {
