@@ -111,3 +111,47 @@ it('preserves future review evidence instead of dropping application data on rol
 
     expect(fn () => $migration->down())->toThrow(RuntimeException::class);
 });
+
+it('uses the configured toman threshold at the exact confirmed-credit boundary and at final submission', function (): void {
+    config()->set('sales.panel_minimum_wallet_toman', '420000');
+    $buyer = User::factory()->create();
+    $requests = app(SalesPanelRequests::class);
+    $submit = fn () => $requests->submit($buyer->id, 'علی', 'محمدی', '09123456789');
+
+    expect(SalesPanelRequests::minimumWalletBalanceRials())->toBe(4_200_000);
+    PanelWalletFunding::credit($buyer->id, 4_199_999);
+    expect($requests->hasMinimumWalletBalance($buyer->id))->toBeFalse()
+        ->and($submit)->toThrow(ValidationException::class);
+    PanelWalletFunding::credit($buyer->id, 1);
+    expect($requests->hasMinimumWalletBalance($buyer->id))->toBeTrue();
+    PanelWalletFunding::spend($buyer->id, 1);
+    expect($submit)->toThrow(ValidationException::class)
+        ->and(DB::table('sales_panel_requests')->count())->toBe(0);
+
+    // The user must meet the updated threshold at the locked commit boundary.
+    PanelWalletFunding::credit($buyer->id, 1);
+    $first = $submit();
+    expect($first['status'])->toBe('pending')
+        ->and(DB::table('sales_panel_requests')->count())->toBe(1);
+
+    config()->set('sales.panel_minimum_wallet_toman', 600_000);
+    expect(SalesPanelRequests::minimumWalletBalanceRials())->toBe(6_000_000)
+        ->and($submit())->toBe($first)
+        ->and(DB::table('sales_panel_requests')->count())->toBe(1);
+});
+
+it('fails closed for an invalid environment-derived panel minimum instead of accepting zero credit', function (): void {
+    $buyer = User::factory()->create();
+    $requests = app(SalesPanelRequests::class);
+
+    foreach ([0, '-1', 'abc', '350.5', ''] as $invalid) {
+        config()->set('sales.panel_minimum_wallet_toman', $invalid);
+        expect(fn () => SalesPanelRequests::minimumWalletBalanceRials())
+            ->toThrow(InvalidArgumentException::class);
+        expect(fn () => $requests->hasMinimumWalletBalance($buyer->id))
+            ->toThrow(InvalidArgumentException::class);
+        expect(fn () => $requests->submit($buyer->id, 'علی', 'محمدی', '09123456789'))
+            ->toThrow(InvalidArgumentException::class);
+    }
+    expect(DB::table('sales_panel_requests')->count())->toBe(0);
+});

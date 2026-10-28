@@ -303,3 +303,61 @@ it('keeps the member tutorial visible with a harmless extra role but hides it fr
     }, index: 0);
     Http::assertNothingSent();
 });
+
+it('reads a changed panel credit minimum from config consistently across Telegram rules and tutorials', function (): void {
+    config()->set('sales.panel_minimum_wallet_toman', '420000');
+    $member = User::factory()->create();
+    $bot = panel01Bot(986151, $member);
+    PanelWalletFunding::credit($member->id, 4_199_999);
+
+    $bot->hearCallbackQueryData('sales:panel:request')->reply()
+        ->assertRaw(static function (Request $request): bool {
+            $text = (string) (panel01Payload($request)['text'] ?? '');
+
+            return str_contains($text, '۴۲۰٬۰۰۰ تومان')
+                && ! str_contains($text, '۳۵۰٬۰۰۰ تومان')
+                && str_contains($text, 'اعتبار کافی نیست');
+        }, index: 1);
+
+    $bot->hearCallbackQueryData('sales:help:panel-setup')->reply()
+        ->assertRaw(static function (Request $request): bool {
+            $data = panel01Payload($request);
+            $rich = is_string($data['rich_message'] ?? null)
+                ? json_decode($data['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+                : ($data['rich_message'] ?? []);
+            $html = (string) ($rich['html'] ?? '');
+
+            return str_contains($html, '۴۲۰٬۰۰۰ تومان')
+                && str_contains($html, '۳۵٪')
+                && ! str_contains($html, '۳۵۰٬۰۰۰ تومان');
+        }, index: 1);
+    $bot->hearCallbackQueryData('sales:help:simple:panel-setup')->reply()
+        ->assertRaw(static function (Request $request): bool {
+            $data = panel01Payload($request);
+
+            return ! isset($data['rich_message'])
+                && str_contains((string) ($data['text'] ?? ''), '۴۲۰٬۰۰۰ تومان')
+                && ! str_contains((string) ($data['text'] ?? ''), '۳۵۰٬۰۰۰ تومان');
+        }, index: 1);
+    $bot->hearCallbackQueryData('sales:help:apps')->reply()
+        ->assertRaw(static function (Request $request): bool {
+            $data = panel01Payload($request);
+            $rich = is_string($data['rich_message'] ?? null)
+                ? json_decode($data['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+                : ($data['rich_message'] ?? []);
+
+            return str_contains((string) ($rich['html'] ?? ''), '۴۲۰٬۰۰۰ تومان');
+        }, index: 1);
+
+    PanelWalletFunding::credit($member->id, 1);
+    $bot->hearCallbackQueryData('sales:panel:request')->reply()
+        ->assertRaw(static function (Request $request): bool {
+            $text = (string) (panel01Payload($request)['text'] ?? '');
+
+            return str_contains($text, '۴۲۰٬۰۰۰ تومان')
+                && str_contains($text, 'قوانین پنل فروش')
+                && ! str_contains($text, '۳۵۰٬۰۰۰ تومان');
+        }, index: 1);
+    expect(DB::table('sales_panel_requests')->count())->toBe(0);
+    Http::assertNothingSent();
+});
