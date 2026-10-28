@@ -990,7 +990,9 @@ it('puts the reseller customer and plan before the unchanged full credential in 
         ->assertRaw(static function (NutgramRequest $request) use ($url, $order): bool {
             $data = FakeNutgram::getActualData($request);
             $text = (string) ($data['text'] ?? '');
-            $keyboard = json_decode($data['reply_markup'], true, 512, JSON_THROW_ON_ERROR);
+            $keyboard = is_string($data['reply_markup'])
+                ? json_decode($data['reply_markup'], true, 512, JSON_THROW_ON_ERROR)
+                : $data['reply_markup'];
             $actions = json_encode($keyboard, JSON_THROW_ON_ERROR);
 
             return str_contains($text, '<b>🔐 اتصال سرویس</b>')
@@ -1053,7 +1055,7 @@ it('preserves official subscription page access and selectable URL in the long f
         ->assertCalled('sendMessage')
         ->assertRaw(static function (NutgramRequest $request) use ($url, $order): bool {
             $data = FakeNutgram::getActualData($request);
-            $buttons = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+            $buttons = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 
             return str_contains((string) ($data['text'] ?? ''), '<b>🌐 صفحه اشتراک</b>')
                 && str_contains((string) ($data['text'] ?? ''), $url)
