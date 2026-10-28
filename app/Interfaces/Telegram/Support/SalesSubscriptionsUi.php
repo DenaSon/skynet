@@ -563,7 +563,7 @@ final readonly class SalesSubscriptionsUi
         // The media caption contains the exact URL below its QR, not a second
         // independent credential message.
         TelegramUi::answerCallback($bot);
-        $this->deliverLinkCard($bot, $orderId, $link->subscriptionUrl, $cursor, false);
+        $this->deliverLinkCard($bot, $viewer, $orderId, $link->subscriptionUrl, $cursor, false);
     }
 
     public function page(Nutgram $bot, string $id, string $cursor = '0'): void
@@ -606,7 +606,7 @@ final readonly class SalesSubscriptionsUi
         }
 
         TelegramUi::answerCallback($bot);
-        $this->deliverLinkCard($bot, $orderId, $url, $cursor, true);
+        $this->deliverLinkCard($bot, $viewer, $orderId, $url, $cursor, true);
     }
 
     /**
@@ -615,6 +615,7 @@ final readonly class SalesSubscriptionsUi
      */
     private function deliverLinkCard(
         Nutgram $bot,
+        SubscriptionViewer $viewer,
         int $orderId,
         string $url,
         string $cursor,
@@ -622,11 +623,11 @@ final readonly class SalesSubscriptionsUi
     ): void {
         $canCopy = mb_strlen($url) <= 256;
         $keyboard = InlineKeyboardMarkup::make();
+        if ($canCopy) {
+            $keyboard->addRow(TelegramUi::copy($url, '📋 کپی لینک اتصال'));
+        }
         if ($subscriptionPage) {
             $keyboard->addRow(InlineKeyboardButton::make('🌐 باز کردن صفحه اشتراک', url: $url));
-        }
-        if ($canCopy) {
-            $keyboard->addRow(TelegramUi::copy($url, '📋 کپی لینک'));
         }
         if ($subscriptionPage) {
             $keyboard->addRow(InlineKeyboardButton::make('🔐 نمایش کد اتصال',
@@ -640,10 +641,12 @@ final readonly class SalesSubscriptionsUi
             '◀️ بازگشت به سرویس', callback_data: 'sales:subs:view:'.$orderId.':'.$cursor,
         ));
 
-        $heading = $subscriptionPage ? '🌐 صفحه اشتراک' : '🔐 لینک اتصال';
-        $caption = "<b>{$heading} #{$orderId}</b>\n\n".TelegramUi::code($url)
-            ."\n\n📷 کد بالا را اسکن کنید یا لینک را کپی کنید."
-            ."\n🔒 این لینک اختصاصی است؛ فقط با فرد موردنظر به اشتراک بگذارید.";
+        $heading = $subscriptionPage ? '🌐 صفحه اشتراک' : '🔐 اتصال سرویس';
+        $context = $this->connectionCardContext($bot, $viewer, $orderId);
+        $intro = '<b>'.$heading.'</b>'.($context === '' ? '' : "\n".$context);
+        $caption = $intro."\n\n🔗 <b>لینک اشتراک</b>\n".TelegramUi::code($url)
+            ."\n\n📱 QR را اسکن کنید یا لینک را در برنامه اتصال وارد کنید."
+            ."\n🔒 لینک اختصاصی است؛ فقط با مشتری همین سرویس به اشتراک بگذارید.";
 
         // Telegram limits media captions to 1024 UTF-16 code units *after*
         // entity parsing. Use a conservative ceiling for emoji and Unicode.
@@ -656,20 +659,44 @@ final readonly class SalesSubscriptionsUi
 
         if (mb_strlen($caption) > 900) {
             $this->sendLinkPhoto(
-                $bot, $url, '📷 کد اتصال این سرویس را اسکن کنید.', null, $subscriptionPage,
+                $bot, $url, $intro."\n📷 QR اتصال این سرویس", null, $subscriptionPage,
             );
         }
 
         // A failed GD render or Telegram media upload must never hide the URL.
         $bot->sendMessage(
-            text: "<b>{$heading} #{$orderId}</b>\n\n".TelegramUi::code($url)
+            text: $intro."\n\n🔗 <b>لینک اشتراک</b>\n".TelegramUi::code($url)
                 ."\n\n".($canCopy ? 'برای کپی از دکمه زیر استفاده کنید.' : 'برای کپی، متن لینک را نگه دارید.')
-                ."\n🔒 این لینک اختصاصی است؛ فقط با فرد موردنظر به اشتراک بگذارید.",
+                ."\n🔒 لینک اختصاصی است؛ فقط با مشتری همین سرویس به اشتراک بگذارید.",
             parse_mode: 'HTML',
             link_preview_options: LinkPreviewOptions::make(is_disabled: true),
             reply_markup: $keyboard,
             protect_content: $subscriptionPage,
         );
+    }
+
+    /**
+     * Optional local-only presentation metadata. Never turn a successful,
+     * verified connection request into a failure because a label is unavailable.
+     */
+    private function connectionCardContext(Nutgram $bot, SubscriptionViewer $viewer, int $orderId): string
+    {
+        try {
+            $plan = TelegramUi::escape($this->clean(
+                $this->details->handle($viewer, $orderId)->summary->productName,
+            ));
+            $resellerId = $this->resellerId($bot);
+            if ($resellerId === null) {
+                return '📦 '.$plan;
+            }
+
+            $name = $this->customerLabels->get($resellerId, $orderId) ?? 'مشتری بدون نام';
+
+            return '👤 '.TelegramUi::escape($this->clean($name))."\n📦 ".$plan;
+        } catch (Throwable) {
+            // The verified URL and existing controls must remain deliverable.
+            return '';
+        }
     }
 
     private function sendLinkPhoto(
