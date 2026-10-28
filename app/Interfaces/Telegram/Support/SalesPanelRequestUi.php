@@ -77,7 +77,7 @@ final readonly class SalesPanelRequestUi
             ."\n۳. سوءاستفاده، فعالیت متقلبانه یا فروش غیرمجاز ممنوع است."
             ."\n۴. پایداری اتصال ممکن است تحت تأثیر اختلال اینترنت و محدودیت اپراتورها باشد."
             ."\n۵. فعال‌سازی و ادامه فعالیت پنل منوط به تأیید مدیریت و رعایت مقررات است."
-            ."\n۶. برای ثبت درخواست، حداقل <b>۳۵۰٬۰۰۰ تومان</b> اعتبار لازم است. این مبلغ بابت درخواست کسر نمی‌شود.</blockquote>"
+            ."\n۶. برای ثبت درخواست، حداقل <b>".TelegramUi::tomanPersian(SalesPanelRequests::minimumWalletBalanceRials())." تومان</b> اعتبار لازم است. این مبلغ بابت درخواست کسر نمی‌شود.</blockquote>"
             ."\n\nبا پذیرش قوانین می‌توانید درخواست خود را ثبت کنید.",
             InlineKeyboardMarkup::make()
                 ->addRow(InlineKeyboardButton::make('✅ می‌پذیرم', callback_data: 'sales:panel:accept', style: ButtonStyle::SUCCESS))
@@ -290,7 +290,7 @@ final readonly class SalesPanelRequestUi
     {
         $this->render($bot,
             '<b>💰 اعتبار کافی نیست</b>'
-            ."\n\nبرای ارسال درخواست پنل فروش، باید حداقل <b>۳۵۰٬۰۰۰ تومان</b> اعتبار خود را افزایش دهید."
+            ."\n\nبرای ارسال درخواست پنل فروش، باید حداقل <b>".TelegramUi::tomanPersian(SalesPanelRequests::minimumWalletBalanceRials())." تومان</b> اعتبار خود را افزایش دهید."
             ."\n\n<blockquote>این شارژ پس از تأیید پنل فروش برای خرید سرویس قابل استفاده است و بابت درخواست از اعتبار شما کسر نمی‌شود.</blockquote>",
             InlineKeyboardMarkup::make()
                 ->addRow(InlineKeyboardButton::make('💰 اعتبار من', callback_data: 'sales:wallet'))
