@@ -144,7 +144,7 @@ it('fails closed for an invalid environment-derived panel minimum instead of acc
     $buyer = User::factory()->create();
     $requests = app(SalesPanelRequests::class);
 
-    foreach ([0, '-1', 'abc', '350.5', ''] as $invalid) {
+    foreach ([0, true, '-1', 'abc', '350.5', ''] as $invalid) {
         config()->set('sales.panel_minimum_wallet_toman', $invalid);
         expect(fn () => SalesPanelRequests::minimumWalletBalanceRials())
             ->toThrow(InvalidArgumentException::class);

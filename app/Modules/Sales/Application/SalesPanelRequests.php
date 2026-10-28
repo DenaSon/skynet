@@ -18,8 +18,12 @@ final readonly class SalesPanelRequests
     public static function minimumWalletBalanceRials(): int
     {
         $value = config('sales.panel_minimum_wallet_toman', 350_000);
+        if (! is_int($value) && (! is_string($value) || preg_match('/\A[1-9][0-9]*\z/D', $value) !== 1)) {
+            throw new \InvalidArgumentException('Invalid sales.panel_minimum_wallet_toman: expected positive whole tomans.');
+        }
+
         $tomans = filter_var($value, FILTER_VALIDATE_INT, [
-            'options' => ['min_range' => 1, 'max_range' => intdiv(PHP_INT_MAX, 10)],
+            'options' => ['min_range' => 1, 'max_range' => intdiv(PHP_INT_MAX - 9, 10)],
         ]);
         if ($tomans === false) {
             throw new \InvalidArgumentException('Invalid sales.panel_minimum_wallet_toman: expected positive whole tomans.');
