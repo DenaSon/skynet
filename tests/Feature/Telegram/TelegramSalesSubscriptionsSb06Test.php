@@ -906,7 +906,7 @@ it('shows a reseller customer name and prioritizes a verified active service con
     $reseller->syncRoles(['reseller']);
     $order = sb06Order($reseller);
     sb06Activated($order);
-    app(\\App\\Modules\\Sales\\Application\\ManageResellerServiceLabels::class)->save(
+    app(\App\Modules\Sales\Application\ManageResellerServiceLabels::class)->save(
         $reseller->id, $order, 'علی <Test> &',
     );
     $bot = sb06Bot(976094, $reseller);
