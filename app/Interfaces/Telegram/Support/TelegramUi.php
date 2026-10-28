@@ -216,6 +216,16 @@ final class TelegramUi
         return number_format(intdiv($rials + 9, 10));
     }
 
+    /** Format a toman amount using Persian digits and a readable thousands separator. */
+    public static function tomanPersian(int $rials): string
+    {
+        return strtr(self::toman($rials), [
+            '0' => '۰', '1' => '۱', '2' => '۲', '3' => '۳', '4' => '۴',
+            '5' => '۵', '6' => '۶', '7' => '۷', '8' => '۸', '9' => '۹',
+            ',' => '٬',
+        ]);
+    }
+
     public static function planButtonLabel(string $name, ?int $trafficGb, int $durationDays): string
     {
         $name = trim((string) preg_replace('/[\x00-\x1F\x7F\x{202A}-\x{202E}]+/u', ' ', $name));

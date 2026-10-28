@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Telegram\Support;
 
+use App\Modules\Sales\Application\SalesPanelRequests;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
@@ -70,14 +71,15 @@ final readonly class SalesSupportUi
                 break;
 
             case 'panel-setup':
+                $panelMinimum = TelegramUi::tomanPersian(SalesPanelRequests::minimumWalletBalanceRials());
                 $text = '<b>🧩 راه‌اندازی پنل فروش</b>'."\n\n"
                     ."<b>۱. 💰 افزایش اعتبار</b>\n"
-                    ."از بخش «اعتبار من»، موجودی خود را به حداقل <b>۳۵۰٬۰۰۰ تومان</b> برسانید. رسید پرداخت را ارسال کنید و منتظر تأیید شارژ بمانید.\n\n"
+                    ."از بخش «اعتبار من»، موجودی خود را به حداقل <b>{$panelMinimum} تومان</b> برسانید. رسید پرداخت را ارسال کنید و منتظر تأیید شارژ بمانید.\n\n"
                     ."<b>۲. 📝 ثبت درخواست</b>\n"
                     ."از منوی اصلی، «درخواست پنل فروش» را انتخاب کنید؛ قوانین را بپذیرید و نام، نام خانوادگی و شماره موبایل خود را ثبت و تأیید کنید.\n\n"
                     ."<b>۳. ✅ شروع فروش</b>\n"
                     ."درخواست شما در کمتر از <b>۱ ساعت</b> بررسی و در صورت تأیید، پنل فعال می‌شود. سپس اشتراک‌ها را با <b>۳۵٪ تخفیف نمایندگی</b> تهیه کنید.\n\n"
-                    .'<blockquote>۳۵۰ هزار تومان، اعتبار اولیه شماست؛ هزینه راه‌اندازی نیست و بابت درخواست کسر نمی‌شود. این اعتبار برای خرید اشتراک و فروش به مشتریانتان در حساب شما باقی می‌ماند.</blockquote>';
+                    .'<blockquote>'.$panelMinimum.' تومان، اعتبار اولیه شماست؛ هزینه راه‌اندازی نیست و بابت درخواست کسر نمی‌شود. این اعتبار برای خرید اشتراک و فروش به مشتریانتان در حساب شما باقی می‌ماند.</blockquote>';
                 $keyboard->addRow(InlineKeyboardButton::make('💰 افزایش اعتبار', callback_data: 'sales:wallet:topup', style: ButtonStyle::SUCCESS))
                     ->addRow(InlineKeyboardButton::make('📝 درخواست پنل فروش', callback_data: 'sales:panel:request', style: ButtonStyle::PRIMARY));
                 break;
@@ -247,7 +249,8 @@ final readonly class SalesSupportUi
             .'<details><summary>🔧 رفع مشکل اتصال</summary><p>وضعیت سرویس، به‌روزبودن اشتراک و اینترنت خود را بررسی کنید.</p></details>';
 
         if ($canSetupPanel) {
-            $html .= '<details><summary>🧩 راه‌اندازی پنل فروش</summary><p>با اعتبار اولیه ۳۵۰٬۰۰۰ تومان درخواست دهید؛ پس از تأیید، تخفیف نمایندگی ۳۵٪ اعمال می‌شود.</p></details>';
+            $minimum = TelegramUi::tomanPersian(SalesPanelRequests::minimumWalletBalanceRials());
+            $html .= '<details><summary>🧩 راه‌اندازی پنل فروش</summary><p>با اعتبار اولیه '.$minimum.' تومان درخواست دهید؛ پس از تأیید، تخفیف نمایندگی ۳۵٪ اعمال می‌شود.</p></details>';
         } elseif ($reseller) {
             $html .= '<details><summary>🧩 راهنمای پلن‌ساز</summary><p>حجم و مدت دلخواه مشتری را انتخاب کنید و پیش از ثبت سفارش قیمت را ببینید.</p></details>';
         }
@@ -264,7 +267,8 @@ final readonly class SalesSupportUi
         if (in_array($page, ['android', 'ios', 'windows', 'macos'], true)) {
             $intro = '<p>'.array_shift($blocks).'</p>';
         } elseif ($page === 'panel-setup') {
-            $intro = '<p>اعتبار اولیه: <b>۳۵۰٬۰۰۰ تومان</b><br>تخفیف نمایندگی: <b>۳۵٪</b></p>';
+            $minimum = TelegramUi::tomanPersian(SalesPanelRequests::minimumWalletBalanceRials());
+            $intro = '<p>اعتبار اولیه: <b>'.$minimum.' تومان</b><br>تخفیف نمایندگی: <b>۳۵٪</b></p>';
         }
 
         $steps = [];

@@ -14,7 +14,23 @@ use Illuminate\Validation\ValidationException;
 /** User-owned Sales Panel applications; role assignment belongs solely to SP-02. */
 final readonly class SalesPanelRequests
 {
-    public const MINIMUM_WALLET_BALANCE_RIALS = 3_500_000;
+    /** Shared threshold for both initial entry and locked submission; invalid config fails closed. */
+    public static function minimumWalletBalanceRials(): int
+    {
+        $value = config('sales.panel_minimum_wallet_toman', 350_000);
+        if (! is_int($value) && (! is_string($value) || preg_match('/\A[1-9][0-9]*\z/D', $value) !== 1)) {
+            throw new \InvalidArgumentException('Invalid sales.panel_minimum_wallet_toman: expected positive whole tomans.');
+        }
+
+        $tomans = filter_var($value, FILTER_VALIDATE_INT, [
+            'options' => ['min_range' => 1, 'max_range' => intdiv(PHP_INT_MAX - 9, 10)],
+        ]);
+        if ($tomans === false) {
+            throw new \InvalidArgumentException('Invalid sales.panel_minimum_wallet_toman: expected positive whole tomans.');
+        }
+
+        return $tomans * 10;
+    }
 
     public function __construct(
         private ResolveActiveUser $users,
@@ -34,7 +50,7 @@ final readonly class SalesPanelRequests
     /** Only confirmed wallet liability postings count; pending top-ups do not. */
     public function hasMinimumWalletBalance(int $userId, bool $lockForUpdate = false): bool
     {
-        return $this->wallets->hasAtLeast($userId, self::MINIMUM_WALLET_BALANCE_RIALS, $lockForUpdate);
+        return $this->wallets->hasAtLeast($userId, self::minimumWalletBalanceRials(), $lockForUpdate);
     }
 
     /** @return array{id:int,status:string,first_name:string,last_name:string,mobile:string} */
@@ -62,7 +78,8 @@ final readonly class SalesPanelRequests
             }
             if (! $this->hasMinimumWalletBalance($userId, true)) {
                 throw ValidationException::withMessages([
-                    'wallet_balance' => 'At least 350,000 tomans of confirmed wallet credit is required.',
+                    'wallet_balance' => 'At least '.number_format(intdiv(self::minimumWalletBalanceRials(), 10))
+                        .' tomans of confirmed wallet credit is required.',
                 ]);
             }
 

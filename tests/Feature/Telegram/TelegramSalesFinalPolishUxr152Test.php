@@ -214,7 +214,7 @@ it('offers a readable panel setup guide with existing credit and application des
                 && str_contains($html, '۱ ساعت')
                 && str_contains($html, 'در صورت تأیید')
                 && str_contains($html, '۳۵٪ تخفیف نمایندگی')
-                && str_contains($html, '۳۵۰ هزار تومان، اعتبار اولیه شماست؛ هزینه راه‌اندازی نیست')
+                && str_contains($html, '۳۵۰٬۰۰۰ تومان، اعتبار اولیه شماست؛ هزینه راه‌اندازی نیست')
                 && str_contains($html, 'نام، نام خانوادگی و شماره موبایل')
                 && substr_count($html, '<details>') === 4
                 && $rows[0][0]['callback_data'] === 'sales:wallet:topup'
