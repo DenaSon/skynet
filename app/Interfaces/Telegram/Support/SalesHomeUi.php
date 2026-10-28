@@ -76,6 +76,8 @@ final readonly class SalesHomeUi
         }
 
         $this->clearInput($actor->userId, $bot);
+        $isReseller = in_array('reseller', $actor->roles, true);
+        $panelRequestLabel = $this->panelRequestLabel($actor);
 
         // Telegram Reply Keyboard is fixed below the input for Sales and resellers.
         // Callback pages retain their existing inline actions.
@@ -84,11 +86,14 @@ final readonly class SalesHomeUi
                 text: '<b>🏠 DenaGate</b>'."\n\nخوش آمدید، ".$this->name($actor->name)
                     .".\nنوع حساب: <b>".$this->salesRole($actor).'</b>',
                 parse_mode: 'HTML',
-                reply_markup: app(ReplyMenuRenderer::class)->salesKeyboard($actor, app(SalesTrialUi::class)->visible($actor, (int) $telegramId)),
+                reply_markup: app(ReplyMenuRenderer::class)->salesKeyboard(
+                    $actor,
+                    app(SalesTrialUi::class)->visible($actor, (int) $telegramId),
+                    $panelRequestLabel === ReplyMenuLabels::SALES_PANEL_STATUS,
+                ),
             );
         }
 
-        $isReseller = in_array('reseller', $actor->roles, true);
         $hasWallet = $isReseller || in_array('member', $actor->roles, true);
         $walletLine = '';
         if ($hasWallet) {
@@ -117,16 +122,8 @@ final readonly class SalesHomeUi
             $keyboard->addRow(InlineKeyboardButton::make('🧩 پلن‌ساز', callback_data: 'menu:builder'));
             $keyboard->addRow(InlineKeyboardButton::make('📊 گزارش‌های من', callback_data: 'sales:report:30'));
         }
-        if (! $isReseller && in_array('member', $actor->roles, true)) {
-            $requestLabel = '🧩 درخواست پنل فروش';
-            try {
-                if ($this->panelRequests->find($actor->userId) !== null) {
-                    $requestLabel = '📨 وضعیت درخواست پنل فروش';
-                }
-            } catch (Throwable) {
-                // A request lookup failure must not block home navigation.
-            }
-            $keyboard->addRow(InlineKeyboardButton::make($requestLabel, callback_data: 'sales:panel:request'));
+        if ($panelRequestLabel !== null) {
+            $keyboard->addRow(InlineKeyboardButton::make($panelRequestLabel, callback_data: 'sales:panel:request'));
         }
         $keyboard->addRow(InlineKeyboardButton::make('💬 پشتیبانی', callback_data: 'sales:support'))
             ->addRow(InlineKeyboardButton::make('📋 همه پلن‌ها و قیمت‌ها', callback_data: 'menu:plan-catalog'));
@@ -246,6 +243,7 @@ final readonly class SalesHomeUi
             ReplyMenuLabels::SALES_SUPPORT => 'support',
             ReplyMenuLabels::SALES_TUTORIAL => 'tutorial',
             ReplyMenuLabels::SALES_TRIAL => 'trial',
+            ReplyMenuLabels::SALES_PANEL_REQUEST, ReplyMenuLabels::SALES_PANEL_STATUS => 'panel',
             ReplyMenuLabels::SALES_REPORTS => 'report',
             ReplyMenuLabels::HOME, '🏠 صفحه اصلی', '❌ انصراف', '/cancel' => 'home',
             ReplyMenuLabels::INVITE => 'invite',
@@ -282,6 +280,9 @@ final readonly class SalesHomeUi
                 break;
             case 'trial':
                 app(SalesTrialUi::class)->show($bot);
+                break;
+            case 'panel':
+                app(SalesPanelRequestUi::class)->start($bot);
                 break;
             case 'tutorial':
                 app(SalesSupportUi::class)->show($bot, 'apps');
@@ -365,6 +366,10 @@ final readonly class SalesHomeUi
             $keyboard->addRow(InlineKeyboardButton::make('📊 گزارش‌های من', callback_data: 'sales:report:30'));
         }
 
+        $panelRequestLabel = $this->panelRequestLabel($actor);
+        if ($panelRequestLabel !== null) {
+            $keyboard->addRow(InlineKeyboardButton::make($panelRequestLabel, callback_data: 'sales:panel:request'));
+        }
         $keyboard->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
 
         $text = '<b>👤 حساب کاربری</b>'
@@ -602,7 +607,9 @@ final readonly class SalesHomeUi
         if ($contactPending && $bot !== null) {
             $actor = $this->resolve->handle((int) $this->privateUser->id($bot));
             $bot->sendMessage(text: 'دریافت شماره بسته شد.', reply_markup: app(ReplyMenuRenderer::class)->salesKeyboard(
-                $actor, $actor !== null && app(SalesTrialUi::class)->visible($actor, (int) $this->privateUser->id($bot)),
+                $actor,
+                $actor !== null && app(SalesTrialUi::class)->visible($actor, (int) $this->privateUser->id($bot)),
+                $actor !== null && $this->panelRequestLabel($actor) === ReplyMenuLabels::SALES_PANEL_STATUS,
             ));
         }
         $this->pendingBuilder->forget($buyerId);
@@ -616,6 +623,26 @@ final readonly class SalesHomeUi
         app(SalesSubscriptionsUi::class)->clearCustomerSearch($buyerId);
         app(SalesCheckoutUi::class)->clearCustomerName($buyerId);
         app(SalesCheckoutUi::class)->clearCustomerPhone($buyerId);
+    }
+
+    private function panelRequestLabel(TelegramActor $actor): ?string
+    {
+        if (! in_array('member', $actor->roles, true)
+            || in_array('reseller', $actor->roles, true)
+            || in_array('admin', $actor->roles, true)
+            || in_array('super-admin', $actor->roles, true)) {
+            return null;
+        }
+
+        try {
+            if ($this->panelRequests->find($actor->userId) !== null) {
+                return ReplyMenuLabels::SALES_PANEL_STATUS;
+            }
+        } catch (Throwable) {
+            // Request lookup failures must not hide the member entry point.
+        }
+
+        return ReplyMenuLabels::SALES_PANEL_REQUEST;
     }
 
     private function salesRole(TelegramActor $actor): string

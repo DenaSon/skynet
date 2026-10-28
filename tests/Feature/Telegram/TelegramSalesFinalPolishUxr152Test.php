@@ -136,7 +136,9 @@ it('gives active Sales Panel holders their unique home builder action without an
             && ! str_contains($markup, 'sales:panel:request');
     }, index: 1);
 
-    expect(ReplyMenuLabels::all())->toContain(ReplyMenuLabels::LEGACY_BUILDER)
+    expect(ReplyMenuLabels::all())->toContain(ReplyMenuLabels::SALES_PANEL_REQUEST)
+        ->toContain(ReplyMenuLabels::SALES_PANEL_STATUS)
+        ->toContain(ReplyMenuLabels::LEGACY_BUILDER)
         ->toContain(ReplyMenuLabels::SALES_WALLET)
         ->toContain(ReplyMenuLabels::LEGACY_WALLET)
         ->toContain(ReplyMenuLabels::BUILDER)

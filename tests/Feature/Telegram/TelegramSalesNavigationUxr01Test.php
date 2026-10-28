@@ -250,7 +250,8 @@ it('places My Credit beside tutorials for ordinary Sales members and accepts sta
 
         return ($data['reply_markup']['is_persistent'] ?? false) === true
             && ($rows[2][0]['text'] ?? null) === ReplyMenuLabels::SALES_TUTORIAL
-            && ($rows[2][1]['text'] ?? null) === ReplyMenuLabels::SALES_WALLET;
+            && ($rows[2][1]['text'] ?? null) === ReplyMenuLabels::SALES_WALLET
+            && ($rows[3][0]['text'] ?? null) === ReplyMenuLabels::SALES_PANEL_REQUEST;
     }, index: 0)->assertRaw(static function (Request $request): bool {
         $keyboard = uxr01Payload($request)['reply_markup']['inline_keyboard'] ?? [];
 
