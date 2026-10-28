@@ -850,6 +850,7 @@ it('does not claim exhaustion for a merely limited member and never fabricates u
 });
 
 it('keeps the reseller subscription Rich layout and legacy quota formatting unchanged', function (): void {
+    Role::findOrCreate('reseller', 'web');
     $reseller = User::factory()->create();
     $reseller->syncRoles(['reseller']);
     $order = sb06Order($reseller);
