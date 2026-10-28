@@ -11,6 +11,7 @@ use App\Modules\Sales\Application\CalculateQuote;
 use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\ConfigureRate;
 use App\Modules\Sales\Application\CreatePendingOrder;
+use App\Modules\Sales\Application\ManageResellerServiceLabels;
 use GuzzleHttp\Psr7\Request as NutgramRequest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
@@ -849,7 +850,7 @@ it('does not claim exhaustion for a merely limited member and never fabricates u
         }, index: 2);
 });
 
-it('keeps the reseller subscription Rich layout and legacy quota formatting unchanged', function (): void {
+it('shows reseller customer-first Rich details with exact zero quota and safe next steps', function (): void {
     Role::findOrCreate('reseller', 'web');
     $reseller = User::factory()->create();
     $reseller->syncRoles(['reseller']);
@@ -864,13 +865,108 @@ it('keeps the reseller subscription Rich layout and legacy quota formatting unch
     ]);
 
     $bot->hearCallbackQueryData('sales:subs:view:'.$order.':0')->reply()
+        ->assertRaw(static function (NutgramRequest $request) use ($order): bool {
+            $html = sb06RichHtml($request);
+            $payload = FakeNutgram::getActualData($request);
+            $keyboard = json_decode($payload['reply_markup'], true, 512, JSON_THROW_ON_ERROR);
+            $actions = json_encode($keyboard, JSON_THROW_ON_ERROR);
+
+            return str_contains($html, '<h4>👤 مشتری بدون نام</h4>')
+                && str_contains($html, '📦 پلن: اشتراک آزمایشی · 10 گیگابایت · 30 روز')
+                && str_contains($html, 'وضعیت سرویس: <b>🟠 محدود شده</b>')
+                && str_contains($html, '📊 حجم باقی‌مانده: <b>۰ مگابایت</b>')
+                && str_contains($html, 'روزهای باقی‌مانده:')
+                && str_contains($html, 'تاریخ انقضا:')
+                && str_contains($html, 'حجم سرویس تمام شده است')
+                && str_contains($html, '<details><summary>📊 جزئیات مصرف</summary>')
+                && str_contains($html, '<details><summary>🧾 مشخصات سفارش</summary>')
+                && str_contains($html, '<details><summary>📱 راهنمای اتصال</summary>')
+                && str_contains($actions, 'sales:buy')
+                && str_contains($actions, "sales:subs:label:edit:{$order}:0")
+                && str_contains($actions, "sales:subs:simple:{$order}:0")
+                && ! str_contains($actions, 'sales:subs:link:')
+                && ! str_contains($html, 'private-sb06-credential')
+                && ! str_contains($html, '0.00 گیگابایت');
+        }, index: 2);
+
+    $bot->hearCallbackQueryData('sales:subs:simple:'.$order.':0')->reply()
+        ->assertRaw(static function (NutgramRequest $request) use ($order): bool {
+            $payload = FakeNutgram::getActualData($request);
+            $actions = (string) ($payload['reply_markup'] ?? '');
+
+            return ! isset($payload['rich_message'])
+                && str_contains((string) ($payload['text'] ?? ''), 'باقی‌مانده: 0.00 گیگابایت')
+                && str_contains($actions, "sales:subs:label:edit:{$order}:0");
+        }, index: 2);
+    Http::assertSentCount(2);
+});
+
+it('shows a reseller customer name and prioritizes a verified active service connection', function (): void {
+    Role::findOrCreate('reseller', 'web');
+    $reseller = User::factory()->create();
+    $reseller->syncRoles(['reseller']);
+    $order = sb06Order($reseller);
+    sb06Activated($order);
+    app(ManageResellerServiceLabels::class)->save(
+        $reseller->id, $order, 'علی <Test> &',
+    );
+    $bot = sb06Bot(976094, $reseller);
+    Http::fake([
+        'https://remna.test/api/users/42' => Http::response(['response' => sb06Provider($order, [
+            'userTraffic' => [
+                'usedTrafficBytes' => 2 * 1073741824 - 100 * 1048576,
+                'lifetimeUsedTrafficBytes' => 2 * 1073741824 - 100 * 1048576,
+            ],
+        ])]),
+    ]);
+
+    $bot->hearCallbackQueryData('sales:subs:view:'.$order.':0')->reply()
+        ->assertRaw(static function (NutgramRequest $request) use ($order): bool {
+            $html = sb06RichHtml($request);
+            $payload = FakeNutgram::getActualData($request);
+            $buttons = json_decode($payload['reply_markup'], true, 512, JSON_THROW_ON_ERROR);
+
+            return str_contains($html, '<h4>👤 علی &lt;Test&gt; &amp;</h4>')
+                && ! str_contains($html, '<Test>')
+                && str_contains($html, 'حجم باقی‌مانده: <b>۱۰۰ مگابایت</b>')
+                && str_contains($html, 'وضعیت سرویس: <b>🟢 فعال</b>')
+                && ($buttons['inline_keyboard'][0][0]['callback_data'] ?? null) === "sales:subs:link:{$order}:0"
+                && str_contains(json_encode($buttons, JSON_THROW_ON_ERROR), "sales:subs:label:edit:{$order}:0")
+                && ! str_contains($html, 'private-sb06-credential');
+        }, index: 2);
+    Http::assertSentCount(1);
+});
+
+it('does not claim quota exhaustion from LIMITED alone or expose false live reseller values', function (): void {
+    Role::findOrCreate('reseller', 'web');
+    $reseller = User::factory()->create();
+    $reseller->syncRoles(['reseller']);
+    $order = sb06Order($reseller);
+    sb06Activated($order);
+    $bot = sb06Bot(976095, $reseller);
+    Http::fake(['https://remna.test/api/users/42' => Http::response(['response' => sb06Provider($order, [
+        'status' => 'LIMITED',
+        'userTraffic' => ['usedTrafficBytes' => 1073741824, 'lifetimeUsedTrafficBytes' => 1073741824],
+    ])])]);
+
+    $bot->hearCallbackQueryData('sales:subs:view:'.$order.':0')->reply()
         ->assertRaw(static function (NutgramRequest $request): bool {
             $html = sb06RichHtml($request);
 
-            return str_contains($html, 'وضعیت سرویس: <b>🟠 محدود شده</b>')
-                && str_contains($html, 'باقی‌مانده: <b>0.00 گیگابایت</b>')
-                && ! str_contains($html, '📊 حجم باقی‌مانده: <b>۰ مگابایت</b>')
-                && ! str_contains($html, 'حجم سرویس به پایان رسیده است')
-                && str_contains($html, '<details><summary>📊 جزئیات مصرف</summary>');
+            return str_contains($html, 'این سرویس محدود شده است') === false
+                && str_contains($html, 'سرویس محدود شده است.')
+                && ! str_contains($html, 'حجم سرویس تمام شده است')
+                && str_contains($html, 'حجم باقی‌مانده: <b>۱.۰۰ گیگابایت</b>');
+        }, index: 2);
+
+    config()->set('services.remnawave.url', 'https://offline-remna.test');
+    Http::fake(['https://offline-remna.test/api/users/42' => Http::response([], 503)]);
+    $bot->hearCallbackQueryData('sales:subs:view:'.$order.':0')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $html = sb06RichHtml($request);
+
+            return str_contains($html, 'وضعیت سرویس: <b>⚪ فعلاً قابل بررسی نیست</b>')
+                && str_contains($html, 'وضعیت و مصرف لحظه‌ای مشخص نیست')
+                && ! str_contains($html, 'حجم باقی‌مانده: <b>۰ مگابایت</b>');
         }, index: 2);
 });

@@ -230,7 +230,7 @@ it('confirms deletion, cancels drafts on Home and refuses forged edit or revoked
     Http::assertNothingSent();
 });
 
-it('uses a plan-based title for unnamed services and page positions only for visible buttons', function (): void {
+it('keeps plan titles in the list and a customer-first heading for unnamed reseller details', function (): void {
     $buyer = rslUser();
     $older = rslOrder($buyer);
     $newer = rslOrder($buyer);
@@ -260,7 +260,8 @@ it('uses a plan-based title for unnamed services and page positions only for vis
 
             $html = rslRichHtml($request);
 
-            return str_contains($html, '<h4>📦 پلن نمایندگی</h4>')
+            return str_contains($html, '<h4>👤 مشتری بدون نام</h4>')
+                && str_contains($html, '📦 پلن: پلن نمایندگی')
                 && ! str_contains($html, "سرویس #{$newer}")
                 && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), "sales:subs:label:edit:{$newer}:0");
         }, index: 2);
