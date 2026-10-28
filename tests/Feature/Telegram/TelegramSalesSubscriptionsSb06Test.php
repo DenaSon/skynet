@@ -746,3 +746,130 @@ it('keeps rich previews private, owner-checked, and honest for pending services'
     $bot->hearCallbackQueryData("sales:subs:rich:{$order}:0")->reply()->assertNoReply();
     Http::assertNothingSent();
 });
+
+it('shows a member-first limited service summary with exact exhausted quota and honest next steps', function (): void {
+    $buyer = User::factory()->create();
+    $buyer->syncRoles(['member']);
+    $order = sb06Order($buyer);
+    sb06Activated($order);
+    $bot = sb06Bot(976090, $buyer);
+    Http::fake([
+        'https://remna.test/api/users/42' => Http::response(['response' => sb06Provider($order, [
+            'status' => 'LIMITED',
+            'userTraffic' => ['usedTrafficBytes' => 2 * 1073741824, 'lifetimeUsedTrafficBytes' => 2 * 1073741824],
+        ])]),
+    ]);
+
+    $bot->hearCallbackQueryData('sales:subs:view:'.$order.':0')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $html = sb06RichHtml($request);
+            $payload = FakeNutgram::getActualData($request);
+            $buttons = json_encode($payload['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return str_contains($html, '<p>وضعیت سرویس: <b>🟠 محدود شده</b></p>')
+                && str_contains($html, '📊 حجم باقی‌مانده: <b>۰ مگابایت</b>')
+                && str_contains($html, 'روزهای باقی‌مانده:')
+                && str_contains($html, 'تاریخ انقضا:')
+                && str_contains($html, 'حجم سرویس به پایان رسیده است')
+                && str_contains($html, '<details><summary>📊 جزئیات مصرف</summary>')
+                && str_contains($html, '<details><summary>🧾 مشخصات سفارش</summary>')
+                && str_contains($html, '<details><summary>📱 راهنمای اتصال</summary>')
+                && str_contains($buttons, 'sales:buy')
+                && str_contains($buttons, 'sales:subs:simple:')
+                && str_contains($buttons, 'sales:subs:list:')
+                && ! str_contains($buttons, 'sales:subs:link:')
+                && ! str_contains($html, 'private-sb06-credential')
+                && ! str_contains($html, '0.00 گیگابایت');
+        }, index: 2);
+    Http::assertSentCount(1);
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
+});
+
+it('shows member sub-gigabyte quota as MiB with connection as first native action', function (): void {
+    $buyer = User::factory()->create();
+    $buyer->syncRoles(['member']);
+    $order = sb06Order($buyer);
+    sb06Activated($order);
+    $bot = sb06Bot(976091, $buyer);
+    Http::fake([
+        'https://remna.test/api/users/42' => Http::response(['response' => sb06Provider($order, [
+            'userTraffic' => [
+                'usedTrafficBytes' => 2 * 1073741824 - 100 * 1048576,
+                'lifetimeUsedTrafficBytes' => 2 * 1073741824 - 100 * 1048576,
+            ],
+        ])]),
+    ]);
+
+    $bot->hearCallbackQueryData('sales:subs:view:'.$order.':0')->reply()
+        ->assertRaw(static function (NutgramRequest $request) use ($order): bool {
+            $html = sb06RichHtml($request);
+            $payload = FakeNutgram::getActualData($request);
+            $keyboard = json_decode($payload['reply_markup'], true, 512, JSON_THROW_ON_ERROR);
+
+            return str_contains($html, '<p>وضعیت سرویس: <b>🟢 فعال</b></p>')
+                && str_contains($html, 'حجم باقی‌مانده: <b>۱۰۰ مگابایت</b>')
+                && ! str_contains($html, '0.10 گیگابایت')
+                && ($keyboard['inline_keyboard'][0][0]['callback_data'] ?? null) === "sales:subs:link:{$order}:0"
+                && ! str_contains($html, 'private-sb06-credential');
+        }, index: 2);
+    Http::assertSentCount(1);
+});
+
+it('does not claim exhaustion for a merely limited member and never fabricates usage during outage', function (): void {
+    $buyer = User::factory()->create();
+    $buyer->syncRoles(['member']);
+    $order = sb06Order($buyer);
+    sb06Activated($order);
+    $bot = sb06Bot(976092, $buyer);
+    Http::fake([
+        'https://remna.test/api/users/42' => Http::response(['response' => sb06Provider($order, [
+            'status' => 'LIMITED',
+            'userTraffic' => ['usedTrafficBytes' => 1073741824, 'lifetimeUsedTrafficBytes' => 1073741824],
+        ])]),
+    ]);
+
+    $bot->hearCallbackQueryData('sales:subs:view:'.$order.':0')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $html = sb06RichHtml($request);
+
+            return str_contains($html, 'وضعیت سرویس: <b>🟠 محدود شده</b>')
+                && str_contains($html, 'این سرویس محدود شده است')
+                && ! str_contains($html, 'حجم سرویس به پایان رسیده است');
+        }, index: 2);
+
+    config()->set('services.remnawave.url', 'https://offline-remna.test');
+    Http::fake(['https://offline-remna.test/api/users/42' => Http::response([], 503)]);
+    $bot->hearCallbackQueryData('sales:subs:view:'.$order.':0')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $html = sb06RichHtml($request);
+
+            return str_contains($html, 'وضعیت سرویس: <b>⚪ فعلاً قابل بررسی نیست</b>')
+                && str_contains($html, 'وضعیت و مصرف لحظه‌ای نامشخص است')
+                && ! str_contains($html, 'حجم باقی‌مانده: <b>۰ مگابایت</b>');
+        }, index: 2);
+});
+
+it('keeps the reseller subscription Rich layout and legacy quota formatting unchanged', function (): void {
+    $reseller = User::factory()->create();
+    $reseller->syncRoles(['reseller']);
+    $order = sb06Order($reseller);
+    sb06Activated($order);
+    $bot = sb06Bot(976093, $reseller);
+    Http::fake([
+        'https://remna.test/api/users/42' => Http::response(['response' => sb06Provider($order, [
+            'status' => 'LIMITED',
+            'userTraffic' => ['usedTrafficBytes' => 2 * 1073741824, 'lifetimeUsedTrafficBytes' => 2 * 1073741824],
+        ])]),
+    ]);
+
+    $bot->hearCallbackQueryData('sales:subs:view:'.$order.':0')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $html = sb06RichHtml($request);
+
+            return str_contains($html, 'وضعیت سرویس: <b>🟠 محدود شده</b>')
+                && str_contains($html, 'باقی‌مانده: <b>0.00 گیگابایت</b>')
+                && ! str_contains($html, '📊 حجم باقی‌مانده: <b>۰ مگابایت</b>')
+                && ! str_contains($html, 'حجم سرویس به پایان رسیده است')
+                && str_contains($html, '<details><summary>📊 جزئیات مصرف</summary>');
+        }, index: 2);
+});

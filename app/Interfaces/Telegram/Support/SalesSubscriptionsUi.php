@@ -14,6 +14,7 @@ use App\Modules\Provisioning\Application\ListMyServices;
 use App\Modules\Sales\Application\CreatePendingRenewalOrder;
 use App\Modules\Sales\Application\ManageResellerServiceLabels;
 use App\Modules\Sales\Application\PrepareRenewalDraft;
+use App\Support\PersianCalendar;
 use DateTimeImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Cache;
@@ -172,6 +173,8 @@ final readonly class SalesSubscriptionsUi
 
         $item = $details->summary;
         $resellerId = $this->resellerId($bot);
+        $isOrdinaryMember = $resellerId === null
+            && in_array('member', $this->actors->handle((int) $this->privateUser->id($bot))?->roles ?? [], true);
         $customerLabel = $resellerId === null ? null : $this->customerLabels->get($resellerId, $orderId);
         $lines = [
             '<b>📋 '.($customerLabel === null ? TelegramUi::escape($this->clean($item->productName)) : '👤 '.TelegramUi::escape($this->clean($customerLabel))).'</b>',
@@ -189,6 +192,8 @@ final readonly class SalesSubscriptionsUi
         $richRemaining = '';
         $richUsage = 'مصرف این سرویس هنوز قابل بررسی نیست.';
         $richExpiry = '';
+        $memberOverview = '';
+        $memberGuidance = '';
 
         if ($details->canRequestLink) {
             TelegramUi::answerCallback($bot);
@@ -222,9 +227,27 @@ final readonly class SalesSubscriptionsUi
                 $richRemaining = 'باقی‌مانده: <b>'.$remaining.'</b>';
                 $richUsage = 'مصرف: '.$used.'<br>باقی‌مانده: '.$remaining;
                 $richExpiry = implode('<br>', $expiryLines);
+                if ($isOrdinaryMember) {
+                    $memberRemaining = $live->limitBytes === 0
+                        ? 'نامحدود'
+                        : self::memberVolume(max(0, $live->limitBytes - $live->usedBytes));
+                    $memberOverview = '<p>وضعیت سرویس: <b>'.$status.'</b></p>'
+                        .'<p>📊 حجم باقی‌مانده: <b>'.$memberRemaining.'</b><br>'
+                        .$expiryLines[1].'<br>'.$expiryLines[0].'</p>';
+                    $richUsage = 'مصرف: '.$used.'<br>باقی‌مانده: '.$memberRemaining;
+                    $memberGuidance = match (true) {
+                        $expired, $live->status === 'EXPIRED' => 'اعتبار زمانی سرویس به پایان رسیده است. برای ادامه، تمدید یا خرید سرویس جدید را بررسی کنید.',
+                        $exhausted => 'حجم سرویس به پایان رسیده است. برای ادامه، تمدید یا خرید سرویس جدید را بررسی کنید.',
+                        $live->status === 'LIMITED' => 'این سرویس محدود شده است. برای ادامه، تمدید یا خرید سرویس جدید را بررسی کنید.',
+                        $live->status === 'DISABLED' => 'این سرویس غیرفعال است. برای راهنمایی، بخش آموزش یا پشتیبانی را بررسی کنید.',
+                        default => '',
+                    };
+                }
                 $canRenew = in_array($live->status, ['ACTIVE', 'LIMITED', 'EXPIRED'], true)
                     && $this->renewals->available($viewer, $orderId);
-                if ($canRenew) {
+                // The member's primary action is connection while usable and
+                // renewal while unavailable. Reseller action order is unchanged.
+                if ($canRenew && (! $isOrdinaryMember || ! $usable)) {
                     $keyboard->addRow(InlineKeyboardButton::make(
                         '🔄 بررسی تمدید',
                         callback_data: 'sales:subs:renew:'.$orderId.':'.$cursor,
@@ -247,11 +270,21 @@ final readonly class SalesSubscriptionsUi
                     $lines[] = '<blockquote>این سرویس در حال حاضر قابل اتصال نیست. برای خرید سرویس جدید یا دریافت راهنمایی از دکمه‌های زیر استفاده کنید.</blockquote>';
                     $keyboard->addRow(InlineKeyboardButton::make('🟢 خرید سرویس', callback_data: 'sales:buy'));
                 }
+                if ($canRenew && $isOrdinaryMember && $usable) {
+                    $keyboard->addRow(InlineKeyboardButton::make(
+                        '🔄 بررسی تمدید',
+                        callback_data: 'sales:subs:renew:'.$orderId.':'.$cursor,
+                        style: ButtonStyle::PRIMARY,
+                    ));
+                }
             } catch (Throwable) {
                 $lines[] = 'وضعیت سرویس: <b>⚪ فعلاً قابل بررسی نیست</b>';
                 $lines[] = '<blockquote>دریافت وضعیت لحظه‌ای ممکن نشد. کمی بعد «بررسی دوباره» را بزنید.</blockquote>';
                 $richStatus = 'وضعیت سرویس: <b>⚪ فعلاً قابل بررسی نیست</b>';
                 $richUsage = 'دریافت وضعیت لحظه‌ای ممکن نشد. کمی بعد بررسی دوباره را بزنید.';
+                if ($isOrdinaryMember) {
+                    $memberGuidance = 'وضعیت و مصرف لحظه‌ای نامشخص است. برای بررسی مجدد، دکمه «بررسی دوباره» را بزنید.';
+                }
             }
         } else {
             $richStatus = 'وضعیت ثبت‌شده: '.$this->status($item->status);
@@ -295,8 +328,11 @@ final readonly class SalesSubscriptionsUi
             : '👤 '.TelegramUi::escape($this->clean($customerLabel));
         $richHtml = '<h4>'.$heading.'</h4>'
             .($customerLabel === null ? '' : '<p>پلن: '.TelegramUi::escape($this->clean($item->productName)).'</p>')
-            .'<p>'.$richStatus.($richRemaining === '' ? '' : '<br>'.$richRemaining)
-            .($richExpiry === '' ? '' : '<br>'.$richExpiry).'</p>'
+            .($isOrdinaryMember && $memberOverview !== ''
+                ? $memberOverview
+                : '<p>'.$richStatus.($richRemaining === '' ? '' : '<br>'.$richRemaining)
+                    .($richExpiry === '' ? '' : '<br>'.$richExpiry).'</p>')
+            .($isOrdinaryMember && $memberGuidance !== '' ? '<p>💡 '.$memberGuidance.'</p>' : '')
             .'<details><summary>📊 جزئیات مصرف</summary><p>'.$richUsage.'</p></details>'
             .'<details><summary>🧾 مشخصات سفارش</summary><p>پلن: '.TelegramUi::escape($this->clean($item->productName))
             .'<br>حجم خرید: '.($item->trafficGb === null ? 'نامحدود' : $item->trafficGb.' گیگابایت')
@@ -1199,6 +1235,26 @@ final readonly class SalesSubscriptionsUi
             'failed' => '🔴 غیرفعال یا ناموفق',
             default => '⚪ نامشخص',
         };
+    }
+
+    /** Exact remaining quota for customers; a small nonzero amount is never displayed as 0.00 GB. */
+    private static function memberVolume(int $bytes): string
+    {
+        if ($bytes === 0) {
+            return '۰ مگابایت';
+        }
+
+        if ($bytes < 1048576) {
+            return 'کمتر از ۱ مگابایت';
+        }
+
+        if ($bytes < 1073741824) {
+            $decimals = $bytes < 10485760 ? 1 : 0;
+
+            return PersianCalendar::digits(number_format($bytes / 1048576, $decimals)).' مگابایت';
+        }
+
+        return PersianCalendar::digits(number_format($bytes / 1073741824, 2)).' گیگابایت';
     }
 
     private function gb(int $bytes): string
