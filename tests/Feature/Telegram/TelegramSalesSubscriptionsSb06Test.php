@@ -970,3 +970,97 @@ it('does not claim quota exhaustion from LIMITED alone or expose false live rese
                 && ! str_contains($html, 'حجم باقی‌مانده: <b>۰ مگابایت</b>');
         }, index: 2);
 });
+
+it('puts the reseller customer and plan before the unchanged full credential in long-link fallback', function (): void {
+    Role::findOrCreate('reseller', 'web');
+    $reseller = User::factory()->create();
+    $reseller->syncRoles(['reseller']);
+    $order = sb06Order($reseller);
+    sb06Activated($order);
+    app(ManageResellerServiceLabels::class)->save($reseller->id, $order, 'علی <دوست> &');
+    $bot = sb06Bot(976099, $reseller);
+    $url = 'https://test.example.test/'.str_repeat('x', 1100);
+    Http::fake(['https://remna.test/api/users/42' => Http::response([
+        'response' => sb06Provider($order, ['subscriptionUrl' => $url]),
+    ])]);
+
+    $bot->hearCallbackQueryData('sales:subs:link:'.$order.':0')->reply()
+        ->assertCalled('sendPhoto')
+        ->assertCalled('sendMessage')
+        ->assertRaw(static function (NutgramRequest $request) use ($url, $order): bool {
+            $data = FakeNutgram::getActualData($request);
+            $text = (string) ($data['text'] ?? '');
+            $keyboard = json_decode($data['reply_markup'], true, 512, JSON_THROW_ON_ERROR);
+            $actions = json_encode($keyboard, JSON_THROW_ON_ERROR);
+
+            return str_contains($text, '<b>🔐 اتصال سرویس</b>')
+                && str_contains($text, '👤 علی &lt;دوست&gt; &amp;')
+                && str_contains($text, '📦 اشتراک آزمایشی')
+                && str_contains($text, '🔗 <b>لینک اشتراک</b>')
+                && str_contains($text, $url)
+                && ! str_contains($text, 'علی <دوست> &')
+                && ! str_contains($text, "اتصال #{$order}")
+                && str_contains($actions, 'sales:help:apps')
+                && str_contains($actions, 'sales:support')
+                && str_contains($actions, "sales:subs:view:{$order}:0")
+                && ! str_contains($actions, 'copy_text');
+        }, index: 2);
+    Http::assertSentCount(1);
+});
+
+it('keeps the ordinary member card plan-first without customer metadata or extra provider reads', function (): void {
+    Role::findOrCreate('member', 'web');
+    $member = User::factory()->create();
+    $member->syncRoles(['member']);
+    $order = sb06Order($member);
+    sb06Activated($order);
+    $bot = sb06Bot(976100, $member);
+    $url = 'https://test.example.test/'.str_repeat('y', 1100);
+    Http::fake(['https://remna.test/api/users/42' => Http::response([
+        'response' => sb06Provider($order, ['subscriptionUrl' => $url]),
+    ])]);
+
+    $bot->hearCallbackQueryData('sales:subs:link:'.$order.':0')->reply()
+        ->assertCalled('sendPhoto')
+        ->assertCalled('sendMessage')
+        ->assertRaw(static function (NutgramRequest $request) use ($url): bool {
+            $data = FakeNutgram::getActualData($request);
+            $text = (string) ($data['text'] ?? '');
+
+            return str_contains($text, '<b>🔐 اتصال سرویس</b>')
+                && str_contains($text, '📦 اشتراک آزمایشی')
+                && ! str_contains($text, '👤 مشتری')
+                && str_contains($text, $url);
+        }, index: 2);
+    Http::assertSentCount(1);
+});
+
+it('preserves official subscription page access and selectable URL in the long fallback', function (): void {
+    config()->set('sales.subscription_page_host', 'sub.example.test');
+    Role::findOrCreate('reseller', 'web');
+    $reseller = User::factory()->create();
+    $reseller->syncRoles(['reseller']);
+    $order = sb06Order($reseller);
+    sb06Activated($order);
+    $bot = sb06Bot(976110, $reseller);
+    $url = 'https://sub.example.test/'.str_repeat('z', 1100);
+    Http::fake(['https://remna.test/api/users/42' => Http::response([
+        'response' => sb06Provider($order, ['subscriptionUrl' => $url]),
+    ])]);
+
+    $bot->hearCallbackQueryData('sales:subs:page:'.$order.':0')->reply()
+        ->assertCalled('sendPhoto')
+        ->assertCalled('sendMessage')
+        ->assertRaw(static function (NutgramRequest $request) use ($url, $order): bool {
+            $data = FakeNutgram::getActualData($request);
+            $buttons = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return str_contains((string) ($data['text'] ?? ''), '<b>🌐 صفحه اشتراک</b>')
+                && str_contains((string) ($data['text'] ?? ''), $url)
+                && ($data['protect_content'] ?? false) === true
+                && str_contains($buttons, 'باز کردن صفحه اشتراک')
+                && str_contains($buttons, "sales:subs:link:{$order}:0")
+                && ! str_contains($buttons, 'copy_text');
+        }, index: 2);
+    Http::assertSentCount(1);
+});
