@@ -226,3 +226,79 @@ it('leaving to sales home cancels panel draft without disturbing existing wallet
     expect(Cache::get(TelegramBotContext::current()->cacheKey('telegram:panel:request:'.$member->id)))->toBeNull()
         ->and(DB::table('sales_panel_requests')->count())->toBe(0);
 });
+
+it('makes Sales Panel application discoverable via persistent menu and Account for an ordinary member', function (): void {
+    $member = User::factory()->create();
+    $bot = panel01Bot(986111, $member);
+
+    $bot->hearText('/start')->reply()->assertRaw(static function (Request $request): bool {
+        $data = panel01Payload($request);
+        $keyboard = $data['reply_markup']['keyboard'] ?? [];
+
+        return ($data['reply_markup']['is_persistent'] ?? null) === true
+            && ($keyboard[3][0]['text'] ?? null) === '🧩 درخواست پنل فروش';
+    }, index: 0);
+    $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(static function (Request $request): bool {
+        $data = panel01Payload($request);
+
+        return str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:panel:request');
+    }, index: 1);
+    $bot->hearText('🧩 درخواست پنل فروش')->reply()->assertRaw(static function (Request $request): bool {
+        $data = panel01Payload($request);
+
+        return str_contains((string) ($data['text'] ?? ''), '۳۵۰٬۰۰۰ تومان')
+            && str_contains((string) ($data['text'] ?? ''), 'اعتبار کافی نیست');
+    });
+    expect(DB::table('sales_panel_requests')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('shows existing application status instead of duplicate request in persistent menu and Account', function (): void {
+    $member = User::factory()->create();
+    $bot = panel01Bot(986112, $member);
+    PanelWalletFunding::credit($member->id, 3_500_000);
+    $existing = app(\App\Modules\Sales\Application\SalesPanelRequests::class)
+        ->submit($member->id, 'علی', 'محمدی', '09123456789');
+
+    $bot->hearText('/start')->reply()->assertRaw(static function (Request $request): bool {
+        $keyboard = panel01Payload($request)['reply_markup']['keyboard'] ?? [];
+
+        return ($keyboard[3][0]['text'] ?? null) === '📨 وضعیت درخواست پنل فروش';
+    }, index: 0);
+    $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(static function (Request $request): bool {
+        $data = panel01Payload($request);
+        $keyboard = json_encode($data['reply_markup'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+
+        return str_contains($keyboard, '📨 وضعیت درخواست پنل فروش')
+            && str_contains($keyboard, 'sales:panel:request');
+    }, index: 1);
+    $bot->hearText('📨 وضعیت درخواست پنل فروش')->reply()->assertRaw(static function (Request $request): bool {
+        return str_contains((string) (panel01Payload($request)['text'] ?? ''), 'در انتظار بررسی');
+    });
+    expect(DB::table('sales_panel_requests')->count())->toBe(1)
+        ->and(DB::table('sales_panel_requests')->value('id'))->toBe($existing['id'])
+        ->and(DB::table('billing_journals')->count())->toBe(1);
+    Http::assertNothingSent();
+});
+
+it('keeps the member tutorial visible with a harmless extra role but hides it from resellers', function (): void {
+    Role::findOrCreate('member', 'web');
+    Role::findOrCreate('panel-observer', 'web');
+    Role::findOrCreate('reseller', 'web');
+    $member = User::factory()->create();
+    $member->syncRoles(['member', 'panel-observer']);
+    $bot = panel01Bot(986113, $member);
+
+    $bot->hearCallbackQueryData('sales:help:apps')->reply()->assertRaw(static function (Request $request): bool {
+        return str_contains(json_encode(panel01Payload($request)['reply_markup'], JSON_THROW_ON_ERROR), 'sales:help:panel-setup');
+    }, index: 1);
+    $bot->hearText('/start')->reply()->assertRaw(static function (Request $request): bool {
+        return str_contains(json_encode(panel01Payload($request)['reply_markup'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), '🧩 درخواست پنل فروش');
+    }, index: 0);
+
+    $member->syncRoles(['reseller']);
+    $bot->hearText('/start')->reply()->assertRaw(static function (Request $request): bool {
+        return ! str_contains(json_encode(panel01Payload($request)['reply_markup'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), 'درخواست پنل فروش');
+    }, index: 0);
+    Http::assertNothingSent();
+});

@@ -59,7 +59,7 @@ When client support is absent or a rich edit fails, use the existing accessible 
 
 - Put Android, iOS/iPadOS, Windows, macOS, purchase, connection troubleshooting and eligible-role guides in a compact, structured learning experience. Group steps in `<details>` where this reduces navigation.
 - Show the relevant existing verified app download link and «سرویس‌های من»/purchase/support CTA close to the corresponding guide; do not create fake download actions.
-- Ordinary members can open panel setup: confirmed initial credit >= 750,000 toman, existing request/terms, review under the operator's stated service commitment, and current 35% reseller policy. Clarify that approved credit is retained, not a setup fee.
+- Ordinary members can open panel setup: confirmed initial credit >= 350,000 toman, existing request/terms, review under the operator's stated service commitment, and current 35% reseller policy. Clarify that approved credit is retained, not a setup fee.
 - Active resellers see their plan-builder help; ordinary members must not gain access through old guide callbacks. Retain Back, tutorials, support and Home.
 - Preserve correct client-specific guidance, restrained emoji, Persian spacing and no internal tech/phase terms in customer messages.
 
