@@ -84,12 +84,19 @@ final readonly class SalesSubscriptionsUi
             $resellerId, array_map(static fn ($item): int => $item->orderId, $page->items),
         );
 
-        $lines = [
-            '<b>📋 سرویس‌های من</b>',
-            '',
-            'سرویس‌های ثبت‌شده: <b>'.$counts['total'].'</b>',
-            'فعال در سوابق: <b>'.$counts['activeRecorded'].'</b>',
-        ];
+        $lines = $resellerId !== null
+            ? [
+                '<b>👥 سرویس‌های مشتریان</b>',
+                '',
+                '📦 سرویس‌های ثبت‌شده: <b>'.$counts['total'].'</b>',
+                '🗂 فعال در سوابق داخلی: <b>'.$counts['activeRecorded'].'</b>',
+            ]
+            : [
+                '<b>📋 سرویس‌های من</b>',
+                '',
+                'سرویس‌های ثبت‌شده: <b>'.$counts['total'].'</b>',
+                'فعال در سوابق: <b>'.$counts['activeRecorded'].'</b>',
+            ];
         if ($counts['needsReview'] > 0) {
             $lines[] = 'در انتظار بررسی: '.$counts['needsReview'];
         }
@@ -108,11 +115,18 @@ final readonly class SalesSubscriptionsUi
                 $customerLabel = $labels[$item->orderId] ?? null;
                 $title = $customerLabel === null ? $planName : $this->clean($customerLabel);
                 $summary = $item->trafficGb === null ? 'حجم نامحدود' : $item->trafficGb.' گیگ';
-                $lines[] = '🔹 <b>'.$position.'. '.($customerLabel === null ? '' : '👤 ').TelegramUi::escape($title).'</b>';
-                if ($customerLabel !== null) {
-                    $lines[] = 'پلن: '.TelegramUi::escape($planName);
+                if ($resellerId !== null) {
+                    $displayName = $customerLabel === null ? 'مشتری بدون نام' : $this->clean($customerLabel);
+                    $lines[] = '<blockquote><b>'.$position.'. 👤 '.TelegramUi::escape($displayName).'</b>'
+                        ."\n📦 پلن: ".TelegramUi::escape($planName).' · '.$summary.' · '.$item->durationDays.' روز'
+                        ."\n📋 وضعیت ثبت‌شده: ".$this->status($item->status).'</blockquote>';
+                } else {
+                    $lines[] = '🔹 <b>'.$position.'. '.($customerLabel === null ? '' : '👤 ').TelegramUi::escape($title).'</b>';
+                    if ($customerLabel !== null) {
+                        $lines[] = 'پلن: '.TelegramUi::escape($planName);
+                    }
+                    $lines[] = $summary.' · '.$item->durationDays.' روز · '.$this->status($item->status);
                 }
-                $lines[] = $summary.' · '.$item->durationDays.' روز · '.$this->status($item->status);
                 $lines[] = '';
                 // One entry per service: the detail view retains link, renewal
                 // and customer-edit actions, with fresh owner/provider checks.
@@ -126,7 +140,9 @@ final readonly class SalesSubscriptionsUi
                     callback_data: 'sales:subs:view:'.$item->orderId.':'.$cursor,
                 ));
             }
-            $lines[] = '<blockquote>وضعیت لحظه‌ای و تاریخ انقضا در جزئیات هر سرویس بررسی می‌شود.</blockquote>';
+            $lines[] = $resellerId !== null
+                ? '<blockquote>ℹ️ وضعیت‌های این فهرست از سوابق داخلی‌اند. وضعیت لحظه‌ای، حجم باقی‌مانده و انقضا در جزئیات هر سرویس بررسی می‌شوند.</blockquote>'
+                : '<blockquote>وضعیت لحظه‌ای و تاریخ انقضا در جزئیات هر سرویس بررسی می‌شود.</blockquote>';
             if ($page->nextBeforeOrderId !== null) {
                 $keyboard->addRow(InlineKeyboardButton::make('موارد بیشتر ◀️',
                     callback_data: 'sales:subs:list:'.$page->nextBeforeOrderId));

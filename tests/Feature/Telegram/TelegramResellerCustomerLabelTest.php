@@ -171,8 +171,11 @@ it('lets a reseller name their service in Sales Bot and displays escaped labels 
             $data = FakeNutgram::getActualData($request);
             $keyboard = json_decode($data['reply_markup'], true, 512, JSON_THROW_ON_ERROR);
 
-            return str_contains($data['text'], '1. 👤 علی &amp; &lt;دوست&gt;')
-                && str_contains($data['text'], 'پلن: پلن نمایندگی')
+            return str_contains($data['text'], '<b>👥 سرویس‌های مشتریان</b>')
+                && str_contains($data['text'], '<blockquote><b>1. 👤 علی &amp; &lt;دوست&gt;</b>')
+                && str_contains($data['text'], '📦 پلن: پلن نمایندگی · 10 گیگ · 30 روز')
+                && str_contains($data['text'], '📋 وضعیت ثبت‌شده:')
+                && str_contains($data['text'], 'وضعیت‌های این فهرست از سوابق داخلی‌اند')
                 && ! str_contains($data['text'], 'سرویس #')
                 && ! str_contains($data['text'], 'علی & <دوست>')
                 && ($keyboard['inline_keyboard'][0][0]['text'] ?? null) === '👤 علی & <دوست> · 1'
@@ -241,8 +244,9 @@ it('keeps plan titles in the list and a customer-first heading for unnamed resel
             $data = FakeNutgram::getActualData($request);
             $keyboard = json_decode($data['reply_markup'], true, 512, JSON_THROW_ON_ERROR);
 
-            return str_contains($data['text'], '1. پلن نمایندگی')
-                && str_contains($data['text'], '2. پلن نمایندگی')
+            return str_contains($data['text'], '1. 👤 مشتری بدون نام')
+                && str_contains($data['text'], '2. 👤 مشتری بدون نام')
+                && substr_count($data['text'], '📦 پلن: پلن نمایندگی') === 2
                 && ! str_contains($data['text'], "سرویس #{$older}")
                 && ! str_contains($data['text'], "سرویس #{$newer}")
                 && ($keyboard['inline_keyboard'][0][0]['text'] ?? null) === '👤 مشتری بدون نام · 1'
@@ -569,6 +573,75 @@ it('makes the Sales report visible only to resellers and provides 7/30 day navig
             $data = FakeNutgram::getActualData($request);
 
             return str_contains($data['text'], 'فقط برای نمایندگان');
+        }, index: 1);
+    Http::assertNothingSent();
+});
+
+it('keeps reseller list bounded to six owned entries with stable detail callbacks and no provider calls', function (): void {
+    $buyer = rslUser();
+    $foreign = rslUser();
+    $foreignOrder = rslOrder($foreign);
+    $orders = [];
+    for ($i = 0; $i < 7; $i++) {
+        $orders[] = rslOrder($buyer);
+    }
+    app(ManageResellerServiceLabels::class)->save($buyer->id, $orders[6], 'مشتری <اول> &');
+    $bot = rslBot($buyer, 977945);
+
+    $bot->hearCallbackQueryData('sales:subs:list:0')->reply()
+        ->assertRaw(static function (Request $request) use ($orders, $foreignOrder): bool {
+            $data = FakeNutgram::getActualData($request);
+            $keyboard = json_decode($data['reply_markup'], true, 512, JSON_THROW_ON_ERROR);
+            $callbacks = json_encode($keyboard, JSON_THROW_ON_ERROR);
+            $text = (string) ($data['text'] ?? '');
+
+            return ($data['parse_mode'] ?? null) === 'HTML'
+                && str_contains($text, '<b>👥 سرویس‌های مشتریان</b>')
+                && str_contains($text, '1. 👤 مشتری &lt;اول&gt; &amp;')
+                && ! str_contains($text, 'مشتری <اول> &')
+                && substr_count($text, '📋 وضعیت ثبت‌شده:') === 6
+                && substr_count($text, '📦 پلن: پلن نمایندگی') === 6
+                && str_contains($text, 'فعال در سوابق داخلی')
+                && str_contains($text, 'وضعیت‌های این فهرست از سوابق داخلی‌اند')
+                && ($keyboard['inline_keyboard'][0][0]['callback_data'] ?? null) === "sales:subs:view:{$orders[6]}:0"
+                && str_contains($callbacks, "sales:subs:list:{$orders[1]}")
+                && str_contains($callbacks, 'sales:subs:search:start')
+                && str_contains($callbacks, 'menu:plan-catalog')
+                && str_contains($callbacks, 'sales:checkout:orders')
+                && ! str_contains($callbacks, "sales:subs:view:{$foreignOrder}:0")
+                && ! str_contains($callbacks, 'sales:subs:link:')
+                && ! str_contains($text, "سرویس #{$foreignOrder}");
+        }, index: 1);
+
+    $bot->hearCallbackQueryData('sales:subs:list:'.$orders[1])->reply()
+        ->assertRaw(static function (Request $request) use ($orders): bool {
+            $data = FakeNutgram::getActualData($request);
+            $keyboard = json_decode($data['reply_markup'], true, 512, JSON_THROW_ON_ERROR);
+
+            return substr_count((string) ($data['text'] ?? ''), '📋 وضعیت ثبت‌شده:') === 1
+                && ($keyboard['inline_keyboard'][0][0]['callback_data'] ?? null)
+                    === "sales:subs:view:{$orders[0]}:{$orders[1]}";
+        }, index: 1);
+    Http::assertNothingSent();
+});
+
+it('leaves ordinary member service list layout and native actions unchanged', function (): void {
+    $member = rslUser(false);
+    $order = rslOrder($member);
+    $bot = rslBot($member, 977946);
+
+    $bot->hearCallbackQueryData('sales:subs:list:0')->reply()
+        ->assertRaw(static function (Request $request) use ($order): bool {
+            $data = FakeNutgram::getActualData($request);
+            $keyboard = json_decode($data['reply_markup'], true, 512, JSON_THROW_ON_ERROR);
+            $text = (string) ($data['text'] ?? '');
+
+            return str_contains($text, '<b>📋 سرویس‌های من</b>')
+                && str_contains($text, '🔹 <b>1. پلن نمایندگی</b>')
+                && ! str_contains($text, '👥 سرویس‌های مشتریان')
+                && ! str_contains($text, '📋 وضعیت ثبت‌شده:')
+                && ($keyboard['inline_keyboard'][0][0]['callback_data'] ?? null) === "sales:subs:view:{$order}:0"
+                && ! str_contains(json_encode($keyboard, JSON_THROW_ON_ERROR), 'sales:subs:search:start');
         }, index: 1);
     Http::assertNothingSent();
 });
