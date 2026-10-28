@@ -194,6 +194,8 @@ final readonly class SalesSubscriptionsUi
         $richExpiry = '';
         $memberOverview = '';
         $memberGuidance = '';
+        $resellerOverview = '';
+        $resellerGuidance = '';
 
         if ($details->canRequestLink) {
             TelegramUi::answerCallback($bot);
@@ -227,6 +229,22 @@ final readonly class SalesSubscriptionsUi
                 $richRemaining = 'باقی‌مانده: <b>'.$remaining.'</b>';
                 $richUsage = 'مصرف: '.$used.'<br>باقی‌مانده: '.$remaining;
                 $richExpiry = implode('<br>', $expiryLines);
+                if ($resellerId !== null) {
+                    $resellerRemaining = $live->limitBytes === 0
+                        ? 'نامحدود'
+                        : self::memberVolume(max(0, $live->limitBytes - $live->usedBytes));
+                    $resellerOverview = '<p>وضعیت سرویس: <b>'.$status.'</b></p>'
+                        .'<p>📊 حجم باقی‌مانده: <b>'.$resellerRemaining.'</b><br>'
+                        .$expiryLines[1].'<br>'.$expiryLines[0].'</p>';
+                    $richUsage = 'مصرف: '.$used.'<br>باقی‌مانده: '.$resellerRemaining;
+                    $resellerGuidance = match (true) {
+                        $expired, $live->status === 'EXPIRED' => 'اعتبار زمانی سرویس تمام شده است. در صورت امکان، همین سرویس را تمدید کنید.',
+                        $exhausted => 'حجم سرویس تمام شده است. در صورت امکان، همین سرویس را تمدید کنید.',
+                        $live->status === 'LIMITED' => 'سرویس محدود شده است. وضعیت را بررسی کنید و در صورت امکان تمدید کنید.',
+                        $live->status === 'DISABLED' => 'سرویس غیرفعال است. برای بررسی علت از پشتیبانی کمک بگیرید.',
+                        default => '',
+                    };
+                }
                 if ($isOrdinaryMember) {
                     $memberRemaining = $live->limitBytes === 0
                         ? 'نامحدود'
@@ -245,19 +263,20 @@ final readonly class SalesSubscriptionsUi
                 }
                 $canRenew = in_array($live->status, ['ACTIVE', 'LIMITED', 'EXPIRED'], true)
                     && $this->renewals->available($viewer, $orderId);
-                // The member's primary action is connection while usable and
-                // renewal while unavailable. Reseller action order is unchanged.
-                if ($canRenew && (! $isOrdinaryMember || ! $usable)) {
+                // Connection is primary while usable; renewal comes first
+                // when unavailable. The existing renewability checks are unchanged.
+                if ($canRenew && ! $usable) {
                     $keyboard->addRow(InlineKeyboardButton::make(
                         '🔄 بررسی تمدید',
                         callback_data: 'sales:subs:renew:'.$orderId.':'.$cursor,
-                        style: ButtonStyle::PRIMARY,
+                        style: $resellerId !== null ? ButtonStyle::SUCCESS : ButtonStyle::PRIMARY,
                     ));
                 }
                 if ($usable) {
                     $keyboard->addRow(InlineKeyboardButton::make(
                         '🔐 نمایش کد اتصال',
                         callback_data: 'sales:subs:link:'.$orderId.':'.$cursor,
+                        style: $resellerId !== null ? ButtonStyle::SUCCESS : null,
                     ));
                     if ($this->pages->configured()) {
                         $keyboard->addRow(InlineKeyboardButton::make(
@@ -270,7 +289,7 @@ final readonly class SalesSubscriptionsUi
                     $lines[] = '<blockquote>این سرویس در حال حاضر قابل اتصال نیست. برای خرید سرویس جدید یا دریافت راهنمایی از دکمه‌های زیر استفاده کنید.</blockquote>';
                     $keyboard->addRow(InlineKeyboardButton::make('🟢 خرید سرویس', callback_data: 'sales:buy'));
                 }
-                if ($canRenew && $isOrdinaryMember && $usable) {
+                if ($canRenew && $usable) {
                     $keyboard->addRow(InlineKeyboardButton::make(
                         '🔄 بررسی تمدید',
                         callback_data: 'sales:subs:renew:'.$orderId.':'.$cursor,
@@ -284,6 +303,9 @@ final readonly class SalesSubscriptionsUi
                 $richUsage = 'دریافت وضعیت لحظه‌ای ممکن نشد. کمی بعد بررسی دوباره را بزنید.';
                 if ($isOrdinaryMember) {
                     $memberGuidance = 'وضعیت و مصرف لحظه‌ای نامشخص است. برای بررسی مجدد، دکمه «بررسی دوباره» را بزنید.';
+                }
+                if ($resellerId !== null) {
+                    $resellerGuidance = 'وضعیت و مصرف لحظه‌ای مشخص نیست. برای استعلام مجدد، «بررسی دوباره» را بزنید.';
                 }
             }
         } else {
@@ -323,16 +345,25 @@ final readonly class SalesSubscriptionsUi
             ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'sales:subs:list:'.$cursor))
             ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
 
-        $heading = $customerLabel === null
-            ? '📦 '.TelegramUi::escape($this->clean($item->productName))
-            : '👤 '.TelegramUi::escape($this->clean($customerLabel));
+        $heading = $resellerId !== null
+            ? '👤 '.($customerLabel === null
+                ? 'مشتری بدون نام'
+                : TelegramUi::escape($this->clean($customerLabel)))
+            : '📦 '.TelegramUi::escape($this->clean($item->productName));
         $richHtml = '<h4>'.$heading.'</h4>'
-            .($customerLabel === null ? '' : '<p>پلن: '.TelegramUi::escape($this->clean($item->productName)).'</p>')
-            .($isOrdinaryMember && $memberOverview !== ''
-                ? $memberOverview
-                : '<p>'.$richStatus.($richRemaining === '' ? '' : '<br>'.$richRemaining)
-                    .($richExpiry === '' ? '' : '<br>'.$richExpiry).'</p>')
+            .($resellerId !== null
+                ? '<p>📦 پلن: '.TelegramUi::escape($this->clean($item->productName))
+                    .' · '.($item->trafficGb === null ? 'نامحدود' : $item->trafficGb.' گیگابایت')
+                    .' · '.$item->durationDays.' روز</p>'
+                : '')
+            .($resellerId !== null && $resellerOverview !== ''
+                ? $resellerOverview
+                : ($isOrdinaryMember && $memberOverview !== ''
+                    ? $memberOverview
+                    : '<p>'.$richStatus.($richRemaining === '' ? '' : '<br>'.$richRemaining)
+                        .($richExpiry === '' ? '' : '<br>'.$richExpiry).'</p>'))
             .($isOrdinaryMember && $memberGuidance !== '' ? '<p>💡 '.$memberGuidance.'</p>' : '')
+            .($resellerId !== null && $resellerGuidance !== '' ? '<p>💡 '.$resellerGuidance.'</p>' : '')
             .'<details><summary>📊 جزئیات مصرف</summary><p>'.$richUsage.'</p></details>'
             .'<details><summary>🧾 مشخصات سفارش</summary><p>پلن: '.TelegramUi::escape($this->clean($item->productName))
             .'<br>حجم خرید: '.($item->trafficGb === null ? 'نامحدود' : $item->trafficGb.' گیگابایت')
