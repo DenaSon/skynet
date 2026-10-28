@@ -55,7 +55,7 @@ function panel01Payload(Request $request): array
 
 it('shows panel application on home and saves a pending request only after terms acceptance and confirmation', function (): void {
     $member = User::factory()->create();
-    PanelWalletFunding::credit($member->id, 7_500_000);
+    PanelWalletFunding::credit($member->id, 3_500_000);
     $bot = panel01Bot(986101, $member);
 
     $bot->hearCallbackQueryData('sales:home')->reply()->assertRaw(static function (Request $request): bool {
@@ -73,7 +73,7 @@ it('shows panel application on home and saves a pending request only after terms
     $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertRaw(static function (Request $request): bool {
         $data = panel01Payload($request);
 
-        return str_contains($data['text'], '۷۵۰٬۰۰۰ تومان')
+        return str_contains($data['text'], '۳۵۰٬۰۰۰ تومان')
             && str_contains($data['text'], 'تعرفه و تخفیف')
             && str_contains($data['text'], 'اختلال اینترنت')
             && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:panel:accept');
@@ -117,7 +117,7 @@ it('shows a wallet guidance screen with all three routes when balance is insuffi
         $data = panel01Payload($request);
         $buttons = $data['reply_markup']['inline_keyboard'] ?? [];
 
-        return str_contains($data['text'] ?? '', '۷۵۰٬۰۰۰ تومان')
+        return str_contains($data['text'] ?? '', '۳۵۰٬۰۰۰ تومان')
             && str_contains($data['text'] ?? '', 'پس از تأیید پنل فروش')
             && ($buttons[0][0]['callback_data'] ?? null) === 'sales:wallet'
             && ($buttons[1][0]['callback_data'] ?? null) === 'sales:support'
@@ -131,7 +131,7 @@ it('shows a wallet guidance screen with all three routes when balance is insuffi
 
     expect(DB::table('sales_panel_requests')->count())->toBe(0)
         ->and(DB::table('telegram_notification_deliveries')->count())->toBe(0);
-    PanelWalletFunding::credit($member->id, 7_500_000);
+    PanelWalletFunding::credit($member->id, 3_500_000);
     $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertRaw(
         static fn (Request $request): bool => str_contains(
             json_encode(panel01Payload($request)['reply_markup'], JSON_THROW_ON_ERROR),
@@ -144,7 +144,7 @@ it('shows a wallet guidance screen with all three routes when balance is insuffi
 
 it('rechecks wallet credit at final confirmation after it has been spent', function (): void {
     $member = User::factory()->create();
-    PanelWalletFunding::credit($member->id, 7_500_000);
+    PanelWalletFunding::credit($member->id, 3_500_000);
     $bot = panel01Bot(986107, $member);
 
     $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertCalled('editMessageText');
@@ -169,7 +169,7 @@ it('rechecks wallet credit at final confirmation after it has been spent', funct
 
 it('cancels or expires the private form without creating an application', function (): void {
     $member = User::factory()->create();
-    PanelWalletFunding::credit($member->id, 7_500_000);
+    PanelWalletFunding::credit($member->id, 3_500_000);
     $bot = panel01Bot(986102, $member);
     $key = TelegramBotContext::current()->cacheKey('telegram:panel:request:'.$member->id);
 
@@ -190,7 +190,7 @@ it('denies group callbacks, disabled users, forged cross-user confirmation and a
     Role::firstOrCreate(['name' => 'reseller', 'guard_name' => 'web']);
     $reseller = User::factory()->create();
     $reseller->syncRoles(['reseller']);
-    PanelWalletFunding::credit($member->id, 7_500_000);
+    PanelWalletFunding::credit($member->id, 3_500_000);
     $bot = panel01Bot(986103, $member);
     $partner = panel01Bot(986104, $reseller);
 
@@ -215,7 +215,7 @@ it('denies group callbacks, disabled users, forged cross-user confirmation and a
 
 it('leaving to sales home cancels panel draft without disturbing existing wallet routes', function (): void {
     $member = User::factory()->create();
-    PanelWalletFunding::credit($member->id, 7_500_000);
+    PanelWalletFunding::credit($member->id, 3_500_000);
     $bot = panel01Bot(986105, $member);
     $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('sales:panel:accept')->reply()->assertCalled('editMessageText');

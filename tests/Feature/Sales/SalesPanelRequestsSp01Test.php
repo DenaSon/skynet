@@ -23,7 +23,7 @@ it('persists one member application with normalized phone and immutable owner da
     expect($requests->find($member->id))->toBeNull()
         ->and($requests->find($other->id))->toBeNull();
 
-    PanelWalletFunding::credit($member->id, 7_500_000);
+    PanelWalletFunding::credit($member->id, 3_500_000);
     $first = $requests->submit($member->id, 'علی', 'محمدی', '+۹۸۹۱۲۳۴۵۶۷۸۹');
     PanelWalletFunding::spend($member->id, 1);
     $again = $requests->submit($member->id, 'حسین', 'رضایی', '09121112233');
@@ -38,7 +38,7 @@ it('persists one member application with normalized phone and immutable owner da
         ->and(DB::table('sales_panel_requests')->count())->toBe(1)
         ->and($member->fresh()->hasRole('member'))->toBeTrue()
         ->and($member->fresh()->hasRole('reseller'))->toBeFalse()
-        ->and(app(ViewWallet::class)->handle($member->id)->balanceRials)->toBe(7_499_999)
+        ->and(app(ViewWallet::class)->handle($member->id)->balanceRials)->toBe(3_499_999)
         ->and(DB::table('billing_journals')->count())->toBe(2);
 });
 
@@ -54,19 +54,19 @@ it('requires confirmed wallet balance at the threshold and ignores pending top-u
     expect($requests->hasMinimumWalletBalance($member->id))->toBeFalse();
     expect($submit)->toThrow(ValidationException::class);
 
-    PanelWalletFunding::credit($member->id, 7_499_999);
+    PanelWalletFunding::credit($member->id, 3_499_999);
     expect($requests->hasMinimumWalletBalance($member->id))->toBeFalse();
     expect($submit)->toThrow(ValidationException::class);
 
     PanelWalletFunding::credit($member->id, 1);
     expect($requests->hasMinimumWalletBalance($member->id))->toBeTrue()
-        ->and(app(ViewWallet::class)->handle($member->id)->balanceRials)->toBe(7_500_000);
+        ->and(app(ViewWallet::class)->handle($member->id)->balanceRials)->toBe(3_500_000);
 
     $journalsBefore = DB::table('billing_journals')->count();
     expect($submit()['status'])->toBe('pending')
         ->and(DB::table('sales_panel_requests')->count())->toBe(1)
         ->and(DB::table('billing_journals')->count())->toBe($journalsBefore)
-        ->and(app(ViewWallet::class)->handle($member->id)->balanceRials)->toBe(7_500_000);
+        ->and(app(ViewWallet::class)->handle($member->id)->balanceRials)->toBe(3_500_000);
 });
 
 it('rejects malformed names or mobile without creating a request', function (): void {
@@ -105,7 +105,7 @@ it('denies disabled members, admins and resellers and never escalates privileges
 
 it('preserves future review evidence instead of dropping application data on rollback', function (): void {
     $member = User::factory()->create();
-    PanelWalletFunding::credit($member->id, 7_500_000);
+    PanelWalletFunding::credit($member->id, 3_500_000);
     app(SalesPanelRequests::class)->submit($member->id, 'حسین', 'رضایی', '09123456789');
     $migration = require database_path('migrations/2026_10_21_000003_create_sales_panel_requests.php');
 

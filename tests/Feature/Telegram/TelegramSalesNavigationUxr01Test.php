@@ -543,7 +543,7 @@ it('shows member panel setup and reseller builder Rich guides without role escal
         $keyboard = json_encode(uxr01Payload($request)['reply_markup'], JSON_THROW_ON_ERROR);
 
         return substr_count($html, '<details>') === 4
-            && str_contains($html, '۷۵۰٬۰۰۰ تومان')
+            && str_contains($html, '۳۵۰٬۰۰۰ تومان')
             && str_contains($html, '۳۵٪')
             && str_contains($html, 'هزینه راه‌اندازی نیست')
             && str_contains($keyboard, 'sales:wallet:topup')
