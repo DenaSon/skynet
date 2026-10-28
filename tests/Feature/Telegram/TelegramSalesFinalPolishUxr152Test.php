@@ -99,7 +99,7 @@ it('shows panel request status for an ordinary member but never promotes via nav
         return str_contains(json_encode($body['reply_markup'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), '🧩 درخواست پنل فروش');
     }, index: 1);
 
-    PanelWalletFunding::credit($member->id, 7_500_000);
+    PanelWalletFunding::credit($member->id, 3_500_000);
     app(SalesPanelRequests::class)->submit($member->id, 'سارا', 'محمدی', '09123456789');
     $bot->hearCallbackQueryData('sales:home')->reply()->assertRaw(static function (Request $request): bool {
         $body = polish152Payload($request);
@@ -136,7 +136,9 @@ it('gives active Sales Panel holders their unique home builder action without an
             && ! str_contains($markup, 'sales:panel:request');
     }, index: 1);
 
-    expect(ReplyMenuLabels::all())->toContain(ReplyMenuLabels::LEGACY_BUILDER)
+    expect(ReplyMenuLabels::all())->toContain(ReplyMenuLabels::SALES_PANEL_REQUEST)
+        ->toContain(ReplyMenuLabels::SALES_PANEL_STATUS)
+        ->toContain(ReplyMenuLabels::LEGACY_BUILDER)
         ->toContain(ReplyMenuLabels::SALES_WALLET)
         ->toContain(ReplyMenuLabels::LEGACY_WALLET)
         ->toContain(ReplyMenuLabels::BUILDER)
@@ -208,11 +210,11 @@ it('offers a readable panel setup guide with existing credit and application des
 
             $html = polish152RichHtml($request);
 
-            return str_contains($html, '۷۵۰٬۰۰۰ تومان')
+            return str_contains($html, '۳۵۰٬۰۰۰ تومان')
                 && str_contains($html, '۱ ساعت')
                 && str_contains($html, 'در صورت تأیید')
                 && str_contains($html, '۳۵٪ تخفیف نمایندگی')
-                && str_contains($html, '۷۵۰ هزار تومان، اعتبار اولیه شماست؛ هزینه راه‌اندازی نیست')
+                && str_contains($html, '۳۵۰ هزار تومان، اعتبار اولیه شماست؛ هزینه راه‌اندازی نیست')
                 && str_contains($html, 'نام، نام خانوادگی و شماره موبایل')
                 && substr_count($html, '<details>') === 4
                 && $rows[0][0]['callback_data'] === 'sales:wallet:topup'
@@ -235,7 +237,7 @@ it('offers a readable panel setup guide with existing credit and application des
         return str_contains(polish152Payload($request)['text'], 'اعتبار کافی نیست');
     }, index: 1);
     expect(DB::table('sales_panel_requests')->count())->toBe(0);
-    PanelWalletFunding::credit($member->id, 7_500_000);
+    PanelWalletFunding::credit($member->id, 3_500_000);
     $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertRaw(static function (Request $request): bool {
         return str_contains(polish152Payload($request)['text'], 'قوانین پنل فروش');
     }, index: 1);

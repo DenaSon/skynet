@@ -121,7 +121,7 @@ final class ReplyMenuRenderer
     }
 
     /** Sales has its own registry; never expose the legacy/Admin keyboard here. */
-    public function salesKeyboard(?TelegramActor $actor = null, bool $trialVisible = false): ReplyKeyboardMarkup
+    public function salesKeyboard(?TelegramActor $actor = null, bool $trialVisible = false, bool $panelRequestExists = false): ReplyKeyboardMarkup
     {
         $labels = [
             ReplyMenuLabels::SALES_BUY,
@@ -136,6 +136,15 @@ final class ReplyMenuRenderer
         $labels[] = ReplyMenuLabels::SALES_TUTORIAL;
         if ($actor !== null && (in_array('member', $actor->roles, true) || in_array('reseller', $actor->roles, true))) {
             $labels[] = ReplyMenuLabels::SALES_WALLET;
+        }
+        if ($actor !== null
+            && in_array('member', $actor->roles, true)
+            && ! in_array('reseller', $actor->roles, true)
+            && ! in_array('admin', $actor->roles, true)
+            && ! in_array('super-admin', $actor->roles, true)) {
+            $labels[] = $panelRequestExists
+                ? ReplyMenuLabels::SALES_PANEL_STATUS
+                : ReplyMenuLabels::SALES_PANEL_REQUEST;
         }
         if ($trialVisible) {
             $labels[] = ReplyMenuLabels::SALES_TRIAL;

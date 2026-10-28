@@ -18,6 +18,10 @@ final class ReplyMenuLabels
 
     public const SALES_TRIAL = '🧪 تست رایگان';
 
+    public const SALES_PANEL_REQUEST = '🧩 درخواست پنل فروش';
+
+    public const SALES_PANEL_STATUS = '📨 وضعیت درخواست پنل فروش';
+
     public const SALES_REPORTS = '📊 گزارش‌های من';
 
     public const BUY = '🛒 خرید اشتراک';
@@ -79,7 +83,7 @@ final class ReplyMenuLabels
         return [
             self::BUY, self::SUBSCRIPTIONS, self::CATALOG, self::ACCOUNT, self::INVITE,
             self::SETTINGS, self::ADMIN, self::SALES_WALLET, self::WALLET, self::BUILDER, self::SALES_REPORTS,
-            self::LEGACY_WALLET, self::LEGACY_BUILDER,
+            self::SALES_PANEL_REQUEST, self::SALES_PANEL_STATUS, self::LEGACY_WALLET, self::LEGACY_BUILDER,
             self::OLD_WALLET_PANEL, self::OLD_BUILDER_PANEL, self::USERS,
             self::ROLES, self::PLANS, self::PRODUCTS, self::SALES_SECTION,
             self::FINANCE_SECTION, self::SERVERS, self::STATS, self::DENABAN, self::TOPUPS, self::RECEIPTS, self::HOME,

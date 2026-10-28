@@ -14,7 +14,7 @@ use Illuminate\Validation\ValidationException;
 /** User-owned Sales Panel applications; role assignment belongs solely to SP-02. */
 final readonly class SalesPanelRequests
 {
-    public const MINIMUM_WALLET_BALANCE_RIALS = 7_500_000;
+    public const MINIMUM_WALLET_BALANCE_RIALS = 3_500_000;
 
     public function __construct(
         private ResolveActiveUser $users,
@@ -62,7 +62,7 @@ final readonly class SalesPanelRequests
             }
             if (! $this->hasMinimumWalletBalance($userId, true)) {
                 throw ValidationException::withMessages([
-                    'wallet_balance' => 'At least 750,000 tomans of confirmed wallet credit is required.',
+                    'wallet_balance' => 'At least 350,000 tomans of confirmed wallet credit is required.',
                 ]);
             }
 
