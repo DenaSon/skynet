@@ -74,6 +74,9 @@ final readonly class ResellerServiceHealthUi
             .'<br>🟢 فعال: '.$page['active'].' · 🔴 منقضی: '.$page['expired']
             .'<br>🟠 نیازمند پیگیری: <b>'.$page['attention'].'</b> · ⚪ نامشخص: <b>'.$page['unknown'].'</b></p>';
         $buttons = InlineKeyboardMarkup::make();
+        if ($page['rows'] !== []) {
+            $html .= '<h4>📋 وضعیت سرویس‌های این صفحه</h4><table bordered striped compact>';
+        }
         if ($page['rows'] === []) {
             $html .= '<p>سرویسی در این صفحه پیدا نشد.</p>';
             $lines[] = 'سرویسی در این صفحه پیدا نشد.';
@@ -85,12 +88,16 @@ final readonly class ResellerServiceHealthUi
                 $lines[] = '↳ '.TelegramUi::escape($item['action']);
             }
             $lines[] = '';
-            $html .= '<p>🔹 <b>'.$position.'. '.TelegramUi::escape($item['name']).'</b>'
-                .'<br>وضعیت استعلام: '.TelegramUi::escape($item['status'])
+            $html .= '<tr><td><b>'.$position.'. '.TelegramUi::escape($item['name']).'</b></td>'
+                .'<td>'.TelegramUi::escape($item['status'])
                 .($item['action'] === '' ? '' : '<br>↳ '.TelegramUi::escape($item['action']))
-                .'</p>';
+                .'</td></tr>';
             $buttons->addRow(InlineKeyboardButton::make('📋 جزئیات '.$position,
                 callback_data: 'sales:subs:view:'.$item['orderId'].':0'));
+        }
+
+        if ($page['rows'] !== []) {
+            $html .= '</table><p>برای مشاهده وضعیت کامل یا بررسی تمدید، «جزئیات» هر سرویس را انتخاب کنید.</p>';
         }
 
         if ($page['nextBeforeOrderId'] !== null) {
@@ -98,7 +105,8 @@ final readonly class ResellerServiceHealthUi
                 callback_data: 'sales:health:'.$page['nextBeforeOrderId']));
         }
         $lines[] = '<blockquote>آمار لحظه‌ای فقط برای همین صفحه است (حداکثر ۶ سرویس). '
-            .'اگر استعلامی ممکن نباشد، «نامشخص» نمایش داده می‌شود؛ وضعیت داخلی به‌معنای تأیید لحظه‌ای نیست.</blockquote>';
+            .'اگر استعلامی ممکن نباشد، «نامشخص» نمایش داده می‌شود؛ وضعیت داخلی به‌معنای تأیید لحظه‌ای نیست. '
+            .'«نیازمند پیگیری» می‌تواند شامل سرویس فعال با حجم یا اعتبار رو به پایان باشد.</blockquote>';
         $buttons->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی صفحه',
             callback_data: 'sales:health:'.$cursor))
             ->addRow(InlineKeyboardButton::make('📊 گزارش فروش', callback_data: 'sales:report:30'))
@@ -109,7 +117,8 @@ final readonly class ResellerServiceHealthUi
             $html .= '<details><summary>ℹ️ درباره وضعیت‌ها</summary><p>'
                 .'استعلام زنده فقط همین صفحه را پوشش می‌دهد (حداکثر ۶ سرویس). '
                 .'اگر دریافت وضعیت ممکن نباشد، «نامشخص» نشان داده می‌شود. '
-                .'فعال‌بودن در سوابق داخلی، تأیید لحظه‌ای Provider نیست.'
+                .'فعال‌بودن در سوابق داخلی، تأیید لحظه‌ای Provider نیست. '
+                .'نیازمند پیگیری ممکن است شامل سرویس فعالی باشد که به پایان حجم یا زمان نزدیک است.'
                 .'</p></details>';
             $plainButtons = clone $buttons;
             $buttons->addRow(InlineKeyboardButton::make('↩️ نمایش ساده', callback_data: 'sales:health:simple:'.$cursor));

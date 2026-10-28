@@ -70,10 +70,13 @@ final readonly class ReadResellerServiceHealth
                         $status = '🟠 غیرفعال';
                         $action = 'بررسی وضعیت';
                         $attention++;
-                    } elseif ($live->status === 'LIMITED'
-                        || ($live->limitBytes > 0 && $remainingBytes === 0)) {
+                    } elseif ($live->limitBytes > 0 && $remainingBytes === 0) {
                         $status = '🟠 حجم تمام‌شده';
-                        $action = 'تمدید یا افزایش حجم';
+                        $action = 'بررسی تمدید';
+                        $attention++;
+                    } elseif ($live->status === 'LIMITED') {
+                        $status = '🟠 محدود شده';
+                        $action = 'بررسی علت محدودیت';
                         $attention++;
                     } elseif ($live->status === 'ACTIVE') {
                         $status = '🟢 فعال';

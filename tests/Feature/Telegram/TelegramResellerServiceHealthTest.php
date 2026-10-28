@@ -211,3 +211,80 @@ it('bounds remote checks to six latest services and keeps unauthorized users and
         ->assertCalled('editMessageText', 2);
     Http::assertSentCount(6);
 });
+
+it('renders a compact RTL status table and retains every native health callback', function (): void {
+    $buyer = rshUser();
+    $order = rshOrder($buyer);
+    app(ManageResellerServiceLabels::class)->save($buyer->id, $order, 'علی <دوست> &');
+    $bot = rshBot($buyer, 981007);
+    Http::fake([
+        'https://rw-health.test/api/users/'.($order + 2300) => Http::response([
+            'response' => rshRemote($order),
+        ]),
+    ]);
+
+    $bot->hearCallbackQueryData('sales:health:0')->reply()
+        ->assertRaw(static function (NutgramRequest $request) use ($order): bool {
+            $data = FakeNutgram::getActualData($request);
+            $html = rshRich($request);
+            $buttons = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return str_contains($html, '<table bordered striped compact>')
+                && str_contains($html, '<td><b>1. علی &lt;دوست&gt; &amp;</b></td>')
+                && str_contains($html, '🟢 فعال')
+                && str_contains($html, 'برای مشاهده وضعیت کامل')
+                && str_contains($html, '<details><summary>ℹ️ درباره وضعیت‌ها</summary>')
+                && str_contains($html, 'نیازمند پیگیری ممکن است شامل')
+                && ! str_contains($html, 'علی <دوست> &')
+                && ! str_contains($html, 'private-health.test')
+                && str_contains($buttons, "sales:subs:view:{$order}:0")
+                && str_contains($buttons, 'sales:health:0')
+                && str_contains($buttons, 'sales:health:simple:0')
+                && str_contains($buttons, 'sales:report:30')
+                && str_contains($buttons, 'sales:home');
+        }, index: 1);
+
+    $bot->hearCallbackQueryData('sales:health:simple:0')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $data = FakeNutgram::getActualData($request);
+
+            return ! isset($data['rich_message'])
+                && str_contains((string) ($data['text'] ?? ''), 'بررسی لحظه‌ای')
+                && str_contains((string) ($data['text'] ?? ''), 'نیازمند پیگیری')
+                && ! str_contains((string) ($data['text'] ?? ''), '<table');
+        }, index: 1);
+    Http::assertSentCount(2);
+});
+
+it('distinguishes remotely LIMITED from confirmed exhausted traffic without exposing credentials', function (): void {
+    $buyer = rshUser();
+    $limited = rshOrder($buyer);
+    $exhausted = rshOrder($buyer);
+    rshBot($buyer, 981008);
+    Http::fake([
+        'https://rw-health.test/api/users/'.($limited + 2300) => Http::response([
+            'response' => rshRemote($limited, [
+                'status' => 'LIMITED',
+                'userTraffic' => ['usedTrafficBytes' => 1024 * 1024],
+            ]),
+        ]),
+        'https://rw-health.test/api/users/'.($exhausted + 2300) => Http::response([
+            'response' => rshRemote($exhausted, [
+                'status' => 'LIMITED',
+                'userTraffic' => ['usedTrafficBytes' => 2 * 1073741824],
+            ]),
+        ]),
+    ]);
+
+    $result = app(ReadResellerServiceHealth::class)->handle(SubscriptionViewer::telegram(981008));
+    $rows = array_column($result['rows'], null, 'orderId');
+    expect($result['checked'])->toBe(2)
+        ->and($result['attention'])->toBe(2)
+        ->and($rows[$limited]['status'])->toBe('🟠 محدود شده')
+        ->and($rows[$limited]['action'])->toBe('بررسی علت محدودیت')
+        ->and($rows[$exhausted]['status'])->toBe('🟠 حجم تمام‌شده')
+        ->and($rows[$exhausted]['action'])->toBe('بررسی تمدید')
+        ->and(json_encode($rows, JSON_THROW_ON_ERROR))->not->toContain('private-health.test');
+
+    Http::assertSentCount(2);
+});
