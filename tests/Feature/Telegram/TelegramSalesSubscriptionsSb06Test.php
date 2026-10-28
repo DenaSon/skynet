@@ -11,6 +11,7 @@ use App\Modules\Sales\Application\CalculateQuote;
 use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\ConfigureRate;
 use App\Modules\Sales\Application\CreatePendingOrder;
+use App\Modules\Sales\Application\ManageResellerServiceLabels;
 use GuzzleHttp\Psr7\Request as NutgramRequest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
@@ -906,7 +907,7 @@ it('shows a reseller customer name and prioritizes a verified active service con
     $reseller->syncRoles(['reseller']);
     $order = sb06Order($reseller);
     sb06Activated($order);
-    app(\App\Modules\Sales\Application\ManageResellerServiceLabels::class)->save(
+    app(ManageResellerServiceLabels::class)->save(
         $reseller->id, $order, 'علی <Test> &',
     );
     $bot = sb06Bot(976094, $reseller);
@@ -963,6 +964,7 @@ it('does not claim quota exhaustion from LIMITED alone or expose false live rese
     $bot->hearCallbackQueryData('sales:subs:view:'.$order.':0')->reply()
         ->assertRaw(static function (NutgramRequest $request): bool {
             $html = sb06RichHtml($request);
+
             return str_contains($html, 'وضعیت سرویس: <b>⚪ فعلاً قابل بررسی نیست</b>')
                 && str_contains($html, 'وضعیت و مصرف لحظه‌ای مشخص نیست')
                 && ! str_contains($html, 'حجم باقی‌مانده: <b>۰ مگابایت</b>');
