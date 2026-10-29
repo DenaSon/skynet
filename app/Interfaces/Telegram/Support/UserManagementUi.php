@@ -2,6 +2,7 @@
 
 namespace App\Interfaces\Telegram\Support;
 
+use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Identity\Application\BrowseUsers;
 use App\Modules\Identity\Application\ChangeUserStatus;
 use App\Modules\Identity\Application\ResolveTelegramActor;
@@ -207,7 +208,7 @@ final class UserManagementUi
 
     private function searchPromptKey(int $actorId): string
     {
-        return 'tg:users:search-prompt:'.$actorId;
+        return TelegramBotContext::current()->cacheKey('tg:users:search-prompt:'.$actorId);
     }
 
     private function actor(Nutgram $bot): ?TelegramActor
