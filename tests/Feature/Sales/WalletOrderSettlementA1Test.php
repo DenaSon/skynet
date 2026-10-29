@@ -132,7 +132,7 @@ it('spends a limited wallet across two different orders without overdraft', func
     $buyer = a1Buyer(951005);
     $one = a1Order($buyer);
     $two = a1Order($buyer);
-    a1Credit($buyer, 400_000, 'F11BANK003');
+    a1Credit($buyer, 310_000, 'F11BANK003');
     config()->set('sales.wallet_settlement_enabled', true);
     $viewer = SubscriptionViewer::telegram(951005);
 
