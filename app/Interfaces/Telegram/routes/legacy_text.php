@@ -83,5 +83,9 @@ $bot->onText('{volume}', function (Nutgram $bot, string $volume): void {
         return;
     }
 
+    if (app(\App\Interfaces\Telegram\Support\UserManagementUi::class)->text($bot, $volume)) {
+        return;
+    }
+
     app(ShopUi::class)->customText($bot, $volume);
 });
