@@ -372,7 +372,7 @@ it('opens the existing confirmed subscription manager only for a root-owned fulf
     $rootBot->hearCallbackQueryData("c360:v:{$buyer->id}:{$order}:3:r:1")->reply()
         ->assertRaw(static function (NutgramRequest $request) use ($order): bool {
             $data = c360LivePayload($request);
-            $buttons = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+            $buttons = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 
             return str_contains($buttons, 'full:service:view:'.$order)
                 && str_contains($buttons, '🔌 مدیریت وضعیت اشتراک')
