@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Telegram\Notifications;
 
-use App\Modules\Identity\Application\ResolveTelegramActor;
-use App\Modules\Identity\Application\SuperAdminTrust;
+use App\Modules\Identity\Application\AdminCapabilityAccess;
 use App\Modules\Identity\Application\TelegramRecipient;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -14,8 +13,7 @@ use Illuminate\Support\Facades\Schema;
 final readonly class SalesPanelNotificationOutbox
 {
     public function __construct(
-        private SuperAdminTrust $trust,
-        private ResolveTelegramActor $actors,
+        private AdminCapabilityAccess $access,
         private TelegramRecipient $recipients,
     ) {}
 
@@ -29,14 +27,11 @@ final readonly class SalesPanelNotificationOutbox
             return;
         }
 
-        foreach ($this->trust->allowedTelegramIds() as $telegramId) {
-            $root = $this->actors->handle((int) $telegramId);
-            if ($root?->canManageRoles() !== true) {
-                continue;
-            }
+        foreach ($this->access->reviewerIds('resellers.review') as $reviewerId) {
+            // Retain previous event keys for idempotency with existing root alerts.
             $this->record(
-                'panel:'.$id.':request:root:'.$root->userId, 'SalesPanelSubmitted',
-                $root->userId, 'admin', $id,
+                'panel:'.$id.':request:root:'.$reviewerId, 'SalesPanelSubmitted',
+                $reviewerId, 'admin', $id,
             );
         }
     }
