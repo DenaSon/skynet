@@ -1,10 +1,9 @@
 <?php
 
 use App\Interfaces\Telegram\Support\UserStatusConfirmations;
-use GuzzleHttp\Psr7\Request;
-use SergiX44\Nutgram\Testing\FakeNutgram;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
+use GuzzleHttp\Psr7\Request;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -12,6 +11,7 @@ use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
+use SergiX44\Nutgram\Testing\FakeNutgram;
 use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
@@ -186,8 +186,7 @@ it('renders twenty newest-first users as two-column buttons and filters real res
                 ? json_decode($data['reply_markup'], true, flags: JSON_THROW_ON_ERROR)
                 : ($data['reply_markup'] ?? []);
             $rows = $markup['inline_keyboard'] ?? [];
-            $users = array_values(array_filter($rows, static fn (array $row): bool =>
-                str_starts_with((string) ($row[0]['callback_data'] ?? ''), 'users:view:')));
+            $users = array_values(array_filter($rows, static fn (array $row): bool => str_starts_with((string) ($row[0]['callback_data'] ?? ''), 'users:view:')));
             $text = (string) ($data['text'] ?? '');
 
             return count($users) === 10
@@ -207,8 +206,7 @@ it('renders twenty newest-first users as two-column buttons and filters real res
                 ? json_decode($data['reply_markup'], true, flags: JSON_THROW_ON_ERROR)
                 : ($data['reply_markup'] ?? []);
             $rows = $markup['inline_keyboard'] ?? [];
-            $callbacks = collect($rows)->flatMap(static fn (array $row) =>
-                array_map(static fn (array $button) => $button['callback_data'] ?? '', $row))->all();
+            $callbacks = collect($rows)->flatMap(static fn (array $row) => array_map(static fn (array $button) => $button['callback_data'] ?? '', $row))->all();
 
             return str_contains((string) ($data['text'] ?? ''), 'تعداد: 2')
                 && in_array('users:view:'.$newer->id.':1:r', $callbacks, true)
