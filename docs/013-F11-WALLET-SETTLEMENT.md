@@ -29,3 +29,9 @@
 ## F11-B0 financial boundary clarification
 
 F11-A1 wallet purchase replay is attested by `Billing/Application/VerifyWalletOrderDebit`. All deposits and purchases share the Billing ledger (`billing_journals` + `billing_postings`) with integer-rial balanced entries. Direct bank entries use `wallet_id=NULL`; they never increase any customer's wallet balance. Sales does not query Billing tables. See [ADR 0008](adr/0008-unified-billing-ledger.md).
+
+## Cash-receipts report compatibility (2026-10-29)
+
+The read-only Admin `ReadAdminCashReceipts` sales subtotal includes all three persisted wallet settlement methods: legacy `wallet`, `customer_wallet`, and `reseller_wallet`. These are **internal purchases funded by previously credited wallets**, not new bank inflows. `cashInRials` remains based exclusively on accepted top-up proofs and direct bank settlements; wallet orders must never be added to incoming bank cash or double-counted. Date ranges, reviewer RBAC, wallet liabilities, historical settlements, and underlying ledger entries are unchanged.
+
+**Scope:** report-selection compatibility only; no financial reversal of mistakenly approved/fraudulent receipts, no provider write, no production data mutation, and no claim of bank-statement reconciliation. Historical top-ups still require separate operator review and properly audited corrective postings.

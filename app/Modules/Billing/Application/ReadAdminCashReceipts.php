@@ -67,7 +67,7 @@ final readonly class ReadAdminCashReceipts
 
         // Wallet order settlement is sales activity, not another deposit.
         $wallet = DB::table('sales_order_settlements')
-            ->where('method', 'wallet')
+            ->whereIn('method', ['wallet', 'customer_wallet', 'reseller_wallet'])
             ->where('settled_at', '<', $until);
         if ($from !== null) {
             $wallet->where('settled_at', '>=', $from);
