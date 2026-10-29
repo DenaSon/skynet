@@ -64,9 +64,9 @@ it('reseller orders snapshot discount using the same public catalog rate', funct
     $order = app(CreatePendingOrder::class)->handle($buyer->id, $quote, bin2hex(random_bytes(16)));
 
     expect($order->publicPriceRials)->toBe(300_000)
-        ->and($order->discountPercent)->toBe(5)
-        ->and($order->discountRials)->toBe(15_000)
-        ->and($order->totalPriceRials)->toBe(285_000);
+        ->and($order->discountPercent)->toBe(35)
+        ->and($order->discountRials)->toBe(105_000)
+        ->and($order->totalPriceRials)->toBe(195_000);
 });
 
 it('prevents duplicates on repeated Telegram callback tokens even after tariff changes', function (): void {
