@@ -1,6 +1,8 @@
 <?php
 
 use App\Interfaces\Telegram\Support\UserStatusConfirmations;
+use GuzzleHttp\Psr7\Request;
+use SergiX44\Nutgram\Testing\FakeNutgram;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -48,7 +50,7 @@ it('renders a real user list and navigates to details and search', function (): 
 
 it('supports paging and persisted search context without leaking accounts', function (): void {
     $admin = User::factory()->admin()->create();
-    User::factory()->count(15)->create(['name' => 'FilterMe']);
+    User::factory()->count(25)->create(['name' => 'FilterMe']);
     $bot = configureUserManagementBot(42345, $admin);
 
     $bot->hearCallbackQueryData('users:page:2')->reply()
@@ -165,4 +167,117 @@ it('rejects a status confirmation issued before a customer became a custom opera
     expect($subject->fresh()->is_active)->toBeTrue()
         ->and($subject->fresh()->hasRole($role))->toBeTrue()
         ->and(DB::table('identity_audit_events')->count())->toBe(0);
+});
+
+it('renders twenty newest-first users as two-column buttons and filters real resellers', function (): void {
+    $admin = User::factory()->admin()->create();
+    $bot = configureUserManagementBot(50101, $admin);
+    Role::findOrCreate('reseller', 'web');
+    $older = User::factory()->create(['name' => 'Older reseller']);
+    $older->syncRoles(['reseller']);
+    User::factory()->count(22)->create();
+    $newer = User::factory()->create(['name' => 'Newer reseller']);
+    $newer->syncRoles(['reseller']);
+
+    $bot->hearCallbackQueryData('menu:admin:users')->reply()->assertRaw(
+        static function (Request $request) use ($newer): bool {
+            $data = FakeNutgram::getActualData($request);
+            $markup = is_string($data['reply_markup'] ?? null)
+                ? json_decode($data['reply_markup'], true, flags: JSON_THROW_ON_ERROR)
+                : ($data['reply_markup'] ?? []);
+            $rows = $markup['inline_keyboard'] ?? [];
+            $users = array_values(array_filter($rows, static fn (array $row): bool =>
+                str_starts_with((string) ($row[0]['callback_data'] ?? ''), 'users:view:')));
+            $text = (string) ($data['text'] ?? '');
+
+            return count($users) === 10
+                && count(array_filter($users, static fn (array $row): bool => count($row) === 2)) === 10
+                && str_contains((string) $users[0][0]['callback_data'], 'users:view:'.$newer->id.':1:a')
+                && str_contains($text, 'صفحه 1 از 2')
+                && ! str_contains($text, 'Newer reseller')
+                && str_contains(json_encode($markup, JSON_THROW_ON_ERROR), 'users:resellers:1');
+        },
+        index: 1,
+    );
+
+    $bot->hearCallbackQueryData('users:resellers:1')->reply()->assertRaw(
+        static function (Request $request) use ($newer, $older): bool {
+            $data = FakeNutgram::getActualData($request);
+            $markup = is_string($data['reply_markup'] ?? null)
+                ? json_decode($data['reply_markup'], true, flags: JSON_THROW_ON_ERROR)
+                : ($data['reply_markup'] ?? []);
+            $rows = $markup['inline_keyboard'] ?? [];
+            $callbacks = collect($rows)->flatMap(static fn (array $row) =>
+                array_map(static fn (array $button) => $button['callback_data'] ?? '', $row))->all();
+
+            return str_contains((string) ($data['text'] ?? ''), 'تعداد: 2')
+                && in_array('users:view:'.$newer->id.':1:r', $callbacks, true)
+                && in_array('users:view:'.$older->id.':1:r', $callbacks, true)
+                && ! in_array('users:resellers:2', $callbacks, true);
+        },
+        index: 1,
+    );
+
+    $bot->hearCallbackQueryData('users:view:'.$newer->id.':1:r')->reply()->assertRaw(
+        static function (Request $request) use ($newer): bool {
+            $data = FakeNutgram::getActualData($request);
+
+            return str_contains((string) ($data['reply_markup'] ?? ''), 'users:profile:'.$newer->id.':1:r')
+                && str_contains((string) ($data['reply_markup'] ?? ''), 'users:resellers:1');
+        },
+        index: 1,
+    );
+});
+
+it('opens native ForceReply search, consumes plain text once and preserves /finduser', function (): void {
+    $admin = User::factory()->admin()->create();
+    $bot = configureUserManagementBot(50201, $admin);
+    $subject = User::factory()->create(['name' => 'UniqueInlineSearchName']);
+
+    $bot->hearCallbackQueryData('users:search')->reply()->assertCalled('sendMessage');
+    expect(Cache::has('tg:users:search-prompt:'.$admin->id))->toBeTrue();
+
+    $bot->hearText('UniqueInlineSearchName')->reply()->assertCalled('sendMessage');
+    expect(Cache::has('tg:users:search-prompt:'.$admin->id))->toBeFalse()
+        ->and(Cache::get('tg:users:search:'.$admin->id))->toBe('UniqueInlineSearchName');
+
+    $bot->hearCallbackQueryData('users:findpage:1')->reply()->assertRaw(
+        static function (Request $request) use ($subject): bool {
+            $data = FakeNutgram::getActualData($request);
+
+            return str_contains((string) ($data['reply_markup'] ?? ''), 'users:view:'.$subject->id.':1:s');
+        },
+        index: 1,
+    );
+
+    $bot->hearCallbackQueryData('users:search')->reply()->assertCalled('sendMessage');
+    $bot->hearCallbackQueryData('users:cancelsearch')->reply()->assertCalled('editMessageText');
+    expect(Cache::has('tg:users:search-prompt:'.$admin->id))->toBeFalse();
+
+    $bot->hearText('/finduser UniqueInlineSearchName')->reply()->assertCalled('sendMessage');
+});
+
+it('keeps reseller list context across protected status confirmation and refuses revoked callbacks', function (): void {
+    $admin = User::factory()->admin()->create();
+    $bot = configureUserManagementBot(50301, $admin);
+    Role::findOrCreate('reseller', 'web');
+    $reseller = User::factory()->create();
+    $reseller->syncRoles(['reseller']);
+
+    $bot->hearCallbackQueryData('users:confirm:'.$reseller->id.':1:r')->reply()
+        ->assertCalled('editMessageText');
+    $token = app(UserStatusConfirmations::class)->issue($admin->id, $reseller->id, true, 1, false, true);
+    $bot->hearCallbackQueryData('users:apply:'.$token)->reply()->assertRaw(
+        static function (Request $request) use ($reseller): bool {
+            $data = FakeNutgram::getActualData($request);
+
+            return str_contains((string) ($data['reply_markup'] ?? ''), 'users:resellers:1')
+                && str_contains((string) ($data['reply_markup'] ?? ''), 'users:profile:'.$reseller->id.':1:r');
+        },
+        index: 1,
+    );
+
+    $admin->syncRoles(['member']);
+    $bot->hearCallbackQueryData('users:resellers:1')->reply()
+        ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.']);
 });
