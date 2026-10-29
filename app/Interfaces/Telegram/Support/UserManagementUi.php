@@ -68,6 +68,10 @@ final class UserManagementUi
     /** Consume only a pending, private, authorized search; leave commands and other forms untouched. */
     public function text(Nutgram $bot, string $term): bool
     {
+        if (TelegramBotContext::current()->key !== TelegramBotContext::ADMIN) {
+            return false;
+        }
+
         $actor = $this->actorForPendingText($bot);
         if ($actor === null || ! Cache::has($this->searchPromptKey($actor->userId))) {
             return false;
