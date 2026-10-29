@@ -120,7 +120,7 @@ final readonly class CustomerSupportProfileUi
             return;
         }
 
-        $lines = ['<b>📡 سرویس‌های مشتری</b>', '', 'یک سرویس را برای بررسی وضعیت زنده انتخاب کنید.', ''];
+        $lines = ['<b>📡 سرویس‌های مشتری</b>', '', 'هر سرویس را برای مشاهده وضعیت واقعی در پنل و مدیریت مستقل آن انتخاب کنید.', ''];
         $keyboard = InlineKeyboardMarkup::make();
         foreach ($list['items'] as $item) {
             $name = self::safe($item['name']);
@@ -210,8 +210,25 @@ final readonly class CustomerSupportProfileUi
             if ($actor?->canManageRoles() === true) {
                 try {
                     $this->statuses->authorizeView($actor->userId, (int) $orderId);
+                    // Directly open the existing two-step confirmation. The
+                    // existing prepare/apply callbacks independently re-check
+                    // Super Admin rights, owned order and live RW state.
+                    $action = match (true) {
+                        config('services.remnawave.writes_enabled') !== true => null,
+                        $data['daysLeft'] === null || $data['daysLeft'] <= 0 => null,
+                        $data['remoteStatus'] === 'ACTIVE' => 'disable',
+                        $data['remoteStatus'] === 'DISABLED' => 'enable',
+                        default => null,
+                    };
                     $keyboard->addRow(InlineKeyboardButton::make(
-                        '🔌 مدیریت وضعیت اشتراک', callback_data: 'full:service:view:'.$orderId,
+                        match ($action) {
+                            'disable' => '⏸️ غیرفعال‌سازی سرویس',
+                            'enable' => '✅ فعال‌سازی مجدد سرویس',
+                            default => '🔌 مدیریت وضعیت اشتراک',
+                        },
+                        callback_data: $action === null
+                            ? 'full:service:view:'.$orderId
+                            : 'full:service:prepare:'.$orderId.':'.$action,
                     ));
                 } catch (Throwable) {
                     // A paid/unlinked, refunded or stale order cannot be managed here.
