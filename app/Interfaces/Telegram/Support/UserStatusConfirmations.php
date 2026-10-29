@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Cache;
 
 final class UserStatusConfirmations
 {
-    public function issue(int $actorId, int $subjectId, bool $expectedActive, int $page, bool $search = false): string
+    public function issue(int $actorId, int $subjectId, bool $expectedActive, int $page, bool $search = false, bool $resellersOnly = false): string
     {
         $token = bin2hex(random_bytes(12));
 
@@ -17,13 +17,14 @@ final class UserStatusConfirmations
             'expected' => $expectedActive,
             'page' => max(1, $page),
             'search' => $search,
+            'resellers' => $resellersOnly,
         ], now()->addMinutes(3));
 
         return $token;
     }
 
     /**
-     * @return array{actor:int, subject:int, expected:bool, page:int, search:bool}|null
+     * @return array{actor:int, subject:int, expected:bool, page:int, search:bool, resellers?:bool}|null
      */
     public function consume(string $token, int $actorId): ?array
     {
