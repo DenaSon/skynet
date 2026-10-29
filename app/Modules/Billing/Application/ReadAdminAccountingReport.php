@@ -48,9 +48,11 @@ final readonly class ReadAdminAccountingReport
         $bank = (int) DB::table('sales_bank_settlements')
             ->where('settled_at', '>=', $from)->where('settled_at', '<', $until)
             ->sum('amount_rials');
-        $wallet = (int) DB::table('sales_order_settlements')
-            ->where('settled_at', '>=', $from)->where('settled_at', '<', $until)
-            ->sum('amount_rials');
+        $wallet = (int) DB::table('sales_order_settlements as payment')
+            ->join('sales_orders as orders', 'orders.id', '=', 'payment.sales_order_id')
+            ->where('orders.status', '!=', 'refunded')
+            ->where('payment.settled_at', '>=', $from)->where('payment.settled_at', '<', $until)
+            ->sum('payment.amount_rials');
         $sales = $bank + $wallet;
 
         // Signed compensating entries reverse their ORIGINAL kind, but at

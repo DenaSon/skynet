@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Sales\Application\ReadAdminBusinessReport;
+use App\Modules\Sales\Application\ReadResellerSalesReport;
 use GuzzleHttp\Psr7\Request as NutgramRequest;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -17,6 +18,7 @@ use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 use SergiX44\Nutgram\Testing\FakeNutgram;
+use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
 
@@ -206,5 +208,50 @@ it('refuses ordinary admins, group callbacks and invalid report periods without 
         ->toThrow(AuthorizationException::class);
     expect(fn () => app(ReadAdminBusinessReport::class)->handle($data['root']->id, 0))
         ->toThrow(ValidationException::class);
+    Http::assertNothingSent();
+});
+
+it('excludes corrected wallet sales while leaving bank receipts and history unchanged', function (): void {
+    $data = stat02Fixture();
+    $before = [
+        DB::table('sales_bank_settlements')->count(),
+        DB::table('sales_order_settlements')->count(),
+    ];
+    DB::table('sales_orders')->where('id', $data['renewal'])->update(['status' => 'refunded']);
+
+    $stats = app(ReadAdminBusinessReport::class);
+    $seven = $stats->handle($data['root']->id, 7);
+    $thirty = $stats->handle($data['root']->id, 30);
+    expect($seven['revenueRials'])->toBe(1_000_000)
+        ->and($seven['settled'])->toBe(1)
+        ->and($seven['renewals'])->toBe(0)
+        ->and($thirty['revenueRials'])->toBe(4_000_000)
+        ->and($thirty['settled'])->toBe(2)
+        ->and($thirty['buyers'])->toBe(2)
+        ->and($thirty['renewals'])->toBe(0)
+        ->and([
+            DB::table('sales_bank_settlements')->count(),
+            DB::table('sales_order_settlements')->count(),
+        ])->toBe($before);
+    Http::assertNothingSent();
+});
+
+it('preserves valid reseller sales and excludes only the corrected wallet order', function (): void {
+    $data = stat02Fixture();
+    Role::findOrCreate('reseller', 'web');
+    $data['buyer']->syncRoles(['reseller']);
+    $report = app(ReadResellerSalesReport::class);
+
+    $before = $report->handle($data['buyer']->id, 7);
+    expect($before['revenueRials'])->toBe(3_000_000)
+        ->and($before['transactions'])->toBe(2)
+        ->and($before['renewals'])->toBe(1);
+
+    DB::table('sales_orders')->where('id', $data['renewal'])->update(['status' => 'refunded']);
+    $after = $report->handle($data['buyer']->id, 7);
+    expect($after['revenueRials'])->toBe(1_000_000)
+        ->and($after['transactions'])->toBe(1)
+        ->and($after['renewals'])->toBe(0)
+        ->and(DB::table('sales_order_settlements')->where('sales_order_id', $data['renewal'])->exists())->toBeTrue();
     Http::assertNothingSent();
 });

@@ -339,6 +339,7 @@ final readonly class CustomerSupportProfileUi
             'paid' => 'پرداخت‌شده',
             'fulfilled' => 'فعال‌سازی ثبت‌شده',
             'cancelled', 'canceled' => 'لغوشده',
+            'refunded' => 'اصلاح مالی‌شده',
             'needs_review' => 'نیازمند بررسی',
             default => 'وضعیت دیگر',
         };
