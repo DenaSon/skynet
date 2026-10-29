@@ -54,10 +54,10 @@ function acc02Purchase(User $root, int $amount, string $method, Carbon $when): v
         'kind' => 'purchase', 'idempotency_key' => bin2hex(random_bytes(16)), 'created_at' => $when,
     ]);
 
-    if ($method === 'wallet') {
+    if (in_array($method, ['wallet', 'customer_wallet', 'reseller_wallet'], true)) {
         DB::table('sales_order_settlements')->insert([
             'sales_order_id' => $orderId, 'billing_journal_id' => $journalId,
-            'method' => 'wallet', 'amount_rials' => $amount, 'settled_at' => $when,
+            'method' => $method, 'amount_rials' => $amount, 'settled_at' => $when,
         ]);
 
         return;
@@ -332,6 +332,40 @@ it('calculates verified cash inflows for 7, 30 and all-time without double-count
         ->and($all['start'])->toBeNull()
         ->and($all['end'])->toBe('2026-10-22')
         ->and(DB::table('billing_topups')->where('id', $t1)->value('status'))->toBe('approved')
+        ->and([DB::table('billing_journals')->count(), DB::table('billing_postings')->count()])->toBe($before);
+
+    Http::assertNothingSent();
+});
+
+it('counts customer and reseller wallet purchases as sales but never as new bank receipts', function (): void {
+    $root = acc02Root();
+    $now = now();
+
+    // Production settlement methods, plus the legacy wallet value.
+    acc02Purchase($root, 3_412_500, 'customer_wallet', $now);
+    acc02Purchase($root, 2_000_000, 'reseller_wallet', $now->copy()->subDays(10));
+    acc02Purchase($root, 500_000, 'wallet', $now->copy()->subDays(35));
+    acc02Purchase($root, 700_000, 'bank', $now);
+
+    $before = [DB::table('billing_journals')->count(), DB::table('billing_postings')->count()];
+    $report = app(ReadAdminCashReceipts::class);
+    $seven = $report->handle($root->id, '7');
+    $thirty = $report->handle($root->id, '30');
+    $all = $report->handle($root->id, 'all');
+
+    expect($seven['walletSalesRials'])->toBe(3_412_500)
+        ->and($seven['walletSalesCount'])->toBe(1)
+        ->and($seven['bankSalesRials'])->toBe(700_000)
+        ->and($seven['cashInRials'])->toBe(700_000)
+        ->and($seven['salesRials'])->toBe(4_112_500)
+        ->and($thirty['walletSalesRials'])->toBe(5_412_500)
+        ->and($thirty['walletSalesCount'])->toBe(2)
+        ->and($thirty['cashInRials'])->toBe(700_000)
+        ->and($thirty['salesRials'])->toBe(6_112_500)
+        ->and($all['walletSalesRials'])->toBe(5_912_500)
+        ->and($all['walletSalesCount'])->toBe(3)
+        ->and($all['cashInRials'])->toBe(700_000)
+        ->and($all['salesRials'])->toBe(6_612_500)
         ->and([DB::table('billing_journals')->count(), DB::table('billing_postings')->count()])->toBe($before);
 
     Http::assertNothingSent();
