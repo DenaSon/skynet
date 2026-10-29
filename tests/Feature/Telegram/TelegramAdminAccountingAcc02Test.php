@@ -438,3 +438,49 @@ it('returns zero cash and uses Tehran-day boundary with all-time preserving hist
         ->and($seven['start'])->toBe('2026-10-16')
         ->and($report->handle($root->id, 'all')['cashInRials'])->toBe(3_000_000);
 });
+
+it('excludes voided bank-proof topups and refunded wallet purchases from reports without deleting evidence', function (): void {
+    $root = acc02Root();
+    $customer = User::factory()->create();
+    $topup = cash01Topup($root, $customer, 10_000_000, 'incident-void', now());
+    cash01Topup($root, $customer, 2_000_000, 'valid', now());
+    acc02Purchase($root, 3_412_500, 'customer_wallet', now());
+    acc02Purchase($root, 2_000_000, 'reseller_wallet', now());
+    acc02Purchase($root, 700_000, 'bank', now());
+
+    $incidentOrder = (int) DB::table('sales_order_settlements')
+        ->where('method', 'customer_wallet')->value('sales_order_id');
+    $before = [
+        DB::table('billing_verified_receipts')->count(),
+        DB::table('sales_order_settlements')->count(),
+        DB::table('billing_journals')->count(),
+        DB::table('billing_postings')->count(),
+    ];
+    // Simulate the explicitly audited one-off correction state; reporting is read-only.
+    DB::table('billing_topups')->where('id', $topup)->update(['status' => 'voided']);
+    DB::table('sales_orders')->where('id', $incidentOrder)->update(['status' => 'refunded']);
+
+    $cash = app(ReadAdminCashReceipts::class);
+    foreach (['7', '30', 'all'] as $period) {
+        $result = $cash->handle($root->id, $period);
+        expect($result['topupsRials'])->toBe(2_000_000)
+            ->and($result['topupsCount'])->toBe(1)
+            ->and($result['bankSalesRials'])->toBe(700_000)
+            ->and($result['walletSalesRials'])->toBe(2_000_000)
+            ->and($result['walletSalesCount'])->toBe(1)
+            ->and($result['cashInRials'])->toBe(2_700_000)
+            ->and($result['salesRials'])->toBe(2_700_000);
+    }
+    $accounting = app(ReadAdminAccountingReport::class)->handle($root->id, 'month');
+    expect($accounting['salesRials'])->toBe(2_700_000)
+        ->and($accounting['profitRials'])->toBe(2_700_000)
+        ->and(DB::table('billing_verified_receipts')->where('topup_id', $topup)->exists())->toBeTrue()
+        ->and(DB::table('sales_order_settlements')->where('sales_order_id', $incidentOrder)->exists())->toBeTrue()
+        ->and([
+            DB::table('billing_verified_receipts')->count(),
+            DB::table('sales_order_settlements')->count(),
+            DB::table('billing_journals')->count(),
+            DB::table('billing_postings')->count(),
+        ])->toBe($before);
+    Http::assertNothingSent();
+});
