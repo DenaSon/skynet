@@ -16,7 +16,8 @@ final class ResolveSalesBuyer
         }
 
         return $user->hasRole('member') && ! $user->hasRole('reseller')
-            && ! $user->hasRole('admin') && ! $user->hasRole('super-admin');
+            && ! $user->hasRole('admin') && ! $user->hasRole('super-admin')
+            && ! app(AdminCapabilityAccess::class)->isOperator($user);
     }
 
     public function isReseller(int $userId): bool
