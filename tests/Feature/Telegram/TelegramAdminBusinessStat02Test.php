@@ -210,24 +210,23 @@ it('refuses ordinary admins, group callbacks and invalid report periods without 
     Http::assertNothingSent();
 });
 
-it('excludes explicitly refunded orders from bank and wallet sales aggregates while retaining settlement evidence', function (): void {
+it('excludes corrected wallet sales while leaving bank receipts and history unchanged', function (): void {
     $data = stat02Fixture();
     $before = [
         DB::table('sales_bank_settlements')->count(),
         DB::table('sales_order_settlements')->count(),
     ];
-    DB::table('sales_orders')->whereIn('id', [$data['order'], $data['renewal']])
-        ->update(['status' => 'refunded']);
+    DB::table('sales_orders')->where('id', $data['renewal'])->update(['status' => 'refunded']);
 
     $stats = app(ReadAdminBusinessReport::class);
     $seven = $stats->handle($data['root']->id, 7);
     $thirty = $stats->handle($data['root']->id, 30);
-    expect($seven['revenueRials'])->toBe(0)
-        ->and($seven['settled'])->toBe(0)
+    expect($seven['revenueRials'])->toBe(1_000_000)
+        ->and($seven['settled'])->toBe(1)
         ->and($seven['renewals'])->toBe(0)
-        ->and($thirty['revenueRials'])->toBe(3_000_000)
-        ->and($thirty['settled'])->toBe(1)
-        ->and($thirty['buyers'])->toBe(1)
+        ->and($thirty['revenueRials'])->toBe(4_000_000)
+        ->and($thirty['settled'])->toBe(2)
+        ->and($thirty['buyers'])->toBe(2)
         ->and($thirty['renewals'])->toBe(0)
         ->and([
             DB::table('sales_bank_settlements')->count(),
