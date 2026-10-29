@@ -66,13 +66,15 @@ final readonly class ReadAdminCashReceipts
         $bankTotals = $bank->selectRaw('COUNT(*) as receipts_count, COALESCE(SUM(amount_rials), 0) as amount_rials')->first();
 
         // Wallet order settlement is sales activity, not another deposit.
-        $wallet = DB::table('sales_order_settlements')
-            ->whereIn('method', ['wallet', 'customer_wallet', 'reseller_wallet'])
-            ->where('settled_at', '<', $until);
+        $wallet = DB::table('sales_order_settlements as payment')
+            ->join('sales_orders as orders', 'orders.id', '=', 'payment.sales_order_id')
+            ->where('orders.status', '!=', 'refunded')
+            ->whereIn('payment.method', ['wallet', 'customer_wallet', 'reseller_wallet'])
+            ->where('payment.settled_at', '<', $until);
         if ($from !== null) {
-            $wallet->where('settled_at', '>=', $from);
+            $wallet->where('payment.settled_at', '>=', $from);
         }
-        $walletTotals = $wallet->selectRaw('COUNT(*) as receipts_count, COALESCE(SUM(amount_rials), 0) as amount_rials')->first();
+        $walletTotals = $wallet->selectRaw('COUNT(*) as receipts_count, COALESCE(SUM(payment.amount_rials), 0) as amount_rials')->first();
 
         $topupRials = (int) ($topupTotals->amount_rials ?? 0);
         $bankRials = (int) ($bankTotals->amount_rials ?? 0);
