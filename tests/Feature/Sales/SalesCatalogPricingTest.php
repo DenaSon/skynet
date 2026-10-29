@@ -62,7 +62,7 @@ it('quotes one through one hundred GB and rejects invalid volume or duration', f
     }
 });
 
-it('uses one rate for direct and reseller purchases with exactly five percent off', function (): void {
+it('uses one rate for direct and reseller purchases with exactly 35 percent off', function (): void {
     salesPricingFixture();
     Role::findOrCreate('reseller', 'web');
     $direct = User::factory()->create();
@@ -74,9 +74,9 @@ it('uses one rate for direct and reseller purchases with exactly five percent of
 
     expect($public->totalPriceRials)->toBe(300_000)
         ->and($wholesale->publicPriceRials)->toBe($public->publicPriceRials)
-        ->and($wholesale->discountPercent)->toBe(5)
-        ->and($wholesale->discountRials)->toBe(15_000)
-        ->and($wholesale->totalPriceRials)->toBe(285_000);
+        ->and($wholesale->discountPercent)->toBe(35)
+        ->and($wholesale->discountRials)->toBe(105_000)
+        ->and($wholesale->totalPriceRials)->toBe(195_000);
 });
 
 it('rounds percentage discounts in integer rials without floats', function (): void {
@@ -89,8 +89,8 @@ it('rounds percentage discounts in integer rials without floats', function (): v
     $quote = app(CalculateQuote::class)->handle($reseller->id, 'small', 15, 1);
 
     expect($quote->publicPriceRials)->toBe(11)
-        ->and($quote->discountRials)->toBe(1)
-        ->and($quote->totalPriceRials)->toBe(10);
+        ->and($quote->discountRials)->toBe(4)
+        ->and($quote->totalPriceRials)->toBe(7);
 
     config()->set('sales.reseller_discount_percent', 0);
     expect(app(CalculateQuote::class)->handle($reseller->id, 'small', 15, 1)->totalPriceRials)->toBe(11);
