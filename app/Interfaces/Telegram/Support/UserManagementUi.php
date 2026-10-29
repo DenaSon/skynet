@@ -60,7 +60,7 @@ final class UserManagementUi
             reply_markup: ForceReply::make(
                 force_reply: true,
                 input_field_placeholder: 'نام، ایمیل یا شناسه',
-                selective: true,
+                selective: false,
             ),
         );
     }
