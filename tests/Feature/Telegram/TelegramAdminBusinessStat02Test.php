@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Sales\Application\ReadAdminBusinessReport;
+use App\Modules\Sales\Application\ReadResellerSalesReport;
 use GuzzleHttp\Psr7\Request as NutgramRequest;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -232,5 +233,24 @@ it('excludes explicitly refunded orders from bank and wallet sales aggregates wh
             DB::table('sales_bank_settlements')->count(),
             DB::table('sales_order_settlements')->count(),
         ])->toBe($before);
+    Http::assertNothingSent();
+});
+
+it('preserves valid reseller sales and excludes only the corrected wallet order', function (): void {
+    $data = stat02Fixture();
+    $data['buyer']->syncRoles(['reseller']);
+    $report = app(ReadResellerSalesReport::class);
+
+    $before = $report->handle($data['buyer']->id, 7);
+    expect($before['revenueRials'])->toBe(3_000_000)
+        ->and($before['transactions'])->toBe(2)
+        ->and($before['renewals'])->toBe(1);
+
+    DB::table('sales_orders')->where('id', $data['renewal'])->update(['status' => 'refunded']);
+    $after = $report->handle($data['buyer']->id, 7);
+    expect($after['revenueRials'])->toBe(1_000_000)
+        ->and($after['transactions'])->toBe(1)
+        ->and($after['renewals'])->toBe(0)
+        ->and(DB::table('sales_order_settlements')->where('sales_order_id', $data['renewal'])->exists())->toBeTrue();
     Http::assertNothingSent();
 });
