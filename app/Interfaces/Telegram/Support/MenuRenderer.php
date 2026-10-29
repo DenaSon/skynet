@@ -340,7 +340,9 @@ final class MenuRenderer
         $this->render(
             $bot,
             "🔎 جست‌وجوی کاربران\n\nنام، ایمیل یا شناسه داخلی را در کادر پاسخ ارسال کنید.\n\nحداکثر ۶۴ نویسه. برای لغو، دکمه زیر را بزنید.",
-            $this->userBackKeyboard(),
+            InlineKeyboardMarkup::make()
+                ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'users:cancelsearch'))
+                ->addRow(InlineKeyboardButton::make('◀️ کاربران', callback_data: 'menu:admin:users')),
         );
     }
 
