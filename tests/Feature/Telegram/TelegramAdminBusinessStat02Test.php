@@ -18,6 +18,7 @@ use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 use SergiX44\Nutgram\Testing\FakeNutgram;
+use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
 
@@ -237,6 +238,7 @@ it('excludes corrected wallet sales while leaving bank receipts and history unch
 
 it('preserves valid reseller sales and excludes only the corrected wallet order', function (): void {
     $data = stat02Fixture();
+    Role::findOrCreate('reseller', 'web');
     $data['buyer']->syncRoles(['reseller']);
     $report = app(ReadResellerSalesReport::class);
 
