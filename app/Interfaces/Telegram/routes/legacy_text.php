@@ -16,6 +16,7 @@ use App\Interfaces\Telegram\Support\PlanAdminUi;
 use App\Interfaces\Telegram\Support\ProductAdminUi;
 use App\Interfaces\Telegram\Support\ResellerBuilderUi;
 use App\Interfaces\Telegram\Support\ShopUi;
+use App\Interfaces\Telegram\Support\UserManagementUi;
 use SergiX44\Nutgram\Nutgram;
 
 /** @var Nutgram $bot */
@@ -83,7 +84,7 @@ $bot->onText('{volume}', function (Nutgram $bot, string $volume): void {
         return;
     }
 
-    if (app(\App\Interfaces\Telegram\Support\UserManagementUi::class)->text($bot, $volume)) {
+    if (app(UserManagementUi::class)->text($bot, $volume)) {
         return;
     }
 
