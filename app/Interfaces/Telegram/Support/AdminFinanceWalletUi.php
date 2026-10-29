@@ -133,7 +133,12 @@ final readonly class AdminFinanceWalletUi
             '', '<b>گردش‌های اخیر</b>',
         ];
         foreach ($row['entries'] as $entry) {
-            $kind = $entry['kind'] === 'topup' ? 'شارژ' : 'پرداخت';
+            $kind = match ($entry['kind']) {
+                'topup' => 'شارژ',
+                'topup_reversal' => 'اصلاح شارژ',
+                'purchase_reversal' => 'اصلاح خرید',
+                default => 'پرداخت',
+            };
             $sign = $entry['side'] === 'credit' ? '➕' : '➖';
             $lines[] = $sign.' '.$kind.' · '.TelegramUi::toman($entry['amount_rials']).' تومان'
                 .' · سند #'.$entry['journal'].' · '.TelegramUi::escape(mb_substr($entry['at'], 0, 16));
