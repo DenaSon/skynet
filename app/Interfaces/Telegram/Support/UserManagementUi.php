@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Types\Keyboard\ForceReply;
 
 final class UserManagementUi
 {
@@ -23,7 +24,7 @@ final class UserManagementUi
         private readonly MenuRenderer $menus,
     ) {}
 
-    public function browse(Nutgram $bot, int $page = 1, bool $search = false): void
+    public function browse(Nutgram $bot, int $page = 1, bool $search = false, bool $resellersOnly = false): void
     {
         $actor = $this->actor($bot);
 
@@ -31,23 +32,66 @@ final class UserManagementUi
             return;
         }
 
+        Cache::forget($this->searchPromptKey($actor->userId));
         $query = $search ? Cache::get($this->searchKey($actor->userId)) : null;
 
         if ($search && ! is_string($query)) {
-            $this->menus->showUserNotice($bot, 'جست‌وجوی قبلی منقضی شده است. دوباره /finduser را وارد کنید.');
+            $this->menus->showUserNotice($bot, 'جست‌وجوی قبلی منقضی شده است. از دکمه جست‌وجو دوباره شروع کنید.');
 
             return;
         }
 
-        $results = $this->directory->page($actor->userId, $query, $page);
-        $this->menus->showUserList($bot, $results, $search);
+        $results = $this->directory->page($actor->userId, $query, $page, $resellersOnly);
+        $this->menus->showUserList($bot, $results, $search, $resellersOnly);
     }
 
     public function searchHelp(Nutgram $bot): void
     {
-        if ($this->actor($bot) !== null) {
-            $this->menus->showUserSearchHelp($bot);
+        $actor = $this->actor($bot);
+        if ($actor === null) {
+            return;
         }
+
+        Cache::put($this->searchPromptKey($actor->userId), true, now()->addMinutes(10));
+        $this->menus->showUserSearchHelp($bot);
+        $bot->sendMessage(
+            text: '✍️ عبارت جست‌وجو را وارد کنید:',
+            reply_markup: ForceReply::make(
+                force_reply: true,
+                input_field_placeholder: 'نام، ایمیل یا شناسه',
+                selective: true,
+            ),
+        );
+    }
+
+    /** Consume only a pending, private, authorized search; leave commands and other forms untouched. */
+    public function text(Nutgram $bot, string $term): bool
+    {
+        $actor = $this->actorForPendingText($bot);
+        if ($actor === null || ! Cache::has($this->searchPromptKey($actor->userId))) {
+            return false;
+        }
+
+        if (str_starts_with(trim($term), '/') || in_array($term, ReplyMenuLabels::all(), true)) {
+            Cache::forget($this->searchPromptKey($actor->userId));
+
+            return false;
+        }
+
+        $this->search($bot, $term);
+
+        return true;
+    }
+
+    public function cancelSearch(Nutgram $bot): void
+    {
+        $actor = $this->actor($bot);
+        if ($actor === null) {
+            return;
+        }
+
+        Cache::forget($this->searchPromptKey($actor->userId));
+        $this->browse($bot);
     }
 
     public function search(Nutgram $bot, string $term): void
@@ -66,6 +110,7 @@ final class UserManagementUi
             return;
         }
 
+        Cache::forget($this->searchPromptKey($actor->userId));
         Cache::put($this->searchKey($actor->userId), $term, now()->addMinutes(10));
         $this->browse($bot, 1, true);
     }
@@ -94,7 +139,7 @@ final class UserManagementUi
             return;
         }
 
-        $this->menus->showUserDetails($bot, $user, $this->pageNumber($page), $mode === 's', $actor->canManageRoles(), $actor->allows('support.view'));
+        $this->menus->showUserDetails($bot, $user, $this->pageNumber($page), $mode === 's', $actor->canManageRoles(), $actor->allows('support.view'), $mode === 'r');
     }
 
     public function confirm(Nutgram $bot, string $id, string $page = '1', string $mode = 'a'): void
@@ -114,8 +159,8 @@ final class UserManagementUi
             return;
         }
 
-        $token = $this->confirmations->issue($actor->userId, $user->id, $user->active, $this->pageNumber($page), $mode === 's');
-        $this->menus->showUserStatusConfirmation($bot, $user, $token, $this->pageNumber($page), $mode === 's');
+        $token = $this->confirmations->issue($actor->userId, $user->id, $user->active, $this->pageNumber($page), $mode === 's', $mode === 'r');
+        $this->menus->showUserStatusConfirmation($bot, $user, $token, $this->pageNumber($page), $mode === 's', $mode === 'r');
     }
 
     public function apply(Nutgram $bot, string $token): void
@@ -147,7 +192,22 @@ final class UserManagementUi
             return;
         }
 
-        $this->menus->showUserDetails($bot, $updated, $pending['page'], $pending['search'], $actor->canManageRoles(), $actor->allows('support.view'));
+        $this->menus->showUserDetails($bot, $updated, $pending['page'], $pending['search'], $actor->canManageRoles(), $actor->allows('support.view'), $pending['resellers'] ?? false);
+    }
+
+    private function actorForPendingText(Nutgram $bot): ?TelegramActor
+    {
+        $telegramId = $this->privateUser->id($bot);
+        if ($telegramId === null) {
+            return null;
+        }
+
+        return $this->resolve->handle($telegramId);
+    }
+
+    private function searchPromptKey(int $actorId): string
+    {
+        return 'tg:users:search-prompt:'.$actorId;
     }
 
     private function actor(Nutgram $bot): ?TelegramActor
