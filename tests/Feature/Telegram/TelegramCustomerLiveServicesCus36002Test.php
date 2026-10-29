@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
+use App\Modules\Provisioning\Application\ManageFulfilledSubscriptionStatus;
 use App\Modules\Provisioning\Application\ReadCustomerLiveServices;
 use GuzzleHttp\Psr7\Request as NutgramRequest;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -361,6 +362,11 @@ it('opens the existing confirmed subscription manager only for a root-owned fulf
         'description' => 'SkyNetwork ref:'.hash('sha256', $reference),
     ];
     Http::fake(['https://rw-live.test/api/users/42' => Http::response(['response' => $remote], 200)]);
+
+    app(ManageFulfilledSubscriptionStatus::class)->authorizeView($root->id, $order);
+    $snapshot = app(ReadCustomerLiveServices::class)->detail($root->id, $buyer->id, $order);
+    expect($snapshot['state'])->toBe('available')
+        ->and($snapshot['identityMatched'])->toBeTrue();
 
     $rootBot = c360LiveBot(994201, $root);
     $rootBot->hearCallbackQueryData("c360:v:{$buyer->id}:{$order}:3:r:1")->reply()
