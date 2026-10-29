@@ -73,7 +73,7 @@ final readonly class AdminCapabilityAccess
     /** @return list<int> */
     public function reviewerIds(string $permission): array
     {
-        if (! in_array($permission, ['purchases.review', 'topups.review'], true)) {
+        if (! in_array($permission, ['purchases.review', 'topups.review', 'resellers.review'], true)) {
             return [];
         }
 
