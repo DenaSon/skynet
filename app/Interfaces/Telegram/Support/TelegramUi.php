@@ -207,6 +207,7 @@ final class TelegramUi
             'submitted' => 'در انتظار بررسی',
             'approved' => 'تأییدشده',
             'rejected' => 'ردشده',
+            'voided' => 'ابطال‌شده',
             default => 'در حال بررسی',
         };
     }
