@@ -322,3 +322,90 @@ it('reauthorizes a changed local owner binding after network GET before publishi
         ->toThrow(AuthorizationException::class);
     Http::assertSentCount(1);
 });
+
+it('opens the existing confirmed subscription manager only for a root-owned fulfilled service', function (): void {
+    config()->set('services.remnawave.writes_enabled', true);
+
+    $root = User::factory()->create();
+    $root->syncRoles(['super-admin']);
+    $ordinaryAdmin = User::factory()->admin()->create();
+    $buyer = User::factory()->create();
+    $order = c360LiveOrder($buyer, 101);
+    c360LiveBot(994201, $root);
+
+    // Complete the real eligibility tuple required by the existing MVP-04 Action.
+    $product = DB::table('sales_products')->insertGetId([
+        'slug' => 'c360-managed-product', 'name' => 'Managed',
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+    $plan = DB::table('sales_plans')->insertGetId([
+        'product_id' => $product, 'slug' => 'c360-managed-plan',
+        'name' => 'Managed', 'kind' => 'hybrid', 'mode' => 'preset',
+        'audience' => 'public', 'status' => 'active',
+        'min_days' => 1, 'max_days' => 365,
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+    DB::table('sales_orders')->where('id', $order)->update(['plan_id' => $plan]);
+    DB::table('sales_fulfillment_outbox')->insert([
+        'sales_order_id' => $order, 'event_key' => 'sales-order:'.$order.':create',
+        'state' => 'completed', 'created_at' => now(), 'updated_at' => now(),
+    ]);
+    $reference = 'sales-order:'.$order;
+    DB::table('provisioning_subscriptions')->where('reference', 'live-ref-'.$order)->update([
+        'reference' => $reference,
+        'remote_username' => 'sk_'.substr(hash('sha256', $reference), 0, 24),
+    ]);
+    $remote = [
+        ...c360LiveRemote($order),
+        'username' => 'sk_'.substr(hash('sha256', $reference), 0, 24),
+        'description' => 'SkyNetwork ref:'.hash('sha256', $reference),
+    ];
+    Http::fake(['https://rw-live.test/api/users/42' => Http::response(['response' => $remote], 200)]);
+
+    $rootBot = c360LiveBot(994201, $root);
+    $rootBot->hearCallbackQueryData("c360:v:{$buyer->id}:{$order}:3:r:1")->reply()
+        ->assertRaw(static function (NutgramRequest $request) use ($order): bool {
+            $data = c360LivePayload($request);
+            $buttons = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return str_contains($buttons, 'full:service:view:'.$order)
+                && str_contains($buttons, '🔌 مدیریت وضعیت اشتراک')
+                && str_contains($buttons, 'c360:l:');
+        }, index: 1);
+
+    $rootBot->hearCallbackQueryData('full:service:view:'.$order)->reply()
+        ->assertRaw(static function (NutgramRequest $request) use ($buyer, $order): bool {
+            $data = c360LivePayload($request);
+            $buttons = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return str_contains((string) $data['text'], '🟢 فعال')
+                && str_contains($buttons, 'full:service:prepare:'.$order.':disable')
+                && str_contains($buttons, "users:profile:{$buyer->id}:1:a")
+                && str_contains($buttons, 'full:view:'.$order);
+        }, index: 1);
+
+    c360LiveBot(994203, $ordinaryAdmin)
+        ->hearCallbackQueryData("c360:v:{$buyer->id}:{$order}:1:a:1")->reply()
+        ->assertRaw(static function (NutgramRequest $request) use ($order): bool {
+            $buttons = json_encode(c360LivePayload($request)['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return ! str_contains($buttons, 'full:service:view:'.$order);
+        }, index: 1);
+
+    // The historic confirmed provider route also re-checks root privileges.
+    c360LiveBot(994203, $ordinaryAdmin)
+        ->hearCallbackQueryData('full:service:view:'.$order)->reply()
+        ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.']);
+
+    // A previously fulfilled purchase corrected/refunded later must not be
+    // offered as manageable, even if its remote account is still ACTIVE.
+    DB::table('sales_orders')->where('id', $order)->update(['status' => 'refunded']);
+    $rootBot->hearCallbackQueryData("c360:v:{$buyer->id}:{$order}:1:a:1")->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $data = c360LivePayload($request);
+
+            return str_contains((string) $data['text'], 'سرویس موردنظر پیدا نشد.');
+        }, index: 1);
+
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
+});
