@@ -411,3 +411,54 @@ it('shows zero when no wallets exist and denies revoked or ordinary Admin actors
     $bot->hearCallbackQueryData('menu:admin:finance')->reply()->assertNoReply();
     Http::assertNothingSent();
 });
+
+it('shows distinct reversed purchase and top-up labels without modifying wallet accounting', function (): void {
+    $root = fin01Admin();
+    $buyer = User::factory()->create();
+    $bot = fin01Bot(987601, $root);
+    $walletId = (int) DB::table('billing_wallets')->insertGetId([
+        'user_id' => $buyer->id, 'created_at' => now(), 'updated_at' => now(),
+    ]);
+
+    // Balanced original and compensating entries, matching the real one-off incident.
+    foreach ([
+        ['topup', 'credit', 10_000_000, 'cash_clearing', 'debit'],
+        ['purchase', 'debit', 3_412_500, 'order_liability', 'credit'],
+        ['purchase_reversal', 'credit', 3_412_500, 'order_liability', 'debit'],
+        ['topup_reversal', 'debit', 10_000_000, 'cash_clearing', 'credit'],
+    ] as [$kind, $walletSide, $amount, $otherAccount, $otherSide]) {
+        $journalId = (int) DB::table('billing_journals')->insertGetId([
+            'wallet_id' => $walletId,
+            'kind' => $kind,
+            'idempotency_key' => 'fin01-reversal-ui-'.$kind,
+            'created_at' => now(),
+        ]);
+        DB::table('billing_postings')->insert([
+            ['journal_id' => $journalId, 'wallet_id' => $walletId,
+                'account_code' => 'wallet_liability', 'side' => $walletSide, 'amount_rials' => $amount],
+            ['journal_id' => $journalId, 'wallet_id' => null,
+                'account_code' => $otherAccount, 'side' => $otherSide, 'amount_rials' => $amount],
+        ]);
+    }
+
+    $journalCount = DB::table('billing_journals')->count();
+    $postingCount = DB::table('billing_postings')->count();
+
+    $bot->hearCallbackQueryData('finance:wallet:'.$buyer->id)->reply()->assertRaw(
+        static function (Request $request): bool {
+            $text = (string) (fin01Data($request)['text'] ?? '');
+
+            return str_contains($text, 'موجودی: <b>0 تومان</b>')
+                && str_contains($text, '➕ شارژ · 1,000,000 تومان')
+                && str_contains($text, '➖ پرداخت · 341,250 تومان')
+                && str_contains($text, '➕ اصلاح خرید · 341,250 تومان')
+                && str_contains($text, '➖ اصلاح شارژ · 1,000,000 تومان');
+        },
+        index: 1,
+    );
+
+    expect(app(ViewWallet::class)->handle($buyer->id)->balanceRials)->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe($journalCount)
+        ->and(DB::table('billing_postings')->count())->toBe($postingCount);
+    Http::assertNothingSent();
+});
