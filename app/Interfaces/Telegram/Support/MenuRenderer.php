@@ -232,30 +232,46 @@ final class MenuRenderer
         $this->render($bot, implode("\n", $lines), $keyboard);
     }
 
-    public function showUserList(Nutgram $bot, UserDirectoryPage $results, bool $search = false): void
+    public function showUserList(Nutgram $bot, UserDirectoryPage $results, bool $search = false, bool $resellersOnly = false): void
     {
-        $mode = $search ? 's' : 'a';
-        $header = $search ? '🔎 نتایج جست‌وجوی کاربران' : '👥 مدیریت کاربران';
-        $lines = [$header, '', "تعداد: {$results->total} | صفحه {$results->page} از {$results->lastPage}", ''];
+        $mode = $search ? 's' : ($resellersOnly ? 'r' : 'a');
+        $header = match ($mode) {
+            's' => '🔎 نتایج جست‌وجوی کاربران',
+            'r' => '🧩 نمایندگان',
+            default => '👥 مدیریت کاربران',
+        };
+        $lines = [$header, '', "تعداد: {$results->total} | صفحه {$results->page} از {$results->lastPage}"];
 
-        $keyboard = InlineKeyboardMarkup::make();
+        $keyboard = InlineKeyboardMarkup::make()
+            ->addRow(
+                InlineKeyboardButton::make($mode === 'a' ? '✅ همه کاربران' : '👥 همه کاربران', callback_data: 'users:page:1'),
+                InlineKeyboardButton::make($mode === 'r' ? '✅ نمایندگان' : '🧩 نمایندگان', callback_data: 'users:resellers:1'),
+            );
 
+        $buttons = [];
         foreach ($results->users as $user) {
             $status = $user->active ? '🟢' : '🔴';
-            $name = mb_substr($this->displayName($user->name), 0, 35);
-            $lines[] = "{$status} #{$user->id} — {$name}";
-            $keyboard->addRow(InlineKeyboardButton::make(
-                "#{$user->id} | {$name}",
+            $name = mb_substr($this->displayName($user->name), 0, 16);
+            $buttons[] = InlineKeyboardButton::make(
+                "{$status} #{$user->id} {$name}",
                 callback_data: "users:view:{$user->id}:{$results->page}:{$mode}",
-            ));
+            );
+        }
+        foreach (array_chunk($buttons, 2) as $row) {
+            $keyboard->addRow(...$row);
         }
 
         if ($results->users === []) {
+            $lines[] = '';
             $lines[] = 'کاربری پیدا نشد.';
         }
 
-        $previous = $results->page > 1 ? InlineKeyboardButton::make('◀️ قبلی', callback_data: $this->pageCallback($results->page - 1, $search)) : null;
-        $next = $results->page < $results->lastPage ? InlineKeyboardButton::make('بعدی ▶️', callback_data: $this->pageCallback($results->page + 1, $search)) : null;
+        $previous = $results->page > 1
+            ? InlineKeyboardButton::make('◀️ قبلی', callback_data: $this->pageCallback($results->page - 1, $search, $resellersOnly))
+            : null;
+        $next = $results->page < $results->lastPage
+            ? InlineKeyboardButton::make('بعدی ▶️', callback_data: $this->pageCallback($results->page + 1, $search, $resellersOnly))
+            : null;
 
         if ($previous !== null && $next !== null) {
             $keyboard->addRow($previous, $next);
@@ -271,14 +287,14 @@ final class MenuRenderer
         $this->render($bot, implode("\n", $lines), $keyboard);
     }
 
-    public function showUserDetails(Nutgram $bot, UserDirectoryEntry $user, int $page = 1, bool $search = false, bool $manageRoles = false, bool $profileAllowed = true): void
+    public function showUserDetails(Nutgram $bot, UserDirectoryEntry $user, int $page = 1, bool $search = false, bool $manageRoles = false, bool $profileAllowed = true, bool $resellersOnly = false): void
     {
         $name = $this->displayName($user->name);
         $email = $this->displayName($user->email);
         $roles = implode('، ', $user->roles);
         $status = $user->active ? '🟢 فعال' : '🔴 غیرفعال';
         $linked = $user->telegramLinked ? 'متصل' : 'متصل نیست';
-        $mode = $search ? 's' : 'a';
+        $mode = $search ? 's' : ($resellersOnly ? 'r' : 'a');
 
         $keyboard = InlineKeyboardMarkup::make();
         if ($profileAllowed) {
@@ -294,7 +310,7 @@ final class MenuRenderer
             $keyboard->addRow(InlineKeyboardButton::make('🔐 مدیریت نقش‌های کاربر', callback_data: "rbac:user:{$user->id}:1"));
         }
 
-        $keyboard->addRow(InlineKeyboardButton::make('◀️ بازگشت به فهرست', callback_data: $this->pageCallback($page, $search)));
+        $keyboard->addRow(InlineKeyboardButton::make('◀️ بازگشت به فهرست', callback_data: $this->pageCallback($page, $search, $resellersOnly)));
         $keyboard->addRow(InlineKeyboardButton::make('🏠 مدیریت', callback_data: 'menu:admin'));
 
         $this->render(
@@ -304,10 +320,10 @@ final class MenuRenderer
         );
     }
 
-    public function showUserStatusConfirmation(Nutgram $bot, UserDirectoryEntry $user, string $token, int $page, bool $search = false): void
+    public function showUserStatusConfirmation(Nutgram $bot, UserDirectoryEntry $user, string $token, int $page, bool $search = false, bool $resellersOnly = false): void
     {
         $action = $user->active ? 'غیرفعال' : 'فعال';
-        $mode = $search ? 's' : 'a';
+        $mode = $search ? 's' : ($resellersOnly ? 'r' : 'a');
         $keyboard = InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('✅ تأیید عملیات', callback_data: 'users:apply:'.$token))
             ->addRow(InlineKeyboardButton::make('انصراف', callback_data: "users:view:{$user->id}:{$page}:{$mode}"));
@@ -323,8 +339,10 @@ final class MenuRenderer
     {
         $this->render(
             $bot,
-            "🔎 جست‌وجوی کاربران\n\nبرای جست‌وجو با نام، ایمیل یا شناسه داخلی، در همین گفت‌وگوی خصوصی بنویسید:\n/finduser ali\n\nعبارت جست‌وجو یک کلمه و حداکثر ۶۴ کاراکتر باشد.",
-            $this->userBackKeyboard(),
+            "🔎 جست‌وجوی کاربران\n\nنام، ایمیل یا شناسه داخلی را در کادر پاسخ ارسال کنید.\n\nحداکثر ۶۴ نویسه. برای لغو، دکمه زیر را بزنید.",
+            InlineKeyboardMarkup::make()
+                ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'users:cancelsearch'))
+                ->addRow(InlineKeyboardButton::make('◀️ کاربران', callback_data: 'menu:admin:users')),
         );
     }
 
@@ -477,9 +495,9 @@ final class MenuRenderer
         $bot->sendMessage('دسترسی مجاز نیست.');
     }
 
-    private function pageCallback(int $page, bool $search): string
+    private function pageCallback(int $page, bool $search, bool $resellersOnly = false): string
     {
-        return ($search ? 'users:findpage:' : 'users:page:').$page;
+        return ($search ? 'users:findpage:' : ($resellersOnly ? 'users:resellers:' : 'users:page:')).$page;
     }
 
     private function userBackKeyboard(): InlineKeyboardMarkup

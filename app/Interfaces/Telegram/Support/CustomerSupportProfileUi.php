@@ -42,7 +42,7 @@ final readonly class CustomerSupportProfileUi
 
         if (preg_match('/\A[1-9][0-9]{0,14}\z/D', $subjectId) !== 1
             || preg_match('/\A[1-9][0-9]{0,5}\z/D', $page) !== 1
-            || (int) $page > 100000 || ! in_array($mode, ['a', 's'], true)) {
+            || (int) $page > 100000 || ! in_array($mode, ['a', 's', 'r'], true)) {
             $this->menus->showUserNotice($bot, 'درخواست پرونده معتبر نیست.');
 
             return;
@@ -228,7 +228,7 @@ final readonly class CustomerSupportProfileUi
         return preg_match('/\A[1-9][0-9]{0,14}\z/D', $subjectId) === 1
             && preg_match('/\A[1-9][0-9]{0,5}\z/D', $page) === 1
             && (int) $page <= 100000
-            && in_array($mode, ['a', 's'], true)
+            && in_array($mode, ['a', 's', 'r'], true)
             && preg_match('/\A[1-9][0-9]{0,3}\z/D', $servicePage) === 1
             && (int) $servicePage <= 1000;
     }

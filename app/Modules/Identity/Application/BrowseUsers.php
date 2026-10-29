@@ -8,7 +8,7 @@ use Illuminate\Validation\ValidationException;
 
 final class BrowseUsers
 {
-    public function page(int $actorId, ?string $search = null, int $page = 1): UserDirectoryPage
+    public function page(int $actorId, ?string $search = null, int $page = 1, bool $resellersOnly = false): UserDirectoryPage
     {
         $actor = $this->authorize($actorId);
         $search = trim((string) $search);
@@ -18,6 +18,10 @@ final class BrowseUsers
         }
 
         $query = User::query()->with(['roles', 'telegramAccount'])->orderByDesc('id');
+
+        if ($resellersOnly) {
+            $query->whereHas('roles', static fn ($q) => $q->where('name', 'reseller'));
+        }
 
         if ($search !== '') {
             if (ctype_digit($search)) {
@@ -30,7 +34,7 @@ final class BrowseUsers
             }
         }
 
-        $paginator = $query->paginate(perPage: 11, page: max(1, min($page, 100000)));
+        $paginator = $query->paginate(perPage: 20, page: max(1, min($page, 100000)));
 
         return new UserDirectoryPage(
             users: $paginator->getCollection()->map(fn (User $user): UserDirectoryEntry => $this->entry($actor, $user))->all(),

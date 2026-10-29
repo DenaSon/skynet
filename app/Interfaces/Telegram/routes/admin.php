@@ -699,6 +699,14 @@ $bot->onCallbackQueryData('users:findpage:{page}', function (Nutgram $bot, strin
     app(UserManagementUi::class)->browse($bot, (int) $page, true);
 });
 
+$bot->onCallbackQueryData('users:resellers:{page}', function (Nutgram $bot, string $page): void {
+    app(UserManagementUi::class)->browse($bot, (int) $page, false, true);
+});
+
+$bot->onCallbackQueryData('users:cancelsearch', function (Nutgram $bot): void {
+    app(UserManagementUi::class)->cancelSearch($bot);
+});
+
 $bot->onCallbackQueryData('users:search', function (Nutgram $bot): void {
     app(UserManagementUi::class)->searchHelp($bot);
 });

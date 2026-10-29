@@ -8,29 +8,30 @@ use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
 
-it('lists eleven newest users first and preserves pagination and search', function (): void {
+it('lists twenty newest users first and preserves pagination and search', function (): void {
     $admin = User::factory()->admin()->create();
-    User::factory()->count(14)->create(['name' => 'UniqueDirectorySubject927 Older']);
+    User::factory()->count(24)->create(['name' => 'UniqueDirectorySubject927 Older']);
     $alice = User::factory()->create(['name' => 'UniqueDirectorySubject927', 'email' => 'unique-927@example.test']);
     $directory = app(BrowseUsers::class);
 
     $pageOne = $directory->page($admin->id);
     $pageTwo = $directory->page($admin->id, page: 2);
 
-    expect($pageOne->total)->toBe(16)
+    expect($pageOne->total)->toBe(26)
         ->and($pageOne->lastPage)->toBe(2)
-        ->and(count($pageOne->users))->toBe(11)
+        ->and(count($pageOne->users))->toBe(20)
         ->and($pageOne->users[0]->id)->toBe($alice->id)
-        ->and(count($pageTwo->users))->toBe(5)
-        ->and($pageTwo->users[0]->id)->toBeLessThan($pageOne->users[10]->id)
-        ->and(collect([...$pageOne->users, ...$pageTwo->users])->pluck('id')->unique())->toHaveCount(16);
+        ->and(count($pageTwo->users))->toBe(6)
+        ->and($pageTwo->users[0]->id)->toBeLessThan($pageOne->users[19]->id)
+        ->and(collect([...$pageOne->users, ...$pageTwo->users])->pluck('id')->unique())->toHaveCount(26);
 
     expect($directory->page($admin->id, 'UniqueDirectorySubject927')->users[0]->id)->toBe($alice->id)
-        ->and(count($directory->page($admin->id, 'UniqueDirectorySubject927')->users))->toBe(11)
-        ->and(count($directory->page($admin->id, 'UniqueDirectorySubject927', 2)->users))->toBe(4)
+        ->and(count($directory->page($admin->id, 'UniqueDirectorySubject927')->users))->toBe(20)
+        ->and(count($directory->page($admin->id, 'UniqueDirectorySubject927', 2)->users))->toBe(5)
         ->and($directory->page($admin->id, 'unique-927@example.test')->total)->toBe(1)
         ->and($directory->page($admin->id, (string) $alice->id)->total)->toBe(1)
         ->and($directory->page($admin->id, 'no-such-user')->total)->toBe(0);
@@ -92,4 +93,30 @@ it('protects all Super Admin accounts from Telegram status mutations', function 
     expect(fn () => app(ChangeUserStatus::class)->handle($root->id, $second->id, true, false))
         ->toThrow(ValidationException::class);
     expect($second->fresh()->is_active)->toBeTrue();
+});
+
+it('filters by actual reseller role, includes inactive and mixed-role resellers and keeps newest-first sort', function (): void {
+    $admin = User::factory()->admin()->create();
+    Role::findOrCreate('reseller', 'web');
+    $older = User::factory()->create(['name' => 'Older reseller']);
+    $older->syncRoles(['reseller']);
+    User::factory()->count(25)->create(['name' => 'Ordinary customer']);
+    $newer = User::factory()->create(['name' => 'Newer reseller', 'is_active' => false]);
+    $newer->syncRoles(['member', 'reseller']);
+    $directory = app(BrowseUsers::class);
+
+    $all = $directory->page($admin->id);
+    $resellers = $directory->page($admin->id, resellersOnly: true);
+
+    expect($all->total)->toBe(28)
+        ->and(count($all->users))->toBe(20)
+        ->and($resellers->total)->toBe(2)
+        ->and($resellers->lastPage)->toBe(1)
+        ->and(collect($resellers->users)->pluck('id')->all())->toBe([$newer->id, $older->id])
+        ->and($resellers->users[0]->active)->toBeFalse()
+        ->and($directory->page($admin->id, resellersOnly: true, page: 2)->users)->toBe([]);
+
+    $member = User::factory()->create();
+    expect(fn () => $directory->page($member->id, resellersOnly: true))
+        ->toThrow(AuthorizationException::class);
 });
