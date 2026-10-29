@@ -361,7 +361,9 @@ it('opens the existing confirmed subscription manager only for a root-owned fulf
         'username' => 'sk_'.substr(hash('sha256', $reference), 0, 24),
         'description' => 'SkyNetwork ref:'.hash('sha256', $reference),
     ];
-    Http::fake(['https://rw-live.test/api/users/42' => Http::response(['response' => $remote], 200)]);
+    Http::fake(['https://rw-live.test/api/users/42' => static function () use (&$remote) {
+        return Http::response(['response' => $remote], 200);
+    }]);
 
     app(ManageFulfilledSubscriptionStatus::class)->authorizeView($root->id, $order);
     $snapshot = app(ReadCustomerLiveServices::class)->detail($root->id, $buyer->id, $order);
@@ -374,9 +376,19 @@ it('opens the existing confirmed subscription manager only for a root-owned fulf
             $data = c360LivePayload($request);
             $buttons = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 
-            return str_contains($buttons, 'full:service:view:'.$order)
-                && str_contains($buttons, '🔌 مدیریت وضعیت اشتراک')
+            return str_contains($buttons, 'full:service:prepare:'.$order.':disable')
+                && str_contains($buttons, '⏸️ غیرفعال‌سازی سرویس')
                 && str_contains($buttons, 'c360:l:');
+        }, index: 1);
+
+    // Direct button opens the existing second-step confirmation, never writes to RW.
+    $rootBot->hearCallbackQueryData('full:service:prepare:'.$order.':disable')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $data = c360LivePayload($request);
+            $buttons = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return str_contains((string) $data['text'], 'تأیید نهایی')
+                && str_contains($buttons, 'full:service:apply:');
         }, index: 1);
 
     $rootBot->hearCallbackQueryData('full:service:view:'.$order)->reply()
@@ -390,12 +402,36 @@ it('opens the existing confirmed subscription manager only for a root-owned fulf
                 && str_contains($buttons, 'full:view:'.$order);
         }, index: 1);
 
+    $remote['status'] = 'DISABLED';
+    $rootBot->hearCallbackQueryData("c360:v:{$buyer->id}:{$order}:1:a:1")->reply()
+        ->assertRaw(static function (NutgramRequest $request) use ($order): bool {
+            $data = c360LivePayload($request);
+            $buttons = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+
+            return str_contains((string) $data['text'], '⏸️ غیرفعال')
+                && str_contains($buttons, 'full:service:prepare:'.$order.':enable')
+                && str_contains($buttons, '✅ فعال‌سازی مجدد سرویس')
+                && ! str_contains($buttons, 'full:service:prepare:'.$order.':disable');
+        }, index: 1);
+
+    // Existing RW write flag must prevent direct action even when status is known.
+    config()->set('services.remnawave.writes_enabled', false);
+    $rootBot->hearCallbackQueryData("c360:v:{$buyer->id}:{$order}:1:a:1")->reply()
+        ->assertRaw(static function (NutgramRequest $request) use ($order): bool {
+            $data = c360LivePayload($request);
+            $buttons = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return str_contains($buttons, 'full:service:view:'.$order)
+                && ! str_contains($buttons, 'full:service:prepare:');
+        }, index: 1);
+
     c360LiveBot(994203, $ordinaryAdmin)
         ->hearCallbackQueryData("c360:v:{$buyer->id}:{$order}:1:a:1")->reply()
         ->assertRaw(static function (NutgramRequest $request) use ($order): bool {
             $buttons = json_encode(c360LivePayload($request)['reply_markup'], JSON_THROW_ON_ERROR);
 
-            return ! str_contains($buttons, 'full:service:view:'.$order);
+            return ! str_contains($buttons, 'full:service:view:'.$order)
+                && ! str_contains($buttons, 'full:service:prepare:'.$order.':');
         }, index: 1);
 
     // The historic confirmed provider route also re-checks root privileges.
