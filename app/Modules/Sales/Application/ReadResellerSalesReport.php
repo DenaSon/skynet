@@ -37,7 +37,6 @@ final readonly class ReadResellerSalesReport
             ->join('sales_orders as orders', 'orders.id', '=', 'payment.sales_order_id')
             ->leftJoin('sales_renewal_orders as renewal', 'renewal.sales_order_id', '=', 'orders.id')
             ->where('orders.buyer_user_id', $buyerId)
-            ->where('orders.status', '!=', 'refunded')
             ->where('payment.settled_at', '>=', $from)
             ->where('payment.settled_at', '<', $until)
             ->selectRaw('payment.amount_rials as amount_rials, CASE WHEN renewal.sales_order_id IS NULL THEN 0 ELSE 1 END as renewed');
