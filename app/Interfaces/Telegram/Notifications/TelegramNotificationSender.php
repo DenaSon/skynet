@@ -157,7 +157,7 @@ final readonly class TelegramNotificationSender
                 throw new NotificationUnavailable('invalid_recipient');
             }
             $actor = $this->actors->handle($chat);
-            if ($actor === null || $actor->userId !== $userId || ! $actor->canManageRoles()) {
+            if ($actor === null || $actor->userId !== $userId || ! $actor->allows('resellers.review')) {
                 throw new NotificationUnavailable('not_authorized');
             }
             try {
