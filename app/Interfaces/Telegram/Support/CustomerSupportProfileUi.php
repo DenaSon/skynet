@@ -6,6 +6,7 @@ namespace App\Interfaces\Telegram\Support;
 
 use App\Modules\Identity\Application\ReadCustomerSupportProfile;
 use App\Modules\Identity\Application\ResolveTelegramActor;
+use App\Modules\Provisioning\Application\ManageFulfilledSubscriptionStatus;
 use App\Modules\Provisioning\Application\ReadCustomerLiveServices;
 use App\Support\PersianCalendar;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -23,6 +24,7 @@ final readonly class CustomerSupportProfileUi
         private ResolveTelegramActor $actors,
         private ReadCustomerSupportProfile $profiles,
         private ReadCustomerLiveServices $services,
+        private ManageFulfilledSubscriptionStatus $statuses,
         private MenuRenderer $menus,
     ) {}
 
@@ -198,8 +200,26 @@ final readonly class CustomerSupportProfileUi
         $lines[] = '<i>اطلاعات از پنل خوانده می‌شود؛ آنلاین بودن دستگاه یا دسترسی از اینترنت ایران را تأیید نمی‌کند.</i>';
         $lines[] = '🔄 زمان بررسی: '.PersianCalendar::localDateTime(now()->timezone('Asia/Tehran')->format('Y-m-d H:i'));
 
-        $keyboard = InlineKeyboardMarkup::make()
-            ->addRow(InlineKeyboardButton::make('🔄 بررسی دوباره', callback_data: "c360:v:{$subjectId}:{$orderId}:{$userPage}:{$mode}:{$servicePage}"))
+        $keyboard = InlineKeyboardMarkup::make();
+
+        // Reuse the existing Super Admin-only fulfilled-order authority; never
+        // expose an action for a mismatched or unverifiable remote subscription.
+        if ($data['state'] === 'available' && $data['identityMatched']) {
+            $root = $this->private->id($bot);
+            $actor = $root === null ? null : $this->actors->handle($root);
+            if ($actor?->canManageRoles() === true) {
+                try {
+                    $this->statuses->authorizeView($actor->userId, (int) $orderId);
+                    $keyboard->addRow(InlineKeyboardButton::make(
+                        '🔌 مدیریت وضعیت اشتراک', callback_data: 'full:service:view:'.$orderId,
+                    ));
+                } catch (Throwable) {
+                    // A paid/unlinked, refunded or stale order cannot be managed here.
+                }
+            }
+        }
+
+        $keyboard->addRow(InlineKeyboardButton::make('🔄 بررسی دوباره', callback_data: "c360:v:{$subjectId}:{$orderId}:{$userPage}:{$mode}:{$servicePage}"))
             ->addRow(InlineKeyboardButton::make('◀️ سرویس‌های مشتری', callback_data: "c360:l:{$subjectId}:{$userPage}:{$mode}:{$servicePage}"))
             ->addRow(InlineKeyboardButton::make('🏠 پرونده کاربر', callback_data: "users:profile:{$subjectId}:{$userPage}:{$mode}"));
 

@@ -8,6 +8,7 @@ use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Provisioning\Application\ManageFulfilledSubscriptionStatus;
 use App\Modules\Provisioning\Jobs\ChangeFulfilledSubscriptionStatusJob;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
@@ -80,6 +81,14 @@ final readonly class AdminSubscriptionStatusUi
         ))->addRow(InlineKeyboardButton::make(
             '◀️ سفارش', callback_data: 'full:view:'.$order,
         ));
+        // Keep the existing fulfillment return path and also provide a simple
+        // way back to the customer's support profile.
+        $buyer = DB::table('sales_orders')->where('id', $order)->value('buyer_user_id');
+        if (is_numeric($buyer) && (int) $buyer > 0) {
+            $buttons->addRow(InlineKeyboardButton::make(
+                '👤 پرونده مشتری', callback_data: 'users:profile:'.(int) $buyer.':1:a',
+            ));
+        }
         $this->render($bot, $message, $buttons);
     }
 

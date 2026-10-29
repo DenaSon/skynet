@@ -23,6 +23,12 @@ final readonly class ManageFulfilledSubscriptionStatus
         private RemnawaveSubscriptionLifecycle $lifecycle,
     ) {}
 
+    /** Authorize an existing linked order without reading or mutating Remnawave. */
+    public function authorizeView(int $actorId, int $orderId): void
+    {
+        $this->linked($actorId, $orderId);
+    }
+
     /** @return 'active'|'disabled'|'review'|'unavailable' */
     public function status(int $actorId, int $orderId): string
     {
