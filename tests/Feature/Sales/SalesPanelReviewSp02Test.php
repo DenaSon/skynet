@@ -166,3 +166,92 @@ it('does not deliver a root alert after the application was already reviewed', f
     expect(DB::table('telegram_notification_deliveries')->value('state'))->toBe('unavailable');
     Http::assertNothingSent();
 });
+
+it('notifies a scoped panel reviewer once, but never an admin without the grant', function (): void {
+    $reviewer = User::factory()->create();
+    $role = Role::findOrCreate('panel-scoped-alert', 'web');
+    $role->givePermissionTo('resellers.review');
+    $reviewer->assignRole($role);
+    TelegramAccount::query()->create(['user_id' => $reviewer->id, 'telegram_user_id' => 972010]);
+    DB::table('telegram_bot_contacts')->insert([
+        'user_id' => $reviewer->id, 'bot_key' => 'admin', 'chat_id' => 972010,
+        'delivery_status' => 'reachable', 'last_seen_at' => now(),
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+    $denied = User::factory()->admin()->create();
+    TelegramAccount::query()->create(['user_id' => $denied->id, 'telegram_user_id' => 972011]);
+    DB::table('telegram_bot_contacts')->insert([
+        'user_id' => $denied->id, 'bot_key' => 'admin', 'chat_id' => 972011,
+        'delivery_status' => 'reachable', 'last_seen_at' => now(),
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+
+    $case = sp02Case();
+    $notices = DB::table('telegram_notification_deliveries')->where('event_type', 'SalesPanelSubmitted')->get();
+    expect($notices)->toHaveCount(2)
+        ->and($notices->pluck('recipient_user_id')->map(fn ($id) => (int) $id)->sort()->values()->all())
+        ->toBe(collect([$case['root']->id, $reviewer->id])->sort()->values()->all());
+    app(SalesPanelNotificationOutbox::class)->submitted($case['id']);
+    expect(DB::table('telegram_notification_deliveries')->count())->toBe(2);
+
+    $noticeId = (int) $notices->firstWhere('recipient_user_id', $reviewer->id)->id;
+    app(DispatchTelegramNotification::class, ['deliveryId' => $noticeId])
+        ->handle(app(TelegramNotificationSender::class));
+    Http::assertSent(static fn (Request $request): bool => str_contains((string) $request['reply_markup'], 'sp:detail:'.$case['id']));
+    expect(DB::table('telegram_notification_deliveries')->where('id', $noticeId)->value('state'))->toBe('sent');
+});
+
+it('rechecks a delegated reviewer grant before delivering a panel notice', function (): void {
+    $reviewer = User::factory()->create();
+    $role = Role::findOrCreate('panel-revoked-alert', 'web');
+    $role->givePermissionTo('resellers.review');
+    $reviewer->assignRole($role);
+    TelegramAccount::query()->create(['user_id' => $reviewer->id, 'telegram_user_id' => 972012]);
+    DB::table('telegram_bot_contacts')->insert([
+        'user_id' => $reviewer->id, 'bot_key' => 'admin', 'chat_id' => 972012,
+        'delivery_status' => 'reachable', 'last_seen_at' => now(),
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+    sp02Case();
+    $noticeId = (int) DB::table('telegram_notification_deliveries')
+        ->where('event_type', 'SalesPanelSubmitted')->where('recipient_user_id', $reviewer->id)->value('id');
+    expect($noticeId)->toBeGreaterThan(0);
+    $reviewer->syncRoles(['member']);
+    app(DispatchTelegramNotification::class, ['deliveryId' => $noticeId])
+        ->handle(app(TelegramNotificationSender::class));
+    expect(DB::table('telegram_notification_deliveries')->where('id', $noticeId)->value('state'))->toBe('unavailable');
+    Http::assertNothingSent();
+});
+
+it('lets a scoped reviewer promote a member with harmless extra roles and audits the prior roles', function (): void {
+    $case = sp02Case();
+    $reviewer = User::factory()->create();
+    $role = Role::findOrCreate('panel-reviewer-extra', 'web');
+    $role->givePermissionTo('resellers.review');
+    $reviewer->assignRole($role);
+    TelegramAccount::query()->create(['user_id' => $reviewer->id, 'telegram_user_id' => 972013]);
+    $case['buyer']->assignRole(Role::findOrCreate('harmless-panel-label', 'web'));
+    $priorRoles = $case['buyer']->fresh()->getRoleNames()->all();
+
+    $result = app(ReviewSalesPanelRequest::class)->decide($reviewer->id, $case['id'], true);
+    expect($result['status'])->toBe('approved')
+        ->and($case['buyer']->fresh()->getRoleNames()->all())->toBe(['reseller']);
+    $audit = DB::table('identity_audit_events')->where('event', 'identity.roles.assigned')->first();
+    expect(json_decode((string) $audit->details, true, flags: JSON_THROW_ON_ERROR)['before'])->toBe($priorRoles);
+});
+
+it('never promotes an applicant who acquired operator privileges after requesting a panel', function (): void {
+    $case = sp02Case();
+    $case['buyer']->givePermissionTo('resellers.review');
+    expect(fn () => app(ReviewSalesPanelRequest::class)->decide($case['root']->id, $case['id'], true))
+        ->toThrow(ValidationException::class);
+    expect(DB::table('sales_panel_requests')->where('id', $case['id'])->value('status'))->toBe('pending')
+        ->and($case['buyer']->fresh()->hasRole('reseller'))->toBeFalse();
+});
+
+it('does not require a second wallet threshold check during panel approval', function (): void {
+    $case = sp02Case();
+    PanelWalletFunding::spend($case['buyer']->id, 7_500_000);
+    expect(app(ReviewSalesPanelRequest::class)->decide($case['root']->id, $case['id'], true)['status'])
+        ->toBe('approved');
+});

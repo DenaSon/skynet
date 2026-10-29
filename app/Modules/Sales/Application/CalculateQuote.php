@@ -30,9 +30,9 @@ final class CalculateQuote
         }
 
         $public = (int) $rate->base_price_rials + $trafficGb * (int) $rate->per_gb_rials;
-        $discountPercent = $isReseller ? (int) config('sales.reseller_discount_percent', 5) : 0;
+        $discountPercent = $isReseller ? (int) config('sales.reseller_discount_percent', 35) : 0;
 
-        if (! in_array($discountPercent, [0, 5], true)) {
+        if (! in_array($discountPercent, [0, 35], true)) {
             throw ValidationException::withMessages(['discount' => 'Invalid configured reseller discount.']);
         }
 

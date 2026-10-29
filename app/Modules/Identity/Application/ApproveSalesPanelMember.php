@@ -19,7 +19,8 @@ final readonly class ApproveSalesPanelMember
         $member = User::query()->lockForUpdate()->find($memberId);
         if ($member === null || ! $member->is_active
             || ! $member->hasRole('member')
-            || $member->hasAnyRole(['reseller', 'admin', 'super-admin'])) {
+            || $member->hasAnyRole(['reseller', 'admin', 'super-admin'])
+            || app(AdminCapabilityAccess::class)->isOperator($member)) {
             throw ValidationException::withMessages(['role' => 'Applicant is no longer an ordinary member.']);
         }
 

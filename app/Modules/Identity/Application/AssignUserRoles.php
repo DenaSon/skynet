@@ -21,15 +21,18 @@ final class AssignUserRoles
             $member = User::query()->lockForUpdate()->findOrFail($memberId);
 
             if ($actor->is($member) || ! $member->is_active
-                || $member->getRoleNames()->all() !== ['member']
+                || ! $member->hasRole('member')
+                || $member->hasAnyRole(['reseller', 'admin', 'super-admin'])
+                || app(AdminCapabilityAccess::class)->isOperator($member)
                 || ! DB::table('sales_panel_requests')->where('user_id', $memberId)
                     ->where('status', 'pending')->lockForUpdate()->exists()) {
                 throw ValidationException::withMessages(['role' => 'Only an ordinary member with a pending application can be approved.']);
             }
 
+            $previousRoles = $member->getRoleNames()->all();
             $member->syncRoles(['reseller']);
             app(RecordIdentityAudit::class)->handle($actor, 'identity.roles.assigned', 'user', $memberId, [
-                'before' => ['member'],
+                'before' => $previousRoles,
                 'after' => ['reseller'],
             ]);
         });
