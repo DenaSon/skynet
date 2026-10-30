@@ -8,6 +8,7 @@ use App\Modules\Identity\Application\AssertCatalogManagementAccess;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveApiClientFactory;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveNodeTelemetry;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveReadApi;
+use App\Support\Health\NodeTcpProbe;
 use DateTimeImmutable;
 use DateTimeZone;
 use Throwable;
@@ -23,10 +24,11 @@ final readonly class ReadAdminNodeMetrics
         private AssertCatalogManagementAccess $access,
         private ManageAdminNodes $nodes,
         private RemnawaveApiClientFactory $factory,
+        private NodeTcpProbe $tcpProbe,
     ) {}
 
     /**
-     * @return array{state:string,nodes:list<array{name:string,connected:bool,disabled:bool,online:int|null}>,total:int,connected:int,enabled:int,onlineTotal:int|null,todayBytes:int|null,weekBytes:int|null,trafficDate:string,receivedAt:string|null}
+     * @return array{state:string,nodes:list<array{name:string,connected:bool,disabled:bool,online:int|null,tcp:array{status:string,ms:float|null,checkedAt:int|null}}>,total:int,connected:int,enabled:int,onlineTotal:int|null,todayBytes:int|null,weekBytes:int|null,trafficDate:string,receivedAt:string|null}
      */
     public function handle(int $actorId): array
     {
@@ -93,6 +95,7 @@ final readonly class ReadAdminNodeMetrics
                 'connected' => $node['connected'],
                 'disabled' => $node['disabled'],
                 'online' => $onlineByUuid[$node['uuid']] ?? null,
+                'tcp' => $this->tcpProbe->latest($node['uuid']),
             ];
         }
 
