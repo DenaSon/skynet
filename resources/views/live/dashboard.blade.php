@@ -82,6 +82,9 @@
                                 خوش آمدید، <bdi>{{ $name }}</bdi>
                             </h1>
                             <p class="mt-2 max-w-xl text-sm leading-8 text-[#617380]">خلاصه حساب و فروش نمایندگی شما</p>
+                            <button type="button" wire:click="showSection('shop')" class="mt-6 inline-flex min-h-12 items-center justify-center rounded-2xl bg-[#14B8A6] px-6 py-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#0D9688] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]">
+                                خرید سرویس <span class="mr-2" aria-hidden="true">←</span>
+                            </button>
                         </div>
                         <div class="pointer-events-none absolute -bottom-24 -left-24 h-60 w-60 rounded-full bg-[#14B8A6]/10 blur-3xl" aria-hidden="true"></div>
                     </section>
@@ -106,6 +109,99 @@
                             <button type="button" wire:click="showSection('reports')" class="mt-4 text-xs font-bold text-[#087F73]">مشاهده گزارش ←</button>
                         </section>
                     </div>
+                @elseif ($section === 'shop')
+                    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <h1 class="text-2xl font-extrabold text-[#1B2935]">خرید سرویس</h1>
+                            <p class="mt-2 text-sm leading-7 text-[#71818B]">پلن مناسب را انتخاب کنید و مبلغ آن را ببینید.</p>
+                        </div>
+                        <button type="button" wire:click="showSection('overview')" class="min-h-11 rounded-xl border border-[#E7ECEF] bg-white px-4 py-2 text-sm font-semibold text-[#536C76] focus-visible:outline-2 focus-visible:outline-[#14B8A6]">بستن</button>
+                    </div>
+
+                    @if ($selectedPlan === null)
+                        @if ($planUnavailable || $quoteError)
+                            <p role="alert" class="mb-5 rounded-2xl border border-[#F0E0C9] bg-[#FFF9F1] p-4 text-sm leading-7 text-[#845C23]">
+                                {{ $quoteError ?? 'این پلن در دسترس نیست. لطفاً یکی از پلن‌های موجود را انتخاب کنید.' }}
+                            </p>
+                        @endif
+                        @if (count($catalogPresets) === 0 && count($catalogBuilders) === 0)
+                            <section class="rounded-[24px] border border-[#E7ECEF] bg-white px-6 py-10 text-center text-sm leading-8 text-[#71818B]">
+                                در حال حاضر پلنی برای ارائه وجود ندارد.
+                            </section>
+                        @else
+                            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                @foreach ($catalogPresets as $item)
+                                    <article wire:key="live-plan-{{ $item->plan->id }}" class="flex flex-col rounded-[24px] border border-[#E7ECEF] bg-white p-5 shadow-sm">
+                                        <h2 class="break-words text-base font-extrabold text-[#1B2935]">{{ $item->plan->name }}</h2>
+                                        <p class="mt-2 text-xs leading-7 text-[#71818B]">
+                                            {{ $item->plan->durationDays }} روز · {{ $item->plan->trafficGb === null ? 'حجم نامحدود' : number_format($item->plan->trafficGb).' گیگابایت' }}
+                                        </p>
+                                        <p class="mt-5 text-xl font-extrabold text-[#087F73]" dir="ltr">{{ number_format(intdiv($item->quote->totalPriceRials, 10)) }}{{ $item->quote->totalPriceRials % 10 === 0 ? '' : '.'.($item->quote->totalPriceRials % 10) }} <span class="text-xs font-medium text-[#71818B]">تومان</span></p>
+                                        <p class="mt-1 text-xs text-[#71818B]">با تخفیف نمایندگی {{ $item->quote->discountPercent }}٪</p>
+                                        <button type="button" wire:click="selectPlan({{ $item->plan->id }})" class="mt-5 min-h-11 rounded-xl bg-[#EAF8F4] px-5 py-2.5 text-sm font-bold text-[#087F73] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#14B8A6]">مشاهده پیش‌فاکتور</button>
+                                    </article>
+                                @endforeach
+                                @foreach ($catalogBuilders as $builder)
+                                    <article wire:key="live-builder-{{ $builder->id }}" class="flex flex-col rounded-[24px] border border-[#E7ECEF] bg-white p-5 shadow-sm">
+                                        <h2 class="break-words text-base font-extrabold text-[#1B2935]">{{ $builder->name }}</h2>
+                                        <p class="mt-2 text-xs leading-7 text-[#71818B]">مدت دلخواه: {{ $builder->minDays }} تا {{ $builder->maxDays }} روز</p>
+                                        <p class="mt-1 text-xs leading-7 text-[#71818B]">{{ $builder->kind === 'time' ? 'حجم نامحدود' : 'حجم دلخواه: '.number_format($builder->minGb).' تا '.number_format($builder->maxGb).' گیگابایت' }}</p>
+                                        <p class="mt-5 text-sm font-semibold text-[#087F73]">قیمت بر اساس انتخاب شما</p>
+                                        <button type="button" wire:click="selectPlan({{ $builder->id }})" class="mt-auto min-h-11 rounded-xl bg-[#EAF8F4] px-5 py-2.5 text-sm font-bold text-[#087F73] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#14B8A6]">تنظیم و محاسبه قیمت</button>
+                                    </article>
+                                @endforeach
+                            </div>
+                        @endif
+                    @else
+                        <button type="button" wire:click="backToPlans" class="mb-5 min-h-11 text-sm font-bold text-[#087F73] focus-visible:outline-2 focus-visible:outline-[#14B8A6]">→ بازگشت به پلن‌ها</button>
+                        <section class="rounded-[26px] border border-[#E7ECEF] bg-white p-5 shadow-sm sm:p-7">
+                            <h2 class="text-xl font-extrabold text-[#1B2935]">{{ $selectedPlan->name }}</h2>
+                            <p class="mt-2 text-xs text-[#71818B]">{{ $selectedPlan->mode === 'builder' ? 'انتخاب مدت و حجم سرویس' : 'جزئیات پلن انتخاب‌شده' }}</p>
+
+                            @if ($selectedPlan->mode === 'builder')
+                                <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                    <div>
+                                        <label for="quote-days" class="mb-2 block text-sm font-semibold text-[#536C76]">مدت سرویس (روز)</label>
+                                        <input id="quote-days" type="number" min="{{ $selectedPlan->minDays }}" max="{{ $selectedPlan->maxDays }}" step="1" inputmode="numeric" wire:model="daysInput" class="min-h-12 w-full rounded-xl border border-[#D9E4E7] bg-white px-4 text-base text-[#1B2935] focus:border-[#14B8A6] focus:outline-none" />
+                                        <p class="mt-2 text-xs text-[#71818B]">{{ $selectedPlan->minDays }} تا {{ $selectedPlan->maxDays }} روز</p>
+                                    </div>
+                                    @if ($selectedPlan->kind !== 'time')
+                                        <div>
+                                            <label for="quote-gb" class="mb-2 block text-sm font-semibold text-[#536C76]">حجم سرویس (گیگابایت)</label>
+                                            <input id="quote-gb" type="number" min="{{ $selectedPlan->minGb }}" max="{{ $selectedPlan->maxGb }}" step="1" inputmode="numeric" wire:model="gbInput" class="min-h-12 w-full rounded-xl border border-[#D9E4E7] bg-white px-4 text-base text-[#1B2935] focus:border-[#14B8A6] focus:outline-none" />
+                                            <p class="mt-2 text-xs text-[#71818B]">{{ number_format($selectedPlan->minGb) }} تا {{ number_format($selectedPlan->maxGb) }} گیگابایت</p>
+                                        </div>
+                                    @else
+                                        <p class="self-center text-sm font-semibold text-[#536C76]">حجم نامحدود</p>
+                                    @endif
+                                </div>
+                            @else
+                                <p class="mt-5 text-sm font-semibold text-[#536C76]">{{ $selectedPlan->durationDays }} روز · {{ $selectedPlan->trafficGb === null ? 'حجم نامحدود' : number_format($selectedPlan->trafficGb).' گیگابایت' }}</p>
+                            @endif
+
+                            <button type="button" wire:click="previewQuote" class="mt-6 min-h-12 w-full rounded-xl bg-[#14B8A6] px-5 py-3 text-sm font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]">محاسبه پیش‌فاکتور</button>
+
+                            @if ($quoteError)
+                                <p role="alert" class="mt-5 rounded-2xl bg-[#FFF9F1] p-4 text-sm leading-7 text-[#845C23]">{{ $quoteError }}</p>
+                            @elseif ($planQuote !== null)
+                                <div class="mt-6 rounded-2xl border border-[#CCEDE4] bg-[#F3FBF8] p-5" aria-label="پیش‌فاکتور نمایندگی">
+                                    <h3 class="text-base font-extrabold text-[#1B2935]">پیش‌فاکتور شما</h3>
+                                    <p class="mt-2 text-xs leading-7 text-[#617380]">{{ $planQuote->durationDays }} روز · {{ $planQuote->trafficGb === null ? 'حجم نامحدود' : number_format($planQuote->trafficGb).' گیگابایت' }}</p>
+                                    <div class="mt-5 flex items-center justify-between gap-3 text-sm text-[#536C76]">
+                                        <span>قیمت اصلی</span><span dir="ltr">{{ number_format(intdiv($planQuote->publicPriceRials, 10)) }}{{ $planQuote->publicPriceRials % 10 === 0 ? '' : '.'.($planQuote->publicPriceRials % 10) }} تومان</span>
+                                    </div>
+                                    <div class="mt-3 flex items-center justify-between gap-3 text-sm text-[#087F73]">
+                                        <span>تخفیف نمایندگی ({{ $planQuote->discountPercent }}٪)</span><span dir="ltr">− {{ number_format(intdiv($planQuote->discountRials, 10)) }}{{ $planQuote->discountRials % 10 === 0 ? '' : '.'.($planQuote->discountRials % 10) }} تومان</span>
+                                    </div>
+                                    <div class="mt-5 flex items-center justify-between gap-3 border-t border-[#CCEDE4] pt-4">
+                                        <span class="text-sm font-extrabold text-[#1B2935]">مبلغ نهایی</span>
+                                        <span class="text-xl font-extrabold text-[#087F73]" dir="ltr">{{ number_format(intdiv($planQuote->totalPriceRials, 10)) }}{{ $planQuote->totalPriceRials % 10 === 0 ? '' : '.'.($planQuote->totalPriceRials % 10) }} <span class="text-xs font-medium">تومان</span></span>
+                                    </div>
+                                </div>
+                                <p class="mt-4 text-xs leading-7 text-[#71818B]">این مبلغ برای اطلاع شماست و تا زمان ثبت خرید ممکن است تغییر کند.</p>
+                            @endif
+                        </section>
+                    @endif
                 @elseif ($section === 'credit')
                     <div class="mb-6">
                         <h1 class="text-2xl font-extrabold text-[#1B2935]">اعتبار من</h1>
