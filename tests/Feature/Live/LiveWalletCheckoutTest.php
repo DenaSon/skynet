@@ -256,6 +256,44 @@ it('refuses changed Squad or paid status between review and confirmation', funct
     live3cAssertNoPurchase();
 });
 
+it('never exposes renewal orders to the new-service wallet checkout', function (): void {
+    $data = live3cFixture();
+    $buyer = $data['buyer'];
+    $quote = app(CalculatePlanQuote::class)->handle($buyer->id, $data['plan'], 30, 30);
+    $renewalOrder = app(RegisterPendingResellerOrder::class)
+        ->handle($buyer->id, $quote, bin2hex(random_bytes(16)), 'renewal-label');
+
+    $subscriptionId = (int) DB::table('provisioning_subscriptions')->insertGetId([
+        'reference' => 'test-renewal-scope',
+        'remote_username' => 'renewal_scope_test',
+        'state' => 'active',
+        'last_operation_key' => 'test-renewal-scope',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+    DB::table('sales_renewal_orders')->insert([
+        'sales_order_id' => $renewalOrder->id,
+        'source_order_id' => $data['order'],
+        'provisioning_subscription_id' => $subscriptionId,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    expect(array_map(static fn ($row): int => $row->id,
+        app(OrderReader::class)->recentNewPlans($buyer->id)))->toBe([$data['order']]);
+
+    $this->actingAs($buyer)->withSession(['denagate_live.user_id' => $buyer->id]);
+    Livewire::test(Dashboard::class)
+        ->call('showSection', 'shop')
+        ->assertDontSee('#'.$renewalOrder->id.' ·')
+        ->call('openOrder', $renewalOrder->id)
+        ->assertSee('سفارش در دسترس نیست')
+        ->call('prepareWalletPayment')
+        ->assertSee('پرداخت از اعتبار فعلاً در دسترس نیست');
+
+    live3cAssertNoPurchase();
+});
+
 it('denies foreign orders and revoked reseller authorization on payment attempts', function (): void {
     $data = live3cFixture();
     live3cCredit($data['root'], $data['buyer']);
