@@ -221,8 +221,10 @@ it('reuploads a bounded Sales-origin photo under the Admin token without forward
 
     expect(DB::table('telegram_notification_deliveries')->where('id', $id)->value('state'))->toBe('sent');
     Http::assertSentCount(3);
+    // Multipart uploads expose form fields in the encoded body, not Request::data().
     Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '12345:admin_test/sendPhoto')
-        && (string) $request['message_thread_id'] === '76');
+        && str_contains($request->body(), 'name="message_thread_id"')
+        && str_contains($request->body(), "\r\n76\r\n"));
 });
 
 it('falls back to identifiers on invalid cross-bot photo and never declares photo delivery', function (): void {
