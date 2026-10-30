@@ -265,7 +265,7 @@ it('denies foreign orders and revoked reseller authorization on payment attempts
 
     $this->actingAs($other)->withSession(['denagate_live.user_id' => $other->id]);
     Livewire::test(Dashboard::class)->call('showSection', 'shop')
-        ->assertDontSee('پلن سی روزه')
+        ->assertDontSee('سفارش‌های اخیر من')
         ->call('openOrder', $data['order'])->assertSee('سفارش در دسترس نیست');
     live3cAssertNoPurchase();
 
