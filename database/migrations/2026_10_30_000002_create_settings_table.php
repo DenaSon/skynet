@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
@@ -24,6 +25,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (Schema::hasTable('settings') && DB::table('settings')->exists()) {
+            throw new RuntimeException('Settings contain operator data; preserve them and use a forward fix.');
+        }
+
         Schema::dropIfExists('settings');
     }
 };
