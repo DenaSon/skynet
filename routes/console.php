@@ -12,6 +12,7 @@ use App\Modules\Sales\Application\ReferralRewardOutbox;
 use App\Modules\Trial\Application\ReadFreeTrial;
 use App\Modules\Trial\Application\TrialAvailability;
 use App\Modules\Trial\Jobs\ProvisionFreeTrialJob;
+use App\Support\Health\NodeTcpProbe;
 use App\Support\Health\OperationalProbe;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -54,6 +55,20 @@ Artisan::command('sales:telegram:menu:register', function (): int {
 
     return 0;
 })->purpose('Register the native Telegram command menu on the Sales Bot only');
+
+// Independent, explicitly configured Node TCP measurement. Runs outside Telegram.
+// Only operator-approved public IPv4 endpoints tied to known Node UUIDs are eligible.
+Artisan::command('network:tcp-probe', function (): int {
+    $checked = app(NodeTcpProbe::class)->run();
+    $this->info("Checked {$checked} approved Node TCP target(s).");
+
+    return 0;
+})->purpose('Record bounded TCP connect latency for explicitly approved network Nodes');
+
+Schedule::command('network:tcp-probe')->everyMinute()
+    ->when(static fn (): bool => is_string(config('denagate_health.node_tcp_targets'))
+        && trim(config('denagate_health.node_tcp_targets')) !== '')
+    ->withoutOverlapping(5);
 
 // DenaGate Health foundation: checks run only after explicit production opt-in.
 // Queue probes and Scheduler heartbeat precede the check in the same minute.
