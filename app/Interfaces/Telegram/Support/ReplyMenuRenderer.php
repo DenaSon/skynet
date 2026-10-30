@@ -126,16 +126,25 @@ final class ReplyMenuRenderer
         $labels = [
             ReplyMenuLabels::SALES_BUY,
             ReplyMenuLabels::SALES_SUBSCRIPTIONS,
-            ReplyMenuLabels::SALES_ACCOUNT,
-            ReplyMenuLabels::SALES_SUPPORT,
         ];
-        if ($actor !== null && in_array('reseller', $actor->roles, true)) {
-            $labels[] = ReplyMenuLabels::BUILDER;
-            $labels[] = ReplyMenuLabels::SALES_REPORTS;
-        }
-        $labels[] = ReplyMenuLabels::SALES_TUTORIAL;
-        if ($actor !== null && (in_array('member', $actor->roles, true) || in_array('reseller', $actor->roles, true))) {
+        $isReseller = $actor !== null && in_array('reseller', $actor->roles, true);
+        $hasWallet = $actor !== null && (in_array('member', $actor->roles, true) || $isReseller);
+
+        // Keep the buy/services row first. Prioritize credit for both audiences,
+        // and the existing sales report for resellers; no routes or roles change.
+        if ($hasWallet) {
             $labels[] = ReplyMenuLabels::SALES_WALLET;
+        }
+        if ($isReseller) {
+            $labels[] = ReplyMenuLabels::SALES_REPORTS;
+            $labels[] = ReplyMenuLabels::BUILDER;
+            $labels[] = ReplyMenuLabels::SALES_SUPPORT;
+            $labels[] = ReplyMenuLabels::SALES_ACCOUNT;
+            $labels[] = ReplyMenuLabels::SALES_TUTORIAL;
+        } else {
+            $labels[] = ReplyMenuLabels::SALES_ACCOUNT;
+            $labels[] = ReplyMenuLabels::SALES_SUPPORT;
+            $labels[] = ReplyMenuLabels::SALES_TUTORIAL;
         }
         if ($actor !== null
             && in_array('member', $actor->roles, true)

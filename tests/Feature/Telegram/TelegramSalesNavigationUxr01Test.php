@@ -100,7 +100,9 @@ it('shows persistent Sales keyboard on start while accepting old button labels',
 
             return ($body['reply_markup']['is_persistent'] ?? false) === true
                 && ($body['reply_markup']['keyboard'][0][0]['text'] ?? null) === ReplyMenuLabels::SALES_BUY
-                && ($body['reply_markup']['keyboard'][1][1]['text'] ?? null) === ReplyMenuLabels::SALES_SUPPORT;
+                && ($body['reply_markup']['keyboard'][1][0]['text'] ?? null) === ReplyMenuLabels::SALES_WALLET
+                && ($body['reply_markup']['keyboard'][1][1]['text'] ?? null) === ReplyMenuLabels::SALES_ACCOUNT
+                && ($body['reply_markup']['keyboard'][2][0]['text'] ?? null) === ReplyMenuLabels::SALES_SUPPORT;
         }, index: 0)
         ->assertReply('sendMessage', ['parse_mode' => 'HTML'])
         ->assertReplyText("<b>🏠 DenaGate</b>\n\nخوش آمدید، &lt;Buyer&gt; &amp; &quot;Name&quot;.\nنوع حساب: <b>👤 کاربر عادی</b>");
@@ -239,7 +241,7 @@ it('does not invent a referral share destination when Sales username is not vali
     Http::assertNothingSent();
 });
 
-it('places My Credit beside tutorials for ordinary Sales members and accepts stale wallet labels', function (): void {
+it('places My Credit on the second row for ordinary Sales members and accepts stale wallet labels', function (): void {
     $user = User::factory()->create();
     $user->assignRole('member');
     $bot = uxr01Bot($user);
@@ -249,8 +251,12 @@ it('places My Credit beside tutorials for ordinary Sales members and accepts sta
         $rows = $data['reply_markup']['keyboard'] ?? [];
 
         return ($data['reply_markup']['is_persistent'] ?? false) === true
-            && ($rows[2][0]['text'] ?? null) === ReplyMenuLabels::SALES_TUTORIAL
-            && ($rows[2][1]['text'] ?? null) === ReplyMenuLabels::SALES_WALLET
+            && ($rows[0][0]['text'] ?? null) === ReplyMenuLabels::SALES_BUY
+            && ($rows[0][1]['text'] ?? null) === ReplyMenuLabels::SALES_SUBSCRIPTIONS
+            && ($rows[1][0]['text'] ?? null) === ReplyMenuLabels::SALES_WALLET
+            && ($rows[1][1]['text'] ?? null) === ReplyMenuLabels::SALES_ACCOUNT
+            && ($rows[2][0]['text'] ?? null) === ReplyMenuLabels::SALES_SUPPORT
+            && ($rows[2][1]['text'] ?? null) === ReplyMenuLabels::SALES_TUTORIAL
             && ($rows[3][0]['text'] ?? null) === ReplyMenuLabels::SALES_PANEL_REQUEST;
     }, index: 0)->assertRaw(static function (Request $request): bool {
         $keyboard = uxr01Payload($request)['reply_markup']['inline_keyboard'] ?? [];
@@ -505,7 +511,7 @@ it('accepts old Sales keyboard labels and the new /buy command with existing aut
     Http::assertNothingSent();
 });
 
-it('shows reseller-only persistent wallet and builder buttons with working navigation', function (): void {
+it('prioritizes reseller credit and reports on row two while preserving custom plans and navigation', function (): void {
     $buyer = User::factory()->create();
     $buyer->syncRoles(['reseller']);
     $bot = uxr01Bot($buyer);
@@ -514,10 +520,14 @@ it('shows reseller-only persistent wallet and builder buttons with working navig
         $keyboard = $data['reply_markup']['keyboard'] ?? [];
 
         return ($data['reply_markup']['is_persistent'] ?? false) === true
+            && ($keyboard[0][0]['text'] ?? null) === ReplyMenuLabels::SALES_BUY
+            && ($keyboard[0][1]['text'] ?? null) === ReplyMenuLabels::SALES_SUBSCRIPTIONS
+            && ($keyboard[1][0]['text'] ?? null) === ReplyMenuLabels::SALES_WALLET
+            && ($keyboard[1][1]['text'] ?? null) === ReplyMenuLabels::SALES_REPORTS
             && ($keyboard[2][0]['text'] ?? null) === ReplyMenuLabels::BUILDER
-            && ($keyboard[2][1]['text'] ?? null) === ReplyMenuLabels::SALES_REPORTS
-            && ($keyboard[3][0]['text'] ?? null) === ReplyMenuLabels::SALES_TUTORIAL
-            && ($keyboard[3][1]['text'] ?? null) === ReplyMenuLabels::SALES_WALLET;
+            && ($keyboard[2][1]['text'] ?? null) === ReplyMenuLabels::SALES_SUPPORT
+            && ($keyboard[3][0]['text'] ?? null) === ReplyMenuLabels::SALES_ACCOUNT
+            && ($keyboard[3][1]['text'] ?? null) === ReplyMenuLabels::SALES_TUTORIAL;
     }, index: 0);
     $bot->hearText(ReplyMenuLabels::SALES_WALLET)->reply()->assertCalled('sendRichMessage');
     $bot->hearText(ReplyMenuLabels::WALLET)->reply()->assertCalled('sendRichMessage');
