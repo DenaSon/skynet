@@ -78,12 +78,15 @@ final readonly class SalesHomeUi
         $this->clearInput($actor->userId, $bot);
         $isReseller = in_array('reseller', $actor->roles, true);
         $panelRequestLabel = $this->panelRequestLabel($actor);
+        $customWelcome = app(SalesWelcomeMessage::class)->customizedForActor($actor);
 
         // Telegram Reply Keyboard is fixed below the input for Sales and resellers.
         // Callback pages retain their existing inline actions.
         if (! $bot->isCallbackQuery() || $showKeyboard) {
             $bot->sendMessage(
-                text: app(SalesWelcomeMessage::class)->forActor($actor),
+                text: $customWelcome === null
+                    ? app(SalesWelcomeMessage::class)->forActor($actor)
+                    : '⌨️ منوی دناگیت آماده است.',
                 parse_mode: 'HTML',
                 reply_markup: app(ReplyMenuRenderer::class)->salesKeyboard(
                     $actor,
@@ -129,6 +132,7 @@ final readonly class SalesHomeUi
 
         $this->render($bot,
             '<b>🏠 صفحه اصلی DenaGate</b>'
+            .($customWelcome === null ? '' : "\n\n".$customWelcome)
             ."\n\nنوع حساب: <b>".$this->salesRole($actor).'</b>'
             .$walletLine,
             $keyboard,
