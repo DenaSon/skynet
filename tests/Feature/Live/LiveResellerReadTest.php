@@ -77,7 +77,10 @@ it('shows the real owned wallet, settled revenue, counts and customer labels wit
     $this->actingAs($owner)->withSession(['denagate_live.user_id' => $owner->id]);
     $ownedOrder = liveReadOrder($owner);
     app(ManageResellerServiceLabels::class)->save($owner->id, $ownedOrder, 'کاربر <خصوصی>');
-    $foreignOrder = liveReadOrder($foreign, false);
+    $this->actingAs($foreign)->withSession(['denagate_live.user_id' => $foreign->id]);
+    $foreignOrder = liveReadOrder($foreign);
+    app(ManageResellerServiceLabels::class)->save($foreign->id, $foreignOrder, 'نام نماینده دیگر');
+    $this->actingAs($owner)->withSession(['denagate_live.user_id' => $owner->id]);
     $cost = (int) DB::table('sales_orders')->where('id', $ownedOrder)->value('total_price_rials');
     $expectedBalance = number_format(intdiv(2_000_000 - $cost, 10));
     $expectedSale = number_format(intdiv($cost, 10));
@@ -92,6 +95,7 @@ it('shows the real owned wallet, settled revenue, counts and customer labels wit
         ->assertSee('کاربر &lt;خصوصی&gt;', false)
         ->assertSee('فعال در سوابق')
         ->assertDontSee('private_')
+        ->assertDontSee('نام نماینده دیگر')
         ->assertDontSee((string) $foreignOrder.' · تاریخ ثبت')
         ->call('showSection', 'credit')
         ->assertSee($expectedBalance)
@@ -105,7 +109,7 @@ it('shows the real owned wallet, settled revenue, counts and customer labels wit
         ->assertSee('خریدهای جدید');
 
     expect(DB::table('billing_journals')->count())->toBe($journalCount)
-        ->and(DB::table('sales_order_settlements')->count())->toBe(1);
+        ->and(DB::table('sales_order_settlements')->count())->toBe(2);
 
     Http::assertNothingSent();
 });
