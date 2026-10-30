@@ -17,8 +17,10 @@ use App\Modules\Sales\Application\PlanPriceQuote;
 use App\Modules\Sales\Application\PlanSummary;
 use App\Modules\Sales\Application\ReadResellerSalesReport;
 use App\Modules\Sales\Application\RegisterPendingResellerOrder;
+use App\Modules\Sales\Application\SettleWalletOrder;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Livewire\Attributes\Layout;
@@ -58,6 +60,17 @@ final class Dashboard extends Component
 
     #[Locked]
     public ?int $createdOrderId = null;
+
+    #[Locked]
+    public ?string $walletConfirmToken = null;
+
+    #[Locked]
+    public ?int $walletConfirmAmountRials = null;
+
+    #[Locked]
+    public ?int $walletConfirmBalanceRials = null;
+
+    public ?string $walletError = null;
 
     private const SECTIONS = ['overview', 'services', 'credit', 'reports', 'shop'];
 
@@ -184,6 +197,142 @@ final class Dashboard extends Component
         }
     }
 
+    /** Open only a currently owned managed-plan order, including after app reload. */
+    public function openOrder(int $orderId): void
+    {
+        $buyerId = $this->resellerId();
+        $this->resetPlanSelection();
+        $this->section = 'shop';
+
+        try {
+            $order = app(OrderReader::class)->findPlan($buyerId, $orderId);
+            $this->createdOrderId = $order->id;
+        } catch (ValidationException) {
+            $this->orderError = 'سفارش در دسترس نیست.';
+        }
+    }
+
+    /** Five-minute, server-backed wallet confirmation; this never debits. */
+    public function prepareWalletPayment(): void
+    {
+        $buyerId = $this->resellerId();
+        $this->forgetWalletConfirmation($buyerId);
+        $this->walletError = null;
+
+        if ($this->section !== 'shop' || $this->createdOrderId === null
+            || config('sales.wallet_settlement_enabled') !== true) {
+            $this->walletError = 'پرداخت از اعتبار فعلاً در دسترس نیست.';
+
+            return;
+        }
+
+        try {
+            $order = app(OrderReader::class)->findPlan($buyerId, $this->createdOrderId);
+            if ($order->status !== 'pending_payment') {
+                $this->walletError = 'این سفارش دیگر در انتظار پرداخت نیست.';
+
+                return;
+            }
+
+            app(ManageResellerServiceLabels::class)->assertPendingDetails($buyerId, $order->id);
+            $balance = app(ViewWallet::class)->handle($buyerId)->balanceRials;
+            if ($balance < $order->totalPriceRials) {
+                $this->walletError = 'اعتبار شما کافی نیست. ابتدا اعتبار خود را افزایش دهید.';
+
+                return;
+            }
+
+            $token = bin2hex(random_bytes(16));
+            Cache::put(self::walletConfirmationKey($buyerId, $order->id, $token), [
+                'amount' => $order->totalPriceRials,
+                'balance' => $balance,
+            ], now()->addMinutes(5));
+            $this->walletConfirmToken = $token;
+            $this->walletConfirmAmountRials = $order->totalPriceRials;
+            $this->walletConfirmBalanceRials = $balance;
+        } catch (AuthorizationException $exception) {
+            throw $exception;
+        } catch (ValidationException) {
+            $this->walletError = 'اطلاعات سفارش کامل نیست یا وضعیت آن تغییر کرده است.';
+        }
+    }
+
+    /** Only an explicit fresh confirmation may invoke the existing settlement Action. */
+    public function confirmWalletPayment(): void
+    {
+        $buyerId = $this->resellerId();
+        $orderId = $this->createdOrderId;
+        $token = $this->walletConfirmToken;
+        $this->walletError = null;
+
+        if ($this->section !== 'shop' || $orderId === null || $token === null) {
+            $this->walletError = 'ابتدا مبلغ و اعتبار خود را برای پرداخت بررسی کنید.';
+
+            return;
+        }
+
+        $key = self::walletConfirmationKey($buyerId, $orderId, $token);
+        $expected = Cache::pull($key);
+        $this->walletConfirmToken = null;
+        $this->walletConfirmAmountRials = null;
+        $this->walletConfirmBalanceRials = null;
+
+        if (! is_array($expected)
+            || ! isset($expected['amount'], $expected['balance'])
+            || ! is_int($expected['amount']) || ! is_int($expected['balance'])) {
+            $this->walletError = 'تأیید پرداخت منقضی شده است. مبلغ را دوباره بررسی کنید.';
+
+            return;
+        }
+
+        try {
+            $order = app(OrderReader::class)->findPlan($buyerId, $orderId);
+            if ($order->status !== 'pending_payment'
+                || $order->totalPriceRials !== $expected['amount']
+                || app(ViewWallet::class)->handle($buyerId)->balanceRials !== $expected['balance']) {
+                $this->walletError = 'مبلغ، اعتبار یا وضعیت سفارش تغییر کرده است. دوباره بررسی کنید.';
+
+                return;
+            }
+
+            app(SettleWalletOrder::class)->handle(SubscriptionViewer::web(), $orderId);
+        } catch (AuthorizationException $exception) {
+            throw $exception;
+        } catch (ValidationException $exception) {
+            $this->walletError = match (true) {
+                isset($exception->errors()['activation']) => 'پرداخت فعلاً آماده نیست؛ مبلغی برداشت نشد.',
+                isset($exception->errors()['customer']) => 'نام کاربری مشتری را در سفارش تکمیل کنید.',
+                isset($exception->errors()['plan']) => 'مشخصات سرویس تغییر کرده است. مبلغی برداشت نشد.',
+                default => 'پرداخت انجام نشد. وضعیت سفارش و اعتبار را دوباره بررسی کنید.',
+            };
+        } catch (Throwable $exception) {
+            report($exception);
+            $this->walletError = 'وضعیت پرداخت مشخص نیست. پیش از اقدام دوباره، وضعیت سفارش و اعتبارتان را بررسی کنید.';
+        }
+    }
+
+    public function cancelWalletPayment(): void
+    {
+        $this->forgetWalletConfirmation($this->resellerId());
+    }
+
+    private static function walletConfirmationKey(int $buyerId, int $orderId, string $token): string
+    {
+        return 'denagate-live:wallet:'.$buyerId.':'.$orderId.':'.$token;
+    }
+
+    private function forgetWalletConfirmation(int $buyerId): void
+    {
+        if ($this->createdOrderId !== null && $this->walletConfirmToken !== null) {
+            Cache::forget(self::walletConfirmationKey($buyerId, $this->createdOrderId, $this->walletConfirmToken));
+        }
+
+        $this->walletConfirmToken = null;
+        $this->walletConfirmAmountRials = null;
+        $this->walletConfirmBalanceRials = null;
+        $this->walletError = null;
+    }
+
     public function backToPlans(): void
     {
         $this->resellerId();
@@ -192,6 +341,7 @@ final class Dashboard extends Component
 
     private function resetPlanSelection(): void
     {
+        $this->forgetWalletConfirmation($this->resellerId());
         $this->selectedPlanId = null;
         $this->daysInput = '';
         $this->gbInput = '';
@@ -268,6 +418,7 @@ final class Dashboard extends Component
             'quoteError' => null,
             'createdOrder' => null,
             'createdCustomerName' => null,
+            'recentOrders' => [],
         ];
 
         try {
@@ -276,6 +427,9 @@ final class Dashboard extends Component
                 $data['createdCustomerName'] = app(ManageResellerServiceLabels::class)
                     ->pendingName($userId, $this->createdOrderId);
             } elseif ($this->section === 'shop') {
+                if ($this->selectedPlanId === null) {
+                    $data['recentOrders'] = app(OrderReader::class)->recentPlans($userId);
+                }
                 $presets = app(ListQuotedPresets::class)->handle($userId);
                 $builders = app(ListResellerBuilders::class)->handle($userId);
                 $data['catalogPresets'] = $presets;
