@@ -190,3 +190,76 @@ it('adds the Health button to the existing Denaban keyboard without changing its
 
     Http::assertSent(static fn ($request): bool => $request->method() === 'GET');
 });
+
+it('renders resource and operational checks instead of the old about section and hides arbitrary metadata', function (): void {
+    $root = denabanHealthRoot();
+    config()->set('denagate_health.enabled', true);
+    $batch = '90909090-9090-4090-8090-909090909090';
+
+    foreach (['DatabaseCheck', 'QueueCheck', 'ScheduleCheck', 'UsedDiskSpaceCheck'] as $name) {
+        denabanHealthStore($batch, $name, 'ok', now()->toDateTimeString());
+    }
+
+    foreach (\App\Support\Health\OperationalProbe::CHECKS as $name) {
+        DB::table('health_check_result_history_items')->insert([
+            'batch' => $batch,
+            'check_name' => 'ops_'.$name,
+            'check_label' => $name,
+            'status' => 'ok',
+            'notification_message' => 'do-not-display-private-token',
+            'short_summary' => $name === 'memory' ? '64.0% / 2048 MiB' : '2 pending',
+            'meta' => json_encode(['password' => 'hidden-secret-token'], JSON_THROW_ON_ERROR),
+            'ended_at' => now()->toDateTimeString(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    expect(app(ReadAdminHealth::class)->handle($root->id)['state'])->toBe('healthy');
+
+    denabanHealthBot()->hearCallbackQueryData('denaban:health')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $payload = denabanHealthPayload($request);
+            $rich = is_string($payload['rich_message'] ?? null)
+                ? json_decode($payload['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+                : ($payload['rich_message'] ?? []);
+            $html = (string) ($rich['html'] ?? '');
+
+            return str_contains($html, '📊 منابع و عملیات')
+                && str_contains($html, 'CPU Load')
+                && str_contains($html, 'RAM')
+                && str_contains($html, 'API شبکه')
+                && str_contains($html, '64.0% / 2048 MiB')
+                && str_contains($html, 'فعال‌سازی سفارش‌ها')
+                && ! str_contains($html, 'درباره این گزارش')
+                && ! str_contains($html, 'Remnawave')
+                && ! str_contains($html, 'do-not-display-private-token')
+                && ! str_contains($html, 'hidden-secret-token');
+        }, index: 1);
+
+    denabanHealthBot()->hearCallbackQueryData('denaban:health:simple')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $payload = denabanHealthPayload($request);
+
+            return str_contains($payload['text'], '📊 منابع و عملیات')
+                && str_contains($payload['text'], 'API شبکه')
+                && ! str_contains($payload['text'], 'Remnawave');
+        }, index: 1);
+    Http::assertNothingSent();
+});
+
+it('rejects complete-looking batches missing one operational check', function (): void {
+    $root = denabanHealthRoot();
+    config()->set('denagate_health.enabled', true);
+    $batch = '91919191-9191-4191-8191-919191919191';
+
+    foreach (['DatabaseCheck', 'QueueCheck', 'ScheduleCheck', 'UsedDiskSpaceCheck'] as $name) {
+        denabanHealthStore($batch, $name, 'ok', now()->toDateTimeString());
+    }
+
+    foreach (array_slice(\App\Support\Health\OperationalProbe::CHECKS, 0, -1) as $name) {
+        denabanHealthStore($batch, 'ops_'.$name, 'ok', now()->toDateTimeString());
+    }
+
+    expect(app(ReadAdminHealth::class)->handle($root->id)['state'])->toBe('unknown');
+});
