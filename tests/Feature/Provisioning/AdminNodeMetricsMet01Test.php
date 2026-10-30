@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Application\ReadAdminNodeMetrics;
+use GuzzleHttp\Psr7\Request as NutgramRequest;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
@@ -13,6 +14,7 @@ use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
+use SergiX44\Nutgram\Testing\FakeNutgram;
 
 uses(RefreshDatabase::class);
 
@@ -46,13 +48,26 @@ function met01Bot(int $id = 954001, bool $private = true): Nutgram
     return $bot;
 }
 
-function met01Fake(bool $metrics = true, bool $traffic = true, bool $nodes = true, ?string $bytes = null): void
+function met01Fake(bool $metrics = true, bool $traffic = true, bool $nodes = true, ?string $bytes = null, bool $completeHistory = false): void
 {
-    Http::fake(static function (Request $request) use ($metrics, $traffic, $nodes, $bytes) {
+    Http::fake(static function (Request $request) use ($metrics, $traffic, $nodes, $bytes, $completeHistory) {
         $url = $request->url();
         $today = gmdate('Y-m-d');
         $yesterday = gmdate('Y-m-d', strtotime('-1 day'));
 
+        if (str_starts_with($url, 'https://met01.test/api/bandwidth-stats/nodes?')) {
+            $dates = [];
+            for ($i = 29; $i >= 0; $i--) {
+                $dates[] = gmdate('Y-m-d', strtotime("-{$i} days"));
+            }
+
+            return Http::response(['response' => [
+                'categories' => $completeHistory ? $dates : [$today],
+                'sparklineData' => $completeHistory ? array_fill(0, 30, 1073741824) : [1073741824],
+                'topNodes' => [],
+                'series' => [],
+            ]]);
+        }
         if ($url === 'https://met01.test/api/nodes') {
             return $nodes ? Http::response(['response' => [
                 ['uuid' => MET01_NODE, 'name' => 'Germany', 'isConnected' => true, 'isDisabled' => false],
@@ -170,10 +185,10 @@ it('exposes only a private read-only Admin command and callback, never a Sales a
     met01Fake();
     $bot = met01Bot();
 
-    $bot->hearText('/metrics')->reply()->assertCalled('sendMessage');
+    $bot->hearText('/metrics')->reply()->assertCalled('sendRichMessage');
     $bot->hearCallbackQueryData('metrics:refresh')->reply()->assertCalled('editMessageText');
     met01AssertOnlyGets();
-    Http::assertSentCount(8);
+    Http::assertSentCount(12);
 });
 
 it('does not query the provider from a group or a non-root Telegram actor', function (): void {
@@ -186,4 +201,54 @@ it('does not query the provider from a group or a non-root Telegram actor', func
     met01Bot(954002)->hearCallbackQueryData('metrics:refresh')->reply();
 
     Http::assertNothingSent();
+});
+
+it('renders validated 7- and 30-day traffic totals in the Rich Admin dashboard', function (): void {
+    met01Root();
+    met01Fake(completeHistory: true);
+    met01Bot()->hearText('/metrics')->reply()
+        ->assertCalled('sendRichMessage', 1)
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $data = FakeNutgram::getActualData($request);
+            $rich = is_string($data['rich_message'] ?? null)
+                ? json_decode($data['rich_message'], true, flags: JSON_THROW_ON_ERROR)
+                : ($data['rich_message'] ?? []);
+            $html = (string) ($rich['html'] ?? '');
+
+            return str_contains($html, '۷ روز اخیر')
+                && str_contains($html, '۷ روز اخیر</td><td><b>7.00 GiB</b>')
+                && str_contains($html, '۳۰ روز اخیر</td><td><b>30.00 GiB</b>')
+                && str_contains($html, '<table bordered striped compact>')
+                && str_contains($html, 'Germany')
+                && str_contains($html, '<details>');
+        }, index: 0);
+
+    Http::assertSentCount(6);
+    met01AssertOnlyGets();
+});
+
+it('does not invent monthly traffic from incomplete historical daily data', function (): void {
+    met01Root();
+    met01Fake(completeHistory: false);
+    met01Bot()->hearText('/metrics')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $data = FakeNutgram::getActualData($request);
+            $rich = is_string($data['rich_message'] ?? null)
+                ? json_decode($data['rich_message'], true, flags: JSON_THROW_ON_ERROR)
+                : ($data['rich_message'] ?? []);
+            $html = (string) ($rich['html'] ?? '');
+
+            return str_contains($html, '۷ روز اخیر</td><td><b>نامشخص</b>')
+                && str_contains($html, '۳۰ روز اخیر</td><td><b>نامشخص</b>');
+        }, index: 0);
+    met01AssertOnlyGets();
+});
+
+it('keeps the full native monitoring fallback with previously registered routes', function (): void {
+    met01Root();
+    met01Fake();
+    met01Bot()->hearCallbackQueryData('metrics:simple')->reply()
+        ->assertCalled('editMessageText')
+        ->assertCalled('sendRichMessage', 0);
+    met01AssertOnlyGets();
 });
