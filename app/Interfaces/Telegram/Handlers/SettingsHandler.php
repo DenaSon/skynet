@@ -51,7 +51,7 @@ final class SettingsHandler
             ->addRow(InlineKeyboardButton::make('🧩 خوشامدگویی نماینده', callback_data: 'admin:welcome:edit:reseller'))
             ->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
 
-        $this->render($bot, '<b>⚙️ تنظیمات بات</b>'."\n\nمتن خوشامدگویی موردنظر را برای ویرایش انتخاب کنید.", $keyboard);
+        $this->render($bot, '<b>⚙️ تنظیمات</b>'."\n\nمتن خوشامدگویی موردنظر را برای ویرایش انتخاب کنید.", $keyboard);
     }
 
     public function edit(Nutgram $bot, string $kind): void
