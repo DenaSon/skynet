@@ -108,10 +108,11 @@ it('records review notifications only on committed decisions and keeps settlemen
 it('sends an Admin photo through the matching Admin token and never repeats a completed notification', function (): void {
     $data = mb05aClaim();
     config()->set('telegram_notifications.enabled', true);
-    config()->set('telegram_notifications.admin_topic', [
-        'enabled' => true,
-        'chat_id' => '996001',
-        'thread_id' => 76,
+    config()->set('telegram_notifications.admin_topic.enabled', true);
+    DB::table('telegram_bot_contacts')->insert([
+        'user_id' => $data['root']->id, 'bot_key' => 'admin', 'chat_id' => 996001,
+        'delivery_status' => 'reachable', 'last_seen_at' => now(),
+        'created_at' => now(), 'updated_at' => now(), 'admin_notification_thread_id' => 76,
     ]);
 
     Http::preventStrayRequests();
@@ -181,10 +182,11 @@ it('reuploads a bounded Sales-origin photo under the Admin token without forward
     config()->set('telegram.sales.enabled', true);
     config()->set('telegram.sales.token', '54321:sales_test');
     config()->set('telegram_notifications.enabled', true);
-    config()->set('telegram_notifications.admin_topic', [
-        'enabled' => true,
-        'chat_id' => '996001',
-        'thread_id' => 76,
+    config()->set('telegram_notifications.admin_topic.enabled', true);
+    DB::table('telegram_bot_contacts')->insert([
+        'user_id' => $data['root']->id, 'bot_key' => 'admin', 'chat_id' => 996001,
+        'delivery_status' => 'reachable', 'last_seen_at' => now(),
+        'created_at' => now(), 'updated_at' => now(), 'admin_notification_thread_id' => 76,
     ]);
 
     $image = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP8z8DAwMDAxMDAwMDAAAANHQEDasKb6QAAAABJRU5ErkJggg==', true);
