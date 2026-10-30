@@ -45,7 +45,10 @@ final class ReplyMenuLabels
     /** Stale reply keyboards remain supported after text-only rename. */
     public const LEGACY_WALLET = '💼 کیف پول نماینده';
 
-    public const BUILDER = '🧩 پلن‌ساز پنل فروش';
+    public const BUILDER = '🧩 پلن سفارشی';
+
+    /** Previously delivered Telegram reply keyboards stay routable. */
+    public const PREVIOUS_BUILDER = '🧩 پلن‌ساز پنل فروش';
 
     public const OLD_BUILDER_PANEL = '💼 پلن‌ساز پنل فروش';
 
@@ -84,7 +87,7 @@ final class ReplyMenuLabels
             self::BUY, self::SUBSCRIPTIONS, self::CATALOG, self::ACCOUNT, self::INVITE,
             self::SETTINGS, self::ADMIN, self::SALES_WALLET, self::WALLET, self::BUILDER, self::SALES_REPORTS,
             self::SALES_PANEL_REQUEST, self::SALES_PANEL_STATUS, self::LEGACY_WALLET, self::LEGACY_BUILDER,
-            self::OLD_WALLET_PANEL, self::OLD_BUILDER_PANEL, self::USERS,
+            self::OLD_WALLET_PANEL, self::OLD_BUILDER_PANEL, self::PREVIOUS_BUILDER, self::USERS,
             self::ROLES, self::PLANS, self::PRODUCTS, self::SALES_SECTION,
             self::FINANCE_SECTION, self::SERVERS, self::STATS, self::DENABAN, self::TOPUPS, self::RECEIPTS, self::HOME,
         ];
