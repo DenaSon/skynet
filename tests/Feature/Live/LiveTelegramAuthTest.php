@@ -145,3 +145,31 @@ it('validates raw Telegram query strings rather than trusting initDataUnsafe or 
     expect($validator->userId(liveSignedData(445566), '321:sales-bot'))->toBe(445566)
         ->and($validator->userId('user='.urlencode('{"id":445566}'), '321:sales-bot'))->toBeNull();
 });
+
+it('generates HTTPS Mini App form and redirects when Runflare forwards an HTTP-origin request', function (): void {
+    $this->get('http://live.denagate.ir/')
+        ->assertOk()
+        ->assertSee('action="https://live.denagate.ir/auth/telegram"', false)
+        ->assertDontSee('action="http://live.denagate.ir/auth/telegram"', false);
+
+    // The host-scoped workaround must not leak into subsequent URL generation.
+    expect(url('/after-live-request'))->toBe('http://live.denagate.ir/after-live-request');
+
+    $user = liveReseller(787878);
+
+    $this->post('http://live.denagate.ir/auth/telegram', ['init_data' => liveSignedData(787878)])
+        ->assertRedirect('https://live.denagate.ir/dashboard');
+
+    $this->get('http://live.denagate.ir/dashboard')
+        ->assertOk()
+        ->assertSee('action="https://live.denagate.ir/logout"', false)
+        ->assertDontSee('action="http://live.denagate.ir/logout"', false);
+
+    $this->get('http://live.denagate.ir/')
+        ->assertRedirect('https://live.denagate.ir/dashboard');
+
+    $this->post('http://live.denagate.ir/logout')
+        ->assertRedirect('https://live.denagate.ir/');
+
+    $this->assertGuest('web');
+});

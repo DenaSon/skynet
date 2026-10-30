@@ -37,3 +37,10 @@
 - When explicitly approved, set `DENAGATE_LIVE_ENABLED=true` and refresh cached config through the hosting platform. This enables both the host routes and the private `/live` command.
 - Set back to `false` for rollback; this does not change Sales Bot callbacks, orders, financial ledger or provider flags.
 - No independent direct-browser login is in scope.
+
+## HTTPS origin-scheme regression patch (2026-10-30)
+- **Observed production evidence:** `https://live.denagate.ir/` returned 200 over publicly valid TLS, but the Telegram login form action was rendered as `http://live.denagate.ir/auth/telegram`. Runflare forwards the TLS-terminated request over HTTP, and the web entry could consequently submit mixed-content HTTP.
+- Only `EnsureLiveEnabled` for the Live host forces HTTPS **URL generation** for form, redirect, and asset URLs while rendering its response. The URL generator is reset in `finally`; neither global `APP_URL` nor Admin/Sales routes, tokens, or webhook behavior are changed.
+- **Edge HTTP→HTTPS remains Runflare's responsibility** (observed 308 redirect). Do not add a Laravel HTTP redirect based on the untrusted upstream request scheme; this can cause a reverse-proxy redirect loop. Do not configure trust-all proxies.
+- Regression: emulate a trusted public HTTPS connection that arrives at Laravel with HTTP scheme, assert HTTPS form action and auth/dashboard/logout redirects, valid reseller sign-in and no forced-scheme leak. CI is not an actual Telegram client smoke.
+- After deploy, check `curl.exe -sS https://live.denagate.ir/` contains `action="https://live.denagate.ir/auth/telegram"` and send `/live` in the Sales Bot. Confirm a real reseller sees the dashboard. Keep the feature gate available for immediate rollback.
