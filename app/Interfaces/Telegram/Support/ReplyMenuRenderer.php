@@ -114,10 +114,8 @@ final class ReplyMenuRenderer
             }
         }
 
-        // A primary-menu HOME button would only reopen this same Admin screen.
-        // The original HOME label remains accepted by the dispatcher for stale keyboards.
-        $labels[] = ReplyMenuLabels::ACCOUNT;
-
+        // Keep account and home routes available for previously delivered buttons.
+        // Neither belongs in the compact Admin home keyboard.
         return $this->keyboard($labels);
     }
 

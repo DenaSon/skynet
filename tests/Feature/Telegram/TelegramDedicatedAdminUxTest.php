@@ -57,7 +57,7 @@ it('opens the actual Admin home from start, menu and legacy home callback withou
     expect($actor)->not->toBeNull();
 
     $labels = mb04Labels(app(ReplyMenuRenderer::class)->homeKeyboard($actor));
-    expect($labels)->toContain(ReplyMenuLabels::USERS, ReplyMenuLabels::ACCOUNT)
+    expect($labels)->toContain(ReplyMenuLabels::USERS)
         ->not->toContain(ReplyMenuLabels::BUY, ReplyMenuLabels::CATALOG, ReplyMenuLabels::SUBSCRIPTIONS,
             ReplyMenuLabels::INVITE, ReplyMenuLabels::HOME, ReplyMenuLabels::ROLES);
 });
@@ -93,7 +93,7 @@ it('shows only authorized real Admin operations for trusted roots and gates fina
 
     $keyboard = app(ReplyMenuRenderer::class)->homeKeyboard($actor);
     $labels = mb04Labels($keyboard);
-    expect($labels)->toContain(ReplyMenuLabels::USERS, ReplyMenuLabels::ROLES, ReplyMenuLabels::SALES_SECTION, ReplyMenuLabels::ACCOUNT)
+    expect($labels)->toContain(ReplyMenuLabels::USERS, ReplyMenuLabels::ROLES, ReplyMenuLabels::SALES_SECTION)
         ->toContain(ReplyMenuLabels::FINANCE_SECTION, ReplyMenuLabels::STATS)
         ->not->toContain(ReplyMenuLabels::TOPUPS, ReplyMenuLabels::RECEIPTS,
             ReplyMenuLabels::BUY, ReplyMenuLabels::SUBSCRIPTIONS, ReplyMenuLabels::HOME)
