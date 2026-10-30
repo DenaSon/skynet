@@ -274,7 +274,7 @@ final readonly class SalesPanelRequestUi
     private function status(array $row): string
     {
         $text = match ($row['status']) {
-            'approved' => '✅ درخواست شما تأیید شده است.',
+            'approved' => 'ℹ️ درخواست شما قبلاً تأیید شده است، اما دسترسی پنل فروش در حال حاضر فعال نیست. برای پیگیری با پشتیبانی تماس بگیرید.',
             'rejected' => '❌ درخواست شما تأیید نشده است. برای پیگیری با پشتیبانی تماس بگیرید.',
             default => '🕘 درخواست شما ثبت شد و در انتظار بررسی است.',
         };
