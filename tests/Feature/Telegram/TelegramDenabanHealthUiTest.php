@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Application\ReadAdminHealth;
+use App\Support\Health\OperationalProbe;
 use GuzzleHttp\Psr7\Request as NutgramRequest;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -200,7 +201,7 @@ it('renders resource and operational checks instead of the old about section and
         denabanHealthStore($batch, $name, 'ok', now()->toDateTimeString());
     }
 
-    foreach (\App\Support\Health\OperationalProbe::CHECKS as $name) {
+    foreach (OperationalProbe::CHECKS as $name) {
         DB::table('health_check_result_history_items')->insert([
             'batch' => $batch,
             'check_name' => 'ops_'.$name,
@@ -257,7 +258,7 @@ it('rejects complete-looking batches missing one operational check', function ()
         denabanHealthStore($batch, $name, 'ok', now()->toDateTimeString());
     }
 
-    foreach (array_slice(\App\Support\Health\OperationalProbe::CHECKS, 0, -1) as $name) {
+    foreach (array_slice(OperationalProbe::CHECKS, 0, -1) as $name) {
         denabanHealthStore($batch, 'ops_'.$name, 'ok', now()->toDateTimeString());
     }
 
