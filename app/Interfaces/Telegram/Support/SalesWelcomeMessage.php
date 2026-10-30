@@ -28,12 +28,20 @@ final class SalesWelcomeMessage
             $template = self::DEFAULT;
         }
 
-        // Operator-supplied content is plain text, never trusted Telegram HTML.
-        $escaped = TelegramUi::escape($template);
+        $name = trim((string) preg_replace('/[\\x00-\\x1F\\x7F\\x{202A}-\\x{202E}]+/u', ' ', $actor->name));
+        $name = TelegramUi::escape(mb_substr($name, 0, 100));
+        $role = $reseller ? '🧩 پنل فروش' : '👤 کاربر عادی';
 
-        return strtr($escaped, [
-            '{name}' => TelegramUi::escape($actor->name),
-            '{account_type}' => $reseller ? '🧩 پنل فروش' : '👤 کاربر عادی',
+        // Preserve the exact existing Telegram formatting until an operator
+        // explicitly replaces the default with custom plain-text content.
+        if ($template === self::DEFAULT) {
+            return '<b>🏠 DenaGate</b>'."\n\nخوش آمدید، ".$name
+                .".\nنوع حساب: <b>".$role.'</b>';
+        }
+
+        return strtr(TelegramUi::escape($template), [
+            '{name}' => $name,
+            '{account_type}' => $role,
         ]);
     }
 }
