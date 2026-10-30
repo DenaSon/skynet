@@ -1,0 +1,24 @@
+name: Verify DenaGate Live frontend assets (temporary)
+on:
+  push:
+    branches: [feature/denagate-live-light-ui-vazirmatn-20261030]
+permissions:
+  contents: read
+jobs:
+  vite-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install existing frontend dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Build Laravel Vite + Tailwind CSS
+        run: npm run build
+      - name: Verify compiled CSS references local font and light design tokens
+        run: |
+          grep -R -q 'vazirmatn-variable.woff2' public/build/assets/*.css
+          grep -R -q '#f6f8fa\|#F6F8FA' public/build/assets/*.css
+          test -s public/fonts/vazirmatn-variable.woff2
+          test -s public/fonts/OFL-Vazirmatn.txt
