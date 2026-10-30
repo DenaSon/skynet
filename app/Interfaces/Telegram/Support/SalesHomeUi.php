@@ -119,7 +119,7 @@ final readonly class SalesHomeUi
             $keyboard->addRow(InlineKeyboardButton::make('👤 حساب کاربری', callback_data: 'sales:account'));
         }
         if ($isReseller) {
-            $keyboard->addRow(InlineKeyboardButton::make('🧩 پلن‌ساز', callback_data: 'menu:builder'));
+            $keyboard->addRow(InlineKeyboardButton::make('🧩 پلن سفارشی', callback_data: 'menu:builder'));
             $keyboard->addRow(InlineKeyboardButton::make('📊 گزارش‌های من', callback_data: 'sales:report:30'));
         }
         if ($panelRequestLabel !== null) {
@@ -247,7 +247,8 @@ final readonly class SalesHomeUi
             ReplyMenuLabels::SALES_REPORTS => 'report',
             ReplyMenuLabels::HOME, '🏠 صفحه اصلی', '❌ انصراف', '/cancel' => 'home',
             ReplyMenuLabels::INVITE => 'invite',
-            ReplyMenuLabels::BUILDER, ReplyMenuLabels::LEGACY_BUILDER,
+            ReplyMenuLabels::BUILDER, ReplyMenuLabels::PREVIOUS_BUILDER,
+            ReplyMenuLabels::LEGACY_BUILDER,
             ReplyMenuLabels::OLD_BUILDER_PANEL => 'builder',
             ReplyMenuLabels::SALES_WALLET, ReplyMenuLabels::WALLET, ReplyMenuLabels::LEGACY_WALLET,
             ReplyMenuLabels::OLD_WALLET_PANEL, '💰 کیف پول', '💼 کیف پول' => 'wallet',
@@ -362,7 +363,7 @@ final readonly class SalesHomeUi
             }
         }
         if (in_array('reseller', $actor->roles, true)) {
-            $keyboard->addRow(InlineKeyboardButton::make('🧩 پلن‌ساز', callback_data: 'menu:builder'));
+            $keyboard->addRow(InlineKeyboardButton::make('🧩 پلن سفارشی', callback_data: 'menu:builder'));
             $keyboard->addRow(InlineKeyboardButton::make('📊 گزارش‌های من', callback_data: 'sales:report:30'));
         }
 
