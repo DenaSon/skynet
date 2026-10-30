@@ -53,7 +53,6 @@ final readonly class SalesPanelRequests
         return $this->wallets->hasAtLeast($userId, self::minimumWalletBalanceRials(), $lockForUpdate);
     }
 
-    /** @return array{id:int,status:string,first_name:string,last_name:string,mobile:string} */
     /**
      * Advisory CTA only. Submission still enforces the locked balance and role checks.
      * Uses the same ENV-backed minimum and confirmed wallet ledger as the real gate.
@@ -65,6 +64,7 @@ final readonly class SalesPanelRequests
             && $this->hasMinimumWalletBalance($userId);
     }
 
+    /** @return array{id:int,status:string,first_name:string,last_name:string,mobile:string} */
     public function submit(int $userId, string $firstName, string $lastName, string $mobile): array
     {
         $firstName = trim($firstName);
