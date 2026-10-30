@@ -79,7 +79,7 @@ it('uses a readable, locally licensed Persian light theme without disturbing Liv
         ->withSession(['denagate_live.user_id' => $user->id])
         ->get('https://live.denagate.ir/dashboard')
         ->assertOk()
-        ->assertSee('Vazirmatn')
+        ->assertSee('denagate-live')
         ->assertSee('/fonts/vazirmatn-variable.woff2')
         ->assertSee('bg-[#F6F8FA]')
         ->assertSee('دسترسی سریع پنل')
