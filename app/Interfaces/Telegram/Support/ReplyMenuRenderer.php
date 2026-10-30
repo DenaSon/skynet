@@ -90,6 +90,7 @@ final class ReplyMenuRenderer
 
             $labels[] = ReplyMenuLabels::FINANCE_SECTION;
             $labels[] = ReplyMenuLabels::STATS;
+            $labels[] = ReplyMenuLabels::SETTINGS;
         }
 
         if (! $actor->canManageRoles()) {
