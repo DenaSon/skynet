@@ -137,9 +137,9 @@
                             <button type="button" wire:click="backToPlans" class="mt-5 min-h-11 rounded-xl border border-[#E7ECEF] bg-white px-5 py-2.5 text-sm font-bold text-[#087F73]">خرید سرویس دیگر</button>
                         </section>
                     @elseif ($selectedPlan === null)
-                        @if ($planUnavailable || $quoteError)
+                        @if ($planUnavailable || $quoteError || $orderError)
                             <p role="alert" class="mb-5 rounded-2xl border border-[#F0E0C9] bg-[#FFF9F1] p-4 text-sm leading-7 text-[#845C23]">
-                                {{ $quoteError ?? 'این پلن در دسترس نیست. لطفاً یکی از پلن‌های موجود را انتخاب کنید.' }}
+                                {{ $quoteError ?? $orderError ?? 'این پلن در دسترس نیست. لطفاً یکی از پلن‌های موجود را انتخاب کنید.' }}
                             </p>
                         @endif
                         @if (count($catalogPresets) === 0 && count($catalogBuilders) === 0)
