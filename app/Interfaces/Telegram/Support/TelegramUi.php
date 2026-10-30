@@ -59,7 +59,11 @@ final class TelegramUi
         // a photo caption into a text message (HTTP 400); navigate with a new
         // text message instead. Do not mutate or erase the private QR.
         $callbackMessage = $bot->isCallbackQuery() ? $bot->callbackQuery()?->message : null;
-        if ($callbackMessage instanceof Message && $callbackMessage->photo !== null) {
+        if ($callbackMessage instanceof Message
+            && ($callbackMessage->photo !== null
+                || ($callbackMessage->rich_message !== null && $callbackMessage->reply_markup === null))) {
+            // Rich Home uses a persistent Reply Keyboard, not editable InlineMarkup.
+            // Callbacks embedded inside Rich content must open a new page.
             $bot->sendMessage(text: $text, reply_markup: $keyboard, parse_mode: $parseMode);
 
             return;
@@ -84,7 +88,11 @@ final class TelegramUi
         ?InlineKeyboardMarkup $keyboard = null,
     ): void {
         $callbackMessage = $bot->isCallbackQuery() ? $bot->callbackQuery()?->message : null;
-        if (! $bot->isCallbackQuery() || ($callbackMessage instanceof Message && $callbackMessage->photo !== null)) {
+        if (! $bot->isCallbackQuery()
+            || ($callbackMessage instanceof Message
+                && ($callbackMessage->photo !== null
+                    || ($callbackMessage->rich_message !== null && $callbackMessage->reply_markup === null)))) {
+            // A reply-keyboard Rich Home cannot be edited; send a fresh Rich page.
             $bot->sendRichMessage(rich_message: $richMessage, reply_markup: $keyboard);
 
             return;

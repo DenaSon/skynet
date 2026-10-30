@@ -80,22 +80,6 @@ final readonly class SalesHomeUi
         $panelRequestLabel = $this->panelRequestLabel($actor);
         $customWelcome = app(SalesWelcomeMessage::class)->customizedForActor($actor);
 
-        // Telegram Reply Keyboard is fixed below the input for Sales and resellers.
-        // Callback pages retain their existing inline actions.
-        if (! $bot->isCallbackQuery() || $showKeyboard) {
-            $bot->sendMessage(
-                text: $customWelcome === null
-                    ? app(SalesWelcomeMessage::class)->forActor($actor)
-                    : '⌨️ منوی دناگیت آماده است.',
-                parse_mode: 'HTML',
-                reply_markup: app(ReplyMenuRenderer::class)->salesKeyboard(
-                    $actor,
-                    app(SalesTrialUi::class)->visible($actor, (int) $telegramId),
-                    $panelRequestLabel === ReplyMenuLabels::SALES_PANEL_STATUS,
-                ),
-            );
-        }
-
         $hasWallet = $isReseller || in_array('member', $actor->roles, true);
         $walletLine = '';
         if ($hasWallet) {
@@ -130,13 +114,65 @@ final readonly class SalesHomeUi
         $keyboard->addRow(InlineKeyboardButton::make('💬 پشتیبانی', callback_data: 'sales:support'))
             ->addRow(InlineKeyboardButton::make('📋 همه پلن‌ها و قیمت‌ها', callback_data: 'menu:plan-catalog'));
 
-        $this->render($bot,
-            '<b>🏠 صفحه اصلی DenaGate</b>'
+        $homeText = '<b>🏠 صفحه اصلی DenaGate</b>'
             .($customWelcome === null ? '' : "\n\n".$customWelcome)
             ."\n\nنوع حساب: <b>".$this->salesRole($actor).'</b>'
-            .$walletLine,
-            $keyboard,
-        );
+            .$walletLine;
+
+        // A Rich Message can include its own interactive buttons AND the
+        // persistent reply keyboard. Keep the existing two-message native
+        // fallback only when Telegram rejects Rich delivery.
+        if (! $bot->isCallbackQuery() || $showKeyboard) {
+            $welcome = $customWelcome ?? 'خوش آمدید، '.$this->name($actor->name).'.';
+            $paragraphs = implode('', array_map(
+                static fn (string $line): string => '<p>'.($line === '' ? '&nbsp;' : $line).'</p>',
+                explode("\n", str_replace("\r", '', $welcome)),
+            ));
+
+            $richHtml = '<h4>🏠 صفحه اصلی DenaGate</h4>'.$paragraphs
+                .'<p>نوع حساب: <b>'.$this->salesRole($actor).'</b></p>'
+                .($walletLine === '' ? '' : '<p>'.trim($walletLine).'</p>');
+
+            foreach ($keyboard->inline_keyboard as $row) {
+                $richHtml .= '<tg-button-row>';
+                foreach ($row as $button) {
+                    $style = $button->style === ButtonStyle::SUCCESS ? ' style="success"'
+                        : ($button->style === ButtonStyle::PRIMARY ? ' style="primary"' : '');
+                    $richHtml .= '<tg-button type="callback_data"'.$style
+                        .' data="'.TelegramUi::escape((string) $button->callback_data).'">'
+                        .TelegramUi::escape($button->text).'</tg-button>';
+                }
+                $richHtml .= '</tg-button-row>';
+            }
+
+            try {
+                $bot->sendRichMessage(
+                    rich_message: new InputRichMessage(html: $richHtml, is_rtl: true),
+                    reply_markup: app(ReplyMenuRenderer::class)->salesKeyboard(
+                        $actor,
+                        app(SalesTrialUi::class)->visible($actor, (int) $telegramId),
+                        $panelRequestLabel === ReplyMenuLabels::SALES_PANEL_STATUS,
+                    ),
+                );
+
+                return;
+            } catch (TelegramException $exception) {
+                report($exception);
+                $bot->sendMessage(
+                    text: $customWelcome === null
+                        ? app(SalesWelcomeMessage::class)->forActor($actor)
+                        : '⌨️ منوی دناگیت آماده است.',
+                    parse_mode: 'HTML',
+                    reply_markup: app(ReplyMenuRenderer::class)->salesKeyboard(
+                        $actor,
+                        app(SalesTrialUi::class)->visible($actor, (int) $telegramId),
+                        $panelRequestLabel === ReplyMenuLabels::SALES_PANEL_STATUS,
+                    ),
+                );
+            }
+        }
+
+        $this->render($bot, $homeText, $keyboard);
     }
 
     /**

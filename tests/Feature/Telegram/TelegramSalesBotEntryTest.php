@@ -5,6 +5,7 @@ use App\Modules\Identity\Application\IssueTelegramLinkCode;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Referral\Application\GetReferralInvite;
+use GuzzleHttp\Psr7\Request;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -12,6 +13,7 @@ use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
+use SergiX44\Nutgram\Testing\FakeNutgram;
 use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
@@ -36,13 +38,23 @@ function sb01Bot(int $telegramId): Nutgram
     return $bot;
 }
 
+function sb01RichContains(Request $request, string $expected): bool
+{
+    $data = FakeNutgram::getActualData($request);
+    $rich = is_string($data['rich_message'] ?? null)
+        ? json_decode($data['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+        : ($data['rich_message'] ?? []);
+
+    return str_contains((string) ($rich['html'] ?? ''), $expected);
+}
+
 it('shows a real Sales-only home and account for linked members without commerce operations', function (): void {
     $user = User::factory()->create(['name' => 'Buyer']);
     TelegramAccount::query()->create(['user_id' => $user->id, 'telegram_user_id' => 771001]);
     $bot = sb01Bot(771001);
 
     $bot->hearText('/start')->reply()
-        ->assertReplyText("<b>🏠 DenaGate</b>\n\nخوش آمدید، Buyer.\nنوع حساب: <b>👤 کاربر عادی</b>");
+        ->assertRaw(static fn (Request $request): bool => sb01RichContains($request, 'خوش آمدید، Buyer.'), index: 0);
     $bot->hearText('/account')->reply()
         ->assertCalled('sendRichMessage');
     $bot->hearCallbackQueryData('sales:home')->reply()->assertCalled('editMessageText');
@@ -61,13 +73,9 @@ it('uses current roles without making Admin or legacy checkout routes available 
     TelegramAccount::query()->create(['user_id' => $user->id, 'telegram_user_id' => 771002]);
     $bot = sb01Bot(771002);
 
-    $bot->hearText('/start')->reply()->assertReplyText(
-        "<b>🏠 DenaGate</b>\n\nخوش آمدید، Dealer Ignored.\nنوع حساب: <b>🧩 پنل فروش</b>"
-    );
+    $bot->hearText('/start')->reply()->assertRaw(static fn (Request $request): bool => sb01RichContains($request, 'خوش آمدید، Dealer Ignored.') && sb01RichContains($request, '🧩 پنل فروش'), index: 0);
     $user->syncRoles(['member']);
-    $bot->hearText('/start')->reply()->assertReplyText(
-        "<b>🏠 DenaGate</b>\n\nخوش آمدید، Dealer Ignored.\nنوع حساب: <b>👤 کاربر عادی</b>"
-    );
+    $bot->hearText('/start')->reply()->assertRaw(static fn (Request $request): bool => sb01RichContains($request, 'خوش آمدید، Dealer Ignored.') && sb01RichContains($request, '👤 کاربر عادی'), index: 0);
 
     // MENU-01 exposes only the existing safe plan-list view via /buy.
     $bot->hearText('/buy')->reply()->assertReply('sendMessage', ['parse_mode' => 'HTML']);
@@ -84,8 +92,8 @@ it('uses current roles without making Admin or legacy checkout routes available 
 it('automatically enrolls a new private Sales buyer on /start even when global signup is disabled', function (): void {
     $bot = sb01Bot(771003);
     $bot->hearText('/start')->reply()
-        ->assertCalled('sendMessage', 2)
-        ->assertReplyText("<b>🏠 DenaGate</b>\n\nخوش آمدید، Sales Buyer.\nنوع حساب: <b>👤 کاربر عادی</b>");
+        ->assertCalled('sendRichMessage', 1)
+        ->assertRaw(static fn (Request $request): bool => sb01RichContains($request, 'خوش آمدید، Sales Buyer.') && sb01RichContains($request, '👤 کاربر عادی'), index: 0);
 
     $account = TelegramAccount::query()->where('telegram_user_id', 771003)->firstOrFail();
     expect($account->user->is_active)->toBeTrue()
@@ -99,8 +107,8 @@ it('automatically enrolls a new private Sales buyer on /start even when global s
         ->and(DB::table('billing_journals')->count())->toBe(0)
         ->and(DB::table('provisioning_operations')->count())->toBe(0);
 
-    $bot->hearText('/start')->reply()->assertCalled('sendMessage', 2);
-    $bot->hearText('/menu')->reply()->assertCalled('sendMessage', 2);
+    $bot->hearText('/start')->reply()->assertCalled('sendRichMessage', 1);
+    $bot->hearText('/menu')->reply()->assertCalled('sendRichMessage', 1);
     $bot->hearCallbackQueryData('sales:join')->reply()->assertCalled('editMessageText');
     expect(User::query()->count())->toBe(1)
         ->and(TelegramAccount::query()->count())->toBe(1)
@@ -111,9 +119,9 @@ it('automatically enrolls a new private Sales buyer on /start even when global s
 it('keeps Sales enrollment independent of Admin signup and isolates distinct Telegram IDs', function (): void {
     config()->set('telegram.public_signup_enabled', true);
     $first = sb01Bot(771004);
-    $first->hearText('/start')->reply()->assertCalled('sendMessage', 2);
+    $first->hearText('/start')->reply()->assertCalled('sendRichMessage', 1);
     $second = sb01Bot(771014);
-    $second->hearText('/start')->reply()->assertCalled('sendMessage', 2);
+    $second->hearText('/start')->reply()->assertCalled('sendRichMessage', 1);
 
     $ids = TelegramAccount::query()->orderBy('telegram_user_id')->pluck('user_id')->all();
     expect(User::query()->count())->toBe(2)
@@ -133,11 +141,11 @@ it('keeps referral attribution only for a new Telegram ID on its first Sales /st
     $code = app(GetReferralInvite::class)->handle($referrer->id)->code;
     $bot = sb01Bot(771034);
 
-    $bot->hearText('/start ref_'.$code)->reply()->assertCalled('sendMessage', 2);
+    $bot->hearText('/start ref_'.$code)->reply()->assertCalled('sendRichMessage', 1);
     $buyerId = (int) TelegramAccount::query()->where('telegram_user_id', 771034)->value('user_id');
     expect(DB::table('referrals')->where('invited_user_id', $buyerId)->value('referrer_user_id'))->toBe($referrer->id);
 
-    $bot->hearText('/start')->reply()->assertCalled('sendMessage', 2);
+    $bot->hearText('/start')->reply()->assertCalled('sendRichMessage', 1);
     expect(DB::table('referrals')->where('invited_user_id', $buyerId)->count())->toBe(1)
         ->and(TelegramAccount::query()->where('telegram_user_id', 771034)->count())->toBe(1);
     Http::assertNothingSent();
@@ -148,15 +156,15 @@ it('does not reattribute an existing invited account or allow a self-invitation'
     $referrer->assignRole('member');
     TelegramAccount::query()->create(['user_id' => $referrer->id, 'telegram_user_id' => 771055]);
     $firstCode = app(GetReferralInvite::class)->handle($referrer->id)->code;
-    sb01Bot(771055)->hearText('/start ref_'.$firstCode)->reply()->assertCalled('sendMessage', 2);
+    sb01Bot(771055)->hearText('/start ref_'.$firstCode)->reply()->assertCalled('sendRichMessage', 1);
     expect(DB::table('referrals')->count())->toBe(0);
 
     $other = User::factory()->create();
     $other->assignRole('member');
     $secondCode = app(GetReferralInvite::class)->handle($other->id)->code;
     $buyer = sb01Bot(771056);
-    $buyer->hearText('/start ref_'.$firstCode)->reply()->assertCalled('sendMessage', 2);
-    $buyer->hearText('/start ref_'.$secondCode)->reply()->assertCalled('sendMessage', 2);
+    $buyer->hearText('/start ref_'.$firstCode)->reply()->assertCalled('sendRichMessage', 1);
+    $buyer->hearText('/start ref_'.$secondCode)->reply()->assertCalled('sendRichMessage', 1);
     $buyerId = (int) TelegramAccount::query()->where('telegram_user_id', 771056)->value('user_id');
 
     expect(DB::table('referrals')->count())->toBe(1)
@@ -182,7 +190,7 @@ it('reuses single-use account links and never revives disabled linked accounts',
     $code = app(IssueTelegramLinkCode::class)->handle($user->id);
     $bot = sb01Bot(771005);
 
-    $bot->hearText('/link '.$code)->reply()->assertCalled('sendMessage', 2);
+    $bot->hearText('/link '.$code)->reply()->assertCalled('sendRichMessage', 1);
     expect(TelegramAccount::query()->where('telegram_user_id', 771005)->value('user_id'))->toBe($user->id);
 
     $bot->hearText('/link '.$code)->reply()

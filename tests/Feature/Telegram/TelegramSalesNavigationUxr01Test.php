@@ -95,18 +95,28 @@ it('shows persistent Sales keyboard on start while accepting old button labels',
     expect($encoded['keyboard'][0][0]['style'])->toBe('success')
         ->and($encoded['keyboard'][0][1]['style'])->toBe('primary');
 
-    $bot->hearText('/start')->reply()->assertCalled('sendMessage', 2)
+    $bot->hearText('/start')->reply()
+        ->assertCalled('sendRichMessage', 1)
+        ->assertCalled('sendMessage', 0)
         ->assertRaw(static function (Request $request): bool {
             $body = uxr01Payload($request);
+            $rich = is_string($body['rich_message'] ?? null)
+                ? json_decode($body['rich_message'], true, flags: JSON_THROW_ON_ERROR)
+                : ($body['rich_message'] ?? []);
+            $html = (string) ($rich['html'] ?? '');
 
             return ($body['reply_markup']['is_persistent'] ?? false) === true
                 && ($body['reply_markup']['keyboard'][0][0]['text'] ?? null) === ReplyMenuLabels::SALES_BUY
                 && ($body['reply_markup']['keyboard'][1][0]['text'] ?? null) === ReplyMenuLabels::SALES_WALLET
-                && ($body['reply_markup']['keyboard'][1][1]['text'] ?? null) === ReplyMenuLabels::SALES_ACCOUNT
-                && ($body['reply_markup']['keyboard'][2][0]['text'] ?? null) === ReplyMenuLabels::SALES_SUPPORT;
-        }, index: 0)
-        ->assertReply('sendMessage', ['parse_mode' => 'HTML'])
-        ->assertReplyText("<b>🏠 DenaGate</b>\n\nخوش آمدید، &lt;Buyer&gt; &amp; &quot;Name&quot;.\nنوع حساب: <b>👤 کاربر عادی</b>");
+                && str_contains($html, '&lt;Buyer&gt; &amp; &quot;Name&quot;')
+                && str_contains($html, 'type="callback_data"')
+                && str_contains($html, 'data="sales:buy"')
+                && str_contains($html, 'data="sales:wallet"')
+                && str_contains($html, 'data="sales:subs:list:0"')
+                && str_contains($html, 'data="sales:support"')
+                && ! str_contains($html, 'منوی دناگیت آماده است')
+                && ! array_key_exists('inline_keyboard', $body['reply_markup']);
+        }, index: 0);
     $bot->hearText(ReplyMenuLabels::SALES_ACCOUNT)->reply()->assertRaw(static function (Request $request): bool {
         $body = uxr01Payload($request);
 
@@ -134,8 +144,10 @@ it('routes every primary destination ahead of pending input and retires only Sal
         $reply = $bot->hearText($label)->reply();
         if (in_array($label, [ReplyMenuLabels::SALES_ACCOUNT, ReplyMenuLabels::SALES_SUPPORT], true)) {
             $reply->assertCalled('sendRichMessage')->assertCalled('sendMessage', 0);
+        } elseif (in_array($label, [ReplyMenuLabels::HOME, '/cancel'], true)) {
+            $reply->assertCalled('sendRichMessage', 1)->assertCalled('sendMessage', 0);
         } else {
-            $reply->assertCalled('sendMessage', in_array($label, [ReplyMenuLabels::HOME, '/cancel'], true) ? 2 : 1);
+            $reply->assertCalled('sendMessage', 1);
         }
         expect($builder->peek($user->id))->toBeNull()
             ->and(Cache::has($salesReceipt))->toBeFalse()
@@ -260,11 +272,11 @@ it('places My Credit on the second row for ordinary Sales members and accepts st
             && ($rows[2][1]['text'] ?? null) === ReplyMenuLabels::SALES_TUTORIAL
             && ($rows[3][0]['text'] ?? null) === ReplyMenuLabels::SALES_PANEL_REQUEST;
     }, index: 0)->assertRaw(static function (Request $request): bool {
-        $keyboard = uxr01Payload($request)['reply_markup']['inline_keyboard'] ?? [];
+        $html = uxr01RichHtml($request);
 
-        return ($keyboard[1][0]['text'] ?? null) === ReplyMenuLabels::SALES_WALLET
-            && ($keyboard[1][0]['callback_data'] ?? null) === 'sales:wallet';
-    }, index: 1);
+        return str_contains($html, 'data="sales:wallet"')
+            && str_contains($html, 'data="sales:buy"');
+    }, index: 0);
 
     $bot->hearText(ReplyMenuLabels::SALES_WALLET)->reply()->assertRaw(static function (Request $request): bool {
         $data = uxr01Payload($request);
@@ -482,8 +494,8 @@ it('keeps Home separate from purchase offers for all Sales home entry callbacks'
             return str_contains($data['text'], '🛒 پلن‌های آماده خرید');
         }, index: 1);
     $bot->hearText('/menu')->reply()->assertRaw(
-        static fn (Request $request): bool => str_contains(uxr01Payload($request)['text'], '🏠 صفحه اصلی DenaGate'),
-        index: 1,
+        static fn (Request $request): bool => str_contains(uxr01RichHtml($request), '🏠 صفحه اصلی DenaGate'),
+        index: 0,
     );
     Http::assertNothingSent();
 });
@@ -600,24 +612,23 @@ it('shows saved member and reseller welcome text in the interactive Home without
     $bot = uxr01Bot($user);
 
     $bot->hearText('/start')->reply()
-        ->assertCalled('sendMessage', 2)
+        ->assertCalled('sendRichMessage', 1)
+        ->assertCalled('sendMessage', 0)
         ->assertRaw(static function (Request $request): bool {
             $body = uxr01Payload($request);
+            $rich = is_string($body['rich_message'] ?? null)
+                ? json_decode($body['rich_message'], true, flags: JSON_THROW_ON_ERROR)
+                : ($body['rich_message'] ?? []);
+            $html = (string) ($rich['html'] ?? '');
 
-            return ($body['text'] ?? null) === '⌨️ منوی دناگیت آماده است.'
+            return str_contains($html, '👋 سلام &lt;Buyer&gt;؛ به دناگیت خوش آمدی &lt;member&gt;')
+                && str_contains($html, '🏠 صفحه اصلی DenaGate')
+                && str_contains($html, 'نوع حساب: <b>👤 کاربر عادی</b>')
+                && str_contains($html, 'اعتبار من:')
+                && str_contains($html, 'data="sales:buy"')
+                && ! str_contains($html, '<member>')
                 && ($body['reply_markup']['is_persistent'] ?? false) === true;
-        }, index: 0)
-        ->assertRaw(static function (Request $request): bool {
-            $body = uxr01Payload($request);
-            $text = (string) ($body['text'] ?? '');
-
-            return str_contains($text, '👋 سلام &lt;Buyer&gt;؛ به دناگیت خوش آمدی &lt;member&gt;')
-                && str_contains($text, '🏠 صفحه اصلی DenaGate')
-                && str_contains($text, 'نوع حساب: <b>👤 کاربر عادی</b>')
-                && str_contains($text, 'اعتبار من:')
-                && str_contains(json_encode($body['reply_markup'], JSON_THROW_ON_ERROR), 'sales:buy')
-                && ! str_contains($text, '<member>');
-        }, index: 1);
+        }, index: 0);
 
     $bot->hearCallbackQueryData('sales:home')->reply()->assertRaw(static function (Request $request): bool {
         $body = uxr01Payload($request);
@@ -629,13 +640,16 @@ it('shows saved member and reseller welcome text in the interactive Home without
 
     $bot->hearText('/start')->reply()->assertRaw(static function (Request $request): bool {
         $body = uxr01Payload($request);
-        $text = (string) ($body['text'] ?? '');
+        $rich = is_string($body['rich_message'] ?? null)
+            ? json_decode($body['rich_message'], true, flags: JSON_THROW_ON_ERROR)
+            : ($body['rich_message'] ?? []);
+        $html = (string) ($rich['html'] ?? '');
 
-        return str_contains($text, '🧩 خوش آمدی نماینده &lt;Buyer&gt; &lt;reseller&gt;')
-            && str_contains($text, 'نوع حساب: <b>🧩 پنل فروش</b>')
-            && str_contains(json_encode($body['reply_markup'], JSON_THROW_ON_ERROR), 'menu:builder')
-            && ! str_contains($text, 'به دناگیت خوش آمدی');
-    }, index: 1);
+        return str_contains($html, '🧩 خوش آمدی نماینده &lt;Buyer&gt; &lt;reseller&gt;')
+            && str_contains($html, 'نوع حساب: <b>🧩 پنل فروش</b>')
+            && str_contains($html, 'data="menu:builder"')
+            && ! str_contains($html, 'به دناگیت خوش آمدی');
+    }, index: 0);
 
     Http::assertNothingSent();
 });

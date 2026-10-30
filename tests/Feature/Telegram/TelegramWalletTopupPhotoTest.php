@@ -88,7 +88,7 @@ it('keeps top-up input distinct from purchase payment and does not accept foreig
     ]])->reply()->assertNoReply();
     expect(DB::table('billing_topup_photos')->count())->toBe(0);
 
-    $bot->hearText('/cancel')->reply()->assertCalled('sendMessage', 2);
+    $bot->hearText('/cancel')->reply()->assertCalled('sendRichMessage', 1);
     $bot->hearMessage(['message_id' => 201, 'photo' => [
         ['file_id' => 'cancelled-photo-id', 'file_unique_id' => 'cancelled-photo-uid', 'width' => 400, 'height' => 400],
     ]])->reply()->assertNoReply();
@@ -235,7 +235,7 @@ it('disarms topup intake on back and cancel and only creates a second request af
     $bot->hearMessage(['message_id' => 111, 'photo' => [
         ['file_id' => 'back-topup-photo', 'file_unique_id' => 'back-topup-unique', 'width' => 400, 'height' => 400],
     ]])->reply()->assertReplyText('برای ارسال عکس ابتدا دکمه «📷 ارسال رسید شارژ» را بزنید.');
-    $bot->hearText('/cancel')->reply()->assertCalled('sendMessage', 2);
+    $bot->hearText('/cancel')->reply()->assertCalled('sendRichMessage', 1);
     expect(Cache::has($key))->toBeFalse()
         ->and(DB::table('billing_topups')->count())->toBe(1);
     $bot->hearCallbackQueryData('sales:wallet:topup')->reply()->assertCalled('editMessageText');

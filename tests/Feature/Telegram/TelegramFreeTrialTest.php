@@ -114,7 +114,7 @@ it('cancels native contact intake and restores the native menu without accepting
     $member = $this->trialMember();
     $bot = trialUiBot();
     $bot->hearCallbackQueryData('sales:trial:contact')->reply();
-    $bot->hearText('/cancel')->reply()->assertCalled('sendMessage', 3);
+    $bot->hearText('/cancel')->reply()->assertCalled('sendMessage', 1)->assertCalled('sendRichMessage', 1);
     expect(Cache::get('telegram:sales:trial:'.$member->id))->toBeNull();
     $bot->hearCallbackQueryData('sales:trial:confirm:'.str_repeat('a', 32))->reply();
     expect(DB::table('trial_claims')->count())->toBe(0);
@@ -271,7 +271,7 @@ it('puts trial and tutorial in the persistent keyboard and removes their home an
         $markup = json_encode(trialUiPayload($request)['reply_markup']);
 
         return ! str_contains($markup, 'sales:trial') && ! str_contains($markup, 'sales:help:apps');
-    }, index: 1);
+    }, index: 0);
     $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(function (Request $request): bool {
         return ! str_contains(json_encode(trialUiPayload($request)['reply_markup']), 'sales:trial');
     }, index: 1);
