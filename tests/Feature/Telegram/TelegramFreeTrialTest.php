@@ -330,7 +330,7 @@ it('hides a used trial immediately on menu refresh for both terminal conditions 
         return ! isset($data['rich_message'])
             && str_contains((string) ($data['text'] ?? ''), 'تست به پایان رسیده است')
             && ! in_array('🧪 تست رایگان', $labels, true);
-    }, index: 0);
+    }, index: 1);
     expect(DB::table('trial_claims')->count())->toBe(1);
 })->with([true, false]);
 
