@@ -34,7 +34,9 @@ function tcp02Node(string $uuid = TCP02_NODE, string $ip = '1.1.1.1', bool $disa
     return [
         'uuid' => $uuid, 'name' => 'Test Node', 'address' => $ip, 'port' => 2222,
         'isDisabled' => $disabled, 'isConnected' => true,
-        'configProfile' => ['activeInbounds' => [TCP02_INBOUND]],
+        'configProfile' => ['activeInbounds' => [
+            ['uuid' => TCP02_INBOUND, 'port' => 443, 'tag' => 'VLESS-REALITY'],
+        ]],
     ];
 }
 
@@ -58,6 +60,38 @@ it('discovers UUID, current public IPv4 and direct service port live from RW onl
     ]);
     Http::assertSentCount(2);
     Http::assertSent(static fn ($r): bool => $r->method() === 'GET');
+});
+
+it('matches real RW activeInbound objects even when Host nodes membership is empty', function (): void {
+    $node = tcp02Node();
+    $node['configProfile']['activeInbounds'] = [
+        ['uuid' => TCP02_INBOUND, 'profileUuid' => '00000000-0000-0000-0000-000000000000',
+            'tag' => 'VLESS-REALITY', 'port' => 443],
+    ];
+
+    $host = tcp02Host();
+    $host['nodes'] = [];
+
+    tcp02Fake([$node], [$host]);
+    expect(app(NodeTcpProbe::class)->targets())->toBe([
+        TCP02_NODE => ['ip' => '1.1.1.1', 'port' => 443],
+    ]);
+});
+
+it('does not match an unassigned inbound UUID even if Host IP and port match', function (): void {
+    $host = tcp02Host();
+    $host['inbound']['configProfileInboundUuid'] = TCP02_SECOND;
+    tcp02Fake([tcp02Node()], [$host]);
+    expect(app(NodeTcpProbe::class)->targets())->toBe([]);
+});
+
+it('keeps compatibility with legacy string-format activeInbound UUIDs', function (): void {
+    $node = tcp02Node();
+    $node['configProfile']['activeInbounds'] = [TCP02_INBOUND];
+    tcp02Fake([$node], [tcp02Host()]);
+    expect(app(NodeTcpProbe::class)->targets())->toBe([
+        TCP02_NODE => ['ip' => '1.1.1.1', 'port' => 443],
+    ]);
 });
 
 it('follows a changed RW Node and matching Host IP without any ENV edit', function (): void {
