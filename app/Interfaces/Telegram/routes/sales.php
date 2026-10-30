@@ -7,6 +7,7 @@ use App\Interfaces\Telegram\Support\ResellerSalesReportUi;
 use App\Interfaces\Telegram\Support\ResellerServiceHealthUi;
 use App\Interfaces\Telegram\Support\SalesCheckoutUi;
 use App\Interfaces\Telegram\Support\SalesHomeUi;
+use App\Interfaces\Telegram\Support\SalesLiveEntry;
 use App\Interfaces\Telegram\Support\SalesPanelRequestUi;
 use App\Interfaces\Telegram\Support\SalesSubscriptionsUi;
 use App\Interfaces\Telegram\Support\SalesSupportUi;
@@ -31,6 +32,10 @@ $bot->onCommand('start', function (Nutgram $bot): void {
 
 $bot->onCommand('menu', function (Nutgram $bot): void {
     app(SalesHomeUi::class)->start($bot);
+});
+
+$bot->onCommand('live', function (Nutgram $bot): void {
+    app(SalesLiveEntry::class)->show($bot);
 });
 
 // MENU-01: native Telegram commands use the original authorized Sales presenter.
