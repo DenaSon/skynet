@@ -123,8 +123,23 @@
                             <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#E7F8F3] text-[#087F73]">
                                 <svg class="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>
                             </div>
-                            <h2 class="text-xl font-extrabold text-[#1B2935]">سفارش شما ثبت شد</h2>
-                            <p class="mt-2 text-sm leading-7 text-[#71818B]">سفارش در انتظار پرداخت است. هنوز مبلغی از اعتبار شما کسر نشده و سرویسی فعال نشده است.</p>
+                            @php
+                                $orderStatusText = match ($createdOrder->status) {
+                                    'pending_payment' => 'در انتظار پرداخت',
+                                    'paid' => 'پرداخت تأیید شده؛ در انتظار آماده‌سازی سرویس',
+                                    'fulfilled' => 'سرویس در سوابق ثبت شده است',
+                                    'needs_review' => 'در انتظار بررسی',
+                                    'failed' => 'نیازمند پیگیری',
+                                    default => 'وضعیت سفارش را بررسی کنید',
+                                };
+                            @endphp
+                            <h2 class="text-xl font-extrabold text-[#1B2935]">{{ $createdOrder->status === 'pending_payment' ? 'سفارش شما ثبت شد' : 'سفارش #'.$createdOrder->id }}</h2>
+                            <p class="mt-2 text-sm leading-7 text-[#71818B]">{{ $orderStatusText }}</p>
+                            @if ($createdOrder->status === 'pending_payment')
+                                <p class="mt-2 text-xs leading-7 text-[#71818B]">تا زمان تأیید پرداخت، مبلغی از اعتبار شما کسر نمی‌شود و سرویسی فعال نمی‌شود.</p>
+                            @elseif ($createdOrder->status === 'paid')
+                                <p class="mt-2 text-xs leading-7 text-[#71818B]">مبلغ پرداخت ثبت شده است؛ آماده‌سازی سرویس ممکن است زمان ببرد.</p>
+                            @endif
                             <div class="mt-6 space-y-3 rounded-2xl bg-[#F6F8FA] p-5 text-sm">
                                 <div class="flex flex-wrap justify-between gap-3"><span class="text-[#71818B]">شماره سفارش</span><span dir="ltr" class="font-bold text-[#1B2935]">#{{ $createdOrder->id }}</span></div>
                                 <div class="flex flex-wrap justify-between gap-3"><span class="text-[#71818B]">پلن</span><span class="font-bold text-[#1B2935]">{{ $createdOrder->productName }}</span></div>
@@ -133,14 +148,59 @@
                                 @endif
                                 <div class="flex flex-wrap justify-between gap-3 border-t border-[#E7ECEF] pt-3"><span class="text-[#71818B]">مبلغ سفارش</span><span class="font-extrabold text-[#087F73]" dir="ltr">{{ number_format(intdiv($createdOrder->totalPriceRials, 10)) }}{{ $createdOrder->totalPriceRials % 10 === 0 ? '' : '.'.($createdOrder->totalPriceRials % 10) }} تومان</span></div>
                             </div>
-                            <p class="mt-4 text-xs leading-7 text-[#71818B]">برای پرداخت می‌توانید از بخش سفارش‌های بات فروش استفاده کنید.</p>
+                            @if ($walletError)
+                                <p role="alert" class="mt-5 rounded-2xl border border-[#F0E0C9] bg-[#FFF9F1] p-4 text-sm leading-7 text-[#845C23]">{{ $walletError }}</p>
+                            @endif
+                            @if ($createdOrder->status === 'pending_payment')
+                                @if ($walletConfirmToken !== null && $walletConfirmAmountRials !== null && $walletConfirmBalanceRials !== null)
+                                    <div class="mt-5 rounded-2xl border border-[#CCEDE4] bg-[#F3FBF8] p-5">
+                                        <h3 class="text-base font-extrabold text-[#1B2935]">تأیید پرداخت از اعتبار</h3>
+                                        <div class="mt-4 flex flex-wrap justify-between gap-2 text-sm text-[#536C76]"><span>مبلغ برداشت</span><span dir="ltr" class="font-bold">{{ number_format(intdiv($walletConfirmAmountRials, 10)) }}{{ $walletConfirmAmountRials % 10 === 0 ? '' : '.'.($walletConfirmAmountRials % 10) }} تومان</span></div>
+                                        <div class="mt-3 flex flex-wrap justify-between gap-2 text-sm text-[#536C76]"><span>اعتبار فعلی</span><span dir="ltr">{{ number_format(intdiv($walletConfirmBalanceRials, 10)) }}{{ $walletConfirmBalanceRials % 10 === 0 ? '' : '.'.($walletConfirmBalanceRials % 10) }} تومان</span></div>
+                                        <div class="mt-3 flex flex-wrap justify-between gap-2 border-t border-[#CCEDE4] pt-3 text-sm font-bold text-[#1B2935]"><span>اعتبار پس از پرداخت</span><span dir="ltr">{{ number_format(intdiv($walletConfirmBalanceRials - $walletConfirmAmountRials, 10)) }}{{ ($walletConfirmBalanceRials - $walletConfirmAmountRials) % 10 === 0 ? '' : '.'.(($walletConfirmBalanceRials - $walletConfirmAmountRials) % 10) }} تومان</span></div>
+                                        <p class="mt-4 text-xs leading-7 text-[#536C76]">با تأیید، مبلغ بالا یک بار از اعتبار شما کسر می‌شود.</p>
+                                        <button type="button" wire:click="confirmWalletPayment" wire:loading.attr="disabled" wire:target="confirmWalletPayment"
+                                            class="mt-5 min-h-12 w-full rounded-xl bg-[#14B8A6] px-5 py-3 text-sm font-bold text-white disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-[#087F73]">تأیید و پرداخت</button>
+                                        <button type="button" wire:click="cancelWalletPayment" class="mt-3 min-h-11 w-full rounded-xl border border-[#D9E4E7] bg-white px-5 py-2 text-sm font-semibold text-[#536C76]">انصراف از پرداخت</button>
+                                    </div>
+                                @elseif (config('sales.wallet_settlement_enabled') === true)
+                                    <button type="button" wire:click="prepareWalletPayment" wire:loading.attr="disabled" wire:target="prepareWalletPayment"
+                                        class="mt-5 min-h-12 w-full rounded-xl bg-[#14B8A6] px-5 py-3 text-sm font-bold text-white disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-[#087F73]">پرداخت با اعتبار</button>
+                                @else
+                                    <p class="mt-4 text-xs leading-7 text-[#71818B]">پرداخت از اعتبار در حال حاضر در دسترس نیست. می‌توانید سفارش خود را در بات فروش پیگیری کنید.</p>
+                                @endif
+                            @endif
                             <button type="button" wire:click="backToPlans" class="mt-5 min-h-11 rounded-xl border border-[#E7ECEF] bg-white px-5 py-2.5 text-sm font-bold text-[#087F73]">خرید سرویس دیگر</button>
                         </section>
                     @elseif ($selectedPlan === null)
-                        @if ($planUnavailable || $quoteError || $orderError)
+                        @if ($planUnavailable || $quoteError || $orderError || $walletError)
                             <p role="alert" class="mb-5 rounded-2xl border border-[#F0E0C9] bg-[#FFF9F1] p-4 text-sm leading-7 text-[#845C23]">
-                                {{ $quoteError ?? $orderError ?? 'این پلن در دسترس نیست. لطفاً یکی از پلن‌های موجود را انتخاب کنید.' }}
+                                {{ $quoteError ?? $walletError ?? $orderError ?? 'این پلن در دسترس نیست. لطفاً یکی از پلن‌های موجود را انتخاب کنید.' }}
                             </p>
+                        @endif
+                        @if (count($recentOrders) > 0)
+                            <section class="mb-6 rounded-[24px] border border-[#E7ECEF] bg-white p-5 shadow-sm sm:p-6">
+                                <h2 class="text-base font-extrabold text-[#1B2935]">سفارش‌های اخیر من</h2>
+                                <p class="mt-2 text-xs leading-6 text-[#71818B]">برای مشاهده وضعیت یا ادامه پرداخت، سفارش خود را انتخاب کنید.</p>
+                                <div class="mt-4 divide-y divide-[#EFF2F4]">
+                                    @foreach ($recentOrders as $order)
+                                        <button type="button" wire:key="live-order-{{ $order->id }}" wire:click="openOrder({{ $order->id }})"
+                                            class="flex min-h-14 w-full items-center justify-between gap-3 py-3 text-right focus-visible:outline-2 focus-visible:outline-[#087F73]">
+                                            <span class="min-w-0">
+                                                <span class="block text-sm font-bold text-[#1B2935]">#{{ $order->id }} · {{ $order->productName }}</span>
+                                                <span class="mt-1 block text-xs text-[#71818B]">{{ match ($order->status) {
+                                                    'pending_payment' => 'در انتظار پرداخت',
+                                                    'paid' => 'پرداخت‌شده؛ در انتظار آماده‌سازی',
+                                                    'fulfilled' => 'ثبت فعال‌سازی در سوابق',
+                                                    'needs_review' => 'در انتظار بررسی',
+                                                    default => 'مشاهده وضعیت',
+                                                } }}</span>
+                                            </span>
+                                            <span class="shrink-0 text-xs font-bold text-[#087F73]">مشاهده ←</span>
+                                        </button>
+                                    @endforeach
+                                </div>
+                            </section>
                         @endif
                         @if (count($catalogPresets) === 0 && count($catalogBuilders) === 0)
                             <section class="rounded-[24px] border border-[#E7ECEF] bg-white px-6 py-10 text-center text-sm leading-8 text-[#71818B]">
