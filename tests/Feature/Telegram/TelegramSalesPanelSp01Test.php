@@ -332,6 +332,7 @@ it('shows the green panel request CTA on Wallet at the configured exact threshol
         return ! str_contains(json_encode(panel01Payload($request)['reply_markup'], JSON_THROW_ON_ERROR), 'sales:panel:request');
     }, index: 1);
 
+    Role::findOrCreate('reseller', 'web');
     $member->syncRoles(['reseller']);
     $bot->hearCallbackQueryData('sales:wallet:simple')->reply()->assertRaw(static function (Request $request): bool {
         return ! str_contains(json_encode(panel01Payload($request)['reply_markup'], JSON_THROW_ON_ERROR), 'sales:panel:request');
