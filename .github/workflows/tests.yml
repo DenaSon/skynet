@@ -108,6 +108,24 @@ jobs:
       - name: Execute tests
         run: php artisan test
 
+      - name: Verify Livewire production JavaScript bundle
+        if: matrix.php == '8.4'
+        run: |
+          npm install --ignore-scripts --no-fund --no-audit --package-lock=false
+          npm run build
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const manifest = JSON.parse(fs.readFileSync('public/build/manifest.json', 'utf8'));
+          const live = manifest['resources/js/live.js'];
+          if (!live || !live.isEntry || !live.file || !live.file.endsWith('.js')) {
+            throw new Error('Livewire Vite entry missing from production manifest');
+          }
+          const filename = 'public/build/' + live.file;
+          if (!fs.existsSync(filename) || fs.statSync(filename).size < 30000) {
+            throw new Error('Livewire runtime JavaScript bundle missing or unexpectedly empty');
+          }
+          NODE
+
   static-analysis:
     name: Static analysis
     runs-on: ubuntu-latest

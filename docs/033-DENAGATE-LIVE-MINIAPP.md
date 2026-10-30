@@ -66,3 +66,12 @@
 - Never display remote credentials, customer phone, provider identifiers, raw exception messages or any fake metric. Do not show any engineering, roadmap or phase-status text in customer-facing HTML; friendly empty/error states only.
 - Keep HMAC+CSRF+Sales Bot identity/session, host-scoped HTTPS and fresh reseller role guards intact; arbitrary Livewire input cannot select a buyer ID. Unknown report windows and invalid pagination cursors are ignored/normalized; all reads remain owner-scoped. Real Telegram acceptance and source CI are separate.
 - No schema migration, new external dependency, independent API, subscription mutation, renewal or top-up creation in this increment. Rollback by reverting only this read presenter/view and tests.
+
+
+## Livewire interaction regression — Vite runtime mitigation (2026-10-30)
+- **Reported live symptom after LIVE-3A:** reseller dashboard server-renders, but no `wire:click` tabs or purchase buttons react; ordinary HTML logout still works. This strongly suggests browser Livewire runtime failed to initialize, but no authenticated browser Network/Console or edge access log has yet confirmed a specific HTTP error.
+- Livewire 4's default `@livewireScripts` fetches a dynamically routed `/livewire-{hash}/livewire.js` asset, which can fail behind edge/Nginx routing even while HTML and static Vite CSS render. Avoid inventing a Runflare setting or weakening any security middleware.
+- Narrow mitigation: bundle the **existing installed Livewire 4 ESM runtime** in `resources/js/live.js` using existing Vite, switch only Live layout to `@livewireScriptConfig`, retain one Livewire-supplied Alpine instance. This removes dependency on the dynamically served JavaScript file while preserving the standard hashed **update** route, `EnsureLiveReseller`, CSRF, session, Telegram HMAC and feature flag.
+- CI must run a **real production Vite build** and require the `resources/js/live.js` bundle in the generated manifest, in addition to PHP 8.4, PHPStan, Pint, MySQL, and source regression.
+- **Acceptance is not CI alone:** open fresh Sales Bot `/live` in Telegram, test all four tabs + purchase catalog + quote, then verify Livewire POST to its hash-based `/update` path succeeds over HTTPS. If browser requests fail, investigate edge routing, cookies, redirects, and CSP using redacted status codes; do not blindly relax auth or proxy trust.
+- Rollback: revert the small runtime/layout/Vite and verification PR. No DB, financial, provider, bot or production environment changes authorized.
