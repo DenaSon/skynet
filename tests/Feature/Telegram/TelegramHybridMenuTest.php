@@ -116,7 +116,7 @@ it('shows normal admins only user management and protects against revocation', f
     $actor = app(ResolveTelegramActor::class)->handle(931005);
     $labels = hybridLabels(app(ReplyMenuRenderer::class)->adminKeyboard($actor));
     expect($labels)->toContain(ReplyMenuLabels::USERS, ReplyMenuLabels::ACCOUNT)
-        ->not->toContain(ReplyMenuLabels::HOME, ReplyMenuLabels::ROLES, ReplyMenuLabels::TOPUPS, ReplyMenuLabels::RECEIPTS);
+        ->not->toContain(ReplyMenuLabels::HOME, ReplyMenuLabels::ROLES, ReplyMenuLabels::SETTINGS, ReplyMenuLabels::TOPUPS, ReplyMenuLabels::RECEIPTS);
 
     $bot->hearText('/admin')->reply()
         ->assertReplyText("🛡️ مدیریت DenaGate\n\nبخش موردنظر را از منوی پایین انتخاب کنید.");
@@ -137,7 +137,7 @@ it('gates privileged reply buttons by trusted root and finance feature switches'
     $actor = app(ResolveTelegramActor::class)->handle(931006);
 
     $labels = hybridLabels(app(ReplyMenuRenderer::class)->adminKeyboard($actor));
-    expect($labels)->toContain(ReplyMenuLabels::ROLES, ReplyMenuLabels::SALES_SECTION)
+    expect($labels)->toContain(ReplyMenuLabels::ROLES, ReplyMenuLabels::SALES_SECTION, ReplyMenuLabels::SETTINGS)
         ->not->toContain(ReplyMenuLabels::FINANCE_SECTION, ReplyMenuLabels::TOPUPS, ReplyMenuLabels::RECEIPTS);
 
     $bot->hearText(ReplyMenuLabels::TOPUPS)->reply()
@@ -149,7 +149,7 @@ it('gates privileged reply buttons by trusted root and finance feature switches'
     expect($labels)->toContain(ReplyMenuLabels::FINANCE_SECTION)
         ->not->toContain(ReplyMenuLabels::TOPUPS, ReplyMenuLabels::RECEIPTS);
 
-    $bot->hearText(ReplyMenuLabels::ROLES)->reply()->assertCalled('sendMessage');
+    $bot->hearText(ReplyMenuLabels::SETTINGS)->reply()\n        ->assertReplyText('⚙️ تنظیمات'."\n\n".'متن خوشامدگویی موردنظر را برای ویرایش انتخاب کنید.');\n\n    $bot->hearText(ReplyMenuLabels::ROLES)->reply()->assertCalled('sendMessage');
 
     config()->set('super_admin.telegram_ids', ['931099', '931098']);
     $bot->hearText(ReplyMenuLabels::ROLES)->reply()
