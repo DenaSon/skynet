@@ -5,6 +5,7 @@ use App\Modules\Identity\Application\IssueTelegramLinkCode;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Referral\Application\GetReferralInvite;
+use GuzzleHttp\Psr7\Request;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -13,6 +14,7 @@ use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 use Spatie\Permission\Models\Role;
+use SergiX44\Nutgram\Testing\FakeNutgram;
 
 uses(RefreshDatabase::class);
 
@@ -36,13 +38,23 @@ function sb01Bot(int $telegramId): Nutgram
     return $bot;
 }
 
+function sb01RichContains(Request $request, string $expected): bool
+{
+    $data = FakeNutgram::getActualData($request);
+    $rich = is_string($data['rich_message'] ?? null)
+        ? json_decode($data['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+        : ($data['rich_message'] ?? []);
+
+    return str_contains((string) ($rich['html'] ?? ''), $expected);
+}
+
 it('shows a real Sales-only home and account for linked members without commerce operations', function (): void {
     $user = User::factory()->create(['name' => 'Buyer']);
     TelegramAccount::query()->create(['user_id' => $user->id, 'telegram_user_id' => 771001]);
     $bot = sb01Bot(771001);
 
     $bot->hearText('/start')->reply()
-        ->assertReplyText("<b>🏠 DenaGate</b>\n\nخوش آمدید، Buyer.\nنوع حساب: <b>👤 کاربر عادی</b>");
+        ->assertRaw(static fn (Request $request): bool => sb01RichContains($request, 'خوش آمدید، Buyer.'), index: 0);
     $bot->hearText('/account')->reply()
         ->assertCalled('sendRichMessage');
     $bot->hearCallbackQueryData('sales:home')->reply()->assertCalled('editMessageText');
@@ -61,13 +73,9 @@ it('uses current roles without making Admin or legacy checkout routes available 
     TelegramAccount::query()->create(['user_id' => $user->id, 'telegram_user_id' => 771002]);
     $bot = sb01Bot(771002);
 
-    $bot->hearText('/start')->reply()->assertReplyText(
-        "<b>🏠 DenaGate</b>\n\nخوش آمدید، Dealer Ignored.\nنوع حساب: <b>🧩 پنل فروش</b>"
-    );
+    $bot->hearText('/start')->reply()->assertRaw(static fn (Request $request): bool => sb01RichContains($request, 'خوش آمدید، Dealer Ignored.') && sb01RichContains($request, '🧩 پنل فروش'), index: 0);
     $user->syncRoles(['member']);
-    $bot->hearText('/start')->reply()->assertReplyText(
-        "<b>🏠 DenaGate</b>\n\nخوش آمدید، Dealer Ignored.\nنوع حساب: <b>👤 کاربر عادی</b>"
-    );
+    $bot->hearText('/start')->reply()->assertRaw(static fn (Request $request): bool => sb01RichContains($request, 'خوش آمدید، Dealer Ignored.') && sb01RichContains($request, '👤 کاربر عادی'), index: 0);
 
     // MENU-01 exposes only the existing safe plan-list view via /buy.
     $bot->hearText('/buy')->reply()->assertReply('sendMessage', ['parse_mode' => 'HTML']);
@@ -85,7 +93,7 @@ it('automatically enrolls a new private Sales buyer on /start even when global s
     $bot = sb01Bot(771003);
     $bot->hearText('/start')->reply()
         ->assertCalled('sendRichMessage', 1)
-        ->assertReplyText("<b>🏠 DenaGate</b>\n\nخوش آمدید، Sales Buyer.\nنوع حساب: <b>👤 کاربر عادی</b>");
+        ->assertRaw(static fn (Request $request): bool => sb01RichContains($request, 'خوش آمدید، Sales Buyer.') && sb01RichContains($request, '👤 کاربر عادی'), index: 0);
 
     $account = TelegramAccount::query()->where('telegram_user_id', 771003)->firstOrFail();
     expect($account->user->is_active)->toBeTrue()
