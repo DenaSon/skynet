@@ -256,6 +256,9 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:node3:preview';
     $expected['ADMIN'][] = 'callback:node3:apply:{token}';
     $expected['ADMIN'][] = 'callback:node3:cancel';
+    $expected['ADMIN'][] = 'callback:admin:welcome:show';
+    $expected['ADMIN'][] = 'callback:admin:welcome:edit:{kind}';
+    $expected['ADMIN'][] = 'callback:admin:welcome:cancel';
     $expected['SALES'][] = 'photo:*';
     $files = [
         'ADMIN' => 'app/Interfaces/Telegram/routes/admin.php',
