@@ -82,6 +82,7 @@ final class ReplyMenuHandler
                 return true;
 
             case ReplyMenuLabels::BUILDER:
+            case ReplyMenuLabels::PREVIOUS_BUILDER:
             case ReplyMenuLabels::LEGACY_BUILDER:
                 if (! in_array('reseller', $actor->roles, true)) {
                     $this->deny($bot, $actor);
