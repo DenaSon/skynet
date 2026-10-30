@@ -74,6 +74,10 @@ final readonly class AdminProviderOverviewUi
             callback_data: $simple ? 'menu:admin:servers' : 'servers:simple',
         ));
 
+        if ($bot->isCallbackQuery()) {
+            TelegramUi::answerCallback($bot);
+        }
+
         if (! $simple && $overview->state === 'available') {
             try {
                 TelegramUi::editRichText(
@@ -90,7 +94,6 @@ final readonly class AdminProviderOverviewUi
         }
 
         if ($bot->isCallbackQuery()) {
-            TelegramUi::answerCallback($bot);
             TelegramUi::editText($bot, $message, $keyboard);
 
             return;
