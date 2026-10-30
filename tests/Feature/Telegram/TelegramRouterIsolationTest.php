@@ -80,6 +80,10 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
 
     expect(count($matches))->toBe(111); // Immutable MB-01 baseline
 
+    // Opt-in Admin-only notification topic. No Sales or shared handlers.
+    $expected['ADMIN'][] = 'command:adminnotifications';
+    $expected['ADMIN'][] = 'callback:admin:notice-topic:show';
+    $expected['ADMIN'][] = 'callback:admin:notice-topic:enable';
     // SP-02: protected Sales Panel review queue, only on Admin.
     $expected['ADMIN'][] = 'command:panelrequests';
     $expected['ADMIN'][] = 'callback:sp:list:{page}';
