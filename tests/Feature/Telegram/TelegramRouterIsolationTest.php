@@ -102,6 +102,9 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:denaban:show';
     $expected['ADMIN'][] = 'callback:denaban:simple';
     $expected['ADMIN'][] = 'callback:denaban:notifications:{page}';
+    // HEALTH-UI-01: root-only stored health reads, never Sales routes.
+    $expected['ADMIN'][] = 'callback:denaban:health';
+    $expected['ADMIN'][] = 'callback:denaban:health:simple';
     // STAT-01: scoped Admin read-only statistics routes.
     $expected['ADMIN'][] = 'command:stats';
     // STAT-02: bounded Admin-only business reports.
