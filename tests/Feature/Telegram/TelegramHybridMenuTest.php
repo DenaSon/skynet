@@ -6,7 +6,9 @@ use App\Interfaces\Telegram\Support\ReplyMenuRenderer;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
+use App\Settings\SalesWelcomeSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
@@ -213,4 +215,27 @@ it('lets private users remove an old persistent keyboard after rollback', functi
 
     $bot->setCommonChat(Chat::make(-931011, ChatType::GROUP));
     $bot->hearText('/resetmenu')->reply()->assertNoReply();
+});
+
+it('persists every line of member and reseller welcome text through the real Admin text router', function (): void {
+    config()->set('super_admin.telegram_ids', ['931012', '931099']);
+    $root = User::factory()->create();
+    $root->syncRoles(['super-admin']);
+    $bot = hybridBot(931012, $root);
+
+    foreach ([
+        'member' => "🔥 اتصال به دنیای آزاد، با چند لمس ساده.\n\n✨ خط دوم خوشامدگویی\n👤 {name}",
+        'reseller' => "🧩 پنل فروش نمایندگان\n\n💚 تخفیف ویژه نماینده\n{account_type}",
+    ] as $kind => $welcome) {
+        // Exercise the real text route with an active editor draft, independently
+        // of Nutgram's callback fake state.
+        Cache::put('admin:sales-welcome:draft:931012', $kind, now()->addMinutes(10));
+
+        $bot->hearText($welcome)->reply()
+            ->assertReplyText('✅ متن خوشامدگویی ذخیره شد.');
+    }
+
+    $settings = app(SalesWelcomeSettings::class);
+    expect($settings->member)->toBe("🔥 اتصال به دنیای آزاد، با چند لمس ساده.\n\n✨ خط دوم خوشامدگویی\n👤 {name}")
+        ->and($settings->reseller)->toBe("🧩 پنل فروش نمایندگان\n\n💚 تخفیف ویژه نماینده\n{account_type}");
 });

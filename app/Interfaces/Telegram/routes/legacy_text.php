@@ -89,7 +89,9 @@ $bot->onText('{volume}', function (Nutgram $bot, string $volume): void {
         return;
     }
 
-    if (app(SettingsHandler::class)->text($bot, $volume)) {
+    // Nutgram's named onText capture can stop at the first newline.
+    // Only settings editing needs the complete multi-line Telegram message.
+    if (app(SettingsHandler::class)->text($bot, $bot->message()->text ?? $volume)) {
         return;
     }
 
