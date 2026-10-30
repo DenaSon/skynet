@@ -188,7 +188,7 @@ it('exposes only a private read-only Admin command and callback, never a Sales a
     $bot->hearText('/metrics')->reply()->assertCalled('sendRichMessage');
     $bot->hearCallbackQueryData('metrics:refresh')->reply()->assertCalled('editMessageText');
     met01AssertOnlyGets();
-    Http::assertSentCount(10);
+    Http::assertSentCount(12);
 });
 
 it('does not query the provider from a group or a non-root Telegram actor', function (): void {
