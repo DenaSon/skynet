@@ -175,7 +175,7 @@
                     @elseif ($selectedPlan === null)
                         @if ($planUnavailable || $quoteError || $orderError || $walletError)
                             <p role="alert" class="mb-5 rounded-2xl border border-[#F0E0C9] bg-[#FFF9F1] p-4 text-sm leading-7 text-[#845C23]">
-                                {{ $quoteError ?? $orderError ?? $walletError ?? 'این پلن در دسترس نیست. لطفاً یکی از پلن‌های موجود را انتخاب کنید.' }}
+                                {{ $quoteError ?? $walletError ?? $orderError ?? 'این پلن در دسترس نیست. لطفاً یکی از پلن‌های موجود را انتخاب کنید.' }}
                             </p>
                         @endif
                         @if (count($recentOrders) > 0)
