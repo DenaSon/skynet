@@ -1,0 +1,35 @@
+name: DenaGate Live minimal dependency lock (temporary)
+
+on:
+  push:
+    branches:
+      - feature/denagate-live-livewire-shell-20261030
+
+permissions:
+  contents: write
+
+jobs:
+  resolve:
+    if: "!contains(github.event.head_commit.message, 'minimal lockfile generated')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+      - name: Resolve Livewire without unrelated upgrades
+        run: composer update livewire/livewire --with-all-dependencies --minimal-changes --no-install --no-scripts --no-interaction --no-progress
+      - name: Validate lock
+        run: composer validate --no-check-publish
+      - name: Commit minimal dependency lock
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add composer.lock
+          git diff --cached --quiet && exit 0
+          git commit -m 'build(live): minimal lockfile generated'
+          git push origin HEAD:feature/denagate-live-livewire-shell-20261030
