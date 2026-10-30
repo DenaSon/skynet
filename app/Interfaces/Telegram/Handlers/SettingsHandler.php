@@ -8,6 +8,7 @@ use App\Interfaces\Telegram\Support\MenuRenderer;
 use App\Interfaces\Telegram\Support\PrivateTelegramUser;
 use App\Interfaces\Telegram\Support\TelegramUi;
 use App\Modules\Identity\Application\ResolveTelegramActor;
+use App\Modules\Identity\Application\TelegramActor;
 use App\Settings\SalesWelcomeSettings;
 use Illuminate\Support\Facades\Cache;
 use SergiX44\Nutgram\Nutgram;
@@ -141,7 +142,7 @@ final class SettingsHandler
         return true;
     }
 
-    private function actor(Nutgram $bot): ?\App\Modules\Identity\Application\TelegramActor
+    private function actor(Nutgram $bot): ?TelegramActor
     {
         $id = $this->privateUser->id($bot);
         if ($id === null) {
