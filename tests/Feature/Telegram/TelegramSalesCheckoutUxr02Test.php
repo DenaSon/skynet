@@ -322,7 +322,7 @@ it('shows one copyable bank payment page without arming purchase receipt intake'
     $data = uxr02Plan();
     $buyer = User::factory()->create();
     $bot = uxr02Bot(973101, $buyer);
-    $bot->hearText('/start')->reply()->assertCalled('sendMessage', 2);
+    $bot->hearText('/start')->reply()->assertCalled('sendRichMessage', 1);
     $bot->hearCallbackQueryData('catalog:detail:'.$data['plan'].':1')->reply()
         ->assertCalled('answerCallbackQuery')
         ->assertCalled('editMessageText')
@@ -416,7 +416,7 @@ it('keeps receipt input private, scoped to Sales, expiring and cancelable withou
     $bot->hearText('فیش نوشتم')->reply()->assertReplyText(
         'لطفاً عکس رسید را بفرستید، یا از «خانه» خارج شوید. برای ادامه بعدی، «سفارش‌های من» را باز کنید.'
     );
-    $bot->hearText('/cancel')->reply()->assertCalled('sendMessage', 2);
+    $bot->hearText('/cancel')->reply()->assertCalled('sendRichMessage', 1);
     expect(Cache::has($key))->toBeFalse()
         ->and(Cache::get('telegram:payphoto:'.$buyer->id))->toBe(999);
     $bot->hearCallbackQueryData('sales:checkout:view:'.$order)->reply()->assertCalled('editMessageText');
@@ -1031,7 +1031,7 @@ it('invalidates the wallet debit confirmation after /cancel or navigating to ord
     expect(Cache::has($pointer))->toBeTrue();
 
     if ($destination === 'cancel') {
-        $bot->hearText('/cancel')->reply()->assertCalled('sendMessage', 2);
+        $bot->hearText('/cancel')->reply()->assertCalled('sendRichMessage', 1);
     } else {
         $bot->hearCallbackQueryData('sales:checkout:orders')->reply()->assertCalled('editMessageText');
     }
