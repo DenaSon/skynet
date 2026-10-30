@@ -12,7 +12,6 @@ use App\Modules\Sales\Application\ConfigureRate;
 use App\Modules\Sales\Application\CreatePendingOrder;
 use App\Modules\Sales\Application\ManageResellerServiceLabels;
 use App\Modules\Sales\Application\SettleWalletOrder;
-use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -139,17 +138,30 @@ it('lists only a bounded reseller-owned service page and supports cursor reset',
     Http::assertNothingSent();
 });
 
-it('does not allow revoked or inactive users to read account metrics', function (): void {
+it('revokes dashboard access when a reseller loses the role', function (): void {
     $owner = liveReadUser(879004);
     PanelWalletFunding::credit($owner->id, 600_000);
+
     $this->actingAs($owner)->withSession(['denagate_live.user_id' => $owner->id])
         ->get('https://live.denagate.ir/dashboard')->assertOk();
 
     $owner->syncRoles(['member']);
-    $this->get('https://live.denagate.ir/dashboard')->assertForbidden();
 
-    $owner->assignRole('reseller');
+    $this->get('https://live.denagate.ir/dashboard')->assertForbidden();
+    $this->assertGuest('web');
+    Http::assertNothingSent();
+});
+
+it('denies an inactive reseller using a fresh authenticated session', function (): void {
+    $owner = liveReadUser(879005);
+    PanelWalletFunding::credit($owner->id, 600_000);
+
+    $this->actingAs($owner)->withSession(['denagate_live.user_id' => $owner->id])
+        ->get('https://live.denagate.ir/dashboard')->assertOk();
+
     $owner->forceFill(['is_active' => false])->save();
-    expect(fn () => Livewire::test(Dashboard::class))->toThrow(AuthorizationException::class);
+
+    $this->get('https://live.denagate.ir/dashboard')->assertForbidden();
+    $this->assertGuest('web');
     Http::assertNothingSent();
 });
