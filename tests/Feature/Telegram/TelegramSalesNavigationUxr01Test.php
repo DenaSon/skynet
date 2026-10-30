@@ -144,8 +144,10 @@ it('routes every primary destination ahead of pending input and retires only Sal
         $reply = $bot->hearText($label)->reply();
         if (in_array($label, [ReplyMenuLabels::SALES_ACCOUNT, ReplyMenuLabels::SALES_SUPPORT], true)) {
             $reply->assertCalled('sendRichMessage')->assertCalled('sendMessage', 0);
+        } elseif (in_array($label, [ReplyMenuLabels::HOME, '/cancel'], true)) {
+            $reply->assertCalled('sendRichMessage', 1)->assertCalled('sendMessage', 0);
         } else {
-            $reply->assertCalled('sendMessage', in_array($label, [ReplyMenuLabels::HOME, '/cancel'], true) ? 2 : 1);
+            $reply->assertCalled('sendMessage', 1);
         }
         expect($builder->peek($user->id))->toBeNull()
             ->and(Cache::has($salesReceipt))->toBeFalse()
