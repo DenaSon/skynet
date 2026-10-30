@@ -6,7 +6,6 @@ namespace App\Interfaces\Telegram\Handlers;
 
 use App\Interfaces\Telegram\Support\MenuRenderer;
 use App\Interfaces\Telegram\Support\PrivateTelegramUser;
-use App\Interfaces\Telegram\Support\SalesWelcomeMessage;
 use App\Interfaces\Telegram\Support\TelegramUi;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Settings\SalesWelcomeSettings;
