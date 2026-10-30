@@ -218,7 +218,7 @@ it('lets private users remove an old persistent keyboard after rollback', functi
 });
 
 it('persists every line of member and reseller welcome text through the real Admin text router', function (): void {
-    config()->set('super_admin.telegram_ids', ['931012']);
+    config()->set('super_admin.telegram_ids', ['931012', '931099']);
     $root = User::factory()->create();
     $root->syncRoles(['super-admin']);
     $bot = hybridBot(931012, $root);
