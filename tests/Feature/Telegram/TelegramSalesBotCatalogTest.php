@@ -106,7 +106,7 @@ it('presents only current published plans to the linked member with working home
     $member = User::factory()->create(['name' => 'Buyer']);
     $bot = sb02Bot(977010, $member);
 
-    $bot->hearText('/start')->reply()->assertCalled('sendMessage', 2);
+    $bot->hearText('/start')->reply()->assertCalled('sendRichMessage', 1);
     $bot->hearText('/catalog')->reply()->assertCalled('sendMessage')
         ->assertRaw(static function (Request $request) use ($publicId): bool {
             $body = FakeNutgram::getActualData($request);
@@ -140,7 +140,7 @@ it('shows reseller discounts once and safely previews custom builder volume and 
     $reseller->assignRole('reseller');
     $bot = sb02Bot(977011, $reseller);
 
-    $bot->hearText('/start')->reply()->assertCalled('sendMessage', 2);
+    $bot->hearText('/start')->reply()->assertCalled('sendRichMessage', 1);
     $bot->hearText('/catalog')->reply()->assertCalled('sendMessage')
         ->assertRaw(static function (Request $request) use ($presetId): bool {
             $body = FakeNutgram::getActualData($request);
@@ -257,7 +257,7 @@ it('clearly offers the Sales plan-selection path without claiming an unverified 
     $bot->hearText('/catalog')->reply()->assertReplyText(
         "📋 پلن‌ها و قیمت‌ها\nصفحه 1 از 1\n\nدر حال حاضر پلنی برای نمایش وجود ندارد."
     )->assertReply('sendMessage', ['parse_mode' => 'HTML']);
-    $bot->hearText('/start')->reply()->assertCalled('sendMessage', 2);
+    $bot->hearText('/start')->reply()->assertCalled('sendRichMessage', 1);
 
     expect(DB::table('sales_orders')->count())->toBe(0);
     Http::assertNothingSent();
@@ -481,7 +481,7 @@ it('shows real Sales main navigation and keeps bounded buyer-quoted ready plans 
     DB::table('sales_plans')->where('id', $ready[0])->update(['name' => '<Home> & offer']);
     $buyer = User::factory()->create();
     $bot = sb02Bot(977030, $buyer);
-    $bot->hearText('/start')->reply()->assertCalled('sendMessage', 2)
+    $bot->hearText('/start')->reply()->assertCalled('sendRichMessage', 1)
         ->assertRaw(static function (Request $request): bool {
             $body = FakeNutgram::getActualData($request);
             $encoded = json_encode($body, JSON_THROW_ON_ERROR);
