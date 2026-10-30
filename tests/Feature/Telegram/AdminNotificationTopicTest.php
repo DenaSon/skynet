@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Interfaces\Telegram\Processing\TelegramBotContacts;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -115,13 +116,13 @@ it('disables topic binding on Telegram chat relinking without erasing the contac
 
     // A different linked Telegram account should not inherit the old private topic.
     TelegramAccount::query()->where('user_id', $root->id)->update(['telegram_user_id' => 981002]);
-    $request = \Illuminate\Http\Request::create('/api/telegram/admin/webhook', 'POST', [
+    $request = Illuminate\Http\Request::create('/api/telegram/admin/webhook', 'POST', [
         'message' => [
             'from' => ['id' => 981002],
             'chat' => ['id' => 981002, 'type' => 'private'],
         ],
     ]);
-    app(\App\Interfaces\Telegram\Processing\TelegramBotContacts::class)->record($request, 'admin');
+    app(TelegramBotContacts::class)->record($request, 'admin');
 
     $row = DB::table('telegram_bot_contacts')->where('user_id', $root->id)->where('bot_key', 'admin')->first();
     expect((int) $row->chat_id)->toBe(981002)
