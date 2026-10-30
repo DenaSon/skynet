@@ -27,7 +27,7 @@ beforeEach(function (): void {
     $this->withoutVite();
     config()->set('denagate_live.enabled', true);
     config()->set('services.remnawave.squad_bindings_live_verified', true);
-    config()->set('super_admin.telegram_ids', ['944401']);
+    config()->set('super_admin.telegram_ids', ['944401', '944402']);
     Role::findOrCreate('super-admin', 'web');
     Role::findOrCreate('reseller', 'web');
     Role::findOrCreate('member', 'web');
