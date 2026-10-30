@@ -133,7 +133,7 @@
                                     default => 'وضعیت سفارش را بررسی کنید',
                                 };
                             @endphp
-                            <h2 class="text-xl font-extrabold text-[#1B2935]">سفارش #{{ $createdOrder->id }}</h2>
+                            <h2 class="text-xl font-extrabold text-[#1B2935]">{{ $createdOrder->status === 'pending_payment' ? 'سفارش شما ثبت شد' : 'سفارش #'.$createdOrder->id }}</h2>
                             <p class="mt-2 text-sm leading-7 text-[#71818B]">{{ $orderStatusText }}</p>
                             @if ($createdOrder->status === 'pending_payment')
                                 <p class="mt-2 text-xs leading-7 text-[#71818B]">تا زمان تأیید پرداخت، مبلغی از اعتبار شما کسر نمی‌شود و سرویسی فعال نمی‌شود.</p>
@@ -173,9 +173,9 @@
                             <button type="button" wire:click="backToPlans" class="mt-5 min-h-11 rounded-xl border border-[#E7ECEF] bg-white px-5 py-2.5 text-sm font-bold text-[#087F73]">خرید سرویس دیگر</button>
                         </section>
                     @elseif ($selectedPlan === null)
-                        @if ($planUnavailable || $quoteError || $orderError)
+                        @if ($planUnavailable || $quoteError || $orderError || $walletError)
                             <p role="alert" class="mb-5 rounded-2xl border border-[#F0E0C9] bg-[#FFF9F1] p-4 text-sm leading-7 text-[#845C23]">
-                                {{ $quoteError ?? $orderError ?? 'این پلن در دسترس نیست. لطفاً یکی از پلن‌های موجود را انتخاب کنید.' }}
+                                {{ $quoteError ?? $orderError ?? $walletError ?? 'این پلن در دسترس نیست. لطفاً یکی از پلن‌های موجود را انتخاب کنید.' }}
                             </p>
                         @endif
                         @if (count($recentOrders) > 0)
