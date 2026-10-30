@@ -17,6 +17,12 @@ use Illuminate\Support\Facades\Queue;
  */
 final class OperationalProbe
 {
+    public const CHECKS = [
+        'cpu', 'memory', 'network_api', 'telegram_api', 'queue_backlog',
+        'failed_jobs', 'notification_outbox', 'sales_fulfillment',
+        'subscription_jobs',
+    ];
+
     public const SUBSCRIPTION_HEARTBEAT = 'denagate:health:subscription-alerts:success';
 
     /** @return array{status:string,summary:string} */
