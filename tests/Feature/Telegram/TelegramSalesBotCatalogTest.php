@@ -486,14 +486,14 @@ it('shows real Sales main navigation and keeps bounded buyer-quoted ready plans 
             $body = FakeNutgram::getActualData($request);
             $encoded = json_encode($body, JSON_THROW_ON_ERROR);
 
-            return $body['parse_mode'] === 'HTML'
-                && str_contains($body['text'], '🏠 صفحه اصلی DenaGate')
-                && ! str_contains($body['text'], 'مبلغ:')
+            return isset($body['rich_message'])
+                && str_contains($encoded, '🏠 صفحه اصلی DenaGate')
+                && ! str_contains($encoded, 'مبلغ:')
                 && str_contains($encoded, 'sales:buy')
                 && str_contains($encoded, 'sales:subs:list:0')
                 && str_contains($encoded, 'sales:account')
                 && str_contains($encoded, 'sales:support');
-        }, index: 1);
+        }, index: 0);
 
     $bot->hearCallbackQueryData('sales:buy')->reply()
         ->assertCalled('answerCallbackQuery')->assertCalled('editMessageText')
