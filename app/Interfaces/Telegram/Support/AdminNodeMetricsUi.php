@@ -88,6 +88,10 @@ final readonly class AdminNodeMetricsUi
                 ."\n".'— آمار لحظه دریافت است؛ صفر با اطلاعات ناموجود تفاوت دارد.';
         }
 
+        if ($bot->isCallbackQuery()) {
+            TelegramUi::answerCallback($bot);
+        }
+
         if (! $simple && $snapshot['state'] === 'available') {
             try {
                 TelegramUi::editRichText(
@@ -104,7 +108,6 @@ final readonly class AdminNodeMetricsUi
         }
 
         if ($bot->isCallbackQuery()) {
-            TelegramUi::answerCallback($bot);
             TelegramUi::editText($bot, $message, $keyboard);
 
             return;
