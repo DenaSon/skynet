@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Support\Health\DenaGateOperationalCheck;
+use App\Support\Health\OperationalProbe;
 use Illuminate\Support\ServiceProvider;
 use Spatie\Health\Checks\Checks\DatabaseCheck;
 use Spatie\Health\Checks\Checks\QueueCheck;
@@ -38,11 +39,7 @@ class AppServiceProvider extends ServiceProvider
         }
 
         // Registered by unique stable names; no user-controlled input.
-        foreach ([
-            'cpu', 'memory', 'network_api', 'telegram_api', 'queue_backlog',
-            'failed_jobs', 'notification_outbox', 'sales_fulfillment',
-            'subscription_jobs',
-        ] as $probe) {
+        foreach (OperationalProbe::CHECKS as $probe) {
             $checks[] = DenaGateOperationalCheck::makeFor($probe);
         }
 
