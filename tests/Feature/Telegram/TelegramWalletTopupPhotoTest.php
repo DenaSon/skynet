@@ -16,6 +16,7 @@ use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 use SergiX44\Nutgram\Testing\FakeNutgram;
+use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
 
@@ -253,7 +254,7 @@ it('shows green in-content topup amounts, a single green add-credit action and a
     foreach ([false, true] as $reseller) {
         $buyer = User::factory()->create();
         if ($reseller) {
-            \Spatie\Permission\Models\Role::findOrCreate('reseller', 'web');
+            Role::findOrCreate('reseller', 'web');
             $buyer->syncRoles(['reseller']);
         }
         $bot = wallet02Bot($reseller ? 985184 : 985183, $buyer);
