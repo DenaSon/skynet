@@ -12,13 +12,18 @@ use App\Modules\Sales\Application\CalculatePlanQuote;
 use App\Modules\Sales\Application\ListQuotedPresets;
 use App\Modules\Sales\Application\ListResellerBuilders;
 use App\Modules\Sales\Application\ManageResellerServiceLabels;
+use App\Modules\Sales\Application\PlanPriceQuote;
 use App\Modules\Sales\Application\PlanSummary;
+use App\Modules\Sales\Application\RegisterPendingResellerOrder;
+use App\Modules\Sales\Application\OrderReader;
+use App\Modules\Sales\Application\ManageResellerServiceLabels;
 use App\Modules\Sales\Application\ReadResellerSalesReport;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Throwable;
 
@@ -41,6 +46,19 @@ final class Dashboard extends Component
     public bool $quoteRequested = false;
 
     public bool $planUnavailable = false;
+
+    public string $customerUsername = '';
+
+    public ?string $orderError = null;
+
+    #[Locked]
+    public ?string $confirmedQuoteHash = null;
+
+    #[Locked]
+    public ?string $orderIntentKey = null;
+
+    #[Locked]
+    public ?int $createdOrderId = null;
 
     private const SECTIONS = ['overview', 'services', 'credit', 'reports', 'shop'];
 
@@ -106,8 +124,65 @@ final class Dashboard extends Component
 
     public function previewQuote(): void
     {
-        $this->resellerId();
+        $buyerId = $this->resellerId();
+        if ($this->createdOrderId !== null) {
+            return;
+        }
+
         $this->quoteRequested = true;
+        $this->confirmedQuoteHash = null;
+        $this->orderIntentKey = null;
+        $this->orderError = null;
+
+        if ($this->selectedPlanId === null) {
+            return;
+        }
+
+        try {
+            $quote = $this->selectedQuote($buyerId);
+            $this->confirmedQuoteHash = self::quoteHash($quote);
+            $this->orderIntentKey = bin2hex(random_bytes(16));
+        } catch (ValidationException) {
+            // The current read-only render displays the contextual quote error.
+        }
+    }
+
+    /** Explicit customer-confirmed order creation; payment is always separate. */
+    public function confirmOrder(): void
+    {
+        $buyerId = $this->resellerId();
+        if ($this->createdOrderId !== null) {
+            return;
+        }
+
+        $this->orderError = null;
+        if ($this->section !== 'shop' || $this->confirmedQuoteHash === null
+            || $this->orderIntentKey === null || $this->selectedPlanId === null) {
+            $this->orderError = 'ابتدا پیش‌فاکتور را بررسی و تأیید کنید.';
+
+            return;
+        }
+
+        try {
+            $quote = $this->selectedQuote($buyerId);
+            if (! hash_equals($this->confirmedQuoteHash, self::quoteHash($quote))) {
+                throw ValidationException::withMessages(['quote' => 'Quote changed.']);
+            }
+
+            $order = app(RegisterPendingResellerOrder::class)->handle(
+                $buyerId, $quote, $this->orderIntentKey, $this->customerUsername,
+            );
+            $this->createdOrderId = $order->id;
+        } catch (ValidationException $exception) {
+            if (isset($exception->errors()['label'])) {
+                $this->orderError = 'نام کاربری مشتری را در یک خط و حداکثر ۶۰ نویسه وارد کنید.';
+            } else {
+                $this->orderError = 'ثبت سفارش امکان‌پذیر نیست. مشخصات و قیمت را دوباره بررسی کنید.';
+                $this->confirmedQuoteHash = null;
+                $this->orderIntentKey = null;
+                $this->quoteRequested = false;
+            }
+        }
     }
 
     public function backToPlans(): void
@@ -123,6 +198,11 @@ final class Dashboard extends Component
         $this->gbInput = '';
         $this->quoteRequested = false;
         $this->planUnavailable = false;
+        $this->customerUsername = '';
+        $this->orderError = null;
+        $this->confirmedQuoteHash = null;
+        $this->orderIntentKey = null;
+        $this->createdOrderId = null;
     }
 
     private function resellerId(): int
@@ -138,6 +218,35 @@ final class Dashboard extends Component
     private static function positiveNumber(string $value): ?int
     {
         return preg_match('/\\A[1-9][0-9]{0,3}\\z/D', $value) === 1 ? (int) $value : null;
+    }
+
+    /** Recheck catalog visibility and the actual published price on every confirmation. */
+    private function selectedQuote(int $buyerId): PlanPriceQuote
+    {
+        if ($this->selectedPlanId === null || $this->selectedPlanId < 1) {
+            throw ValidationException::withMessages(['plan' => 'No selected plan.']);
+        }
+
+        try {
+            $plan = app(ListQuotedPresets::class)->find($buyerId, $this->selectedPlanId)->plan;
+        } catch (ValidationException) {
+            $plan = app(ListResellerBuilders::class)->find($buyerId, $this->selectedPlanId);
+        }
+
+        $days = self::positiveNumber($this->daysInput);
+        $gb = $plan->kind === 'time' ? null : self::positiveNumber($this->gbInput);
+
+        if ($days === null || ($plan->kind === 'time' && $this->gbInput !== '')
+            || ($plan->kind !== 'time' && $gb === null)) {
+            throw ValidationException::withMessages(['quantity' => 'Invalid duration or traffic.']);
+        }
+
+        return app(CalculatePlanQuote::class)->handle($buyerId, $plan->id, $days, $gb);
+    }
+
+    private static function quoteHash(PlanPriceQuote $quote): string
+    {
+        return hash('sha256', json_encode(get_object_vars($quote), JSON_THROW_ON_ERROR));
     }
 
     public function render(): View
@@ -158,10 +267,16 @@ final class Dashboard extends Component
             'selectedPlan' => null,
             'planQuote' => null,
             'quoteError' => null,
+            'createdOrder' => null,
+            'createdCustomerName' => null,
         ];
 
         try {
-            if ($this->section === 'shop') {
+            if ($this->section === 'shop' && $this->createdOrderId !== null) {
+                $data['createdOrder'] = app(OrderReader::class)->findPlan($userId, $this->createdOrderId);
+                $data['createdCustomerName'] = app(ManageResellerServiceLabels::class)
+                    ->pendingName($userId, $this->createdOrderId);
+            } elseif ($this->section === 'shop') {
                 $presets = app(ListQuotedPresets::class)->handle($userId);
                 $builders = app(ListResellerBuilders::class)->handle($userId);
                 $data['catalogPresets'] = $presets;
@@ -198,9 +313,15 @@ final class Dashboard extends Component
                                 $data['quoteError'] = 'مقدار روز یا حجم معتبر نیست. لطفاً دوباره بررسی کنید.';
                             } else {
                                 try {
-                                    $data['planQuote'] = app(CalculatePlanQuote::class)->handle(
+                                    $quote = app(CalculatePlanQuote::class)->handle(
                                         $userId, $selected->id, $days, $gb,
                                     );
+                                    if ($this->confirmedQuoteHash !== null
+                                        && ! hash_equals($this->confirmedQuoteHash, self::quoteHash($quote))) {
+                                        $data['quoteError'] = 'مبلغ یا مشخصات تغییر کرده است. لطفاً دوباره پیش‌فاکتور بگیرید.';
+                                    } else {
+                                        $data['planQuote'] = $quote;
+                                    }
                                 } catch (ValidationException) {
                                     $data['quoteError'] = 'برای این انتخاب قیمت قابل ارائه نیست. مقادیر را تغییر دهید یا پلن دیگری انتخاب کنید.';
                                 }
