@@ -13,6 +13,7 @@ use App\Interfaces\Telegram\Support\AdminConfigProfilesUi;
 use App\Interfaces\Telegram\Support\AdminDashboardUi;
 use App\Interfaces\Telegram\Support\AdminFinanceWalletUi;
 use App\Interfaces\Telegram\Support\AdminFulfillmentUi;
+use App\Interfaces\Telegram\Support\AdminHealthUi;
 use App\Interfaces\Telegram\Support\AdminHostBatchUi;
 use App\Interfaces\Telegram\Support\AdminHostOperationsUi;
 use App\Interfaces\Telegram\Support\AdminHostsUi;
@@ -366,6 +367,14 @@ $bot->onCallbackQueryData('denaban:show', function (Nutgram $bot): void {
 });
 $bot->onCallbackQueryData('denaban:simple', function (Nutgram $bot): void {
     app(AdminCommandCenterUi::class)->show($bot, simple: true);
+});
+
+// HEALTH-UI-01: only private trusted Super Admins may read the persisted snapshot.
+$bot->onCallbackQueryData('denaban:health', function (Nutgram $bot): void {
+    app(AdminHealthUi::class)->show($bot);
+});
+$bot->onCallbackQueryData('denaban:health:simple', function (Nutgram $bot): void {
+    app(AdminHealthUi::class)->show($bot, simple: true);
 });
 
 // OPS-CMD-01A: private, read-only investigation of terminal notification deliveries.
