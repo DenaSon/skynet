@@ -10,6 +10,7 @@ use App\Modules\Provisioning\Application\ReadAdminProviderOverview;
 use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\ManagePlans;
 use App\Modules\Sales\Application\PlanDefinition;
+use GuzzleHttp\Psr7\Request;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -18,6 +19,7 @@ use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
+use SergiX44\Nutgram\Testing\FakeNutgram;
 
 uses(RefreshDatabase::class);
 
@@ -348,15 +350,14 @@ it('preserves old server inventory when optional P1 statistics fail', function (
     Http::assertSent(static fn ($request): bool => $request->method() === 'GET');
 });
 
-
 it('renders a safe Rich inventory with the original server-management callbacks and native fallback', function (): void {
     [$root, $bot] = mb05bRoot();
     mb05bFakeRead();
 
     $bot->hearText('/servers')->reply()
         ->assertCalled('sendRichMessage', 1)
-        ->assertRaw(static function (\GuzzleHttp\Psr7\Request $request): bool {
-            $data = \SergiX44\Nutgram\Testing\FakeNutgram::getActualData($request);
+        ->assertRaw(static function (Request $request): bool {
+            $data = FakeNutgram::getActualData($request);
             $rich = is_string($data['rich_message'] ?? null)
                 ? json_decode($data['rich_message'], true, flags: JSON_THROW_ON_ERROR)
                 : ($data['rich_message'] ?? []);
