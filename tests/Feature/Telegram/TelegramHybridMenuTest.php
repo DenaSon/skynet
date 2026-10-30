@@ -149,7 +149,7 @@ it('gates privileged reply buttons by trusted root and finance feature switches'
     expect($labels)->toContain(ReplyMenuLabels::FINANCE_SECTION)
         ->not->toContain(ReplyMenuLabels::TOPUPS, ReplyMenuLabels::RECEIPTS);
 
-    $bot->hearText(ReplyMenuLabels::SETTINGS)->reply()\n        ->assertReplyText('⚙️ تنظیمات'."\n\n".'متن خوشامدگویی موردنظر را برای ویرایش انتخاب کنید.');\n\n    $bot->hearText(ReplyMenuLabels::ROLES)->reply()->assertCalled('sendMessage');
+    $bot->hearText(ReplyMenuLabels::SETTINGS)->reply()\n        ->assertReplyText('<b>⚙️ تنظیمات</b>'."\n\n".'متن خوشامدگویی موردنظر را برای ویرایش انتخاب کنید.');\n\n    $bot->hearText(ReplyMenuLabels::ROLES)->reply()->assertCalled('sendMessage');
 
     config()->set('super_admin.telegram_ids', ['931099', '931098']);
     $bot->hearText(ReplyMenuLabels::ROLES)->reply()
