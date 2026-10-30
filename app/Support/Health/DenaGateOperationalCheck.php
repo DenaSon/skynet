@@ -17,7 +17,7 @@ final class DenaGateOperationalCheck extends Check
 {
     private string $probe = '';
 
-    public static function for(string $probe): self
+    public static function makeFor(string $probe): self
     {
         $check = new self;
         $check->probe = $probe;
