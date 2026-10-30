@@ -179,6 +179,16 @@ final readonly class AdminNodeMetricsUi
             $nodes .= '<p>برای مشاهده سایر نودها، فهرست مدیریت را باز کنید.</p>';
         }
 
+        $checks = '';
+        foreach (array_slice($snapshot['nodes'], 0, 10) as $node) {
+            if ($node['tcp']['checkedAt'] !== null && ! $node['disabled']) {
+                $checks .= '<p>'.TelegramUi::escape(self::safe($node['name'])).': '
+                    .self::tcpTime($node['tcp']['checkedAt']).'</p>';
+            }
+        }
+        $checkDetails = '<details><summary>🕒 زمان آخرین بررسی TCP</summary>'
+            .($checks === '' ? '<p>هنوز نتیجه‌ای ثبت نشده است.</p>' : $checks).'</details>';
+
         return '<h2>📊 مانیتورینگ سرورها</h2>'
             .'<h3>📈 مصرف کل شبکه</h3>'
             .'<table bordered striped compact>'
@@ -197,6 +207,7 @@ final readonly class AdminNodeMetricsUi
             .'<p>TCP از سرور دناگیت تا پورت تأییدشده اندازه‌گیری می‌شود؛ نه از اینترنت کاربران.</p>'
             .'<p>اطلاعات ناقص یا ناموجود، صفر محسوب نمی‌شوند.</p>'
             .'</details>'
+            .$checkDetails
             .'<footer>🕒 دریافت: '.TelegramUi::escape(PersianCalendar::localDateTime($snapshot['receivedAt']))
             .' (تهران)</footer>';
     }
@@ -212,6 +223,11 @@ final readonly class AdminNodeMetricsUi
         }
 
         return $value['status'] === 'failed' ? '🔴 بدون پاسخ' : '⚪ نامشخص';
+    }
+
+    private static function tcpTime(int $timestamp): string
+    {
+        return TelegramUi::escape(PersianCalendar::utcDateTime(gmdate('Y-m-d H:i:s', $timestamp)));
     }
 
     private static function counter(?int $value): string
