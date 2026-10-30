@@ -11,9 +11,9 @@ use App\Modules\Billing\Application\RequestTopup;
 use App\Modules\Billing\Application\ReviewTopup;
 use App\Modules\Billing\Application\SubmitTopupPhoto;
 use App\Modules\Billing\Application\ViewWallet;
-use App\Modules\Sales\Application\SalesPanelRequests;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
+use App\Modules\Sales\Application\SalesPanelRequests;
 use GuzzleHttp\Psr7\Request as PsrRequest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
@@ -206,7 +206,6 @@ it('records one Sales review result after Admin confirms; never before or on a r
         && str_contains((string) $request['reply_markup'], 'sales:wallet')
     );
 });
-
 
 it('adds the green panel application action only after a confirmed topup reaches the configured minimum', function (): void {
     config()->set('sales.panel_minimum_wallet_toman', '550000');
