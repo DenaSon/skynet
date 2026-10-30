@@ -115,6 +115,7 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'command:servers';
     // SRO-02 adds two guarded, read-only Admin callbacks without changing the MB-01 baseline.
     $expected['ADMIN'][] = 'callback:menu:admin:servers';
+    $expected['ADMIN'][] = 'callback:servers:simple';
     $expected['ADMIN'][] = 'callback:servers:refresh';
     // RW-04A adds three root-only read-only routes; immutable MB-01 baseline retained.
     $expected['ADMIN'][] = 'command:panelusers';
@@ -162,6 +163,7 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     // MET-01 adds only read-only private Super Admin routes.
     $expected['ADMIN'][] = 'command:metrics';
     $expected['ADMIN'][] = 'callback:metrics:refresh';
+    $expected['ADMIN'][] = 'callback:metrics:simple';
     // MET-02 keeps read-only history and node-user drilldown on Admin only.
     $expected['ADMIN'][] = 'command:traffic';
     $expected['ADMIN'][] = 'callback:metrics:range:{days}';
