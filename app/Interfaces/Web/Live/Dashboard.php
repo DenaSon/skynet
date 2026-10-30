@@ -30,7 +30,7 @@ final class Dashboard extends Component
     public function render(): View
     {
         return view('live.dashboard', [
-            'name' => Auth::user()?->name ?? 'نماینده',
+            'name' => Auth::user()->name,
         ]);
     }
 }

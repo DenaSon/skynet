@@ -7,6 +7,7 @@
     <meta name="robots" content="noindex, nofollow">
     <title>DenaGate Live | پنل نمایندگی</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <style>[x-cloak] { display: none !important; }</style>
     @livewireStyles
 </head>
 <body class="min-h-dvh bg-[#0B1220] text-slate-100 antialiased" style="font-family:Tahoma,Arial,system-ui,sans-serif">

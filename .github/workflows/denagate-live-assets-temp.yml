@@ -1,0 +1,22 @@
+name: DenaGate Live frontend build (temporary)
+
+on:
+  push:
+    branches:
+      - feature/denagate-live-livewire-shell-20261030
+
+permissions:
+  contents: read
+
+jobs:
+  assets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install existing frontend dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Compile production Vite assets
+        run: npm run build
