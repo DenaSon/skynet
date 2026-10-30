@@ -21,17 +21,21 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        Health::checks([
+        $checks = [
             DatabaseCheck::new(),
-            RedisCheck::new()->if(
-                static fn (): bool => config('cache.default') === 'redis'
-                    || config('queue.default') === 'redis',
-            ),
             QueueCheck::new()->failWhenHealthJobTakesLongerThanMinutes(5),
             ScheduleCheck::new()->heartbeatMaxAgeInMinutes(2),
             UsedDiskSpaceCheck::new()
                 ->warnWhenUsedSpaceIsAbovePercentage(75)
                 ->failWhenUsedSpaceIsAbovePercentage(90),
-        ]);
+        ];
+
+        // Do not report skipped Redis probes as failures on SQLite/array/sync CI.
+        // Redis is a required dependency only when the configured cache or queue uses it.
+        if (config('cache.default') === 'redis' || config('queue.default') === 'redis') {
+            $checks[] = RedisCheck::new();
+        }
+
+        Health::checks($checks);
     }
 }
