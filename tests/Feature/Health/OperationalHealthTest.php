@@ -40,8 +40,7 @@ it('probes existing network API via a read-only mapped health endpoint', functio
         ->and($state['summary'])->toBe('1 instances');
 
     Http::assertSentCount(1);
-    Http::assertSent(static fn ($request): bool =>
-        $request->method() === 'GET'
+    Http::assertSent(static fn ($request): bool => $request->method() === 'GET'
         && str_ends_with($request->url(), '/api/system/health'));
 });
 
