@@ -256,7 +256,7 @@ it('does not allow bypassing preview, cancellation, forged plans or revoked rese
 
     $page->call('selectPlan', $plan)->call('previewQuote')
         ->set('selectedPlanId', $plan + 1234)
-        ->call('confirmOrder')->assertSee('ثبت سفارش امکان‌پذیر نیست');
+        ->call('confirmOrder')->assertSee('این پلن دیگر قابل ارائه نیست');
 
     expect(DB::table('sales_orders')->count())->toBe(0);
 
