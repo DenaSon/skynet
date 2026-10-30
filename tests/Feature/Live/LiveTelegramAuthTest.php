@@ -169,7 +169,7 @@ it('generates HTTPS Mini App form and redirects when Runflare forwards an HTTP-o
         ->assertRedirect('https://live.denagate.ir/dashboard');
 
     $this->post('http://live.denagate.ir/logout')
-        ->assertRedirect('https://live.denagate.ir/');
+        ->assertRedirect('https://live.denagate.ir');
 
     $this->assertGuest('web');
 });
