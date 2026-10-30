@@ -59,6 +59,11 @@ final readonly class AdminCommandCenterUi
         $keyboard = InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('🔄 بررسی دوباره', callback_data: 'denaban:show'));
 
+        // HEALTH-UI-01: source is the last stored Spatie batch, never a live check.
+        $keyboard->addRow(InlineKeyboardButton::make(
+            '🩺 سلامت سیستم', callback_data: 'denaban:health',
+        ));
+
         if ($failures !== null && $failures > 0) {
             $keyboard->addRow(InlineKeyboardButton::make(
                 '🔔 بررسی اعلان‌های ناموفق ('.number_format($failures).')',
