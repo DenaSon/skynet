@@ -86,7 +86,7 @@ it('routes an Admin reviewer alert to one explicitly configured private topic', 
 });
 
 it('does not route admin notices to topics for non-target or invalid configuration', function (): void {
-    $case = sp02Case();
+    sp02Case();
     $delivery = DB::table('telegram_notification_deliveries')->first();
 
     config()->set('telegram_notifications.admin_topic', [
