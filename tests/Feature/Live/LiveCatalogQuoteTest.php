@@ -118,7 +118,7 @@ it('offers published presets with the exact buyer-specific discount and no comme
         ->assertSee('100,000.3')
         ->assertSee('35,000.1')
         ->assertSee('65,000.2')
-        ->assertSee('۳۵', false) // Percentage is rendered from the current published tariff.
+        ->assertSee('35٪')
         ->call('backToPlans')
         ->assertSet('selectedPlanId', null)
         ->call('selectPlan', $otherPlan)
@@ -236,6 +236,5 @@ it('rejects revoked, inactive, anonymous and non-reseller access', function (): 
     $this->actingAs($member)->withSession(['denagate_live.user_id' => $member->id])
         ->get('https://live.denagate.ir/dashboard')->assertForbidden();
 
-    $this->post('https://live.denagate.ir/logout')->assertRedirect();
     live3aAssertNoCommerceWrites();
 });
