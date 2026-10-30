@@ -405,6 +405,9 @@ $bot->onCommand('metrics', function (Nutgram $bot): void {
 $bot->onCallbackQueryData('metrics:refresh', function (Nutgram $bot): void {
     app(AdminNodeMetricsUi::class)->show($bot);
 });
+$bot->onCallbackQueryData('metrics:simple', function (Nutgram $bot): void {
+    app(AdminNodeMetricsUi::class)->show($bot, true);
+});
 
 // MET-02: bounded on-demand historical reads, never provider mutations.
 $bot->onCommand('traffic', function (Nutgram $bot): void {
@@ -426,6 +429,9 @@ $bot->onCommand('servers', function (Nutgram $bot): void {
 
 $bot->onCallbackQueryData('menu:admin:servers', function (Nutgram $bot): void {
     app(AdminProviderOverviewUi::class)->show($bot);
+});
+$bot->onCallbackQueryData('servers:simple', function (Nutgram $bot): void {
+    app(AdminProviderOverviewUi::class)->show($bot, true);
 });
 
 $bot->onCallbackQueryData('servers:refresh', function (Nutgram $bot): void {
