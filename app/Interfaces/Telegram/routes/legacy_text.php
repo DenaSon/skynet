@@ -1,6 +1,6 @@
 <?php
 
-use App\Interfaces\Telegram\Handlers\ReplyMenuHandler;
+use App\Interfaces\Telegram\Handlers\ReplyMenuHandler;\nuse App\Interfaces\Telegram\Handlers\SettingsHandler;
 use App\Interfaces\Telegram\Support\AdminAccountingUi;
 use App\Interfaces\Telegram\Support\AdminCloudflareDnsUi;
 use App\Interfaces\Telegram\Support\AdminConfigProfileOperationsUi;
@@ -88,5 +88,5 @@ $bot->onText('{volume}', function (Nutgram $bot, string $volume): void {
         return;
     }
 
-    app(ShopUi::class)->customText($bot, $volume);
+    if (app(SettingsHandler::class)->text($bot, $volume)) {\n        return;\n    }\n\n    app(ShopUi::class)->customText($bot, $volume);
 });
