@@ -159,8 +159,6 @@ final class MenuRenderer
             $keyboard->addRow(InlineKeyboardButton::make('🔔 اعلان‌های من', callback_data: 'admin:notice-topic:show'));
         }
 
-        $keyboard->addRow(InlineKeyboardButton::make('👤 حساب من', callback_data: 'menu:account'));
-
         $this->render($bot, "🛡️ مدیریت DenaGate\n\nبخش موردنظر را انتخاب کنید.", $keyboard);
     }
 
