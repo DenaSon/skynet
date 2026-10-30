@@ -270,11 +270,11 @@ it('places My Credit on the second row for ordinary Sales members and accepts st
             && ($rows[2][1]['text'] ?? null) === ReplyMenuLabels::SALES_TUTORIAL
             && ($rows[3][0]['text'] ?? null) === ReplyMenuLabels::SALES_PANEL_REQUEST;
     }, index: 0)->assertRaw(static function (Request $request): bool {
-        $keyboard = uxr01Payload($request)['reply_markup']['inline_keyboard'] ?? [];
+        $html = uxr01RichHtml($request);
 
-        return ($keyboard[1][0]['text'] ?? null) === ReplyMenuLabels::SALES_WALLET
-            && ($keyboard[1][0]['callback_data'] ?? null) === 'sales:wallet';
-    }, index: 1);
+        return str_contains($html, 'data="sales:wallet"')
+            && str_contains($html, 'data="sales:buy"');
+    }, index: 0);
 
     $bot->hearText(ReplyMenuLabels::SALES_WALLET)->reply()->assertRaw(static function (Request $request): bool {
         $data = uxr01Payload($request);
