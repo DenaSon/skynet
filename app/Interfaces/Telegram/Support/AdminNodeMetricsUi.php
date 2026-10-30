@@ -10,8 +10,8 @@ use App\Modules\Provisioning\Application\ReadAdminTrafficReport;
 use App\Support\PersianCalendar;
 use DateTimeImmutable;
 use DateTimeZone;
-use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
@@ -118,7 +118,7 @@ final readonly class AdminNodeMetricsUi
      * Show no total unless every UTC day in its period exists; never fabricate
      * zero consumption for an omitted day or overflow an integer accumulator.
      *
-     * @param array{state:string,days:int,start:string,end:string,trend:list<array{date:string,total:int}>,nodes:list<array{uuid:string,name:string,total:int|null}>,receivedAt:string|null} $report
+     * @param  array{state:string,days:int,start:string,end:string,trend:list<array{date:string,total:int}>,nodes:list<array{uuid:string,name:string,total:int|null}>,receivedAt:string|null}  $report
      * @return array{seven:int|null,thirty:int|null}
      */
     private static function periodTotals(array $report): array
@@ -155,8 +155,8 @@ final readonly class AdminNodeMetricsUi
     }
 
     /**
-     * @param array{state:string,nodes:list<array{name:string,connected:bool,disabled:bool,online:int|null}>,total:int,connected:int,enabled:int,onlineTotal:int|null,todayBytes:int|null,weekBytes:int|null,trafficDate:string,receivedAt:string|null} $snapshot
-     * @param array{seven:int|null,thirty:int|null} $totals
+     * @param  array{state:string,nodes:list<array{name:string,connected:bool,disabled:bool,online:int|null}>,total:int,connected:int,enabled:int,onlineTotal:int|null,todayBytes:int|null,weekBytes:int|null,trafficDate:string,receivedAt:string|null}  $snapshot
+     * @param  array{seven:int|null,thirty:int|null}  $totals
      */
     private static function richReport(array $snapshot, array $totals): string
     {
