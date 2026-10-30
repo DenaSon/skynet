@@ -487,7 +487,7 @@ it('shows real Sales main navigation and keeps bounded buyer-quoted ready plans 
             $encoded = json_encode($body, JSON_THROW_ON_ERROR);
 
             return isset($body['rich_message'])
-                && str_contains($encoded, '🏠 صفحه اصلی DenaGate')
+                && str_contains(sb02RichHtml($request), '🏠 صفحه اصلی DenaGate')
                 && ! str_contains($encoded, 'مبلغ:')
                 && str_contains($encoded, 'sales:buy')
                 && str_contains($encoded, 'sales:subs:list:0')
