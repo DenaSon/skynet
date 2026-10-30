@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
+use App\Interfaces\Web\Live\Dashboard;
 use App\Interfaces\Web\Live\EnsureLiveEnabled;
 use App\Interfaces\Web\Live\EnsureLiveReseller;
 use App\Interfaces\Web\Live\LiveAuthController;
-use App\Interfaces\Web\Live\Dashboard;
 use Illuminate\Support\Facades\Route;
 
 // Register BEFORE the legacy catch-all '/' web route.
