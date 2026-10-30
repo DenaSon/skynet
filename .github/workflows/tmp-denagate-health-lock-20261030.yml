@@ -1,0 +1,60 @@
+name: Temporary DenaGate Health Composer lock generator
+
+on:
+  push:
+    branches:
+      - feature/denagate-health-foundation-20261030
+    paths:
+      - .github/workflows/tmp-denagate-health-lock-20261030.yml
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    if: github.repository == 'DenaSon/skynet' && github.ref == 'refs/heads/feature/denagate-health-foundation-20261030'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up PHP 8.4 and Composer
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          extensions: mbstring, xml, curl, zip, pdo_sqlite, pdo_mysql, redis
+          coverage: none
+
+      - name: Resolve health dependency using Composer and vendor migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          composer require 'spatie/laravel-health:^1.40' --no-interaction --no-progress --prefer-dist --no-scripts
+          php artisan package:discover --ansi
+          php artisan vendor:publish --tag=health-migrations --no-interaction
+
+          shopt -s nullglob
+          migrations=(database/migrations/*health*php)
+          if [[ "${#migrations[@]}" -ne 1 ]]; then
+            echo "Expected precisely one health history migration, found ${#migrations[@]}"
+            exit 1
+          fi
+          mv "${migrations[0]}" database/migrations/2026_10_30_000003_create_health_check_result_history_items_table.php
+          git diff --check
+
+      - name: Commit Composer-generated files and vendor migration to feature branch only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add composer.json composer.lock database/migrations/2026_10_30_000003_create_health_check_result_history_items_table.php
+          git diff --cached --check
+          git diff --cached --quiet && { echo "No dependency changes"; exit 1; }
+          git commit -m "build(health): resolve Composer lock and publish health history migration"
+          git push origin HEAD:feature/denagate-health-foundation-20261030
