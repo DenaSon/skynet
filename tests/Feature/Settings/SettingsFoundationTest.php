@@ -2,9 +2,12 @@
 
 declare(strict_types=1);
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Spatie\LaravelSettings\Settings;
+
+uses(RefreshDatabase::class);
 
 it('installs Spatie settings with a database repository that can hold long Persian multiline text', function (): void {
     expect(class_exists(Settings::class))->toBeTrue()
