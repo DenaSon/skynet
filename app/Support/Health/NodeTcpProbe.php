@@ -78,7 +78,8 @@ final readonly class NodeTcpProbe
 
             $ports = [];
             foreach ($directHosts[$ip] ?? [] as $host) {
-                if (self::matchesActiveInbound($node, $host)) {
+                if ($host['port'] !== ($node['port'] ?? null)
+                    && self::matchesActiveInbound($node, $host)) {
                     $ports[] = $host['port'];
                 }
             }
@@ -104,8 +105,8 @@ final readonly class NodeTcpProbe
      * it. Older RW schema variants without association fields can still use
      * a direct, exact public IP match; they never match by display name.
      *
-     * @param array<string, mixed> $node
-     * @param array<string, mixed> $host
+     * @param  array<string, mixed>  $node
+     * @param  array<string, mixed>  $host
      */
     private static function matchesActiveInbound(array $node, array $host): bool
     {
