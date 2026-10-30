@@ -12,6 +12,7 @@ use Spatie\Permission\Models\Role;
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
+    $this->withoutVite();
     config()->set('denagate_live.enabled', true);
     Role::findOrCreate('reseller', 'web');
 });
