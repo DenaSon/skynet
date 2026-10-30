@@ -9,6 +9,7 @@ use GuzzleHttp\Psr7\Request as NutgramRequest;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
@@ -250,5 +251,34 @@ it('keeps the full native monitoring fallback with previously registered routes'
     met01Bot()->hearCallbackQueryData('metrics:simple')->reply()
         ->assertCalled('editMessageText')
         ->assertCalled('sendRichMessage', 0);
+    met01AssertOnlyGets();
+});
+
+it('shows the latest endpoint-bound TCP observation in both Rich and native monitoring without new probes', function (): void {
+    $root = met01Root();
+    met01Fake();
+    config()->set('cache.default', 'array');
+    config()->set('denagate_health.node_tcp_targets', MET01_NODE.'@1.1.1.1:443');
+
+    Cache::put('denagate:node-tcp:v1:'.MET01_NODE, [
+        'endpoint' => hash('sha256', '1.1.1.1:443'),
+        'status' => 'ok', 'ms' => 27.3, 'checkedAt' => now()->timestamp,
+    ], 180);
+
+    $snapshot = app(ReadAdminNodeMetrics::class)->handle($root->id);
+    expect($snapshot['nodes'][0]['tcp'])->toMatchArray(['status' => 'ok', 'ms' => 27.3]);
+
+    met01Bot()->hearText('/metrics')->reply()->assertRaw(static function (NutgramRequest $request): bool {
+        $payload = FakeNutgram::getActualData($request);
+        $rich = is_string($payload['rich_message'] ?? null)
+            ? json_decode($payload['rich_message'], true, flags: JSON_THROW_ON_ERROR)
+            : ($payload['rich_message'] ?? []);
+
+        return str_contains((string) ($rich['html'] ?? ''), '27.3 ms')
+            && str_contains((string) ($rich['html'] ?? ''), 'آنلاین / TCP');
+    }, index: 0);
+
+    met01Bot()->hearCallbackQueryData('metrics:simple')->reply()
+        ->assertCalled('editMessageText');
     met01AssertOnlyGets();
 });
