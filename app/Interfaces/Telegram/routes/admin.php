@@ -21,6 +21,7 @@ use App\Interfaces\Telegram\Support\AdminNodeOperationsUi;
 use App\Interfaces\Telegram\Support\AdminNodeSetupUi;
 use App\Interfaces\Telegram\Support\AdminNodesUi;
 use App\Interfaces\Telegram\Support\AdminNotificationFailuresUi;
+use App\Interfaces\Telegram\Support\AdminNotificationTopicUi;
 use App\Interfaces\Telegram\Support\AdminPanelUsersUi;
 use App\Interfaces\Telegram\Support\AdminProviderOverviewUi;
 use App\Interfaces\Telegram\Support\AdminSalesPanelRequestsUi;
@@ -42,6 +43,17 @@ use SergiX44\Nutgram\Nutgram;
 
 /** @var Nutgram $bot */
 // Admin-only registrations. Existing authorization and confirmation checks remain inside the handlers.
+
+// Opt-in private notification Topic; unrelated to business callbacks or billing.
+$bot->onCommand('adminnotifications', function (Nutgram $bot): void {
+    app(AdminNotificationTopicUi::class)->show($bot);
+});
+$bot->onCallbackQueryData('admin:notice-topic:show', function (Nutgram $bot): void {
+    app(AdminNotificationTopicUi::class)->show($bot);
+});
+$bot->onCallbackQueryData('admin:notice-topic:enable', function (Nutgram $bot): void {
+    app(AdminNotificationTopicUi::class)->enable($bot);
+});
 
 // Operator-only provider reads. Status writes are separate, confirmed and default-disabled.
 // SP-02: private Super Admin review of Sales Panel applications.

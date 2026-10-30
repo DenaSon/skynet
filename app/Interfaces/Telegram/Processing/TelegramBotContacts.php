@@ -5,6 +5,7 @@ namespace App\Interfaces\Telegram\Processing;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 final class TelegramBotContacts
 {
@@ -33,6 +34,14 @@ final class TelegramBotContacts
 
         if ($actor === null) {
             return;
+        }
+
+        // Topic IDs belong to one private chat. Never reuse one after relinking.
+        if ($context->key === TelegramBotContext::ADMIN
+            && Schema::hasColumn('telegram_bot_contacts', 'admin_notification_thread_id')) {
+            DB::table('telegram_bot_contacts')->where('user_id', $actor->userId)
+                ->where('bot_key', 'admin')->where('chat_id', '!=', $chatId)
+                ->update(['admin_notification_thread_id' => null]);
         }
 
         DB::table('telegram_bot_contacts')->upsert([
