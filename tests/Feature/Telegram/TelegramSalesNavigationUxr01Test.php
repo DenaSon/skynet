@@ -492,8 +492,8 @@ it('keeps Home separate from purchase offers for all Sales home entry callbacks'
             return str_contains($data['text'], '🛒 پلن‌های آماده خرید');
         }, index: 1);
     $bot->hearText('/menu')->reply()->assertRaw(
-        static fn (Request $request): bool => str_contains(uxr01Payload($request)['text'], '🏠 صفحه اصلی DenaGate'),
-        index: 1,
+        static fn (Request $request): bool => str_contains(uxr01RichHtml($request), '🏠 صفحه اصلی DenaGate'),
+        index: 0,
     );
     Http::assertNothingSent();
 });
