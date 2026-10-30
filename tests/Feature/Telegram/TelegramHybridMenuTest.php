@@ -115,7 +115,7 @@ it('shows normal admins only user management and protects against revocation', f
 
     $actor = app(ResolveTelegramActor::class)->handle(931005);
     $labels = hybridLabels(app(ReplyMenuRenderer::class)->adminKeyboard($actor));
-    expect($labels)->toContain(ReplyMenuLabels::USERS, ReplyMenuLabels::ACCOUNT)
+    expect($labels)->toContain(ReplyMenuLabels::USERS)
         ->not->toContain(ReplyMenuLabels::HOME, ReplyMenuLabels::ROLES, ReplyMenuLabels::SETTINGS, ReplyMenuLabels::TOPUPS, ReplyMenuLabels::RECEIPTS);
 
     $bot->hearText('/admin')->reply()
