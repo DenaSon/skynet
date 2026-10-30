@@ -205,7 +205,7 @@ final class Dashboard extends Component
         $this->section = 'shop';
 
         try {
-            $order = app(OrderReader::class)->findPlan($buyerId, $orderId);
+            $order = app(OrderReader::class)->findNewPlan($buyerId, $orderId);
             $this->createdOrderId = $order->id;
         } catch (ValidationException) {
             $this->orderError = 'سفارش در دسترس نیست.';
@@ -227,7 +227,7 @@ final class Dashboard extends Component
         }
 
         try {
-            $order = app(OrderReader::class)->findPlan($buyerId, $this->createdOrderId);
+            $order = app(OrderReader::class)->findNewPlan($buyerId, $this->createdOrderId);
             if ($order->status !== 'pending_payment') {
                 $this->walletError = 'این سفارش دیگر در انتظار پرداخت نیست.';
 
@@ -286,7 +286,7 @@ final class Dashboard extends Component
         }
 
         try {
-            $order = app(OrderReader::class)->findPlan($buyerId, $orderId);
+            $order = app(OrderReader::class)->findNewPlan($buyerId, $orderId);
             if ($order->status !== 'pending_payment'
                 || $order->totalPriceRials !== $expected['amount']
                 || app(ViewWallet::class)->handle($buyerId)->balanceRials !== $expected['balance']) {
@@ -423,12 +423,12 @@ final class Dashboard extends Component
 
         try {
             if ($this->section === 'shop' && $this->createdOrderId !== null) {
-                $data['createdOrder'] = app(OrderReader::class)->findPlan($userId, $this->createdOrderId);
+                $data['createdOrder'] = app(OrderReader::class)->findNewPlan($userId, $this->createdOrderId);
                 $data['createdCustomerName'] = app(ManageResellerServiceLabels::class)
                     ->pendingName($userId, $this->createdOrderId);
             } elseif ($this->section === 'shop') {
                 if ($this->selectedPlanId === null) {
-                    $data['recentOrders'] = app(OrderReader::class)->recentPlans($userId);
+                    $data['recentOrders'] = app(OrderReader::class)->recentNewPlans($userId);
                 }
                 $presets = app(ListQuotedPresets::class)->handle($userId);
                 $builders = app(ListResellerBuilders::class)->handle($userId);
