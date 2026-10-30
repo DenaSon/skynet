@@ -3,6 +3,7 @@
 namespace App\Modules\Sales\Application;
 
 use App\Modules\Identity\Application\ResolveSalesBuyer;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -29,6 +30,34 @@ final class OrderReader
         return DB::table('sales_orders')->where('buyer_user_id', $buyerId)
             ->whereNotNull('plan_id')->orderByDesc('id')->limit(10)->get()
             ->map(fn (object $row): OrderDetails => $this->map($row))->all();
+    }
+
+    /** @return list<OrderDetails> */
+    public function recentNewPlans(int $buyerId): array
+    {
+        app(ResolveSalesBuyer::class)->isReseller($buyerId);
+
+        return DB::table('sales_orders as orders')
+            ->where('orders.buyer_user_id', $buyerId)
+            ->whereNotNull('orders.plan_id')
+            ->whereNotExists(static function (Builder $query): void {
+                $query->selectRaw('1')->from('sales_renewal_orders as renewals')
+                    ->whereColumn('renewals.sales_order_id', 'orders.id');
+            })
+            ->orderByDesc('orders.id')->limit(10)->select('orders.*')->get()
+            ->map(fn (object $row): OrderDetails => $this->map($row))->all();
+    }
+
+    /** Reject renewals even when a caller supplies a valid owned order ID. */
+    public function findNewPlan(int $buyerId, int $orderId): OrderDetails
+    {
+        $order = $this->findPlan($buyerId, $orderId);
+
+        if (DB::table('sales_renewal_orders')->where('sales_order_id', $order->id)->exists()) {
+            throw ValidationException::withMessages(['order' => 'Order is not available here.']);
+        }
+
+        return $order;
     }
 
     /**
