@@ -107,3 +107,15 @@ it('does not fabricate numeric resource percentages when metrics are unavailable
 
     Http::assertNothingSent();
 });
+
+it('marks configured network API outages failed without exposing credentials', function (): void {
+    config()->set('services.remnawave.url', 'https://offline-api.example');
+    config()->set('services.remnawave.token', 'invisible-secret-fixture');
+    config()->set('services.remnawave.timeout', 2);
+    Http::fake(['https://offline-api.example/*' => Http::response(['error' => 'secret'], 503)]);
+
+    $snapshot = app(OperationalProbe::class)->inspect('network_api');
+    expect($snapshot['status'])->toBe('failed')
+        ->and($snapshot['summary'])->toBe('API unreachable')
+        ->and(json_encode($snapshot, JSON_THROW_ON_ERROR))->not->toContain('invisible-secret-fixture');
+});
