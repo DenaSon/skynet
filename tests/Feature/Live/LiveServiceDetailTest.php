@@ -66,8 +66,10 @@ function live4aService(User $buyer, string $state = 'active'): int
     return $order->id;
 }
 
-/** @param array<string,mixed> $overrides */
-function live4aMockProvider(int $orderId, array $overrides = []): void
+/** @param array<string,mixed> $overrides
+ *  @return array<string,mixed>
+ */
+function live4aRemote(int $orderId, array $overrides = []): array
 {
     $reference = 'live4a:'.$orderId;
     $raw = [
@@ -84,9 +86,15 @@ function live4aMockProvider(int $orderId, array $overrides = []): void
         'userTraffic' => ['usedTrafficBytes' => 3 * 1073741824],
     ];
 
+    return array_replace_recursive($raw, $overrides);
+}
+
+/** @param array<string,mixed> $overrides */
+function live4aMockProvider(int $orderId, array $overrides = []): void
+{
     Http::fake([
         'https://remna.test/api/users/'.(200000 + $orderId) => Http::response([
-            'response' => array_replace_recursive($raw, $overrides),
+            'response' => live4aRemote($orderId, $overrides),
         ]),
     ]);
 }
@@ -170,15 +178,15 @@ it('shows unknown provider data on outage and clears previously verified usage o
     $owner = live4aReseller(964105);
     $this->actingAs($owner)->withSession(['denagate_live.user_id' => $owner->id]);
     $order = live4aService($owner);
-    live4aMockProvider($order);
+    Http::fake([
+        'https://remna.test/api/users/'.(200000 + $order) => Http::sequence()
+            ->push(['response' => live4aRemote($order)], 200)
+            ->push(['message' => 'provider token secret'], 503),
+    ]);
 
     $page = Livewire::test(Dashboard::class)->call('showSection', 'services')
         ->call('openService', $order)->call('refreshServiceUsage')
         ->assertSee('7.00');
-    Http::fake([
-        'https://remna.test/api/users/*' => Http::response(['message' => 'provider token secret'], 503),
-    ]);
-
     $page->call('refreshServiceUsage')->assertSee('اطلاعات به‌روز سرویس در دسترس نیست')
         ->assertDontSee('7.00')
         ->assertDontSee('provider token secret');
