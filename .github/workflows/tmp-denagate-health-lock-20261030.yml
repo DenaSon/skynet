@@ -1,6 +1,11 @@
 name: Temporary DenaGate Health Composer lock generator
 
 on:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - .github/workflows/tmp-denagate-health-lock-20261030.yml
   push:
     branches:
       - feature/denagate-health-foundation-20261030
@@ -12,7 +17,7 @@ permissions:
 
 jobs:
   generate:
-    if: github.repository == 'DenaSon/skynet' && github.ref == 'refs/heads/feature/denagate-health-foundation-20261030'
+    if: github.repository == 'DenaSon/skynet' && github.head_ref == 'feature/denagate-health-foundation-20261030'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -20,6 +25,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: feature/denagate-health-foundation-20261030
           persist-credentials: true
 
       - name: Set up PHP 8.4 and Composer
