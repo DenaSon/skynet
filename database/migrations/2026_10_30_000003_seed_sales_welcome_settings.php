@@ -29,7 +29,7 @@ return new class extends Migration
     public function down(): void
     {
         // Remove only untouched defaults. Never delete operator-edited values.
-        $default = "🏠 DenaGate\\n\\nخوش آمدید، {name}.\\nنوع حساب: {account_type}";
+        $default = "🏠 DenaGate\n\nخوش آمدید، {name}.\nنوع حساب: {account_type}";
         $payload = json_encode($default, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
 
         DB::table('settings')
