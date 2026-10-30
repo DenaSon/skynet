@@ -304,7 +304,6 @@ it('keeps the member tutorial visible with a harmless extra role but hides it fr
     Http::assertNothingSent();
 });
 
-
 it('shows the green panel request CTA on Wallet at the configured exact threshold, but not below or after application', function (): void {
     config()->set('sales.panel_minimum_wallet_toman', '550000');
     $member = User::factory()->create();
