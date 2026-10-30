@@ -19,7 +19,7 @@ beforeEach(function (): void {
 });
 
 /** @param list<array<string,mixed>> $nodes
- * @param list<array<string,mixed>> $hosts
+ * @param  list<array<string,mixed>>  $hosts
  */
 function tcp02Fake(array $nodes = [], array $hosts = []): void
 {
@@ -64,6 +64,11 @@ it('follows a changed RW Node and matching Host IP without any ENV edit', functi
     tcp02Fake([tcp02Node(ip: '8.8.8.8')], [tcp02Host(address: '8.8.8.8', port: 1234)]);
 
     expect(app(NodeTcpProbe::class)->targets()[TCP02_NODE])->toBe(['ip' => '8.8.8.8', 'port' => 1234]);
+});
+
+it('never uses the RW management port for client TCP measurements', function (): void {
+    tcp02Fake([tcp02Node()], [tcp02Host('1.1.1.1', 2222)]);
+    expect(app(NodeTcpProbe::class)->targets())->toBe([]);
 });
 
 it('does not guess a target from a CDN host, missing inbound or disabled Node', function (): void {
