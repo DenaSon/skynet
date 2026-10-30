@@ -46,7 +46,7 @@ final class OperationalProbe
     private function cpu(): array
     {
         $load = sys_getloadavg();
-        if (! is_array($load) || ! is_numeric($load[0] ?? null)) {
+        if (! is_array($load) || ! is_finite($load[0])) {
             return $this->unknown();
         }
 
@@ -161,7 +161,7 @@ final class OperationalProbe
             $checked++;
         }
 
-        return ['status' => 'ok', 'summary' => $checked.' bot(s)'];
+        return ['status' => 'ok', 'summary' => $checked.' bots'];
     }
 
     /** @return array{status:string,summary:string} */
@@ -175,7 +175,7 @@ final class OperationalProbe
 
         $queue = (string) config('queue.connections.'.$connection.'.queue', 'default');
         $count = Queue::connection($connection)->size($queue);
-        if (! is_int($count) || $count < 0) {
+        if ($count < 0) {
             return $this->unknown();
         }
 
