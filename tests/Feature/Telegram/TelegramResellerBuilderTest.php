@@ -403,14 +403,22 @@ it('renders custom plan button on Sales reseller home and Account without changi
     $bot->hearText(ReplyMenuLabels::PREVIOUS_BUILDER)->reply()->assertCalled('sendMessage');
     $bot->hearCallbackQueryData('sales:home')->reply()->assertRaw(static function (Request $request): bool {
         $data = FakeNutgram::getActualData($request);
-        $buttons = json_encode($data['reply_markup'] ?? [], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        $keyboard = $data['reply_markup'] ?? [];
+        if (is_string($keyboard)) {
+            $keyboard = json_decode($keyboard, true, flags: JSON_THROW_ON_ERROR);
+        }
+        $buttons = json_encode($keyboard, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
 
         return str_contains($buttons, '🧩 پلن سفارشی')
             && str_contains($buttons, 'menu:builder');
     }, index: 1);
     $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(static function (Request $request): bool {
         $data = FakeNutgram::getActualData($request);
-        $buttons = json_encode($data['reply_markup'] ?? [], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        $keyboard = $data['reply_markup'] ?? [];
+        if (is_string($keyboard)) {
+            $keyboard = json_decode($keyboard, true, flags: JSON_THROW_ON_ERROR);
+        }
+        $buttons = json_encode($keyboard, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
 
         return str_contains($buttons, '🧩 پلن سفارشی')
             && str_contains($buttons, 'menu:builder');
