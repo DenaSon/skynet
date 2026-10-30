@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Telegram\Notifications;
 
+use App\Interfaces\Telegram\Support\AdminNotificationTopicUi;
 use App\Interfaces\Telegram\Support\ReplyMenuLabels;
 use App\Interfaces\Telegram\Support\ReplyMenuRenderer;
 use App\Interfaces\Telegram\Support\SubscriptionPageLink;
@@ -22,6 +23,7 @@ use App\Modules\Trial\Application\ReadFreeTrial;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\KeyboardButton;
 use Throwable;
@@ -261,7 +263,7 @@ final readonly class TelegramNotificationSender
                 ."\nمبلغ: ".TelegramUi::toman($row['amount_rials']).' تومان'
                 ."\n\n⚠️ فقط پس از مشاهده واریز واقعی در بانک تأیید کنید.";
             try {
-                $this->showWalletTopupPhotoToRoot($topupId, $userId, $chat, $caption);
+                $this->showWalletTopupPhotoToRoot($topupId, $userId, $chat, $caption, true);
             } catch (Throwable) {
                 // No duplicate alert or failed financial state: the text
                 // reached Telegram and the photo is available in Admin finance.
@@ -490,7 +492,8 @@ final readonly class TelegramNotificationSender
                     : "✅ پرداخت سفارش #{$order} تأیید شد. درخواست فعال‌سازی ثبت شد؛ سرویس هنوز ساخته نشده است.")
                 : "❌ رسید سفارش #{$order} رد شد. در صورت نیاز می‌توانید رسید جدید بفرستید.";
 
-            $this->text($bot, $chat, $text);
+            // A buyer's payment result is not an Admin reviewer notification.
+            $this->text($bot, $chat, $text, notification: false);
 
             return;
         }
@@ -604,7 +607,7 @@ final readonly class TelegramNotificationSender
     }
 
     /** Protected Admin-only photo; reuses the existing Sales→Admin Telegram bridge. */
-    public function showWalletTopupPhotoToRoot(int $topupId, int $rootId, int $chatId, string $caption): void
+    public function showWalletTopupPhotoToRoot(int $topupId, int $rootId, int $chatId, string $caption, bool $notification = false): void
     {
         $actor = $this->actors->handle($chatId);
         if ($actor === null || $actor->userId !== $rootId || ! $actor->allows('topups.view')) {
@@ -622,7 +625,7 @@ final readonly class TelegramNotificationSender
         $buttons[] = [['text' => '◀️ صف شارژ', 'callback_data' => 'finance:topups:1']];
         $keyboard = json_encode(['inline_keyboard' => $buttons], JSON_THROW_ON_ERROR);
 
-        $this->photo('admin', $chatId, $row['file_id'], 'sales', $caption, $keyboard, false);
+        $this->photo('admin', $chatId, $row['file_id'], 'sales', $caption, $keyboard, $notification);
     }
 
     /** End delivery also replaces the persistent keyboard, removing Trial immediately. */
@@ -640,10 +643,10 @@ final readonly class TelegramNotificationSender
         return json_encode($keyboard, JSON_THROW_ON_ERROR);
     }
 
-    private function text(string $bot, int $chat, string $text, ?string $keyboard = null, ?string $parseMode = null): void
+    private function text(string $bot, int $chat, string $text, ?string $keyboard = null, ?string $parseMode = null, bool $notification = true): void
     {
         $fields = ['chat_id' => $chat, 'text' => $text, 'protect_content' => 'true'];
-        if (($threadId = $this->adminNotificationThreadId($bot, $chat)) !== null) {
+        if ($notification && ($threadId = $this->adminNotificationThreadId($bot, $chat)) !== null) {
             $fields['message_thread_id'] = $threadId;
         }
         if ($parseMode !== null) {
@@ -718,23 +721,25 @@ final readonly class TelegramNotificationSender
         $this->check($upload, $bot, $chat);
     }
 
-    /** Fail open to the original destination when the optional pilot is disabled or misconfigured. */
+    /** The existing per-event recipient RBAC remains authoritative. */
     private function adminNotificationThreadId(string $bot, int $chat): ?int
     {
-        if ($bot !== 'admin' || config('telegram_notifications.admin_topic.enabled') !== true) {
+        if ($bot !== 'admin' || config('telegram_notifications.admin_topic.enabled') !== true
+            || ! Schema::hasColumn('telegram_bot_contacts', 'admin_notification_thread_id')) {
             return null;
         }
 
-        $targetChat = (string) config('telegram_notifications.admin_topic.chat_id');
-        if ($targetChat === '' || $targetChat !== (string) $chat) {
+        $actor = $this->actors->handle($chat);
+        if ($actor === null || ! AdminNotificationTopicUi::eligible($actor)) {
             return null;
         }
 
-        $threadId = filter_var(config('telegram_notifications.admin_topic.thread_id'), FILTER_VALIDATE_INT, [
-            'options' => ['min_range' => 2, 'max_range' => 2_147_483_647],
-        ]);
+        $thread = DB::table('telegram_bot_contacts')
+            ->where('bot_key', 'admin')->where('user_id', $actor->userId)
+            ->where('chat_id', $chat)->where('delivery_status', 'reachable')
+            ->value('admin_notification_thread_id');
 
-        return is_int($threadId) ? $threadId : null;
+        return is_numeric($thread) && (int) $thread > 1 ? (int) $thread : null;
     }
 
     private function check(Response $response, string $bot, ?int $chatId = null): void
