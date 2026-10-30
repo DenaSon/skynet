@@ -9,8 +9,10 @@ use App\Modules\Provisioning\Application\AdminProviderOverview;
 use App\Modules\Provisioning\Application\AdminSystemStats;
 use App\Modules\Provisioning\Application\ReadAdminProviderOverview;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 
 final readonly class AdminProviderOverviewUi
 {
@@ -20,7 +22,7 @@ final readonly class AdminProviderOverviewUi
         private ReadAdminProviderOverview $read,
     ) {}
 
-    public function show(Nutgram $bot): void
+    public function show(Nutgram $bot, bool $simple = false): void
     {
         $telegramId = $this->private->id($bot);
 
@@ -67,6 +69,25 @@ final readonly class AdminProviderOverviewUi
         $keyboard->addRow(InlineKeyboardButton::make('🔄 به‌روزرسانی', callback_data: 'servers:refresh'));
 
         $keyboard->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
+        $keyboard->addRow(InlineKeyboardButton::make(
+            $simple ? '✨ نمای جدید' : '📝 نمای ساده',
+            callback_data: $simple ? 'menu:admin:servers' : 'servers:simple',
+        ));
+
+        if (! $simple && $overview->state === 'available') {
+            try {
+                TelegramUi::editRichText(
+                    $bot,
+                    new InputRichMessage(html: self::richReport($overview), is_rtl: true),
+                    $keyboard,
+                );
+
+                return;
+            } catch (TelegramException $exception) {
+                report($exception);
+                // Keep the original read-only Admin view on unsupported clients.
+            }
+        }
 
         if ($bot->isCallbackQuery()) {
             TelegramUi::answerCallback($bot);
@@ -76,6 +97,55 @@ final readonly class AdminProviderOverviewUi
         }
 
         $bot->sendMessage(text: $message, reply_markup: $keyboard);
+    }
+
+    private static function richReport(AdminProviderOverview $result): string
+    {
+        $overview = '<tr><td>🖥️ سرورهای متصل</td><td><b>'.number_format($result->connectedNodes ?? 0)
+            .' از '.number_format($result->nodes ?? 0).'</b></td></tr>'
+            .'<tr><td>🌐 میزبان‌ها</td><td>'.number_format($result->hosts ?? 0).'</td></tr>'
+            .'<tr><td>🧩 پروفایل‌ها</td><td>'.number_format($result->configProfiles ?? 0).'</td></tr>'
+            .'<tr><td>👥 گروه‌ها</td><td>'.number_format($result->internalSquads ?? 0).'</td></tr>'
+            .'<tr><td>⚙️ نمونه‌های فعال پنل</td><td>'.number_format($result->instances ?? 0).'</td></tr>'
+            .'<tr><td>⚠️ نیازمند بررسی</td><td>'.number_format($result->needsReview ?? 0).'</td></tr>';
+
+        $nodes = '';
+        foreach (array_slice($result->nodeSummaries ?? [], 0, 10) as $node) {
+            $state = $node['disabled'] ? '⏸️ غیرفعال'
+                : ($node['connected'] ? '🟢 متصل' : '🔴 قطع');
+            $online = is_int($node['usersOnline'] ?? null)
+                ? number_format($node['usersOnline']) : 'نامشخص';
+            $nodes .= '<tr><td>'.TelegramUi::escape(self::safeNodeName((string) $node['name'])).'</td>'
+                .'<td>'.TelegramUi::escape($state).'</td><td>'.$online.'</td></tr>';
+        }
+
+        $nodesTable = $nodes === '' ? '<p>هنوز سروری تعریف نشده است.</p>'
+            : '<table bordered striped compact><tr><th>نود</th><th>وضعیت</th><th>آنلاین</th></tr>'
+                .$nodes.'</table>';
+
+        if (count($result->nodeSummaries ?? []) > 10) {
+            $nodesTable .= '<p>سایر نودها در بخش «🖥️ نودها» قابل مشاهده‌اند.</p>';
+        }
+
+        $stats = '';
+        if ($result->systemStats !== null) {
+            $stats = '<details><summary>📊 جزئیات منابع پنل</summary><p>'
+                .TelegramUi::escape('اطلاعات زیر از پنل گزارش شده‌اند.').'</p><p>'
+                .str_replace(["\n", '</p><p>'], ['', '</p><p>'], TelegramUi::escape(trim(self::systemStats($result->systemStats))))
+                .'</p></details>';
+        }
+
+        return '<h2>🖥️ وضعیت سرورها</h2>'
+            .'<h3>📋 نمای کلی شبکه</h3>'
+            .'<table bordered striped compact>'.$overview.'</table>'
+            .'<h3>🌐 وضعیت نودها</h3>'.$nodesTable
+            .$stats
+            .'<footer>آمار اتصال از Remnawave است؛ تأخیر TCP در فاز بعد افزوده می‌شود.</footer>';
+    }
+
+    private static function safeNodeName(string $name): string
+    {
+        return mb_substr(trim((string) preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $name)), 0, 50);
     }
 
     private function details(AdminProviderOverview $result): string
@@ -91,7 +161,7 @@ final readonly class AdminProviderOverviewUi
             .($result->systemStats !== null ? $this->systemStats($result->systemStats) : '');
     }
 
-    private function systemStats(AdminSystemStats $stats): string
+    private static function systemStats(AdminSystemStats $stats): string
     {
         $total = number_format($stats->memoryTotal / 1073741824, 2, '.', '');
         $used = number_format($stats->memoryUsed / 1073741824, 2, '.', '');
