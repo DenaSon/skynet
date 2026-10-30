@@ -6,7 +6,6 @@ use App\Support\Health\NodeTcpProbe;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
-use InvalidArgumentException;
 
 const TCP02_NODE = '550e8400-e29b-41d4-a716-446655440010';
 
