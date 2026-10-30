@@ -256,6 +256,9 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:node3:preview';
     $expected['ADMIN'][] = 'callback:node3:apply:{token}';
     $expected['ADMIN'][] = 'callback:node3:cancel';
+    $expected['ADMIN'][] = 'callback:admin:welcome:show';
+    $expected['ADMIN'][] = 'callback:admin:welcome:edit:{kind}';
+    $expected['ADMIN'][] = 'callback:admin:welcome:cancel';
     $expected['SALES'][] = 'photo:*';
     $files = [
         'ADMIN' => 'app/Interfaces/Telegram/routes/admin.php',
@@ -287,8 +290,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(257)
-        ->and(count(array_unique($legacy)))->toBe(257);
+        ->and(count($legacy))->toBe(260)
+        ->and(count(array_unique($legacy)))->toBe(260);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {
