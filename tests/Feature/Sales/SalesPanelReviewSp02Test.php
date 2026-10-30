@@ -24,6 +24,7 @@ uses(RefreshDatabase::class);
 beforeEach(function (): void {
     config()->set('super_admin.telegram_ids', ['972001', '972002']);
     config()->set('telegram_notifications.enabled', true);
+    config()->set('telegram_notifications.admin_topic.enabled', false);
     config()->set('telegram.sales.enabled', true);
     config()->set('telegram.sales.token', '2345:sp_sales_test');
     config()->set('nutgram.token', '1234:sp_admin_test');
@@ -62,6 +63,54 @@ function sp02Case(): array
 
     return ['root' => $root, 'buyer' => $buyer, 'id' => $row['id']];
 }
+
+it('routes an Admin reviewer alert to one explicitly configured private topic', function (): void {
+    config()->set('telegram_notifications.admin_topic', [
+        'enabled' => true,
+        'chat_id' => '972001',
+        'thread_id' => 45,
+    ]);
+    $case = sp02Case();
+    $deliveryId = (int) DB::table('telegram_notification_deliveries')
+        ->where('event_type', 'SalesPanelSubmitted')->value('id');
+
+    app(DispatchTelegramNotification::class, ['deliveryId' => $deliveryId])
+        ->handle(app(TelegramNotificationSender::class));
+
+    expect(DB::table('telegram_notification_deliveries')->where('id', $deliveryId)->value('state'))->toBe('sent');
+    Http::assertSentCount(1);
+    Http::assertSent(static fn (Request $request): bool => str_contains($request->url(), '1234:sp_admin_test/sendMessage')
+        && (string) $request['chat_id'] === '972001'
+        && (string) $request['message_thread_id'] === '45'
+        && str_contains((string) $request['reply_markup'], 'sp:detail:'.$case['id']));
+});
+
+it('does not route admin notices to topics for non-target or invalid configuration', function (): void {
+    $case = sp02Case();
+    $delivery = DB::table('telegram_notification_deliveries')->first();
+
+    config()->set('telegram_notifications.admin_topic', [
+        'enabled' => true,
+        'chat_id' => '972002',
+        'thread_id' => 45,
+    ]);
+    app(TelegramNotificationSender::class)->send($delivery);
+
+    config()->set('telegram_notifications.admin_topic.chat_id', '972001');
+    config()->set('telegram_notifications.admin_topic.thread_id', 'bad');
+    app(TelegramNotificationSender::class)->send($delivery);
+
+    config()->set('telegram_notifications.admin_topic.enabled', false);
+    config()->set('telegram_notifications.admin_topic.thread_id', 45);
+    app(TelegramNotificationSender::class)->send($delivery);
+
+    Http::assertSentCount(3);
+    Http::assertSent(static fn (Request $request): bool => str_contains($request->url(), '1234:sp_admin_test/sendMessage')
+        && ! isset($request['message_thread_id']));
+    foreach (Http::recorded() as [$request]) {
+        expect(isset($request['message_thread_id']))->toBeFalse();
+    }
+});
 
 it('creates one protected root alert and sends it through the existing notification worker', function (): void {
     $case = sp02Case();
