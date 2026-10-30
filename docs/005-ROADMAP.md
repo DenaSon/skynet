@@ -1,3 +1,11 @@
+## Network Rich Monitoring — phase 1/2 (2026-10-30)
+
+Approved scope: Admin Bot root-only «وضعیت سرورها» and «مانیتورینگ» receive RTL Rich dashboards with compact native tables and optional expandable panel/traffic details. Existing overview, node metrics and MET-02 authorized read Actions, all node/host/profile/DNS/report callbacks and financial/provider-write guards remain unchanged. Both screens retain an explicit simple native fallback callback and fall back after Telegram Rich errors.
+
+The monitoring page displays the *total measured consumption of all nodes* over the trailing seven and thirty complete UTC calendar-day windows. One existing MET-02 thirty-day history read supplies both totals; missing days, malformed series, absent provider data or overflow must show «نامشخص», never zero or a guessed partial sum. The current today usage, connected-node and online indicators stay visible. Only the approved historical read adds a provider GET; it is never a new monitoring engine, stored dataset or background job. No TCP probe yet: that is **phase 2**, with a separate approved PR and vetted addresses/ports.
+
+Acceptance: targeted read-only/RBAC and fake-Telegram Rich/native tests, PHP 8.4, Pint and PHPStan CI, then an operator-confirmed real Telegram visual check. CI is not proof of live client Rich formatting. Phase 2 must not be merged automatically as part of phase 1.
+
 ## Admin Denaban Rich dashboard (2026-10-28; approved scope)
 
 Operator-approved independent Admin Bot UX-only patch: existing root-only `denaban:show` displays RTL Rich with compact two-column tables for attention/finance/people, visible connected-node counts, bounded foldable node details and accounting cautions. `denaban:simple` preserves the original authorized HTML view and all existing navigation; Rich transport failures report and fall back. No change to read Actions, source-of-truth totals, RBAC, callback destinations, business operations, database, dependencies or provider writes. Test both render modes, revoked actors, unavailable provider counts and legacy callbacks; PHP 8.4 tests, PHPStan and Pint + live Telegram iOS acceptance required before marking client rendering verified. This Admin change is explicitly separate from Sales UX 01–09.
