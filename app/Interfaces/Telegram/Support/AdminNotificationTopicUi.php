@@ -102,13 +102,25 @@ final readonly class AdminNotificationTopicUi
             $threadId = $response->json('result.message_thread_id');
             if (! $response->successful() || $response->json('ok') !== true
                 || ! is_int($threadId) || $threadId <= 1) {
+                // An explicit Telegram 4xx rejection confirms no topic was created.
+                // Timeouts / 5xx remain uncertain and must not be retried blindly.
+                if ($response->status() >= 400 && $response->status() < 500
+                    && $response->json('ok') === false) {
+                    DB::table('telegram_bot_contacts')->where('bot_key', 'admin')
+                        ->where('user_id', $actor->userId)->where('chat_id', $chat)
+                        ->where('admin_notification_thread_id', 0)
+                        ->update(['admin_notification_thread_id' => null, 'updated_at' => now()]);
+                }
                 throw new \RuntimeException('Topic creation not confirmed.');
             }
 
-            DB::table('telegram_bot_contacts')->where('bot_key', 'admin')
+            $stored = DB::table('telegram_bot_contacts')->where('bot_key', 'admin')
                 ->where('user_id', $actor->userId)->where('chat_id', $chat)
                 ->where('admin_notification_thread_id', 0)
                 ->update(['admin_notification_thread_id' => $threadId, 'updated_at' => now()]);
+            if ($stored !== 1) {
+                throw new \RuntimeException('Topic ID persistence not confirmed.');
+            }
         } catch (Throwable) {
             // Keep the uncertain reservation: a blind retry may create duplicate topics.
             $this->render($bot, "⚠️ ساخت اتاق اعلان‌ها تأیید نشد.\nبرای بررسی و جلوگیری از ایجاد اتاق تکراری، با مدیر اصلی هماهنگ کنید.");
