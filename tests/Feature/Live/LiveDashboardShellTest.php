@@ -100,7 +100,7 @@ it('provides a bundled Livewire runtime and HTTPS config for every reseller acti
         ->get('http://live.denagate.ir/dashboard')
         ->assertOk()
         ->assertSee('wire:click="showSection', false)
-        ->assertSee('wire:click="selectPlan', false)
+        ->assertSee('خرید سرویس')
         ->assertSee('livewireScriptConfig', false)
         ->assertDontSee('src="/livewire-', false);
 
