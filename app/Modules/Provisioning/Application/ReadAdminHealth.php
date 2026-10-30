@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Provisioning\Application;
 
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
+use App\Support\Health\OperationalProbe;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -85,16 +86,24 @@ final readonly class ReadAdminHealth
 
             // Four configured checks are always expected (database, queue,
             // scheduler, disk). A fifth, Redis, is optional in local test env.
-            $incomplete = $total < 4 || $total > 24 || count($items) !== $total;
+            $expectedOps = array_map(
+                static fn (string $key): string => 'ops_'.$key, OperationalProbe::CHECKS,
+            );
+            $observed = array_map(
+                static fn (object $row): string => (string) $row->check_name, $rows->all(),
+            );
+            $incomplete = $total < 4 || $total > 24 || count($items) !== $total
+                || count(array_unique($observed)) !== $total
+                || count(array_intersect($expectedOps, $observed)) !== count($expectedOps);
             $state = 'healthy';
             if (! $fresh) {
                 $state = 'stale';
-            } elseif ($incomplete) {
-                $state = 'unknown';
             } elseif (array_any($items, static fn (array $item): bool => in_array(
                 $item['status'], ['failed', 'crashed'], true,
             ))) {
                 $state = 'failed';
+            } elseif ($incomplete) {
+                $state = 'unknown';
             } elseif (array_any($items, static fn (array $item): bool => $item['status'] === 'warning')) {
                 $state = 'warning';
             } elseif (array_any($items, static fn (array $item): bool => in_array(
