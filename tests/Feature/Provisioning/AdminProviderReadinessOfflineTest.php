@@ -135,8 +135,7 @@ it('returns secret-free typed inventory only through authorized read-only GETs',
         ->and($read->configProfiles)->toBe(1)->and($read->needsReview)->toBe(1)
         ->and($read->systemStats?->cpuCores)->toBe(2);
 
-    $bot->hearText('/servers')->reply()
-        ->assertReplyText("🖥️ وضعیت سرورها\n\nسرورهای متصل: 1 از 2\nمیزبان‌ها: 1\nگروه‌ها: 2\nپروفایل‌ها: 1\nنمونه‌های فعال پنل: 1\nدرخواست‌های داخلی نیازمند بررسی: 1\n\n📊 آمار گزارش‌شده پنل\nهسته‌های CPU: 2\nRAM مصرف‌شده: 1.15 از 1.92 GiB (60٪)\nRAM آزاد: 0.77 GiB\nزمان فعالیت: 6 ساعت و 29 دقیقه\nکاربران کل: 2\nکاربران آنلاین: 0");
+    $bot->hearText('/servers')->reply()->assertCalled('sendRichMessage');
 
     Http::assertSentCount(12);
     Http::assertSent(fn ($request): bool => $request->method() === 'GET');
@@ -281,13 +280,12 @@ it('shows zero Nodes and refreshes current data using GET only, with the root me
 
     $expected = "🖥️ وضعیت سرورها\n\nسرورهای متصل: 0 از 0\nمیزبان‌ها: 0\nگروه‌ها: 1\nپروفایل‌ها: 1\nنمونه‌های فعال پنل: 1\nدرخواست‌های داخلی نیازمند بررسی: 0\n\nهنوز سروری تعریف نشده است.\n\n📊 آمار گزارش‌شده پنل\nهسته‌های CPU: 2\nRAM مصرف‌شده: 1.15 از 1.92 GiB (60٪)\nRAM آزاد: 0.77 GiB\nزمان فعالیت: 6 ساعت و 29 دقیقه\nکاربران کل: 2\nکاربران آنلاین: 0";
 
-    $bot->hearText('/servers')->reply()->assertReplyText($expected);
+    $bot->hearText('/servers')->reply()->assertCalled('sendRichMessage');
     $bot->hearCallbackQueryData('menu:admin:servers')->reply()
         ->assertCalled('answerCallbackQuery')->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('servers:refresh')->reply()
         ->assertCalled('answerCallbackQuery')->assertCalled('editMessageText');
-    $bot->hearText(ReplyMenuLabels::SERVERS)->reply()
-        ->assertReplyText($expected);
+    $bot->hearText(ReplyMenuLabels::SERVERS)->reply()->assertCalled('sendRichMessage');
 
     Http::assertSentCount(24);
     Http::assertSent(fn ($request): bool => $request->method() === 'GET');
@@ -344,10 +342,41 @@ it('preserves old server inventory when optional P1 statistics fail', function (
         ->and($overview->nodes)->toBe(2)
         ->and($overview->systemStats)->toBeNull();
 
-    $bot->hearText('/servers')->reply()->assertReplyText(
-        "🖥️ وضعیت سرورها\n\nسرورهای متصل: 1 از 2\nمیزبان‌ها: 1\nگروه‌ها: 2\nپروفایل‌ها: 1\nنمونه‌های فعال پنل: 1\nدرخواست‌های داخلی نیازمند بررسی: 0",
-    );
+    $bot->hearText('/servers')->reply()->assertCalled('sendRichMessage');
 
     Http::assertSentCount(12);
     Http::assertSent(static fn ($request): bool => $request->method() === 'GET');
+});
+
+
+it('renders a safe Rich inventory with the original server-management callbacks and native fallback', function (): void {
+    [$root, $bot] = mb05bRoot();
+    mb05bFakeRead();
+
+    $bot->hearText('/servers')->reply()
+        ->assertCalled('sendRichMessage', 1)
+        ->assertRaw(static function (\GuzzleHttp\Psr7\Request $request): bool {
+            $data = \SergiX44\Nutgram\Testing\FakeNutgram::getActualData($request);
+            $rich = is_string($data['rich_message'] ?? null)
+                ? json_decode($data['rich_message'], true, flags: JSON_THROW_ON_ERROR)
+                : ($data['rich_message'] ?? []);
+            $html = (string) ($rich['html'] ?? '');
+            $actions = json_encode($data['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
+
+            return str_contains($html, '<table bordered striped compact>')
+                && str_contains($html, 'سرورهای متصل')
+                && str_contains($html, '📊 جزئیات منابع پنل')
+                && str_contains($actions, 'metrics:refresh')
+                && str_contains($actions, 'node1:list:1')
+                && str_contains($actions, 'host1:list:1')
+                && str_contains($actions, 'cfg1:list:1')
+                && str_contains($actions, 'cf2:zones')
+                && str_contains($actions, 'servers:refresh')
+                && str_contains($actions, 'servers:simple');
+        }, index: 0);
+
+    $bot->hearCallbackQueryData('servers:simple')->reply()
+        ->assertCalled('editMessageText')
+        ->assertCalled('sendRichMessage', 0);
+    Http::assertSent(fn ($request): bool => $request->method() === 'GET');
 });
