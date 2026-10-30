@@ -6,6 +6,7 @@ use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Interfaces\Telegram\Support\PendingBuilderSelection;
 use App\Interfaces\Telegram\Support\ReplyMenuLabels;
 use App\Interfaces\Telegram\Support\ReplyMenuRenderer;
+use App\Settings\SalesWelcomeSettings;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Referral\Application\GetReferralInvite;
@@ -586,5 +587,55 @@ it('shows member panel setup and reseller builder Rich guides without role escal
             && str_contains($keyboard, 'menu:builder')
             && str_contains($keyboard, 'sales:help:apps');
     }, index: 1);
+    Http::assertNothingSent();
+});
+
+it('shows saved member and reseller welcome text in the interactive Home without duplicate welcome messages', function (): void {
+    $settings = app(SalesWelcomeSettings::class);
+    $settings->member = '👋 سلام {name}؛ به دناگیت خوش آمدی <member>';
+    $settings->reseller = '🧩 خوش آمدی نماینده {name} <reseller>';
+    $settings->save();
+
+    $user = User::factory()->create(['name' => '<Buyer>']);
+    $bot = uxr01Bot($user);
+
+    $bot->hearText('/start')->reply()
+        ->assertCalled('sendMessage', 2)
+        ->assertRaw(static function (Request $request): bool {
+            $body = uxr01Payload($request);
+
+            return ($body['text'] ?? null) === '⌨️ منوی دناگیت آماده است.'
+                && ($body['reply_markup']['is_persistent'] ?? false) === true;
+        }, index: 0)
+        ->assertRaw(static function (Request $request): bool {
+            $body = uxr01Payload($request);
+            $text = (string) ($body['text'] ?? '');
+
+            return str_contains($text, '👋 سلام &lt;Buyer&gt;؛ به دناگیت خوش آمدی &lt;member&gt;')
+                && str_contains($text, '🏠 صفحه اصلی DenaGate')
+                && str_contains($text, 'نوع حساب: <b>👤 کاربر عادی</b>')
+                && str_contains($text, 'اعتبار من:')
+                && str_contains(json_encode($body['reply_markup'], JSON_THROW_ON_ERROR), 'sales:buy')
+                && ! str_contains($text, '<member>');
+        }, index: 1);
+
+    $bot->hearCallbackQueryData('sales:home')->reply()->assertRaw(static function (Request $request): bool {
+        $body = uxr01Payload($request);
+
+        return str_contains((string) ($body['text'] ?? ''), 'به دناگیت خوش آمدی &lt;member&gt;');
+    }, index: 1);
+
+    $user->syncRoles(['reseller']);
+
+    $bot->hearText('/start')->reply()->assertRaw(static function (Request $request): bool {
+        $body = uxr01Payload($request);
+        $text = (string) ($body['text'] ?? '');
+
+        return str_contains($text, '🧩 خوش آمدی نماینده &lt;Buyer&gt; &lt;reseller&gt;')
+            && str_contains($text, 'نوع حساب: <b>🧩 پنل فروش</b>')
+            && str_contains(json_encode($body['reply_markup'], JSON_THROW_ON_ERROR), 'menu:builder')
+            && ! str_contains($text, 'به دناگیت خوش آمدی');
+    }, index: 1);
+
     Http::assertNothingSent();
 });
