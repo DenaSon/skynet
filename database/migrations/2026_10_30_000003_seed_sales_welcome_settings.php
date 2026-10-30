@@ -28,7 +28,14 @@ return new class extends Migration
 
     public function down(): void
     {
-        // Retain operator-authored content on rollback. A future forward migration
-        // can safely reuse these values without losing custom messages.
+        // Remove only untouched defaults. Never delete operator-edited values.
+        $default = "🏠 DenaGate\\n\\nخوش آمدید، {name}.\\nنوع حساب: {account_type}";
+        $payload = json_encode($default, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+
+        DB::table('settings')
+            ->where('group', 'sales_welcome')
+            ->whereIn('name', ['member', 'reseller'])
+            ->where('payload', $payload)
+            ->delete();
     }
 };
