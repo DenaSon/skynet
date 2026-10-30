@@ -182,7 +182,7 @@ it('shows wallet to active members and resellers but denies inactive and revoked
         return str_contains($markup, 'sales:wallet');
     });
     $bot->hearCallbackQueryData('sales:wallet')->reply()->assertRaw(static function (Request $request): bool {
-        return str_contains(uxr04RichHtml($request), 'اعتبار فعلی: <b>0 تومان</b>');
+        return str_contains(uxr04RichHtml($request), 'اعتبار قابل استفاده: <b>0 تومان</b>');
     }, index: 1);
 
     $member->syncRoles(['reseller']);
