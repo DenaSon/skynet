@@ -33,12 +33,10 @@ beforeEach(function (): void {
     config()->set('super_admin.telegram_ids', ['981001', '981002']);
     config()->set('nutgram.token', '12345:admin_test');
     Http::preventStrayRequests();
-    Http::fake(['https://api.telegram.org/*' => Http::response([
-        'ok' => true, 'result' => ['message_thread_id' => 74],
-    ])]);
 });
 
 it('creates exactly one private Admin topic for a trusted root and persists its thread', function (): void {
+    Http::fake(['https://api.telegram.org/*' => Http::response(['ok' => true, 'result' => ['message_thread_id' => 74]])]);
     $root = User::factory()->create();
     $root->syncRoles(['super-admin']);
     $bot = adminTopicBot($root, 981001);
@@ -55,6 +53,7 @@ it('creates exactly one private Admin topic for a trusted root and persists its 
 });
 
 it('allows an actual finance reviewer with current view and review permissions', function (): void {
+    Http::fake(['https://api.telegram.org/*' => Http::response(['ok' => true, 'result' => ['message_thread_id' => 74]])]);
     $role = Role::firstOrCreate(['name' => 'FinanceManager', 'guard_name' => 'web']);
     foreach (['purchases.view', 'purchases.review'] as $permission) {
         $role->givePermissionTo(Permission::firstOrCreate(['name' => $permission, 'guard_name' => 'web']));
