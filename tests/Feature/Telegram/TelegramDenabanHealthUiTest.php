@@ -171,3 +171,22 @@ it('blocks ordinary, revoked and group users and does not execute checks or prov
     $groupBot->hearCallbackQueryData('denaban:health')->reply()->assertNoReply();
     Http::assertNothingSent();
 });
+
+it('adds the Health button to the existing Denaban keyboard without changing its metrics', function (): void {
+    denabanHealthRoot();
+    config()->set('services.remnawave.url', 'https://health-ui.test');
+    config()->set('services.remnawave.token', 'fixture');
+    Http::fake(['https://health-ui.test/*' => Http::response([], 503)]);
+
+    denabanHealthBot()->hearCallbackQueryData('denaban:simple')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $payload = denabanHealthPayload($request);
+            $buttons = json_encode($payload['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return str_contains($buttons, 'denaban:health')
+                && str_contains($buttons, 'denaban:show')
+                && str_contains($payload['text'], '🏔️ دنابان | وضعیت دنا');
+        }, index: 1);
+
+    Http::assertSent(static fn ($request): bool => $request->method() === 'GET');
+});
