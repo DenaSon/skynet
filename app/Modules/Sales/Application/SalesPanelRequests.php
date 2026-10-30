@@ -54,6 +54,17 @@ final readonly class SalesPanelRequests
     }
 
     /** @return array{id:int,status:string,first_name:string,last_name:string,mobile:string} */
+    /**
+     * Advisory CTA only. Submission still enforces the locked balance and role checks.
+     * Uses the same ENV-backed minimum and confirmed wallet ledger as the real gate.
+     */
+    public function canRequestWithCurrentBalance(int $userId): bool
+    {
+        return $this->buyers->isMember($userId)
+            && $this->find($userId) === null
+            && $this->hasMinimumWalletBalance($userId);
+    }
+
     public function submit(int $userId, string $firstName, string $lastName, string $mobile): array
     {
         $firstName = trim($firstName);
