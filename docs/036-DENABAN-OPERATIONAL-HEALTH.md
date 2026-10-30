@@ -6,7 +6,7 @@
 | --- | --- | --- | --- |
 | ops_cpu | CPU Load | Linux 1-minute run queue, normalized by cgroup CPU quota or /proc/cpuinfo cores | Warning >= 1.0 load/core; failed >= 2.0 |
 | ops_memory | RAM | cgroup v2 current/max (includes filesystem cache), falling back to Linux MemAvailable | Warning >=80%; failed >=95% |
-| ops_network_api | API شبکه | Existing authenticated **read-only** health operation, no writes | No runtime instance: warning; unreachable / invalid: warning (probe unavailable) |
+| ops_network_api | API شبکه | Existing authenticated **read-only** health operation, no writes | No runtime instance: warning; missing config: warning; unreachable / invalid: failed |
 | ops_telegram_api | Telegram API | getMe for Admin + separately enabled Sales bot, 3s/2s timeouts, redirects disabled | HTTP/JSON failure: failed; missing token: warning |
 | ops_queue_backlog | صف در انتظار | Laravel default queue size; no job payload inspection | >=20 warning; >=100 failed |
 | ops_failed_jobs | Jobهای ناموفق | failed_jobs since last 24h | >0 warning; >=10 failed |
