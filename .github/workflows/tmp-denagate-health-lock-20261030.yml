@@ -51,6 +51,7 @@ jobs:
             exit 1
           fi
           mv "${migrations[0]}" database/migrations/2026_10_30_000003_create_health_check_result_history_items_table.php
+          sed -i 's/[[:blank:]]\+$//' database/migrations/2026_10_30_000003_create_health_check_result_history_items_table.php
           git diff --check
 
       - name: Commit Composer-generated files and vendor migration to feature branch only
