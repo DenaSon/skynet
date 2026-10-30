@@ -259,6 +259,7 @@ final class OperationalProbe
         }
 
         $age = max(0, now()->timestamp - $last);
+
         return [
             'status' => $age >= 900 ? 'failed' : ($age >= 600 ? 'warning' : 'ok'),
             'summary' => intdiv($age, 60).' min ago',
