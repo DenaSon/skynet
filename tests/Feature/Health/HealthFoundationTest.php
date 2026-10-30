@@ -12,8 +12,11 @@ use Spatie\Health\ResultStores\EloquentHealthResultStore;
 uses(RefreshDatabase::class);
 
 it('registers the Spatie health CLI and persists history using its own table', function (): void {
-    expect(Artisan::has('health:check'))->toBeTrue()
-        ->and(Artisan::has('health:list'))->toBeTrue()
+    Artisan::call('list', ['--raw' => true]);
+    $commands = Artisan::output();
+
+    expect($commands)->toContain('health:check')
+        ->and($commands)->toContain('health:list')
         ->and(Schema::hasTable('health_check_result_history_items'))->toBeTrue()
         ->and(config('health.result_stores.'.EloquentHealthResultStore::class.'.model'))
         ->toBe(HealthCheckResultHistoryItem::class);
