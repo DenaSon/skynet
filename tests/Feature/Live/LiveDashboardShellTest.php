@@ -91,7 +91,6 @@ it('uses a readable, locally licensed Persian light theme without disturbing Liv
         ->and(is_file(public_path('fonts/OFL-Vazirmatn.txt')))->toBeTrue();
 });
 
-
 it('provides a bundled Livewire runtime and HTTPS config for every reseller action', function (): void {
     $user = liveShellUser();
 
@@ -111,7 +110,7 @@ it('provides a bundled Livewire runtime and HTTPS config for every reseller acti
     expect($layout)->toContain("@vite(['resources/css/app.css', 'resources/js/live.js'])")
         ->toContain('@livewireScriptConfig')
         ->not->toContain('@livewireScripts')
-        ->and($runtime)->toContain("vendor/livewire/livewire/dist/livewire.esm")
+        ->and($runtime)->toContain('vendor/livewire/livewire/dist/livewire.esm')
         ->toContain('Livewire.start()')
         ->and($vite)->toContain("'resources/js/live.js'");
 });
