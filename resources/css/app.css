@@ -7,3 +7,24 @@
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
 }
+
+/* DenaGate Live only — pinned, self-hosted Vazirmatn (SIL OFL, license in public/fonts). */
+@font-face {
+    font-family: 'Vazirmatn';
+    src: url('/fonts/vazirmatn-variable.woff2') format('woff2');
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+}
+
+.denagate-live {
+    font-family: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .denagate-live *, .denagate-live *::before, .denagate-live *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+    }
+}

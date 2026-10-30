@@ -207,3 +207,12 @@ it('logs in an existing active reseller using Telegram initData that contains si
     $this->assertAuthenticatedAs($user, 'web');
     $this->get('http://live.denagate.ir/dashboard')->assertOk()->assertSee($user->name);
 });
+
+it('keeps the signed Telegram login form visible with the local Persian font', function (): void {
+    $this->get('http://live.denagate.ir/')
+        ->assertOk()
+        ->assertSee('Vazirmatn')
+        ->assertSee('font-display: swap')
+        ->assertSee('action="https://live.denagate.ir/auth/telegram"', false)
+        ->assertSee('برای ورود، پنل را از بات فروش دناگیت باز کنید.');
+});
