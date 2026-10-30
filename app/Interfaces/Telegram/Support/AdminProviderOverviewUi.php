@@ -120,7 +120,7 @@ final readonly class AdminProviderOverviewUi
         }
 
         $nodesTable = $nodes === '' ? '<p>هنوز سروری تعریف نشده است.</p>'
-            : '<table bordered striped compact><tr><th>نود</th><th>وضعیت</th><th>آنلاین</th></tr>'
+            : '<table bordered striped compact><tr><td><b>نود</b></td><td><b>وضعیت</b></td><td><b>آنلاین</b></td></tr>'
                 .$nodes.'</table>';
 
         if (count($result->nodeSummaries ?? []) > 10) {
@@ -131,7 +131,7 @@ final readonly class AdminProviderOverviewUi
         if ($result->systemStats !== null) {
             $stats = '<details><summary>📊 جزئیات منابع پنل</summary><p>'
                 .TelegramUi::escape('اطلاعات زیر از پنل گزارش شده‌اند.').'</p><p>'
-                .str_replace(["\n", '</p><p>'], ['', '</p><p>'], TelegramUi::escape(trim(self::systemStats($result->systemStats))))
+                .str_replace("\n", '</p><p>', TelegramUi::escape(trim(self::systemStats($result->systemStats))))
                 .'</p></details>';
         }
 
@@ -158,7 +158,7 @@ final readonly class AdminProviderOverviewUi
             ."نمونه‌های فعال پنل: {$result->instances}\n"
             ."درخواست‌های داخلی نیازمند بررسی: {$result->needsReview}"
             .($result->nodes === 0 ? "\n\nهنوز سروری تعریف نشده است." : '')
-            .($result->systemStats !== null ? $this->systemStats($result->systemStats) : '');
+            .($result->systemStats !== null ? self::systemStats($result->systemStats) : '');
     }
 
     private static function systemStats(AdminSystemStats $stats): string
