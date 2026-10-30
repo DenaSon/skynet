@@ -108,6 +108,11 @@ it('records review notifications only on committed decisions and keeps settlemen
 it('sends an Admin photo through the matching Admin token and never repeats a completed notification', function (): void {
     $data = mb05aClaim();
     config()->set('telegram_notifications.enabled', true);
+    config()->set('telegram_notifications.admin_topic', [
+        'enabled' => true,
+        'chat_id' => '996001',
+        'thread_id' => 76,
+    ]);
 
     Http::preventStrayRequests();
     Http::fake(['api.telegram.org/*' => Http::response(['ok' => true, 'result' => ['message_id' => 1]], 200)]);
@@ -118,7 +123,14 @@ it('sends an Admin photo through the matching Admin token and never repeats a co
 
     expect(DB::table('telegram_notification_deliveries')->where('id', $id)->value('state'))->toBe('sent');
     Http::assertSentCount(1);
-    Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '12345:admin_test/sendPhoto'));
+    Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '12345:admin_test/sendPhoto')
+        && (string) $request['message_thread_id'] === '76');
+
+    // Operator-requested receipt photos stay in the current chat.
+    app(TelegramNotificationSender::class)->showReceiptToRoot($data['claim'], $data['root']->id, 996001, 'Receipt preview');
+    Http::assertSentCount(2);
+    Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '12345:admin_test/sendPhoto')
+        && ! isset($request['message_thread_id']));
 });
 
 it('backs off transient errors, then retries and marks an unreachable destination unavailable', function (): void {
@@ -169,6 +181,11 @@ it('reuploads a bounded Sales-origin photo under the Admin token without forward
     config()->set('telegram.sales.enabled', true);
     config()->set('telegram.sales.token', '54321:sales_test');
     config()->set('telegram_notifications.enabled', true);
+    config()->set('telegram_notifications.admin_topic', [
+        'enabled' => true,
+        'chat_id' => '996001',
+        'thread_id' => 76,
+    ]);
 
     $image = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP8z8DAwMDAxMDAwMDAAAANHQEDasKb6QAAAABJRU5ErkJggg==', true);
     expect($image)->toBeString();
@@ -204,7 +221,8 @@ it('reuploads a bounded Sales-origin photo under the Admin token without forward
 
     expect(DB::table('telegram_notification_deliveries')->where('id', $id)->value('state'))->toBe('sent');
     Http::assertSentCount(3);
-    Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '12345:admin_test/sendPhoto'));
+    Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '12345:admin_test/sendPhoto')
+        && (string) $request['message_thread_id'] === '76');
 });
 
 it('falls back to identifiers on invalid cross-bot photo and never declares photo delivery', function (): void {
