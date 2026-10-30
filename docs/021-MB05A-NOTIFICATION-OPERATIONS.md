@@ -1,3 +1,29 @@
+## Admin notification Topic pilot — unmerged, opt-in (2026-10-30)
+
+**Scope:** Only existing queued Admin Bot notifications sent by `TelegramNotificationSender` (text or receipt photo) to **one configured private Admin chat**. Existing recipient RBAC, outbox, retry/idempotency, callbacks, protected media, manual receipt views, Sales Bot and other Admin chats are unchanged. No migration, command/route, extra provider call, new dependency or automated Telegram topic creation. The code is inert by default.
+
+**ENV (all three required for routing):**
+```dotenv
+TELEGRAM_ADMIN_NOTIFICATIONS_TOPIC_ENABLED=false
+TELEGRAM_ADMIN_NOTIFICATIONS_TOPIC_CHAT_ID=
+TELEGRAM_ADMIN_NOTIFICATIONS_TOPIC_THREAD_ID=
+```
+The topic flag routes only when strictly `true`, the destination private Admin `chat_id` matches the configured chat, and the topic/thread ID is a valid integer greater than 1. Otherwise the existing default destination is used. Never set this to a group chat; this pilot assumes the existing private, permission-checked Admin recipient.
+
+**Manual rollout after operator approval and deployment (not performed by this PR):**
+1. In **BotFather**, enable **Threaded Mode / Topics in private chats** for the **Admin Bot**, not the Sales Bot. **This BotFather setting is global for all Admin Bot private chats and is NOT controlled or undone by the ENV flag.** Confirm client UX before changing it; keep user-created topics disabled where appropriate.
+2. Set `TELEGRAM_ADMIN_NOTIFICATIONS_TOPIC_CHAT_ID` to the numeric private chat ID of the single intended linked Admin recipient; leave `...ENABLED=false` for now.
+3. Once BotFather mode is enabled, an operator may create the one topic through the existing installed Nutgram library using a **single explicit** Tinker command below; this calls Telegram's real `createForumTopic` and therefore **must not be run until authorized**:
+   ```bash
+   php artisan tinker --execute='$chatId=(int) config("telegram_notifications.admin_topic.chat_id"); if ($chatId < 1) { throw new RuntimeException("Configure Admin topic chat ID first."); } $bot=new \\SergiX44\\Nutgram\\Nutgram((string) config("nutgram.token")); $topic=$bot->createForumTopic(chat_id:$chatId, name:"🔔 اعلان‌های مدیریت"); if ($topic === null) { throw new RuntimeException("Telegram did not create the topic."); } echo "THREAD_ID=".$topic->message_thread_id.PHP_EOL;'
+   ```
+   Run this **once only** per pilot recipient to avoid duplicate topics. If the command fails, investigate in Telegram before rerunning. A topic created in one private chat cannot be reused for another recipient.
+4. Set `...THREAD_ID` to the returned positive ID and `...ENABLED=true`; refresh cached Laravel configuration and restart relevant queue workers. Allow a **genuine existing** Admin notice to go through the normal queue and verify one copy appears in the selected Topic, with unchanged approval buttons. Other Admin chats, Sales, and manual receipt views should stay on their normal routes. No fake bank activity or Provider writes are needed.
+
+**Rollback:** Change `TELEGRAM_ADMIN_NOTIFICATIONS_TOPIC_ENABLED=false`, refresh config and restart queue workers. Notifications resume without `message_thread_id`; previous outbox records and Telegram topics are not deleted. Reverting the **chat layout** also requires a separate manual BotFather Threaded Mode change. If a topic is deleted while enabled, Telegram delivery may fail and retain the existing retry state: disable the flag before retrying, never blindly replay financial operations. The implementation can be removed by deleting the three ENV keys, the config `admin_topic` section, one small sender helper, and its guarded call sites/tests.
+
+**Acceptance evidence:** GitHub mocked transport and CI validate request payload and existing outbox behavior, **not** real Telegram Topic creation, mobile presentation, queue execution or Production delivery. No PR merge/production activation until expressly authorized.
+
 ## RBAC-A1 — scoped receipt alerts (2026-10-25; source implementation pending CI)
 
 Phase 1 implements matched purchase/topup reviewer recipients for the existing two submitted receipt outboxes and 15-minute scheduler. The initial trusted roots remain eligible recipients. Non-root reviewer delivery requires linked active identity, reachable Admin Bot contact, matching view+review permissions, and fresh send-time authorization. The existing periodic reminder never creates a row or message when the recipient has no matching overdue receipts; it never includes unauthorized category counts/buttons; each recipient is limited to one aggregated reminder per rolling hour. Source PR passing CI is distinct from observed real Telegram acceptance. No Production role or Bot token change is permitted by this update.
