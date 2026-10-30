@@ -11,6 +11,7 @@ use Spatie\Permission\Models\Role;
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
+    $this->withoutVite();
     config()->set('denagate_live.enabled', true);
     config()->set('nutgram.token', '123:admin-bot');
     config()->set('telegram.sales.enabled', true);

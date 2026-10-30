@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Interfaces\Web\Live\EnsureLiveEnabled;
+use App\Interfaces\Web\Live\EnsureLiveReseller;
 use App\Support\Health\DenaGateOperationalCheck;
 use App\Support\Health\OperationalProbe;
 use Illuminate\Support\ServiceProvider;
+use Livewire\Livewire;
 use Spatie\Health\Checks\Checks\DatabaseCheck;
 use Spatie\Health\Checks\Checks\QueueCheck;
 use Spatie\Health\Checks\Checks\RedisCheck;
@@ -23,6 +26,9 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Keep the existing Live Mini App feature and reseller guards on Livewire update requests.
+        Livewire::addPersistentMiddleware([EnsureLiveEnabled::class, EnsureLiveReseller::class]);
+
         $checks = [
             DatabaseCheck::new(),
             QueueCheck::new()->failWhenHealthJobTakesLongerThanMinutes(5),

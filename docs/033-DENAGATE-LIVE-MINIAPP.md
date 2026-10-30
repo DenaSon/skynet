@@ -14,10 +14,11 @@
 - No new user registrations or credentials. `initDataUnsafe` is never trusted.
 - Tests must reject missing/expired/tampered data, other bot signatures, inactive/non-reseller actors, stale sessions and disabled feature. Mock tests do not count as live Telegram acceptance.
 
-## Phase 1B (separate PR after 1A review)
-- Add and LOCK `livewire/livewire` 4 dependency using Composer, reuse existing Tailwind/Vite and Livewire's Alpine.
-- Replace the temporary authenticated shell with a mobile-first minimal Persian Livewire layout.
-- Run full PHP 8.4/8.5 CI, PHPStan and Pint; no deployment flag change.
+## Phase 1B (stacked PR on 1A)
+- Composer-resolved Livewire 4 with a committed lockfile, existing Tailwind/Vite and bundled Alpine (no second Alpine install).
+- Mobile-first minimal Persian Livewire layout with section navigation only; no simulated balances, fake usage or Sales/Billing writes.
+- Livewire update requests must re-run the Live feature flag and the current active reseller authorization middleware.
+- Run full CI, PHPStan, Pint and a Vite production build. Real Telegram sign-in is separate live acceptance. No deployment flag change.
 
 ## Phase 2
 - Read-only reseller-owned wallet balance, sales report and service list via existing Application Actions.
