@@ -304,6 +304,7 @@ it('keeps Sales identity, navigation and buyer routes isolated from Admin callba
         'command:start {payload}',
         'command:start',
         'command:menu',
+        'command:live',
         'command:buy',
         'command:account',
         'command:link {code}',
