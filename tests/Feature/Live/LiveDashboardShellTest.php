@@ -71,3 +71,21 @@ it('does not expose the Livewire page when feature is disabled or the reseller s
     $this->withSession(['denagate_live.user_id' => null])
         ->get('https://live.denagate.ir/dashboard')->assertRedirect();
 });
+
+it('uses a readable, locally licensed Persian light theme without disturbing Livewire navigation', function (): void {
+    $user = liveShellUser();
+
+    $this->actingAs($user)
+        ->withSession(['denagate_live.user_id' => $user->id])
+        ->get('https://live.denagate.ir/dashboard')
+        ->assertOk()
+        ->assertSee('Vazirmatn')
+        ->assertSee('/fonts/vazirmatn-variable.woff2')
+        ->assertSee('bg-[#F6F8FA]')
+        ->assertSee('دسترسی سریع پنل')
+        ->assertSee('خروج امن')
+        ->assertDontSee('bg-[#0B1220]');
+
+    expect(is_file(public_path('fonts/vazirmatn-variable.woff2')))->toBeTrue()
+        ->and(is_file(public_path('fonts/OFL-Vazirmatn.txt')))->toBeTrue();
+});

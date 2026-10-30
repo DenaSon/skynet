@@ -3,14 +3,15 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="theme-color" content="#0B1220">
+    <meta name="theme-color" content="#F6F8FA">
     <meta name="robots" content="noindex, nofollow">
     <title>DenaGate Live | پنل نمایندگی</title>
+    <link rel="preload" href="/fonts/vazirmatn-variable.woff2" as="font" type="font/woff2" crossorigin>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>[x-cloak] { display: none !important; }</style>
     @livewireStyles
 </head>
-<body class="min-h-dvh bg-[#0B1220] text-slate-100 antialiased" style="font-family:Tahoma,Arial,system-ui,sans-serif">
+<body class="denagate-live min-h-dvh bg-[#F6F8FA] text-[#1B2935] antialiased">
     {{ $slot }}
     @livewireScripts
 </body>

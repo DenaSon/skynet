@@ -51,3 +51,10 @@
 - The patch includes any present `signature` exactly as supplied in the sorted HMAC input. It does NOT accept an unverified signature, alter signing secrets, skip the `auth_date` limit, weaken reseller RBAC or store/log Telegram initData.
 - Tests: signature-present signed payload works; changed/removed signature and wrong bot token remain denied; existing signature-absent data remains supported and reseller session remains owner-checked.
 - Real Telegram smoke after deploy remains mandatory: close old Mini App, send fresh Sales Bot `/live`, open its new private Web App button; acceptance is the reseller dashboard rather than 403.
+
+## Phase 2A — Reseller Mini App visual foundation (2026-10-30)
+- Approved scope: presentation-only Apple-style minimal **light** theme on DenaGate Live, primary background `#F6F8FA`, white surfaces, brand teal `#14B8A6`, dark text and accessible teal navigation states. Both desktop sidebar and native bottom tabs have the four pre-existing Livewire destinations.
+- Self-host the official Vazirmatn variable WOFF2 font as `public/fonts/vazirmatn-variable.woff2`; retain upstream SIL Open Font License at `public/fonts/OFL-Vazirmatn.txt`. Imported from pinned upstream commit `6e553e33489a8f9dfaccc76860a2e3f3c1e66de7`. No Google Fonts runtime dependency, font npm dependency or extra application runtime package.
+- Apply the same theme to the no-Vite Telegram login entry so that it remains visible and functional before authentication; never modify or bypass raw Telegram `initData`, HMAC, CSRF, reseller role or HTTPS-scoped middleware.
+- Keep dashboard read-only placeholders explicit. Do **not** display fabricated sales, service, wallet figures; actual Application Action read integrations remain **Phase 2B**.
+- Regression covers entry and dashboard styling/font, native bottom-tab navigation, action names, authenticated access and existing financial ownership/auth tests. CI, asset build and real Telegram smoke are separate. Revert the visual commit for UI rollback without changing business data.
