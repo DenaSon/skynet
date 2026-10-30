@@ -191,8 +191,18 @@ final class Dashboard extends Component
 
         try {
             $usage = app(GetSubscriptionUsage::class)->handle($viewer, $this->selectedServiceOrderId);
+            $expired = (new \DateTimeImmutable($usage->expireAt))->getTimestamp() <= time();
+            $exhausted = $usage->limitBytes > 0 && $usage->usedBytes >= $usage->limitBytes;
+            $status = match (true) {
+                $expired, $usage->status === 'EXPIRED' => 'expired',
+                $usage->status === 'DISABLED' => 'disabled',
+                $exhausted => 'exhausted',
+                $usage->status === 'LIMITED' => 'limited',
+                $usage->status === 'ACTIVE' => 'active',
+                default => 'unknown',
+            };
             $this->serviceLiveUsage = [
-                'status' => $usage->status,
+                'status' => $status,
                 'expireAt' => $usage->expireAt,
                 'usedBytes' => $usage->usedBytes,
                 'limitBytes' => $usage->limitBytes,
