@@ -38,7 +38,8 @@ it('renders a Persian Livewire dashboard only for verified reseller sessions', f
         ->assertSee('سرویس‌ها')
         ->assertSee('اعتبار من')
         ->assertSee('گزارش‌ها')
-        ->assertDontSee('موجودی:');
+        ->assertDontSee('اطلاعات واقعی سرویس‌ها')
+        ->assertDontSee('در مرحله بعد');
 });
 
 it('provides navigable Livewire sections without reading or mutating commerce records', function (): void {
@@ -50,7 +51,7 @@ it('provides navigable Livewire sections without reading or mutating commerce re
         ->assertSet('section', 'overview')
         ->call('showSection', 'credit')
         ->assertSet('section', 'credit')
-        ->assertSee('این بخش در مرحله بعد')
+        ->assertSee('هنوز درخواست شارژی ثبت نشده است.')
         ->call('showSection', 'malicious-section')
         ->assertSet('section', 'credit')
         ->call('showSection', 'overview')
