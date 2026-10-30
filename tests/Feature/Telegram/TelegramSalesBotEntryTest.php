@@ -190,7 +190,7 @@ it('reuses single-use account links and never revives disabled linked accounts',
     $code = app(IssueTelegramLinkCode::class)->handle($user->id);
     $bot = sb01Bot(771005);
 
-    $bot->hearText('/link '.$code)->reply()->assertCalled('sendMessage', 2);
+    $bot->hearText('/link '.$code)->reply()->assertCalled('sendRichMessage', 1);
     expect(TelegramAccount::query()->where('telegram_user_id', 771005)->value('user_id'))->toBe($user->id);
 
     $bot->hearText('/link '.$code)->reply()
