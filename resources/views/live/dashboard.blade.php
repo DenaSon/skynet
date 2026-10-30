@@ -336,6 +336,93 @@
                         <h1 class="text-2xl font-extrabold text-[#1B2935]">سرویس‌های من</h1>
                         <p class="mt-2 text-sm text-[#71818B]">اشتراک‌های ثبت‌شده برای مشتریان شما</p>
                     </div>
+                    @if ($selectedService !== null)
+                        @php
+                            $item = $selectedService->summary;
+                            $localStatus = match ($item->status) {
+                                'active' => 'فعال در سوابق داخلی',
+                                'needs_review' => 'نیازمند بررسی',
+                                'provisioning' => 'در حال آماده‌سازی',
+                                'failed' => 'نیازمند پیگیری',
+                                default => 'وضعیت نامشخص',
+                            };
+                        @endphp
+                        <button type="button" wire:click="backToServices" class="mb-5 min-h-11 rounded-xl px-1 text-sm font-bold text-[#087F73] focus-visible:outline-2 focus-visible:outline-[#14B8A6]">→ بازگشت به سرویس‌ها</button>
+                        <section class="rounded-[26px] border border-[#E7ECEF] bg-white p-5 shadow-sm sm:p-7">
+                            <div class="flex flex-wrap items-start justify-between gap-4">
+                                <div class="min-w-0">
+                                    <p class="text-xs font-semibold text-[#087F73]">جزئیات سرویس</p>
+                                    <h2 class="mt-2 break-words text-xl font-extrabold text-[#1B2935]">{{ $labels[$item->orderId] ?? $item->productName }}</h2>
+                                    <p class="mt-2 text-sm text-[#71818B]">{{ $item->productName }}</p>
+                                </div>
+                                <span class="rounded-full bg-[#F4F7F8] px-3 py-2 text-xs font-semibold text-[#536C76]">{{ $localStatus }}</span>
+                            </div>
+                            <div class="mt-6 grid grid-cols-2 gap-3">
+                                <div class="rounded-2xl bg-[#F6F8FA] p-4">
+                                    <p class="text-xs text-[#71818B]">مدت خریداری‌شده</p>
+                                    <p class="mt-2 text-lg font-extrabold text-[#1B2935]">{{ number_format($item->durationDays) }} روز</p>
+                                </div>
+                                <div class="rounded-2xl bg-[#F6F8FA] p-4">
+                                    <p class="text-xs text-[#71818B]">حجم خریداری‌شده</p>
+                                    <p class="mt-2 text-lg font-extrabold text-[#1B2935]">{{ $item->trafficGb === null ? 'نامحدود' : number_format($item->trafficGb).' گیگابایت' }}</p>
+                                </div>
+                            </div>
+                            <dl class="mt-5 space-y-3 border-t border-[#EFF2F4] pt-5 text-sm">
+                                <div class="flex flex-wrap justify-between gap-2"><dt class="text-[#71818B]">شماره سفارش</dt><dd dir="ltr" class="font-bold text-[#1B2935]">#{{ $item->orderId }}</dd></div>
+                                <div class="flex flex-wrap justify-between gap-2"><dt class="text-[#71818B]">تاریخ ثبت</dt><dd class="font-semibold text-[#1B2935]">{{ \App\Support\PersianCalendar::utcDateTime($item->orderedAt) }}</dd></div>
+                            </dl>
+                            <p class="mt-5 text-xs leading-7 text-[#71818B]">وضعیت بالا بر اساس اطلاعات ثبت‌شده است و الزاماً به معنی اتصال فعلی نیست.</p>
+                        </section>
+
+                        <section class="mt-5 rounded-[26px] border border-[#E7ECEF] bg-white p-5 shadow-sm sm:p-7" aria-label="وضعیت و مصرف سرویس">
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <div>
+                                    <h3 class="text-base font-extrabold text-[#1B2935]">وضعیت و مصرف سرویس</h3>
+                                    <p class="mt-2 text-xs leading-6 text-[#71818B]">با بررسی وضعیت، آخرین اطلاعات شبکه دریافت می‌شود.</p>
+                                </div>
+                                @if ($selectedService->canRequestLink)
+                                    <button type="button" wire:click="refreshServiceUsage" wire:loading.attr="disabled" wire:target="refreshServiceUsage"
+                                        class="min-h-11 rounded-xl bg-[#EAF8F4] px-4 py-2.5 text-sm font-bold text-[#087F73] disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-[#14B8A6]">بررسی وضعیت</button>
+                                @endif
+                            </div>
+                            @if ($serviceUsageError)
+                                <p role="alert" class="mt-5 rounded-xl bg-[#FFF9F1] p-4 text-sm leading-7 text-[#845C23]">{{ $serviceUsageError }}</p>
+                            @elseif ($serviceLiveUsage !== null && $serviceUsageCheckedAt !== null)
+                                <div class="mt-5 border-t border-[#EFF2F4] pt-5">
+                                    <div class="flex flex-wrap items-center justify-between gap-3">
+                                        <span class="text-sm text-[#71818B]">وضعیت بررسی‌شده</span>
+                                        <span class="rounded-full bg-[#EAF8F4] px-3 py-1.5 text-sm font-bold text-[#087F73]">{{ match ($serviceLiveUsage['status']) {
+                                            'active' => 'فعال',
+                                            'expired' => 'منقضی‌شده',
+                                            'disabled' => 'غیرفعال',
+                                            'exhausted' => 'حجم تمام‌شده',
+                                            'limited' => 'محدودشده',
+                                            default => 'نامشخص',
+                                        } }}</span>
+                                    </div>
+                                    <div class="mt-5 grid grid-cols-2 gap-3">
+                                        <div class="rounded-2xl bg-[#F6F8FA] p-4">
+                                            <p class="text-xs text-[#71818B]">حجم مصرف‌شده</p>
+                                            <p class="mt-2 text-lg font-extrabold text-[#1B2935]">{{ number_format($serviceLiveUsage['usedBytes'] / 1073741824, 2) }} گیگابایت</p>
+                                        </div>
+                                        <div class="rounded-2xl bg-[#F6F8FA] p-4">
+                                            <p class="text-xs text-[#71818B]">حجم باقی‌مانده</p>
+                                            <p class="mt-2 text-lg font-extrabold text-[#1B2935]">{{ $serviceLiveUsage['limitBytes'] === 0 ? 'بدون سقف' : number_format(max(0, $serviceLiveUsage['limitBytes'] - $serviceLiveUsage['usedBytes']) / 1073741824, 2).' گیگابایت' }}</p>
+                                        </div>
+                                    </div>
+                                    <div class="mt-5 flex flex-wrap justify-between gap-2 text-sm"><span class="text-[#71818B]">تاریخ انقضا</span><span class="font-bold text-[#1B2935]">{{ \App\Support\PersianCalendar::utcDateTime($serviceLiveUsage['expireAt']) }}</span></div>
+                                    <p class="mt-4 text-xs leading-7 text-[#71818B]">آخرین بررسی: {{ \App\Support\PersianCalendar::utcDateTime($serviceUsageCheckedAt) }} · این اطلاعات لحظه‌ای به‌روز نمی‌شوند.</p>
+                                </div>
+                            @else
+                                <p class="mt-5 rounded-2xl bg-[#F6F8FA] p-4 text-sm leading-7 text-[#71818B]">
+                                    {{ $selectedService->canRequestLink ? 'برای مشاهده میزان مصرف، تاریخ انقضا و وضعیت واقعی، «بررسی وضعیت» را بزنید.' : 'اطلاعات به‌روز این سرویس فعلاً قابل دریافت نیست.' }}
+                                </p>
+                            @endif
+                        </section>
+                    @else
+                        @if ($serviceDetailError)
+                            <p role="alert" class="mb-5 rounded-xl bg-[#FFF9F1] p-4 text-sm leading-7 text-[#845C23]">{{ $serviceDetailError }}</p>
+                        @endif
                     <div class="mb-5 grid grid-cols-2 gap-3">
                         <section class="rounded-[22px] border border-[#E7ECEF] bg-white p-5">
                             <p class="text-xs text-[#71818B]">کل سرویس‌ها</p>
@@ -366,6 +453,8 @@
                                     <span class="shrink-0 rounded-full bg-[#EAF8F4] px-3 py-1.5 text-xs font-semibold text-[#087F73]">{{ $serviceStatus }}</span>
                                 </div>
                                 <p class="mt-4 text-xs text-[#71818B]">شماره سفارش: <span dir="ltr">{{ $service->orderId }}</span> · تاریخ ثبت: {{ \App\Support\PersianCalendar::utcDateTime($service->orderedAt) }}</p>
+                                <button type="button" wire:click="openService({{ $service->orderId }})"
+                                    class="mt-5 min-h-11 rounded-xl bg-[#EAF8F4] px-5 py-2.5 text-sm font-bold text-[#087F73] focus-visible:outline-2 focus-visible:outline-[#14B8A6]">مشاهده جزئیات</button>
                             </article>
                         @empty
                             <section class="rounded-[24px] border border-[#E7ECEF] bg-white p-8 text-center text-sm text-[#71818B]">
@@ -380,6 +469,7 @@
                         <button type="button" wire:click="nextServices({{ $nextServiceCursor }})" class="mt-5 rounded-xl bg-[#14B8A6] px-5 py-2.5 text-sm font-bold text-white">موارد بیشتر</button>
                     @endif
                     <p class="mt-5 text-xs leading-7 text-[#71818B]">وضعیت‌ها بر اساس سوابق ثبت‌شده‌اند و نمایشگر وضعیت لحظه‌ای اتصال نیستند.</p>
+                    @endif
                 @elseif ($section === 'reports')
                     <div class="mb-6">
                         <h1 class="text-2xl font-extrabold text-[#1B2935]">گزارش فروش</h1>

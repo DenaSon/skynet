@@ -7,6 +7,8 @@ namespace App\Interfaces\Web\Live;
 use App\Modules\Billing\Application\ViewWallet;
 use App\Modules\Identity\Application\ResolveSalesBuyer;
 use App\Modules\Identity\Application\SubscriptionViewer;
+use App\Modules\Provisioning\Application\GetMySubscription;
+use App\Modules\Provisioning\Application\GetSubscriptionUsage;
 use App\Modules\Provisioning\Application\ListMyServices;
 use App\Modules\Sales\Application\CalculatePlanQuote;
 use App\Modules\Sales\Application\ListQuotedPresets;
@@ -37,6 +39,20 @@ final class Dashboard extends Component
     public int $reportDays = 30;
 
     public ?int $serviceCursor = null;
+
+    #[Locked]
+    public ?int $selectedServiceOrderId = null;
+
+    /** @var array{status:string,expireAt:string,usedBytes:int,limitBytes:int}|null */
+    #[Locked]
+    public ?array $serviceLiveUsage = null;
+
+    #[Locked]
+    public ?string $serviceUsageCheckedAt = null;
+
+    public ?string $serviceDetailError = null;
+
+    public ?string $serviceUsageError = null;
 
     public ?int $selectedPlanId = null;
 
@@ -82,6 +98,7 @@ final class Dashboard extends Component
             }
             $this->section = $section;
             $this->serviceCursor = null;
+            $this->resetServiceDetail();
         }
     }
 
@@ -94,14 +111,119 @@ final class Dashboard extends Component
 
     public function nextServices(int $cursor): void
     {
+        $this->resellerId();
         if ($cursor > 0 && $cursor <= 999_999_999_999_999) {
+            $this->resetServiceDetail();
             $this->serviceCursor = $cursor;
         }
     }
 
     public function firstServices(): void
     {
+        $this->resellerId();
+        $this->resetServiceDetail();
         $this->serviceCursor = null;
+    }
+
+    /** Only a subscription visible on the current owned service page may be selected. */
+    public function openService(int $orderId): void
+    {
+        $this->resellerId();
+        $this->resetServiceDetail();
+        if ($this->section !== 'services' || $orderId < 1) {
+            $this->serviceDetailError = 'این سرویس در دسترس نیست.';
+
+            return;
+        }
+
+        $viewer = SubscriptionViewer::web();
+        $page = app(ListMyServices::class)->handle($viewer, 6, $this->serviceCursor);
+        $visible = false;
+        foreach ($page->items as $service) {
+            if ($service->orderId === $orderId) {
+                $visible = true;
+                break;
+            }
+        }
+
+        if (! $visible) {
+            $this->serviceDetailError = 'این سرویس در دسترس نیست.';
+
+            return;
+        }
+
+        try {
+            // Read-only owner verification; no Provider access on opening a detail.
+            app(GetMySubscription::class)->handle($viewer, $orderId);
+            $this->selectedServiceOrderId = $orderId;
+        } catch (ValidationException) {
+            $this->serviceDetailError = 'این سرویس در دسترس نیست.';
+        }
+    }
+
+    public function backToServices(): void
+    {
+        $this->resellerId();
+        $this->resetServiceDetail();
+    }
+
+    /** One owner-verified Provider GET per explicit request; no background polling. */
+    public function refreshServiceUsage(): void
+    {
+        $this->resellerId();
+        $this->serviceLiveUsage = null;
+        $this->serviceUsageCheckedAt = null;
+        $this->serviceUsageError = null;
+
+        if ($this->section !== 'services' || $this->selectedServiceOrderId === null) {
+            $this->serviceUsageError = 'ابتدا سرویس خود را انتخاب کنید.';
+
+            return;
+        }
+
+        $viewer = SubscriptionViewer::web();
+        $detail = app(GetMySubscription::class)->handle($viewer, $this->selectedServiceOrderId);
+        if (! $detail->canRequestLink) {
+            $this->serviceUsageError = 'دریافت وضعیت فعلی این سرویس امکان‌پذیر نیست.';
+
+            return;
+        }
+
+        try {
+            $usage = app(GetSubscriptionUsage::class)->handle($viewer, $this->selectedServiceOrderId);
+            $expired = (new \DateTimeImmutable($usage->expireAt))->getTimestamp() <= time();
+            $exhausted = $usage->limitBytes > 0 && $usage->usedBytes >= $usage->limitBytes;
+            $status = match (true) {
+                $expired, $usage->status === 'EXPIRED' => 'expired',
+                $usage->status === 'DISABLED' => 'disabled',
+                $exhausted => 'exhausted',
+                $usage->status === 'LIMITED' => 'limited',
+                $usage->status === 'ACTIVE' => 'active',
+                default => 'unknown',
+            };
+            $this->serviceLiveUsage = [
+                'status' => $status,
+                'expireAt' => $usage->expireAt,
+                'usedBytes' => $usage->usedBytes,
+                'limitBytes' => $usage->limitBytes,
+            ];
+            $this->serviceUsageCheckedAt = now()->toIso8601String();
+        } catch (AuthorizationException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            // Provider exceptions are not rendered or serialized to the browser.
+            report($exception);
+            $this->serviceUsageError = 'اطلاعات به‌روز سرویس در دسترس نیست. لطفاً دوباره بررسی کنید.';
+        }
+    }
+
+    private function resetServiceDetail(): void
+    {
+        $this->selectedServiceOrderId = null;
+        $this->serviceDetailError = null;
+        $this->serviceLiveUsage = null;
+        $this->serviceUsageCheckedAt = null;
+        $this->serviceUsageError = null;
     }
 
     /** Select only a currently quoted preset or a published reseller builder. */
@@ -408,6 +530,7 @@ final class Dashboard extends Component
             'counts' => null,
             'services' => [],
             'labels' => [],
+            'selectedService' => null,
             'nextServiceCursor' => null,
             'report' => null,
             'readError' => false,
@@ -491,7 +614,15 @@ final class Dashboard extends Component
             if ($this->section === 'overview' || $this->section === 'services') {
                 $services = app(ListMyServices::class);
                 $data['counts'] = $services->counts(SubscriptionViewer::web());
-                if ($this->section === 'services') {
+                if ($this->section === 'services' && $this->selectedServiceOrderId !== null) {
+                    $detail = app(GetMySubscription::class)->handle(
+                        SubscriptionViewer::web(), $this->selectedServiceOrderId,
+                    );
+                    $data['selectedService'] = $detail;
+                    $data['labels'] = app(ManageResellerServiceLabels::class)->forOrders(
+                        $userId, [$detail->summary->orderId],
+                    );
+                } elseif ($this->section === 'services') {
                     $cursor = $this->serviceCursor;
                     if ($cursor !== null && ($cursor < 1 || $cursor > 999_999_999_999_999)) {
                         $cursor = null;
