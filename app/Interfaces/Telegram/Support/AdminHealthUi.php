@@ -90,7 +90,7 @@ final readonly class AdminHealthUi
         $bot->sendMessage(text: $text, reply_markup: $keyboard, parse_mode: 'HTML');
     }
 
-    /** @param array{state:string,enabled:bool,checkedAt:string|null,items:list<array{label:string,status:string}>,total:int} $data */
+    /** @param array{state:string,enabled:bool,checkedAt:string|null,items:list<array{label:string,status:string,summary:string,group:string}>,total:int} $data */
     private static function report(array $data): string
     {
         $lines = [
@@ -100,12 +100,19 @@ final readonly class AdminHealthUi
             self::description($data['state']),
         ];
 
-        if ($data['items'] !== []) {
+        foreach (['basic' => '🔍 بررسی‌های پایه', 'operations' => '📊 منابع و عملیات'] as $group => $heading) {
+            $groupItems = array_values(array_filter(
+                $data['items'], static fn (array $item): bool => $item['group'] === $group,
+            ));
+            if ($groupItems === []) {
+                continue;
+            }
             $lines[] = '';
-            $lines[] = '<b>🔍 آخرین نتایج ثبت‌شده</b>';
-            foreach ($data['items'] as $item) {
+            $lines[] = '<b>'.$heading.'</b>';
+            foreach ($groupItems as $item) {
                 $lines[] = self::symbol($item['status']).' '
-                    .TelegramUi::escape($item['label']).': '.self::status($item['status']);
+                    .TelegramUi::escape($item['label']).': '.self::status($item['status'])
+                    .($item['summary'] === '' ? '' : ' · '.TelegramUi::escape($item['summary']));
             }
         }
 
@@ -116,28 +123,35 @@ final readonly class AdminHealthUi
         return implode("\n", $lines);
     }
 
-    /** @param array{state:string,enabled:bool,checkedAt:string|null,items:list<array{label:string,status:string}>,total:int} $data */
+    /** @param array{state:string,enabled:bool,checkedAt:string|null,items:list<array{label:string,status:string,summary:string,group:string}>,total:int} $data */
     private static function richReport(array $data): string
     {
-        $rows = '';
+        $base = '';
+        $operations = '';
         foreach ($data['items'] as $item) {
-            $rows .= '<tr><td>'.TelegramUi::escape($item['label']).'</td><td align="left"><b>'
-                .TelegramUi::escape(self::symbol($item['status']).' '.self::status($item['status']))
-                .'</b></td></tr>';
+            $detail = self::symbol($item['status']).' '.self::status($item['status'])
+                .($item['summary'] === '' ? '' : ' · '.$item['summary']);
+            $row = '<tr><td>'.TelegramUi::escape($item['label']).'</td><td align="left"><b>'
+                .TelegramUi::escape($detail).'</b></td></tr>';
+            if ($item['group'] === 'operations') {
+                $operations .= $row;
+            } else {
+                $base .= $row;
+            }
         }
 
-        $details = $rows === '' ? '<p>هنوز نتیجه‌ای ثبت نشده است.</p>'
-            : '<table bordered striped compact>'.$rows.'</table>';
+        $basic = $base === '' ? '<p>هنوز نتیجه‌ای ثبت نشده است.</p>'
+            : '<table bordered striped compact>'.$base.'</table>';
+        $ops = $operations === '' ? '<p>هنوز شاخص عملیاتی ثبت نشده است.</p>'
+            : '<table bordered striped compact>'.$operations.'</table>';
 
         return '<h2>🩺 دنابان | سلامت سیستم</h2>'
             .'<p><b>'.TelegramUi::escape(self::state($data['state'])).'</b></p>'
             .'<p>'.TelegramUi::escape(self::description($data['state'])).'</p>'
-            .'<h3>🔍 آخرین نتایج ثبت‌شده</h3>'
-            .$details
-            .'<details><summary>درباره این گزارش</summary><p>'
-            .'این نمایش فقط از تاریخچه داخلی Laravel Health خوانده می‌شود. '
-            .'تازه‌سازی، اجرای جدید Health Check نیست. وضعیت نامشخص یا گزارش قدیمی نشانه سلامت نیست.'
-            .'</p></details>'
+            .'<h3>🔍 بررسی‌های پایه</h3>'
+            .$basic
+            .'<h3>📊 منابع و عملیات</h3>'
+            .$ops
             .'<footer>🕒 آخرین ثبت: '.TelegramUi::escape(self::time($data['checkedAt'])).'</footer>';
     }
 

@@ -12,8 +12,10 @@ use App\Modules\Sales\Application\ReferralRewardOutbox;
 use App\Modules\Trial\Application\ReadFreeTrial;
 use App\Modules\Trial\Application\TrialAvailability;
 use App\Modules\Trial\Jobs\ProvisionFreeTrialJob;
+use App\Support\Health\OperationalProbe;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schedule;
 use Illuminate\Validation\ValidationException;
@@ -87,6 +89,15 @@ Artisan::command('system:cleanup', function (): int {
 // Scan only linked, authorized Sales subscriptions. Uses provider GET only.
 Artisan::command('sales:subscriptions:alerts', function (): int {
     $checked = app(SubscriptionAlertMonitor::class)->scan();
+
+    // Only after a successful scan; failure to persist the observational
+    // heartbeat must never affect subscription alerts or deliveries.
+    try {
+        Cache::put(OperationalProbe::SUBSCRIPTION_HEARTBEAT, now()->timestamp, now()->addDay());
+    } catch (Throwable) {
+        // Health will report an unknown heartbeat instead of masking the job.
+    }
+
     $this->info("Checked {$checked} owned subscription(s).");
 
     return 0;

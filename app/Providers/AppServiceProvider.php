@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Support\Health\DenaGateOperationalCheck;
+use App\Support\Health\OperationalProbe;
 use Illuminate\Support\ServiceProvider;
 use Spatie\Health\Checks\Checks\DatabaseCheck;
 use Spatie\Health\Checks\Checks\QueueCheck;
@@ -34,6 +36,11 @@ class AppServiceProvider extends ServiceProvider
         // Redis is a required dependency only when the configured cache or queue uses it.
         if (config('cache.default') === 'redis' || config('queue.default') === 'redis') {
             $checks[] = RedisCheck::new();
+        }
+
+        // Registered by unique stable names; no user-controlled input.
+        foreach (OperationalProbe::CHECKS as $probe) {
+            $checks[] = DenaGateOperationalCheck::makeFor($probe);
         }
 
         Health::checks($checks);
