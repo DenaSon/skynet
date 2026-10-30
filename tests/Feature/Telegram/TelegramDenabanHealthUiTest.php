@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use App\Modules\Administration\Application\ReadAdminHealth;
+use App\Modules\Provisioning\Application\ReadAdminHealth;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use GuzzleHttp\Psr7\Request as NutgramRequest;
