@@ -367,9 +367,12 @@ it('exposes builder only in reseller navigation and leaves F09 buying untouched'
     $actor = app(ResolveTelegramActor::class)->handle(966018);
     $keyboard = app(ReplyMenuRenderer::class)->homeKeyboard($actor);
     $labels = array_map(static fn ($button): string => $button->text, array_merge(...$keyboard->keyboard));
-    expect($labels)->toContain(ReplyMenuLabels::BUILDER);
+    expect(ReplyMenuLabels::BUILDER)->toBe('🧩 پلن سفارشی')
+        ->and($labels)->toContain(ReplyMenuLabels::BUILDER)
+        ->not->toContain(ReplyMenuLabels::PREVIOUS_BUILDER);
 
     $bot->hearText(ReplyMenuLabels::BUILDER)->reply()->assertCalled('sendMessage');
+    $bot->hearText(ReplyMenuLabels::PREVIOUS_BUILDER)->reply()->assertCalled('sendMessage');
     $bot->hearCallbackQueryData('menu:builder')->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData("builder:detail:{$id}:1")->reply()->assertCalled('editMessageText');
 
@@ -384,4 +387,40 @@ it('exposes builder only in reseller navigation and leaves F09 buying untouched'
 
     expect(DB::table('sales_orders')->count())->toBe(0)
         ->and(DB::table('billing_journals')->count())->toBe(0);
+});
+
+it('renders custom plan button on Sales reseller home and Account without changing callback routing', function (): void {
+    Http::preventStrayRequests();
+    Http::fake();
+    $reseller = b16Reseller();
+    $bot = b16SalesBot(966178, $reseller);
+    $actor = app(ResolveTelegramActor::class)->handle(966178);
+    $keyboard = app(ReplyMenuRenderer::class)->salesKeyboard($actor);
+    $labels = array_map(static fn ($button): string => $button->text, array_merge(...$keyboard->keyboard));
+
+    expect($labels)->toContain('🧩 پلن سفارشی')
+        ->not->toContain(ReplyMenuLabels::PREVIOUS_BUILDER);
+    $bot->hearText(ReplyMenuLabels::PREVIOUS_BUILDER)->reply()->assertCalled('sendMessage');
+    $bot->hearCallbackQueryData('sales:home')->reply()->assertRaw(static function (Request $request): bool {
+        $data = FakeNutgram::getActualData($request);
+        $keyboard = $data['reply_markup'] ?? [];
+        if (is_string($keyboard)) {
+            $keyboard = json_decode($keyboard, true, flags: JSON_THROW_ON_ERROR);
+        }
+        $buttons = json_encode($keyboard, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+
+        return str_contains($buttons, '🧩 پلن سفارشی')
+            && str_contains($buttons, 'menu:builder');
+    }, index: 1);
+    $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(static function (Request $request): bool {
+        $data = FakeNutgram::getActualData($request);
+        $keyboard = $data['reply_markup'] ?? [];
+        if (is_string($keyboard)) {
+            $keyboard = json_decode($keyboard, true, flags: JSON_THROW_ON_ERROR);
+        }
+        $buttons = json_encode($keyboard, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+
+        return str_contains($buttons, '🧩 پلن سفارشی')
+            && str_contains($buttons, 'menu:builder');
+    }, index: 1);
 });
