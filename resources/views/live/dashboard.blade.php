@@ -118,7 +118,25 @@
                         <button type="button" wire:click="showSection('overview')" class="min-h-11 rounded-xl border border-[#E7ECEF] bg-white px-4 py-2 text-sm font-semibold text-[#536C76] focus-visible:outline-2 focus-visible:outline-[#14B8A6]">بستن</button>
                     </div>
 
-                    @if ($selectedPlan === null)
+                    @if ($createdOrder !== null)
+                        <section class="rounded-[26px] border border-[#CCEDE4] bg-white p-6 shadow-sm sm:p-8" role="status">
+                            <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#E7F8F3] text-[#087F73]">
+                                <svg class="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>
+                            </div>
+                            <h2 class="text-xl font-extrabold text-[#1B2935]">سفارش شما ثبت شد</h2>
+                            <p class="mt-2 text-sm leading-7 text-[#71818B]">سفارش در انتظار پرداخت است. هنوز مبلغی از اعتبار شما کسر نشده و سرویسی فعال نشده است.</p>
+                            <div class="mt-6 space-y-3 rounded-2xl bg-[#F6F8FA] p-5 text-sm">
+                                <div class="flex flex-wrap justify-between gap-3"><span class="text-[#71818B]">شماره سفارش</span><span dir="ltr" class="font-bold text-[#1B2935]">#{{ $createdOrder->id }}</span></div>
+                                <div class="flex flex-wrap justify-between gap-3"><span class="text-[#71818B]">پلن</span><span class="font-bold text-[#1B2935]">{{ $createdOrder->productName }}</span></div>
+                                @if ($createdCustomerName !== null)
+                                    <div class="flex flex-wrap justify-between gap-3"><span class="text-[#71818B]">نام کاربری مشتری</span><span class="break-all font-bold text-[#1B2935]" dir="auto">{{ $createdCustomerName }}</span></div>
+                                @endif
+                                <div class="flex flex-wrap justify-between gap-3 border-t border-[#E7ECEF] pt-3"><span class="text-[#71818B]">مبلغ سفارش</span><span class="font-extrabold text-[#087F73]" dir="ltr">{{ number_format(intdiv($createdOrder->totalPriceRials, 10)) }}{{ $createdOrder->totalPriceRials % 10 === 0 ? '' : '.'.($createdOrder->totalPriceRials % 10) }} تومان</span></div>
+                            </div>
+                            <p class="mt-4 text-xs leading-7 text-[#71818B]">برای پرداخت می‌توانید از بخش سفارش‌های بات فروش استفاده کنید.</p>
+                            <button type="button" wire:click="backToPlans" class="mt-5 min-h-11 rounded-xl border border-[#E7ECEF] bg-white px-5 py-2.5 text-sm font-bold text-[#087F73]">خرید سرویس دیگر</button>
+                        </section>
+                    @elseif ($selectedPlan === null)
                         @if ($planUnavailable || $quoteError)
                             <p role="alert" class="mb-5 rounded-2xl border border-[#F0E0C9] bg-[#FFF9F1] p-4 text-sm leading-7 text-[#845C23]">
                                 {{ $quoteError ?? 'این پلن در دسترس نیست. لطفاً یکی از پلن‌های موجود را انتخاب کنید.' }}
@@ -181,6 +199,10 @@
 
                             <button type="button" wire:click="previewQuote" class="mt-6 min-h-12 w-full rounded-xl bg-[#14B8A6] px-5 py-3 text-sm font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]">محاسبه پیش‌فاکتور</button>
 
+                            @if ($orderError)
+                                <p role="alert" class="mt-5 rounded-2xl bg-[#FFF9F1] p-4 text-sm leading-7 text-[#845C23]">{{ $orderError }}</p>
+                            @endif
+
                             @if ($quoteError)
                                 <p role="alert" class="mt-5 rounded-2xl bg-[#FFF9F1] p-4 text-sm leading-7 text-[#845C23]">{{ $quoteError }}</p>
                             @elseif ($planQuote !== null)
@@ -198,7 +220,22 @@
                                         <span class="text-xl font-extrabold text-[#087F73]" dir="ltr">{{ number_format(intdiv($planQuote->totalPriceRials, 10)) }}{{ $planQuote->totalPriceRials % 10 === 0 ? '' : '.'.($planQuote->totalPriceRials % 10) }} <span class="text-xs font-medium">تومان</span></span>
                                     </div>
                                 </div>
-                                <p class="mt-4 text-xs leading-7 text-[#71818B]">این مبلغ برای اطلاع شماست و تا زمان ثبت خرید ممکن است تغییر کند.</p>
+                                <p class="mt-4 text-xs leading-7 text-[#71818B]">مبلغ هنگام ثبت سفارش دوباره بررسی می‌شود. ثبت سفارش به‌معنای پرداخت نیست.</p>
+                                @if ($confirmedQuoteHash !== null && $orderIntentKey !== null)
+                                    <div class="mt-6 border-t border-[#E7ECEF] pt-6">
+                                        <label for="customer-username" class="mb-2 block text-sm font-bold text-[#1B2935]">نام کاربری مشتری</label>
+                                        <input id="customer-username" type="text" maxlength="60" autocomplete="off" dir="auto" wire:model="customerUsername"
+                                            placeholder="مثلاً customer_01"
+                                            class="min-h-12 w-full rounded-xl border border-[#D9E4E7] bg-white px-4 text-base text-[#1B2935] focus:border-[#14B8A6] focus:outline-none" />
+                                        <p class="mt-2 text-xs leading-7 text-[#71818B]">نامی برای شناسایی سرویس این مشتری در پنل شما؛ شماره تماس نیاز نیست.</p>
+                                        <button type="button" wire:click="confirmOrder" wire:loading.attr="disabled"
+                                            wire:target="confirmOrder"
+                                            class="mt-5 min-h-12 w-full rounded-xl bg-[#14B8A6] px-5 py-3 text-sm font-bold text-white disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]">
+                                            تأیید و ثبت سفارش
+                                        </button>
+                                        <p class="mt-2 text-center text-xs text-[#71818B]">بدون برداشت از اعتبار</p>
+                                    </div>
+                                @endif
                             @endif
                         </section>
                     @endif
