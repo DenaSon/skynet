@@ -314,7 +314,7 @@ it('shows the green panel request CTA on Wallet at the configured exact threshol
         $data = panel01Payload($request);
 
         return ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:panel:request')
-            && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:account');
+            && ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:account');
     }, index: 1);
 
     PanelWalletFunding::credit($member->id, 1);
