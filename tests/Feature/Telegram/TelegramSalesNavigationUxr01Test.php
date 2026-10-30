@@ -100,7 +100,9 @@ it('shows persistent Sales keyboard on start while accepting old button labels',
 
             return ($body['reply_markup']['is_persistent'] ?? false) === true
                 && ($body['reply_markup']['keyboard'][0][0]['text'] ?? null) === ReplyMenuLabels::SALES_BUY
-                && ($body['reply_markup']['keyboard'][1][1]['text'] ?? null) === ReplyMenuLabels::SALES_SUPPORT;
+                && ($body['reply_markup']['keyboard'][1][0]['text'] ?? null) === ReplyMenuLabels::SALES_WALLET
+                && ($body['reply_markup']['keyboard'][1][1]['text'] ?? null) === ReplyMenuLabels::SALES_ACCOUNT
+                && ($body['reply_markup']['keyboard'][2][0]['text'] ?? null) === ReplyMenuLabels::SALES_SUPPORT;
         }, index: 0)
         ->assertReply('sendMessage', ['parse_mode' => 'HTML'])
         ->assertReplyText("<b>🏠 DenaGate</b>\n\nخوش آمدید، &lt;Buyer&gt; &amp; &quot;Name&quot;.\nنوع حساب: <b>👤 کاربر عادی</b>");
