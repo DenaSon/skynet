@@ -23,7 +23,9 @@ final readonly class EnsureLiveReseller
         }
 
         try {
-            $this->buyers->isReseller($userId);
+            if (! $this->buyers->isReseller($userId)) {
+                throw new AuthorizationException;
+            }
         } catch (AuthorizationException) {
             Auth::guard('web')->logout();
             $request->session()->invalidate();

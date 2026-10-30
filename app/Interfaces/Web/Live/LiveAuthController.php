@@ -42,7 +42,9 @@ final readonly class LiveAuthController
 
         $actor = $telegram->handle($telegramId);
         abort_if($actor === null, 403);
-        $buyers->isReseller($actor->userId);
+        if (! $buyers->isReseller($actor->userId)) {
+            abort(403);
+        }
 
         // No new user or permission is created; reuse the verified Telegram binding.
         $user = User::query()->findOrFail($actor->userId);
