@@ -424,78 +424,107 @@ final readonly class SalesHomeUi
 
             return;
         }
+
         $pendingTopups = [];
         $richHtml = null;
+        $canResume = false;
         try {
             $wallet = $this->wallets->handle($actor->userId);
-            $pendingTopups = array_values(array_filter(
+            $pendingTopups = array_slice(array_values(array_filter(
                 $wallet->topups, static fn (array $topup): bool => $topup['status'] === 'pending',
-            ));
-            $message = '<b>💰 اعتبار من</b>'
-                ."\n\nاعتبار فعلی: <b>".TelegramUi::toman($wallet->balanceRials).' تومان</b>';
-            if ($wallet->topups !== []) {
-                $message .= "\n\n<b>آخرین درخواست‌های شارژ</b>";
-                foreach (array_slice($wallet->topups, 0, 5) as $topup) {
-                    $message .= "\n#".$topup['id'].' · '.TelegramUi::toman($topup['amount_rials']).' تومان · '.TelegramUi::topupStatus($topup['status']);
+            )), 0, 3);
+            $history = array_slice(array_values(array_filter(
+                $wallet->topups, static fn (array $topup): bool => $topup['status'] !== 'pending',
+            )), 0, 5);
+            $canResume = config('billing.topups_enabled', false) === true
+                && app(ManualPaymentUi::class)->cardNumber() !== null;
+
+            $balance = TelegramUi::toman($wallet->balanceRials).' تومان';
+            $message = '<b>💰 اعتبار من</b>'."\n\nاعتبار قابل استفاده: <b>".$balance.'</b>';
+            $richHtml = '<h4>💰 اعتبار من</h4><p>اعتبار قابل استفاده: <b>'.$balance.'</b></p>';
+
+            if ($pendingTopups !== []) {
+                $message .= "\n\n<b>🕒 شارژهای نیمه‌تمام</b>";
+                $richHtml .= '<h4>🕒 شارژهای نیمه‌تمام</h4>';
+                $amounts = array_count_values(array_column($pendingTopups, 'amount_rials'));
+                foreach ($pendingTopups as $topup) {
+                    $amount = TelegramUi::toman($topup['amount_rials']).' تومان';
+                    $duplicate = ($amounts[$topup['amount_rials']] ?? 0) > 1;
+                    $suffix = $duplicate ? ' · #'.$topup['id'] : '';
+                    $message .= "\n📷 ".$amount.$suffix.' · در انتظار ارسال رسید';
+                    $richHtml .= '<p>💳 <b>'.$amount.'</b>'.$suffix.' · در انتظار ارسال رسید</p>';
+                    if ($canResume) {
+                        $callback = 'sales:wallet:topup:resume:'.$topup['id'];
+                        $richHtml .= '<tg-button-row><tg-button type="callback_data" style="success" data="'.$callback.'">'
+                            .'📷 تکمیل شارژ · '.$amount.$suffix.'</tg-button></tg-button-row>';
+                    }
                 }
             }
-            $message .= "\n\n<blockquote>موجودی براساس تراکنش‌های تأییدشده محاسبه می‌شود.</blockquote>";
-            $richHtml = '<h4>💰 اعتبار من</h4>'
-                .'<p>اعتبار فعلی: <b>'.TelegramUi::toman($wallet->balanceRials).' تومان</b></p>';
-            if ($pendingTopups !== []) {
-                $latestPending = $pendingTopups[0];
-                $richHtml .= '<p>🕘 درخواست شارژ در انتظار بررسی: #'.$latestPending['id']
-                    .' · <b>'.TelegramUi::toman($latestPending['amount_rials']).' تومان</b></p>';
-            }
-            if ($wallet->topups !== []) {
-                $richHtml .= '<details><summary>🧾 آخرین درخواست‌های شارژ</summary><p>';
-                foreach (array_slice($wallet->topups, 0, 5) as $topup) {
-                    $richHtml .= '#'.$topup['id'].' · '.TelegramUi::toman($topup['amount_rials'])
-                        .' تومان · '.TelegramUi::escape(TelegramUi::topupStatus($topup['status'])).'<br>';
+            if ($history !== []) {
+                $message .= "\n\n<b>🧾 سوابق شارژ</b>";
+                $richHtml .= '<details><summary>🧾 سوابق شارژ</summary><p>';
+                foreach ($history as $topup) {
+                    $line = TelegramUi::toman($topup['amount_rials']).' تومان · '
+                        .TelegramUi::topupStatus($topup['status']);
+                    $message .= "\n▫️ ".$line;
+                    $richHtml .= TelegramUi::escape($line).'<br>';
                 }
                 $richHtml .= '</p></details>';
             }
-            $richHtml .= '<p>موجودی فقط بر اساس تراکنش‌های تأییدشده محاسبه می‌شود.</p>';
+            $message .= "\n\n<blockquote>اعتبار فقط از تراکنش‌های تأییدشده محاسبه می‌شود.</blockquote>";
+            $richHtml .= '<p>اعتبار فقط از تراکنش‌های تأییدشده محاسبه می‌شود.</p>';
         } catch (Throwable) {
             $message = '<b>💰 اعتبار من</b>'."\n\nموجودی فعلاً در دسترس نیست.";
         }
 
+        // Rich content owns its in-message Resume buttons; native fallback
+        // preserves the same owned callbacks when Telegram Rich is unavailable.
         $keyboard = InlineKeyboardMarkup::make();
+        $plainKeyboard = InlineKeyboardMarkup::make();
+        if ($canResume) {
+            foreach ($pendingTopups as $topup) {
+                $label = '📷 تکمیل شارژ · '.TelegramUi::toman($topup['amount_rials']).' تومان';
+                if (count(array_filter($pendingTopups, static fn (array $item): bool => $item['amount_rials'] === $topup['amount_rials'])) > 1) {
+                    $label .= ' · #'.$topup['id'];
+                }
+                $plainKeyboard->addRow(InlineKeyboardButton::make(
+                    $label, callback_data: 'sales:wallet:topup:resume:'.$topup['id'],
+                    style: ButtonStyle::SUCCESS,
+                ));
+            }
+        }
+
         if (isset($wallet)) {
             try {
                 if ($this->panelRequests->canRequestWithCurrentBalance($actor->userId)) {
-                    $keyboard->addRow(InlineKeyboardButton::make(
+                    $action = InlineKeyboardButton::make(
                         '🧩 ثبت درخواست پنل فروش',
                         callback_data: 'sales:panel:request',
                         style: ButtonStyle::SUCCESS,
-                    ));
+                    );
+                    $keyboard->addRow($action);
+                    $plainKeyboard->addRow(clone $action);
                 }
             } catch (Throwable) {
-                // A failing CTA check must never hide the existing wallet actions.
+                // A failing optional CTA must not hide existing wallet actions.
             }
         }
         if (config('billing.topups_enabled', false) === true) {
-            if (app(ManualPaymentUi::class)->cardNumber() !== null) {
-                foreach (array_slice($pendingTopups, 0, 3) as $topup) {
-                    $keyboard->addRow(InlineKeyboardButton::make(
-                        '▶️ ادامه شارژ #'.$topup['id'], callback_data: 'sales:wallet:topup:resume:'.$topup['id'],
-                        style: ButtonStyle::SUCCESS,
-                    ));
-                }
-            }
-            $keyboard->addRow(InlineKeyboardButton::make('➕ افزایش اعتبار', callback_data: 'sales:wallet:topup'));
+            $action = InlineKeyboardButton::make(
+                '➕ افزایش اعتبار', callback_data: 'sales:wallet:topup',
+                style: ButtonStyle::SUCCESS,
+            );
+            $keyboard->addRow($action);
+            $plainKeyboard->addRow(clone $action);
         }
-        $keyboard->addRow(InlineKeyboardButton::make('◀️ حساب کاربری', callback_data: 'sales:account'))
-            ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
+
         if ($rich && $richHtml !== null) {
-            $plainKeyboard = clone $keyboard;
-            $keyboard->addRow(InlineKeyboardButton::make('↩️ نمایش ساده', callback_data: 'sales:wallet:simple'));
             $this->renderRich($bot, $richHtml, $message, $keyboard, $plainKeyboard);
 
             return;
         }
 
-        $this->render($bot, $message, $keyboard);
+        $this->render($bot, $message, $plainKeyboard);
     }
 
     public function invite(Nutgram $bot, bool $rich = true): void
