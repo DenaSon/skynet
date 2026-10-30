@@ -137,6 +137,30 @@ it('registers exactly one pending reseller order with immutable price and custom
     live3bNoMoneyOrProvider();
 });
 
+it('registers an explicitly priced custom builder using the published reseller tariff', function (): void {
+    $buyer = live3bReseller(944418);
+    $plan = live3bPlan(mode: 'builder');
+    $this->actingAs($buyer)->withSession(['denagate_live.user_id' => $buyer->id]);
+
+    Livewire::test(Dashboard::class)
+        ->call('showSection', 'shop')
+        ->call('selectPlan', $plan)
+        ->set('daysInput', '45')
+        ->set('gbInput', '70')
+        ->call('previewQuote')
+        ->assertSee('15,275')
+        ->set('customerUsername', 'builder-customer')
+        ->call('confirmOrder')
+        ->assertSee('سفارش شما ثبت شد');
+
+    expect(DB::table('sales_orders')->value('duration_days'))->toBe(45)
+        ->and(DB::table('sales_orders')->value('traffic_gb'))->toBe(70)
+        ->and(DB::table('sales_orders')->value('discount_percent'))->toBe(35)
+        ->and(DB::table('sales_orders')->value('total_price_rials'))->toBe(152_750)
+        ->and(DB::table('sales_orders')->count())->toBe(1);
+    live3bNoMoneyOrProvider();
+});
+
 it('rolls back invalid customer names and permits a corrected retry under the same intent', function (): void {
     $buyer = live3bReseller(944412);
     $plan = live3bPlan();
