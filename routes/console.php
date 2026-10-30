@@ -17,6 +17,9 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schedule;
 use Illuminate\Validation\ValidationException;
+use Spatie\Health\Commands\DispatchQueueCheckJobsCommand;
+use Spatie\Health\Commands\ScheduleCheckHeartbeatCommand;
+use Spatie\Health\Models\HealthCheckResultHistoryItem;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -49,6 +52,22 @@ Artisan::command('sales:telegram:menu:register', function (): int {
 
     return 0;
 })->purpose('Register the native Telegram command menu on the Sales Bot only');
+
+// DenaGate Health foundation: checks run only after explicit production opt-in.
+// Queue probes and Scheduler heartbeat precede the check in the same minute.
+// Spatie notifications are OFF; future Telegram UI will read stored results.
+Schedule::command(DispatchQueueCheckJobsCommand::class)
+    ->everyMinute()->when(static fn (): bool => config('denagate_health.enabled') === true)
+    ->withoutOverlapping(5);
+Schedule::command(ScheduleCheckHeartbeatCommand::class)
+    ->everyMinute()->when(static fn (): bool => config('denagate_health.enabled') === true)
+    ->withoutOverlapping(5);
+Schedule::command('health:check --no-notification')
+    ->everyMinute()->when(static fn (): bool => config('denagate_health.enabled') === true)
+    ->withoutOverlapping(5);
+Schedule::command('model:prune', ['--model' => [HealthCheckResultHistoryItem::class]])
+    ->dailyAt('03:45')->when(static fn (): bool => config('denagate_health.enabled') === true)
+    ->withoutOverlapping();
 
 // Reuse the existing proven pruning logic without a second deletion path.
 Schedule::command('system:cleanup')->weekly()->withoutOverlapping();
