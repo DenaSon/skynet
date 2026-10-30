@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Throwable;
 
 /**
  * Bounded operational probes, never write to customer, billing, provider,
@@ -128,11 +129,24 @@ final class OperationalProbe
     private function networkApi(): array
     {
         // Existing pinned ReadApi performs only GET; no new provider permissions.
-        $instances = (new RemnawaveReadApi(app(RemnawaveApiClientFactory::class)->make()))
-            ->healthInstanceCount();
+        $url = config('services.remnawave.url');
+        $token = config('services.remnawave.token');
+        if (! is_string($url) || trim($url) === ''
+            || ! is_string($token) || trim($token) === '') {
+            return ['status' => 'warning', 'summary' => 'not configured'];
+        }
 
-        return ['status' => $instances > 0 ? 'ok' : 'warning',
-            'summary' => $instances.' instances'];
+        try {
+            $instances = (new RemnawaveReadApi(app(RemnawaveApiClientFactory::class)->make()))
+                ->healthInstanceCount();
+
+            return ['status' => $instances > 0 ? 'ok' : 'warning',
+                'summary' => $instances.' instances'];
+        } catch (Throwable) {
+            // Do not persist or log the exception; it can contain endpoint
+            // URLs, authorization headers or upstream response bodies.
+            return ['status' => 'failed', 'summary' => 'API unreachable'];
+        }
     }
 
     /** @return array{status:string,summary:string} */
