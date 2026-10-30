@@ -2,7 +2,7 @@
 
 use App\Interfaces\Telegram\Handlers\AdminHandler;
 use App\Interfaces\Telegram\Handlers\AdminRolesHandler;
-use App\Interfaces\Telegram\Handlers\AdminUsersHandler;
+use App\Interfaces\Telegram\Handlers\AdminUsersHandler;\nuse App\Interfaces\Telegram\Handlers\SettingsHandler;
 use App\Interfaces\Telegram\Support\AdminAccountingUi;
 use App\Interfaces\Telegram\Support\AdminBusinessReportUi;
 use App\Interfaces\Telegram\Support\AdminCloudflareDnsUi;
@@ -44,7 +44,7 @@ use SergiX44\Nutgram\Nutgram;
 /** @var Nutgram $bot */
 // Admin-only registrations. Existing authorization and confirmation checks remain inside the handlers.
 
-// Opt-in private notification Topic; unrelated to business callbacks or billing.
+// Root-only Sales welcome text settings on the existing Admin Bot.\n$bot->onCallbackQueryData('admin:welcome:show', function (Nutgram $bot): void {\n    app(SettingsHandler::class)->show($bot);\n});\n$bot->onCallbackQueryData('admin:welcome:edit:{kind}', function (Nutgram $bot, string $kind): void {\n    app(SettingsHandler::class)->edit($bot, $kind);\n});\n$bot->onCallbackQueryData('admin:welcome:cancel', function (Nutgram $bot): void {\n    app(SettingsHandler::class)->cancel($bot);\n});\n\n// Opt-in private notification Topic; unrelated to business callbacks or billing.
 $bot->onCommand('adminnotifications', function (Nutgram $bot): void {
     app(AdminNotificationTopicUi::class)->show($bot);
 });
