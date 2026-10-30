@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Telegram\Support;
 
-use App\Modules\Administration\Application\ReadAdminHealth;
+use App\Modules\Provisioning\Application\ReadAdminHealth;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Support\PersianCalendar;
 use Illuminate\Auth\Access\AuthorizationException;
