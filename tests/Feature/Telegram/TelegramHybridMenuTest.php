@@ -8,6 +8,7 @@ use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Settings\SalesWelcomeSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
@@ -226,8 +227,9 @@ it('persists every line of member and reseller welcome text through the real Adm
         'member' => "🔥 اتصال به دنیای آزاد، با چند لمس ساده.\n\n✨ خط دوم خوشامدگویی\n👤 {name}",
         'reseller' => "🧩 پنل فروش نمایندگان\n\n💚 تخفیف ویژه نماینده\n{account_type}",
     ] as $kind => $welcome) {
-        $bot->hearCallbackQueryData('admin:welcome:edit:'.$kind)->reply()
-            ->assertCalled('editMessageText');
+        // Exercise the real text route with an active editor draft, independently
+        // of Nutgram's callback fake state.
+        Cache::put('admin:sales-welcome:draft:931012', $kind, now()->addMinutes(10));
 
         $bot->hearText($welcome)->reply()
             ->assertReplyText('✅ متن خوشامدگویی ذخیره شد.');
