@@ -53,8 +53,7 @@ final readonly class NodeTcpProbe
             $ip = $m[2];
             $port = (int) $m[3];
             if (isset($targets[$uuid]) || $port < 1 || $port > 65535
-                || filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4
-                    | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+                || ! self::publicIpv4($ip)) {
                 throw new InvalidArgumentException('Unsafe or duplicate Node TCP target.');
             }
             $targets[$uuid] = ['ip' => $ip, 'port' => $port];
@@ -161,6 +160,26 @@ final readonly class NodeTcpProbe
         }
 
         return $unknown;
+    }
+
+    /** Filter flags alone do not exclude multicast, shared and documentation IP ranges. */
+    private static function publicIpv4(string $ip): bool
+    {
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4
+            | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+            return false;
+        }
+
+        $octets = array_map('intval', explode('.', $ip));
+        [$a, $b, $c] = $octets;
+
+        return $a < 224
+            && ! ($a === 100 && $b >= 64 && $b <= 127) // Shared CGNAT.
+            && ! ($a === 192 && $b === 0 && in_array($c, [0, 2], true))
+            && ! ($a === 192 && $b === 88 && $c === 99)
+            && ! ($a === 198 && $b === 18 || $a === 198 && $b === 19)
+            && ! ($a === 198 && $b === 51 && $c === 100)
+            && ! ($a === 203 && $b === 0 && $c === 113);
     }
 
     /** @param array{ip:string,port:int} $target */
