@@ -9,7 +9,5 @@ return [
     // Optional single-chat Admin notification topic pilot. Never affects Sales.
     'admin_topic' => [
         'enabled' => env('TELEGRAM_ADMIN_NOTIFICATIONS_TOPIC_ENABLED', false),
-        'chat_id' => env('TELEGRAM_ADMIN_NOTIFICATIONS_TOPIC_CHAT_ID'),
-        'thread_id' => env('TELEGRAM_ADMIN_NOTIFICATIONS_TOPIC_THREAD_ID'),
     ],
 ];
