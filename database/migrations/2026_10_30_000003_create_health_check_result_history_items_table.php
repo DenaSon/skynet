@@ -33,4 +33,19 @@ return new class extends Migration
             $table->index('batch');
         });
     }
+
+    public function down(): void
+    {
+        $connection = (new HealthCheckResultHistoryItem)->getConnectionName();
+        $tableName = EloquentHealthResultStore::getHistoryItemInstance()->getTable();
+
+        // Do not silently delete operational history on a production rollback.
+        if (Schema::connection($connection)->hasTable($tableName)) {
+            if (Schema::connection($connection)->getConnection()->table($tableName)->exists()) {
+                throw new RuntimeException('Health check history exists; disable probes and preserve evidence.');
+            }
+
+            Schema::connection($connection)->drop($tableName);
+        }
+    }
 };
