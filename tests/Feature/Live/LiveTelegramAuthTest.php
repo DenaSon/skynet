@@ -19,13 +19,16 @@ beforeEach(function (): void {
     Role::findOrCreate('reseller', 'web');
 });
 
-function liveSignedData(int $telegramId, ?int $date = null, string $token = '321:sales-bot'): string
+function liveSignedData(int $telegramId, ?int $date = null, string $token = '321:sales-bot', ?string $signature = null): string
 {
     $fields = [
         'auth_date' => (string) ($date ?? time()),
         'query_id' => 'AA-test-session',
         'user' => json_encode(['id' => $telegramId, 'first_name' => 'Reseller'], JSON_THROW_ON_ERROR),
     ];
+    if ($signature !== null) {
+        $fields['signature'] = $signature;
+    }
     ksort($fields, SORT_STRING);
     $check = implode("\n", array_map(
         static fn (string $key, string $value): string => $key.'='.$value,
@@ -172,4 +175,35 @@ it('generates HTTPS Mini App form and redirects when Runflare forwards an HTTP-o
         ->assertRedirect('https://live.denagate.ir');
 
     $this->assertGuest('web');
+});
+
+it('accepts Telegram initData containing signature as a signed HMAC field', function (): void {
+    $validator = app(ValidateTelegramInitData::class);
+    $telegramId = 551177;
+    $signed = liveSignedData($telegramId, signature: 'telegram-ed25519-signature-sample');
+
+    // The optional signature must be included in bot-token HMAC data-check-string.
+    expect($validator->userId($signed, '321:sales-bot'))->toBe($telegramId);
+
+    // Changing or stripping the field must invalidate the original HMAC.
+    $modified = str_replace('telegram-ed25519-signature-sample', 'forged-signature', $signed);
+    $stripped = implode('&', array_filter(
+        explode('&', $signed),
+        static fn (string $part): bool => ! str_starts_with($part, 'signature='),
+    ));
+
+    expect($validator->userId($modified, '321:sales-bot'))->toBeNull()
+        ->and($validator->userId($stripped, '321:sales-bot'))->toBeNull()
+        ->and($validator->userId($signed, '123:admin-bot'))->toBeNull();
+});
+
+it('logs in an existing active reseller using Telegram initData that contains signature', function (): void {
+    $user = liveReseller(551177);
+
+    $this->post('http://live.denagate.ir/auth/telegram', [
+        'init_data' => liveSignedData(551177, signature: 'telegram-ed25519-signature-sample'),
+    ])->assertRedirect('https://live.denagate.ir/dashboard');
+
+    $this->assertAuthenticatedAs($user, 'web');
+    $this->get('http://live.denagate.ir/dashboard')->assertOk()->assertSee($user->name);
 });

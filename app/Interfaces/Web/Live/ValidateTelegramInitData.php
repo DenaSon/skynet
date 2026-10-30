@@ -43,7 +43,9 @@ final class ValidateTelegramInitData
             return null;
         }
 
-        unset($values['hash'], $values['signature']);
+        // Bot-token HMAC covers every received field except hash, including signature.
+        // The signature field is excluded only for Telegram's third-party Ed25519 verification.
+        unset($values['hash']);
         ksort($values, SORT_STRING);
         $pairs = [];
         foreach ($values as $key => $value) {

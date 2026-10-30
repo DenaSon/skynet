@@ -44,3 +44,10 @@
 - **Edge HTTP→HTTPS remains Runflare's responsibility** (observed 308 redirect). Do not add a Laravel HTTP redirect based on the untrusted upstream request scheme; this can cause a reverse-proxy redirect loop. Do not configure trust-all proxies.
 - Regression: emulate a trusted public HTTPS connection that arrives at Laravel with HTTP scheme, assert HTTPS form action and auth/dashboard/logout redirects, valid reseller sign-in and no forced-scheme leak. CI is not an actual Telegram client smoke.
 - After deploy, check `curl.exe -sS https://live.denagate.ir/` contains `action="https://live.denagate.ir/auth/telegram"` and send `/live` in the Sales Bot. Confirm a real reseller sees the dashboard. Keep the feature gate available for immediate rollback.
+
+## Telegram Mini App 403 HMAC compatibility patch (2026-10-30)
+- Incident: After HTTPS was fixed, a real Telegram Mini App GET and immediate form POST reached Laravel but produced 403.
+- Root-cause risk found during source audit: previous bot-token HMAC data-check-string removed both `hash` and `signature`. Official Telegram validation with **bot token** excludes **only hash**, whereas the third-party Ed25519 verification path excludes both. Real Mini App `initData` may include `signature`.
+- The patch includes any present `signature` exactly as supplied in the sorted HMAC input. It does NOT accept an unverified signature, alter signing secrets, skip the `auth_date` limit, weaken reseller RBAC or store/log Telegram initData.
+- Tests: signature-present signed payload works; changed/removed signature and wrong bot token remain denied; existing signature-absent data remains supported and reseller session remains owner-checked.
+- Real Telegram smoke after deploy remains mandatory: close old Mini App, send fresh Sales Bot `/live`, open its new private Web App button; acceptance is the reseller dashboard rather than 403.
