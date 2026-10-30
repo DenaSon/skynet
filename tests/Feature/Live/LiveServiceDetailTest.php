@@ -67,7 +67,7 @@ function live4aService(User $buyer, string $state = 'active'): int
 }
 
 /** @param array<string,mixed> $overrides
- *  @return array<string,mixed>
+ * @return array<string,mixed>
  */
 function live4aRemote(int $orderId, array $overrides = []): array
 {
