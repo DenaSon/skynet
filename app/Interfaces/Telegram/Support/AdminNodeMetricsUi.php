@@ -77,7 +77,8 @@ final readonly class AdminNodeMetricsUi
                 foreach (array_slice($snapshot['nodes'], 0, 10) as $node) {
                     $status = $node['disabled'] ? '⏸️' : ($node['connected'] ? '🟢' : '🔴');
                     $online = $node['online'] === null ? 'نامشخص' : (string) $node['online'];
-                    $message .= "\n".$status.' '.self::safe($node['name']).' · آنلاین: '.$online;
+                    $message .= "\n".$status.' '.self::safe($node['name']).' · آنلاین: '.$online
+                        .' · TCP: '.self::tcp($node['tcp'], $node['disabled']);
                 }
                 if (count($snapshot['nodes']) > 10) {
                     $message .= "\n".'برای مشاهده سایر نودها، فهرست مدیریت را باز کنید.';
@@ -158,7 +159,7 @@ final readonly class AdminNodeMetricsUi
     }
 
     /**
-     * @param  array{state:string,nodes:list<array{name:string,connected:bool,disabled:bool,online:int|null}>,total:int,connected:int,enabled:int,onlineTotal:int|null,todayBytes:int|null,weekBytes:int|null,trafficDate:string,receivedAt:string|null}  $snapshot
+     * @param  array{state:string,nodes:list<array{name:string,connected:bool,disabled:bool,online:int|null,tcp:array{status:string,ms:float|null,checkedAt:int|null}}>,total:int,connected:int,enabled:int,onlineTotal:int|null,todayBytes:int|null,weekBytes:int|null,trafficDate:string,receivedAt:string|null}  $snapshot
      * @param  array{seven:int|null,thirty:int|null}  $totals
      */
     private static function richReport(array $snapshot, array $totals): string
@@ -168,11 +169,11 @@ final readonly class AdminNodeMetricsUi
             $status = $node['disabled'] ? '⏸️ غیرفعال' : ($node['connected'] ? '🟢 متصل' : '🔴 قطع');
             $rows .= '<tr><td>'.TelegramUi::escape(self::safe($node['name'])).'</td>'
                 .'<td>'.TelegramUi::escape($status).'</td>'
-                .'<td>'.self::counter($node['online']).'</td></tr>';
+                .'<td>👥 '.self::counter($node['online']).' · '.self::tcp($node['tcp'], $node['disabled']).'</td></tr>';
         }
         $nodes = $rows === '' ? '<p>هنوز نودی ثبت نشده است.</p>'
             : '<table bordered striped compact>'
-                .'<tr><td><b>نود</b></td><td><b>وضعیت</b></td><td><b>آنلاین</b></td></tr>'
+                .'<tr><td><b>نود</b></td><td><b>وضعیت</b></td><td><b>آنلاین / TCP</b></td></tr>'
                 .$rows.'</table>';
         if (count($snapshot['nodes']) > 10) {
             $nodes .= '<p>برای مشاهده سایر نودها، فهرست مدیریت را باز کنید.</p>';
@@ -193,10 +194,24 @@ final readonly class AdminNodeMetricsUi
             .'<p>مصرف روز '.TelegramUi::escape(PersianCalendar::date($snapshot['trafficDate']))
             .' (UTC): <b>'.self::bytes($snapshot['todayBytes']).'</b></p>'
             .'<p>ترافیک تجمیعی به معنی سرعت لحظه‌ای یا Ping نیست.</p>'
+            .'<p>TCP از سرور دناگیت تا پورت تأییدشده اندازه‌گیری می‌شود؛ نه از اینترنت کاربران.</p>'
             .'<p>اطلاعات ناقص یا ناموجود، صفر محسوب نمی‌شوند.</p>'
             .'</details>'
             .'<footer>🕒 دریافت: '.TelegramUi::escape(PersianCalendar::localDateTime($snapshot['receivedAt']))
             .' (تهران)</footer>';
+    }
+
+    /** @param array{status:string,ms:float|null,checkedAt:int|null} $value */
+    private static function tcp(array $value, bool $disabled): string
+    {
+        if ($disabled) {
+            return '⏸️ —';
+        }
+        if ($value['status'] === 'ok' && $value['ms'] !== null) {
+            return '🟢 '.number_format($value['ms'], 1, '.', '').' ms';
+        }
+
+        return $value['status'] === 'failed' ? '🔴 بدون پاسخ' : '⚪ نامشخص';
     }
 
     private static function counter(?int $value): string
