@@ -18,6 +18,7 @@ use App\Modules\Identity\Application\TelegramRecipient;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Sales\Application\ManualBankPayments;
 use App\Modules\Sales\Application\ReviewSalesPanelRequest;
+use App\Modules\Sales\Application\SalesPanelRequests;
 use App\Modules\Trial\Application\EndFreeTrial;
 use App\Modules\Trial\Application\ReadFreeTrial;
 use Illuminate\Http\Client\Response;
@@ -25,6 +26,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
+use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\KeyboardButton;
 use Throwable;
 
@@ -301,11 +303,25 @@ final readonly class TelegramNotificationSender
             }
             $message .= "\nاعتبار فعلی: <b>".TelegramUi::toman($balance).' تومان</b>';
 
-            $keyboard = json_encode([
-                'inline_keyboard' => [[
-                    ['text' => '💰 اعتبار من', 'callback_data' => 'sales:wallet'],
-                ]],
-            ], JSON_THROW_ON_ERROR);
+            $buttons = [];
+            // Noncritical guidance: a broken/missing configuration must never
+            // prevent the financial result notification from being delivered.
+            if ($expected === 'approved') {
+                try {
+                    if (app(SalesPanelRequests::class)->canRequestWithCurrentBalance($userId)) {
+                        $message .= "\n\n🧩 شرایط ثبت درخواست پنل فروش را دارید.";
+                        $buttons[] = [[
+                            'text' => '🧩 ثبت درخواست پنل فروش',
+                            'callback_data' => 'sales:panel:request',
+                            'style' => ButtonStyle::SUCCESS->value,
+                        ]];
+                    }
+                } catch (Throwable) {
+                    // Preserve existing wallet notice; the request route rechecks all gates.
+                }
+            }
+            $buttons[] = [['text' => '💰 اعتبار من', 'callback_data' => 'sales:wallet']];
+            $keyboard = json_encode(['inline_keyboard' => $buttons], JSON_THROW_ON_ERROR);
             $this->text($bot, $chat, $message, $keyboard, 'HTML');
 
             return;
