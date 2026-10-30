@@ -90,3 +90,28 @@ it('uses a readable, locally licensed Persian light theme without disturbing Liv
     expect(is_file(public_path('fonts/vazirmatn-variable.woff2')))->toBeTrue()
         ->and(is_file(public_path('fonts/OFL-Vazirmatn.txt')))->toBeTrue();
 });
+
+
+it('provides a bundled Livewire runtime and HTTPS config for every reseller action', function (): void {
+    $user = liveShellUser();
+
+    $this->actingAs($user)
+        ->withSession(['denagate_live.user_id' => $user->id])
+        ->get('http://live.denagate.ir/dashboard')
+        ->assertOk()
+        ->assertSee('wire:click="showSection', false)
+        ->assertSee('wire:click="selectPlan', false)
+        ->assertSee('livewireScriptConfig', false)
+        ->assertDontSee('src="/livewire-', false);
+
+    // Source-to-asset contract: the actual bundled JavaScript is verified by the CI Vite build.
+    $layout = file_get_contents(resource_path('views/live/layout.blade.php'));
+    $runtime = file_get_contents(resource_path('js/live.js'));
+    $vite = file_get_contents(base_path('vite.config.js'));
+    expect($layout)->toContain("@vite(['resources/css/app.css', 'resources/js/live.js'])")
+        ->toContain('@livewireScriptConfig')
+        ->not->toContain('@livewireScripts')
+        ->and($runtime)->toContain("vendor/livewire/livewire/dist/livewire.esm")
+        ->toContain('Livewire.start()')
+        ->and($vite)->toContain("'resources/js/live.js'");
+});
