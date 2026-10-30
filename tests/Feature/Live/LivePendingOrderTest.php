@@ -245,8 +245,8 @@ it('does not allow bypassing preview, cancellation, forged plans or revoked rese
     $this->actingAs($buyer)->withSession(['denagate_live.user_id' => $buyer->id]);
 
     $page = Livewire::test(Dashboard::class)
-        ->call('confirmOrder')->assertSee('ابتدا پیش‌فاکتور')
         ->call('showSection', 'shop')
+        ->call('confirmOrder')->assertSee('ابتدا پیش‌فاکتور')
         ->call('selectPlan', $plan)
         ->call('previewQuote')
         ->set('customerUsername', 'not-purchased')
