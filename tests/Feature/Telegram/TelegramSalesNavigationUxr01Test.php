@@ -263,15 +263,15 @@ it('places My Credit beside tutorials for ordinary Sales members and accepts sta
         $data = uxr01Payload($request);
 
         return str_contains(uxr01RichHtml($request), '<h4>💰 اعتبار من</h4>')
-            && str_contains(uxr01RichHtml($request), 'اعتبار فعلی: <b>0 تومان</b>')
-            && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:wallet:simple');
+            && str_contains(uxr01RichHtml($request), 'اعتبار قابل استفاده: <b>0 تومان</b>')
+            && ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:wallet:simple');
     });
     $bot->hearText('💰 کیف پول')->reply()->assertCalled('sendRichMessage');
     $bot->hearCallbackQueryData('sales:wallet:simple')->reply()->assertRaw(static function (Request $request): bool {
         $data = uxr01Payload($request);
 
         return ! isset($data['rich_message'])
-            && str_contains((string) ($data['text'] ?? ''), 'اعتبار فعلی: <b>0 تومان</b>');
+            && str_contains((string) ($data['text'] ?? ''), 'اعتبار قابل استفاده: <b>0 تومان</b>');
     }, index: 1);
     $bot->hearText(ReplyMenuLabels::WALLET)->reply()->assertCalled('sendRichMessage');
 
@@ -304,8 +304,8 @@ it('shows an ordinary active member their own zero wallet balance without a top-
         $data = uxr01Payload($request);
 
         return str_contains(uxr01RichHtml($request), '<h4>💰 اعتبار من</h4>')
-            && str_contains(uxr01RichHtml($request), 'اعتبار فعلی: <b>0 تومان</b>')
-            && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:account');
+            && str_contains(uxr01RichHtml($request), 'اعتبار قابل استفاده: <b>0 تومان</b>')
+            && ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:account');
     }, index: 1);
 
     expect(DB::table('billing_wallets')->where('user_id', $user->id)->count())->toBe(1)
