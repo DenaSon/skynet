@@ -83,8 +83,7 @@ final readonly class SalesHomeUi
         // Callback pages retain their existing inline actions.
         if (! $bot->isCallbackQuery() || $showKeyboard) {
             $bot->sendMessage(
-                text: '<b>🏠 DenaGate</b>'."\n\nخوش آمدید، ".$this->name($actor->name)
-                    .".\nنوع حساب: <b>".$this->salesRole($actor).'</b>',
+                text: app(SalesWelcomeMessage::class)->forActor($actor),
                 parse_mode: 'HTML',
                 reply_markup: app(ReplyMenuRenderer::class)->salesKeyboard(
                     $actor,
