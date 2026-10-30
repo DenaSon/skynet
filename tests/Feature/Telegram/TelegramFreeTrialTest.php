@@ -271,7 +271,7 @@ it('puts trial and tutorial in the persistent keyboard and removes their home an
         $markup = json_encode(trialUiPayload($request)['reply_markup']);
 
         return ! str_contains($markup, 'sales:trial') && ! str_contains($markup, 'sales:help:apps');
-    }, index: 1);
+    }, index: 0);
     $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(function (Request $request): bool {
         return ! str_contains(json_encode(trialUiPayload($request)['reply_markup']), 'sales:trial');
     }, index: 1);
@@ -330,7 +330,7 @@ it('hides a used trial immediately on menu refresh for both terminal conditions 
         return ! isset($data['rich_message'])
             && str_contains((string) ($data['text'] ?? ''), 'تست به پایان رسیده است')
             && ! in_array('🧪 تست رایگان', $labels, true);
-    }, index: 1);
+    }, index: 0);
     expect(DB::table('trial_claims')->count())->toBe(1);
 })->with([true, false]);
 
