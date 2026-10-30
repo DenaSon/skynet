@@ -304,6 +304,65 @@ it('keeps the member tutorial visible with a harmless extra role but hides it fr
     Http::assertNothingSent();
 });
 
+it('shows the green panel request CTA on Wallet at the configured exact threshold, but not below or after application', function (): void {
+    config()->set('sales.panel_minimum_wallet_toman', '550000');
+    $member = User::factory()->create();
+    $bot = panel01Bot(986171, $member);
+    PanelWalletFunding::credit($member->id, 5_499_999);
+
+    $bot->hearCallbackQueryData('sales:wallet')->reply()->assertRaw(static function (Request $request): bool {
+        $data = panel01Payload($request);
+
+        return ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:panel:request')
+            && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:account');
+    }, index: 1);
+
+    PanelWalletFunding::credit($member->id, 1);
+    foreach (['sales:wallet', 'sales:wallet:simple'] as $callback) {
+        $bot->hearCallbackQueryData($callback)->reply()->assertRaw(static function (Request $request): bool {
+            $buttons = panel01Payload($request)['reply_markup']['inline_keyboard'] ?? [];
+
+            return ($buttons[0][0]['callback_data'] ?? null) === 'sales:panel:request'
+                && ($buttons[0][0]['style'] ?? null) === 'success';
+        }, index: 1);
+    }
+
+    app(SalesPanelRequests::class)->submit($member->id, 'علی', 'محمدی', '09123456789');
+    $bot->hearCallbackQueryData('sales:wallet:simple')->reply()->assertRaw(static function (Request $request): bool {
+        return ! str_contains(json_encode(panel01Payload($request)['reply_markup'], JSON_THROW_ON_ERROR), 'sales:panel:request');
+    }, index: 1);
+
+    Role::findOrCreate('reseller', 'web');
+    $member->syncRoles(['reseller']);
+    $bot->hearCallbackQueryData('sales:wallet:simple')->reply()->assertRaw(static function (Request $request): bool {
+        return ! str_contains(json_encode(panel01Payload($request)['reply_markup'], JSON_THROW_ON_ERROR), 'sales:panel:request');
+    }, index: 1);
+    Http::assertNothingSent();
+});
+
+it('describes a previously approved panel request without a current reseller role accurately', function (): void {
+    $member = User::factory()->create();
+    PanelWalletFunding::credit($member->id, 3_500_000);
+    $bot = panel01Bot(986172, $member);
+    $application = app(SalesPanelRequests::class)->submit($member->id, 'علی', 'محمدی', '09123456789');
+    DB::table('sales_panel_requests')->where('id', $application['id'])->update(['status' => 'approved']);
+
+    $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertRaw(static function (Request $request): bool {
+        $text = (string) (panel01Payload($request)['text'] ?? '');
+
+        return str_contains($text, 'قبلاً تأیید شده')
+            && str_contains($text, 'در حال حاضر فعال نیست')
+            && ! str_contains($text, '✅ پنل فروش برای حساب شما فعال است');
+    }, index: 1);
+
+    Role::findOrCreate('reseller', 'web');
+    $member->syncRoles(['reseller']);
+    $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertRaw(static function (Request $request): bool {
+        return str_contains((string) (panel01Payload($request)['text'] ?? ''), '✅ پنل فروش برای حساب شما فعال است');
+    }, index: 1);
+    Http::assertNothingSent();
+});
+
 it('reads a changed panel credit minimum from config consistently across Telegram rules and tutorials', function (): void {
     config()->set('sales.panel_minimum_wallet_toman', '420000');
     $member = User::factory()->create();

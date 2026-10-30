@@ -13,6 +13,7 @@ use App\Modules\Billing\Application\SubmitTopupPhoto;
 use App\Modules\Billing\Application\ViewWallet;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
+use App\Modules\Sales\Application\SalesPanelRequests;
 use GuzzleHttp\Psr7\Request as PsrRequest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
@@ -26,6 +27,7 @@ use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 use SergiX44\Nutgram\Testing\FakeNutgram;
+use Tests\Support\PanelWalletFunding;
 
 uses(RefreshDatabase::class);
 
@@ -203,6 +205,70 @@ it('records one Sales review result after Admin confirms; never before or on a r
         && (json_decode((string) $request['reply_markup'], true, 512, JSON_THROW_ON_ERROR)['inline_keyboard'][0][0]['text'] ?? null) === '💰 اعتبار من'
         && str_contains((string) $request['reply_markup'], 'sales:wallet')
     );
+});
+
+it('adds the green panel application action only after a confirmed topup reaches the configured minimum', function (): void {
+    config()->set('sales.panel_minimum_wallet_toman', '550000');
+    $data = finNotSubmitted();
+    DB::transaction(static function () use ($data): void {
+        app(ReviewTopup::class)->handle($data['root']->id, $data['topup'], true, 'BANKVERIFIED7002');
+        app(WalletTopupNotificationOutbox::class)->reviewed($data['topup']);
+    });
+    $delivery = DB::table('telegram_notification_deliveries')
+        ->where('event_type', 'WalletTopupApproved')->first();
+
+    Http::swap(new Factory);
+    Http::preventStrayRequests();
+    Http::fake(['https://api.telegram.org/bot54321:sales_test/sendMessage' => Http::response([
+        'ok' => true, 'result' => ['message_id' => 1],
+    ])]);
+    $sender = app(TelegramNotificationSender::class);
+    $sender->send($delivery); // 50,000 tomans, below the ENV minimum.
+
+    PanelWalletFunding::credit($data['buyer']->id, 5_000_000);
+    $sender->send($delivery); // Exactly 550,000 tomans.
+
+    app(SalesPanelRequests::class)->submit($data['buyer']->id, 'علی', 'محمدی', '09123456789');
+    $sender->send($delivery); // Already applied, so no duplicate application CTA.
+
+    $sent = [];
+    foreach (Http::recorded() as [$request]) {
+        $sent[] = [
+            'text' => (string) $request['text'],
+            'keyboard' => json_decode((string) $request['reply_markup'], true, 512, JSON_THROW_ON_ERROR)['inline_keyboard'],
+        ];
+    }
+
+    expect($sent)->toHaveCount(3)
+        ->and($sent[0]['keyboard'][0][0]['callback_data'])->toBe('sales:wallet')
+        ->and($sent[1]['keyboard'][0][0]['callback_data'])->toBe('sales:panel:request')
+        ->and($sent[1]['keyboard'][0][0]['style'])->toBe('success')
+        ->and($sent[1]['keyboard'][1][0]['callback_data'])->toBe('sales:wallet')
+        ->and($sent[2]['keyboard'][0][0]['callback_data'])->toBe('sales:wallet')
+        ->and(str_contains($sent[1]['text'], 'شرایط ثبت درخواست پنل فروش'))->toBeTrue();
+});
+
+it('delivers the original approved wallet message when panel threshold config is invalid', function (): void {
+    $data = finNotSubmitted();
+    DB::transaction(static function () use ($data): void {
+        app(ReviewTopup::class)->handle($data['root']->id, $data['topup'], true, 'BANKVERIFIED7003');
+        app(WalletTopupNotificationOutbox::class)->reviewed($data['topup']);
+    });
+    PanelWalletFunding::credit($data['buyer']->id, 5_000_000);
+    config()->set('sales.panel_minimum_wallet_toman', 'invalid');
+    $delivery = DB::table('telegram_notification_deliveries')
+        ->where('event_type', 'WalletTopupApproved')->first();
+
+    Http::swap(new Factory);
+    Http::preventStrayRequests();
+    Http::fake(['https://api.telegram.org/bot54321:sales_test/sendMessage' => Http::response([
+        'ok' => true, 'result' => ['message_id' => 1],
+    ])]);
+    app(TelegramNotificationSender::class)->send($delivery);
+    Http::assertSentCount(1);
+    Http::assertSent(static fn (Request $request): bool => str_contains((string) $request['text'], '✅ اعتبار شما افزایش یافت')
+        && ! str_contains((string) $request['reply_markup'], 'sales:panel:request')
+        && str_contains((string) $request['reply_markup'], 'sales:wallet'));
 });
 
 it('notifies the buyer of a rejection without credit and never replays suppressed intents', function (): void {

@@ -461,6 +461,19 @@ final readonly class SalesHomeUi
         }
 
         $keyboard = InlineKeyboardMarkup::make();
+        if (isset($wallet)) {
+            try {
+                if ($this->panelRequests->canRequestWithCurrentBalance($actor->userId)) {
+                    $keyboard->addRow(InlineKeyboardButton::make(
+                        '🧩 ثبت درخواست پنل فروش',
+                        callback_data: 'sales:panel:request',
+                        style: ButtonStyle::SUCCESS,
+                    ));
+                }
+            } catch (Throwable) {
+                // A failing CTA check must never hide the existing wallet actions.
+            }
+        }
         if (config('billing.topups_enabled', false) === true) {
             if (app(ManualPaymentUi::class)->cardNumber() !== null) {
                 foreach (array_slice($pendingTopups, 0, 3) as $topup) {
