@@ -184,9 +184,13 @@ it('resumes an owned pending topup from durable SQL without making a second fina
 
     Cache::forget($key);
     $bot->hearCallbackQueryData('sales:wallet')->reply()->assertRaw(static function (Request $request) use ($id): bool {
-        $keyboard = json_encode(FakeNutgram::getActualData($request)['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
+        $data = FakeNutgram::getActualData($request);
+        $rich = is_string($data['rich_message'] ?? null)
+            ? json_decode($data['rich_message'], true, flags: JSON_THROW_ON_ERROR)
+            : ($data['rich_message'] ?? []);
 
-        return str_contains($keyboard, 'sales:wallet:topup:resume:'.$id);
+        return str_contains((string) ($rich['html'] ?? ''), 'data="sales:wallet:topup:resume:'.$id.'"')
+            && str_contains((string) ($rich['html'] ?? ''), 'style="success"');
     }, index: 1);
     $bot->hearCallbackQueryData('sales:wallet:topup')->reply()->assertRaw(static function (Request $request) use ($id): bool {
         $keyboard = json_encode(FakeNutgram::getActualData($request)['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
@@ -242,5 +246,83 @@ it('disarms topup intake on back and cancel and only creates a second request af
     expect(DB::table('billing_topups')->count())->toBe(2)
         ->and(DB::table('billing_topup_photos')->count())->toBe(0)
         ->and(DB::table('billing_journals')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('shows green in-content topup amounts, a single green add-credit action and a usable native fallback for members and resellers', function (): void {
+    foreach ([false, true] as $reseller) {
+        $buyer = User::factory()->create();
+        if ($reseller) {
+            \Spatie\Permission\Models\Role::findOrCreate('reseller', 'web');
+            $buyer->syncRoles(['reseller']);
+        }
+        $bot = wallet02Bot($reseller ? 985184 : 985183, $buyer);
+        $bot->hearCallbackQueryData('sales:wallet:topup')->reply();
+        $bot->hearCallbackQueryData('sales:wallet:topup:quick:750000')->reply();
+        $first = (int) DB::table('billing_topups')->where('wallet_id', DB::table('billing_wallets')->where('user_id', $buyer->id)->value('id'))->value('id');
+        $bot->hearCallbackQueryData('sales:wallet:topup')->reply();
+        $bot->hearCallbackQueryData('sales:wallet:topup:new')->reply();
+        $bot->hearCallbackQueryData('sales:wallet:topup:quick:1000000')->reply();
+        $second = (int) DB::table('billing_topups')->where('wallet_id', DB::table('billing_wallets')->where('user_id', $buyer->id)->value('id'))->orderByDesc('id')->value('id');
+
+        $bot->hearCallbackQueryData('sales:wallet')->reply()->assertRaw(static function (Request $request) use ($first, $second): bool {
+            $data = FakeNutgram::getActualData($request);
+            $rich = is_string($data['rich_message'] ?? null)
+                ? json_decode($data['rich_message'], true, flags: JSON_THROW_ON_ERROR)
+                : ($data['rich_message'] ?? []);
+            $html = (string) ($rich['html'] ?? '');
+            $keyboard = is_string($data['reply_markup'] ?? null)
+                ? json_decode($data['reply_markup'], true, flags: JSON_THROW_ON_ERROR)
+                : ($data['reply_markup'] ?? []);
+            $buttons = $keyboard['inline_keyboard'] ?? [];
+
+            return str_contains($html, '📷 تکمیل شارژ · 750,000 تومان')
+                && str_contains($html, '📷 تکمیل شارژ · 1,000,000 تومان')
+                && str_contains($html, 'style="success" data="sales:wallet:topup:resume:'.$first.'"')
+                && str_contains($html, 'style="success" data="sales:wallet:topup:resume:'.$second.'"')
+                && str_contains($html, 'در انتظار ارسال رسید')
+                && ! str_contains($html, 'درخواست شارژ در انتظار بررسی')
+                && ($buttons[count($buttons) - 1][0]['callback_data'] ?? null) === 'sales:wallet:topup'
+                && ($buttons[count($buttons) - 1][0]['style'] ?? null) === 'success'
+                && ! str_contains(json_encode($buttons, JSON_THROW_ON_ERROR), 'sales:wallet:topup:resume:')
+                && ! str_contains(json_encode($buttons, JSON_THROW_ON_ERROR), 'sales:wallet:simple')
+                && ! str_contains(json_encode($buttons, JSON_THROW_ON_ERROR), 'sales:account')
+                && ! str_contains(json_encode($buttons, JSON_THROW_ON_ERROR), 'sales:home');
+        }, index: 1);
+
+        $bot->hearCallbackQueryData('sales:wallet:simple')->reply()->assertRaw(static function (Request $request) use ($first, $second): bool {
+            $data = FakeNutgram::getActualData($request);
+            $keyboard = is_string($data['reply_markup'] ?? null)
+                ? json_decode($data['reply_markup'], true, flags: JSON_THROW_ON_ERROR)
+                : ($data['reply_markup'] ?? []);
+            $buttons = $keyboard['inline_keyboard'] ?? [];
+            $text = (string) ($data['text'] ?? '');
+
+            return ! isset($data['rich_message'])
+                && str_contains($text, 'در انتظار ارسال رسید')
+                && str_contains($buttons[0][0]['text'], '1,000,000 تومان')
+                && $buttons[0][0]['callback_data'] === 'sales:wallet:topup:resume:'.$second
+                && str_contains($buttons[1][0]['text'], '750,000 تومان')
+                && $buttons[1][0]['callback_data'] === 'sales:wallet:topup:resume:'.$first
+                && $buttons[count($buttons) - 1][0]['callback_data'] === 'sales:wallet:topup'
+                && $buttons[count($buttons) - 1][0]['style'] === 'success';
+        }, index: 1);
+
+        DB::table('billing_topups')->where('id', $first)->update(['status' => 'submitted']);
+        $bot->hearCallbackQueryData('sales:wallet')->reply()->assertRaw(static function (Request $request) use ($first, $second): bool {
+            $data = FakeNutgram::getActualData($request);
+            $rich = is_string($data['rich_message'] ?? null)
+                ? json_decode($data['rich_message'], true, flags: JSON_THROW_ON_ERROR)
+                : ($data['rich_message'] ?? []);
+            $html = (string) ($rich['html'] ?? '');
+
+            return str_contains($html, '🧾 سوابق شارژ')
+                && str_contains($html, '750,000 تومان · در انتظار بررسی')
+                && ! str_contains($html, 'data="sales:wallet:topup:resume:'.$first.'"')
+                && str_contains($html, 'data="sales:wallet:topup:resume:'.$second.'"');
+        }, index: 1);
+    }
+
+    expect(DB::table('billing_journals')->count())->toBe(0);
     Http::assertNothingSent();
 });
