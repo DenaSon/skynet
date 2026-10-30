@@ -124,7 +124,11 @@ final readonly class NodeTcpProbe
 
         $selected = strtolower($inbound['configProfileInboundUuid']);
         $active = array_map(
-            static fn (mixed $uuid): string => is_string($uuid) ? strtolower($uuid) : '',
+            static fn (mixed $item): string => match (true) {
+                is_string($item) => strtolower($item),
+                is_array($item) && is_string($item['uuid'] ?? null) => strtolower($item['uuid']),
+                default => '',
+            },
             $active,
         );
 
