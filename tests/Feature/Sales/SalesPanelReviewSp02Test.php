@@ -64,13 +64,11 @@ function sp02Case(): array
     return ['root' => $root, 'buyer' => $buyer, 'id' => $row['id']];
 }
 
-it('routes an Admin reviewer alert to one explicitly configured private topic', function (): void {
-    config()->set('telegram_notifications.admin_topic', [
-        'enabled' => true,
-        'chat_id' => '972001',
-        'thread_id' => 45,
-    ]);
+it('routes an Admin reviewer alert to the enrolled Admin chat without any configured IDs', function (): void {
+    config()->set('telegram_notifications.admin_topic.enabled', true);
     $case = sp02Case();
+    DB::table('telegram_bot_contacts')->where('bot_key', 'admin')
+        ->where('user_id', $case['root']->id)->update(['admin_notification_thread_id' => 45]);
     $deliveryId = (int) DB::table('telegram_notification_deliveries')
         ->where('event_type', 'SalesPanelSubmitted')->value('id');
 
@@ -85,28 +83,23 @@ it('routes an Admin reviewer alert to one explicitly configured private topic', 
         && str_contains((string) $request['reply_markup'], 'sp:detail:'.$case['id']));
 });
 
-it('does not route admin notices to topics for non-target or invalid configuration', function (): void {
-    sp02Case();
+it('preserves the original destination for unenrolled, disabled and uncertain Admin topics', function (): void {
+    $case = sp02Case();
     $delivery = DB::table('telegram_notification_deliveries')->first();
+    config()->set('telegram_notifications.admin_topic.enabled', true);
 
-    config()->set('telegram_notifications.admin_topic', [
-        'enabled' => true,
-        'chat_id' => '972002',
-        'thread_id' => 45,
-    ]);
     app(TelegramNotificationSender::class)->send($delivery);
 
-    config()->set('telegram_notifications.admin_topic.chat_id', '972001');
-    config()->set('telegram_notifications.admin_topic.thread_id', 'bad');
+    DB::table('telegram_bot_contacts')->where('user_id', $case['root']->id)
+        ->where('bot_key', 'admin')->update(['admin_notification_thread_id' => 0]);
     app(TelegramNotificationSender::class)->send($delivery);
 
+    DB::table('telegram_bot_contacts')->where('user_id', $case['root']->id)
+        ->where('bot_key', 'admin')->update(['admin_notification_thread_id' => 45]);
     config()->set('telegram_notifications.admin_topic.enabled', false);
-    config()->set('telegram_notifications.admin_topic.thread_id', 45);
     app(TelegramNotificationSender::class)->send($delivery);
 
     Http::assertSentCount(3);
-    Http::assertSent(static fn (Request $request): bool => str_contains($request->url(), '1234:sp_admin_test/sendMessage')
-        && ! isset($request['message_thread_id']));
     foreach (Http::recorded() as [$request]) {
         expect(isset($request['message_thread_id']))->toBeFalse();
     }
