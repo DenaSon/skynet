@@ -357,7 +357,7 @@
                     </section>
                 @elseif ($section === 'services')
                     <div class="mb-6">
-                        <h1 class="text-2xl font-extrabold text-[#1B2935]">سرویس‌های من</h1>
+                        <h1 class="dg-heading">سرویس‌های من</h1>
                         <p class="mt-2 text-sm text-[#71818B]">اشتراک‌های ثبت‌شده برای مشتریان شما</p>
                     </div>
                     @if ($selectedService !== null)
@@ -371,15 +371,15 @@
                                 default => 'وضعیت نامشخص',
                             };
                         @endphp
-                        <button type="button" wire:click="backToServices" class="mb-5 min-h-11 rounded-xl px-1 text-sm font-bold text-[#087F73] focus-visible:outline-2 focus-visible:outline-[#14B8A6]">→ بازگشت به سرویس‌ها</button>
-                        <section class="rounded-[26px] border border-[#E7ECEF] bg-white p-5 shadow-sm sm:p-7">
+                        <button type="button" wire:click="backToServices" class="dg-btn-secondary mb-5">→ بازگشت به سرویس‌ها</button>
+                        <section class="dg-card p-5 sm:p-7">
                             <div class="flex flex-wrap items-start justify-between gap-4">
                                 <div class="min-w-0">
                                     <p class="text-xs font-semibold text-[#087F73]">جزئیات سرویس</p>
-                                    <h2 class="mt-2 break-words text-xl font-extrabold text-[#1B2935]">{{ $labels[$item->orderId] ?? $item->productName }}</h2>
+                                    <h2 class="dg-heading mt-2 break-words">{{ $labels[$item->orderId] ?? $item->productName }}</h2>
                                     <p class="mt-2 text-sm text-[#71818B]">{{ $item->productName }}</p>
                                 </div>
-                                <span class="rounded-full bg-[#F4F7F8] px-3 py-2 text-xs font-semibold text-[#536C76]">{{ $localStatus }}</span>
+                                <span class="dg-status" data-tone="{{ match ($item->status) { 'failed' => 'danger', 'needs_review', 'provisioning' => 'warning', default => 'neutral' } }}">{{ $localStatus }}</span>
                             </div>
                             <div class="mt-6 grid grid-cols-2 gap-3">
                                 <div class="rounded-2xl bg-[#F6F8FA] p-4">
@@ -398,15 +398,15 @@
                             <p class="mt-5 text-xs leading-7 text-[#71818B]">وضعیت بالا بر اساس اطلاعات ثبت‌شده است و الزاماً به معنی اتصال فعلی نیست.</p>
                         </section>
 
-                        <section class="mt-5 rounded-[26px] border border-[#E7ECEF] bg-white p-5 shadow-sm sm:p-7" aria-label="نام مشتری">
+                        <section class="dg-card mt-5 p-5 sm:p-7" aria-label="نام مشتری">
                             <div class="flex flex-wrap items-center justify-between gap-3">
                                 <div>
-                                    <h3 class="text-base font-extrabold text-[#1B2935]">نام مشتری</h3>
+                                    <h3 class="dg-heading">نام مشتری</h3>
                                     <p class="mt-2 text-xs leading-6 text-[#71818B]">این نام فقط برای مدیریت سرویس‌های شماست.</p>
                                 </div>
                                 @if (! $editingServiceLabel)
                                     <button type="button" wire:click="editServiceLabel"
-                                        class="min-h-11 rounded-xl bg-[#EAF8F4] px-4 py-2.5 text-sm font-bold text-[#087F73] focus-visible:outline-2 focus-visible:outline-[#14B8A6]">ویرایش نام</button>
+                                        class="dg-btn-secondary">ویرایش نام</button>
                                 @endif
                             </div>
                             @if ($serviceLabelError)
@@ -420,20 +420,20 @@
                                     <label for="live-customer-label" class="block text-sm font-semibold text-[#1B2935]">نام کاربری مشتری</label>
                                     <input id="live-customer-label" type="text" wire:model="serviceLabelInput" maxlength="60" autocomplete="off"
                                         placeholder="مثلاً: مشتری شماره ۱"
-                                        class="min-h-12 w-full rounded-xl border border-[#D9E4E7] bg-white px-4 text-sm text-[#1B2935] outline-none focus:border-[#14B8A6]">
+                                        class="dg-field min-h-12 px-4">
                                     <p class="text-xs leading-6 text-[#71818B]">حداکثر ۶۰ نویسه · خالی بگذارید تا نام اختصاصی حذف شود.</p>
                                     <div class="flex flex-wrap gap-3">
                                         <button type="submit" wire:loading.attr="disabled" wire:target="saveServiceLabel"
-                                            class="min-h-11 rounded-xl bg-[#14B8A6] px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60">ذخیره نام</button>
+                                            class="dg-btn-primary">ذخیره نام</button>
                                         <button type="button" wire:click="cancelServiceLabel"
-                                            class="min-h-11 rounded-xl border border-[#D9E4E7] px-5 py-2.5 text-sm font-semibold text-[#536C76]">انصراف</button>
+                                            class="dg-btn-secondary">انصراف</button>
                                     </div>
                                 </form>
                             @endif
                         </section>
 
-                        <section class="mt-5 rounded-[26px] border border-[#E7ECEF] bg-white p-5 shadow-sm sm:p-7" aria-label="اطلاعات اتصال">
-                            <h3 class="text-base font-extrabold text-[#1B2935]">اطلاعات اتصال</h3>
+                        <section class="dg-card mt-5 p-5 sm:p-7" aria-label="اطلاعات اتصال">
+                            <h3 class="dg-heading">اطلاعات اتصال</h3>
                             <p class="mt-2 text-xs leading-7 text-[#71818B]">لینک اتصال مخصوص این سرویس است. آن را فقط برای مشتری خود ارسال کنید.</p>
                             @if ($serviceConnectionError)
                                 <p role="alert" class="mt-4 rounded-xl bg-[#FFF9F1] p-4 text-sm leading-7 text-[#845C23]">{{ $serviceConnectionError }}</p>
@@ -446,34 +446,34 @@
                                     <label for="live-subscription-url" class="mt-4 block text-xs font-semibold text-[#536C76]">لینک اشتراک</label>
                                     <input id="live-subscription-url" type="text" x-ref="connectionLink" readonly dir="ltr"
                                         value="{{ $serviceSubscriptionUrl }}"
-                                        class="mt-2 min-h-12 w-full rounded-xl border border-[#D9E4E7] bg-[#F6F8FA] px-4 text-left text-xs text-[#1B2935] outline-none focus:border-[#14B8A6]"
+                                        class="dg-field mt-2 bg-[#F6F8FA] text-left text-xs"
                                         x-on:focus="$el.select()">
                                     <div class="mt-4 grid grid-cols-2 gap-3">
                                         <button type="button"
                                             x-on:click="if (navigator.clipboard) { navigator.clipboard.writeText($refs.connectionLink.value).then(() => copied = true).catch(() => copied = false) } else { $refs.connectionLink.select(); copied = document.execCommand('copy') }"
-                                            class="min-h-12 rounded-xl bg-[#14B8A6] px-4 py-2.5 text-sm font-bold text-white">کپی لینک</button>
+                                            class="dg-btn-primary min-h-12">کپی لینک</button>
                                         <button type="button" wire:click="hideServiceConnection"
-                                            class="min-h-12 rounded-xl border border-[#D9E4E7] px-4 py-2.5 text-sm font-semibold text-[#536C76]">پنهان کردن</button>
+                                            class="dg-btn-secondary min-h-12">پنهان کردن</button>
                                     </div>
                                     <p x-cloak x-show="copied" role="status" class="mt-3 text-xs font-semibold text-[#087F73]">لینک کپی شد.</p>
                                 </div>
                             @elseif ($selectedService->canRequestLink)
                                 <button type="button" wire:click="revealServiceConnection" wire:loading.attr="disabled" wire:target="revealServiceConnection"
-                                    class="mt-5 min-h-12 w-full rounded-xl bg-[#EAF8F4] px-5 py-3 text-sm font-bold text-[#087F73] disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-[#14B8A6]">مشاهده اطلاعات اتصال</button>
+                                    class="dg-btn-secondary mt-5 min-h-12 w-full">مشاهده اطلاعات اتصال</button>
                             @else
                                 <p class="mt-4 rounded-xl bg-[#F6F8FA] p-4 text-sm leading-7 text-[#71818B]">لینک اتصال این سرویس فعلاً در دسترس نیست.</p>
                             @endif
                         </section>
 
-                        <section class="mt-5 rounded-[26px] border border-[#E7ECEF] bg-white p-5 shadow-sm sm:p-7" aria-label="وضعیت و مصرف سرویس">
+                        <section class="dg-card mt-5 p-5 sm:p-7" aria-label="وضعیت و مصرف سرویس">
                             <div class="flex flex-wrap items-center justify-between gap-3">
                                 <div>
-                                    <h3 class="text-base font-extrabold text-[#1B2935]">وضعیت و مصرف سرویس</h3>
+                                    <h3 class="dg-heading">وضعیت و مصرف سرویس</h3>
                                     <p class="mt-2 text-xs leading-6 text-[#71818B]">وضعیت و مصرف هنگام درخواست از شبکه دریافت می‌شود.</p>
                                 </div>
                                 @if ($selectedService->canRequestLink)
                                     <button type="button" wire:click="refreshServiceUsage" wire:loading.attr="disabled" wire:target="refreshServiceUsage"
-                                        class="min-h-11 rounded-xl bg-[#EAF8F4] px-4 py-2.5 text-sm font-bold text-[#087F73] disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-[#14B8A6]">بررسی وضعیت</button>
+                                        class="dg-btn-secondary">بررسی وضعیت</button>
                                 @endif
                             </div>
                             @if ($serviceUsageError)
@@ -482,7 +482,7 @@
                                 <div class="mt-5 border-t border-[#EFF2F4] pt-5">
                                     <div class="flex flex-wrap items-center justify-between gap-3">
                                         <span class="text-sm text-[#71818B]">وضعیت بررسی‌شده</span>
-                                        <span class="rounded-full bg-[#EAF8F4] px-3 py-1.5 text-sm font-bold text-[#087F73]">{{ match ($serviceLiveUsage['status']) {
+                                        <span class="dg-status" data-tone="{{ match ($serviceLiveUsage['status']) { 'active' => 'success', 'expired', 'disabled', 'exhausted' => 'danger', 'limited' => 'warning', default => 'neutral' } }}">{{ match ($serviceLiveUsage['status']) {
                                             'active' => 'فعال',
                                             'expired' => 'منقضی‌شده',
                                             'disabled' => 'غیرفعال',
@@ -494,11 +494,11 @@
                                     <div class="mt-5 grid grid-cols-2 gap-3">
                                         <div class="rounded-2xl bg-[#F6F8FA] p-4">
                                             <p class="text-xs text-[#71818B]">حجم مصرف‌شده</p>
-                                            <p class="mt-2 text-lg font-extrabold text-[#1B2935]">{{ number_format($serviceLiveUsage['usedBytes'] / 1073741824, 2) }} گیگابایت</p>
+                                            <p class="mt-2 break-words text-lg font-extrabold text-[#1B2935]"><bdi class="dg-stat text-lg">{{ number_format($serviceLiveUsage['usedBytes'] / 1073741824, 2) }}</bdi> گیگابایت</p>
                                         </div>
                                         <div class="rounded-2xl bg-[#F6F8FA] p-4">
                                             <p class="text-xs text-[#71818B]">حجم باقی‌مانده</p>
-                                            <p class="mt-2 text-lg font-extrabold text-[#1B2935]">{{ $serviceLiveUsage['limitBytes'] === 0 ? 'بدون سقف' : number_format(max(0, $serviceLiveUsage['limitBytes'] - $serviceLiveUsage['usedBytes']) / 1073741824, 2).' گیگابایت' }}</p>
+                                            <p class="mt-2 break-words text-lg font-extrabold text-[#1B2935]">{{ $serviceLiveUsage['limitBytes'] === 0 ? 'بدون سقف' : number_format(max(0, $serviceLiveUsage['limitBytes'] - $serviceLiveUsage['usedBytes']) / 1073741824, 2).' گیگابایت' }}</p>
                                         </div>
                                     </div>
                                     <div class="mt-5 flex flex-wrap justify-between gap-2 text-sm"><span class="text-[#71818B]">تاریخ انقضا</span><span class="font-bold text-[#1B2935]">{{ \App\Support\PersianCalendar::utcDateTime($serviceLiveUsage['expireAt']) }}</span></div>
@@ -515,8 +515,8 @@
                             && (($serviceLiveUsage['status'] ?? null) === 'active'
                                 || ($serviceLiveUsage['status'] ?? null) === 'disabled'
                                 || $serviceStatusConfirmToken !== null || $serviceStatusNotice !== null || $serviceStatusError !== null))
-                            <section class="mt-5 rounded-[26px] border border-[#E7ECEF] bg-white p-5 shadow-sm sm:p-7" aria-label="مدیریت سرویس">
-                                <h3 class="text-base font-extrabold text-[#1B2935]">مدیریت سرویس</h3>
+                            <section class="dg-card mt-5 p-5 sm:p-7" aria-label="مدیریت سرویس">
+                                <h3 class="dg-heading">مدیریت سرویس</h3>
                                 <p class="mt-2 text-xs leading-7 text-[#71818B]">توقف موقت اتصال، زمان انقضا و حجم سرویس را تغییر نمی‌دهد.</p>
                                 @if ($serviceStatusError)
                                     <p role="alert" class="mt-4 rounded-xl bg-[#FFF9F1] p-4 text-sm leading-7 text-[#845C23]">{{ $serviceStatusError }}</p>
@@ -530,17 +530,17 @@
                                         <p class="mt-2 text-xs leading-7 text-[#71818B]">این تغییر فقط روی اتصال همین سرویس اعمال می‌شود. آیا مطمئن هستید؟</p>
                                         <div class="mt-4 flex flex-wrap gap-3">
                                             <button type="button" wire:click="confirmServiceStatus" wire:loading.attr="disabled" wire:target="confirmServiceStatus"
-                                                class="min-h-11 rounded-xl bg-[#14B8A6] px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-[#087F73]">تأیید درخواست</button>
-                                            <button type="button" wire:click="cancelServiceStatus" class="min-h-11 rounded-xl border border-[#D9E4E7] px-5 py-2.5 text-sm font-semibold text-[#536C76]">انصراف</button>
+                                                class="dg-btn-primary">تأیید درخواست</button>
+                                            <button type="button" wire:click="cancelServiceStatus" class="dg-btn-secondary">انصراف</button>
                                         </div>
                                     </div>
                                 @elseif (($serviceLiveUsage['status'] ?? null) === 'active')
                                     <button type="button" wire:click="prepareServiceStatus('disable')" wire:loading.attr="disabled" wire:target="prepareServiceStatus"
-                                        class="mt-5 min-h-11 rounded-xl border border-[#D9E4E7] px-5 py-2.5 text-sm font-bold text-[#536C76] disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-[#14B8A6]">⏸️ غیرفعال‌سازی سرویس</button>
+                                        class="dg-btn-secondary mt-5">⏸️ غیرفعال‌سازی سرویس</button>
                                 @elseif (($serviceLiveUsage['status'] ?? null) === 'disabled')
                                     @if ($serviceStatusCanResume)
                                         <button type="button" wire:click="prepareServiceStatus('enable')" wire:loading.attr="disabled" wire:target="prepareServiceStatus"
-                                            class="mt-5 min-h-11 rounded-xl bg-[#14B8A6] px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-[#087F73]">✅ فعال‌سازی مجدد</button>
+                                            class="dg-btn-primary mt-5">✅ فعال‌سازی مجدد</button>
                                     @else
                                         <p class="mt-4 rounded-xl bg-[#F6F8FA] p-4 text-xs leading-7 text-[#71818B]">فعال‌سازی این سرویس نیازمند بررسی پشتیبانی است.</p>
                                     @endif
@@ -549,8 +549,8 @@
                         @endif
 
                         @if ($renewalAvailable || $renewalOrder !== null)
-                            <section class="mt-5 rounded-[26px] border border-[#CCEDE4] bg-white p-5 shadow-sm sm:p-7" aria-label="تمدید سرویس">
-                                <h3 class="text-base font-extrabold text-[#1B2935]">تمدید سرویس</h3>
+                            <section class="dg-card mt-5 p-5 sm:p-7" aria-label="تمدید سرویس">
+                                <h3 class="dg-heading">تمدید سرویس</h3>
                                 <p class="mt-2 text-xs leading-7 text-[#71818B]">تمدید روی همین اشتراک انجام می‌شود؛ لینک و تنظیمات اتصال مشتری تغییر نمی‌کند.</p>
 
                                 @if ($renewalError)
@@ -570,7 +570,7 @@
                                     @endphp
                                     <div class="mt-5 rounded-2xl bg-[#F6F8FA] p-4 text-sm">
                                         <p class="font-bold text-[#1B2935]">آخرین سفارش تمدید #{{ $renewalOrder->id }}</p>
-                                        <p class="mt-2 font-semibold text-[#536C76]">{{ $renewalStatus }}</p>
+                                        <p class="dg-status mt-2" data-tone="{{ match ($renewalOrder->status) { 'needs_review', 'pending_payment', 'paid' => 'warning', 'failed' => 'danger', default => 'neutral' } }}">{{ $renewalStatus }}</p>
                                         <div class="mt-3 flex flex-wrap justify-between gap-2 border-t border-[#E7ECEF] pt-3">
                                             <span class="text-[#71818B]">مبلغ سفارش</span>
                                             <span class="font-bold text-[#087F73]">{{ number_format(intdiv($renewalOrder->totalPriceRials, 10)) }}{{ $renewalOrder->totalPriceRials % 10 === 0 ? '' : '.'.($renewalOrder->totalPriceRials % 10) }} تومان</span>
@@ -581,17 +581,17 @@
                                     @elseif ($renewalOrder->status === 'pending_payment')
                                         <p class="mt-3 text-xs leading-7 text-[#71818B]">تا زمان تأیید پرداخت، مبلغی از اعتبار شما کسر نمی‌شود.</p>
                                         @if ($renewalConfirmToken !== null && $renewalConfirmAmountRials !== null && $renewalConfirmBalanceRials !== null)
-                                            <div class="mt-5 rounded-2xl border border-[#CCEDE4] bg-[#F3FBF8] p-4 text-sm">
+                                            <div class="dg-card-accent mt-5 p-4 text-sm">
                                                 <h4 class="font-extrabold text-[#1B2935]">تأیید پرداخت تمدید</h4>
                                                 <div class="mt-4 flex justify-between gap-2"><span>مبلغ برداشت</span><span class="font-bold">{{ number_format(intdiv($renewalConfirmAmountRials, 10)) }} تومان</span></div>
                                                 <div class="mt-3 flex justify-between gap-2"><span>اعتبار فعلی</span><span class="font-bold">{{ number_format(intdiv($renewalConfirmBalanceRials, 10)) }} تومان</span></div>
                                                 <div class="mt-3 flex justify-between gap-2 border-t border-[#CCEDE4] pt-3"><span>اعتبار پس از پرداخت</span><span class="font-bold">{{ number_format(intdiv($renewalConfirmBalanceRials - $renewalConfirmAmountRials, 10)) }} تومان</span></div>
                                                 <p class="mt-3 text-xs leading-6 text-[#536C76]">با تأیید، مبلغ فقط یک بار برداشت می‌شود. تمدید سرویس پس از پردازش جداگانه تکمیل خواهد شد.</p>
-                                                <button type="button" wire:click="confirmRenewalPayment" wire:loading.attr="disabled" wire:target="confirmRenewalPayment" class="mt-5 min-h-12 w-full rounded-xl bg-[#14B8A6] px-4 py-3 text-sm font-bold text-white disabled:opacity-60">تأیید و پرداخت تمدید</button>
-                                                <button type="button" wire:click="cancelRenewal" class="mt-3 min-h-11 w-full rounded-xl border border-[#D9E4E7] bg-white px-4 text-sm font-semibold text-[#536C76]">انصراف</button>
+                                                <button type="button" wire:click="confirmRenewalPayment" wire:loading.attr="disabled" wire:target="confirmRenewalPayment" class="dg-btn-primary mt-5 min-h-12 w-full">تأیید و پرداخت تمدید</button>
+                                                <button type="button" wire:click="cancelRenewal" class="dg-btn-secondary mt-3 w-full">انصراف</button>
                                             </div>
                                         @elseif (config('sales.renewal_enabled', false) === true && config('sales.wallet_settlement_enabled') === true)
-                                            <button type="button" wire:click="prepareRenewalPayment" wire:loading.attr="disabled" wire:target="prepareRenewalPayment" class="mt-5 min-h-12 w-full rounded-xl bg-[#14B8A6] px-4 py-3 text-sm font-bold text-white disabled:opacity-60">پرداخت تمدید با اعتبار</button>
+                                            <button type="button" wire:click="prepareRenewalPayment" wire:loading.attr="disabled" wire:target="prepareRenewalPayment" class="dg-btn-primary mt-5 min-h-12 w-full">پرداخت تمدید با اعتبار</button>
                                         @else
                                             <p class="mt-4 text-xs text-[#71818B]">پرداخت تمدید فعلاً در دسترس نیست.</p>
                                         @endif
@@ -599,20 +599,20 @@
                                 @endif
 
                                 @if ($renewalPreview !== null)
-                                    <div class="mt-5 rounded-2xl border border-[#CCEDE4] bg-[#F3FBF8] p-5">
+                                    <div class="dg-card-accent mt-5 p-5">
                                         <h4 class="text-sm font-extrabold text-[#1B2935]">پیشنهاد تمدید</h4>
                                         <p class="mt-3 text-sm text-[#536C76]">{{ $renewalPreview['name'] }} · {{ number_format($renewalPreview['days']) }} روز{{ $renewalPreview['gb'] === null ? ' · حجم نامحدود' : ' · '.number_format($renewalPreview['gb']).' گیگابایت' }}</p>
-                                        <p class="mt-4 text-2xl font-extrabold text-[#087F73]">{{ number_format(intdiv($renewalPreview['amount'], 10)) }}{{ $renewalPreview['amount'] % 10 === 0 ? '' : '.'.($renewalPreview['amount'] % 10) }} <span class="text-xs font-medium">تومان</span></p>
+                                        <p class="dg-stat mt-4">{{ number_format(intdiv($renewalPreview['amount'], 10)) }}{{ $renewalPreview['amount'] % 10 === 0 ? '' : '.'.($renewalPreview['amount'] % 10) }} <span class="text-xs font-medium">تومان</span></p>
                                         <p class="mt-3 text-xs leading-7 text-[#536C76]">مبلغ با نرخ فعلی محاسبه شده است. ثبت سفارش به‌معنای پرداخت نیست.</p>
                                         @if (config('sales.renewal_enabled', false) === true)
-                                            <button type="button" wire:click="createServiceRenewal" wire:loading.attr="disabled" wire:target="createServiceRenewal" class="mt-5 min-h-12 w-full rounded-xl bg-[#14B8A6] px-4 py-3 text-sm font-bold text-white disabled:opacity-60">ثبت سفارش تمدید بدون پرداخت</button>
+                                            <button type="button" wire:click="createServiceRenewal" wire:loading.attr="disabled" wire:target="createServiceRenewal" class="dg-btn-primary mt-5 min-h-12 w-full">ثبت سفارش تمدید بدون پرداخت</button>
                                         @else
                                             <p class="mt-4 text-xs text-[#845C23]">ثبت سفارش تمدید فعلاً در دسترس نیست.</p>
                                         @endif
-                                        <button type="button" wire:click="cancelRenewal" class="mt-3 min-h-11 w-full rounded-xl border border-[#D9E4E7] px-4 text-sm font-semibold text-[#536C76]">بازگشت</button>
+                                        <button type="button" wire:click="cancelRenewal" class="dg-btn-secondary mt-3 w-full">بازگشت</button>
                                     </div>
                                 @elseif ($renewalAvailable && ($renewalOrder === null || ! in_array($renewalOrder->status, ['pending_payment', 'paid'], true)))
-                                    <button type="button" wire:click="previewServiceRenewal" wire:loading.attr="disabled" wire:target="previewServiceRenewal" class="mt-5 min-h-12 w-full rounded-xl bg-[#EAF8F4] px-5 py-3 text-sm font-bold text-[#087F73] disabled:opacity-60">بررسی قیمت تمدید</button>
+                                    <button type="button" wire:click="previewServiceRenewal" wire:loading.attr="disabled" wire:target="previewServiceRenewal" class="dg-btn-secondary mt-5 min-h-12 w-full">بررسی قیمت تمدید</button>
                                 @endif
                             </section>
                         @endif
@@ -621,13 +621,13 @@
                             <p role="alert" class="mb-5 rounded-xl bg-[#FFF9F1] p-4 text-sm leading-7 text-[#845C23]">{{ $serviceDetailError }}</p>
                         @endif
                     <div class="mb-5 grid grid-cols-2 gap-3">
-                        <section class="rounded-[22px] border border-[#E7ECEF] bg-white p-5">
+                        <section class="dg-card p-4">
                             <p class="text-xs text-[#71818B]">کل سرویس‌ها</p>
-                            <p class="mt-2 text-2xl font-extrabold">{{ number_format($counts['total']) }}</p>
+                            <p class="dg-stat mt-2">{{ number_format($counts['total']) }}</p>
                         </section>
-                        <section class="rounded-[22px] border border-[#E7ECEF] bg-white p-5">
+                        <section class="dg-card p-4">
                             <p class="text-xs text-[#71818B]">فعال در سوابق داخلی</p>
-                            <p class="mt-2 text-2xl font-extrabold text-[#087F73]">{{ number_format($counts['activeRecorded']) }}</p>
+                            <p class="dg-stat mt-2">{{ number_format($counts['activeRecorded']) }}</p>
                         </section>
                     </div>
                     <div class="space-y-3">
@@ -641,42 +641,42 @@
                                     default => 'نامشخص',
                                 };
                             @endphp
-                            <article wire:key="live-service-{{ $service->orderId }}" class="rounded-[24px] border border-[#E7ECEF] bg-white p-5 shadow-sm md:p-6">
+                            <article wire:key="live-service-{{ $service->orderId }}" class="dg-card p-4 sm:p-5">
                                 <div class="flex flex-wrap items-start justify-between gap-3">
                                     <div class="min-w-0">
                                         <h2 class="break-words text-base font-extrabold text-[#1B2935]">{{ $labels[$service->orderId] ?? $service->productName }}</h2>
-                                        <p class="mt-2 text-xs text-[#71818B]">{{ $service->productName }} · {{ $service->durationDays }} روز{{ $service->trafficGb === null ? '' : ' · '.number_format($service->trafficGb).' گیگابایت' }}</p>
+                                        <p class="mt-1 break-words text-xs leading-6 text-[#71818B]">{{ $service->productName }} · {{ $service->durationDays }} روز{{ $service->trafficGb === null ? '' : ' · '.number_format($service->trafficGb).' گیگابایت' }}</p>
                                     </div>
-                                    <span class="shrink-0 rounded-full bg-[#EAF8F4] px-3 py-1.5 text-xs font-semibold text-[#087F73]">{{ $serviceStatus }}</span>
+                                    <span class="dg-status" data-tone="{{ match ($service->status) { 'failed' => 'danger', 'needs_review', 'provisioning' => 'warning', default => 'neutral' } }}">{{ $serviceStatus }}</span>
                                 </div>
-                                <p class="mt-4 text-xs text-[#71818B]">شماره سفارش: <span dir="ltr">{{ $service->orderId }}</span> · تاریخ ثبت: {{ \App\Support\PersianCalendar::utcDateTime($service->orderedAt) }}</p>
+                                <p class="mt-2 break-words text-xs leading-6 text-[#71818B]">شماره سفارش: <span dir="ltr">{{ $service->orderId }}</span> · تاریخ ثبت: {{ \App\Support\PersianCalendar::utcDateTime($service->orderedAt) }}</p>
                                 <button type="button" wire:click="openService({{ $service->orderId }})"
-                                    class="mt-5 min-h-11 rounded-xl bg-[#EAF8F4] px-5 py-2.5 text-sm font-bold text-[#087F73] focus-visible:outline-2 focus-visible:outline-[#14B8A6]">مشاهده جزئیات</button>
+                                    class="dg-btn-secondary mt-3 w-full sm:w-auto">مشاهده جزئیات</button>
                             </article>
                         @empty
-                            <section class="rounded-[24px] border border-[#E7ECEF] bg-white p-8 text-center text-sm text-[#71818B]">
+                            <section class="dg-empty">
                                 هنوز سرویسی برای نمایش ندارید.
                             </section>
                         @endforelse
                     </div>
                     @if ($serviceCursor !== null)
-                        <button type="button" wire:click="firstServices" class="mt-5 rounded-xl border border-[#E7ECEF] bg-white px-5 py-2.5 text-sm font-semibold text-[#536C76]">بازگشت به اولین صفحه</button>
+                        <button type="button" wire:click="firstServices" class="dg-btn-secondary mt-5">بازگشت به اولین صفحه</button>
                     @endif
                     @if ($nextServiceCursor !== null)
-                        <button type="button" wire:click="nextServices({{ $nextServiceCursor }})" class="mt-5 rounded-xl bg-[#14B8A6] px-5 py-2.5 text-sm font-bold text-white">نمایش سرویس‌های بیشتر</button>
+                        <button type="button" wire:click="nextServices({{ $nextServiceCursor }})" class="dg-btn-primary mt-5">نمایش سرویس‌های بیشتر</button>
                     @endif
                     <p class="mt-5 text-xs leading-7 text-[#71818B]">این وضعیت‌ها از سوابق ثبت‌شده‌اند، نه بررسی لحظه‌ای اتصال.</p>
                     @endif
                 @elseif ($section === 'reports')
                     <div class="mb-6">
-                        <h1 class="text-2xl font-extrabold text-[#1B2935]">گزارش فروش</h1>
+                        <h1 class="dg-heading">گزارش فروش</h1>
                         <p class="mt-2 text-sm text-[#71818B]">فروش و تراکنش‌های تسویه‌شده نمایندگی</p>
                     </div>
                     <div class="mb-6 inline-flex gap-1 rounded-2xl border border-[#E7ECEF] bg-white p-1" aria-label="بازه گزارش">
                         @foreach ([7, 30] as $days)
                             <button type="button" wire:click="selectReportDays({{ $days }})"
                                 @class([
-                                    'rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors',
+                                    'dg-btn-secondary min-h-11 transition-colors',
                                     'bg-[#EAF8F4] text-[#087F73]' => $report['days'] === $days,
                                     'text-[#71818B]' => $report['days'] !== $days,
                                 ]) @if ($report['days'] === $days) aria-pressed="true" @else aria-pressed="false" @endif>
@@ -684,9 +684,9 @@
                             </button>
                         @endforeach
                     </div>
-                    <section class="rounded-[28px] border border-[#CCEDE4] bg-gradient-to-bl from-[#E7F8F3] to-white p-7 md:p-9">
-                        <p class="text-sm font-semibold text-[#087F73]">مجموع فروش تأییدشده</p>
-                        <p class="mt-3 break-words text-3xl font-extrabold text-[#1B2935]" dir="ltr">{{ number_format(intdiv($report['revenueRials'], 10)) }} <span class="text-sm font-normal text-[#687987]">تومان</span></p>
+                    <section class="dg-card-accent bg-gradient-to-bl from-[#E7F8F3] to-white p-7 md:p-9">
+                        <p class="text-sm font-semibold text-[#087F73]">مجموع فروش تسویه‌شده</p>
+                        <p class="dg-stat mt-3" dir="ltr">{{ number_format(intdiv($report['revenueRials'], 10)) }} <span class="text-sm font-normal text-[#687987]">تومان</span></p>
                         <p class="mt-3 text-xs text-[#617380]">{{ \App\Support\PersianCalendar::date($report['from']) }} تا {{ \App\Support\PersianCalendar::date($report['to']) }} (تهران)</p>
                     </section>
                     <div class="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3">
@@ -698,9 +698,9 @@
                             ['کل سرویس‌های ثبت‌شده', $report['services']],
                             ['سرویس‌های دارای نام', $report['namedServices']],
                         ] as [$label, $value])
-                            <section class="rounded-[22px] border border-[#E7ECEF] bg-white p-5">
+                            <section class="dg-card p-4">
                                 <p class="text-xs leading-6 text-[#71818B]">{{ $label }}</p>
-                                <p class="mt-3 text-2xl font-extrabold text-[#1B2935]">{{ number_format($value) }}</p>
+                                <p class="dg-stat mt-3">{{ number_format($value) }}</p>
                             </section>
                         @endforeach
                     </div>
