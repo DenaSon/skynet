@@ -108,6 +108,7 @@ it('does not disclose or fetch a connection until the owner explicitly requests 
         ->call('openService', $order)
         ->assertSee('اطلاعات اتصال')
         ->assertSee('مشاهده اطلاعات اتصال')
+        ->assertSee('dg-btn-secondary')
         ->assertDontSee('protected-token-4b')
         ->assertSet('serviceSubscriptionUrl', null)
         ->assertSet('serviceQrDataUri', null);
@@ -115,6 +116,8 @@ it('does not disclose or fetch a connection until the owner explicitly requests 
 
     $page->call('revealServiceConnection')
         ->assertSee('کپی لینک')
+        ->assertSee('dg-field')
+        ->assertSee('dg-btn-primary')
         ->assertSee('پنهان کردن')
         ->assertSee('کد QR اتصال سرویس')
         ->assertSee('protected-token-4b')
