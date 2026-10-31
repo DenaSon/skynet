@@ -134,6 +134,7 @@ it('shows owner-scoped order history and pays a confirmed snapshot exactly once'
         ->assertSee('ابتدا مبلغ و اعتبار')
         ->call('prepareWalletPayment')
         ->assertSee('تأیید پرداخت از اعتبار')
+        ->assertSee('برای سفارش #')
         ->assertSee('65,000')
         ->assertSee('100,000')
         ->assertSee('35,000')
