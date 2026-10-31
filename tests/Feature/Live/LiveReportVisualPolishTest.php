@@ -20,7 +20,7 @@ beforeEach(function (): void {
     Http::preventStrayRequests();
 });
 
-it('renders the grouped report hierarchy and updates the selected reporting window without writes', function (): void {
+it('renders six compact report cards in one grid and updates the selected reporting window without writes', function (): void {
     $owner = User::factory()->create();
     $owner->assignRole('reseller');
     TelegramAccount::query()->create(['user_id' => $owner->id, 'telegram_user_id' => 989451]);
@@ -31,7 +31,7 @@ it('renders the grouped report hierarchy and updates the selected reporting wind
         ->call('showSection', 'reports')
         ->assertSee('گزارش فروش')
         ->assertSee('مجموع فروش تسویه‌شده')
-        ->assertSee('عملکرد فروش')
+        ->assertSee('شاخص‌های فروش و حساب')
         ->assertSee('وضعیت فعلی حساب')
         ->assertSee('خریدهای جدید')
         ->assertSee('تمدیدها')
@@ -43,8 +43,10 @@ it('renders the grouped report hierarchy and updates the selected reporting wind
         ->assertSee('7 روز')
         ->assertSee('30 روز')
         ->assertSee('aria-labelledby="report-revenue-title"', false)
-        ->assertSee('aria-labelledby="report-sales-metrics-title"', false)
-        ->assertSee('aria-labelledby="report-account-metrics-title"', false)
+        ->assertSee('aria-label="شاخص‌های فروش و حساب"', false)
+        ->assertSee('grid grid-cols-3', false)
+        ->assertDontSee('report-sales-metrics-title')
+        ->assertDontSee('report-account-metrics-title')
         ->assertSee('role="group"', false)
         ->assertSee('aria-pressed="true"', false)
         ->assertSee('بازه 30 روزه')
@@ -83,9 +85,16 @@ it('keeps all original report fields, price conversion and a single loading anno
         ->toContain("aria-pressed=\"{{ \$report['days'] === \$days ? 'true' : 'false' }}\"")
         ->toContain('dg-card-accent')
         ->toContain('dg-stat')
-        ->toContain('grid-cols-2')
+        ->toContain('grid grid-cols-3')
+        ->toContain('min-h-28')
+        ->not->toContain('grid-cols-2')
+        ->not->toContain('report-sales-metrics-title')
+        ->not->toContain('report-account-metrics-title')
         ->not->toContain('sales_orders')
         ->not->toContain('provisioning_operations');
 
-    expect(substr_count($reports, 'wire:loading.delay wire:target="selectReportDays"'))->toBe(1);
+    expect(substr_count($reports, 'wire:loading.delay wire:target="selectReportDays"'))->toBe(1)
+        ->and(substr_count($reports, 'grid grid-cols-3'))->toBe(1)
+        ->and(substr_count($reports, 'as [$label, $value, $isHistorical]'))->toBe(1);
+
 });
