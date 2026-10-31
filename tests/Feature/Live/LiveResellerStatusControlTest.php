@@ -36,7 +36,7 @@ beforeEach(function (): void {
     config()->set('services.remnawave.url', 'https://status-only.test');
     config()->set('services.remnawave.token', 'fake-status-token');
     config()->set('services.remnawave.squad_bindings_live_verified', true);
-    config()->set('super_admin.telegram_ids', ['997601']);
+    config()->set('super_admin.telegram_ids', ['997601', '997603']);
     Role::findOrCreate('super-admin', 'web');
     Role::findOrCreate('member', 'web');
     Role::findOrCreate('reseller', 'web');
