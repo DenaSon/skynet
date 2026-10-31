@@ -45,18 +45,18 @@ it('brands both reseller navigation surfaces consistently and respects reduced m
     $layout = file_get_contents(resource_path('views/live/layout.blade.php'));
 
     expect(substr_count($dashboard, 'src="/images/denagate-logo.png"'))->toBe(2)
-        ->and(substr_count($dashboard, 'dg-live-status-dot'))->toBe(2)
+        ->and(substr_count($dashboard, 'motion-safe:animate-pulse'))->toBe(2)
         ->and($dashboard)->toContain('>DenaGate</p>')
         ->toContain('پنل نمایندگی')
         ->toContain('wire:click="showSection')
         ->toContain('aria-label="دسترسی سریع پنل"')
         ->not->toContain('دناگیت لایو')
         ->not->toContain('>DenaGate Live');
-    expect($css)->toContain('.denagate-live .dg-live-status')
-        ->toContain('@keyframes dg-live-breathe')
-        ->toContain('animation: dg-live-breathe')
-        ->toContain('@media (prefers-reduced-motion: reduce)')
-        ->toContain('.denagate-live .dg-live-status-dot { animation: none; }');
+    expect($dashboard)->toContain('dg-status whitespace-nowrap')
+        ->toContain('data-tone="success"')
+        ->toContain('motion-safe:animate-pulse');
+    expect($css)->toContain('.denagate-live .dg-status')
+        ->toContain('@media (prefers-reduced-motion: reduce)');
     expect($layout)->toContain('<title>DenaGate | پنل نمایندگی</title>')
         ->toContain('@livewireScriptConfig');
 });
