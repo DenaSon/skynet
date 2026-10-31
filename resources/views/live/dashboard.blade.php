@@ -722,7 +722,7 @@
 
     {{-- Native mobile app-style navigation, available without a JS drawer. --}}
     <nav class="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-[#E7ECEF] bg-white/95 px-2 pt-2 backdrop-blur-xl lg:hidden"
-        style="padding-bottom: max(8px, env(safe-area-inset-bottom));"
+        style="padding-bottom: max(8px, env(safe-area-inset-bottom), var(--tg-content-safe-area-inset-bottom, 0px)); padding-inline: max(8px, env(safe-area-inset-left), env(safe-area-inset-right), var(--tg-content-safe-area-inset-left, 0px), var(--tg-content-safe-area-inset-right, 0px));"
         aria-label="دسترسی سریع پنل">
         @foreach ([
             ['overview', 'نمای کلی'],
