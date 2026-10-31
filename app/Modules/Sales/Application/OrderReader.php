@@ -61,6 +61,31 @@ final class OrderReader
     }
 
     /**
+     * Latest renewal of this exact owned source order. No unrelated renewal/order
+     * can be selected through browser-supplied identifiers.
+     */
+    public function latestRenewalForSource(int $buyerId, int $sourceOrderId): ?OrderDetails
+    {
+        app(ResolveSalesBuyer::class)->isReseller($buyerId);
+
+        if ($sourceOrderId < 1) {
+            throw ValidationException::withMessages(['order' => 'Source order not found.']);
+        }
+
+        $row = DB::table('sales_renewal_orders as renewal')
+            ->join('sales_orders as orders', 'orders.id', '=', 'renewal.sales_order_id')
+            ->join('sales_orders as source', 'source.id', '=', 'renewal.source_order_id')
+            ->where('renewal.source_order_id', $sourceOrderId)
+            ->where('source.buyer_user_id', $buyerId)
+            ->where('orders.buyer_user_id', $buyerId)
+            ->orderByDesc('orders.id')
+            ->select('orders.*')
+            ->first();
+
+        return $row === null ? null : $this->map($row);
+    }
+
+    /**
      * Reuse an already payable snapshot when the same selection is tapped again.
      * The explicit new-purchase route bypasses this lookup.
      */
