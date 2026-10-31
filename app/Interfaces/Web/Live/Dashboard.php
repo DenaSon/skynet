@@ -27,6 +27,7 @@ use App\Modules\Sales\Application\SettleWalletOrder;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Livewire\Attributes\Layout;
@@ -249,7 +250,7 @@ final class Dashboard extends Component
             throw $exception;
         } catch (Throwable $exception) {
             // Provider exceptions are not rendered or serialized to the browser.
-            report($exception);
+            self::logSafeFailure('service_usage', $exception);
             $this->serviceUsageError = 'اطلاعات به‌روز سرویس در دسترس نیست. لطفاً دوباره بررسی کنید.';
         }
     }
@@ -531,7 +532,7 @@ final class Dashboard extends Component
                 default => 'پرداخت انجام نشد. وضعیت سفارش و اعتبار را دوباره بررسی کنید.',
             };
         } catch (Throwable $exception) {
-            report($exception);
+            self::logSafeFailure('renewal_payment', $exception);
             $this->renewalError = 'وضعیت پرداخت مشخص نیست. ابتدا وضعیت سفارش و اعتبارتان را بررسی کنید.';
         }
     }
@@ -778,7 +779,7 @@ final class Dashboard extends Component
                 default => 'پرداخت انجام نشد. وضعیت سفارش و اعتبار را دوباره بررسی کنید.',
             };
         } catch (Throwable $exception) {
-            report($exception);
+            self::logSafeFailure('wallet_payment', $exception);
             $this->walletError = 'وضعیت پرداخت مشخص نیست. پیش از اقدام دوباره، وضعیت سفارش و اعتبارتان را بررسی کنید.';
         }
     }
@@ -868,6 +869,19 @@ final class Dashboard extends Component
     private static function quoteHash(PlanPriceQuote $quote): string
     {
         return hash('sha256', json_encode(get_object_vars($quote), JSON_THROW_ON_ERROR));
+    }
+
+    /**
+     * Provider exceptions may include a secret URL or upstream response body.
+     * Log only fixed operation keys and the class; never serialize the
+     * exception, stack trace, user input, order ID or credentials.
+     */
+    private static function logSafeFailure(string $operation, Throwable $exception): void
+    {
+        Log::warning('denagate_live.operation_failed', [
+            'operation' => $operation,
+            'exception_type' => $exception::class,
+        ]);
     }
 
     public function render(): View
@@ -1017,7 +1031,7 @@ final class Dashboard extends Component
         } catch (AuthorizationException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
-            report($exception);
+            self::logSafeFailure('dashboard_read', $exception);
             $data['readError'] = true;
         }
 
