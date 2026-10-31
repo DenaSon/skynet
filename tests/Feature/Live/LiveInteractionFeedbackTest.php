@@ -5,7 +5,8 @@ declare(strict_types=1);
 it('disables each Livewire action on its own in-flight request without changing its callback', function (): void {
     $blade = file_get_contents(resource_path('views/live/dashboard.blade.php'));
     expect($blade)->toBeString()
-        ->not->toContain('wire:loading.delay role="status" class="mb-4"');
+        ->not->toContain('wire:loading.delay role="status" class="mb-4"')
+        ->toContain('wire:loading.delay wire:target="showSection" role="status"');
 
     preg_match_all('/<button\\b[\\s\\S]*?<\\/button>/u', $blade, $matches);
     $actions = 0;
