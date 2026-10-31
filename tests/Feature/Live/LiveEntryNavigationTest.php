@@ -84,8 +84,7 @@ it('discovers Live for authorized resellers in home and account while preserving
 
     $bot->hearText('/start')->reply()
         ->assertCalled('sendRichMessage', 1)
-        ->assertRaw(static fn (Request $request): bool =>
-            live6aRichContains($request, 'data="sales:live"')
+        ->assertRaw(static fn (Request $request): bool => live6aRichContains($request, 'data="sales:live"')
             && live6aRichContains($request, 'sales:wallet')
             && live6aRichContains($request, 'sales:buy')
             && live6aRichContains($request, 'sales:report:30'), index: 0);
