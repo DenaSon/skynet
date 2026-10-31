@@ -7,7 +7,7 @@
                 <div class="min-w-0">
                     <div class="flex flex-wrap items-center gap-2">
                         <p class="text-lg font-extrabold tracking-tight text-[#1B2935]" dir="ltr">DenaGate</p>
-                        <span class="dg-live-status"><span class="dg-live-status-dot" aria-hidden="true"></span>فعال</span>
+                        <span class="dg-status whitespace-nowrap px-2 py-1 text-[11px]" data-tone="success"><span class="h-1.5 w-1.5 shrink-0 rounded-full bg-[#14B8A6] motion-safe:animate-pulse" aria-hidden="true"></span>فعال</span>
                     </div>
                     <p class="text-xs font-medium text-[#647787]">پنل نمایندگی</p>
                 </div>
@@ -47,7 +47,7 @@
                             <p class="text-[11px] font-medium text-[#71818B]">پنل نمایندگی</p>
                             <div class="flex min-w-0 flex-wrap items-center gap-2">
                                 <p class="truncate text-base font-bold text-[#1B2935]" dir="ltr">DenaGate</p>
-                                <span class="dg-live-status"><span class="dg-live-status-dot" aria-hidden="true"></span>فعال</span>
+                                <span class="dg-status whitespace-nowrap px-2 py-1 text-[11px]" data-tone="success"><span class="h-1.5 w-1.5 shrink-0 rounded-full bg-[#14B8A6] motion-safe:animate-pulse" aria-hidden="true"></span>فعال</span>
                             </div>
                         </div>
                     </div>
