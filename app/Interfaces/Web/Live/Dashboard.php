@@ -244,7 +244,7 @@ final class Dashboard extends Component
         $this->hideServiceConnection();
 
         if ($this->section !== 'services' || $this->selectedServiceOrderId === null) {
-            $this->serviceConnectionError = 'ابتدا سرویس خود را انتخاب کنید.';
+            $this->serviceDetailError = 'ابتدا سرویس خود را انتخاب کنید.';
 
             return;
         }
@@ -288,7 +288,7 @@ final class Dashboard extends Component
         $this->serviceLabelError = null;
         $this->serviceLabelNotice = null;
         if ($this->section !== 'services' || $this->selectedServiceOrderId === null) {
-            $this->serviceLabelError = 'ابتدا سرویس خود را انتخاب کنید.';
+            $this->serviceDetailError = 'ابتدا سرویس خود را انتخاب کنید.';
 
             return;
         }
