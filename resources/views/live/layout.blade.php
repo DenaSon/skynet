@@ -7,6 +7,7 @@
     <meta name="robots" content="noindex, nofollow">
     <title>DenaGate Live | پنل نمایندگی</title>
     <link rel="preload" href="/fonts/vazirmatn-variable.woff2" as="font" type="font/woff2" crossorigin>
+    <script src="https://telegram.org/js/telegram-web-app.js?64"></script>
     @vite(['resources/css/app.css', 'resources/js/live.js'])
     <style>[x-cloak] { display: none !important; }</style>
     @livewireStyles

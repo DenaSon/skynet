@@ -77,6 +77,18 @@ final readonly class SalesHomeUi
 
         $this->clearInput($actor->userId, $bot);
         $isReseller = in_array('reseller', $actor->roles, true);
+
+        // Telegram /start deep link from the authenticated reseller Mini App.
+        // The link is only a navigation hint, not an authorization credential.
+        // Reuse the existing private owner-verified top-up flow; never create
+        // a wallet request, payment or receipt from this /start handler.
+        if ($payload === 'live_topup' && $isReseller && config('denagate_live.enabled') === true
+            && ! $bot->isCallbackQuery()) {
+            app(WalletTopupUi::class)->start($bot);
+
+            return;
+        }
+
         $panelRequestLabel = $this->panelRequestLabel($actor);
         $customWelcome = app(SalesWelcomeMessage::class)->customizedForActor($actor);
 

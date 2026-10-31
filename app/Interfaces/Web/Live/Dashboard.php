@@ -874,9 +874,20 @@ final class Dashboard extends Component
     {
         $userId = $this->resellerId();
 
+        // Resolve the existing Sales Bot's configured public username only.
+        // A malformed/missing value must never become a dynamic external link.
+        $configuredBot = config('telegram.sales.bot_username');
+        $botUsername = is_string($configuredBot) ? ltrim(trim($configuredBot), '@') : '';
+        $topupBotUrl = config('telegram.sales.enabled') === true
+            && config('billing.topups_enabled') === true
+            && preg_match('/\\A[A-Za-z][A-Za-z0-9_]{4,31}\\z/D', $botUsername) === 1
+                ? 'https://t.me/'.$botUsername.'?start=live_topup'
+                : null;
+
         $data = [
             'name' => Auth::user()->name,
             'wallet' => null,
+            'topupBotUrl' => $topupBotUrl,
             'counts' => null,
             'services' => [],
             'labels' => [],
