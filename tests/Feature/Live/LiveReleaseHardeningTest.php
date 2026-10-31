@@ -32,20 +32,25 @@ function live6bOwner(): User
 }
 
 it('prevents caches and referrer disclosure on the private Live entry and dashboard only', function (): void {
-    $this->get('http://live.denagate.ir/')->assertOk()
-        ->assertHeader('Cache-Control', 'no-store, private')
+    $entry = $this->get('http://live.denagate.ir/')->assertOk()
         ->assertHeader('Referrer-Policy', 'no-referrer')
         ->assertHeader('X-Content-Type-Options', 'nosniff')
         ->assertSee('telegram-web-app.js');
 
     $owner = live6bOwner();
-    $this->actingAs($owner)->withSession(['denagate_live.user_id' => $owner->id])
+    $dashboard = $this->actingAs($owner)->withSession(['denagate_live.user_id' => $owner->id])
         ->get('http://live.denagate.ir/dashboard')
         ->assertOk()
-        ->assertHeader('Cache-Control', 'no-store, private')
         ->assertHeader('Referrer-Policy', 'no-referrer')
         ->assertHeader('X-Content-Type-Options', 'nosniff')
         ->assertSeeLivewire(Dashboard::class);
+
+    // The session layer may append additional cache directives. Require the
+    // two security directives, not a brittle byte-for-byte header ordering.
+    foreach ([$entry, $dashboard] as $response) {
+        $cacheControl = (string) $response->baseResponse->headers->get('Cache-Control');
+        expect($cacheControl)->toContain('no-store')->toContain('private');
+    }
 
     $this->get('http://example.org/')->assertOk()
         ->assertHeaderMissing('Referrer-Policy');
