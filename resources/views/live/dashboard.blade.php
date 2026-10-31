@@ -61,6 +61,7 @@
             </header>
 
             <main id="live-main" class="mx-auto w-full max-w-6xl flex-1 px-4 pb-32 pt-7 sm:px-6 md:px-9 md:pt-10 lg:pb-12" aria-label="محتوای پنل نمایندگی">
+                <p wire:loading.delay wire:target="showSection" role="status" class="mb-4 text-xs font-semibold text-[#087F73]">در حال باز کردن بخش…</p>
                 @if ($readError)
                     <section class="rounded-[28px] border border-[#F0E0C9] bg-white p-7 shadow-sm" role="alert">
                         <h1 class="text-xl font-extrabold text-[#1B2935]">دریافت اطلاعات امکان‌پذیر نیست</h1>
