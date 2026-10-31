@@ -21,8 +21,8 @@
 <main>
     <div class="brand">DenaGate Live</div>
     <h1>پنل نمایندگی</h1>
-    <p>ورود امن از طریق تلگرام</p>
-    <p class="notice" id="status" role="status">در حال بررسی ورود…</p>
+    <p>ورود از طریق بات فروش دناگیت</p>
+    <p class="notice" id="status" role="status">در حال ورود به پنل…</p>
     <form id="telegram-login" method="POST" action="{{ route('denagate-live.telegram.login') }}">
         @csrf
         <input name="init_data" type="hidden" value="">
