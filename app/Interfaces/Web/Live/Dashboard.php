@@ -12,6 +12,8 @@ use App\Modules\Provisioning\Application\GetMySubscription;
 use App\Modules\Provisioning\Application\GetSubscriptionLink;
 use App\Modules\Provisioning\Application\GetSubscriptionUsage;
 use App\Modules\Provisioning\Application\ListMyServices;
+use App\Modules\Provisioning\Application\ManageResellerSubscriptionStatus;
+use App\Modules\Provisioning\Jobs\ChangeResellerSubscriptionStatusJob;
 use App\Modules\Sales\Application\CalculatePlanQuote;
 use App\Modules\Sales\Application\CreatePendingRenewalOrder;
 use App\Modules\Sales\Application\ListQuotedPresets;
@@ -58,6 +60,16 @@ final class Dashboard extends Component
     public ?string $serviceDetailError = null;
 
     public ?string $serviceUsageError = null;
+
+    #[Locked]
+    public ?string $serviceStatusConfirmToken = null;
+
+    #[Locked]
+    public ?string $serviceStatusConfirmMode = null;
+
+    public ?string $serviceStatusError = null;
+
+    public ?string $serviceStatusNotice = null;
 
     /** Connection URL and QR are credentials, never in the list or automatic render. */
     #[Locked]
@@ -212,6 +224,7 @@ final class Dashboard extends Component
         $this->serviceLiveUsage = null;
         $this->serviceUsageCheckedAt = null;
         $this->serviceUsageError = null;
+        $this->forgetServiceStatusConfirmation($this->resellerId());
 
         if ($this->section !== 'services' || $this->selectedServiceOrderId === null) {
             $this->serviceUsageError = 'ابتدا سرویس خود را انتخاب کنید.';
@@ -253,6 +266,104 @@ final class Dashboard extends Component
             self::logSafeFailure('service_usage', $exception);
             $this->serviceUsageError = 'اطلاعات به‌روز سرویس در دسترس نیست. لطفاً دوباره بررسی کنید.';
         }
+    }
+
+    /** Prepare a fresh owner-scoped, three-minute, one-use confirmation. */
+    public function prepareServiceStatus(string $mode): void
+    {
+        $buyerId = $this->resellerId();
+        $this->forgetServiceStatusConfirmation($buyerId);
+        $this->serviceStatusNotice = null;
+        $this->serviceStatusError = null;
+
+        if ($this->section !== 'services' || $this->selectedServiceOrderId === null
+            || ! in_array($mode, ['enable', 'disable'], true)) {
+            $this->serviceStatusError = 'ابتدا سرویس و وضعیت فعلی آن را بررسی کنید.';
+
+            return;
+        }
+
+        try {
+            app(ManageResellerSubscriptionStatus::class)->authorizeChange(
+                $buyerId, $this->selectedServiceOrderId, $mode,
+            );
+            $token = bin2hex(random_bytes(16));
+            Cache::put(self::serviceStatusKey($buyerId, $this->selectedServiceOrderId, $token), [
+                'mode' => $mode,
+            ], now()->addMinutes(3));
+            $this->serviceStatusConfirmToken = $token;
+            $this->serviceStatusConfirmMode = $mode;
+        } catch (AuthorizationException $exception) {
+            throw $exception;
+        } catch (Throwable) {
+            $this->serviceStatusError = 'تغییر وضعیت این سرویس امکان‌پذیر نیست. وضعیت را دوباره بررسی کنید.';
+        }
+    }
+
+    /** Queue exactly one attempt, never call the Provider inside a Livewire request. */
+    public function confirmServiceStatus(): void
+    {
+        $buyerId = $this->resellerId();
+        $orderId = $this->selectedServiceOrderId;
+        $token = $this->serviceStatusConfirmToken;
+        $mode = $this->serviceStatusConfirmMode;
+        $this->serviceStatusError = null;
+        $this->serviceStatusNotice = null;
+        $this->serviceStatusConfirmToken = null;
+        $this->serviceStatusConfirmMode = null;
+
+        if ($this->section !== 'services' || $orderId === null || $token === null
+            || ! in_array($mode, ['enable', 'disable'], true)
+            || config('denagate_live.reseller_status_enabled') !== true) {
+            $this->serviceStatusError = 'درخواست منقضی شده است. دوباره وضعیت سرویس را بررسی کنید.';
+
+            return;
+        }
+
+        $key = self::serviceStatusKey($buyerId, $orderId, $token);
+        $snapshot = Cache::pull($key);
+        if (! is_array($snapshot) || ($snapshot['mode'] ?? null) !== $mode) {
+            $this->serviceStatusError = 'این تأیید قبلاً استفاده شده یا منقضی شده است.';
+
+            return;
+        }
+
+        try {
+            app(ManageResellerSubscriptionStatus::class)->authorizeChange($buyerId, $orderId, $mode);
+            ChangeResellerSubscriptionStatusJob::dispatch(
+                $buyerId, $orderId, $mode, 'live:status:'.$orderId.':'.$buyerId.':'.$token,
+            );
+            $this->serviceStatusNotice = 'درخواست ثبت شد. برای مشاهده نتیجه، کمی بعد «بررسی وضعیت» را بزنید.';
+            $this->serviceLiveUsage = null;
+            $this->serviceUsageCheckedAt = null;
+        } catch (AuthorizationException $exception) {
+            throw $exception;
+        } catch (Throwable) {
+            $this->serviceStatusError = 'ثبت درخواست ممکن نشد. وضعیت سرویس را بررسی کنید و در صورت نیاز با پشتیبانی تماس بگیرید.';
+        }
+    }
+
+    public function cancelServiceStatus(): void
+    {
+        $this->forgetServiceStatusConfirmation($this->resellerId());
+        $this->serviceStatusNotice = null;
+    }
+
+    private static function serviceStatusKey(int $buyerId, int $orderId, string $token): string
+    {
+        return 'denagate-live:reseller-status:'.$buyerId.':'.$orderId.':'.$token;
+    }
+
+    private function forgetServiceStatusConfirmation(int $buyerId): void
+    {
+        if ($this->selectedServiceOrderId !== null && $this->serviceStatusConfirmToken !== null) {
+            Cache::forget(self::serviceStatusKey(
+                $buyerId, $this->selectedServiceOrderId, $this->serviceStatusConfirmToken,
+            ));
+        }
+        $this->serviceStatusConfirmToken = null;
+        $this->serviceStatusConfirmMode = null;
+        $this->serviceStatusError = null;
     }
 
     /** Explicitly disclose this one currently usable subscription, never in lists. */
@@ -540,6 +651,8 @@ final class Dashboard extends Component
     public function cancelRenewal(): void
     {
         $this->forgetRenewalConfirmation($this->resellerId());
+        $this->forgetServiceStatusConfirmation($this->resellerId());
+        $this->serviceStatusNotice = null;
         $this->renewalPreview = null;
         $this->renewalError = null;
     }
@@ -909,6 +1022,7 @@ final class Dashboard extends Component
             'services' => [],
             'labels' => [],
             'selectedService' => null,
+            'serviceStatusCanResume' => false,
             'renewalAvailable' => false,
             'renewalOrder' => null,
             'nextServiceCursor' => null,
@@ -999,6 +1113,15 @@ final class Dashboard extends Component
                         SubscriptionViewer::web(), $this->selectedServiceOrderId,
                     );
                     $data['selectedService'] = $detail;
+                    if (config('denagate_live.reseller_status_enabled') === true
+                        && ($this->serviceLiveUsage['status'] ?? null) === 'disabled') {
+                        try {
+                            $data['serviceStatusCanResume'] = app(ManageResellerSubscriptionStatus::class)
+                                ->canResume($userId, $detail->summary->orderId);
+                        } catch (Throwable) {
+                            $data['serviceStatusCanResume'] = false;
+                        }
+                    }
                     $data['renewalAvailable'] = app(PrepareRenewalDraft::class)->available(
                         SubscriptionViewer::web(), $detail->summary->orderId,
                     );
