@@ -421,7 +421,7 @@
                                     <p id="live-customer-label-hint" class="text-xs leading-6 text-[#71818B]">حداکثر ۶۰ نویسه · خالی بگذارید تا نام اختصاصی حذف شود.</p>
                                     <div class="flex flex-wrap gap-3">
                                         <button type="submit" wire:loading.attr="disabled" wire:target="saveServiceLabel"
-                                            class="dg-btn-primary">ذخیره نام</button>
+                                            class="dg-btn-primary"><span>ذخیره نام</span><span wire:loading.delay wire:target="saveServiceLabel" role="status" class="text-xs font-semibold">در حال ذخیره…</span></button>
                                         <button type="button" wire:click="cancelServiceLabel" wire:target="cancelServiceLabel" wire:loading.attr="disabled"
                                             class="dg-btn-secondary">انصراف</button>
                                     </div>
