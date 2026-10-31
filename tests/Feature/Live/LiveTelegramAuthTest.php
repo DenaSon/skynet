@@ -149,7 +149,7 @@ it('validates raw Telegram query strings rather than trusting initDataUnsafe or 
         ->and($validator->userId('user='.urlencode('{"id":445566}'), '321:sales-bot'))->toBeNull();
 });
 
-it('uses HTTPS login and same-origin logout when Runflare forwards an HTTP-origin request', function (): void {
+it('keeps HTTPS login and server logout while hiding the logout form from the dashboard', function (): void {
     $this->get('http://live.denagate.ir/')
         ->assertOk()
         ->assertSee('action="https://live.denagate.ir/auth/telegram"', false)
@@ -165,16 +165,15 @@ it('uses HTTPS login and same-origin logout when Runflare forwards an HTTP-origi
 
     $this->get('http://live.denagate.ir/dashboard')
         ->assertOk()
-        ->assertSee('action="/logout"', false)
-        ->assertSee('خروج')
+        ->assertDontSee('action="/logout"', false)
         ->assertDontSee('خروج امن')
-        ->assertDontSee('action="http://live.denagate.ir/logout"', false);
+        ->assertDontSee('>خروج</button>', false);
 
-    // Public browser HTTPS must retain HTTPS for the logout form's POST.
+    // The control is absent on the public HTTPS page too.
     $this->get('https://live.denagate.ir/dashboard')
         ->assertOk()
-        ->assertSee('action="/logout"', false)
-        ->assertDontSee('action="http://live.denagate.ir/logout"', false);
+        ->assertDontSee('action="/logout"', false)
+        ->assertDontSee('>خروج</button>', false);
 
     $this->get('http://live.denagate.ir/')
         ->assertRedirect('https://live.denagate.ir/dashboard');
