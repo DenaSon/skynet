@@ -715,45 +715,22 @@
                             </div>
                         </section>
 
-                        <section class="mt-7" aria-labelledby="report-sales-metrics-title">
-                            <div class="mb-3">
-                                <h2 id="report-sales-metrics-title" class="text-base font-extrabold text-[#1B2935]">عملکرد فروش</h2>
-                                <p class="mt-1 text-xs leading-6 text-[#617380]">تراکنش‌ها و سفارش‌های بازه انتخابی</p>
-                            </div>
-                            <div class="grid grid-cols-2 gap-3 md:grid-cols-3">
+                        <section class="mt-5" aria-label="شاخص‌های فروش و حساب">
+                            <div class="grid grid-cols-3 gap-2.5 sm:gap-3">
                                 @foreach ([
-                                    ['خریدهای جدید', $report['sales']],
-                                    ['تمدیدها', $report['renewals']],
-                                    ['تراکنش‌های تأییدشده', $report['transactions']],
-                                ] as [$label, $value])
-                                    <section class="dg-card flex min-h-32 flex-col justify-between gap-3 p-4 sm:p-5">
-                                        <div class="flex items-start gap-2">
-                                            <span class="mt-2 h-2 w-2 shrink-0 rounded-full bg-[#14B8A6]" aria-hidden="true"></span>
-                                            <p class="text-xs leading-6 font-semibold text-[#536C76] sm:text-sm">{{ $label }}</p>
+                                    ['خریدهای جدید', $report['sales'], true],
+                                    ['تمدیدها', $report['renewals'], true],
+                                    ['تراکنش‌های تأییدشده', $report['transactions'], true],
+                                    ['سفارش‌های در انتظار پرداخت', $report['pending'], false],
+                                    ['کل سرویس‌های ثبت‌شده', $report['services'], false],
+                                    ['سرویس‌های دارای نام', $report['namedServices'], false],
+                                ] as [$label, $value, $isHistorical])
+                                    <section class="dg-card flex min-w-0 min-h-28 flex-col justify-between gap-2 rounded-[18px] p-2.5 sm:min-h-32 sm:p-4">
+                                        <div class="flex min-w-0 items-start gap-1.5">
+                                            <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full {{ $isHistorical ? 'bg-[#14B8A6]' : 'bg-[#A9BAC3]' }}" aria-hidden="true"></span>
+                                            <p class="min-w-0 break-words text-[11px] leading-4 font-semibold text-[#536C76] sm:text-xs">{{ $label }}</p>
                                         </div>
-                                        <p class="dg-stat">{{ number_format($value) }}</p>
-                                    </section>
-                                @endforeach
-                            </div>
-                        </section>
-
-                        <section class="mt-7" aria-labelledby="report-account-metrics-title">
-                            <div class="mb-3">
-                                <h2 id="report-account-metrics-title" class="text-base font-extrabold text-[#1B2935]">وضعیت فعلی حساب</h2>
-                                <p class="mt-1 text-xs leading-6 text-[#617380]">آخرین وضعیت سفارش‌ها و سرویس‌های نمایندگی</p>
-                            </div>
-                            <div class="grid grid-cols-2 gap-3 md:grid-cols-3">
-                                @foreach ([
-                                    ['سفارش‌های در انتظار پرداخت', $report['pending']],
-                                    ['کل سرویس‌های ثبت‌شده', $report['services']],
-                                    ['سرویس‌های دارای نام', $report['namedServices']],
-                                ] as [$label, $value])
-                                    <section class="dg-card flex min-h-32 flex-col justify-between gap-3 p-4 sm:p-5">
-                                        <div class="flex items-start gap-2">
-                                            <span class="mt-2 h-2 w-2 shrink-0 rounded-full bg-[#A9BAC3]" aria-hidden="true"></span>
-                                            <p class="text-xs leading-6 font-semibold text-[#536C76] sm:text-sm">{{ $label }}</p>
-                                        </div>
-                                        <p class="dg-stat">{{ number_format($value) }}</p>
+                                        <p class="text-lg font-extrabold tabular-nums text-[#172A36] sm:text-xl" dir="ltr">{{ number_format($value) }}</p>
                                     </section>
                                 @endforeach
                             </div>
