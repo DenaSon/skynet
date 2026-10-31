@@ -2,7 +2,7 @@
 
 > **Decision: 2026-10-31.** This is the normative handoff/checklist for the **new Polish sequence**, not the historical LIVE-0/1 phases documented in [033](033-DENAGATE-LIVE-MINIAPP.md) or the original product Epics in [034](034-DENAGATE-LIVE-EPICS-ROADMAP.md).
 >
-> **Approval state (2026-10-31):** P0 merged as [#320](https://github.com/DenaSon/skynet/pull/320) (`7e8efcdf`), P1 merged as [#321](https://github.com/DenaSon/skynet/pull/321) (`65e786ce`), and the operator separately authorized **P2A, P2B and P3** in sequence. P4 still requires independent phase approval. No Polish PR authorizes production financial/Provider operations.
+> **Approval state (2026-10-31):** P0 merged as [#320](https://github.com/DenaSon/skynet/pull/320) (`7e8efcdf`), P1 merged as [#321](https://github.com/DenaSon/skynet/pull/321) (`65e786ce`), and the operator separately authorized **P2A, P2B, P3 and P4** in sequence. P4 has a separate, limited code/QA PR; physical Telegram-client sign-off is not implied. No Polish PR authorizes production financial/Provider operations.
 >
 > **Source-of-truth order:** latest `master` code, `AGENTS.md`, `docs/000-CONTEXT.md`, `docs/005-ROADMAP.md`, `docs/017-TELEGRAM-UX-IDENTITY.md`, `docs/018-REMNAWAVE-STAGING-MULTIBOT-ROADMAP.md`, `docs/033-DENAGATE-LIVE-MINIAPP.md`, `docs/034-DENAGATE-LIVE-EPICS-ROADMAP.md`, then this Polish-specific scope. Refresh the branch/implementation inventory before each PR; historical docs do not override current code.
 
@@ -27,8 +27,8 @@ Deliver a **premium, minimal, Persian-first, Apple-inspired, Telegram-native-fee
 | **P1 — UX Writing** | [#321](https://github.com/DenaSon/skynet/pull/321) | Consistent Persian labels, truthful statuses, compact copy and focused tests | Merged `65e786ce`; PR/post-merge CI green; device QA separate |
 | **P2A — Visual Refinement: overview/shop/credit** | [#322](https://github.com/DenaSon/skynet/pull/322) | Use P0 primitives consistently on overview, quote, checkout and credit | Merged `cc973ea3`; PR/post-merge CI green; device QA separate |
 | **P2B — Visual Refinement: services/reports** | [#323](https://github.com/DenaSon/skynet/pull/323) | Use primitives for service list/detail, connection, usage, pause/resume, renewal, reports | Operator-approved; independent scoped PR/CI gate; device QA separate |
-| **P3 — Interaction & Feedback** | [#324](https://github.com/DenaSon/skynet/pull/324) | Action-scoped disabled/loading feedback, contextual confirmations, accessible hints, safe copy recovery | Independently approved; PR/CI and merge gate; device QA separate |
-| **P4 — Telegram Mobile Experience & Final QA** | 1 | iOS/Android/Desktop Telegram touch/safe-area/keyboard/back/accessibility audit | Planned; after P3 and separate approval |
+| **P3 — Interaction & Feedback** | [#324](https://github.com/DenaSon/skynet/pull/324) | Action-scoped disabled/loading feedback, contextual confirmations, accessible hints, safe copy recovery | Merged `01daf79d`; post-merge CI successful; device QA separate |
+| **P4 — Telegram Mobile Experience & Final QA** | [#325](https://github.com/DenaSon/skynet/pull/325) | Verify mobile safe area; preserve client/browser fallbacks and four-tab interactions; explicit device QA matrix | Independently approved; code CI evidence in PR; **physical iOS/Android/Desktop acceptance pending** |
 
 **Total target: 5 phases, 6 small PRs** (P2 split into A and B). Never implement all phases in one PR; every phase has independent review, regression checks, rollout notes and revert path. Request approval before changing these boundaries.
 
@@ -163,6 +163,32 @@ Deliver a **premium, minimal, Persian-first, Apple-inspired, Telegram-native-fee
 - Validate all four tabs and contextual purchase path, authorized customer-name edit, link reveal/copy/QR, credit/bot handoff, reporting, eligible renewal and optionally enabled pause/resume **without executing unapproved real financial or Provider writes**.
 - **Acceptance:** capture device/version and pass/fail evidence, browser status/network failures without secrets, accessibility/keyboard checks, fixed regressions only within scope, code review + successful CI. Keep any unresolved payment/Provider E2E explicitly pending; do not declare live operational acceptance from fake tests.
 
+### P4 acceptance record — Mini App device QA (2026-10-31)
+
+**Independent PR:** [#325](https://github.com/DenaSon/skynet/pull/325) from `master` `01daf79d`. Scope: exactly one mobile bottom-navigation safe-area attribute change, a focused feature/source regression suite, and this living audit; no new JavaScript runtime, component, settings, dependency, CSS primitive, permission, backend Action, financial flow, Provider operation, or DB migration. The final review and CI/merge state are tracked on the PR and workflow, **not inferred from this document**.
+
+**Code-audit finding and minimal remediation:** Existing markup used `env(safe-area-inset-bottom)` but not the Telegram-specific `--tg-content-safe-area-inset-*` CSS variables defined in the [official Telegram Mini Apps platform documentation](https://core.telegram.org/bots/webapps). The bottom tab nav now resolves bottom/left/right against the browser's `env()` and Telegram's `var(..., 0px)` values, keeping an 8px baseline, while honoring physical RTL inline-start/end orientation. Original mobile tab destinations, `lg:hidden`, `min-h-14`, navigation positioning, `pb-32` content clearance, desktop sidebar and full authentication route remain unchanged. No speculative fullscreen, native BackButton or Haptic integration was introduced without actual client interoperability evidence. The UI remains a deliberate light theme.
+
+**Automated checks** (run by CI on PR SHA, then on resulting master SHA separately): PHP 8.4 full Pest; PHPStan; Pint; production Vite bundle/manifest and font/RTL/reduced-motion assertions; MySQL migration/rollback and real Redis worker. New tests cover source fallback declarations, responsive 4-tab markup, an actual authenticated reseller's tab transitions and 7-day report selection, no billing/provider operations during navigation, and the signed Telegram entry's browser fallback. Existing suites cover signed initData, Livewire owner/RBAC/session updates, checkout idempotency, credential reveal secrecy, reported limits and local/provisional statuses. **Tests do not emulate true keyboard, clipboard permission, Telegram viewport transitions or touch input.**
+
+**Required operator device acceptance:** Record exact Telegram app version + OS/device, screen width/orientation, test date, outcome, redacted screenshot or short observation and relevant error codes; never copy user IDs, bot tokens, subscription URLs, live credentials, bank data or raw initData into the report.
+
+| Client | Device / Telegram version | Tested? | Outcome |
+| --- | --- | --- | --- |
+| Telegram on iOS | Not supplied | No | **PENDING** — manual client smoke |
+| Telegram on Android | Not supplied | No | **PENDING** — manual client smoke |
+| Telegram Desktop | Not supplied | No | **PENDING** — manual client smoke |
+
+**Operator smoke flow (non-mutating by default):**
+1. From the Sales Bot's authorized Mini App entry `/live`, open a fresh session. Confirm HTTPS auth (no 403 or HTTP mixed-content form), no white screen, and return-to-bot behavior; the plain-browser entry must show the Sales Bot login instruction instead of bypassing Telegram.
+2. Switch each of the four tabs and contextual purchase screen, including Overview ↔ Shop, recent orders and service list paging. Check 320–430px portrait and an available landscape width, with browser bottom safe-area and Telegram bottom controls/notch; confirm no horizontal scroll or clipped tabs and labels.
+3. Use `نام کاربری مشتری`, builder day/GB and service customer-name input only with **no paid order confirmation**. While keyboard is open, verify that the focused field, validation helper, CTA and page scroll stay usable. Cancel edits and confirm prior state is retained.
+4. Open an **owned** eligible service detail; on-demand usage/reveal/copy/QR/hide should happen only on explicit tap; verify privacy before reveal and after hide. Avoid sharing credentials in evidence. Check that locally recorded status and freshly checked Provider status are not conflated. Usage is read-only; status enable/disable and renewal **must not be executed on Production** without fresh operation-specific approval.
+5. View wallet/current-balance and settled report 7/30 days; confirm multi-digit values, Persian typography, RTL/LTR ordering, loading/errors and focus. Do **not** authorize a live wallet debit/top-up or renewal simply to test UX.
+6. Test dark-mode Telegram shell with the product's intentional light baseline, reduced-motion settings if applicable, back/close and reopening app, slow-network failure/retry and fallback bot link. Inspect only sanitized console and HTTP status codes on failure (especially the Livewire update request).
+
+**Evidence/closure rule:** P4 **source/code gate may pass**, but the *whole UI/UX Polish is not end-to-end accepted* until iOS + Android + Desktop passes/failures are recorded with device-specific evidence. Client tests and any actual payments/Provider writes remain explicitly pending. No real Telegram device was available through this assistant session; public `https://live.denagate.ir/` could not be independently opened by the available external-fetch tool. Do not assert a 200, usable remote sign-in, deploy completion or real-device pass. **Rollback:** revert PR #325's view/tests/docs; emergency disablement remains `DENAGATE_LIVE_ENABLED=false` (operator-controlled, not modified in this phase).
+
 ## 8. Mandatory per-PR delivery and completion contract
 
 1. Read the latest master code and the sources above; identify precise files, current UI state, constraints and **one phase only**. If changes require new architecture, settings, dependencies or business behavior, **stop for explicit approval**.
@@ -171,4 +197,4 @@ Deliver a **premium, minimal, Persian-first, Apple-inspired, Telegram-native-fee
 4. Perform/report actual Telegram-client checks separately after deploy. Do not confuse source pass, CI, deploy, browser/client smoke, financial correctness and Provider mutation verification.
 5. Update **this one living document** at the end of each phase: PR link, merge SHA, checks, operator acceptance, pending items, risks and next authorized phase. Report **انجام‌شده / تست‌شده / باقی‌مانده / ریسک‌ها**. Keep earlier phases marked as historical, not silently overwritten.
 
-**Release discipline:** P0/P1/P2A/P2B are merged; P3 was independently approved as a separate PR. P4 requires explicit operator go/no-go. Approval of one phase never authorizes the next. Do not label the whole Polish “complete” until every phase meets its own acceptance criteria and remaining real-device checks are recorded.
+**Release discipline:** P0/P1/P2A/P2B/P3 are merged; P4 was independently approved with a separate bounded code PR and client QA matrix. No new phase is authorized. Approval of one phase never authorizes the next. Do not label the whole Polish “complete” until every phase meets its own acceptance criteria and remaining real-device checks are recorded.
