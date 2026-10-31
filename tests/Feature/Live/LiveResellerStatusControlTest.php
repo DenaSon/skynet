@@ -160,6 +160,8 @@ it('requires live status and one-use confirmation before queuing the only provid
         ->assertSee('غیرفعال‌سازی سرویس')
         ->call('prepareServiceStatus', 'disable')
         ->assertSee('تأیید غیرفعال‌سازی')
+        ->assertSee('سفارش #'.$d['order'])
+        ->assertSee('نتیجه را با «بررسی وضعیت» دنبال کنید.')
         ->call('confirmServiceStatus')
         ->assertSee('درخواست ثبت شد');
 
