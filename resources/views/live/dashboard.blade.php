@@ -510,6 +510,43 @@
                             @endif
                         </section>
 
+                        @if (config('denagate_live.reseller_status_enabled') === true
+                            && (($serviceLiveUsage['status'] ?? null) === 'active'
+                                || ($serviceLiveUsage['status'] ?? null) === 'disabled'
+                                || $serviceStatusConfirmToken !== null || $serviceStatusNotice !== null || $serviceStatusError !== null))
+                            <section class="mt-5 rounded-[26px] border border-[#E7ECEF] bg-white p-5 shadow-sm sm:p-7" aria-label="مدیریت سرویس">
+                                <h3 class="text-base font-extrabold text-[#1B2935]">مدیریت سرویس</h3>
+                                <p class="mt-2 text-xs leading-7 text-[#71818B]">توقف موقت اتصال، زمان انقضا و حجم سرویس را تغییر نمی‌دهد.</p>
+                                @if ($serviceStatusError)
+                                    <p role="alert" class="mt-4 rounded-xl bg-[#FFF9F1] p-4 text-sm leading-7 text-[#845C23]">{{ $serviceStatusError }}</p>
+                                @endif
+                                @if ($serviceStatusNotice)
+                                    <p role="status" class="mt-4 rounded-xl bg-[#EAF8F4] p-4 text-sm leading-7 text-[#087F73]">{{ $serviceStatusNotice }}</p>
+                                @endif
+                                @if ($serviceStatusConfirmToken !== null)
+                                    <div class="mt-5 rounded-2xl border border-[#E7ECEF] bg-[#F6F8FA] p-4">
+                                        <p class="text-sm font-bold text-[#1B2935]">تأیید {{ $serviceStatusConfirmMode === 'disable' ? 'غیرفعال‌سازی' : 'فعال‌سازی مجدد' }}</p>
+                                        <p class="mt-2 text-xs leading-7 text-[#71818B]">این تغییر فقط روی اتصال همین سرویس اعمال می‌شود. آیا مطمئن هستید؟</p>
+                                        <div class="mt-4 flex flex-wrap gap-3">
+                                            <button type="button" wire:click="confirmServiceStatus" wire:loading.attr="disabled" wire:target="confirmServiceStatus"
+                                                class="min-h-11 rounded-xl bg-[#14B8A6] px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-[#087F73]">تأیید درخواست</button>
+                                            <button type="button" wire:click="cancelServiceStatus" class="min-h-11 rounded-xl border border-[#D9E4E7] px-5 py-2.5 text-sm font-semibold text-[#536C76]">انصراف</button>
+                                        </div>
+                                    </div>
+                                @elseif (($serviceLiveUsage['status'] ?? null) === 'active')
+                                    <button type="button" wire:click="prepareServiceStatus('disable')" wire:loading.attr="disabled" wire:target="prepareServiceStatus"
+                                        class="mt-5 min-h-11 rounded-xl border border-[#D9E4E7] px-5 py-2.5 text-sm font-bold text-[#536C76] disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-[#14B8A6]">⏸️ غیرفعال‌سازی سرویس</button>
+                                @elseif (($serviceLiveUsage['status'] ?? null) === 'disabled')
+                                    @if ($serviceStatusCanResume)
+                                        <button type="button" wire:click="prepareServiceStatus('enable')" wire:loading.attr="disabled" wire:target="prepareServiceStatus"
+                                            class="mt-5 min-h-11 rounded-xl bg-[#14B8A6] px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-[#087F73]">✅ فعال‌سازی مجدد</button>
+                                    @else
+                                        <p class="mt-4 rounded-xl bg-[#F6F8FA] p-4 text-xs leading-7 text-[#71818B]">فعال‌سازی این سرویس نیازمند بررسی پشتیبانی است.</p>
+                                    @endif
+                                @endif
+                            </section>
+                        @endif
+
                         @if ($renewalAvailable || $renewalOrder !== null)
                             <section class="mt-5 rounded-[26px] border border-[#CCEDE4] bg-white p-5 shadow-sm sm:p-7" aria-label="تمدید سرویس">
                                 <h3 class="text-base font-extrabold text-[#1B2935]">تمدید سرویس</h3>
