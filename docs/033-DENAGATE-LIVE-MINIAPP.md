@@ -75,3 +75,14 @@
 - CI must run a **real production Vite build** and require the `resources/js/live.js` bundle in the generated manifest, in addition to PHP 8.4, PHPStan, Pint, MySQL, and source regression.
 - **Acceptance is not CI alone:** open fresh Sales Bot `/live` in Telegram, test all four tabs + purchase catalog + quote, then verify Livewire POST to its hash-based `/update` path succeeds over HTTPS. If browser requests fail, investigate edge routing, cookies, redirects, and CSP using redacted status codes; do not blindly relax auth or proxy trust.
 - Rollback: revert the small runtime/layout/Vite and verification PR. No DB, financial, provider, bot or production environment changes authorized.
+
+## Sales Bot direct Mini App launcher — 2026-10-31
+
+**Approved user-facing label:** `📱 اپلیکیشن` (not `پنل نمایندگی` or `Live`). The existing `https://live.denagate.ir` application, signed Telegram `initData` and Laravel session/RBAC gates are unchanged.
+
+- For authorized `reseller` actors **and only while** `denagate_live.enabled === true`, the Sales Bot persistent reply keyboard adds a **single-button final row** `📱 اپلیکیشن` with Telegram `KeyboardButton.web_app`. Tapping it opens the Mini App with no intermediate chat message or callback.
+- The existing reseller Home rich/native and Account inline keyboards also use `InlineKeyboardButton.web_app` for the same one-tap action; Rich HTML uses `<tg-button type="web_app" url="...">`. The separate `/live` command still sends its original authorized Web App entry message, renamed to `📱 اپلیکیشن`.
+- Non-resellers, unknown users and disabled-feature sessions must never receive the new shortcut. Stale `sales:live` callbacks remain routed to `SalesLiveEntry` for historical messages and re-check the role/gate before presenting a link. Previously issued keyboards cannot be remotely revoked; **the web session still revalidates the reseller role and HMAC**.
+- All existing bottom keyboard labels/actions and their ordering remain unchanged, with the new app shortcut **only after every existing row**. Member/admin bot keyboards are untouched. When Telegram rejects Rich delivery the existing native reply-keyboard fallback remains functional.
+- No new dependency, persistence, provider, billing, bot token or permission changes. Regression tests cover final-row one-tap markup, resellers vs members, disabled gate, existing Rich/account entry and legacy callbacks. CI must be green at PR head and final master SHA; real Telegram mobile/desktop one-tap smoke remains separately operator-verifiable. Rollback by reverting the independent Sales launcher PR.
+
