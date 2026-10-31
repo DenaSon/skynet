@@ -149,7 +149,7 @@ it('validates raw Telegram query strings rather than trusting initDataUnsafe or 
         ->and($validator->userId('user='.urlencode('{"id":445566}'), '321:sales-bot'))->toBeNull();
 });
 
-it('generates HTTPS Mini App form and redirects when Runflare forwards an HTTP-origin request', function (): void {
+it('uses HTTPS login and same-origin logout when Runflare forwards an HTTP-origin request', function (): void {
     $this->get('http://live.denagate.ir/')
         ->assertOk()
         ->assertSee('action="https://live.denagate.ir/auth/telegram"', false)
@@ -165,7 +165,15 @@ it('generates HTTPS Mini App form and redirects when Runflare forwards an HTTP-o
 
     $this->get('http://live.denagate.ir/dashboard')
         ->assertOk()
-        ->assertSee('action="https://live.denagate.ir/logout"', false)
+        ->assertSee('action="/logout"', false)
+        ->assertSee('خروج')
+        ->assertDontSee('خروج امن')
+        ->assertDontSee('action="http://live.denagate.ir/logout"', false);
+
+    // Public browser HTTPS must retain HTTPS for the logout form's POST.
+    $this->get('https://live.denagate.ir/dashboard')
+        ->assertOk()
+        ->assertSee('action="/logout"', false)
         ->assertDontSee('action="http://live.denagate.ir/logout"', false);
 
     $this->get('http://live.denagate.ir/')
