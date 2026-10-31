@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Web\Live;
 
+use App\Interfaces\Telegram\Support\SubscriptionQrPng;
 use App\Modules\Billing\Application\ViewWallet;
 use App\Modules\Identity\Application\ResolveSalesBuyer;
 use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Provisioning\Application\GetMySubscription;
+use App\Modules\Provisioning\Application\GetSubscriptionLink;
 use App\Modules\Provisioning\Application\GetSubscriptionUsage;
 use App\Modules\Provisioning\Application\ListMyServices;
 use App\Modules\Sales\Application\CalculatePlanQuote;
@@ -53,6 +55,23 @@ final class Dashboard extends Component
     public ?string $serviceDetailError = null;
 
     public ?string $serviceUsageError = null;
+
+    /** Connection URL and QR are credentials, never in the list or automatic render. */
+    #[Locked]
+    public ?string $serviceSubscriptionUrl = null;
+
+    #[Locked]
+    public ?string $serviceQrDataUri = null;
+
+    public ?string $serviceConnectionError = null;
+
+    public bool $editingServiceLabel = false;
+
+    public string $serviceLabelInput = '';
+
+    public ?string $serviceLabelError = null;
+
+    public ?string $serviceLabelNotice = null;
 
     public ?int $selectedPlanId = null;
 
@@ -217,6 +236,114 @@ final class Dashboard extends Component
         }
     }
 
+    /** Explicitly disclose this one currently usable subscription, never in lists. */
+    public function revealServiceConnection(): void
+    {
+        $this->resellerId();
+        $this->hideServiceConnection();
+
+        if ($this->section !== 'services' || $this->selectedServiceOrderId === null) {
+            $this->serviceConnectionError = 'ابتدا سرویس خود را انتخاب کنید.';
+
+            return;
+        }
+
+        $viewer = SubscriptionViewer::web();
+        $detail = app(GetMySubscription::class)->handle($viewer, $this->selectedServiceOrderId);
+        if (! $detail->canRequestLink) {
+            $this->serviceConnectionError = 'اطلاعات اتصال این سرویس فعلاً در دسترس نیست.';
+
+            return;
+        }
+
+        try {
+            // Existing Action validates owner, exact remote identity and usable status,
+            // before and after one GET. Do not log credential-bearing exceptions.
+            $link = app(GetSubscriptionLink::class)->handle($viewer, $this->selectedServiceOrderId);
+            $png = app(SubscriptionQrPng::class)->render($link->subscriptionUrl);
+
+            $this->serviceSubscriptionUrl = $link->subscriptionUrl;
+            $this->serviceQrDataUri = 'data:image/png;base64,'.base64_encode($png);
+        } catch (AuthorizationException $exception) {
+            throw $exception;
+        } catch (Throwable) {
+            $this->serviceConnectionError = 'دریافت اطلاعات اتصال امکان‌پذیر نیست. لطفاً دوباره تلاش کنید.';
+        }
+    }
+
+    /** Clear secrets from the next browser snapshot as well as the view. */
+    public function hideServiceConnection(): void
+    {
+        $this->resellerId();
+        $this->serviceSubscriptionUrl = null;
+        $this->serviceQrDataUri = null;
+        $this->serviceConnectionError = null;
+    }
+
+    /** Load only the current owner's optional customer name. */
+    public function editServiceLabel(): void
+    {
+        $buyerId = $this->resellerId();
+        $this->serviceLabelError = null;
+        $this->serviceLabelNotice = null;
+        if ($this->section !== 'services' || $this->selectedServiceOrderId === null) {
+            $this->serviceLabelError = 'ابتدا سرویس خود را انتخاب کنید.';
+
+            return;
+        }
+
+        $detail = app(GetMySubscription::class)->handle(
+            SubscriptionViewer::web(), $this->selectedServiceOrderId,
+        );
+        if (! in_array($detail->summary->status, ['active', 'provisioning', 'needs_review'], true)) {
+            $this->serviceLabelError = 'ویرایش نام برای این سرویس امکان‌پذیر نیست.';
+
+            return;
+        }
+
+        $this->serviceLabelInput = app(ManageResellerServiceLabels::class)
+            ->get($buyerId, $this->selectedServiceOrderId) ?? '';
+        $this->editingServiceLabel = true;
+    }
+
+    /** Saves through the existing transaction-locked owner-scoped Action. */
+    public function saveServiceLabel(): void
+    {
+        $buyerId = $this->resellerId();
+        $this->serviceLabelError = null;
+        $this->serviceLabelNotice = null;
+
+        if ($this->section !== 'services' || $this->selectedServiceOrderId === null
+            || ! $this->editingServiceLabel) {
+            $this->serviceLabelError = 'ابتدا نام مشتری را برای ویرایش باز کنید.';
+
+            return;
+        }
+
+        try {
+            $label = trim($this->serviceLabelInput);
+            app(ManageResellerServiceLabels::class)->save(
+                $buyerId, $this->selectedServiceOrderId, $label === '' ? null : $label,
+            );
+            $this->serviceLabelInput = '';
+            $this->editingServiceLabel = false;
+            $this->serviceLabelNotice = 'نام مشتری ذخیره شد.';
+        } catch (AuthorizationException $exception) {
+            throw $exception;
+        } catch (ValidationException) {
+            $this->serviceLabelError = 'نام مشتری باید حداکثر ۶۰ نویسه و بدون نویسه‌های نامعتبر باشد.';
+        }
+    }
+
+    public function cancelServiceLabel(): void
+    {
+        $this->resellerId();
+        $this->editingServiceLabel = false;
+        $this->serviceLabelInput = '';
+        $this->serviceLabelError = null;
+        $this->serviceLabelNotice = null;
+    }
+
     private function resetServiceDetail(): void
     {
         $this->selectedServiceOrderId = null;
@@ -224,6 +351,13 @@ final class Dashboard extends Component
         $this->serviceLiveUsage = null;
         $this->serviceUsageCheckedAt = null;
         $this->serviceUsageError = null;
+        $this->serviceSubscriptionUrl = null;
+        $this->serviceQrDataUri = null;
+        $this->serviceConnectionError = null;
+        $this->editingServiceLabel = false;
+        $this->serviceLabelInput = '';
+        $this->serviceLabelError = null;
+        $this->serviceLabelNotice = null;
     }
 
     /** Select only a currently quoted preset or a published reseller builder. */
