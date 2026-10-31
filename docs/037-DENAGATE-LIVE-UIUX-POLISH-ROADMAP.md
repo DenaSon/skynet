@@ -2,7 +2,7 @@
 
 > **Decision: 2026-10-31.** This is the normative handoff/checklist for the **new Polish sequence**, not the historical LIVE-0/1 phases documented in [033](033-DENAGATE-LIVE-MINIAPP.md) or the original product Epics in [034](034-DENAGATE-LIVE-EPICS-ROADMAP.md).
 >
-> **Approval state:** **P0 is approved for implementation**; **P1, P2A, P2B, P3 and P4 are planned only** and require the operator's explicit approval before implementation. This documentation PR does **not** implement any Polish phase or authorize production changes.
+> **Approval state (2026-10-31):** P0 was merged as [#320](https://github.com/DenaSon/skynet/pull/320) (`7e8efcdf`), and the operator independently approved **P1 UX Writing**. P2A, P2B, P3 and P4 remain planned and require phase-specific authorization. No Polish PR authorizes production financial/Provider operations.
 >
 > **Source-of-truth order:** latest `master` code, `AGENTS.md`, `docs/000-CONTEXT.md`, `docs/005-ROADMAP.md`, `docs/017-TELEGRAM-UX-IDENTITY.md`, `docs/018-REMNAWAVE-STAGING-MULTIBOT-ROADMAP.md`, `docs/033-DENAGATE-LIVE-MINIAPP.md`, `docs/034-DENAGATE-LIVE-EPICS-ROADMAP.md`, then this Polish-specific scope. Refresh the branch/implementation inventory before each PR; historical docs do not override current code.
 
@@ -23,8 +23,8 @@ Deliver a **premium, minimal, Persian-first, Apple-inspired, Telegram-native-fee
 
 | Phase | PR | Result | State / prerequisite |
 | --- | --- | --- | --- |
-| **P0 — UI Foundation** | [#320](https://github.com/DenaSon/skynet/pull/320) | 10 scoped Tailwind primitives + minimal design tokens and usage guidance | Implementation delivered in scoped PR; CI/merge evidence at PR; Telegram client QA pending |
-| **P1 — UX Writing** | 1 | Consistent Persian labels, statuses, CTA and empty/error text | Planned; only after P0 accepted and separately approved |
+| **P0 — UI Foundation** | [#320](https://github.com/DenaSon/skynet/pull/320) | 10 scoped Tailwind primitives + minimal design tokens and usage guidance | Merged `7e8efcdf`; PR/post-merge CI green; device QA separate |
+| **P1 — UX Writing** | [#321](https://github.com/DenaSon/skynet/pull/321) | Consistent Persian labels, truthful statuses, compact copy and focused tests | Operator-approved; source PR/CI and merge evidence in #321; device QA separate |
 | **P2A — Visual Refinement: overview/shop/credit** | 1 | Use P0 primitives consistently on overview, quote, checkout and credit | Planned; after P1 and separate approval |
 | **P2B — Visual Refinement: services/reports** | 1 | Use primitives for service list/detail, connection, usage, pause/resume, renewal, reports | Planned; after P2A and separate approval |
 | **P3 — Interaction & Feedback** | 1 | Action-level loading, disabled states, navigation, meaningful success/error feedback | Planned; after P2B and separate approval |
@@ -81,6 +81,29 @@ Deliver a **premium, minimal, Persian-first, Apple-inspired, Telegram-native-fee
 - Review existing `billing_topups` states and workflow before labeling `pending`; do not invent a new state or change DB semantics in a copy-only phase. If accurate differentiation cannot be supported by current view data, report the gap rather than alter business logic without approval.
 - **Acceptance:** a before/after text matrix across all sections; stable labels for same states on different screens; appropriate empty/error texts without leaking secrets; no false payment/Provider claims; focused rendering and status regression tests; no changes to Actions, business semantics, DB or bot copy outside approved scope.
 
+### P1 delivery checkpoint — UX Writing (2026-10-31)
+
+**PR:** [#321](https://github.com/DenaSon/skynet/pull/321). The exact PR and subsequent master checks are the evidence for source/CI and merge; real Telegram-client UX acceptance remains separate. Changes are limited to Live-facing text in `resources/views/live/dashboard.blade.php`, the independent `entry.blade.php`, four safe Presenter error messages and focused tests. **No behavioral change, schema, provider/finance write, new setting, dependency or P0-class adoption.**
+
+| Surface | Before | After / truth boundary |
+| --- | --- | --- |
+| Overview | «فروش تأییدشده» | «فروش تسویه‌شده» (existing settled-only report) |
+| Plan preset | «مشاهده پیش‌فاکتور» | «انتخاب پلن» (selects plan; no payment) |
+| Plan builder | «تنظیم و محاسبه قیمت» | «تنظیم پلن» (selects builder; price is separate) |
+| Quote | «محاسبه پیش‌فاکتور» | «مشاهده قیمت نهایی»; quote remains nonbinding |
+| Create pending order | «تأیید و ثبت سفارش» | «ثبت سفارش بدون پرداخت»; existing Action still creates pending only |
+| Recent orders | mismatched paid/fulfilled wording | Same recorded payment/preparation wording as order details; never claim remote activation merely on `paid` |
+| Credit / new top-up | pending displayed «در انتظار بررسی» | pending = «در انتظار ارسال رسید»; submitted = «در انتظار بررسی واریز»; approved/rejected unchanged, no credit assumed |
+| Service status | «فعال در سوابق داخلی» vs «فعال در سوابق» | consistently «فعال در سوابق»; on-demand GET result is labeled separately from local records |
+| Connection | «نمایش لینک و QR» | «مشاهده اطلاعات اتصال»; credentials stay hidden until explicit authorized click |
+| Services pagination | «موارد بیشتر» | «نمایش سرویس‌های بیشتر»; existing owner-scoped six-item keyset unchanged |
+| Renewal | «پرداخت ثبت شده؛ در انتظار اعمال تمدید» | «پرداخت ثبت‌شده؛ تمدید در انتظار اعمال»; `fulfilled` remains distinct |
+| Reports / entry | repeated/wordy helper text | compact settled-sales and Telegram-entry wording; no change to HMAC/submit |
+
+**Bounded collections / separately gated pagination:** Services already use six-item owner-scoped keyset pages with a first-page reset. Recent new-plan orders use `OrderReader::recentNewPlans` (10 max), and wallet top-ups use `ViewWallet` (10 max); these two **do not currently expose pagination**. The available preset/builder catalogs are complete lists of authorized offers, so their long-list presentation also merits assessment if the catalog grows. The operator requested compact lists and pagination for expandable collections; **P1 preserves all bounds and existing actions**. Any new order/top-up/catalog pagination requires an independently approved P2 design or separate scoped Action/pagination PR (including ownership, cursor and reset tests), not a hidden P1 read/architecture change.
+
+**Source acceptance evidence:** updated textual assertions, regression for actual pending→submitted top-up state and unchanged wallet journal, existing owner/security/renewal status tests, PR PHP 8.4 Pest, PHPStan, Pint, Vite build and MySQL/Redis CI. Exact results/merge SHA are recorded in the linked PR and GitHub Actions; **do not claim live-device acceptance based on mocks**. Rollback = revert #321. **Next phase: P2A remains unapproved until operator go/no-go.**
+
 ## 5. P2 — Visual Refinement (planned; two PRs)
 
 **P2A — Overview, Shop, Credit:** adopt P0 classes for hero, KPI summary, plan selection/price preview, order/payment confirmation layout and credit/top-up request cards. Improve typography, spacing, number/currency LTR alignment and visual priority of the single main CTA. Preserve plan ordering, current prices/discount and existing payment confirmation flow.
@@ -111,4 +134,4 @@ Deliver a **premium, minimal, Persian-first, Apple-inspired, Telegram-native-fee
 4. Perform/report actual Telegram-client checks separately after deploy. Do not confuse source pass, CI, deploy, browser/client smoke, financial correctness and Provider mutation verification.
 5. Update **this one living document** at the end of each phase: PR link, merge SHA, checks, operator acceptance, pending items, risks and next authorized phase. Report **انجام‌شده / تست‌شده / باقی‌مانده / ریسک‌ها**. Keep earlier phases marked as historical, not silently overwritten.
 
-**Release discipline:** P0 is the only approved implementation starting point now. P1–P4 need separate operator go/no-go; an approved P0 does not approve automatic implementation or merge of later phases. Do not label the whole Polish “complete” until every phase meets its own acceptance criteria and remaining real-device checks are recorded.
+**Release discipline:** P0 was approved and delivered; P1 was independently approved and delivered via its own PR. P2A–P4 still require separate operator go/no-go; approval of an earlier phase never authorizes the next. Do not label the whole Polish “complete” until every phase meets its own acceptance criteria and remaining real-device checks are recorded.
