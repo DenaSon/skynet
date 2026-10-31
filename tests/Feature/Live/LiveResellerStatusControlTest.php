@@ -178,10 +178,12 @@ it('executes one verified disable and only permits resume after this buyers comp
     expect($status)->toBe('DISABLED')
         ->and($action->canResume($d['buyer']->id, $d['order']))->toBeTrue();
     $opCount = DB::table('provisioning_operations')->count();
-    $action->change($d['buyer']->id, $d['order'], 'disable', $key);
+    expect(fn () => $action->change($d['buyer']->id, $d['order'], 'disable', $key))
+        ->toThrow(ValidationException::class);
 
     expect(DB::table('provisioning_operations')->count())->toBe($opCount);
-})->skip('Verified retry requires the fresh state to match; test the guarded resume in the next test.');
+    Http::assertSentCount(3);
+});
 
 it('resumes a locally recorded pause without changing expiration, quota or wallet', function (): void {
     $d = status6bFixture();
