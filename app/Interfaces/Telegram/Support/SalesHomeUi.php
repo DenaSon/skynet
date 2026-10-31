@@ -28,6 +28,7 @@ use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
+use SergiX44\Nutgram\Telegram\Types\WebApp\WebAppInfo;
 use Throwable;
 
 /** Sales-only navigation; shared Application Actions retain all business authority. */
@@ -119,18 +120,19 @@ final readonly class SalesHomeUi
         if ($isReseller) {
             $keyboard->addRow(InlineKeyboardButton::make('🧩 پلن سفارشی', callback_data: 'menu:builder'));
             $keyboard->addRow(InlineKeyboardButton::make('📊 گزارش‌های من', callback_data: 'sales:report:30'));
-            if (config('denagate_live.enabled') === true) {
-                $keyboard->addRow(InlineKeyboardButton::make(
-                    '🚀 پنل نمایندگی', callback_data: 'sales:live',
-                    style: ButtonStyle::PRIMARY,
-                ));
-            }
         }
         if ($panelRequestLabel !== null) {
             $keyboard->addRow(InlineKeyboardButton::make($panelRequestLabel, callback_data: 'sales:panel:request'));
         }
         $keyboard->addRow(InlineKeyboardButton::make('💬 پشتیبانی', callback_data: 'sales:support'))
             ->addRow(InlineKeyboardButton::make('📋 همه پلن‌ها و قیمت‌ها', callback_data: 'menu:plan-catalog'));
+        if ($isReseller && config('denagate_live.enabled') === true) {
+            $keyboard->addRow(InlineKeyboardButton::make(
+                ReplyMenuLabels::SALES_APP,
+                web_app: WebAppInfo::make((string) config('denagate_live.url')),
+                style: ButtonStyle::PRIMARY,
+            ));
+        }
 
         $homeText = '<b>🏠 صفحه اصلی DenaGate</b>'
             .($customWelcome === null ? '' : "\n\n".$customWelcome)
@@ -156,9 +158,15 @@ final readonly class SalesHomeUi
                 foreach ($row as $button) {
                     $style = $button->style === ButtonStyle::SUCCESS ? ' style="success"'
                         : ($button->style === ButtonStyle::PRIMARY ? ' style="primary"' : '');
-                    $richHtml .= '<tg-button type="callback_data"'.$style
-                        .' data="'.TelegramUi::escape((string) $button->callback_data).'">'
-                        .TelegramUi::escape($button->text).'</tg-button>';
+                    if ($button->web_app !== null) {
+                        $richHtml .= '<tg-button type="web_app"'.$style
+                            .' url="'.TelegramUi::escape($button->web_app->url).'">'
+                            .TelegramUi::escape($button->text).'</tg-button>';
+                    } else {
+                        $richHtml .= '<tg-button type="callback_data"'.$style
+                            .' data="'.TelegramUi::escape((string) $button->callback_data).'">'
+                            .TelegramUi::escape($button->text).'</tg-button>';
+                    }
                 }
                 $richHtml .= '</tg-button-row>';
             }
@@ -422,12 +430,6 @@ final readonly class SalesHomeUi
         if (in_array('reseller', $actor->roles, true)) {
             $keyboard->addRow(InlineKeyboardButton::make('🧩 پلن سفارشی', callback_data: 'menu:builder'));
             $keyboard->addRow(InlineKeyboardButton::make('📊 گزارش‌های من', callback_data: 'sales:report:30'));
-            if (config('denagate_live.enabled') === true) {
-                $keyboard->addRow(InlineKeyboardButton::make(
-                    '🚀 پنل نمایندگی', callback_data: 'sales:live',
-                    style: ButtonStyle::PRIMARY,
-                ));
-            }
         }
 
         $panelRequestLabel = $this->panelRequestLabel($actor);
@@ -435,6 +437,13 @@ final readonly class SalesHomeUi
             $keyboard->addRow(InlineKeyboardButton::make($panelRequestLabel, callback_data: 'sales:panel:request'));
         }
         $keyboard->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
+        if (in_array('reseller', $actor->roles, true) && config('denagate_live.enabled') === true) {
+            $keyboard->addRow(InlineKeyboardButton::make(
+                ReplyMenuLabels::SALES_APP,
+                web_app: WebAppInfo::make((string) config('denagate_live.url')),
+                style: ButtonStyle::PRIMARY,
+            ));
+        }
 
         $text = '<b>👤 حساب کاربری</b>'
             ."\n\nنام: ".$this->name($actor->name)

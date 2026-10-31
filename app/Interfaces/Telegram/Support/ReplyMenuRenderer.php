@@ -8,6 +8,7 @@ use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\KeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\ReplyKeyboardMarkup;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\ReplyKeyboardRemove;
+use SergiX44\Nutgram\Telegram\Types\WebApp\WebAppInfo;
 
 final class ReplyMenuRenderer
 {
@@ -162,6 +163,15 @@ final class ReplyMenuRenderer
         // Native Telegram styles apply only to Sales, not legacy/Admin menus.
         $keyboard->keyboard[0][0]->style = ButtonStyle::SUCCESS;
         $keyboard->keyboard[0][1]->style = ButtonStyle::PRIMARY;
+
+        // Direct Telegram Mini App launch, always in its own final row.
+        // Sales-only, reseller-only and gated just like the existing /live entry.
+        if ($isReseller && config('denagate_live.enabled') === true) {
+            $keyboard->addRow(KeyboardButton::make(
+                ReplyMenuLabels::SALES_APP,
+                web_app: WebAppInfo::make((string) config('denagate_live.url')),
+            ));
+        }
 
         return $keyboard;
     }

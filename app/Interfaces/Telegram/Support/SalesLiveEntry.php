@@ -32,7 +32,7 @@ final readonly class SalesLiveEntry
         }
 
         if (config('denagate_live.enabled') !== true) {
-            $bot->sendMessage('پنل وب نمایندگی فعلاً در دسترس نیست.');
+            $bot->sendMessage('اپلیکیشن دناگیت فعلاً در دسترس نیست.');
 
             return;
         }
@@ -45,9 +45,9 @@ final readonly class SalesLiveEntry
         }
 
         $bot->sendMessage(
-            text: '🚀 پنل نمایندگی دناگیت را از دکمه زیر باز کنید.',
+            text: '📱 اپلیکیشن دناگیت را باز کنید.',
             reply_markup: InlineKeyboardMarkup::make()->addRow(
-                InlineKeyboardButton::make('ورود به پنل', web_app: WebAppInfo::make((string) config('denagate_live.url'))),
+                InlineKeyboardButton::make(ReplyMenuLabels::SALES_APP, web_app: WebAppInfo::make((string) config('denagate_live.url'))),
             ),
         );
     }
