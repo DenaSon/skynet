@@ -60,7 +60,7 @@
                 </div>
             </header>
 
-            <main id="live-main" class="mx-auto w-full max-w-6xl flex-1 px-4 pb-32 pt-7 sm:px-6 md:px-9 md:pt-10 lg:pb-12" aria-live="polite">
+            <main id="live-main" class="mx-auto w-full max-w-6xl flex-1 px-4 pb-32 pt-7 sm:px-6 md:px-9 md:pt-10 lg:pb-12" aria-label="محتوای پنل نمایندگی">
                 <div wire:loading.delay role="status" class="mb-4 inline-flex items-center rounded-full bg-[#EAF8F4] px-3 py-1 text-xs font-semibold text-[#087F73]">
                     در حال بارگذاری…
                 </div>
