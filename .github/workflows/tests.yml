@@ -124,6 +124,19 @@ jobs:
           if (!fs.existsSync(filename) || fs.statSync(filename).size < 30000) {
             throw new Error('Livewire runtime JavaScript bundle missing or unexpectedly empty');
           }
+          // P0 contract: the ten unused-yet component primitives must survive production CSS generation.
+          const style = manifest['resources/css/app.css'];
+          if (!style || !style.file || !style.file.endsWith('.css')) {
+            throw new Error('DenaGate Live stylesheet missing from production manifest');
+          }
+          const css = fs.readFileSync('public/build/' + style.file, 'utf8');
+          const primitives = ['dg-card', 'dg-card-accent', 'dg-stat', 'dg-btn-primary',
+            'dg-btn-secondary', 'dg-field', 'dg-status', 'dg-heading', 'dg-empty', 'dg-nav-item'];
+          for (const primitive of primitives) {
+            if (!css.includes('.denagate-live .'+ primitive)) {
+              throw new Error('Missing scoped P0 primitive in compiled CSS: ' + primitive);
+            }
+          }
           NODE
 
   static-analysis:
