@@ -96,5 +96,4 @@ it('keeps all original report fields, price conversion and a single loading anno
     expect(substr_count($reports, 'wire:loading.delay wire:target="selectReportDays"'))->toBe(1)
         ->and(substr_count($reports, 'grid grid-cols-3'))->toBe(1)
         ->and(substr_count($reports, 'as [$label, $value, $isHistorical]'))->toBe(1);
-
 });
