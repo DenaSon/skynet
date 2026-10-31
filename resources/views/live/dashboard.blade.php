@@ -3,9 +3,12 @@
         {{-- Compact desktop navigation; the same four actions stay accessible on mobile. --}}
         <aside class="hidden w-64 shrink-0 border-l border-[#E7ECEF] bg-white px-5 py-8 lg:flex lg:flex-col">
             <div class="mb-12 flex items-center gap-3 px-2">
-                <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#14B8A6] text-xl font-black text-white shadow-sm">D</div>
-                <div>
-                    <p class="text-lg font-extrabold tracking-tight text-[#1B2935]" dir="ltr">DenaGate</p>
+                <img src="/images/denagate-logo.png" alt="لوگوی دناگیت" width="44" height="44" class="h-11 w-11 shrink-0 rounded-2xl object-contain" />
+                <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <p class="text-lg font-extrabold tracking-tight text-[#1B2935]" dir="ltr">DenaGate</p>
+                        <span class="dg-live-status"><span class="dg-live-status-dot" aria-hidden="true"></span>فعال</span>
+                    </div>
                     <p class="text-xs font-medium text-[#647787]">پنل نمایندگی</p>
                 </div>
             </div>
@@ -39,10 +42,13 @@
             <header class="sticky top-0 z-20 border-b border-[#E7ECEF] bg-white/95 backdrop-blur-xl">
                 <div class="mx-auto flex h-[76px] max-w-6xl items-center justify-between gap-3 px-5 md:px-9">
                     <div class="flex min-w-0 items-center gap-3">
-                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-[#14B8A6] text-lg font-black text-white lg:hidden">D</span>
+                        <img src="/images/denagate-logo.png" alt="لوگوی دناگیت" width="40" height="40" class="h-10 w-10 shrink-0 rounded-[14px] object-contain lg:hidden" />
                         <div class="min-w-0">
                             <p class="text-[11px] font-medium text-[#71818B]">پنل نمایندگی</p>
-                            <p class="truncate text-base font-bold text-[#1B2935]">دناگیت لایو</p>
+                            <div class="flex min-w-0 flex-wrap items-center gap-2">
+                                <p class="truncate text-base font-bold text-[#1B2935]" dir="ltr">DenaGate</p>
+                                <span class="dg-live-status"><span class="dg-live-status-dot" aria-hidden="true"></span>فعال</span>
+                            </div>
                         </div>
                     </div>
                     <div class="flex shrink-0 items-center gap-3">
@@ -716,7 +722,7 @@
                     </div>
                 @endif
             </main>
-            <footer class="hidden px-5 pb-6 text-center text-xs text-[#8A98A2] lg:block">DenaGate Live · پنل اختصاصی نمایندگان</footer>
+            <footer class="hidden px-5 pb-6 text-center text-xs text-[#8A98A2] lg:block">DenaGate · پنل اختصاصی نمایندگان</footer>
         </div>
     </div>
 
