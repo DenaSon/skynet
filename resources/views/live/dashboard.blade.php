@@ -309,6 +309,22 @@
                         <p class="mt-4 break-words text-3xl font-extrabold text-[#1B2935]" dir="ltr">{{ number_format(intdiv($wallet->balanceRials, 10)) }} <span class="text-sm font-medium text-[#687987]">تومان</span></p>
                         <p class="mt-3 text-xs leading-7 text-[#617380]">مبلغ بر اساس تراکنش‌های ثبت‌شده حساب شما محاسبه شده است.</p>
                     </section>
+                    <section class="mt-5 rounded-[26px] border border-[#E7ECEF] bg-white p-5 shadow-sm md:p-7" aria-label="افزایش اعتبار">
+                        <h2 class="text-base font-extrabold text-[#1B2935]">افزایش اعتبار</h2>
+                        <p class="mt-2 text-sm leading-7 text-[#71818B]">برای شارژ اعتبار، به بات فروش دناگیت بروید و مبلغ را انتخاب کنید. ارسال رسید و پیگیری درخواست در همان بات انجام می‌شود.</p>
+                        @if ($topupBotUrl !== null)
+                            <a href="{{ $topupBotUrl }}" target="_blank" rel="noopener noreferrer"
+                                x-on:click="const tg = window.Telegram?.WebApp; if (tg && tg.platform !== 'unknown' && typeof tg.openTelegramLink === 'function') { $event.preventDefault(); tg.openTelegramLink($el.href); }"
+                                class="mt-5 flex min-h-12 w-full items-center justify-center rounded-xl bg-[#14B8A6] px-5 py-3 text-sm font-bold text-white focus-visible:outline-2 focus-visible:outline-[#087F73]">
+                                ➕ افزایش اعتبار در بات
+                            </a>
+                        @else
+                            <p class="mt-4 rounded-xl bg-[#F6F8FA] p-4 text-sm leading-7 text-[#71818B]">امکان انتقال مستقیم به بات فعلاً فراهم نیست. از داخل بات فروش، «اعتبار من» را انتخاب کنید.</p>
+                        @endif
+                        <p class="mt-4 text-xs leading-7 text-[#71818B]">اعتبار فقط پس از تأیید واریز اضافه می‌شود. برای مشاهده موجودی جدید، به پنل برگردید و اطلاعات را تازه‌سازی کنید.</p>
+                        <button type="button" wire:click="$refresh" wire:loading.attr="disabled" wire:target="$refresh"
+                            class="mt-3 min-h-11 rounded-xl border border-[#D9E4E7] bg-white px-5 py-2.5 text-sm font-semibold text-[#087F73] disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-[#14B8A6]">تازه‌سازی اعتبار</button>
+                    </section>
                     <section class="mt-5 rounded-[26px] border border-[#E7ECEF] bg-white p-5 shadow-sm md:p-7">
                         <h2 class="mb-5 text-base font-extrabold">درخواست‌های اخیر شارژ</h2>
                         @forelse ($wallet->topups as $topup)
