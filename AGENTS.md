@@ -1,3 +1,7 @@
+## DenaGate Live UI/UX Polish — approved P0 and phase gates (2026-10-31)
+
+**New normative roadmap:** [docs/037-DENAGATE-LIVE-UIUX-POLISH-ROADMAP.md](docs/037-DENAGATE-LIVE-UIUX-POLISH-ROADMAP.md) specifies P0 UI Foundation (10 scoped Tailwind primitives), P1 UX Writing, P2A/P2B Visual Refinement, P3 Interaction, and P4 Telegram Mobile QA. **Only P0 is approved for implementation**; do not start P1–P4 without phase-specific authorization. Preserve all financial/Provider/identity guards and existing functionality; no new UI package, configuration, schema, ENV, or broad architecture rewrite. Each phase gets independent PR, CI, operator testing and rollback.
+
 ## Settings-first policy (operator-approved, 2026-10-31)
 
 For **new operator-adjustable application settings**, first reuse the already-installed `spatie/laravel-settings` and existing `settings` repository, rather than introducing a new ENV flag, configuration table, model, package, or per-key schema migration. Follow the canonical decision/implementation checklist in [docs/004-STANDARDS.md](docs/004-STANDARDS.md#application-settings--environment-configuration).
