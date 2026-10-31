@@ -26,7 +26,7 @@ final class EnsureLiveEnabled
             // This host serves authenticated wallet/order views and explicitly
             // revealed subscription credentials. Never let browser/proxy caches
             // retain them or forward their URLs in a Referer header.
-            $response->headers->set('Cache-Control', 'private, no-store');
+            $response->headers->set('Cache-Control', 'no-store, private');
             $response->headers->set('Referrer-Policy', 'no-referrer');
             $response->headers->set('X-Content-Type-Options', 'nosniff');
 
