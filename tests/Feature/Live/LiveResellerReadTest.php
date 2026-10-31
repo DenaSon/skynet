@@ -125,7 +125,7 @@ it('lists only a bounded reseller-owned service page and supports cursor reset',
 
     Livewire::test(Dashboard::class)
         ->call('showSection', 'services')
-        ->assertSee('موارد بیشتر')
+        ->assertSee('نمایش سرویس‌های بیشتر')
         ->assertSee('شماره سفارش:')
         ->call('nextServices', $latest - 5)
         ->assertSet('serviceCursor', $latest - 5)
