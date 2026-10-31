@@ -25,6 +25,12 @@ final readonly class SalesLiveEntry
             return;
         }
 
+        // A callback must be acknowledged even when the Live gate or role was
+        // revoked since the reseller opened the original inline keyboard.
+        if ($bot->isCallbackQuery()) {
+            TelegramUi::answerCallback($bot);
+        }
+
         if (config('denagate_live.enabled') !== true) {
             $bot->sendMessage('پنل وب نمایندگی فعلاً در دسترس نیست.');
 

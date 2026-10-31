@@ -878,16 +878,19 @@ final class Dashboard extends Component
         // A malformed/missing value must never become a dynamic external link.
         $configuredBot = config('telegram.sales.bot_username');
         $botUsername = is_string($configuredBot) ? ltrim(trim($configuredBot), '@') : '';
-        $topupBotUrl = config('telegram.sales.enabled') === true
-            && config('billing.topups_enabled') === true
+        $salesBotUrl = config('telegram.sales.enabled') === true
             && preg_match('/\\A[A-Za-z][A-Za-z0-9_]{4,31}\\z/D', $botUsername) === 1
-                ? 'https://t.me/'.$botUsername.'?start=live_topup'
+                ? 'https://t.me/'.$botUsername
                 : null;
+        $topupBotUrl = $salesBotUrl !== null && config('billing.topups_enabled') === true
+            ? $salesBotUrl.'?start=live_topup'
+            : null;
 
         $data = [
             'name' => Auth::user()->name,
             'wallet' => null,
             'topupBotUrl' => $topupBotUrl,
+            'salesBotUrl' => $salesBotUrl,
             'counts' => null,
             'services' => [],
             'labels' => [],

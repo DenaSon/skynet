@@ -85,6 +85,13 @@
                             <button type="button" wire:click="showSection('shop')" class="mt-6 inline-flex min-h-12 items-center justify-center rounded-2xl bg-[#14B8A6] px-6 py-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#0D9688] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]">
                                 خرید سرویس <span class="mr-2" aria-hidden="true">←</span>
                             </button>
+                            @if ($salesBotUrl !== null)
+                                <a href="{{ $salesBotUrl }}" target="_blank" rel="noopener noreferrer"
+                                    x-on:click="const tg = window.Telegram?.WebApp; if (tg && tg.platform !== 'unknown' && typeof tg.openTelegramLink === 'function') { $event.preventDefault(); tg.openTelegramLink($el.href); }"
+                                    class="mt-4 inline-flex min-h-11 items-center rounded-xl px-2 text-sm font-semibold text-[#087F73] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#14B8A6]">
+                                    بازگشت به بات فروش ←
+                                </a>
+                            @endif
                         </div>
                         <div class="pointer-events-none absolute -bottom-24 -left-24 h-60 w-60 rounded-full bg-[#14B8A6]/10 blur-3xl" aria-hidden="true"></div>
                     </section>
@@ -660,6 +667,15 @@
                         @endforeach
                     </div>
                     <p class="mt-5 text-xs leading-7 text-[#71818B]">فروش مربوط به بازه انتخاب‌شده است. تعداد سرویس‌ها و سفارش‌های در انتظار پرداخت، وضعیت فعلی حساب را نشان می‌دهد.</p>
+                @endif
+                @if ($salesBotUrl !== null && $section !== 'overview' && ! $readError)
+                    <div class="mt-8 flex justify-center border-t border-[#E7ECEF] pt-5">
+                        <a href="{{ $salesBotUrl }}" target="_blank" rel="noopener noreferrer"
+                            x-on:click="const tg = window.Telegram?.WebApp; if (tg && tg.platform !== 'unknown' && typeof tg.openTelegramLink === 'function') { $event.preventDefault(); tg.openTelegramLink($el.href); }"
+                            class="inline-flex min-h-11 items-center rounded-xl px-4 py-2 text-xs font-semibold text-[#087F73] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#14B8A6]">
+                            بازگشت به بات فروش ←
+                        </a>
+                    </div>
                 @endif
             </main>
             <footer class="hidden px-5 pb-6 text-center text-xs text-[#8A98A2] lg:block">DenaGate Live · پنل اختصاصی نمایندگان</footer>

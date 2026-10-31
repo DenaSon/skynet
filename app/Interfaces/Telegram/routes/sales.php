@@ -38,6 +38,10 @@ $bot->onCommand('live', function (Nutgram $bot): void {
     app(SalesLiveEntry::class)->show($bot);
 });
 
+$bot->onCallbackQueryData('sales:live', function (Nutgram $bot): void {
+    app(SalesLiveEntry::class)->show($bot);
+});
+
 // MENU-01: native Telegram commands use the original authorized Sales presenter.
 $bot->onCommand('buy', function (Nutgram $bot): void {
     app(SalesHomeUi::class)->buy($bot);

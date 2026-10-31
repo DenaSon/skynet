@@ -91,7 +91,8 @@ it('fails closed for absent, malformed or disabled Sales Bot configuration', fun
     foreach (['telegram.sales.enabled', 'billing.topups_enabled'] as $flag) {
         config()->set($flag, false);
         Livewire::test(Dashboard::class)->call('showSection', 'credit')
-            ->assertDontSee('href="https://t.me/', false);
+            ->assertDontSee('start=live_topup')
+            ->assertSee('امکان انتقال مستقیم به بات فعلاً فراهم نیست');
         config()->set($flag, true);
     }
 

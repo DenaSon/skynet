@@ -119,6 +119,12 @@ final readonly class SalesHomeUi
         if ($isReseller) {
             $keyboard->addRow(InlineKeyboardButton::make('🧩 پلن سفارشی', callback_data: 'menu:builder'));
             $keyboard->addRow(InlineKeyboardButton::make('📊 گزارش‌های من', callback_data: 'sales:report:30'));
+            if (config('denagate_live.enabled') === true) {
+                $keyboard->addRow(InlineKeyboardButton::make(
+                    '🚀 پنل نمایندگی', callback_data: 'sales:live',
+                    style: ButtonStyle::PRIMARY,
+                ));
+            }
         }
         if ($panelRequestLabel !== null) {
             $keyboard->addRow(InlineKeyboardButton::make($panelRequestLabel, callback_data: 'sales:panel:request'));
@@ -416,6 +422,12 @@ final readonly class SalesHomeUi
         if (in_array('reseller', $actor->roles, true)) {
             $keyboard->addRow(InlineKeyboardButton::make('🧩 پلن سفارشی', callback_data: 'menu:builder'));
             $keyboard->addRow(InlineKeyboardButton::make('📊 گزارش‌های من', callback_data: 'sales:report:30'));
+            if (config('denagate_live.enabled') === true) {
+                $keyboard->addRow(InlineKeyboardButton::make(
+                    '🚀 پنل نمایندگی', callback_data: 'sales:live',
+                    style: ButtonStyle::PRIMARY,
+                ));
+            }
         }
 
         $panelRequestLabel = $this->panelRequestLabel($actor);
