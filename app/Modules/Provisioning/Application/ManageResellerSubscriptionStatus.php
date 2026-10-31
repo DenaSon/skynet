@@ -31,7 +31,8 @@ final readonly class ManageResellerSubscriptionStatus
 
     public function authorizeChange(int $buyerId, int $orderId, string $mode): void
     {
-        if (config('denagate_live.reseller_status_enabled') !== true
+        if (config('denagate_live.enabled') !== true
+            || config('denagate_live.reseller_status_enabled') !== true
             || config('services.remnawave.writes_enabled') !== true
             || ! in_array($mode, ['disable', 'enable'], true)) {
             throw ValidationException::withMessages(['status' => 'Status changes unavailable.']);
