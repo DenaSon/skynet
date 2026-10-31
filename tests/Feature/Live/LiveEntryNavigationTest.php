@@ -84,7 +84,8 @@ it('discovers Live for authorized resellers in home and account while preserving
 
     $bot->hearText('/start')->reply()
         ->assertCalled('sendRichMessage', 1)
-        ->assertRaw(static fn (Request $request): bool => live6aRichContains($request, 'data="sales:live"')
+        ->assertRaw(static fn (Request $request): bool => live6aRichContains($request, 'type="web_app"')
+            && live6aRichContains($request, 'url="https://live.denagate.ir"')
             && live6aRichContains($request, 'sales:wallet')
             && live6aRichContains($request, 'sales:buy')
             && live6aRichContains($request, 'sales:report:30'), index: 0);
@@ -104,7 +105,7 @@ it('forbids member and revoked reseller even through forged old Live callbacks',
     $bot = live6aBot(997002);
 
     $bot->hearText('/start')->reply()->assertRaw(
-        static fn (Request $request): bool => ! live6aRichContains($request, 'sales:live'), index: 0,
+        static fn (Request $request): bool => ! live6aRichContains($request, 'type="web_app"'), index: 0,
     );
 
     $bot->hearCallbackQueryData('sales:live')->reply()
@@ -113,7 +114,7 @@ it('forbids member and revoked reseller even through forged old Live callbacks',
 
     $member->assignRole('reseller');
     $bot->hearText('/start')->reply()->assertRaw(
-        static fn (Request $request): bool => live6aRichContains($request, 'sales:live'), index: 0,
+        static fn (Request $request): bool => live6aRichContains($request, 'type="web_app"'), index: 0,
     );
     $member->removeRole('reseller');
     $bot->hearCallbackQueryData('sales:live')->reply()
@@ -130,7 +131,7 @@ it('hides the Live entry under its existing deployment gate and denies stale cal
     config()->set('denagate_live.enabled', false);
 
     $bot->hearText('/start')->reply()->assertRaw(
-        static fn (Request $request): bool => ! live6aRichContains($request, 'sales:live'), index: 0,
+        static fn (Request $request): bool => ! live6aRichContains($request, 'type="web_app"'), index: 0,
     );
     $bot->hearCallbackQueryData('sales:live')->reply()
         ->assertCalled('answerCallbackQuery', 1)
