@@ -674,43 +674,92 @@
                     <p class="mt-5 text-xs leading-7 text-[#71818B]">این وضعیت‌ها از سوابق ثبت‌شده‌اند، نه بررسی لحظه‌ای اتصال.</p>
                     @endif
                 @elseif ($section === 'reports')
-                    <div class="mb-6">
-                        <h1 class="dg-heading">گزارش فروش</h1>
-                        <p class="mt-2 text-sm text-[#71818B]">فروش و تراکنش‌های تسویه‌شده نمایندگی</p>
-                    </div>
-                    <div class="mb-6 inline-flex gap-1 rounded-2xl border border-[#E7ECEF] bg-white p-1" aria-label="بازه گزارش">
-                        @foreach ([7, 30] as $days)
-                            <button type="button" wire:click="selectReportDays({{ $days }})" wire:target="selectReportDays" wire:loading.attr="disabled"
-                                @class([
-                                    'dg-btn-secondary min-h-11 transition-colors',
-                                    'bg-[#EAF8F4] text-[#087F73]' => $report['days'] === $days,
-                                    'text-[#71818B]' => $report['days'] !== $days,
-                                ]) @if ($report['days'] === $days) aria-pressed="true" @else aria-pressed="false" @endif>
-                                {{ $days }} روز
-                            <span wire:loading.delay wire:target="selectReportDays" role="status" class="text-xs font-semibold">در حال دریافت…</span></button>
-                        @endforeach
-                    </div>
-                    <section class="dg-card-accent bg-gradient-to-bl from-[#E7F8F3] to-white p-7 md:p-9">
-                        <p class="text-sm font-semibold text-[#087F73]">مجموع فروش تسویه‌شده</p>
-                        <p class="dg-stat mt-3" dir="ltr">{{ number_format(intdiv($report['revenueRials'], 10)) }} <span class="text-sm font-normal text-[#687987]">تومان</span></p>
-                        <p class="mt-3 text-xs text-[#617380]">{{ \App\Support\PersianCalendar::date($report['from']) }} تا {{ \App\Support\PersianCalendar::date($report['to']) }} (تهران)</p>
+                    <section aria-labelledby="report-page-title">
+                        <div class="mb-6 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+                            <div class="min-w-0">
+                                <p class="mb-1 text-xs font-semibold text-[#087F73]">عملکرد نمایندگی</p>
+                                <h1 id="report-page-title" class="dg-heading">گزارش فروش</h1>
+                                <p class="mt-2 text-sm leading-7 text-[#617380]">مرور فروش تسویه‌شده و وضعیت فعلی حساب شما</p>
+                            </div>
+                            <div class="shrink-0">
+                                <p class="mb-2 text-xs font-semibold text-[#617380]">بازه گزارش</p>
+                                <div class="inline-flex gap-1 rounded-2xl border border-[#E7ECEF] bg-white p-1" role="group" aria-label="بازه گزارش">
+                                    @foreach ([7, 30] as $days)
+                                        <button type="button" wire:click="selectReportDays({{ $days }})" wire:target="selectReportDays" wire:loading.attr="disabled"
+                                            class="{{ $report['days'] === $days ? 'dg-btn-primary' : 'dg-btn-secondary' }} min-w-24 px-4 transition-colors"
+                                            aria-pressed="{{ $report['days'] === $days ? 'true' : 'false' }}">
+                                            {{ $days }} روز
+                                        </button>
+                                    @endforeach
+                                </div>
+                                <p wire:loading.delay wire:target="selectReportDays" role="status" class="mt-2 text-xs font-semibold text-[#087F73]">در حال دریافت گزارش…</p>
+                            </div>
+                        </div>
+
+                        <section class="dg-card-accent relative overflow-hidden bg-gradient-to-bl from-[#E4F8F1] via-[#F4FBF8] to-white p-6 sm:p-8" aria-labelledby="report-revenue-title">
+                            <div class="pointer-events-none absolute -left-14 -top-20 h-52 w-52 rounded-full border-[24px] border-[#C9ECE2]/60" aria-hidden="true"></div>
+                            <div class="relative z-10 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+                                <div class="min-w-0">
+                                    <p class="text-xs font-bold text-[#087F73]">خلاصه عملکرد فروش</p>
+                                    <h2 id="report-revenue-title" class="mt-2 text-base font-extrabold text-[#1B2935]">مجموع فروش تسویه‌شده</h2>
+                                    <p class="dg-stat mt-3 block" dir="ltr">{{ number_format(intdiv($report['revenueRials'], 10)) }}</p>
+                                    <p class="mt-1 text-sm font-semibold text-[#536C76]">تومان</p>
+                                </div>
+                                <div class="min-w-0 sm:max-w-56 sm:text-left">
+                                    <span class="dg-status" data-tone="success">بازه {{ $report['days'] }} روزه</span>
+                                    <p class="mt-3 break-words text-xs leading-7 text-[#536C76]">
+                                        {{ \App\Support\PersianCalendar::date($report['from']) }} تا {{ \App\Support\PersianCalendar::date($report['to']) }}
+                                        <span class="whitespace-nowrap">(تهران)</span>
+                                    </p>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section class="mt-7" aria-labelledby="report-sales-metrics-title">
+                            <div class="mb-3">
+                                <h2 id="report-sales-metrics-title" class="text-base font-extrabold text-[#1B2935]">عملکرد فروش</h2>
+                                <p class="mt-1 text-xs leading-6 text-[#617380]">تراکنش‌ها و سفارش‌های بازه انتخابی</p>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3 md:grid-cols-3">
+                                @foreach ([
+                                    ['خریدهای جدید', $report['sales']],
+                                    ['تمدیدها', $report['renewals']],
+                                    ['تراکنش‌های تأییدشده', $report['transactions']],
+                                ] as [$label, $value])
+                                    <section class="dg-card flex min-h-32 flex-col justify-between gap-3 p-4 sm:p-5">
+                                        <div class="flex items-start gap-2">
+                                            <span class="mt-2 h-2 w-2 shrink-0 rounded-full bg-[#14B8A6]" aria-hidden="true"></span>
+                                            <p class="text-xs leading-6 font-semibold text-[#536C76] sm:text-sm">{{ $label }}</p>
+                                        </div>
+                                        <p class="dg-stat">{{ number_format($value) }}</p>
+                                    </section>
+                                @endforeach
+                            </div>
+                        </section>
+
+                        <section class="mt-7" aria-labelledby="report-account-metrics-title">
+                            <div class="mb-3">
+                                <h2 id="report-account-metrics-title" class="text-base font-extrabold text-[#1B2935]">وضعیت فعلی حساب</h2>
+                                <p class="mt-1 text-xs leading-6 text-[#617380]">آخرین وضعیت سفارش‌ها و سرویس‌های نمایندگی</p>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3 md:grid-cols-3">
+                                @foreach ([
+                                    ['سفارش‌های در انتظار پرداخت', $report['pending']],
+                                    ['کل سرویس‌های ثبت‌شده', $report['services']],
+                                    ['سرویس‌های دارای نام', $report['namedServices']],
+                                ] as [$label, $value])
+                                    <section class="dg-card flex min-h-32 flex-col justify-between gap-3 p-4 sm:p-5">
+                                        <div class="flex items-start gap-2">
+                                            <span class="mt-2 h-2 w-2 shrink-0 rounded-full bg-[#A9BAC3]" aria-hidden="true"></span>
+                                            <p class="text-xs leading-6 font-semibold text-[#536C76] sm:text-sm">{{ $label }}</p>
+                                        </div>
+                                        <p class="dg-stat">{{ number_format($value) }}</p>
+                                    </section>
+                                @endforeach
+                            </div>
+                        </section>
+                        <p class="mt-5 text-xs leading-7 text-[#71818B]">آمار فروش مربوط به بازه انتخابی است؛ سفارش‌های در انتظار پرداخت و تعداد سرویس‌ها، وضعیت فعلی حساب را نشان می‌دهند.</p>
                     </section>
-                    <div class="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3">
-                        @foreach ([
-                            ['خریدهای جدید', $report['sales']],
-                            ['تمدیدها', $report['renewals']],
-                            ['تراکنش‌های تأییدشده', $report['transactions']],
-                            ['سفارش‌های در انتظار پرداخت', $report['pending']],
-                            ['کل سرویس‌های ثبت‌شده', $report['services']],
-                            ['سرویس‌های دارای نام', $report['namedServices']],
-                        ] as [$label, $value])
-                            <section class="dg-card p-4">
-                                <p class="text-xs leading-6 text-[#71818B]">{{ $label }}</p>
-                                <p class="dg-stat mt-3">{{ number_format($value) }}</p>
-                            </section>
-                        @endforeach
-                    </div>
-                    <p class="mt-5 text-xs leading-7 text-[#71818B]">فروش مربوط به بازه انتخاب‌شده است. تعداد سرویس‌ها و سفارش‌های در انتظار پرداخت، وضعیت فعلی حساب را نشان می‌دهد.</p>
                 @endif
                 @if ($salesBotUrl !== null && $section !== 'overview' && ! $readError)
                     <div class="mt-8 flex justify-center border-t border-[#E7ECEF] pt-5">
