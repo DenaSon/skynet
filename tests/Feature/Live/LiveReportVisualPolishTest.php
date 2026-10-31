@@ -77,7 +77,7 @@ it('keeps all original report fields, price conversion and a single loading anno
     expect($reports)->toContain("number_format(intdiv(\$report['revenueRials'], 10))")
         ->toContain("\\App\\Support\\PersianCalendar::date(\$report['from'])")
         ->toContain("\\App\\Support\\PersianCalendar::date(\$report['to'])")
-        ->toContain("wire:click=\"selectReportDays({{ \$days }})\"")
+        ->toContain('wire:click="selectReportDays({{ $days }})"')
         ->toContain('wire:loading.attr="disabled"')
         ->toContain('wire:loading.delay wire:target="selectReportDays" role="status"')
         ->toContain("aria-pressed=\"{{ \$report['days'] === \$days ? 'true' : 'false' }}\"")
