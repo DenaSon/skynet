@@ -6,6 +6,13 @@
 @theme {
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
+
+    /* DenaGate Live tokens: namespaced so existing Tailwind utilities stay unchanged. */
+    --color-dg-primary: #14b8a6;
+    --color-dg-action: #087f73;
+    --color-dg-canvas: #f6f8fa;
+    --color-dg-ink: #1b2935;
+    --color-dg-border: #e7ecef;
 }
 
 /* DenaGate Live only — pinned, self-hosted Vazirmatn (SIL OFL, license in public/fonts). */
@@ -19,6 +26,228 @@
 
 .denagate-live {
     font-family: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* P0: presentation-only primitives; not applied to any existing Livewire markup yet. */
+@layer components {
+    .denagate-live .dg-card {
+        padding: 1.25rem;
+        border: 1px solid var(--color-dg-border);
+        border-radius: 1.5rem;
+        background: #fff;
+        box-shadow: 0 10px 30px rgb(14 34 44 / 4%);
+    }
+
+    .denagate-live .dg-card-accent {
+        padding: 1.25rem;
+        border: 1px solid #ccece4;
+        border-radius: 1.5rem;
+        background: #eaf8f4;
+        color: var(--color-dg-ink);
+    }
+
+    .denagate-live .dg-stat {
+        display: inline-block;
+        max-width: 100%;
+        color: var(--color-dg-ink);
+        direction: ltr;
+        unicode-bidi: isolate;
+        font-variant-numeric: tabular-nums;
+        font-size: clamp(1.375rem, 4vw, 2rem);
+        font-weight: 800;
+        line-height: 1.4;
+        overflow-wrap: anywhere;
+        text-align: start;
+    }
+
+    .denagate-live .dg-btn-primary {
+        display: inline-flex;
+        min-height: 44px;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        padding: 0.625rem 1.125rem;
+        border: 1px solid var(--color-dg-action);
+        border-radius: 0.875rem;
+        background: var(--color-dg-action);
+        color: #fff;
+        font: inherit;
+        font-size: 0.875rem;
+        font-weight: 700;
+        line-height: 1.6;
+        text-align: center;
+        text-decoration: none;
+        cursor: pointer;
+        transition: background-color 150ms ease, border-color 150ms ease;
+    }
+
+    .denagate-live .dg-btn-primary:hover:not(:disabled):not([aria-disabled="true"]) {
+        border-color: #06675e;
+        background: #06675e;
+    }
+
+    .denagate-live .dg-btn-secondary {
+        display: inline-flex;
+        min-height: 44px;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        padding: 0.625rem 1.125rem;
+        border: 1px solid #81959e;
+        border-radius: 0.875rem;
+        background: #fff;
+        color: var(--color-dg-ink);
+        font: inherit;
+        font-size: 0.875rem;
+        font-weight: 700;
+        line-height: 1.6;
+        text-align: center;
+        text-decoration: none;
+        cursor: pointer;
+        transition: background-color 150ms ease;
+    }
+
+    .denagate-live .dg-btn-secondary:hover:not(:disabled):not([aria-disabled="true"]) {
+        background: var(--color-dg-canvas);
+    }
+
+    .denagate-live .dg-field {
+        display: block;
+        width: 100%;
+        min-height: 44px;
+        padding: 0.625rem 0.875rem;
+        border: 1px solid #81959e;
+        border-radius: 0.875rem;
+        background: #fff;
+        color: var(--color-dg-ink);
+        font: inherit;
+        font-size: 1rem;
+        line-height: 1.5;
+        transition: border-color 150ms ease;
+    }
+
+    .denagate-live .dg-field::placeholder {
+        color: #576874;
+        opacity: 1;
+    }
+
+    .denagate-live .dg-field:focus {
+        border-color: var(--color-dg-action);
+    }
+
+    .denagate-live .dg-field[aria-invalid="true"] {
+        border-color: #b42318;
+    }
+
+    .denagate-live .dg-field[aria-invalid="true"]:focus-visible {
+        outline-color: #b42318;
+    }
+
+    .denagate-live .dg-field:disabled {
+        border-color: #c5d2d8;
+        background: var(--color-dg-canvas);
+        color: #576874;
+        cursor: not-allowed;
+    }
+
+    .denagate-live .dg-status {
+        display: inline-flex;
+        min-height: 28px;
+        align-items: center;
+        gap: 0.375rem;
+        padding: 0.25rem 0.75rem;
+        border: 1px solid #dce4e8;
+        border-radius: 999px;
+        background: #f0f3f5;
+        color: var(--color-dg-ink);
+        font-size: 0.8125rem;
+        font-weight: 700;
+        line-height: 1.5;
+        overflow-wrap: anywhere;
+    }
+
+    .denagate-live .dg-status[data-tone="success"] {
+        border-color: #bfe6da;
+        background: #eaf8f4;
+        color: #075c54;
+    }
+
+    .denagate-live .dg-status[data-tone="warning"] {
+        border-color: #f4daa6;
+        background: #fff4db;
+        color: #775000;
+    }
+
+    .denagate-live .dg-status[data-tone="danger"] {
+        border-color: #f3c5c5;
+        background: #fdecec;
+        color: #8e2929;
+    }
+
+    .denagate-live .dg-heading {
+        margin: 0;
+        color: var(--color-dg-ink);
+        font-size: clamp(1.125rem, 2.5vw, 1.5rem);
+        font-weight: 800;
+        line-height: 1.6;
+    }
+
+    .denagate-live .dg-empty {
+        display: grid;
+        justify-items: center;
+        gap: 0.75rem;
+        padding: 1.5rem 1.25rem;
+        border: 1px dashed #c5d2d8;
+        border-radius: 1.25rem;
+        background: #fff;
+        color: #576874;
+        font-size: 0.875rem;
+        line-height: 1.9;
+        text-align: center;
+    }
+
+    .denagate-live .dg-nav-item {
+        display: inline-flex;
+        min-height: 44px;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 0.625rem;
+        padding: 0.625rem 0.875rem;
+        border: 1px solid transparent;
+        border-radius: 1rem;
+        background: transparent;
+        color: #3d5261;
+        font: inherit;
+        font-size: 0.875rem;
+        font-weight: 700;
+        line-height: 1.6;
+        text-align: start;
+        text-decoration: none;
+        cursor: pointer;
+        transition: background-color 150ms ease, color 150ms ease;
+    }
+
+    .denagate-live .dg-nav-item:hover:not(:disabled):not([aria-disabled="true"]) {
+        background: var(--color-dg-canvas);
+        color: var(--color-dg-ink);
+    }
+
+    .denagate-live .dg-nav-item[aria-current="page"] {
+        background: #e7f8f3;
+        color: #075c54;
+    }
+
+    .denagate-live :is(.dg-btn-primary, .dg-btn-secondary, .dg-field, .dg-nav-item):focus-visible {
+        outline: 3px solid var(--color-dg-action);
+        outline-offset: 2px;
+    }
+
+    .denagate-live :is(.dg-btn-primary, .dg-btn-secondary, .dg-nav-item):is(:disabled, [aria-disabled="true"]) {
+        border-color: #c5d2d8;
+        background: #e7ecef;
+        color: #526371;
+        cursor: not-allowed;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
