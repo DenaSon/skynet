@@ -621,13 +621,13 @@
                             <p role="alert" class="mb-5 rounded-xl bg-[#FFF9F1] p-4 text-sm leading-7 text-[#845C23]">{{ $serviceDetailError }}</p>
                         @endif
                     <div class="mb-5 grid grid-cols-2 gap-3">
-                        <section class="rounded-[22px] border border-[#E7ECEF] bg-white p-5">
+                        <section class="dg-card p-4">
                             <p class="text-xs text-[#71818B]">کل سرویس‌ها</p>
-                            <p class="mt-2 text-2xl font-extrabold">{{ number_format($counts['total']) }}</p>
+                            <p class="dg-stat mt-2">{{ number_format($counts['total']) }}</p>
                         </section>
-                        <section class="rounded-[22px] border border-[#E7ECEF] bg-white p-5">
+                        <section class="dg-card p-4">
                             <p class="text-xs text-[#71818B]">فعال در سوابق داخلی</p>
-                            <p class="mt-2 text-2xl font-extrabold text-[#087F73]">{{ number_format($counts['activeRecorded']) }}</p>
+                            <p class="dg-stat mt-2">{{ number_format($counts['activeRecorded']) }}</p>
                         </section>
                     </div>
                     <div class="space-y-3">
@@ -641,42 +641,42 @@
                                     default => 'نامشخص',
                                 };
                             @endphp
-                            <article wire:key="live-service-{{ $service->orderId }}" class="rounded-[24px] border border-[#E7ECEF] bg-white p-5 shadow-sm md:p-6">
+                            <article wire:key="live-service-{{ $service->orderId }}" class="dg-card p-4 sm:p-5">
                                 <div class="flex flex-wrap items-start justify-between gap-3">
                                     <div class="min-w-0">
                                         <h2 class="break-words text-base font-extrabold text-[#1B2935]">{{ $labels[$service->orderId] ?? $service->productName }}</h2>
-                                        <p class="mt-2 text-xs text-[#71818B]">{{ $service->productName }} · {{ $service->durationDays }} روز{{ $service->trafficGb === null ? '' : ' · '.number_format($service->trafficGb).' گیگابایت' }}</p>
+                                        <p class="mt-1 break-words text-xs leading-6 text-[#71818B]">{{ $service->productName }} · {{ $service->durationDays }} روز{{ $service->trafficGb === null ? '' : ' · '.number_format($service->trafficGb).' گیگابایت' }}</p>
                                     </div>
-                                    <span class="shrink-0 rounded-full bg-[#EAF8F4] px-3 py-1.5 text-xs font-semibold text-[#087F73]">{{ $serviceStatus }}</span>
+                                    <span class="dg-status" data-tone="{{ match ($service->status) { 'failed' => 'danger', 'needs_review', 'provisioning' => 'warning', default => 'neutral' } }}">{{ $serviceStatus }}</span>
                                 </div>
-                                <p class="mt-4 text-xs text-[#71818B]">شماره سفارش: <span dir="ltr">{{ $service->orderId }}</span> · تاریخ ثبت: {{ \App\Support\PersianCalendar::utcDateTime($service->orderedAt) }}</p>
+                                <p class="mt-2 break-words text-xs leading-6 text-[#71818B]">شماره سفارش: <span dir="ltr">{{ $service->orderId }}</span> · تاریخ ثبت: {{ \App\Support\PersianCalendar::utcDateTime($service->orderedAt) }}</p>
                                 <button type="button" wire:click="openService({{ $service->orderId }})"
-                                    class="mt-5 min-h-11 rounded-xl bg-[#EAF8F4] px-5 py-2.5 text-sm font-bold text-[#087F73] focus-visible:outline-2 focus-visible:outline-[#14B8A6]">مشاهده جزئیات</button>
+                                    class="dg-btn-secondary mt-3 w-full sm:w-auto">مشاهده جزئیات</button>
                             </article>
                         @empty
-                            <section class="rounded-[24px] border border-[#E7ECEF] bg-white p-8 text-center text-sm text-[#71818B]">
+                            <section class="dg-empty">
                                 هنوز سرویسی برای نمایش ندارید.
                             </section>
                         @endforelse
                     </div>
                     @if ($serviceCursor !== null)
-                        <button type="button" wire:click="firstServices" class="mt-5 rounded-xl border border-[#E7ECEF] bg-white px-5 py-2.5 text-sm font-semibold text-[#536C76]">بازگشت به اولین صفحه</button>
+                        <button type="button" wire:click="firstServices" class="dg-btn-secondary mt-5">بازگشت به اولین صفحه</button>
                     @endif
                     @if ($nextServiceCursor !== null)
-                        <button type="button" wire:click="nextServices({{ $nextServiceCursor }})" class="mt-5 rounded-xl bg-[#14B8A6] px-5 py-2.5 text-sm font-bold text-white">نمایش سرویس‌های بیشتر</button>
+                        <button type="button" wire:click="nextServices({{ $nextServiceCursor }})" class="dg-btn-primary mt-5">نمایش سرویس‌های بیشتر</button>
                     @endif
                     <p class="mt-5 text-xs leading-7 text-[#71818B]">این وضعیت‌ها از سوابق ثبت‌شده‌اند، نه بررسی لحظه‌ای اتصال.</p>
                     @endif
                 @elseif ($section === 'reports')
                     <div class="mb-6">
-                        <h1 class="text-2xl font-extrabold text-[#1B2935]">گزارش فروش</h1>
+                        <h1 class="dg-heading">گزارش فروش</h1>
                         <p class="mt-2 text-sm text-[#71818B]">فروش و تراکنش‌های تسویه‌شده نمایندگی</p>
                     </div>
                     <div class="mb-6 inline-flex gap-1 rounded-2xl border border-[#E7ECEF] bg-white p-1" aria-label="بازه گزارش">
                         @foreach ([7, 30] as $days)
                             <button type="button" wire:click="selectReportDays({{ $days }})"
                                 @class([
-                                    'rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors',
+                                    'dg-btn-secondary min-h-11 transition-colors',
                                     'bg-[#EAF8F4] text-[#087F73]' => $report['days'] === $days,
                                     'text-[#71818B]' => $report['days'] !== $days,
                                 ]) @if ($report['days'] === $days) aria-pressed="true" @else aria-pressed="false" @endif>
@@ -684,9 +684,9 @@
                             </button>
                         @endforeach
                     </div>
-                    <section class="rounded-[28px] border border-[#CCEDE4] bg-gradient-to-bl from-[#E7F8F3] to-white p-7 md:p-9">
-                        <p class="text-sm font-semibold text-[#087F73]">مجموع فروش تأییدشده</p>
-                        <p class="mt-3 break-words text-3xl font-extrabold text-[#1B2935]" dir="ltr">{{ number_format(intdiv($report['revenueRials'], 10)) }} <span class="text-sm font-normal text-[#687987]">تومان</span></p>
+                    <section class="dg-card-accent bg-gradient-to-bl from-[#E7F8F3] to-white p-7 md:p-9">
+                        <p class="text-sm font-semibold text-[#087F73]">مجموع فروش تسویه‌شده</p>
+                        <p class="dg-stat mt-3" dir="ltr">{{ number_format(intdiv($report['revenueRials'], 10)) }} <span class="text-sm font-normal text-[#687987]">تومان</span></p>
                         <p class="mt-3 text-xs text-[#617380]">{{ \App\Support\PersianCalendar::date($report['from']) }} تا {{ \App\Support\PersianCalendar::date($report['to']) }} (تهران)</p>
                     </section>
                     <div class="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3">
@@ -698,9 +698,9 @@
                             ['کل سرویس‌های ثبت‌شده', $report['services']],
                             ['سرویس‌های دارای نام', $report['namedServices']],
                         ] as [$label, $value])
-                            <section class="rounded-[22px] border border-[#E7ECEF] bg-white p-5">
+                            <section class="dg-card p-4">
                                 <p class="text-xs leading-6 text-[#71818B]">{{ $label }}</p>
-                                <p class="mt-3 text-2xl font-extrabold text-[#1B2935]">{{ number_format($value) }}</p>
+                                <p class="dg-stat mt-3">{{ number_format($value) }}</p>
                             </section>
                         @endforeach
                     </div>
