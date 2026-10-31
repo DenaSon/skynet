@@ -79,7 +79,7 @@ it('keeps the signed no-Vite entry and the authorized dashboard functional with 
         ->assertOk()
         ->assertSee('لوگوی دناگیت')
         ->assertSee('DenaGate')
-        ->assertSee('dg-live-status-dot')
+        ->assertSee('motion-safe:animate-pulse')
         ->assertSee('فعال')
         ->assertSee('نمای کلی')
         ->assertSee('اعتبار من')
