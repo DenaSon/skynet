@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Modules\Provisioning\Application;
 
 use App\Modules\Identity\Application\ResolveSalesBuyer;
-use App\Modules\Identity\Application\SubscriptionViewer;
 use DateTimeImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
@@ -20,7 +19,6 @@ final readonly class ManageResellerSubscriptionStatus
 {
     public function __construct(
         private ResolveSalesBuyer $buyers,
-        private GetSubscriptionUsage $usage,
         private RemnawaveSubscriptionLifecycle $lifecycle,
     ) {}
 
@@ -44,12 +42,10 @@ final readonly class ManageResellerSubscriptionStatus
             throw ValidationException::withMessages(['status' => 'Only your own pause may be resumed.']);
         }
 
-        // Existing read Action checks local ownership and remote identity,
-        // reauthorizing after the GET; it never returns a subscription secret.
-        $usage = $this->usage->handle(SubscriptionViewer::web(), $orderId);
-        // The queued worker has no web session; the caller must use the
-        // owner-authorized read method in a worker-safe context instead.
-        $this->assertUsable($usage->status, $usage->expireAt, $usage->limitBytes, $usage->usedBytes, $mode);
+        // The lifecycle GET independently validates the remote identity and
+        // works in both Livewire and the asynchronous provider worker.
+        $remote = $this->lifecycle->subscription('sales-order:'.$orderId);
+        $this->assertUsable($remote->status, $remote->expireAt, $remote->trafficLimitBytes, $remote->usedTrafficBytes, $mode);
 
         // Race/revocation check after the provider GET.
         $again = $this->linked($buyerId, $orderId);
