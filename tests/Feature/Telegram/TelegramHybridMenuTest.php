@@ -152,7 +152,7 @@ it('gates privileged reply buttons by trusted root and finance feature switches'
         ->not->toContain(ReplyMenuLabels::TOPUPS, ReplyMenuLabels::RECEIPTS);
 
     $bot->hearText(ReplyMenuLabels::SETTINGS)->reply()
-        ->assertReplyText('<b>⚙️ تنظیمات</b>'."\n\n".'متن خوشامدگویی موردنظر را برای ویرایش انتخاب کنید.');
+        ->assertReplyText('<b>⚙️ تنظیمات</b>'."\n\n".'بخش موردنظر را انتخاب کنید.');
 
     $bot->hearText(ReplyMenuLabels::ROLES)->reply()->assertCalled('sendMessage');
 

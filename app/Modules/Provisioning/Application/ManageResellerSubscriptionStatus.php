@@ -9,6 +9,7 @@ use DateTimeImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 /**
  * Only the reseller who owns a fulfilled order may pause its existing service.
@@ -22,6 +23,26 @@ final readonly class ManageResellerSubscriptionStatus
         private RemnawaveSubscriptionLifecycle $lifecycle,
     ) {}
 
+    /** Fail closed if the setting is missing or the database is unavailable. */
+    public function enabled(): bool
+    {
+        if (config('denagate_live.enabled') !== true
+            || config('services.remnawave.writes_enabled') !== true) {
+            return false;
+        }
+
+        try {
+            // Read the current persisted value: a cached Settings instance must
+            // never authorize writes after the row was removed or switched OFF.
+            return DB::table('settings')
+                ->where('group', 'reseller_service_status')
+                ->where('name', 'enabled')
+                ->value('payload') === 'true';
+        } catch (Throwable) {
+            return false;
+        }
+    }
+
     public function canResume(int $buyerId, int $orderId): bool
     {
         $linked = $this->linked($buyerId, $orderId);
@@ -31,10 +52,7 @@ final readonly class ManageResellerSubscriptionStatus
 
     public function authorizeChange(int $buyerId, int $orderId, string $mode): void
     {
-        if (config('denagate_live.enabled') !== true
-            || config('denagate_live.reseller_status_enabled') !== true
-            || config('services.remnawave.writes_enabled') !== true
-            || ! in_array($mode, ['disable', 'enable'], true)) {
+        if (! $this->enabled() || ! in_array($mode, ['disable', 'enable'], true)) {
             throw ValidationException::withMessages(['status' => 'Status changes unavailable.']);
         }
 
