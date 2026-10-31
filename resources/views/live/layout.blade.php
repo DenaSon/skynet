@@ -9,7 +9,17 @@
     <link rel="preload" href="/fonts/vazirmatn-variable.woff2" as="font" type="font/woff2" crossorigin>
     <script src="https://telegram.org/js/telegram-web-app.js?64"></script>
     @vite(['resources/css/app.css', 'resources/js/live.js'])
-    <style>[x-cloak] { display: none !important; }</style>
+    <style>
+        [x-cloak] { display: none !important; }
+        @media (prefers-reduced-motion: reduce) {
+            .denagate-live *, .denagate-live *::before, .denagate-live *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                scroll-behavior: auto !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+    </style>
     @livewireStyles
 </head>
 <body class="denagate-live min-h-dvh bg-[#F6F8FA] text-[#1B2935] antialiased">

@@ -21,7 +21,16 @@ final class EnsureLiveEnabled
         URL::forceScheme('https');
 
         try {
-            return $next($request);
+            $response = $next($request);
+
+            // This host serves authenticated wallet/order views and explicitly
+            // revealed subscription credentials. Never let browser/proxy caches
+            // retain them or forward their URLs in a Referer header.
+            $response->headers->set('Cache-Control', 'no-store, private');
+            $response->headers->set('Referrer-Policy', 'no-referrer');
+            $response->headers->set('X-Content-Type-Options', 'nosniff');
+
+            return $response;
         } finally {
             // Prevent the forced scheme leaking across requests in long-lived runtimes.
             URL::forceScheme(null);
