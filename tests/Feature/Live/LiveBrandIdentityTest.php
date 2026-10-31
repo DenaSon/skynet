@@ -36,7 +36,7 @@ it('serves the actual supplied logo and a separate illustrative SVG mark', funct
         ->toContain('<linearGradient')
         ->toContain('<path ')
         ->not->toContain('<script')
-        ->not->toContain('http://');
+        ->not->toContain('<image');
 });
 
 it('brands both reseller navigation surfaces consistently and respects reduced motion', function (): void {
