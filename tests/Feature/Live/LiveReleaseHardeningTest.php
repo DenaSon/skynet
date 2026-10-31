@@ -90,7 +90,7 @@ it('keeps the readable loading status while avoiding a full-page live announceme
         ->toContain('animation-duration: 0.01ms')
         ->toContain('transition-duration: 0.01ms')
         ->toContain('@livewireScriptConfig')
-        ->toContain("resources/js/live.js");
+        ->toContain('resources/js/live.js');
 
     expect(is_file(public_path('fonts/vazirmatn-variable.woff2')))->toBeTrue()
         ->and(is_file(public_path('fonts/OFL-Vazirmatn.txt')))->toBeTrue();
