@@ -107,7 +107,7 @@ it('does not disclose or fetch a connection until the owner explicitly requests 
         ->call('showSection', 'services')
         ->call('openService', $order)
         ->assertSee('اطلاعات اتصال')
-        ->assertSee('نمایش لینک و QR')
+        ->assertSee('مشاهده اطلاعات اتصال')
         ->assertDontSee('protected-token-4b')
         ->assertSet('serviceSubscriptionUrl', null)
         ->assertSet('serviceQrDataUri', null);
@@ -173,7 +173,7 @@ it('never reveals credentials for a forged foreign order or a locally blocked se
         ->call('revealServiceConnection')
         ->assertSee('ابتدا سرویس خود را انتخاب کنید.')
         ->call('openService', $mine)
-        ->assertDontSee('نمایش لینک و QR')
+        ->assertDontSee('مشاهده اطلاعات اتصال')
         ->call('revealServiceConnection')
         ->assertSee('اطلاعات اتصال این سرویس فعلاً در دسترس نیست.')
         ->assertSet('serviceSubscriptionUrl', null);
