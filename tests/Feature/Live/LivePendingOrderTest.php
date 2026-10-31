@@ -120,7 +120,7 @@ it('registers exactly one pending reseller order with immutable price and custom
         ->assertSee('سفارش شما ثبت شد')
         ->assertSee('در انتظار پرداخت')
         ->assertSee('customer_01')
-        ->assertDontSee('تأیید و ثبت سفارش');
+        ->assertDontSee('ثبت سفارش بدون پرداخت');
 
     $orderId = (int) DB::table('sales_orders')->value('id');
     $page->assertSet('createdOrderId', $orderId)->call('confirmOrder')->call('previewQuote');
@@ -246,13 +246,13 @@ it('does not allow bypassing preview, cancellation, forged plans or revoked rese
 
     $page = Livewire::test(Dashboard::class)
         ->call('showSection', 'shop')
-        ->call('confirmOrder')->assertSee('ابتدا پیش‌فاکتور')
+        ->call('confirmOrder')->assertSee('ابتدا قیمت نهایی')
         ->call('selectPlan', $plan)
         ->call('previewQuote')
         ->set('customerUsername', 'not-purchased')
         ->call('backToPlans')
         ->call('confirmOrder')
-        ->assertSee('ابتدا پیش‌فاکتور');
+        ->assertSee('ابتدا قیمت نهایی');
 
     $page->call('selectPlan', $plan)->call('previewQuote')
         ->set('selectedPlanId', $plan + 1234)
