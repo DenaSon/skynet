@@ -138,7 +138,7 @@ it('shows owner-scoped order history and pays a confirmed snapshot exactly once'
         ->assertSee('100,000')
         ->assertSee('35,000')
         ->call('confirmWalletPayment')
-        ->assertSee('پرداخت تأیید شده؛ در انتظار آماده‌سازی سرویس')
+        ->assertSee('پرداخت ثبت‌شده؛ سرویس در انتظار آماده‌سازی')
         ->assertDontSee('تأیید و پرداخت')
         ->call('confirmWalletPayment');
 
@@ -157,7 +157,7 @@ it('shows owner-scoped order history and pays a confirmed snapshot exactly once'
     Livewire::test(Dashboard::class)
         ->call('showSection', 'shop')
         ->call('openOrder', $data['order'])
-        ->assertSee('پرداخت تأیید شده؛ در انتظار آماده‌سازی سرویس')
+        ->assertSee('پرداخت ثبت‌شده؛ سرویس در انتظار آماده‌سازی')
         ->assertDontSee('پرداخت با اعتبار');
 });
 
@@ -209,7 +209,7 @@ it('requires re-approval if the balance changes after the customer reviewed it',
     $page->call('confirmWalletPayment')->assertSee('مبلغ، اعتبار یا وضعیت سفارش تغییر کرده است');
     live3cAssertNoPurchase();
     $page->call('prepareWalletPayment')->call('confirmWalletPayment')
-        ->assertSee('پرداخت تأیید شده');
+        ->assertSee('پرداخت ثبت‌شده');
     expect(app(ViewWallet::class)->handle($data['buyer']->id)->balanceRials)->toBe(450_000)
         ->and(DB::table('billing_journals')->where('kind', 'purchase')->count())->toBe(1);
     Http::assertNothingSent();

@@ -509,7 +509,7 @@ final class Dashboard extends Component
         } catch (AuthorizationException $exception) {
             throw $exception;
         } catch (Throwable) {
-            $this->renewalError = 'در حال حاضر امکان محاسبه تمدید نیست. لطفاً دوباره تلاش کنید.';
+            $this->renewalError = 'قیمت تمدید در دسترس نیست. دوباره تلاش کنید.';
         }
     }
 
@@ -535,7 +535,7 @@ final class Dashboard extends Component
                 || $draft->trafficGb !== ($previous['gb'] ?? null)
                 || $draft->planName !== ($previous['name'] ?? null)) {
                 $this->renewalPreview = null;
-                $this->renewalError = 'قیمت یا مشخصات تمدید تغییر کرده است. دوباره پیش‌فاکتور بگیرید.';
+                $this->renewalError = 'قیمت یا مشخصات تمدید تغییر کرده است. دوباره قیمت را بررسی کنید.';
 
                 return;
             }
@@ -756,7 +756,7 @@ final class Dashboard extends Component
         $this->orderError = null;
         if ($this->section !== 'shop' || $this->confirmedQuoteHash === null
             || $this->orderIntentKey === null || $this->selectedPlanId === null) {
-            $this->orderError = 'ابتدا پیش‌فاکتور را بررسی و تأیید کنید.';
+            $this->orderError = 'ابتدا قیمت نهایی را بررسی کنید.';
 
             return;
         }
@@ -1089,7 +1089,7 @@ final class Dashboard extends Component
                                     );
                                     if ($this->confirmedQuoteHash !== null
                                         && ! hash_equals($this->confirmedQuoteHash, self::quoteHash($quote))) {
-                                        $data['quoteError'] = 'مبلغ یا مشخصات تغییر کرده است. لطفاً دوباره پیش‌فاکتور بگیرید.';
+                                        $data['quoteError'] = 'مبلغ یا مشخصات تغییر کرده است. دوباره قیمت نهایی را بررسی کنید.';
                                     } else {
                                         $data['planQuote'] = $quote;
                                     }
