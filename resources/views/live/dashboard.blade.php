@@ -17,7 +17,7 @@
                     ['credit', 'اعتبار من'],
                     ['reports', 'گزارش‌ها'],
                 ] as [$key, $label])
-                    <button type="button" wire:click="showSection('{{ $key }}')"
+                    <button type="button" wire:click="showSection('{{ $key }}')" wire:target="showSection" wire:loading.attr="disabled"
                         @class([
                             'flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-right text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#14B8A6]',
                             'bg-[#E7F8F3] text-[#087F73]' => $section === $key,
@@ -61,15 +61,11 @@
             </header>
 
             <main id="live-main" class="mx-auto w-full max-w-6xl flex-1 px-4 pb-32 pt-7 sm:px-6 md:px-9 md:pt-10 lg:pb-12" aria-label="محتوای پنل نمایندگی">
-                <div wire:loading.delay role="status" class="mb-4 inline-flex items-center rounded-full bg-[#EAF8F4] px-3 py-1 text-xs font-semibold text-[#087F73]">
-                    در حال دریافت اطلاعات…
-                </div>
-
                 @if ($readError)
                     <section class="rounded-[28px] border border-[#F0E0C9] bg-white p-7 shadow-sm" role="alert">
                         <h1 class="text-xl font-extrabold text-[#1B2935]">دریافت اطلاعات امکان‌پذیر نیست</h1>
                         <p class="mt-3 text-sm leading-8 text-[#687987]">لطفاً کمی بعد دوباره تلاش کنید.</p>
-                        <button type="button" wire:click="$refresh" class="mt-5 rounded-xl bg-[#14B8A6] px-5 py-2.5 text-sm font-bold text-white">تلاش دوباره</button>
+                        <button type="button" wire:click="$refresh" wire:target="$refresh" wire:loading.attr="disabled" class="mt-5 rounded-xl bg-[#14B8A6] px-5 py-2.5 text-sm font-bold text-white">تلاش دوباره<span wire:loading.delay wire:target="$refresh" role="status" class="text-xs font-semibold">در حال تازه‌سازی…</span></button>
                     </section>
                 @elseif ($section === 'overview')
                     <section class="dg-card-accent relative overflow-hidden bg-gradient-to-bl from-[#E9F8F3] via-white to-white p-6 md:p-10">
@@ -82,7 +78,7 @@
                                 خوش آمدید، <bdi>{{ $name }}</bdi>
                             </h1>
                             <p class="mt-2 max-w-xl text-sm leading-8 text-[#617380]">اعتبار، سرویس‌ها و فروش شما در یک نگاه</p>
-                            <button type="button" wire:click="showSection('shop')" class="dg-btn-primary mt-6 min-h-12 px-6 py-3">
+                            <button type="button" wire:click="showSection('shop')" wire:target="showSection" wire:loading.attr="disabled" class="dg-btn-primary mt-6 min-h-12 px-6 py-3">
                                 خرید سرویس <span class="mr-2" aria-hidden="true">←</span>
                             </button>
                             @if ($salesBotUrl !== null)
@@ -101,19 +97,19 @@
                         <section class="dg-card p-5 md:p-7">
                             <p class="text-xs font-semibold text-[#71818B]">اعتبار قابل استفاده</p>
                             <p class="dg-stat mt-3" dir="ltr">{{ number_format(intdiv($wallet->balanceRials, 10)) }} <span class="text-xs font-normal text-[#687987]">تومان</span></p>
-                            <button type="button" wire:click="showSection('credit')" class="dg-btn-secondary mt-4 w-full">جزئیات اعتبار ←</button>
+                            <button type="button" wire:click="showSection('credit')" wire:target="showSection" wire:loading.attr="disabled" class="dg-btn-secondary mt-4 w-full">جزئیات اعتبار ←</button>
                         </section>
                         <section class="dg-card p-5 md:p-7">
                             <p class="text-xs font-semibold text-[#71818B]">سرویس‌های ثبت‌شده</p>
                             <p class="dg-stat mt-3">{{ number_format($counts['total']) }}</p>
                             <p class="mt-1 text-xs text-[#71818B]">فعال در سوابق: {{ number_format($counts['activeRecorded']) }}</p>
-                            <button type="button" wire:click="showSection('services')" class="dg-btn-secondary mt-4 w-full">فهرست سرویس‌ها ←</button>
+                            <button type="button" wire:click="showSection('services')" wire:target="showSection" wire:loading.attr="disabled" class="dg-btn-secondary mt-4 w-full">فهرست سرویس‌ها ←</button>
                         </section>
                         <section class="dg-card p-5 md:p-7">
                             <p class="text-xs font-semibold text-[#71818B]">فروش تسویه‌شده · ۳۰ روز اخیر</p>
                             <p class="dg-stat mt-3" dir="ltr">{{ number_format(intdiv($report['revenueRials'], 10)) }} <span class="text-xs font-normal text-[#687987]">تومان</span></p>
                             <p class="mt-1 text-xs text-[#71818B]">{{ number_format($report['transactions']) }} تراکنش تسویه‌شده</p>
-                            <button type="button" wire:click="showSection('reports')" class="dg-btn-secondary mt-4 w-full">گزارش فروش ←</button>
+                            <button type="button" wire:click="showSection('reports')" wire:target="showSection" wire:loading.attr="disabled" class="dg-btn-secondary mt-4 w-full">گزارش فروش ←</button>
                         </section>
                     </div>
                 @elseif ($section === 'shop')
@@ -122,7 +118,7 @@
                             <h1 class="dg-heading">خرید سرویس</h1>
                             <p class="mt-2 text-sm leading-7 text-[#71818B]">پلن مناسب را انتخاب کنید و مبلغ آن را ببینید.</p>
                         </div>
-                        <button type="button" wire:click="showSection('overview')" class="dg-btn-secondary">بستن</button>
+                        <button type="button" wire:click="showSection('overview')" wire:target="showSection" wire:loading.attr="disabled" class="dg-btn-secondary">بستن</button>
                     </div>
 
                     @if ($createdOrder !== null)
@@ -162,22 +158,23 @@
                                 @if ($walletConfirmToken !== null && $walletConfirmAmountRials !== null && $walletConfirmBalanceRials !== null)
                                     <div class="dg-card-accent mt-5 p-5">
                                         <h3 class="text-base font-extrabold text-[#1B2935]">تأیید پرداخت از اعتبار</h3>
+                                        <p class="mt-2 break-words text-xs leading-6 text-[#536C76]">برای سفارش #{{ $createdOrder->id }} · {{ $createdOrder->productName }}</p>
                                         <div class="mt-4 flex flex-wrap justify-between gap-2 text-sm text-[#536C76]"><span>مبلغ برداشت</span><span dir="ltr" class="font-bold">{{ number_format(intdiv($walletConfirmAmountRials, 10)) }}{{ $walletConfirmAmountRials % 10 === 0 ? '' : '.'.($walletConfirmAmountRials % 10) }} تومان</span></div>
                                         <div class="mt-3 flex flex-wrap justify-between gap-2 text-sm text-[#536C76]"><span>اعتبار فعلی</span><span dir="ltr">{{ number_format(intdiv($walletConfirmBalanceRials, 10)) }}{{ $walletConfirmBalanceRials % 10 === 0 ? '' : '.'.($walletConfirmBalanceRials % 10) }} تومان</span></div>
                                         <div class="mt-3 flex flex-wrap justify-between gap-2 border-t border-[#CCEDE4] pt-3 text-sm font-bold text-[#1B2935]"><span>اعتبار پس از پرداخت</span><span dir="ltr">{{ number_format(intdiv($walletConfirmBalanceRials - $walletConfirmAmountRials, 10)) }}{{ ($walletConfirmBalanceRials - $walletConfirmAmountRials) % 10 === 0 ? '' : '.'.(($walletConfirmBalanceRials - $walletConfirmAmountRials) % 10) }} تومان</span></div>
                                         <p class="mt-4 text-xs leading-7 text-[#536C76]">با تأیید، مبلغ بالا یک بار از اعتبار شما کسر می‌شود.</p>
                                         <button type="button" wire:click="confirmWalletPayment" wire:loading.attr="disabled" wire:target="confirmWalletPayment"
-                                            class="dg-btn-primary mt-5 min-h-12 w-full">تأیید و پرداخت</button>
-                                        <button type="button" wire:click="cancelWalletPayment" class="dg-btn-secondary mt-3 w-full">انصراف از پرداخت</button>
+                                            class="dg-btn-primary mt-5 min-h-12 w-full">تأیید و پرداخت<span wire:loading.delay wire:target="confirmWalletPayment" role="status" class="text-xs font-semibold">در حال ثبت پرداخت…</span></button>
+                                        <button type="button" wire:click="cancelWalletPayment" wire:target="cancelWalletPayment,confirmWalletPayment" wire:loading.attr="disabled" class="dg-btn-secondary mt-3 w-full">انصراف از پرداخت</button>
                                     </div>
                                 @elseif (config('sales.wallet_settlement_enabled') === true)
                                     <button type="button" wire:click="prepareWalletPayment" wire:loading.attr="disabled" wire:target="prepareWalletPayment"
-                                        class="dg-btn-primary mt-5 min-h-12 w-full">پرداخت با اعتبار</button>
+                                        class="dg-btn-primary mt-5 min-h-12 w-full">پرداخت با اعتبار<span wire:loading.delay wire:target="prepareWalletPayment" role="status" class="text-xs font-semibold">در حال بررسی اعتبار…</span></button>
                                 @else
                                     <p class="mt-4 text-xs leading-7 text-[#71818B]">پرداخت از اعتبار در حال حاضر در دسترس نیست. می‌توانید سفارش خود را در بات فروش پیگیری کنید.</p>
                                 @endif
                             @endif
-                            <button type="button" wire:click="backToPlans" class="dg-btn-secondary mt-5">انتخاب سرویس دیگر</button>
+                            <button type="button" wire:click="backToPlans" wire:target="backToPlans" wire:loading.attr="disabled" class="dg-btn-secondary mt-5">انتخاب سرویس دیگر</button>
                         </section>
                     @elseif ($selectedPlan === null)
                         @if ($planUnavailable || $quoteError || $orderError || $walletError)
@@ -191,7 +188,7 @@
                                 <p class="mt-2 text-xs leading-6 text-[#71818B]">تا ۱۰ سفارش اخیر؛ برای جزئیات یا پرداخت، یک سفارش را انتخاب کنید.</p>
                                 <div class="mt-3 divide-y divide-[#EFF2F4]">
                                     @foreach ($recentOrders as $order)
-                                        <button type="button" wire:key="live-order-{{ $order->id }}" wire:click="openOrder({{ $order->id }})"
+                                        <button type="button" wire:key="live-order-{{ $order->id }}" wire:click="openOrder({{ $order->id }})" wire:target="openOrder" wire:loading.attr="disabled"
                                             class="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg py-2.5 text-right focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]">
                                             <span class="min-w-0">
                                                 <span class="block text-sm font-bold text-[#1B2935]">#{{ $order->id }} · {{ $order->productName }}</span>
@@ -223,7 +220,7 @@
                                         </p>
                                         <p class="dg-stat mt-4 text-[#087F73]" dir="ltr">{{ number_format(intdiv($item->quote->totalPriceRials, 10)) }}{{ $item->quote->totalPriceRials % 10 === 0 ? '' : '.'.($item->quote->totalPriceRials % 10) }} <span class="text-xs font-medium text-[#71818B]">تومان</span></p>
                                         <p class="mt-1 text-xs text-[#71818B]">با تخفیف نمایندگی {{ $item->quote->discountPercent }}٪</p>
-                                        <button type="button" wire:click="selectPlan({{ $item->plan->id }})" class="dg-btn-secondary mt-4 w-full">انتخاب پلن</button>
+                                        <button type="button" wire:click="selectPlan({{ $item->plan->id }})" wire:target="selectPlan" wire:loading.attr="disabled" class="dg-btn-secondary mt-4 w-full">انتخاب پلن<span wire:loading.delay wire:target="selectPlan" role="status" class="text-xs font-semibold">در حال انتخاب…</span></button>
                                     </article>
                                 @endforeach
                                 @foreach ($catalogBuilders as $builder)
@@ -232,13 +229,13 @@
                                         <p class="mt-2 text-xs leading-7 text-[#71818B]">مدت دلخواه: {{ $builder->minDays }} تا {{ $builder->maxDays }} روز</p>
                                         <p class="mt-1 text-xs leading-7 text-[#71818B]">{{ $builder->kind === 'time' ? 'حجم نامحدود' : 'حجم دلخواه: '.number_format($builder->minGb).' تا '.number_format($builder->maxGb).' گیگابایت' }}</p>
                                         <p class="mt-5 text-sm font-semibold text-[#087F73]">قیمت بر اساس انتخاب شما</p>
-                                        <button type="button" wire:click="selectPlan({{ $builder->id }})" class="dg-btn-secondary mt-auto w-full">تنظیم پلن</button>
+                                        <button type="button" wire:click="selectPlan({{ $builder->id }})" wire:target="selectPlan" wire:loading.attr="disabled" class="dg-btn-secondary mt-auto w-full">تنظیم پلن<span wire:loading.delay wire:target="selectPlan" role="status" class="text-xs font-semibold">در حال انتخاب…</span></button>
                                     </article>
                                 @endforeach
                             </div>
                         @endif
                     @else
-                        <button type="button" wire:click="backToPlans" class="mb-5 min-h-11 text-sm font-bold text-[#087F73] focus-visible:outline-2 focus-visible:outline-[#14B8A6]">→ بازگشت به پلن‌ها</button>
+                        <button type="button" wire:click="backToPlans" wire:target="backToPlans" wire:loading.attr="disabled" class="mb-5 min-h-11 text-sm font-bold text-[#087F73] focus-visible:outline-2 focus-visible:outline-[#14B8A6]">→ بازگشت به پلن‌ها</button>
                         <section class="dg-card p-5 sm:p-7">
                             <h2 class="text-xl font-extrabold text-[#1B2935]">{{ $selectedPlan->name }}</h2>
                             <p class="mt-2 text-xs text-[#71818B]">{{ $selectedPlan->mode === 'builder' ? 'انتخاب مدت و حجم سرویس' : 'جزئیات پلن انتخاب‌شده' }}</p>
@@ -247,14 +244,14 @@
                                 <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
                                     <div>
                                         <label for="quote-days" class="mb-2 block text-sm font-semibold text-[#536C76]">مدت سرویس (روز)</label>
-                                        <input id="quote-days" type="number" min="{{ $selectedPlan->minDays }}" max="{{ $selectedPlan->maxDays }}" step="1" inputmode="numeric" wire:model="daysInput" class="dg-field min-h-12 px-4" />
-                                        <p class="mt-2 text-xs text-[#71818B]">{{ $selectedPlan->minDays }} تا {{ $selectedPlan->maxDays }} روز</p>
+                                        <input id="quote-days" aria-describedby="quote-days-hint" type="number" min="{{ $selectedPlan->minDays }}" max="{{ $selectedPlan->maxDays }}" step="1" inputmode="numeric" wire:model="daysInput" class="dg-field min-h-12 px-4" />
+                                        <p id="quote-days-hint" class="mt-2 text-xs text-[#71818B]">{{ $selectedPlan->minDays }} تا {{ $selectedPlan->maxDays }} روز</p>
                                     </div>
                                     @if ($selectedPlan->kind !== 'time')
                                         <div>
                                             <label for="quote-gb" class="mb-2 block text-sm font-semibold text-[#536C76]">حجم سرویس (گیگابایت)</label>
-                                            <input id="quote-gb" type="number" min="{{ $selectedPlan->minGb }}" max="{{ $selectedPlan->maxGb }}" step="1" inputmode="numeric" wire:model="gbInput" class="dg-field min-h-12 px-4" />
-                                            <p class="mt-2 text-xs text-[#71818B]">{{ number_format($selectedPlan->minGb) }} تا {{ number_format($selectedPlan->maxGb) }} گیگابایت</p>
+                                            <input id="quote-gb" aria-describedby="quote-gb-hint" type="number" min="{{ $selectedPlan->minGb }}" max="{{ $selectedPlan->maxGb }}" step="1" inputmode="numeric" wire:model="gbInput" class="dg-field min-h-12 px-4" />
+                                            <p id="quote-gb-hint" class="mt-2 text-xs text-[#71818B]">{{ number_format($selectedPlan->minGb) }} تا {{ number_format($selectedPlan->maxGb) }} گیگابایت</p>
                                         </div>
                                     @else
                                         <p class="self-center text-sm font-semibold text-[#536C76]">حجم نامحدود</p>
@@ -264,7 +261,7 @@
                                 <p class="mt-5 text-sm font-semibold text-[#536C76]">{{ $selectedPlan->durationDays }} روز · {{ $selectedPlan->trafficGb === null ? 'حجم نامحدود' : number_format($selectedPlan->trafficGb).' گیگابایت' }}</p>
                             @endif
 
-                            <button type="button" wire:click="previewQuote" class="dg-btn-primary mt-6 min-h-12 w-full">مشاهده قیمت نهایی</button>
+                            <button type="button" wire:click="previewQuote" wire:target="previewQuote" wire:loading.attr="disabled" class="dg-btn-primary mt-6 min-h-12 w-full">مشاهده قیمت نهایی<span wire:loading.delay wire:target="previewQuote" role="status" class="text-xs font-semibold">در حال محاسبه…</span></button>
 
                             @if ($orderError)
                                 <p role="alert" class="mt-5 rounded-2xl bg-[#FFF9F1] p-4 text-sm leading-7 text-[#845C23]">{{ $orderError }}</p>
@@ -291,15 +288,15 @@
                                 @if ($confirmedQuoteHash !== null && $orderIntentKey !== null)
                                     <div class="mt-6 border-t border-[#E7ECEF] pt-6">
                                         <label for="customer-username" class="mb-2 block text-sm font-bold text-[#1B2935]">نام کاربری مشتری</label>
-                                        <input id="customer-username" type="text" maxlength="60" autocomplete="off" dir="auto" wire:model="customerUsername"
+                                        <input id="customer-username" aria-describedby="customer-username-hint" type="text" maxlength="60" autocomplete="off" dir="auto" wire:model="customerUsername"
                                             placeholder="مثلاً customer_01"
                                             class="dg-field min-h-12 px-4" />
-                                        <p class="mt-2 text-xs leading-7 text-[#71818B]">برای شناسایی سرویس در پنل شما؛ شماره تماس لازم نیست.</p>
+                                        <p id="customer-username-hint" class="mt-2 text-xs leading-7 text-[#71818B]">برای شناسایی سرویس در پنل شما؛ شماره تماس لازم نیست.</p>
                                         <button type="button" wire:click="confirmOrder" wire:loading.attr="disabled"
                                             wire:target="confirmOrder"
                                             class="mt-5 min-h-12 w-full rounded-xl bg-[#14B8A6] px-5 py-3 text-sm font-bold text-white disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]">
                                             ثبت سفارش بدون پرداخت
-                                        </button>
+                                        <span wire:loading.delay wire:target="confirmOrder" role="status" class="text-xs font-semibold">در حال ثبت سفارش…</span></button>
                                         <p class="mt-2 text-center text-xs text-[#71818B]">پرداخت در مرحله بعد است.</p>
                                     </div>
                                 @endif
@@ -330,7 +327,7 @@
                         @endif
                         <p class="mt-4 text-xs leading-7 text-[#71818B]">اعتبار پس از تأیید واریز اضافه می‌شود. برای دیدن موجودی جدید، «تازه‌سازی اعتبار» را بزنید.</p>
                         <button type="button" wire:click="$refresh" wire:loading.attr="disabled" wire:target="$refresh"
-                            class="dg-btn-secondary mt-3">تازه‌سازی اعتبار</button>
+                            class="dg-btn-secondary mt-3">تازه‌سازی اعتبار<span wire:loading.delay wire:target="$refresh" role="status" class="text-xs font-semibold">در حال تازه‌سازی…</span></button>
                     </section>
                     <section class="dg-card mt-5 p-5 md:p-7">
                         <h2 class="mb-3 text-base font-extrabold">درخواست‌های اخیر شارژ</h2>
@@ -371,7 +368,7 @@
                                 default => 'وضعیت نامشخص',
                             };
                         @endphp
-                        <button type="button" wire:click="backToServices" class="dg-btn-secondary mb-5">→ بازگشت به سرویس‌ها</button>
+                        <button type="button" wire:click="backToServices" wire:target="backToServices,confirmServiceStatus,confirmRenewalPayment" wire:loading.attr="disabled" class="dg-btn-secondary mb-5">→ بازگشت به سرویس‌ها</button>
                         <section class="dg-card p-5 sm:p-7">
                             <div class="flex flex-wrap items-start justify-between gap-4">
                                 <div class="min-w-0">
@@ -405,8 +402,8 @@
                                     <p class="mt-2 text-xs leading-6 text-[#71818B]">این نام فقط برای مدیریت سرویس‌های شماست.</p>
                                 </div>
                                 @if (! $editingServiceLabel)
-                                    <button type="button" wire:click="editServiceLabel"
-                                        class="dg-btn-secondary">ویرایش نام</button>
+                                    <button type="button" wire:click="editServiceLabel" wire:target="editServiceLabel" wire:loading.attr="disabled"
+                                        class="dg-btn-secondary">ویرایش نام<span wire:loading.delay wire:target="editServiceLabel" role="status" class="text-xs font-semibold">در حال آماده‌سازی…</span></button>
                                 @endif
                             </div>
                             @if ($serviceLabelError)
@@ -418,14 +415,14 @@
                             @if ($editingServiceLabel)
                                 <form wire:submit="saveServiceLabel" class="mt-5 space-y-3">
                                     <label for="live-customer-label" class="block text-sm font-semibold text-[#1B2935]">نام کاربری مشتری</label>
-                                    <input id="live-customer-label" type="text" wire:model="serviceLabelInput" maxlength="60" autocomplete="off"
+                                    <input id="live-customer-label" aria-describedby="live-customer-label-hint" type="text" wire:model="serviceLabelInput" maxlength="60" autocomplete="off"
                                         placeholder="مثلاً: مشتری شماره ۱"
                                         class="dg-field min-h-12 px-4">
-                                    <p class="text-xs leading-6 text-[#71818B]">حداکثر ۶۰ نویسه · خالی بگذارید تا نام اختصاصی حذف شود.</p>
+                                    <p id="live-customer-label-hint" class="text-xs leading-6 text-[#71818B]">حداکثر ۶۰ نویسه · خالی بگذارید تا نام اختصاصی حذف شود.</p>
                                     <div class="flex flex-wrap gap-3">
                                         <button type="submit" wire:loading.attr="disabled" wire:target="saveServiceLabel"
                                             class="dg-btn-primary">ذخیره نام</button>
-                                        <button type="button" wire:click="cancelServiceLabel"
+                                        <button type="button" wire:click="cancelServiceLabel" wire:target="cancelServiceLabel" wire:loading.attr="disabled"
                                             class="dg-btn-secondary">انصراف</button>
                                     </div>
                                 </form>
@@ -439,7 +436,7 @@
                                 <p role="alert" class="mt-4 rounded-xl bg-[#FFF9F1] p-4 text-sm leading-7 text-[#845C23]">{{ $serviceConnectionError }}</p>
                             @endif
                             @if ($serviceSubscriptionUrl !== null && $serviceQrDataUri !== null)
-                                <div class="mt-5" x-data="{ copied: false }">
+                                <div class="mt-5" x-data="{ copied: false, copyError: false, copying: false }">
                                     <div class="flex justify-center rounded-2xl bg-white p-4">
                                         <img src="{{ $serviceQrDataUri }}" alt="کد QR اتصال سرویس" width="240" height="240" class="h-auto w-full max-w-[240px]" />
                                     </div>
@@ -450,16 +447,17 @@
                                         x-on:focus="$el.select()">
                                     <div class="mt-4 grid grid-cols-2 gap-3">
                                         <button type="button"
-                                            x-on:click="if (navigator.clipboard) { navigator.clipboard.writeText($refs.connectionLink.value).then(() => copied = true).catch(() => copied = false) } else { $refs.connectionLink.select(); copied = document.execCommand('copy') }"
-                                            class="dg-btn-primary min-h-12">کپی لینک</button>
-                                        <button type="button" wire:click="hideServiceConnection"
+                                            x-on:click="if (copying) return; copying = true; copied = false; copyError = false; const fallback = () => { try { $refs.connectionLink.select(); return document.execCommand('copy') } catch (error) { return false } }; if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') { navigator.clipboard.writeText($refs.connectionLink.value).then(() => copied = true).catch(() => { copied = fallback(); copyError = ! copied }).finally(() => copying = false) } else { copied = fallback(); copyError = ! copied; copying = false }"
+                                            x-bind:disabled="copying" class="dg-btn-primary min-h-12"><span x-show="!copying">کپی لینک</span><span x-cloak x-show="copying">در حال کپی…</span></button>
+                                        <button type="button" wire:click="hideServiceConnection" wire:target="hideServiceConnection,revealServiceConnection" wire:loading.attr="disabled"
                                             class="dg-btn-secondary min-h-12">پنهان کردن</button>
                                     </div>
                                     <p x-cloak x-show="copied" role="status" class="mt-3 text-xs font-semibold text-[#087F73]">لینک کپی شد.</p>
+                                    <p x-cloak x-show="copyError" role="alert" class="mt-3 text-xs leading-6 text-[#8e2929]">کپی خودکار ممکن نشد. لینک را انتخاب و دستی کپی کنید.</p>
                                 </div>
                             @elseif ($selectedService->canRequestLink)
                                 <button type="button" wire:click="revealServiceConnection" wire:loading.attr="disabled" wire:target="revealServiceConnection"
-                                    class="dg-btn-secondary mt-5 min-h-12 w-full">مشاهده اطلاعات اتصال</button>
+                                    class="dg-btn-secondary mt-5 min-h-12 w-full">مشاهده اطلاعات اتصال<span wire:loading.delay wire:target="revealServiceConnection" role="status" class="text-xs font-semibold">در حال دریافت…</span></button>
                             @else
                                 <p class="mt-4 rounded-xl bg-[#F6F8FA] p-4 text-sm leading-7 text-[#71818B]">لینک اتصال این سرویس فعلاً در دسترس نیست.</p>
                             @endif
@@ -473,7 +471,7 @@
                                 </div>
                                 @if ($selectedService->canRequestLink)
                                     <button type="button" wire:click="refreshServiceUsage" wire:loading.attr="disabled" wire:target="refreshServiceUsage"
-                                        class="dg-btn-secondary">بررسی وضعیت</button>
+                                        class="dg-btn-secondary">بررسی وضعیت<span wire:loading.delay wire:target="refreshServiceUsage" role="status" class="text-xs font-semibold">در حال بررسی…</span></button>
                                 @endif
                             </div>
                             @if ($serviceUsageError)
@@ -527,20 +525,20 @@
                                 @if ($serviceStatusConfirmToken !== null)
                                     <div class="mt-5 rounded-2xl border border-[#E7ECEF] bg-[#F6F8FA] p-4">
                                         <p class="text-sm font-bold text-[#1B2935]">تأیید {{ $serviceStatusConfirmMode === 'disable' ? 'غیرفعال‌سازی' : 'فعال‌سازی مجدد' }}</p>
-                                        <p class="mt-2 text-xs leading-7 text-[#71818B]">این تغییر فقط روی اتصال همین سرویس اعمال می‌شود. آیا مطمئن هستید؟</p>
+                                        <p class="mt-2 break-words text-xs leading-7 text-[#71818B]">{{ $serviceStatusConfirmMode === 'disable' ? 'غیرفعال‌سازی' : 'فعال‌سازی مجدد' }} فقط برای سرویس «{{ $labels[$item->orderId] ?? $item->productName }}» (سفارش #{{ $item->orderId }}) درخواست می‌شود. نتیجه را با «بررسی وضعیت» دنبال کنید.</p>
                                         <div class="mt-4 flex flex-wrap gap-3">
                                             <button type="button" wire:click="confirmServiceStatus" wire:loading.attr="disabled" wire:target="confirmServiceStatus"
-                                                class="dg-btn-primary">تأیید درخواست</button>
-                                            <button type="button" wire:click="cancelServiceStatus" class="dg-btn-secondary">انصراف</button>
+                                                class="dg-btn-primary">تأیید درخواست<span wire:loading.delay wire:target="confirmServiceStatus" role="status" class="text-xs font-semibold">در حال ثبت درخواست…</span></button>
+                                            <button type="button" wire:click="cancelServiceStatus" wire:target="cancelServiceStatus,confirmServiceStatus" wire:loading.attr="disabled" class="dg-btn-secondary">انصراف</button>
                                         </div>
                                     </div>
                                 @elseif (($serviceLiveUsage['status'] ?? null) === 'active')
                                     <button type="button" wire:click="prepareServiceStatus('disable')" wire:loading.attr="disabled" wire:target="prepareServiceStatus"
-                                        class="dg-btn-secondary mt-5">⏸️ غیرفعال‌سازی سرویس</button>
+                                        class="dg-btn-secondary mt-5">⏸️ غیرفعال‌سازی سرویس<span wire:loading.delay wire:target="prepareServiceStatus" role="status" class="text-xs font-semibold">در حال بررسی…</span></button>
                                 @elseif (($serviceLiveUsage['status'] ?? null) === 'disabled')
                                     @if ($serviceStatusCanResume)
                                         <button type="button" wire:click="prepareServiceStatus('enable')" wire:loading.attr="disabled" wire:target="prepareServiceStatus"
-                                            class="dg-btn-primary mt-5">✅ فعال‌سازی مجدد</button>
+                                            class="dg-btn-primary mt-5">✅ فعال‌سازی مجدد<span wire:loading.delay wire:target="prepareServiceStatus" role="status" class="text-xs font-semibold">در حال بررسی…</span></button>
                                     @else
                                         <p class="mt-4 rounded-xl bg-[#F6F8FA] p-4 text-xs leading-7 text-[#71818B]">فعال‌سازی این سرویس نیازمند بررسی پشتیبانی است.</p>
                                     @endif
@@ -583,15 +581,16 @@
                                         @if ($renewalConfirmToken !== null && $renewalConfirmAmountRials !== null && $renewalConfirmBalanceRials !== null)
                                             <div class="dg-card-accent mt-5 p-4 text-sm">
                                                 <h4 class="font-extrabold text-[#1B2935]">تأیید پرداخت تمدید</h4>
+                                                 <p class="mt-2 break-words text-xs leading-6 text-[#536C76]">تمدید سرویس «{{ $labels[$item->orderId] ?? $item->productName }}» · سفارش #{{ $renewalOrder->id }}</p>
                                                 <div class="mt-4 flex justify-between gap-2"><span>مبلغ برداشت</span><span class="font-bold">{{ number_format(intdiv($renewalConfirmAmountRials, 10)) }} تومان</span></div>
                                                 <div class="mt-3 flex justify-between gap-2"><span>اعتبار فعلی</span><span class="font-bold">{{ number_format(intdiv($renewalConfirmBalanceRials, 10)) }} تومان</span></div>
                                                 <div class="mt-3 flex justify-between gap-2 border-t border-[#CCEDE4] pt-3"><span>اعتبار پس از پرداخت</span><span class="font-bold">{{ number_format(intdiv($renewalConfirmBalanceRials - $renewalConfirmAmountRials, 10)) }} تومان</span></div>
                                                 <p class="mt-3 text-xs leading-6 text-[#536C76]">با تأیید، مبلغ فقط یک بار برداشت می‌شود. تمدید سرویس پس از پردازش جداگانه تکمیل خواهد شد.</p>
-                                                <button type="button" wire:click="confirmRenewalPayment" wire:loading.attr="disabled" wire:target="confirmRenewalPayment" class="dg-btn-primary mt-5 min-h-12 w-full">تأیید و پرداخت تمدید</button>
-                                                <button type="button" wire:click="cancelRenewal" class="dg-btn-secondary mt-3 w-full">انصراف</button>
+                                                <button type="button" wire:click="confirmRenewalPayment" wire:loading.attr="disabled" wire:target="confirmRenewalPayment" class="dg-btn-primary mt-5 min-h-12 w-full">تأیید و پرداخت تمدید<span wire:loading.delay wire:target="confirmRenewalPayment" role="status" class="text-xs font-semibold">در حال ثبت پرداخت…</span></button>
+                                                <button type="button" wire:click="cancelRenewal" wire:target="cancelRenewal,confirmRenewalPayment,createServiceRenewal" wire:loading.attr="disabled" class="dg-btn-secondary mt-3 w-full">انصراف</button>
                                             </div>
                                         @elseif (config('sales.renewal_enabled', false) === true && config('sales.wallet_settlement_enabled') === true)
-                                            <button type="button" wire:click="prepareRenewalPayment" wire:loading.attr="disabled" wire:target="prepareRenewalPayment" class="dg-btn-primary mt-5 min-h-12 w-full">پرداخت تمدید با اعتبار</button>
+                                            <button type="button" wire:click="prepareRenewalPayment" wire:loading.attr="disabled" wire:target="prepareRenewalPayment" class="dg-btn-primary mt-5 min-h-12 w-full">پرداخت تمدید با اعتبار<span wire:loading.delay wire:target="prepareRenewalPayment" role="status" class="text-xs font-semibold">در حال بررسی اعتبار…</span></button>
                                         @else
                                             <p class="mt-4 text-xs text-[#71818B]">پرداخت تمدید فعلاً در دسترس نیست.</p>
                                         @endif
@@ -605,14 +604,14 @@
                                         <p class="dg-stat mt-4">{{ number_format(intdiv($renewalPreview['amount'], 10)) }}{{ $renewalPreview['amount'] % 10 === 0 ? '' : '.'.($renewalPreview['amount'] % 10) }} <span class="text-xs font-medium">تومان</span></p>
                                         <p class="mt-3 text-xs leading-7 text-[#536C76]">مبلغ با نرخ فعلی محاسبه شده است. ثبت سفارش به‌معنای پرداخت نیست.</p>
                                         @if (config('sales.renewal_enabled', false) === true)
-                                            <button type="button" wire:click="createServiceRenewal" wire:loading.attr="disabled" wire:target="createServiceRenewal" class="dg-btn-primary mt-5 min-h-12 w-full">ثبت سفارش تمدید بدون پرداخت</button>
+                                            <button type="button" wire:click="createServiceRenewal" wire:loading.attr="disabled" wire:target="createServiceRenewal" class="dg-btn-primary mt-5 min-h-12 w-full">ثبت سفارش تمدید بدون پرداخت<span wire:loading.delay wire:target="createServiceRenewal" role="status" class="text-xs font-semibold">در حال ثبت سفارش…</span></button>
                                         @else
                                             <p class="mt-4 text-xs text-[#845C23]">ثبت سفارش تمدید فعلاً در دسترس نیست.</p>
                                         @endif
-                                        <button type="button" wire:click="cancelRenewal" class="dg-btn-secondary mt-3 w-full">بازگشت</button>
+                                        <button type="button" wire:click="cancelRenewal" wire:target="cancelRenewal,confirmRenewalPayment,createServiceRenewal" wire:loading.attr="disabled" class="dg-btn-secondary mt-3 w-full">بازگشت</button>
                                     </div>
                                 @elseif ($renewalAvailable && ($renewalOrder === null || ! in_array($renewalOrder->status, ['pending_payment', 'paid'], true)))
-                                    <button type="button" wire:click="previewServiceRenewal" wire:loading.attr="disabled" wire:target="previewServiceRenewal" class="dg-btn-secondary mt-5 min-h-12 w-full">بررسی قیمت تمدید</button>
+                                    <button type="button" wire:click="previewServiceRenewal" wire:loading.attr="disabled" wire:target="previewServiceRenewal" class="dg-btn-secondary mt-5 min-h-12 w-full">بررسی قیمت تمدید<span wire:loading.delay wire:target="previewServiceRenewal" role="status" class="text-xs font-semibold">در حال بررسی قیمت…</span></button>
                                 @endif
                             </section>
                         @endif
@@ -650,7 +649,7 @@
                                     <span class="dg-status" data-tone="{{ match ($service->status) { 'failed' => 'danger', 'needs_review', 'provisioning' => 'warning', default => 'neutral' } }}">{{ $serviceStatus }}</span>
                                 </div>
                                 <p class="mt-2 break-words text-xs leading-6 text-[#71818B]">شماره سفارش: <span dir="ltr">{{ $service->orderId }}</span> · تاریخ ثبت: {{ \App\Support\PersianCalendar::utcDateTime($service->orderedAt) }}</p>
-                                <button type="button" wire:click="openService({{ $service->orderId }})"
+                                <button type="button" wire:click="openService({{ $service->orderId }})" wire:target="openService" wire:loading.attr="disabled"
                                     class="dg-btn-secondary mt-3 w-full sm:w-auto">مشاهده جزئیات</button>
                             </article>
                         @empty
@@ -660,10 +659,10 @@
                         @endforelse
                     </div>
                     @if ($serviceCursor !== null)
-                        <button type="button" wire:click="firstServices" class="dg-btn-secondary mt-5">بازگشت به اولین صفحه</button>
+                        <button type="button" wire:click="firstServices" wire:target="firstServices" wire:loading.attr="disabled" class="dg-btn-secondary mt-5">بازگشت به اولین صفحه<span wire:loading.delay wire:target="firstServices" role="status" class="text-xs font-semibold">در حال بازگشت…</span></button>
                     @endif
                     @if ($nextServiceCursor !== null)
-                        <button type="button" wire:click="nextServices({{ $nextServiceCursor }})" class="dg-btn-primary mt-5">نمایش سرویس‌های بیشتر</button>
+                        <button type="button" wire:click="nextServices({{ $nextServiceCursor }})" wire:target="nextServices" wire:loading.attr="disabled" class="dg-btn-primary mt-5">نمایش سرویس‌های بیشتر<span wire:loading.delay wire:target="nextServices" role="status" class="text-xs font-semibold">در حال دریافت…</span></button>
                     @endif
                     <p class="mt-5 text-xs leading-7 text-[#71818B]">این وضعیت‌ها از سوابق ثبت‌شده‌اند، نه بررسی لحظه‌ای اتصال.</p>
                     @endif
@@ -674,14 +673,14 @@
                     </div>
                     <div class="mb-6 inline-flex gap-1 rounded-2xl border border-[#E7ECEF] bg-white p-1" aria-label="بازه گزارش">
                         @foreach ([7, 30] as $days)
-                            <button type="button" wire:click="selectReportDays({{ $days }})"
+                            <button type="button" wire:click="selectReportDays({{ $days }})" wire:target="selectReportDays" wire:loading.attr="disabled"
                                 @class([
                                     'dg-btn-secondary min-h-11 transition-colors',
                                     'bg-[#EAF8F4] text-[#087F73]' => $report['days'] === $days,
                                     'text-[#71818B]' => $report['days'] !== $days,
                                 ]) @if ($report['days'] === $days) aria-pressed="true" @else aria-pressed="false" @endif>
                                 {{ $days }} روز
-                            </button>
+                            <span wire:loading.delay wire:target="selectReportDays" role="status" class="text-xs font-semibold">در حال دریافت…</span></button>
                         @endforeach
                     </div>
                     <section class="dg-card-accent bg-gradient-to-bl from-[#E7F8F3] to-white p-7 md:p-9">
@@ -730,7 +729,7 @@
             ['credit', 'اعتبار من'],
             ['reports', 'گزارش‌ها'],
         ] as [$key, $label])
-            <button type="button" wire:click="showSection('{{ $key }}')"
+            <button type="button" wire:click="showSection('{{ $key }}')" wire:target="showSection" wire:loading.attr="disabled"
                 @class([
                     'mx-1 flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl px-1 text-[11px] font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-[#14B8A6]',
                     'bg-[#EAF8F4] text-[#087F73]' => $section === $key,
