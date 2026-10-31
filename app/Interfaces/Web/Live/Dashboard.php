@@ -65,6 +65,7 @@ final class Dashboard extends Component
 
     public ?string $serviceConnectionError = null;
 
+    #[Locked]
     public bool $editingServiceLabel = false;
 
     public string $serviceLabelInput = '';
