@@ -290,6 +290,11 @@ it('reads the database toggle dynamically and ignores the retired environment fl
     $settings->save();
     expect($action->enabled())->toBeTrue();
 
+    // A database-side disable must take effect even if an old Settings object was loaded.
+    DB::table('settings')->where('group', 'reseller_service_status')
+        ->where('name', 'enabled')->update(['payload' => 'false']);
+    expect($action->enabled())->toBeFalse();
+
     config()->set('services.remnawave.writes_enabled', false);
     expect($action->enabled())->toBeFalse();
     config()->set('services.remnawave.writes_enabled', true);

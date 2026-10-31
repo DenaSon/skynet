@@ -264,6 +264,10 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:admin:welcome:show';
     $expected['ADMIN'][] = 'callback:admin:welcome:edit:{kind}';
     $expected['ADMIN'][] = 'callback:admin:welcome:cancel';
+    // Root-only database-backed reseller status management, Admin Bot only.
+    $expected['ADMIN'][] = 'callback:admin:reseller-status:show';
+    $expected['ADMIN'][] = 'callback:admin:reseller-status:prepare:{state}';
+    $expected['ADMIN'][] = 'callback:admin:reseller-status:apply:{token}';
     $expected['SALES'][] = 'photo:*';
     $files = [
         'ADMIN' => 'app/Interfaces/Telegram/routes/admin.php',
@@ -295,8 +299,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(264)
-        ->and(count(array_unique($legacy)))->toBe(264);
+        ->and(count($legacy))->toBe(267)
+        ->and(count(array_unique($legacy)))->toBe(267);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {

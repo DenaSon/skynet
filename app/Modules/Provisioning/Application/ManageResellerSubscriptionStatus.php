@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Modules\Provisioning\Application;
 
 use App\Modules\Identity\Application\ResolveSalesBuyer;
-use App\Settings\ResellerServiceStatusSettings;
 use DateTimeImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
@@ -33,7 +32,12 @@ final readonly class ManageResellerSubscriptionStatus
         }
 
         try {
-            return app(ResellerServiceStatusSettings::class)->enabled === true;
+            // Read the current persisted value: a cached Settings instance must
+            // never authorize writes after the row was removed or switched OFF.
+            return DB::table('settings')
+                ->where('group', 'reseller_service_status')
+                ->where('name', 'enabled')
+                ->value('payload') === 'true';
         } catch (Throwable) {
             return false;
         }
