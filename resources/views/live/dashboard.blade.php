@@ -72,7 +72,7 @@
                         <button type="button" wire:click="$refresh" class="mt-5 rounded-xl bg-[#14B8A6] px-5 py-2.5 text-sm font-bold text-white">تلاش دوباره</button>
                     </section>
                 @elseif ($section === 'overview')
-                    <section class="relative overflow-hidden rounded-[28px] border border-[#E7ECEF] bg-gradient-to-bl from-[#E9F8F3] via-white to-white p-6 shadow-[0_12px_40px_rgba(20,45,55,0.035)] md:p-10">
+                    <section class="dg-card-accent relative overflow-hidden bg-gradient-to-bl from-[#E9F8F3] via-white to-white p-6 md:p-10">
                         <div class="relative z-10">
                             <span class="mb-4 inline-flex items-center gap-2 rounded-full border border-[#CCEDE4] bg-white/80 px-3 py-1.5 text-xs font-semibold text-[#087F73]">
                                 <span class="h-2 w-2 rounded-full bg-[#14B8A6]" aria-hidden="true"></span>
@@ -82,7 +82,7 @@
                                 خوش آمدید، <bdi>{{ $name }}</bdi>
                             </h1>
                             <p class="mt-2 max-w-xl text-sm leading-8 text-[#617380]">اعتبار، سرویس‌ها و فروش شما در یک نگاه</p>
-                            <button type="button" wire:click="showSection('shop')" class="mt-6 inline-flex min-h-12 items-center justify-center rounded-2xl bg-[#14B8A6] px-6 py-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#0D9688] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]">
+                            <button type="button" wire:click="showSection('shop')" class="dg-btn-primary mt-6 min-h-12 px-6 py-3">
                                 خرید سرویس <span class="mr-2" aria-hidden="true">←</span>
                             </button>
                             @if ($salesBotUrl !== null)
@@ -96,37 +96,37 @@
                         <div class="pointer-events-none absolute -bottom-24 -left-24 h-60 w-60 rounded-full bg-[#14B8A6]/10 blur-3xl" aria-hidden="true"></div>
                     </section>
 
-                    <h2 class="mb-5 mt-8 text-lg font-extrabold text-[#1B2935] md:text-xl">نمای کلی</h2>
+                    <h2 class="dg-heading mb-5 mt-8">نمای کلی</h2>
                     <div class="grid grid-cols-1 gap-3 sm:grid-cols-3 md:gap-5">
-                        <section class="rounded-[26px] border border-[#E7ECEF] bg-white p-5 shadow-[0_10px_30px_rgba(14,34,44,0.035)] md:p-7">
+                        <section class="dg-card p-5 md:p-7">
                             <p class="text-xs font-semibold text-[#71818B]">اعتبار قابل استفاده</p>
-                            <p class="mt-3 break-words text-2xl font-extrabold text-[#1B2935]" dir="ltr">{{ number_format(intdiv($wallet->balanceRials, 10)) }} <span class="text-xs font-normal text-[#687987]">تومان</span></p>
-                            <button type="button" wire:click="showSection('credit')" class="mt-4 text-xs font-bold text-[#087F73]">جزئیات اعتبار ←</button>
+                            <p class="dg-stat mt-3" dir="ltr">{{ number_format(intdiv($wallet->balanceRials, 10)) }} <span class="text-xs font-normal text-[#687987]">تومان</span></p>
+                            <button type="button" wire:click="showSection('credit')" class="dg-btn-secondary mt-4 w-full">جزئیات اعتبار ←</button>
                         </section>
-                        <section class="rounded-[26px] border border-[#E7ECEF] bg-white p-5 shadow-[0_10px_30px_rgba(14,34,44,0.035)] md:p-7">
+                        <section class="dg-card p-5 md:p-7">
                             <p class="text-xs font-semibold text-[#71818B]">سرویس‌های ثبت‌شده</p>
-                            <p class="mt-3 text-2xl font-extrabold text-[#1B2935]">{{ number_format($counts['total']) }}</p>
+                            <p class="dg-stat mt-3">{{ number_format($counts['total']) }}</p>
                             <p class="mt-1 text-xs text-[#71818B]">فعال در سوابق: {{ number_format($counts['activeRecorded']) }}</p>
-                            <button type="button" wire:click="showSection('services')" class="mt-4 text-xs font-bold text-[#087F73]">فهرست سرویس‌ها ←</button>
+                            <button type="button" wire:click="showSection('services')" class="dg-btn-secondary mt-4 w-full">فهرست سرویس‌ها ←</button>
                         </section>
-                        <section class="rounded-[26px] border border-[#E7ECEF] bg-white p-5 shadow-[0_10px_30px_rgba(14,34,44,0.035)] md:p-7">
+                        <section class="dg-card p-5 md:p-7">
                             <p class="text-xs font-semibold text-[#71818B]">فروش تسویه‌شده · ۳۰ روز اخیر</p>
-                            <p class="mt-3 break-words text-2xl font-extrabold text-[#1B2935]" dir="ltr">{{ number_format(intdiv($report['revenueRials'], 10)) }} <span class="text-xs font-normal text-[#687987]">تومان</span></p>
+                            <p class="dg-stat mt-3" dir="ltr">{{ number_format(intdiv($report['revenueRials'], 10)) }} <span class="text-xs font-normal text-[#687987]">تومان</span></p>
                             <p class="mt-1 text-xs text-[#71818B]">{{ number_format($report['transactions']) }} تراکنش تسویه‌شده</p>
-                            <button type="button" wire:click="showSection('reports')" class="mt-4 text-xs font-bold text-[#087F73]">گزارش فروش ←</button>
+                            <button type="button" wire:click="showSection('reports')" class="dg-btn-secondary mt-4 w-full">گزارش فروش ←</button>
                         </section>
                     </div>
                 @elseif ($section === 'shop')
                     <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
                         <div>
-                            <h1 class="text-2xl font-extrabold text-[#1B2935]">خرید سرویس</h1>
+                            <h1 class="dg-heading">خرید سرویس</h1>
                             <p class="mt-2 text-sm leading-7 text-[#71818B]">پلن مناسب را انتخاب کنید و مبلغ آن را ببینید.</p>
                         </div>
-                        <button type="button" wire:click="showSection('overview')" class="min-h-11 rounded-xl border border-[#E7ECEF] bg-white px-4 py-2 text-sm font-semibold text-[#536C76] focus-visible:outline-2 focus-visible:outline-[#14B8A6]">بستن</button>
+                        <button type="button" wire:click="showSection('overview')" class="dg-btn-secondary">بستن</button>
                     </div>
 
                     @if ($createdOrder !== null)
-                        <section class="rounded-[26px] border border-[#CCEDE4] bg-white p-6 shadow-sm sm:p-8" role="status">
+                        <section class="dg-card p-6 sm:p-8" role="status">
                             <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#E7F8F3] text-[#087F73]">
                                 <svg class="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>
                             </div>
@@ -140,8 +140,8 @@
                                     default => 'وضعیت سفارش را بررسی کنید',
                                 };
                             @endphp
-                            <h2 class="text-xl font-extrabold text-[#1B2935]">{{ $createdOrder->status === 'pending_payment' ? 'سفارش شما ثبت شد' : 'سفارش #'.$createdOrder->id }}</h2>
-                            <p class="mt-2 text-sm leading-7 text-[#71818B]">{{ $orderStatusText }}</p>
+                            <h2 class="dg-heading">{{ $createdOrder->status === 'pending_payment' ? 'سفارش شما ثبت شد' : 'سفارش #'.$createdOrder->id }}</h2>
+                            <p class="dg-status mt-2">{{ $orderStatusText }}</p>
                             @if ($createdOrder->status === 'pending_payment')
                                 <p class="mt-2 text-xs leading-7 text-[#71818B]">تا زمان تأیید پرداخت، مبلغی از اعتبار شما کسر نمی‌شود و سرویسی فعال نمی‌شود.</p>
                             @elseif ($createdOrder->status === 'paid')
@@ -160,24 +160,24 @@
                             @endif
                             @if ($createdOrder->status === 'pending_payment')
                                 @if ($walletConfirmToken !== null && $walletConfirmAmountRials !== null && $walletConfirmBalanceRials !== null)
-                                    <div class="mt-5 rounded-2xl border border-[#CCEDE4] bg-[#F3FBF8] p-5">
+                                    <div class="dg-card-accent mt-5 p-5">
                                         <h3 class="text-base font-extrabold text-[#1B2935]">تأیید پرداخت از اعتبار</h3>
                                         <div class="mt-4 flex flex-wrap justify-between gap-2 text-sm text-[#536C76]"><span>مبلغ برداشت</span><span dir="ltr" class="font-bold">{{ number_format(intdiv($walletConfirmAmountRials, 10)) }}{{ $walletConfirmAmountRials % 10 === 0 ? '' : '.'.($walletConfirmAmountRials % 10) }} تومان</span></div>
                                         <div class="mt-3 flex flex-wrap justify-between gap-2 text-sm text-[#536C76]"><span>اعتبار فعلی</span><span dir="ltr">{{ number_format(intdiv($walletConfirmBalanceRials, 10)) }}{{ $walletConfirmBalanceRials % 10 === 0 ? '' : '.'.($walletConfirmBalanceRials % 10) }} تومان</span></div>
                                         <div class="mt-3 flex flex-wrap justify-between gap-2 border-t border-[#CCEDE4] pt-3 text-sm font-bold text-[#1B2935]"><span>اعتبار پس از پرداخت</span><span dir="ltr">{{ number_format(intdiv($walletConfirmBalanceRials - $walletConfirmAmountRials, 10)) }}{{ ($walletConfirmBalanceRials - $walletConfirmAmountRials) % 10 === 0 ? '' : '.'.(($walletConfirmBalanceRials - $walletConfirmAmountRials) % 10) }} تومان</span></div>
                                         <p class="mt-4 text-xs leading-7 text-[#536C76]">با تأیید، مبلغ بالا یک بار از اعتبار شما کسر می‌شود.</p>
                                         <button type="button" wire:click="confirmWalletPayment" wire:loading.attr="disabled" wire:target="confirmWalletPayment"
-                                            class="mt-5 min-h-12 w-full rounded-xl bg-[#14B8A6] px-5 py-3 text-sm font-bold text-white disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-[#087F73]">تأیید و پرداخت</button>
-                                        <button type="button" wire:click="cancelWalletPayment" class="mt-3 min-h-11 w-full rounded-xl border border-[#D9E4E7] bg-white px-5 py-2 text-sm font-semibold text-[#536C76]">انصراف از پرداخت</button>
+                                            class="dg-btn-primary mt-5 min-h-12 w-full">تأیید و پرداخت</button>
+                                        <button type="button" wire:click="cancelWalletPayment" class="dg-btn-secondary mt-3 w-full">انصراف از پرداخت</button>
                                     </div>
                                 @elseif (config('sales.wallet_settlement_enabled') === true)
                                     <button type="button" wire:click="prepareWalletPayment" wire:loading.attr="disabled" wire:target="prepareWalletPayment"
-                                        class="mt-5 min-h-12 w-full rounded-xl bg-[#14B8A6] px-5 py-3 text-sm font-bold text-white disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-[#087F73]">پرداخت با اعتبار</button>
+                                        class="dg-btn-primary mt-5 min-h-12 w-full">پرداخت با اعتبار</button>
                                 @else
                                     <p class="mt-4 text-xs leading-7 text-[#71818B]">پرداخت از اعتبار در حال حاضر در دسترس نیست. می‌توانید سفارش خود را در بات فروش پیگیری کنید.</p>
                                 @endif
                             @endif
-                            <button type="button" wire:click="backToPlans" class="mt-5 min-h-11 rounded-xl border border-[#E7ECEF] bg-white px-5 py-2.5 text-sm font-bold text-[#087F73]">انتخاب سرویس دیگر</button>
+                            <button type="button" wire:click="backToPlans" class="dg-btn-secondary mt-5">انتخاب سرویس دیگر</button>
                         </section>
                     @elseif ($selectedPlan === null)
                         @if ($planUnavailable || $quoteError || $orderError || $walletError)
@@ -186,16 +186,16 @@
                             </p>
                         @endif
                         @if (count($recentOrders) > 0)
-                            <section class="mb-6 rounded-[24px] border border-[#E7ECEF] bg-white p-5 shadow-sm sm:p-6">
+                            <section class="dg-card mb-6 p-4 sm:p-5">
                                 <h2 class="text-base font-extrabold text-[#1B2935]">سفارش‌های اخیر من</h2>
                                 <p class="mt-2 text-xs leading-6 text-[#71818B]">تا ۱۰ سفارش اخیر؛ برای جزئیات یا پرداخت، یک سفارش را انتخاب کنید.</p>
-                                <div class="mt-4 divide-y divide-[#EFF2F4]">
+                                <div class="mt-3 divide-y divide-[#EFF2F4]">
                                     @foreach ($recentOrders as $order)
                                         <button type="button" wire:key="live-order-{{ $order->id }}" wire:click="openOrder({{ $order->id }})"
-                                            class="flex min-h-14 w-full items-center justify-between gap-3 py-3 text-right focus-visible:outline-2 focus-visible:outline-[#087F73]">
+                                            class="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg py-2.5 text-right focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]">
                                             <span class="min-w-0">
                                                 <span class="block text-sm font-bold text-[#1B2935]">#{{ $order->id }} · {{ $order->productName }}</span>
-                                                <span class="mt-1 block text-xs text-[#71818B]">{{ match ($order->status) {
+                                                <span class="mt-1 block text-xs leading-5 text-[#71818B]">{{ match ($order->status) {
                                                     'pending_payment' => 'در انتظار پرداخت',
                                                     'paid' => 'پرداخت ثبت‌شده؛ سرویس در انتظار آماده‌سازی',
                                                     'fulfilled' => 'سرویس در سوابق ثبت شده است',
@@ -210,36 +210,36 @@
                             </section>
                         @endif
                         @if (count($catalogPresets) === 0 && count($catalogBuilders) === 0)
-                            <section class="rounded-[24px] border border-[#E7ECEF] bg-white px-6 py-10 text-center text-sm leading-8 text-[#71818B]">
+                            <section class="dg-empty">
                                 در حال حاضر پلنی برای خرید موجود نیست.
                             </section>
                         @else
                             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                 @foreach ($catalogPresets as $item)
-                                    <article wire:key="live-plan-{{ $item->plan->id }}" class="flex flex-col rounded-[24px] border border-[#E7ECEF] bg-white p-5 shadow-sm">
+                                    <article wire:key="live-plan-{{ $item->plan->id }}" class="dg-card flex flex-col p-4 sm:p-5">
                                         <h2 class="break-words text-base font-extrabold text-[#1B2935]">{{ $item->plan->name }}</h2>
                                         <p class="mt-2 text-xs leading-7 text-[#71818B]">
                                             {{ $item->plan->durationDays }} روز · {{ $item->plan->trafficGb === null ? 'حجم نامحدود' : number_format($item->plan->trafficGb).' گیگابایت' }}
                                         </p>
-                                        <p class="mt-5 text-xl font-extrabold text-[#087F73]" dir="ltr">{{ number_format(intdiv($item->quote->totalPriceRials, 10)) }}{{ $item->quote->totalPriceRials % 10 === 0 ? '' : '.'.($item->quote->totalPriceRials % 10) }} <span class="text-xs font-medium text-[#71818B]">تومان</span></p>
+                                        <p class="dg-stat mt-4 text-[#087F73]" dir="ltr">{{ number_format(intdiv($item->quote->totalPriceRials, 10)) }}{{ $item->quote->totalPriceRials % 10 === 0 ? '' : '.'.($item->quote->totalPriceRials % 10) }} <span class="text-xs font-medium text-[#71818B]">تومان</span></p>
                                         <p class="mt-1 text-xs text-[#71818B]">با تخفیف نمایندگی {{ $item->quote->discountPercent }}٪</p>
-                                        <button type="button" wire:click="selectPlan({{ $item->plan->id }})" class="mt-5 min-h-11 rounded-xl bg-[#EAF8F4] px-5 py-2.5 text-sm font-bold text-[#087F73] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#14B8A6]">انتخاب پلن</button>
+                                        <button type="button" wire:click="selectPlan({{ $item->plan->id }})" class="dg-btn-secondary mt-4 w-full">انتخاب پلن</button>
                                     </article>
                                 @endforeach
                                 @foreach ($catalogBuilders as $builder)
-                                    <article wire:key="live-builder-{{ $builder->id }}" class="flex flex-col rounded-[24px] border border-[#E7ECEF] bg-white p-5 shadow-sm">
+                                    <article wire:key="live-builder-{{ $builder->id }}" class="dg-card flex flex-col p-4 sm:p-5">
                                         <h2 class="break-words text-base font-extrabold text-[#1B2935]">{{ $builder->name }}</h2>
                                         <p class="mt-2 text-xs leading-7 text-[#71818B]">مدت دلخواه: {{ $builder->minDays }} تا {{ $builder->maxDays }} روز</p>
                                         <p class="mt-1 text-xs leading-7 text-[#71818B]">{{ $builder->kind === 'time' ? 'حجم نامحدود' : 'حجم دلخواه: '.number_format($builder->minGb).' تا '.number_format($builder->maxGb).' گیگابایت' }}</p>
                                         <p class="mt-5 text-sm font-semibold text-[#087F73]">قیمت بر اساس انتخاب شما</p>
-                                        <button type="button" wire:click="selectPlan({{ $builder->id }})" class="mt-auto min-h-11 rounded-xl bg-[#EAF8F4] px-5 py-2.5 text-sm font-bold text-[#087F73] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#14B8A6]">تنظیم پلن</button>
+                                        <button type="button" wire:click="selectPlan({{ $builder->id }})" class="dg-btn-secondary mt-auto w-full">تنظیم پلن</button>
                                     </article>
                                 @endforeach
                             </div>
                         @endif
                     @else
                         <button type="button" wire:click="backToPlans" class="mb-5 min-h-11 text-sm font-bold text-[#087F73] focus-visible:outline-2 focus-visible:outline-[#14B8A6]">→ بازگشت به پلن‌ها</button>
-                        <section class="rounded-[26px] border border-[#E7ECEF] bg-white p-5 shadow-sm sm:p-7">
+                        <section class="dg-card p-5 sm:p-7">
                             <h2 class="text-xl font-extrabold text-[#1B2935]">{{ $selectedPlan->name }}</h2>
                             <p class="mt-2 text-xs text-[#71818B]">{{ $selectedPlan->mode === 'builder' ? 'انتخاب مدت و حجم سرویس' : 'جزئیات پلن انتخاب‌شده' }}</p>
 
@@ -247,13 +247,13 @@
                                 <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
                                     <div>
                                         <label for="quote-days" class="mb-2 block text-sm font-semibold text-[#536C76]">مدت سرویس (روز)</label>
-                                        <input id="quote-days" type="number" min="{{ $selectedPlan->minDays }}" max="{{ $selectedPlan->maxDays }}" step="1" inputmode="numeric" wire:model="daysInput" class="min-h-12 w-full rounded-xl border border-[#D9E4E7] bg-white px-4 text-base text-[#1B2935] focus:border-[#14B8A6] focus:outline-none" />
+                                        <input id="quote-days" type="number" min="{{ $selectedPlan->minDays }}" max="{{ $selectedPlan->maxDays }}" step="1" inputmode="numeric" wire:model="daysInput" class="dg-field min-h-12 px-4" />
                                         <p class="mt-2 text-xs text-[#71818B]">{{ $selectedPlan->minDays }} تا {{ $selectedPlan->maxDays }} روز</p>
                                     </div>
                                     @if ($selectedPlan->kind !== 'time')
                                         <div>
                                             <label for="quote-gb" class="mb-2 block text-sm font-semibold text-[#536C76]">حجم سرویس (گیگابایت)</label>
-                                            <input id="quote-gb" type="number" min="{{ $selectedPlan->minGb }}" max="{{ $selectedPlan->maxGb }}" step="1" inputmode="numeric" wire:model="gbInput" class="min-h-12 w-full rounded-xl border border-[#D9E4E7] bg-white px-4 text-base text-[#1B2935] focus:border-[#14B8A6] focus:outline-none" />
+                                            <input id="quote-gb" type="number" min="{{ $selectedPlan->minGb }}" max="{{ $selectedPlan->maxGb }}" step="1" inputmode="numeric" wire:model="gbInput" class="dg-field min-h-12 px-4" />
                                             <p class="mt-2 text-xs text-[#71818B]">{{ number_format($selectedPlan->minGb) }} تا {{ number_format($selectedPlan->maxGb) }} گیگابایت</p>
                                         </div>
                                     @else
@@ -264,7 +264,7 @@
                                 <p class="mt-5 text-sm font-semibold text-[#536C76]">{{ $selectedPlan->durationDays }} روز · {{ $selectedPlan->trafficGb === null ? 'حجم نامحدود' : number_format($selectedPlan->trafficGb).' گیگابایت' }}</p>
                             @endif
 
-                            <button type="button" wire:click="previewQuote" class="mt-6 min-h-12 w-full rounded-xl bg-[#14B8A6] px-5 py-3 text-sm font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]">مشاهده قیمت نهایی</button>
+                            <button type="button" wire:click="previewQuote" class="dg-btn-primary mt-6 min-h-12 w-full">مشاهده قیمت نهایی</button>
 
                             @if ($orderError)
                                 <p role="alert" class="mt-5 rounded-2xl bg-[#FFF9F1] p-4 text-sm leading-7 text-[#845C23]">{{ $orderError }}</p>
@@ -273,7 +273,7 @@
                             @if ($quoteError)
                                 <p role="alert" class="mt-5 rounded-2xl bg-[#FFF9F1] p-4 text-sm leading-7 text-[#845C23]">{{ $quoteError }}</p>
                             @elseif ($planQuote !== null)
-                                <div class="mt-6 rounded-2xl border border-[#CCEDE4] bg-[#F3FBF8] p-5" aria-label="پیش‌فاکتور نمایندگی">
+                                <div class="dg-card-accent mt-6 p-5" aria-label="پیش‌فاکتور نمایندگی">
                                     <h3 class="text-base font-extrabold text-[#1B2935]">پیش‌فاکتور شما</h3>
                                     <p class="mt-2 text-xs leading-7 text-[#617380]">{{ $planQuote->durationDays }} روز · {{ $planQuote->trafficGb === null ? 'حجم نامحدود' : number_format($planQuote->trafficGb).' گیگابایت' }}</p>
                                     <div class="mt-5 flex items-center justify-between gap-3 text-sm text-[#536C76]">
@@ -284,7 +284,7 @@
                                     </div>
                                     <div class="mt-5 flex items-center justify-between gap-3 border-t border-[#CCEDE4] pt-4">
                                         <span class="text-sm font-extrabold text-[#1B2935]">مبلغ نهایی</span>
-                                        <span class="text-xl font-extrabold text-[#087F73]" dir="ltr">{{ number_format(intdiv($planQuote->totalPriceRials, 10)) }}{{ $planQuote->totalPriceRials % 10 === 0 ? '' : '.'.($planQuote->totalPriceRials % 10) }} <span class="text-xs font-medium">تومان</span></span>
+                                        <span class="dg-stat text-[#087F73]" dir="ltr">{{ number_format(intdiv($planQuote->totalPriceRials, 10)) }}{{ $planQuote->totalPriceRials % 10 === 0 ? '' : '.'.($planQuote->totalPriceRials % 10) }} <span class="text-xs font-medium">تومان</span></span>
                                     </div>
                                 </div>
                                 <p class="mt-4 text-xs leading-7 text-[#71818B]">مبلغ هنگام ثبت سفارش دوباره بررسی می‌شود. ثبت سفارش به‌معنای پرداخت نیست.</p>
@@ -293,7 +293,7 @@
                                         <label for="customer-username" class="mb-2 block text-sm font-bold text-[#1B2935]">نام کاربری مشتری</label>
                                         <input id="customer-username" type="text" maxlength="60" autocomplete="off" dir="auto" wire:model="customerUsername"
                                             placeholder="مثلاً customer_01"
-                                            class="min-h-12 w-full rounded-xl border border-[#D9E4E7] bg-white px-4 text-base text-[#1B2935] focus:border-[#14B8A6] focus:outline-none" />
+                                            class="dg-field min-h-12 px-4" />
                                         <p class="mt-2 text-xs leading-7 text-[#71818B]">برای شناسایی سرویس در پنل شما؛ شماره تماس لازم نیست.</p>
                                         <button type="button" wire:click="confirmOrder" wire:loading.attr="disabled"
                                             wire:target="confirmOrder"
@@ -308,21 +308,21 @@
                     @endif
                 @elseif ($section === 'credit')
                     <div class="mb-6">
-                        <h1 class="text-2xl font-extrabold text-[#1B2935]">اعتبار من</h1>
+                        <h1 class="dg-heading">اعتبار من</h1>
                         <p class="mt-2 text-sm text-[#71818B]">موجودی و آخرین درخواست‌های شارژ</p>
                     </div>
-                    <section class="rounded-[28px] border border-[#CCEDE4] bg-gradient-to-bl from-[#E7F8F3] to-white p-7 shadow-sm md:p-9">
+                    <section class="dg-card-accent bg-gradient-to-bl from-[#E7F8F3] to-white p-7 md:p-9">
                         <p class="text-sm font-semibold text-[#087F73]">اعتبار قابل استفاده</p>
-                        <p class="mt-4 break-words text-3xl font-extrabold text-[#1B2935]" dir="ltr">{{ number_format(intdiv($wallet->balanceRials, 10)) }} <span class="text-sm font-medium text-[#687987]">تومان</span></p>
+                        <p class="dg-stat mt-4 text-3xl" dir="ltr">{{ number_format(intdiv($wallet->balanceRials, 10)) }} <span class="text-sm font-medium text-[#687987]">تومان</span></p>
                         <p class="mt-3 text-xs leading-7 text-[#617380]">مبلغ بر اساس تراکنش‌های ثبت‌شده حساب شما محاسبه شده است.</p>
                     </section>
-                    <section class="mt-5 rounded-[26px] border border-[#E7ECEF] bg-white p-5 shadow-sm md:p-7" aria-label="افزایش اعتبار">
-                        <h2 class="text-base font-extrabold text-[#1B2935]">افزایش اعتبار</h2>
+                    <section class="dg-card mt-5 p-5 md:p-7" aria-label="افزایش اعتبار">
+                        <h2 class="dg-heading">افزایش اعتبار</h2>
                         <p class="mt-2 text-sm leading-7 text-[#71818B]">برای افزایش اعتبار، مبلغ را در بات فروش انتخاب کنید و رسید را همان‌جا ارسال کنید.</p>
                         @if ($topupBotUrl !== null)
                             <a href="{{ $topupBotUrl }}" target="_blank" rel="noopener noreferrer"
                                 x-on:click="const tg = window.Telegram?.WebApp; if (tg && tg.platform !== 'unknown' && typeof tg.openTelegramLink === 'function') { $event.preventDefault(); tg.openTelegramLink($el.href); }"
-                                class="mt-5 flex min-h-12 w-full items-center justify-center rounded-xl bg-[#14B8A6] px-5 py-3 text-sm font-bold text-white focus-visible:outline-2 focus-visible:outline-[#087F73]">
+                                class="dg-btn-primary mt-5 min-h-12 w-full">
                                 ➕ افزایش اعتبار در بات
                             </a>
                         @else
@@ -330,10 +330,10 @@
                         @endif
                         <p class="mt-4 text-xs leading-7 text-[#71818B]">اعتبار پس از تأیید واریز اضافه می‌شود. برای دیدن موجودی جدید، «تازه‌سازی اعتبار» را بزنید.</p>
                         <button type="button" wire:click="$refresh" wire:loading.attr="disabled" wire:target="$refresh"
-                            class="mt-3 min-h-11 rounded-xl border border-[#D9E4E7] bg-white px-5 py-2.5 text-sm font-semibold text-[#087F73] disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-[#14B8A6]">تازه‌سازی اعتبار</button>
+                            class="dg-btn-secondary mt-3">تازه‌سازی اعتبار</button>
                     </section>
-                    <section class="mt-5 rounded-[26px] border border-[#E7ECEF] bg-white p-5 shadow-sm md:p-7">
-                        <h2 class="mb-5 text-base font-extrabold">درخواست‌های اخیر شارژ</h2>
+                    <section class="dg-card mt-5 p-5 md:p-7">
+                        <h2 class="mb-3 text-base font-extrabold">درخواست‌های اخیر شارژ</h2>
                         @forelse ($wallet->topups as $topup)
                             @php
                                 $topupStatus = match ($topup['status']) {
@@ -344,15 +344,15 @@
                                     default => 'وضعیت نامشخص',
                                 };
                             @endphp
-                            <div class="flex items-center justify-between gap-3 border-b border-[#F0F2F4] py-4 last:border-b-0">
+                            <div class="flex min-h-12 flex-wrap items-center justify-between gap-2 border-b border-[#F0F2F4] py-2.5 last:border-b-0">
                                 <div class="min-w-0">
                                     <p class="text-sm font-bold text-[#1B2935]">{{ number_format(intdiv($topup['amount_rials'], 10)) }} تومان</p>
                                     <p class="mt-1 text-xs text-[#71818B]">{{ \App\Support\PersianCalendar::utcDateTime($topup['created_at']) }}</p>
                                 </div>
-                                <span class="shrink-0 rounded-full bg-[#F4F7F8] px-3 py-1.5 text-xs font-semibold text-[#536C76]">{{ $topupStatus }}</span>
+                                <span class="dg-status" data-tone="{{ match ($topup['status']) { 'approved' => 'success', 'rejected' => 'danger', 'pending', 'submitted' => 'warning', default => 'neutral' } }}">{{ $topupStatus }}</span>
                             </div>
                         @empty
-                            <p class="py-6 text-center text-sm text-[#71818B]">هنوز درخواست شارژی ثبت نشده است.</p>
+                            <p class="dg-empty">هنوز درخواست شارژی ثبت نشده است.</p>
                         @endforelse
                     </section>
                 @elseif ($section === 'services')
