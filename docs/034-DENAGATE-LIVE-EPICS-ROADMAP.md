@@ -4,6 +4,8 @@
 > This document is an implementation handoff, **not** automatic approval to build future features, spend wallet credit, alter Provider state, change production ENV or modify bot menus.
 > Canonical runtime state is the latest `master`; verify source and current business rules before each PR.
 
+**UI/UX Polish checkpoint (2026-10-31):** After the delivered LIVE-6B scope and the separate reseller pause/resume feature, the operator approved **only Polish P0 implementation** and an ordered **P0–P4 Polish plan**. The authoritative, phase-specific scope and acceptance criteria are in [docs/037-DENAGATE-LIVE-UIUX-POLISH-ROADMAP.md](037-DENAGATE-LIVE-UIUX-POLISH-ROADMAP.md). P1, P2A, P2B, P3 and P4 are planned, **not authorized for implementation yet**. The historical original LIVE-0/1/2 IDs below are distinct from Polish P0/P1/P2 and remain historical.
+
 ## 0. Purpose and source-of-truth order
 
 DenaGate Live is the **reseller-only Telegram Mini App** on `https://live.denagate.ir`, delivered by the **same Laravel modular monolith**, not a second product/backend. Use this one document for the next Live feature decision, PR boundary, acceptance criteria and rollback. Do not duplicate the existing bot checkout, wallet or provisioning engines.
