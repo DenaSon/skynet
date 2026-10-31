@@ -84,7 +84,9 @@ it('uses a readable, locally licensed Persian light theme without disturbing Liv
         ->assertSee('/fonts/vazirmatn-variable.woff2')
         ->assertSee('bg-[#F6F8FA]')
         ->assertSee('دسترسی سریع پنل')
-        ->assertSee('خروج امن')
+        ->assertSee('خروج')
+        ->assertSee('action="/logout"', false)
+        ->assertDontSee('خروج امن')
         ->assertDontSee('bg-[#0B1220]');
 
     expect(is_file(public_path('fonts/vazirmatn-variable.woff2')))->toBeTrue()
