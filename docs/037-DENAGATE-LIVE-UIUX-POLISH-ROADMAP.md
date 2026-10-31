@@ -210,6 +210,15 @@ Deliver a **premium, minimal, Persian-first, Apple-inspired, Telegram-native-fee
 - **Responsive quality:** Compact two-column mobile cards, three-column desktop cards, wrapped Persian labels, clear number hierarchy, high-contrast text and existing font, button size, focus, RTL and reduced-motion baselines. No icon library, JS, CSS or chart engine.
 - **Automated proof:** New tests exercise authenticated reseller report page, both 7/30 switches, semantic grouping/labels, original fields and conversion expression, no billing/order/provider writes, and no remote HTTP calls. All pre-existing action/ownership, signed entry, report and operational tests must pass in full PR CI and post-merge master CI. **Physical iOS/Android/Desktop validation of the new report appearance remains operator smoke, not assumed from automated tests**.
 
+### Operator-approved compact six-KPI follow-up — 2026-10-31
+
+**Reason:** Real Telegram mobile screenshot showed an awkward 2-column wrapping pattern (two cards + one card per group) and unnecessarily tall report counters after PR #327. **New acceptance overrides PR #327's report-metric grouping and 2-column mobile grid only.** The owner explicitly requested **two rows of three smaller cards, without separate group headings**.
+
+- Exactly six **unchanged**, owner-scoped report counters in one `grid-cols-3` responsive row flow: `sales`, `renewals`, `transactions`, then `pending`, `services`, `namedServices`, resulting in **3 + 3 cards** on mobile; compact `p-2.5`, 11px wrapped labels, 18px tabular numbers and sufficient height to avoid truncation, with existing DenaGate primitives.
+- No separate visible headings or duplicated metric groups. Keep one accessible section label and use subtle green/gray dots as a visual distinction rather than group titles; retain the **existing explanatory sentence** distinguishing period-based sales from current account snapshot to avoid implying that six metrics share a timeframe.
+- Preserve settled-revenue hero, date range, 7/30-day selection, Livewire actions, report values, owner authorization and all other screens exactly. No backend queries, CSS primitives, migrations or runtime JS. Only report Blade, focused regression tests and this roadmap are touched.
+- CI acceptance: six counters represented once in source, precisely one three-column grid, no discarded button states/loading, authenticated reseller report rendering and switch, no financial writes/HTTP calls, PHP 8.4/Pest + PHPStan + Pint + Vite + MySQL/Redis. Real-device acceptance for 320–430px Telegram WebView readability remains operator-side after deployment. Rollback independently by reverting this follow-up patch.
+
 ## 8. Mandatory per-PR delivery and completion contract
 
 1. Read the latest master code and the sources above; identify precise files, current UI state, constraints and **one phase only**. If changes require new architecture, settings, dependencies or business behavior, **stop for explicit approval**.
