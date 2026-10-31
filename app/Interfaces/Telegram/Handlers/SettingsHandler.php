@@ -56,7 +56,6 @@ final class SettingsHandler
         $this->render($bot, '<b>⚙️ تنظیمات</b>'."\n\nبخش موردنظر را انتخاب کنید.", $keyboard);
     }
 
-
     /** Root-only control for the reseller Mini App; no Provider operation here. */
     public function resellerStatus(Nutgram $bot): void
     {
