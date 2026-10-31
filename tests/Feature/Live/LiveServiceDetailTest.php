@@ -111,9 +111,13 @@ it('shows only the owned service detail and local plan data without provider net
     $page = Livewire::test(Dashboard::class)
         ->call('showSection', 'services')
         ->assertSee('مشاهده جزئیات')
+        ->assertSee('data-tone="neutral"', false)
+        ->assertSee('dg-card')
         ->call('openService', $mine)
         ->assertSet('selectedServiceOrderId', $mine)
         ->assertSee('جزئیات سرویس')
+        ->assertSee('dg-heading')
+        ->assertSee('data-tone="neutral"', false)
         ->assertSee('مشتری &lt;مهم&gt;', false)
         ->assertSee('مدت خریداری‌شده')
         ->assertSee('حجم خریداری‌شده')
@@ -143,6 +147,7 @@ it('reads one exact owner-verified provider usage on explicit tap and displays s
 
     $page->call('refreshServiceUsage')
         ->assertSee('وضعیت بررسی‌شده')
+        ->assertSee('data-tone="success"', false)
         ->assertSee('حجم مصرف‌شده')
         ->assertSee('3.00')
         ->assertSee('7.00')
@@ -170,6 +175,7 @@ it('identifies expired and unlimited provider plans without pretending local sta
     Livewire::test(Dashboard::class)->call('showSection', 'services')
         ->call('openService', $order)->call('refreshServiceUsage')
         ->assertSee('منقضی‌شده')
+        ->assertSee('data-tone="danger"', false)
         ->assertSee('بدون سقف');
     Http::assertSentCount(1);
 });
