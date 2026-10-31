@@ -2,7 +2,7 @@
 
 > **Decision: 2026-10-31.** This is the normative handoff/checklist for the **new Polish sequence**, not the historical LIVE-0/1 phases documented in [033](033-DENAGATE-LIVE-MINIAPP.md) or the original product Epics in [034](034-DENAGATE-LIVE-EPICS-ROADMAP.md).
 >
-> **Approval state (2026-10-31):** P0 was merged as [#320](https://github.com/DenaSon/skynet/pull/320) (`7e8efcdf`), and the operator independently approved **P1 UX Writing**. P2A, P2B, P3 and P4 remain planned and require phase-specific authorization. No Polish PR authorizes production financial/Provider operations.
+> **Approval state (2026-10-31):** P0 merged as [#320](https://github.com/DenaSon/skynet/pull/320) (`7e8efcdf`), P1 merged as [#321](https://github.com/DenaSon/skynet/pull/321) (`65e786ce`), and the operator separately authorized **P2A Visual Refinement**. P2B, P3 and P4 still require independent phase approval. No Polish PR authorizes production financial/Provider operations.
 >
 > **Source-of-truth order:** latest `master` code, `AGENTS.md`, `docs/000-CONTEXT.md`, `docs/005-ROADMAP.md`, `docs/017-TELEGRAM-UX-IDENTITY.md`, `docs/018-REMNAWAVE-STAGING-MULTIBOT-ROADMAP.md`, `docs/033-DENAGATE-LIVE-MINIAPP.md`, `docs/034-DENAGATE-LIVE-EPICS-ROADMAP.md`, then this Polish-specific scope. Refresh the branch/implementation inventory before each PR; historical docs do not override current code.
 
@@ -24,8 +24,8 @@ Deliver a **premium, minimal, Persian-first, Apple-inspired, Telegram-native-fee
 | Phase | PR | Result | State / prerequisite |
 | --- | --- | --- | --- |
 | **P0 — UI Foundation** | [#320](https://github.com/DenaSon/skynet/pull/320) | 10 scoped Tailwind primitives + minimal design tokens and usage guidance | Merged `7e8efcdf`; PR/post-merge CI green; device QA separate |
-| **P1 — UX Writing** | [#321](https://github.com/DenaSon/skynet/pull/321) | Consistent Persian labels, truthful statuses, compact copy and focused tests | Operator-approved; source PR/CI and merge evidence in #321; device QA separate |
-| **P2A — Visual Refinement: overview/shop/credit** | 1 | Use P0 primitives consistently on overview, quote, checkout and credit | Planned; after P1 and separate approval |
+| **P1 — UX Writing** | [#321](https://github.com/DenaSon/skynet/pull/321) | Consistent Persian labels, truthful statuses, compact copy and focused tests | Merged `65e786ce`; PR/post-merge CI green; device QA separate |
+| **P2A — Visual Refinement: overview/shop/credit** | [#322](https://github.com/DenaSon/skynet/pull/322) | Use P0 primitives consistently on overview, quote, checkout and credit | Independently approved; source PR with checks and merge gate; device QA separate |
 | **P2B — Visual Refinement: services/reports** | 1 | Use primitives for service list/detail, connection, usage, pause/resume, renewal, reports | Planned; after P2A and separate approval |
 | **P3 — Interaction & Feedback** | 1 | Action-level loading, disabled states, navigation, meaningful success/error feedback | Planned; after P2B and separate approval |
 | **P4 — Telegram Mobile Experience & Final QA** | 1 | iOS/Android/Desktop Telegram touch/safe-area/keyboard/back/accessibility audit | Planned; after P3 and separate approval |
@@ -112,6 +112,17 @@ Deliver a **premium, minimal, Persian-first, Apple-inspired, Telegram-native-fee
 
 **Acceptance (both):** no removed or hidden existing actions, no change to button callback/livewire method semantics, correct desktop/mobile RTL, long labels/numbers and small screens, light premium consistency without excessive effects, accessible focus/touch regions, no sensitive exposure. Rendering tests and production Vite build; operator screenshots/device smoke separately.
 
+### P2A delivery checkpoint — Visual Refinement (2026-10-31)
+
+**Independent PR:** [#322](https://github.com/DenaSon/skynet/pull/322). Status and merge SHA are verified against the PR/Actions; do not claim a completed release or real-client acceptance before evidence is available. Changes are **Blade presentation only** in `resources/views/live/dashboard.blade.php`, with focused rendering/contract tests. The existing P0 CSS classes, Livewire runtime and all Laravel Application Actions remain unchanged.
+
+- **Overview:** one restrained accent hero, neutral KPI cards, consistent 44px+ secondary navigation actions, accessible high-contrast primary shopping CTA and isolated LTR/tabular numeric summaries.
+- **Shop:** consistent neutral price-selection cards, accessible selected-plan inputs and quote/confirmation areas. **Payment remains a separately confirmed action** with unchanged `wire:click` methods and server-side idempotency. The order-state chip is neutral/textual, not a false green activation claim. Current ten recent orders use more compact readable rows, not an unbounded feed.
+- **Credit:** one accent wallet summary, same verified ledger balance, straightforward bot top-up handoff, accessible refresh action, and concise ten-record top-up rows with text-plus-color status: `approved` success, `rejected` danger, `pending/submitted` warning, unknown neutral. No status is used as authorization or proof of credit.
+- **Strict scope:** no layout/entry rewrite, no new component/asset/dependency, no financial or Provider changes, no order/service/report data read changes, no four-tab navigation edits, no `P2B` service detail/report styling. Preserve all screen affordances and existing no-Vite sign-in.
+- **Compact list and pagination decision:** Existing service paging remains six records per cursor; order history and wallet top-ups remain independently bounded to **ten**, so P2A reduces row spacing without pretending to expose all history. **New pagination is not included**: it requires changing `OrderReader::recentNewPlans` or `ViewWallet`/read Actions (and authoritative cursor/ownership/reset tests). The growing plan catalog likewise requires an intentionally scoped discovery/paging contract rather than silently slicing client-side and hiding offers. Carry this requested enhancement to its own approval gate, potentially when P2B is planned.
+- **Verification and rollback:** review the exact PR diff, PHP 8.4/Pest rendering and checkout regressions, PHPStan, Pint, production Vite manifest and MySQL/Redis CI. Check Telegram iOS/Android/Desktop after deployment separately (responsive long numbers/names, active buttons, quote, bank-wallet handoff without real unapproved transfers); revert #322 to roll back CSS-class adoption only. P2B remains unapproved.
+
 ## 6. P3 — Interaction & Feedback Polish (planned)
 
 - Per-action loading/disabled cues for plan selection and quote, order creation, wallet checkout, credit refresh, service usage/connection reveal, label editing, renewal and pause/resume. Prevent confusing duplicate taps in UI **without replacing server-side idempotency**.
@@ -134,4 +145,4 @@ Deliver a **premium, minimal, Persian-first, Apple-inspired, Telegram-native-fee
 4. Perform/report actual Telegram-client checks separately after deploy. Do not confuse source pass, CI, deploy, browser/client smoke, financial correctness and Provider mutation verification.
 5. Update **this one living document** at the end of each phase: PR link, merge SHA, checks, operator acceptance, pending items, risks and next authorized phase. Report **انجام‌شده / تست‌شده / باقی‌مانده / ریسک‌ها**. Keep earlier phases marked as historical, not silently overwritten.
 
-**Release discipline:** P0 was approved and delivered; P1 was independently approved and delivered via its own PR. P2A–P4 still require separate operator go/no-go; approval of an earlier phase never authorizes the next. Do not label the whole Polish “complete” until every phase meets its own acceptance criteria and remaining real-device checks are recorded.
+**Release discipline:** P0/P1 are merged; P2A was independently approved as a separate PR. P2B, P3 and P4 require explicit operator go/no-go. Approval of one phase never authorizes the next. Do not label the whole Polish “complete” until every phase meets its own acceptance criteria and remaining real-device checks are recorded.
