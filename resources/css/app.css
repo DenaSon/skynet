@@ -28,40 +28,6 @@
     font-family: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif;
 }
 
-/* Small authenticated-panel indicator; visual identity only, not Provider availability telemetry. */
-.denagate-live .dg-live-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.375rem;
-    padding: 0.25rem 0.5rem;
-    border: 1px solid #bfe6da;
-    border-radius: 999px;
-    background: #eaf8f4;
-    color: #075c54;
-    font-size: 0.6875rem;
-    font-weight: 700;
-    line-height: 1.5;
-    white-space: nowrap;
-}
-
-.denagate-live .dg-live-status-dot {
-    width: 7px;
-    height: 7px;
-    flex: 0 0 7px;
-    border-radius: 50%;
-    background: #14b8a6;
-    animation: dg-live-breathe 2.6s ease-in-out infinite;
-}
-
-@keyframes dg-live-breathe {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.48; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .denagate-live .dg-live-status-dot { animation: none; }
-}
-
 /* P0: presentation-only primitives; not applied to any existing Livewire markup yet. */
 @layer components {
     .denagate-live .dg-card {
