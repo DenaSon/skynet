@@ -16,6 +16,7 @@ use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
+use SergiX44\Nutgram\Testing\FakeNutgram;
 use Spatie\Permission\Models\Role;
 use Tests\Support\PanelWalletFunding;
 
@@ -104,7 +105,10 @@ it('routes a private reseller deep link to the existing receipt flow without cre
 
     $bot->hearText('/start live_topup')->reply()
         ->assertCalled('sendMessage', 1)
-        ->assertReplyText('مبلغ شارژ را انتخاب کنید.', contains: true);
+        ->assertRaw(static fn (Request $request): bool => str_contains(
+            (string) (FakeNutgram::getActualData($request)['text'] ?? ''),
+            'مبلغ شارژ را انتخاب کنید.',
+        ), index: 0);
 
     expect(DB::table('billing_topups')->count())->toBe(0)
         ->and(DB::table('billing_journals')->count())->toBe(0)
