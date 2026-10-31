@@ -226,12 +226,17 @@ it('uses a direct Web App button in the account view and preserves the legacy ca
                 ? json_decode($data['reply_markup'], true, 512, JSON_THROW_ON_ERROR)
                 : ($data['reply_markup'] ?? []);
             $rows = $markup['inline_keyboard'] ?? [];
+            $buttons = array_merge(...$rows);
+            $apps = array_values(array_filter(
+                $buttons,
+                static fn (array $button): bool => ($button['text'] ?? null) === ReplyMenuLabels::SALES_APP,
+            ));
             $last = $rows[count($rows) - 1] ?? [];
 
-            return count($last) === 1
-                && ($last[0]['text'] ?? null) === ReplyMenuLabels::SALES_APP
-                && ($last[0]['web_app']['url'] ?? null) === 'https://live.denagate.ir'
-                && ! array_key_exists('callback_data', $last[0]);
+            return count($apps) === 1
+                && ($apps[0]['web_app']['url'] ?? null) === 'https://live.denagate.ir'
+                && ! array_key_exists('callback_data', $apps[0])
+                && ($last[0]['callback_data'] ?? null) === 'sales:account:simple';
         }, index: 0);
 
     $bot->hearCallbackQueryData('sales:live')->reply()
