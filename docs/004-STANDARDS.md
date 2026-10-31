@@ -32,6 +32,29 @@
 - Use PHP >=8.4.1; do not bypass Composer platform requirements.
 - Keep `composer.lock` portable: no private/workstation-specific mirror or credentials in package URLs.
 
+## Application settings & environment configuration
+
+**Default for future features:** Before adding an ENV key or a new database schema for a setting, check whether the existing `spatie/laravel-settings` and `settings` table fit. Prefer this for values that an authorized operator should adjust at runtime (feature toggles, welcome copy, business thresholds, UI preferences). Do not create another settings framework, generic `key/value` model/table, parallel config store, or dependency without a documented need and explicit approval.
+
+| Type | Preferred source | Rationale |
+| --- | --- | --- |
+| Operator-managed application behavior or text | Typed `App\Settings\*Settings` using Spatie | Persisted, centrally managed, changeable without application redeploy |
+| Secrets, API tokens, credentials, encryption keys | Deployment secrets / ENV | Never expose credentials in bot UI or casually persist them in Settings |
+| Infrastructure/deployment bootstrap (hosts, queues, runtime dependencies) | Laravel config + ENV | Deployment owns it; not a bot-managed business preference |
+| Existing independently approved global emergency/provider write gate | Preserve current deployment config/ENV | A new per-feature Settings toggle must not bypass an existing global guard |
+| Business records (orders, payments, subscriptions, audits) | Existing domain tables and Actions | Operational facts are not configuration values |
+
+### Adding or editing a setting
+
+1. **Inspect before creating.** Confirm `composer.json`, existing `app/Settings/` classes, `settings` table, Spatie repository/cache config and the actual registered settings-migration paths; reuse the existing settings UI, authorization and package. Avoid an ENV key just because a boolean is needed.
+2. **Define a typed Settings contract.** Give the property a stable group/name and sensible type; read/update it through Spatie's Settings API by default. Keep business decisions in shared Application Actions, not a Telegram/Livewire presenter or a second home-grown configuration service.
+3. **Initialize new properties safely.** A non-optional persisted property needs an initial value on every installation. Prefer a native `Spatie\LaravelSettings\Migrations\SettingsMigration` using `$this->migrator->add('group.property', false)` (or another validated default) in the package's *configured* migration path, with verified execution order. This is a **data/settings migration**, not a new SQL schema/table/column migration per key. Do not directly insert into the underlying `settings` table simply for convenience. If the current setup needs any migration registration/configuration, assess it before adding infrastructure. Preserve operator-edited values during rollback; never rerun destructive seeds.
+4. **Authorize separately.** Management of critical toggles stays restricted to the currently trusted, active, linked, allowlisted Super Admin; other settings obey their explicitly approved RBAC. Reauthorize callbacks and single-use confirmation. A disabled toggle must not affect existing subscriptions automatically.
+5. **Read current state safely.** For a Provider/financially sensitive setting, start with a disabled default and fail closed for missing/invalid/unavailable storage. Recheck the effective current setting in every final write path and queued job, not only when drawing UI. Account for Spatie caching/invalidation and multi-worker staleness explicitly; a stale cached `true` must never authorize a newly disabled operation. Use Spatie as the normal access layer; document and narrowly test any exceptional uncached persistence read instead of silently bypassing the package.
+6. **Test and document.** Add focused tests for initial value, saving/reading across requests, absent row/storage failure, authorization/revocation, confirmation replay, pending-job disable, coexistence with existing ENV safety gates, and migration/rollback. Keep the release switch OFF until the appropriate controlled live acceptance.
+
+**Historical compatibility:** `database/migrations/2026_10_30_000003_seed_sales_welcome_settings.php` and `2026_10_31_000001_seed_reseller_service_status_setting.php` were already merged using ordinary Laravel migrations and raw inserts. Their existing production deployment/history is **not** a reason to rewrite or delete them. This policy governs new work and any separately approved forward-only cleanup; do not replace already-applied migrations retroactively.
+
 ## Documentation rules
 - **Code is the behavioral truth.** Mark proposed work and decisions honestly.
 - Update `000-CONTEXT.md` for meaningful status/progress changes.
