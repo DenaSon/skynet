@@ -374,6 +374,73 @@
                             <p class="mt-5 text-xs leading-7 text-[#71818B]">وضعیت بالا بر اساس اطلاعات ثبت‌شده است و الزاماً به معنی اتصال فعلی نیست.</p>
                         </section>
 
+                        <section class="mt-5 rounded-[26px] border border-[#E7ECEF] bg-white p-5 shadow-sm sm:p-7" aria-label="نام مشتری">
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <div>
+                                    <h3 class="text-base font-extrabold text-[#1B2935]">نام مشتری</h3>
+                                    <p class="mt-2 text-xs leading-6 text-[#71818B]">این نام فقط برای مدیریت سرویس‌های شماست.</p>
+                                </div>
+                                @if (! $editingServiceLabel)
+                                    <button type="button" wire:click="editServiceLabel"
+                                        class="min-h-11 rounded-xl bg-[#EAF8F4] px-4 py-2.5 text-sm font-bold text-[#087F73] focus-visible:outline-2 focus-visible:outline-[#14B8A6]">ویرایش نام</button>
+                                @endif
+                            </div>
+                            @if ($serviceLabelError)
+                                <p role="alert" class="mt-4 rounded-xl bg-[#FFF9F1] p-4 text-sm leading-7 text-[#845C23]">{{ $serviceLabelError }}</p>
+                            @endif
+                            @if ($serviceLabelNotice)
+                                <p role="status" class="mt-4 text-sm font-semibold text-[#087F73]">{{ $serviceLabelNotice }}</p>
+                            @endif
+                            @if ($editingServiceLabel)
+                                <form wire:submit="saveServiceLabel" class="mt-5 space-y-3">
+                                    <label for="live-customer-label" class="block text-sm font-semibold text-[#1B2935]">نام کاربری مشتری</label>
+                                    <input id="live-customer-label" type="text" wire:model="serviceLabelInput" maxlength="60" autocomplete="off"
+                                        placeholder="مثلاً: مشتری شماره ۱"
+                                        class="min-h-12 w-full rounded-xl border border-[#D9E4E7] bg-white px-4 text-sm text-[#1B2935] outline-none focus:border-[#14B8A6]">
+                                    <p class="text-xs leading-6 text-[#71818B]">حداکثر ۶۰ نویسه · خالی بگذارید تا نام اختصاصی حذف شود.</p>
+                                    <div class="flex flex-wrap gap-3">
+                                        <button type="submit" wire:loading.attr="disabled" wire:target="saveServiceLabel"
+                                            class="min-h-11 rounded-xl bg-[#14B8A6] px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60">ذخیره نام</button>
+                                        <button type="button" wire:click="cancelServiceLabel"
+                                            class="min-h-11 rounded-xl border border-[#D9E4E7] px-5 py-2.5 text-sm font-semibold text-[#536C76]">انصراف</button>
+                                    </div>
+                                </form>
+                            @endif
+                        </section>
+
+                        <section class="mt-5 rounded-[26px] border border-[#E7ECEF] bg-white p-5 shadow-sm sm:p-7" aria-label="اطلاعات اتصال">
+                            <h3 class="text-base font-extrabold text-[#1B2935]">اطلاعات اتصال</h3>
+                            <p class="mt-2 text-xs leading-7 text-[#71818B]">لینک اتصال مخصوص این سرویس است. آن را فقط برای مشتری خود ارسال کنید.</p>
+                            @if ($serviceConnectionError)
+                                <p role="alert" class="mt-4 rounded-xl bg-[#FFF9F1] p-4 text-sm leading-7 text-[#845C23]">{{ $serviceConnectionError }}</p>
+                            @endif
+                            @if ($serviceSubscriptionUrl !== null && $serviceQrDataUri !== null)
+                                <div class="mt-5" x-data="{ copied: false }">
+                                    <div class="flex justify-center rounded-2xl bg-white p-4">
+                                        <img src="{{ $serviceQrDataUri }}" alt="کد QR اتصال سرویس" width="240" height="240" class="h-auto w-full max-w-[240px]" />
+                                    </div>
+                                    <label for="live-subscription-url" class="mt-4 block text-xs font-semibold text-[#536C76]">لینک اشتراک</label>
+                                    <input id="live-subscription-url" type="text" x-ref="connectionLink" readonly dir="ltr"
+                                        value="{{ $serviceSubscriptionUrl }}"
+                                        class="mt-2 min-h-12 w-full rounded-xl border border-[#D9E4E7] bg-[#F6F8FA] px-4 text-left text-xs text-[#1B2935] outline-none focus:border-[#14B8A6]"
+                                        x-on:focus="$el.select()">
+                                    <div class="mt-4 grid grid-cols-2 gap-3">
+                                        <button type="button"
+                                            x-on:click="if (navigator.clipboard) { navigator.clipboard.writeText($refs.connectionLink.value).then(() => copied = true).catch(() => copied = false) } else { $refs.connectionLink.select(); copied = document.execCommand('copy') }"
+                                            class="min-h-12 rounded-xl bg-[#14B8A6] px-4 py-2.5 text-sm font-bold text-white">کپی لینک</button>
+                                        <button type="button" wire:click="hideServiceConnection"
+                                            class="min-h-12 rounded-xl border border-[#D9E4E7] px-4 py-2.5 text-sm font-semibold text-[#536C76]">پنهان کردن</button>
+                                    </div>
+                                    <p x-cloak x-show="copied" role="status" class="mt-3 text-xs font-semibold text-[#087F73]">لینک کپی شد.</p>
+                                </div>
+                            @elseif ($selectedService->canRequestLink)
+                                <button type="button" wire:click="revealServiceConnection" wire:loading.attr="disabled" wire:target="revealServiceConnection"
+                                    class="mt-5 min-h-12 w-full rounded-xl bg-[#EAF8F4] px-5 py-3 text-sm font-bold text-[#087F73] disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-[#14B8A6]">نمایش لینک و QR</button>
+                            @else
+                                <p class="mt-4 rounded-xl bg-[#F6F8FA] p-4 text-sm leading-7 text-[#71818B]">لینک اتصال این سرویس فعلاً در دسترس نیست.</p>
+                            @endif
+                        </section>
+
                         <section class="mt-5 rounded-[26px] border border-[#E7ECEF] bg-white p-5 shadow-sm sm:p-7" aria-label="وضعیت و مصرف سرویس">
                             <div class="flex flex-wrap items-center justify-between gap-3">
                                 <div>
