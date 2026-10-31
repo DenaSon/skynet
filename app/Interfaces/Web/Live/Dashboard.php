@@ -13,12 +13,14 @@ use App\Modules\Provisioning\Application\GetSubscriptionLink;
 use App\Modules\Provisioning\Application\GetSubscriptionUsage;
 use App\Modules\Provisioning\Application\ListMyServices;
 use App\Modules\Sales\Application\CalculatePlanQuote;
+use App\Modules\Sales\Application\CreatePendingRenewalOrder;
 use App\Modules\Sales\Application\ListQuotedPresets;
 use App\Modules\Sales\Application\ListResellerBuilders;
 use App\Modules\Sales\Application\ManageResellerServiceLabels;
 use App\Modules\Sales\Application\OrderReader;
 use App\Modules\Sales\Application\PlanPriceQuote;
 use App\Modules\Sales\Application\PlanSummary;
+use App\Modules\Sales\Application\PrepareRenewalDraft;
 use App\Modules\Sales\Application\ReadResellerSalesReport;
 use App\Modules\Sales\Application\RegisterPendingResellerOrder;
 use App\Modules\Sales\Application\SettleWalletOrder;
@@ -73,6 +75,21 @@ final class Dashboard extends Component
     public ?string $serviceLabelError = null;
 
     public ?string $serviceLabelNotice = null;
+
+    /** Non-payable owner-verified preview; the browser may not edit pricing. */
+    #[Locked]
+    public ?array $renewalPreview = null;
+
+    #[Locked]
+    public ?string $renewalConfirmToken = null;
+
+    #[Locked]
+    public ?int $renewalConfirmAmountRials = null;
+
+    #[Locked]
+    public ?int $renewalConfirmBalanceRials = null;
+
+    public ?string $renewalError = null;
 
     public ?int $selectedPlanId = null;
 
@@ -345,8 +362,206 @@ final class Dashboard extends Component
         $this->serviceLabelNotice = null;
     }
 
+    /** Read-only draft: fresh published price and owner/provider eligibility. */
+    public function previewServiceRenewal(): void
+    {
+        $buyerId = $this->resellerId();
+        $this->renewalError = null;
+        $this->renewalPreview = null;
+        $this->forgetRenewalConfirmation($buyerId);
+
+        if ($this->section !== 'services' || $this->selectedServiceOrderId === null) {
+            $this->serviceDetailError = 'ابتدا سرویس خود را انتخاب کنید.';
+
+            return;
+        }
+
+        try {
+            $existing = app(OrderReader::class)->latestRenewalForSource($buyerId, $this->selectedServiceOrderId);
+            if ($existing !== null && in_array($existing->status, ['pending_payment', 'paid'], true)) {
+                $this->renewalError = 'ابتدا وضعیت سفارش تمدید قبلی را بررسی کنید.';
+
+                return;
+            }
+
+            $draft = app(PrepareRenewalDraft::class)->handle(
+                SubscriptionViewer::web(), $this->selectedServiceOrderId,
+            );
+            $this->renewalPreview = [
+                'source' => $draft->sourceOrderId,
+                'name' => $draft->planName,
+                'days' => $draft->durationDays,
+                'gb' => $draft->trafficGb,
+                'amount' => $draft->priceRials,
+            ];
+        } catch (AuthorizationException $exception) {
+            throw $exception;
+        } catch (Throwable) {
+            $this->renewalError = 'در حال حاضر امکان محاسبه تمدید نیست. لطفاً دوباره تلاش کنید.';
+        }
+    }
+
+    /** Recheck fresh price and ownership before converting preview to an order. */
+    public function createServiceRenewal(): void
+    {
+        $buyerId = $this->resellerId();
+        $this->renewalError = null;
+        $this->forgetRenewalConfirmation($buyerId);
+        $source = $this->selectedServiceOrderId;
+        $previous = $this->renewalPreview;
+        if ($this->section !== 'services' || $source === null || $previous === null
+            || ($previous['source'] ?? null) !== $source || config('sales.renewal_enabled', false) !== true) {
+            $this->renewalError = 'ابتدا جزئیات و مبلغ تمدید را بررسی کنید.';
+
+            return;
+        }
+
+        try {
+            $draft = app(PrepareRenewalDraft::class)->handle(SubscriptionViewer::web(), $source);
+            if ($draft->priceRials !== ($previous['amount'] ?? null)
+                || $draft->durationDays !== ($previous['days'] ?? null)
+                || $draft->trafficGb !== ($previous['gb'] ?? null)
+                || $draft->planName !== ($previous['name'] ?? null)) {
+                $this->renewalPreview = null;
+                $this->renewalError = 'قیمت یا مشخصات تمدید تغییر کرده است. دوباره پیش‌فاکتور بگیرید.';
+
+                return;
+            }
+
+            // Existing locked Action rechecks eligibility, price and prior order,
+            // and binds this purchase to the original subscription (no CREATE).
+            $order = app(CreatePendingRenewalOrder::class)->handle(SubscriptionViewer::web(), $source);
+            $this->renewalPreview = null;
+            if ($order->totalPriceRials !== $draft->priceRials) {
+                // A changed/pending order is not paid; show canonical amount before confirmation.
+                $this->renewalError = 'مبلغ سفارش تغییر کرده است. پیش از پرداخت آن را بررسی کنید.';
+            }
+        } catch (AuthorizationException $exception) {
+            throw $exception;
+        } catch (Throwable) {
+            $this->renewalPreview = null;
+            $this->renewalError = 'ثبت تمدید امکان‌پذیر نیست. مشخصات سرویس را دوباره بررسی کنید.';
+        }
+    }
+
+    /** Five-minute single-use snapshot, backed by same wallet ledger as LIVE-3C. */
+    public function prepareRenewalPayment(): void
+    {
+        $buyerId = $this->resellerId();
+        $this->forgetRenewalConfirmation($buyerId);
+        $this->renewalError = null;
+
+        if ($this->section !== 'services' || $this->selectedServiceOrderId === null
+            || config('sales.renewal_enabled', false) !== true
+            || config('sales.wallet_settlement_enabled') !== true) {
+            $this->renewalError = 'پرداخت تمدید فعلاً در دسترس نیست.';
+
+            return;
+        }
+
+        $order = app(OrderReader::class)->latestRenewalForSource($buyerId, $this->selectedServiceOrderId);
+        if ($order === null || $order->status !== 'pending_payment') {
+            $this->renewalError = 'سفارش تمدید در انتظار پرداخت پیدا نشد.';
+
+            return;
+        }
+
+        $balance = app(ViewWallet::class)->handle($buyerId)->balanceRials;
+        if ($balance < $order->totalPriceRials) {
+            $this->renewalError = 'اعتبار شما کافی نیست. ابتدا اعتبار خود را افزایش دهید.';
+
+            return;
+        }
+
+        $token = bin2hex(random_bytes(16));
+        Cache::put(self::walletConfirmationKey($buyerId, $order->id, $token), [
+            'amount' => $order->totalPriceRials,
+            'balance' => $balance,
+        ], now()->addMinutes(5));
+        $this->renewalConfirmToken = $token;
+        $this->renewalConfirmAmountRials = $order->totalPriceRials;
+        $this->renewalConfirmBalanceRials = $balance;
+    }
+
+    public function confirmRenewalPayment(): void
+    {
+        $buyerId = $this->resellerId();
+        $this->renewalError = null;
+        $source = $this->selectedServiceOrderId;
+        $token = $this->renewalConfirmToken;
+
+        if ($this->section !== 'services' || $source === null || $token === null) {
+            $this->renewalError = 'ابتدا مبلغ و اعتبار را برای پرداخت بررسی کنید.';
+
+            return;
+        }
+
+        $order = app(OrderReader::class)->latestRenewalForSource($buyerId, $source);
+        $key = $order === null ? null : self::walletConfirmationKey($buyerId, $order->id, $token);
+        $snapshot = $key === null ? null : Cache::pull($key);
+        $this->renewalConfirmToken = null;
+        $this->renewalConfirmAmountRials = null;
+        $this->renewalConfirmBalanceRials = null;
+
+        if ($order === null || ! is_array($snapshot)
+            || ! isset($snapshot['amount'], $snapshot['balance'])
+            || ! is_int($snapshot['amount']) || ! is_int($snapshot['balance'])) {
+            $this->renewalError = 'تأیید پرداخت منقضی شده است. مبلغ را دوباره بررسی کنید.';
+
+            return;
+        }
+
+        if ($order->status !== 'pending_payment'
+            || $order->totalPriceRials !== $snapshot['amount']
+            || app(ViewWallet::class)->handle($buyerId)->balanceRials !== $snapshot['balance']) {
+            $this->renewalError = 'مبلغ، اعتبار یا وضعیت سفارش تغییر کرده است. دوباره بررسی کنید.';
+
+            return;
+        }
+
+        try {
+            // Only existing transactional debit and unique :renew fulfillment outbox.
+            app(SettleWalletOrder::class)->handle(SubscriptionViewer::web(), $order->id);
+        } catch (AuthorizationException $exception) {
+            throw $exception;
+        } catch (ValidationException $exception) {
+            $this->renewalError = match (true) {
+                isset($exception->errors()['activation']) => 'پرداخت فعلاً آماده نیست؛ مبلغی برداشت نشد.',
+                isset($exception->errors()['plan']) => 'مشخصات سرویس تغییر کرده است؛ مبلغی برداشت نشد.',
+                default => 'پرداخت انجام نشد. وضعیت سفارش و اعتبار را دوباره بررسی کنید.',
+            };
+        } catch (Throwable $exception) {
+            report($exception);
+            $this->renewalError = 'وضعیت پرداخت مشخص نیست. ابتدا وضعیت سفارش و اعتبارتان را بررسی کنید.';
+        }
+    }
+
+    public function cancelRenewal(): void
+    {
+        $this->forgetRenewalConfirmation($this->resellerId());
+        $this->renewalPreview = null;
+        $this->renewalError = null;
+    }
+
+    private function forgetRenewalConfirmation(int $buyerId): void
+    {
+        if ($this->selectedServiceOrderId !== null && $this->renewalConfirmToken !== null) {
+            $order = app(OrderReader::class)->latestRenewalForSource($buyerId, $this->selectedServiceOrderId);
+            if ($order !== null) {
+                Cache::forget(self::walletConfirmationKey($buyerId, $order->id, $this->renewalConfirmToken));
+            }
+        }
+
+        $this->renewalConfirmToken = null;
+        $this->renewalConfirmAmountRials = null;
+        $this->renewalConfirmBalanceRials = null;
+    }
+
     private function resetServiceDetail(): void
     {
+        $this->forgetRenewalConfirmation($this->resellerId());
+        $this->renewalPreview = null;
+        $this->renewalError = null;
         $this->selectedServiceOrderId = null;
         $this->serviceDetailError = null;
         $this->serviceLiveUsage = null;
@@ -666,6 +881,8 @@ final class Dashboard extends Component
             'services' => [],
             'labels' => [],
             'selectedService' => null,
+            'renewalAvailable' => false,
+            'renewalOrder' => null,
             'nextServiceCursor' => null,
             'report' => null,
             'readError' => false,
@@ -754,6 +971,12 @@ final class Dashboard extends Component
                         SubscriptionViewer::web(), $this->selectedServiceOrderId,
                     );
                     $data['selectedService'] = $detail;
+                    $data['renewalAvailable'] = app(PrepareRenewalDraft::class)->available(
+                        SubscriptionViewer::web(), $detail->summary->orderId,
+                    );
+                    $data['renewalOrder'] = app(OrderReader::class)->latestRenewalForSource(
+                        $userId, $detail->summary->orderId,
+                    );
                     $data['labels'] = app(ManageResellerServiceLabels::class)->forOrders(
                         $userId, [$detail->summary->orderId],
                     );

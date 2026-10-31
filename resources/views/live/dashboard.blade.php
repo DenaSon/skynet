@@ -486,6 +486,75 @@
                                 </p>
                             @endif
                         </section>
+
+                        @if ($renewalAvailable || $renewalOrder !== null)
+                            <section class="mt-5 rounded-[26px] border border-[#CCEDE4] bg-white p-5 shadow-sm sm:p-7" aria-label="تمدید سرویس">
+                                <h3 class="text-base font-extrabold text-[#1B2935]">تمدید سرویس</h3>
+                                <p class="mt-2 text-xs leading-7 text-[#71818B]">تمدید روی همین اشتراک انجام می‌شود؛ لینک و تنظیمات اتصال مشتری تغییر نمی‌کند.</p>
+
+                                @if ($renewalError)
+                                    <p role="alert" class="mt-5 rounded-xl bg-[#FFF9F1] p-4 text-sm leading-7 text-[#845C23]">{{ $renewalError }}</p>
+                                @endif
+
+                                @if ($renewalOrder !== null)
+                                    @php
+                                        $renewalStatus = match ($renewalOrder->status) {
+                                            'pending_payment' => 'در انتظار پرداخت',
+                                            'paid' => 'پرداخت ثبت شده؛ در انتظار اعمال تمدید',
+                                            'fulfilled' => 'تمدید در سوابق ثبت شده است',
+                                            'needs_review' => 'نیازمند بررسی',
+                                            'failed' => 'نیازمند پیگیری',
+                                            default => 'وضعیت سفارش را بررسی کنید',
+                                        };
+                                    @endphp
+                                    <div class="mt-5 rounded-2xl bg-[#F6F8FA] p-4 text-sm">
+                                        <p class="font-bold text-[#1B2935]">آخرین سفارش تمدید #{{ $renewalOrder->id }}</p>
+                                        <p class="mt-2 font-semibold text-[#536C76]">{{ $renewalStatus }}</p>
+                                        <div class="mt-3 flex flex-wrap justify-between gap-2 border-t border-[#E7ECEF] pt-3">
+                                            <span class="text-[#71818B]">مبلغ سفارش</span>
+                                            <span class="font-bold text-[#087F73]">{{ number_format(intdiv($renewalOrder->totalPriceRials, 10)) }}{{ $renewalOrder->totalPriceRials % 10 === 0 ? '' : '.'.($renewalOrder->totalPriceRials % 10) }} تومان</span>
+                                        </div>
+                                    </div>
+                                    @if ($renewalOrder->status === 'paid')
+                                        <p class="mt-3 text-xs leading-7 text-[#71818B]">مبلغ از اعتبار کسر شده است؛ اعمال تمدید در شبکه ممکن است زمان ببرد. از پرداخت مجدد خودداری کنید.</p>
+                                    @elseif ($renewalOrder->status === 'pending_payment')
+                                        <p class="mt-3 text-xs leading-7 text-[#71818B]">تا زمان تأیید پرداخت، مبلغی از اعتبار شما کسر نمی‌شود.</p>
+                                        @if ($renewalConfirmToken !== null && $renewalConfirmAmountRials !== null && $renewalConfirmBalanceRials !== null)
+                                            <div class="mt-5 rounded-2xl border border-[#CCEDE4] bg-[#F3FBF8] p-4 text-sm">
+                                                <h4 class="font-extrabold text-[#1B2935]">تأیید پرداخت تمدید</h4>
+                                                <div class="mt-4 flex justify-between gap-2"><span>مبلغ برداشت</span><span class="font-bold">{{ number_format(intdiv($renewalConfirmAmountRials, 10)) }} تومان</span></div>
+                                                <div class="mt-3 flex justify-between gap-2"><span>اعتبار فعلی</span><span class="font-bold">{{ number_format(intdiv($renewalConfirmBalanceRials, 10)) }} تومان</span></div>
+                                                <div class="mt-3 flex justify-between gap-2 border-t border-[#CCEDE4] pt-3"><span>اعتبار پس از پرداخت</span><span class="font-bold">{{ number_format(intdiv($renewalConfirmBalanceRials - $renewalConfirmAmountRials, 10)) }} تومان</span></div>
+                                                <p class="mt-3 text-xs leading-6 text-[#536C76]">با تأیید، مبلغ فقط یک بار برداشت می‌شود. تمدید سرویس پس از پردازش جداگانه تکمیل خواهد شد.</p>
+                                                <button type="button" wire:click="confirmRenewalPayment" wire:loading.attr="disabled" wire:target="confirmRenewalPayment" class="mt-5 min-h-12 w-full rounded-xl bg-[#14B8A6] px-4 py-3 text-sm font-bold text-white disabled:opacity-60">تأیید و پرداخت تمدید</button>
+                                                <button type="button" wire:click="cancelRenewal" class="mt-3 min-h-11 w-full rounded-xl border border-[#D9E4E7] bg-white px-4 text-sm font-semibold text-[#536C76]">انصراف</button>
+                                            </div>
+                                        @elseif (config('sales.renewal_enabled', false) === true && config('sales.wallet_settlement_enabled') === true)
+                                            <button type="button" wire:click="prepareRenewalPayment" wire:loading.attr="disabled" wire:target="prepareRenewalPayment" class="mt-5 min-h-12 w-full rounded-xl bg-[#14B8A6] px-4 py-3 text-sm font-bold text-white disabled:opacity-60">پرداخت تمدید با اعتبار</button>
+                                        @else
+                                            <p class="mt-4 text-xs text-[#71818B]">پرداخت تمدید فعلاً در دسترس نیست.</p>
+                                        @endif
+                                    @endif
+                                @endif
+
+                                @if ($renewalPreview !== null)
+                                    <div class="mt-5 rounded-2xl border border-[#CCEDE4] bg-[#F3FBF8] p-5">
+                                        <h4 class="text-sm font-extrabold text-[#1B2935]">پیشنهاد تمدید</h4>
+                                        <p class="mt-3 text-sm text-[#536C76]">{{ $renewalPreview['name'] }} · {{ number_format($renewalPreview['days']) }} روز{{ $renewalPreview['gb'] === null ? ' · حجم نامحدود' : ' · '.number_format($renewalPreview['gb']).' گیگابایت' }}</p>
+                                        <p class="mt-4 text-2xl font-extrabold text-[#087F73]">{{ number_format(intdiv($renewalPreview['amount'], 10)) }}{{ $renewalPreview['amount'] % 10 === 0 ? '' : '.'.($renewalPreview['amount'] % 10) }} <span class="text-xs font-medium">تومان</span></p>
+                                        <p class="mt-3 text-xs leading-7 text-[#536C76]">مبلغ با نرخ فعلی محاسبه شده است. ثبت سفارش و پرداخت دو مرحله جدا هستند.</p>
+                                        @if (config('sales.renewal_enabled', false) === true)
+                                            <button type="button" wire:click="createServiceRenewal" wire:loading.attr="disabled" wire:target="createServiceRenewal" class="mt-5 min-h-12 w-full rounded-xl bg-[#14B8A6] px-4 py-3 text-sm font-bold text-white disabled:opacity-60">تأیید و ثبت سفارش تمدید</button>
+                                        @else
+                                            <p class="mt-4 text-xs text-[#845C23]">ثبت سفارش تمدید فعلاً در دسترس نیست.</p>
+                                        @endif
+                                        <button type="button" wire:click="cancelRenewal" class="mt-3 min-h-11 w-full rounded-xl border border-[#D9E4E7] px-4 text-sm font-semibold text-[#536C76]">بازگشت</button>
+                                    </div>
+                                @elseif ($renewalAvailable && ($renewalOrder === null || ! in_array($renewalOrder->status, ['pending_payment', 'paid'], true)))
+                                    <button type="button" wire:click="previewServiceRenewal" wire:loading.attr="disabled" wire:target="previewServiceRenewal" class="mt-5 min-h-12 w-full rounded-xl bg-[#EAF8F4] px-5 py-3 text-sm font-bold text-[#087F73] disabled:opacity-60">بررسی قیمت تمدید</button>
+                                @endif
+                            </section>
+                        @endif
                     @else
                         @if ($serviceDetailError)
                             <p role="alert" class="mb-5 rounded-xl bg-[#FFF9F1] p-4 text-sm leading-7 text-[#845C23]">{{ $serviceDetailError }}</p>
