@@ -198,6 +198,18 @@ Deliver a **premium, minimal, Persian-first, Apple-inspired, Telegram-native-fee
 - Only markup/CSS/public assets/test/doc changes; no dependencies, JavaScript initialization, auth/session change, financial/provider operation, migration, new page or navigation refactor. Brand PNG has no remote network dependency. Entry stays independently renderable without Vite, and Telegram `initData`/CSRF flow is unchanged.
 - Acceptance checks: file signatures, raster dimensions, intentional independent SVG type, all three UI placements, mobile/desktop title, RTL+four tabs unchanged, no fake network status, reduced-motion fallback, signed entry and authenticated reseller rendering. Run full PHP 8.4 Pest, Pint, PHPStan and Vite build; inspect final PR and post-merge CI; physical Telegram client P4 matrix **still pending**. Rollback = revert only this brand patch PR, no data migration.
 
+### Final operator-approved post-P4 report polish (2026-10-31)
+
+**Independent PR:** [#327](https://github.com/DenaSon/skynet/pull/327), based on merged brand patch `17150866`. Pure display refinement inside **only** `@elseif ($section === 'reports')` in `resources/views/live/dashboard.blade.php`, plus a focused report regression test and this documentation. No code, database, migration, package, settings, runtime CSS, shared P0 primitive, Application Action, Provider, payment, checkout, nav, service list or credit change. Rollback = revert PR #327.
+
+**Layout / UX acceptance contract:**
+- **Header/period selection:** Reseller-focused subtitle and compact 7/30-day period selector, with original `selectReportDays` Livewire action, `wire:loading.attr="disabled"`, `aria-pressed`, accessible `role=group`, and a **single** scoped delayed report loading notice.
+- **Primary KPI:** Restrained DenaGate green gradient/card for `revenueRials / 10` in **toman**, retaining numeric LTR isolation and the actual existing Persian `from`/`to` dates in **Tehran**. No unverified comparison, trend direction, revenue prediction or proxy for turnover.
+- **Historical window:** Exactly the original `sales` (خریدهای جدید), `renewals` (تمدیدها), and `transactions` (تراکنش‌های تأییدشده) counts, grouped with a caption explicitly tied to the selected 7- or 30-day period.
+- **Current snapshot:** Exactly the original `pending` (سفارش‌های در انتظار پرداخت), `services` (کل سرویس‌های ثبت‌شده), and `namedServices` (سرویس‌های دارای نام) counts, visually separated and **not** represented as historical-window figures. Distinction is visible in group headings and explanation.
+- **Responsive quality:** Compact two-column mobile cards, three-column desktop cards, wrapped Persian labels, clear number hierarchy, high-contrast text and existing font, button size, focus, RTL and reduced-motion baselines. No icon library, JS, CSS or chart engine.
+- **Automated proof:** New tests exercise authenticated reseller report page, both 7/30 switches, semantic grouping/labels, original fields and conversion expression, no billing/order/provider writes, and no remote HTTP calls. All pre-existing action/ownership, signed entry, report and operational tests must pass in full PR CI and post-merge master CI. **Physical iOS/Android/Desktop validation of the new report appearance remains operator smoke, not assumed from automated tests**.
+
 ## 8. Mandatory per-PR delivery and completion contract
 
 1. Read the latest master code and the sources above; identify precise files, current UI state, constraints and **one phase only**. If changes require new architecture, settings, dependencies or business behavior, **stop for explicit approval**.
