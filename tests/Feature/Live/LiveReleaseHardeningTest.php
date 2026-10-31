@@ -33,7 +33,7 @@ function live6bOwner(): User
 
 it('prevents caches and referrer disclosure on the private Live entry and dashboard only', function (): void {
     $this->get('http://live.denagate.ir/')->assertOk()
-        ->assertHeader('Cache-Control', 'private, no-store')
+        ->assertHeader('Cache-Control', 'no-store, private')
         ->assertHeader('Referrer-Policy', 'no-referrer')
         ->assertHeader('X-Content-Type-Options', 'nosniff')
         ->assertSee('telegram-web-app.js');
@@ -42,7 +42,7 @@ it('prevents caches and referrer disclosure on the private Live entry and dashbo
     $this->actingAs($owner)->withSession(['denagate_live.user_id' => $owner->id])
         ->get('http://live.denagate.ir/dashboard')
         ->assertOk()
-        ->assertHeader('Cache-Control', 'private, no-store')
+        ->assertHeader('Cache-Control', 'no-store, private')
         ->assertHeader('Referrer-Policy', 'no-referrer')
         ->assertHeader('X-Content-Type-Options', 'nosniff')
         ->assertSeeLivewire(Dashboard::class);
