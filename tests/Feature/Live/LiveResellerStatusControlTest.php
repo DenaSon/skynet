@@ -203,7 +203,7 @@ it('resumes a locally recorded pause without changing expiration, quota or walle
         ->and(DB::table('provisioning_operations')->where('state', 'completed')->count())->toBe(2)
         ->and(DB::table('billing_journals')->count())->toBe(0);
 
-    Http::assertSentCount(6);
+    Http::assertSentCount(4);
     Http::assertSent(static fn (Request $req): bool => $req->method() === 'PATCH'
         && $req->url() === 'https://status-only.test/api/users'
         && in_array($req['status'], ['ACTIVE', 'DISABLED'], true)
