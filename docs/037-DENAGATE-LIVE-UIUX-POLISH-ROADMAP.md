@@ -23,7 +23,7 @@ Deliver a **premium, minimal, Persian-first, Apple-inspired, Telegram-native-fee
 
 | Phase | PR | Result | State / prerequisite |
 | --- | --- | --- | --- |
-| **P0 — UI Foundation** | 1 | 10 scoped Tailwind primitives + minimal design tokens and usage guidance | **Approved to start**; source changes not yet implemented |
+| **P0 — UI Foundation** | [#320](https://github.com/DenaSon/skynet/pull/320) | 10 scoped Tailwind primitives + minimal design tokens and usage guidance | Implementation delivered in scoped PR; CI/merge evidence at PR; Telegram client QA pending |
 | **P1 — UX Writing** | 1 | Consistent Persian labels, statuses, CTA and empty/error text | Planned; only after P0 accepted and separately approved |
 | **P2A — Visual Refinement: overview/shop/credit** | 1 | Use P0 primitives consistently on overview, quote, checkout and credit | Planned; after P1 and separate approval |
 | **P2B — Visual Refinement: services/reports** | 1 | Use primitives for service list/detail, connection, usage, pause/resume, renewal, reports | Planned; after P2A and separate approval |
@@ -61,6 +61,16 @@ Deliver a **premium, minimal, Persian-first, Apple-inspired, Telegram-native-fee
 3. Primary/secondary buttons, field, navigation and semantic status have legible default/focus/disabled states, RTL-friendly spacing and accessible contrast; `prefers-reduced-motion` remains respected.
 4. Existing UI routes, buttons and Livewire interactions are preserved; source regression tests + PHP 8.4, PHPStan, Pint pass, with Telegram device visual check separately recorded.
 5. Scoped PR + rollback by reverting CSS/docs only. No production flags/Provider/billing writes.
+
+### P0 implementation contract and handoff (2026-10-31)
+
+- **Source PR:** [#320](https://github.com/DenaSon/skynet/pull/320). The PR's checks, final diff and GitHub merge commit are the authoritative release references; do not infer a live-device pass from CI. **Production Telegram iOS/Android/Desktop visual smoke remains pending operator verification.** Later phases still require explicit approval.
+- **Changed surfaces:** `resources/css/app.css` and focused `tests/Feature/Live/LiveUiFoundationTest.php`; no changes to Blade, Livewire Actions, the standalone no-Vite `entry.blade.php`, authentication, navigation or financial/Provider behavior. Revert #320 for CSS/test/docs rollback.
+- **Design tokens:** Tailwind v4 `@theme` exposes `--color-dg-primary` (#14B8A6), `--color-dg-action` (#087F73), `--color-dg-canvas` (#F6F8FA), `--color-dg-ink` (#1B2935), and `--color-dg-border` (#E7ECEF). Namespaced tokens do not restyle existing pages; all ten component selectors are prefixed with `.denagate-live` and live in `@layer components`. The accessible action teal, not bright brand teal, is used behind white button text.
+- **Use only when adopting in P2:** `dg-card` for normal white content and `dg-card-accent` for one restrained tinted highlight; `dg-stat` **only on the numeric/currency fragment** (LTR isolate with tabular digits); `dg-heading` for readable section titles; `dg-empty` for empty content with truthful text and any existing recovery CTA.
+- **Actions/fields:** `dg-btn-primary` for the single main action; `dg-btn-secondary` for neutral/back; `dg-field` on native input/select/textarea elements. Buttons and fields have 44px minimum touch height, keyboard `:focus-visible`, hover and native `:disabled`; fields expose an invalid border via `aria-invalid="true"` and disabled styling. Real disabled behavior and authorization must still be enforced by HTML/Livewire/Application Actions, **not by CSS**.
+- **Truthful status/navigation:** `dg-status` needs an explicit human-readable status label, optionally `data-tone="success|warning|danger"`; the tone alone never claims provider health or settlement. `dg-nav-item` uses `aria-current="page"` for the active destination. Avoid relying solely on color. Focus outlines, usable text contrast, RTL-compatible layout and the existing reduced-motion CSS are preserved.
+- **Evidence boundary:** PHP 8.4 Pest, PHPStan, Pint, MySQL/Redis as selected by CI, and the Vite production manifest are verified from the linked GitHub checks after the final PR head. Browser/client interaction and visual contrast on actual devices require separate operator smoke; no live checkout or Provider mutation is authorized by P0.
 
 ## 4. P1 — UX Writing & Content Polish (planned)
 
