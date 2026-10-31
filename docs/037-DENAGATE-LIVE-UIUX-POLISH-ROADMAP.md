@@ -2,7 +2,7 @@
 
 > **Decision: 2026-10-31.** This is the normative handoff/checklist for the **new Polish sequence**, not the historical LIVE-0/1 phases documented in [033](033-DENAGATE-LIVE-MINIAPP.md) or the original product Epics in [034](034-DENAGATE-LIVE-EPICS-ROADMAP.md).
 >
-> **Approval state (2026-10-31):** P0 merged as [#320](https://github.com/DenaSon/skynet/pull/320) (`7e8efcdf`), P1 merged as [#321](https://github.com/DenaSon/skynet/pull/321) (`65e786ce`), and the operator separately authorized **P2A and P2B Visual Refinement** in sequence. P3 and P4 still require independent phase approval. No Polish PR authorizes production financial/Provider operations.
+> **Approval state (2026-10-31):** P0 merged as [#320](https://github.com/DenaSon/skynet/pull/320) (`7e8efcdf`), P1 merged as [#321](https://github.com/DenaSon/skynet/pull/321) (`65e786ce`), and the operator separately authorized **P2A, P2B and P3** in sequence. P4 still requires independent phase approval. No Polish PR authorizes production financial/Provider operations.
 >
 > **Source-of-truth order:** latest `master` code, `AGENTS.md`, `docs/000-CONTEXT.md`, `docs/005-ROADMAP.md`, `docs/017-TELEGRAM-UX-IDENTITY.md`, `docs/018-REMNAWAVE-STAGING-MULTIBOT-ROADMAP.md`, `docs/033-DENAGATE-LIVE-MINIAPP.md`, `docs/034-DENAGATE-LIVE-EPICS-ROADMAP.md`, then this Polish-specific scope. Refresh the branch/implementation inventory before each PR; historical docs do not override current code.
 
@@ -27,7 +27,7 @@ Deliver a **premium, minimal, Persian-first, Apple-inspired, Telegram-native-fee
 | **P1 — UX Writing** | [#321](https://github.com/DenaSon/skynet/pull/321) | Consistent Persian labels, truthful statuses, compact copy and focused tests | Merged `65e786ce`; PR/post-merge CI green; device QA separate |
 | **P2A — Visual Refinement: overview/shop/credit** | [#322](https://github.com/DenaSon/skynet/pull/322) | Use P0 primitives consistently on overview, quote, checkout and credit | Merged `cc973ea3`; PR/post-merge CI green; device QA separate |
 | **P2B — Visual Refinement: services/reports** | [#323](https://github.com/DenaSon/skynet/pull/323) | Use primitives for service list/detail, connection, usage, pause/resume, renewal, reports | Operator-approved; independent scoped PR/CI gate; device QA separate |
-| **P3 — Interaction & Feedback** | 1 | Action-level loading, disabled states, navigation, meaningful success/error feedback | Planned; after P2B and separate approval |
+| **P3 — Interaction & Feedback** | [#324](https://github.com/DenaSon/skynet/pull/324) | Action-scoped disabled/loading feedback, contextual confirmations, accessible hints, safe copy recovery | Independently approved; PR/CI and merge gate; device QA separate |
 | **P4 — Telegram Mobile Experience & Final QA** | 1 | iOS/Android/Desktop Telegram touch/safe-area/keyboard/back/accessibility audit | Planned; after P3 and separate approval |
 
 **Total target: 5 phases, 6 small PRs** (P2 split into A and B). Never implement all phases in one PR; every phase has independent review, regression checks, rollout notes and revert path. Request approval before changing these boundaries.
@@ -144,6 +144,18 @@ Deliver a **premium, minimal, Persian-first, Apple-inspired, Telegram-native-fee
 - Improve field validation hints, copy result feedback, empty/error recovery and keyboard-focus behavior; avoid nested/conflicting Livewire/Alpine state, global spinners, automatic retries or background polling.
 - **Acceptance:** test fast double-taps, slow/failed updates, cancellation, stale confirmation/revoked role and errors with existing fail-closed rules; no double charge, new order, duplicate Provider request or misleading success, no extra packages or business logic changes.
 
+### P3 delivery checkpoint — Interaction & Feedback (2026-10-31)
+
+**Scoped PR:** [#324](https://github.com/DenaSon/skynet/pull/324). Base = P2B merged master `54393f77`. Completion, CI and merge status must be verified from GitHub; this note alone is not a successful deploy or real-device sign-off.
+
+- **Per-action request state:** all existing Livewire `wire:click` buttons in the Live dashboard get explicit `wire:loading.attr="disabled"` and a scoped `wire:target`. High-latency, write or sensitive controls show a delayed inline progress label (quote, order, wallet, label, credential reveal, on-demand usage, pause/resume, renewal, paging, reporting). The existing global loading pill is removed. No polling, new state machine, JS dependency, background retry or side effects in loading UI.
+- **Race prevention:** primary submit/confirm and the relevant cancel controls are disabled during the corresponding payment/status/renewal request. This is presentation-level defense only. Existing one-use owner-bound cache confirmation, unique intent, transaction idempotency, role verification and queued Provider actions remain the authoritative security boundaries; no server-side business change.
+- **Specific confirmations:** new-order wallet review names the **exact order and product** alongside the pre-existing amount/current/remaining balance; status confirmation names the **exact owner-bound service and order** and explicitly says result requires later verification; renewal wallet review names its current service and renewal order. No status becomes successful merely on enqueue.
+- **Field help:** buyer/customer label and builder day/GB inputs have visible hints linked with `aria-describedby`, preserving existing validation, prices and error notifications.
+- **Copy and recover:** the guarded subscription reveal keeps the URL+QR owner gate unchanged. The Alpine copy control disables while copying, shows success only after Clipboard API/fallback succeeds, displays a readable failure message when copy is unavailable and allows manually selecting the readonly link. It makes no provider call or automatic copy on reveal.
+- **Minimal code scope:** `resources/views/live/dashboard.blade.php` plus focused tests and this document only. No PHP Application Action/Livewire class mutation, migration, CSS, bot, dependency, SDK or API changes. All `wire:click` parameter values, four-tab navigation, six-item services cursor, ten-item order and wallet bounds and existing fallback links remain untouched.
+- **Proof:** specific P3 markup/accessibility/feedback tests and existing DB-backed service status double-submit and queue-once, stale payment/cancel/no double debit, owner isolation, connection secrecy, and renewal tests must pass with full PHP 8.4 Pest, Pint, PHPStan, MySQL/Redis, and Vite production CI. These test request state and business invariants; they **cannot simulate client double tapping/clipboard permissions or prove Telegram iOS/Android/Desktop interaction**. Operator device smoke and P4 remain pending. Rollback = revert PR #324.
+
 ## 7. P4 — Telegram Mobile Experience & Final QA (planned)
 
 - Test Telegram iOS, Android and Desktop separately: viewport/safe area, fixed bottom navigation, software keyboard and scroll/focus, RTL and very long content, theme/light baseline, WebApp entry/return, readable copy, back/close.
@@ -159,4 +171,4 @@ Deliver a **premium, minimal, Persian-first, Apple-inspired, Telegram-native-fee
 4. Perform/report actual Telegram-client checks separately after deploy. Do not confuse source pass, CI, deploy, browser/client smoke, financial correctness and Provider mutation verification.
 5. Update **this one living document** at the end of each phase: PR link, merge SHA, checks, operator acceptance, pending items, risks and next authorized phase. Report **انجام‌شده / تست‌شده / باقی‌مانده / ریسک‌ها**. Keep earlier phases marked as historical, not silently overwritten.
 
-**Release discipline:** P0/P1/P2A are merged; P2B was independently approved as a separate PR. P3 and P4 require explicit operator go/no-go. Approval of one phase never authorizes the next. Do not label the whole Polish “complete” until every phase meets its own acceptance criteria and remaining real-device checks are recorded.
+**Release discipline:** P0/P1/P2A/P2B are merged; P3 was independently approved as a separate PR. P4 requires explicit operator go/no-go. Approval of one phase never authorizes the next. Do not label the whole Polish “complete” until every phase meets its own acceptance criteria and remaining real-device checks are recorded.
