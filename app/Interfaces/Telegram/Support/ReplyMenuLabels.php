@@ -24,6 +24,8 @@ final class ReplyMenuLabels
 
     public const SALES_REPORTS = '📊 گزارش‌های من';
 
+    public const SALES_APP = '📱 اپلیکیشن';
+
     public const BUY = '🛒 خرید اشتراک';
 
     public const SUBSCRIPTIONS = '📦 سرویس‌های من';
