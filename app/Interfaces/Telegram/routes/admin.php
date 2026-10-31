@@ -57,6 +57,17 @@ $bot->onCallbackQueryData('admin:welcome:cancel', function (Nutgram $bot): void 
     app(SettingsHandler::class)->cancel($bot);
 });
 
+// Root-only runtime switch for reseller service pause/resume. No Provider write in these callbacks.
+$bot->onCallbackQueryData('admin:reseller-status:show', function (Nutgram $bot): void {
+    app(SettingsHandler::class)->resellerStatus($bot);
+});
+$bot->onCallbackQueryData('admin:reseller-status:prepare:{state}', function (Nutgram $bot, string $state): void {
+    app(SettingsHandler::class)->prepareResellerStatus($bot, $state);
+});
+$bot->onCallbackQueryData('admin:reseller-status:apply:{token}', function (Nutgram $bot, string $token): void {
+    app(SettingsHandler::class)->applyResellerStatus($bot, $token);
+});
+
 // Opt-in private notification Topic; unrelated to business callbacks or billing.
 $bot->onCommand('adminnotifications', function (Nutgram $bot): void {
     app(AdminNotificationTopicUi::class)->show($bot);

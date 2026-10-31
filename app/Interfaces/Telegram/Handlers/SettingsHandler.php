@@ -9,6 +9,7 @@ use App\Interfaces\Telegram\Support\PrivateTelegramUser;
 use App\Interfaces\Telegram\Support\TelegramUi;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\TelegramActor;
+use App\Settings\ResellerServiceStatusSettings;
 use App\Settings\SalesWelcomeSettings;
 use Illuminate\Support\Facades\Cache;
 use SergiX44\Nutgram\Nutgram;
@@ -49,9 +50,128 @@ final class SettingsHandler
         $keyboard = InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('👤 خوشامدگویی کاربر عادی', callback_data: 'admin:welcome:edit:member'))
             ->addRow(InlineKeyboardButton::make('🧩 خوشامدگویی نماینده', callback_data: 'admin:welcome:edit:reseller'))
+            ->addRow(InlineKeyboardButton::make('🔐 مدیریت سرویس توسط نماینده', callback_data: 'admin:reseller-status:show'))
             ->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
 
-        $this->render($bot, '<b>⚙️ تنظیمات</b>'."\n\nمتن خوشامدگویی موردنظر را برای ویرایش انتخاب کنید.", $keyboard);
+        $this->render($bot, '<b>⚙️ تنظیمات</b>'."\n\nبخش موردنظر را انتخاب کنید.", $keyboard);
+    }
+
+
+    /** Root-only control for the reseller Mini App; no Provider operation here. */
+    public function resellerStatus(Nutgram $bot): void
+    {
+        if (! $this->authorized($bot)) {
+            return;
+        }
+
+        try {
+            $enabled = app(ResellerServiceStatusSettings::class)->enabled;
+        } catch (Throwable $exception) {
+            report($exception);
+            $this->render($bot, 'تنظیمات فعلاً در دسترس نیست. لطفاً دوباره تلاش کنید.', $this->resellerStatusBack());
+
+            return;
+        }
+
+        $status = $enabled ? '🟢 فعال' : '⚪ غیرفعال';
+        $keyboard = InlineKeyboardMarkup::make()
+            ->addRow(
+                InlineKeyboardButton::make('✅ فعال', callback_data: 'admin:reseller-status:prepare:on'),
+                InlineKeyboardButton::make('⏸️ غیرفعال', callback_data: 'admin:reseller-status:prepare:off'),
+            )
+            ->addRow(InlineKeyboardButton::make('◀️ تنظیمات', callback_data: 'admin:welcome:show'));
+
+        $this->render($bot, '<b>🔐 مدیریت سرویس توسط نماینده</b>'
+            ."\n\nوضعیت فعلی: ".$status
+            ."\n\nبا فعال‌سازی، نمایندگان می‌توانند سرویس‌های مشتریان خود را موقتاً غیرفعال و در شرایط مجاز دوباره فعال کنند."
+            ."\nزمان انقضا و حجم سرویس تغییر نمی‌کند.",
+            $keyboard);
+    }
+
+    public function prepareResellerStatus(Nutgram $bot, string $state): void
+    {
+        if (! $this->authorized($bot) || ! in_array($state, ['on', 'off'], true)) {
+            return;
+        }
+
+        $id = $this->privateUser->id($bot);
+        if ($id === null) {
+            return;
+        }
+
+        try {
+            $current = app(ResellerServiceStatusSettings::class)->enabled;
+        } catch (Throwable $exception) {
+            report($exception);
+            $this->render($bot, 'تنظیمات فعلاً در دسترس نیست.', $this->resellerStatusBack());
+
+            return;
+        }
+
+        $desired = $state === 'on';
+        if ($current === $desired) {
+            $this->resellerStatus($bot);
+
+            return;
+        }
+
+        $token = bin2hex(random_bytes(16));
+        Cache::put($this->resellerStatusTokenKey($id, $token), $state, now()->addMinutes(3));
+
+        $action = $desired ? 'فعال‌سازی' : 'غیرفعال‌سازی';
+        $this->render($bot, '<b>تأیید '.$action.'</b>'
+            ."\n\nآیا تغییر دسترسی نمایندگان به مدیریت وضعیت سرویس را تأیید می‌کنید؟"
+            ."\nاین اقدام وضعیت سرویس‌های موجود را تغییر نمی‌دهد.",
+            InlineKeyboardMarkup::make()
+                ->addRow(InlineKeyboardButton::make('✅ تأیید', callback_data: 'admin:reseller-status:apply:'.$token))
+                ->addRow(InlineKeyboardButton::make('◀️ انصراف', callback_data: 'admin:reseller-status:show')));
+    }
+
+    public function applyResellerStatus(Nutgram $bot, string $token): void
+    {
+        if (! $this->authorized($bot) || preg_match('/\\A[a-f0-9]{32}\\z/D', $token) !== 1) {
+            return;
+        }
+
+        $id = $this->privateUser->id($bot);
+        if ($id === null) {
+            return;
+        }
+
+        $key = $this->resellerStatusTokenKey($id, $token);
+        try {
+            $state = Cache::lock($key.':lock', 10)->block(2, static function () use ($key): mixed {
+                return Cache::pull($key);
+            });
+
+            if (! in_array($state, ['on', 'off'], true)) {
+                $this->render($bot, 'این تأیید قبلاً استفاده شده یا منقضی است.', $this->resellerStatusBack());
+
+                return;
+            }
+
+            $settings = app(ResellerServiceStatusSettings::class);
+            $settings->enabled = $state === 'on';
+            $settings->save();
+        } catch (Throwable $exception) {
+            report($exception);
+            $this->render($bot, 'ذخیره تنظیمات موفق نبود. دوباره تلاش کنید.', $this->resellerStatusBack());
+
+            return;
+        }
+
+        $this->resellerStatus($bot);
+    }
+
+    private function resellerStatusTokenKey(int $id, string $token): string
+    {
+        return 'admin:reseller-status:confirmation:'.$id.':'.$token;
+    }
+
+    private function resellerStatusBack(): InlineKeyboardMarkup
+    {
+        return InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('◀️ تنظیمات', callback_data: 'admin:welcome:show'));
     }
 
     public function edit(Nutgram $bot, string $kind): void

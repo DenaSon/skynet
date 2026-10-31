@@ -510,7 +510,7 @@
                             @endif
                         </section>
 
-                        @if (config('denagate_live.reseller_status_enabled') === true
+                        @if ($resellerServiceStatusEnabled === true
                             && (($serviceLiveUsage['status'] ?? null) === 'active'
                                 || ($serviceLiveUsage['status'] ?? null) === 'disabled'
                                 || $serviceStatusConfirmToken !== null || $serviceStatusNotice !== null || $serviceStatusError !== null))

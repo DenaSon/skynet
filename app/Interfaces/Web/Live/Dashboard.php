@@ -314,7 +314,7 @@ final class Dashboard extends Component
 
         if ($this->section !== 'services' || $orderId === null || $token === null
             || ! in_array($mode, ['enable', 'disable'], true)
-            || config('denagate_live.reseller_status_enabled') !== true) {
+            || ! app(ManageResellerSubscriptionStatus::class)->enabled()) {
             $this->serviceStatusError = 'درخواست منقضی شده است. دوباره وضعیت سرویس را بررسی کنید.';
 
             return;
@@ -1023,6 +1023,7 @@ final class Dashboard extends Component
             'labels' => [],
             'selectedService' => null,
             'serviceStatusCanResume' => false,
+            'resellerServiceStatusEnabled' => false,
             'renewalAvailable' => false,
             'renewalOrder' => null,
             'nextServiceCursor' => null,
@@ -1113,7 +1114,8 @@ final class Dashboard extends Component
                         SubscriptionViewer::web(), $this->selectedServiceOrderId,
                     );
                     $data['selectedService'] = $detail;
-                    if (config('denagate_live.reseller_status_enabled') === true
+                    $data['resellerServiceStatusEnabled'] = app(ManageResellerSubscriptionStatus::class)->enabled();
+                    if ($data['resellerServiceStatusEnabled'] === true
                         && ($this->serviceLiveUsage['status'] ?? null) === 'disabled') {
                         try {
                             $data['serviceStatusCanResume'] = app(ManageResellerSubscriptionStatus::class)

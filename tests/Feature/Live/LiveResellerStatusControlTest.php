@@ -8,6 +8,7 @@ use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Application\ManageResellerSubscriptionStatus;
 use App\Modules\Provisioning\Jobs\ChangeResellerSubscriptionStatusJob;
 use App\Modules\Sales\Application\CalculatePlanQuote;
+use App\Settings\ResellerServiceStatusSettings;
 use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\CreatePendingPlanOrder;
 use App\Modules\Sales\Application\ManagePlanPricing;
@@ -31,7 +32,9 @@ beforeEach(function (): void {
     $this->withoutVite();
     $this->travelTo(now()->startOfSecond());
     config()->set('denagate_live.enabled', true);
-    config()->set('denagate_live.reseller_status_enabled', true);
+    $settings = app(ResellerServiceStatusSettings::class);
+    $settings->enabled = true;
+    $settings->save();
     config()->set('services.remnawave.writes_enabled', true);
     config()->set('services.remnawave.url', 'https://status-only.test');
     config()->set('services.remnawave.token', 'fake-status-token');
@@ -127,7 +130,9 @@ function status6bProvider(int $orderId, string &$status): void
 
 it('is disabled by default and never changes Admin provider controls', function (): void {
     $d = status6bFixture();
-    config()->set('denagate_live.reseller_status_enabled', false);
+    $settings = app(ResellerServiceStatusSettings::class);
+    $settings->enabled = false;
+    $settings->save();
     Http::fake();
 
     $this->actingAs($d['buyer'])->withSession(['denagate_live.user_id' => $d['buyer']->id]);
@@ -261,6 +266,65 @@ it('leaves a failed provider PATCH in needs_review without automatic retry or ex
         ->and(DB::table('provisioning_operations')->where('state', 'needs_review')->count())->toBe(1)
         ->and(DB::table('billing_journals')->count())->toBe(0);
     Http::assertSentCount(2);
+    Log::shouldHaveReceived('warning')->with(
+        'denagate_live.reseller_status_needs_review', ['order_id' => $d['order']],
+    )->once();
+});
+
+it('reads the database toggle dynamically and ignores the retired environment flag', function (): void {
+    $d = status6bFixture();
+    $action = app(ManageResellerSubscriptionStatus::class);
+    config()->set('denagate_live.reseller_status_enabled', true);
+
+    expect($action->enabled())->toBeTrue();
+
+    $settings = app(ResellerServiceStatusSettings::class);
+    $settings->enabled = false;
+    $settings->save();
+
+    expect($action->enabled())->toBeFalse()
+        ->and(fn () => $action->authorizeChange($d['buyer']->id, $d['order'], 'disable'))
+        ->toThrow(ValidationException::class);
+
+    $settings->enabled = true;
+    $settings->save();
+    expect($action->enabled())->toBeTrue();
+
+    config()->set('services.remnawave.writes_enabled', false);
+    expect($action->enabled())->toBeFalse();
+    config()->set('services.remnawave.writes_enabled', true);
+    config()->set('denagate_live.enabled', false);
+    expect($action->enabled())->toBeFalse();
+});
+
+it('fails closed without a settings row, before contacting the provider', function (): void {
+    $d = status6bFixture();
+    DB::table('settings')->where('group', 'reseller_service_status')->delete();
+    Http::fake();
+
+    $action = app(ManageResellerSubscriptionStatus::class);
+    expect($action->enabled())->toBeFalse()
+        ->and(fn () => $action->authorizeChange($d['buyer']->id, $d['order'], 'disable'))
+        ->toThrow(ValidationException::class);
+    Http::assertNothingSent();
+});
+
+it('rejects a queued provider job when the super admin has since disabled the setting', function (): void {
+    $d = status6bFixture();
+    Http::fake();
+    $settings = app(ResellerServiceStatusSettings::class);
+    $settings->enabled = false;
+    $settings->save();
+    Log::spy();
+
+    $job = new ChangeResellerSubscriptionStatusJob(
+        $d['buyer']->id, $d['order'], 'disable',
+        'live:status:'.$d['order'].':'.$d['buyer']->id.':'.str_repeat('d', 32),
+    );
+    $job->handle(app(ManageResellerSubscriptionStatus::class));
+    Http::assertNothingSent();
+    expect(DB::table('provisioning_operations')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe(0);
     Log::shouldHaveReceived('warning')->with(
         'denagate_live.reseller_status_needs_review', ['order_id' => $d['order']],
     )->once();
