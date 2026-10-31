@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none" role="img" aria-labelledby="title">
+  <title id="title">DenaGate — نشان برداری مشابه</title>
+  <defs>
+    <linearGradient id="sky" x1="8" y1="7" x2="56" y2="60" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F8FFFF"/><stop offset="1" stop-color="#D8F2FD"/>
+    </linearGradient>
+    <linearGradient id="leaf" x1="17" y1="10" x2="47" y2="51" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#00E6AD"/><stop offset=".44" stop-color="#057E68"/><stop offset="1" stop-color="#003D3A"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="20" y1="20" x2="44" y2="42" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#B2FFE6"/><stop offset="1" stop-color="#0AAC8B"/>
+    </linearGradient>
+    <clipPath id="disc"><circle cx="32" cy="32" r="31"/></clipPath>
+  </defs>
+  <g clip-path="url(#disc)">
+    <circle cx="32" cy="32" r="31" fill="url(#sky)"/>
+    <path d="M15 8h14c16 0 27 11 27 25S45 57 30 57H15V8Z" fill="url(#leaf)"/>
+    <path d="M25 16v30h5c8 0 15-5 15-13 0-9-7-17-20-17Z" fill="#F7FFFE"/>
+    <path d="M16 10c8 3 18 12 26 25l11 19H39C30 37 22 25 16 23V10Z" fill="#023F39"/>
+    <path d="M15 52c11-8 17-18 20-25 5 8 11 18 17 24-10 1-24 1-37 1Z" fill="url(#shine)"/>
+    <path d="M17 13c10 7 17 16 23 27" stroke="#A6FFE2" stroke-width="3" stroke-linecap="round"/>
+  </g>
+  <circle cx="32" cy="32" r="31" stroke="#4AA5D6" stroke-width="2"/>
+</svg>

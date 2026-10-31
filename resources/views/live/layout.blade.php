@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#F6F8FA">
     <meta name="robots" content="noindex, nofollow">
-    <title>DenaGate Live | پنل نمایندگی</title>
+    <title>DenaGate | پنل نمایندگی</title>
     <link rel="preload" href="/fonts/vazirmatn-variable.woff2" as="font" type="font/woff2" crossorigin>
     <script src="https://telegram.org/js/telegram-web-app.js?64"></script>
     @vite(['resources/css/app.css', 'resources/js/live.js'])
