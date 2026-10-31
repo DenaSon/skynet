@@ -56,12 +56,6 @@
                             <span class="h-1.5 w-1.5 rounded-full bg-[#14B8A6]" aria-hidden="true"></span>
                             حساب نماینده
                         </span>
-                        <form method="POST" action="{{ route('denagate-live.logout', [], false) }}">
-                            @csrf
-                            <button type="submit" class="rounded-xl border border-[#E2E8EC] bg-white px-3.5 py-2 text-xs font-semibold text-[#586A78] transition-colors hover:bg-[#F6F8FA] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#14B8A6]">
-                                خروج
-                            </button>
-                        </form>
                     </div>
                 </div>
             </header>
