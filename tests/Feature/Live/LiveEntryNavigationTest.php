@@ -108,7 +108,8 @@ it('discovers Live for authorized resellers in home and account while preserving
         ->assertCalled('sendRichMessage', 1);
     $bot->hearCallbackQueryData('sales:live')->reply()
         ->assertCalled('answerCallbackQuery', 1)
-        ->assertCalled('sendMessage', 1);
+        ->assertCalled('sendMessage', 1)
+        ->assertRaw(static fn (Request $request): bool => (FakeNutgram::getActualData($request)['text'] ?? '') === "✨ پنل هوشمند دناگیت\n\nسرویس‌ها، سفارش‌ها و اعتبارتان را یکجا مدیریت کنید.\n\n💚 برای شروع، دکمه زیر را بزنید.", index: 1);
 
     live6aNoFinancialWrites();
     Http::assertNothingSent();
