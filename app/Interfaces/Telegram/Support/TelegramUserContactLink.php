@@ -42,7 +42,8 @@ final class TelegramUserContactLink
                     ['chat_id' => $user->telegramUserId],
                 );
 
-                if (! $response->successful() || $response->json('ok') !== true) {
+                if (! $response->successful() || $response->json('ok') !== true
+                    || (string) $response->json('result.id') !== (string) $user->telegramUserId) {
                     continue;
                 }
 
