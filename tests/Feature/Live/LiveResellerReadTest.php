@@ -213,5 +213,5 @@ it('searches owned customer names across pages and preserves the filter after de
     expect(DB::table('billing_journals')->count())->toBe($journals);
     Http::assertNothingSent();
     $owner->syncRoles(['member']);
-    $page->set('serviceSearchInput', 'customer')->call('searchServices')->assertForbidden();
+    $page->call('searchServices')->assertForbidden();
 });
