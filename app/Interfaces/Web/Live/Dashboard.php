@@ -13,6 +13,7 @@ use App\Modules\Provisioning\Application\GetSubscriptionLink;
 use App\Modules\Provisioning\Application\GetSubscriptionUsage;
 use App\Modules\Provisioning\Application\ListMyServices;
 use App\Modules\Provisioning\Application\ManageResellerSubscriptionStatus;
+use App\Modules\Provisioning\Application\SubscriptionCursorPage;
 use App\Modules\Provisioning\Jobs\ChangeResellerSubscriptionStatusJob;
 use App\Modules\Sales\Application\CalculatePlanQuote;
 use App\Modules\Sales\Application\CreatePendingRenewalOrder;
@@ -46,6 +47,13 @@ final class Dashboard extends Component
     public int $reportDays = 30;
 
     public ?int $serviceCursor = null;
+
+    public string $serviceSearchInput = '';
+
+    #[Locked]
+    public string $serviceSearchTerm = '';
+
+    public ?string $serviceSearchError = null;
 
     #[Locked]
     public ?int $selectedServiceOrderId = null;
@@ -159,6 +167,57 @@ final class Dashboard extends Component
         }
     }
 
+    public function searchServices(): void
+    {
+        $buyerId = $this->resellerId();
+        $this->serviceSearchError = null;
+        $term = trim($this->serviceSearchInput);
+
+        try {
+            if ($term !== '') {
+                app(ManageResellerServiceLabels::class)->search($buyerId, $term, 6);
+            }
+        } catch (ValidationException) {
+            $this->serviceSearchError = 'نام مشتری را در یک خط و حداکثر ۶۰ نویسه وارد کنید.';
+
+            return;
+        }
+
+        $this->resetServiceDetail();
+        $this->serviceSearchTerm = $term;
+        $this->serviceSearchInput = $term;
+        $this->serviceCursor = null;
+        $this->section = 'services';
+    }
+
+    public function clearServiceSearch(): void
+    {
+        $this->serviceSearchInput = '';
+        $this->searchServices();
+    }
+
+    /** Same owner-scoped page for rendering and detail selection; no Provider GET. */
+    private function servicePage(): SubscriptionCursorPage
+    {
+        $buyerId = $this->resellerId();
+        $viewer = SubscriptionViewer::web();
+        $cursor = $this->serviceCursor;
+        if ($cursor !== null && ($cursor < 1 || $cursor > 999_999_999_999_999)) {
+            $cursor = null;
+        }
+        if ($this->serviceSearchTerm === '') {
+            return app(ListMyServices::class)->handle($viewer, 6, $cursor);
+        }
+
+        $result = app(ManageResellerServiceLabels::class)->search($buyerId, $this->serviceSearchTerm, 6, $cursor);
+        $items = [];
+        foreach ($result['items'] as $item) {
+            $items[] = app(GetMySubscription::class)->handle($viewer, $item['orderId'])->summary;
+        }
+
+        return new SubscriptionCursorPage($items, $result['nextBeforeOrderId']);
+    }
+
     public function nextServices(int $cursor): void
     {
         $this->resellerId();
@@ -187,7 +246,7 @@ final class Dashboard extends Component
         }
 
         $viewer = SubscriptionViewer::web();
-        $page = app(ListMyServices::class)->handle($viewer, 6, $this->serviceCursor);
+        $page = $this->servicePage();
         $visible = false;
         foreach ($page->items as $service) {
             if ($service->orderId === $orderId) {
@@ -674,6 +733,8 @@ final class Dashboard extends Component
     private function resetServiceDetail(): void
     {
         $this->forgetRenewalConfirmation($this->resellerId());
+        $this->forgetServiceStatusConfirmation($this->resellerId());
+        $this->serviceStatusNotice = null;
         $this->renewalPreview = null;
         $this->renewalError = null;
         $this->selectedServiceOrderId = null;
@@ -1134,11 +1195,7 @@ final class Dashboard extends Component
                         $userId, [$detail->summary->orderId],
                     );
                 } elseif ($this->section === 'services') {
-                    $cursor = $this->serviceCursor;
-                    if ($cursor !== null && ($cursor < 1 || $cursor > 999_999_999_999_999)) {
-                        $cursor = null;
-                    }
-                    $page = $services->handle(SubscriptionViewer::web(), 6, $cursor);
+                    $page = $this->servicePage();
                     $data['services'] = $page->items;
                     $data['nextServiceCursor'] = $page->nextBeforeOrderId;
                     $data['labels'] = app(ManageResellerServiceLabels::class)->forOrders(

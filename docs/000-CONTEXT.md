@@ -1,3 +1,7 @@
+## DenaGate Live review follow-up — 2026-11-01
+
+Operator approved two phases: service confirmation cleanup + customer-name search; then preset quote simplification, order follow-up and Persian auth/session recovery. Scope and acceptance: [039](039-DENAGATE-LIVE-REVIEW-FOLLOWUP.md). Source work and CI do not establish live Telegram/financial/Provider acceptance.
+
 ## Sales Panel entry visibility and 350,000-toman wallet requirement — 2026-10-28
 
 The operator approved restoring the ordinary member's Sales Panel request/status button in the persistent Sales keyboard and Account view while keeping the existing Home inline button and tutorials. The same `sales:panel:request` callback remains the sole request/status workflow; users with previously submitted requests see “وضعیت درخواست پنل فروش”. The balance gate was reduced to **3,500,000 rials = 350,000 tomans** of confirmed, currently available wallet credit. Its existing entry check and locked final-submit check use the same Application constant; pending top-ups never qualify. This balance is preserved for service purchases (not deducted or held as a setup fee). Role restrictions, existing application statuses, bank reviews, buyer checkout, 35% reseller terms, notifications, schema, provider calls and approval process remain unchanged. Older 750,000-toman *top-up presets* are unrelated and remain available. CI does not replace mobile Telegram/production acceptance.

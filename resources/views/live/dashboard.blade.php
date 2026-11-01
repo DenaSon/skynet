@@ -620,6 +620,25 @@
                         @if ($serviceDetailError)
                             <p role="alert" class="mb-5 rounded-xl bg-[#FFF9F1] p-4 text-sm leading-7 text-[#845C23]">{{ $serviceDetailError }}</p>
                         @endif
+                    <form wire:submit="searchServices" class="dg-card mb-5 p-4" aria-label="جست‌وجوی سرویس‌ها">
+                        <label for="service-search" class="mb-2 block text-sm font-semibold">جست‌وجو با نام مشتری</label>
+                        <div class="flex flex-wrap gap-2">
+                            <input id="service-search" type="search" wire:model="serviceSearchInput" maxlength="60" dir="auto" autocomplete="off"
+                                placeholder="نام یا نام کاربری مشتری" class="dg-field min-w-0 flex-1" aria-describedby="service-search-hint">
+                            <button type="submit" wire:loading.attr="disabled" wire:target="searchServices" class="dg-btn-primary">جست‌وجو</button>
+                            @if ($serviceSearchTerm !== '')
+                                <button type="button" wire:click="clearServiceSearch" wire:loading.attr="disabled" wire:target="clearServiceSearch,searchServices" class="dg-btn-secondary">نمایش همه</button>
+                            @endif
+                        </div>
+                        <p id="service-search-hint" class="mt-2 text-xs text-[#71818B]">جست‌وجو در نام‌های ثبت‌شده مشتریان شما</p>
+                        <p wire:loading.delay wire:target="searchServices,clearServiceSearch" role="status" class="mt-2 text-xs">در حال جست‌وجو…</p>
+                        @if ($serviceSearchError)
+                            <p role="alert" class="mt-2 text-sm text-[#8e2929]">{{ $serviceSearchError }}</p>
+                        @endif
+                        @if ($serviceSearchTerm !== '')
+                            <p class="mt-2 text-xs text-[#536C76]">نتایج برای «{{ $serviceSearchTerm }}»</p>
+                        @endif
+                    </form>
                     <div class="mb-5 grid grid-cols-2 gap-3">
                         <section class="dg-card p-4">
                             <p class="text-xs text-[#71818B]">کل سرویس‌ها</p>
@@ -655,7 +674,7 @@
                             </article>
                         @empty
                             <section class="dg-empty">
-                                هنوز سرویسی برای نمایش ندارید.
+                                {{ $serviceSearchTerm !== '' ? 'سرویسی با این نام پیدا نشد. نام دیگری جست‌وجو کنید یا «نمایش همه» را بزنید.' : 'هنوز سرویسی برای نمایش ندارید.' }}
                             </section>
                         @endforelse
                     </div>

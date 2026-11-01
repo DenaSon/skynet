@@ -18,6 +18,7 @@ use App\Settings\ResellerServiceStatusSettings;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -335,4 +336,47 @@ it('rejects a queued provider job when the super admin has since disabled the se
     Log::shouldHaveReceived('warning')->with(
         'denagate_live.reseller_status_needs_review', ['order_id' => $d['order']],
     )->once();
+});
+
+it('clears status confirmation and cached authority before leaving a service', function (string $navigation, array $args): void {
+    $d = status6bFixture();
+    $status = 'ACTIVE';
+    status6bProvider($d['order'], $status);
+    Queue::fake();
+    $this->actingAs($d['buyer'])->withSession(['denagate_live.user_id' => $d['buyer']->id]);
+
+    $page = Livewire::test(Dashboard::class)->call('showSection', 'services')
+        ->call('openService', $d['order'])->call('prepareServiceStatus', 'disable');
+    $token = $page->get('serviceStatusConfirmToken');
+    $key = 'denagate-live:reseller-status:'.$d['buyer']->id.':'.$d['order'].':'.$token;
+    expect(Cache::has($key))->toBeTrue();
+
+    $page->call($navigation, ...$args)
+        ->assertSet('serviceStatusConfirmToken', null)
+        ->assertSet('serviceStatusConfirmMode', null)
+        ->assertSet('serviceStatusNotice', null)
+        ->assertSet('serviceStatusError', null);
+    expect(Cache::has($key))->toBeFalse();
+    $page->call('confirmServiceStatus');
+    Queue::assertNothingPushed();
+    Http::assertNotSent(static fn (Request $request): bool => $request->method() === 'PATCH');
+})->with([
+    'back' => ['backToServices', []],
+    'tab' => ['showSection', ['credit']],
+    'search' => ['searchServices', []],
+    'page' => ['firstServices', []],
+]);
+
+it('does not carry a submitted status notice after leaving service detail', function (): void {
+    $d = status6bFixture();
+    $status = 'ACTIVE';
+    status6bProvider($d['order'], $status);
+    Queue::fake();
+    $this->actingAs($d['buyer'])->withSession(['denagate_live.user_id' => $d['buyer']->id]);
+
+    Livewire::test(Dashboard::class)->call('showSection', 'services')->call('openService', $d['order'])
+        ->call('prepareServiceStatus', 'disable')->call('confirmServiceStatus')
+        ->assertSee('درخواست ثبت شد')->call('backToServices')->call('openService', $d['order'])
+        ->assertSet('serviceStatusNotice', null)->assertDontSee('درخواست ثبت شد');
+    Queue::assertPushed(ChangeResellerSubscriptionStatusJob::class, 1);
 });
