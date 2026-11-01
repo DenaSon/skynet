@@ -45,7 +45,7 @@ final readonly class SalesLiveEntry
         }
 
         $bot->sendMessage(
-            text: '📱 اپلیکیشن دناگیت را باز کنید.',
+            text: "✨ پنل هوشمند دناگیت\n\nسرویس‌ها، سفارش‌ها و اعتبارتان را یکجا مدیریت کنید.\n\n💚 برای شروع، دکمه زیر را بزنید.",
             reply_markup: InlineKeyboardMarkup::make()->addRow(
                 InlineKeyboardButton::make(ReplyMenuLabels::SALES_APP, web_app: WebAppInfo::make((string) config('denagate_live.url'))),
             ),
