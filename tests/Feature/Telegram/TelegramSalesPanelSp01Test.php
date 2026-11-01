@@ -85,14 +85,26 @@ it('shows panel application on home and saves a pending request only after terms
     expect(DB::table('sales_panel_requests')->count())->toBe(0);
     $bot->hearCallbackQueryData('sales:panel:accept')->reply()->assertCalled('editMessageText');
     $bot->hearText('علی')->reply()->assertCalled('sendMessage');
-    $bot->hearText('محمدی')->reply()->assertCalled('sendMessage');
+    $bot->hearText('محمدی')->reply()->assertRaw(static function (Request $request): bool {
+        $data = panel01Payload($request);
+
+        return str_contains($data['text'], 'مرحله ۳ از ۳')
+            && ($data['reply_markup']['keyboard'][0][0]['request_contact'] ?? false) === true;
+    });
     $bot->hearText('+۹۸۹۱۲۳۴۵۶۷۸۹')->reply()->assertRaw(static function (Request $request): bool {
         $data = panel01Payload($request);
 
-        return str_contains($data['text'], 'بررسی درخواست پنل فروش')
-            && str_contains($data['text'], '09123456789')
-            && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:panel:confirm');
+        return str_contains($data['text'], 'از دکمه')
+            && ! str_contains($data['text'], 'بررسی درخواست پنل فروش');
     });
+    $bot->hearMessage(['contact' => ['phone_number' => '+989123456789', 'first_name' => 'Buyer', 'user_id' => 986101]])
+        ->reply()->assertRaw(static function (Request $request): bool {
+            $data = panel01Payload($request);
+
+            return str_contains($data['text'], 'بررسی درخواست پنل فروش')
+                && str_contains($data['text'], '09123456789')
+                && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:panel:confirm');
+        }, index: 1);
     expect(DB::table('sales_panel_requests')->count())->toBe(0);
 
     $bot->hearCallbackQueryData('sales:panel:confirm')->reply()->assertCalled('editMessageText');
@@ -152,7 +164,8 @@ it('rechecks wallet credit at final confirmation after it has been spent', funct
     $bot->hearCallbackQueryData('sales:panel:accept')->reply()->assertCalled('editMessageText');
     $bot->hearText('علی')->reply()->assertCalled('sendMessage');
     $bot->hearText('محمدی')->reply()->assertCalled('sendMessage');
-    $bot->hearText('09123456789')->reply()->assertCalled('sendMessage');
+    $bot->hearMessage(['contact' => ['phone_number' => '09123456789', 'first_name' => 'Buyer', 'user_id' => 986107]])
+        ->reply()->assertCalled('sendMessage', 2);
 
     PanelWalletFunding::spend($member->id, 1);
     $bot->hearCallbackQueryData('sales:panel:confirm')->reply()->assertRaw(static function (Request $request): bool {
@@ -418,5 +431,93 @@ it('reads a changed panel credit minimum from config consistently across Telegra
                 && ! str_contains($text, '۳۵۰٬۰۰۰ تومان');
         }, index: 1);
     expect(DB::table('sales_panel_requests')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('rejects foreign, missing, and non-Iranian contacts while preserving the private panel draft', function (): void {
+    $member = User::factory()->create();
+    PanelWalletFunding::credit($member->id, 3_500_000);
+    $bot = panel01Bot(986181, $member);
+    $key = TelegramBotContext::current()->cacheKey('telegram:panel:request:'.$member->id);
+
+    $bot->hearCallbackQueryData('sales:panel:request')->reply();
+    $bot->hearCallbackQueryData('sales:panel:accept')->reply();
+    $bot->hearText('علی')->reply();
+    $bot->hearText('محمدی')->reply();
+
+    foreach ([
+        ['phone_number' => '+989123456789', 'first_name' => 'Other', 'user_id' => 986182],
+        ['phone_number' => '+989123456789', 'first_name' => 'Unknown'],
+        ['phone_number' => '+447700900123', 'first_name' => 'Buyer', 'user_id' => 986181],
+    ] as $contact) {
+        $bot->hearMessage(['contact' => $contact])->reply()->assertRaw(static function (Request $request): bool {
+            $data = panel01Payload($request);
+
+            return str_contains($data['text'], 'شماره تأیید نشد');
+        });
+        expect(Cache::get($key)['step'])->toBe('mobile')
+            ->and(DB::table('sales_panel_requests')->count())->toBe(0);
+    }
+
+    $bot->hearCallbackQueryData('sales:panel:confirm')->reply();
+    expect(DB::table('sales_panel_requests')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('restores the persistent Sales keyboard when contact intake is cancelled or navigated away', function (): void {
+    $member = User::factory()->create();
+    PanelWalletFunding::credit($member->id, 3_500_000);
+    $bot = panel01Bot(986183, $member);
+    $key = TelegramBotContext::current()->cacheKey('telegram:panel:request:'.$member->id);
+
+    $bot->hearCallbackQueryData('sales:panel:request')->reply();
+    $bot->hearCallbackQueryData('sales:panel:accept')->reply();
+    $bot->hearText('علی')->reply();
+    $bot->hearText('محمدی')->reply();
+
+    $bot->hearCallbackQueryData('sales:panel:cancel')->reply()->assertRaw(static function (Request $request): bool {
+        $data = panel01Payload($request);
+
+        return isset($data['reply_markup']['keyboard'])
+            && ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'request_contact');
+    }, index: 0);
+    expect(Cache::get($key))->toBeNull();
+
+    $bot->hearCallbackQueryData('sales:panel:request')->reply();
+    $bot->hearCallbackQueryData('sales:panel:accept')->reply();
+    $bot->hearText('علی')->reply();
+    $bot->hearText('محمدی')->reply();
+    $bot->hearCallbackQueryData('sales:home')->reply()->assertRaw(static function (Request $request): bool {
+        $data = panel01Payload($request);
+
+        return isset($data['reply_markup']['keyboard'])
+            && ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'request_contact');
+    }, index: 0);
+    expect(Cache::get($key))->toBeNull()
+        ->and(DB::table('sales_panel_requests')->count())->toBe(0);
+});
+
+it('does not consume a Contact outside the panel mobile step', function (): void {
+    $member = User::factory()->create();
+    PanelWalletFunding::credit($member->id, 3_500_000);
+    $bot = panel01Bot(986184, $member);
+    $key = TelegramBotContext::current()->cacheKey('telegram:panel:request:'.$member->id);
+
+    $bot->hearCallbackQueryData('sales:panel:request')->reply();
+    $bot->hearCallbackQueryData('sales:panel:accept')->reply();
+    $bot->hearMessage(['contact' => ['phone_number' => '+989123456789', 'first_name' => 'Buyer', 'user_id' => 986184]])
+        ->reply();
+
+    expect(Cache::get($key)['step'])->toBe('first')
+        ->and(DB::table('sales_panel_requests')->count())->toBe(0);
+
+    $bot->hearText('علی')->reply();
+    $bot->hearText('محمدی')->reply();
+    $bot->hearCallbackQueryData('sales:home')->reply();
+    $bot->hearMessage(['contact' => ['phone_number' => '+989123456789', 'first_name' => 'Buyer', 'user_id' => 986184]])
+        ->reply();
+
+    expect(Cache::get($key))->toBeNull()
+        ->and(DB::table('sales_panel_requests')->count())->toBe(0);
     Http::assertNothingSent();
 });
