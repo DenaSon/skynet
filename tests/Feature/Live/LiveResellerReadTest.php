@@ -171,3 +171,47 @@ it('denies an inactive reseller using a fresh authenticated session', function (
     $this->assertGuest('web');
     Http::assertNothingSent();
 });
+
+it('searches owned customer names across pages and preserves the filter after detail navigation', function (): void {
+    $owner = liveReadUser(879010);
+    $foreign = liveReadUser(879011);
+    PanelWalletFunding::credit($owner->id, 5_000_000);
+    PanelWalletFunding::credit($foreign->id, 1_000_000);
+    $this->actingAs($owner)->withSession(['denagate_live.user_id' => $owner->id]);
+    $ids = [];
+    for ($i = 0; $i < 8; $i++) {
+        $id = liveReadOrder($owner);
+        $ids[] = $id;
+        app(ManageResellerServiceLabels::class)->save($owner->id, $id, 'customer_'.$i);
+    }
+    $other = liveReadOrder($owner);
+    app(ManageResellerServiceLabels::class)->save($owner->id, $other, 'unrelated');
+    $this->actingAs($foreign);
+    $foreignId = liveReadOrder($foreign);
+    app(ManageResellerServiceLabels::class)->save($foreign->id, $foreignId, 'customer_foreign');
+    $this->actingAs($owner);
+    $journals = DB::table('billing_journals')->count();
+
+    $page = Livewire::test(Dashboard::class)->call('showSection', 'services')
+        ->set('serviceSearchInput', 'customer_')->call('searchServices')
+        ->assertSet('serviceSearchTerm', 'customer_')
+        ->assertSee('customer_7')->assertDontSee('customer_0')->assertDontSee('unrelated')
+        ->assertDontSee('customer_foreign')
+        ->call('openService', $other)->assertSet('selectedServiceOrderId', null)
+        ->call('openService', $foreignId)->assertSet('selectedServiceOrderId', null)
+        ->call('nextServices', $ids[2])->assertSee('customer_0')->assertDontSee('customer_7')
+        ->call('openService', $ids[0])->assertSet('selectedServiceOrderId', $ids[0])
+        ->call('backToServices')->assertSet('serviceSearchTerm', 'customer_')
+        ->assertSet('serviceCursor', $ids[2])->assertSee('customer_0')
+        ->call('firstServices')->assertSet('serviceCursor', null)->assertSee('customer_7')
+        ->set('serviceSearchInput', '%')->call('searchServices')->assertSee('سرویسی با این نام پیدا نشد')
+        ->set('serviceSearchInput', str_repeat('a', 61))->call('searchServices')
+        ->assertSet('serviceSearchTerm', '%')->assertSee('حداکثر ۶۰ نویسه')
+        ->call('clearServiceSearch')->assertSet('serviceSearchTerm', '')
+        ->assertSet('serviceCursor', null)->assertSee('unrelated');
+
+    expect(DB::table('billing_journals')->count())->toBe($journals);
+    Http::assertNothingSent();
+    $owner->syncRoles(['member']);
+    $page->set('serviceSearchInput', 'customer')->call('searchServices')->assertForbidden();
+});

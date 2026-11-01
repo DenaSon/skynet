@@ -1,3 +1,7 @@
+## DenaGate Live review follow-up — 2026-11-01
+
+Operator approved two phases: service confirmation cleanup + customer-name search; then preset quote simplification, order follow-up and Persian auth/session recovery. Scope and acceptance: [039](039-DENAGATE-LIVE-REVIEW-FOLLOWUP.md). Source work and CI do not establish live Telegram/financial/Provider acceptance.
+
 ## Node TCP Latency — monitoring phase 2/2 (2026-10-30; live discovery correction)
 
 TCP probing continues to reuse the existing one-minute Laravel Scheduler, existing network:tcp-probe Artisan command and three-minute Cache-based UI reads. The earlier static DENAGATE_NODE_TCP_TARGETS mapping was rejected: Node UUIDs, public IPs and eligible direct ports must follow Remnawave changes automatically, **without new environment variables or manual Pod edits**.
