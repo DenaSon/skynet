@@ -38,7 +38,7 @@ final readonly class ReadResellerServiceHealth
      *  nextBeforeOrderId:?int,rows:list<array{orderId:int,name:string,status:string,action:string,remainingSeconds:?int}>
      * }
      */
-    public function handle(SubscriptionViewer $viewer, ?int $beforeOrderId = null): array
+    public function handle(SubscriptionViewer $viewer, ?int $beforeOrderId = null, ?SubscriptionCursorPage $visiblePage = null): array
     {
         $buyerId = $this->authorize->userId($viewer);
         if (! $this->buyers->isReseller($buyerId)) {
@@ -46,7 +46,12 @@ final readonly class ReadResellerServiceHealth
         }
 
         $counts = $this->services->counts($viewer);
-        $page = $this->services->handle($viewer, self::PAGE_SIZE, $beforeOrderId);
+        // A web search may supply its own server-resolved, owned six-item page.
+        // The same per-service GET still independently verifies ownership.
+        $page = $visiblePage ?? $this->services->handle($viewer, self::PAGE_SIZE, $beforeOrderId);
+        if (count($page->items) > self::PAGE_SIZE) {
+            throw new \InvalidArgumentException('Too many services for a health page.');
+        }
         $labels = $this->labels->forOrders($buyerId, array_map(
             static fn (SubscriptionSummary $item): int => $item->orderId, $page->items,
         ));
