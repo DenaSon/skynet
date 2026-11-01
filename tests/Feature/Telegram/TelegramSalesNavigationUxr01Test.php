@@ -654,7 +654,6 @@ it('shows saved member and reseller welcome text in the interactive Home without
     Http::assertNothingSent();
 });
 
-
 it('opens the reseller app through an authorized inline Web App instead of an unsigned reply-keyboard Web App', function (): void {
     config()->set('denagate_live.enabled', true);
     config()->set('denagate_live.url', 'https://live.denagate.ir');
