@@ -297,6 +297,9 @@ $bot->onCallbackQueryData('sales:trial:link', function (Nutgram $bot): void {
     app(SalesTrialUi::class)->link($bot);
 });
 $bot->onContact(function (Nutgram $bot): void {
+    if (app(SalesPanelRequestUi::class)->contact($bot)) {
+        return;
+    }
     app(SalesTrialUi::class)->contact($bot);
 });
 
