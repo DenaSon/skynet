@@ -8,7 +8,6 @@ use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\KeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\ReplyKeyboardMarkup;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\ReplyKeyboardRemove;
-use SergiX44\Nutgram\Telegram\Types\WebApp\WebAppInfo;
 
 final class ReplyMenuRenderer
 {
@@ -164,13 +163,11 @@ final class ReplyMenuRenderer
         $keyboard->keyboard[0][0]->style = ButtonStyle::SUCCESS;
         $keyboard->keyboard[0][1]->style = ButtonStyle::PRIMARY;
 
-        // Direct Telegram Mini App launch, always in its own final row.
-        // Sales-only, reseller-only and gated just like the existing /live entry.
+        // Reply-keyboard Web Apps do not provide signed initData for login.
+        // Keep the last-row entry as text; SalesLiveEntry responds with an
+        // owner-checked inline Web App button that does provide initData.
         if ($isReseller && config('denagate_live.enabled') === true) {
-            $keyboard->addRow(KeyboardButton::make(
-                ReplyMenuLabels::SALES_APP,
-                web_app: WebAppInfo::make((string) config('denagate_live.url')),
-            ));
+            $keyboard->addRow(KeyboardButton::make(ReplyMenuLabels::SALES_APP));
         }
 
         return $keyboard;
