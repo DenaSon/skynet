@@ -16,6 +16,8 @@ use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\Keyboard\KeyboardButton;
+use SergiX44\Nutgram\Telegram\Types\Keyboard\ReplyKeyboardMarkup;
 use Throwable;
 
 final readonly class SalesPanelRequestUi
@@ -143,21 +145,70 @@ final readonly class SalesPanelRequestUi
             $draft['last'] = $value;
             $draft['step'] = 'mobile';
             Cache::put($this->key($userId), $draft, now()->addMinutes(10));
-            $this->notice($bot, '<b>🧩 درخواست پنل فروش</b>'."\n\n<b>مرحله ۳ از ۳</b> · شماره موبایل را ارسال کنید."
-                ."\nنمونه: <code>09123456789</code>");
+            $bot->sendMessage(
+                text: '<b>🧩 درخواست پنل فروش</b>'."\n\n<b>مرحله ۳ از ۳</b> · شماره حساب تلگرام خود را با دکمه زیر ارسال کنید.",
+                parse_mode: 'HTML',
+                reply_markup: ReplyKeyboardMarkup::make(resize_keyboard: true, one_time_keyboard: true)
+                    ->addRow(KeyboardButton::make('📱 اشتراک‌گذاری شماره من', request_contact: true))
+                    ->addRow(KeyboardButton::make('❌ انصراف')),
+            );
 
             return true;
         }
 
-        $mobile = SalesPanelRequests::normalizeMobile($value);
-        if ($mobile === null) {
-            $this->notice($bot, 'شماره موبایل معتبر نیست. نمونه: <code>09123456789</code>');
+        $this->notice($bot, 'برای ارسال شماره، از دکمه «📱 اشتراک‌گذاری شماره من» در کیبورد تلگرام استفاده کنید.');
+
+        return true;
+    }
+
+    /** Handle only the active panel phone step; other Contacts belong to the trial flow. */
+    public function contact(Nutgram $bot): bool
+    {
+        $userId = $this->buyer($bot);
+        if ($userId === null) {
+            return false;
+        }
+
+        $draft = Cache::get($this->key($userId));
+        if (! is_array($draft) || ($draft['step'] ?? null) !== 'mobile') {
+            return false;
+        }
+
+        $telegramId = $this->private->id($bot);
+        $message = $bot->message();
+        $contact = $message?->contact;
+        $actor = $telegramId === null ? null : $this->actors->handle($telegramId);
+
+        if ($actor === null || ! in_array('member', $actor->roles, true)
+            || in_array('reseller', $actor->roles, true)
+            || $this->requests->find($userId) !== null) {
+            // Account navigation clears the draft and restores the native keyboard.
+            app(SalesHomeUi::class)->account($bot);
 
             return true;
         }
+
+        $mobile = $contact === null ? null : SalesPanelRequests::normalizeMobile((string) $contact->phone_number);
+        if ($contact === null || $contact->user_id !== $telegramId
+            || $message->forward_origin !== null || $message->via_bot !== null
+            || $mobile === null) {
+            $bot->sendMessage(text: 'شماره تأیید نشد. فقط شماره متصل به همین حساب تلگرام را با دکمه اشتراک‌گذاری ارسال کنید.');
+
+            return true;
+        }
+
         $draft['mobile'] = $mobile;
         $draft['step'] = 'confirm';
         Cache::put($this->key($userId), $draft, now()->addMinutes(10));
+
+        // Restore the persistent Sales menu before sending the final inline confirmation.
+        $bot->sendMessage(
+            text: '✅ شماره دریافت شد.',
+            reply_markup: app(ReplyMenuRenderer::class)->salesKeyboard(
+                $actor,
+                app(SalesTrialUi::class)->visible($actor, $telegramId),
+            ),
+        );
         $this->render($bot,
             '<b>📝 بررسی درخواست پنل فروش</b>'
             ."\n\nنام: <b>".TelegramUi::escape((string) $draft['first']).'</b>'
@@ -222,7 +273,7 @@ final readonly class SalesPanelRequestUi
         if ($userId === null) {
             return;
         }
-        $this->clear($userId);
+        // Account navigation clears the draft and restores any temporary Contact keyboard.
         app(SalesHomeUi::class)->account($bot);
     }
 
@@ -246,9 +297,11 @@ final readonly class SalesPanelRequestUi
         return true;
     }
 
-    public function clear(int $userId): void
+    public function clear(int $userId): bool
     {
-        Cache::forget($this->key($userId));
+        $draft = Cache::pull($this->key($userId));
+
+        return is_array($draft) && ($draft['step'] ?? null) === 'mobile';
     }
 
     private function key(int $userId): string
