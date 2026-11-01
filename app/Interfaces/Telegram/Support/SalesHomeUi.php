@@ -722,8 +722,9 @@ final readonly class SalesHomeUi
 
     public function clearInput(int $buyerId, ?Nutgram $bot = null): void
     {
-        $contactPending = app(SalesTrialUi::class)->clear($buyerId);
-        if ($contactPending && $bot !== null) {
+        $trialContactPending = app(SalesTrialUi::class)->clear($buyerId);
+        $panelContactPending = app(SalesPanelRequestUi::class)->clear($buyerId);
+        if (($trialContactPending || $panelContactPending) && $bot !== null) {
             $actor = $this->resolve->handle((int) $this->privateUser->id($bot));
             $bot->sendMessage(text: 'دریافت شماره بسته شد.', reply_markup: app(ReplyMenuRenderer::class)->salesKeyboard(
                 $actor,
@@ -736,7 +737,6 @@ final readonly class SalesHomeUi
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:payphoto:recent:'.$buyerId));
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:wallet:topup:'.$buyerId));
         app(SalesCheckoutUi::class)->clearWalletDraft($buyerId);
-        app(SalesPanelRequestUi::class)->clear($buyerId);
         app(SalesSubscriptionsUi::class)->clearCustomerLabelDraft($buyerId);
         app(SalesSubscriptionsUi::class)->clearCustomerPhoneDraft($buyerId);
         app(SalesSubscriptionsUi::class)->clearCustomerSearch($buyerId);
