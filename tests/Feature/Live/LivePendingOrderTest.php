@@ -264,3 +264,22 @@ it('does not allow bypassing preview, cancellation, forged plans or revoked rese
     $page->call('confirmOrder')->assertForbidden();
     live3bNoMoneyOrProvider();
 });
+
+it('requires explicit order confirmation after an automatic preset quote and rejects changed prices', function (): void {
+    $buyer = live3bReseller(944430);
+    $plan = live3bPlan();
+    $this->actingAs($buyer)->withSession(['denagate_live.user_id' => $buyer->id]);
+    $page = Livewire::test(Dashboard::class)->call('showSection', 'shop')->call('selectPlan', $plan)
+        ->assertSee('پیش‌فاکتور شما')->assertSee('ثبت سفارش بدون پرداخت')
+        ->assertSet('createdOrderId', null);
+    expect(DB::table('sales_orders')->count())->toBe(0);
+    live3bNoMoneyOrProvider();
+
+    DB::table('sales_plan_prices')->where('plan_id', $plan)->update(['fixed_price_rials' => 2_000_000]);
+    $page->set('customerUsername', 'customer_changed')->call('confirmOrder')
+        ->assertSet('createdOrderId', null)->assertSee('قیمت را دوباره بررسی کنید');
+    expect(DB::table('sales_orders')->count())->toBe(0);
+    $page->call('previewQuote')->call('confirmOrder')->assertSee('در انتظار پرداخت');
+    expect(DB::table('sales_orders')->count())->toBe(1);
+    live3bNoMoneyOrProvider();
+});

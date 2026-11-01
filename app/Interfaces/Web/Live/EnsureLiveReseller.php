@@ -19,6 +19,9 @@ final readonly class EnsureLiveReseller
     {
         $userId = Auth::guard('web')->id();
         if (! is_int($userId) || $userId !== $request->session()->get('denagate_live.user_id')) {
+            // An expired Livewire request must fail, never receive login HTML as success.
+            abort_if($request->hasHeader('X-Livewire'), 419);
+
             return redirect()->route('denagate-live.entry');
         }
 

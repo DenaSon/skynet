@@ -175,6 +175,12 @@
                                     <p class="mt-4 text-xs leading-7 text-[#71818B]">پرداخت از اعتبار در حال حاضر در دسترس نیست. می‌توانید سفارش خود را در بات فروش پیگیری کنید.</p>
                                 @endif
                             @endif
+                            @if ($createdOrder->status !== 'pending_payment')
+                                <div class="mt-5 flex flex-wrap gap-3">
+                                    <button type="button" wire:click="refreshOrderStatus" wire:loading.attr="disabled" wire:target="refreshOrderStatus" class="dg-btn-secondary">بررسی وضعیت سفارش<span wire:loading.delay wire:target="refreshOrderStatus" role="status" class="text-xs">در حال بررسی…</span></button>
+                                    <button type="button" wire:click="showSection('services')" wire:loading.attr="disabled" wire:target="showSection" class="dg-btn-primary">سرویس‌های من</button>
+                                </div>
+                            @endif
                             <button type="button" wire:click="backToPlans" wire:target="backToPlans" wire:loading.attr="disabled" class="dg-btn-secondary mt-5">انتخاب سرویس دیگر</button>
                         </section>
                     @elseif ($selectedPlan === null)
@@ -262,7 +268,9 @@
                                 <p class="mt-5 text-sm font-semibold text-[#536C76]">{{ $selectedPlan->durationDays }} روز · {{ $selectedPlan->trafficGb === null ? 'حجم نامحدود' : number_format($selectedPlan->trafficGb).' گیگابایت' }}</p>
                             @endif
 
+                            @if ($selectedPlan->mode === 'builder' || $planQuote === null)
                             <button type="button" wire:click="previewQuote" wire:target="previewQuote" wire:loading.attr="disabled" class="dg-btn-primary mt-6 min-h-12 w-full">مشاهده قیمت نهایی<span wire:loading.delay wire:target="previewQuote" role="status" class="text-xs font-semibold">در حال محاسبه…</span></button>
+                            @endif
 
                             @if ($orderError)
                                 <p role="alert" class="mt-5 rounded-2xl bg-[#FFF9F1] p-4 text-sm leading-7 text-[#845C23]">{{ $orderError }}</p>

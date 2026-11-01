@@ -779,6 +779,9 @@ final class Dashboard extends Component
         $this->selectedPlanId = $plan->id;
         $this->daysInput = (string) ($plan->durationDays ?? $plan->minDays);
         $this->gbInput = $plan->kind === 'time' ? '' : (string) ($plan->trafficGb ?? $plan->minGb);
+        if ($plan->mode === 'preset') {
+            $this->previewQuote();
+        }
     }
 
     public function previewQuote(): void
@@ -856,6 +859,24 @@ final class Dashboard extends Component
             $this->createdOrderId = $order->id;
         } catch (ValidationException) {
             $this->orderError = 'سفارش در دسترس نیست.';
+        }
+    }
+
+    /** Refresh local owned order state only; never retry payment or provisioning. */
+    public function refreshOrderStatus(): void
+    {
+        $buyerId = $this->resellerId();
+        $this->forgetWalletConfirmation($buyerId);
+        $this->orderError = null;
+        if ($this->section !== 'shop' || $this->createdOrderId === null) {
+            return;
+        }
+
+        try {
+            app(OrderReader::class)->findNewPlan($buyerId, $this->createdOrderId);
+        } catch (ValidationException) {
+            $this->orderError = 'سفارش در دسترس نیست.';
+            $this->createdOrderId = null;
         }
     }
 
