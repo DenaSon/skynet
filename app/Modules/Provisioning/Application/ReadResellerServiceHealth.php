@@ -22,6 +22,8 @@ final readonly class ReadResellerServiceHealth
 
     private const LOW_BYTES = 350 * 1024 * 1024;
 
+    private const EXPIRING_SOON_SECONDS = 3 * 86400;
+
     public function __construct(
         private AuthorizeSubscriptionViewer $authorize,
         private ResolveSalesBuyer $buyers,
@@ -32,8 +34,8 @@ final readonly class ReadResellerServiceHealth
 
     /**
      * @return array{
-     *  total:int,localActive:int,checked:int,active:int,expired:int,attention:int,unknown:int,
-     *  nextBeforeOrderId:?int,rows:list<array{orderId:int,name:string,status:string,action:string}>
+     *  total:int,localActive:int,checked:int,active:int,expired:int,attention:int,unknown:int,expiringSoon:int,
+     *  nextBeforeOrderId:?int,rows:list<array{orderId:int,name:string,status:string,action:string,remainingSeconds:?int}>
      * }
      */
     public function handle(SubscriptionViewer $viewer, ?int $beforeOrderId = null): array
@@ -49,20 +51,27 @@ final readonly class ReadResellerServiceHealth
             static fn (SubscriptionSummary $item): int => $item->orderId, $page->items,
         ));
         $rows = [];
-        $active = $expired = $attention = $unknown = 0;
+        $active = $expired = $attention = $unknown = $expiringSoon = 0;
 
         foreach ($page->items as $item) {
             $status = '⚪ نامشخص';
             $action = '';
+            $remainingSeconds = null;
             if ($item->status === 'active') {
                 try {
                     // Existing owner-verified GET rechecks identity after reading RW.
                     // Never emit the remote credential, username or raw provider body.
                     $live = $this->usage->handle($viewer, $item->orderId);
-                    $remainingSeconds = (new DateTimeImmutable($live->expireAt))->getTimestamp() - time();
+                    $secondsToExpiry = (new DateTimeImmutable($live->expireAt))->getTimestamp() - time();
                     $remainingBytes = max(0, $live->limitBytes - $live->usedBytes);
 
-                    if ($remainingSeconds <= 0 || $live->status === 'EXPIRED') {
+                    if ($secondsToExpiry > 0 && $secondsToExpiry <= self::EXPIRING_SOON_SECONDS
+                        && $live->status !== 'EXPIRED') {
+                        $remainingSeconds = $secondsToExpiry;
+                        $expiringSoon++;
+                    }
+
+                    if ($secondsToExpiry <= 0 || $live->status === 'EXPIRED') {
                         $status = '🔴 منقضی';
                         $action = 'تمدید یا پیگیری';
                         $expired++;
@@ -81,7 +90,7 @@ final readonly class ReadResellerServiceHealth
                     } elseif ($live->status === 'ACTIVE') {
                         $status = '🟢 فعال';
                         $active++;
-                        if ($remainingSeconds <= 7 * 86400) {
+                        if ($secondsToExpiry <= 7 * 86400) {
                             $action = 'انقضا در ۷ روز آینده';
                             $attention++;
                         } elseif ($live->limitBytes > 0 && $remainingBytes < self::LOW_BYTES) {
@@ -104,6 +113,7 @@ final readonly class ReadResellerServiceHealth
                 'name' => $labels[$item->orderId] ?? $item->productName,
                 'status' => $status,
                 'action' => $action,
+                'remainingSeconds' => $remainingSeconds,
             ];
         }
 
@@ -115,6 +125,7 @@ final readonly class ReadResellerServiceHealth
             'expired' => $expired,
             'attention' => $attention,
             'unknown' => $unknown,
+            'expiringSoon' => $expiringSoon,
             'nextBeforeOrderId' => $page->nextBeforeOrderId,
             'rows' => $rows,
         ];

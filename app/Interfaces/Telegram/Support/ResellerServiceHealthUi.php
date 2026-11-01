@@ -64,6 +64,7 @@ final readonly class ResellerServiceHealthUi
             '<b>🔎 بررسی لحظه‌ای این صفحه ('.$page['checked'].' سرویس)</b>',
             '🟢 فعال: '.$page['active'].' · 🔴 منقضی: '.$page['expired'],
             '🟠 نیازمند پیگیری: '.$page['attention'].' · ⚪ نامشخص: '.$page['unknown'],
+            '⏳ انقضا تا ۳ روز (فقط این صفحه): '.$page['expiringSoon'],
             '',
         ];
 
@@ -72,7 +73,8 @@ final readonly class ResellerServiceHealthUi
             .'<br>🗂 فعال در سوابق داخلی: '.$page['localActive'].'</p>'
             .'<p>🔎 نتیجه استعلام لحظه‌ای فقط برای <b>'.$page['checked'].' سرویس این صفحه</b>:'
             .'<br>🟢 فعال: '.$page['active'].' · 🔴 منقضی: '.$page['expired']
-            .'<br>🟠 نیازمند پیگیری: <b>'.$page['attention'].'</b> · ⚪ نامشخص: <b>'.$page['unknown'].'</b></p>';
+            .'<br>🟠 نیازمند پیگیری: <b>'.$page['attention'].'</b> · ⚪ نامشخص: <b>'.$page['unknown'].'</b>'
+            .'<br>⏳ انقضا تا ۳ روز (فقط این صفحه): <b>'.$page['expiringSoon'].'</b></p>';
         $buttons = InlineKeyboardMarkup::make();
         if ($page['rows'] !== []) {
             $html .= '<h4>📋 وضعیت سرویس‌های این صفحه</h4><table bordered striped compact>';
@@ -83,14 +85,20 @@ final readonly class ResellerServiceHealthUi
         }
         foreach ($page['rows'] as $index => $item) {
             $position = $index + 1;
+            $remaining = $item['remainingSeconds'] === null
+                ? '' : '⏳ '.self::remainingLabel($item['remainingSeconds']).' تا انقضا';
             $lines[] = '🔹 <b>'.$position.'. '.TelegramUi::escape($item['name']).'</b> · '.$item['status'];
             if ($item['action'] !== '') {
                 $lines[] = '↳ '.TelegramUi::escape($item['action']);
+            }
+            if ($remaining !== '') {
+                $lines[] = $remaining;
             }
             $lines[] = '';
             $html .= '<tr><td><b>'.$position.'. '.TelegramUi::escape($item['name']).'</b></td>'
                 .'<td>'.TelegramUi::escape($item['status'])
                 .($item['action'] === '' ? '' : '<br>↳ '.TelegramUi::escape($item['action']))
+                .($remaining === '' ? '' : '<br>'.$remaining)
                 .'</td></tr>';
             $buttons->addRow(InlineKeyboardButton::make('📋 جزئیات '.$position,
                 callback_data: 'sales:subs:view:'.$item['orderId'].':0'));
@@ -104,7 +112,7 @@ final readonly class ResellerServiceHealthUi
             $buttons->addRow(InlineKeyboardButton::make('موارد بیشتر ◀️',
                 callback_data: 'sales:health:'.$page['nextBeforeOrderId']));
         }
-        $lines[] = '<blockquote>آمار لحظه‌ای فقط برای همین صفحه است (حداکثر ۶ سرویس). '
+        $lines[] = '<blockquote>آمار و انقضای نزدیک فقط برای همین صفحه است (حداکثر ۶ سرویس). '
             .'اگر استعلامی ممکن نباشد، «نامشخص» نمایش داده می‌شود؛ وضعیت داخلی به‌معنای تأیید لحظه‌ای نیست. '
             .'«نیازمند پیگیری» می‌تواند شامل سرویس فعال با حجم یا اعتبار رو به پایان باشد.</blockquote>';
         $buttons->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی صفحه',
@@ -115,7 +123,7 @@ final readonly class ResellerServiceHealthUi
         $text = trim(implode("\n", $lines));
         if ($rich) {
             $html .= '<details><summary>ℹ️ درباره وضعیت‌ها</summary><p>'
-                .'استعلام زنده فقط همین صفحه را پوشش می‌دهد (حداکثر ۶ سرویس). '
+                .'استعلام زنده و شمارنده انقضای نزدیک فقط همین صفحه را پوشش می‌دهد (حداکثر ۶ سرویس). '
                 .'اگر دریافت وضعیت ممکن نباشد، «نامشخص» نشان داده می‌شود. '
                 .'فعال‌بودن در سوابق داخلی، تأیید لحظه‌ای Provider نیست. '
                 .'نیازمند پیگیری ممکن است شامل سرویس فعالی باشد که به پایان حجم یا زمان نزدیک است.'
@@ -133,6 +141,29 @@ final readonly class ResellerServiceHealthUi
         }
 
         $this->render($bot, $text, $buttons);
+    }
+
+    /** Short approximation for the existing on-demand 72-hour window only. */
+    private static function remainingLabel(int $seconds): string
+    {
+        if ($seconds < 60) {
+            return 'کمتر از ۱ دقیقه';
+        }
+
+        // Round up the last partial minute; never display a shorter time
+        // just because the network request consumed a few seconds.
+        $roundedMinutes = intdiv($seconds + 59, 60);
+        $days = intdiv($roundedMinutes, 1440);
+        $hours = intdiv($roundedMinutes % 1440, 60);
+        $minutes = $roundedMinutes % 60;
+        if ($days > 0) {
+            return $days.' روز'.($hours > 0 ? ' و '.$hours.' ساعت' : '');
+        }
+        if ($hours > 0) {
+            return $hours.' ساعت'.($minutes > 0 ? ' و '.$minutes.' دقیقه' : '');
+        }
+
+        return $minutes.' دقیقه';
     }
 
     private function back(): InlineKeyboardMarkup

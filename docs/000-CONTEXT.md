@@ -1,3 +1,7 @@
+## Sales Bot reseller health — per-page 72-hour expiry visibility (2026-11-01)
+
+Operator-approved first step is **Sales Bot only**. The existing `ReadResellerServiceHealth` still performs at most six owner-verified read-only Provider GETs per current cursor page. Its response adds only a page-local count of confirmed positive expiries at or before 72 hours and optional remaining seconds per checked service; prior statuses, seven-day attention, ownership, order, query bounds and callback IDs are unchanged. Rich and native fallback show the counter and approximate remaining time without reordering or querying other pages. Mini App changes, global expiry ranking, notifications, background jobs, new storage and Provider writes are **not authorized** in this step. PHP/fake Telegram tests are separate from real-client acceptance; the Mini App step requires explicit follow-up approval after operator testing.
+
 ## DenaGate Live review follow-up — 2026-11-01
 
 Operator approved two phases: service confirmation cleanup + customer-name search; then preset quote simplification, order follow-up and Persian auth/session recovery. Scope and acceptance: [039](039-DENAGATE-LIVE-REVIEW-FOLLOWUP.md). Source work and CI do not establish live Telegram/financial/Provider acceptance.
