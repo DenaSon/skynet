@@ -80,6 +80,7 @@ final class BrowseUsers
             active: $user->is_active,
             telegramLinked: $user->telegramAccount !== null,
             canChangeStatus: $canChange,
+            telegramUserId: $user->telegramAccount === null ? null : (int) $user->telegramAccount->telegram_user_id,
         );
     }
 }
