@@ -261,3 +261,135 @@ it('clears secrets on navigation and never reissues GET from the label editor', 
 
     Http::assertSentCount(1);
 });
+
+it('checks only the visible owned page on request and renders a compact 72-hour summary without credentials', function (): void {
+    $buyer = live4bUser(976140);
+    $other = live4bUser(976141);
+    $this->actingAs($buyer)->withSession(['denagate_live.user_id' => $buyer->id]);
+    $soon = live4bService($buyer);
+    $outside = live4bService($buyer);
+    $expired = live4bService($buyer);
+    $unknown = live4bService($buyer);
+    $foreign = live4bService($other);
+
+    Http::fake([
+        'https://remna.test/api/users/'.(500000 + $soon) => Http::response([
+            'response' => live4bRemote($soon, ['expireAt' => now()->addHours(49)->toIso8601String()]),
+        ]),
+        'https://remna.test/api/users/'.(500000 + $outside) => Http::response([
+            'response' => live4bRemote($outside, ['expireAt' => now()->addHours(74)->toIso8601String()]),
+        ]),
+        'https://remna.test/api/users/'.(500000 + $expired) => Http::response([
+            'response' => live4bRemote($expired, ['status' => 'EXPIRED', 'expireAt' => now()->subHour()->toIso8601String()]),
+        ]),
+        'https://remna.test/api/users/'.(500000 + $unknown) => Http::response([], 503),
+    ]);
+    $page = Livewire::test(Dashboard::class)->call('showSection', 'services')
+        ->assertSee('⏳ بررسی انقضا')
+        ->assertDontSee('⏳ انقضا تا ۳ روز:');
+    Http::assertNothingSent();
+
+    $page->call('checkServiceExpiries')
+        ->assertSee('⏳ انقضا تا ۳ روز:')
+        ->assertSee('⏳ 2 روز و 1 ساعت تا انقضا')
+        ->assertSee('⚪ نامشخص:')
+        ->assertDontSee('protected-token-4b')
+        ->assertDontSee('secret-4b-short')
+        ->assertDontSee((string) (500000 + $foreign));
+    $snapshot = $page->get('serviceExpiry');
+    expect($snapshot['count'])->toBe(1)
+        ->and($snapshot['unknown'])->toBe(1)
+        ->and(array_keys($snapshot['remaining']))->toBe([$soon]);
+    Http::assertSentCount(4);
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
+    expect(DB::table('provisioning_operations')->count())->toBe(0);
+
+    // Unrelated Livewire renders must not cause another provider sweep.
+    $page->call('backToServices')->assertSee('⏳ انقضا تا ۳ روز:');
+    Http::assertSentCount(4);
+    $page->call('showSection', 'reports')->assertSet('serviceExpiry', null);
+});
+
+it('resets the checked expiry data on pagination and does not scan off-page services', function (): void {
+    $buyer = live4bUser(976142);
+    $this->actingAs($buyer)->withSession(['denagate_live.user_id' => $buyer->id]);
+    $orders = [];
+    for ($i = 0; $i < 8; $i++) {
+        $orders[] = live4bService($buyer);
+    }
+    $responses = [];
+    foreach ($orders as $i => $order) {
+        $responses['https://remna.test/api/users/'.(500000 + $order)] = Http::response([
+            'response' => live4bRemote($order, [
+                'expireAt' => ($i === 0 ? now()->addHours(4) : now()->addDays(15))->toIso8601String(),
+            ]),
+        ]);
+    }
+    Http::fake($responses);
+
+    $page = Livewire::test(Dashboard::class)->call('showSection', 'services')
+        ->call('checkServiceExpiries')
+        ->assertSee('⏳ انقضا تا ۳ روز:');
+    expect($page->get('serviceExpiry')['count'])->toBe(0);
+    Http::assertSentCount(6);
+
+    $page->call('nextServices', $orders[2])
+        ->assertSet('serviceExpiry', null)
+        ->assertDontSee('⏳ انقضا تا ۳ روز:')
+        ->call('checkServiceExpiries')
+        ->assertSee('⏳ انقضا تا ۳ روز:');
+    expect($page->get('serviceExpiry')['count'])->toBe(1);
+    Http::assertSentCount(8);
+
+    $page->call('firstServices')->assertSet('serviceExpiry', null)
+        ->assertDontSee('⏳ انقضا تا ۳ روز:');
+    Http::assertSentCount(8);
+});
+
+it('checks the searched owner-scoped service page and clears old results on a new search', function (): void {
+    $buyer = live4bUser(976143);
+    $foreign = live4bUser(976144);
+    $this->actingAs($buyer)->withSession(['denagate_live.user_id' => $buyer->id]);
+    $alice = live4bService($buyer);
+    $bob = live4bService($buyer);
+    $other = live4bService($foreign);
+    app(ManageResellerServiceLabels::class)->save($buyer->id, $alice, 'مشتری علی');
+    app(ManageResellerServiceLabels::class)->save($buyer->id, $bob, 'مشتری محمد');
+    app(ManageResellerServiceLabels::class)->save($foreign->id, $other, 'مشتری علی دیگر');
+    Http::fake([
+        'https://remna.test/api/users/'.(500000 + $alice) => Http::response([
+            'response' => live4bRemote($alice, ['expireAt' => now()->addHours(10)->toIso8601String()]),
+        ]),
+        'https://remna.test/api/users/'.(500000 + $bob) => Http::response([
+            'response' => live4bRemote($bob, ['expireAt' => now()->addHours(20)->toIso8601String()]),
+        ]),
+    ]);
+
+    $page = Livewire::test(Dashboard::class)->call('showSection', 'services')
+        ->set('serviceSearchInput', 'علی')->call('searchServices')
+        ->assertSee('مشتری علی')
+        ->assertDontSee('مشتری محمد')
+        ->call('checkServiceExpiries');
+    expect($page->get('serviceExpiry')['count'])->toBe(1);
+    Http::assertSentCount(1);
+
+    $page->set('serviceSearchInput', 'محمد')->call('searchServices')
+        ->assertSet('serviceExpiry', null)
+        ->assertDontSee('⏳ انقضا تا ۳ روز:')
+        ->call('checkServiceExpiries');
+    expect($page->get('serviceExpiry')['count'])->toBe(1);
+    Http::assertSentCount(2);
+    expect(DB::table('provisioning_operations')->count())->toBe(0);
+});
+
+it('fails closed when reseller access is revoked before checking expiry', function (): void {
+    $buyer = live4bUser(976145);
+    $this->actingAs($buyer)->withSession(['denagate_live.user_id' => $buyer->id]);
+    live4bService($buyer);
+    Http::fake();
+
+    $page = Livewire::test(Dashboard::class)->call('showSection', 'services');
+    $buyer->syncRoles(['member']);
+    $page->call('checkServiceExpiries')->assertForbidden();
+    Http::assertNothingSent();
+});
