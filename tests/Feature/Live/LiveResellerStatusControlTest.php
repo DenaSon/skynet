@@ -18,6 +18,7 @@ use App\Settings\ResellerServiceStatusSettings;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -348,14 +349,14 @@ it('clears status confirmation and cached authority before leaving a service', f
         ->call('openService', $d['order'])->call('prepareServiceStatus', 'disable');
     $token = $page->get('serviceStatusConfirmToken');
     $key = 'denagate-live:reseller-status:'.$d['buyer']->id.':'.$d['order'].':'.$token;
-    expect(\Illuminate\Support\Facades\Cache::has($key))->toBeTrue();
+    expect(Cache::has($key))->toBeTrue();
 
     $page->call($navigation, ...$args)
         ->assertSet('serviceStatusConfirmToken', null)
         ->assertSet('serviceStatusConfirmMode', null)
         ->assertSet('serviceStatusNotice', null)
         ->assertSet('serviceStatusError', null);
-    expect(\Illuminate\Support\Facades\Cache::has($key))->toBeFalse();
+    expect(Cache::has($key))->toBeFalse();
     $page->call('confirmServiceStatus');
     Queue::assertNothingPushed();
     Http::assertNotSent(static fn (Request $request): bool => $request->method() === 'PATCH');
@@ -366,7 +367,7 @@ it('clears status confirmation and cached authority before leaving a service', f
     'page' => ['firstServices', []],
 ]);
 
-it('does not carry a submitted status notice into another service detail', function (): void {
+it('does not carry a submitted status notice after leaving service detail', function (): void {
     $d = status6bFixture();
     $status = 'ACTIVE';
     status6bProvider($d['order'], $status);
