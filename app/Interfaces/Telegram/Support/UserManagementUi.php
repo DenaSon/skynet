@@ -23,6 +23,7 @@ final class UserManagementUi
         private readonly ChangeUserStatus $changeStatus,
         private readonly UserStatusConfirmations $confirmations,
         private readonly MenuRenderer $menus,
+        private readonly TelegramUserContactLink $contacts,
     ) {}
 
     public function browse(Nutgram $bot, int $page = 1, bool $search = false, bool $resellersOnly = false): void
@@ -144,7 +145,7 @@ final class UserManagementUi
             return;
         }
 
-        $this->menus->showUserDetails($bot, $user, $this->pageNumber($page), $mode === 's', $actor->canManageRoles(), $actor->allows('support.view'), $mode === 'r');
+        $this->menus->showUserDetails($bot, $user, $this->pageNumber($page), $mode === 's', $actor->canManageRoles(), $actor->allows('support.view'), $mode === 'r', $this->contacts->for($user));
     }
 
     public function confirm(Nutgram $bot, string $id, string $page = '1', string $mode = 'a'): void
@@ -197,7 +198,7 @@ final class UserManagementUi
             return;
         }
 
-        $this->menus->showUserDetails($bot, $updated, $pending['page'], $pending['search'], $actor->canManageRoles(), $actor->allows('support.view'), $pending['resellers'] ?? false);
+        $this->menus->showUserDetails($bot, $updated, $pending['page'], $pending['search'], $actor->canManageRoles(), $actor->allows('support.view'), $pending['resellers'] ?? false, $this->contacts->for($updated));
     }
 
     private function actorForPendingText(Nutgram $bot): ?TelegramActor
