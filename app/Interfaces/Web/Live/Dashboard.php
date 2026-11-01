@@ -13,6 +13,7 @@ use App\Modules\Provisioning\Application\GetSubscriptionLink;
 use App\Modules\Provisioning\Application\GetSubscriptionUsage;
 use App\Modules\Provisioning\Application\ListMyServices;
 use App\Modules\Provisioning\Application\ManageResellerSubscriptionStatus;
+use App\Modules\Provisioning\Application\ReadResellerServiceHealth;
 use App\Modules\Provisioning\Application\SubscriptionCursorPage;
 use App\Modules\Provisioning\Jobs\ChangeResellerSubscriptionStatusJob;
 use App\Modules\Sales\Application\CalculatePlanQuote;
@@ -54,6 +55,12 @@ final class Dashboard extends Component
     public string $serviceSearchTerm = '';
 
     public ?string $serviceSearchError = null;
+
+    /** @var array{cursor:?int,term:string,orderIds:list<int>,count:int,unknown:int,remaining:array<int,string>}|null */
+    #[Locked]
+    public ?array $serviceExpiry = null;
+
+    public ?string $serviceExpiryError = null;
 
     #[Locked]
     public ?int $selectedServiceOrderId = null;
@@ -156,6 +163,8 @@ final class Dashboard extends Component
             }
             $this->section = $section;
             $this->serviceCursor = null;
+            $this->serviceExpiry = null;
+            $this->serviceExpiryError = null;
             $this->resetServiceDetail();
         }
     }
@@ -187,6 +196,8 @@ final class Dashboard extends Component
         $this->serviceSearchTerm = $term;
         $this->serviceSearchInput = $term;
         $this->serviceCursor = null;
+        $this->serviceExpiry = null;
+        $this->serviceExpiryError = null;
         $this->section = 'services';
     }
 
@@ -223,6 +234,8 @@ final class Dashboard extends Component
         $this->resellerId();
         if ($cursor > 0 && $cursor <= 999_999_999_999_999) {
             $this->resetServiceDetail();
+            $this->serviceExpiry = null;
+            $this->serviceExpiryError = null;
             $this->serviceCursor = $cursor;
         }
     }
@@ -232,6 +245,64 @@ final class Dashboard extends Component
         $this->resellerId();
         $this->resetServiceDetail();
         $this->serviceCursor = null;
+        $this->serviceExpiry = null;
+        $this->serviceExpiryError = null;
+    }
+
+    /** Explicit, page-bounded provider GET; never run during ordinary Livewire rendering. */
+    public function checkServiceExpiries(): void
+    {
+        $this->resellerId();
+        $this->serviceExpiry = null;
+        $this->serviceExpiryError = null;
+        if ($this->section !== 'services' || $this->selectedServiceOrderId !== null) {
+            return;
+        }
+
+        try {
+            $page = $this->servicePage();
+            $result = app(ReadResellerServiceHealth::class)->handle(
+                SubscriptionViewer::web(), $this->serviceCursor, $page,
+            );
+            $remaining = [];
+            foreach ($result['rows'] as $row) {
+                if ($row['remainingSeconds'] !== null) {
+                    $remaining[$row['orderId']] = self::expiryRemainingLabel($row['remainingSeconds']);
+                }
+            }
+            $this->serviceExpiry = [
+                'cursor' => $this->serviceCursor,
+                'term' => $this->serviceSearchTerm,
+                'orderIds' => array_map(static fn ($service): int => $service->orderId, $page->items),
+                'count' => $result['expiringSoon'],
+                'unknown' => $result['unknown'],
+                'remaining' => $remaining,
+            ];
+        } catch (AuthorizationException $exception) {
+            throw $exception;
+        } catch (Throwable) {
+            $this->serviceExpiryError = 'بررسی انقضا فعلاً امکان‌پذیر نیست.';
+        }
+    }
+
+    private static function expiryRemainingLabel(int $seconds): string
+    {
+        if ($seconds < 60) {
+            return 'کمتر از ۱ دقیقه';
+        }
+
+        $roundedMinutes = intdiv($seconds + 59, 60);
+        $days = intdiv($roundedMinutes, 1440);
+        $hours = intdiv($roundedMinutes % 1440, 60);
+        $minutes = $roundedMinutes % 60;
+        if ($days > 0) {
+            return $days.' روز'.($hours > 0 ? ' و '.$hours.' ساعت' : '');
+        }
+        if ($hours > 0) {
+            return $hours.' ساعت'.($minutes > 0 ? ' و '.$minutes.' دقیقه' : '');
+        }
+
+        return $minutes.' دقیقه';
     }
 
     /** Only a subscription visible on the current owned service page may be selected. */
@@ -1103,6 +1174,7 @@ final class Dashboard extends Component
             'counts' => null,
             'services' => [],
             'labels' => [],
+            'checkedExpiry' => null,
             'selectedService' => null,
             'serviceStatusCanResume' => false,
             'resellerServiceStatusEnabled' => false,
@@ -1219,6 +1291,13 @@ final class Dashboard extends Component
                     $page = $this->servicePage();
                     $data['services'] = $page->items;
                     $data['nextServiceCursor'] = $page->nextBeforeOrderId;
+                    $pageIds = array_map(static fn ($service): int => $service->orderId, $page->items);
+                    if ($this->serviceExpiry !== null
+                        && $this->serviceExpiry['cursor'] === $this->serviceCursor
+                        && $this->serviceExpiry['term'] === $this->serviceSearchTerm
+                        && $this->serviceExpiry['orderIds'] === $pageIds) {
+                        $data['checkedExpiry'] = $this->serviceExpiry;
+                    }
                     $data['labels'] = app(ManageResellerServiceLabels::class)->forOrders(
                         $userId, array_map(static fn ($service): int => $service->orderId, $page->items),
                     );
