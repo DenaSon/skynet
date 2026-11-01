@@ -316,3 +316,25 @@ it('denies foreign orders and revoked reseller authorization on payment attempts
     $page->call('confirmWalletPayment')->assertForbidden();
     live3cAssertNoPurchase();
 });
+
+it('refreshes paid order state without repeating settlement or provider calls', function (): void {
+    $data = live3cFixture();
+    live3cCredit($data['root'], $data['buyer']);
+    $this->actingAs($data['buyer'])->withSession(['denagate_live.user_id' => $data['buyer']->id]);
+    $page = Livewire::test(Dashboard::class)->call('openOrder', $data['order'])
+        ->call('prepareWalletPayment')->call('confirmWalletPayment')
+        ->assertSee('بررسی وضعیت سفارش')->assertSee('سرویس‌های من');
+    $balance = app(ViewWallet::class)->handle($data['buyer']->id)->balanceRials;
+    $journals = DB::table('billing_journals')->count();
+
+    $page->call('refreshOrderStatus')->assertSee('سرویس در انتظار آماده‌سازی');
+    DB::table('sales_orders')->where('id', $data['order'])->update(['status' => 'fulfilled']);
+    $page->call('refreshOrderStatus')->assertSee('سرویس در سوابق ثبت شده است')
+        ->assertDontSee('پرداخت با اعتبار')->call('refreshOrderStatus');
+    expect(app(ViewWallet::class)->handle($data['buyer']->id)->balanceRials)->toBe($balance)
+        ->and(DB::table('billing_journals')->count())->toBe($journals)
+        ->and(DB::table('provisioning_operations')->count())->toBe(0);
+    Http::assertNothingSent();
+    $data['buyer']->syncRoles(['member']);
+    $page->call('refreshOrderStatus')->assertForbidden();
+});

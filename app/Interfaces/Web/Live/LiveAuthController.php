@@ -16,6 +16,10 @@ final readonly class LiveAuthController
 {
     public function entry(Request $request): View|RedirectResponse
     {
+        if (in_array($request->query('notice'), ['401', '403', '419', '422', '429', '503'], true)) {
+            return view('live.recovery', ['statusCode' => (int) $request->query('notice')]);
+        }
+
         if (is_int(Auth::id()) && Auth::id() === $request->session()->get('denagate_live.user_id')) {
             return redirect()->route('denagate-live.dashboard');
         }
@@ -29,7 +33,9 @@ final readonly class LiveAuthController
         ResolveTelegramActor $telegram,
         ResolveSalesBuyer $buyers,
     ): RedirectResponse {
-        $validated = $request->validate(['init_data' => ['required', 'string', 'max:8192']]);
+        // Reject malformed input without flashing raw Telegram credentials into session.
+        $raw = $request->input('init_data');
+        abort_unless(is_string($raw) && $raw !== '' && strlen($raw) <= 8192, 422);
         $token = config('telegram.sales.token');
         if (config('telegram.sales.enabled') !== true
             || ! is_string($token) || $token === ''
@@ -37,7 +43,7 @@ final readonly class LiveAuthController
             abort(503);
         }
 
-        $telegramId = $validator->userId($validated['init_data'], $token);
+        $telegramId = $validator->userId($raw, $token);
         abort_if($telegramId === null, 403);
 
         $actor = $telegram->handle($telegramId);

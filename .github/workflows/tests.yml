@@ -113,6 +113,7 @@ jobs:
         run: |
           npm install --ignore-scripts --no-fund --no-audit --package-lock=false
           npm run build
+          node --test tests/JavaScript/live-recovery.test.mjs
           node - <<'NODE'
           const fs = require('node:fs');
           const manifest = JSON.parse(fs.readFileSync('public/build/manifest.json', 'utf8'));

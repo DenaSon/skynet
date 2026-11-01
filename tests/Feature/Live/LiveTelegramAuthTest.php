@@ -6,6 +6,7 @@ use App\Interfaces\Web\Live\ValidateTelegramInitData;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
 use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
@@ -222,4 +223,49 @@ it('keeps the signed Telegram login form visible with the local Persian font', f
         ->assertSee('font-display: swap')
         ->assertSee('action="https://live.denagate.ir/auth/telegram"', false)
         ->assertSee('برای ورود، پنل را از بات فروش دناگیت باز کنید.');
+});
+
+it('shows Persian login errors without flashing credentials or changing denial status', function (): void {
+    config()->set('telegram.sales.bot_username', 'DenaGateSalesBot');
+    $this->post('https://live.denagate.ir/auth/telegram', ['init_data' => 'PRIVATE-INVALID-DATA'])
+        ->assertForbidden()->assertSee('ورود به پنل امکان‌پذیر نیست')
+        ->assertSee('https://t.me/DenaGateSalesBot')->assertDontSee('PRIVATE-INVALID-DATA');
+    $this->post('https://live.denagate.ir/auth/telegram', ['init_data' => ['private' => 'SECRET']])
+        ->assertStatus(422)->assertSee('اطلاعات ورود کامل نیست')
+        ->assertSessionMissing('_old_input')->assertDontSee('SECRET');
+    $this->assertGuest();
+});
+
+it('returns a session error for expired Livewire requests and a safe recovery page without auto login', function (): void {
+    $this->withHeader('X-Livewire', 'true')->get('https://live.denagate.ir/dashboard')
+        ->assertStatus(419)->assertJsonStructure(['message'])->assertHeader('Referrer-Policy', 'no-referrer');
+    $this->flushHeaders();
+    $this->get('https://live.denagate.ir/?notice=419')->assertOk()
+        ->assertSee('زمان ورود شما به پایان رسیده است')->assertSee('پیش از تکرار پرداخت')
+        ->assertDontSee('telegram-login')->assertDontSee('requestSubmit');
+    $this->get('https://live.denagate.ir/?notice=untrusted')->assertOk()
+        ->assertSee('telegram-login')->assertDontSee('untrusted');
+    $this->assertGuest();
+});
+
+it('keeps Persian auth error responses scoped and preserves retry headers', function (int $status): void {
+    Route::get('/live-error-test', function () use ($status): never {
+        abort($status, 'PRIVATE-UPSTREAM-ERROR', ['Retry-After' => '60']);
+    });
+    $this->get('https://live.denagate.ir/live-error-test')->assertStatus($status)
+        ->assertSee('DenaGate')->assertSee('بات فروش')->assertDontSee('PRIVATE-UPSTREAM-ERROR')
+        ->assertHeader('Retry-After', '60')->assertHeader('Referrer-Policy', 'no-referrer');
+    $this->getJson('https://live.denagate.ir/live-error-test')->assertStatus($status)
+        ->assertJsonPath('message', 'امکان ادامه نیست. پنل را دوباره از بات فروش باز کنید.')
+        ->assertHeader('Retry-After', '60');
+    $this->get('https://example.org/live-error-test')->assertStatus($status)
+        ->assertDontSee('بازگشت به بات فروش')->assertHeaderMissing('Referrer-Policy');
+})->with([401, 403, 419, 422, 429, 503]);
+
+it('does not turn a malformed bot username into a recovery link or expose disabled Live', function (): void {
+    config()->set('telegram.sales.bot_username', 'https://evil.example/secret');
+    $this->get('https://live.denagate.ir/?notice=403')->assertOk()
+        ->assertDontSee('evil.example')->assertDontSee('href="https://t.me/', false);
+    config()->set('denagate_live.enabled', false);
+    $this->get('https://live.denagate.ir/?notice=419')->assertNotFound();
 });
