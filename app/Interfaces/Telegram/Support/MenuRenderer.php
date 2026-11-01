@@ -305,6 +305,10 @@ final class MenuRenderer
             $keyboard->addRow(InlineKeyboardButton::make('📋 پرونده کاربر', callback_data: "users:profile:{$user->id}:{$page}:{$mode}"));
         }
 
+        if ($user->telegramUserId !== null && $user->telegramUserId > 0) {
+            $keyboard->addRow(InlineKeyboardButton::make('💬 ارتباط با کاربر', url: 'tg://user?id='.$user->telegramUserId));
+        }
+
         if ($user->canChangeStatus) {
             $label = $user->active ? '⛔ غیرفعال‌کردن' : '✅ فعال‌کردن';
             $keyboard->addRow(InlineKeyboardButton::make($label, callback_data: "users:confirm:{$user->id}:{$page}:{$mode}"));
