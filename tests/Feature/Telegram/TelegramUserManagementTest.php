@@ -7,6 +7,7 @@ use GuzzleHttp\Psr7\Request;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
@@ -280,7 +281,7 @@ it('keeps reseller list context across protected status confirmation and refuses
         ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.']);
 });
 
-it('shows the contact link for a linked user and hides it without a Telegram identity', function (): void {
+it('opens an HTTPS username link from a reachable Sales contact and hides it for unlinked users', function (): void {
     $admin = User::factory()->admin()->create();
     $bot = configureUserManagementBot(50401, $admin);
     $linked = User::factory()->create();
@@ -290,6 +291,23 @@ it('shows the contact link for a linked user and hides it without a Telegram ide
     TelegramAccount::query()->create([
         'user_id' => $linked->id,
         'telegram_user_id' => $telegramUserId,
+    ]);
+    DB::table('telegram_bot_contacts')->insert([
+        'user_id' => $linked->id,
+        'bot_key' => 'sales',
+        'chat_id' => $telegramUserId,
+        'delivery_status' => 'reachable',
+        'last_seen_at' => now(),
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    config()->set('telegram.sales.token', 'test-sales-bot-token');
+    Http::fake([
+        'https://api.telegram.org/bottest-sales-bot-token/getChat*' => Http::response([
+            'ok' => true,
+            'result' => ['id' => $telegramUserId, 'username' => 'Helmabanoo52'],
+        ], 200),
     ]);
 
     $bot->hearCallbackQueryData("users:view:{$linked->id}:1:a")->reply()->assertRaw(
@@ -303,11 +321,15 @@ it('shows the contact link for a linked user and hides it without a Telegram ide
             $contact = $buttons->first(static fn (array $button): bool => ($button['text'] ?? '') === '💬 ارتباط با کاربر');
 
             return $contact !== null
-                && ($contact['url'] ?? null) === 'tg://user?id='.$telegramUserId
-                && ! isset($contact['callback_data']);
+                && ($contact['url'] ?? null) === 'https://t.me/Helmabanoo52'
+                && ! isset($contact['callback_data'])
+                && str_contains((string) ($data['text'] ?? ''), 'جزئیات کاربر');
         },
         index: 1,
     );
+
+    Http::assertSent(static fn (\Illuminate\Http\Client\Request $request): bool => $request->method() === 'GET'
+        && $request['chat_id'] === $telegramUserId);
 
     $bot->hearCallbackQueryData("users:view:{$unlinked->id}:1:a")->reply()->assertRaw(
         static function (Request $request): bool {
@@ -317,6 +339,61 @@ it('shows the contact link for a linked user and hides it without a Telegram ide
                 : ($data['reply_markup'] ?? []);
 
             return ! str_contains(json_encode($markup, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE), 'ارتباط با کاربر');
+        },
+        index: 1,
+    );
+
+    Http::assertSentCount(1);
+});
+
+it('keeps admin details usable when username lookup is unavailable or invalid', function (): void {
+    $admin = User::factory()->admin()->create();
+    $bot = configureUserManagementBot(50501, $admin);
+    $subject = User::factory()->create();
+    $telegramUserId = 9876543210;
+
+    TelegramAccount::query()->create([
+        'user_id' => $subject->id,
+        'telegram_user_id' => $telegramUserId,
+    ]);
+
+    config()->set('telegram.sales.token', 'test-sales-bot-token');
+    Http::fake();
+    $bot->hearCallbackQueryData("users:view:{$subject->id}:1:a")->reply()->assertRaw(
+        static function (Request $request) use ($subject): bool {
+            $data = FakeNutgram::getActualData($request);
+
+            return str_contains((string) ($data['text'] ?? ''), 'جزئیات کاربر')
+                && str_contains((string) ($data['reply_markup'] ?? ''), 'users:profile:'.$subject->id)
+                && ! str_contains((string) ($data['reply_markup'] ?? ''), 'ارتباط با کاربر');
+        },
+        index: 1,
+    );
+    Http::assertNothingSent();
+
+    DB::table('telegram_bot_contacts')->insert([
+        'user_id' => $subject->id,
+        'bot_key' => 'sales',
+        'chat_id' => $telegramUserId,
+        'delivery_status' => 'reachable',
+        'last_seen_at' => now(),
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    Http::fake([
+        'https://api.telegram.org/bottest-sales-bot-token/getChat*' => Http::response([
+            'ok' => true,
+            'result' => ['id' => $telegramUserId, 'username' => 'bad/username'],
+        ]),
+    ]);
+
+    $bot->hearCallbackQueryData("users:view:{$subject->id}:1:a")->reply()->assertRaw(
+        static function (Request $request): bool {
+            $data = FakeNutgram::getActualData($request);
+
+            return str_contains((string) ($data['text'] ?? ''), 'جزئیات کاربر')
+                && ! str_contains((string) ($data['reply_markup'] ?? ''), 'ارتباط با کاربر');
         },
         index: 1,
     );
