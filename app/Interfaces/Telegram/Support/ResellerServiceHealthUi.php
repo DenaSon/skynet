@@ -150,9 +150,12 @@ final readonly class ResellerServiceHealthUi
             return 'کمتر از ۱ دقیقه';
         }
 
-        $days = intdiv($seconds, 86400);
-        $hours = intdiv($seconds % 86400, 3600);
-        $minutes = intdiv($seconds % 3600, 60);
+        // Round up the last partial minute; never display a shorter time
+        // just because the network request consumed a few seconds.
+        $roundedMinutes = intdiv($seconds + 59, 60);
+        $days = intdiv($roundedMinutes, 1440);
+        $hours = intdiv($roundedMinutes % 1440, 60);
+        $minutes = $roundedMinutes % 60;
         if ($days > 0) {
             return $days.' روز'.($hours > 0 ? ' و '.$hours.' ساعت' : '');
         }
