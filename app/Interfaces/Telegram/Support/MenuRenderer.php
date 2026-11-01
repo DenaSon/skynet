@@ -291,7 +291,7 @@ final class MenuRenderer
         $this->render($bot, implode("\n", $lines), $keyboard);
     }
 
-    public function showUserDetails(Nutgram $bot, UserDirectoryEntry $user, int $page = 1, bool $search = false, bool $manageRoles = false, bool $profileAllowed = true, bool $resellersOnly = false): void
+    public function showUserDetails(Nutgram $bot, UserDirectoryEntry $user, int $page = 1, bool $search = false, bool $manageRoles = false, bool $profileAllowed = true, bool $resellersOnly = false, ?string $contactUrl = null): void
     {
         $name = $this->displayName($user->name);
         $email = $this->displayName($user->email);
@@ -305,8 +305,8 @@ final class MenuRenderer
             $keyboard->addRow(InlineKeyboardButton::make('📋 پرونده کاربر', callback_data: "users:profile:{$user->id}:{$page}:{$mode}"));
         }
 
-        if ($user->telegramUserId !== null && $user->telegramUserId > 0) {
-            $keyboard->addRow(InlineKeyboardButton::make('💬 ارتباط با کاربر', url: 'tg://user?id='.$user->telegramUserId));
+        if ($contactUrl !== null) {
+            $keyboard->addRow(InlineKeyboardButton::make('💬 ارتباط با کاربر', url: $contactUrl));
         }
 
         if ($user->canChangeStatus) {
