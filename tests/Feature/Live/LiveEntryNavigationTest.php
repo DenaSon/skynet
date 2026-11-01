@@ -156,7 +156,7 @@ it('hides the Live entry under its existing deployment gate and denies stale cal
     Http::assertNothingSent();
 });
 
-it('adds one final one-tap app button for resellers without moving existing sales buttons', function (): void {
+it('keeps the final app menu entry as text and preserves the authenticated inline shortcut', function (): void {
     live6aUser(997007);
     $actor = app(ResolveTelegramActor::class)->handle(997007);
 
@@ -171,7 +171,7 @@ it('adds one final one-tap app button for resellers without moving existing sale
         ->and($rows[1][1]['text'])->toBe(ReplyMenuLabels::SALES_REPORTS)
         ->and(count($lastRow))->toBe(1)
         ->and($lastRow[0]['text'])->toBe(ReplyMenuLabels::SALES_APP)
-        ->and($lastRow[0]['web_app']['url'])->toBe('https://live.denagate.ir')
+        ->and(array_key_exists('web_app', $lastRow[0]))->toBeFalse()
         ->and(array_key_exists('callback_data', $lastRow[0]))->toBeFalse();
 
     $bot = live6aBot(997007);
@@ -183,7 +183,7 @@ it('adds one final one-tap app button for resellers without moving existing sale
 
             return count($lastRow) === 1
                 && ($lastRow[0]['text'] ?? null) === ReplyMenuLabels::SALES_APP
-                && ($lastRow[0]['web_app']['url'] ?? null) === 'https://live.denagate.ir'
+                && ! array_key_exists('web_app', $lastRow[0])
                 && live6aRichContains($request, 'type="web_app"')
                 && live6aRichContains($request, 'url="https://live.denagate.ir"')
                 && ! live6aRichContains($request, 'data="sales:live"');

@@ -308,6 +308,7 @@ final readonly class SalesHomeUi
             ReplyMenuLabels::SALES_SUPPORT => 'support',
             ReplyMenuLabels::SALES_TUTORIAL => 'tutorial',
             ReplyMenuLabels::SALES_TRIAL => 'trial',
+            ReplyMenuLabels::SALES_APP => 'app',
             ReplyMenuLabels::SALES_PANEL_REQUEST, ReplyMenuLabels::SALES_PANEL_STATUS => 'panel',
             ReplyMenuLabels::SALES_REPORTS => 'report',
             ReplyMenuLabels::HOME, '🏠 صفحه اصلی', '❌ انصراف', '/cancel' => 'home',
@@ -346,6 +347,9 @@ final readonly class SalesHomeUi
                 break;
             case 'trial':
                 app(SalesTrialUi::class)->show($bot);
+                break;
+            case 'app':
+                app(SalesLiveEntry::class)->show($bot);
                 break;
             case 'panel':
                 app(SalesPanelRequestUi::class)->start($bot);

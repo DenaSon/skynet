@@ -653,3 +653,56 @@ it('shows saved member and reseller welcome text in the interactive Home without
 
     Http::assertNothingSent();
 });
+
+it('opens the reseller app through an authorized inline Web App instead of an unsigned reply-keyboard Web App', function (): void {
+    config()->set('denagate_live.enabled', true);
+    config()->set('denagate_live.url', 'https://live.denagate.ir');
+    $user = User::factory()->create();
+    $user->assignRole('reseller');
+    $bot = uxr01Bot($user);
+
+    $bot->hearText('/start')->reply()->assertRaw(static function (Request $request): bool {
+        $rows = uxr01Payload($request)['reply_markup']['keyboard'] ?? [];
+        $last = $rows[count($rows) - 1][0] ?? [];
+
+        return ($last['text'] ?? null) === ReplyMenuLabels::SALES_APP
+            && ! array_key_exists('web_app', $last);
+    }, index: 0);
+
+    foreach ([ReplyMenuLabels::SALES_APP, '/live'] as $entry) {
+        $bot->hearText($entry)->reply()->assertCalled('sendMessage', 1)
+            ->assertRaw(static function (Request $request): bool {
+                $button = uxr01Payload($request)['reply_markup']['inline_keyboard'][0][0] ?? [];
+
+                return ($button['text'] ?? null) === ReplyMenuLabels::SALES_APP
+                    && ($button['web_app']['url'] ?? null) === 'https://live.denagate.ir'
+                    && ! isset($button['callback_data']);
+            });
+    }
+
+    expect(DB::table('sales_orders')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('denies app launch after role revocation, when disabled, and in group chats', function (): void {
+    config()->set('denagate_live.enabled', true);
+    config()->set('denagate_live.url', 'https://live.denagate.ir');
+    $user = User::factory()->create();
+    $user->assignRole('reseller');
+    $bot = uxr01Bot($user);
+
+    $user->syncRoles(['member']);
+    $bot->hearText(ReplyMenuLabels::SALES_APP)->reply()
+        ->assertReplyText('این بخش مخصوص نمایندگان فعال است.');
+
+    $user->syncRoles(['reseller']);
+    config()->set('denagate_live.enabled', false);
+    $bot->hearText(ReplyMenuLabels::SALES_APP)->reply()
+        ->assertReplyText('اپلیکیشن دناگیت فعلاً در دسترس نیست.');
+
+    config()->set('denagate_live.enabled', true);
+    $bot->setCommonChat(Chat::make(-975001, ChatType::GROUP));
+    $bot->hearText(ReplyMenuLabels::SALES_APP)->reply()->assertNoReply();
+    Http::assertNothingSent();
+});
