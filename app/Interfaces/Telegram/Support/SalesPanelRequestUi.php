@@ -189,8 +189,7 @@ final readonly class SalesPanelRequestUi
         }
 
         $mobile = $contact === null ? null : SalesPanelRequests::normalizeMobile((string) $contact->phone_number);
-        if ($contact === null || $telegramId === null
-            || $contact->user_id !== $telegramId
+        if ($contact === null || $contact->user_id !== $telegramId
             || $message->forward_origin !== null || $message->via_bot !== null
             || $mobile === null) {
             $bot->sendMessage(text: 'شماره تأیید نشد. فقط شماره متصل به همین حساب تلگرام را با دکمه اشتراک‌گذاری ارسال کنید.');
