@@ -657,6 +657,19 @@
                             <p class="dg-stat mt-2">{{ number_format($counts['activeRecorded']) }}</p>
                         </section>
                     </div>
+                    <div class="mb-4 flex flex-wrap items-center gap-3">
+                        <button type="button" wire:click="checkServiceExpiries" wire:target="checkServiceExpiries" wire:loading.attr="disabled" class="dg-btn-secondary">⏳ بررسی انقضا</button>
+                        @if ($checkedExpiry !== null)
+                            <span class="text-sm font-semibold text-[#1B2935]">⏳ انقضا تا ۳ روز: {{ number_format($checkedExpiry['count']) }}</span>
+                            @if ($checkedExpiry['unknown'] > 0)
+                                <span class="text-xs text-[#71818B]">⚪ نامشخص: {{ number_format($checkedExpiry['unknown']) }}</span>
+                            @endif
+                        @endif
+                        <span wire:loading.delay wire:target="checkServiceExpiries" role="status" class="text-xs text-[#71818B]">در حال بررسی…</span>
+                        @if ($serviceExpiryError)
+                            <span role="alert" class="text-xs text-[#8e2929]">{{ $serviceExpiryError }}</span>
+                        @endif
+                    </div>
                     <div class="space-y-3">
                         @forelse ($services as $service)
                             @php
@@ -677,6 +690,9 @@
                                     <span class="dg-status" data-tone="{{ match ($service->status) { 'failed' => 'danger', 'needs_review', 'provisioning' => 'warning', default => 'neutral' } }}">{{ $serviceStatus }}</span>
                                 </div>
                                 <p class="mt-2 break-words text-xs leading-6 text-[#71818B]">شماره سفارش: <span dir="ltr">{{ $service->orderId }}</span> · تاریخ ثبت: {{ \App\Support\PersianCalendar::utcDateTime($service->orderedAt) }}</p>
+                                @if (($checkedExpiry['remaining'][$service->orderId] ?? null) !== null)
+                                    <p class="mt-2 text-xs font-semibold text-[#845C23]">⏳ {{ $checkedExpiry['remaining'][$service->orderId] }} تا انقضا</p>
+                                @endif
                                 <button type="button" wire:click="openService({{ $service->orderId }})" wire:target="openService" wire:loading.attr="disabled"
                                     class="dg-btn-secondary mt-3 w-full sm:w-auto">مشاهده جزئیات</button>
                             </article>
