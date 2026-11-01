@@ -182,8 +182,8 @@ final readonly class SalesPanelRequestUi
         if ($actor === null || ! in_array('member', $actor->roles, true)
             || in_array('reseller', $actor->roles, true)
             || $this->requests->find($userId) !== null) {
-            $this->clear($userId);
-            $this->notice($bot, 'وضعیت درخواست تغییر کرده است. لطفاً از حساب کاربری دوباره بررسی کنید.');
+            // Account navigation clears the draft and restores the native keyboard.
+            app(SalesHomeUi::class)->account($bot);
 
             return true;
         }
