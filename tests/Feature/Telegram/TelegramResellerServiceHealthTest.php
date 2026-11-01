@@ -288,3 +288,110 @@ it('distinguishes remotely LIMITED from confirmed exhausted traffic without expo
 
     Http::assertSentCount(2);
 });
+
+it('reports only verified upcoming 72-hour expiries with remaining time in Rich and simple views', function (): void {
+    $buyer = rshUser();
+    $soon = rshOrder($buyer);
+    $justOutside = rshOrder($buyer);
+    $expired = rshOrder($buyer);
+    $disabled = rshOrder($buyer);
+    $unknown = rshOrder($buyer);
+    $bot = rshBot($buyer, 981009);
+
+    Http::fake([
+        'https://rw-health.test/api/users/'.($soon + 2300) => Http::response([
+            'response' => rshRemote($soon, ['expireAt' => now()->addHours(71)->addMinutes(59)->toIso8601String()]),
+        ]),
+        'https://rw-health.test/api/users/'.($justOutside + 2300) => Http::response([
+            'response' => rshRemote($justOutside, ['expireAt' => now()->addHours(72)->addMinutes(1)->toIso8601String()]),
+        ]),
+        'https://rw-health.test/api/users/'.($expired + 2300) => Http::response([
+            'response' => rshRemote($expired, ['status' => 'EXPIRED', 'expireAt' => now()->subMinute()->toIso8601String()]),
+        ]),
+        'https://rw-health.test/api/users/'.($disabled + 2300) => Http::response([
+            'response' => rshRemote($disabled, ['status' => 'DISABLED', 'expireAt' => now()->addHours(2)->addMinutes(30)->toIso8601String()]),
+        ]),
+        'https://rw-health.test/api/users/'.($unknown + 2300) => Http::response([], 503),
+    ]);
+
+    $page = app(ReadResellerServiceHealth::class)->handle(SubscriptionViewer::telegram(981009));
+    $rows = array_column($page['rows'], null, 'orderId');
+    expect($page['checked'])->toBe(5)
+        ->and($page['expiringSoon'])->toBe(2)
+        ->and($page['expired'])->toBe(1)
+        ->and($page['unknown'])->toBe(1)
+        ->and($rows[$soon]['status'])->toBe('🟢 فعال')
+        ->and($rows[$soon]['action'])->toBe('انقضا در ۷ روز آینده')
+        ->and($rows[$soon]['remainingSeconds'])->toBeGreaterThan(0)
+        ->and($rows[$soon]['remainingSeconds'])->toBeLessThanOrEqual(3 * 86400)
+        ->and($rows[$justOutside]['remainingSeconds'])->toBeNull()
+        ->and($rows[$expired]['remainingSeconds'])->toBeNull()
+        ->and($rows[$disabled]['status'])->toBe('🟠 غیرفعال')
+        ->and($rows[$disabled]['remainingSeconds'])->toBeGreaterThan(0)
+        ->and($rows[$unknown]['remainingSeconds'])->toBeNull()
+        ->and(json_encode($page, JSON_THROW_ON_ERROR))->not->toContain('private-health.test');
+    Http::assertSentCount(5);
+
+    $bot->hearCallbackQueryData('sales:health:0')->reply()->assertRaw(
+        static function (NutgramRequest $request): bool {
+            $html = rshRich($request);
+
+            return str_contains($html, 'انقضا تا ۳ روز (فقط این صفحه): <b>2</b>')
+                && str_contains($html, '⏳ 2 ساعت و 30 دقیقه تا انقضا')
+                && str_contains($html, 'انقضا در ۷ روز آینده')
+                && str_contains($html, '🟠 غیرفعال')
+                && ! str_contains($html, 'private-health.test');
+        }, index: 1,
+    );
+    Http::assertSentCount(10);
+
+    $bot->hearCallbackQueryData('sales:health:simple:0')->reply()->assertRaw(
+        static function (NutgramRequest $request): bool {
+            $data = FakeNutgram::getActualData($request);
+            $text = (string) ($data['text'] ?? '');
+
+            return str_contains($text, 'انقضا تا ۳ روز (فقط این صفحه): 2')
+                && str_contains($text, '⏳ 2 ساعت و 30 دقیقه تا انقضا')
+                && str_contains($text, 'انقضا در ۷ روز آینده')
+                && ! str_contains($text, 'private-health.test')
+                && ! isset($data['rich_message']);
+        }, index: 1,
+    );
+    Http::assertSentCount(15);
+    Http::assertSent(static fn ($request): bool => $request->method() === 'GET');
+});
+
+it('keeps 72-hour counts page-local without reordering or fetching off-page subscriptions', function (): void {
+    $buyer = rshUser();
+    $orders = [];
+    for ($i = 0; $i < 8; $i++) {
+        $orders[] = rshOrder($buyer);
+    }
+    rshBot($buyer, 981010);
+
+    $responses = [];
+    foreach ($orders as $index => $order) {
+        $responses['https://rw-health.test/api/users/'.($order + 2300)] = Http::response([
+            'response' => rshRemote($order, [
+                'expireAt' => ($index === 0 ? now()->addHours(4) : now()->addDays(10))->toIso8601String(),
+            ]),
+        ]);
+    }
+    Http::fake($responses);
+
+    $viewer = SubscriptionViewer::telegram(981010);
+    $first = app(ReadResellerServiceHealth::class)->handle($viewer);
+    expect($first['total'])->toBe(8)
+        ->and($first['checked'])->toBe(6)
+        ->and($first['expiringSoon'])->toBe(0)
+        ->and($first['nextBeforeOrderId'])->not->toBeNull()
+        ->and(array_column($first['rows'], 'orderId'))->toBe(array_reverse(array_slice($orders, 2)));
+    Http::assertSentCount(6);
+
+    $second = app(ReadResellerServiceHealth::class)->handle($viewer, $first['nextBeforeOrderId']);
+    expect($second['checked'])->toBe(2)
+        ->and($second['expiringSoon'])->toBe(1)
+        ->and($second['nextBeforeOrderId'])->toBeNull()
+        ->and(array_column($second['rows'], 'orderId'))->toBe(array_reverse(array_slice($orders, 0, 2)));
+    Http::assertSentCount(8);
+});
