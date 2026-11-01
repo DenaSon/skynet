@@ -311,7 +311,7 @@ it('opens an HTTPS username link from a reachable Sales contact and hides it for
     ]);
 
     $bot->hearCallbackQueryData("users:view:{$linked->id}:1:a")->reply()->assertRaw(
-        static function (Request $request) use ($telegramUserId): bool {
+        static function (Request $request): bool {
             $data = FakeNutgram::getActualData($request);
             $markup = is_string($data['reply_markup'] ?? null)
                 ? json_decode($data['reply_markup'], true, flags: JSON_THROW_ON_ERROR)
@@ -328,7 +328,7 @@ it('opens an HTTPS username link from a reachable Sales contact and hides it for
         index: 1,
     );
 
-    Http::assertSent(static fn (\Illuminate\Http\Client\Request $request): bool => $request->method() === 'GET'
+    Http::assertSent(static fn (Illuminate\Http\Client\Request $request): bool => $request->method() === 'GET'
         && $request['chat_id'] === $telegramUserId);
 
     $bot->hearCallbackQueryData("users:view:{$unlinked->id}:1:a")->reply()->assertRaw(
