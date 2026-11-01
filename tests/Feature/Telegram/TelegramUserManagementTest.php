@@ -279,3 +279,45 @@ it('keeps reseller list context across protected status confirmation and refuses
     $bot->hearCallbackQueryData('users:resellers:1')->reply()
         ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.']);
 });
+
+it('shows the contact link for a linked user and hides it without a Telegram identity', function (): void {
+    $admin = User::factory()->admin()->create();
+    $bot = configureUserManagementBot(50401, $admin);
+    $linked = User::factory()->create();
+    $unlinked = User::factory()->create();
+    $telegramUserId = 123456789012;
+
+    TelegramAccount::query()->create([
+        'user_id' => $linked->id,
+        'telegram_user_id' => $telegramUserId,
+    ]);
+
+    $bot->hearCallbackQueryData("users:view:{$linked->id}:1:a")->reply()->assertRaw(
+        static function (Request $request) use ($telegramUserId): bool {
+            $data = FakeNutgram::getActualData($request);
+            $markup = is_string($data['reply_markup'] ?? null)
+                ? json_decode($data['reply_markup'], true, flags: JSON_THROW_ON_ERROR)
+                : ($data['reply_markup'] ?? []);
+            $buttons = collect($markup['inline_keyboard'] ?? [])
+                ->flatMap(static fn (array $row): array => $row);
+            $contact = $buttons->first(static fn (array $button): bool => ($button['text'] ?? '') === '💬 ارتباط با کاربر');
+
+            return $contact !== null
+                && ($contact['url'] ?? null) === 'tg://user?id='.$telegramUserId
+                && ! isset($contact['callback_data']);
+        },
+        index: 1,
+    );
+
+    $bot->hearCallbackQueryData("users:view:{$unlinked->id}:1:a")->reply()->assertRaw(
+        static function (Request $request): bool {
+            $data = FakeNutgram::getActualData($request);
+            $markup = is_string($data['reply_markup'] ?? null)
+                ? json_decode($data['reply_markup'], true, flags: JSON_THROW_ON_ERROR)
+                : ($data['reply_markup'] ?? []);
+
+            return ! str_contains(json_encode($markup, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE), 'ارتباط با کاربر');
+        },
+        index: 1,
+    );
+});
