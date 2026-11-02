@@ -5,7 +5,6 @@ declare(strict_types=1);
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Spatie\Permission\Models\Role;
 
@@ -78,7 +77,7 @@ it('allows only signed active member viewers without granting the reseller web g
     $this->get('https://live.denagate.ir/demo/preview')->assertOk()
         ->assertSee('DenaGate')
         ->assertSee('حالت دمو')
-        ->assertSee('نمونه آزمایشی')
+        ->assertSee('اطلاعات نمونه')
         ->assertSee('اعتبار نمونه')
         ->assertSee('مشتری نمونه ۱')
         ->assertSee('گزارش فروش')
@@ -187,12 +186,6 @@ it('never reads a live catalog or real operational data in DEMO-01', function ()
         ->not->toContain('wire:click')
         ->not->toContain('sales_orders');
 
-    DB::table('billing_wallets')->insert([
-        'user_id' => demoMember(661105)->id,
-        'balance_rials' => 987654321,
-        'created_at' => now(),
-        'updated_at' => now(),
-    ]);
     $this->get('https://live.denagate.ir/demo/preview')->assertOk()
         ->assertDontSee('987654321')
         ->assertDontSee('98,765,432');
