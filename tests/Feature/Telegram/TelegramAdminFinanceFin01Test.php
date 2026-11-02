@@ -110,7 +110,7 @@ it('navigates the Admin Finance customer wallet read and bounded lookup with no 
             && ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'adjust');
     }, index: 1);
     $bot->hearCallbackQueryData('finance:find-wallet')->reply()->assertCalled('editMessageText');
-    $bot->hearText((string) $customer->id)->reply()->assertCalled('sendMessage');
+    $bot->hearText((string) $customer->id)->reply()->assertCalled('sendRichMessage');
     expect(DB::table('billing_journals')->count())->toBe(0)
         ->and(DB::table('billing_topups')->count())->toBe(0);
 });
