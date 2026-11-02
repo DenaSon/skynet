@@ -360,12 +360,24 @@ it('describes a previously approved panel request without a current reseller rol
     $application = app(SalesPanelRequests::class)->submit($member->id, 'علی', 'محمدی', '09123456789');
     DB::table('sales_panel_requests')->where('id', $application['id'])->update(['status' => 'approved']);
 
-    $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertRaw(static function (Request $request): bool {
-        $text = (string) (panel01Payload($request)['text'] ?? '');
+    $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertRaw(static function (Request $request) use ($application): bool {
+        $data = panel01Payload($request);
+        $text = (string) ($data['text'] ?? '');
+        $buttons = $data['reply_markup']['inline_keyboard'] ?? [];
 
         return str_contains($text, 'قبلاً تأیید شده')
             && str_contains($text, 'در حال حاضر فعال نیست')
-            && ! str_contains($text, '✅ پنل فروش برای حساب شما فعال است');
+            && str_contains($text, (string) $application['id'])
+            && ! str_contains($text, '✅ پنل فروش برای حساب شما فعال است')
+            && ! str_contains($text, 'علی')
+            && ! str_contains($text, 'محمدی')
+            && ! str_contains($text, '0912')
+            && ! str_contains($text, 'موبایل:')
+            && ($buttons[0][0]['text'] ?? null) === '💬 ارتباط با پشتیبانی'
+            && ($buttons[0][0]['callback_data'] ?? null) === 'sales:support'
+            && ($buttons[0][0]['style'] ?? null) === 'primary'
+            && ($buttons[1][0]['callback_data'] ?? null) === 'sales:account'
+            && ($buttons[2][0]['callback_data'] ?? null) === 'sales:home';
     }, index: 1);
 
     Role::findOrCreate('reseller', 'web');
@@ -585,5 +597,39 @@ it('hides the Demo entry when Live is disabled or the account is already a resel
 
         return ! str_contains($text, 'قوانین پنل فروش');
     });
+    Http::assertNothingSent();
+});
+
+it('reuses the existing support route for rejected panel applications without exposing the stored mobile or name', function (): void {
+    $member = User::factory()->create();
+    PanelWalletFunding::credit($member->id, 3_500_000);
+    $bot = panel01Bot(986194, $member);
+    $application = app(SalesPanelRequests::class)->submit($member->id, 'مریم', 'احمدی', '09123456789');
+    DB::table('sales_panel_requests')->where('id', $application['id'])->update(['status' => 'rejected']);
+
+    $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertRaw(static function (Request $request): bool {
+        $data = panel01Payload($request);
+        $text = (string) ($data['text'] ?? '');
+        $buttons = $data['reply_markup']['inline_keyboard'] ?? [];
+
+        return str_contains($text, 'درخواست شما تأیید نشده است')
+            && ! str_contains($text, 'مریم')
+            && ! str_contains($text, 'احمدی')
+            && ! str_contains($text, '0912')
+            && ! str_contains($text, 'موبایل')
+            && ($buttons[0][0]['callback_data'] ?? null) === 'sales:support'
+            && ($buttons[0][0]['text'] ?? null) === '💬 ارتباط با پشتیبانی';
+    }, index: 1);
+
+    config()->set('telegram.sales.support_username', 'DenaGateSupport');
+    $bot->hearCallbackQueryData('sales:support')->reply()->assertRaw(static function (Request $request): bool {
+        $data = panel01Payload($request);
+        $keyboard = $data['reply_markup']['inline_keyboard'] ?? [];
+
+        return str_contains(json_encode($keyboard, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR), 'https://t.me/DenaGateSupport');
+    }, index: 1);
+
+    expect(DB::table('sales_panel_requests')->where('id', $application['id'])->value('status'))->toBe('rejected')
+        ->and(DB::table('sales_panel_requests')->count())->toBe(1);
     Http::assertNothingSent();
 });
