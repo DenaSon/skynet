@@ -14,15 +14,18 @@ use App\Modules\Billing\Application\ReviewTopup;
 use App\Modules\Identity\Application\AssertBillingAccess;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\TelegramActor;
+use App\Support\PersianCalendar;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 use Throwable;
 
 /** Root-only finance read/review screens; Billing Actions retain financial authority. */
@@ -100,7 +103,33 @@ final readonly class AdminFinanceWalletUi
         }
         $keyboard->addRow(InlineKeyboardButton::make('🔎 جستجو با شناسه کاربر', callback_data: 'finance:find-wallet'))
             ->addRow(InlineKeyboardButton::make('◀️ امور مالی', callback_data: 'menu:admin:finance'));
-        $this->render($bot, trim(implode("\n", $lines)), $keyboard);
+        $t = static fn (string $key, string $value): string => '<tr><td>'.TelegramUi::escape($key)
+            .'</td><td>'.TelegramUi::escape($value).'</td></tr>';
+        $summaryTable = $t('مجموع مانده', TelegramUi::toman($summary['balanceRials']).' تومان')
+            .$t('کاربران عادی', TelegramUi::toman($summary['memberBalanceRials']).' تومان')
+            .$t('پنل‌های فروش', TelegramUi::toman($summary['resellerBalanceRials']).' تومان')
+            .$t('کل کیف پول‌ها', number_format($summary['walletsTotal']))
+            .$t('دارای موجودی', number_format($summary['walletsPositive']))
+            .$t('شارژهای منتظر تأیید', number_format($summary['pendingTopups']));
+        if ($summary['otherBalanceRials'] !== 0) {
+            $summaryTable .= $t('سایر حساب‌ها', TelegramUi::toman($summary['otherBalanceRials']).' تومان');
+        }
+        if ($summary['walletsNegative'] > 0) {
+            $summaryTable .= $t('⚠️ مانده منفی نیازمند بررسی', number_format($summary['walletsNegative']));
+        }
+        $walletTable = '';
+        foreach (array_slice($rows, 0, 8) as $row) {
+            $walletTable .= $t('#'.$row['id'].' · '.mb_substr($row['name'], 0, 45)
+                .' · '.self::accountLabel($row['account_type']), TelegramUi::toman($row['balance_rials']).' تومان');
+        }
+        if ($rows === []) {
+            $walletTable = $t('فهرست', 'کیف پول ثبت‌شده‌ای پیدا نشد.');
+        }
+        $html = '<h2>💼 کیف پول کاربران</h2><table bordered striped compact>'.$summaryTable
+            .'</table><h3>فهرست کیف پول‌ها</h3><table bordered striped compact>'.$walletTable
+            .'</table><footer>💡 مانده از گردش تأییدشده محاسبه می‌شود؛ درآمد فروش نیست.'
+            .' | صفحه '.number_format($number).' | '.PersianCalendar::localDateTime(now()).' (تهران)</footer>';
+        $this->render($bot, trim(implode("\n", $lines)), $keyboard, $html);
     }
 
     public function detail(Nutgram $bot, string $id): void
@@ -161,10 +190,50 @@ final readonly class AdminFinanceWalletUi
                 $lines[] = $line;
             }
         }
-        $this->render($bot, implode("\n", $lines), InlineKeyboardMarkup::make()
+        $keyboard = InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('◀️ کیف پول کاربران', callback_data: 'finance:wallets:1'))
             ->addRow(InlineKeyboardButton::make('🧾 رسیدهای شارژ', callback_data: 'finance:topups:1'))
-            ->addRow(InlineKeyboardButton::make('🏠 امور مالی', callback_data: 'menu:admin:finance')));
+            ->addRow(InlineKeyboardButton::make('🏠 امور مالی', callback_data: 'menu:admin:finance'));
+        $t = static fn (string $key, string $value): string => '<tr><td>'.TelegramUi::escape($key)
+            .'</td><td>'.TelegramUi::escape($value).'</td></tr>';
+        $balance = TelegramUi::toman($row['balance_rials']).' تومان';
+        $identity = $t('کاربر', mb_substr($row['name'], 0, 70))
+            .$t('شناسه', (string) $row['id'])
+            .$t('وضعیت حساب', $row['active'] ? '🟢 فعال' : '⏸️ غیرفعال')
+            .$t('نوع حساب', self::accountLabel($row['account_type']))
+            .$t('موجودی', $balance);
+        $ledger = '';
+        foreach ($row['entries'] as $entry) {
+            $kind = match ($entry['kind']) {
+                'topup' => 'شارژ',
+                'topup_reversal' => 'اصلاح شارژ',
+                'purchase_reversal' => 'اصلاح خرید',
+                default => 'پرداخت',
+            };
+            $source = $entry['source'] !== '' ? ' · مرجع داخلی: '.$entry['source'] : '';
+            $ledger .= $t(($entry['side'] === 'credit' ? '➕ ' : '➖ ').$kind.' · سند #'.$entry['journal'],
+                TelegramUi::toman($entry['amount_rials']).' تومان · '.mb_substr($entry['at'], 0, 16).$source);
+        }
+        if ($row['entries'] === []) {
+            $ledger = $t('گردش‌ها', 'هنوز گردش مالی تأییدشده‌ای وجود ندارد.');
+        }
+        $html = '<h2>💼 جزئیات کیف پول</h2><table bordered striped compact>'.$identity.'</table>';
+        if ($row['balance_rials'] < 0) {
+            $html .= '<blockquote>⚠️ مانده منفی این حساب نیازمند بررسی است.</blockquote>';
+        }
+        $html .= '<h3>گردش‌های اخیر</h3><table bordered striped compact>'.$ledger.'</table>';
+        if ($row['topups'] !== []) {
+            $topups = '';
+            foreach ($row['topups'] as $topup) {
+                $reference = $topup['reference'] !== null ? ' · مرجع: '.$topup['reference'] : '';
+                $topups .= $t('#'.$topup['id'].' · '.TelegramUi::topupStatus($topup['status']),
+                    TelegramUi::toman($topup['amount_rials']).' تومان'.$reference);
+            }
+            $html .= '<h3>درخواست‌های شارژ</h3><table bordered striped compact>'.$topups.'</table>';
+        }
+        $html .= '<footer>💡 مبنای موجودی، گردش‌های تأییدشده است. '
+            .PersianCalendar::localDateTime(now()).' (تهران)</footer>';
+        $this->render($bot, implode("\n", $lines), $keyboard, $html);
     }
 
     public function pending(Nutgram $bot, string $page = '1'): void
@@ -206,7 +275,20 @@ final readonly class AdminFinanceWalletUi
         $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'finance:topups:1'))
             ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: $actor->canManageRoles()
                 ? 'menu:admin:finance' : 'menu:admin:reviews'));
-        $this->render($bot, implode("\n", $lines), $keyboard);
+        $t = static fn (string $key, string $value): string => '<tr><td>'.TelegramUi::escape($key)
+            .'</td><td>'.TelegramUi::escape($value).'</td></tr>';
+        $items = '';
+        foreach (array_slice($rows, 0, 8) as $row) {
+            $items .= $t('#'.$row['id'].' · کاربر #'.$row['user_id'],
+                TelegramUi::toman($row['amount_rials']).' تومان · در انتظار بررسی');
+        }
+        if ($rows === []) {
+            $items = $t('صف', 'رسید شارژ منتظر بررسی وجود ندارد.');
+        }
+        $html = '<h2>🧾 رسیدهای شارژ کیف پول</h2><table bordered striped compact>'.$items
+            .'</table><footer>💡 فقط درخواست‌های دارای تصویر و در انتظار بررسی.'
+            .' | صفحه '.number_format($number).' | '.PersianCalendar::localDateTime(now()).' (تهران)</footer>';
+        $this->render($bot, implode("\n", $lines), $keyboard, $html);
     }
 
     public function showPhoto(Nutgram $bot, string $id): void
@@ -504,22 +586,38 @@ final readonly class AdminFinanceWalletUi
         $this->render($bot, '<b>💳 امور مالی</b>'."\n\n".$message, $this->backTopups());
     }
 
-    private function render(Nutgram $bot, string $text, InlineKeyboardMarkup $keyboard): void
+    private function render(Nutgram $bot, string $text, InlineKeyboardMarkup $keyboard, ?string $richHtml = null): void
     {
         if ($bot->isCallbackQuery()) {
             TelegramUi::answerCallback($bot);
-            $message = $bot->message();
-            if (($message->photo ?? []) !== [] || $message?->document !== null
-                || $message?->video !== null || $message?->animation !== null
-                || $message?->audio !== null || $message?->voice !== null || $message?->sticker !== null) {
-                $bot->sendMessage(text: $text, reply_markup: $keyboard, parse_mode: 'HTML');
+        }
+        $message = $bot->isCallbackQuery() ? $bot->message() : null;
+        $media = ($message->photo ?? []) !== [] || $message?->document !== null
+            || $message?->video !== null || $message?->animation !== null
+            || $message?->audio !== null || $message?->voice !== null || $message?->sticker !== null;
+
+        if ($richHtml !== null) {
+            try {
+                $rich = new InputRichMessage(html: $richHtml, is_rtl: true);
+                if ($media) {
+                    $bot->sendRichMessage(rich_message: $rich, reply_markup: $keyboard);
+                } else {
+                    TelegramUi::editRichText($bot, $rich, $keyboard);
+                }
 
                 return;
+            } catch (TelegramException $exception) {
+                report($exception);
+                // Use the identical authorized data and keyboard in native HTML.
             }
+        }
+
+        if ($bot->isCallbackQuery() && ! $media) {
             TelegramUi::editText($bot, $text, $keyboard, 'HTML');
 
             return;
         }
+
         $bot->sendMessage(text: $text, reply_markup: $keyboard, parse_mode: 'HTML');
     }
 }
