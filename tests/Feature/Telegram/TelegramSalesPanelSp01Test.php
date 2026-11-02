@@ -600,6 +600,61 @@ it('offers a signed Demo Web App beside the existing panel request only to eligi
     Http::assertNothingSent();
 });
 
+it('keeps old persistent request labels routable and old direct callbacks functional', function (): void {
+    config()->set('denagate_live.enabled', true);
+    $member = User::factory()->create();
+    $bot = panel01Bot(986195, $member);
+
+    $bot->hearText('🧩 درخواست پنل فروش')->reply()->assertRaw(static function (Request $request): bool {
+        $data = panel01Payload($request);
+        $rich = is_string($data['rich_message'] ?? null)
+            ? json_decode($data['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+            : ($data['rich_message'] ?? []);
+
+        return str_contains((string) ($rich['html'] ?? ''), 'نمایندگی DenaGate')
+            && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:panel:request');
+    });
+
+    $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertRaw(static function (Request $request): bool {
+        return str_contains((string) (panel01Payload($request)['text'] ?? ''), 'اعتبار کافی نیست');
+    }, index: 1);
+
+    $bot->hearText('📨 وضعیت درخواست پنل فروش')->reply()->assertRaw(static function (Request $request): bool {
+        return str_contains(json_encode(panel01Payload($request)['reply_markup'], JSON_THROW_ON_ERROR), 'sales:panel:request');
+    });
+
+    expect(DB::table('sales_panel_requests')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('renders a safe member-only hub with no demo button when Live is disabled', function (): void {
+    config()->set('denagate_live.enabled', false);
+    $member = User::factory()->create();
+    $bot = panel01Bot(986196, $member);
+
+    $bot->hearCallbackQueryData('sales:panel:hub')->reply()->assertRaw(static function (Request $request): bool {
+        $data = panel01Payload($request);
+        $keyboard = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+
+        return str_contains($keyboard, 'sales:panel:request')
+            && ! str_contains($keyboard, 'live.denagate.ir/demo');
+    }, index: 1);
+
+    Role::findOrCreate('reseller', 'web');
+    $member->syncRoles(['reseller']);
+    $bot->hearCallbackQueryData('sales:panel:hub')->reply()->assertRaw(static function (Request $request): bool {
+        $data = panel01Payload($request);
+        $keyboard = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+
+        return str_contains((string) ($data['text'] ?? ''), 'در دسترس نیست')
+            && ! str_contains($keyboard, 'sales:panel:request')
+            && ! str_contains($keyboard, 'live.denagate.ir/demo');
+    }, index: 1);
+
+    expect(DB::table('sales_panel_requests')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
 it('hides the Demo entry when Live is disabled or the account is already a reseller', function (): void {
     config()->set('denagate_live.enabled', false);
     $member = User::factory()->create();
