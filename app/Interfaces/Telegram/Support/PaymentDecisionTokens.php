@@ -24,7 +24,7 @@ final class PaymentDecisionTokens
         return $token;
     }
 
-    /** @return array{operator:int,claim:int,approve:bool,reference:?string,photo_message_id:?int}|null */
+    /** @return array{operator:int,claim:int,approve:bool,reference:?string,photo_message_id:?int,verified_amount_rials:?int}|null */
     public function consume(int $operatorId, string $token): ?array
     {
         if (preg_match('/\A[a-f0-9]{32}\z/D', $token) !== 1) {
