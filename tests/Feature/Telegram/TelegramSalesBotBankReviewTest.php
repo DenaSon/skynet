@@ -379,7 +379,7 @@ it('requires all gates before final approval and then queues one automatic RW ac
     // The text input issues this existing one-use token after verifying the
     // entered bank reference; the dedicated Admin UI regression covers that step.
     $token = app(PaymentDecisionTokens::class)->issue(
-        $data['root']->id, $claim, true, 'SB04VERIFIED702', null,
+        $data['root']->id, $claim, true, 'SB04VERIFIED702', null, sb04VerifiedRials($claim),
     );
     $admin->hearCallbackQueryData('bank:apply:'.$token)->reply()
         ->assertCalled('editMessageText');
