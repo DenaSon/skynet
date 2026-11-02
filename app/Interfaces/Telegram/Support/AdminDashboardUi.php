@@ -7,8 +7,10 @@ namespace App\Interfaces\Telegram\Support;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Provisioning\Application\ReadAdminDashboard;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 
 /** STAT-01: private read-only Super Admin overview. */
 final readonly class AdminDashboardUi
@@ -38,6 +40,7 @@ final readonly class AdminDashboardUi
             TelegramUi::answerCallback($bot);
         }
 
+        $report = null;
         try {
             $report = $this->dashboard->handle($actor->userId);
             $text = '<b>📊 آمار DenaGate</b>'
@@ -84,6 +87,20 @@ final readonly class AdminDashboardUi
             )
             ->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
 
+        if ($report !== null) {
+            try {
+                TelegramUi::editRichText($bot, new InputRichMessage(
+                    html: self::richReport($report),
+                    is_rtl: true,
+                ), $keyboard);
+
+                return;
+            } catch (TelegramException $exception) {
+                report($exception);
+                // Same authorized snapshot, fields and keyboard in native HTML.
+            }
+        }
+
         if ($bot->isCallbackQuery()) {
             TelegramUi::editText($bot, $text, $keyboard, 'HTML');
 
@@ -91,6 +108,46 @@ final readonly class AdminDashboardUi
         }
 
         $bot->sendMessage(text: $text, reply_markup: $keyboard, parse_mode: 'HTML');
+    }
+
+    /** @param array<string,mixed> $report */
+    private static function richReport(array $report): string
+    {
+        $row = static fn (string $label, string $value): string => '<tr><td>'
+            .TelegramUi::escape($label).'</td><td>'.TelegramUi::escape($value).'</td></tr>';
+
+        $infrastructure = $row('نودها', self::count($report['nodes']))
+            .$row('متصل', self::count($report['connected']))
+            .$row('هاست‌ها', self::count($report['hosts']))
+            .$row('کاربران آنلاین', self::count($report['online']));
+
+        $users = $row('حساب‌های دناگیت', self::count($report['localUsers']))
+            .$row('حساب‌های فعال', self::count($report['localActive']))
+            .$row('کاربران پنل سرویس', self::count($report['panelUsers']))
+            .$row('اشتراک‌های فعال پنل', self::count($report['subscriptionsActive']))
+            .$row('اشتراک‌های منقضی', self::count($report['subscriptionsExpired']))
+            .$row('اتمام حجم', self::count($report['subscriptionsLimited']));
+
+        $telegram = $row('شناسه‌های متصل', self::count($report['telegramLinked']))
+            .$row('قابل دسترس در فروش', self::count($report['salesReachable']))
+            .$row('قابل دسترس در مدیریت', self::count($report['adminReachable']))
+            .$row('تعامل بات فروش · ۳۰ روز', self::count($report['salesRecent']));
+
+        $followUp = $row('عملیات اشتراک', self::count($report['provisioningReview']))
+            .$row('سفارش‌ها', self::count($report['fulfillmentReview']))
+            .$row('رسیدهای منتظر بررسی', self::count($report['receiptsPending']))
+            .$row('کارهای ناموفق', self::count($report['failedJobs']))
+            .$row('اعلان‌های ناموفق', self::count($report['notificationIssues']));
+
+        return '<h2>📊 آمار DenaGate</h2>'
+            .'<h3>🖥️ زیرساخت</h3><table bordered striped compact>'.$infrastructure.'</table>'
+            .'<h3>👥 کاربران و اشتراک‌ها</h3><table bordered striped compact>'.$users.'</table>'
+            .'<h3>🤖 تلگرام</h3><table bordered striped compact>'.$telegram.'</table>'
+            .'<h3>💳 فروش امروز</h3><p><b>'
+            .number_format(intdiv($report['salesTodayRials'], 10)).' تومان</b></p>'
+            .'<h3>⚠️ پیگیری‌ها</h3><table bordered striped compact>'.$followUp.'</table>'
+            .'<footer>🕒 '.TelegramUi::escape((string) $report['receivedAt'])
+            .' (تهران) · «نامشخص» یعنی داده کامل نیست؛ صفر نیست.</footer>';
     }
 
     private static function count(?int $value): string
