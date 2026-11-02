@@ -132,8 +132,9 @@ final readonly class SalesHomeUi
             $keyboard->addRow(InlineKeyboardButton::make($panelRequestLabel, callback_data: 'sales:panel:request'));
             if (config('denagate_live.enabled') === true) {
                 $keyboard->addRow(InlineKeyboardButton::make(
-                    '👀 مشاهده دموی نمایندگی',
+                    '🖥️ مشاهده دموی نمایندگی',
                     web_app: WebAppInfo::make(rtrim((string) config('denagate_live.url'), '/').'/demo'),
+                    style: ButtonStyle::PRIMARY,
                 ));
             }
         }
@@ -454,8 +455,9 @@ final readonly class SalesHomeUi
             $keyboard->addRow(InlineKeyboardButton::make($panelRequestLabel, callback_data: 'sales:panel:request'));
             if (config('denagate_live.enabled') === true) {
                 $keyboard->addRow(InlineKeyboardButton::make(
-                    '👀 مشاهده دموی نمایندگی',
+                    '🖥️ مشاهده دموی نمایندگی',
                     web_app: WebAppInfo::make(rtrim((string) config('denagate_live.url'), '/').'/demo'),
+                    style: ButtonStyle::PRIMARY,
                 ));
             }
         }
