@@ -534,7 +534,7 @@ it('offers a signed Demo Web App beside the existing panel request only to eligi
         $names = array_column($flat, 'text');
         $demo = collect($flat)->firstWhere('text', '👀 مشاهده دموی نمایندگی');
 
-        return in_array('🧩 ثبت درخواست پنل فروش', $names, true)
+        return in_array('🧩 درخواست پنل فروش', $names, true)
             && ($demo['web_app']['url'] ?? null) === 'https://live.denagate.ir/demo'
             && ! in_array('📱 اپلیکیشن', $names, true);
     }, index: 1);
