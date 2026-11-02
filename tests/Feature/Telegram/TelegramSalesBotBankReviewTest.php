@@ -29,6 +29,14 @@ use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 
+function sb04VerifiedRials(int $claimId): int
+{
+    return (int) DB::table('sales_bank_payment_claims as c')
+        ->join('sales_orders as o', 'o.id', '=', 'c.sales_order_id')
+        ->where('c.id', $claimId)
+        ->value('o.total_price_rials');
+}
+
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
@@ -202,12 +210,12 @@ it('records a single root-verified bank decision and allows Sales buyer to see a
     ]);
 
     $payments = app(ManualBankPayments::class);
-    expect(fn () => $payments->review($data['root']->id, $claim, true, null))->toThrow(ValidationException::class);
-    expect(fn () => $payments->review($data['root']->id, $claim, true, 'SB04BANK12345'))->toThrow(ValidationException::class);
+    expect(fn () => $payments->review($data['root']->id, $claim, true, null, sb04VerifiedRials($claim)))->toThrow(ValidationException::class);
+    expect(fn () => $payments->review($data['root']->id, $claim, true, 'SB04BANK12345', sb04VerifiedRials($claim)))->toThrow(ValidationException::class);
     expect(DB::table('billing_journals')->count())->toBe(0);
     config()->set('services.remnawave.squad_bindings_live_verified', true);
-    $payments->review($data['root']->id, $claim, true, 'SB04BANK12345');
-    expect(fn () => $payments->review($data['root']->id, $claim, true, 'SB04BANK12345'))->toThrow(ValidationException::class);
+    $payments->review($data['root']->id, $claim, true, 'SB04BANK12345', sb04VerifiedRials($claim));
+    expect(fn () => $payments->review($data['root']->id, $claim, true, 'SB04BANK12345', sb04VerifiedRials($claim)))->toThrow(ValidationException::class);
 
     expect(DB::table('sales_orders')->where('id', $data['order'])->value('status'))->toBe('paid')
         ->and(DB::table('billing_journals')->where('kind', 'direct_bank_sale')->count())->toBe(1)
@@ -279,9 +287,9 @@ it('requires an explicitly verified bank reference even when one-click activatio
     expect(DB::table('billing_journals')->count())->toBe(0);
     config()->set('services.remnawave.squad_bindings_live_verified', true);
     expect(fn () => $review->review($data['root']->id, $claimId, true))->toThrow(ValidationException::class);
-    expect(fn () => $review->review($data['root']->id, $claimId, true, 'MANUAL-CLAIM-'.$claimId))
+    expect(fn () => $review->review($data['root']->id, $claimId, true, 'MANUAL-CLAIM-'.$claimId, sb04VerifiedRials($claimId)))
         ->toThrow(ValidationException::class);
-    expect($review->review($data['root']->id, $claimId, true, 'REALBANK9751')->approved)->toBeTrue();
+    expect($review->review($data['root']->id, $claimId, true, 'REALBANK9751', sb04VerifiedRials($claimId))->approved)->toBeTrue();
     expect(DB::table('sales_bank_settlements')->value('payment_reference'))
         ->toBe('REALBANK9751');
     expect(DB::table('sales_bank_settlements')->count())->toBe(1)
