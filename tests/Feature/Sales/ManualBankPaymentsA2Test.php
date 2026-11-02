@@ -153,6 +153,32 @@ it('requires trusted super-admin and a verified bank reference, then books balan
     Http::assertNothingSent();
 });
 
+it('blocks missing and mismatched verified bank amounts without creating a financial posting', function (): void {
+    a2Setup();
+    config()->set('sales.manual_bank_review_enabled', true);
+    $buyer = a2Account(990150);
+    $root = a2Account(990101, 'super-admin');
+    $order = a2Order($buyer);
+    $claim = a2Submit(990150, $order, 150);
+
+    $expected = a2VerifiedRials($claim);
+    expect(fn () => app(ManualBankPayments::class)->review($root->id, $claim, true, 'BANKMISSING150'))
+        ->toThrow(ValidationException::class)
+        ->and(fn () => app(ManualBankPayments::class)->review($root->id, $claim, true, 'BANKUNDERPAID150', 650_000))
+        ->toThrow(ValidationException::class)
+        ->and(fn () => app(ManualBankPayments::class)->review($root->id, $claim, true, 'BANKOVERPAID150', $expected + 10))
+        ->toThrow(ValidationException::class)
+        ->and(DB::table('sales_bank_settlements')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe(0)
+        ->and(DB::table('billing_bank_reference_claims')->count())->toBe(0)
+        ->and(DB::table('sales_fulfillment_outbox')->count())->toBe(0)
+        ->and(DB::table('sales_orders')->where('id', $order)->value('status'))->toBe('pending_payment');
+
+    // A new, explicitly attested matching amount retains the existing reference guard.
+    app(ManualBankPayments::class)->review($root->id, $claim, true, 'BANKMATCH150', $expected);
+    expect(DB::table('sales_bank_settlements')->count())->toBe(1);
+});
+
 it('rejects receipt without marking order paid and permits a new genuine image', function (): void {
     a2Setup();
     config()->set('sales.manual_bank_review_enabled', true);
