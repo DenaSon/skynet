@@ -521,3 +521,66 @@ it('does not consume a Contact outside the panel mobile step', function (): void
         ->and(DB::table('sales_panel_requests')->count())->toBe(0);
     Http::assertNothingSent();
 });
+
+it('offers a signed Demo Web App beside the existing panel request only to eligible members', function (): void {
+    config()->set('denagate_live.enabled', true);
+    $member = User::factory()->create();
+    $member->assignRole('member');
+    $bot = panel01Bot(986191, $member);
+
+    $bot->hearCallbackQueryData('sales:home')->reply()->assertRaw(static function (Request $request): bool {
+        $keyboard = panel01Payload($request)['reply_markup']['inline_keyboard'] ?? [];
+        $flat = array_merge(...$keyboard);
+        $names = array_column($flat, 'text');
+        $demo = collect($flat)->firstWhere('text', '👀 مشاهده دموی نمایندگی');
+
+        return in_array('🧩 درخواست پنل فروش', $names, true)
+            && ($demo['web_app']['url'] ?? null) === 'https://live.denagate.ir/demo'
+            && ! in_array('📱 اپلیکیشن', $names, true);
+    }, index: 1);
+
+    $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(static function (Request $request): bool {
+        $buttons = json_encode(panel01Payload($request)['reply_markup'], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+
+        return str_contains($buttons, 'https://live.denagate.ir/demo')
+            && str_contains($buttons, 'sales:panel:request');
+    }, index: 1);
+
+    $bot->hearText('/start demo_panel')->reply()->assertRaw(static function (Request $request): bool {
+        $text = panel01Payload($request)['text'] ?? '';
+
+        return str_contains($text, 'اعتبار کافی نیست');
+    });
+    expect(DB::table('sales_panel_requests')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('hides the Demo entry when Live is disabled or the account is already a reseller', function (): void {
+    config()->set('denagate_live.enabled', false);
+    $member = User::factory()->create();
+    $member->assignRole('member');
+    $bot = panel01Bot(986192, $member);
+
+    $bot->hearCallbackQueryData('sales:home')->reply()->assertRaw(static function (Request $request): bool {
+        return ! str_contains(json_encode(panel01Payload($request)['reply_markup'], JSON_THROW_ON_ERROR), 'live.denagate.ir/demo');
+    }, index: 1);
+
+    config()->set('denagate_live.enabled', true);
+    $reseller = User::factory()->create();
+    Role::findOrCreate('reseller', 'web');
+    $reseller->assignRole('reseller');
+    $partnerBot = panel01Bot(986193, $reseller);
+    $partnerBot->hearCallbackQueryData('sales:home')->reply()->assertRaw(static function (Request $request): bool {
+        $markup = json_encode(panel01Payload($request)['reply_markup'], JSON_THROW_ON_ERROR);
+
+        return ! str_contains($markup, 'live.denagate.ir/demo')
+            && str_contains($markup, 'live.denagate.ir');
+    }, index: 1);
+
+    $partnerBot->hearText('/start demo_panel')->reply()->assertRaw(static function (Request $request): bool {
+        $text = panel01Payload($request)['text'] ?? '';
+
+        return ! str_contains($text, 'قوانین پنل فروش');
+    });
+    Http::assertNothingSent();
+});

@@ -120,7 +120,8 @@ it('forbids member and revoked reseller even through forged old Live callbacks',
     $bot = live6aBot(997002);
 
     $bot->hearText('/start')->reply()->assertRaw(
-        static fn (Request $request): bool => ! live6aRichContains($request, 'type="web_app"'), index: 0,
+        static fn (Request $request): bool => live6aRichContains($request, 'url="https://live.denagate.ir/demo"')
+            && ! live6aRichContains($request, 'url="https://live.denagate.ir"'), index: 0,
     );
 
     $bot->hearCallbackQueryData('sales:live')->reply()
@@ -209,7 +210,8 @@ it('keeps the native app shortcut private, reseller-only and feature-gated', fun
     config()->set('denagate_live.enabled', true);
     $bot = live6aBot(997008);
     $bot->hearText('/start')->reply()
-        ->assertRaw(static fn (Request $request): bool => ! live6aRichContains($request, 'type="web_app"'), index: 0);
+        ->assertRaw(static fn (Request $request): bool => live6aRichContains($request, 'url="https://live.denagate.ir/demo"')
+            && ! live6aRichContains($request, 'url="https://live.denagate.ir"'), index: 0);
 
     live6aNoFinancialWrites();
     Http::assertNothingSent();

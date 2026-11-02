@@ -93,6 +93,14 @@ The Demo presents five fixture-only sections through the shared `<x-live.shell>`
 
 **Phase distinction:** this milestone is not an authorization to expose a Sales Bot CTA, read published reseller prices, or implement the proposed 1,000,000-toman credit admission rule. DEMO-02 and DEMO-03 require their own approvals. Automated regression/CI success establishes source behavior only; actual Telegram iOS/Android acceptance remains outstanding until operator confirmation.
 
+## DEMO-02 implementation handoff (2026-11-02)
+
+**Approved phase:** One bounded, read-only `ListDemoPublishedPresets` catalog pulls only active `preset` plans from active products, with reseller/public/both audience and active price at the current plan revision. Invalid, below-floor and incompatible tariffs are excluded. The same pure integer pricing implementation `PublishedPlanPriceAmounts` is shared with real `CalculatePlanQuote` to prevent arithmetic drift; all buyer authorization and checkout remain untouched. Data is read fresh on each authorized Demo preview GET/refresh; no cache, new public API or new wallet/provider route is introduced.
+
+The Demo shop displays current plan names, duration/traffic, published public price, plan-specific discount and discounted reseller price; all other operational metrics remain explicitly fictional. Member-only signed Demo access is checked before the catalog query. Reseller prices are intentionally disclosed only to signed eligible member viewers. The plan request CTA links to the configured verified Sales Bot `?start=demo_panel`, which invokes the **unchanged** panel application/status flow and its existing balance/approval checks; the Bot shows `👀 مشاهده دموی نمایندگی` only alongside member panel-request/status controls when Live is enabled, not in the persistent reply keyboard. Existing reseller App entry stays unchanged.
+
+**Gate:** No Demo Role, no new schema, no 1,000,000-toman policy rollout, no per-user real data or purchased service operations. Automated pricing parity and bot/regression tests are required; actual iOS/Android WebView verification and controlled final acceptance belong to DEMO-03. Updating pricing records in production for testing is **not authorized**.
+
 ## 7. Risks, rollback and implementation handoff
 
 | Risk | Prevention and evidence |
