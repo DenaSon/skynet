@@ -9,7 +9,7 @@
     ];
 @endphp
 
-<div class="min-h-dvh bg-[#F6F8FA]" @if ($demo) x-data="{ demoSection: 'overview' }" @endif>
+<div class="min-h-dvh bg-[#F6F8FA]" @if ($demo) x-data="{ demoSection: '{{ request()->query('section') === 'shop' ? 'shop' : 'overview' }}' }" @endif>
     <div class="mx-auto flex min-h-dvh max-w-[1440px]">
         {{-- Compact desktop navigation; the same four actions stay accessible on mobile. --}}
         <aside class="hidden w-64 shrink-0 border-l border-[#E7ECEF] bg-white px-5 py-8 lg:flex lg:flex-col">
