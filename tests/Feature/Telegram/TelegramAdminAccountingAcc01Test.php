@@ -70,6 +70,16 @@ function acc01Payload(Request $request): array
     return $data;
 }
 
+/** @param array<string,mixed> $payload */
+function acc01Rich(array $payload): string
+{
+    $rich = is_string($payload['rich_message'] ?? null)
+        ? json_decode($payload['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+        : ($payload['rich_message'] ?? []);
+
+    return ($rich['is_rtl'] ?? null) === true ? (string) ($rich['html'] ?? '') : '';
+}
+
 it('stores only bookkeeping entries, idempotently and separately from customer ledger', function (): void {
     $root = acc01Root();
     $act = app(RecordBusinessEntry::class);
@@ -145,7 +155,7 @@ it('opens a private expense wizard with category, Persian amount, memo and a one
     $bot->hearCallbackQueryData('acc:history:1')->reply()->assertRaw(static function (Request $request): bool {
         $p = acc01Payload($request);
 
-        return str_contains($p['text'], 'هزینه VPS')
+        return str_contains(acc01Rich($p), 'هزینه VPS')
             && str_contains(json_encode($p['reply_markup'], JSON_THROW_ON_ERROR), 'acc:reverse:prepare:1');
     }, index: 1);
     $bot->hearCallbackQueryData('acc:reverse:prepare:1')->reply()->assertRaw(static function (Request $request): bool {
