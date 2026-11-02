@@ -139,6 +139,16 @@ function acc02Payload(NutgramRequest $request): array
     return $data;
 }
 
+/** @param array<string,mixed> $payload */
+function acc02Rich(array $payload): string
+{
+    $rich = is_string($payload['rich_message'] ?? null)
+        ? json_decode($payload['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+        : ($payload['rich_message'] ?? []);
+
+    return ($rich['is_rtl'] ?? null) === true ? (string) ($rich['html'] ?? '') : '';
+}
+
 it('reports 7, 30 and Persian-calendar-month periods from verified settlements and signed correction entries', function (): void {
     $data = acc02Fixture();
     $reports = app(ReadAdminAccountingReport::class);
@@ -201,12 +211,12 @@ it('navigates the three Finance reports only in a private trusted Admin chat', f
     $bot->hearCallbackQueryData('acc:report:7')->reply()->assertRaw(static function (NutgramRequest $req): bool {
         $body = acc02Payload($req);
 
-        return str_contains($body['text'], 'گزارش مالی · ۷ روز اخیر')
-            && str_contains($body['text'], '۱۴۰۵/')
-            && ! str_contains($body['text'], '2026-10-')
-            && str_contains($body['text'], '290,000 تومان')
-            && str_contains($body['text'], 'برداشت خالص مالک')
-            && str_contains($body['text'], 'سود قطعی یا موجودی نقدی نیست')
+        return str_contains(acc02Rich($body), 'گزارش مالی · ۷ روز اخیر')
+            && str_contains(acc02Rich($body), '۱۴۰۵/')
+            && ! str_contains(acc02Rich($body), '2026-10-')
+            && str_contains(acc02Rich($body), '290,000 تومان')
+            && str_contains(acc02Rich($body), 'برداشت خالص مالک')
+            && str_contains(acc02Rich($body), 'سود قطعی یا موجودی نقدی نیست')
             && str_contains(json_encode($body['reply_markup'], JSON_THROW_ON_ERROR), 'acc:report:month');
     }, index: 1);
     $bot->hearCallbackQueryData('acc:report:30')->reply()->assertCalled('editMessageText');
@@ -388,15 +398,15 @@ it('shows read-only cash report and blocks non-root, revoked or group callbacks'
     $bot->hearCallbackQueryData('finance:cash:7')->reply()->assertRaw(static function (NutgramRequest $req): bool {
         $data = acc02Payload($req);
 
-        return str_contains($data['text'], 'گزارش دریافتی‌ها · ۷ روز اخیر')
-            && str_contains($data['text'], 'کل دریافتی‌های ثبت‌شده: 950,000 تومان')
-            && str_contains($data['text'], 'شارژ تأییدشده کیف پول: 750,000 تومان')
-            && str_contains($data['text'], 'خرید مستقیم بانکی: 200,000 تومان')
-            && str_contains($data['text'], 'فروش تأییدشده: 500,000 تومان')
-            && str_contains($data['text'], 'خرید با اعتبار کیف پول: 300,000 تومان')
-            && str_contains($data['text'], 'مانده فعلی کیف پول‌ها: 750,000 تومان')
-            && str_contains($data['text'], '۱۴۰۵/')
-            && ! str_contains($data['text'], '2026-10-')
+        return str_contains(acc02Rich($data), 'گزارش دریافتی‌ها · ۷ روز اخیر')
+            && str_contains(acc02Rich($data), 'کل دریافتی‌های ثبت‌شده</td><td>950,000 تومان')
+            && str_contains(acc02Rich($data), 'شارژ تأییدشده کیف پول</td><td>750,000 تومان')
+            && str_contains(acc02Rich($data), 'خرید مستقیم بانکی</td><td>200,000 تومان')
+            && str_contains(acc02Rich($data), 'فروش تأییدشده</td><td>500,000 تومان')
+            && str_contains(acc02Rich($data), 'خرید با اعتبار کیف پول</td><td>300,000 تومان')
+            && str_contains(acc02Rich($data), 'مانده فعلی کیف پول‌ها</td><td>750,000 تومان')
+            && str_contains(acc02Rich($data), '۱۴۰۵/')
+            && ! str_contains(acc02Rich($data), '2026-10-')
             && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'finance:cash:all');
     }, index: 1);
     $bot->hearCallbackQueryData('finance:cash:30')->reply()->assertCalled('editMessageText');

@@ -74,6 +74,16 @@ function fin01Data(Request $req): array
     return $data;
 }
 
+/** @param array<string,mixed> $payload */
+function fin01Rich(array $payload): string
+{
+    $rich = is_string($payload['rich_message'] ?? null)
+        ? json_decode($payload['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+        : ($payload['rich_message'] ?? []);
+
+    return ($rich['is_rtl'] ?? null) === true ? (string) ($rich['html'] ?? '') : '';
+}
+
 it('navigates the Admin Finance customer wallet read and bounded lookup with no write controls', function (): void {
     $root = fin01Admin();
     $customer = User::factory()->create(['name' => '<Buyer>']);
@@ -88,19 +98,19 @@ it('navigates the Admin Finance customer wallet read and bounded lookup with no 
     $bot->hearCallbackQueryData('finance:wallets:1')->reply()->assertRaw(static function (Request $request) use ($customer): bool {
         $data = fin01Data($request);
 
-        return str_contains($data['text'], '&lt;Buyer&gt;')
-            && str_contains($data['text'], '0 تومان')
+        return str_contains(fin01Rich($data), '&lt;Buyer&gt;')
+            && str_contains(fin01Rich($data), '0 تومان')
             && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'finance:wallet:'.$customer->id);
     }, index: 1);
     $bot->hearCallbackQueryData('finance:wallet:'.$customer->id)->reply()->assertRaw(static function (Request $request): bool {
         $data = fin01Data($request);
 
-        return str_contains($data['text'], 'موجودی: <b>0 تومان</b>')
-            && str_contains($data['text'], 'گردش‌های اخیر')
+        return str_contains(fin01Rich($data), '<tr><td>موجودی</td><td>0 تومان</td></tr>')
+            && str_contains(fin01Rich($data), 'گردش‌های اخیر')
             && ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'adjust');
     }, index: 1);
     $bot->hearCallbackQueryData('finance:find-wallet')->reply()->assertCalled('editMessageText');
-    $bot->hearText((string) $customer->id)->reply()->assertCalled('sendMessage');
+    $bot->hearText((string) $customer->id)->reply()->assertCalled('sendRichMessage');
     expect(DB::table('billing_journals')->count())->toBe(0)
         ->and(DB::table('billing_topups')->count())->toBe(0);
 });
@@ -115,7 +125,7 @@ it('requires the real bank reference and one-use confirmation for a Sales photo 
     $bot->hearCallbackQueryData('finance:topups:1')->reply()->assertRaw(static function (Request $request) use ($id): bool {
         $data = fin01Data($request);
 
-        return str_contains($data['text'], '80,000 تومان')
+        return str_contains(fin01Rich($data), '80,000 تومان')
             && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'finance:topup:photo:'.$id);
     }, index: 1);
     $bot->hearCallbackQueryData('finance:topup:decision:'.$id.':a')->reply()->assertCalled('editMessageText');
@@ -263,10 +273,10 @@ it('summarizes the complete wallet ledger rather than just one page and flags ne
             ->assertRaw(static function (Request $req): bool {
                 $data = fin01Data($req);
 
-                return str_contains($data['text'], 'مجموع مانده: <b>110,000 تومان</b>')
-                    && str_contains($data['text'], 'کل کیف پول‌ها: 10')
-                    && str_contains($data['text'], 'دارای موجودی: 1')
-                    && str_contains($data['text'], 'مانده منفی نیازمند بررسی: 1')
+                return str_contains(fin01Rich($data), '<tr><td>مجموع مانده</td><td>110,000 تومان</td></tr>')
+                    && str_contains(fin01Rich($data), '<tr><td>کل کیف پول‌ها</td><td>10</td></tr>')
+                    && str_contains(fin01Rich($data), '<tr><td>دارای موجودی</td><td>1</td></tr>')
+                    && str_contains(fin01Rich($data), '⚠️ مانده منفی نیازمند بررسی</td><td>1')
                     && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'menu:admin:finance');
             }, index: 1);
     }
@@ -328,24 +338,52 @@ it('prioritizes funded older wallets across 19 rows and splits reseller and memb
 
     $bot->hearCallbackQueryData('finance:wallets:1')->reply()->assertRaw(static function (Request $req) use ($users): bool {
         $data = fin01Data($req);
-        $text = $data['text'];
+        $text = fin01Rich($data);
 
-        return str_contains($text, 'مجموع مانده: <b>802,500 تومان</b>')
-            && str_contains($text, '👤 کاربران عادی: 52,500 تومان')
-            && str_contains($text, '🧩 پنل‌های فروش: 750,000 تومان')
-            && str_contains($text, '🧩 پنل فروش · #'.$users[0]->id)
-            && str_contains($text, '👤 عادی · #'.$users[1]->id)
+        return str_contains($text, '<tr><td>مجموع مانده</td><td>802,500 تومان</td></tr>')
+            && str_contains($text, 'کاربران عادی</td><td>52,500 تومان')
+            && str_contains($text, 'پنل‌های فروش</td><td>750,000 تومان')
+            && str_contains($text, '#'.$users[0]->id)
+            && str_contains($text, '#'.$users[1]->id)
             && strpos($text, '#'.$users[0]->id.' ·') < strpos($text, '#'.$users[1]->id.' ·')
             && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'finance:wallets:2');
     }, index: 1);
     $bot->hearCallbackQueryData('finance:wallet:'.$users[0]->id)->reply()->assertRaw(static function (Request $req): bool {
         $data = fin01Data($req);
 
-        return str_contains($data['text'], 'نوع حساب: 🧩 پنل فروش')
-            && str_contains($data['text'], '750,000 تومان');
+        return str_contains(fin01Rich($data), '<tr><td>نوع حساب</td><td>🧩 پنل فروش</td></tr>')
+            && str_contains(fin01Rich($data), '750,000 تومان');
     }, index: 1);
 
     expect(DB::table('billing_journals')->count())->toBe(2);
+    Http::assertNothingSent();
+});
+
+it('shows a clear negative wallet warning and escapes user-controlled Rich details without a ledger write', function (): void {
+    $root = fin01Admin();
+    $bot = fin01Bot(987601, $root);
+    $customer = User::factory()->create(['name' => '<Buyer & Co>']);
+    PanelWalletFunding::spend($customer->id, 100_000);
+    $before = DB::table('billing_postings')->count();
+
+    $bot->hearCallbackQueryData('finance:wallet:'.$customer->id)->reply()->assertRaw(
+        static function (Request $request): bool {
+            $data = fin01Data($request);
+            $html = fin01Rich($data);
+            $keyboard = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return str_contains($html, '<h2>💼 جزئیات کیف پول</h2>')
+                && str_contains($html, '<table bordered striped compact>')
+                && str_contains($html, '&lt;Buyer &amp; Co&gt;')
+                && ! str_contains($html, '<Buyer')
+                && str_contains($html, '⚠️ مانده منفی این حساب نیازمند بررسی است.')
+                && str_contains($html, '<footer>')
+                && str_contains($keyboard, 'finance:wallets:1')
+                && str_contains($keyboard, 'finance:topups:1');
+        }, index: 1,
+    );
+
+    expect(DB::table('billing_postings')->count())->toBe($before);
     Http::assertNothingSent();
 });
 
@@ -446,13 +484,13 @@ it('shows distinct reversed purchase and top-up labels without modifying wallet 
 
     $bot->hearCallbackQueryData('finance:wallet:'.$buyer->id)->reply()->assertRaw(
         static function (Request $request): bool {
-            $text = (string) (fin01Data($request)['text'] ?? '');
+            $text = fin01Rich(fin01Data($request));
 
-            return str_contains($text, 'موجودی: <b>0 تومان</b>')
-                && str_contains($text, '➕ شارژ · 1,000,000 تومان')
-                && str_contains($text, '➖ پرداخت · 341,250 تومان')
-                && str_contains($text, '➕ اصلاح خرید · 341,250 تومان')
-                && str_contains($text, '➖ اصلاح شارژ · 1,000,000 تومان');
+            return str_contains($text, '<tr><td>موجودی</td><td>0 تومان</td></tr>')
+                && str_contains($text, '➕ شارژ · سند #')
+                && str_contains($text, '➖ پرداخت · سند #')
+                && str_contains($text, '➕ اصلاح خرید · سند #')
+                && str_contains($text, '➖ اصلاح شارژ · سند #');
         },
         index: 1,
     );

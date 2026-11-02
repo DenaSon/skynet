@@ -15,9 +15,11 @@ use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 
 /** ACC-01: small, private, staged personal bookkeeping; no money movement. */
 final readonly class AdminAccountingUi
@@ -60,6 +62,7 @@ final readonly class AdminAccountingUi
             return;
         }
 
+        $richHtml = null;
         try {
             $data = $this->reports->handle($id, $period);
             $heading = match ($period) {
@@ -78,6 +81,19 @@ final readonly class AdminAccountingUi
                 .' | ثبت‌های برداشت: '.number_format($data['drawEntries'])
                 ."\n\n<blockquote>سود، برآورد حاصل از فروش ناخالص تسویه‌شده و هزینه‌های ثبت‌شده است؛ سود قطعی یا موجودی نقدی نیست. برداشت مالک هزینه محسوب نمی‌شود. اصلاحیه‌ها در تاریخ ثبت خود اثر می‌گذارند.</blockquote>"
                 ."\n🕒 ".PersianCalendar::localDateTime($data['generatedAt']);
+            $rows = [
+                ['فروش تأییدشده', self::toman($data['salesRials']).' تومان'],
+                ['هزینه‌های خالص ثبت‌شده', self::toman($data['expensesRials']).' تومان'],
+                ['سود برآوردی', self::toman($data['profitRials']).' تومان'],
+                ['برداشت خالص مالک', self::toman($data['drawsRials']).' تومان'],
+                ['مانده محاسباتی پس از برداشت', self::toman($data['afterDrawsRials']).' تومان'],
+                ['ثبت‌های هزینه', number_format($data['expenseEntries'])],
+                ['ثبت‌های برداشت', number_format($data['drawEntries'])],
+            ];
+            $richHtml = '<h2>📊 گزارش مالی · '.$heading.'</h2><table bordered striped compact>'
+                .self::richRows($rows).'</table><blockquote>سود، برآورد حاصل از فروش ناخالص تسویه‌شده و هزینه‌های ثبت‌شده است؛ سود قطعی یا موجودی نقدی نیست. برداشت مالک هزینه محسوب نمی‌شود. اصلاحیه‌ها در تاریخ ثبت خود اثر می‌گذارند.</blockquote>'
+                .'<footer>📅 '.PersianCalendar::date($data['start']).' تا '.PersianCalendar::date($data['end'])
+                .' (شمسی، تهران) | 🕒 '.PersianCalendar::localDateTime($data['generatedAt']).'</footer>';
         } catch (\Throwable) {
             $text = "📊 گزارش مالی\n\nدریافت گزارش فعلاً ممکن نیست. دوباره تلاش کنید.";
         }
@@ -89,7 +105,7 @@ final readonly class AdminAccountingUi
                 InlineKeyboardButton::make('ماه جاری', callback_data: 'acc:report:month'),
             )
             ->addRow(InlineKeyboardButton::make('📋 سوابق', callback_data: 'acc:history:1'))
-            ->addRow(InlineKeyboardButton::make('◀️ دفتر مالی', callback_data: 'acc:home')));
+            ->addRow(InlineKeyboardButton::make('◀️ دفتر مالی', callback_data: 'acc:home')), $richHtml);
     }
 
     /** Verified recorded incoming funds; never claim to reconcile bank statements. */
@@ -108,6 +124,7 @@ final readonly class AdminAccountingUi
             return;
         }
 
+        $richHtml = null;
         try {
             $data = $this->cash->handle($id, $period);
             $heading = match ($period) {
@@ -131,6 +148,20 @@ final readonly class AdminAccountingUi
                 ."\n\n💼 مانده فعلی کیف پول‌ها: ".self::toman($data['currentWalletBalanceRials']).' تومان'
                 ."\n\n<blockquote>خرید با موجودی کیف پول، واریزی جدید نیست و دوباره به دریافتی‌ها اضافه نمی‌شود. مانده کیف پول مربوط به اکنون است، نه فقط این بازه. ارقام بر اساس پرداخت‌های ثبت و تأییدشده در سامانه‌اند، نه صورت‌حساب قطعی بانک یا سود خالص.</blockquote>"
                 ."\n🕒 ".PersianCalendar::localDateTime($data['generatedAt']);
+            $rows = [
+                ['کل دریافتی‌های ثبت‌شده', self::toman($data['cashInRials']).' تومان'],
+                ['شارژ تأییدشده کیف پول', self::toman($data['topupsRials']).' تومان'],
+                ['خرید مستقیم بانکی', self::toman($data['bankSalesRials']).' تومان'],
+                ['تعداد شارژها', number_format($data['topupsCount'])],
+                ['پرداخت مستقیم', number_format($data['bankSalesCount'])],
+                ['فروش تأییدشده', self::toman($data['salesRials']).' تومان'],
+                ['خرید با اعتبار کیف پول', self::toman($data['walletSalesRials']).' تومان'],
+                ['مانده فعلی کیف پول‌ها', self::toman($data['currentWalletBalanceRials']).' تومان'],
+            ];
+            $richHtml = '<h2>💰 گزارش دریافتی‌ها · '.$heading.'</h2><table bordered striped compact>'
+                .self::richRows($rows).'</table><blockquote>خرید با موجودی کیف پول، واریزی جدید نیست و دوباره به دریافتی‌ها اضافه نمی‌شود. مانده کیف پول مربوط به اکنون است، نه فقط این بازه. ارقام بر اساس پرداخت‌های ثبت و تأییدشده در سامانه‌اند، نه صورت‌حساب قطعی بانک یا سود خالص.</blockquote>'
+                .'<footer>📅 '.$range.' (شمسی، تهران) | 🕒 '
+                .PersianCalendar::localDateTime($data['generatedAt']).'</footer>';
         } catch (\Throwable) {
             $text = "💰 گزارش دریافتی‌ها\n\nدریافت گزارش فعلاً ممکن نیست. دوباره تلاش کنید.";
         }
@@ -141,7 +172,7 @@ final readonly class AdminAccountingUi
                 InlineKeyboardButton::make('۳۰ روز', callback_data: 'finance:cash:30'),
                 InlineKeyboardButton::make('از ابتدا', callback_data: 'finance:cash:all'),
             )
-            ->addRow(InlineKeyboardButton::make('◀️ امور مالی', callback_data: 'menu:admin:finance')));
+            ->addRow(InlineKeyboardButton::make('◀️ امور مالی', callback_data: 'menu:admin:finance')), $richHtml);
     }
 
     private static function toman(int $rials): string
@@ -365,7 +396,26 @@ final readonly class AdminAccountingUi
             $keyboard->addRow(InlineKeyboardButton::make('بعدی ▶️', callback_data: 'acc:history:'.($number + 1)));
         }
         $keyboard->addRow(InlineKeyboardButton::make('◀️ دفتر مالی', callback_data: 'acc:home'));
-        $this->render($bot, implode("\n", $lines), $keyboard);
+        $rows = [];
+        foreach ($data['entries'] as $entry) {
+            $kind = $entry->reversal_of_id !== null ? '↩️ اصلاح'
+                : ($entry->kind === 'expense' ? '➖ هزینه' : '💸 برداشت مالک');
+            $rows[] = [
+                $kind.' #'.$entry->id,
+                TelegramUi::toman((int) $entry->amount_rials).' تومان · '
+                    .PersianCalendar::utcDateTime((string) $entry->created_at).' (ایران) · '
+                    .self::categoryLabel($entry->category).' · '
+                    .mb_strimwidth($entry->memo ?? 'بدون توضیح', 0, 85),
+            ];
+        }
+        if ($rows === []) {
+            $rows[] = ['سوابق', 'هنوز ثبت مالی ندارید.'];
+        }
+        $html = '<h2>📋 سوابق دفتر مالی</h2><table bordered striped compact>'
+            .self::richRows($rows).'</table><footer>📄 تعداد ثبت‌ها: '
+            .number_format($data['total']).' | صفحه '.number_format($number)
+            .' | 🕒 '.PersianCalendar::localDateTime(now()->toDateTimeString()).' (تهران)</footer>';
+        $this->render($bot, implode("\n", $lines), $keyboard, $html);
     }
 
     public function prepareReverse(Nutgram $bot, string $entryId): void
@@ -539,10 +589,36 @@ final readonly class AdminAccountingUi
         };
     }
 
-    private function render(Nutgram $bot, string $text, InlineKeyboardMarkup $keyboard): void
+    /** @param list<array{string,string}> $rows */
+    private static function richRows(array $rows): string
+    {
+        $html = '';
+        foreach ($rows as [$label, $value]) {
+            $html .= '<tr><td>'.TelegramUi::escape($label)
+                .'</td><td>'.TelegramUi::escape($value).'</td></tr>';
+        }
+
+        return $html;
+    }
+
+    private function render(Nutgram $bot, string $text, InlineKeyboardMarkup $keyboard, ?string $richHtml = null): void
     {
         if ($bot->isCallbackQuery()) {
             TelegramUi::answerCallback($bot);
+        }
+
+        if ($richHtml !== null) {
+            try {
+                TelegramUi::editRichText($bot, new InputRichMessage(html: $richHtml, is_rtl: true), $keyboard);
+
+                return;
+            } catch (TelegramException $exception) {
+                report($exception);
+                // Authorized data and original keyboard survive in native HTML.
+            }
+        }
+
+        if ($bot->isCallbackQuery()) {
             TelegramUi::editText($bot, $text, $keyboard, 'HTML');
 
             return;
