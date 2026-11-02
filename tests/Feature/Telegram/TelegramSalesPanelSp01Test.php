@@ -63,13 +63,15 @@ it('shows panel application on home and saves a pending request only after terms
         $data = panel01Payload($request);
         $buttons = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
 
-        return str_contains($buttons, 'sales:panel:request')
-            && ! str_contains($buttons, 'sales:help:apps');
+        return str_contains($buttons, 'sales:panel:hub')
+            && ! str_contains($buttons, 'sales:help:apps')
+            && ! str_contains($buttons, 'live.denagate.ir/demo');
     }, index: 1);
     $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(static function (Request $request): bool {
         $data = panel01Payload($request);
 
-        return str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:panel:request');
+        return ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:panel:request')
+            && ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:panel:hub');
     }, index: 1);
     $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertRaw(static function (Request $request): bool {
         $data = panel01Payload($request);
@@ -250,19 +252,27 @@ it('makes Sales Panel application discoverable via persistent menu and Account f
         $keyboard = $data['reply_markup']['keyboard'] ?? [];
 
         return ($data['reply_markup']['is_persistent'] ?? null) === true
-            && ($keyboard[3][0]['text'] ?? null) === '🧩 درخواست پنل فروش';
+            && ($keyboard[3][0]['text'] ?? null) === '🧩 درخواست نمایندگی';
     }, index: 0);
     $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(static function (Request $request): bool {
         $data = panel01Payload($request);
 
         return str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:panel:request');
     }, index: 1);
-    $bot->hearText('🧩 درخواست پنل فروش')->reply()->assertRaw(static function (Request $request): bool {
+    $bot->hearText('🧩 درخواست نمایندگی')->reply()->assertRaw(static function (Request $request): bool {
+        $data = panel01Payload($request);
+        $buttons = $data['reply_markup']['inline_keyboard'] ?? [];
+
+        return ($buttons[0][0]['text'] ?? null) === '🖥️ مشاهده دمو'
+            && ($buttons[1][0]['text'] ?? null) === '🧩 ارسال درخواست نمایندگی'
+            && ($buttons[1][0]['callback_data'] ?? null) === 'sales:panel:request';
+    });
+    $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertRaw(static function (Request $request): bool {
         $data = panel01Payload($request);
 
         return str_contains((string) ($data['text'] ?? ''), '۳۵۰٬۰۰۰ تومان')
             && str_contains((string) ($data['text'] ?? ''), 'اعتبار کافی نیست');
-    });
+    }, index: 1);
     expect(DB::table('sales_panel_requests')->count())->toBe(0);
     Http::assertNothingSent();
 });
@@ -277,17 +287,25 @@ it('shows existing application status instead of duplicate request in persistent
     $bot->hearText('/start')->reply()->assertRaw(static function (Request $request): bool {
         $keyboard = panel01Payload($request)['reply_markup']['keyboard'] ?? [];
 
-        return ($keyboard[3][0]['text'] ?? null) === '📨 وضعیت درخواست پنل فروش';
+        return ($keyboard[3][0]['text'] ?? null) === '📨 وضعیت درخواست نمایندگی';
     }, index: 0);
     $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(static function (Request $request): bool {
         $data = panel01Payload($request);
         $keyboard = json_encode($data['reply_markup'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
 
-        return str_contains($keyboard, '📨 وضعیت درخواست پنل فروش')
-            && str_contains($keyboard, 'sales:panel:request');
+        return ! str_contains($keyboard, '📨 وضعیت درخواست نمایندگی')
+            && ! str_contains($keyboard, 'sales:panel:request');
     }, index: 1);
-    $bot->hearText('📨 وضعیت درخواست پنل فروش')->reply()->assertRaw(static function (Request $request): bool {
-        return str_contains((string) (panel01Payload($request)['text'] ?? ''), 'در انتظار بررسی');
+    $bot->hearText('📨 وضعیت درخواست نمایندگی')->reply()->assertRaw(static function (Request $request): bool {
+        $data = panel01Payload($request);
+        $rich = is_string($data['rich_message'] ?? null)
+            ? json_decode($data['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+            : ($data['rich_message'] ?? []);
+        $buttons = $data['reply_markup']['inline_keyboard'] ?? [];
+
+        return str_contains((string) ($rich['html'] ?? ''), 'در انتظار بررسی')
+            && ($buttons[1][0]['text'] ?? null) === '📨 مشاهده وضعیت درخواست'
+            && ($buttons[1][0]['callback_data'] ?? null) === 'sales:panel:request';
     });
     expect(DB::table('sales_panel_requests')->count())->toBe(1)
         ->and(DB::table('sales_panel_requests')->value('id'))->toBe($existing['id'])
@@ -307,12 +325,12 @@ it('keeps the member tutorial visible with a harmless extra role but hides it fr
         return str_contains(json_encode(panel01Payload($request)['reply_markup'], JSON_THROW_ON_ERROR), 'sales:help:panel-setup');
     }, index: 1);
     $bot->hearText('/start')->reply()->assertRaw(static function (Request $request): bool {
-        return str_contains(json_encode(panel01Payload($request)['reply_markup'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), '🧩 درخواست پنل فروش');
+        return str_contains(json_encode(panel01Payload($request)['reply_markup'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), '🧩 درخواست نمایندگی');
     }, index: 0);
 
     $member->syncRoles(['reseller']);
     $bot->hearText('/start')->reply()->assertRaw(static function (Request $request): bool {
-        return ! str_contains(json_encode(panel01Payload($request)['reply_markup'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), 'درخواست پنل فروش');
+        return ! str_contains(json_encode(panel01Payload($request)['reply_markup'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), 'درخواست نمایندگی');
     }, index: 0);
     Http::assertNothingSent();
 });
@@ -376,7 +394,7 @@ it('describes a previously approved panel request without a current reseller rol
             && ($buttons[0][0]['text'] ?? null) === '💬 ارتباط با پشتیبانی'
             && ($buttons[0][0]['callback_data'] ?? null) === 'sales:support'
             && ($buttons[0][0]['style'] ?? null) === 'primary'
-            && ($buttons[1][0]['callback_data'] ?? null) === 'sales:account'
+            && ($buttons[1][0]['callback_data'] ?? null) === 'sales:panel:hub'
             && ($buttons[2][0]['callback_data'] ?? null) === 'sales:home';
     }, index: 1);
 
@@ -544,21 +562,33 @@ it('offers a signed Demo Web App beside the existing panel request only to eligi
         $keyboard = panel01Payload($request)['reply_markup']['inline_keyboard'] ?? [];
         $flat = array_merge(...$keyboard);
         $names = array_column($flat, 'text');
-        $demo = collect($flat)->firstWhere('text', '🖥️ مشاهده دموی نمایندگی');
-
-        return in_array('🧩 درخواست پنل فروش', $names, true)
-            && ($demo['web_app']['url'] ?? null) === 'https://live.denagate.ir/demo'
-            && ($demo['style'] ?? null) === 'primary'
+        return in_array('🧩 درخواست نمایندگی', $names, true)
+            && str_contains(json_encode($keyboard, JSON_THROW_ON_ERROR), 'sales:panel:hub')
+            && ! in_array('🖥️ مشاهده دموی نمایندگی', $names, true)
             && ! in_array('📱 اپلیکیشن', $names, true);
+    }, index: 1);
+
+    $bot->hearCallbackQueryData('sales:panel:hub')->reply()->assertRaw(static function (Request $request): bool {
+        $data = panel01Payload($request);
+        $buttons = $data['reply_markup']['inline_keyboard'] ?? [];
+        $rich = is_string($data['rich_message'] ?? null)
+            ? json_decode($data['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+            : ($data['rich_message'] ?? []);
+
+        return ($buttons[0][0]['web_app']['url'] ?? null) === 'https://live.denagate.ir/demo'
+            && ($buttons[0][0]['style'] ?? null) === 'primary'
+            && ($buttons[1][0]['callback_data'] ?? null) === 'sales:panel:request'
+            && ($buttons[1][0]['style'] ?? null) === 'success'
+            && str_contains((string) ($rich['html'] ?? ''), '<table bordered striped compact>')
+            && str_contains((string) ($rich['html'] ?? ''), '<footer>');
     }, index: 1);
 
     $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(static function (Request $request): bool {
         $keyboard = panel01Payload($request)['reply_markup']['inline_keyboard'] ?? [];
-        $demo = collect(array_merge(...$keyboard))->firstWhere('text', '🖥️ مشاهده دموی نمایندگی');
 
-        return ($demo['web_app']['url'] ?? null) === 'https://live.denagate.ir/demo'
-            && ($demo['style'] ?? null) === 'primary'
-            && str_contains(json_encode($keyboard, JSON_THROW_ON_ERROR), 'sales:panel:request');
+        return ! str_contains(json_encode($keyboard, JSON_THROW_ON_ERROR), 'sales:panel:hub')
+            && ! str_contains(json_encode($keyboard, JSON_THROW_ON_ERROR), 'sales:panel:request')
+            && ! str_contains(json_encode($keyboard, JSON_THROW_ON_ERROR), 'live.denagate.ir/demo');
     }, index: 1);
 
     $bot->hearText('/start demo_panel')->reply()->assertRaw(static function (Request $request): bool {
