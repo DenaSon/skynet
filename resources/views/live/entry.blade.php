@@ -43,7 +43,11 @@
         return;
         @endif
         if (!app?.initData) {
-            status.textContent = @json($demo ? 'برای مشاهده پیش‌نمایش، آن را از بات فروش دناگیت باز کنید.' : 'برای ورود، پنل را از بات فروش دناگیت باز کنید.');
+            @if ($demo)
+            status.textContent = 'برای مشاهده پیش‌نمایش، آن را از بات فروش دناگیت باز کنید.';
+            @else
+            status.textContent = 'برای ورود، پنل را از بات فروش دناگیت باز کنید.';
+            @endif
             return;
         }
         app.ready();
