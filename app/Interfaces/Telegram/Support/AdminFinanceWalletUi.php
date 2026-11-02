@@ -128,7 +128,7 @@ final readonly class AdminFinanceWalletUi
         $html = '<h2>💼 کیف پول کاربران</h2><table bordered striped compact>'.$summaryTable
             .'</table><h3>فهرست کیف پول‌ها</h3><table bordered striped compact>'.$walletTable
             .'</table><footer>💡 مانده از گردش تأییدشده محاسبه می‌شود؛ درآمد فروش نیست.'
-            .' | صفحه '.number_format($number).' | '.PersianCalendar::localDateTime(now()).' (تهران)</footer>';
+            .' | صفحه '.number_format($number).' | '.PersianCalendar::localDateTime(now()->toDateTimeString()).' (تهران)</footer>';
         $this->render($bot, trim(implode("\n", $lines)), $keyboard, $html);
     }
 
@@ -232,7 +232,7 @@ final readonly class AdminFinanceWalletUi
             $html .= '<h3>درخواست‌های شارژ</h3><table bordered striped compact>'.$topups.'</table>';
         }
         $html .= '<footer>💡 مبنای موجودی، گردش‌های تأییدشده است. '
-            .PersianCalendar::localDateTime(now()).' (تهران)</footer>';
+            .PersianCalendar::localDateTime(now()->toDateTimeString()).' (تهران)</footer>';
         $this->render($bot, implode("\n", $lines), $keyboard, $html);
     }
 
@@ -287,7 +287,7 @@ final readonly class AdminFinanceWalletUi
         }
         $html = '<h2>🧾 رسیدهای شارژ کیف پول</h2><table bordered striped compact>'.$items
             .'</table><footer>💡 فقط درخواست‌های دارای تصویر و در انتظار بررسی.'
-            .' | صفحه '.number_format($number).' | '.PersianCalendar::localDateTime(now()).' (تهران)</footer>';
+            .' | صفحه '.number_format($number).' | '.PersianCalendar::localDateTime(now()->toDateTimeString()).' (تهران)</footer>';
         $this->render($bot, implode("\n", $lines), $keyboard, $html);
     }
 
