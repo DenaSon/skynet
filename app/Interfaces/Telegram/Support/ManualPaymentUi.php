@@ -20,11 +20,11 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
-use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use Throwable;
 
 final readonly class ManualPaymentUi
@@ -612,6 +612,7 @@ final readonly class ManualPaymentUi
                 ->addRow(InlineKeyboardButton::make('◀️ انصراف', callback_data: 'bank:list:1')),
             false, $this->rich($row, $bankAmountRials, $reference)
                 .'<p>'.TelegramUi::escape($hint).'</p>');
+
         return true;
     }
 
