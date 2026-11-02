@@ -137,7 +137,19 @@ it('returns secret-free typed inventory only through authorized read-only GETs',
         ->and($read->configProfiles)->toBe(1)->and($read->needsReview)->toBe(1)
         ->and($read->systemStats?->cpuCores)->toBe(2);
 
-    $bot->hearText('/servers')->reply()->assertCalled('sendRichMessage');
+    $bot->hearText('/servers')->reply()
+        ->assertCalled('sendRichMessage')
+        ->assertRaw(static function (Request $request): bool {
+            $payload = FakeNutgram::getActualData($request);
+            $rich = is_string($payload['rich_message'] ?? null)
+                ? json_decode($payload['rich_message'], true, flags: JSON_THROW_ON_ERROR)
+                : ($payload['rich_message'] ?? []);
+            $html = (string) ($rich['html'] ?? '');
+
+            return str_contains($html, '<footer>💡 برای دریافت آخرین وضعیت سرورها، «🔄 به‌روزرسانی» را بزنید.</footer>')
+                && ! str_contains($html, 'Remnawave')
+                && ! str_contains($html, 'فاز بعد');
+        });
 
     Http::assertSentCount(12);
     Http::assertSent(fn ($request): bool => $request->method() === 'GET');
