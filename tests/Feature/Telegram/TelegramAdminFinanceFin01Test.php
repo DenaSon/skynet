@@ -367,7 +367,7 @@ it('shows a clear negative wallet warning and escapes user-controlled Rich detai
     $before = DB::table('billing_postings')->count();
 
     $bot->hearCallbackQueryData('finance:wallet:'.$customer->id)->reply()->assertRaw(
-        static function (Request $request) use ($customer): bool {
+        static function (Request $request): bool {
             $data = fin01Data($request);
             $html = fin01Rich($data);
             $keyboard = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
