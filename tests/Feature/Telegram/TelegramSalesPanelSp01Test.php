@@ -136,7 +136,7 @@ it('shows a wallet guidance screen with all three routes when balance is insuffi
             && str_contains($data['text'] ?? '', 'پس از تأیید پنل فروش')
             && ($buttons[0][0]['callback_data'] ?? null) === 'sales:wallet'
             && ($buttons[1][0]['callback_data'] ?? null) === 'sales:support'
-            && ($buttons[2][0]['callback_data'] ?? null) === 'sales:home';
+            && ($buttons[2][0]['callback_data'] ?? null) === 'sales:panel:hub';
     }, index: 1);
     expect(Cache::get($key))->toBeNull();
     $bot->hearCallbackQueryData('sales:panel:accept')->reply()->assertCalled('editMessageText');
@@ -244,6 +244,7 @@ it('leaving to sales home cancels panel draft without disturbing existing wallet
 });
 
 it('makes Sales Panel application discoverable via persistent menu and Account for an ordinary member', function (): void {
+    config()->set('denagate_live.enabled', true);
     $member = User::factory()->create();
     $bot = panel01Bot(986111, $member);
 
@@ -279,6 +280,7 @@ it('makes Sales Panel application discoverable via persistent menu and Account f
 });
 
 it('shows existing application status instead of duplicate request in persistent menu and Account', function (): void {
+    config()->set('denagate_live.enabled', true);
     $member = User::factory()->create();
     $bot = panel01Bot(986112, $member);
     PanelWalletFunding::credit($member->id, 3_500_000);
