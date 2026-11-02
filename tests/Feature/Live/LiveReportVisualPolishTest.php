@@ -97,7 +97,7 @@ it('keeps all original report fields, price conversion and a single loading anno
     $metric = file_get_contents(resource_path('views/components/live/report-metric.blade.php'));
     expect($metric)->toContain('min-h-28')
         ->toContain('rounded-[18px]')
-        ->toContain("number_format(\$value)");
+        ->toContain('number_format($value)');
 
     expect(substr_count($reports, 'wire:loading.delay wire:target="selectReportDays"'))->toBe(1)
         ->and(substr_count($reports, 'grid grid-cols-3'))->toBe(1)
