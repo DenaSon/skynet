@@ -127,7 +127,8 @@ it('escapes applicant name in Rich tables and retains read-only controls', funct
     $bot = sp02AdminBot(977001, $root);
     $buyer = User::factory()->create();
     PanelWalletFunding::credit($buyer->id, 7_500_000);
-    $id = app(SalesPanelRequests::class)->submit($buyer->id, '<نام & تست>', 'خریدار', '09120000001')['id'];
+    $id = app(SalesPanelRequests::class)->submit($buyer->id, 'نام', 'خریدار', '09120000001')['id'];
+    DB::table('sales_panel_requests')->where('id', $id)->update(['first_name' => '<نام & تست>']);
 
     $bot->hearCallbackQueryData('sp:detail:'.$id)->reply()->assertRaw(
         static function (Request $request): bool {
@@ -168,7 +169,7 @@ it('the old pending SP-01 application appears in the new Admin queue without ret
     PanelWalletFunding::credit($buyer->id, 7_500_000);
     app(SalesPanelRequests::class)->submit($buyer->id, 'نازنین', 'فرهادی', '09120000000');
 
-    $bot->hearText('/panelrequests')->reply()->assertCalled('sendMessage');
+    $bot->hearText('/panelrequests')->reply()->assertCalled('sendRichMessage');
     expect(DB::table('telegram_notification_deliveries')->count())->toBe(0)
         ->and(DB::table('sales_panel_requests')->where('status', 'pending')->count())->toBe(1);
 });
