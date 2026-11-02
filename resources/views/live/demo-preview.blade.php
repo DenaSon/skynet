@@ -1,10 +1,13 @@
 {{-- All figures and records below are fictitious. No real business data is read. --}}
+@php
+    $toman = static fn (int $rials): string => number_format(intdiv($rials, 10)).($rials % 10 === 0 ? '' : '.'.($rials % 10));
+@endphp
 @component('live.layout')
     <x-live.shell section="overview" :demo="true">
         <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
             <div>
                 <span class="dg-status" data-tone="neutral">👀 حالت دمو · اطلاعات نمونه</span>
-                <p class="mt-2 text-xs leading-6 text-[#617380]">با امکانات پنل نمایندگی دناگیت آشنا شوید.</p>
+                <p class="mt-2 text-xs leading-6 text-[#617380]">آمار و سرویس‌ها نمونه‌اند؛ قیمت‌های منتشرشده پلن‌ها به‌روز هستند.</p>
             </div>
             <form method="POST" action="{{ route('denagate-live.demo.exit') }}">
                 @csrf
@@ -90,14 +93,67 @@
             </div>
         </section>
 
-        <section x-cloak x-show="demoSection === 'shop'" aria-label="معرفی پلن‌ها">
-            <h1 class="dg-heading mb-3">پلن‌های نمایندگی</h1>
-            <div class="dg-empty">
-                <p class="font-semibold">تعرفه‌ها و تخفیف‌های نمایندگی</p>
-                <p>در این بخش، قیمت‌های منتشرشده و به‌روز پلن‌ها قابل مشاهده خواهند بود.</p>
-                <p class="text-xs">این صفحه صرفاً نمایشی است و امکان ثبت سفارش ندارد.</p>
+        <section x-cloak x-show="demoSection === 'shop'" aria-label="پلن‌های منتشرشده نمایندگی">
+            <div class="mb-5 flex flex-wrap items-start justify-between gap-3">
+                <div>
+                    <h1 class="dg-heading">پلن‌های نمایندگی</h1>
+                    <p class="mt-2 text-xs leading-7 text-[#617380]">قیمت‌های واقعیِ منتشرشده در زمان نمایش؛ سفارش یا رزرو قیمت نیست.</p>
+                </div>
+                <a href="{{ route('denagate-live.demo.preview', ['section' => 'shop']) }}"
+                   class="dg-btn-secondary inline-flex min-h-11 items-center justify-center px-4 py-2 text-xs">به‌روزرسانی قیمت‌ها</a>
             </div>
-            <button type="button" class="dg-btn-secondary mt-5" x-on:click="demoSection = 'overview'">بازگشت به نمای کلی</button>
+
+            @if (count($plans) === 0)
+                <div class="dg-empty">
+                    <p class="font-semibold">فعلاً تعرفه قابل نمایشی وجود ندارد.</p>
+                    <p>پس از انتشار پلن‌های آماده، قیمت‌های معتبر در این بخش نمایش داده می‌شوند.</p>
+                </div>
+            @else
+                <div class="grid gap-3 md:grid-cols-2">
+                    @foreach ($plans as $plan)
+                        <article class="dg-card min-w-0 space-y-3">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <h2 class="font-extrabold break-words">{{ $plan['name'] }}</h2>
+                                    <p class="mt-1 text-xs text-[#617380]">
+                                        {{ $plan['trafficGb'] === null ? 'حجم نامحدود' : number_format($plan['trafficGb']).' گیگابایت' }}
+                                        · {{ number_format($plan['durationDays']) }} روز
+                                    </p>
+                                </div>
+                                <span class="dg-status shrink-0" data-tone="success">قیمت به‌روز</span>
+                            </div>
+                            <div class="border-t border-[#E7ECEF] pt-3 text-sm">
+                                <div class="flex justify-between gap-3">
+                                    <span class="text-[#617380]">قیمت عمومی</span>
+                                    <span class="font-semibold" dir="ltr">{{ $toman($plan['publicRials']) }} تومان</span>
+                                </div>
+                                <div class="mt-2 flex justify-between gap-3">
+                                    <span class="text-[#617380]">تخفیف نمایندگی</span>
+                                    <span class="font-bold text-[#087F73]">{{ $plan['discountPercent'] }}٪</span>
+                                </div>
+                                <div class="mt-3 flex items-center justify-between gap-3 border-t border-[#E7ECEF] pt-3">
+                                    <strong>قیمت نماینده</strong>
+                                    <strong class="text-lg text-[#087F73]" dir="ltr">{{ $toman($plan['resellerRials']) }} تومان</strong>
+                                </div>
+                            </div>
+                        </article>
+                    @endforeach
+                </div>
+            @endif
+            <p class="mt-5 text-xs leading-7 text-[#617380]">پلن‌های سفارشی در این نسخه صرفاً معرفی می‌شوند؛ قیمت و شرایط نهایی خرید در پنل واقعی دوباره محاسبه می‌شوند.</p>
         </section>
+
+        @if ($botUrl !== null)
+            <div class="mt-8 flex flex-col items-center gap-2 border-t border-[#E7ECEF] pt-6">
+                <a href="{{ $botUrl }}" target="_blank" rel="noopener noreferrer"
+                   x-on:click="const tg = window.Telegram?.WebApp; if (tg && tg.platform !== 'unknown' && typeof tg.openTelegramLink === 'function') { $event.preventDefault(); tg.openTelegramLink($el.href); }"
+                   class="dg-btn-primary inline-flex min-h-11 items-center justify-center px-5 py-2.5">
+                    🧩 درخواست نمایندگی
+                </a>
+                <p class="text-xs text-[#617380]">درخواست و شرایط فعال‌سازی طبق قوانین فعلی بات فروش بررسی می‌شوند.</p>
+            </div>
+        @else
+            <p class="mt-8 border-t border-[#E7ECEF] pt-5 text-center text-xs leading-7 text-[#617380]">برای درخواست نمایندگی از بخش حساب کاربری بات فروش اقدام کنید.</p>
+        @endif
     </x-live.shell>
 @endcomponent
