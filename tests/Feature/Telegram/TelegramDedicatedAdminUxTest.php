@@ -200,7 +200,7 @@ it('keeps the stats entry in the persistent root Admin keyboard and denies stale
         app(ResolveTelegramActor::class)->handle(984201),
     )))->toContain(ReplyMenuLabels::STATS);
 
-    $rootBot->hearText(ReplyMenuLabels::STATS)->reply()->assertCalled('sendMessage');
+    $rootBot->hearText(ReplyMenuLabels::STATS)->reply()->assertCalled('sendRichMessage');
 
     $ordinary = User::factory()->admin()->create();
     $ordinaryBot = mb04Bot(984202, $ordinary);
