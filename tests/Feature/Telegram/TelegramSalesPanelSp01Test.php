@@ -563,6 +563,7 @@ it('offers a signed Demo Web App beside the existing panel request only to eligi
         $keyboard = panel01Payload($request)['reply_markup']['inline_keyboard'] ?? [];
         $flat = array_merge(...$keyboard);
         $names = array_column($flat, 'text');
+
         return in_array('🧩 درخواست نمایندگی', $names, true)
             && str_contains(json_encode($keyboard, JSON_THROW_ON_ERROR), 'sales:panel:hub')
             && ! in_array('🖥️ مشاهده دموی نمایندگی', $names, true)
