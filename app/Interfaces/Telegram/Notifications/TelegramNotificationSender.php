@@ -9,6 +9,7 @@ use App\Interfaces\Telegram\Support\ReplyMenuLabels;
 use App\Interfaces\Telegram\Support\ReplyMenuRenderer;
 use App\Interfaces\Telegram\Support\SubscriptionPageLink;
 use App\Interfaces\Telegram\Support\TelegramUi;
+use App\Interfaces\Telegram\Support\TelegramUserContactLink;
 use App\Modules\Billing\Application\BrowsePhotoTopups;
 use App\Modules\Billing\Application\VerifyWalletOrderDebit;
 use App\Modules\Billing\Application\ViewWallet;
@@ -450,10 +451,11 @@ final readonly class TelegramNotificationSender
 
             $row = $this->payments->detail($userId, $claimId);
 
-            $caption = TelegramUi::purchaseReceiptCaption($row, new: true);
+            $caption = TelegramUi::purchaseReceiptCaption($row, new: true,
+                username: app(TelegramUserContactLink::class)->username($row->buyerUserId, $row->buyerTelegramId));
             $buttons = json_encode([
                 'inline_keyboard' => [[
-                    ['text' => '✅ تأیید پرداخت', 'callback_data' => 'bank:decide:'.$claimId.':a'],
+                    ['text' => '🔎 بررسی واریز', 'callback_data' => 'bank:decide:'.$claimId.':a'],
                     ['text' => '❌ رد رسید', 'callback_data' => 'bank:decide:'.$claimId.':r'],
                 ]],
             ], JSON_THROW_ON_ERROR);
@@ -614,7 +616,7 @@ final readonly class TelegramNotificationSender
 
         $row = $this->payments->detail($rootId, $claimId);
         $keyboard = json_encode(['inline_keyboard' => $actor->allows('purchases.review')
-            ? [[['text' => '✅ تأیید پرداخت', 'callback_data' => 'bank:decide:'.$claimId.':a'],
+            ? [[['text' => '🔎 بررسی واریز', 'callback_data' => 'bank:decide:'.$claimId.':a'],
                 ['text' => '❌ رد رسید', 'callback_data' => 'bank:decide:'.$claimId.':r']]]
             : [[['text' => '🧾 صف رسیدها', 'callback_data' => 'bank:list']]]], JSON_THROW_ON_ERROR);
 
