@@ -98,6 +98,8 @@ it('allows only signed active member viewers without granting the reseller web g
 });
 
 it('rejects forged, expired, cross-bot, unlinked, reseller and inactive identities', function (): void {
+    // Verify all denial categories independently of the separate login rate limiter.
+    $this->withoutMiddleware(\Illuminate\Routing\Middleware\ThrottleRequests::class);
     demoMember(661100);
     $raw = demoSignedData(661100);
     foreach ([
