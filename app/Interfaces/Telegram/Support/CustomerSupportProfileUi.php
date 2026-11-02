@@ -12,8 +12,10 @@ use App\Support\PersianCalendar;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 use Throwable;
 
 /** CUS-360-01: concise, read-only 360° support card for an authorized Admin. */
@@ -88,7 +90,16 @@ final readonly class CustomerSupportProfileUi
         ))->addRow(InlineKeyboardButton::make('🏠 مدیریت', callback_data: 'menu:admin'));
 
         TelegramUi::answerCallback($bot);
-        TelegramUi::editText($bot, $text, $keyboard, 'HTML');
+
+        try {
+            TelegramUi::editRichText($bot, new InputRichMessage(html: self::richReport($profile), is_rtl: true), $keyboard);
+
+            return;
+        } catch (TelegramException $exception) {
+            report($exception);
+            // Keep all the same authorized data and buttons on unsupported clients.
+            TelegramUi::editText($bot, $text, $keyboard, 'HTML');
+        }
     }
 
     /** CUS-360-02: local service directory, no RW request until one is chosen. */
@@ -350,6 +361,74 @@ final readonly class CustomerSupportProfileUi
         $lines[] = '🔄 آخرین بررسی: '.PersianCalendar::localDateTime(now()->timezone('Asia/Tehran')->format('Y-m-d H:i'));
 
         return implode("\n", $lines);
+    }
+
+    /** @param array<string,mixed> $data */
+    private static function richReport(array $data): string
+    {
+        $user = $data['user'];
+        $name = TelegramUi::escape(mb_substr(
+            (string) preg_replace('/[\\x00-\\x1F\\x7F]+/u', ' ', $user->name), 0, 65,
+        ));
+        $account = $user->active ? '🟢 فعال' : '🔴 غیرفعال';
+        $telegram = $user->telegramLinked ? 'متصل' : 'متصل نیست';
+
+        $services = '<tr><td>کل سرویس‌ها</td><td><b>'.number_format($data['servicesTotal']).'</b></td></tr>'
+            .'<tr><td>فعال در سیستم</td><td>'.number_format($data['servicesActive']).'</td></tr>'
+            .'<tr><td>نیازمند بررسی</td><td>'.number_format($data['servicesReview']).'</td></tr>';
+        $recentServices = '';
+        foreach ($data['recentServices'] as $service) {
+            $recentServices .= '<tr><td>#'.$service['id'].' · '.self::safe($service['name']).'</td>'
+                .'<td>'.TelegramUi::escape(self::serviceState($service['state'])).'</td></tr>';
+        }
+
+        $orders = '<tr><td>کل سفارش‌ها</td><td><b>'.number_format($data['ordersTotal']).'</b></td></tr>'
+            .'<tr><td>در انتظار پرداخت</td><td>'.number_format($data['ordersPending']).'</td></tr>'
+            .'<tr><td>آخرین پرداخت</td><td>'.($data['lastSettledAt'] === null
+                ? 'ثبت نشده' : TelegramUi::escape(PersianCalendar::utcDateTime($data['lastSettledAt']))).'</td></tr>';
+        $recentOrders = '';
+        foreach ($data['recentOrders'] as $order) {
+            $recentOrders .= '<tr><td>#'.$order['id'].' · '.self::safe($order['name']).'</td>'
+                .'<td>'.TelegramUi::escape(self::orderState($order['status']))
+                .' · '.TelegramUi::escape(PersianCalendar::utcDateTime($order['at'])).'</td></tr>';
+        }
+
+        $finance = '';
+        if ($data['financeAllowed']) {
+            $balance = $data['financeUnavailable']
+                ? 'در دسترس نیست'
+                : TelegramUi::toman($data['walletBalanceRials']).' تومان';
+            $finance = '<h3>💰 کیف پول</h3><table bordered striped compact>'
+                .'<tr><td>مانده ثبت‌شده</td><td><b>'.$balance.'</b></td></tr></table>';
+        }
+
+        $contact = $data['salesContact'] === null
+            ? '<tr><td>بات فروش</td><td>ارتباطی ثبت نشده</td></tr>'
+            : '<tr><td>بات فروش</td><td>'.TelegramUi::escape(self::contactState($data['salesContact']['status'])).'</td></tr>'
+                .'<tr><td>آخرین تعامل</td><td>'
+                .TelegramUi::escape(PersianCalendar::utcDateTime($data['salesContact']['lastSeen'])).'</td></tr>';
+
+        $checkedAt = TelegramUi::escape(PersianCalendar::localDateTime(
+            now()->timezone('Asia/Tehran')->format('Y-m-d H:i'),
+        ));
+
+        return '<h2>👤 پرونده ۳۶۰ درجه مشتری</h2>'
+            .'<p><b>'.$name.'</b> · #'.$user->id.'</p>'
+            .'<table bordered striped compact>'
+            .'<tr><td>وضعیت حساب</td><td>'.$account.'</td></tr>'
+            .'<tr><td>تلگرام</td><td>'.$telegram.'</td></tr></table>'
+            .'<h3>📦 سرویس‌ها</h3><table bordered striped compact>'.$services.'</table>'
+            .($recentServices === '' ? '<p>سرویسی ثبت نشده است.</p>'
+                : '<table bordered striped compact><tr><td><b>سرویس اخیر</b></td><td><b>وضعیت</b></td></tr>'
+                    .$recentServices.'</table>')
+            .'<h3>🛒 سفارش‌ها</h3><table bordered striped compact>'.$orders.'</table>'
+            .($recentOrders === '' ? ''
+                : '<table bordered striped compact><tr><td><b>سفارش اخیر</b></td><td><b>وضعیت · تاریخ</b></td></tr>'
+                    .$recentOrders.'</table>')
+            .$finance
+            .'<h3>📱 ارتباط با مشتری</h3><table bordered striped compact>'.$contact.'</table>'
+            .'<footer>🔄 آخرین بررسی: '.$checkedAt
+            .' · 💡 وضعیت سرویس‌ها ثبت‌شده است؛ وضعیت زنده را جداگانه بررسی کنید.</footer>';
     }
 
     private static function safe(string $value): string
