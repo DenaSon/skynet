@@ -1,3 +1,7 @@
+## DenaGate Live Demo — new planning reference (2026-11-02)
+
+**Approved product/architecture plan, not an implementation authorization:** [040 — DenaGate Live reseller Demo](040-DENAGATE-LIVE-RESELLER-DEMO-ROADMAP.md). Build a separate signed Telegram Mini App `/demo` without Demo Role, migration, operational Live Dashboard reuse or business writes. Operational examples are labeled fixtures; a bounded read-only catalog displays **current published reseller preset tariffs** (published per-plan discounts, not a hardcoded 35%). Existing reseller app/roles/transactions, Sales Panel balance gate and administrative review remain unchanged; the proposed 1,000,000-toman activation policy is deferred. DEMO-01, DEMO-02 and client acceptance require separate approvals and tests.
+
 ## DenaGate Live — approved service-expiry display (2026-11-01)
 
 After the Sales Bot health-page acceptance, Live's existing services tab gains one compact explicit «⏳ بررسی انقضا» control. It calls the same `ReadResellerServiceHealth` Action with the current server-resolved, owner-scoped list/search page (maximum six), then shows only the confirmed page-local 72-hour count and remaining time. Results are locked, matched to current cursor/search/order IDs, and cleared by navigation or new search; normal rendering never triggers provider GET. No sorting, extra guidance panels, notifications, automatic polling, migrations, finance or Provider writes. Existing Bot UX and Live service/checkout actions are unchanged. CI is not a real Telegram WebView test.
