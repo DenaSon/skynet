@@ -44,25 +44,18 @@ final readonly class CalculatePlanQuote
             throw ValidationException::withMessages(['pricing' => 'This plan has no current published price.']);
         }
 
-        $public = $price->method === 'fixed'
-            ? (int) $price->fixed_price_rials
-            : (int) $price->base_price_rials
-                + ($trafficGb ?? 0) * (int) $price->per_gb_rials
-                + $durationDays * (int) $price->per_day_rials;
-
-        if ($public < 1 || $public > PlanPricingDefinition::MAX_COMPONENT_RIALS) {
-            throw ValidationException::withMessages(['pricing' => 'Calculated price is out of bounds.']);
-        }
-
-        // Reseller access includes public/both plans. Exactly one discount
-        // applies, the explicitly published plan discount. Never stack F09.
         $discountPercent = $this->buyers->isReseller($buyerId) ? (int) $price->reseller_discount_percent : 0;
-        $discount = intdiv($public * $discountPercent + 50, 100);
-        $total = $public - $discount;
-
-        if ($total < (int) $price->minimum_total_rials) {
-            throw ValidationException::withMessages(['pricing' => 'Selected configuration is below the selling floor.']);
-        }
+        $amounts = PublishedPlanPriceAmounts::calculate(
+            method: (string) $price->method,
+            fixedRials: $price->fixed_price_rials === null ? null : (int) $price->fixed_price_rials,
+            baseRials: (int) $price->base_price_rials,
+            perGbRials: (int) $price->per_gb_rials,
+            perDayRials: (int) $price->per_day_rials,
+            durationDays: $durationDays,
+            trafficGb: $trafficGb,
+            discountPercent: $discountPercent,
+            minimumTotalRials: (int) $price->minimum_total_rials,
+        );
 
         return new PlanPriceQuote(
             buyerUserId: $buyerId,
@@ -76,10 +69,10 @@ final readonly class CalculatePlanQuote
             durationDays: $durationDays,
             trafficGb: $trafficGb,
             pricingMethod: (string) $price->method,
-            publicPriceRials: $public,
+            publicPriceRials: $amounts['public'],
             discountPercent: $discountPercent,
-            discountRials: $discount,
-            totalPriceRials: $total,
+            discountRials: $amounts['discount'],
+            totalPriceRials: $amounts['total'],
         );
     }
 }
