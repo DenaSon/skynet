@@ -143,7 +143,7 @@ final readonly class AdminProviderOverviewUi
             .'<table bordered striped compact>'.$overview.'</table>'
             .'<h3>🌐 وضعیت نودها</h3>'.$nodesTable
             .$stats
-            .'<footer>آمار اتصال از Remnawave است؛ تأخیر TCP در فاز بعد افزوده می‌شود.</footer>';
+            .'<footer>💡 برای دریافت آخرین وضعیت سرورها، «🔄 به‌روزرسانی» را بزنید.</footer>';
     }
 
     private static function safeNodeName(string $name): string
