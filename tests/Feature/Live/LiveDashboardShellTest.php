@@ -6,6 +6,7 @@ use App\Interfaces\Web\Live\Dashboard;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Blade;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
 
@@ -115,4 +116,37 @@ it('provides a bundled Livewire runtime and HTTPS config for every reseller acti
         ->and($runtime)->toContain('vendor/livewire/livewire/dist/livewire.esm')
         ->toContain('Livewire.start()')
         ->and($vite)->toContain("'resources/js/live.js'");
+});
+
+it('provides one shared shell for real and demo views with identical navigation without operational controls', function (): void {
+    $shell = file_get_contents(resource_path('views/components/live/shell.blade.php'));
+    $dashboard = file_get_contents(resource_path('views/live/dashboard.blade.php'));
+
+    expect($dashboard)->toContain('<x-live.shell :section="$section">')
+        ->not->toContain('<aside ')
+        ->not->toContain('aria-label="دسترسی سریع پنل"')
+        ->and($shell)->toContain("@props(['section', 'demo' => false])")
+        ->toContain('aria-label="منوی پنل نمایندگی"')
+        ->toContain('aria-label="دسترسی سریع پنل"')
+        ->toContain('safe-area-inset-bottom')
+        ->not->toContain('confirmWalletPayment')
+        ->not->toContain('confirmOrder')
+        ->not->toContain('ChangeResellerSubscriptionStatusJob');
+
+    $html = Blade::render('<x-live.shell section="overview" :demo="true"><p>نمونه آزمایشی</p></x-live.shell>');
+    expect($html)->toContain('نمونه آزمایشی')
+        ->toContain('حالت دمو')
+        ->toContain('پیش‌نمایش نمایندگی')
+        ->toContain('aria-label="دسترسی سریع پنل"')
+        ->toContain('wire:click="showSection(&#039;overview&#039;)"')
+        ->not->toContain('حساب نماینده')
+        ->not->toContain('motion-safe:animate-pulse')
+        ->not->toContain('wire:click="confirmOrder"');
+
+    $real = Blade::render('<x-live.shell section="overview"><p>نماینده واقعی</p></x-live.shell>');
+    expect($real)->toContain('نماینده واقعی')
+        ->toContain('حساب نماینده')
+        ->toContain('پنل اختصاصی نمایندگان')
+        ->toContain('motion-safe:animate-pulse')
+        ->not->toContain('حالت دمو');
 });
