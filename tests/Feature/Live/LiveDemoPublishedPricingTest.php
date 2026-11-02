@@ -25,7 +25,7 @@ beforeEach(function (): void {
     config()->set('telegram.sales.token', '321:sales-bot');
     config()->set('telegram.sales.bot_username', 'DenaGateSalesBot');
     config()->set('nutgram.token', '123:admin-bot');
-    config()->set('super_admin.telegram_ids', ['988881']);
+    config()->set('super_admin.telegram_ids', ['988881', '988889']);
     foreach (['member', 'reseller', 'super-admin'] as $role) {
         Role::findOrCreate($role, 'web');
     }
