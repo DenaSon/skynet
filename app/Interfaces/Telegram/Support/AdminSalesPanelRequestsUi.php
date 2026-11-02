@@ -10,14 +10,17 @@ use App\Modules\Identity\Application\AdminCapabilityAccess;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\TelegramActor;
 use App\Modules\Sales\Application\ReviewSalesPanelRequest;
+use App\Support\PersianCalendar;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 
 /** Scoped review queue for opt-in Sales Panel membership. */
 final readonly class AdminSalesPanelRequestsUi
@@ -69,7 +72,18 @@ final readonly class AdminSalesPanelRequestsUi
         }
         $keyboard->addRow(InlineKeyboardButton::make('◀️ محصولات و پلن‌ها', callback_data: 'menu:admin:sales'))
             ->addRow(InlineKeyboardButton::make('🏠 مدیریت', callback_data: 'menu:admin'));
-        $this->render($bot, implode("\n", $lines), $keyboard);
+        $richRows = '';
+        foreach (array_slice($rows, 0, 8) as $row) {
+            $richRows .= self::richRow('درخواست #'.$row['id'],
+                mb_substr($row['first_name'].' '.$row['last_name'], 0, 60).' · در انتظار بررسی');
+        }
+        if ($rows === []) {
+            $richRows = self::richRow('وضعیت', 'درخواستی در انتظار بررسی نیست.');
+        }
+        $html = '<h2>🧩 درخواست‌های پنل فروش</h2><table bordered striped compact>'
+            .$richRows.'</table><footer>🕒 منتظر بررسی | صفحه '.number_format($number)
+            .' | '.PersianCalendar::localDateTime(now()->toDateTimeString()).' (تهران)</footer>';
+        $this->render($bot, implode("\n", $lines), $keyboard, $html);
     }
 
     public function detail(Nutgram $bot, string $id): void
@@ -109,12 +123,18 @@ final readonly class AdminSalesPanelRequestsUi
         }
         $keyboard->addRow(InlineKeyboardButton::make('◀️ درخواست‌ها', callback_data: 'sp:list:1'))
             ->addRow(InlineKeyboardButton::make('🏠 مدیریت', callback_data: 'menu:admin'));
+        $html = '<h2>🧩 بررسی پنل فروش #'.$row['id'].'</h2><table bordered striped compact>'
+            .self::richRow('نام', $row['first_name'].' '.$row['last_name'])
+            .self::richRow('شناسه کاربر', (string) $row['user_id'])
+            .self::richRow('موبایل', $row['mobile'])
+            .self::richRow('وضعیت', $status)
+            .'</table><footer>💡 تصمیم‌گیری فقط پس از تأیید نهایی ثبت می‌شود.</footer>';
         $this->render($bot,
             '<b>🧩 بررسی پنل فروش #'.$row['id'].'</b>'
             ."\n\n👤 نام: <b>{$name}</b>"
             ."\nشناسه کاربر: ".TelegramUi::code((string) $row['user_id'])
             ."\nموبایل: ".TelegramUi::code($row['mobile'])
-            ."\nوضعیت: {$status}", $keyboard);
+            ."\nوضعیت: {$status}", $keyboard, $html);
     }
 
     public function prepare(Nutgram $bot, string $id, string $decision): void
@@ -245,10 +265,30 @@ final readonly class AdminSalesPanelRequestsUi
             ->addRow(InlineKeyboardButton::make('🏠 مدیریت', callback_data: 'menu:admin')));
     }
 
-    private function render(Nutgram $bot, string $text, InlineKeyboardMarkup $keyboard): void
+    private static function richRow(string $label, string $value): string
+    {
+        return '<tr><td>'.TelegramUi::escape($label).'</td><td>'
+            .TelegramUi::escape($value).'</td></tr>';
+    }
+
+    private function render(Nutgram $bot, string $text, InlineKeyboardMarkup $keyboard, ?string $richHtml = null): void
     {
         if ($bot->isCallbackQuery()) {
             TelegramUi::answerCallback($bot);
+        }
+
+        if ($richHtml !== null) {
+            try {
+                TelegramUi::editRichText($bot, new InputRichMessage(html: $richHtml, is_rtl: true), $keyboard);
+
+                return;
+            } catch (TelegramException $exception) {
+                report($exception);
+                // Preserve the same authorized data and original callback keyboard.
+            }
+        }
+
+        if ($bot->isCallbackQuery()) {
             TelegramUi::editText($bot, $text, $keyboard, 'HTML');
 
             return;
