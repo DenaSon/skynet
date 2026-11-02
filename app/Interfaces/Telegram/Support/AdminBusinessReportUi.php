@@ -8,8 +8,10 @@ use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Sales\Application\ReadAdminBusinessReport;
 use App\Support\PersianCalendar;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 
 /** STAT-02: bounded 7/30-day business reports for trusted Super Admin only. */
 final readonly class AdminBusinessReportUi
@@ -46,14 +48,16 @@ final readonly class AdminBusinessReportUi
             return;
         }
 
+        $rich = null;
         try {
             $data = $this->reports->handle($actor->userId, (int) $days);
             $text = $section === 'sales' ? $this->sales($data) : $this->people($data);
+            $rich = $section === 'sales' ? $this->richSales($data) : $this->richPeople($data);
         } catch (\Throwable) {
             $text = "📊 گزارش مدیریتی\n\nدریافت گزارش فعلاً ممکن نیست. دوباره تلاش کنید.";
         }
 
-        $this->render($bot, $text, $keyboard);
+        $this->render($bot, $text, $keyboard, $rich);
     }
 
     /** @param array<string,int|string> $data */
@@ -94,6 +98,74 @@ final readonly class AdminBusinessReportUi
             ."\n🕒 ".PersianCalendar::localDateTime((string) $data['generatedAt']);
     }
 
+    /** @param array<string,int|string> $data */
+    private function richSales(array $data): string
+    {
+        $period = PersianCalendar::date((string) $data['start']).' تا '
+            .PersianCalendar::date((string) $data['end']);
+        $rows = [
+            ['تراکنش‌های فروش', self::n($data['settled'])],
+            ['خرید جدید', self::n($data['newPurchases'])],
+            ['تمدیدها', self::n($data['renewals'])],
+            ['خریداران یکتا', self::n($data['buyers'])],
+            ['سفارش‌های تکمیل‌شده', self::n($data['fulfilled'])],
+            ['در انتظار پرداخت · اکنون', self::n($data['pendingNow'])],
+        ];
+
+        return '<h2>💳 گزارش فروش · '.$data['days'].' روز اخیر</h2>'
+            .'<p>📅 '.$period.' · تهران</p>'
+            .'<h3>مجموع پرداخت‌های تأییدشده</h3><p><b>'
+            .number_format(intdiv((int) $data['revenueRials'], 10)).' تومان</b></p>'
+            .'<table bordered striped compact>'.self::rows($rows).'</table>'
+            .'<footer>🕒 '.PersianCalendar::localDateTime((string) $data['generatedAt'])
+            .' · فروش تسویه‌شده؛ شارژ کیف پول و سفارش پرداخت‌نشده محاسبه نشده‌اند.'
+            .' تکمیل سفارش با زمان تسویه متفاوت است.</footer>';
+    }
+
+    /** @param array<string,int|string> $data */
+    private function richPeople(array $data): string
+    {
+        $period = PersianCalendar::date((string) $data['start']).' تا '
+            .PersianCalendar::date((string) $data['end']);
+        $identity = [
+            ['حساب‌های جدید', self::n($data['newUsers'])],
+            ['شناسه‌های تلگرام متصل · اکنون', self::n($data['linkedTelegram'])],
+        ];
+        $sales = [
+            ['مخاطبان ثبت‌شده · اکنون', self::n($data['salesContacts'])],
+            ['قابل دسترس · اکنون', self::n($data['salesReachable'])],
+            ['مخاطبان جدید در بازه', self::n($data['salesNewContacts'])],
+            ['تعامل در بازه', self::n($data['salesEngaged'])],
+        ];
+        $admin = [
+            ['مخاطبان ثبت‌شده · اکنون', self::n($data['adminContacts'])],
+            ['قابل دسترس · اکنون', self::n($data['adminReachable'])],
+            ['مخاطبان جدید در بازه', self::n($data['adminNewContacts'])],
+            ['تعامل در بازه', self::n($data['adminEngaged'])],
+        ];
+
+        return '<h2>👥 گزارش کاربران و تلگرام · '.$data['days'].' روز اخیر</h2>'
+            .'<p>📅 '.$period.' · تهران</p>'
+            .'<h3>👤 کاربران</h3><table bordered striped compact>'.self::rows($identity).'</table>'
+            .'<h3>🤖 بات فروش</h3><table bordered striped compact>'.self::rows($sales).'</table>'
+            .'<h3>🛡️ بات مدیریت</h3><table bordered striped compact>'.self::rows($admin).'</table>'
+            .'<footer>🕒 '.PersianCalendar::localDateTime((string) $data['generatedAt'])
+            .' · تعامل یعنی آخرین ارتباط در بازه، نه تعداد پیام‌ها یا افراد آنلاین.'
+            .' مخاطبان هر بات جداگانه شمارش شده‌اند.</footer>';
+    }
+
+    /** @param list<array{string,string}> $rows */
+    private static function rows(array $rows): string
+    {
+        $html = '';
+        foreach ($rows as [$label, $value]) {
+            $html .= '<tr><td>'.TelegramUi::escape($label).'</td><td><b>'
+                .TelegramUi::escape($value).'</b></td></tr>';
+        }
+
+        return $html;
+    }
+
     private function keyboard(string $section, string $days): InlineKeyboardMarkup
     {
         return InlineKeyboardMarkup::make()
@@ -109,8 +181,23 @@ final readonly class AdminBusinessReportUi
             ->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
     }
 
-    private function render(Nutgram $bot, string $text, InlineKeyboardMarkup $keyboard): void
-    {
+    private function render(
+        Nutgram $bot,
+        string $text,
+        InlineKeyboardMarkup $keyboard,
+        ?string $rich = null,
+    ): void {
+        if ($rich !== null) {
+            try {
+                TelegramUi::editRichText($bot, new InputRichMessage(html: $rich, is_rtl: true), $keyboard);
+
+                return;
+            } catch (TelegramException $exception) {
+                report($exception);
+                // Same authorized data, keyboard and date limits in native HTML.
+            }
+        }
+
         if ($bot->isCallbackQuery()) {
             TelegramUi::editText($bot, $text, $keyboard, 'HTML');
 

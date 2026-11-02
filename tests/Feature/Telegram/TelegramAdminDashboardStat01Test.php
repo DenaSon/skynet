@@ -44,6 +44,16 @@ function stat01Users(): array
     return compact('root', 'member');
 }
 
+/** @param array<string,mixed> $payload */
+function stat01RichHtml(array $payload): string
+{
+    $rich = is_string($payload['rich_message'] ?? null)
+        ? json_decode($payload['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+        : ($payload['rich_message'] ?? []);
+
+    return ($rich['is_rtl'] ?? null) === true ? (string) ($rich['html'] ?? '') : '';
+}
+
 function stat01Bot(int $telegramId): Nutgram
 {
     $bot = Nutgram::fake();
@@ -138,14 +148,25 @@ it('shows a private root-only read-only dashboard using complete live provider s
     $bot->hearText('/stats')->reply()->assertRaw(static function (NutgramRequest $r): bool {
         $p = stat01Payload($r);
 
-        return str_contains($p['text'], '📊 آمار DenaGate')
-            && str_contains($p['text'], 'اشتراک‌های فعال پنل: 1')
-            && str_contains($p['text'], '📈') === false
-            && ! str_contains($p['text'], 'credentials.stat01.test')
+        $html = stat01RichHtml($p);
+
+        return str_contains($html, '<h2>📊 آمار DenaGate</h2>')
+            && str_contains($html, '<table bordered striped compact>')
+            && str_contains($html, '<tr><td>اشتراک‌های فعال پنل</td><td>1</td></tr>')
+            && str_contains($html, '<tr><td>کاربران آنلاین</td><td>1</td></tr>')
+            && str_contains($html, '<h3>💳 فروش امروز</h3>')
+            && str_contains($html, '<h3>⚠️ پیگیری‌ها</h3>')
+            && str_contains($html, '<footer>🕒 ')
+            && ! str_contains($html, 'credentials.stat01.test')
             && str_contains(json_encode($p['reply_markup'], JSON_THROW_ON_ERROR), 'stats:refresh')
-            && ($p['parse_mode'] ?? null) === 'HTML';
+            && ! isset($p['parse_mode']);
     });
-    $bot->hearCallbackQueryData('stats:refresh')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('stats:refresh')->reply()->assertRaw(static function (NutgramRequest $r): bool {
+        $p = stat01Payload($r);
+
+        return str_contains(stat01RichHtml($p), '<footer>🕒 ')
+            && str_contains(json_encode($p['reply_markup'], JSON_THROW_ON_ERROR), 'stats:detail:sales:7');
+    }, index: 1);
     Http::assertSent(static fn (Request $r): bool => $r->method() === 'GET');
     Http::assertNotSent(static fn (Request $r): bool => $r->method() !== 'GET');
 });
@@ -163,8 +184,11 @@ it('renders unavailable remote counts as unknown and does not treat local subscr
     $bot->hearText('/stats')->reply()->assertRaw(static function (NutgramRequest $r): bool {
         $p = stat01Payload($r);
 
-        return str_contains($p['text'], 'نودها: نامشخص')
-            && str_contains($p['text'], 'اشتراک‌های فعال پنل: نامشخص');
+        $html = stat01RichHtml($p);
+
+        return str_contains($html, '<tr><td>نودها</td><td>نامشخص</td></tr>')
+            && str_contains($html, '<tr><td>اشتراک‌های فعال پنل</td><td>نامشخص</td></tr>')
+            && str_contains($html, 'صفر نیست');
     });
 });
 

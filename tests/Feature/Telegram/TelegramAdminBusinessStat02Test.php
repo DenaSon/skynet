@@ -111,6 +111,16 @@ function stat02Fixture(): array
     return compact('root', 'buyer', 'oldBuyer', 'order', 'renewal', 'older');
 }
 
+/** @param array<string,mixed> $payload */
+function stat02RichHtml(array $payload): string
+{
+    $rich = is_string($payload['rich_message'] ?? null)
+        ? json_decode($payload['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+        : ($payload['rich_message'] ?? []);
+
+    return ($rich['is_rtl'] ?? null) === true ? (string) ($rich['html'] ?? '') : '';
+}
+
 function stat02Bot(int $telegramId): Nutgram
 {
     $bot = Nutgram::fake();
@@ -181,17 +191,28 @@ it('opens 7/30 day Sales and People submenus and links back to existing stats', 
     $bot->hearCallbackQueryData('stats:detail:sales:7')->reply()->assertRaw(static function (NutgramRequest $req): bool {
         $p = stat02Payload($req);
 
-        return str_contains($p['text'], 'گزارش فروش')
-            && str_contains($p['text'], '300,000 تومان')
-            && str_contains($p['text'], 'تمدیدها: 1')
+        $html = stat02RichHtml($p);
+
+        return str_contains($html, '<h2>💳 گزارش فروش · 7 روز اخیر</h2>')
+            && str_contains($html, '<table bordered striped compact>')
+            && str_contains($html, '300,000 تومان')
+            && str_contains($html, '<tr><td>تمدیدها</td><td><b>1</b></td></tr>')
+            && str_contains($html, '<tr><td>در انتظار پرداخت · اکنون</td><td><b>1</b></td></tr>')
+            && str_contains($html, '<footer>🕒 ')
+            && str_contains($html, 'شارژ کیف پول و سفارش پرداخت‌نشده محاسبه نشده‌اند')
             && str_contains(json_encode($p['reply_markup'], JSON_THROW_ON_ERROR), 'stats:overview')
-            && ($p['parse_mode'] ?? null) === 'HTML';
+            && ! isset($p['parse_mode']);
     }, index: 1);
     $bot->hearCallbackQueryData('stats:detail:people:30')->reply()->assertRaw(static function (NutgramRequest $req): bool {
         $p = stat02Payload($req);
 
-        return str_contains($p['text'], 'گزارش کاربران و تلگرام')
-            && str_contains($p['text'], 'تعامل در بازه: 2')
+        $html = stat02RichHtml($p);
+
+        return str_contains($html, '<h2>👥 گزارش کاربران و تلگرام · 30 روز اخیر</h2>')
+            && str_contains($html, '<h3>🤖 بات فروش</h3>')
+            && str_contains($html, '<h3>🛡️ بات مدیریت</h3>')
+            && str_contains($html, '<tr><td>تعامل در بازه</td><td><b>2</b></td></tr>')
+            && str_contains($html, '<footer>🕒 ')
             && str_contains(json_encode($p['reply_markup'], JSON_THROW_ON_ERROR), 'stats:detail:sales:30');
     }, index: 1);
 });
