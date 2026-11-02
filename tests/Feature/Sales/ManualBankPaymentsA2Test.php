@@ -28,6 +28,14 @@ use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 use SergiX44\Nutgram\Testing\FakeNutgram;
 use Spatie\Permission\Models\Role;
 
+function a2VerifiedRials(int $claimId): int
+{
+    return (int) DB::table('sales_bank_payment_claims as c')
+        ->join('sales_orders as o', 'o.id', '=', 'c.sales_order_id')
+        ->where('c.id', $claimId)
+        ->value('o.total_price_rials');
+}
+
 uses(RefreshDatabase::class);
 
 function a2Setup(): void
@@ -126,9 +134,9 @@ it('requires trusted super-admin and a verified bank reference, then books balan
     Http::fake();
 
     expect(fn () => app(ManualBankPayments::class)->detail($other->id, $claim))->toThrow(AuthorizationException::class)
-        ->and(fn () => app(ManualBankPayments::class)->review($root->id, $claim, true, null))->toThrow(ValidationException::class);
+        ->and(fn () => app(ManualBankPayments::class)->review($root->id, $claim, true, null, a2VerifiedRials($claim)))->toThrow(ValidationException::class);
 
-    $result = app(ManualBankPayments::class)->review($root->id, $claim, true, 'BANKA2X001');
+    $result = app(ManualBankPayments::class)->review($root->id, $claim, true, 'BANKA2X001', a2VerifiedRials($claim));
     $amount = (int) DB::table('sales_orders')->where('id', $order)->value('total_price_rials');
 
     expect($result->approved)->toBeTrue()
@@ -140,7 +148,7 @@ it('requires trusted super-admin and a verified bank reference, then books balan
         ->and(DB::table('billing_postings')->where('account_code', 'order_liability')->where('side', 'credit')->sum('amount_rials'))->toBe($amount)
         ->and(DB::table('sales_payment_review_audits')->where('decision', 'approved')->count())->toBe(1);
 
-    expect(fn () => app(ManualBankPayments::class)->review($root->id, $claim, true, 'BANKA2X001'))
+    expect(fn () => app(ManualBankPayments::class)->review($root->id, $claim, true, 'BANKA2X001', a2VerifiedRials($claim)))
         ->toThrow(ValidationException::class);
     Http::assertNothingSent();
 });
@@ -174,9 +182,9 @@ it('cannot credit the same bank transfer to another order or a reseller topup', 
     $claimA = a2Submit(990116, $first, 100);
     $claimB = a2Submit(990116, $second, 101);
 
-    app(ManualBankPayments::class)->review($root->id, $claimA, true, 'DUPA2TRANSFER');
+    app(ManualBankPayments::class)->review($root->id, $claimA, true, 'DUPA2TRANSFER', a2VerifiedRials($claimA));
 
-    expect(fn () => app(ManualBankPayments::class)->review($root->id, $claimB, true, 'DUPA2TRANSFER'))
+    expect(fn () => app(ManualBankPayments::class)->review($root->id, $claimB, true, 'DUPA2TRANSFER', a2VerifiedRials($claimB)))
         ->toThrow(QueryException::class);
 
     Role::findOrCreate('reseller', 'web');
@@ -203,7 +211,7 @@ it('does not treat an existing wallet verified receipt as new direct bank income
     $order = a2Order($buyer);
     $claim = a2Submit(990117, $order);
 
-    expect(fn () => app(ManualBankPayments::class)->review($root->id, $claim, true, 'BANKOLD123'))
+    expect(fn () => app(ManualBankPayments::class)->review($root->id, $claim, true, 'BANKOLD123', a2VerifiedRials($claim)))
         ->toThrow(ValidationException::class)
         ->and(DB::table('sales_orders')->where('id', $order)->value('status'))->toBe('pending_payment')
         ->and(DB::table('sales_fulfillment_outbox')->count())->toBe(0);
@@ -224,7 +232,7 @@ it('denies revoked root, expired actor tokens and forged private chat identities
     expect(app(PaymentDecisionTokens::class)->consume($root->id, $token))->toBeNull();
 
     $root->forceFill(['is_active' => false])->save();
-    expect(fn () => app(ManualBankPayments::class)->review($root->id, $claim, true, 'BANK999888'))
+    expect(fn () => app(ManualBankPayments::class)->review($root->id, $claim, true, 'BANK999888', a2VerifiedRials($claim)))
         ->toThrow(AuthorizationException::class);
 
     $bot = a2Bot(990118);
@@ -274,7 +282,7 @@ it('stores direct bank payments in the same Billing journal and postings tables 
     $root = a2Account(990101, 'super-admin');
     $order = a2Order($buyer);
     $claim = a2Submit(990123, $order, 123);
-    app(ManualBankPayments::class)->review($root->id, $claim, true, 'B0BANKSHARED');
+    app(ManualBankPayments::class)->review($root->id, $claim, true, 'B0BANKSHARED', a2VerifiedRials($claim));
 
     $settlement = DB::table('sales_bank_settlements')->where('sales_order_id', $order)->first();
     $journal = DB::table('billing_journals')->where('id', $settlement->billing_journal_id)->first();
@@ -309,7 +317,7 @@ it('rolls back both Billing ledger and Sales settlement if a downstream outbox i
         'updated_at' => now(),
     ]);
 
-    expect(fn () => app(ManualBankPayments::class)->review($root->id, $claim, true, 'B0ROLLBACK01'))
+    expect(fn () => app(ManualBankPayments::class)->review($root->id, $claim, true, 'B0ROLLBACK01', a2VerifiedRials($claim)))
         ->toThrow(QueryException::class);
 
     expect(DB::table('sales_orders')->where('id', $order)->value('status'))->toBe('pending_payment')
@@ -329,7 +337,7 @@ it('blocks reuse of a reference reserved for a direct sale by a different wallet
     $order = a2Order($buyer);
     $claim = a2Submit(990125, $order, 125);
 
-    app(ManualBankPayments::class)->review($root->id, $claim, true, 'B0SAMEBANKREF');
+    app(ManualBankPayments::class)->review($root->id, $claim, true, 'B0SAMEBANKREF', a2VerifiedRials($claim));
 
     $topup = app(RequestTopup::class)->handle($buyer->id, 1_000_000, 'b0:duplicate:topup');
     app(SubmitTopupReference::class)->handle($buyer->id, $topup, 'B0SAMEBANKREF');
