@@ -283,6 +283,26 @@ it('formats the same safe buyer context for existing receipt-photo views and mis
         ->and(TelegramUi::purchaseReceiptCaption($row))->toContain('شناسه تلگرام: متصل نیست');
 });
 
+it('shows safe RTL Rich receipt context with distinct order and unverified bank amounts', function (): void {
+    $data = mb05aClaim('admin');
+    $row = app(ManualBankPayments::class)->detail($data['root']->id, $data['claim']);
+    $row->buyerName = '<script>alert(1)</script>';
+
+    $html = TelegramUi::purchaseReceiptRich($row, 'dena_buyer');
+    expect($html)->toContain('<table bordered striped compact>')
+        ->toContain('<footer>')
+        ->toContain('مبلغ سفارش')
+        ->toContain('هنوز بررسی نشده')
+        ->toContain('@dena_buyer')
+        ->toContain('&lt;script&gt;')
+        ->not->toContain('<script>');
+
+    $caption = TelegramUi::purchaseReceiptCaption($row, username: 'dena_buyer');
+    expect($caption)->toContain('نام کاربری تلگرام: @dena_buyer')
+        ->toContain('مبلغ سفارش:')
+        ->toContain('مبلغ واریزی بانک: بررسی نشده');
+});
+
 it('scopes receipt message identity to the source bot without changing historical Admin keys', function (): void {
     $data = mb05aClaim();
     $quote = app(CalculateQuote::class)->handle($data['buyer']->id, 'notify-test', 30, 10);
