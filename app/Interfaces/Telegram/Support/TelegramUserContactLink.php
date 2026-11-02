@@ -14,7 +14,7 @@ final class TelegramUserContactLink
 {
     public function for(UserDirectoryEntry $user): ?string
     {
-        $username = $this->username($user->id, $telegramUserId);
+        $username = $this->username($user->id, $user->telegramUserId);
 
         return $username === null ? null : 'https://t.me/'.$username;
     }
