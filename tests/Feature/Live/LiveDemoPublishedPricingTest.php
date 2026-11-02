@@ -98,7 +98,7 @@ it('shows canonical current reseller prices to a signed member with no role elev
     $root = demo2Root();
     $fixed = demo2Plan($root, 'fixed-17', discount: 17);
     $formula = demo2Plan($root, 'formula-35', audience: 'reseller', discount: 35, formula: true);
-    demo2Plan($root, 'builder-only', mode: 'builder');
+    demo2Plan($root, 'builder-only', audience: 'reseller', mode: 'builder');
 
     $member = User::factory()->create();
     $member->assignRole('member');
