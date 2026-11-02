@@ -10,8 +10,10 @@ use App\Modules\Identity\Application\UserDirectoryEntry;
 use App\Modules\Identity\Application\UserDirectoryPage;
 use App\Modules\Referral\Application\ReferralInvite;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 
 final class MenuRenderer
 {
@@ -294,7 +296,10 @@ final class MenuRenderer
     public function showUserDetails(Nutgram $bot, UserDirectoryEntry $user, int $page = 1, bool $search = false, bool $manageRoles = false, bool $profileAllowed = true, bool $resellersOnly = false, ?string $contactUrl = null): void
     {
         $name = $this->displayName($user->name);
-        $email = $this->displayName($user->email);
+        // Telegram enrollment stores a non-routable random placeholder, not contact email.
+        $email = preg_match('/\Atelegram-[0-9a-f]{32}@accounts\.skynet\.invalid\z/iD', $user->email) === 1
+            ? 'ایمیل ثبت نشده'
+            : $this->displayName($user->email);
         $roles = implode('، ', $user->roles);
         $status = $user->active ? '🟢 فعال' : '🔴 غیرفعال';
         $linked = $user->telegramLinked ? 'متصل' : 'متصل نیست';
@@ -321,11 +326,46 @@ final class MenuRenderer
         $keyboard->addRow(InlineKeyboardButton::make('◀️ بازگشت به فهرست', callback_data: $this->pageCallback($page, $search, $resellersOnly)));
         $keyboard->addRow(InlineKeyboardButton::make('🏠 مدیریت', callback_data: 'menu:admin'));
 
-        $this->render(
-            $bot,
-            "👤 جزئیات کاربر\n\nشناسه: {$user->id}\nنام: {$name}\nایمیل: {$email}\nنقش‌ها: {$roles}\nوضعیت: {$status}\nتلگرام: {$linked}",
-            $keyboard,
-        );
+        $footer = '💡 وضعیت حساب و اتصال تلگرام از اطلاعات ثبت‌شده خوانده می‌شود.';
+        $text = "👤 جزئیات کاربر\n\nشناسه: {$user->id}\nنام: {$name}\nایمیل: {$email}\nنقش‌ها: {$roles}\nوضعیت: {$status}\nتلگرام: {$linked}\n\n{$footer}";
+        $rows = [
+            ['شناسه', (string) $user->id],
+            ['نام', $name],
+            ['ایمیل', $email],
+            ['نقش‌ها', $roles],
+            ['وضعیت', $status],
+            ['تلگرام', $linked],
+        ];
+        $table = '';
+        foreach ($rows as [$label, $value]) {
+            $table .= '<tr><td>'.TelegramUi::escape($label).'</td><td>'
+                .TelegramUi::escape($value).'</td></tr>';
+        }
+
+        if ($bot->isCallbackQuery()) {
+            TelegramUi::answerCallback($bot);
+        }
+
+        try {
+            TelegramUi::editRichText($bot, new InputRichMessage(
+                html: '<h2>👤 جزئیات کاربر</h2><table bordered striped compact>'
+                    .$table.'</table><footer>'.$footer.'</footer>',
+                is_rtl: true,
+            ), $keyboard);
+
+            return;
+        } catch (TelegramException $exception) {
+            report($exception);
+            // The same authorized identity snapshot and buttons remain available.
+        }
+
+        if ($bot->isCallbackQuery()) {
+            TelegramUi::editText($bot, $text, $keyboard);
+
+            return;
+        }
+
+        $bot->sendMessage(text: $text, reply_markup: $keyboard);
     }
 
     public function showUserStatusConfirmation(Nutgram $bot, UserDirectoryEntry $user, string $token, int $page, bool $search = false, bool $resellersOnly = false): void
