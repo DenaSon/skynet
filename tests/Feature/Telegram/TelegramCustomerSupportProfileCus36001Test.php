@@ -49,6 +49,16 @@ function c360Payload(NutgramRequest $request): array
     return $data;
 }
 
+/** @param array<string,mixed> $payload */
+function c360RichHtml(array $payload): string
+{
+    $rich = is_string($payload['rich_message'] ?? null)
+        ? json_decode($payload['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+        : ($payload['rich_message'] ?? []);
+
+    return ($rich['is_rtl'] ?? null) === true ? (string) ($rich['html'] ?? '') : '';
+}
+
 function c360Order(User $buyer, int $index, string $state): int
 {
     return DB::table('sales_orders')->insertGetId([
@@ -96,10 +106,16 @@ it('adds one navigable profile button without removing existing user actions or 
             $data = c360Payload($request);
             $buttons = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
 
-            return str_contains($data['text'], 'پرونده ۳۶۰ درجه مشتری')
+            $html = c360RichHtml($data);
+
+            return str_contains($html, '<h2>👤 پرونده ۳۶۰ درجه مشتری</h2>')
+                && str_contains($html, '<table bordered striped compact>')
+                && str_contains($html, '<footer>🔄 آخرین بررسی:')
+                && str_contains($html, 'وضعیت سرویس‌ها ثبت‌شده است')
                 && str_contains($buttons, "users:view:{$member->id}:2:s")
                 && str_contains($buttons, "users:profile:{$member->id}:2:s")
-                && ! str_contains($data['text'], 'کیف پول')
+                && str_contains($buttons, 'c360:l:') === false
+                && ! str_contains($html, 'کیف پول')
                 && ! str_contains($buttons, 'finance:wallet:');
         }, index: 1);
     Http::assertNothingSent();
@@ -162,18 +178,25 @@ it('scopes local service/order summary and settled purchase evidence to the sele
     c360Bot(993601, $root)->hearCallbackQueryData("users:profile:{$target->id}:1:a")->reply()
         ->assertRaw(static function (NutgramRequest $request) use ($target): bool {
             $data = c360Payload($request);
-            $text = $data['text'];
+            $html = c360RichHtml($data);
             $buttons = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
 
-            return str_contains($text, 'User &lt;private&gt;')
-                && str_contains($text, 'تعداد: 2 | فعال در سیستم: 1 | نیازمند بررسی: 1')
-                && str_contains($text, 'سفارش‌ها: 3 | در انتظار پرداخت: 1')
-                && str_contains($text, 'مانده ثبت‌شده: 300,000 تومان')
-                && str_contains($text, 'بات فروش: مسدودشده')
-                && str_contains($text, 'Plan &lt;VIP&gt;')
-                && ! str_contains($text, '177733300')
-                && ! str_contains($text, 'Plan &lt;VIP&gt; 4')
-                && str_contains($buttons, "finance:wallet:{$target->id}");
+            return str_contains($html, 'User &lt;private&gt;')
+                && str_contains($html, '<h3>📦 سرویس‌ها</h3>')
+                && str_contains($html, '<tr><td>کل سرویس‌ها</td><td><b>2</b></td></tr>')
+                && str_contains($html, '<tr><td>فعال در سیستم</td><td>1</td></tr>')
+                && str_contains($html, '<tr><td>نیازمند بررسی</td><td>1</td></tr>')
+                && str_contains($html, '<tr><td>کل سفارش‌ها</td><td><b>3</b></td></tr>')
+                && str_contains($html, '<tr><td>در انتظار پرداخت</td><td>1</td></tr>')
+                && str_contains($html, '<tr><td>مانده ثبت‌شده</td><td><b>300,000 تومان</b></td></tr>')
+                && str_contains($html, '<tr><td>بات فروش</td><td>مسدودشده</td></tr>')
+                && str_contains($html, 'Plan &lt;VIP&gt;')
+                && str_contains($html, '<footer>🔄 آخرین بررسی:')
+                && ! str_contains($html, '177733300')
+                && ! str_contains($html, 'Plan &lt;VIP&gt; 4')
+                && ! str_contains($html, '<private>')
+                && str_contains($buttons, "finance:wallet:{$target->id}")
+                && str_contains($buttons, "c360:l:{$target->id}:1:a:1");
         }, index: 1);
 
     expect(DB::table('sales_orders')->count())->toBe($before)
@@ -206,9 +229,13 @@ it('keeps sensitive wallet details hidden from ordinary user managers even with 
             $payload = c360Payload($request);
             $buttons = json_encode($payload['reply_markup'], JSON_THROW_ON_ERROR);
 
-            return str_contains($payload['text'], 'پرونده ۳۶۰ درجه مشتری')
-                && ! str_contains($payload['text'], '987,654')
-                && ! str_contains($payload['text'], 'کیف پول')
+            $html = c360RichHtml($payload);
+
+            return str_contains($html, 'پرونده ۳۶۰ درجه مشتری')
+                && str_contains($html, '<table bordered striped compact>')
+                && str_contains($html, '<footer>🔄 آخرین بررسی:')
+                && ! str_contains($html, '987,654')
+                && ! str_contains($html, 'کیف پول')
                 && ! str_contains($buttons, 'finance:wallet:');
         }, index: 1);
     Http::assertNothingSent();
