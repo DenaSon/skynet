@@ -41,19 +41,21 @@ it('serves the actual supplied logo and a separate illustrative SVG mark', funct
 
 it('brands both reseller navigation surfaces consistently and respects reduced motion', function (): void {
     $dashboard = file_get_contents(resource_path('views/live/dashboard.blade.php'));
+    $shell = file_get_contents(resource_path('views/components/live/shell.blade.php'));
     $css = file_get_contents(resource_path('css/app.css'));
     $layout = file_get_contents(resource_path('views/live/layout.blade.php'));
 
-    expect(substr_count($dashboard, 'src="/images/denagate-logo.png"'))->toBe(2)
-        ->and(substr_count($dashboard, 'motion-safe:animate-pulse'))->toBe(2)
-        ->and($dashboard)->toContain('>DenaGate</p>')
+    expect($dashboard)->toContain('<x-live.shell :section="$section">')
+        ->and(substr_count($shell, 'src="/images/denagate-logo.png"'))->toBe(2)
+        ->and(substr_count($shell, 'motion-safe:animate-pulse'))->toBe(2)
+        ->and($shell)->toContain('>DenaGate</p>')
         ->toContain('پنل نمایندگی')
         ->toContain('wire:click="showSection')
         ->toContain('aria-label="دسترسی سریع پنل"')
         ->not->toContain('دناگیت لایو')
         ->not->toContain('>DenaGate Live');
-    expect($dashboard)->toContain('dg-status whitespace-nowrap')
-        ->toContain('data-tone="success"')
+    expect($shell)->toContain('dg-status whitespace-nowrap')
+        ->toContain("data-tone=\"{{ \$demo ? 'neutral' : 'success' }}\"")
         ->toContain('motion-safe:animate-pulse');
     expect($css)->toContain('.denagate-live .dg-status')
         ->toContain('@media (prefers-reduced-motion: reduce)');
