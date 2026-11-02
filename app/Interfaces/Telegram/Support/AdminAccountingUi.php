@@ -414,7 +414,7 @@ final readonly class AdminAccountingUi
         $html = '<h2>📋 سوابق دفتر مالی</h2><table bordered striped compact>'
             .self::richRows($rows).'</table><footer>📄 تعداد ثبت‌ها: '
             .number_format($data['total']).' | صفحه '.number_format($number)
-            .' | 🕒 '.PersianCalendar::localDateTime(now()).' (تهران)</footer>';
+            .' | 🕒 '.PersianCalendar::localDateTime(now()->toDateTimeString()).' (تهران)</footer>';
         $this->render($bot, implode("\n", $lines), $keyboard, $html);
     }
 
