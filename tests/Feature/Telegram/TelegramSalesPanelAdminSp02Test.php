@@ -55,6 +55,16 @@ function sp02Payload(Request $request): array
     return $data;
 }
 
+/** @param array<string,mixed> $payload */
+function sp02Rich(array $payload): string
+{
+    $rich = is_string($payload['rich_message'] ?? null)
+        ? json_decode($payload['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+        : ($payload['rich_message'] ?? []);
+
+    return ($rich['is_rtl'] ?? null) === true ? (string) ($rich['html'] ?? '') : '';
+}
+
 it('shows the root application queue, confirms one decision and cannot replay the token', function (): void {
     $root = User::factory()->create();
     $bot = sp02AdminBot(977001, $root);
@@ -69,11 +79,21 @@ it('shows the root application queue, confirms one decision and cannot replay th
 
         return str_contains(json_encode($data['reply_markup'] ?? null, JSON_THROW_ON_ERROR), 'sp:list:1');
     }, index: 1);
-    $bot->hearCallbackQueryData('sp:list:1')->reply()->assertCalled('answerCallbackQuery');
+    $bot->hearCallbackQueryData('sp:list:1')->reply()->assertRaw(static function (Request $request) use ($id): bool {
+        $p = sp02Payload($request);
+        $html = sp02Rich($p);
+
+        return str_contains($html, '<h2>🧩 درخواست‌های پنل فروش</h2>')
+            && str_contains($html, '<table bordered striped compact>')
+            && str_contains($html, 'سارا رضایی')
+            && str_contains($html, '<footer>')
+            && str_contains(json_encode($p['reply_markup'], JSON_THROW_ON_ERROR), 'sp:detail:'.$id);
+    }, index: 1);
     $bot->hearCallbackQueryData('sp:detail:'.$id)->reply()->assertRaw(static function (Request $request): bool {
         $data = sp02Payload($request);
 
-        return str_contains((string) ($data['text'] ?? ''), '09123456789')
+        return str_contains(sp02Rich($data), '<tr><td>موبایل</td><td>09123456789</td></tr>')
+            && str_contains(sp02Rich($data), '<footer>')
             && str_contains(json_encode($data['reply_markup'] ?? null, JSON_THROW_ON_ERROR), 'sp:prepare:');
     }, index: 1);
 
@@ -101,6 +121,30 @@ it('shows the root application queue, confirms one decision and cannot replay th
     Http::assertNothingSent();
 });
 
+it('escapes applicant name in Rich tables and retains read-only controls', function (): void {
+    $root = User::factory()->create();
+    $root->syncRoles(['super-admin']);
+    $bot = sp02AdminBot(977001, $root);
+    $buyer = User::factory()->create();
+    PanelWalletFunding::credit($buyer->id, 7_500_000);
+    $id = app(SalesPanelRequests::class)->submit($buyer->id, 'نام', 'خریدار', '09120000001')['id'];
+    DB::table('sales_panel_requests')->where('id', $id)->update(['first_name' => '<نام & تست>']);
+
+    $bot->hearCallbackQueryData('sp:detail:'.$id)->reply()->assertRaw(
+        static function (Request $request): bool {
+            $p = sp02Payload($request);
+            $html = sp02Rich($p);
+
+            return str_contains($html, '&lt;نام &amp; تست&gt;')
+                && ! str_contains($html, '<نام')
+                && str_contains($html, '<table bordered striped compact>')
+                && str_contains(json_encode($p['reply_markup'], JSON_THROW_ON_ERROR), 'sp:list:1');
+        }, index: 1,
+    );
+    expect(DB::table('sales_panel_requests')->where('id', $id)->value('status'))->toBe('pending');
+    Http::assertNothingSent();
+});
+
 it('denies ordinary Admin Bot users from reading applicant phone or changing roles', function (): void {
     $admin = User::factory()->admin()->create();
     $bot = sp02AdminBot(977003, $admin);
@@ -125,7 +169,7 @@ it('the old pending SP-01 application appears in the new Admin queue without ret
     PanelWalletFunding::credit($buyer->id, 7_500_000);
     app(SalesPanelRequests::class)->submit($buyer->id, 'نازنین', 'فرهادی', '09120000000');
 
-    $bot->hearText('/panelrequests')->reply()->assertCalled('sendMessage');
+    $bot->hearText('/panelrequests')->reply()->assertCalled('sendRichMessage');
     expect(DB::table('telegram_notification_deliveries')->count())->toBe(0)
         ->and(DB::table('sales_panel_requests')->where('status', 'pending')->count())->toBe(1);
 });
@@ -149,7 +193,12 @@ it('allows a scoped reviewer to approve a real pending request without catalog o
             && ! str_contains($buttons, 'menu:admin:plans')
             && ! str_contains($buttons, 'menu:admin:fulfillment');
     }, index: 1);
-    $bot->hearCallbackQueryData('sp:detail:'.$id)->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sp:detail:'.$id)->reply()->assertRaw(static function (Request $request): bool {
+        $p = sp02Payload($request);
+
+        return str_contains(sp02Rich($p), 'نگین امیری')
+            && str_contains(json_encode($p['reply_markup'], JSON_THROW_ON_ERROR), 'sp:prepare:');
+    }, index: 1);
 
     $token = '';
     $bot->hearCallbackQueryData('sp:prepare:'.$id.':a')->reply()

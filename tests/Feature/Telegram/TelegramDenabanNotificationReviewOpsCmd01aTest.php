@@ -74,6 +74,16 @@ function denabanIssuesInsert(int $recipient, int $sequence, string $state = 'una
     ]);
 }
 
+/** @param array<string,mixed> $payload */
+function denabanIssuesRich(array $payload): string
+{
+    $rich = is_string($payload['rich_message'] ?? null)
+        ? json_decode($payload['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+        : ($payload['rich_message'] ?? []);
+
+    return ($rich['is_rtl'] ?? null) === true ? (string) ($rich['html'] ?? '') : '';
+}
+
 it('shows the review button only with terminal notification issues and hides it when resolved', function (): void {
     $root = denabanIssuesRoot();
     Http::fake(['https://denaban-issues.test/*' => Http::response([], 503)]);
@@ -126,15 +136,15 @@ it('shows bounded chronological pages, human reasons and Persian dates without m
             $p = denabanIssuesPayload($r);
             $buttons = json_encode($p['reply_markup'], JSON_THROW_ON_ERROR);
 
-            return str_contains($p['text'], '۷ سابقه') === false
-                && str_contains($p['text'], '7 سابقه · صفحه 1 از 2')
-                && str_contains($p['text'], '#7 · هشدار اتمام حجم')
-                && str_contains($p['text'], 'هشدار اشتراک دیگر معتبر نیست')
-                && str_contains($p['text'], 'مشکل ارتباط با تلگرام')
-                && ! str_contains($p['text'], '#2 ·')
-                && str_contains($p['text'], '۱۴۰۵/')
+            return str_contains(denabanIssuesRich($p), '۷ سابقه') === false
+                && str_contains(denabanIssuesRich($p), '7 سابقه · صفحه 1 از 2')
+                && str_contains(denabanIssuesRich($p), '#7 · هشدار اتمام حجم')
+                && str_contains(denabanIssuesRich($p), 'هشدار اشتراک دیگر معتبر نیست')
+                && str_contains(denabanIssuesRich($p), 'مشکل ارتباط با تلگرام')
+                && ! str_contains(denabanIssuesRich($p), '#2 ·')
+                && str_contains(denabanIssuesRich($p), '۱۴۰۵/')
                 && str_contains($buttons, 'denaban:notifications:2')
-                && ! str_contains($p['text'], 'fixture');
+                && ! str_contains(denabanIssuesRich($p), 'fixture');
         }, index: 1);
 
     denabanIssuesBot(992201)->hearCallbackQueryData('denaban:notifications:2')->reply()
@@ -142,10 +152,10 @@ it('shows bounded chronological pages, human reasons and Persian dates without m
             $p = denabanIssuesPayload($r);
             $buttons = json_encode($p['reply_markup'], JSON_THROW_ON_ERROR);
 
-            return str_contains($p['text'], '7 سابقه · صفحه 2 از 2')
-                && str_contains($p['text'], '#2 · تأیید شارژ کیف پول')
-                && str_contains($p['text'], '#1 · هشدار اتمام حجم')
-                && ! str_contains($p['text'], '#7 ·')
+            return str_contains(denabanIssuesRich($p), '7 سابقه · صفحه 2 از 2')
+                && str_contains(denabanIssuesRich($p), '#2 · تأیید شارژ کیف پول')
+                && str_contains(denabanIssuesRich($p), '#1 · هشدار اتمام حجم')
+                && ! str_contains(denabanIssuesRich($p), '#7 ·')
                 && str_contains($buttons, 'denaban:notifications:1')
                 && str_contains($buttons, 'denaban:show');
         }, index: 1);
@@ -234,9 +244,9 @@ it('ignores only superseded activation notices while preserving the full deliver
         ->assertRaw(static function (NutgramRequest $request): bool {
             $payload = denabanIssuesPayload($request);
 
-            return str_contains($payload['text'], '1 سابقه · صفحه 1 از 1')
-                && str_contains($payload['text'], 'مشکل ارتباط با تلگرام')
-                && ! str_contains($payload['text'], 'اعلان با فعال‌شدن سرویس جایگزین شده');
+            return str_contains(denabanIssuesRich($payload), '1 سابقه · صفحه 1 از 1')
+                && str_contains(denabanIssuesRich($payload), 'مشکل ارتباط با تلگرام')
+                && ! str_contains(denabanIssuesRich($payload), 'اعلان با فعال‌شدن سرویس جایگزین شده');
         }, index: 1);
 
     // Other unavailable failures, including records without a classified reason,

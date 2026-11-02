@@ -10,8 +10,10 @@ use App\Support\PersianCalendar;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 
 /** OPS-CMD-01A: read-only, private root notification investigation. */
 final readonly class AdminNotificationFailuresUi
@@ -41,9 +43,11 @@ final readonly class AdminNotificationFailuresUi
             TelegramUi::answerCallback($bot);
         }
 
+        $richHtml = null;
         try {
             $data = $this->failures->handle($actor->userId, $page);
             $text = $this->report($data);
+            $richHtml = $this->richReport($data);
             $keyboard = $this->keyboard($data['page'], $data['pages']);
         } catch (AuthorizationException) {
             $this->menus->denyAccess($bot);
@@ -57,6 +61,17 @@ final readonly class AdminNotificationFailuresUi
             $keyboard = $this->keyboard(1, 1);
         }
 
+        if ($richHtml !== null) {
+            try {
+                TelegramUi::editRichText($bot, new InputRichMessage(html: $richHtml, is_rtl: true), $keyboard);
+
+                return;
+            } catch (TelegramException $exception) {
+                report($exception);
+                // Same authorized notification snapshot, no re-query or notification retry.
+            }
+        }
+
         if ($bot->isCallbackQuery()) {
             TelegramUi::editText($bot, $text, $keyboard, 'HTML');
 
@@ -64,6 +79,37 @@ final readonly class AdminNotificationFailuresUi
         }
 
         $bot->sendMessage(text: $text, reply_markup: $keyboard, parse_mode: 'HTML');
+    }
+
+    /** @param array{total:int,page:int,pages:int,items:list<array<string,int|string|null>>} $data */
+    private function richReport(array $data): string
+    {
+        $rows = '';
+        foreach ($data['items'] as $item) {
+            $reference = '';
+            foreach (['orderId' => 'سفارش', 'claimId' => 'رسید خرید', 'topupId' => 'شارژ کیف پول', 'panelRequestId' => 'درخواست پنل فروش'] as $key => $label) {
+                if ($item[$key] !== null) {
+                    $reference = ' · '.$label.' #'.$item[$key];
+
+                    break;
+                }
+            }
+            $rows .= '<tr><td>#'.(int) $item['id'].' · '.TelegramUi::escape(self::event((string) $item['eventType']))
+                .'</td><td>'.TelegramUi::escape(self::bot((string) $item['bot']).' · کاربر #'.$item['recipientId']
+                    .' · '.self::state((string) $item['state'])
+                    .' · تلاش: '.number_format((int) $item['attempts'])
+                    .' · علت: '.self::reason((string) $item['reason'])
+                    .$reference.' · '.PersianCalendar::utcDateTime((string) $item['updatedAt']))
+                .'</td></tr>';
+        }
+        if ($rows === '') {
+            $rows = '<tr><td>وضعیت</td><td>✅ فعلاً اعلان ناموفقی ثبت نشده است.</td></tr>';
+        }
+
+        return '<h2>🔔 اعلان‌های ناموفق</h2><table bordered striped compact>'.$rows
+            .'</table><footer>📄 '.number_format($data['total']).' سابقه · صفحه '
+            .number_format($data['page']).' از '.number_format($data['pages'])
+            .' | 💡 این سوابق الزاماً مشکل فعال نیستند؛ پیش از ارسال مجدد علت را بررسی کنید.</footer>';
     }
 
     /** @param array{total:int,page:int,pages:int,items:list<array<string,int|string|null>>} $data */
