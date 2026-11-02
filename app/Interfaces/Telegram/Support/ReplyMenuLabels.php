@@ -18,9 +18,9 @@ final class ReplyMenuLabels
 
     public const SALES_TRIAL = '🧪 تست رایگان';
 
-    public const SALES_PANEL_REQUEST = '🧩 درخواست پنل فروش';
+    public const SALES_PANEL_REQUEST = '🧩 درخواست نمایندگی';
 
-    public const SALES_PANEL_STATUS = '📨 وضعیت درخواست پنل فروش';
+    public const SALES_PANEL_STATUS = '📨 وضعیت درخواست نمایندگی';
 
     public const SALES_REPORTS = '📊 گزارش‌های من';
 
