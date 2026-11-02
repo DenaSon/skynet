@@ -135,7 +135,7 @@ final class TelegramUi
     }
 
     /** Short, plain-text Admin receipt caption, shared by live and queued delivery. */
-    public static function purchaseReceiptCaption(object $receipt, bool $new = false): string
+    public static function purchaseReceiptCaption(object $receipt, bool $new = false, ?string $username = null): string
     {
         $name = self::receiptSingleLine((string) $receipt->buyerName, 60);
         $plan = self::receiptSingleLine((string) $receipt->productName, 60);
@@ -146,16 +146,62 @@ final class TelegramUi
             '',
             '👤 اطلاعات خریدار',
             'نام ثبت‌شده: '.($name === '' ? 'ثبت نشده' : $name),
+            'نام کاربری تلگرام: '.($username === null ? 'ثبت نشده' : '@'.$username),
             'شناسه کاربر: #'.$receipt->buyerUserId,
             'شناسه تلگرام: '.$telegram,
             '',
             '📦 اطلاعات سفارش',
             'سفارش: #'.$receipt->orderId,
             'پلن: '.$plan,
-            'مبلغ: '.number_format(intdiv((int) $receipt->amountRials + 9, 10)).' تومان',
+            'مبلغ سفارش: '.number_format(intdiv((int) $receipt->amountRials + 9, 10)).' تومان',
+            'مبلغ واریزی بانک: بررسی نشده',
             '',
-            '⚠️ قبل از تأیید، دریافت واقعی وجه را در بانک بررسی کنید.',
+            '⚠️ قبل از تأیید، مبلغ و شناسه واریز را در بانک بررسی کنید.',
         ]);
+    }
+
+    /** Native Rich detail for human purchase review; values are escaped, not trusted markup. */
+    public static function purchaseReceiptRich(
+        object $receipt,
+        ?string $username = null,
+        ?int $verifiedAmountRials = null,
+        ?string $bankReference = null,
+    ): string {
+        $name = self::receiptSingleLine((string) $receipt->buyerName, 60);
+        $plan = self::receiptSingleLine((string) $receipt->productName, 60);
+        $customer = self::receiptSingleLine((string) ($receipt->customerName ?? ''), 60);
+        $telegram = $receipt->buyerTelegramId === null ? 'متصل نیست' : (string) $receipt->buyerTelegramId;
+        $traffic = ($receipt->trafficGb ?? null) === null ? 'نامحدود' : (int) $receipt->trafficGb.' گیگابایت';
+        $days = (int) ($receipt->durationDays ?? 0);
+        $amount = self::toman((int) $receipt->amountRials).' تومان';
+        $confirmed = $verifiedAmountRials === null ? 'هنوز بررسی نشده'
+            : self::toman($verifiedAmountRials).' تومان';
+
+        $rows = self::receiptRichRow('🧾 رسید', '#'.$receipt->id)
+            .self::receiptRichRow('📦 سفارش', '#'.$receipt->orderId)
+            .self::receiptRichRow('💳 مبلغ سفارش', $amount)
+            .self::receiptRichRow('واریز بررسی‌شده بانک', $confirmed)
+            .self::receiptRichRow('👤 ارسال‌کننده', $username === null ? ($name === '' ? 'نامشخص' : $name) : '@'.$username)
+            .self::receiptRichRow('نام ثبت‌شده', $name === '' ? 'ثبت نشده' : $name)
+            .self::receiptRichRow('شناسه کاربر', '#'.$receipt->buyerUserId)
+            .self::receiptRichRow('شناسه تلگرام', $telegram)
+            .self::receiptRichRow('پلن', $plan)
+            .self::receiptRichRow('حجم / مدت', $traffic.' · '.$days.' روز');
+
+        if ($customer !== '') {
+            $rows .= self::receiptRichRow('نام کاربری مشتری', $customer);
+        }
+        if ($bankReference !== null) {
+            $rows .= self::receiptRichRow('شناسه بانک', $bankReference);
+        }
+
+        return '<h2>🔎 بررسی واریز سفارش</h2><table bordered striped compact>'.$rows.'</table>'
+            .'<footer>⚠️ تأیید فقط پس از تطبیق مبلغ واقعی و شناسه تراکنش در بانک مجاز است.</footer>';
+    }
+
+    private static function receiptRichRow(string $label, string $value): string
+    {
+        return '<tr><td>'.self::escape($label).'</td><td><b>'.self::escape($value).'</b></td></tr>';
     }
 
     /** User-controlled display names must not inject fake caption lines or bidi overrides. */
