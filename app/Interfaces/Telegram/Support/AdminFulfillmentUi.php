@@ -7,10 +7,13 @@ namespace App\Interfaces\Telegram\Support;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Provisioning\Application\ReviewPaidFulfillment;
 use App\Modules\Provisioning\Jobs\FulfillPaidPlanOrderJob;
+use App\Support\PersianCalendar;
 use Illuminate\Support\Facades\Cache;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 use Throwable;
 
 /** OP-03: Admin-only explicit confirmation. Remote calls happen in the worker. */
@@ -66,7 +69,24 @@ final readonly class AdminFulfillmentUi
         ));
         $buttons->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
 
-        $this->render($bot, implode("\n", $lines), $buttons);
+        $rows = '';
+        foreach ($orders as $order) {
+            $rows .= self::richRow('سفارش #'.$order->id, $this->status($order->intent_state));
+        }
+        if ($orders === []) {
+            $rows = self::richRow('وضعیت', $completed
+                ? 'هنوز اشتراک فعال‌شده‌ای ثبت نشده است.'
+                : 'سفارش پرداخت‌شده‌ای برای فعال‌سازی یا بررسی وجود ندارد.');
+        }
+        $html = '<h2>'.($completed ? '✅ فعال‌سازی‌های انجام‌شده' : '🔌 فعال‌سازی اشتراک‌ها')
+            .'</h2><table bordered striped compact>'.$rows.'</table>';
+        if (! $completed && (config('services.remnawave.writes_enabled') !== true
+            || config('services.remnawave.squad_bindings_live_verified') !== true)) {
+            $html .= '<blockquote>فعال‌سازی سرویس در حال حاضر غیرفعال است.</blockquote>';
+        }
+        $html .= '<footer>💡 آخرین ۲۰ سفارش | '
+            .PersianCalendar::localDateTime(now()->toDateTimeString()).' (تهران)</footer>';
+        $this->render($bot, implode("\n", $lines), $buttons, $html);
     }
 
     public function detail(Nutgram $bot, string $id): void
@@ -129,7 +149,29 @@ final readonly class AdminFulfillmentUi
         $buttons->addRow(InlineKeyboardButton::make(
             '◀️ سفارش‌ها', callback_data: $order->intent_state === 'completed' ? 'full:completed' : 'full:list',
         ));
-        $this->render($bot, implode("\n", $lines), $buttons);
+        $html = '<h2>📋 سفارش #'.$orderId.'</h2><table bordered striped compact>'
+            .self::richRow('محصول', $this->safe($order->product_name))
+            .self::richRow('مبلغ ثبت‌شده', TelegramUi::toman((int) $order->total_price_rials).' تومان')
+            .self::richRow('مدت', $order->duration_days.' روز')
+            .self::richRow('حجم', $order->traffic_gb === null ? 'نامحدود' : $order->traffic_gb.' گیگابایت')
+            .self::richRow('وضعیت', $this->status($order->intent_state))
+            .'</table>';
+        if ($order->intent_state === 'pending') {
+            $html .= '<blockquote>درخواست فعال‌سازی خودکار ثبت شده است. وضعیت را تازه‌سازی کنید. '
+                .'اگر انجام نشد، از پشتیبانی فنی درخواست بررسی صف کنید.</blockquote>';
+        }
+        if ($order->intent_state === 'completed') {
+            $html .= '<blockquote>فعال‌سازی این سفارش ثبت شده است. مشتری می‌تواند اشتراک خود را در بات فروش مشاهده کند.</blockquote>';
+        }
+        if ($order->intent_state === 'needs_review' && $order->create_operation_id === null) {
+            $html .= '<blockquote>⚠️ مشخصات پلن یا سرویس مرتبط تغییر کرده است؛ فعال‌سازی پیش از ساخت اشتراک متوقف شد. '
+                .'پرداخت محفوظ است. ابتدا سفارش و پلن را برای رفع مشکل بررسی کنید.</blockquote>';
+        } elseif (in_array($order->intent_state, ['processing', 'needs_review'], true)) {
+            $html .= '<blockquote>در صورت نامشخص‌بودن نتیجه، فقط وضعیت سرویس موجود بررسی می‌شود.</blockquote>';
+        }
+        $html .= '<footer>🕒 '.PersianCalendar::localDateTime(now()->toDateTimeString())
+            .' (تهران) | وضعیت از سوابق فعال‌سازی خوانده می‌شود.</footer>';
+        $this->render($bot, implode("\n", $lines), $buttons, $html);
     }
 
     public function prepare(Nutgram $bot, string $id, string $mode): void
@@ -249,10 +291,30 @@ final readonly class AdminFulfillmentUi
         ));
     }
 
-    private function render(Nutgram $bot, string $text, InlineKeyboardMarkup $keyboard): void
+    private static function richRow(string $label, string $value): string
+    {
+        return '<tr><td>'.TelegramUi::escape($label).'</td><td>'
+            .TelegramUi::escape($value).'</td></tr>';
+    }
+
+    private function render(Nutgram $bot, string $text, InlineKeyboardMarkup $keyboard, ?string $richHtml = null): void
     {
         if ($bot->isCallbackQuery()) {
             TelegramUi::answerCallback($bot);
+        }
+
+        if ($richHtml !== null) {
+            try {
+                TelegramUi::editRichText($bot, new InputRichMessage(html: $richHtml, is_rtl: true), $keyboard);
+
+                return;
+            } catch (TelegramException $exception) {
+                report($exception);
+                // Keep the same verified order, original actions and native fallback.
+            }
+        }
+
+        if ($bot->isCallbackQuery()) {
             TelegramUi::editText($bot, $text, $keyboard);
 
             return;
