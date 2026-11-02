@@ -101,6 +101,12 @@ The Demo shop displays current plan names, duration/traffic, published public pr
 
 **Gate:** No Demo Role, no new schema, no 1,000,000-toman policy rollout, no per-user real data or purchased service operations. Automated pricing parity and bot/regression tests are required; actual iOS/Android WebView verification and controlled final acceptance belong to DEMO-03. Updating pricing records in production for testing is **not authorized**.
 
+## DEMO-03 operator acceptance and final UI polish (2026-11-02)
+
+The operator reported that they personally tested and **approved the working Demo** after DEMO-02, then requested one final presentation-only change: use `🖥️ مشاهده دموی نمایندگی` with Telegram `ButtonStyle::PRIMARY` (blue) instead of the original neutral `👀` entry. This affects only the eligible Sales Bot **Home and Account** Web App launchers, including the existing Rich Message style projection. The current panel request CTA, real reseller App, signed Demo authentication, published prices, and backend flows are unchanged.
+
+**Verification/closure:** Check both native and Rich demo entry rendering with automated Telegram tests; pass full CI and merge the isolated cosmetic PR before marking source rollout complete. Actual iOS/Android **device-specific** evidence was not provided in the operator's generic test confirmation, so do not claim that both platforms were individually verified; preserve that as an explicit residual QA limitation. No business, schema or provider migration is involved.
+
 ## 7. Risks, rollback and implementation handoff
 
 | Risk | Prevention and evidence |
