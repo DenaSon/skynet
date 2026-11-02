@@ -532,18 +532,21 @@ it('offers a signed Demo Web App beside the existing panel request only to eligi
         $keyboard = panel01Payload($request)['reply_markup']['inline_keyboard'] ?? [];
         $flat = array_merge(...$keyboard);
         $names = array_column($flat, 'text');
-        $demo = collect($flat)->firstWhere('text', '👀 مشاهده دموی نمایندگی');
+        $demo = collect($flat)->firstWhere('text', '🖥️ مشاهده دموی نمایندگی');
 
         return in_array('🧩 درخواست پنل فروش', $names, true)
             && ($demo['web_app']['url'] ?? null) === 'https://live.denagate.ir/demo'
+            && ($demo['style'] ?? null) === 'primary'
             && ! in_array('📱 اپلیکیشن', $names, true);
     }, index: 1);
 
     $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(static function (Request $request): bool {
-        $buttons = json_encode(panel01Payload($request)['reply_markup'], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        $keyboard = panel01Payload($request)['reply_markup']['inline_keyboard'] ?? [];
+        $demo = collect(array_merge(...$keyboard))->firstWhere('text', '🖥️ مشاهده دموی نمایندگی');
 
-        return str_contains($buttons, 'https://live.denagate.ir/demo')
-            && str_contains($buttons, 'sales:panel:request');
+        return ($demo['web_app']['url'] ?? null) === 'https://live.denagate.ir/demo'
+            && ($demo['style'] ?? null) === 'primary'
+            && str_contains(json_encode($keyboard, JSON_THROW_ON_ERROR), 'sales:panel:request');
     }, index: 1);
 
     $bot->hearText('/start demo_panel')->reply()->assertRaw(static function (Request $request): bool {
