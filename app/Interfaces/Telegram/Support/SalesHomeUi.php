@@ -91,6 +91,13 @@ final readonly class SalesHomeUi
         }
 
         $panelRequestLabel = $this->panelRequestLabel($actor);
+        if ($payload === 'demo_panel' && $panelRequestLabel !== null && ! $bot->isCallbackQuery()) {
+            // Navigation only. The existing Sales Panel form enforces its own
+            // wallet eligibility, consent and administrative approval.
+            app(SalesPanelRequestUi::class)->start($bot);
+
+            return;
+        }
         $customWelcome = app(SalesWelcomeMessage::class)->customizedForActor($actor);
 
         $hasWallet = $isReseller || in_array('member', $actor->roles, true);
@@ -123,6 +130,12 @@ final readonly class SalesHomeUi
         }
         if ($panelRequestLabel !== null) {
             $keyboard->addRow(InlineKeyboardButton::make($panelRequestLabel, callback_data: 'sales:panel:request'));
+            if (config('denagate_live.enabled') === true) {
+                $keyboard->addRow(InlineKeyboardButton::make(
+                    '👀 مشاهده دموی نمایندگی',
+                    web_app: WebAppInfo::make(rtrim((string) config('denagate_live.url'), '/').'/demo'),
+                ));
+            }
         }
         $keyboard->addRow(InlineKeyboardButton::make('💬 پشتیبانی', callback_data: 'sales:support'))
             ->addRow(InlineKeyboardButton::make('📋 همه پلن‌ها و قیمت‌ها', callback_data: 'menu:plan-catalog'));
@@ -439,6 +452,12 @@ final readonly class SalesHomeUi
         $panelRequestLabel = $this->panelRequestLabel($actor);
         if ($panelRequestLabel !== null) {
             $keyboard->addRow(InlineKeyboardButton::make($panelRequestLabel, callback_data: 'sales:panel:request'));
+            if (config('denagate_live.enabled') === true) {
+                $keyboard->addRow(InlineKeyboardButton::make(
+                    '👀 مشاهده دموی نمایندگی',
+                    web_app: WebAppInfo::make(rtrim((string) config('denagate_live.url'), '/').'/demo'),
+                ));
+            }
         }
         $keyboard->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
         if (in_array('reseller', $actor->roles, true) && config('denagate_live.enabled') === true) {
