@@ -1,0 +1,55 @@
+# DenaGate Admin Telegram Rich UI modernization — four-phase approved roadmap
+
+> Decision: 2026-11-02 | Status: **four-phase plan approved; phases executed in independent reviewed PRs**.
+> Source of truth: latest `master`, `AGENTS.md`, `docs/000-CONTEXT.md`, `docs/005-ROADMAP.md`, `docs/017-TELEGRAM-UX-IDENTITY.md`, `docs/018-REMNAWAVE-STAGING-MULTIBOT-ROADMAP.md`. Recheck source and tests immediately before each phase.
+> Prerequisite already completed: customer 360 profile Rich presentation in PR #351. **Do not redo that implementation.**
+
+## 1. Product decision and baseline
+
+Modernize existing **Admin Bot** pages with native Telegram **Rich Messages**, concise Persian copy, compact striped/bordered RTL tables, appropriately colored native buttons, and short useful **footer** timestamps/tips. Prefer the *existing* `InputRichMessage(html: ..., is_rtl: true)`, `TelegramUi::editRichText()`, Nutgram, existing callbacks, roles, navigation and read-model Actions. **Preserve all existing fields, pagination, button IDs, data values, capabilities and finance/Provider behavior.**
+
+The operator approved these **four phases**, each an isolated PR with source review, related regression tests, PHP 8.4/8.5 where supported, PHPStan, Pint and project CI, then a separate real Telegram visual/functional acceptance. **One phase must not silently expand into the next.** Merge to `master` automatically deploys to production; the merged phase must be self-contained and reversible. No new DB schema/migration, Bot API implementation, package, framework, role or Settings subsystem is approved by this roadmap.
+
+## 2. Four operational phases
+
+| Phase | Scope, exact existing source | Output | Risk and out of scope |
+| --- | --- | --- | --- |
+| **ADMIN-UI-01: stats and reports** | `AdminDashboardUi` (overview); `AdminBusinessReportUi` (7/30-day sales and people/Telegram). | Rich-first summary; RTL compact two-column tables grouped by infrastructure, users/subscriptions, Telegram, paid sales, follow-up; 7/30-day stats and revenue visibly separated. Short timestamp/metric-definition footers. Same keyboard, bounded read Actions and native HTML fallback. | Low. Never reclassify revenue/top-up, invent missing provider values, alter provider GET, access checks or report date windows. |
+| **ADMIN-UI-02: user details and profile parity** | `MenuRenderer` user-details screen; relevant `UserManagementUi` presentation only; existing `CustomerSupportProfileUi` remains canonical 360 profile. | Compact Rich user-identity/status table; show Telegram-generated `telegram-…@accounts.skynet.invalid` as **«ایمیل ثبت نشده»**, optionally show **«روش عضویت: تلگرام»** from existing safely determined identity; preserve real verified/contact email and every existing admin button. Short contextual footer. | Low. Do not rewrite or migrate stored placeholder emails, alter login/registration, identity linkage, roles, or user audit. Never treat placeholder as verified contact. |
+| **ADMIN-UI-03: financial read-only views** | `AdminFinanceWalletUi`, and scoped read-only `AdminAccountingUi` presentation when relevant. | Readable balance, ledger/transaction and top-up status compact tables, negative-balance warning, timestamps and contextual footer. | Medium. Strict existing finance RBAC; no balance/ledger/settlement math changes, top-up approval/rejection flow or disclosure to unauthorized staff. Do not modernize receipt approval actions without separate approval. |
+| **ADMIN-UI-04: queues and follow-up** | `AdminSalesPanelRequestsUi`, `AdminNotificationFailuresUi`, `AdminFulfillmentUi` (read views only). | Compact application/status tables, readable notification failures and order/fulfillment states; preserve all review/approval/cancel/retry buttons and confirmations, pagination, role gates and helpful footer. | Low–medium. No changed request decisions, financial confirmation, queue dispatch, notification retry execution or Provider write behavior. |
+
+## 3. Mandatory Rich-first contract for all future Telegram UI changes
+
+The normative guidance in `AGENTS.md` and `docs/017-TELEGRAM-UX-IDENTITY.md` applies prospectively to **all Admin and Sales Telegram UIs**, including new work, redesigns and existing screens touched by an approved change:
+
+1. **Rich-first for structured screens:** dashboards, profiles, catalogs, lists, reports, multi-field detail pages, operational status pages and history **must** primarily render via native Telegram Rich Messages, with right-to-left language and native compact tables, headings, dividers, lists, blocks, footer and supported color/button styles where they improve clarity. New long plain-HTML dashboards are not accepted without a documented technical exception.
+2. **Current supported API only:** consult [official Bot API changelog](https://core.telegram.org/bots/api-changelog), [Rich Message format](https://core.telegram.org/bots/api#rich-messages) and *installed* Nutgram signatures before each UI change. Baseline as of decision: **Telegram Bot API 10.3** (2026-08-24); no hardcoded version checks or assumption that every client supports every Rich element.
+3. **Use project primitives:** `InputRichMessage`, `TelegramUi::editRichText` and existing `sendRichMessage` patterns; retain **matching safe native HTML/text fallback** for Telegram Rich transport/compatibility errors. Use the same authorized snapshot/data, keyboard callbacks and privacy rules in fallback. Do not blindly catch authorization/business faults, manufacture success or retry a write.
+4. **Safe scope-aware exceptions:** short acknowledgments/errors, privacy-sensitive OTP, plain input prompts, notifications, caption/photo-specific interactions and older-client compatibility **may** use ordinary Telegram messages if structured Rich would be inappropriate; explain such an exception in PR review. Never turn a simple one-line notification into a large Rich table merely to satisfy the policy.
+5. **Presentation quality:** Persian RTL; short, user-facing headings; compact two-column tables for key/value data; avoid internal terminology; keep financial units, date timezone, currency semantics, redaction/escaping, empty/unknown states. **Preserve existing footer**; where one is absent, prefer a short context-specific timestamp/tip, not generic filler.
+6. **Do not regress permissions:** existing RBAC and Application Actions enforce data/action authority, not buttons; preserve all controls, copy, pagination, confirmation, callback IDs and original functional flows. Never display secrets, raw provider credentials, or synthetic/invalid email as customer contact.
+7. **Evidence gate:** relevant fake Telegram tests must assert Rich payload (`rich_message`, `is_rtl`, tables/footers/labels), matching native fallback and callback keyboard, denied roles, unknown states and unescaped user input. Test actual client experience on iOS/Android where possible; CI/mocks **do not prove** Telegram client rendering. Add tests for both send and edit paths; no unnecessary general-purpose renderer, package or schema.
+
+**Enforcement:** PR checklists/reviews must reject unjustified new plain text for structured screens and missing Rich/fallback parity tests. This is a source-review and test policy, not a claim of automatic enforcement by CI. Future adoption of newer Bot API capabilities needs version/SDK verification and a small scoped change—not a sweeping upgrade.
+
+## 4. ADMIN-UI-01 acceptance checklist
+
+- The overview and both 7/30-day reports display **complete current data**, properly grouped and compact. Unknown remote metrics remain «نامشخص», never zero. Paid sales excludes wallet topups and unpaid orders as in current actions.
+- Original button labels and callback IDs survive in native markup; reports keep period selection and back navigation; **no new provider read or business write**.
+- Rich primary presentation includes concise footer: actual report timestamp in **Tehran** and precise metric limitation; no duplicated verbose explanatory text.
+- On Rich Telegram API failure, native HTML report renders using the same authorized data and keyboard; on data read failure, existing safe unavailable messaging remains.
+- Root/private-only checks unchanged. Tests cover Rich payload vs native, fallback, unknown metric, 7/30-day reports, no data leaks, and unchanged callbacks.
+- No code to `ReadAdminDashboard`, `ReadAdminBusinessReport`, settlement, models, wallet, provider or RBAC is modified.
+
+## 5. Acceptance, risk and rollback by phase
+
+| Gate | Evidence required |
+| --- | --- |
+| Docs | This roadmap + prospective UI policy linked from `AGENTS.md`, `docs/000-CONTEXT.md`, `docs/005-ROADMAP.md`, `docs/017-TELEGRAM-UX-IDENTITY.md`; preserve older approved decisions |
+| Implementation | One small PR per phase, no unrelated refactors, explicit review of all changed Telegram UI and tests |
+| CI | PHP test matrix appropriate for repo, PHPStan, Pint, DB tests; preserve existing functionality and failing/unknown states |
+| Device QA | Operator verifies Rich tables, navigation, footer and no overflow in Telegram iOS/Android. Record any unverified device honestly |
+| Rollback | Revert that phase's PR. Fallback remains available; no schema/data migration to undo |
+
+**Current completion status:** Four phases are **approved as a plan**, not completed. Record each phase's PR, commit, CI and client acceptance separately when actually completed. No bulk migration of users, placeholder emails or historical transactions.
