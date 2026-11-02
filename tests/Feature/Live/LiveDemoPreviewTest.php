@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Routing\Middleware\ThrottleRequests;
 use Illuminate\Support\Facades\Http;
 use Spatie\Permission\Models\Role;
 
@@ -99,7 +100,7 @@ it('allows only signed active member viewers without granting the reseller web g
 
 it('rejects forged, expired, cross-bot, unlinked, reseller and inactive identities', function (): void {
     // Verify all denial categories independently of the separate login rate limiter.
-    $this->withoutMiddleware(\Illuminate\Routing\Middleware\ThrottleRequests::class);
+    $this->withoutMiddleware(ThrottleRequests::class);
     demoMember(661100);
     $raw = demoSignedData(661100);
     foreach ([
