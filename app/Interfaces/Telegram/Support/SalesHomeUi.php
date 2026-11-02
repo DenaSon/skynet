@@ -129,14 +129,9 @@ final readonly class SalesHomeUi
             $keyboard->addRow(InlineKeyboardButton::make('📊 گزارش‌های من', callback_data: 'sales:report:30'));
         }
         if ($panelRequestLabel !== null) {
-            $keyboard->addRow(InlineKeyboardButton::make($panelRequestLabel, callback_data: 'sales:panel:request'));
-            if (config('denagate_live.enabled') === true) {
-                $keyboard->addRow(InlineKeyboardButton::make(
-                    '🖥️ مشاهده دموی نمایندگی',
-                    web_app: WebAppInfo::make(rtrim((string) config('denagate_live.url'), '/').'/demo'),
-                    style: ButtonStyle::PRIMARY,
-                ));
-            }
+            $keyboard->addRow(InlineKeyboardButton::make(
+                $panelRequestLabel, callback_data: 'sales:panel:hub',
+            ));
         }
         $keyboard->addRow(InlineKeyboardButton::make('💬 پشتیبانی', callback_data: 'sales:support'))
             ->addRow(InlineKeyboardButton::make('📋 همه پلن‌ها و قیمت‌ها', callback_data: 'menu:plan-catalog'));
@@ -323,7 +318,8 @@ final readonly class SalesHomeUi
             ReplyMenuLabels::SALES_TUTORIAL => 'tutorial',
             ReplyMenuLabels::SALES_TRIAL => 'trial',
             ReplyMenuLabels::SALES_APP => 'app',
-            ReplyMenuLabels::SALES_PANEL_REQUEST, ReplyMenuLabels::SALES_PANEL_STATUS => 'panel',
+            ReplyMenuLabels::SALES_PANEL_REQUEST, ReplyMenuLabels::SALES_PANEL_STATUS,
+            '🧩 درخواست پنل فروش', '📨 وضعیت درخواست پنل فروش' => 'panel',
             ReplyMenuLabels::SALES_REPORTS => 'report',
             ReplyMenuLabels::HOME, '🏠 صفحه اصلی', '❌ انصراف', '/cancel' => 'home',
             ReplyMenuLabels::INVITE => 'invite',
@@ -366,7 +362,7 @@ final readonly class SalesHomeUi
                 app(SalesLiveEntry::class)->show($bot);
                 break;
             case 'panel':
-                app(SalesPanelRequestUi::class)->start($bot);
+                $this->panel($bot);
                 break;
             case 'tutorial':
                 app(SalesSupportUi::class)->show($bot, 'apps');
@@ -411,6 +407,71 @@ final readonly class SalesHomeUi
         return $actor;
     }
 
+    /** Single eligible-member entry to the existing Demo and verified application flows. */
+    public function panel(Nutgram $bot): void
+    {
+        $actor = $this->navigationActor($bot);
+        if ($actor === null) {
+            return;
+        }
+        if ($this->panelRequestLabel($actor) === null) {
+            $this->render($bot, 'این بخش برای حساب شما در دسترس نیست.', $this->back());
+
+            return;
+        }
+
+        try {
+            $request = $this->panelRequests->find($actor->userId);
+        } catch (Throwable) {
+            $this->render($bot, 'وضعیت درخواست فعلاً در دسترس نیست. لطفاً دوباره تلاش کنید.', $this->back());
+
+            return;
+        }
+
+        $status = match ($request['status'] ?? null) {
+            'pending' => '🕘 درخواست شما در انتظار بررسی مدیریت است.',
+            'rejected' => 'درخواست قبلی تأیید نشده است؛ برای پیگیری وضعیت را ببینید.',
+            'approved' => 'درخواست قبلاً تأیید شده است؛ فعال‌بودن پنل را از پشتیبانی پیگیری کنید.',
+            default => null,
+        };
+        $action = $request === null ? '🧩 ارسال درخواست نمایندگی' : '📨 مشاهده وضعیت درخواست';
+        $keyboard = InlineKeyboardMarkup::make();
+        if (config('denagate_live.enabled') === true) {
+            $keyboard->addRow(InlineKeyboardButton::make(
+                '🖥️ مشاهده دمو',
+                web_app: WebAppInfo::make(rtrim((string) config('denagate_live.url'), '/').'/demo'),
+                style: ButtonStyle::PRIMARY,
+            ));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make(
+            $action,
+            callback_data: 'sales:panel:request',
+            style: $request === null ? ButtonStyle::SUCCESS : ButtonStyle::PRIMARY,
+        ));
+        $keyboard->addRow(InlineKeyboardButton::make('🏠 بازگشت به خانه', callback_data: 'sales:home'));
+
+        $plain = '<b>🧩 نمایندگی DenaGate</b>'
+            ."\n\nبا پنل اختصاصی دناگیت، سرویس‌ها و مشتریان خود را مدیریت کنید."
+            ."\n\n• مدیریت مشتریان و سفارش‌ها"
+            ."\n• تعرفه‌های مخصوص نمایندگان"
+            ."\n• اپلیکیشن اختصاصی نمایندگی"
+            .($status === null ? '' : "\n\n".$status)
+            .(config('denagate_live.enabled') === true ? '' : "\n\nدمو فعلاً در دسترس نیست.")
+            ."\n\n<blockquote>فعال‌سازی نمایندگی پس از بررسی و تأیید مدیریت انجام می‌شود.</blockquote>";
+        $html = '<h3>🧩 نمایندگی DenaGate</h3>'
+            .'<p>با پنل اختصاصی دناگیت، سرویس‌ها و مشتریان خود را مدیریت کنید.</p>'
+            .'<table bordered striped compact>'
+            .'<tr><td>👥 مشتریان</td><td>مدیریت سفارش‌ها و سرویس‌ها</td></tr>'
+            .'<tr><td>🏷️ تعرفه‌ها</td><td>قیمت مخصوص نمایندگان</td></tr>'
+            .'<tr><td>📱 اپلیکیشن</td><td>دسترسی به پنل نمایندگی</td></tr>'
+            .'</table>'
+            .($status === null ? '' : '<p>'.TelegramUi::escape($status).'</p>')
+            .(config('denagate_live.enabled') === true ? '' : '<p>دمو فعلاً در دسترس نیست.</p>')
+            .'<footer>فعال‌سازی نمایندگی پس از بررسی و تأیید مدیریت انجام می‌شود.</footer>';
+
+        $this->renderRich($bot, $html, $plain, $keyboard, clone $keyboard);
+    }
+
     public function account(Nutgram $bot, bool $rich = true): void
     {
         $actor = $this->navigationActor($bot);
@@ -450,17 +511,6 @@ final readonly class SalesHomeUi
             $keyboard->addRow(InlineKeyboardButton::make('📊 گزارش‌های من', callback_data: 'sales:report:30'));
         }
 
-        $panelRequestLabel = $this->panelRequestLabel($actor);
-        if ($panelRequestLabel !== null) {
-            $keyboard->addRow(InlineKeyboardButton::make($panelRequestLabel, callback_data: 'sales:panel:request'));
-            if (config('denagate_live.enabled') === true) {
-                $keyboard->addRow(InlineKeyboardButton::make(
-                    '🖥️ مشاهده دموی نمایندگی',
-                    web_app: WebAppInfo::make(rtrim((string) config('denagate_live.url'), '/').'/demo'),
-                    style: ButtonStyle::PRIMARY,
-                ));
-            }
-        }
         $keyboard->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
         if (in_array('reseller', $actor->roles, true) && config('denagate_live.enabled') === true) {
             $keyboard->addRow(InlineKeyboardButton::make(
