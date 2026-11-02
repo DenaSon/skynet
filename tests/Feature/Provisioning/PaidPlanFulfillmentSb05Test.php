@@ -534,7 +534,7 @@ it('delivers no remote write during Admin confirmation and queues only the trust
             $buttons = json_encode($p['reply_markup'] ?? null, JSON_THROW_ON_ERROR);
 
             return str_contains($html, '<table bordered striped compact>')
-                && str_contains($html, 'آزمایش VPN')
+                && str_contains($html, '<h2>📋 سفارش #'.$data['order'].'</h2>')
                 && str_contains($html, 'آماده بررسی')
                 && str_contains($html, 'درخواست فعال‌سازی خودکار ثبت شده است.')
                 && str_contains($buttons, 'full:list')
