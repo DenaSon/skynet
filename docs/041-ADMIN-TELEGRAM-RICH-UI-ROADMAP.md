@@ -52,4 +52,7 @@ The normative guidance in `AGENTS.md` and `docs/017-TELEGRAM-UX-IDENTITY.md` app
 | Device QA | Operator verifies Rich tables, navigation, footer and no overflow in Telegram iOS/Android. Record any unverified device honestly |
 | Rollback | Revert that phase's PR. Fallback remains available; no schema/data migration to undo |
 
-**Current completion status:** Four phases are **approved as a plan**, not completed. Record each phase's PR, commit, CI and client acceptance separately when actually completed. No bulk migration of users, placeholder emails or historical transactions.
+**Current completion status (2026-11-02):**
+- **ADMIN-UI-01 implemented and merged:** [PR #353](https://github.com/DenaSon/skynet/pull/353), squash commit `d8b15c83`. Existing Super Admin stats and 7/30-day sales/people read views now render native RTL Rich tables with same data, unchanged callback keyboards, Tehran timestamps, safe unknown states and native HTML fallback. Focused fake Telegram tests, all PHP 8.4 tests, PHPStan, Pint and MySQL checks **passed before merge**. Operator review on physical Telegram iOS/Android remains **unverified**; post-merge CI must be recorded based on actual status.
+- **ADMIN-UI-02, ADMIN-UI-03 and ADMIN-UI-04 remain pending implementation**, each a separate reviewed PR and device acceptance.
+- No bulk migration of users, placeholder emails or historical transactions is authorized.
