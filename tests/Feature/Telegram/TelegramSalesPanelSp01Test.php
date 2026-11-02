@@ -540,7 +540,7 @@ it('offers a signed Demo Web App beside the existing panel request only to eligi
     }, index: 1);
 
     $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(static function (Request $request): bool {
-        $buttons = json_encode(panel01Payload($request)['reply_markup'], JSON_THROW_ON_ERROR);
+        $buttons = json_encode(panel01Payload($request)['reply_markup'], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
 
         return str_contains($buttons, 'https://live.denagate.ir/demo')
             && str_contains($buttons, 'sales:panel:request');
