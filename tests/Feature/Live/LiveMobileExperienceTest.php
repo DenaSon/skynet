@@ -23,6 +23,7 @@ beforeEach(function (): void {
 it('keeps the mobile shell safe-area-aware in Telegram and ordinary browsers without new SDK hooks', function (): void {
     $layout = file_get_contents(resource_path('views/live/layout.blade.php'));
     $dashboard = file_get_contents(resource_path('views/live/dashboard.blade.php'));
+    $shell = file_get_contents(resource_path('views/components/live/shell.blade.php'));
     $css = file_get_contents(resource_path('css/app.css'));
 
     expect($layout)
@@ -32,7 +33,7 @@ it('keeps the mobile shell safe-area-aware in Telegram and ordinary browsers wit
         ->toContain('prefers-reduced-motion: reduce')
         ->toContain('@livewireScriptConfig')
         ->toContain('resources/js/live.js')
-        ->and($dashboard)
+        ->and($shell)
         ->toContain('aria-label="دسترسی سریع پنل"')
         ->toContain('grid-cols-4')
         ->toContain('lg:hidden')
@@ -51,7 +52,10 @@ it('keeps the mobile shell safe-area-aware in Telegram and ordinary browsers wit
         ->toContain('overflow-wrap: anywhere')
         ->toContain('font-variant-numeric: tabular-nums');
 
-    expect($dashboard)->not->toContain('BackButton.show(')
+    expect($dashboard)->toContain('<x-live.shell :section="$section">')
+        ->not->toContain('aria-label="دسترسی سریع پنل"');
+
+    expect($shell)->not->toContain('BackButton.show(')
         ->not->toContain('HapticFeedback.')
         ->not->toContain('requestFullscreen(');
 });

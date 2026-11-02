@@ -56,10 +56,21 @@ The read-only catalog must:
 - CTA: `🧩 درخواست نمایندگی` returns to the **existing** request flow; users must still meet its *current* financial and approval policy. Never show the proposed 1,000,000-toman requirement as an effective rule in this Demo rollout.
 - Explicit close button `خروج از دمو`; keep back/return navigation intuitive. The original Sales Bot menu, real reseller web app, order confirmation flows and Finance/Admin UI remain unchanged.
 
+## 5A. DEMO-00 — shared visual shell (separately approved 2026-11-02)
+
+**Authorized scope:** Extract the existing real Dashboard's wrapper, desktop sidebar, header, bottom mobile navigation and footer into one reusable **anonymous Blade component** (`resources/views/components/live/shell.blade.php`). The real `dashboard.blade.php` must render unchanged business content inside this shared component. Navigation labels, `showSection` callbacks, four-tab mobile order, colors, logo, Vazirmatn, Tailwind `dg-*` classes, accessibility and safe-area padding remain behaviorally and visually unchanged. Pass a **presentation-only** `demo` prop (default `false`) to distinguish example labeling in the future Demo; this is not an identity or authorization flag.
+
+**Not included in DEMO-00:** New `/demo` route, Demo controller/page, fake data, pricing read, Sales Bot entry, new JS/error handler, auth/session changes, refactoring active Dashboard business logic or any finance/Provider read/write. Keep existing `live.layout`, Vite and CSS source unchanged. Explicitly preserve all current Dashboard functionality, roles, order/payment management, permissions and workflows.
+
+**Acceptance:** Existing reseller HTML navigation remains renderable on mobile/desktop and Livewire buttons still work. New component can be rendered in a small isolated **test fixture** with `demo=true`, displaying a visible `حالت دمو` marker and no active-reseller badge, without registering a new route. Tests inspect the real rendered shell, compare labels/markup and exercise existing reseller dashboard navigation; run PHP 8.4, PHPStan, Pint and Vite CI. Real Telegram-client acceptance remains separate.
+
+**Rollback:** Revert the independent DEMO-00 PR; no schema, config, Data/Provider, public-route or business-state rollback needed. DEMO-01 may then adopt the common shell under its separate approval.
+
 ## 6. Phase boundaries and acceptance gates
 
 | Phase | Independently reviewable deliverable | Explicitly excluded | Gate |
 | --- | --- | --- | --- |
+| **DEMO-00 — shared visual shell** | Extract current sidebar/header/footer/mobile navigation into one reusable Blade shell; Dashboard preserves its exact visual/behavioral contract; Demo-only label prop is inert until used | New Demo route, runtime logic, auth, pricing, Role, schema, JS/CSS changes | Explicitly approved for implementation 2026-11-02; independent PR, PHP/Livewire tests, Pint/PHPStan, Vite |
 | **DEMO-01 — isolated shell** | Host-scoped `/demo`, signed Telegram viewer auth, secure read-only Live/Blade shell, five example-only sections, navigation, exit and Persian recovery; tests for access and no business writes | Published price reads, Bot CTA, operational Dashboard refactor, Role/RBAC changes | Separate operator approval, PR, PHP tests, PHPStan, Pint, Vite build, security review |
 | **DEMO-02 — live published tariffs + bot entry** | Bounded read-only reseller preset tariff projection from canonical published records; actual public/discounted reseller prices and consistency tests; Sales Bot Web App entry near reseller-request CTA; navigational `درخواست نمایندگی` action | New payment threshold, auto-approval, real checkout, provider reads/writes, operational data or additional builders | Separate operator approval, PR, all relevant CI/MySQL and fake-Telegram tests |
 | **DEMO-03 — client acceptance / controlled closeout** | Actual Telegram iOS and Android WebView checks; review Desktop/browser fallback, authentication and logout, RTL, live price refresh after an authorized test tariff change, and existing reseller regression; document evidenced results | New product features, unsolicited tariff changes, real financial/provider activity | Operator real-client acceptance; after scope-appropriate PR merges and successful CI, only |
