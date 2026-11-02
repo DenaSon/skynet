@@ -107,6 +107,14 @@ The operator reported that they personally tested and **approved the working Dem
 
 **Verification/closure:** Check both native and Rich demo entry rendering with automated Telegram tests; pass full CI and merge the isolated cosmetic PR before marking source rollout complete. Actual iOS/Android **device-specific** evidence was not provided in the operator's generic test confirmation, so do not claim that both platforms were individually verified; preserve that as an explicit residual QA limitation. No business, schema or provider migration is involved.
 
+## DEMO UI Polish — presentation parity (approved 2026-11-02)
+
+**Scope:** User-approved cosmetic parity adjustment after Demo acceptance. Align the Demo's five existing example-only areas with the **current** real Live dashboard typography, hero, overview summary cards, services summary/list cards, wallet summary/history, six reporting KPI cards, and preset plan pricing hierarchy. Extract one small **shared presentational report KPI Blade component** for both real Dashboard and Demo to avoid duplicated markup. No new CSS system, page, navigation destination or operational workflow.
+
+**Copy:** Header's existing permanent **حالت دمو** marker remains, accompanied by a short top-line disclosure: operational metrics/services are samples; published plan tariffs are live. Remove repetitive "نمونه" from headings/cards and nonessential instructional paragraphs. Keep fictional customer names clearly fictional, preserve the direct **خروج از دمو** button and the existing **درخواست نمایندگی** deep-link, and distinguish live reseller pricing from fake account metrics.
+
+**Safety/acceptance:** No change to Demo auth, session, pricing queries, refresh URL, buyer roles, routes, Sales Bot keyboard, real finance/provider actions or business data. Do not add dead purchase/search/status-change controls to Demo. Real Dashboard reports must remain functionally and visually equivalent after the tiny KPI extraction. Verify CI, PHP tests, Vite, and Demo read-only tests; mobile screenshot parity requires operator confirmation after merge. Revert this single polish PR for rollback.
+
 ## 7. Risks, rollback and implementation handoff
 
 | Risk | Prevention and evidence |
