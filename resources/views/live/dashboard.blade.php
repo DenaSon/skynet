@@ -700,13 +700,7 @@
                                     ['کل سرویس‌های ثبت‌شده', $report['services'], false],
                                     ['سرویس‌های دارای نام', $report['namedServices'], false],
                                 ] as [$label, $value, $isHistorical])
-                                    <section class="dg-card flex min-w-0 min-h-28 flex-col justify-between gap-2 rounded-[18px] p-2.5 sm:min-h-32 sm:p-4">
-                                        <div class="flex min-w-0 items-start gap-1.5">
-                                            <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full {{ $isHistorical ? 'bg-[#14B8A6]' : 'bg-[#A9BAC3]' }}" aria-hidden="true"></span>
-                                            <p class="min-w-0 break-words text-[11px] leading-4 font-semibold text-[#536C76] sm:text-xs">{{ $label }}</p>
-                                        </div>
-                                        <p class="text-lg font-extrabold tabular-nums text-[#172A36] sm:text-xl" dir="ltr">{{ number_format($value) }}</p>
-                                    </section>
+                                    <x-live.report-metric :label="$label" :value="$value" :historical="$isHistorical" />
                                 @endforeach
                             </div>
                         </section>
