@@ -30,6 +30,7 @@ use App\Modules\Sales\Application\PlanDefinition;
 use App\Modules\Sales\Application\PlanPricingDefinition;
 use App\Modules\Sales\Application\ReferralRewardOutbox;
 use App\Modules\Sales\Application\SettleWalletOrder;
+use GuzzleHttp\Psr7\Request as NutgramRequest;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Bus\UniqueLock;
 use Illuminate\Database\Events\TransactionRolledBack;
@@ -44,6 +45,7 @@ use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
+use SergiX44\Nutgram\Testing\FakeNutgram;
 use Tests\Support\ReferralRewardFixture;
 
 uses(RefreshDatabase::class);
@@ -152,6 +154,27 @@ function sb05WalletOrder(): array
     app(SettleWalletOrder::class)->handle(SubscriptionViewer::telegram(975099), $data['order']);
 
     return $data;
+}
+
+/** @return array<string,mixed> */
+function sb05TelegramPayload(NutgramRequest $request): array
+{
+    $payload = FakeNutgram::getActualData($request);
+    if (is_string($payload['reply_markup'] ?? null)) {
+        $payload['reply_markup'] = json_decode($payload['reply_markup'], true, 512, JSON_THROW_ON_ERROR);
+    }
+
+    return $payload;
+}
+
+/** @param array<string,mixed> $payload */
+function sb05TelegramRich(array $payload): string
+{
+    $rich = is_string($payload['rich_message'] ?? null)
+        ? json_decode($payload['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+        : ($payload['rich_message'] ?? []);
+
+    return ($rich['is_rtl'] ?? null) === true ? (string) ($rich['html'] ?? '') : '';
 }
 
 it('routes both provider jobs to the configured safe async connection', function (string $connection, string $driver, string $expected): void {
@@ -487,13 +510,37 @@ it('delivers no remote write during Admin confirmation and queues only the trust
     $bot->setCommonUser(TelegramUser::make(975001, false, 'Root'));
     $bot->setCommonChat(Chat::make(975001, ChatType::PRIVATE));
 
-    $bot->hearText('/fulfillment')->reply()->assertCalled('sendMessage');
+    $bot->hearText('/fulfillment')->reply()->assertRaw(static function (NutgramRequest $request) use ($data): bool {
+        $p = sb05TelegramPayload($request);
+        $html = sb05TelegramRich($p);
+        $buttons = json_encode($p['reply_markup'] ?? null, JSON_THROW_ON_ERROR);
+
+        return str_contains($html, '<h2>🔌 فعال‌سازی اشتراک‌ها</h2>')
+            && str_contains($html, '<table bordered striped compact>')
+            && str_contains($html, 'سفارش #'.$data['order'])
+            && str_contains($html, '<footer>')
+            && str_contains($buttons, 'full:view:'.$data['order'])
+            && str_contains($buttons, 'full:completed');
+    });
     $bot->hearCallbackQueryData('full:prepare:'.$data['order'].':start')->reply()
         ->assertCalled('editMessageText');
     // The old manual CREATE confirmation is gone, even for a paid
     // pending order. Only automatic dispatch or explicit GET reconciliation
     // is allowed in the new Admin UX.
-    $bot->hearCallbackQueryData('full:view:'.$data['order'])->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('full:view:'.$data['order'])->reply()->assertRaw(
+        static function (NutgramRequest $request) use ($data): bool {
+            $p = sb05TelegramPayload($request);
+            $html = sb05TelegramRich($p);
+            $buttons = json_encode($p['reply_markup'] ?? null, JSON_THROW_ON_ERROR);
+
+            return str_contains($html, '<table bordered striped compact>')
+                && str_contains($html, 'آزمایش VPN')
+                && str_contains($html, 'آماده بررسی')
+                && str_contains($html, 'درخواست فعال‌سازی خودکار ثبت شده است.')
+                && str_contains($buttons, 'full:list')
+                && ! str_contains($buttons, ':start');
+        }, index: 1,
+    );
     expect(DB::table('sales_fulfillment_outbox')->value('state'))->toBe('pending')
         ->and(DB::table('provisioning_subscriptions')->count())->toBe(0);
     Queue::assertNothingPushed();
@@ -689,12 +736,27 @@ it('opens completed Admin results and order details with existing root-only navi
     $bot->setCommonUser(TelegramUser::make(975001, false, 'Root'));
     $bot->setCommonChat(Chat::make(975001, ChatType::PRIVATE));
 
-    $bot->hearCallbackQueryData('full:completed')->reply()
-        ->assertCalled('answerCallbackQuery')
-        ->assertCalled('editMessageText');
-    $bot->hearCallbackQueryData('full:view:'.$data['order'])->reply()
-        ->assertCalled('answerCallbackQuery')
-        ->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('full:completed')->reply()->assertRaw(
+        static function (NutgramRequest $request) use ($data): bool {
+            $p = sb05TelegramPayload($request);
+            $html = sb05TelegramRich($p);
+
+            return str_contains($html, '<h2>✅ فعال‌سازی‌های انجام‌شده</h2>')
+                && str_contains($html, 'سفارش #'.$data['order'])
+                && str_contains($html, '<footer>')
+                && str_contains(json_encode($p['reply_markup'], JSON_THROW_ON_ERROR), 'full:list');
+        }, index: 1,
+    );
+    $bot->hearCallbackQueryData('full:view:'.$data['order'])->reply()->assertRaw(
+        static function (NutgramRequest $request): bool {
+            $p = sb05TelegramPayload($request);
+            $html = sb05TelegramRich($p);
+
+            return str_contains($html, '<table bordered striped compact>')
+                && str_contains($html, '✅ فعال‌سازی ثبت شد')
+                && str_contains(json_encode($p['reply_markup'], JSON_THROW_ON_ERROR), 'full:service:view:');
+        }, index: 1,
+    );
     $bot->hearCallbackQueryData('full:list')->reply()->assertCalled('editMessageText');
 
     Queue::assertNothingPushed();
