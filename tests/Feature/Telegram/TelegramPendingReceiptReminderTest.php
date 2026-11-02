@@ -39,6 +39,14 @@ use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
+function pendingVerifiedRials(int $claimId): int
+{
+    return (int) DB::table('sales_bank_payment_claims as c')
+        ->join('sales_orders as o', 'o.id', '=', 'c.sales_order_id')
+        ->where('c.id', $claimId)
+        ->value('o.total_price_rials');
+}
+
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
@@ -381,7 +389,7 @@ it('approves a verified purchase once as a delegated bank reviewer without imper
     config()->set('services.remnawave.writes_enabled', true);
     config()->set('services.remnawave.squad_bindings_live_verified', true);
 
-    app(ManualBankPayments::class)->review($bank->id, $data['claim'], true, 'DELEGATEDBANK123');
+    app(ManualBankPayments::class)->review($bank->id, $data['claim'], true, 'DELEGATEDBANK123', pendingVerifiedRials($data['claim']));
 
     expect(DB::table('sales_bank_payment_claims')->where('id', $data['claim'])->value('status'))->toBe('approved')
         ->and(DB::table('sales_bank_settlements')->where('verified_by', $bank->id)->count())->toBe(1)
@@ -390,7 +398,7 @@ it('approves a verified purchase once as a delegated bank reviewer without imper
         ->and(DB::table('sales_fulfillment_outbox')->where('state', 'pending')->count())->toBe(1);
     Queue::assertPushed(FulfillPaidPlanOrderJob::class,
         static fn (FulfillPaidPlanOrderJob $job): bool => $job->actorId === FulfillPaidPlanOrderJob::VERIFIED_BANK_REVIEW);
-    expect(fn () => app(ManualBankPayments::class)->review($bank->id, $data['claim'], true, 'DELEGATEDBANK123'))
+    expect(fn () => app(ManualBankPayments::class)->review($bank->id, $data['claim'], true, 'DELEGATEDBANK123', pendingVerifiedRials($data['claim'])))
         ->toThrow(ValidationException::class);
     expect(DB::table('billing_journals')->where('kind', 'direct_bank_sale')->count())->toBe(1);
     Http::assertNothingSent();
