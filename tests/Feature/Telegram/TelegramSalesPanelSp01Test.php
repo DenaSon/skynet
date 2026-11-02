@@ -257,7 +257,8 @@ it('makes Sales Panel application discoverable via persistent menu and Account f
     $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(static function (Request $request): bool {
         $data = panel01Payload($request);
 
-        return str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:panel:request');
+        return ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:panel:request')
+            && ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:panel:hub');
     }, index: 1);
     $bot->hearText('🧩 درخواست نمایندگی')->reply()->assertRaw(static function (Request $request): bool {
         $data = panel01Payload($request);
