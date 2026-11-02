@@ -18,6 +18,14 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Validation\ValidationException;
 
+function mb05VerifiedRials(int $claimId): int
+{
+    return (int) DB::table('sales_bank_payment_claims as c')
+        ->join('sales_orders as o', 'o.id', '=', 'c.sales_order_id')
+        ->where('c.id', $claimId)
+        ->value('o.total_price_rials');
+}
+
 uses(RefreshDatabase::class);
 
 function mb05aUser(int $tg, bool $root = false): User
@@ -88,7 +96,7 @@ it('records per-root notification intent atomically with the submitted claim and
 it('records review notifications only on committed decisions and keeps settlement idempotent', function (): void {
     $data = mb05aClaim();
     $payment = app(ManualBankPayments::class);
-    $payment->review($data['root']->id, $data['claim'], true, 'MB05ABANK123');
+    $payment->review($data['root']->id, $data['claim'], true, 'MB05ABANK123', mb05VerifiedRials($data['claim']));
 
     $notice = DB::table('telegram_notification_deliveries')
         ->where('event_type', 'PaymentReviewed')->first();
@@ -99,7 +107,7 @@ it('records review notifications only on committed decisions and keeps settlemen
         ->and(DB::table('sales_bank_settlements')->count())->toBe(1)
         ->and(DB::table('sales_fulfillment_outbox')->count())->toBe(1);
 
-    expect(fn () => $payment->review($data['root']->id, $data['claim'], true, 'MB05ABANK123'))
+    expect(fn () => $payment->review($data['root']->id, $data['claim'], true, 'MB05ABANK123', mb05VerifiedRials($data['claim'])))
         ->toThrow(ValidationException::class);
     expect(DB::table('telegram_notification_deliveries')->where('event_type', 'PaymentReviewed')->count())->toBe(1)
         ->and(DB::table('sales_bank_settlements')->count())->toBe(1);
