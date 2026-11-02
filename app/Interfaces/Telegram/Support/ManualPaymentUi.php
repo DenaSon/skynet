@@ -20,9 +20,11 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 use Throwable;
 
 final readonly class ManualPaymentUi
@@ -476,13 +478,10 @@ final readonly class ManualPaymentUi
 
                 return;
             }
-            Cache::put($this->referenceKey($actor->userId), ['claim' => $row->id], now()->addMinutes(10));
-            $this->render($bot,
-                "🔎 بررسی پرداخت · مرحله ۱ از ۲\n\nدرخواست #{$row->id} · سفارش #{$row->orderId}"
-                ."\nمبلغ: ".TelegramUi::toman($row->amountRials).' تومان'
-                ."\n\nپس از مشاهده واریز واقعی در بانک، شناسه یکتای تراکنش را ارسال کنید."
-                ."\nهنوز هیچ پرداختی تأیید نشده است.",
-                $this->backKeyboard());
+            Cache::put($this->referenceKey($actor->userId), ['claim' => $row->id, 'stage' => 'amount'], now()->addMinutes(10));
+            $hint = 'مبلغ واقعی واریزی را از گردش بانک به تومان وارد کنید؛ نه مبلغ روی سفارش یا تصویر رسید.';
+            $this->render($bot, $this->caption($row)."\n\n".$hint,
+                $this->backKeyboard(), false, $this->rich($row).'<p>'.TelegramUi::escape($hint).'</p>');
 
             return;
         }
@@ -535,13 +534,6 @@ final readonly class ManualPaymentUi
 
             return true;
         }
-        $reference = strtoupper(trim($value));
-        if (preg_match('/\A[A-Z0-9_-]{6,64}\z/D', $reference) !== 1
-            || str_starts_with($reference, 'MANUAL-CLAIM-')) {
-            $this->notice($bot, 'شناسه بانکی معتبر (۶ تا ۶۴ نویسه انگلیسی یا عدد) وارد کنید.');
-
-            return true;
-        }
         try {
             $row = $this->payments->detail($actor->userId, $draft['claim']);
         } catch (AuthorizationException|ValidationException) {
@@ -550,20 +542,76 @@ final readonly class ManualPaymentUi
 
             return true;
         }
-        $token = $this->decisionTokens->issue($actor->userId, $row->id, true, $reference, null);
+
+        if (($draft['stage'] ?? 'amount') === 'amount') {
+            // Human-confirmed BANK amount, never read from the customer's photo.
+            $digits = strtr(trim($value), [
+                '۰' => '0', '۱' => '1', '۲' => '2', '۳' => '3', '۴' => '4',
+                '۵' => '5', '۶' => '6', '۷' => '7', '۸' => '8', '۹' => '9',
+                '٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4',
+                '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
+            ]);
+            $digits = str_replace([',', '٬', ' '], '', $digits);
+            if (preg_match('/\A[1-9][0-9]{0,11}\z/D', $digits) !== 1) {
+                $this->notice($bot, 'مبلغ مشاهده‌شده در بانک را به تومان و به‌صورت عدد مثبت وارد کنید.');
+
+                return true;
+            }
+            $bankAmountRials = ((int) $digits) * 10;
+            if ($bankAmountRials !== $row->amountRials) {
+                $this->render($bot,
+                    "⚠️ اختلاف مبلغ\nسفارش #{$row->orderId}: ".TelegramUi::toman($row->amountRials)
+                    ." تومان\nواریزی اعلام‌شده: ".TelegramUi::toman($bankAmountRials)
+                    ." تومان\n\nتأیید مسدود است. مبلغ بانک را دوباره بررسی کنید یا رسید را رد کنید.",
+                    $this->backKeyboard(), false,
+                    $this->rich($row, $bankAmountRials).'<p>⛔ مبلغ‌ها مطابقت ندارند. پرداخت تأیید نشد.</p>');
+
+                return true;
+            }
+
+            Cache::put($key, [
+                'claim' => $row->id, 'stage' => 'reference',
+                'verified_amount_rials' => $bankAmountRials,
+            ], now()->addMinutes(10));
+            $hint = 'مبلغ مطابقت دارد. حالا شناسه یکتای تراکنش تأییدشده در بانک را وارد کنید.';
+            $this->render($bot, $this->caption($row)."\n\n".$hint,
+                $this->backKeyboard(), false,
+                $this->rich($row, $bankAmountRials).'<p>'.TelegramUi::escape($hint).'</p>');
+
+            return true;
+        }
+
+        $bankAmountRials = $draft['verified_amount_rials'] ?? null;
+        if (($draft['stage'] ?? null) !== 'reference' || ! is_int($bankAmountRials)
+            || $bankAmountRials !== $row->amountRials) {
+            Cache::forget($key);
+            $this->notice($bot, 'برای بررسی دوباره، رسید را از صف باز کنید.');
+
+            return true;
+        }
+
+        $reference = strtoupper(trim($value));
+        if (preg_match('/\A[A-Z0-9_-]{6,64}\z/D', $reference) !== 1
+            || str_starts_with($reference, 'MANUAL-CLAIM-')) {
+            $this->notice($bot, 'شناسه بانکی معتبر (۶ تا ۶۴ نویسه انگلیسی یا عدد) وارد کنید.');
+
+            return true;
+        }
+
+        $token = $this->decisionTokens->issue(
+            $actor->userId, $row->id, true, $reference, null, $bankAmountRials,
+        );
         Cache::forget($key);
-        $bot->sendMessage(
-            text: '<b>✅ تأیید نهایی پرداخت · مرحله ۲ از ۲</b>'
-                ."\n\nسفارش #{$row->orderId} · درخواست #{$row->id}"
-                ."\nمبلغ: <b>".TelegramUi::toman($row->amountRials).' تومان</b>'
-                ."\nشناسه بانک: ".TelegramUi::code($reference)
-                ."\n\nتا زدن دکمه تأیید نهایی، هیچ مبلغی ثبت نمی‌شود."
-                ."\nآیا واریز واقعی را در بانک بررسی کرده‌اید؟",
-            parse_mode: 'HTML',
-            reply_markup: InlineKeyboardMarkup::make()
+        $hint = 'آیا همین مبلغ و شناسه تراکنش را در گردش واقعی بانک بررسی کرده‌اید؟';
+        $this->render($bot,
+            "✅ تأیید نهایی پرداخت\n\n".$this->caption($row)
+            ."\nمبلغ بررسی‌شده بانک: ".TelegramUi::toman($bankAmountRials)
+            ." تومان\nشناسه بانک: {$reference}\n\n".$hint,
+            InlineKeyboardMarkup::make()
                 ->addRow(InlineKeyboardButton::make('✅ تأیید نهایی پرداخت', callback_data: 'bank:apply:'.$token))
                 ->addRow(InlineKeyboardButton::make('◀️ انصراف', callback_data: 'bank:list:1')),
-        );
+            false, $this->rich($row, $bankAmountRials, $reference)
+                .'<p>'.TelegramUi::escape($hint).'</p>');
 
         return true;
     }
@@ -576,7 +624,8 @@ final readonly class ManualPaymentUi
             return;
         }
         $data = $this->decisionTokens->consume($actor->userId, $token);
-        if ($data === null || $data['approve'] !== true || ! is_string($data['reference'])) {
+        if ($data === null || $data['approve'] !== true || ! is_string($data['reference'])
+            || ! is_int($data['verified_amount_rials'] ?? null)) {
             $this->notice($bot, 'این تأیید منقضی، نامعتبر یا قبلاً استفاده شده است.');
 
             return;
@@ -587,7 +636,9 @@ final readonly class ManualPaymentUi
             return;
         }
         try {
-            $result = $this->payments->review($actor->userId, $data['claim'], true, $data['reference']);
+            $result = $this->payments->review(
+                $actor->userId, $data['claim'], true, $data['reference'], $data['verified_amount_rials'],
+            );
         } catch (AuthorizationException|ValidationException|UniqueConstraintViolationException|QueryException $error) {
             $this->notice($bot, $error instanceof ValidationException && isset($error->errors()['plan'])
                 ? 'مشخصات پلن تغییر کرده است؛ رسید برای بررسی در صف باقی می‌ماند.'
@@ -632,13 +683,23 @@ final readonly class ManualPaymentUi
 
     private function caption(object $row): string
     {
-        return TelegramUi::purchaseReceiptCaption($row);
+        return TelegramUi::purchaseReceiptCaption($row, username: $this->username($row));
+    }
+
+    private function username(object $row): ?string
+    {
+        return app(TelegramUserContactLink::class)->username($row->buyerUserId, $row->buyerTelegramId);
+    }
+
+    private function rich(object $row, ?int $checkedAmountRials = null, ?string $reference = null): string
+    {
+        return TelegramUi::purchaseReceiptRich($row, $this->username($row), $checkedAmountRials, $reference);
     }
 
     private function reviewKeyboard(int $id): InlineKeyboardMarkup
     {
         return InlineKeyboardMarkup::make()->addRow(
-            InlineKeyboardButton::make('✅ تأیید پرداخت', callback_data: 'bank:decide:'.$id.':a'),
+            InlineKeyboardButton::make('🔎 بررسی واریز', callback_data: 'bank:decide:'.$id.':a'),
             InlineKeyboardButton::make('❌ رد رسید', callback_data: 'bank:decide:'.$id.':r'),
         );
     }
@@ -734,8 +795,24 @@ final readonly class ManualPaymentUi
         $this->render($bot, $text, $keyboard);
     }
 
-    private function render(Nutgram $bot, string $text, InlineKeyboardMarkup $keyboard, bool $callbackAcknowledged = false): void
+    private function render(Nutgram $bot, string $text, InlineKeyboardMarkup $keyboard, bool $callbackAcknowledged = false, ?string $richHtml = null): void
     {
+        if ($richHtml !== null) {
+            if ($bot->isCallbackQuery() && ! $callbackAcknowledged) {
+                TelegramUi::answerCallback($bot);
+            }
+            try {
+                TelegramUi::editRichText(
+                    $bot, new InputRichMessage(html: $richHtml, is_rtl: true), $keyboard,
+                );
+
+                return;
+            } catch (TelegramException) {
+                // Preserve the authorized native receipt details and same buttons.
+                $callbackAcknowledged = true;
+            }
+        }
+
         if ($bot->isCallbackQuery()) {
             if (! $callbackAcknowledged) {
                 TelegramUi::answerCallback($bot);

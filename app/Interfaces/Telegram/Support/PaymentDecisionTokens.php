@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Cache;
 
 final class PaymentDecisionTokens
 {
-    public function issue(int $operatorId, int $claimId, bool $approve, ?string $reference, ?int $photoMessageId): string
+    public function issue(int $operatorId, int $claimId, bool $approve, ?string $reference, ?int $photoMessageId, ?int $verifiedAmountRials = null): string
     {
         $token = bin2hex(random_bytes(16));
         Cache::put(TelegramBotContext::current()->cacheKey('telegram:bankreview:'.$token), [
@@ -17,13 +17,14 @@ final class PaymentDecisionTokens
             'claim' => $claimId,
             'approve' => $approve,
             'reference' => $reference,
+            'verified_amount_rials' => $verifiedAmountRials,
             'photo_message_id' => $photoMessageId,
         ], now()->addMinutes(3));
 
         return $token;
     }
 
-    /** @return array{operator:int,claim:int,approve:bool,reference:?string,photo_message_id:?int}|null */
+    /** @return array{operator:int,claim:int,approve:bool,reference:?string,photo_message_id:?int,verified_amount_rials:?int}|null */
     public function consume(int $operatorId, string $token): ?array
     {
         if (preg_match('/\A[a-f0-9]{32}\z/D', $token) !== 1) {

@@ -14,7 +14,15 @@ final class TelegramUserContactLink
 {
     public function for(UserDirectoryEntry $user): ?string
     {
-        if ($user->telegramUserId === null || $user->telegramUserId <= 0) {
+        $username = $this->username($user->id, $user->telegramUserId);
+
+        return $username === null ? null : 'https://t.me/'.$username;
+    }
+
+    /** Best-effort, verified public Telegram username; never infer it from display names. */
+    public function username(int $userId, ?int $telegramUserId): ?string
+    {
+        if ($userId < 1 || $telegramUserId === null || $telegramUserId <= 0) {
             return null;
         }
 
@@ -26,9 +34,9 @@ final class TelegramUserContactLink
             }
 
             $contact = DB::table('telegram_bot_contacts')
-                ->where('user_id', $user->id)
+                ->where('user_id', $userId)
                 ->where('bot_key', $botKey)
-                ->where('chat_id', $user->telegramUserId)
+                ->where('chat_id', $telegramUserId)
                 ->where('delivery_status', 'reachable')
                 ->exists();
 
@@ -39,18 +47,18 @@ final class TelegramUserContactLink
             try {
                 $response = Http::connectTimeout(2)->timeout(3)->get(
                     'https://api.telegram.org/bot'.$token.'/getChat',
-                    ['chat_id' => $user->telegramUserId],
+                    ['chat_id' => $telegramUserId],
                 );
 
                 if (! $response->successful() || $response->json('ok') !== true
-                    || (string) $response->json('result.id') !== (string) $user->telegramUserId) {
+                    || (string) $response->json('result.id') !== (string) $telegramUserId) {
                     continue;
                 }
 
                 $username = $response->json('result.username');
                 if (is_string($username)
                     && preg_match('/\A[A-Za-z0-9_]{5,32}\z/D', $username) === 1) {
-                    return 'https://t.me/'.$username;
+                    return $username;
                 }
             } catch (Throwable) {
                 // Profile navigation is optional; never break the Admin user page.

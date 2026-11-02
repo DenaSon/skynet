@@ -48,6 +48,14 @@ use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 use SergiX44\Nutgram\Testing\FakeNutgram;
 use Tests\Support\ReferralRewardFixture;
 
+function sb05VerifiedRials(int $claimId): int
+{
+    return (int) DB::table('sales_bank_payment_claims as c')
+        ->join('sales_orders as o', 'o.id', '=', 'c.sales_order_id')
+        ->where('c.id', $claimId)
+        ->value('o.total_price_rials');
+}
+
 uses(RefreshDatabase::class);
 
 const SB05_SQUAD = '123e4567-e89b-12d3-a456-426614174000';
@@ -101,7 +109,7 @@ function sb05Order(bool $time = false, bool $pay = true): array
         $bank = app(ManualBankPayments::class);
         $claim = $bank->submit(SubscriptionViewer::telegram(975099), $order,
             'receipt-file-sb05-'.$order, 'receipt-unique-sb05-'.$order, 500 + $order, 'sales');
-        $bank->review($root->id, $claim, true, 'SB05BANK'.$order.'VERIFIED');
+        $bank->review($root->id, $claim, true, 'SB05BANK'.$order.'VERIFIED', sb05VerifiedRials($claim));
         config()->set('sales.manual_bank_review_enabled', false);
     }
 
@@ -315,7 +323,7 @@ it('leaves stale managed bank receipts unapproved and preserves their original o
             ->update(['verified_at' => null]),
     };
 
-    expect(fn () => $bank->review($data['root']->id, $claim, true, 'PATCH01BANK100'))
+    expect(fn () => $bank->review($data['root']->id, $claim, true, 'PATCH01BANK100', sb05VerifiedRials($claim)))
         ->toThrow(ValidationException::class)
         ->and(DB::table('sales_orders')->where('id', $data['order'])->first())->toEqual($snapshot)
         ->and(DB::table('sales_bank_payment_claims')->where('id', $claim)->value('status'))->toBe('submitted')
@@ -982,7 +990,7 @@ it('queues automatic fulfillment after a committed root review only when all gat
         SubscriptionViewer::telegram(975099), $data['order'],
         'uxr03-file-123', 'uxr03-unique-123', 700, 'sales',
     );
-    app(ManualBankPayments::class)->review($data['root']->id, $claim, true, 'UXR03BANK777');
+    app(ManualBankPayments::class)->review($data['root']->id, $claim, true, 'UXR03BANK777', sb05VerifiedRials($claim));
 
     Queue::assertPushed(FulfillPaidPlanOrderJob::class,
         static fn (FulfillPaidPlanOrderJob $job): bool => $job->orderId === $data['order']
@@ -1085,7 +1093,7 @@ it('reaches later eligible recovery orders past a full rejected batch while reta
         } else {
             $claim = app(ManualBankPayments::class)->submit(SubscriptionViewer::telegram(975099), $id,
                 'batch-receipt-'.$id, 'batch-unique-'.$id, 9400 + $id, 'sales');
-            app(ManualBankPayments::class)->review($data['root']->id, $claim, true, 'BATCHBANK'.$id);
+            app(ManualBankPayments::class)->review($data['root']->id, $claim, true, 'BATCHBANK'.$id, sb05VerifiedRials($claim));
         }
         $orders[] = $id;
         app(UniqueLock::class)->release(new FulfillPaidPlanOrderJob($id));

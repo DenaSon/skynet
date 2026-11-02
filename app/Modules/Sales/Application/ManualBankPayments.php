@@ -173,9 +173,11 @@ final readonly class ManualBankPayments
             ->join('sales_orders as orders', 'orders.id', '=', 'claims.sales_order_id')
             ->join('users as buyer', 'buyer.id', '=', 'claims.buyer_user_id')
             ->leftJoin('telegram_accounts as telegram', 'telegram.user_id', '=', 'claims.buyer_user_id')
+            ->leftJoin('sales_service_customer_labels as labels', 'labels.sales_order_id', '=', 'orders.id')
             ->where('claims.id', $claimId)
             ->select('claims.*', 'orders.total_price_rials', 'orders.product_name',
                 'orders.status as order_status', 'buyer.name as buyer_name',
+                'orders.traffic_gb', 'orders.duration_days', 'labels.label as customer_name',
                 'telegram.telegram_user_id as buyer_telegram_id')->first();
 
         if ($row === null || $row->status !== 'submitted' || $row->order_status !== 'pending_payment') {
@@ -190,6 +192,9 @@ final readonly class ManualBankPayments
             'buyerTelegramId' => $row->buyer_telegram_id === null ? null : (int) $row->buyer_telegram_id,
             'amountRials' => (int) $row->total_price_rials,
             'productName' => (string) $row->product_name,
+            'trafficGb' => $row->traffic_gb === null ? null : (int) $row->traffic_gb,
+            'durationDays' => (int) $row->duration_days,
+            'customerName' => (string) ($row->customer_name ?? ''),
             'photoFileId' => Crypt::decryptString($row->photo_encrypted),
             'sourceBotKey' => (string) ($row->source_bot_key ?? 'admin'),
         ];
@@ -200,7 +205,7 @@ final readonly class ManualBankPayments
      * On approve they attest separately matching a real bank transaction and
      * supply that transaction's unique reference, never just the payer caption.
      */
-    public function review(int $rootId, int $claimId, bool $approve, ?string $verifiedBankReference = null): object
+    public function review(int $rootId, int $claimId, bool $approve, ?string $verifiedBankReference = null, ?int $verifiedAmountRials = null): object
     {
         $this->enabled();
 
@@ -213,7 +218,7 @@ final readonly class ManualBankPayments
             throw ValidationException::withMessages(['reference' => 'Verified bank reference required.']);
         }
 
-        return DB::transaction(function () use ($rootId, $claimId, $approve, $reference): object {
+        return DB::transaction(function () use ($rootId, $claimId, $approve, $reference, $verifiedAmountRials): object {
             $this->access->purchaseReviewer($rootId);
             // Lock order before claim: the same sequence as photo submission
             // and wallet settlement, avoiding opposite-order row deadlocks.
@@ -237,6 +242,14 @@ final readonly class ManualBankPayments
             }
 
             if ($approve) {
+                // The human-entered BANK transaction amount is a mandatory, independent
+                // attestation. Never infer it from the order total or receipt photo.
+                // Block mismatches BEFORE any Billing, Sales or Provider outbox write.
+                if ($verifiedAmountRials === null || $verifiedAmountRials < 1
+                    || $verifiedAmountRials !== (int) $order->total_price_rials) {
+                    throw ValidationException::withMessages(['amount' => 'Verified bank amount must exactly match the order.']);
+                }
+
                 $renewal = DB::table('sales_renewal_orders')->where('sales_order_id', $order->id)->first();
                 if ($renewal !== null && (config('sales.renewal_enabled', false) !== true
                     || config('sales.auto_fulfillment_enabled') !== true

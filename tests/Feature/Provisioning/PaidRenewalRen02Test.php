@@ -229,7 +229,8 @@ it('uses the existing verified bank review and renewal outbox without an extra p
     $bank = app(ManualBankPayments::class);
     $claim = $bank->submit(SubscriptionViewer::telegram($data['telegram']), $order,
         'ren02-bank-photo-'.$order, 'ren02-bank-unique-'.$order, 1234 + $order, 'sales');
-    $bank->review($data['root']->id, $claim, true, 'REN02BANK'.$order);
+    $bank->review($data['root']->id, $claim, true, 'REN02BANK'.$order,
+        (int) DB::table('sales_orders')->where('id', $order)->value('total_price_rials'));
 
     expect(DB::table('sales_bank_settlements')->where('sales_order_id', $order)->count())->toBe(1)
         ->and(DB::table('sales_fulfillment_outbox')->where('sales_order_id', $order)->value('event_key'))
@@ -292,7 +293,8 @@ it('preserves an administrative disable between renewal GET and PATCH without an
         $bank = app(ManualBankPayments::class);
         $claim = $bank->submit(SubscriptionViewer::telegram($data['telegram']), $order,
             'race-bank-'.$order, 'race-bank-unique-'.$order, 8000 + $order, 'sales');
-        $bank->review($data['root']->id, $claim, true, 'REN02RACE'.$order);
+        $bank->review($data['root']->id, $claim, true, 'REN02RACE'.$order,
+            (int) DB::table('sales_orders')->where('id', $order)->value('total_price_rials'));
     }
     $journals = DB::table('billing_journals')->orderBy('id')->get()->all();
     $postings = DB::table('billing_postings')->orderBy('id')->get()->all();
