@@ -6,6 +6,7 @@ namespace App\Interfaces\Web\Live;
 
 use App\Modules\Identity\Application\ResolveSalesBuyer;
 use App\Modules\Identity\Application\ResolveTelegramActor;
+use App\Modules\Sales\Application\ListDemoPublishedPresets;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -51,11 +52,21 @@ final readonly class DemoController
         return redirect()->route('denagate-live.demo.preview');
     }
 
-    public function preview(): View
+    public function preview(ListDemoPublishedPresets $catalog): View
     {
-        // All operational examples are static presentation fixtures. No Sales,
-        // Billing, customer, ledger or Provider reads are performed.
-        return view('live.demo-preview');
+        // Operational cards are fixed fixtures; the only live business read
+        // is the explicitly published and bounded reseller preset catalog.
+        $configuredBot = config('telegram.sales.bot_username');
+        $bot = is_string($configuredBot) ? ltrim(trim($configuredBot), '@') : '';
+        $botUrl = config('telegram.sales.enabled') === true
+            && preg_match('/\\A[A-Za-z][A-Za-z0-9_]{4,31}\\z/D', $bot) === 1
+                ? 'https://t.me/'.$bot.'?start=demo_panel'
+                : null;
+
+        return view('live.demo-preview', [
+            'plans' => $catalog->handle(),
+            'botUrl' => $botUrl,
+        ]);
     }
 
     public function exit(Request $request): RedirectResponse
