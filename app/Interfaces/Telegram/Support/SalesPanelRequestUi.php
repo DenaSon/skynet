@@ -47,7 +47,7 @@ final readonly class SalesPanelRequestUi
         }
         if ($current !== null) {
             $this->clear($userId);
-            $this->notice($bot, $this->status($current));
+            $this->notice($bot, $this->status($current), in_array($current['status'], ['approved', 'rejected'], true));
 
             return;
         }
@@ -264,7 +264,7 @@ final readonly class SalesPanelRequestUi
 
             return;
         }
-        $this->notice($bot, $this->status($row));
+        $this->notice($bot, $this->status($row), in_array($row['status'], ['approved', 'rejected'], true));
     }
 
     public function cancel(Nutgram $bot): void
@@ -334,9 +334,7 @@ final readonly class SalesPanelRequestUi
 
         return '<b>🧩 وضعیت پنل فروش</b>'
             ."\n\nشناسه درخواست: ".TelegramUi::code((string) $row['id'])
-            ."\n{$text}"
-            ."\n\nنام: ".TelegramUi::escape($row['first_name'].' '.$row['last_name'])
-            ."\nموبایل: ".TelegramUi::code(substr($row['mobile'], 0, 4).'***'.substr($row['mobile'], -4));
+            ."\n{$text}";
     }
 
     private function insufficientWallet(Nutgram $bot): void
@@ -351,9 +349,18 @@ final readonly class SalesPanelRequestUi
                 ->addRow(InlineKeyboardButton::make('↩️ بازگشت', callback_data: 'sales:home')));
     }
 
-    private function notice(Nutgram $bot, string $message): void
+    private function notice(Nutgram $bot, string $message, bool $withSupport = false): void
     {
-        $this->render($bot, $message, InlineKeyboardMarkup::make()
+        $keyboard = InlineKeyboardMarkup::make();
+        if ($withSupport) {
+            // The existing Sales support flow owns the validated operator link.
+            $keyboard->addRow(InlineKeyboardButton::make(
+                '💬 ارتباط با پشتیبانی',
+                callback_data: 'sales:support',
+                style: ButtonStyle::PRIMARY,
+            ));
+        }
+        $this->render($bot, $message, $keyboard
             ->addRow(InlineKeyboardButton::make('◀️ حساب کاربری', callback_data: 'sales:account'))
             ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home')));
     }
