@@ -400,6 +400,14 @@ it('requires the two-stage Admin bank confirmation and cannot settle before fina
     $admin->hearText('invalid?')->reply()->assertCalled('sendMessage');
     expect(DB::table('sales_bank_settlements')->count())->toBe(0);
 
+    // A smaller bank transfer is rejected before the reference or settlement stage.
+    $admin->hearText('65000')->reply()->assertCalled('sendRichMessage');
+    expect(DB::table('sales_bank_settlements')->count())->toBe(0)
+        ->and(DB::table('billing_postings')->count())->toBe(0);
+
+    $admin->hearText((string) intdiv(a2VerifiedRials($claim), 10))
+        ->reply()->assertCalled('sendRichMessage');
+
     $token = null;
     $admin->hearText('VERIFIED-BANK-141')->reply()->assertRaw(
         static function (Request $request) use (&$token): bool {
@@ -414,8 +422,12 @@ it('requires the two-stage Admin bank confirmation and cannot settle before fina
             }
             $token = substr($callback, strlen('bank:apply:'));
 
-            return str_contains((string) ($data['text'] ?? ''), 'VERIFIED-BANK-141')
-                && str_contains((string) ($data['text'] ?? ''), 'تأیید نهایی')
+            $rich = $data['rich_message'] ?? null;
+            $rich = is_string($rich) ? json_decode($rich, true) : $rich;
+            $html = is_array($rich) ? (string) ($rich['html'] ?? '') : '';
+
+            return str_contains($html, 'VERIFIED-BANK-141')
+                && str_contains($html, 'مبلغ سفارش')
                 && strlen($token) === 32;
         },
     );
