@@ -138,12 +138,15 @@ it('provides one shared shell for real and demo views with identical navigation 
         ->toContain('حالت دمو')
         ->toContain('پیش‌نمایش نمایندگی')
         ->toContain('aria-label="دسترسی سریع پنل"')
-        ->toContain("wire:click=\"showSection('overview')\"")
+        ->toContain("x-on:click=\"demoSection = 'overview'\"")
+        ->not->toContain("wire:click=\"showSection('overview')\"")
         ->not->toContain('حساب نماینده')
         ->not->toContain('motion-safe:animate-pulse')
         ->not->toContain('wire:click="confirmOrder"');
 
     $real = Blade::render('<x-live.shell section="overview"><p>نماینده واقعی</p></x-live.shell>');
+    expect($real)->toContain("wire:click=\"showSection('overview')\"")
+        ->not->toContain("x-on:click=\"demoSection = 'overview'\"");
     expect($real)->toContain('نماینده واقعی')
         ->toContain('حساب نماینده')
         ->toContain('پنل اختصاصی نمایندگان')

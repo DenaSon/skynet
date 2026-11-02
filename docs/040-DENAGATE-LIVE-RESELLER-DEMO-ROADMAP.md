@@ -85,6 +85,14 @@ The read-only catalog must:
 - **Existing customers:** previously active resellers maintain their real `/dashboard`, wallet, orders, service management, renewal, reports and Bot buttons; their historical business rows remain untouched. Demo does not require migration/backfill and cannot overwrite existing reseller session state.
 - **UX/client:** Persian responsive RTL layout, unambiguous Demo/sample labels, accurate real tariff labels, app close and browser fallback, bot back navigation and no dead controls. Physical Telegram checks must be explicitly operator-confirmed.
 
+## DEMO-01 implementation handoff (2026-11-02)
+
+**Source implementation:** isolated GET `/demo` login entry, POST `/demo/auth/telegram` with existing Sales Bot HMAC validator and a member-only Telegram binding, protected GET `/demo/preview`, and POST `/demo/exit`. Session keys `denagate_demo.user_id` and `denagate_demo.telegram_id` are separate from `denagate_live.user_id` and the web guard. Preview reads revalidate the active member and current Telegram binding. `EnsureLiveReseller` and the real Dashboard remain unchanged.
+
+The Demo presents five fixture-only sections through the shared `<x-live.shell>` with Alpine navigation and the existing Live layout/assets. It has **no Livewire operational component**, no real account/ledger/order/Provider reads, and no Demo Bot entry or live price reads. The browser exit is a CSRF-protected POST that clears only Demo keys; `?closed=1` closes the Telegram WebView when available. Browser fallback stays on a safe explanatory entry. The existing real app continues to use Livewire callbacks unchanged.
+
+**Phase distinction:** this milestone is not an authorization to expose a Sales Bot CTA, read published reseller prices, or implement the proposed 1,000,000-toman credit admission rule. DEMO-02 and DEMO-03 require their own approvals. Automated regression/CI success establishes source behavior only; actual Telegram iOS/Android acceptance remains outstanding until operator confirmation.
+
 ## 7. Risks, rollback and implementation handoff
 
 | Risk | Prevention and evidence |

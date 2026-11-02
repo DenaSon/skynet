@@ -1,3 +1,6 @@
+@php
+    $demo = $demo ?? false;
+@endphp
 <!doctype html>
 <html lang="fa" dir="rtl">
 <head>
@@ -6,7 +9,7 @@
     <meta name="robots" content="noindex, nofollow">
     <meta name="theme-color" content="#F6F8FA">
     <link rel="preload" href="/fonts/vazirmatn-variable.woff2" as="font" type="font/woff2" crossorigin>
-    <title>DenaGate | پنل نمایندگی</title>
+    <title>DenaGate | {{ $demo ? 'پیش‌نمایش نمایندگی' : 'پنل نمایندگی' }}</title>
     <script src="https://telegram.org/js/telegram-web-app.js?64"></script>
     <style>
         @font-face { font-family: Vazirmatn; src: url('/fonts/vazirmatn-variable.woff2') format('woff2'); font-weight: 100 900; font-display: swap; }
@@ -21,10 +24,10 @@
 <body>
 <main>
     <div class="brand"><img src="/images/denagate-logo.png" alt="لوگوی دناگیت" width="48" height="48"> <span>DenaGate</span></div>
-    <h1>پنل نمایندگی</h1>
+    <h1>{{ $demo ? 'پیش‌نمایش نمایندگی' : 'پنل نمایندگی' }}</h1>
     <p>ورود از طریق بات فروش دناگیت</p>
-    <p class="notice" id="status" role="status">در حال ورود به پنل…</p>
-    <form id="telegram-login" method="POST" action="{{ route('denagate-live.telegram.login') }}">
+    <p class="notice" id="status" role="status">{{ $demo && request()->query('closed') === '1' ? 'پیش‌نمایش بسته شد.' : 'در حال ورود به پنل…' }}</p>
+    <form id="telegram-login" method="POST" action="{{ route($demo ? 'denagate-live.demo.login' : 'denagate-live.telegram.login') }}">
         @csrf
         <input name="init_data" type="hidden" value="">
     </form>
@@ -33,8 +36,18 @@
     (() => {
         const app = window.Telegram?.WebApp;
         const status = document.getElementById('status');
+        @if ($demo && request()->query('closed') === '1')
+        if (app && app.platform !== 'unknown' && typeof app.close === 'function') {
+            app.close();
+        }
+        return;
+        @endif
         if (!app?.initData) {
+            @if ($demo)
+            status.textContent = 'برای مشاهده پیش‌نمایش، آن را از بات فروش دناگیت باز کنید.';
+            @else
             status.textContent = 'برای ورود، پنل را از بات فروش دناگیت باز کنید.';
+            @endif
             return;
         }
         app.ready();
