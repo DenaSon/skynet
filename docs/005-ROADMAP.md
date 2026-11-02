@@ -1,3 +1,7 @@
+## DEMO-01 → DEMO-03 — read-only reseller Mini App preview (2026-11-02)
+
+**Plan recorded; implementation awaits separate operator approval.** [Detailed Demo roadmap / security & acceptance](040-DENAGATE-LIVE-RESELLER-DEMO-ROADMAP.md): DEMO-01 isolated `live.denagate.ir/demo` signed shell with labeled example dashboard/services/credit/reports and no operational actions; DEMO-02 live published reseller **preset** prices via read-only current-revision Sales pricing and one compact Sales Bot preview entry; DEMO-03 actual Telegram iOS/Android client QA, regression and controlled rollout. No Demo Role, migrations, member↔reseller switching, change to the existing reseller admission threshold/approval, finance or Provider operations. CI and device acceptance are independent gates.
+
 ## DenaGate Live review follow-up — 2026-11-01
 
 Operator approved two phases: service confirmation cleanup + customer-name search; then preset quote simplification, order follow-up and Persian auth/session recovery. Scope and acceptance: [039](039-DENAGATE-LIVE-REVIEW-FOLLOWUP.md). Source work and CI do not establish live Telegram/financial/Provider acceptance.
