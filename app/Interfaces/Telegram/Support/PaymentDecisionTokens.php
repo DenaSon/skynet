@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Cache;
 
 final class PaymentDecisionTokens
 {
-    public function issue(int $operatorId, int $claimId, bool $approve, ?string $reference, ?int $photoMessageId): string
+    public function issue(int $operatorId, int $claimId, bool $approve, ?string $reference, ?int $photoMessageId, ?int $verifiedAmountRials = null): string
     {
         $token = bin2hex(random_bytes(16));
         Cache::put(TelegramBotContext::current()->cacheKey('telegram:bankreview:'.$token), [
@@ -17,6 +17,7 @@ final class PaymentDecisionTokens
             'claim' => $claimId,
             'approve' => $approve,
             'reference' => $reference,
+            'verified_amount_rials' => $verifiedAmountRials,
             'photo_message_id' => $photoMessageId,
         ], now()->addMinutes(3));
 
