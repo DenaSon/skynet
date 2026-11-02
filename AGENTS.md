@@ -1,3 +1,7 @@
+## DenaGate Live reseller Demo — approved plan, implementation gated (2026-11-02)
+
+**Normative design:** [docs/040-DENAGATE-LIVE-RESELLER-DEMO-ROADMAP.md](docs/040-DENAGATE-LIVE-RESELLER-DEMO-ROADMAP.md). A **separate** read-only `/demo` Mini App is approved for planning, not yet implementation. No `demo` Role, no changes to existing reseller access, wallet, orders, subscriptions, published pricing, current Sales Panel application threshold, role switching, or approval. Demo's operational cards must use labeled fixtures; **live reseller preset prices** must come from the published Sales price records, verified independently of checkout. DEMO-01 shell, DEMO-02 live catalog/Bot CTA, and DEMO-03 real Telegram acceptance are distinct gates; request explicit approval before each implementation PR. Documentation-only approval does not authorize production feature rollout.
+
 ## DenaGate Live UI/UX Polish — approved P0 and phase gates (2026-10-31)
 
 **New normative roadmap:** [docs/037-DENAGATE-LIVE-UIUX-POLISH-ROADMAP.md](docs/037-DENAGATE-LIVE-UIUX-POLISH-ROADMAP.md) specifies P0 UI Foundation (10 scoped Tailwind primitives), P1 UX Writing, P2A/P2B Visual Refinement, P3 Interaction, and P4 Telegram Mobile QA. **Only P0 is approved for implementation**; do not start P1–P4 without phase-specific authorization. Preserve all financial/Provider/identity guards and existing functionality; no new UI package, configuration, schema, ENV, or broad architecture rewrite. Each phase gets independent PR, CI, operator testing and rollback.
