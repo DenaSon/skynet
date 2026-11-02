@@ -173,9 +173,11 @@ final readonly class ManualBankPayments
             ->join('sales_orders as orders', 'orders.id', '=', 'claims.sales_order_id')
             ->join('users as buyer', 'buyer.id', '=', 'claims.buyer_user_id')
             ->leftJoin('telegram_accounts as telegram', 'telegram.user_id', '=', 'claims.buyer_user_id')
+            ->leftJoin('sales_service_customer_labels as labels', 'labels.sales_order_id', '=', 'orders.id')
             ->where('claims.id', $claimId)
             ->select('claims.*', 'orders.total_price_rials', 'orders.product_name',
                 'orders.status as order_status', 'buyer.name as buyer_name',
+                'orders.traffic_gb', 'orders.duration_days', 'labels.label as customer_name',
                 'telegram.telegram_user_id as buyer_telegram_id')->first();
 
         if ($row === null || $row->status !== 'submitted' || $row->order_status !== 'pending_payment') {
@@ -190,6 +192,9 @@ final readonly class ManualBankPayments
             'buyerTelegramId' => $row->buyer_telegram_id === null ? null : (int) $row->buyer_telegram_id,
             'amountRials' => (int) $row->total_price_rials,
             'productName' => (string) $row->product_name,
+            'trafficGb' => $row->traffic_gb === null ? null : (int) $row->traffic_gb,
+            'durationDays' => (int) $row->duration_days,
+            'customerName' => (string) ($row->customer_name ?? ''),
             'photoFileId' => Crypt::decryptString($row->photo_encrypted),
             'sourceBotKey' => (string) ($row->source_bot_key ?? 'admin'),
         ];
