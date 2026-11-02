@@ -45,6 +45,7 @@ it('renders six compact report cards in one grid and updates the selected report
         ->assertSee('aria-labelledby="report-revenue-title"', false)
         ->assertSee('aria-label="شاخص‌های فروش و حساب"', false)
         ->assertSee('grid grid-cols-3', false)
+        ->assertSee('min-h-28', false)
         ->assertDontSee('report-sales-metrics-title')
         ->assertDontSee('report-account-metrics-title')
         ->assertSee('role="group"', false)
@@ -86,12 +87,17 @@ it('keeps all original report fields, price conversion and a single loading anno
         ->toContain('dg-card-accent')
         ->toContain('dg-stat')
         ->toContain('grid grid-cols-3')
-        ->toContain('min-h-28')
+        ->toContain('<x-live.report-metric :label="$label" :value="$value" :historical="$isHistorical" />')
         ->not->toContain('grid-cols-2')
         ->not->toContain('report-sales-metrics-title')
         ->not->toContain('report-account-metrics-title')
         ->not->toContain('sales_orders')
         ->not->toContain('provisioning_operations');
+
+    $metric = file_get_contents(resource_path('views/components/live/report-metric.blade.php'));
+    expect($metric)->toContain('min-h-28')
+        ->toContain('rounded-[18px]')
+        ->toContain("number_format(\$value)");
 
     expect(substr_count($reports, 'wire:loading.delay wire:target="selectReportDays"'))->toBe(1)
         ->and(substr_count($reports, 'grid grid-cols-3'))->toBe(1)
