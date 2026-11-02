@@ -182,8 +182,8 @@ final readonly class SalesPanelRequestUi
         if ($actor === null || ! in_array('member', $actor->roles, true)
             || in_array('reseller', $actor->roles, true)
             || $this->requests->find($userId) !== null) {
-            // Account navigation clears the draft and restores the native keyboard.
-            app(SalesHomeUi::class)->account($bot);
+            // Return to the reseller entry and restore the persistent keyboard.
+            app(SalesHomeUi::class)->panel($bot);
 
             return true;
         }
@@ -273,8 +273,8 @@ final readonly class SalesPanelRequestUi
         if ($userId === null) {
             return;
         }
-        // Account navigation clears the draft and restores any temporary Contact keyboard.
-        app(SalesHomeUi::class)->account($bot);
+        // Return to the reseller entry and restore any temporary Contact keyboard.
+        app(SalesHomeUi::class)->panel($bot);
     }
 
     public function invalidInput(Nutgram $bot): bool
@@ -346,7 +346,7 @@ final readonly class SalesPanelRequestUi
             InlineKeyboardMarkup::make()
                 ->addRow(InlineKeyboardButton::make('💰 اعتبار من', callback_data: 'sales:wallet'))
                 ->addRow(InlineKeyboardButton::make('💬 پشتیبانی', callback_data: 'sales:support'))
-                ->addRow(InlineKeyboardButton::make('↩️ بازگشت', callback_data: 'sales:home')));
+                ->addRow(InlineKeyboardButton::make('↩️ بازگشت', callback_data: 'sales:panel:hub')));
     }
 
     private function notice(Nutgram $bot, string $message, bool $withSupport = false): void
@@ -361,7 +361,7 @@ final readonly class SalesPanelRequestUi
             ));
         }
         $this->render($bot, $message, $keyboard
-            ->addRow(InlineKeyboardButton::make('◀️ حساب کاربری', callback_data: 'sales:account'))
+            ->addRow(InlineKeyboardButton::make('◀️ نمایندگی', callback_data: 'sales:panel:hub'))
             ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home')));
     }
 

@@ -168,6 +168,10 @@ $bot->onCallbackQueryData('sales:wallet:topup:cancel', function (Nutgram $bot): 
     app(WalletTopupUi::class)->cancel($bot);
 });
 
+$bot->onCallbackQueryData('sales:panel:hub', function (Nutgram $bot): void {
+    app(SalesHomeUi::class)->panel($bot);
+});
+
 $bot->onCallbackQueryData('sales:panel:request', function (Nutgram $bot): void {
     app(SalesPanelRequestUi::class)->start($bot);
 });

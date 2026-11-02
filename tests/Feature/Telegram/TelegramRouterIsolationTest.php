@@ -340,6 +340,7 @@ it('keeps Sales identity, navigation and buyer routes isolated from Admin callba
         'callback:sales:wallet:topup:receipt:{id}',
         'callback:sales:wallet:topup:back:{id}',
         'callback:sales:wallet:topup:cancel',
+        'callback:sales:panel:hub',
         'callback:sales:panel:request',
         'callback:sales:panel:accept',
         'callback:sales:panel:confirm',

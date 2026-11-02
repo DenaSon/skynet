@@ -115,6 +115,12 @@ The operator reported that they personally tested and **approved the working Dem
 
 **Safety/acceptance:** No change to Demo auth, session, pricing queries, refresh URL, buyer roles, routes, Sales Bot keyboard, real finance/provider actions or business data. Do not add dead purchase/search/status-change controls to Demo. Real Dashboard reports must remain functionally and visually equivalent after the tiny KPI extraction. Verify CI, PHP tests, Vite, and Demo read-only tests; mobile screenshot parity requires operator confirmation after merge. Revert this single polish PR for rollback.
 
+## Sales Bot reseller entry consolidation — approved 2026-11-02
+
+**Latest UX decision superseding the older adjacent Home/Account Demo launchers in §3.1 and DEMO-02/03:** Ordinary eligible members see **one** Home / persistent reply-menu entry `🧩 درخواست نمایندگی` (`📨 وضعیت درخواست نمایندگی` when an application exists), opening a single read-only, private RTL Rich reseller information hub at `sales:panel:hub`. The hub offers the existing signed `/demo` Web App launcher when Live is enabled and the **original** `sales:panel:request` action (for new applications or existing status). Account no longer duplicates either action; active resellers retain only their actual `📱 اپلیکیشن` experience. Rich failure falls back to native HTML with the same authorized actions. Preserve the old delivered reply-keyboard texts, legacy `sales:panel:request` callback, `/start demo_panel` deep-link and all existing form, minimum credit, administrative review and identity checks. No new Demo auth, data, wallet or Provider interactions; do not treat the hub as a reseller entitlement. Contact cancel/status back navigation returns to the hub or Home and restores the persistent keyboard.
+
+**Acceptance:** Validate ordinary/new/pending/rejected/approved/active-reseller transitions, Demo enabled/disabled, Rich/fallback, Home/Account/persistent keyboard, old texts/callbacks, signed Demo launch URL, no application creation on read or CTA display, Contact cancellation and existing financial/approval regressions. Real Telegram client UI acceptance remains separate from fake Telegram tests. Rollback: revert the isolated navigation PR, without schema changes.
+
 ## 7. Risks, rollback and implementation handoff
 
 | Risk | Prevention and evidence |
