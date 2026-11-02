@@ -78,8 +78,8 @@ it('allows only signed active member viewers without granting the reseller web g
     $this->get('https://live.denagate.ir/demo/preview')->assertOk()
         ->assertSee('DenaGate')
         ->assertSee('حالت دمو')
-        ->assertSee('اطلاعات نمونه')
-        ->assertSee('اعتبار نمونه')
+        ->assertSee('آمار و سرویس‌ها نمایشی‌اند')
+        ->assertSee('اعتبار قابل استفاده')
         ->assertSee('مشتری نمونه ۱')
         ->assertSee('گزارش فروش')
         ->assertSee('پلن‌های نمایندگی')
@@ -171,6 +171,34 @@ it('keeps signed Demo sessions and exit independent of an existing real reseller
     $this->assertAuthenticatedAs($real, 'web');
     $this->get('https://live.denagate.ir/dashboard')->assertOk();
     Http::assertNothingSent();
+});
+
+it('keeps Demo UI close to the real dashboard while exposing no operational callbacks', function (): void {
+    $preview = file_get_contents(resource_path('views/live/demo-preview.blade.php'));
+    $dashboard = file_get_contents(resource_path('views/live/dashboard.blade.php'));
+    $metric = file_get_contents(resource_path('views/components/live/report-metric.blade.php'));
+
+    expect($preview)->toContain('<x-live.shell section="overview" :demo="true">')
+        ->toContain('dg-card-accent relative overflow-hidden bg-gradient-to-bl')
+        ->toContain('grid grid-cols-1 gap-3 sm:grid-cols-3 md:gap-5')
+        ->toContain('grid grid-cols-3 gap-2.5 sm:gap-3')
+        ->toContain('<x-live.report-metric :label="$label" :value="$value" :historical="$historical" />')
+        ->toContain("demoSection === 'shop'")
+        ->toContain("demoSection === 'services'")
+        ->toContain("demoSection === 'credit'")
+        ->toContain("demoSection === 'reports'")
+        ->toContain("route('denagate-live.demo.exit')")
+        ->toContain("route('denagate-live.demo.preview', ['section' => 'shop'])")
+        ->not->toContain('wire:click')
+        ->not->toContain('wire:submit')
+        ->not->toContain('ListQuotedPresets')
+        ->not->toContain('sales_plan_prices')
+        ->not->toContain('Remnawave')
+        ->not->toContain('تمام اطلاعات این صفحه')
+        ->not->toContain('هیچ کیف پول')
+        ->and($dashboard)->toContain('<x-live.report-metric :label="$label" :value="$value" :historical="$isHistorical" />')
+        ->and($metric)->toContain('min-h-28')
+        ->toContain('rounded-[18px]');
 });
 
 it('never reads a live catalog or real operational data in DEMO-01', function (): void {
