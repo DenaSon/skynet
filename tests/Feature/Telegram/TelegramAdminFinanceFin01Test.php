@@ -359,6 +359,34 @@ it('prioritizes funded older wallets across 19 rows and splits reseller and memb
     Http::assertNothingSent();
 });
 
+it('shows a clear negative wallet warning and escapes user-controlled Rich details without a ledger write', function (): void {
+    $root = fin01Admin();
+    $bot = fin01Bot(987601, $root);
+    $customer = User::factory()->create(['name' => '<Buyer & Co>']);
+    PanelWalletFunding::spend($customer->id, 100_000);
+    $before = DB::table('billing_postings')->count();
+
+    $bot->hearCallbackQueryData('finance:wallet:'.$customer->id)->reply()->assertRaw(
+        static function (Request $request) use ($customer): bool {
+            $data = fin01Data($request);
+            $html = fin01Rich($data);
+            $keyboard = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return str_contains($html, '<h2>💼 جزئیات کیف پول</h2>')
+                && str_contains($html, '<table bordered striped compact>')
+                && str_contains($html, '&lt;Buyer &amp; Co&gt;')
+                && ! str_contains($html, '<Buyer')
+                && str_contains($html, '⚠️ مانده منفی این حساب نیازمند بررسی است.')
+                && str_contains($html, '<footer>')
+                && str_contains($keyboard, 'finance:wallets:1')
+                && str_contains($keyboard, 'finance:topups:1');
+        }, index: 1,
+    );
+
+    expect(DB::table('billing_postings')->count())->toBe($before);
+    Http::assertNothingSent();
+});
+
 it('keeps negative and unrelated-role wallet balances in their own group without double counting', function (): void {
     $root = fin01Admin();
     fin01Bot(987601, $root);
