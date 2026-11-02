@@ -64,7 +64,7 @@ function demo2Plan(User $root, string $slug, string $audience = 'both', string $
     $plan = app(ManagePlans::class)->create($root->id, new PlanDefinition(
         productSlug: 'demo-catalog',
         slug: $slug,
-        name: 'پلن '. $slug,
+        name: 'پلن '.$slug,
         kind: 'hybrid',
         mode: $mode,
         audience: $audience,
@@ -166,7 +166,7 @@ it('updates next reads automatically on publication and suppresses draft, disabl
         ->and($updated['resellerRials'])->toBe(900_000)
         ->and($updated['discountPercent'])->toBe(25);
 
-    DB::table('sales_plan_prices')->where('plan_id', $second)->update(['status' => 'inactive']);
+    DB::table('sales_plan_prices')->where('plan_id', $second)->update(['status' => 'draft']);
     DB::table('sales_plans')->where('id', $third)->update(['revision' => 3]);
     $names = collect(app(ListDemoPublishedPresets::class)->handle())->pluck('name')->all();
     expect($names)->toBe(['پلن first']);
@@ -176,8 +176,8 @@ it('updates next reads automatically on publication and suppresses draft, disabl
 });
 
 it('shows only a safe empty state and never reveals live prices to direct, stale or revoked sessions', function (): void {
-    demo2Root();
-    demo2Plan(demo2Root(), 'secure-private');
+    $root = demo2Root();
+    demo2Plan($root, 'secure-private');
 
     $this->get('https://live.denagate.ir/demo/preview')->assertRedirect();
     $this->get('https://live.denagate.ir/demo/preview?section=shop')->assertRedirect();
