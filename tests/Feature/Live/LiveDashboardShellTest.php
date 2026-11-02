@@ -138,7 +138,7 @@ it('provides one shared shell for real and demo views with identical navigation 
         ->toContain('حالت دمو')
         ->toContain('پیش‌نمایش نمایندگی')
         ->toContain('aria-label="دسترسی سریع پنل"')
-        ->toContain('wire:click="showSection(&#039;overview&#039;)"')
+        ->toContain("wire:click=\"showSection('overview')\"")
         ->not->toContain('حساب نماینده')
         ->not->toContain('motion-safe:animate-pulse')
         ->not->toContain('wire:click="confirmOrder"');
