@@ -28,6 +28,16 @@ function configureUserManagementBot(int $telegramId, User $user): Nutgram
     return $bot;
 }
 
+/** @param array<string,mixed> $payload */
+function userManagementRichHtml(array $payload): string
+{
+    $rich = is_string($payload['rich_message'] ?? null)
+        ? json_decode($payload['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+        : ($payload['rich_message'] ?? []);
+
+    return ($rich['is_rtl'] ?? null) === true ? (string) ($rich['html'] ?? '') : '';
+}
+
 it('renders a real user list and navigates to details and search', function (): void {
     $admin = User::factory()->admin()->create();
     $bot = configureUserManagementBot(41234, $admin);
@@ -281,6 +291,61 @@ it('keeps reseller list context across protected status confirmation and refuses
         ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.']);
 });
 
+it('shows a safe RTL Rich identity table and hides only Telegram-generated placeholder emails', function (): void {
+    $admin = User::factory()->admin()->create();
+    $bot = configureUserManagementBot(50601, $admin);
+    $placeholder = 'telegram-'.str_repeat('ab', 16).'@accounts.skynet.invalid';
+    $subject = User::factory()->create(['name' => 'Name <script>alert(1)</script>', 'email' => $placeholder]);
+    TelegramAccount::query()->create(['user_id' => $subject->id, 'telegram_user_id' => 987650601]);
+
+    $bot->hearCallbackQueryData("users:view:{$subject->id}:2:s")->reply()->assertRaw(
+        static function (Request $request) use ($subject, $placeholder): bool {
+            $payload = FakeNutgram::getActualData($request);
+            $html = userManagementRichHtml($payload);
+            $buttons = is_string($payload['reply_markup'] ?? null)
+                ? $payload['reply_markup']
+                : json_encode($payload['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
+
+            return str_contains($html, '<h2>👤 جزئیات کاربر</h2>')
+                && str_contains($html, '<table bordered striped compact>')
+                && str_contains($html, '<tr><td>ایمیل</td><td>ایمیل ثبت نشده</td></tr>')
+                && str_contains($html, '<tr><td>تلگرام</td><td>متصل</td></tr>')
+                && str_contains($html, '&lt;script&gt;')
+                && ! str_contains($html, '<script>')
+                && ! str_contains($html, $placeholder)
+                && str_contains($html, '<footer>💡 ')
+                && str_contains($buttons, "users:profile:{$subject->id}:2:s")
+                && str_contains($buttons, "users:confirm:{$subject->id}:2:s")
+                && str_contains($buttons, 'users:findpage:2')
+                && str_contains($buttons, 'menu:admin');
+        },
+        index: 1,
+    );
+    expect($subject->fresh()->email)->toBe($placeholder);
+
+    $real = User::factory()->create(['email' => 'customer@example.com']);
+    $bot->hearCallbackQueryData("users:view:{$real->id}:1:a")->reply()->assertRaw(
+        static function (Request $request): bool {
+            $html = userManagementRichHtml(FakeNutgram::getActualData($request));
+
+            return str_contains($html, '<tr><td>ایمیل</td><td>customer@example.com</td></tr>')
+                && ! str_contains($html, 'ایمیل ثبت نشده');
+        },
+        index: 1,
+    );
+
+    // A lookalike address is not one of the 32-hex Telegram placeholders.
+    $lookalike = User::factory()->create(['email' => 'telegram-customer@accounts.skynet.invalid']);
+    $bot->hearCallbackQueryData("users:view:{$lookalike->id}:1:a")->reply()->assertRaw(
+        static function (Request $request): bool {
+            $html = userManagementRichHtml(FakeNutgram::getActualData($request));
+
+            return str_contains($html, 'telegram-customer@accounts.skynet.invalid');
+        },
+        index: 1,
+    );
+});
+
 it('opens an HTTPS username link from a reachable Sales contact and hides it for unlinked users', function (): void {
     $admin = User::factory()->admin()->create();
     $bot = configureUserManagementBot(50401, $admin);
@@ -323,7 +388,7 @@ it('opens an HTTPS username link from a reachable Sales contact and hides it for
             return $contact !== null
                 && ($contact['url'] ?? null) === 'https://t.me/Helmabanoo52'
                 && ! isset($contact['callback_data'])
-                && str_contains((string) ($data['text'] ?? ''), 'جزئیات کاربر');
+                && str_contains(userManagementRichHtml($data), '<h2>👤 جزئیات کاربر</h2>');
         },
         index: 1,
     );
@@ -363,7 +428,7 @@ it('keeps admin details usable when username lookup is unavailable or invalid', 
         static function (Request $request) use ($subject): bool {
             $data = FakeNutgram::getActualData($request);
 
-            return str_contains((string) ($data['text'] ?? ''), 'جزئیات کاربر')
+            return str_contains(userManagementRichHtml($data), '<h2>👤 جزئیات کاربر</h2>')
                 && str_contains((string) ($data['reply_markup'] ?? ''), 'users:profile:'.$subject->id)
                 && ! str_contains((string) ($data['reply_markup'] ?? ''), 'ارتباط با کاربر');
         },
@@ -392,7 +457,7 @@ it('keeps admin details usable when username lookup is unavailable or invalid', 
         static function (Request $request): bool {
             $data = FakeNutgram::getActualData($request);
 
-            return str_contains((string) ($data['text'] ?? ''), 'جزئیات کاربر')
+            return str_contains(userManagementRichHtml($data), '<h2>👤 جزئیات کاربر</h2>')
                 && ! str_contains((string) ($data['reply_markup'] ?? ''), 'ارتباط با کاربر');
         },
         index: 1,
