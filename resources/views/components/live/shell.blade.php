@@ -9,7 +9,7 @@
     ];
 @endphp
 
-<div class="min-h-dvh bg-[#F6F8FA]">
+<div class="min-h-dvh bg-[#F6F8FA]" @if ($demo) x-data="{ demoSection: 'overview' }" @endif>
     <div class="mx-auto flex min-h-dvh max-w-[1440px]">
         {{-- Compact desktop navigation; the same four actions stay accessible on mobile. --}}
         <aside class="hidden w-64 shrink-0 border-l border-[#E7ECEF] bg-white px-5 py-8 lg:flex lg:flex-col">
@@ -26,14 +26,23 @@
 
             <nav class="flex flex-col gap-2" aria-label="منوی پنل نمایندگی">
                 @foreach ($navigationItems as [$key, $label])
-                    <button type="button" wire:click="showSection('{{ $key }}')" wire:target="showSection" wire:loading.attr="disabled"
+                    <button type="button" @if ($demo)
+                    x-on:click="demoSection = '{{ $key }}'"
+                    x-bind:aria-current="demoSection === '{{ $key }}' ? 'page' : null"
+                @else
+                    wire:click="showSection('{{ $key }}')" wire:target="showSection" wire:loading.attr="disabled"
+                @endif
+                        @if ($demo)
+                            x-bind:class="demoSection === '{{ $key }}' ? 'bg-[#E7F8F3] text-[#087F73]' : 'text-[#677987] hover:bg-[#F6F8FA] hover:text-[#1B2935]'"
+                        @endif
                         @class([
                             'flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-right text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#14B8A6]',
-                            'bg-[#E7F8F3] text-[#087F73]' => $section === $key,
-                            'text-[#677987] hover:bg-[#F6F8FA] hover:text-[#1B2935]' => $section !== $key,
+                            'bg-[#E7F8F3] text-[#087F73]' => ! $demo && $section === $key,
+                            'text-[#677987] hover:bg-[#F6F8FA] hover:text-[#1B2935]' => ! $demo && $section !== $key,
                         ])
-                        @if ($section === $key) aria-current="page" @endif>
-                        <span class="h-2 w-2 rounded-full {{ $section === $key ? 'bg-[#14B8A6]' : 'bg-[#C5D2D8]' }}" aria-hidden="true"></span>
+                        @if (! $demo && $section === $key) aria-current="page" @endif>
+                        <span class="h-2 w-2 rounded-full {{ ! $demo && $section === $key ? 'bg-[#14B8A6]' : (! $demo ? 'bg-[#C5D2D8]' : '') }}"
+                            @if ($demo) x-bind:class="demoSection === '{{ $key }}' ? 'bg-[#14B8A6]' : 'bg-[#C5D2D8]'" @endif aria-hidden="true"></span>
                         {{ $label }}
                     </button>
                 @endforeach
@@ -78,13 +87,21 @@
         style="padding-bottom: max(8px, env(safe-area-inset-bottom), var(--tg-content-safe-area-inset-bottom, 0px)); padding-inline-start: max(8px, env(safe-area-inset-right), var(--tg-content-safe-area-inset-right, 0px)); padding-inline-end: max(8px, env(safe-area-inset-left), var(--tg-content-safe-area-inset-left, 0px));"
         aria-label="دسترسی سریع پنل">
         @foreach ($navigationItems as [$key, $label])
-            <button type="button" wire:click="showSection('{{ $key }}')" wire:target="showSection" wire:loading.attr="disabled"
+            <button type="button" @if ($demo)
+                    x-on:click="demoSection = '{{ $key }}'"
+                    x-bind:aria-current="demoSection === '{{ $key }}' ? 'page' : null"
+                @else
+                    wire:click="showSection('{{ $key }}')" wire:target="showSection" wire:loading.attr="disabled"
+                @endif
+                @if ($demo)
+                    x-bind:class="demoSection === '{{ $key }}' ? 'bg-[#EAF8F4] text-[#087F73]' : 'text-[#84939D]'"
+                @endif
                 @class([
                     'mx-1 flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl px-1 text-[11px] font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-[#14B8A6]',
-                    'bg-[#EAF8F4] text-[#087F73]' => $section === $key,
-                    'text-[#84939D]' => $section !== $key,
+                    'bg-[#EAF8F4] text-[#087F73]' => ! $demo && $section === $key,
+                    'text-[#84939D]' => ! $demo && $section !== $key,
                 ])
-                @if ($section === $key) aria-current="page" @endif>
+                @if (! $demo && $section === $key) aria-current="page" @endif>
                 @if ($key === 'overview')
                     <svg xmlns="http://www.w3.org/2000/svg" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>
                 @elseif ($key === 'services')
