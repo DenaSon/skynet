@@ -308,7 +308,7 @@ final readonly class SalesTrialUi
                     }
                     rewind($stream);
                     $bot->sendPhoto(photo: InputFile::make($stream, 'denagate-trial-qr.png'),
-                        caption: $caption, parse_mode: 'HTML', reply_markup: $keyboard, protect_content: true);
+                        caption: $caption, parse_mode: 'HTML', reply_markup: $keyboard);
 
                     return;
                 } catch (Throwable) {
@@ -320,7 +320,7 @@ final readonly class SalesTrialUi
                 }
             }
             $bot->sendMessage(text: $text,
-                parse_mode: 'HTML', reply_markup: $keyboard, protect_content: true,
+                parse_mode: 'HTML', reply_markup: $keyboard,
                 link_preview_options: LinkPreviewOptions::make(is_disabled: true));
         } catch (Throwable) {
             $bot->sendMessage(text: 'لینک تست فعلاً قابل دریافت نیست. وضعیت یا زمان و حجم باقی‌مانده را بررسی کنید.', reply_markup: $this->buttons());

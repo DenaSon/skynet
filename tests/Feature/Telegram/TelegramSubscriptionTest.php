@@ -6,6 +6,7 @@ use App\Modules\Sales\Application\CalculateQuote;
 use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\ConfigureRate;
 use App\Modules\Sales\Application\CreatePendingOrder;
+use GuzzleHttp\Psr7\Request as NutgramRequest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -13,6 +14,7 @@ use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
+use SergiX44\Nutgram\Testing\FakeNutgram;
 
 uses(RefreshDatabase::class);
 
@@ -203,7 +205,14 @@ it('reveals the credential only on an explicit and freshly authorized private re
     $bot->hearCallbackQueryData("subs:link:{$id}:0")->reply()
         ->assertCalled('answerCallbackQuery')
         ->assertCalled('editMessageText')
-        ->assertCalled('sendMessage');
+        ->assertCalled('sendMessage')
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $data = FakeNutgram::getActualData($request);
+
+            return str_contains((string) ($data['text'] ?? ''), '<code>https://subscription.example.test/private-key-e3</code>')
+                && ($data['parse_mode'] ?? null) === 'HTML'
+                && ($data['protect_content'] ?? false) !== true;
+        }, index: 2);
 
     Http::assertSentCount(1);
 

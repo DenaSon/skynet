@@ -653,13 +653,13 @@ final readonly class SalesSubscriptionsUi
         // Ordinary URLs fit in one photo+caption; exceptionally long URLs
         // retain their full selectable message and receive a separate QR.
         if (mb_strlen($caption) <= 900
-            && $this->sendLinkPhoto($bot, $url, $caption, $keyboard, $subscriptionPage)) {
+            && $this->sendLinkPhoto($bot, $url, $caption, $keyboard)) {
             return;
         }
 
         if (mb_strlen($caption) > 900) {
             $this->sendLinkPhoto(
-                $bot, $url, $intro."\n📷 QR اتصال این سرویس", null, $subscriptionPage,
+                $bot, $url, $intro."\n📷 QR اتصال این سرویس", null,
             );
         }
 
@@ -671,7 +671,6 @@ final readonly class SalesSubscriptionsUi
             parse_mode: 'HTML',
             link_preview_options: LinkPreviewOptions::make(is_disabled: true),
             reply_markup: $keyboard,
-            protect_content: $subscriptionPage,
         );
     }
 
@@ -704,7 +703,6 @@ final readonly class SalesSubscriptionsUi
         string $url,
         string $caption,
         ?InlineKeyboardMarkup $keyboard,
-        bool $protectContent,
     ): bool {
         $stream = null;
         try {
@@ -719,7 +717,6 @@ final readonly class SalesSubscriptionsUi
                 caption: $caption,
                 parse_mode: 'HTML',
                 reply_markup: $keyboard,
-                protect_content: $protectContent,
             );
 
             return true;

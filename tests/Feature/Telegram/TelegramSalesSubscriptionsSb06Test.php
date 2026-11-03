@@ -999,7 +999,8 @@ it('puts the reseller customer and plan before the unchanged full credential in 
                 && str_contains($text, '👤 علی &lt;دوست&gt; &amp;')
                 && str_contains($text, '📦 اشتراک آزمایشی')
                 && str_contains($text, '🔗 <b>لینک اشتراک</b>')
-                && str_contains($text, $url)
+                && str_contains($text, '<code>'.$url.'</code>')
+                && ($data['protect_content'] ?? false) !== true
                 && ! str_contains($text, 'علی <دوست> &')
                 && ! str_contains($text, "اتصال #{$order}")
                 && str_contains($actions, 'sales:help:apps')
@@ -1058,8 +1059,8 @@ it('preserves official subscription page access and selectable URL in the long f
             $buttons = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 
             return str_contains((string) ($data['text'] ?? ''), '<b>🌐 صفحه اشتراک</b>')
-                && str_contains((string) ($data['text'] ?? ''), $url)
-                && ($data['protect_content'] ?? false) === true
+                && str_contains((string) ($data['text'] ?? ''), '<code>'.$url.'</code>')
+                && ($data['protect_content'] ?? false) !== true
                 && str_contains($buttons, 'باز کردن صفحه اشتراک')
                 && str_contains($buttons, "sales:subs:link:{$order}:0")
                 && ! str_contains($buttons, 'copy_text');

@@ -361,7 +361,9 @@ it('keeps a very long trial URL intact in one text message without a second QR m
         ->assertRaw(function (Request $request) use ($url): bool {
             $data = trialUiPayload($request);
 
-            return str_contains($data['text'], $url)
+            return str_contains($data['text'], '<code>'.$url.'</code>')
+                && ($data['parse_mode'] ?? null) === 'HTML'
+                && ($data['protect_content'] ?? false) !== true
                 && ! str_contains(json_encode($data['reply_markup']), 'copy_text');
         }, index: 1);
 });
@@ -376,7 +378,9 @@ it('retains the private trial link as text when Telegram rejects the QR upload',
         ->assertRaw(function (Request $request): bool {
             $data = trialUiPayload($request);
 
-            return str_contains($data['text'], 'https://sub.example.test/private-trial')
+            return str_contains($data['text'], '<code>https://sub.example.test/private-trial</code>')
+                && ($data['parse_mode'] ?? null) === 'HTML'
+                && ($data['protect_content'] ?? false) !== true
                 && str_contains(json_encode($data['reply_markup']), 'copy_text');
         }, index: 2);
 });

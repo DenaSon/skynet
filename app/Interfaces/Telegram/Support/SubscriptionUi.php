@@ -218,7 +218,8 @@ final readonly class SubscriptionUi
         // Only explicit private-chat requests reach this point; prevent Telegram
         // from fetching URL previews. Never log or put credentials in callback_data.
         $bot->sendMessage(
-            text: "🔐 لینک اختصاصی سرویس #{$orderId}\n\n{$link->subscriptionUrl}\n\nاین لینک خصوصی است؛ آن را در اختیار دیگران قرار ندهید.",
+            text: "🔐 لینک اختصاصی سرویس #{$orderId}\n\n".TelegramUi::code($link->subscriptionUrl)."\n\nاین لینک خصوصی است؛ آن را در اختیار دیگران قرار ندهید.",
+            parse_mode: 'HTML',
             link_preview_options: LinkPreviewOptions::make(is_disabled: true),
         );
     }
