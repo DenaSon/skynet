@@ -127,7 +127,7 @@ final readonly class ReadAdminHealth
             'queuecheck', 'queue' => 'Queue Worker',
             'schedulecheck', 'schedule' => 'Scheduler',
             'useddiskspacecheck', 'disk', 'useddiskspace' => 'فضای دیسک',
-            'ops_cpu' => 'CPU Load',
+            'ops_cpu' => 'مصرف CPU',
             'ops_memory' => 'RAM',
             'ops_network_api' => 'API شبکه',
             'ops_telegram_api' => 'Telegram API',

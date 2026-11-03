@@ -4,7 +4,7 @@
 
 | Code | Label | Signal | Status thresholds |
 | --- | --- | --- | --- |
-| ops_cpu | CPU Load | Linux 1-minute run queue, normalized by cgroup CPU quota or /proc/cpuinfo cores | Warning >= 1.0 load/core; failed >= 2.0 |
+| ops_cpu | مصرف CPU | cgroup v2 `cpu.stat` usage delta over a one-second sample, divided by elapsed monotonic time and fractional `cpu.max` quota; optional `cpu.pressure` 10s wait shown as context only | Warning >=80% quota; failed >=95%; missing/invalid cgroup data: warning/unavailable |
 | ops_memory | RAM | cgroup v2 current/max (includes filesystem cache), falling back to Linux MemAvailable | Warning >=80%; failed >=95% |
 | ops_network_api | API شبکه | Existing authenticated **read-only** health operation, no writes | No runtime instance: warning; missing config: warning; unreachable / invalid: failed |
 | ops_telegram_api | Telegram API | getMe for Admin + separately enabled Sales bot, 3s/2s timeouts, redirects disabled | HTTP/JSON failure: failed; missing token: warning |
@@ -12,16 +12,21 @@
 | ops_failed_jobs | Jobهای ناموفق | failed_jobs since last 24h | >0 warning; >=10 failed |
 | ops_notification_outbox | اعلان‌های معوق | pending >10m or expired processing lease, plus 24h terminal failures (exclude superseded notifications) | >0 warning; >=10 stale failed |
 | ops_sales_fulfillment | فعال‌سازی سفارش‌ها | needs_review outbox; paid pending >15m | >0 warning; >=5 review or >=10 stale failed |
-| ops_subscription_jobs | زمان‌بندی اشتراک‌ها | successful scheduler command completion heartbeat in existing cache | >10m warning; >=15m failed; missing/disabled warning |
+| ops_subscription_jobs | زمان‌بندی اشتراک‌ها | successful scheduler command completion heartbeat in existing cache (`int` or bounded decimal string from Redis) | >=10m warning; >=15m failed; missing/invalid/disabled warning |
 
 All new checks return numeric, whitelisted summaries only; credentials, exception
 messages, raw job payload, orders, identifiers, server paths, headers, or
 provider response bodies are never persisted or shown in the Telegram Health UI.
 
-**Important:** CPU **Load** is a 1-minute scheduling pressure indicator, **not**
-instant CPU-utilization %. For Docker, memory refers to the PHP container,
-which may not represent the entire host server. The result label intentionally
-avoids a misleading claim of whole-host CPU%/RAM.
+**Important (2026-11-03 fix):** The old CPU probe incorrectly divided **host**
+`sys_getloadavg()` by the **container** CPU quota, causing false red health
+states on shared infrastructure. The new «مصرف CPU» row measures a bounded
+one-second sample of actual **container** CPU usage, normalized by the precise
+fractional cgroup v2 quota (for example 0.43 CPU). Optional 10s PSI `wait` is
+context, not an additional failure rule. It does not represent host CPU use or
+historical host load; a one-second sample is not a minute-long trend. Unavailable,
+unlimited or invalid cgroup data reports `warning / unavailable`, never green.
+For Docker, RAM also refers to the PHP container, not the entire host.
 
 ## UI
 
@@ -41,7 +46,9 @@ never be reported as green. One batch is capped to 24 rows.
 No Composer or migration change. Existing `DENAGATE_HEALTH_ENABLED` still
 controls scheduled execution. A successful `sales:subscriptions:alerts`
 invocation now best-effort caches a heartbeat, independently from sales
-writes or notification delivery (failure of cache writes is ignored).
+writes or notification delivery (failure of cache writes is ignored). Redis
+may return this timestamp as a decimal string; the reader now validates and
+accepts bounded decimal strings or integers, preserving future/stale limits.
 
 Network checks happen from the **Scheduler**, NOT in Telegram webhooks, and
 rely solely on existing configured bot tokens and the read-only provider

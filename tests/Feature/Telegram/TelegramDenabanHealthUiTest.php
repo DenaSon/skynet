@@ -208,7 +208,11 @@ it('renders resource and operational checks instead of the old about section and
             'check_label' => $name,
             'status' => 'ok',
             'notification_message' => 'do-not-display-private-token',
-            'short_summary' => $name === 'memory' ? '64.0% / 2048 MiB' : '2 pending',
+            'short_summary' => match ($name) {
+                'memory' => '64.0% / 2048 MiB',
+                'cpu' => '20.0% / 0.45 CPU / 0.0% wait',
+                default => '2 pending',
+            },
             'meta' => json_encode(['password' => 'hidden-secret-token'], JSON_THROW_ON_ERROR),
             'ended_at' => now()->toDateTimeString(),
             'created_at' => now(),
@@ -227,7 +231,8 @@ it('renders resource and operational checks instead of the old about section and
             $html = (string) ($rich['html'] ?? '');
 
             return str_contains($html, '📊 منابع و عملیات')
-                && str_contains($html, 'CPU Load')
+                && str_contains($html, 'مصرف CPU')
+                && str_contains($html, '20.0% / 0.45 CPU / 0.0% wait')
                 && str_contains($html, 'RAM')
                 && str_contains($html, 'API شبکه')
                 && str_contains($html, '64.0% / 2048 MiB')
@@ -243,6 +248,8 @@ it('renders resource and operational checks instead of the old about section and
             $payload = denabanHealthPayload($request);
 
             return str_contains($payload['text'], '📊 منابع و عملیات')
+                && str_contains($payload['text'], 'مصرف CPU')
+                && str_contains($payload['text'], '20.0% / 0.45 CPU / 0.0% wait')
                 && str_contains($payload['text'], 'API شبکه')
                 && ! str_contains($payload['text'], 'Remnawave');
         }, index: 1);
