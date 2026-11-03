@@ -83,18 +83,79 @@ it('measures queue backlog and recent failed jobs without modifying jobs', funct
         ->and($failed['summary'])->toBe('1 / 24h');
 });
 
-it('distinguishes absent and recent subscription job heartbeats', function (): void {
+it('distinguishes missing, valid Redis string, stale and invalid subscription heartbeats', function (): void {
     config()->set('telegram.sales.enabled', true);
     config()->set('telegram_notifications.enabled', true);
 
     $probe = app(OperationalProbe::class);
+    $key = OperationalProbe::SUBSCRIPTION_HEARTBEAT;
     expect($probe->inspect('subscription_jobs')['status'])->toBe('warning');
 
-    Cache::put(OperationalProbe::SUBSCRIPTION_HEARTBEAT, now()->timestamp, now()->addHour());
+    Cache::put($key, now()->timestamp, now()->addHour());
     expect($probe->inspect('subscription_jobs')['status'])->toBe('ok');
 
-    Cache::put(OperationalProbe::SUBSCRIPTION_HEARTBEAT, now()->subMinutes(20)->timestamp, now()->addHour());
+    // Production Redis may return a numeric string rather than a PHP integer.
+    Cache::put($key, (string) now()->subMinutes(3)->timestamp, now()->addHour());
+    expect($probe->inspect('subscription_jobs'))
+        ->toBe(['status' => 'ok', 'summary' => '3 min ago']);
+
+    Cache::put($key, (string) now()->subMinutes(12)->timestamp, now()->addHour());
+    expect($probe->inspect('subscription_jobs')['status'])->toBe('warning');
+
+    Cache::put($key, (string) now()->subMinutes(20)->timestamp, now()->addHour());
     expect($probe->inspect('subscription_jobs')['status'])->toBe('failed');
+
+    foreach (['', '-1', 'not-a-time', '1793694914x', str_repeat('9', 30)] as $invalid) {
+        Cache::put($key, $invalid, now()->addHour());
+        expect($probe->inspect('subscription_jobs'))
+            ->toBe(['status' => 'warning', 'summary' => 'no heartbeat']);
+    }
+
+    Cache::put($key, (string) now()->addMinutes(2)->timestamp, now()->addHour());
+    expect($probe->inspect('subscription_jobs')['status'])->toBe('warning');
+});
+
+it('calculates container CPU share from fractional cgroup quotas and CPU time', function (): void {
+    $quota = "45000 100000\n";
+    $before = "usage_usec 1000000\nuser_usec 600000\n";
+    $elapsedNs = 1_000_000_000;
+    $pressure = "some avg10=6.90 avg60=5.00 avg300=4.00 total=200\n";
+
+    $ok = OperationalProbe::cpuFromSamples(
+        $quota, $before, "usage_usec 1090000\n", $elapsedNs, $pressure,
+    );
+    $warning = OperationalProbe::cpuFromSamples(
+        $quota, $before, "usage_usec 1382500\n", $elapsedNs,
+    );
+    $failed = OperationalProbe::cpuFromSamples(
+        $quota, $before, "usage_usec 1441000\n", $elapsedNs,
+    );
+    $fractional = OperationalProbe::cpuFromSamples(
+        "43000 100000\n", $before, "usage_usec 1086000\n", $elapsedNs,
+    );
+
+    expect($ok)->toBe(['status' => 'ok', 'summary' => '20.0% / 0.45 CPU / 6.9% wait'])
+        ->and($warning)->toBe(['status' => 'warning', 'summary' => '85.0% / 0.45 CPU'])
+        ->and($failed)->toBe(['status' => 'failed', 'summary' => '98.0% / 0.45 CPU'])
+        ->and($fractional)->toBe(['status' => 'ok', 'summary' => '20.0% / 0.43 CPU']);
+});
+
+it('reports unknown rather than host load when cgroup CPU samples are invalid', function (): void {
+    $valid = "usage_usec 1000000\n";
+    $later = "usage_usec 1100000\n";
+    $invalid = [
+        ['max 100000', $valid, $later, 1_000_000_000],
+        ['45000 0', $valid, $later, 1_000_000_000],
+        [str_repeat('9', 25).' 100000', $valid, $later, 1_000_000_000],
+        ['45000 100000', 'missing usage', $later, 1_000_000_000],
+        ['45000 100000', $later, $valid, 1_000_000_000],
+        ['45000 100000', $valid, $later, 0],
+    ];
+
+    foreach ($invalid as [$quota, $before, $after, $elapsedNs]) {
+        expect(OperationalProbe::cpuFromSamples($quota, $before, $after, $elapsedNs))
+            ->toBe(['status' => 'warning', 'summary' => 'unavailable']);
+    }
 });
 
 it('does not fabricate numeric resource percentages when metrics are unavailable', function (): void {
