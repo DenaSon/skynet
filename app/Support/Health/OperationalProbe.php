@@ -46,41 +46,87 @@ final class OperationalProbe
     /** @return array{status:string,summary:string} */
     private function cpu(): array
     {
-        $load = sys_getloadavg();
-        if (! is_array($load) || ! is_finite($load[0])) {
+        // Sample actual cgroup v2 CPU time; host loadavg belongs to another scope.
+        $quota = @file_get_contents('/sys/fs/cgroup/cpu.max');
+        $before = @file_get_contents('/sys/fs/cgroup/cpu.stat');
+        if (! is_string($quota) || ! is_string($before)) {
             return $this->unknown();
         }
 
-        // Linux load average measures runnable tasks, NOT instantaneous CPU%.
-        $cores = $this->cpuCapacity();
-        if ($cores <= 0) {
+        $startedAt = hrtime(true);
+        usleep(1_000_000);
+        $after = @file_get_contents('/sys/fs/cgroup/cpu.stat');
+        $elapsedNs = hrtime(true) - $startedAt;
+        if (! is_string($after)) {
             return $this->unknown();
         }
-        $oneMinute = max(0.0, (float) $load[0]);
-        $ratio = $oneMinute / $cores;
+
+        $pressure = @file_get_contents('/sys/fs/cgroup/cpu.pressure');
+
+        return self::cpuFromSamples(
+            $quota, $before, $after, $elapsedNs,
+            is_string($pressure) ? $pressure : null,
+        );
+    }
+
+    /**
+     * Evaluate container CPU utilization against its fractional quota.
+     * Pure sample calculation also allows deterministic regression tests.
+     *
+     * @return array{status:string,summary:string}
+     */
+    public static function cpuFromSamples(
+        string $quota,
+        string $before,
+        string $after,
+        int $elapsedNs,
+        ?string $pressure = null,
+    ): array {
+        if (preg_match('/\A([0-9]+) ([0-9]+)\z/D', trim($quota), $limits) !== 1
+            || strlen($limits[1]) > 17 || strlen($limits[2]) > 17
+            || (int) $limits[1] <= 0 || (int) $limits[2] <= 0 || $elapsedNs <= 0) {
+            return ['status' => 'warning', 'summary' => 'unavailable'];
+        }
+
+        $startUsage = self::cgroupCpuUsage($before);
+        $endUsage = self::cgroupCpuUsage($after);
+        if ($startUsage === null || $endUsage === null || $endUsage < $startUsage) {
+            return ['status' => 'warning', 'summary' => 'unavailable'];
+        }
+
+        $cores = (int) $limits[1] / (int) $limits[2];
+        $percent = 100 * ($endUsage - $startUsage) / ($elapsedNs / 1000) / $cores;
+        if (! is_finite($percent)) {
+            return ['status' => 'warning', 'summary' => 'unavailable'];
+        }
+
+        $summary = number_format($percent, 1, '.', '').'% / '
+            .number_format($cores, 2, '.', '').' CPU';
+
+        // CPU PSI is diagnostic context only; it cannot turn host load into a
+        // container failure or substitute for measured utilization.
+        if ($pressure !== null
+            && preg_match('/^some avg10=([0-9]+(?:\.[0-9]+)?)/m', $pressure, $matches) === 1) {
+            $wait = (float) $matches[1];
+            if (is_finite($wait) && $wait <= 100) {
+                $summary .= ' / '.number_format($wait, 1, '.', '').'% wait';
+            }
+        }
 
         return [
-            'status' => $ratio >= 2 ? 'failed' : ($ratio >= 1 ? 'warning' : 'ok'),
-            'summary' => number_format($oneMinute, 2, '.', '').' load / '
-                .number_format($cores, 1, '.', '').' CPU',
+            'status' => $percent >= 95 ? 'failed' : ($percent >= 80 ? 'warning' : 'ok'),
+            'summary' => $summary,
         ];
     }
 
-    private function cpuCapacity(): float
+    private static function cgroupCpuUsage(string $stat): ?int
     {
-        // Prefer container quota over host CPU count (Docker/Kubernetes).
-        $quota = @file_get_contents('/sys/fs/cgroup/cpu.max');
-        if (is_string($quota) && preg_match('/\A([0-9]+) ([0-9]+)\s*\z/', $quota, $m) === 1
-            && (int) $m[2] > 0) {
-            return max(0.1, (int) $m[1] / (int) $m[2]);
+        if (preg_match('/^usage_usec[ \t]+([0-9]+)\r?$/m', $stat, $matches) !== 1
+            || strlen($matches[1]) > 17) {
+            return null;
         }
 
-        $cpuinfo = @file_get_contents('/proc/cpuinfo');
-        if (! is_string($cpuinfo)) {
-            return 0;
-        }
-
-        return (float) preg_match_all('/^processor\s*:/m', $cpuinfo);
+        return (int) $matches[1];
     }
 
     /** @return array{status:string,summary:string} */
@@ -268,6 +314,10 @@ final class OperationalProbe
         }
 
         $last = Cache::get(self::SUBSCRIPTION_HEARTBEAT);
+        // Redis may deserialize the same valid timestamp as a numeric string.
+        if (is_string($last) && ctype_digit($last) && strlen($last) <= 17) {
+            $last = (int) $last;
+        }
         if (! is_int($last) || $last <= 0 || $last > now()->timestamp + 60) {
             return ['status' => 'warning', 'summary' => 'no heartbeat'];
         }
