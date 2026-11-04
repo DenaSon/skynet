@@ -16,8 +16,6 @@ use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
-use SergiX44\Nutgram\Telegram\Types\Keyboard\KeyboardButton;
-use SergiX44\Nutgram\Telegram\Types\Keyboard\ReplyKeyboardMarkup;
 use Throwable;
 
 final readonly class SalesPanelRequestUi
@@ -145,20 +143,60 @@ final readonly class SalesPanelRequestUi
             $draft['last'] = $value;
             $draft['step'] = 'mobile';
             Cache::put($this->key($userId), $draft, now()->addMinutes(10));
-            $bot->sendMessage(
-                text: '<b>🧩 درخواست پنل فروش</b>'."\n\n<b>مرحله ۳ از ۳</b> · شماره حساب تلگرام خود را با دکمه زیر ارسال کنید.",
-                parse_mode: 'HTML',
-                reply_markup: ReplyKeyboardMarkup::make(resize_keyboard: true, one_time_keyboard: true)
-                    ->addRow(KeyboardButton::make('📱 اشتراک‌گذاری شماره من', request_contact: true))
-                    ->addRow(KeyboardButton::make('❌ انصراف')),
-            );
+            $this->sendContactPrompt($bot,
+                '<b>🧩 درخواست پنل فروش</b>'."\n\n<b>مرحله ۳ از ۳</b> · شماره همین حساب تلگرام را با دکمه زیر ارسال کنید.",
+                true);
 
             return true;
         }
 
-        $this->notice($bot, 'برای ارسال شماره، از دکمه «📱 اشتراک‌گذاری شماره من» در کیبورد تلگرام استفاده کنید.');
+        $this->sendContactPrompt($bot, 'شماره متنی پذیرفته نمی‌شود. از دکمه «📱 اشتراک‌گذاری شماره من» استفاده کنید.');
 
         return true;
+    }
+
+    /** Reopen only an existing, owner-bound phone step; never bypass the form gates. */
+    public function showContactKeyboard(Nutgram $bot): void
+    {
+        $userId = $this->buyer($bot);
+        if ($userId === null) {
+            return;
+        }
+        $draft = Cache::get($this->key($userId));
+        $actor = $this->actors->handle((int) $this->private->id($bot));
+        if (! is_array($draft) || ($draft['step'] ?? null) !== 'mobile'
+            || $actor === null || ! in_array('member', $actor->roles, true)
+            || in_array('reseller', $actor->roles, true)
+            || $this->requests->find($userId) !== null) {
+            $this->clear($userId);
+            TelegramUi::answerCallback($bot);
+            $bot->sendMessage(text: 'مرحله ارسال شماره منقضی شده یا دیگر در دسترس نیست.',
+                reply_markup: app(ReplyMenuRenderer::class)->salesKeyboard($actor));
+            $this->notice($bot, 'برای ادامه، درخواست نمایندگی را دوباره شروع کنید.');
+
+            return;
+        }
+
+        TelegramUi::answerCallback($bot);
+        $this->sendContactPrompt($bot, '📱 برای ارسال شماره، دکمه «اشتراک‌گذاری شماره من» را انتخاب کنید.');
+    }
+
+    private function sendContactPrompt(Nutgram $bot, string $message, bool $withRecovery = false): void
+    {
+        $bot->sendMessage(
+            text: $message."\n\nاگر دکمه را نمی‌بینید، آیکون کیبورد کنار کادر پیام را بزنید.",
+            parse_mode: 'HTML',
+            reply_markup: app(ReplyMenuRenderer::class)->salesSelfContactKeyboard(),
+        );
+
+        if ($withRecovery) {
+            $bot->sendMessage(text: 'دکمه اشتراک‌گذاری نمایش داده نمی‌شود؟',
+                reply_markup: InlineKeyboardMarkup::make()
+                    ->addRow(InlineKeyboardButton::make('🔄 نمایش دوباره دکمه',
+                        callback_data: 'sales:panel:phone:show'))
+                    ->addRow(InlineKeyboardButton::make('❌ انصراف',
+                        callback_data: 'sales:panel:cancel')));
+        }
     }
 
     /** Handle only the active panel phone step; other Contacts belong to the trial flow. */
@@ -192,7 +230,10 @@ final readonly class SalesPanelRequestUi
         if ($contact === null || $contact->user_id !== $telegramId
             || $message->forward_origin !== null || $message->via_bot !== null
             || $mobile === null) {
-            $bot->sendMessage(text: 'شماره تأیید نشد. فقط شماره متصل به همین حساب تلگرام را با دکمه اشتراک‌گذاری ارسال کنید.');
+            $error = $contact !== null && $contact->user_id === $telegramId && $mobile === null
+                ? 'شماره تأیید نشد؛ برای درخواست نمایندگی فقط موبایل ایران پذیرفته می‌شود.'
+                : 'شماره تأیید نشد؛ فقط شماره متعلق به همین حساب تلگرام را با دکمه زیر ارسال کنید.';
+            $this->sendContactPrompt($bot, $error);
 
             return true;
         }
@@ -286,6 +327,12 @@ final readonly class SalesPanelRequestUi
         $draft = Cache::get($this->key($userId));
         if (! is_array($draft)) {
             return false;
+        }
+
+        if (($draft['step'] ?? null) === 'mobile') {
+            $this->sendContactPrompt($bot, 'برای ادامه، شماره خود را با دکمه اشتراک‌گذاری ارسال کنید.');
+
+            return true;
         }
 
         $this->notice($bot, match ($draft['step'] ?? null) {
