@@ -4,8 +4,8 @@ namespace App\Modules\Identity\Application;
 
 use App\Modules\Billing\Application\ReadAdminWalletSummary;
 use App\Modules\Identity\Infrastructure\Models\User;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 final class BrowseUsers
