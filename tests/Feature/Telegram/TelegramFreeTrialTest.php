@@ -100,6 +100,85 @@ it('requires a private native self-contact and explicit masked one-time confirma
     Http::assertNothingSent();
 });
 
+it('keeps the Trial self-contact keyboard visible and supports a safe repeated show request', function (): void {
+    $member = $this->trialMember();
+    $bot = trialUiBot();
+
+    $bot->hearCallbackQueryData('sales:trial:contact')->reply()->assertRaw(
+        static function (Request $req): bool {
+            $keyboard = trialUiPayload($req)['reply_markup'];
+
+            return ($keyboard['keyboard'][0][0]['request_contact'] ?? false) === true
+                && ($keyboard['one_time_keyboard'] ?? true) === false
+                && ($keyboard['is_persistent'] ?? false) === true
+                && str_contains($keyboard['input_field_placeholder'] ?? '', 'شماره');
+        }, index: 1,
+    )->assertRaw(
+        static fn (Request $req): bool => str_contains(
+            json_encode(trialUiPayload($req)['reply_markup'], JSON_THROW_ON_ERROR),
+            'sales:trial:phone:show',
+        ), index: 2,
+    );
+    $before = Cache::get('telegram:sales:trial:'.$member->id);
+
+    $bot->hearCallbackQueryData('sales:trial:phone:show')->reply()->assertRaw(
+        static fn (Request $req): bool =>
+            (trialUiPayload($req)['reply_markup']['keyboard'][0][0]['request_contact'] ?? false) === true,
+        index: 1,
+    );
+    expect(Cache::get('telegram:sales:trial:'.$member->id))->toBe($before);
+
+    $bot->hearText('09123456789')->reply()->assertRaw(
+        static fn (Request $req): bool =>
+            (trialUiPayload($req)['reply_markup']['keyboard'][0][0]['request_contact'] ?? false) === true,
+    );
+    $bot->hearMessage(['contact' => [
+        'phone_number' => '+989123456789', 'first_name' => 'Other', 'user_id' => 9210099,
+    ]])->reply()->assertRaw(
+        static fn (Request $req): bool => str_contains(trialUiPayload($req)['text'] ?? '', 'شماره تأیید نشد')
+            && (trialUiPayload($req)['reply_markup']['keyboard'][0][0]['request_contact'] ?? false) === true,
+    );
+    expect(Cache::get('telegram:sales:trial:'.$member->id)['stage'])->toBe('contact');
+
+    $bot->hearMessage(['contact' => [
+        'phone_number' => '+989123456789', 'first_name' => 'Buyer', 'user_id' => 9210001,
+    ]])->reply()->assertCalled('sendMessage', 2);
+    expect(Cache::get('telegram:sales:trial:'.$member->id)['stage'])->toBe('confirm')
+        ->and(DB::table('trial_claims')->count())->toBe(0);
+});
+
+it('restores the standard Sales keyboard and offers restart after an expired Trial Contact', function (): void {
+    $member = $this->trialMember();
+    $bot = trialUiBot();
+    $bot->hearCallbackQueryData('sales:trial:contact')->reply();
+    $this->travel(6)->minutes();
+
+    $bot->hearCallbackQueryData('sales:trial:phone:show')->reply()->assertRaw(
+        static fn (Request $req): bool =>
+            isset(trialUiPayload($req)['reply_markup']['keyboard'])
+            && ! str_contains(json_encode(trialUiPayload($req)['reply_markup'], JSON_THROW_ON_ERROR),
+                'request_contact'), index: 1,
+    );
+    expect(Cache::get('telegram:sales:trial:'.$member->id))->toBeNull();
+
+    $bot->hearMessage(['contact' => [
+        'phone_number' => '+989123456789', 'first_name' => 'Buyer', 'user_id' => 9210001,
+    ]])->reply()->assertRaw(
+        static fn (Request $req): bool => str_contains(trialUiPayload($req)['text'] ?? '', 'مرحله ارسال شماره')
+            && ! str_contains(json_encode(trialUiPayload($req)['reply_markup'], JSON_THROW_ON_ERROR),
+                'request_contact'),
+    );
+    expect(DB::table('trial_claims')->count())->toBe(0);
+    Queue::assertNotPushed(ProvisionFreeTrialJob::class);
+
+    $bot->hearCallbackQueryData('sales:trial')->reply()->assertRaw(
+        static fn (Request $req): bool => str_contains(
+            json_encode(trialUiPayload($req)['reply_markup'], JSON_THROW_ON_ERROR),
+            'sales:trial:contact',
+        ), index: 1,
+    );
+});
+
 it('rejects unsolicited foreign and missing contact ownership', function (?int $contactId): void {
     $member = $this->trialMember();
     $bot = trialUiBot();
