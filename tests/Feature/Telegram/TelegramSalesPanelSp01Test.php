@@ -166,7 +166,7 @@ it('rechecks wallet credit at final confirmation after it has been spent', funct
     $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('sales:panel:accept')->reply()->assertCalled('editMessageText');
     $bot->hearText('علی')->reply()->assertCalled('sendMessage');
-    $bot->hearText('محمدی')->reply()->assertCalled('sendMessage');
+    $bot->hearText('محمدی')->reply()->assertCalled('sendMessage', 2);
     $bot->hearMessage(['contact' => ['phone_number' => '09123456789', 'first_name' => 'Buyer', 'user_id' => 986107]])
         ->reply()->assertCalled('sendMessage', 2);
 
