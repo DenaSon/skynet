@@ -518,6 +518,31 @@ it('keeps the self-contact keyboard persistent and resends it for a still-owned 
     expect(DB::table('sales_panel_requests')->count())->toBe(1);
 });
 
+it('keeps the panel confirmation intact when an old phone-keyboard recovery button is tapped', function (): void {
+    $member = User::factory()->create();
+    PanelWalletFunding::credit($member->id, 3_500_000);
+    $bot = panel01Bot(986204, $member);
+    $key = TelegramBotContext::current()->cacheKey('telegram:panel:request:'.$member->id);
+
+    $bot->hearCallbackQueryData('sales:panel:request')->reply();
+    $bot->hearCallbackQueryData('sales:panel:accept')->reply();
+    $bot->hearText('مریم')->reply();
+    $bot->hearText('محمدی')->reply();
+    $bot->hearMessage(['contact' => [
+        'phone_number' => '+989123456789', 'first_name' => 'Buyer', 'user_id' => 986204,
+    ]])->reply();
+
+    $confirmed = Cache::get($key);
+    expect($confirmed['step'])->toBe('confirm');
+    $bot->hearCallbackQueryData('sales:panel:phone:show')->reply()->assertCalled('editMessageText');
+    expect(Cache::get($key))->toBe($confirmed)
+        ->and(DB::table('sales_panel_requests')->count())->toBe(0);
+
+    $bot->hearCallbackQueryData('sales:panel:confirm')->reply();
+    expect(DB::table('sales_panel_requests')->count())->toBe(1)
+        ->and(Cache::has($key))->toBeFalse();
+});
+
 it('restores the regular menu for expired contact or stale panel keyboard recovery without accepting an unsolicited phone', function (): void {
     $member = User::factory()->create();
     PanelWalletFunding::credit($member->id, 3_500_000);
