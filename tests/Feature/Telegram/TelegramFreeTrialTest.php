@@ -122,15 +122,13 @@ it('keeps the Trial self-contact keyboard visible and supports a safe repeated s
     $before = Cache::get('telegram:sales:trial:'.$member->id);
 
     $bot->hearCallbackQueryData('sales:trial:phone:show')->reply()->assertRaw(
-        static fn (Request $req): bool =>
-            (trialUiPayload($req)['reply_markup']['keyboard'][0][0]['request_contact'] ?? false) === true,
+        static fn (Request $req): bool => (trialUiPayload($req)['reply_markup']['keyboard'][0][0]['request_contact'] ?? false) === true,
         index: 1,
     );
     expect(Cache::get('telegram:sales:trial:'.$member->id))->toBe($before);
 
     $bot->hearText('09123456789')->reply()->assertRaw(
-        static fn (Request $req): bool =>
-            (trialUiPayload($req)['reply_markup']['keyboard'][0][0]['request_contact'] ?? false) === true,
+        static fn (Request $req): bool => (trialUiPayload($req)['reply_markup']['keyboard'][0][0]['request_contact'] ?? false) === true,
     );
     $bot->hearMessage(['contact' => [
         'phone_number' => '+989123456789', 'first_name' => 'Other', 'user_id' => 9210099,
@@ -154,8 +152,7 @@ it('restores the standard Sales keyboard and offers restart after an expired Tri
     $this->travel(6)->minutes();
 
     $bot->hearCallbackQueryData('sales:trial:phone:show')->reply()->assertRaw(
-        static fn (Request $req): bool =>
-            isset(trialUiPayload($req)['reply_markup']['keyboard'])
+        static fn (Request $req): bool => isset(trialUiPayload($req)['reply_markup']['keyboard'])
             && ! str_contains(json_encode(trialUiPayload($req)['reply_markup'], JSON_THROW_ON_ERROR),
                 'request_contact'), index: 1,
     );
