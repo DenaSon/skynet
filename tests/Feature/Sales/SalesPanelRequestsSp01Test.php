@@ -6,6 +6,7 @@ use App\Modules\Billing\Application\RequestTopup;
 use App\Modules\Billing\Application\ViewWallet;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Sales\Application\SalesPanelRequests;
+use App\Settings\OperationalSettings;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -113,7 +114,9 @@ it('preserves future review evidence instead of dropping application data on rol
 });
 
 it('uses the configured toman threshold at the exact confirmed-credit boundary and at final submission', function (): void {
-    config()->set('sales.panel_minimum_wallet_toman', '550000');
+    $settings = app(OperationalSettings::class);
+    $settings->panel_minimum_wallet_toman = 550_000;
+    $settings->save();
     $buyer = User::factory()->create();
     $requests = app(SalesPanelRequests::class);
     $submit = fn () => $requests->submit($buyer->id, 'علی', 'محمدی', '09123456789');
@@ -134,18 +137,21 @@ it('uses the configured toman threshold at the exact confirmed-credit boundary a
     expect($first['status'])->toBe('pending')
         ->and(DB::table('sales_panel_requests')->count())->toBe(1);
 
-    config()->set('sales.panel_minimum_wallet_toman', 650_000);
+    $settings->panel_minimum_wallet_toman = 650_000;
+    $settings->save();
     expect(SalesPanelRequests::minimumWalletBalanceRials())->toBe(6_500_000)
         ->and($submit())->toBe($first)
         ->and(DB::table('sales_panel_requests')->count())->toBe(1);
 });
 
-it('fails closed for an invalid environment-derived panel minimum instead of accepting zero credit', function (): void {
+it('fails closed for an invalid stored panel minimum instead of accepting zero credit', function (): void {
     $buyer = User::factory()->create();
     $requests = app(SalesPanelRequests::class);
 
-    foreach ([0, true, '-1', 'abc', '350.5', ''] as $invalid) {
-        config()->set('sales.panel_minimum_wallet_toman', $invalid);
+    foreach ([0, -1] as $invalid) {
+        $settings = app(OperationalSettings::class);
+        $settings->panel_minimum_wallet_toman = $invalid;
+        $settings->save();
         expect(fn () => SalesPanelRequests::minimumWalletBalanceRials())
             ->toThrow(InvalidArgumentException::class);
         expect(fn () => $requests->hasMinimumWalletBalance($buyer->id))

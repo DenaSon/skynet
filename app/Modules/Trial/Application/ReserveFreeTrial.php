@@ -6,6 +6,7 @@ namespace App\Modules\Trial\Application;
 
 use App\Modules\Identity\Application\AssertTrialMember;
 use App\Modules\Sales\Application\HasPaidPurchaseHistory;
+use App\Settings\OperationalSettings;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -72,7 +73,7 @@ final readonly class ReserveFreeTrial
                     ->orWhere('telegram_user_id', $telegramId)->orWhere('phone_fingerprint', $fingerprint)->exists()) {
                     throw ValidationException::withMessages(['trial' => 'برای این حساب یا شماره قبلاً تست ثبت شده است.']);
                 }
-                if ($quota === null || (int) $quota->reserved_count >= (int) config('trial.daily_limit')) {
+                if ($quota === null || (int) $quota->reserved_count >= OperationalSettings::trialDailyLimit()) {
                     throw ValidationException::withMessages(['trial' => 'ظرفیت تست رایگان امروز تکمیل شده است.']);
                 }
                 $id = (int) DB::table('trial_claims')->insertGetId([
@@ -94,13 +95,13 @@ final readonly class ReserveFreeTrial
 
     private function assertConfigured(): void
     {
-        if (config('trial.enabled', false) !== true) {
+        if (! OperationalSettings::trialIsEnabled()) {
             throw ValidationException::withMessages(['trial' => 'دریافت تست رایگان فعلاً فعال نیست.']);
         }
         $key = config('trial.phone_hmac_key');
-        $limit = config('trial.daily_limit');
+        $limit = OperationalSettings::trialDailyLimit();
         if (! is_string($key) || strlen($key) < 32 || trim($key) === ''
-            || $key === config('app.key') || ! is_int($limit) || $limit < 1 || $limit > 1000) {
+            || $key === config('app.key') || $limit < 1 || $limit > 1000) {
             throw ValidationException::withMessages(['trial' => 'تست رایگان فعلاً در دسترس نیست.']);
         }
     }

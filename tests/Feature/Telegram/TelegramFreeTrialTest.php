@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Interfaces\Telegram\Support\SalesTrialUi;
+use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Trial\Application\ProvisionFreeTrial;
 use App\Modules\Trial\Jobs\ProvisionFreeTrialJob;
+use App\Settings\OperationalSettings;
 use GuzzleHttp\Psr7\Request;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Route;
@@ -123,10 +125,13 @@ it('cancels native contact intake and restores the native menu without accepting
 it('hides trial for disabled flag reseller elevated and paid identities and rejects forged entry', function (): void {
     $member = $this->trialMember();
     $bot = trialUiBot();
-    config()->set('trial.enabled', false);
+    $settings = app(OperationalSettings::class);
+    $settings->trial_enabled = false;
+    $settings->save();
     $bot->hearCallbackQueryData('sales:trial:contact')->reply();
     expect(Cache::has('telegram:sales:trial:'.$member->id))->toBeFalse();
-    config()->set('trial.enabled', true);
+    $settings->trial_enabled = true;
+    $settings->save();
     Role::findOrCreate('reseller', 'web');
     $member->syncRoles(['reseller']);
     $bot->hearCallbackQueryData('sales:trial:contact')->reply();
@@ -178,6 +183,27 @@ it('shows live minutes and MiB and uses the existing QR renderer after activatio
     $bot->hearCallbackQueryData('sales:trial:link')->reply()->assertCalled('sendPhoto', 1)->assertCalled('sendMessage', 0);
     $this->trialRemote['userTraffic']['usedTrafficBytes'] = ProvisionFreeTrial::BYTES;
     $bot->hearCallbackQueryData('sales:trial:link')->reply()->assertCalled('sendMessage')->assertCalled('sendPhoto', 0);
+});
+
+it('keeps active trial status, link and keyboard visible after disabling new trial admissions', function (): void {
+    $member = $this->trialMember();
+    $this->activateFreeTrial($member);
+    $settings = app(OperationalSettings::class);
+    $settings->trial_enabled = false;
+    $settings->save();
+
+    $actor = app(ResolveTelegramActor::class)->handle(9210001);
+    expect($actor)->not->toBeNull()
+        ->and(app(SalesTrialUi::class)->visible($actor, 9210001))->toBeTrue()
+        ->and(DB::table('trial_claims')->where('user_id', $member->id)->value('state'))->toBe('active');
+
+    $bot = trialUiBot();
+    $bot->hearCallbackQueryData('sales:trial')->reply()->assertRaw(
+        static fn (Request $request): bool => str_contains(trialUiRichHtml($request), 'حجم باقی‌مانده:')
+            && str_contains(json_encode(FakeNutgram::getActualData($request)['reply_markup'], JSON_THROW_ON_ERROR),
+                'sales:trial:link'), index: 1,
+    );
+    $bot->hearCallbackQueryData('sales:trial:link')->reply()->assertCalled('sendPhoto', 1);
 });
 
 it('renders pending trial processing without exposing a second Contact confirmation', function (): void {

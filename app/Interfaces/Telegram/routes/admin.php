@@ -3,6 +3,7 @@
 use App\Interfaces\Telegram\Handlers\AdminHandler;
 use App\Interfaces\Telegram\Handlers\AdminRolesHandler;
 use App\Interfaces\Telegram\Handlers\AdminUsersHandler;
+use App\Interfaces\Telegram\Handlers\OperationalSettingsHandler;
 use App\Interfaces\Telegram\Handlers\SettingsHandler;
 use App\Interfaces\Telegram\Support\AdminAccountingUi;
 use App\Interfaces\Telegram\Support\AdminBusinessReportUi;
@@ -56,6 +57,20 @@ $bot->onCallbackQueryData('admin:welcome:edit:{kind}', function (Nutgram $bot, s
 });
 $bot->onCallbackQueryData('admin:welcome:cancel', function (Nutgram $bot): void {
     app(SettingsHandler::class)->cancel($bot);
+});
+
+// Root-only runtime management of three operational settings. Independent from Topics.
+$bot->onCallbackQueryData('admin:ops:show', function (Nutgram $bot): void {
+    app(OperationalSettingsHandler::class)->show($bot);
+});
+$bot->onCallbackQueryData('admin:ops:edit:{kind}', function (Nutgram $bot, string $kind): void {
+    app(OperationalSettingsHandler::class)->edit($bot, $kind);
+});
+$bot->onCallbackQueryData('admin:ops:trial:{state}', function (Nutgram $bot, string $state): void {
+    app(OperationalSettingsHandler::class)->prepareTrial($bot, $state);
+});
+$bot->onCallbackQueryData('admin:ops:apply:{token}', function (Nutgram $bot, string $token): void {
+    app(OperationalSettingsHandler::class)->apply($bot, $token);
 });
 
 // Root-only runtime switch for reseller service pause/resume. No Provider write in these callbacks.

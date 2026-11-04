@@ -9,6 +9,7 @@ use App\Interfaces\Telegram\Notifications\TrialEndMonitor;
 use App\Modules\Trial\Application\EndFreeTrial;
 use App\Modules\Trial\Application\ProvisionFreeTrial;
 use App\Modules\Trial\Application\ReadFreeTrial;
+use App\Settings\OperationalSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -81,17 +82,20 @@ it('keeps an unavailable or identity-mismatched provider unknown and later recov
     expect(app(TrialEndMonitor::class)->scan())->toBe(1);
 });
 
-it('does not mistake disabled status for early expiration or read when the trial switch is off', function (): void {
+it('monitors already active trials after new admission is disabled, without premature expiration', function (): void {
     $member = $this->trialMember();
     $id = $this->activateFreeTrial($member);
     $this->recordTrialSalesContact($member);
     $this->trialRemote['status'] = 'DISABLED';
     expect(app(TrialEndMonitor::class)->scan())->toBe(0)
         ->and(DB::table('trial_claims')->find($id)->state)->toBe('active');
-    config()->set('trial.enabled', false);
+    $settings = app(OperationalSettings::class);
+    $settings->trial_enabled = false;
+    $settings->save();
     $this->travel(3)->hours();
-    expect(app(TrialEndMonitor::class)->scan())->toBe(0);
-    Http::assertSentCount(2); // CREATE plus the first GET only.
+    expect(app(TrialEndMonitor::class)->scan())->toBe(1)
+        ->and(DB::table('trial_claims')->find($id)->state)->toBe('ended');
+    Http::assertSentCount(4); // CREATE, monitoring GETs and the final provider read for expiry.
 });
 
 it('sends one final notice with existing buy and plan callbacks across repeated jobs', function (): void {

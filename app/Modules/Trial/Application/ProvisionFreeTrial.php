@@ -7,6 +7,7 @@ namespace App\Modules\Trial\Application;
 use App\Interfaces\Telegram\Notifications\TrialNotificationOutbox;
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
 use App\Modules\Provisioning\Application\RemnawaveSubscriptionLifecycle;
+use App\Settings\OperationalSettings;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -43,7 +44,7 @@ final readonly class ProvisionFreeTrial
 
                 return null;
             }
-            if ($quota === null || (int) $quota->activation_count >= (int) config('trial.daily_limit')) {
+            if ($quota === null || (int) $quota->activation_count >= OperationalSettings::trialDailyLimit()) {
                 return null;
             }
             // Claimed/uncertain attempts consume the activation slot conservatively.

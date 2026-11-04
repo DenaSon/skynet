@@ -7,6 +7,7 @@ namespace App\Modules\Sales\Application;
 use App\Modules\Billing\Application\ViewWallet;
 use App\Modules\Identity\Application\ResolveActiveUser;
 use App\Modules\Identity\Application\ResolveSalesBuyer;
+use App\Settings\OperationalSettings;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -17,8 +18,8 @@ final readonly class SalesPanelRequests
     /** Shared threshold for both initial entry and locked submission; invalid config fails closed. */
     public static function minimumWalletBalanceRials(): int
     {
-        $value = config('sales.panel_minimum_wallet_toman', 350_000);
-        if (! is_int($value) && (! is_string($value) || preg_match('/\A[1-9][0-9]*\z/D', $value) !== 1)) {
+        $value = OperationalSettings::panelMinimumWalletToman();
+        if (! is_int($value) && preg_match('/\A[1-9][0-9]*\z/D', $value) !== 1) {
             throw new \InvalidArgumentException('Invalid sales.panel_minimum_wallet_toman: expected positive whole tomans.');
         }
 
@@ -55,7 +56,7 @@ final readonly class SalesPanelRequests
 
     /**
      * Advisory CTA only. Submission still enforces the locked balance and role checks.
-     * Uses the same ENV-backed minimum and confirmed wallet ledger as the real gate.
+     * Uses the same operator-managed minimum and confirmed wallet ledger as the real gate.
      */
     public function canRequestWithCurrentBalance(int $userId): bool
     {
