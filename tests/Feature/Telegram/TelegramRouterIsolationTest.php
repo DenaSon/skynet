@@ -274,6 +274,11 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     // Super Admin-only financial user directory: legacy routes remain registered.
     $expected['ADMIN'][] = 'callback:users:filtered:{mode}:{page}';
     $expected['ADMIN'][] = 'callback:users:sort:{mode}';
+    // Three operator settings, deliberately isolated from existing callbacks.
+    $expected['ADMIN'][] = 'callback:admin:ops:show';
+    $expected['ADMIN'][] = 'callback:admin:ops:edit:{kind}';
+    $expected['ADMIN'][] = 'callback:admin:ops:trial:{state}';
+    $expected['ADMIN'][] = 'callback:admin:ops:apply:{token}';
     // Root-only database-backed reseller status management, Admin Bot only.
     $expected['ADMIN'][] = 'callback:admin:reseller-status:show';
     $expected['ADMIN'][] = 'callback:admin:reseller-status:prepare:{state}';
@@ -309,8 +314,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(274)
-        ->and(count(array_unique($legacy)))->toBe(274);
+        ->and(count($legacy))->toBe(278)
+        ->and(count(array_unique($legacy)))->toBe(278);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {
