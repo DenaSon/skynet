@@ -44,11 +44,10 @@ final class OperationalSettings extends Settings
     public static function trialDailyLimit(): int
     {
         $value = self::effective('trial_daily_limit', 'trial.daily_limit');
-        if (! is_int($value) || $value < 1 || $value > 1000) {
-            throw new RuntimeException('Invalid trial daily limit setting.');
-        }
-
-        return $value;
+        // A malformed value must deny new reservations/provider activations.
+        // Returning zero preserves the existing Trial ValidationException
+        // contract while both admission and worker quota checks fail closed.
+        return is_int($value) && $value >= 1 && $value <= 1000 ? $value : 0;
     }
 
     private static function effective(string $property, string $configKey): mixed
