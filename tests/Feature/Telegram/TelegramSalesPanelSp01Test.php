@@ -6,6 +6,7 @@ use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Sales\Application\SalesPanelRequests;
+use App\Settings\OperationalSettings;
 use GuzzleHttp\Psr7\Request;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Route;
@@ -339,7 +340,9 @@ it('keeps the member tutorial visible with a harmless extra role but hides it fr
 });
 
 it('shows the green panel request CTA on Wallet at the configured exact threshold, but not below or after application', function (): void {
-    config()->set('sales.panel_minimum_wallet_toman', '550000');
+    $settings = app(OperationalSettings::class);
+    $settings->panel_minimum_wallet_toman = 550_000;
+    $settings->save();
     $member = User::factory()->create();
     $bot = panel01Bot(986171, $member);
     PanelWalletFunding::credit($member->id, 5_499_999);
@@ -409,8 +412,10 @@ it('describes a previously approved panel request without a current reseller rol
     Http::assertNothingSent();
 });
 
-it('reads a changed panel credit minimum from config consistently across Telegram rules and tutorials', function (): void {
-    config()->set('sales.panel_minimum_wallet_toman', '420000');
+it('reads a changed panel credit minimum from Settings across Telegram rules and tutorials', function (): void {
+    $settings = app(OperationalSettings::class);
+    $settings->panel_minimum_wallet_toman = 420_000;
+    $settings->save();
     $member = User::factory()->create();
     $bot = panel01Bot(986151, $member);
     PanelWalletFunding::credit($member->id, 4_199_999);
