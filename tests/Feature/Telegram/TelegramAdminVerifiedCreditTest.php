@@ -20,7 +20,7 @@ use SergiX44\Nutgram\Testing\FakeNutgram;
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
-    config()->set('super_admin.telegram_ids', ['958801']);
+    config()->set('super_admin.telegram_ids', ['958801', '958802']);
     config()->set('billing.topups_enabled', true);
     $route = new Route('POST', 'api/telegram/admin/webhook', static fn (): null => null);
     $route->defaults('bot_key', TelegramBotContext::ADMIN);
