@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
 use App\Interfaces\Telegram\Notifications\TelegramNotificationSender;
 use App\Modules\Trial\Application\ProvisionFreeTrial;
+use App\Settings\OperationalSettings;
 use App\Modules\Trial\Application\ReadFreeTrial;
 use App\Modules\Trial\Application\ReserveFreeTrial;
 use App\Modules\Trial\Jobs\ProvisionFreeTrialJob;
@@ -48,7 +49,13 @@ it('creates exactly 250 MiB and two worker-time hours independently of commerce'
 it('does not write when disabled or the exact Squad verification is missing', function (string $key, mixed $value): void {
     $member = $this->trialMember();
     $id = app(ReserveFreeTrial::class)->handle($member->id, 9210001, 9210001, '+989123456789');
-    config()->set($key, $value);
+    if ($key === 'trial.enabled') {
+        $settings = app(OperationalSettings::class);
+        $settings->trial_enabled = $value;
+        $settings->save();
+    } else {
+        config()->set($key, $value);
+    }
     expect(fn () => app(ProvisionFreeTrial::class)->handle($id))->toThrow(ValidationException::class);
     expect(DB::table('trial_claims')->find($id)->state)->toBe('reserved');
     Http::assertNothingSent();
@@ -160,7 +167,9 @@ it('caps worker-day activations across a backlog admitted on earlier days', func
     $first = app(ReserveFreeTrial::class)->handle($one->id, 9210001, 9210001, '+989123456789');
     $second = app(ReserveFreeTrial::class)->handle($two->id, 9210002, 9210002, '+989125556677');
     $this->travel(1)->days();
-    config()->set('trial.daily_limit', 1);
+    $settings = app(OperationalSettings::class);
+    $settings->trial_daily_limit = 1;
+    $settings->save();
     app(ProvisionFreeTrial::class)->handle($first);
     app(ProvisionFreeTrial::class)->handle($second);
     expect(DB::table('trial_claims')->find($second)->state)->toBe('reserved')
