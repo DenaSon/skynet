@@ -26,11 +26,23 @@ final class UserManagementUi
         private readonly TelegramUserContactLink $contacts,
     ) {}
 
-    public function browse(Nutgram $bot, int $page = 1, bool $search = false, bool $resellersOnly = false): void
+    public function browse(Nutgram $bot, int $page = 1, bool $search = false, bool $resellersOnly = false, ?string $directoryMode = null): void
     {
         $actor = $this->actor($bot);
 
         if ($actor === null) {
+            return;
+        }
+
+        $mode = $search ? 's' : ($directoryMode ?? ($resellersOnly ? 'r' : 'a'));
+        if (! UserDirectoryMode::valid($mode)) {
+            $this->menus->showUserNotice($bot, 'فیلتر کاربران معتبر نیست.');
+
+            return;
+        }
+        if (UserDirectoryMode::rootOnly($mode) && ! $actor->canManageRoles()) {
+            $this->menus->denyAccess($bot);
+
             return;
         }
 
@@ -43,8 +55,39 @@ final class UserManagementUi
             return;
         }
 
-        $results = $this->directory->page($actor->userId, $query, $page, $resellersOnly);
-        $this->menus->showUserList($bot, $results, $search, $resellersOnly);
+        $results = $this->directory->page($actor->userId, $query, $page, $resellersOnly, $mode);
+        $this->menus->showUserList($bot, $results, $mode, $actor->canManageRoles());
+    }
+
+    public function filtered(Nutgram $bot, string $mode, string $page = '1'): void
+    {
+        if (! ctype_digit($page) || (int) $page < 1 || ! UserDirectoryMode::valid($mode) || $mode === 's') {
+            $this->menus->showUserNotice($bot, 'فیلتر یا صفحه معتبر نیست.');
+
+            return;
+        }
+
+        $this->browse($bot, (int) $page, directoryMode: $mode);
+    }
+
+    public function sortHelp(Nutgram $bot, string $mode): void
+    {
+        $actor = $this->actor($bot);
+        if ($actor === null) {
+            return;
+        }
+        if (! $actor->canManageRoles()) {
+            $this->menus->denyAccess($bot);
+
+            return;
+        }
+        if (! UserDirectoryMode::valid($mode) || $mode === 's') {
+            $this->menus->showUserNotice($bot, 'مرتب‌سازی معتبر نیست.');
+
+            return;
+        }
+
+        $this->menus->showUserSort($bot, $mode);
     }
 
     public function searchHelp(Nutgram $bot): void
@@ -129,6 +172,13 @@ final class UserManagementUi
             return;
         }
 
+        if (! UserDirectoryMode::valid($mode)
+            || (UserDirectoryMode::rootOnly($mode) && ! $actor->canManageRoles())) {
+            $this->menus->denyAccess($bot);
+
+            return;
+        }
+
         $userId = $this->positiveId($id);
 
         if ($userId === null) {
@@ -145,7 +195,7 @@ final class UserManagementUi
             return;
         }
 
-        $this->menus->showUserDetails($bot, $user, $this->pageNumber($page), $mode === 's', $actor->canManageRoles(), $actor->allows('support.view'), $mode === 'r', $this->contacts->for($user));
+        $this->menus->showUserDetails($bot, $user, $this->pageNumber($page), $mode === 's', $actor->canManageRoles(), $actor->allows('support.view'), $mode === 'r', $this->contacts->for($user), $mode);
     }
 
     public function confirm(Nutgram $bot, string $id, string $page = '1', string $mode = 'a'): void
@@ -153,6 +203,13 @@ final class UserManagementUi
         $actor = $this->actor($bot);
 
         if ($actor === null) {
+            return;
+        }
+
+        if (! UserDirectoryMode::valid($mode)
+            || (UserDirectoryMode::rootOnly($mode) && ! $actor->canManageRoles())) {
+            $this->menus->denyAccess($bot);
+
             return;
         }
 
@@ -165,8 +222,8 @@ final class UserManagementUi
             return;
         }
 
-        $token = $this->confirmations->issue($actor->userId, $user->id, $user->active, $this->pageNumber($page), $mode === 's', $mode === 'r');
-        $this->menus->showUserStatusConfirmation($bot, $user, $token, $this->pageNumber($page), $mode === 's', $mode === 'r');
+        $token = $this->confirmations->issue($actor->userId, $user->id, $user->active, $this->pageNumber($page), $mode === 's', $mode === 'r', $mode);
+        $this->menus->showUserStatusConfirmation($bot, $user, $token, $this->pageNumber($page), $mode === 's', $mode === 'r', $mode);
     }
 
     public function apply(Nutgram $bot, string $token): void
@@ -185,6 +242,14 @@ final class UserManagementUi
             return;
         }
 
+        $mode = (string) ($pending['mode'] ?? (($pending['search'] ?? false) ? 's' : (($pending['resellers'] ?? false) ? 'r' : 'a')));
+        if (! UserDirectoryMode::valid($mode)
+            || (UserDirectoryMode::rootOnly($mode) && ! $actor->canManageRoles())) {
+            $this->menus->denyAccess($bot);
+
+            return;
+        }
+
         try {
             $updated = $this->changeStatus->handle(
                 $actor->userId,
@@ -198,7 +263,7 @@ final class UserManagementUi
             return;
         }
 
-        $this->menus->showUserDetails($bot, $updated, $pending['page'], $pending['search'], $actor->canManageRoles(), $actor->allows('support.view'), $pending['resellers'] ?? false, $this->contacts->for($updated));
+        $this->menus->showUserDetails($bot, $updated, $pending['page'], $pending['search'], $actor->canManageRoles(), $actor->allows('support.view'), $pending['resellers'] ?? false, $this->contacts->for($updated), $mode);
     }
 
     private function actorForPendingText(Nutgram $bot): ?TelegramActor
