@@ -9,6 +9,7 @@ use App\Interfaces\Telegram\Notifications\WalletTopupNotificationOutbox;
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Billing\Application\BrowseCustomerWallets;
 use App\Modules\Billing\Application\BrowsePhotoTopups;
+use App\Modules\Billing\Application\CreditVerifiedAdminBankTopup;
 use App\Modules\Billing\Application\ReadAdminWalletSummary;
 use App\Modules\Billing\Application\ReviewTopup;
 use App\Modules\Identity\Application\AssertBillingAccess;
@@ -40,6 +41,7 @@ final readonly class AdminFinanceWalletUi
         private BrowsePhotoTopups $photos,
         private BillingReviewTokens $tokens,
         private ReviewTopup $review,
+        private CreditVerifiedAdminBankTopup $adminCredits,
         private WalletTopupNotificationOutbox $notifications,
         private TelegramNotificationSender $sender,
         private MenuRenderer $menus,
@@ -164,6 +166,7 @@ final readonly class AdminFinanceWalletUi
         foreach ($row['entries'] as $entry) {
             $kind = match ($entry['kind']) {
                 'topup' => 'شارژ',
+                'admin_verified_topup' => 'افزایش اعتبار توسط مدیر',
                 'topup_reversal' => 'اصلاح شارژ',
                 'purchase_reversal' => 'اصلاح خرید',
                 default => 'پرداخت',
@@ -182,15 +185,27 @@ final readonly class AdminFinanceWalletUi
             $lines[] = '';
             $lines[] = '<b>درخواست‌های شارژ</b>';
             foreach ($row['topups'] as $topup) {
-                $line = '#'.$topup['id'].' · '.TelegramUi::toman($topup['amount_rials']).' تومان · '
+                $manual = $topup['origin'] === 'admin_verified_bank';
+                $line = ($manual ? 'افزایش اعتبار مدیر · ' : 'شارژ · ').'#'.$topup['id'].' · '
+                    .TelegramUi::toman($topup['amount_rials']).' تومان · '
                     .TelegramUi::escape(TelegramUi::topupStatus($topup['status']));
                 if ($topup['reference'] !== null) {
                     $line .= ' · مرجع: '.TelegramUi::code($topup['reference']);
                 }
                 $lines[] = $line;
+                if ($manual) {
+                    $lines[] = 'دلیل: '.TelegramUi::escape($topup['reason'] ?? 'ثبت نشده')
+                        .' · ثبت‌کننده: '.TelegramUi::escape($topup['reviewer'] ?? 'نامشخص');
+                }
             }
         }
-        $keyboard = InlineKeyboardMarkup::make()
+        $keyboard = InlineKeyboardMarkup::make();
+        if ($row['active'] && in_array($row['account_type'], ['member', 'reseller'], true)
+            && $this->enabled()) {
+            $keyboard->addRow(InlineKeyboardButton::make('افزایش اعتبار',
+                callback_data: 'finance:wallet:credit:begin:'.$row['id'], style: ButtonStyle::DANGER));
+        }
+        $keyboard
             ->addRow(InlineKeyboardButton::make('◀️ کیف پول کاربران', callback_data: 'finance:wallets:1'))
             ->addRow(InlineKeyboardButton::make('🧾 رسیدهای شارژ', callback_data: 'finance:topups:1'))
             ->addRow(InlineKeyboardButton::make('🏠 امور مالی', callback_data: 'menu:admin:finance'));
@@ -206,6 +221,7 @@ final readonly class AdminFinanceWalletUi
         foreach ($row['entries'] as $entry) {
             $kind = match ($entry['kind']) {
                 'topup' => 'شارژ',
+                'admin_verified_topup' => 'افزایش اعتبار توسط مدیر',
                 'topup_reversal' => 'اصلاح شارژ',
                 'purchase_reversal' => 'اصلاح خرید',
                 default => 'پرداخت',
@@ -225,9 +241,13 @@ final readonly class AdminFinanceWalletUi
         if ($row['topups'] !== []) {
             $topups = '';
             foreach ($row['topups'] as $topup) {
+                $manual = $topup['origin'] === 'admin_verified_bank';
                 $reference = $topup['reference'] !== null ? ' · مرجع: '.$topup['reference'] : '';
-                $topups .= $t('#'.$topup['id'].' · '.TelegramUi::topupStatus($topup['status']),
-                    TelegramUi::toman($topup['amount_rials']).' تومان'.$reference);
+                $audit = $manual ? ' · دلیل: '.($topup['reason'] ?? 'ثبت نشده')
+                    .' · ثبت‌کننده: '.($topup['reviewer'] ?? 'نامشخص') : '';
+                $label = $manual ? 'افزایش اعتبار مدیر' : 'شارژ';
+                $topups .= $t($label.' #'.$topup['id'].' · '.TelegramUi::topupStatus($topup['status']),
+                    TelegramUi::toman($topup['amount_rials']).' تومان'.$reference.$audit);
             }
             $html .= '<h3>درخواست‌های شارژ</h3><table bordered striped compact>'.$topups.'</table>';
         }
