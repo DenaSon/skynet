@@ -120,7 +120,7 @@ final readonly class CustomerSupportProfileUi
 
             return;
         }
-        if (UserDirectoryMode::rootOnly($mode) && ! $actor->canManageRoles()) {
+        if (UserDirectoryMode::rootOnly($mode) && ! $this->trustedDirectoryRoot($bot)) {
             $this->menus->denyAccess($bot);
 
             return;
@@ -185,7 +185,7 @@ final readonly class CustomerSupportProfileUi
             return;
         }
 
-        if (UserDirectoryMode::rootOnly($mode) && ! $actor->canManageRoles()) {
+        if (UserDirectoryMode::rootOnly($mode) && ! $this->trustedDirectoryRoot($bot)) {
             $this->menus->denyAccess($bot);
 
             return;
@@ -286,6 +286,13 @@ final readonly class CustomerSupportProfileUi
         }
 
         return $actor->userId;
+    }
+
+    private function trustedDirectoryRoot(Nutgram $bot): bool
+    {
+        $telegramId = $this->private->id($bot);
+
+        return $telegramId !== null && $this->actors->handle($telegramId)?->canManageRoles() === true;
     }
 
     private static function valid(string $subjectId, string $page, string $mode, string $servicePage): bool
