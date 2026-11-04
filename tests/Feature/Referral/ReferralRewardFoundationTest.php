@@ -11,6 +11,7 @@ use App\Modules\Onboarding\Application\JoinFromTelegram;
 use App\Modules\Referral\Application\GetReferralInvite;
 use App\Modules\Referral\Application\GrantReferralReward;
 use App\Modules\Trial\Application\ReserveFreeTrial;
+use App\Settings\OperationalSettings;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -210,9 +211,11 @@ it('excludes an explicit renewal even when its evidence looks like a completed p
 it('allows a first paid purchase after trial admission without rewarding the trial', function (): void {
     $referrer = Fixture::member();
     $buyer = Fixture::member();
-    config()->set('trial.enabled', true);
+    $settings = app(OperationalSettings::class);
+    $settings->trial_enabled = true;
+    $settings->trial_daily_limit = 20;
+    $settings->save();
     config()->set('trial.phone_hmac_key', str_repeat('test-key-', 5));
-    config()->set('trial.daily_limit', 20);
     $telegram = 9800000 + $buyer->id;
     app(ReserveFreeTrial::class)->handle($buyer->id, $telegram, $telegram, '+989123456789');
     expect(DB::table('referral_rewards')->count())->toBe(0)
