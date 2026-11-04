@@ -7,6 +7,7 @@ namespace App\Modules\Billing\Application;
 use App\Modules\Identity\Application\AssertBillingAccess;
 use App\Modules\Identity\Infrastructure\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 /** Root-scoped, bounded finance reads; existing ledgers are the only source of balance. */
@@ -78,14 +79,19 @@ final readonly class BrowseCustomerWallets
                     ];
                 })->all();
 
-            $topups = DB::table('billing_topups as t')
+            // Keep existing wallet detail readable during a rolling deploy before
+            // the additive reversal-audit migration reaches the live database.
+            $query = DB::table('billing_topups as t')
                 ->leftJoin('users as reviewer', 'reviewer.id', '=', 't.reviewed_by')
-                ->leftJoin('users as reverser', 'reverser.id', '=', 't.reversed_by')
-                ->where('t.wallet_id', $walletId)->orderByDesc('t.id')->limit(8)
-                ->get(['t.id', 't.amount_rials', 't.status', 't.created_at', 't.payment_reference',
-                    't.origin', 't.admin_reason', 'reviewer.name as reviewer_name',
-                    't.reversal_reason', 't.reversed_at', 't.reversal_journal_id',
-                    'reverser.name as reverser_name'])
+                ->where('t.wallet_id', $walletId);
+            $columns = ['t.id', 't.amount_rials', 't.status', 't.created_at',
+                't.payment_reference', 't.origin', 't.admin_reason', 'reviewer.name as reviewer_name'];
+            if (Schema::hasColumn('billing_topups', 'reversal_journal_id')) {
+                $query->leftJoin('users as reverser', 'reverser.id', '=', 't.reversed_by');
+                array_push($columns, 't.reversal_reason', 't.reversed_at',
+                    't.reversal_journal_id', 'reverser.name as reverser_name');
+            }
+            $topups = $query->orderByDesc('t.id')->limit(8)->get($columns)
                 ->map(static fn (object $row): array => [
                     'id' => (int) $row->id,
                     'amount_rials' => (int) $row->amount_rials,
@@ -95,11 +101,11 @@ final readonly class BrowseCustomerWallets
                     'origin' => (string) $row->origin,
                     'reason' => $row->admin_reason === null ? null : (string) $row->admin_reason,
                     'reviewer' => $row->reviewer_name === null ? null : (string) $row->reviewer_name,
-                    'reversal_reason' => $row->reversal_reason === null ? null : (string) $row->reversal_reason,
-                    'reverser' => $row->reverser_name === null ? null : (string) $row->reverser_name,
-                    'reversed_at' => $row->reversed_at === null ? null : (string) $row->reversed_at,
-                    'reversal_journal_id' => $row->reversal_journal_id === null
-                        ? null : (int) $row->reversal_journal_id,
+                    'reversal_reason' => $row->reversal_reason ?? null,
+                    'reverser' => $row->reverser_name ?? null,
+                    'reversed_at' => $row->reversed_at ?? null,
+                    'reversal_journal_id' => isset($row->reversal_journal_id)
+                        ? (int) $row->reversal_journal_id : null,
                 ])->all();
         }
 
