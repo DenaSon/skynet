@@ -21,8 +21,6 @@ use SergiX44\Nutgram\Telegram\Types\Internal\InputFile;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\CopyTextButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
-use SergiX44\Nutgram\Telegram\Types\Keyboard\KeyboardButton;
-use SergiX44\Nutgram\Telegram\Types\Keyboard\ReplyKeyboardMarkup;
 use SergiX44\Nutgram\Telegram\Types\Message\LinkPreviewOptions;
 use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 use Throwable;
@@ -174,13 +172,62 @@ final readonly class SalesTrialUi
             app(SalesHomeUi::class)->clearInput($actor->userId, $bot);
             Cache::put(self::key($actor->userId), ['stage' => 'contact', 'telegram_id' => $this->privateUser->id($bot)], now()->addMinutes(5));
             TelegramUi::answerCallback($bot);
-            $bot->sendMessage(text: '📱 شماره متصل به همین حساب تلگرام را فقط با دکمه زیر ارسال کنید. برای انصراف /cancel را بفرستید.',
-                reply_markup: ReplyKeyboardMarkup::make(resize_keyboard: true, one_time_keyboard: true)
-                    ->addRow(KeyboardButton::make('📱 اشتراک‌گذاری شماره من', request_contact: true))
-                    ->addRow(KeyboardButton::make('❌ انصراف')));
+            $this->sendContactPrompt($bot,
+                '📱 شماره متصل به همین حساب تلگرام را فقط با دکمه زیر ارسال کنید.', true);
         } catch (Throwable) {
             $this->render($bot, 'دریافت تست فعلاً ممکن نیست. شرایط حساب یا وضعیت تست را بررسی کنید.', $this->buttons());
         }
+    }
+
+    /** Re-show the native keyboard only within the original private intake. */
+    public function showContactKeyboard(Nutgram $bot): void
+    {
+        $actor = $this->actor($bot);
+        if ($actor === null) {
+            return;
+        }
+        $telegramId = (int) $this->privateUser->id($bot);
+        $draft = Cache::get(self::key($actor->userId));
+        $valid = is_array($draft) && ($draft['stage'] ?? null) === 'contact'
+            && ($draft['telegram_id'] ?? null) === $telegramId;
+        try {
+            if ($valid) {
+                $this->eligible($actor->userId, $telegramId);
+            }
+        } catch (Throwable) {
+            $valid = false;
+        }
+        TelegramUi::answerCallback($bot);
+        if (! $valid) {
+            $this->clear($actor->userId);
+            $bot->sendMessage(text: 'مرحله ارسال شماره منقضی شده یا دیگر در دسترس نیست.',
+                reply_markup: app(ReplyMenuRenderer::class)->salesKeyboard($actor, $this->visible($actor, $telegramId)));
+            $this->render($bot, 'برای دریافت تست، شرایط را دوباره بررسی کنید.',
+                InlineKeyboardMarkup::make()
+                    ->addRow(InlineKeyboardButton::make('🧪 بررسی تست رایگان',
+                        callback_data: 'sales:trial')), false);
+
+            return;
+        }
+
+        $this->sendContactPrompt($bot, '📱 برای ارسال شماره، دکمه «اشتراک‌گذاری شماره من» را انتخاب کنید.');
+    }
+
+    private function sendContactPrompt(Nutgram $bot, string $message, bool $withRecovery = false): void
+    {
+        if ($withRecovery) {
+            $bot->sendMessage(text: 'دکمه اشتراک‌گذاری نمایش داده نمی‌شود؟',
+                reply_markup: InlineKeyboardMarkup::make()
+                    ->addRow(InlineKeyboardButton::make('🔄 نمایش دوباره دکمه',
+                        callback_data: 'sales:trial:phone:show'))
+                    ->addRow(InlineKeyboardButton::make('❌ انصراف',
+                        callback_data: 'sales:trial:cancel')));
+        }
+
+        $bot->sendMessage(
+            text: $message."\n\nاگر دکمه را نمی‌بینید، آیکون کیبورد کنار کادر پیام را بزنید. برای انصراف /cancel را بفرستید.",
+            reply_markup: app(ReplyMenuRenderer::class)->salesSelfContactKeyboard(),
+        );
     }
 
     public function contact(Nutgram $bot): void
@@ -190,16 +237,38 @@ final readonly class SalesTrialUi
             return;
         }
         $draft = Cache::get(self::key($actor->userId));
+        $telegramId = (int) $this->privateUser->id($bot);
+        if (! is_array($draft) || ($draft['stage'] ?? null) !== 'contact'
+            || ($draft['telegram_id'] ?? null) !== $telegramId) {
+            if (is_array($draft) && ($draft['stage'] ?? null) === 'confirm') {
+                $this->render($bot, 'شماره قبلاً دریافت شده است. برای ادامه از دکمه تأیید استفاده کنید.',
+                    $this->buttons());
+
+                return;
+            }
+
+            // An expired Panel intake also reaches this shared Contact router.
+            // Never accept its phone as a Trial; restore the normal keyboard.
+            $bot->sendMessage(text: '⏳ مرحله ارسال شماره منقضی شده یا فعال نیست.',
+                reply_markup: app(ReplyMenuRenderer::class)->salesKeyboard($actor, $this->visible($actor, $telegramId)));
+            $this->render($bot, 'برای ادامه، فرم موردنظر را دوباره شروع کنید.',
+                InlineKeyboardMarkup::make()
+                    ->addRow(InlineKeyboardButton::make('🧩 درخواست نمایندگی',
+                        callback_data: 'sales:panel:request'))
+                    ->addRow(InlineKeyboardButton::make('🧪 تست رایگان',
+                        callback_data: 'sales:trial')));
+
+            return;
+        }
+
         $message = $bot->message();
         $contact = $message?->contact;
         try {
             TrialAvailability::assertReady();
-            if (! is_array($draft) || ($draft['stage'] ?? null) !== 'contact'
-                || ($draft['telegram_id'] ?? null) !== $this->privateUser->id($bot) || $contact === null
-                || $message->forward_origin !== null || $message->via_bot !== null) {
+            if ($contact === null || $message->forward_origin !== null || $message->via_bot !== null) {
                 throw new \RuntimeException('No native contact request.');
             }
-            $verified = $this->admission->contact($actor->userId, (int) $this->privateUser->id($bot),
+            $verified = $this->admission->contact($actor->userId, $telegramId,
                 $contact->user_id, $contact->phone_number);
             $token = bin2hex(random_bytes(16));
             Cache::put(self::key($actor->userId), ['stage' => 'confirm', 'telegram_id' => $this->privateUser->id($bot), 'token' => $token, ...$verified], now()->addMinutes(5));
@@ -211,7 +280,8 @@ final readonly class SalesTrialUi
                     callback_data: 'sales:trial:confirm:'.$token, style: ButtonStyle::SUCCESS))
                     ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'sales:trial:cancel')));
         } catch (Throwable) {
-            $bot->sendMessage(text: 'شماره تأیید نشد. فقط شماره خودتان را با دکمه «اشتراک‌گذاری شماره من» ارسال کنید یا /cancel را بزنید.');
+            $this->sendContactPrompt($bot,
+                'شماره تأیید نشد. فقط شماره همین حساب تلگرام را با دکمه «اشتراک‌گذاری شماره من» ارسال کنید.');
         }
     }
 
@@ -265,10 +335,18 @@ final readonly class SalesTrialUi
     public function invalidInput(Nutgram $bot): bool
     {
         $actor = $this->actor($bot);
-        if ($actor === null || ! Cache::has(self::key($actor->userId))) {
+        if ($actor === null) {
             return false;
         }
-        $bot->sendMessage(text: 'شماره متنی پذیرفته نمی‌شود. از دکمه ارسال شماره یا تأیید تست استفاده کنید. برای انصراف /cancel را بزنید.');
+        $draft = Cache::get(self::key($actor->userId));
+        if (! is_array($draft)) {
+            return false;
+        }
+        if (($draft['stage'] ?? null) === 'contact') {
+            $this->sendContactPrompt($bot, 'شماره متنی پذیرفته نمی‌شود؛ از دکمه اشتراک‌گذاری استفاده کنید.');
+        } else {
+            $bot->sendMessage(text: 'برای ادامه، تأیید تست را بزنید یا /cancel را ارسال کنید.');
+        }
 
         return true;
     }

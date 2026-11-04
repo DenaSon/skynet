@@ -173,6 +173,19 @@ final class ReplyMenuRenderer
         return $keyboard;
     }
 
+    /** Keep native self-contact visible while a private Sales intake is active. */
+    public function salesSelfContactKeyboard(): ReplyKeyboardMarkup
+    {
+        return ReplyKeyboardMarkup::make(
+            resize_keyboard: true,
+            one_time_keyboard: false,
+            input_field_placeholder: 'شماره خود را با دکمه زیر ارسال کنید',
+            is_persistent: true,
+        )
+            ->addRow(KeyboardButton::make('📱 اشتراک‌گذاری شماره من', request_contact: true))
+            ->addRow(KeyboardButton::make('❌ انصراف'));
+    }
+
     /**
      * @param  list<string>  $labels
      */
