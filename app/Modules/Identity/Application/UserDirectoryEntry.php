@@ -16,5 +16,6 @@ final readonly class UserDirectoryEntry
         public bool $telegramLinked,
         public bool $canChangeStatus,
         public ?int $telegramUserId = null,
+        public ?int $directoryMetricRials = null,
     ) {}
 }

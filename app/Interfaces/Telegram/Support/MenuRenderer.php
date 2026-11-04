@@ -238,28 +238,57 @@ final class MenuRenderer
         $this->render($bot, implode("\n", $lines), $keyboard);
     }
 
-    public function showUserList(Nutgram $bot, UserDirectoryPage $results, bool $search = false, bool $resellersOnly = false): void
+    public function showUserList(Nutgram $bot, UserDirectoryPage $results, string $mode = 'a', bool $trustedRoot = false): void
     {
-        $mode = $search ? 's' : ($resellersOnly ? 'r' : 'a');
-        $header = match ($mode) {
-            's' => '🔎 نتایج جست‌وجوی کاربران',
-            'r' => '🧩 نمایندگان',
+        $type = UserDirectoryMode::type($mode);
+        $sort = UserDirectoryMode::sort($mode);
+        $header = match (true) {
+            $mode === 's' => '🔎 نتایج جست‌وجوی کاربران',
+            $type === 'r' => '🧩 نمایندگان',
+            $type === 'm' => '👤 کاربران عادی',
             default => '👥 مدیریت کاربران',
         };
         $lines = [$header, '', "تعداد: {$results->total} | صفحه {$results->page} از {$results->lastPage}"];
+        $sortLabel = match ($sort) {
+            'wallet' => '💰 بیشترین موجودی',
+            'purchase' => '🛒 بیشترین خرید',
+            default => '🕒 جدیدترین',
+        };
+        if ($sort !== 'recent') {
+            $lines[] = 'مرتب‌سازی: '.$sortLabel.' (تومان)';
+        }
 
-        $keyboard = InlineKeyboardMarkup::make()
-            ->addRow(
+        $keyboard = InlineKeyboardMarkup::make();
+        if ($trustedRoot) {
+            $tab = static fn (string $name, string $target) => InlineKeyboardButton::make(
+                ($type === $target && $mode !== 's' ? '✅ ' : '').$name,
+                callback_data: UserDirectoryMode::pageCallback(
+                    UserDirectoryMode::for($target, $sort) ?? $target, 1,
+                ),
+            );
+            $keyboard->addRow(
+                $tab('همه', 'a'),
+                $tab('عادی', 'm'),
+                $tab('نمایندگان', 'r'),
+            );
+            $keyboard->addRow(InlineKeyboardButton::make(
+                '🔃 مرتب‌سازی: '.$sortLabel, callback_data: 'users:sort:'.($mode === 's' ? 'a' : $mode),
+            ));
+        } else {
+            // Existing delegated-admin directory stays unchanged and has no financial controls.
+            $keyboard->addRow(
                 InlineKeyboardButton::make($mode === 'a' ? '✅ همه کاربران' : '👥 همه کاربران', callback_data: 'users:page:1'),
                 InlineKeyboardButton::make($mode === 'r' ? '✅ نمایندگان' : '🧩 نمایندگان', callback_data: 'users:resellers:1'),
             );
+        }
 
         $buttons = [];
         foreach ($results->users as $user) {
             $status = $user->active ? '🟢' : '🔴';
-            $name = mb_substr($this->displayName($user->name), 0, 16);
+            $name = mb_substr($this->displayName($user->name), 0, $sort === 'recent' ? 16 : 8);
+            $metric = $sort === 'recent' ? '' : ' · '.TelegramUi::toman($user->directoryMetricRials ?? 0).'ت';
             $buttons[] = InlineKeyboardButton::make(
-                "{$status} #{$user->id} {$name}",
+                "{$status} #{$user->id} {$name}{$metric}",
                 callback_data: "users:view:{$user->id}:{$results->page}:{$mode}",
             );
         }
@@ -273,10 +302,10 @@ final class MenuRenderer
         }
 
         $previous = $results->page > 1
-            ? InlineKeyboardButton::make('◀️ قبلی', callback_data: $this->pageCallback($results->page - 1, $search, $resellersOnly))
+            ? InlineKeyboardButton::make('◀️ قبلی', callback_data: UserDirectoryMode::pageCallback($mode, $results->page - 1))
             : null;
         $next = $results->page < $results->lastPage
-            ? InlineKeyboardButton::make('بعدی ▶️', callback_data: $this->pageCallback($results->page + 1, $search, $resellersOnly))
+            ? InlineKeyboardButton::make('بعدی ▶️', callback_data: UserDirectoryMode::pageCallback($mode, $results->page + 1))
             : null;
 
         if ($previous !== null && $next !== null) {
@@ -290,10 +319,55 @@ final class MenuRenderer
         $keyboard->addRow(InlineKeyboardButton::make('🔎 جست‌وجو', callback_data: 'users:search'));
         $keyboard->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
 
+        if ($sort !== 'recent') {
+            $html = '<h3>'.TelegramUi::escape($header).'</h3>'
+                .'<table bordered striped compact>'
+                .'<tr><td>تعداد</td><td>'.number_format($results->total).'</td></tr>'
+                .'<tr><td>مرتب‌سازی</td><td>'.TelegramUi::escape($sortLabel).'</td></tr>'
+                .'</table><footer>مبالغ به تومان هستند؛ روی نام کاربر بزنید. '
+                .'صفحه '.number_format($results->page).' از '.number_format($results->lastPage).'</footer>';
+            try {
+                TelegramUi::editRichText($bot, new InputRichMessage(html: $html, is_rtl: true), $keyboard);
+                if ($bot->isCallbackQuery()) {
+                    TelegramUi::answerCallback($bot);
+                }
+
+                return;
+            } catch (TelegramException $exception) {
+                report($exception);
+                // Preserve the same sorted list, exact figures and callbacks.
+            }
+        }
+
         $this->render($bot, implode("\n", $lines), $keyboard);
     }
 
-    public function showUserDetails(Nutgram $bot, UserDirectoryEntry $user, int $page = 1, bool $search = false, bool $manageRoles = false, bool $profileAllowed = true, bool $resellersOnly = false, ?string $contactUrl = null): void
+    public function showUserSort(Nutgram $bot, string $mode): void
+    {
+        $type = UserDirectoryMode::type($mode);
+        $current = UserDirectoryMode::sort($mode);
+        $keyboard = InlineKeyboardMarkup::make();
+        foreach ([
+            'recent' => '🕒 جدیدترین',
+            'wallet' => '💰 بیشترین موجودی',
+            'purchase' => '🛒 بیشترین خرید',
+        ] as $sort => $label) {
+            $target = UserDirectoryMode::for($type, $sort);
+            if ($target !== null) {
+                $keyboard->addRow(InlineKeyboardButton::make(
+                    ($current === $sort ? '✅ ' : '').$label,
+                    callback_data: UserDirectoryMode::pageCallback($target, 1),
+                ));
+            }
+        }
+        $keyboard->addRow(InlineKeyboardButton::make(
+            '◀️ بازگشت به کاربران', callback_data: UserDirectoryMode::pageCallback($mode, 1),
+        ));
+
+        $this->render($bot, "🔃 مرتب‌سازی کاربران\n\nترتیب نمایش را انتخاب کنید.", $keyboard);
+    }
+
+    public function showUserDetails(Nutgram $bot, UserDirectoryEntry $user, int $page = 1, bool $search = false, bool $manageRoles = false, bool $profileAllowed = true, bool $resellersOnly = false, ?string $contactUrl = null, ?string $directoryMode = null): void
     {
         $name = $this->displayName($user->name);
         // Telegram enrollment stores a non-routable random placeholder, not contact email.
@@ -303,7 +377,7 @@ final class MenuRenderer
         $roles = implode('، ', $user->roles);
         $status = $user->active ? '🟢 فعال' : '🔴 غیرفعال';
         $linked = $user->telegramLinked ? 'متصل' : 'متصل نیست';
-        $mode = $search ? 's' : ($resellersOnly ? 'r' : 'a');
+        $mode = $directoryMode ?? ($search ? 's' : ($resellersOnly ? 'r' : 'a'));
 
         $keyboard = InlineKeyboardMarkup::make();
         if ($profileAllowed) {
@@ -323,7 +397,7 @@ final class MenuRenderer
             $keyboard->addRow(InlineKeyboardButton::make('🔐 مدیریت نقش‌های کاربر', callback_data: "rbac:user:{$user->id}:1"));
         }
 
-        $keyboard->addRow(InlineKeyboardButton::make('◀️ بازگشت به فهرست', callback_data: $this->pageCallback($page, $search, $resellersOnly)));
+        $keyboard->addRow(InlineKeyboardButton::make('◀️ بازگشت به فهرست', callback_data: UserDirectoryMode::pageCallback($mode, $page)));
         $keyboard->addRow(InlineKeyboardButton::make('🏠 مدیریت', callback_data: 'menu:admin'));
 
         $footer = '💡 وضعیت حساب و اتصال تلگرام از اطلاعات ثبت‌شده خوانده می‌شود.';
@@ -368,10 +442,10 @@ final class MenuRenderer
         $bot->sendMessage(text: $text, reply_markup: $keyboard);
     }
 
-    public function showUserStatusConfirmation(Nutgram $bot, UserDirectoryEntry $user, string $token, int $page, bool $search = false, bool $resellersOnly = false): void
+    public function showUserStatusConfirmation(Nutgram $bot, UserDirectoryEntry $user, string $token, int $page, bool $search = false, bool $resellersOnly = false, ?string $directoryMode = null): void
     {
         $action = $user->active ? 'غیرفعال' : 'فعال';
-        $mode = $search ? 's' : ($resellersOnly ? 'r' : 'a');
+        $mode = $directoryMode ?? ($search ? 's' : ($resellersOnly ? 'r' : 'a'));
         $keyboard = InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('✅ تأیید عملیات', callback_data: 'users:apply:'.$token))
             ->addRow(InlineKeyboardButton::make('انصراف', callback_data: "users:view:{$user->id}:{$page}:{$mode}"));
@@ -541,11 +615,6 @@ final class MenuRenderer
         }
 
         $bot->sendMessage('دسترسی مجاز نیست.');
-    }
-
-    private function pageCallback(int $page, bool $search, bool $resellersOnly = false): string
-    {
-        return ($search ? 'users:findpage:' : ($resellersOnly ? 'users:resellers:' : 'users:page:')).$page;
     }
 
     private function userBackKeyboard(): InlineKeyboardMarkup

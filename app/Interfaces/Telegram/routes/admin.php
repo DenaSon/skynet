@@ -753,6 +753,15 @@ $bot->onCallbackQueryData('users:resellers:{page}', function (Nutgram $bot, stri
     app(UserManagementUi::class)->browse($bot, (int) $page, false, true);
 });
 
+// Trusted root-only directory segment and financial ranking callbacks.
+$bot->onCallbackQueryData('users:filtered:{mode}:{page}', function (Nutgram $bot, string $mode, string $page): void {
+    app(UserManagementUi::class)->filtered($bot, $mode, $page);
+});
+
+$bot->onCallbackQueryData('users:sort:{mode}', function (Nutgram $bot, string $mode): void {
+    app(UserManagementUi::class)->sortHelp($bot, $mode);
+});
+
 $bot->onCallbackQueryData('users:cancelsearch', function (Nutgram $bot): void {
     app(UserManagementUi::class)->cancelSearch($bot);
 });
