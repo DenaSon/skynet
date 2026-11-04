@@ -472,6 +472,95 @@ it('reads a changed panel credit minimum from Settings across Telegram rules and
     Http::assertNothingSent();
 });
 
+it('keeps the self-contact keyboard persistent and resends it for a still-owned panel phone step', function (): void {
+    $member = User::factory()->create();
+    PanelWalletFunding::credit($member->id, 3_500_000);
+    $bot = panel01Bot(986201, $member);
+    $key = TelegramBotContext::current()->cacheKey('telegram:panel:request:'.$member->id);
+
+    $bot->hearCallbackQueryData('sales:panel:request')->reply();
+    $bot->hearCallbackQueryData('sales:panel:accept')->reply();
+    $bot->hearText('مریم')->reply();
+    $bot->hearText('محمدی')->reply()->assertCalled('sendMessage', 2)
+        ->assertRaw(static function (Request $req): bool {
+            $keyboard = panel01Payload($req)['reply_markup'];
+
+            return ($keyboard['keyboard'][0][0]['request_contact'] ?? null) === true
+                && ($keyboard['is_persistent'] ?? false) === true
+                && ($keyboard['one_time_keyboard'] ?? true) === false
+                && str_contains($keyboard['input_field_placeholder'] ?? '', 'شماره');
+        }, index: 0)
+        ->assertRaw(static fn (Request $req): bool => str_contains(
+            json_encode(panel01Payload($req)['reply_markup'], JSON_THROW_ON_ERROR),
+            'sales:panel:phone:show',
+        ), index: 1);
+    $draft = Cache::get($key);
+
+    $bot->hearCallbackQueryData('sales:panel:phone:show')->reply()
+        ->assertRaw(static fn (Request $req): bool =>
+            (panel01Payload($req)['reply_markup']['keyboard'][0][0]['request_contact'] ?? false) === true,
+            index: 1);
+    expect(Cache::get($key))->toBe($draft)
+        ->and(DB::table('sales_panel_requests')->count())->toBe(0);
+
+    $bot->hearText('09123456789')->reply()
+        ->assertRaw(static fn (Request $req): bool =>
+            (panel01Payload($req)['reply_markup']['keyboard'][0][0]['request_contact'] ?? false) === true,
+        );
+    $bot->hearMessage(['contact' => ['phone_number' => '+989123456789', 'first_name' => 'Wrong', 'user_id' => 986202]])
+        ->reply()->assertRaw(static fn (Request $req): bool =>
+            (panel01Payload($req)['reply_markup']['keyboard'][0][0]['request_contact'] ?? false) === true
+                && str_contains(panel01Payload($req)['text'] ?? '', 'شماره تأیید نشد'));
+    expect(Cache::get($key)['step'])->toBe('mobile');
+
+    $bot->hearMessage(['contact' => ['phone_number' => '+989123456789', 'first_name' => 'Buyer', 'user_id' => 986201]])
+        ->reply()->assertRaw(static fn (Request $req): bool =>
+            ! str_contains(json_encode(panel01Payload($req)['reply_markup'], JSON_THROW_ON_ERROR), 'request_contact'),
+            index: 0);
+    expect(Cache::get($key)['step'])->toBe('confirm');
+    $bot->hearCallbackQueryData('sales:panel:confirm')->reply();
+    expect(DB::table('sales_panel_requests')->count())->toBe(1);
+});
+
+it('restores the regular menu for expired contact or stale panel keyboard recovery without accepting an unsolicited phone', function (): void {
+    $member = User::factory()->create();
+    PanelWalletFunding::credit($member->id, 3_500_000);
+    $bot = panel01Bot(986203, $member);
+    $key = TelegramBotContext::current()->cacheKey('telegram:panel:request:'.$member->id);
+
+    $bot->hearCallbackQueryData('sales:panel:request')->reply();
+    $bot->hearCallbackQueryData('sales:panel:accept')->reply();
+    $bot->hearText('مریم')->reply();
+    $bot->hearText('محمدی')->reply();
+    $this->travel(11)->minutes();
+
+    $bot->hearCallbackQueryData('sales:panel:phone:show')->reply()->assertRaw(
+        static function (Request $req): bool {
+            $keyboard = panel01Payload($req)['reply_markup'];
+
+            return isset($keyboard['keyboard'])
+                && ! str_contains(json_encode($keyboard, JSON_THROW_ON_ERROR), 'request_contact');
+        }, index: 1,
+    );
+    expect(Cache::get($key))->toBeNull();
+
+    $bot->hearMessage(['contact' => ['phone_number' => '+989123456789', 'first_name' => 'Buyer', 'user_id' => 986203]])
+        ->reply()->assertRaw(
+            static fn (Request $req): bool => str_contains(panel01Payload($req)['text'] ?? '', 'مرحله ارسال شماره')
+                && ! str_contains(json_encode(panel01Payload($req)['reply_markup'], JSON_THROW_ON_ERROR),
+                    'request_contact'),
+            index: 0,
+        );
+    expect(DB::table('sales_panel_requests')->count())->toBe(0);
+
+    $bot->hearCallbackQueryData('sales:panel:request')->reply()->assertRaw(
+        static fn (Request $req): bool => str_contains(
+            json_encode(panel01Payload($req)['reply_markup'], JSON_THROW_ON_ERROR),
+            'sales:panel:accept',
+        ), index: 1,
+    );
+});
+
 it('rejects foreign, missing, and non-Iranian contacts while preserving the private panel draft', function (): void {
     $member = User::factory()->create();
     PanelWalletFunding::credit($member->id, 3_500_000);
