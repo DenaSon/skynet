@@ -9,6 +9,7 @@ use App\Modules\Identity\Application\AssertBillingAccess;
 use App\Modules\Identity\Infrastructure\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -105,6 +106,11 @@ final readonly class ReverseUnusedWalletTopup
     private function inspect(int $operatorId, int $userId, int $topupId): array
     {
         $this->access->reviewer($operatorId);
+
+        // Fail closed while the additive migration has not been applied.
+        if (! Schema::hasColumn('billing_topups', 'reversal_journal_id')) {
+            throw ValidationException::withMessages(['topup' => 'Correction storage is not ready.']);
+        }
 
         if ($userId < 1 || $topupId < 1) {
             throw ValidationException::withMessages(['topup' => 'Invalid wallet correction selection.']);
