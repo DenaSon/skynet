@@ -8,6 +8,7 @@ use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Trial\Application\ProvisionFreeTrial;
 use App\Modules\Trial\Application\ReserveFreeTrial;
+use App\Settings\OperationalSettings;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
@@ -31,9 +32,13 @@ trait FreeTrialFixtures
 
     protected function configureFreeTrial(): void
     {
+        $settings = app(OperationalSettings::class);
+        $settings->trial_enabled = true;
+        $settings->trial_daily_limit = 20;
+        $settings->save();
+
         config()->set([
-            'trial.enabled' => true, 'trial.phone_hmac_key' => str_repeat('fixture-only-', 4),
-            'trial.daily_limit' => 20,
+            'trial.phone_hmac_key' => str_repeat('fixture-only-', 4),
             'trial.internal_squad_uuid' => '550e8400-e29b-41d4-a716-446655440005',
             'trial.verified_squad_uuid' => '550e8400-e29b-41d4-a716-446655440005',
             'services.remnawave.writes_enabled' => true,
