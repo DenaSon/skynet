@@ -7,6 +7,7 @@ use App\Interfaces\Telegram\Notifications\SubscriptionAlertMonitor;
 use App\Interfaces\Telegram\Notifications\TelegramNotificationSender;
 use App\Interfaces\Telegram\Notifications\TrialEndMonitor;
 use App\Modules\Trial\Application\EndFreeTrial;
+use App\Settings\OperationalSettings;
 use App\Modules\Trial\Application\ProvisionFreeTrial;
 use App\Modules\Trial\Application\ReadFreeTrial;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -88,10 +89,12 @@ it('does not mistake disabled status for early expiration or read when the trial
     $this->trialRemote['status'] = 'DISABLED';
     expect(app(TrialEndMonitor::class)->scan())->toBe(0)
         ->and(DB::table('trial_claims')->find($id)->state)->toBe('active');
-    config()->set('trial.enabled', false);
+    $settings = app(OperationalSettings::class);
+    $settings->trial_enabled = false;
+    $settings->save();
     $this->travel(3)->hours();
     expect(app(TrialEndMonitor::class)->scan())->toBe(0);
-    Http::assertSentCount(2); // CREATE plus the first GET only.
+    Http::assertSentCount(3); // CREATE plus monitoring GETs before and after disabling admission.
 });
 
 it('sends one final notice with existing buy and plan callbacks across repeated jobs', function (): void {
