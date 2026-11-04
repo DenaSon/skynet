@@ -179,6 +179,9 @@ $bot->onCallbackQueryData('sales:panel:request', function (Nutgram $bot): void {
 $bot->onCallbackQueryData('sales:panel:accept', function (Nutgram $bot): void {
     app(SalesPanelRequestUi::class)->accept($bot);
 });
+$bot->onCallbackQueryData('sales:panel:phone:show', function (Nutgram $bot): void {
+    app(SalesPanelRequestUi::class)->showContactKeyboard($bot);
+});
 
 $bot->onCallbackQueryData('sales:panel:confirm', function (Nutgram $bot): void {
     app(SalesPanelRequestUi::class)->confirm($bot);
@@ -290,6 +293,9 @@ $bot->onCallbackQueryData('sales:trial', function (Nutgram $bot): void {
 });
 $bot->onCallbackQueryData('sales:trial:contact', function (Nutgram $bot): void {
     app(SalesTrialUi::class)->requestContact($bot);
+});
+$bot->onCallbackQueryData('sales:trial:phone:show', function (Nutgram $bot): void {
+    app(SalesTrialUi::class)->showContactKeyboard($bot);
 });
 $bot->onCallbackQueryData('sales:trial:confirm:{token}', function (Nutgram $bot, string $token): void {
     app(SalesTrialUi::class)->confirm($bot, $token);
