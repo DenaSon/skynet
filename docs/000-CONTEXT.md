@@ -1,4 +1,4 @@
-## OPS-SET-01 — operator-managed reseller/trial settings (2026-11-04; PR pending)
+## OPS-SET-01 — operator-managed reseller/trial settings (2026-11-04; source PR #370)
 
 The operator approved moving **three** runtime policies to trusted Super Admin Bot Settings using installed Spatie Settings: Sales Panel minimum wallet (tomans), trial enablement, and daily trial allowance. `TELEGRAM_ADMIN_NOTIFICATIONS_TOPIC_ENABLED` explicitly **remains ENV-owned**, unchanged. Initial data must use the effective deployed Laravel config values (which may include 550000/true/20); subsequent runtime decisions read Settings, not ENV, with safe pre-migration fallback only. Disabling new trials retains monitoring and access for existing trials. Details and acceptance: [docs/005](005-ROADMAP.md) and [docs/017](017-TELEGRAM-UX-IDENTITY.md). No live setting/operator balances/provider change from code deployment.
 
