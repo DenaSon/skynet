@@ -95,7 +95,7 @@ it('monitors already active trials after new admission is disabled, without prem
     $this->travel(3)->hours();
     expect(app(TrialEndMonitor::class)->scan())->toBe(1)
         ->and(DB::table('trial_claims')->find($id)->state)->toBe('ended');
-    Http::assertSentCount(3); // CREATE plus monitoring GETs before and after disabling admission.
+    Http::assertSentCount(4); // CREATE, monitoring GETs and the final provider read for expiry.
 });
 
 it('sends one final notice with existing buy and plan callbacks across repeated jobs', function (): void {
