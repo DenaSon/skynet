@@ -84,7 +84,7 @@ function fin01Rich(array $payload): string
     return ($rich['is_rtl'] ?? null) === true ? (string) ($rich['html'] ?? '') : '';
 }
 
-it('navigates the Admin Finance customer wallet read and bounded lookup with no write controls', function (): void {
+it('navigates the Admin Finance wallet, including the root-only manual credit entry', function (): void {
     $root = fin01Admin();
     $customer = User::factory()->create(['name' => '<Buyer>']);
     $bot = fin01Bot(987601, $root);
@@ -107,7 +107,7 @@ it('navigates the Admin Finance customer wallet read and bounded lookup with no 
 
         return str_contains(fin01Rich($data), '<tr><td>موجودی</td><td>0 تومان</td></tr>')
             && str_contains(fin01Rich($data), 'گردش‌های اخیر')
-            && ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'adjust');
+            && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'finance:wallet:credit:begin:');
     }, index: 1);
     $bot->hearCallbackQueryData('finance:find-wallet')->reply()->assertCalled('editMessageText');
     $bot->hearText((string) $customer->id)->reply()->assertCalled('sendRichMessage');
