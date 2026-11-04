@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace App\Modules\Sales\Application;
 
 use App\Modules\Billing\Application\ViewWallet;
-use App\Settings\OperationalSettings;
 use App\Modules\Identity\Application\ResolveActiveUser;
 use App\Modules\Identity\Application\ResolveSalesBuyer;
+use App\Settings\OperationalSettings;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
