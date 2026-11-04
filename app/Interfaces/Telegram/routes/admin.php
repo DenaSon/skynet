@@ -31,6 +31,7 @@ use App\Interfaces\Telegram\Support\AdminScopedReadUi;
 use App\Interfaces\Telegram\Support\AdminSectionsUi;
 use App\Interfaces\Telegram\Support\AdminSubscriptionStatusUi;
 use App\Interfaces\Telegram\Support\AdminTrafficReportUi;
+use App\Interfaces\Telegram\Support\AdminWalletReversalUi;
 use App\Interfaces\Telegram\Support\BillingUi;
 use App\Interfaces\Telegram\Support\CustomerSupportProfileUi;
 use App\Interfaces\Telegram\Support\ManualPaymentUi;
@@ -601,6 +602,15 @@ $bot->onCallbackQueryData('finance:credit:begin:{id}', function (Nutgram $bot, s
 });
 $bot->onCallbackQueryData('finance:credit:apply:{token}', function (Nutgram $bot, string $token): void {
     app(AdminFinanceWalletUi::class)->applyManual($bot, $token);
+});
+$bot->onCallbackQueryData('finance:reverse:list:{user}:{page}', function (Nutgram $bot, string $user, string $page): void {
+    app(AdminWalletReversalUi::class)->history($bot, $user, $page);
+});
+$bot->onCallbackQueryData('finance:reverse:prepare:{user}:{topup}', function (Nutgram $bot, string $user, string $topup): void {
+    app(AdminWalletReversalUi::class)->prepare($bot, $user, $topup);
+});
+$bot->onCallbackQueryData('finance:reverse:apply:{token}', function (Nutgram $bot, string $token): void {
+    app(AdminWalletReversalUi::class)->apply($bot, $token);
 });
 $bot->onCallbackQueryData('finance:find-wallet', function (Nutgram $bot): void {
     app(AdminFinanceWalletUi::class)->find($bot);
