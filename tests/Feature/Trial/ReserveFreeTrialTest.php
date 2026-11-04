@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
-use App\Settings\OperationalSettings;
 use App\Modules\Trial\Application\ReserveFreeTrial;
+use App\Settings\OperationalSettings;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
