@@ -139,9 +139,11 @@ final readonly class AdminAccountingUi
             $text = '<b>💰 گزارش دریافتی‌ها · '.$heading.'</b>'
                 ."\n📅 ".$range.' (شمسی، تهران)'
                 ."\n\n<b>💵 کل دریافتی‌های ثبت‌شده: ".self::toman($data['cashInRials']).' تومان</b>'
-                ."\n➕ شارژ تأییدشده کیف پول: ".self::toman($data['topupsRials']).' تومان'
+                ."\n➕ شارژ معمولی کیف پول: ".self::toman($data['customerTopupsRials']).' تومان'
+                ."\n🧾 افزایش اعتبار توسط مدیر: ".self::toman($data['adminTopupsRials']).' تومان'
                 ."\n🏦 خرید مستقیم بانکی: ".self::toman($data['bankSalesRials']).' تومان'
-                ."\n\n🧾 تعداد شارژها: ".number_format($data['topupsCount'])
+                ."\n\nتعداد شارژ معمولی: ".number_format($data['customerTopupsCount'])
+                .' | افزایش اعتبار مدیر: '.number_format($data['adminTopupsCount'])
                 .' | پرداخت مستقیم: '.number_format($data['bankSalesCount'])
                 ."\n\n<b>🛍️ فروش تأییدشده: ".self::toman($data['salesRials']).' تومان</b>'
                 ."\n↪️ خرید با اعتبار کیف پول: ".self::toman($data['walletSalesRials']).' تومان'
@@ -150,9 +152,11 @@ final readonly class AdminAccountingUi
                 ."\n🕒 ".PersianCalendar::localDateTime($data['generatedAt']);
             $rows = [
                 ['کل دریافتی‌های ثبت‌شده', self::toman($data['cashInRials']).' تومان'],
-                ['شارژ تأییدشده کیف پول', self::toman($data['topupsRials']).' تومان'],
+                ['شارژ معمولی کیف پول', self::toman($data['customerTopupsRials']).' تومان'],
+                ['افزایش اعتبار توسط مدیر', self::toman($data['adminTopupsRials']).' تومان'],
                 ['خرید مستقیم بانکی', self::toman($data['bankSalesRials']).' تومان'],
-                ['تعداد شارژها', number_format($data['topupsCount'])],
+                ['تعداد شارژ معمولی', number_format($data['customerTopupsCount'])],
+                ['تعداد افزایش اعتبار مدیر', number_format($data['adminTopupsCount'])],
                 ['پرداخت مستقیم', number_format($data['bankSalesCount'])],
                 ['فروش تأییدشده', self::toman($data['salesRials']).' تومان'],
                 ['خرید با اعتبار کیف پول', self::toman($data['walletSalesRials']).' تومان'],
