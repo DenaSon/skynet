@@ -469,6 +469,7 @@ final readonly class ManualPaymentUi
             return;
         }
 
+        Cache::forget(TelegramBotContext::current()->cacheKey('admin:ops:draft:'.$actor->userId));
         Cache::forget($this->referenceKey($actor->userId));
         if ($choice === 'a') {
             try {
