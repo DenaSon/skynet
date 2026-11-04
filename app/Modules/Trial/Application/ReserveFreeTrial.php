@@ -101,7 +101,7 @@ final readonly class ReserveFreeTrial
         $key = config('trial.phone_hmac_key');
         $limit = OperationalSettings::trialDailyLimit();
         if (! is_string($key) || strlen($key) < 32 || trim($key) === ''
-            || $key === config('app.key') || ! is_int($limit) || $limit < 1 || $limit > 1000) {
+            || $key === config('app.key') || $limit < 1 || $limit > 1000) {
             throw ValidationException::withMessages(['trial' => 'تست رایگان فعلاً در دسترس نیست.']);
         }
     }
