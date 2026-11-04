@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Telegram\Handlers;
 
+use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Interfaces\Telegram\Support\MenuRenderer;
 use App\Interfaces\Telegram\Support\PrivateTelegramUser;
 use App\Interfaces\Telegram\Support\TelegramUi;
@@ -189,8 +190,7 @@ final class SettingsHandler
         if ($actor === null) {
             return;
         }
-        Cache::forget(\App\Interfaces\Telegram\Processing\TelegramBotContext::current()
-            ->cacheKey('admin:ops:draft:'.$actor->userId));
+        Cache::forget(TelegramBotContext::current()->cacheKey('admin:ops:draft:'.$actor->userId));
         Cache::put($this->draftKey($id), $kind, now()->addMinutes(10));
         try {
             $settings = app(SalesWelcomeSettings::class);
