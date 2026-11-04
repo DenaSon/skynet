@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Modules\Billing\Application;
 
+use App\Modules\Identity\Application\AdminCapabilityAccess;
 use App\Modules\Identity\Application\AssertBillingAccess;
+use App\Modules\Identity\Infrastructure\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -48,6 +50,11 @@ final readonly class CreditVerifiedAdminBankTopup
         return DB::transaction(function () use ($actorId, $customerId, $amountRials, $reference, $reason): int {
             // Recheck immediately before the write, including allowlist revocation.
             $this->access->reviewer($actorId);
+            $customer = User::query()->find($customerId);
+            if ($customer === null || ! $customer->is_active
+                || app(AdminCapabilityAccess::class)->isOperator($customer)) {
+                throw new AuthorizationException;
+            }
             $walletId = $this->wallets->customerWalletId($customerId);
             DB::table('billing_wallets')->where('id', $walletId)->lockForUpdate()->first();
 
