@@ -184,6 +184,27 @@ it('shows live minutes and MiB and uses the existing QR renderer after activatio
     $bot->hearCallbackQueryData('sales:trial:link')->reply()->assertCalled('sendMessage')->assertCalled('sendPhoto', 0);
 });
 
+it('keeps active trial status, link and keyboard visible after disabling new trial admissions', function (): void {
+    $member = $this->trialMember();
+    $this->activateFreeTrial($member);
+    $settings = app(OperationalSettings::class);
+    $settings->trial_enabled = false;
+    $settings->save();
+
+    $actor = app(\App\Modules\Identity\Application\ResolveTelegramActor::class)->handle(9210001);
+    expect($actor)->not->toBeNull()
+        ->and(app(SalesTrialUi::class)->visible($actor, 9210001))->toBeTrue()
+        ->and(DB::table('trial_claims')->where('user_id', $member->id)->value('state'))->toBe('active');
+
+    $bot = trialUiBot();
+    $bot->hearCallbackQueryData('sales:trial')->reply()->assertRaw(
+        static fn (Request $request): bool => str_contains(trialUiRichHtml($request), 'حجم باقی‌مانده:')
+            && str_contains(json_encode(FakeNutgram::getActualData($request)['reply_markup'], JSON_THROW_ON_ERROR),
+                'sales:trial:link'), index: 1,
+    );
+    $bot->hearCallbackQueryData('sales:trial:link')->reply()->assertCalled('sendPhoto', 1);
+});
+
 it('renders pending trial processing without exposing a second Contact confirmation', function (): void {
     $member = $this->trialMember();
     $bot = trialUiBot();
