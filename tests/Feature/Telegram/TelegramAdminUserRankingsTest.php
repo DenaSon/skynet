@@ -183,7 +183,7 @@ it('keeps member and reseller filters distinct and preserves sorted navigation t
                 && str_contains($markup, 'users:view:'.$member->id.':1:mw')
                 && str_contains($markup, 'users:sort:mw')
                 && str_contains($markup, 'users:filtered:rw:1');
-        }, index: 1,
+        }, index: 0,
     );
 
     $bot->hearCallbackQueryData('users:view:'.$member->id.':1:mw')->reply()->assertRaw(
