@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Trial\Application;
 
+use App\Settings\OperationalSettings;
 use Illuminate\Validation\ValidationException;
 
 final class TrialAvailability
@@ -12,7 +13,7 @@ final class TrialAvailability
     {
         $squad = config('trial.internal_squad_uuid');
 
-        return config('trial.enabled') === true
+        return OperationalSettings::trialIsEnabled()
             && config('services.remnawave.writes_enabled') === true
             && is_string($squad)
             && preg_match('/\A[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\z/D', $squad) === 1
