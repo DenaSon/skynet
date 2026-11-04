@@ -285,7 +285,7 @@ final class MenuRenderer
         $buttons = [];
         foreach ($results->users as $user) {
             $status = $user->active ? '🟢' : '🔴';
-            $name = mb_substr($this->displayName($user->name), 0, $sort === 'recent' ? 16 : 10);
+            $name = mb_substr($this->displayName($user->name), 0, $sort === 'recent' ? 16 : 8);
             $metric = $sort === 'recent' ? '' : ' · '.TelegramUi::toman($user->directoryMetricRials ?? 0).'ت';
             $buttons[] = InlineKeyboardButton::make(
                 "{$status} #{$user->id} {$name}{$metric}",
@@ -327,10 +327,10 @@ final class MenuRenderer
                 .'</table><footer>مبالغ به تومان هستند؛ روی نام کاربر بزنید. '
                 .'صفحه '.number_format($results->page).' از '.number_format($results->lastPage).'</footer>';
             try {
+                TelegramUi::editRichText($bot, new InputRichMessage(html: $html, is_rtl: true), $keyboard);
                 if ($bot->isCallbackQuery()) {
                     TelegramUi::answerCallback($bot);
                 }
-                TelegramUi::editRichText($bot, new InputRichMessage(html: $html, is_rtl: true), $keyboard);
 
                 return;
             } catch (TelegramException $exception) {
