@@ -11,6 +11,7 @@ use App\Modules\Trial\Application\ReadFreeTrial;
 use App\Modules\Trial\Application\ReserveFreeTrial;
 use App\Modules\Trial\Application\TrialAvailability;
 use App\Modules\Trial\Jobs\ProvisionFreeTrialJob;
+use App\Settings\OperationalSettings;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
@@ -53,13 +54,11 @@ final readonly class SalesTrialUi
 
     public function visible(TelegramActor $actor, int $telegramId): bool
     {
-        if (config('trial.enabled') !== true) {
-            return false;
-        }
         try {
             $trial = $this->trials->find($actor->userId, $telegramId);
             if ($trial === null) {
-                return $this->eligible($actor->userId, $telegramId);
+                // Disabling new trials must not hide an already active trial.
+                return OperationalSettings::trialIsEnabled() && $this->eligible($actor->userId, $telegramId);
             }
             if ($trial['state'] === 'active') {
                 return ! $this->trials->status($actor->userId, $telegramId)->ended();
