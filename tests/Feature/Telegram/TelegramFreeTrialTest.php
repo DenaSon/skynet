@@ -145,6 +145,28 @@ it('keeps the Trial self-contact keyboard visible and supports a safe repeated s
         ->and(DB::table('trial_claims')->count())->toBe(0);
 });
 
+it('preserves the owner-bound Trial confirmation after a stale contact recovery callback', function (): void {
+    $member = $this->trialMember();
+    $bot = trialUiBot();
+    $key = 'telegram:sales:trial:'.$member->id;
+
+    $bot->hearCallbackQueryData('sales:trial:contact')->reply();
+    $bot->hearMessage(['contact' => [
+        'phone_number' => '+989123456789', 'first_name' => 'Buyer', 'user_id' => 9210001,
+    ]])->reply();
+    $confirmed = Cache::get($key);
+    expect($confirmed['stage'])->toBe('confirm')
+        ->and($confirmed['telegram_id'])->toBe(9210001);
+
+    $bot->hearCallbackQueryData('sales:trial:phone:show')->reply()->assertCalled('editMessageText');
+    expect(Cache::get($key))->toBe($confirmed)
+        ->and(DB::table('trial_claims')->count())->toBe(0);
+
+    $bot->hearCallbackQueryData('sales:trial:confirm:'.$confirmed['token'])->reply();
+    expect(DB::table('trial_claims')->count())->toBe(1)
+        ->and(Cache::has($key))->toBeFalse();
+});
+
 it('restores the standard Sales keyboard and offers restart after an expired Trial Contact', function (): void {
     $member = $this->trialMember();
     $bot = trialUiBot();

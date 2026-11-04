@@ -164,6 +164,18 @@ final readonly class SalesPanelRequestUi
         }
         $draft = Cache::get($this->key($userId));
         $actor = $this->actors->handle((int) $this->private->id($bot));
+
+        // A stale keyboard button must not discard a newer form step,
+        // especially the confirmation with an already verified phone.
+        if (is_array($draft) && ($draft['step'] ?? null) !== 'mobile') {
+            TelegramUi::answerCallback($bot);
+            $this->notice($bot, ($draft['step'] ?? null) === 'confirm'
+                ? 'شماره قبلاً دریافت شده است. برای ادامه، از دکمه ثبت درخواست در پیام تأیید قبلی استفاده کنید.'
+                : 'این دکمه مربوط به مرحله دریافت شماره است. فرم فعلی را ادامه دهید.');
+
+            return;
+        }
+
         if (! is_array($draft) || ($draft['step'] ?? null) !== 'mobile'
             || $actor === null || ! in_array('member', $actor->roles, true)
             || in_array('reseller', $actor->roles, true)

@@ -198,8 +198,23 @@ final readonly class SalesTrialUi
             $valid = false;
         }
         TelegramUi::answerCallback($bot);
+
+        // Old recovery buttons can remain visible after Contact succeeds.
+        // Keep the owner-bound confirmation token and its original expiry.
+        if (is_array($draft) && ($draft['stage'] ?? null) === 'confirm'
+            && ($draft['telegram_id'] ?? null) === $telegramId) {
+            $this->render($bot, 'شماره قبلاً دریافت شده است. برای ادامه، از دکمه تأیید در پیام قبلی استفاده کنید.',
+                $this->buttons(), false);
+
+            return;
+        }
+
         if (! $valid) {
-            $this->clear($actor->userId);
+            // Do not pull a confirmation belonging to another linked Telegram account.
+            if (is_array($draft) && ($draft['stage'] ?? null) === 'contact'
+                && ($draft['telegram_id'] ?? null) === $telegramId) {
+                $this->clear($actor->userId);
+            }
             $bot->sendMessage(text: 'مرحله ارسال شماره منقضی شده یا دیگر در دسترس نیست.',
                 reply_markup: app(ReplyMenuRenderer::class)->salesKeyboard($actor, $this->visible($actor, $telegramId)));
             $this->render($bot, 'برای دریافت تست، شرایط را دوباره بررسی کنید.',
