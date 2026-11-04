@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Modules\Billing\Application\CreditVerifiedAdminBankTopup;
+use App\Modules\Billing\Application\BrowseCustomerWallets;
 use App\Modules\Billing\Application\ReadAdminCashReceipts;
 use App\Modules\Billing\Application\ReverseUnusedWalletTopup;
 use App\Modules\Billing\Application\ViewWallet;
@@ -11,6 +12,7 @@ use App\Modules\Identity\Infrastructure\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 uses(RefreshDatabase::class);
@@ -94,6 +96,25 @@ it('records one balanced reversal of an unused verified deposit and preserves or
     expect(fn () => $reversal->handle($root->id, $buyer->id, $topup, 0, 'تکرار'))
         ->toThrow(ValidationException::class);
     expect(DB::table('billing_journals')->count())->toBe(2);
+});
+
+it('keeps wallet details readable and corrections unavailable during a rolling migration', function (): void {
+    $root = topupCorrectionRoot();
+    $buyer = User::factory()->create();
+    $topup = topupCorrectionFund($root, $buyer, 275_000, 'ROLL-27500');
+
+    // Simulate the new code receiving traffic before its additive schema
+    // migration has run. The old wallet detail must continue working.
+    Schema::shouldReceive('hasColumn')->with('billing_topups', 'reversal_journal_id')
+        ->andReturn(false);
+
+    $detail = app(BrowseCustomerWallets::class)->detail($root->id, $buyer->id);
+    expect($detail['topups'][0]['id'])->toBe($topup)
+        ->and($detail['topups'][0]['reversal_journal_id'])->toBeNull()
+        ->and($detail['balance_rials'])->toBe(275_000);
+    expect(fn () => app(ReverseUnusedWalletTopup::class)->preview($root->id, $buyer->id, $topup))
+        ->toThrow(ValidationException::class);
+    expect(DB::table('billing_journals')->count())->toBe(1);
 });
 
 it('blocks spent topups even when a later deposit replenishes the entire balance', function (): void {
