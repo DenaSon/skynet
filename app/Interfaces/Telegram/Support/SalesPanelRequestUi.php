@@ -183,12 +183,6 @@ final readonly class SalesPanelRequestUi
 
     private function sendContactPrompt(Nutgram $bot, string $message, bool $withRecovery = false): void
     {
-        $bot->sendMessage(
-            text: $message."\n\nاگر دکمه را نمی‌بینید، آیکون کیبورد کنار کادر پیام را بزنید.",
-            parse_mode: 'HTML',
-            reply_markup: app(ReplyMenuRenderer::class)->salesSelfContactKeyboard(),
-        );
-
         if ($withRecovery) {
             $bot->sendMessage(text: 'دکمه اشتراک‌گذاری نمایش داده نمی‌شود؟',
                 reply_markup: InlineKeyboardMarkup::make()
@@ -197,6 +191,12 @@ final readonly class SalesPanelRequestUi
                     ->addRow(InlineKeyboardButton::make('❌ انصراف',
                         callback_data: 'sales:panel:cancel')));
         }
+
+        $bot->sendMessage(
+            text: $message."\n\nاگر دکمه را نمی‌بینید، آیکون کیبورد کنار کادر پیام را بزنید.",
+            parse_mode: 'HTML',
+            reply_markup: app(ReplyMenuRenderer::class)->salesSelfContactKeyboard(),
+        );
     }
 
     /** Handle only the active panel phone step; other Contacts belong to the trial flow. */
