@@ -203,7 +203,7 @@ final readonly class AdminFinanceWalletUi
         if ($row['active'] && in_array($row['account_type'], ['member', 'reseller'], true)
             && $this->enabled()) {
             $keyboard->addRow(InlineKeyboardButton::make('افزایش اعتبار',
-                callback_data: 'finance:wallet:credit:begin:'.$row['id'], style: ButtonStyle::DANGER));
+                callback_data: 'finance:credit:begin:'.$row['id'], style: ButtonStyle::DANGER));
         }
         $keyboard
             ->addRow(InlineKeyboardButton::make('◀️ کیف پول کاربران', callback_data: 'finance:wallets:1'))
@@ -606,7 +606,7 @@ final readonly class AdminFinanceWalletUi
                 .'</table><footer>فقط پس از بررسی واقعی بانک تأیید کنید. این عملیات سفارش را فعال نمی‌کند.</footer>';
             $keyboard = InlineKeyboardMarkup::make()
                 ->addRow(InlineKeyboardButton::make('تأیید و افزایش اعتبار',
-                    callback_data: 'finance:wallet:credit:apply:'.$state['token'], style: ButtonStyle::DANGER))
+                    callback_data: 'finance:credit:apply:'.$state['token'], style: ButtonStyle::DANGER))
                 ->addRow(InlineKeyboardButton::make('◀️ انصراف', callback_data: 'finance:wallet:'.$id));
 
             $this->render($bot, $lines, $keyboard, $html);
