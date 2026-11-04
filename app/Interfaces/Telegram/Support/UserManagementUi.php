@@ -61,6 +61,10 @@ final class UserManagementUi
 
     public function filtered(Nutgram $bot, string $mode, string $page = '1'): void
     {
+        if ($this->actor($bot) === null) {
+            return;
+        }
+
         if (! ctype_digit($page) || (int) $page < 1 || ! UserDirectoryMode::valid($mode) || $mode === 's') {
             $this->menus->showUserNotice($bot, 'فیلتر یا صفحه معتبر نیست.');
 
