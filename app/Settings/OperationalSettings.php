@@ -53,7 +53,11 @@ final class OperationalSettings extends Settings
 
     private static function effective(string $property, string $configKey): mixed
     {
-        $value = app(self::class)->{$property};
+        // Refresh the repository snapshot on each policy decision, including
+        // queued jobs and long-lived PHP workers, before trusting a prior ON.
+        $settings = app(self::class);
+        $settings->refresh();
+        $value = $settings->{$property};
         if ($value !== null) {
             return $value;
         }
