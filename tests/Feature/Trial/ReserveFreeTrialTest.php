@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
+use App\Settings\OperationalSettings;
 use App\Modules\Trial\Application\ReserveFreeTrial;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -14,8 +15,10 @@ use Spatie\Permission\Models\Role;
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
-    config()->set('trial.enabled', true);
-    config()->set('trial.daily_limit', 20);
+    $settings = app(OperationalSettings::class);
+    $settings->trial_enabled = true;
+    $settings->trial_daily_limit = 20;
+    $settings->save();
     config()->set('trial.phone_hmac_key', str_repeat('K', 48));
     Role::findOrCreate('member', 'web');
     Role::findOrCreate('reseller', 'web');
@@ -90,11 +93,14 @@ it('rejects previously paid buyers even when their old order is no longer fulfil
 it('honors the disabled gate and the atomic daily allowance', function (): void {
     $one = freeTrialMember(9201006);
     $two = freeTrialMember(9201007);
-    config()->set('trial.enabled', false);
+    $settings = app(OperationalSettings::class);
+    $settings->trial_enabled = false;
+    $settings->save();
     expect(fn () => app(ReserveFreeTrial::class)->handle($one->id, 9201006, 9201006, '09123456789'))
         ->toThrow(ValidationException::class);
-    config()->set('trial.enabled', true);
-    config()->set('trial.daily_limit', 1);
+    $settings->trial_enabled = true;
+    $settings->trial_daily_limit = 1;
+    $settings->save();
     app(ReserveFreeTrial::class)->handle($one->id, 9201006, 9201006, '09123456789');
     expect(fn () => app(ReserveFreeTrial::class)->handle($two->id, 9201007, 9201007, '09125556677'))
         ->toThrow(ValidationException::class);
@@ -106,7 +112,13 @@ it('fails closed for missing weak or reused keys and invalid daily limits', func
     if ($value === 'APP_KEY') {
         $value = config('app.key');
     }
-    config()->set($setting, $value);
+    if ($setting === 'trial.daily_limit') {
+        $settings = app(OperationalSettings::class);
+        $settings->trial_daily_limit = $value;
+        $settings->save();
+    } else {
+        config()->set($setting, $value);
+    }
     expect(fn () => app(ReserveFreeTrial::class)->handle($member->id, 9201030, 9201030, '09123456789'))
         ->toThrow(ValidationException::class);
     expect(DB::table('trial_claims')->count())->toBe(0);
@@ -154,7 +166,9 @@ it('normalizes native contact variants and rejects malformed input without stori
 
 it('counts reservations atomically and resets only the Tehran calendar allowance', function (): void {
     $this->travelTo(now()->setDate(2026, 10, 26)->setTime(20, 29, 59)->utc());
-    config()->set('trial.daily_limit', 1);
+    $settings = app(OperationalSettings::class);
+    $settings->trial_daily_limit = 1;
+    $settings->save();
     $one = freeTrialMember(9201034);
     app(ReserveFreeTrial::class)->handle($one->id, 9201034, 9201034, '09123456789');
     $this->travel(2)->seconds();
