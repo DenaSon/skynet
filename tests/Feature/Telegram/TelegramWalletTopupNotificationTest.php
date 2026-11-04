@@ -14,6 +14,7 @@ use App\Modules\Billing\Application\ViewWallet;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Sales\Application\SalesPanelRequests;
+use App\Settings\OperationalSettings;
 use GuzzleHttp\Psr7\Request as PsrRequest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
@@ -208,7 +209,9 @@ it('records one Sales review result after Admin confirms; never before or on a r
 });
 
 it('adds the green panel application action only after a confirmed topup reaches the configured minimum', function (): void {
-    config()->set('sales.panel_minimum_wallet_toman', '550000');
+    $settings = app(OperationalSettings::class);
+    $settings->panel_minimum_wallet_toman = 550_000;
+    $settings->save();
     $data = finNotSubmitted();
     DB::transaction(static function () use ($data): void {
         app(ReviewTopup::class)->handle($data['root']->id, $data['topup'], true, 'BANKVERIFIED7002');
@@ -255,7 +258,9 @@ it('delivers the original approved wallet message when panel threshold config is
         app(WalletTopupNotificationOutbox::class)->reviewed($data['topup']);
     });
     PanelWalletFunding::credit($data['buyer']->id, 5_000_000);
-    config()->set('sales.panel_minimum_wallet_toman', 'invalid');
+    $settings = app(OperationalSettings::class);
+    $settings->panel_minimum_wallet_toman = 0;
+    $settings->save();
     $delivery = DB::table('telegram_notification_deliveries')
         ->where('event_type', 'WalletTopupApproved')->first();
 
