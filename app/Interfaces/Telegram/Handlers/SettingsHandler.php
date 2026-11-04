@@ -51,6 +51,7 @@ final class SettingsHandler
             ->addRow(InlineKeyboardButton::make('👤 خوشامدگویی کاربر عادی', callback_data: 'admin:welcome:edit:member'))
             ->addRow(InlineKeyboardButton::make('🧩 خوشامدگویی نماینده', callback_data: 'admin:welcome:edit:reseller'))
             ->addRow(InlineKeyboardButton::make('🔐 مدیریت سرویس توسط نماینده', callback_data: 'admin:reseller-status:show'))
+            ->addRow(InlineKeyboardButton::make('🧰 تنظیمات عملیاتی', callback_data: 'admin:ops:show'))
             ->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
 
         $this->render($bot, '<b>⚙️ تنظیمات</b>'."\n\nبخش موردنظر را انتخاب کنید.", $keyboard);
