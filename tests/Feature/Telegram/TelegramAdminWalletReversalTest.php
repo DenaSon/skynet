@@ -87,7 +87,7 @@ it('offers a private root-only correction flow with escaped Rich preview and one
     $bot->hearCallbackQueryData('finance:reverse:prepare:'.$buyer->id.':'.$topup)->reply()
         ->assertCalled('editMessageText');
     $bot->hearText('تأیید اشتباه <رسید>')->reply()->assertRaw(
-        static function (Request $request) use ($topup): bool {
+        static function (Request $request): bool {
             $html = finReverseRich($request);
             $keyboard = json_encode(finReverseRequest($request)['reply_markup'], JSON_THROW_ON_ERROR);
 
