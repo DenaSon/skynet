@@ -107,7 +107,7 @@ it('navigates the Admin Finance wallet, including the root-only manual credit en
 
         return str_contains(fin01Rich($data), '<tr><td>موجودی</td><td>0 تومان</td></tr>')
             && str_contains(fin01Rich($data), 'گردش‌های اخیر')
-            && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'finance:wallet:credit:begin:');
+            && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'finance:credit:begin:');
     }, index: 1);
     $bot->hearCallbackQueryData('finance:find-wallet')->reply()->assertCalled('editMessageText');
     $bot->hearText((string) $customer->id)->reply()->assertCalled('sendRichMessage');
