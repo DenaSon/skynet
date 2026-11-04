@@ -185,6 +185,12 @@ final class SettingsHandler
             return;
         }
 
+        $actor = $this->resolve->handle($id);
+        if ($actor === null) {
+            return;
+        }
+        Cache::forget(\App\Interfaces\Telegram\Processing\TelegramBotContext::current()
+            ->cacheKey('admin:ops:draft:'.$actor->userId));
         Cache::put($this->draftKey($id), $kind, now()->addMinutes(10));
         try {
             $settings = app(SalesWelcomeSettings::class);
