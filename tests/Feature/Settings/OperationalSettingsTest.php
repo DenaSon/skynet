@@ -156,6 +156,108 @@ it('changes daily quota and trial admission without deleting earlier settings or
     Http::assertNothingSent();
 });
 
+it('routes the operational amount after an unfinished accounting draft without recording money', function (): void {
+    $root = User::factory()->create();
+    $root->syncRoles(['super-admin']);
+    $bot = operationalBot($root, 997901);
+    $accountingKey = 'admin:accounting:draft:'.$root->id;
+    $financeKey = TelegramBotContext::current()->cacheKey('telegram:finance:wallet:'.$root->id);
+    $bankKey = TelegramBotContext::current()->cacheKey('telegram:bankreview:reference:'.$root->id);
+
+    $bot->hearCallbackQueryData('acc:begin:owner_draw')->reply();
+    expect(Cache::has($accountingKey))->toBeTrue();
+    Cache::put($bankKey, ['claim' => 5, 'stage' => 'amount'], now()->addMinutes(10));
+
+    $bot->hearCallbackQueryData('admin:ops:edit:limit')->reply();
+    expect(Cache::has($accountingKey))->toBeFalse()
+        ->and(Cache::has($financeKey))->toBeFalse()
+        ->and(Cache::has($bankKey))->toBeFalse();
+    $bot->hearText('17')->reply();
+    $draft = Cache::get(TelegramBotContext::current()->cacheKey('admin:ops:draft:'.$root->id));
+    expect($draft['kind'])->toBe('limit')
+        ->and($draft['new'])->toBe(17)
+        ->and(DB::table('accounting_entries')->count())->toBe(0);
+
+    $bot->hearCallbackQueryData('admin:ops:apply:'.$draft['token'])->reply();
+    expect(OperationalSettings::trialDailyLimit())->toBe(17)
+        ->and(DB::table('accounting_entries')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('retires an old finance input before editing operational settings', function (): void {
+    $root = User::factory()->create();
+    $root->syncRoles(['super-admin']);
+    $bot = operationalBot($root, 997901);
+    $financeKey = TelegramBotContext::current()->cacheKey('telegram:finance:wallet:'.$root->id);
+    $opsKey = TelegramBotContext::current()->cacheKey('admin:ops:draft:'.$root->id);
+
+    $bot->hearCallbackQueryData('finance:find-wallet')->reply();
+    expect(Cache::get($financeKey)['kind'])->toBe('find');
+
+    $bot->hearCallbackQueryData('admin:ops:edit:panel')->reply();
+    expect(Cache::has($financeKey))->toBeFalse();
+    $bot->hearText('750000')->reply();
+    $draft = Cache::get($opsKey);
+    expect($draft['step'])->toBe('confirm')
+        ->and($draft['new'])->toBe(750_000);
+    $bot->hearCallbackQueryData('admin:ops:apply:'.$draft['token'])->reply();
+    expect(app(OperationalSettings::class)->panel_minimum_wallet_toman)->toBe(750_000)
+        ->and(DB::table('billing_journals')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('invalidates old operational confirmations when switching to accounting and wallet forms', function (): void {
+    $root = User::factory()->create();
+    $root->syncRoles(['super-admin']);
+    $bot = operationalBot($root, 997901);
+    $opsKey = TelegramBotContext::current()->cacheKey('admin:ops:draft:'.$root->id);
+    $accountingKey = 'admin:accounting:draft:'.$root->id;
+    $financeKey = TelegramBotContext::current()->cacheKey('telegram:finance:wallet:'.$root->id);
+    $initialLimit = OperationalSettings::trialDailyLimit();
+
+    $bot->hearCallbackQueryData('admin:ops:edit:limit')->reply();
+    $bot->hearText('17')->reply();
+    $oldToken = Cache::get($opsKey)['token'];
+    $bot->hearCallbackQueryData('acc:begin:owner_draw')->reply();
+    expect(Cache::has($opsKey))->toBeFalse();
+    $bot->hearText('10000')->reply();
+    expect(Cache::get($accountingKey)['step'])->toBe('memo');
+    $bot->hearCallbackQueryData('admin:ops:apply:'.$oldToken)->reply();
+    expect(OperationalSettings::trialDailyLimit())->toBe($initialLimit)
+        ->and(DB::table('accounting_entries')->count())->toBe(0);
+
+    $bot->hearCallbackQueryData('admin:ops:edit:limit')->reply();
+    $bot->hearText('17')->reply();
+    $oldToken = Cache::get($opsKey)['token'];
+    $bot->hearCallbackQueryData('finance:find-wallet')->reply();
+    expect(Cache::has($opsKey))->toBeFalse()
+        ->and(Cache::get($financeKey)['kind'])->toBe('find');
+    $bot->hearCallbackQueryData('admin:ops:apply:'.$oldToken)->reply();
+    expect(OperationalSettings::trialDailyLimit())->toBe($initialLimit)
+        ->and(DB::table('billing_journals')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('keeps welcome editing and operational settings drafts mutually exclusive', function (): void {
+    $root = User::factory()->create();
+    $root->syncRoles(['super-admin']);
+    $bot = operationalBot($root, 997901);
+    $opsKey = TelegramBotContext::current()->cacheKey('admin:ops:draft:'.$root->id);
+    $welcomeKey = 'admin:sales-welcome:draft:997901';
+
+    $bot->hearCallbackQueryData('admin:welcome:edit:member')->reply();
+    expect(Cache::has($welcomeKey))->toBeTrue();
+
+    $bot->hearCallbackQueryData('admin:ops:edit:panel')->reply();
+    expect(Cache::has($welcomeKey))->toBeFalse()
+        ->and(Cache::has($opsKey))->toBeTrue();
+
+    $bot->hearCallbackQueryData('admin:welcome:edit:member')->reply();
+    expect(Cache::has($opsKey))->toBeFalse()
+        ->and(Cache::has($welcomeKey))->toBeTrue();
+    Http::assertNothingSent();
+});
+
 it('denies ordinary admins and revoked super admins, and cancels stale or altered confirmations', function (): void {
     $root = User::factory()->create();
     $root->syncRoles(['super-admin']);

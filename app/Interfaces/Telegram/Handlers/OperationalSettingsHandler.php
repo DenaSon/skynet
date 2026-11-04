@@ -95,6 +95,9 @@ final readonly class OperationalSettingsHandler
 
             return;
         }
+        // Entering an operational form retires older Admin text drafts, so
+        // earlier finance/wizard handlers cannot consume its next input.
+        $this->clearCompetingDrafts($root, (int) $this->private->id($bot));
         $key = $this->key($root);
         Cache::forget($key);
 
@@ -140,6 +143,7 @@ final readonly class OperationalSettingsHandler
         }
         try {
             $settings = $this->loaded();
+            $this->clearCompetingDrafts($root, (int) $this->private->id($bot));
             $this->confirm($bot, $root, 'trial', $settings->trial_enabled, $value === 'on');
         } catch (Throwable $exception) {
             report($exception);
@@ -360,6 +364,27 @@ final readonly class OperationalSettingsHandler
 
             return null;
         }
+    }
+
+    /**
+     * Retire only this root's temporary Admin text forms; never modify
+     * persistent settings, customer wallets or financial ledger entries.
+     */
+    private function clearCompetingDrafts(int $root, int $telegramId): void
+    {
+        foreach ([
+            'nw01:draft:', 'node01:draft:', 'node02:draft:', 'node03:draft:',
+            'host01:draft:', 'host02:draft:', 'host02:batch:', 'cfg02:draft:',
+            'telegram:finance:wallet:', 'telegram:bankreview:reference:',
+            'cf02:form:', 'tg:users:search-prompt:',
+        ] as $prefix) {
+            Cache::forget(TelegramBotContext::current()->cacheKey($prefix.$root));
+        }
+
+        Cache::forget('admin:accounting:draft:'.$root);
+        Cache::forget('admin:sales-welcome:draft:'.$telegramId);
+        Cache::forget('nw03:hostDraft:'.$root);
+        Cache::forget('nw03:confirm:'.$root);
     }
 
     private function key(int $root): string

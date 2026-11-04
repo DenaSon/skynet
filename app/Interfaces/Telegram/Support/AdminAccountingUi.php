@@ -438,6 +438,7 @@ final readonly class AdminAccountingUi
             return;
         }
 
+        $this->clearCompeting($id);
         $token = bin2hex(random_bytes(16));
         Cache::put($this->key($id), ['step' => 'reverse', 'entry_id' => $number, 'token' => $token],
             now()->addMinutes(15));
@@ -567,7 +568,7 @@ final readonly class AdminAccountingUi
         $prefixes = [
             'nw01:draft:', 'node01:draft:', 'node02:draft:', 'node03:draft:',
             'host01:draft:', 'host02:draft:', 'host02:batch:', 'cfg02:draft:',
-            'telegram:finance:wallet:', 'cf02:form:',
+            'telegram:finance:wallet:', 'cf02:form:', 'admin:ops:draft:',
         ];
         $keys = [];
         foreach ($prefixes as $prefix) {
