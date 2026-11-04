@@ -1,5 +1,6 @@
 <?php
 
+use App\Interfaces\Telegram\Handlers\OperationalSettingsHandler;
 use App\Interfaces\Telegram\Handlers\ReplyMenuHandler;
 use App\Interfaces\Telegram\Handlers\SettingsHandler;
 use App\Interfaces\Telegram\Support\AdminAccountingUi;
@@ -91,6 +92,10 @@ $bot->onText('{volume}', function (Nutgram $bot, string $volume): void {
     }
 
     if (app(UserManagementUi::class)->text($bot, $volume)) {
+        return;
+    }
+
+    if (app(OperationalSettingsHandler::class)->text($bot, $bot->message()->text ?? $volume)) {
         return;
     }
 
