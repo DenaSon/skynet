@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Settings\OperationalSettings;
 use Illuminate\Support\Facades\DB;
-use RuntimeException;
 use Spatie\LaravelSettings\Migrations\SettingsMigration;
 
 return new class extends SettingsMigration
@@ -22,7 +22,7 @@ return new class extends SettingsMigration
     public function down(): void
     {
         $initial = $this->effectiveLegacyConfig();
-        $settings = app(\App\Settings\OperationalSettings::class);
+        $settings = app(OperationalSettings::class);
 
         foreach ($initial as $key => $value) {
             if ($settings->{$key} !== $value) {
