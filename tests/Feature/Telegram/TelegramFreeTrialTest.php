@@ -6,6 +6,7 @@ use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Interfaces\Telegram\Support\SalesTrialUi;
 use App\Modules\Trial\Application\ProvisionFreeTrial;
 use App\Modules\Trial\Jobs\ProvisionFreeTrialJob;
+use App\Settings\OperationalSettings;
 use GuzzleHttp\Psr7\Request;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Route;
@@ -123,10 +124,13 @@ it('cancels native contact intake and restores the native menu without accepting
 it('hides trial for disabled flag reseller elevated and paid identities and rejects forged entry', function (): void {
     $member = $this->trialMember();
     $bot = trialUiBot();
-    config()->set('trial.enabled', false);
+    $settings = app(OperationalSettings::class);
+    $settings->trial_enabled = false;
+    $settings->save();
     $bot->hearCallbackQueryData('sales:trial:contact')->reply();
     expect(Cache::has('telegram:sales:trial:'.$member->id))->toBeFalse();
-    config()->set('trial.enabled', true);
+    $settings->trial_enabled = true;
+    $settings->save();
     Role::findOrCreate('reseller', 'web');
     $member->syncRoles(['reseller']);
     $bot->hearCallbackQueryData('sales:trial:contact')->reply();
