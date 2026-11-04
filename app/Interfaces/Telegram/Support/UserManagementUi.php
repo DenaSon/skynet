@@ -246,7 +246,7 @@ final class UserManagementUi
             return;
         }
 
-        $mode = (string) ($pending['mode'] ?? (($pending['search'] ?? false) ? 's' : (($pending['resellers'] ?? false) ? 'r' : 'a')));
+        $mode = (string) ($pending['mode'] ?? ($pending['search'] ? 's' : (($pending['resellers'] ?? false) ? 'r' : 'a')));
         if (! UserDirectoryMode::valid($mode)
             || (UserDirectoryMode::rootOnly($mode) && ! $actor->canManageRoles())) {
             $this->menus->denyAccess($bot);
