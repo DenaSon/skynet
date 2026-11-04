@@ -40,7 +40,7 @@ final class ReviewTopup
 
                 $journalId = (int) DB::table('billing_journals')->insertGetId([
                     'wallet_id' => $topup->wallet_id,
-                    'kind' => 'topup',
+                    'kind' => ($topup->origin ?? 'customer') === 'admin_verified_bank' ? 'admin_verified_topup' : 'topup',
                     'idempotency_key' => 'topup:'.$topupId,
                     'created_at' => now(),
                 ]);

@@ -400,7 +400,7 @@ it('shows read-only cash report and blocks non-root, revoked or group callbacks'
 
         return str_contains(acc02Rich($data), 'گزارش دریافتی‌ها · ۷ روز اخیر')
             && str_contains(acc02Rich($data), 'کل دریافتی‌های ثبت‌شده</td><td>950,000 تومان')
-            && str_contains(acc02Rich($data), 'شارژ تأییدشده کیف پول</td><td>750,000 تومان')
+            && str_contains(acc02Rich($data), 'شارژ معمولی کیف پول</td><td>750,000 تومان')
             && str_contains(acc02Rich($data), 'خرید مستقیم بانکی</td><td>200,000 تومان')
             && str_contains(acc02Rich($data), 'فروش تأییدشده</td><td>500,000 تومان')
             && str_contains(acc02Rich($data), 'خرید با اعتبار کیف پول</td><td>300,000 تومان')

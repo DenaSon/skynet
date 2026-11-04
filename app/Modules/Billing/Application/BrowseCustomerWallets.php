@@ -38,7 +38,7 @@ final readonly class BrowseCustomerWallets
             ])->all();
     }
 
-    /** @return array{id:int,name:string,active:bool,account_type:string,balance_rials:int,entries:list<array{journal:int,kind:string,side:string,amount_rials:int,at:string,source:string}>,topups:list<array{id:int,amount_rials:int,status:string,at:string,reference:?string}>} */
+    /** @return array{id:int,name:string,active:bool,account_type:string,balance_rials:int,entries:list<array{journal:int,kind:string,side:string,amount_rials:int,at:string,source:string}>,topups:list<array{id:int,amount_rials:int,status:string,at:string,reference:?string,origin:string,reason:?string,reviewer:?string}>} */
     public function detail(int $rootId, int $userId): array
     {
         $this->access->financeViewer($rootId);
@@ -78,15 +78,20 @@ final readonly class BrowseCustomerWallets
                     ];
                 })->all();
 
-            $topups = DB::table('billing_topups')->where('wallet_id', $walletId)
-                ->orderByDesc('id')->limit(8)
-                ->get(['id', 'amount_rials', 'status', 'created_at', 'payment_reference'])
+            $topups = DB::table('billing_topups as t')
+                ->leftJoin('users as reviewer', 'reviewer.id', '=', 't.reviewed_by')
+                ->where('t.wallet_id', $walletId)->orderByDesc('t.id')->limit(8)
+                ->get(['t.id', 't.amount_rials', 't.status', 't.created_at', 't.payment_reference',
+                    't.origin', 't.admin_reason', 'reviewer.name as reviewer_name'])
                 ->map(static fn (object $row): array => [
                     'id' => (int) $row->id,
                     'amount_rials' => (int) $row->amount_rials,
                     'status' => (string) $row->status,
                     'at' => (string) $row->created_at,
                     'reference' => $row->payment_reference === null ? null : (string) $row->payment_reference,
+                    'origin' => (string) $row->origin,
+                    'reason' => $row->admin_reason === null ? null : (string) $row->admin_reason,
+                    'reviewer' => $row->reviewer_name === null ? null : (string) $row->reviewer_name,
                 ])->all();
         }
 

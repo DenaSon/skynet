@@ -9,6 +9,7 @@ use App\Interfaces\Telegram\Notifications\WalletTopupNotificationOutbox;
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Billing\Application\BrowseCustomerWallets;
 use App\Modules\Billing\Application\BrowsePhotoTopups;
+use App\Modules\Billing\Application\CreditVerifiedAdminBankTopup;
 use App\Modules\Billing\Application\ReadAdminWalletSummary;
 use App\Modules\Billing\Application\ReviewTopup;
 use App\Modules\Identity\Application\AssertBillingAccess;
@@ -40,6 +41,7 @@ final readonly class AdminFinanceWalletUi
         private BrowsePhotoTopups $photos,
         private BillingReviewTokens $tokens,
         private ReviewTopup $review,
+        private CreditVerifiedAdminBankTopup $adminCredits,
         private WalletTopupNotificationOutbox $notifications,
         private TelegramNotificationSender $sender,
         private MenuRenderer $menus,
@@ -164,6 +166,7 @@ final readonly class AdminFinanceWalletUi
         foreach ($row['entries'] as $entry) {
             $kind = match ($entry['kind']) {
                 'topup' => 'شارژ',
+                'admin_verified_topup' => 'افزایش اعتبار توسط مدیر',
                 'topup_reversal' => 'اصلاح شارژ',
                 'purchase_reversal' => 'اصلاح خرید',
                 default => 'پرداخت',
@@ -182,15 +185,27 @@ final readonly class AdminFinanceWalletUi
             $lines[] = '';
             $lines[] = '<b>درخواست‌های شارژ</b>';
             foreach ($row['topups'] as $topup) {
-                $line = '#'.$topup['id'].' · '.TelegramUi::toman($topup['amount_rials']).' تومان · '
+                $manual = $topup['origin'] === 'admin_verified_bank';
+                $line = ($manual ? 'افزایش اعتبار مدیر · ' : 'شارژ · ').'#'.$topup['id'].' · '
+                    .TelegramUi::toman($topup['amount_rials']).' تومان · '
                     .TelegramUi::escape(TelegramUi::topupStatus($topup['status']));
                 if ($topup['reference'] !== null) {
                     $line .= ' · مرجع: '.TelegramUi::code($topup['reference']);
                 }
                 $lines[] = $line;
+                if ($manual) {
+                    $lines[] = 'دلیل: '.TelegramUi::escape($topup['reason'] ?? 'ثبت نشده')
+                        .' · ثبت‌کننده: '.TelegramUi::escape($topup['reviewer'] ?? 'نامشخص');
+                }
             }
         }
-        $keyboard = InlineKeyboardMarkup::make()
+        $keyboard = InlineKeyboardMarkup::make();
+        if ($row['active'] && in_array($row['account_type'], ['member', 'reseller'], true)
+            && $this->enabled()) {
+            $keyboard->addRow(InlineKeyboardButton::make('افزایش اعتبار',
+                callback_data: 'finance:credit:begin:'.$row['id'], style: ButtonStyle::DANGER));
+        }
+        $keyboard
             ->addRow(InlineKeyboardButton::make('◀️ کیف پول کاربران', callback_data: 'finance:wallets:1'))
             ->addRow(InlineKeyboardButton::make('🧾 رسیدهای شارژ', callback_data: 'finance:topups:1'))
             ->addRow(InlineKeyboardButton::make('🏠 امور مالی', callback_data: 'menu:admin:finance'));
@@ -206,6 +221,7 @@ final readonly class AdminFinanceWalletUi
         foreach ($row['entries'] as $entry) {
             $kind = match ($entry['kind']) {
                 'topup' => 'شارژ',
+                'admin_verified_topup' => 'افزایش اعتبار توسط مدیر',
                 'topup_reversal' => 'اصلاح شارژ',
                 'purchase_reversal' => 'اصلاح خرید',
                 default => 'پرداخت',
@@ -225,9 +241,13 @@ final readonly class AdminFinanceWalletUi
         if ($row['topups'] !== []) {
             $topups = '';
             foreach ($row['topups'] as $topup) {
+                $manual = $topup['origin'] === 'admin_verified_bank';
                 $reference = $topup['reference'] !== null ? ' · مرجع: '.$topup['reference'] : '';
-                $topups .= $t('#'.$topup['id'].' · '.TelegramUi::topupStatus($topup['status']),
-                    TelegramUi::toman($topup['amount_rials']).' تومان'.$reference);
+                $audit = $manual ? ' · دلیل: '.($topup['reason'] ?? 'ثبت نشده')
+                    .' · ثبت‌کننده: '.($topup['reviewer'] ?? 'نامشخص') : '';
+                $label = $manual ? 'افزایش اعتبار مدیر' : 'شارژ';
+                $topups .= $t($label.' #'.$topup['id'].' · '.TelegramUi::topupStatus($topup['status']),
+                    TelegramUi::toman($topup['amount_rials']).' تومان'.$reference.$audit);
             }
             $html .= '<h3>درخواست‌های شارژ</h3><table bordered striped compact>'.$topups.'</table>';
         }
@@ -375,6 +395,237 @@ final readonly class AdminFinanceWalletUi
             ->addRow(InlineKeyboardButton::make('◀️ کیف پول کاربران', callback_data: 'finance:wallets:1')));
     }
 
+    /** A private Super Admin starts a bank-verified credit for one customer. */
+    public function beginManual(Nutgram $bot, string $userId): void
+    {
+        $actor = $this->root($bot);
+        if ($actor === null) {
+            return;
+        }
+
+        if (! $this->enabled() || preg_match('/\A[1-9][0-9]{0,14}\z/D', $userId) !== 1) {
+            $this->notice($bot, 'ثبت افزایش اعتبار در دسترس نیست.');
+
+            return;
+        }
+        try {
+            $wallet = $this->wallets->detail($actor->userId, (int) $userId);
+        } catch (ValidationException) {
+            $this->notice($bot, 'کاربر موردنظر پیدا نشد.');
+
+            return;
+        }
+
+        if (! $wallet['active'] || ! in_array($wallet['account_type'], ['member', 'reseller'], true)) {
+            $this->notice($bot, 'فقط کیف پول کاربران فعال عادی یا نماینده قابل شارژ است.');
+
+            return;
+        }
+
+        $this->clear($actor->userId);
+        Cache::put($this->key($actor->userId), [
+            'kind' => 'manual_amount', 'user_id' => (int) $userId,
+        ], now()->addMinutes(10));
+
+        $this->render($bot,
+            '<b>افزایش اعتبار · مرحله ۱ از ۳</b>'."\n\nکاربر: "
+                .TelegramUi::escape($wallet['name']).' (#'.$userId.')'
+                ."\nمبلغ واریز تأییدشده را به <b>تومان</b> وارد کنید."
+                ."\nنمونه: ".TelegramUi::code('27500')
+                ."\n\n<blockquote>فقط وجهی را ثبت کنید که دریافت واقعی آن در بانک بررسی شده است. حداکثر هر ثبت ۱۰ میلیون تومان.</blockquote>",
+            $this->manualBack((int) $userId));
+    }
+
+    /** Final one-use confirmation; financial mutation is owned by Billing. */
+    public function applyManual(Nutgram $bot, string $token): void
+    {
+        $actor = $this->root($bot);
+        if ($actor === null) {
+            return;
+        }
+        if (preg_match('/\A[a-f0-9]{24}\z/D', $token) !== 1) {
+            $this->notice($bot, 'تأیید نامعتبر یا منقضی شده است.');
+
+            return;
+        }
+
+        $key = $this->key($actor->userId);
+        try {
+            $draft = Cache::lock($key.':apply', 15)->block(2, static function () use ($key, $token): ?array {
+                $state = Cache::get($key);
+                if (! is_array($state) || ($state['kind'] ?? null) !== 'manual_confirm'
+                    || ! hash_equals((string) ($state['token'] ?? ''), $token)) {
+                    return null;
+                }
+
+                Cache::forget($key);
+
+                return $state;
+            });
+
+            if ($draft === null) {
+                $this->notice($bot, 'این تأیید منقضی شده یا قبلاً استفاده شده است.');
+
+                return;
+            }
+
+            $topupId = $this->adminCredits->handle(
+                $actor->userId,
+                (int) $draft['user_id'],
+                (int) $draft['amount_rials'],
+                (string) $draft['reference'],
+                (string) $draft['reason'],
+            );
+            $this->render($bot, '<b>✅ افزایش اعتبار ثبت شد.</b>'
+                ."\n\nمبلغ: <b>".TelegramUi::toman((int) $draft['amount_rials']).' تومان</b>'
+                ."\nکاربر: #".$draft['user_id']
+                ."\nسند شارژ: #{$topupId}"
+                ."\n\nاین وجه فقط یک‌بار در کیف پول ثبت شده و هیچ سفارشی خودکار فعال نشده است.",
+                InlineKeyboardMarkup::make()
+                    ->addRow(InlineKeyboardButton::make('💼 جزئیات کیف پول',
+                        callback_data: 'finance:wallet:'.$draft['user_id']))
+                    ->addRow(InlineKeyboardButton::make('📊 گزارش دریافتی‌ها',
+                        callback_data: 'finance:cash:30')));
+        } catch (AuthorizationException|ValidationException|UniqueConstraintViolationException) {
+            $this->notice($bot, 'افزایش اعتبار انجام نشد. وضعیت کاربر، مبلغ و یکتایی شناسه بانک را بررسی کنید.');
+        } catch (Throwable $exception) {
+            report($exception);
+            $this->notice($bot, 'ثبت اعتبار تأیید نشد. پیش از اقدام دوباره، گردش کیف پول را بررسی کنید.');
+        }
+    }
+
+    /** @param array<string,mixed> $state */
+    private function manualText(Nutgram $bot, int $operatorId, array $state, string $value): bool
+    {
+        $id = (int) ($state['user_id'] ?? 0);
+        if ($id < 1 || str_starts_with(trim($value), '/')
+            || in_array($value, ReplyMenuLabels::all(), true)) {
+            $this->clear($operatorId);
+
+            return false;
+        }
+
+        $key = $this->key($operatorId);
+        $back = $this->manualBack($id);
+
+        if ($state['kind'] === 'manual_amount') {
+            $raw = strtr(trim($value), [
+                '۰' => '0', '۱' => '1', '۲' => '2', '۳' => '3', '۴' => '4',
+                '۵' => '5', '۶' => '6', '۷' => '7', '۸' => '8', '۹' => '9',
+                '٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4',
+                '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
+            ]);
+            if (preg_match('/\A(?:[1-9][0-9]*|[1-9][0-9]{0,2}(?:[,٬][0-9]{3})+)\z/u', $raw) !== 1) {
+                $this->render($bot, 'مبلغ معتبر به تومان وارد کنید؛ مانند '.TelegramUi::code('27500'), $back);
+
+                return true;
+            }
+            $toman = (int) str_replace([',', '٬'], '', $raw);
+            if ($toman < 1 || $toman > 10_000_000) {
+                $this->render($bot, 'مبلغ باید بین ۱ تا ۱۰ میلیون تومان باشد.', $back);
+
+                return true;
+            }
+            $state['amount_rials'] = $toman * 10;
+            $state['kind'] = 'manual_reference';
+            Cache::put($key, $state, now()->addMinutes(10));
+            $this->render($bot,
+                '<b>افزایش اعتبار · مرحله ۲ از ۳</b>'."\n\nمبلغ: <b>"
+                    .TelegramUi::toman($state['amount_rials']).' تومان</b>'
+                    ."\n\nشناسه <b>واقعی و یکتای تراکنش بانکی</b> را پس از بررسی بانک وارد کنید."
+                    ."\n۶ تا ۶۴ نویسه انگلیسی، عدد، خط تیره یا زیرخط.",
+                $back);
+
+            return true;
+        }
+
+        if ($state['kind'] === 'manual_reference') {
+            $reference = strtoupper(trim($value));
+            if (preg_match('/\A[A-Z0-9_-]{6,64}\z/D', $reference) !== 1
+                || str_starts_with($reference, 'MANUAL-CLAIM-')) {
+                $this->render($bot, 'شناسه بانکی واقعی و معتبر وارد کنید (۶ تا ۶۴ نویسه).', $back);
+
+                return true;
+            }
+            $state['reference'] = $reference;
+            $state['kind'] = 'manual_reason';
+            Cache::put($key, $state, now()->addMinutes(10));
+            $this->render($bot, '<b>افزایش اعتبار · مرحله ۳ از ۳</b>'
+                ."\n\nدلیل افزایش اعتبار را کوتاه وارد کنید."
+                ."\nمثلاً: واریز اضافه برای سفارش قبلی"
+                ."\n\nحداکثر ۲۰۰ نویسه؛ این توضیح در سوابق مدیریتی ثبت می‌شود.", $back);
+
+            return true;
+        }
+
+        if ($state['kind'] === 'manual_reason') {
+            $reason = trim($value);
+            if ($reason === '' || mb_strlen($reason) > 200) {
+                $this->render($bot, 'دلیل را در یک جمله و حداکثر ۲۰۰ نویسه وارد کنید.', $back);
+
+                return true;
+            }
+            try {
+                $wallet = $this->wallets->detail($operatorId, $id);
+            } catch (ValidationException) {
+                $this->clear($operatorId);
+                $this->notice($bot, 'کاربر در دسترس نیست.');
+
+                return true;
+            }
+            if (! $wallet['active'] || ! in_array($wallet['account_type'], ['member', 'reseller'], true)) {
+                $this->clear($operatorId);
+                $this->notice($bot, 'کیف پول این کاربر دیگر قابل شارژ نیست.');
+
+                return true;
+            }
+
+            $state['reason'] = $reason;
+            $state['kind'] = 'manual_confirm';
+            $state['token'] = bin2hex(random_bytes(12));
+            Cache::put($key, $state, now()->addMinutes(3));
+
+            $newBalance = $wallet['balance_rials'] + (int) $state['amount_rials'];
+            $lines = '<b>🔎 تأیید نهایی افزایش اعتبار</b>'
+                ."\n\nکاربر: ".TelegramUi::escape($wallet['name']).' (#'.$id.')'
+                ."\nمبلغ: <b>".TelegramUi::toman($state['amount_rials']).' تومان</b>'
+                ."\nموجودی فعلی: ".TelegramUi::toman($wallet['balance_rials']).' تومان'
+                ."\nموجودی پیش‌بینی‌شده: ".TelegramUi::toman($newBalance).' تومان'
+                ."\nشناسه بانک: ".TelegramUi::code($state['reference'])
+                ."\nدلیل: ".TelegramUi::escape($reason)
+                ."\n\n<blockquote>با تأیید، دریافت وجه واقعی را گواهی می‌کنید. عملیات غیرقابل تکرار است و سفارش یا سرویس را فعال نمی‌کند.</blockquote>";
+            $t = static fn (string $name, string $value): string => '<tr><td>'.TelegramUi::escape($name)
+                .'</td><td>'.TelegramUi::escape($value).'</td></tr>';
+            $html = '<h3>تأیید نهایی افزایش اعتبار</h3><table bordered striped compact>'
+                .$t('کاربر', $wallet['name'].' (#'.$id.')')
+                .$t('مبلغ', TelegramUi::toman($state['amount_rials']).' تومان')
+                .$t('مانده فعلی', TelegramUi::toman($wallet['balance_rials']).' تومان')
+                .$t('مانده پیش‌بینی‌شده', TelegramUi::toman($newBalance).' تومان')
+                .$t('شناسه بانک', $state['reference'])
+                .$t('دلیل', $reason)
+                .'</table><footer>فقط پس از بررسی واقعی بانک تأیید کنید. این عملیات سفارش را فعال نمی‌کند.</footer>';
+            $keyboard = InlineKeyboardMarkup::make()
+                ->addRow(InlineKeyboardButton::make('تأیید و افزایش اعتبار',
+                    callback_data: 'finance:credit:apply:'.$state['token'], style: ButtonStyle::DANGER))
+                ->addRow(InlineKeyboardButton::make('◀️ انصراف', callback_data: 'finance:wallet:'.$id));
+
+            $this->render($bot, $lines, $keyboard, $html);
+
+            return true;
+        }
+
+        $this->render($bot, 'برای انجام عملیات، دکمه تأیید را بزنید یا انصراف دهید.', $back);
+
+        return true;
+    }
+
+    private function manualBack(int $userId): InlineKeyboardMarkup
+    {
+        return InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('◀️ انصراف',
+                callback_data: 'finance:wallet:'.$userId));
+    }
+
     public function text(Nutgram $bot, string $value): bool
     {
         $chat = $this->private->id($bot);
@@ -386,12 +637,19 @@ final readonly class AdminFinanceWalletUi
             return false;
         }
         $state = Cache::get($this->key($linked->userId));
-        if (! is_array($state) || ! in_array($state['kind'] ?? null, ['find', 'reference'], true)) {
+        if (! is_array($state) || ! in_array($state['kind'] ?? null, [
+            'find', 'reference', 'manual_amount', 'manual_reference', 'manual_reason', 'manual_confirm',
+        ], true)) {
             return false;
         }
-        $actor = $state['kind'] === 'find' ? $this->root($bot) : $this->topupReviewer($bot);
+        $manual = str_starts_with((string) $state['kind'], 'manual_');
+        $actor = $manual || $state['kind'] === 'find' ? $this->root($bot) : $this->topupReviewer($bot);
         if ($actor === null) {
             return true;
+        }
+
+        if ($manual) {
+            return $this->manualText($bot, $actor->userId, $state, $value);
         }
 
         if ($state['kind'] === 'find') {

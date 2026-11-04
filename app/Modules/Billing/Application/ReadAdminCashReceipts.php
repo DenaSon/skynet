@@ -23,7 +23,8 @@ final readonly class ReadAdminCashReceipts
     /**
      * @return array{
      *   period:string,start:?string,end:string,
-     *   topupsRials:int,topupsCount:int,bankSalesRials:int,bankSalesCount:int,
+     *   topupsRials:int,topupsCount:int,customerTopupsRials:int,customerTopupsCount:int,
+     *   adminTopupsRials:int,adminTopupsCount:int,bankSalesRials:int,bankSalesCount:int,
      *   cashInRials:int,walletSalesRials:int,walletSalesCount:int,
      *   salesRials:int,currentWalletBalanceRials:int,generatedAt:string
      * }
@@ -56,7 +57,10 @@ final readonly class ReadAdminCashReceipts
         if ($from !== null) {
             $topups->where('receipt.verified_at', '>=', $from);
         }
-        $topupTotals = $topups->selectRaw('COUNT(*) as receipts_count, COALESCE(SUM(topup.amount_rials), 0) as amount_rials')->first();
+        $topupTotals = $topups->selectRaw("COUNT(*) as receipts_count,
+                COALESCE(SUM(topup.amount_rials), 0) as amount_rials,
+                COALESCE(SUM(CASE WHEN topup.origin = 'admin_verified_bank' THEN topup.amount_rials ELSE 0 END), 0) as admin_amount_rials,
+                COALESCE(SUM(CASE WHEN topup.origin = 'admin_verified_bank' THEN 1 ELSE 0 END), 0) as admin_count")->first();
 
         // Direct bank settlements represent genuinely new recorded inflows.
         $bank = DB::table('sales_bank_settlements')->where('settled_at', '<', $until);
@@ -77,6 +81,8 @@ final readonly class ReadAdminCashReceipts
         $walletTotals = $wallet->selectRaw('COUNT(*) as receipts_count, COALESCE(SUM(payment.amount_rials), 0) as amount_rials')->first();
 
         $topupRials = (int) ($topupTotals->amount_rials ?? 0);
+        $adminTopupRials = (int) ($topupTotals->admin_amount_rials ?? 0);
+        $adminTopupCount = (int) ($topupTotals->admin_count ?? 0);
         $bankRials = (int) ($bankTotals->amount_rials ?? 0);
         $walletRials = (int) ($walletTotals->amount_rials ?? 0);
 
@@ -86,6 +92,10 @@ final readonly class ReadAdminCashReceipts
             'end' => $today->format('Y-m-d'),
             'topupsRials' => $topupRials,
             'topupsCount' => (int) ($topupTotals->receipts_count ?? 0),
+            'customerTopupsRials' => $topupRials - $adminTopupRials,
+            'customerTopupsCount' => (int) ($topupTotals->receipts_count ?? 0) - $adminTopupCount,
+            'adminTopupsRials' => $adminTopupRials,
+            'adminTopupsCount' => $adminTopupCount,
             'bankSalesRials' => $bankRials,
             'bankSalesCount' => (int) ($bankTotals->receipts_count ?? 0),
             'cashInRials' => $topupRials + $bankRials,
