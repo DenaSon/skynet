@@ -158,11 +158,9 @@ final readonly class ReverseUnusedWalletTopup
                 ? collect()
                 : DB::table('billing_postings')->where('journal_id', $original->id)->get();
 
-            $credit = $sourcePostings->first(static fn (object $p): bool =>
-                $p->account_code === 'wallet_liability' && $p->side === 'credit'
+            $credit = $sourcePostings->first(static fn (object $p): bool => $p->account_code === 'wallet_liability' && $p->side === 'credit'
                 && (int) $p->wallet_id === $walletId && (int) $p->amount_rials === (int) $topup->amount_rials);
-            $cash = $sourcePostings->first(static fn (object $p): bool =>
-                $p->account_code === 'cash_clearing' && $p->side === 'debit'
+            $cash = $sourcePostings->first(static fn (object $p): bool => $p->account_code === 'cash_clearing' && $p->side === 'debit'
                 && $p->wallet_id === null && (int) $p->amount_rials === (int) $topup->amount_rials);
 
             $proof = DB::table('billing_verified_receipts')->where('topup_id', $topupId)
@@ -177,8 +175,7 @@ final readonly class ReverseUnusedWalletTopup
                 || (int) $original->wallet_id !== $walletId || $sourcePostings->count() !== 2
                 || $credit === null || $cash === null || ! $proof || ! $claim || $alreadyReversed) {
                 $blocked = 'سند مالی یا مدارک واریز نیازمند بررسی است؛ اصلاح خودکار مجاز نیست.';
-            } elseif ($postings->contains(static fn (object $p): bool =>
-                $p->side === 'debit' && (int) $p->id > (int) $credit->id)) {
+            } elseif ($postings->contains(static fn (object $p): bool => $p->side === 'debit' && (int) $p->id > (int) $credit->id)) {
                 // Deliberately conservative: later topups do not undo past spending.
                 $blocked = 'پس از این شارژ، اعتبار کیف پول مصرف یا برداشت شده است؛ نیازمند بررسی.';
             } elseif ($balance < (int) $topup->amount_rials) {
