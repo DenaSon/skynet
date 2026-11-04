@@ -264,6 +264,9 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:admin:welcome:show';
     $expected['ADMIN'][] = 'callback:admin:welcome:edit:{kind}';
     $expected['ADMIN'][] = 'callback:admin:welcome:cancel';
+    // Root-only verified bank credits are isolated from Sales and customer callbacks.
+    $expected['ADMIN'][] = 'callback:finance:wallet:credit:begin:{id}';
+    $expected['ADMIN'][] = 'callback:finance:wallet:credit:apply:{token}';
     // Super Admin-only financial user directory: legacy routes remain registered.
     $expected['ADMIN'][] = 'callback:users:filtered:{mode}:{page}';
     $expected['ADMIN'][] = 'callback:users:sort:{mode}';
@@ -302,8 +305,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(269)
-        ->and(count(array_unique($legacy)))->toBe(269);
+        ->and(count($legacy))->toBe(271)
+        ->and(count(array_unique($legacy)))->toBe(271);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {
