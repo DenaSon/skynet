@@ -70,13 +70,13 @@ it('uses red root-only wallet action, Persian amount input, escaped Rich confirm
             $body = manualCreditPayload($request);
             $buttons = json_encode($body['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
 
-            return str_contains($buttons, 'finance:wallet:credit:begin:'.$buyer->id)
+            return str_contains($buttons, 'finance:credit:begin:'.$buyer->id)
                 && str_contains($buttons, 'افزایش اعتبار')
                 && str_contains($buttons, 'danger');
         }, index: 1,
     );
 
-    $bot->hearCallbackQueryData('finance:wallet:credit:begin:'.$buyer->id)->reply()
+    $bot->hearCallbackQueryData('finance:credit:begin:'.$buyer->id)->reply()
         ->assertCalled('editMessageText');
     $bot->hearText('BADAMOUNT')->reply()->assertCalled('sendMessage');
     expect(DB::table('billing_topups')->count())->toBe(0)
@@ -93,11 +93,11 @@ it('uses red root-only wallet action, Persian amount input, escaped Rich confirm
         ->and($state['reason'])->toBe('واریز اضافی <سفارش ۲۷۵>');
 
     // The final confirmation body is bound to the same authenticated draft.
-    $bot->hearCallbackQueryData('finance:wallet:credit:apply:'.$state['token'])->reply()
+    $bot->hearCallbackQueryData('finance:credit:apply:'.$state['token'])->reply()
         ->assertCalled('editMessageText');
     expect(app(ViewWallet::class)->handle($buyer->id)->balanceRials)->toBe(275_000)
         ->and(DB::table('billing_topups')->where('origin', 'admin_verified_bank')->count())->toBe(1);
-    $bot->hearCallbackQueryData('finance:wallet:credit:apply:'.$state['token'])->reply()
+    $bot->hearCallbackQueryData('finance:credit:apply:'.$state['token'])->reply()
         ->assertCalled('editMessageText');
     expect(DB::table('billing_journals')->count())->toBe(1);
 
@@ -119,7 +119,7 @@ it('rejects forged and revoked-root manual credit callbacks and never credits in
     $buyer = User::factory()->create();
     $bot = manualCreditBot($root, 958801);
 
-    $bot->hearCallbackQueryData('finance:wallet:credit:begin:'.$buyer->id)->reply()
+    $bot->hearCallbackQueryData('finance:credit:begin:'.$buyer->id)->reply()
         ->assertCalled('editMessageText');
     $bot->hearText('27500')->reply()->assertCalled('sendMessage');
     $bot->hearText('VERIFYBANK123')->reply()->assertCalled('sendMessage');
@@ -127,17 +127,17 @@ it('rejects forged and revoked-root manual credit callbacks and never credits in
     $state = Cache::get('telegram:finance:wallet:'.$root->id);
 
     config()->set('super_admin.telegram_ids', ['958802']);
-    $bot->hearCallbackQueryData('finance:wallet:credit:apply:'.$state['token'])->reply()
+    $bot->hearCallbackQueryData('finance:credit:apply:'.$state['token'])->reply()
         ->assertCalled('answerCallbackQuery');
     expect(DB::table('billing_topups')->count())->toBe(0)
         ->and(DB::table('billing_journals')->count())->toBe(0);
 
     $ordinaryAdmin = User::factory()->admin()->create();
     $otherBot = manualCreditBot($ordinaryAdmin, 958888);
-    $otherBot->hearCallbackQueryData('finance:wallet:credit:begin:'.$buyer->id)->reply()
+    $otherBot->hearCallbackQueryData('finance:credit:begin:'.$buyer->id)->reply()
         ->assertCalled('answerCallbackQuery');
 
     $bot->setCommonChat(Chat::make(-958801, ChatType::GROUP));
-    $bot->hearCallbackQueryData('finance:wallet:credit:apply:'.$state['token'])->reply()->assertNoReply();
+    $bot->hearCallbackQueryData('finance:credit:apply:'.$state['token'])->reply()->assertNoReply();
     expect(app(ViewWallet::class)->handle($buyer->id)->balanceRials)->toBe(0);
 });
