@@ -145,6 +145,11 @@ it('blocks unauthorized roots, revoked grants, ineligible customers and invalid 
     expect(fn () => $credits->handle($root->id, $buyer->id, 275_000, 'VALIDBANKREF1', ''))
         ->toThrow(ValidationException::class);
 
+    $staff = User::factory()->create();
+    $staff->syncRoles(['member', 'admin']);
+    expect(fn () => $credits->handle($root->id, $staff->id, 275_000, 'VALIDBANKREF1', 'نقش مدیر'))
+        ->toThrow(AuthorizationException::class);
+
     $buyer->forceFill(['is_active' => false])->save();
     expect(fn () => $credits->handle($root->id, $buyer->id, 275_000, 'VALIDBANKREF1', 'کاربر غیرفعال'))
         ->toThrow(AuthorizationException::class);
