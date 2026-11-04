@@ -68,7 +68,7 @@ it('uses red root-only wallet action, Persian amount input, escaped Rich confirm
     $bot->hearCallbackQueryData('finance:wallet:'.$buyer->id)->reply()->assertRaw(
         static function (Request $request) use ($buyer): bool {
             $body = manualCreditPayload($request);
-            $buttons = json_encode($body['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
+            $buttons = json_encode($body['reply_markup'] ?? [], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 
             return str_contains($buttons, 'finance:credit:begin:'.$buyer->id)
                 && str_contains($buttons, 'افزایش اعتبار')
