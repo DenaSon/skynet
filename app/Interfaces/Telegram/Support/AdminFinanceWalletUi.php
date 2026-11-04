@@ -374,6 +374,7 @@ final readonly class AdminFinanceWalletUi
 
             return;
         }
+        Cache::forget(TelegramBotContext::current()->cacheKey('admin:ops:draft:'.$actor->userId));
         $this->clear($actor->userId);
         if ($decision === 'a') {
             Cache::put($this->key($actor->userId), ['kind' => 'reference', 'topup' => $row['id']], now()->addMinutes(10));
@@ -403,6 +404,7 @@ final readonly class AdminFinanceWalletUi
         if ($actor === null) {
             return;
         }
+        Cache::forget(TelegramBotContext::current()->cacheKey('admin:ops:draft:'.$actor->userId));
         $this->clear($actor->userId);
         Cache::put($this->key($actor->userId), ['kind' => 'find'], now()->addMinutes(10));
         $this->render($bot, '<b>🔎 جستجوی کیف پول</b>'."\n\nشناسه عددی کاربر را ارسال کنید.", InlineKeyboardMarkup::make()
@@ -436,6 +438,7 @@ final readonly class AdminFinanceWalletUi
             return;
         }
 
+        Cache::forget(TelegramBotContext::current()->cacheKey('admin:ops:draft:'.$actor->userId));
         $this->clear($actor->userId);
         Cache::put($this->key($actor->userId), [
             'kind' => 'manual_amount', 'user_id' => (int) $userId,
