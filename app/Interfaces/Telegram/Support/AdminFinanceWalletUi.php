@@ -197,6 +197,11 @@ final readonly class AdminFinanceWalletUi
                     $lines[] = 'دلیل: '.TelegramUi::escape($topup['reason'] ?? 'ثبت نشده')
                         .' · ثبت‌کننده: '.TelegramUi::escape($topup['reviewer'] ?? 'نامشخص');
                 }
+                if ($topup['reversal_journal_id'] !== null) {
+                    $lines[] = '↩️ اصلاح سند #'.$topup['reversal_journal_id'].' · '
+                        .TelegramUi::escape($topup['reversal_reason'] ?? 'بدون توضیح')
+                        .' · '.TelegramUi::escape($topup['reverser'] ?? 'مدیر');
+                }
             }
         }
         $keyboard = InlineKeyboardMarkup::make();
@@ -204,6 +209,11 @@ final readonly class AdminFinanceWalletUi
             && $this->enabled()) {
             $keyboard->addRow(InlineKeyboardButton::make('افزایش اعتبار',
                 callback_data: 'finance:credit:begin:'.$row['id'], style: ButtonStyle::DANGER));
+        }
+        if ($row['active'] && in_array($row['account_type'], ['member', 'reseller'], true)
+            && $row['topups'] !== []) {
+            $keyboard->addRow(InlineKeyboardButton::make('↩️ اصلاح تراکنش',
+                callback_data: 'finance:reverse:list:'.$row['id'].':1'));
         }
         $keyboard
             ->addRow(InlineKeyboardButton::make('◀️ کیف پول کاربران', callback_data: 'finance:wallets:1'))
@@ -246,8 +256,12 @@ final readonly class AdminFinanceWalletUi
                 $audit = $manual ? ' · دلیل: '.($topup['reason'] ?? 'ثبت نشده')
                     .' · ثبت‌کننده: '.($topup['reviewer'] ?? 'نامشخص') : '';
                 $label = $manual ? 'افزایش اعتبار مدیر' : 'شارژ';
+                $reversal = $topup['reversal_journal_id'] === null ? ''
+                    : ' · اصلاح: سند #'.$topup['reversal_journal_id']
+                        .' · دلیل: '.($topup['reversal_reason'] ?? 'ثبت نشده')
+                        .' · مدیر: '.($topup['reverser'] ?? 'نامشخص');
                 $topups .= $t($label.' #'.$topup['id'].' · '.TelegramUi::topupStatus($topup['status']),
-                    TelegramUi::toman($topup['amount_rials']).' تومان'.$reference.$audit);
+                    TelegramUi::toman($topup['amount_rials']).' تومان'.$reference.$audit.$reversal);
             }
             $html .= '<h3>درخواست‌های شارژ</h3><table bordered striped compact>'.$topups.'</table>';
         }
