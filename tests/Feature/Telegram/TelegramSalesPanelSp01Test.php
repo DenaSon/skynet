@@ -93,7 +93,7 @@ it('shows panel application on home and saves a pending request only after terms
 
         return str_contains($data['text'], 'مرحله ۳ از ۳')
             && ($data['reply_markup']['keyboard'][0][0]['request_contact'] ?? false) === true;
-    });
+    }, index: 1);
     $bot->hearText('+۹۸۹۱۲۳۴۵۶۷۸۹')->reply()->assertRaw(static function (Request $request): bool {
         $data = panel01Payload($request);
 
@@ -489,11 +489,11 @@ it('keeps the self-contact keyboard persistent and resends it for a still-owned 
                 && ($keyboard['is_persistent'] ?? false) === true
                 && ($keyboard['one_time_keyboard'] ?? true) === false
                 && str_contains($keyboard['input_field_placeholder'] ?? '', 'شماره');
-        }, index: 0)
+        }, index: 1)
         ->assertRaw(static fn (Request $req): bool => str_contains(
             json_encode(panel01Payload($req)['reply_markup'], JSON_THROW_ON_ERROR),
             'sales:panel:phone:show',
-        ), index: 1);
+        ), index: 0);
     $draft = Cache::get($key);
 
     $bot->hearCallbackQueryData('sales:panel:phone:show')->reply()
