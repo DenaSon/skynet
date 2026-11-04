@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Interfaces\Telegram\Support\SalesTrialUi;
+use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Trial\Application\ProvisionFreeTrial;
 use App\Modules\Trial\Jobs\ProvisionFreeTrialJob;
 use App\Settings\OperationalSettings;
@@ -191,7 +192,7 @@ it('keeps active trial status, link and keyboard visible after disabling new tri
     $settings->trial_enabled = false;
     $settings->save();
 
-    $actor = app(\App\Modules\Identity\Application\ResolveTelegramActor::class)->handle(9210001);
+    $actor = app(ResolveTelegramActor::class)->handle(9210001);
     expect($actor)->not->toBeNull()
         ->and(app(SalesTrialUi::class)->visible($actor, 9210001))->toBeTrue()
         ->and(DB::table('trial_claims')->where('user_id', $member->id)->value('state'))->toBe('active');
