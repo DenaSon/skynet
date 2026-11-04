@@ -140,6 +140,7 @@ final readonly class AdminWalletReversalUi
             return;
         }
 
+        Cache::forget(TelegramBotContext::current()->cacheKey('admin:ops:draft:'.$root->userId));
         Cache::put($this->key($root->userId), [
             'kind' => 'reverse_reason', 'user_id' => $user, 'topup_id' => $id,
             'amount_rials' => $state['amount_rials'], 'balance_rials' => $state['balance_rials'],
