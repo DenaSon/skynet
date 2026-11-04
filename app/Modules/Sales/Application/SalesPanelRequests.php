@@ -19,7 +19,7 @@ final readonly class SalesPanelRequests
     public static function minimumWalletBalanceRials(): int
     {
         $value = OperationalSettings::panelMinimumWalletToman();
-        if (! is_int($value) && (! is_string($value) || preg_match('/\A[1-9][0-9]*\z/D', $value) !== 1)) {
+        if (! is_int($value) && preg_match('/\A[1-9][0-9]*\z/D', $value) !== 1) {
             throw new \InvalidArgumentException('Invalid sales.panel_minimum_wallet_toman: expected positive whole tomans.');
         }
 
