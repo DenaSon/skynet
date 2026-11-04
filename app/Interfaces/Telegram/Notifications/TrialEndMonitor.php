@@ -21,7 +21,9 @@ final readonly class TrialEndMonitor
 
     public function scan(): int
     {
-        if (config('trial.enabled') !== true || config('telegram_notifications.enabled') !== true
+        // New trial admission may be disabled while active trials still
+        // require expiry and low-traffic monitoring.
+        if (config('telegram_notifications.enabled') !== true
             || config('telegram.sales.enabled') !== true) {
             return 0;
         }
