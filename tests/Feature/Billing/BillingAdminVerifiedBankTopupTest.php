@@ -21,7 +21,7 @@ use Illuminate\Validation\ValidationException;
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
-    config()->set('super_admin.telegram_ids', ['958111']);
+    config()->set('super_admin.telegram_ids', ['958111', '958112']);
     config()->set('billing.topups_enabled', true);
 });
 
