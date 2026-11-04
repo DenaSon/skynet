@@ -116,6 +116,7 @@ it('sorts complete wallet ledger before pagination, treats missing wallets as ze
     $directory = app(BrowseUsers::class);
     $recent = $directory->page($root->id);
     $ranked = $directory->page($root->id, mode: 'aw');
+    $secondPage = $directory->page($root->id, page: 2, mode: 'aw');
 
     expect($recent->users[0]->id)->not->toBe($older->id)
         ->and($ranked->users)->toHaveCount(20)
@@ -125,7 +126,11 @@ it('sorts complete wallet ledger before pagination, treats missing wallets as ze
         ->and($ranked->users[1]->directoryMetricRials)->toBe(4_000_000)
         ->and($ranked->users[2]->directoryMetricRials)->toBe(0)
         ->and($ranked->users[2]->id)->toBeGreaterThan($older->id)
-        ->and($ranked->total)->toBe(25);
+        ->and($ranked->total)->toBe(25)
+        ->and($secondPage->users)->toHaveCount(5)
+        ->and($secondPage->users[0]->directoryMetricRials)->toBe(0)
+        ->and($secondPage->users[0]->id)->toBeGreaterThan($secondPage->users[1]->id)
+        ->and($secondPage->users[0]->id)->not->toBe($ranked->users[19]->id);
 });
 
 it('ranks only verified bank/wallet settlements and excludes refunded or unpaid amounts', function (): void {
