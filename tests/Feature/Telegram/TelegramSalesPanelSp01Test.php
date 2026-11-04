@@ -497,25 +497,21 @@ it('keeps the self-contact keyboard persistent and resends it for a still-owned 
     $draft = Cache::get($key);
 
     $bot->hearCallbackQueryData('sales:panel:phone:show')->reply()
-        ->assertRaw(static fn (Request $req): bool =>
-            (panel01Payload($req)['reply_markup']['keyboard'][0][0]['request_contact'] ?? false) === true,
+        ->assertRaw(static fn (Request $req): bool => (panel01Payload($req)['reply_markup']['keyboard'][0][0]['request_contact'] ?? false) === true,
             index: 1);
     expect(Cache::get($key))->toBe($draft)
         ->and(DB::table('sales_panel_requests')->count())->toBe(0);
 
     $bot->hearText('09123456789')->reply()
-        ->assertRaw(static fn (Request $req): bool =>
-            (panel01Payload($req)['reply_markup']['keyboard'][0][0]['request_contact'] ?? false) === true,
+        ->assertRaw(static fn (Request $req): bool => (panel01Payload($req)['reply_markup']['keyboard'][0][0]['request_contact'] ?? false) === true,
         );
     $bot->hearMessage(['contact' => ['phone_number' => '+989123456789', 'first_name' => 'Wrong', 'user_id' => 986202]])
-        ->reply()->assertRaw(static fn (Request $req): bool =>
-            (panel01Payload($req)['reply_markup']['keyboard'][0][0]['request_contact'] ?? false) === true
+        ->reply()->assertRaw(static fn (Request $req): bool => (panel01Payload($req)['reply_markup']['keyboard'][0][0]['request_contact'] ?? false) === true
                 && str_contains(panel01Payload($req)['text'] ?? '', 'شماره تأیید نشد'));
     expect(Cache::get($key)['step'])->toBe('mobile');
 
     $bot->hearMessage(['contact' => ['phone_number' => '+989123456789', 'first_name' => 'Buyer', 'user_id' => 986201]])
-        ->reply()->assertRaw(static fn (Request $req): bool =>
-            ! str_contains(json_encode(panel01Payload($req)['reply_markup'], JSON_THROW_ON_ERROR), 'request_contact'),
+        ->reply()->assertRaw(static fn (Request $req): bool => ! str_contains(json_encode(panel01Payload($req)['reply_markup'], JSON_THROW_ON_ERROR), 'request_contact'),
             index: 0);
     expect(Cache::get($key)['step'])->toBe('confirm');
     $bot->hearCallbackQueryData('sales:panel:confirm')->reply();
