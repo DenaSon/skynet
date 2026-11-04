@@ -81,7 +81,7 @@ it('requires a private native self-contact and explicit masked one-time confirma
         $data = FakeNutgram::getActualData($request);
 
         return str_contains(json_encode($data), 'request_contact');
-    }, index: 1);
+    }, index: 2);
     $bot->hearText('09123456789')->reply()->assertCalled('sendMessage');
     expect(DB::table('trial_claims')->count())->toBe(0);
     $bot->hearMessage(['contact' => ['phone_number' => '+989123456789', 'first_name' => 'Buyer', 'user_id' => 9210001]])
@@ -112,12 +112,12 @@ it('keeps the Trial self-contact keyboard visible and supports a safe repeated s
                 && ($keyboard['one_time_keyboard'] ?? true) === false
                 && ($keyboard['is_persistent'] ?? false) === true
                 && str_contains($keyboard['input_field_placeholder'] ?? '', 'شماره');
-        }, index: 1,
+        }, index: 2,
     )->assertRaw(
         static fn (Request $req): bool => str_contains(
             json_encode(trialUiPayload($req)['reply_markup'], JSON_THROW_ON_ERROR),
             'sales:trial:phone:show',
-        ), index: 2,
+        ), index: 1,
     );
     $before = Cache::get('telegram:sales:trial:'.$member->id);
 
