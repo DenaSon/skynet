@@ -82,7 +82,7 @@ it('keeps an unavailable or identity-mismatched provider unknown and later recov
     expect(app(TrialEndMonitor::class)->scan())->toBe(1);
 });
 
-it('does not mistake disabled status for early expiration or read when the trial switch is off', function (): void {
+it('monitors already active trials after new admission is disabled, without premature expiration', function (): void {
     $member = $this->trialMember();
     $id = $this->activateFreeTrial($member);
     $this->recordTrialSalesContact($member);
@@ -93,7 +93,8 @@ it('does not mistake disabled status for early expiration or read when the trial
     $settings->trial_enabled = false;
     $settings->save();
     $this->travel(3)->hours();
-    expect(app(TrialEndMonitor::class)->scan())->toBe(0);
+    expect(app(TrialEndMonitor::class)->scan())->toBe(1)
+        ->and(DB::table('trial_claims')->find($id)->state)->toBe('ended');
     Http::assertSentCount(3); // CREATE plus monitoring GETs before and after disabling admission.
 });
 
