@@ -46,8 +46,14 @@ final readonly class CustomerSupportProfileUi
 
         if (preg_match('/\A[1-9][0-9]{0,14}\z/D', $subjectId) !== 1
             || preg_match('/\A[1-9][0-9]{0,5}\z/D', $page) !== 1
-            || (int) $page > 100000 || ! in_array($mode, ['a', 's', 'r'], true)) {
+            || (int) $page > 100000 || ! UserDirectoryMode::valid($mode)) {
             $this->menus->showUserNotice($bot, 'درخواست پرونده معتبر نیست.');
+
+            return;
+        }
+
+        if (UserDirectoryMode::rootOnly($mode) && ! $actor->canManageRoles()) {
+            $this->menus->denyAccess($bot);
 
             return;
         }
@@ -114,6 +120,11 @@ final readonly class CustomerSupportProfileUi
 
             return;
         }
+        if (UserDirectoryMode::rootOnly($mode) && ! $actor->canManageRoles()) {
+            $this->menus->denyAccess($bot);
+
+            return;
+        }
 
         try {
             $list = $this->services->page($actor, (int) $subjectId, (int) $servicePage);
@@ -170,6 +181,12 @@ final readonly class CustomerSupportProfileUi
         if (! self::valid($subjectId, $userPage, $mode, $servicePage)
             || preg_match('/\A[1-9][0-9]{0,14}\z/D', $orderId) !== 1) {
             $this->menus->showUserNotice($bot, 'درخواست معتبر نیست.');
+
+            return;
+        }
+
+        if (UserDirectoryMode::rootOnly($mode) && ! $actor->canManageRoles()) {
+            $this->menus->denyAccess($bot);
 
             return;
         }
@@ -276,7 +293,7 @@ final readonly class CustomerSupportProfileUi
         return preg_match('/\A[1-9][0-9]{0,14}\z/D', $subjectId) === 1
             && preg_match('/\A[1-9][0-9]{0,5}\z/D', $page) === 1
             && (int) $page <= 100000
-            && in_array($mode, ['a', 's', 'r'], true)
+            && UserDirectoryMode::valid($mode)
             && preg_match('/\A[1-9][0-9]{0,3}\z/D', $servicePage) === 1
             && (int) $servicePage <= 1000;
     }
