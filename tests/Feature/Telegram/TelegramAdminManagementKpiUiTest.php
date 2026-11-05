@@ -215,14 +215,17 @@ it('switches period in place and clearly differentiates complete weeks from comp
             $rich = kpiUiRich($request);
             $html = (string) ($rich['html'] ?? '');
 
-            return str_contains($html, 'شاخص‌های مدیریتی · هفتگی')
-                && str_contains($html, '۷ روز کامل گذشته')
-                && str_contains($html, 'تا ۱۴۰۵/')
-                && str_contains($html, 'بدون مبنا')
-                && str_contains($html, '<details><summary>🧠 تحلیل عملکرد دوره</summary>')
-                && str_contains($html, 'فروش بازه قبل صفر بوده')
-                && ($p['reply_markup']['inline_keyboard'][0][1]['text'] ?? null) === '✅ هفتگی'
-                && ($p['reply_markup']['inline_keyboard'][0][2]['callback_data'] ?? null) === 'kpi:period:month';
+            expect($html)->toContain(
+                'شاخص‌های مدیریتی · هفتگی',
+                '۷ روز کامل گذشته',
+                'تا ۱۴۰۵/',
+                'بدون مبنا',
+                '<details><summary>🧠 تحلیل عملکرد دوره</summary>',
+                'فروش بازه قبل صفر بوده',
+            )->and($p['reply_markup']['inline_keyboard'][0][1]['text'] ?? null)->toBe('✅ هفتگی')
+                ->and($p['reply_markup']['inline_keyboard'][0][2]['callback_data'] ?? null)->toBe('kpi:period:month');
+
+            return true;
         }, index: 1);
 
     kpiUiBot()->hearCallbackQueryData('kpi:period:month')->reply()
@@ -231,14 +234,17 @@ it('switches period in place and clearly differentiates complete weeks from comp
             $rich = kpiUiRich($request);
             $html = (string) ($rich['html'] ?? '');
 
-            return str_contains($html, 'شاخص‌های مدیریتی · ماهانه')
-                && str_contains($html, 'ماه شمسی کامل گذشته')
-                && str_contains($html, 'بدون مبنا')
-                && str_contains($html, '<details><summary>🧠 تحلیل عملکرد دوره</summary>')
-                && str_contains($html, 'ثبت‌نام بازه قبل صفر بوده')
-                && ($p['reply_markup']['inline_keyboard'][0][2]['text'] ?? null) === '✅ ماهانه'
-                && str_contains($html, '<table bordered striped compact>')
-                && str_contains($html, 'بازۀ') === false;
+            expect($html)->toContain(
+                'شاخص‌های مدیریتی · ماهانه',
+                'ماه شمسی کامل گذشته',
+                'بدون مبنا',
+                '<details><summary>🧠 تحلیل عملکرد دوره</summary>',
+                'ثبت‌نام بازه قبل صفر بوده',
+                '<table bordered striped compact>',
+            )->not->toContain('بازۀ')
+                ->and($p['reply_markup']['inline_keyboard'][0][2]['text'] ?? null)->toBe('✅ ماهانه');
+
+            return true;
         }, index: 1);
     Http::assertNothingSent();
 });
