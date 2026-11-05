@@ -291,11 +291,12 @@ it('suppresses only low-priority delivery noise while retaining all stored evide
         ->and($page['items'][0]['id'])->toBe($activation);
 
     denabanIssuesBot(992201)->hearCallbackQueryData('denaban:notifications:1')->reply()
-        ->assertRaw(static function (NutgramRequest $request) use ($activation, $trial): bool {
+        ->assertRaw(static function (NutgramRequest $request) use ($activation): bool {
             $html = denabanIssuesRich(denabanIssuesPayload($request));
 
-            return str_contains($html, '#'.$activation)
-                && ! str_contains($html, '#'.$trial);
+            return str_contains($html, '#'.$activation.' · فعال‌شدن اشتراک')
+                && ! str_contains($html, 'پنج دقیقه پایانی تست')
+                && ! str_contains($html, 'هشدار اتمام حجم');
         }, index: 1);
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
 });
