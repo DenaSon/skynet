@@ -25,13 +25,8 @@ final readonly class ReadAdminNotificationFailures
             throw ValidationException::withMessages(['page' => 'Invalid page.']);
         }
 
-        $query = DB::table('telegram_notification_deliveries')
-            ->whereIn('state', ['dead', 'unavailable'])
-            // Match STAT-01/Denaban issue count; retain suppressed rows in storage.
-            ->where(function ($query): void {
-                $query->whereNull('last_failure')
-                    ->orWhere('last_failure', '!=', 'superseded_by_activation');
-            });
+        // The history is retained; only actionable failures appear in Denaban.
+        $query = DenabanNotificationIssues::apply(DB::table('telegram_notification_deliveries'));
         $total = (int) (clone $query)->count();
         $pages = max(1, intdiv($total + self::PAGE_SIZE - 1, self::PAGE_SIZE));
         $page = min((int) $requestedPage, $pages);
