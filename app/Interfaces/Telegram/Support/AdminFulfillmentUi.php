@@ -99,7 +99,7 @@ final readonly class AdminFulfillmentUi
 
         try {
             $data = $this->reviews->attention($root, $page);
-        } catch (\\Illuminate\\Validation\\ValidationException) {
+        } catch (\Illuminate\Validation\ValidationException) {
             $this->render($bot, 'صفحه موردنظر معتبر نیست.', $this->home());
 
             return;
@@ -154,7 +154,7 @@ final readonly class AdminFulfillmentUi
             .number_format($data['page']).' از '.number_format($data['pages'])
             .' | 💡 فعال‌سازی معوق یعنی بیش از ۱۵ دقیقه بدون تکمیل.</footer>';
 
-        $this->render($bot, implode("\\n", $lines), $keyboard, $html);
+        $this->render($bot, implode("\n", $lines), $keyboard, $html);
     }
 
     public function detail(Nutgram $bot, string $id): void
