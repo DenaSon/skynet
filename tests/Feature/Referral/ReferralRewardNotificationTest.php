@@ -208,7 +208,6 @@ it('retains existing Sales invite copy and share controls while showing live rew
     Http::assertNothingSent();
 });
 
-
 it('never promises a prize when referral rewards are disabled while keeping the invite usable', function (): void {
     $referrer = Fixture::member();
     $telegramId = 9800000 + $referrer->id;
