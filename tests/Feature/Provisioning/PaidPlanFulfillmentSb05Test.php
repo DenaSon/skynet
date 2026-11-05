@@ -1227,6 +1227,8 @@ it('emits one durable Sales activation notice only after verified RW completion 
     Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '54321:sales_test/sendMessage')
         && str_contains((string) ($request['reply_markup'] ?? ''), 'sales:subs:link:'.$data['order'].':0')
         && str_contains((string) ($request['reply_markup'] ?? ''), 'sales:subs:page:'.$data['order'].':0')
+        && str_contains((string) ($request['reply_markup'] ?? ''), 'sales:help:apps')
+        && str_contains((string) ($request['text'] ?? ''), 'راهنمای نصب')
         && ! str_contains((string) ($request['reply_markup'] ?? ''), 'sub.example.test'));
     expect(fn () => app(FulfillPaidPlanOrder::class)->handle($data['order']))->toThrow(RuntimeException::class);
     expect(DB::table('telegram_notification_deliveries')->where('event_type', 'SubscriptionActivated')->count())->toBe(1);
