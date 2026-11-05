@@ -124,6 +124,12 @@ final readonly class SalesHomeUi
         } else {
             $keyboard->addRow(InlineKeyboardButton::make('👤 حساب کاربری', callback_data: 'sales:account'));
         }
+        if ($actor->roles === ['member']) {
+            $keyboard->addRow(
+                InlineKeyboardButton::make(ReplyMenuLabels::SALES_REWARD, callback_data: 'sales:invite', style: ButtonStyle::PRIMARY),
+                InlineKeyboardButton::make('💬 پشتیبانی', callback_data: 'sales:support'),
+            );
+        }
         if ($isReseller) {
             $keyboard->addRow(InlineKeyboardButton::make('🧩 پلن سفارشی', callback_data: 'menu:builder'));
             $keyboard->addRow(InlineKeyboardButton::make('📊 گزارش‌های من', callback_data: 'sales:report:30'));
@@ -133,8 +139,10 @@ final readonly class SalesHomeUi
                 $panelRequestLabel, callback_data: 'sales:panel:hub',
             ));
         }
-        $keyboard->addRow(InlineKeyboardButton::make('💬 پشتیبانی', callback_data: 'sales:support'))
-            ->addRow(InlineKeyboardButton::make('📋 همه پلن‌ها و قیمت‌ها', callback_data: 'menu:plan-catalog'));
+        if ($actor->roles !== ['member']) {
+            $keyboard->addRow(InlineKeyboardButton::make('💬 پشتیبانی', callback_data: 'sales:support'));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('📋 همه پلن‌ها و قیمت‌ها', callback_data: 'menu:plan-catalog'));
         if ($isReseller && config('denagate_live.enabled') === true) {
             $keyboard->addRow(InlineKeyboardButton::make(
                 ReplyMenuLabels::SALES_APP,
@@ -322,7 +330,7 @@ final readonly class SalesHomeUi
             '🧩 درخواست پنل فروش', '📨 وضعیت درخواست پنل فروش' => 'panel',
             ReplyMenuLabels::SALES_REPORTS => 'report',
             ReplyMenuLabels::HOME, '🏠 صفحه اصلی', '❌ انصراف', '/cancel' => 'home',
-            ReplyMenuLabels::INVITE => 'invite',
+            ReplyMenuLabels::SALES_REWARD, ReplyMenuLabels::INVITE, '👥 دعوت دوستان' => 'invite',
             ReplyMenuLabels::BUILDER, ReplyMenuLabels::PREVIOUS_BUILDER,
             ReplyMenuLabels::LEGACY_BUILDER,
             ReplyMenuLabels::OLD_BUILDER_PANEL => 'builder',
@@ -493,8 +501,7 @@ final readonly class SalesHomeUi
 
         $keyboard = InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('📋 سرویس‌های من', callback_data: 'sales:subs:list:0'))
-            ->addRow(InlineKeyboardButton::make('🧾 سوابق خرید', callback_data: 'sales:checkout:orders'))
-            ->addRow(InlineKeyboardButton::make('👥 دعوت دوستان', callback_data: 'sales:invite'));
+            ->addRow(InlineKeyboardButton::make('🧾 سوابق خرید', callback_data: 'sales:checkout:orders'));
 
         $balance = '';
         if (in_array('member', $actor->roles, true) || in_array('reseller', $actor->roles, true)) {
@@ -680,58 +687,91 @@ final readonly class SalesHomeUi
         if ($actor === null) {
             return;
         }
-        $keyboard = InlineKeyboardMarkup::make()
-            ->addRow(InlineKeyboardButton::make('◀️ حساب کاربری', callback_data: 'sales:account'));
+
+        $home = InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home');
         $username = config('telegram.sales.bot_username');
         if (! is_string($username) || preg_match('/\A[A-Za-z][A-Za-z0-9_]{4,31}\z/D', $username) !== 1) {
-            $keyboard->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
-            $this->render($bot, '<b>👥 دعوت دوستان</b>'."\n\nلینک دعوت فعلاً در دسترس نیست. کمی بعد دوباره بررسی کنید.", $keyboard);
+            $this->render(
+                $bot,
+                '<b>🎁 دریافت جایزه</b>'."\n\nلینک دعوت فعلاً در دسترس نیست. کمی بعد دوباره بررسی کنید.",
+                InlineKeyboardMarkup::make()->addRow($home),
+            );
 
             return;
         }
+
         $invite = $this->invites->handle($actor->userId);
         $url = "https://t.me/{$username}?start=ref_{$invite->code}";
-        $keyboard->addRow(TelegramUi::copy($url, '📋 کپی لینک دعوت'))
+        $keyboard = InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make(
                 '📤 اشتراک‌گذاری در تلگرام',
                 url: 'https://t.me/share/url?url='.rawurlencode($url).'&text='.rawurlencode('با لینک من به DenaGate بپیوند 👇'),
-            ));
-        $keyboard->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
-        $details = "\n\n👥 دوستان ثبت‌نام‌شده: <b>{$invite->joinedCount}</b>"
-            ."\n🎁 دوستان دارای پاداش: <b>{$invite->rewardedCount}</b>"
-            ."\n💰 مجموع پاداش‌ها: <b>".TelegramUi::toman($invite->earnedRials).' تومان</b>';
+                style: ButtonStyle::PRIMARY,
+            ))
+            ->addRow(TelegramUi::copy($url, '📋 کپی لینک دعوت'))
+            ->addRow($home);
+
         $ordinary = $actor->roles === ['member'];
-        if (! $ordinary) {
-            $terms = 'پاداش معرفی مخصوص کاربران عادی است و شامل پنل‌های فروش نمی‌شود.';
-        } elseif ($invite->remainingRewards === null || $invite->rewardAmountRials === null) {
-            $terms = 'طرح پاداش معرفی فعلاً فعال نیست؛ لینک شما همچنان برای دعوت دوستان معتبر است.';
+        $rewardActive = $ordinary && $invite->rewardAmountRials !== null
+            && $invite->remainingRewards !== null && $invite->rewardLimit !== null;
+
+        $rows = [
+            ['دوستان دعوت‌شده', self::inviteNumber($invite->joinedCount).' نفر'],
+            ['دعوت‌های پاداش‌دار', self::inviteNumber($invite->rewardedCount).' نفر'],
+            ['مجموع پاداش', self::inviteNumber($invite->earnedRials).' ریال'],
+        ];
+
+        if ($rewardActive) {
+            $rows[] = ['ظرفیت باقی‌مانده', self::inviteNumber($invite->remainingRewards).' نفر'];
+            $rows[] = ['هدیه هر دعوت موفق', self::inviteNumber($invite->rewardAmountRials).' ریال'];
+            $totalPrize = $invite->rewardAmountRials * $invite->rewardLimit;
+            $terms = 'لینک دعوتت رو برای دوستات بفرست! 💚'
+                ."\n\n".'وقتی دوست جدیدت با لینک تو ثبت‌نام کنه و اولین خریدش با موفقیت فعال بشه، '
+                .self::inviteNumber($invite->rewardAmountRials).' ریال هدیه به اعتبارت اضافه می‌شه.'
+                ."\n\n".'🎉 با معرفی موفق '.self::inviteNumber($invite->rewardLimit)
+                .' دوست، می‌تونی تا '.self::inviteNumber($totalPrize).' ریال جایزه بگیری!';
+        } elseif ($ordinary) {
+            $terms = 'لینک دعوتت رو برای دوستات بفرست! 💚'
+                ."\n\n".'طرح جایزه فعلاً فعال نیست؛ وقتی فعال بشه، شرایط دریافت هدیه همین‌جا نمایش داده می‌شه.';
         } else {
-            $details .= "\n🎯 ظرفیت باقی‌مانده پاداش: <b>{$invite->remainingRewards}</b>"
-                ."\n💵 مبلغ هر پاداش: <b>".TelegramUi::toman($invite->rewardAmountRials).' تومان</b>';
-            $terms = 'پاداش فقط برای دوست جدید، پس از اولین خرید پولی و فعال‌سازی موفق سرویس به اعتبار شما اضافه می‌شود. ثبت‌نام، تست رایگان و خرید تکراری پاداش ندارند؛ پنل‌های فروش هم مشمول نیستند.';
+            $terms = 'لینک دعوتت فعاله و می‌تونی با دوستات به اشتراکش بذاری. 💚'
+                ."\n\n".'برای این نوع حساب، در حال حاضر جایزه‌ای در نظر گرفته نشده.';
         }
-        $plain = '<b>👥 دعوت دوستان</b>'."\n\nلینک اختصاصی شما:\n".TelegramUi::code($url)
-            .$details."\n\n<blockquote>{$terms}</blockquote>";
+
+        $plain = '<b>🎁 دعوت کن، جایزه بگیر!</b>'
+            ."\n\n<b>👥 دعوت‌های من</b>";
+        $table = '<table bordered striped compact>';
+        foreach ($rows as [$label, $value]) {
+            $plain .= "\n".TelegramUi::escape($label).': <b>'.TelegramUi::escape($value).'</b>';
+            $table .= '<tr><td>'.TelegramUi::escape($label)
+                .'</td><td><b>'.TelegramUi::escape($value).'</b></td></tr>';
+        }
+        $table .= '</table>';
+
+        $plain .= "\n\n🔗 لینک اختصاصی دعوت:\n".TelegramUi::code($url)
+            ."\n\n<b>📋 چطور جایزه بگیرم؟</b>\n".TelegramUi::escape($terms);
+
         if ($rich) {
-            $html = '<h4>👥 دعوت دوستان</h4>'
-                .'<p>💰 مجموع پاداش‌ها: <b>'.TelegramUi::toman($invite->earnedRials).' تومان</b>'
-                .'<br>🎁 دوستان دارای پاداش: <b>'.$invite->rewardedCount.'</b>'
-                .'<br>👥 دوستان ثبت‌نام‌شده: '.$invite->joinedCount.'</p>';
-            if ($ordinary && $invite->remainingRewards !== null && $invite->rewardAmountRials !== null) {
-                $html .= '<p>🎯 ظرفیت باقی‌مانده: <b>'.$invite->remainingRewards.'</b>'
-                    .'<br>💵 پاداش هر معرفی: <b>'.TelegramUi::toman($invite->rewardAmountRials).' تومان</b></p>';
-            }
-            $html .= '<p>🔗 لینک اختصاصی شما:<br>'.TelegramUi::escape($url).'</p>'
-                .'<details><summary>📋 شرایط دریافت پاداش</summary><p>'
-                .TelegramUi::escape($terms).'</p></details>';
-            $plainKeyboard = clone $keyboard;
-            $keyboard->addRow(InlineKeyboardButton::make('↩️ نمایش ساده', callback_data: 'sales:invite:simple'));
-            $this->renderRich($bot, $html, $plain, $keyboard, $plainKeyboard);
+            $paragraphs = implode('</p><p>', array_map(
+                static fn (string $part): string => TelegramUi::escape($part),
+                explode("\n\n", $terms),
+            ));
+            $html = '<h4>🎁 دعوت کن، جایزه بگیر!</h4>'
+                .'<h4>👥 دعوت‌های من</h4>'.$table
+                .'<p>🔗 لینک اختصاصی دعوت:<br>'.TelegramUi::escape($url).'</p>'
+                .'<details><summary>📋 چطور جایزه بگیرم؟</summary>'
+                .'<p>'.$paragraphs.'</p></details>';
+            $this->renderRich($bot, $html, $plain, $keyboard, clone $keyboard);
 
             return;
         }
 
         $this->render($bot, $plain, $keyboard);
+    }
+
+    private static function inviteNumber(int $value): string
+    {
+        return PersianCalendar::digits(str_replace(',', '٬', number_format($value)));
     }
 
     public function fallback(Nutgram $bot): void
