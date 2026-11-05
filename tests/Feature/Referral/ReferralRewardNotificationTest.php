@@ -207,3 +207,61 @@ it('retains existing Sales invite copy and share controls while showing live rew
     });
     Http::assertNothingSent();
 });
+
+
+it('never promises a prize when referral rewards are disabled while keeping the invite usable', function (): void {
+    $referrer = Fixture::member();
+    $telegramId = 9800000 + $referrer->id;
+    config()->set('telegram.sales.bot_username', 'DenaGate_Test_Bot');
+    config()->set('referral.rewards_enabled', false);
+
+    $bot = Nutgram::fake();
+    require base_path('app/Interfaces/Telegram/routes/sales.php');
+    $bot->setCommonUser(TelegramUser::make($telegramId, false, 'Referral'));
+    $bot->setCommonChat(Chat::make($telegramId, ChatType::PRIVATE));
+    $bot->hearText('/invite')->reply()->assertRaw(static function (PsrRequest $request): bool {
+        $data = FakeNutgram::getActualData($request);
+        $rich = is_string($data['rich_message'] ?? null)
+            ? json_decode($data['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+            : ($data['rich_message'] ?? []);
+        $html = (string) ($rich['html'] ?? '');
+        $keyboard = is_string($data['reply_markup'] ?? null)
+            ? json_decode($data['reply_markup'], true, 512, JSON_THROW_ON_ERROR)
+            : ($data['reply_markup'] ?? []);
+
+        return str_contains($html, 'طرح جایزه فعلاً فعال نیست')
+            && str_contains($html, '<td>مجموع پاداش</td>')
+            && ! str_contains($html, 'هدیه هر دعوت موفق')
+            && ! str_contains($html, '۲٬۱۰۰٬۰۰۰ ریال')
+            && str_starts_with((string) ($keyboard['inline_keyboard'][0][0]['url'] ?? ''), 'https://t.me/share/url?')
+            && isset($keyboard['inline_keyboard'][1][0]['copy_text'])
+            && ($keyboard['inline_keyboard'][2][0]['callback_data'] ?? null) === 'sales:home';
+    });
+    Http::assertNothingSent();
+});
+
+it('updates the full invite prize wording from valid reward policy without changing credited history', function (): void {
+    $referrer = Fixture::member();
+    $telegramId = 9800000 + $referrer->id;
+    config()->set('telegram.sales.bot_username', 'DenaGate_Test_Bot');
+    config()->set('referral.reward_tomans', 45000);
+    config()->set('referral.max_rewards_per_referrer', 3);
+
+    $bot = Nutgram::fake();
+    require base_path('app/Interfaces/Telegram/routes/sales.php');
+    $bot->setCommonUser(TelegramUser::make($telegramId, false, 'Referral'));
+    $bot->setCommonChat(Chat::make($telegramId, ChatType::PRIVATE));
+    $bot->hearCallbackQueryData('sales:invite')->reply()->assertRaw(static function (PsrRequest $request): bool {
+        $data = FakeNutgram::getActualData($request);
+        $rich = is_string($data['rich_message'] ?? null)
+            ? json_decode($data['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+            : ($data['rich_message'] ?? []);
+        $html = (string) ($rich['html'] ?? '');
+
+        return str_contains($html, '<td>هدیه هر دعوت موفق</td><td><b>۴۵۰٬۰۰۰ ریال</b>')
+            && str_contains($html, 'با معرفی موفق ۳ دوست')
+            && str_contains($html, '۱٬۳۵۰٬۰۰۰ ریال جایزه بگیری!')
+            && ! str_contains($html, '۲٬۱۰۰٬۰۰۰ ریال');
+    }, index: 1);
+    Http::assertNothingSent();
+});
