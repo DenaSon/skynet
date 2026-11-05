@@ -424,24 +424,55 @@ it('offers a real configured Telegram contact and short guides with working back
         }, index: 1);
 
     foreach ([
-        'android' => ['v2rayNG', 'https://github.com/2dust/v2rayNG/releases/latest'],
-        'ios' => ['V2Box', 'https://apps.apple.com/app/v2box-v2ray-client/id6446814690'],
-        'windows' => ['v2rayN', 'https://github.com/2dust/v2rayN/releases/latest'],
-        'macos' => ['V2Box', 'https://apps.apple.com/app/v2box-v2ray-client/id6446814690'],
-    ] as $page => [$client, $download]) {
+        'android' => ['V2Box', 'گوگل‌پلی', 'https://play.google.com/store/apps/details?id=dev.hexasoftware.v2box'],
+        'ios' => ['V2Box', 'اپ‌استور', 'https://apps.apple.com/us/app/v2box-v2ray-client/id6446814690'],
+        'windows' => ['v2rayN', 'گیت‌هاب', 'https://github.com/2dust/v2rayN/releases/latest'],
+        'macos' => ['V2Box', 'اپ‌استور', 'https://apps.apple.com/us/app/v2box-v2ray-client/id6446814690'],
+    ] as $page => [$client, $source, $download]) {
         $bot->hearCallbackQueryData('sales:help:'.$page)->reply()->assertRaw(
-            static function (Request $request) use ($client, $download): bool {
+            static function (Request $request) use ($page, $client, $source, $download): bool {
                 $body = uxr01Payload($request);
                 $keyboard = $body['reply_markup']['inline_keyboard'];
                 $html = uxr01RichHtml($request);
+                $encoded = json_encode($keyboard, JSON_THROW_ON_ERROR);
 
                 return str_contains($html, '<summary>📱 مراحل نصب و اتصال</summary>')
                     && str_contains($html, '<b>'.$client.'</b>')
                     && str_contains($html, '<b>لینک اتصال</b>')
+                    && str_contains($html, 'اشتراک را به‌روزرسانی کنید')
                     && $keyboard[0][0]['url'] === $download
+                    && $keyboard[0][0]['text'] === '⬇️ دانلود '.$client.' از '.$source
+                    && ($page === 'android'
+                        ? ($keyboard[1][0]['url'] ?? null) === 'https://github.com/2dust/v2rayNG/releases/latest'
+                            && str_contains($keyboard[1][0]['text'], 'جایگزین v2rayNG')
+                        : ! str_contains($encoded, 'v2rayNG'))
                     && ! str_contains($html, 'Remnawave')
-                    && ! str_contains(json_encode($keyboard, JSON_THROW_ON_ERROR), 'docs.rw')
-                    && str_contains(json_encode($keyboard, JSON_THROW_ON_ERROR), 'sales:subs:list:0');
+                    && ! str_contains($encoded, 'docs.rw')
+                    && str_contains($encoded, 'sales:subs:list:0')
+                    && str_contains($encoded, 'sales:help:apps')
+                    && str_contains($encoded, 'sales:home');
+            }, index: 1,
+        );
+
+        // A client without Rich Message support must see the same download links and instructions.
+        $bot->hearCallbackQueryData('sales:help:simple:'.$page)->reply()->assertRaw(
+            static function (Request $request) use ($page, $client, $source, $download): bool {
+                $body = uxr01Payload($request);
+                $keyboard = $body['reply_markup']['inline_keyboard'];
+                $encoded = json_encode($keyboard, JSON_THROW_ON_ERROR);
+                $text = (string) ($body['text'] ?? '');
+
+                return ! isset($body['rich_message'])
+                    && str_contains($text, '<b>'.$client.'</b>')
+                    && str_contains($text, '<b>لینک اتصال</b>')
+                    && str_contains($text, 'اشتراک را به‌روزرسانی کنید')
+                    && $keyboard[0][0]['url'] === $download
+                    && $keyboard[0][0]['text'] === '⬇️ دانلود '.$client.' از '.$source
+                    && ($page === 'android'
+                        ? ($keyboard[1][0]['url'] ?? null) === 'https://github.com/2dust/v2rayNG/releases/latest'
+                        : ! str_contains($encoded, 'v2rayNG'))
+                    && str_contains($encoded, 'sales:help:apps')
+                    && str_contains($encoded, 'sales:home');
             }, index: 1,
         );
     }
@@ -453,14 +484,17 @@ it('offers a real configured Telegram contact and short guides with working back
         return str_contains($encoded, 'sales:help:windows')
             && str_contains($encoded, 'sales:help:macos')
             && str_contains($html, '<summary>🪟 ویندوز</summary>')
+            && str_contains($html, 'V2Box را از گوگل‌پلی دانلود')
+            && str_contains($html, 'v2rayNG نیز گزینه جایگزین است')
             && ! str_contains($encoded, 'sales:help:desktop');
     }, index: 1);
-    $bot->hearCallbackQueryData('sales:help:simple:ios')->reply()->assertRaw(static function (Request $request): bool {
-        $data = uxr01Payload($request);
+    $bot->hearCallbackQueryData('sales:help:simple:apps')->reply()->assertRaw(static function (Request $request): bool {
+        $body = uxr01Payload($request);
 
-        return ! isset($data['rich_message'])
-            && str_contains((string) ($data['text'] ?? ''), '<b>V2Box</b>')
-            && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:help:apps');
+        return ! isset($body['rich_message'])
+            && str_contains((string) ($body['text'] ?? ''), 'اندروید: V2Box')
+            && str_contains((string) ($body['text'] ?? ''), 'آیفون / آیپد: V2Box')
+            && str_contains(json_encode($body['reply_markup'], JSON_THROW_ON_ERROR), 'sales:help:android');
     }, index: 1);
     $bot->hearCallbackQueryData('sales:support')->reply()->assertRaw(static function (Request $request): bool {
         $body = uxr01Payload($request);
