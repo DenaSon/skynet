@@ -111,6 +111,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:stats:detail:{section}:{days}';
     $expected['ADMIN'][] = 'callback:stats:overview';
     $expected['ADMIN'][] = 'callback:stats:refresh';
+    // KPI-UI-01: separate trusted-root read-only comparisons, never Sales Bot.
+    $expected['ADMIN'][] = 'callback:kpi:period:{period}';
     // MB-05B adds one guarded, unadvertised Admin-only read command.
     $expected['ADMIN'][] = 'command:servers';
     // SRO-02 adds two guarded, read-only Admin callbacks without changing the MB-01 baseline.
@@ -315,8 +317,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(279)
-        ->and(count(array_unique($legacy)))->toBe(279);
+        ->and(count($legacy))->toBe(280)
+        ->and(count(array_unique($legacy)))->toBe(280);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {

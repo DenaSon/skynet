@@ -121,6 +121,7 @@ final class MenuRenderer
 
         if ($actor->canManageRoles()) {
             $keyboard->addRow(InlineKeyboardButton::make('🏔️ دنابان', callback_data: 'denaban:show'));
+            $keyboard->addRow(InlineKeyboardButton::make('📊 شاخص‌های مدیریتی', callback_data: 'kpi:period:day'));
             $keyboard->addRow(InlineKeyboardButton::make('⚙️ تنظیمات', callback_data: 'menu:settings'));
             $keyboard->addRow(
                 InlineKeyboardButton::make('👥 کاربران', callback_data: 'menu:admin:users'),
