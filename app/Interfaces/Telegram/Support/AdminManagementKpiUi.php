@@ -116,6 +116,7 @@ final readonly class AdminManagementKpiUi
                 ['کاربران جدید · بازه قبل', self::count($previous['newUsers'])],
                 ['تغییر ثبت‌نام', self::percent($growth['newUsersPercent'])],
             ])
+            .self::richInsights($data)
             .'<footer>🕒 '.TelegramUi::escape(PersianCalendar::localDateTime($data['generatedAt']))
             .' (تهران) · فروش تسویه‌شده، نه سود خالص یا شارژ کیف پول.'
             .' «بدون مبنا» یعنی مقدار بازه قبل صفر بوده است.</footer>';
@@ -148,9 +149,96 @@ final readonly class AdminManagementKpiUi
             ."\nکاربران جدید · بازه اخیر: ".self::count($current['newUsers'])
             ."\nکاربران جدید · بازه قبل: ".self::count($previous['newUsers'])
             ."\nتغییر ثبت‌نام: ".self::percent($growth['newUsersPercent'])
+            .self::simpleInsights($data)
             ."\n\n<blockquote>فروش تسویه‌شده است، نه سود خالص یا شارژ کیف پول."
             .' «بدون مبنا» یعنی بازه قبل صفر بوده است.</blockquote>'
             ."\n🕒 ".PersianCalendar::localDateTime($data['generatedAt']).' (تهران)';
+    }
+
+    /**
+     * One rule-based analysis source for both Rich and native fallback.
+     * Do not infer why revenue moved from these two KPIs alone.
+     *
+     * @param  array<string,mixed>  $data
+     * @return array<string, string>
+     */
+    private static function insights(array $data): array
+    {
+        $current = $data['current'];
+        $previous = $data['previous'];
+        $salesChange = $current['revenueRials'] - $previous['revenueRials'];
+        $usersChange = $current['newUsers'] - $previous['newUsers'];
+
+        $sales = 'در بازه '.self::range($current, $data['period'])
+            .'، فروش '.self::money($current['revenueRials']).' ثبت شد. ';
+        if ($previous['revenueRials'] === 0) {
+            $sales .= 'فروش بازه قبل صفر بوده و درصد رشد بدون مبناست.';
+        } elseif ($salesChange === 0) {
+            $sales .= 'فروش نسبت به بازه قبل تغییری نداشته است.';
+        } else {
+            $sales .= 'نسبت به بازه قبل '.self::money(abs($salesChange))
+                .($salesChange > 0 ? ' افزایش' : ' کاهش')
+                .' ('.self::percent($data['growth']['salesPercent']).') داشته است.';
+        }
+
+        $users = 'ثبت‌نام کاربران از '.self::count($previous['newUsers'])
+            .' به '.self::count($current['newUsers']).' نفر رسیده است. ';
+        if ($previous['newUsers'] === 0) {
+            $users .= 'ثبت‌نام بازه قبل صفر بوده و درصد رشد بدون مبناست.';
+        } elseif ($usersChange === 0) {
+            $users .= 'تعداد ثبت‌نام‌ها نسبت به بازه قبل ثابت مانده است.';
+        } else {
+            $users .= self::count(abs($usersChange)).' نفر '
+                .($usersChange > 0 ? 'افزایش' : 'کاهش')
+                .' ('.self::percent($data['growth']['newUsersPercent']).') ثبت شده است.';
+        }
+
+        if ($previous['revenueRials'] === 0 || $previous['newUsers'] === 0) {
+            $takeaway = 'حداقل یکی از شاخص‌ها در بازه قبل صفر بوده؛ مقایسه درصدی کامل دو شاخص ممکن نیست.';
+        } elseif ($salesChange > 0 && $usersChange < 0) {
+            $takeaway = 'با وجود کاهش ثبت‌نام‌ها، فروش افزایش یافته است؛ این هم‌زمانی علت رشد فروش را مشخص نمی‌کند.';
+        } elseif ($salesChange < 0 && $usersChange > 0) {
+            $takeaway = 'با وجود افزایش ثبت‌نام‌ها، فروش کاهش یافته است؛ علت این اختلاف از این دو شاخص مشخص نیست.';
+        } else {
+            $trend = static fn (int $change): string => $change > 0
+                ? 'افزایش یافته' : ($change < 0 ? 'کاهش یافته' : 'ثابت مانده');
+            $takeaway = 'فروش '.$trend($salesChange).' و ثبت‌نام '.$trend($usersChange)
+                .'؛ این دو شاخص به‌تنهایی علت تغییرات را نشان نمی‌دهند.';
+        }
+
+        $tip = $current['revenueRials'] === 0 && $previous['revenueRials'] === 0
+            ? 'اگر انتظار فروش وجود دارد، وضعیت تسویه‌های ثبت‌شده را بررسی کنید.'
+            : 'برای بررسی عوامل تغییر فروش، تعداد تراکنش‌ها و میانگین مبلغ سفارش را بین دو دوره مقایسه کنید.';
+
+        return [
+            '💰 فروش' => $sales,
+            '👥 کاربران' => $users,
+            '📈 برداشت مدیریتی' => $takeaway,
+            '💡 نکته قابل بررسی' => $tip,
+        ];
+    }
+
+    /** @param  array<string,mixed>  $data */
+    private static function richInsights(array $data): string
+    {
+        $html = '<details><summary>🧠 تحلیل عملکرد دوره</summary>';
+        foreach (self::insights($data) as $title => $text) {
+            $html .= '<p><b>'.TelegramUi::escape($title).'</b> '
+                .TelegramUi::escape($text).'</p>';
+        }
+
+        return $html.'</details>';
+    }
+
+    /** @param  array<string,mixed>  $data */
+    private static function simpleInsights(array $data): string
+    {
+        $html = "\n\n<b>🧠 تحلیل عملکرد دوره</b>";
+        foreach (self::insights($data) as $title => $text) {
+            $html .= "\n<b>".TelegramUi::escape($title).'</b> '.TelegramUi::escape($text);
+        }
+
+        return $html;
     }
 
     private static function label(string $period): string

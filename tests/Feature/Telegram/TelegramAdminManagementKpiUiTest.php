@@ -170,6 +170,11 @@ it('renders accurate RTL Rich daily comparison with two tables, live filters and
                 && str_contains($html, 'کاربران جدید · بازه قبل</td><td><b>۱</b>')
                 && str_contains($html, '۱۴۰۵/')
                 && str_contains($html, '۰۰:۰۰ تا ۱۵:۳۰')
+                && str_contains($html, '<details><summary>🧠 تحلیل عملکرد دوره</summary>')
+                && str_contains($html, '۴۰۰٬۰۰۰ تومان افزایش (+۴۰۰٫۰٪)')
+                && str_contains($html, 'فروش افزایش یافته و ثبت‌نام ثابت مانده')
+                && str_contains($html, '<b>💡 نکته قابل بررسی</b>')
+                && strpos($html, '</details>') < strpos($html, '<footer>')
                 && str_contains($html, '<footer>🕒 ')
                 && str_contains($html, 'تهران')
                 && ($buttons[0][0]['callback_data'] ?? null) === 'kpi:period:day'
@@ -194,6 +199,10 @@ it('renders accurate RTL Rich daily comparison with two tables, live filters and
         ->toContain('+۴۰۰٫۰٪')
         ->toContain('کاربران جدید · بازه اخیر: ۱')
         ->toContain('۱۴۰۵/')
+        ->toContain('🧠 تحلیل عملکرد دوره')
+        ->toContain('۴۰۰٬۰۰۰ تومان افزایش (+۴۰۰٫۰٪)')
+        ->toContain('💡 نکته قابل بررسی')
+        ->not->toContain('<details>')
         ->toContain('تهران');
 });
 
@@ -206,12 +215,17 @@ it('switches period in place and clearly differentiates complete weeks from comp
             $rich = kpiUiRich($request);
             $html = (string) ($rich['html'] ?? '');
 
-            return str_contains($html, 'شاخص‌های مدیریتی · هفتگی')
-                && str_contains($html, '۷ روز کامل گذشته')
-                && str_contains($html, 'تا ۱۴۰۵/')
-                && str_contains($html, 'بدون مبنا')
-                && ($p['reply_markup']['inline_keyboard'][0][1]['text'] ?? null) === '✅ هفتگی'
-                && ($p['reply_markup']['inline_keyboard'][0][2]['callback_data'] ?? null) === 'kpi:period:month';
+            expect($html)->toContain(
+                'شاخص‌های مدیریتی · هفتگی',
+                '۷ روز کامل گذشته',
+                'تا ۱۴۰۵/',
+                'بدون مبنا',
+                '<details><summary>🧠 تحلیل عملکرد دوره</summary>',
+                'فروش بازه قبل صفر بوده',
+            )->and($p['reply_markup']['inline_keyboard'][0][1]['text'] ?? null)->toBe('✅ هفتگی')
+                ->and($p['reply_markup']['inline_keyboard'][0][2]['callback_data'] ?? null)->toBe('kpi:period:month');
+
+            return true;
         }, index: 1);
 
     kpiUiBot()->hearCallbackQueryData('kpi:period:month')->reply()
@@ -220,12 +234,18 @@ it('switches period in place and clearly differentiates complete weeks from comp
             $rich = kpiUiRich($request);
             $html = (string) ($rich['html'] ?? '');
 
-            return str_contains($html, 'شاخص‌های مدیریتی · ماهانه')
-                && str_contains($html, 'ماه شمسی کامل گذشته')
-                && str_contains($html, 'بدون مبنا')
-                && ($p['reply_markup']['inline_keyboard'][0][2]['text'] ?? null) === '✅ ماهانه'
-                && str_contains($html, '<table bordered striped compact>')
-                && str_contains($html, 'بازۀ') === false;
+            expect($html)->toContain(
+                'شاخص‌های مدیریتی · ماهانه',
+                'ماه شمسی کامل گذشته',
+                'بدون مبنا',
+                '<details><summary>🧠 تحلیل عملکرد دوره</summary>',
+                'ثبت‌نام کاربران از ۱ به ۰ نفر',
+                '۱ نفر کاهش (−۱۰۰٫۰٪)',
+                '<table bordered striped compact>',
+            )->not->toContain('بازۀ')
+                ->and($p['reply_markup']['inline_keyboard'][0][2]['text'] ?? null)->toBe('✅ ماهانه');
+
+            return true;
         }, index: 1);
     Http::assertNothingSent();
 });
@@ -276,4 +296,89 @@ it('denies non-roots, revoked roots and group callbacks without reading customer
         ->assertCalled('answerCallbackQuery');
 
     Http::assertNothingSent();
+});
+
+it('narrates verified weekly sales growth with lower signups without inventing a cause', function (): void {
+    $data = [
+        'period' => 'week',
+        'generatedAt' => '2026-11-05 15:30',
+        'current' => [
+            'from' => '2026-10-29 00:00:00', 'until' => '2026-11-05 00:00:00',
+            'revenueRials' => 87_835_000, 'transactions' => 54,
+            'uniqueBuyers' => 31, 'newPurchases' => 52, 'renewals' => 2,
+            'newUsers' => 207,
+        ],
+        'previous' => [
+            'from' => '2026-10-22 00:00:00', 'until' => '2026-10-29 00:00:00',
+            'revenueRials' => 43_197_500, 'transactions' => 23,
+            'uniqueBuyers' => 19, 'newPurchases' => 22, 'renewals' => 1,
+            'newUsers' => 248,
+        ],
+        'growth' => ['salesPercent' => 103.3, 'newUsersPercent' => -16.5],
+    ];
+    $ui = app(AdminManagementKpiUi::class);
+    $rich = (new ReflectionMethod(AdminManagementKpiUi::class, 'richReport'))->invoke($ui, $data);
+    $plain = (new ReflectionMethod(AdminManagementKpiUi::class, 'simpleReport'))->invoke($ui, $data);
+
+    foreach ([$rich, $plain] as $report) {
+        expect($report)->toContain('۱۴۰۵/۰۸/۰۷ تا ۱۴۰۵/۰۸/۱۳')
+            ->toContain('۸٬۷۸۳٬۵۰۰ تومان')
+            ->toContain('۴٬۴۶۳٬۷۵۰ تومان افزایش (+۱۰۳٫۳٪)')
+            ->toContain('ثبت‌نام کاربران از ۲۴۸ به ۲۰۷ نفر')
+            ->toContain('۴۱ نفر کاهش (−۱۶٫۵٪)')
+            ->toContain('با وجود کاهش ثبت‌نام‌ها، فروش افزایش یافته است')
+            ->toContain('تعداد تراکنش‌ها و میانگین مبلغ سفارش');
+    }
+    expect($rich)->toContain('<details><summary>🧠 تحلیل عملکرد دوره</summary>')
+        ->toContain('</details>')
+        ->and($plain)->not->toContain('<details>')
+        ->not->toContain('<summary>')
+        ->and($rich)->not->toContain('علت افزایش فروش، مشتریان قدیمی');
+});
+
+it('handles falling sales, stable trends and zero comparison baselines without spurious percentages', function (): void {
+    $reader = new ReflectionMethod(AdminManagementKpiUi::class, 'insights');
+    $data = [
+        'period' => 'day',
+        'current' => [
+            'from' => '2026-11-05 00:00:00', 'until' => '2026-11-05 15:30:00',
+            'revenueRials' => 1_000_000, 'newUsers' => 120,
+        ],
+        'previous' => [
+            'from' => '2026-11-04 00:00:00', 'until' => '2026-11-04 15:30:00',
+            'revenueRials' => 2_000_000, 'newUsers' => 100,
+        ],
+        'growth' => ['salesPercent' => -50.0, 'newUsersPercent' => 20.0],
+    ];
+
+    $fall = $reader->invoke(null, $data);
+    expect($fall['💰 فروش'])->toContain('۱۰۰٬۰۰۰ تومان کاهش (−۵۰٫۰٪)')
+        ->and($fall['👥 کاربران'])->toContain('۲۰ نفر افزایش (+۲۰٫۰٪)')
+        ->and($fall['📈 برداشت مدیریتی'])->toContain('با وجود افزایش ثبت‌نام‌ها، فروش کاهش یافته است')
+        ->toContain('علت این اختلاف از این دو شاخص مشخص نیست');
+
+    $data['current']['revenueRials'] = $data['previous']['revenueRials'];
+    $data['current']['newUsers'] = $data['previous']['newUsers'];
+    $data['growth'] = ['salesPercent' => 0.0, 'newUsersPercent' => 0.0];
+    $stable = $reader->invoke(null, $data);
+    expect($stable['💰 فروش'])->toContain('تغییری نداشته')
+        ->and($stable['👥 کاربران'])->toContain('ثابت مانده')
+        ->and($stable['📈 برداشت مدیریتی'])->toContain('فروش ثابت مانده و ثبت‌نام ثابت مانده');
+
+    $data['previous']['revenueRials'] = 0;
+    $data['previous']['newUsers'] = 0;
+    $data['growth'] = ['salesPercent' => null, 'newUsersPercent' => null];
+    $noBaseline = $reader->invoke(null, $data);
+    expect($noBaseline['💰 فروش'])->toContain('فروش بازه قبل صفر بوده')
+        ->toContain('بدون مبنا')
+        ->and($noBaseline['👥 کاربران'])->toContain('ثبت‌نام بازه قبل صفر بوده')
+        ->toContain('بدون مبنا')
+        ->and($noBaseline['📈 برداشت مدیریتی'])->toContain('مقایسه درصدی کامل دو شاخص ممکن نیست');
+
+    $data['current']['revenueRials'] = 0;
+    $data['current']['newUsers'] = 0;
+    $allZero = $reader->invoke(null, $data);
+    expect($allZero['💰 فروش'])->toContain('فروش بازه قبل صفر بوده')
+        ->and($allZero['💡 نکته قابل بررسی'])->toContain('اگر انتظار فروش وجود دارد');
+    expect(implode(' ', $allZero))->not->toContain('INF', 'NaN', 'رشد بی‌نهایت');
 });
