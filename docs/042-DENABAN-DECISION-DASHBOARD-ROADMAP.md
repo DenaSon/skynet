@@ -1,6 +1,6 @@
 # DenaGate — Denaban reliability and management KPI roadmap (2026-11-05)
 
-Approved sequence: four **independent** phases. Phase 1 merged via [PR #374](https://github.com/DenaSon/skynet/pull/374) with successful PHP 8.4, PHPStan, Pint and MySQL CI. Phase 2 merged via [PR #375](https://github.com/DenaSon/skynet/pull/375) with successful PHP 8.4, PHPStan, Pint and MySQL CI. **Phase 3 is the only implementation scope of the current PR.** Preserve Laravel modular-monolith Actions, private trusted Super Admin checks, existing Admin/Sales routes, financial journals, Remnawave gates and customer data. Each PR requires tests, review, CI and independent live Telegram acceptance. Merge to master deploys automatically.
+Approved sequence: four **independent** phases. Phase 1 merged via [PR #374](https://github.com/DenaSon/skynet/pull/374) with successful PHP 8.4, PHPStan, Pint and MySQL CI. Phase 2 merged via [PR #375](https://github.com/DenaSon/skynet/pull/375) with successful PHP 8.4, PHPStan, Pint and MySQL CI. Phase 3 merged via [PR #376](https://github.com/DenaSon/skynet/pull/376) with successful PHP 8.4, PHPStan, Pint and disposable MySQL CI. **Phase 4 is the only implementation scope of the current PR.** Preserve Laravel modular-monolith Actions, private trusted Super Admin checks, existing Admin/Sales routes, financial journals, Remnawave gates and customer data. Each PR requires tests, review, CI and independent live Telegram acceptance. Merge to master deploys automatically.
 
 ## Phase 1 — reliability and actionable follow-up (merged PR #374)
 
@@ -24,7 +24,7 @@ Rearrange only the existing inline keyboard: finance first, conditional fulfillm
 
 **Acceptance:** both Rich and native render all existing metrics with the same values, the four headings appear in the approved order and unknown stays unknown; the Rich report retains its HTML-escaped, collapsible node details and short Tehran footer. Preserve authorized private root access, deny revoked/group roles, preserve safe fallback, all enabled/disabled action buttons and stable callback IDs, no additional provider operations. Focused fake-Telegram tests and repository CI are required; actual Telegram iOS/Android rendering, expansion and navigation require separate operator verification. Rollback is a single PR revert.
 
-## Phase 3 — management KPI read model (current scoped PR)
+## Phase 3 — management KPI read model (merged PR #376)
 
 New private root-authorized `ReadAdminManagementKpis` Application Action accepts **only** `day`, `week` or `month`. No bot UI or route is added in this phase.
 
@@ -39,9 +39,17 @@ Both periods expose Tehran-local `from` and exclusive `until`, revenues in rials
 
 **Acceptance / safety:** authorized root and invalid-period denial, canonical 7/30-day report parity, genuine bank/wallet settlement inclusion and corrected wallet exclusion, buyer deduplication, renewal separation, exact UTC SQL boundaries, incomplete current day, week upper edges, 29/30-day leap Persian Esfand and year transition, positive/negative/zero-baseline growth, no writes/no Provider/Telegram requests. Full PHP 8.4 tests, PHPStan, Pint and disposable MySQL CI must pass before merge. No migrations, new dependencies, settings, caches, finance actions, provider calls or new Telegram endpoints. Rollback is a single PR revert.
 
-## Phase 4 — separate management KPI Rich UI (not started)
+## Phase 4 — separate management KPI Rich UI (current scoped PR)
 
-Add one `📊 شاخص‌های مدیریتی` entry to the Admin home, **separate** from Denaban. Native RTL Rich tables and native daily/weekly/monthly inline selectors update the same authorized report, preserving fallback and bounded queries. The existing 7/30-day detailed reports remain available; add no redundant KPI tables to Denaban. Explicit Telegram client validation remains separate from CI.
+Add one **trusted Super Admin-only** inline entry `📊 شاخص‌های مدیریتی` directly after `🏔️ دنابان` in the existing private Admin home. Its callback `kpi:period:day` opens a new **independent** KPI screen; no KPI figures are inserted into Denaban and no existing `stats:overview` / 7/30-day stats entry is removed. Do not add a second persistent Reply Keyboard item, command, duplicated report Action, dependency or migration.
+
+Use the existing `ReadAdminManagementKpis` only, with **private Telegram chat, fresh root trust and Action RBAC** on every report callback. Register exactly one Admin-only `kpi:period:{period}` route; reject unknown periods, and offer a safe return to the daily period. Supported period buttons are `✅ روزانه`, `هفتگی`, `ماهانه` (active marker moves to the current period), plus refresh and `◀️ مدیریت`. Use **`TelegramUi::editRichText`** on callbacks to edit the same message; do not send one message per selection or change notifications.
+
+Show two concise native **RTL Rich tables**: (1) settled purchase revenue of recent and previous intervals, growth, recent transactions, unique buyers, new purchases and renewals; (2) new registered accounts in recent and previous intervals and signup growth. Label actual Tehran dates, clarify day-to-the-same-time, two full 7-day periods or complete consecutive **Persian months**. Treat exclusive SQL period end as an **inclusive display date** for complete periods, and preserve the time-of-day for incomplete-day comparisons. Show signed growth with readable Persian digits and `بدون مبنا` when the prior interval was zero, never false 0% or infinity. Footer contains the *actual* Action report time in Tehran and precise gross settled-sales limitation (not net profit/top-ups). No user-controlled data, secrets, fake values or irrelevant metrics in Rich content.
+
+If Rich editing fails due to Telegram compatibility, **native HTML fallback** uses the same authorized snapshot, dates, comparisons and inline buttons. Read failures show a concise error without synthetic zeros; denied, revoked or nonprivate actors cannot open any period or see figures. Preserve callback navigation, all existing Admin/ordinary-admin menus, Sales Bot routing and older reports. Source tests include Rich payload/RTL/tables/footer, native matching output, period switching, empty baseline, percent formatting, role/group denial, disabled/nonroot navigation and router separation. Do not claim device-rendering acceptance from mocked messages.
+
+**Release:** CI must pass PHP 8.4, PHPStan, Pint and MySQL checks; no provider, financial, database schema, settings or scheduling operations. A single PR revert rolls back all new UI/routes without touching phase 3 calculations. Real Telegram iOS/Android and deployed Production verification remain separate, explicit acceptance tasks.
 
 ## Evidence and release
 
