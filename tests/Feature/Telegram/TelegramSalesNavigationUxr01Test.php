@@ -241,7 +241,6 @@ it('keeps account and invite simple views usable with unchanged owner-safe actio
     Http::assertNothingSent();
 });
 
-
 it('opens reward directly from the member home keyboard and old invite labels without leaking reward actions to reseller home', function (): void {
     $user = User::factory()->create();
     $user->syncRoles(['member']);
