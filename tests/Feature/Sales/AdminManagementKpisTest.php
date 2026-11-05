@@ -278,3 +278,52 @@ it('protects management KPI reads from untrusted roles and invalid period inputs
         ))->toThrow(ValidationException::class);
     Http::assertNothingSent();
 });
+
+it('compares complete Persian months when the older month has thirty-one days', function (): void {
+    $this->travelTo(Carbon::parse('2026-10-23 09:00:00', 'Asia/Tehran')->utc());
+    $root = kpiRoot();
+
+    $data = app(ReadAdminManagementKpis::class)->handle($root->id, 'month');
+    expect($data['current']['from'])->toBe('2026-09-23 00:00:00')
+        ->and($data['current']['until'])->toBe('2026-10-23 00:00:00')
+        ->and($data['previous']['from'])->toBe('2026-08-23 00:00:00')
+        ->and($data['previous']['until'])->toBe('2026-09-23 00:00:00')
+        ->and($data['growth']['salesPercent'])->toBeNull()
+        ->and($data['growth']['newUsersPercent'])->toBeNull();
+});
+
+it('shows empty day-to-now comparison at midnight without an invalid range error', function (): void {
+    $this->travelTo(Carbon::parse('2026-11-05 00:00:00', 'Asia/Tehran')->utc());
+    $root = kpiRoot();
+
+    $data = app(ReadAdminManagementKpis::class)->handle($root->id, 'day');
+    expect($data['current']['from'])->toBe('2026-11-05 00:00:00')
+        ->and($data['current']['until'])->toBe('2026-11-05 00:00:00')
+        ->and($data['previous']['from'])->toBe('2026-11-04 00:00:00')
+        ->and($data['previous']['until'])->toBe('2026-11-04 00:00:00')
+        ->and($data['current']['revenueRials'])->toBe(0)
+        ->and($data['previous']['transactions'])->toBe(0)
+        ->and($data['current']['newUsers'])->toBe(0)
+        ->and($data['growth']['salesPercent'])->toBeNull()
+        ->and($data['growth']['newUsersPercent'])->toBeNull();
+    Http::assertNothingSent();
+});
+
+it('preserves verified bank history for refunded orders exactly like the existing business report', function (): void {
+    $root = kpiRoot();
+    $buyer = kpiUser('2026-09-01 12:00:00');
+    $bankOrder = kpiSettlement($buyer, 'bank', '2026-11-05 11:00:00', 400_000);
+    $walletOrder = kpiSettlement($buyer, 'wallet', '2026-11-05 12:00:00', 200_000);
+    DB::table('sales_orders')->whereIn('id', [$bankOrder, $walletOrder])
+        ->update(['status' => 'refunded']);
+
+    $data = app(ReadAdminManagementKpis::class)->handle($root->id, 'day');
+    $existing = app(ReadAdminBusinessReport::class)->handle($root->id, 7);
+    expect($data['current']['revenueRials'])->toBe(400_000)
+        ->and($data['current']['transactions'])->toBe(1)
+        ->and($existing['revenueRials'])->toBe(400_000)
+        ->and($existing['settled'])->toBe(1)
+        ->and(DB::table('sales_bank_settlements')->count())->toBe(1)
+        ->and(DB::table('sales_order_settlements')->count())->toBe(1);
+    Http::assertNothingSent();
+});
