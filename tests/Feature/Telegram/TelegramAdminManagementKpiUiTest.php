@@ -239,7 +239,8 @@ it('switches period in place and clearly differentiates complete weeks from comp
                 'ماه شمسی کامل گذشته',
                 'بدون مبنا',
                 '<details><summary>🧠 تحلیل عملکرد دوره</summary>',
-                'ثبت‌نام بازه قبل صفر بوده',
+                'ثبت‌نام کاربران از ۱ به ۰ نفر',
+                '۱ نفر کاهش (−۱۰۰٫۰٪)',
                 '<table bordered striped compact>',
             )->not->toContain('بازۀ')
                 ->and($p['reply_markup']['inline_keyboard'][0][2]['text'] ?? null)->toBe('✅ ماهانه');
