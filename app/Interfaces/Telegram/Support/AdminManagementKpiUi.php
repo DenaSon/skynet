@@ -155,13 +155,12 @@ final readonly class AdminManagementKpiUi
             ."\n🕒 ".PersianCalendar::localDateTime($data['generatedAt']).' (تهران)';
     }
 
-
     /**
      * One rule-based analysis source for both Rich and native fallback.
      * Do not infer why revenue moved from these two KPIs alone.
      *
      * @param  array<string,mixed>  $data
-     * @return array<string,string>
+     * @return array<string, string>
      */
     private static function insights(array $data): array
     {
@@ -219,7 +218,7 @@ final readonly class AdminManagementKpiUi
         ];
     }
 
-    /** @param array<string,mixed> $data */
+    /** @param  array<string,mixed>  $data */
     private static function richInsights(array $data): string
     {
         $html = '<details><summary>🧠 تحلیل عملکرد دوره</summary>';
@@ -231,7 +230,7 @@ final readonly class AdminManagementKpiUi
         return $html.'</details>';
     }
 
-    /** @param array<string,mixed> $data */
+    /** @param  array<string,mixed>  $data */
     private static function simpleInsights(array $data): string
     {
         $html = "\n\n<b>🧠 تحلیل عملکرد دوره</b>";
