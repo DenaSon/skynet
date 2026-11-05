@@ -254,9 +254,10 @@ it('marks zero comparison baselines undefined and negative changes correctly', f
         ->and($decline['growth']['newUsersPercent'])->toBe(0.0);
 
     $this->travelTo(Carbon::parse('2026-11-05 13:00:00', 'Asia/Tehran')->utc());
-    // A root created long before both periods does not inflate new signups.
+    // The buyer registered in the preceding Persian month, and none in
+    // the last completed Persian month: registration growth is -100%.
     expect(app(ReadAdminManagementKpis::class)->handle($root->id, 'month')['growth']['newUsersPercent'])
-        ->toBeNull();
+        ->toBe(-100.0);
 });
 
 it('protects management KPI reads from untrusted roles and invalid period inputs', function (): void {
