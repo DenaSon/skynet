@@ -84,17 +84,22 @@ final readonly class ReadAdminHealth
             $current = now();
             $fresh = $instant->betweenIncluded($current->copy()->subMinutes(3), $current->copy()->addMinute());
 
-            // Four configured checks are always expected (database, queue,
-            // scheduler, disk). A fifth, Redis, is optional in local test env.
+            // An incomplete basic or operational batch must never show green.
+            // Redis is required only with the same runtime condition as registration.
+            $expectedBasic = ['DatabaseCheck', 'QueueCheck', 'ScheduleCheck', 'UsedDiskSpaceCheck'];
+            if (config('cache.default') === 'redis' || config('queue.default') === 'redis') {
+                $expectedBasic[] = 'RedisCheck';
+            }
             $expectedOps = array_map(
                 static fn (string $key): string => 'ops_'.$key, OperationalProbe::CHECKS,
             );
+            $expected = [...$expectedBasic, ...$expectedOps];
             $observed = array_map(
                 static fn (object $row): string => (string) $row->check_name, $rows->all(),
             );
             $incomplete = $total < 4 || $total > 24 || count($items) !== $total
                 || count(array_unique($observed)) !== $total
-                || count(array_intersect($expectedOps, $observed)) !== count($expectedOps);
+                || count(array_intersect($expected, $observed)) !== count($expected);
             $state = 'healthy';
             if (! $fresh) {
                 $state = 'stale';

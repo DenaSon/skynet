@@ -62,7 +62,7 @@ function denabanIssuesInsert(int $recipient, int $sequence, string $state = 'una
 {
     return DB::table('telegram_notification_deliveries')->insertGetId([
         'event_key' => 'denaban-issues-'.$sequence,
-        'event_type' => $sequence % 2 === 0 ? 'WalletTopupApproved' : 'SubscriptionLowTraffic',
+        'event_type' => $sequence % 2 === 0 ? 'WalletTopupApproved' : 'SubscriptionActivated',
         'recipient_user_id' => $recipient,
         'bot_key' => 'sales',
         'state' => $state,
@@ -138,7 +138,7 @@ it('shows bounded chronological pages, human reasons and Persian dates without m
 
             return str_contains(denabanIssuesRich($p), '۷ سابقه') === false
                 && str_contains(denabanIssuesRich($p), '7 سابقه · صفحه 1 از 2')
-                && str_contains(denabanIssuesRich($p), '#7 · هشدار اتمام حجم')
+                && str_contains(denabanIssuesRich($p), '#7 · فعال‌شدن اشتراک')
                 && str_contains(denabanIssuesRich($p), 'هشدار اشتراک دیگر معتبر نیست')
                 && str_contains(denabanIssuesRich($p), 'مشکل ارتباط با تلگرام')
                 && ! str_contains(denabanIssuesRich($p), '#2 ·')
@@ -154,7 +154,7 @@ it('shows bounded chronological pages, human reasons and Persian dates without m
 
             return str_contains(denabanIssuesRich($p), '7 سابقه · صفحه 2 از 2')
                 && str_contains(denabanIssuesRich($p), '#2 · تأیید شارژ کیف پول')
-                && str_contains(denabanIssuesRich($p), '#1 · هشدار اتمام حجم')
+                && str_contains(denabanIssuesRich($p), '#1 · فعال‌شدن اشتراک')
                 && ! str_contains(denabanIssuesRich($p), '#7 ·')
                 && str_contains($buttons, 'denaban:notifications:1')
                 && str_contains($buttons, 'denaban:show');
@@ -268,4 +268,35 @@ it('ignores only superseded activation notices while preserving the full deliver
     expect($preserved)->toEqual($before);
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
     Http::assertNotSent(static fn (Request $request): bool => $request->method() !== 'GET');
+});
+
+it('suppresses only low-priority delivery noise while retaining all stored evidence', function (): void {
+    $root = denabanIssuesRoot();
+    Http::fake(['https://denaban-issues.test/*' => Http::response([], 503)]);
+
+    $trial = denabanIssuesInsert($root->id, 101, 'dead', 'transport');
+    $expiring = denabanIssuesInsert($root->id, 103, 'unavailable', 'not_started');
+    $activation = denabanIssuesInsert($root->id, 105, 'dead', 'transport');
+    DB::table('telegram_notification_deliveries')->where('id', $trial)
+        ->update(['event_type' => 'TrialExpiring5m']);
+    DB::table('telegram_notification_deliveries')->where('id', $expiring)
+        ->update(['event_type' => 'SubscriptionLowTraffic']);
+
+    $snapshot = app(ReadAdminCommandCenter::class)->handle($root->id);
+    expect($snapshot['stats']['notificationIssues'])->toBe(1)
+        ->and(DB::table('telegram_notification_deliveries')->count())->toBe(3);
+
+    $page = app(ReadAdminNotificationFailures::class)->handle($root->id, '1');
+    expect($page['total'])->toBe(1)
+        ->and($page['items'][0]['id'])->toBe($activation);
+
+    denabanIssuesBot(992201)->hearCallbackQueryData('denaban:notifications:1')->reply()
+        ->assertRaw(static function (NutgramRequest $request) use ($activation): bool {
+            $html = denabanIssuesRich(denabanIssuesPayload($request));
+
+            return str_contains($html, '#'.$activation.' · فعال‌شدن اشتراک')
+                && ! str_contains($html, 'پنج دقیقه پایانی تست')
+                && ! str_contains($html, 'هشدار اتمام حجم');
+        }, index: 1);
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
 });

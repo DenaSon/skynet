@@ -271,3 +271,30 @@ it('rejects complete-looking batches missing one operational check', function ()
 
     expect(app(ReadAdminHealth::class)->handle($root->id)['state'])->toBe('unknown');
 });
+
+it('never reports a fresh batch healthy when a named basic check is missing', function (): void {
+    $root = denabanHealthRoot();
+    config()->set('denagate_health.enabled', true);
+    config()->set('cache.default', 'array');
+    config()->set('queue.default', 'database');
+    $batch = '96969696-9696-4969-8969-969696969696';
+
+    // The old minimum-row-count check passed this incomplete batch.
+    foreach (['DatabaseCheck', 'QueueCheck', 'ScheduleCheck'] as $name) {
+        denabanHealthStore($batch, $name, 'ok', now()->toDateTimeString());
+    }
+    foreach (OperationalProbe::CHECKS as $name) {
+        denabanHealthStore($batch, 'ops_'.$name, 'ok', now()->toDateTimeString());
+    }
+
+    expect(app(ReadAdminHealth::class)->handle($root->id)['state'])->toBe('unknown');
+
+    denabanHealthStore($batch, 'UsedDiskSpaceCheck', 'ok', now()->toDateTimeString());
+    expect(app(ReadAdminHealth::class)->handle($root->id)['state'])->toBe('healthy');
+
+    // Redis is mandatory whenever it is configured as an infrastructure dependency.
+    config()->set('cache.default', 'redis');
+    expect(app(ReadAdminHealth::class)->handle($root->id)['state'])->toBe('unknown');
+    denabanHealthStore($batch, 'RedisCheck', 'ok', now()->toDateTimeString());
+    expect(app(ReadAdminHealth::class)->handle($root->id)['state'])->toBe('healthy');
+});

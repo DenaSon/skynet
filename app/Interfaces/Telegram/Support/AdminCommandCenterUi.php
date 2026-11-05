@@ -43,11 +43,17 @@ final readonly class AdminCommandCenterUi
         }
 
         $failures = null;
+        $attention = null;
         $snapshot = null;
         try {
             $snapshot = $this->center->handle($actor->userId);
             $text = $this->report($snapshot);
             $failures = self::number($snapshot['stats'], 'notificationIssues');
+            $review = self::number($snapshot['stats'], 'fulfillmentReview');
+            $overdue = self::number($snapshot['stats'], 'fulfillmentOverdue');
+            if ($review !== null && $overdue !== null) {
+                $attention = $review + $overdue;
+            }
         } catch (AuthorizationException) {
             $this->menus->denyAccess($bot);
 
@@ -63,6 +69,13 @@ final readonly class AdminCommandCenterUi
         $keyboard->addRow(InlineKeyboardButton::make(
             '🩺 سلامت سیستم', callback_data: 'denaban:health',
         ));
+
+        if ($attention !== null && $attention > 0) {
+            $keyboard->addRow(InlineKeyboardButton::make(
+                '⚠️ پیگیری فعال‌سازی‌ها ('.number_format($attention).')',
+                callback_data: 'full:attention:1',
+            ));
+        }
 
         if ($failures !== null && $failures > 0) {
             $keyboard->addRow(InlineKeyboardButton::make(
@@ -124,6 +137,7 @@ final readonly class AdminCommandCenterUi
             self::number($stats, 'receiptsPending'),
             self::number($stats, 'provisioningReview'),
             self::number($stats, 'fulfillmentReview'),
+            self::number($stats, 'fulfillmentOverdue'),
             self::number($stats, 'failedJobs'),
             self::number($stats, 'notificationIssues'),
         ];
@@ -147,6 +161,7 @@ final readonly class AdminCommandCenterUi
             '💳 رسیدهای شارژ: '.self::format($pendingTopups),
             '📦 عملیات اشتراک: '.self::format(self::number($stats, 'provisioningReview')),
             '🔧 سفارش‌های نیازمند بررسی: '.self::format(self::number($stats, 'fulfillmentReview')),
+            '⏳ فعال‌سازی‌های معوق: '.self::format(self::number($stats, 'fulfillmentOverdue')),
             '⚙️ کارهای ناموفق: '.self::format(self::number($stats, 'failedJobs')),
             '🔔 اعلان‌های ناموفق: '.self::format(self::number($stats, 'notificationIssues')),
             '',
@@ -190,6 +205,7 @@ final readonly class AdminCommandCenterUi
             self::number($stats, 'receiptsPending'),
             self::number($stats, 'provisioningReview'),
             self::number($stats, 'fulfillmentReview'),
+            self::number($stats, 'fulfillmentOverdue'),
             self::number($stats, 'failedJobs'),
             self::number($stats, 'notificationIssues'),
         ];
@@ -216,6 +232,7 @@ final readonly class AdminCommandCenterUi
                 ['💳 رسیدهای شارژ', self::format($pendingTopups)],
                 ['📦 عملیات اشتراک', self::format(self::number($stats, 'provisioningReview'))],
                 ['🔧 سفارش‌های نیازمند بررسی', self::format(self::number($stats, 'fulfillmentReview'))],
+                ['⏳ فعال‌سازی‌های معوق', self::format(self::number($stats, 'fulfillmentOverdue'))],
                 ['⚙️ کارهای ناموفق', self::format(self::number($stats, 'failedJobs'))],
                 ['🔔 اعلان‌های ناموفق', self::format(self::number($stats, 'notificationIssues'))],
             ])

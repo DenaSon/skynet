@@ -1332,3 +1332,130 @@ it('does not fail paid fulfillment because referral configuration is invalid', f
         ->and(DB::table('referral_rewards')->count())->toBe(0);
     Http::assertSentCount(1);
 });
+
+it('keeps old paid review cases reachable across pages and flags only genuinely overdue activation', function (): void {
+    $data = sb05Order();
+    $reader = app(ReviewPaidFulfillment::class);
+    $orderTemplate = (array) DB::table('sales_orders')->where('id', $data['order'])->first();
+    $intentTemplate = (array) DB::table('sales_fulfillment_outbox')
+        ->where('sales_order_id', $data['order'])->first();
+    $oldest = null;
+
+    for ($i = 1; $i <= 22; $i++) {
+        $order = $orderTemplate;
+        unset($order['id']);
+        $order['idempotency_key'] = 'denaban-review-order-'.$i;
+        $orderId = DB::table('sales_orders')->insertGetId($order);
+        $intent = $intentTemplate;
+        unset($intent['id']);
+        $intent['sales_order_id'] = $orderId;
+        $intent['event_key'] = 'denaban-review-event-'.$i;
+        $intent['state'] = 'needs_review';
+        DB::table('sales_fulfillment_outbox')->insert($intent);
+        $oldest ??= $orderId;
+    }
+
+    $staleOrder = $orderTemplate;
+    unset($staleOrder['id']);
+    $staleOrder['idempotency_key'] = 'denaban-overdue-paid';
+    $staleOrderId = DB::table('sales_orders')->insertGetId($staleOrder);
+    $staleIntent = $intentTemplate;
+    unset($staleIntent['id']);
+    $staleIntent['sales_order_id'] = $staleOrderId;
+    $staleIntent['event_key'] = 'denaban-overdue-event';
+    $staleIntent['state'] = 'pending';
+    $staleIntent['created_at'] = now()->subMinutes(20);
+    DB::table('sales_fulfillment_outbox')->insert($staleIntent);
+
+    $processingOrder = $orderTemplate;
+    unset($processingOrder['id']);
+    $processingOrder['idempotency_key'] = 'denaban-processing-paid';
+    $processingOrderId = DB::table('sales_orders')->insertGetId($processingOrder);
+    $processingIntent = $intentTemplate;
+    unset($processingIntent['id']);
+    $processingIntent['sales_order_id'] = $processingOrderId;
+    $processingIntent['event_key'] = 'denaban-processing-event';
+    $processingIntent['state'] = 'processing';
+    $processingIntent['created_at'] = now()->subMinutes(30);
+    $processingIntent['updated_at'] = now()->subMinutes(20);
+    DB::table('sales_fulfillment_outbox')->insert($processingIntent);
+
+    // An old but not yet paid order must never be called overdue.
+    $unpaidOrder = $orderTemplate;
+    unset($unpaidOrder['id']);
+    $unpaidOrder['idempotency_key'] = 'denaban-unpaid-order';
+    $unpaidOrder['status'] = 'pending_payment';
+    $unpaidId = DB::table('sales_orders')->insertGetId($unpaidOrder);
+    $unpaidIntent = $intentTemplate;
+    unset($unpaidIntent['id']);
+    $unpaidIntent['sales_order_id'] = $unpaidId;
+    $unpaidIntent['event_key'] = 'denaban-unpaid-event';
+    $unpaidIntent['state'] = 'pending';
+    $unpaidIntent['created_at'] = now()->subMinutes(30);
+    DB::table('sales_fulfillment_outbox')->insert($unpaidIntent);
+
+    // Active processing does not become overdue merely because its creation was old.
+    $freshOrder = $orderTemplate;
+    unset($freshOrder['id']);
+    $freshOrder['idempotency_key'] = 'denaban-fresh-processing';
+    $freshId = DB::table('sales_orders')->insertGetId($freshOrder);
+    $freshIntent = $intentTemplate;
+    unset($freshIntent['id']);
+    $freshIntent['sales_order_id'] = $freshId;
+    $freshIntent['event_key'] = 'denaban-fresh-event';
+    $freshIntent['state'] = 'processing';
+    $freshIntent['created_at'] = now()->subMinutes(30);
+    $freshIntent['updated_at'] = now();
+    DB::table('sales_fulfillment_outbox')->insert($freshIntent);
+
+    $counts = $reader->attentionCounts($data['root']->id);
+    expect($counts)->toBe(['review' => 22, 'overdue' => 2]);
+
+    $first = $reader->attention($data['root']->id, '1');
+    $last = $reader->attention($data['root']->id, '2');
+    expect($first['total'])->toBe(24)
+        ->and($first['pages'])->toBe(2)
+        ->and($first['items'])->toHaveCount(20)
+        ->and($first['items'][0]->id)->toBe($oldest)
+        ->and($last['items'])->toHaveCount(4)
+        ->and($last['items'][2]->id)->toBe($staleOrderId)
+        ->and($last['items'][3]->id)->toBe($processingOrderId);
+
+    $guest = User::factory()->create();
+    expect(fn () => $reader->attention($guest->id, '1'))->toThrow(AuthorizationException::class)
+        ->and(fn () => $reader->attention($data['root']->id, '0'))->toThrow(ValidationException::class)
+        ->and(fn () => $reader->attention($data['root']->id, '1001'))->toThrow(ValidationException::class);
+
+    Http::fake(['https://remna.test/*' => Http::response([], 503)]);
+    $bot = Nutgram::fake();
+    require base_path('app/Interfaces/Telegram/routes/admin.php');
+    $bot->setCommonUser(TelegramUser::make(975001, false, 'Root'));
+    $bot->setCommonChat(Chat::make(975001, ChatType::PRIVATE));
+    $bot->hearCallbackQueryData('full:attention:2')->reply()
+        ->assertRaw(static function (NutgramRequest $request) use ($staleOrderId): bool {
+            $payload = sb05TelegramPayload($request);
+            $html = sb05TelegramRich($payload);
+            $buttons = json_encode($payload['reply_markup'] ?? null, JSON_THROW_ON_ERROR);
+
+            return str_contains($html, '<h2>⚠️ پیگیری فعال‌سازی‌ها</h2>')
+                && str_contains($html, '<table bordered striped compact>')
+                && str_contains($html, 'صفحه 2 از 2')
+                && str_contains($buttons, 'full:view:'.$staleOrderId)
+                && str_contains($buttons, 'full:attention:1')
+                && str_contains($buttons, 'full:list');
+        }, index: 1);
+
+    $bot->hearCallbackQueryData('denaban:show')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $payload = sb05TelegramPayload($request);
+            $html = sb05TelegramRich($payload);
+            $buttons = json_encode($payload['reply_markup'] ?? null, JSON_THROW_ON_ERROR);
+
+            return str_contains($html, 'فعال‌سازی‌های معوق')
+                && str_contains($buttons, 'full:attention:1');
+        }, index: 1);
+
+    expect(DB::table('sales_fulfillment_outbox')->count())->toBe(27);
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
+    Http::assertNotSent(static fn (Request $request): bool => $request->method() !== 'GET');
+});

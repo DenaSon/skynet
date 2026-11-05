@@ -9,6 +9,7 @@ use App\Modules\Provisioning\Application\ReviewPaidFulfillment;
 use App\Modules\Provisioning\Jobs\FulfillPaidPlanOrderJob;
 use App\Support\PersianCalendar;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
@@ -87,6 +88,74 @@ final readonly class AdminFulfillmentUi
         $html .= '<footer>💡 آخرین ۲۰ سفارش | '
             .PersianCalendar::localDateTime(now()->toDateTimeString()).' (تهران)</footer>';
         $this->render($bot, implode("\n", $lines), $buttons, $html);
+    }
+
+    /** Read-only review directory: all older cases remain reachable by page. */
+    public function attention(Nutgram $bot, string $page = '1'): void
+    {
+        $root = $this->root($bot);
+        if ($root === null) {
+            return;
+        }
+
+        try {
+            $data = $this->reviews->attention($root, $page);
+        } catch (ValidationException) {
+            $this->render($bot, 'صفحه موردنظر معتبر نیست.', $this->home());
+
+            return;
+        } catch (Throwable) {
+            $this->render($bot, 'دریافت موارد پیگیری فعلاً ممکن نیست.', $this->home());
+
+            return;
+        }
+
+        $lines = ['⚠️ پیگیری فعال‌سازی‌ها', 'صفحه '.$data['page'].' از '.$data['pages'], ''];
+        $rows = '';
+        $keyboard = InlineKeyboardMarkup::make();
+        foreach ($data['items'] as $order) {
+            $state = $order->intent_state === 'needs_review' ? '⚠️ نیازمند بررسی' : '⏳ فعال‌سازی معوق';
+            $lines[] = 'سفارش #'.$order->id.' · '.$state;
+            $rows .= self::richRow('سفارش #'.$order->id, $state);
+            $keyboard->addRow(InlineKeyboardButton::make(
+                'سفارش #'.$order->id.' · '.$state,
+                callback_data: 'full:view:'.$order->id,
+            ));
+        }
+        if ($data['items'] === []) {
+            $lines[] = 'موردی برای پیگیری ثبت نشده است.';
+            $rows = self::richRow('وضعیت', 'موردی برای پیگیری ثبت نشده است.');
+        }
+
+        $keyboard->addRow(InlineKeyboardButton::make(
+            '🔄 تازه‌سازی', callback_data: 'full:attention:'.$data['page'],
+        ));
+        if ($data['pages'] > 1) {
+            $navigation = [];
+            if ($data['page'] > 1) {
+                $navigation[] = InlineKeyboardButton::make(
+                    '◀️ قبلی', callback_data: 'full:attention:'.($data['page'] - 1),
+                );
+            }
+            if ($data['page'] < $data['pages']) {
+                $navigation[] = InlineKeyboardButton::make(
+                    'بعدی ▶️', callback_data: 'full:attention:'.($data['page'] + 1),
+                );
+            }
+            $keyboard->addRow(...$navigation);
+        }
+        $keyboard->addRow(InlineKeyboardButton::make(
+            '◀️ همه سفارش‌ها', callback_data: 'full:list',
+        ));
+
+        $html = '<h2>⚠️ پیگیری فعال‌سازی‌ها</h2>'
+            .'<p>آخرین وضعیت سفارش‌های پرداخت‌شده</p>'
+            .'<table bordered striped compact>'.$rows.'</table>'
+            .'<footer>📄 '.number_format($data['total']).' مورد · صفحه '
+            .number_format($data['page']).' از '.number_format($data['pages'])
+            .' | 💡 فعال‌سازی معوق یعنی بیش از ۱۵ دقیقه بدون تکمیل.</footer>';
+
+        $this->render($bot, implode("\n", $lines), $keyboard, $html);
     }
 
     public function detail(Nutgram $bot, string $id): void

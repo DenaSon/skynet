@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Support\Health;
 
+use App\Modules\Provisioning\Application\DenabanNotificationIssues;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveApiClientFactory;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveReadApi;
 use Illuminate\Support\Facades\Cache;
@@ -260,6 +261,7 @@ final class OperationalProbe
         }
 
         $stalled = (int) DB::table('telegram_notification_deliveries')
+            ->whereNotIn('event_type', DenabanNotificationIssues::lowPriorityEvents())
             ->where(function ($q): void {
                 $q->where(function ($sub): void {
                     $sub->where('state', 'pending')
@@ -270,13 +272,9 @@ final class OperationalProbe
                 });
             })->count();
 
-        $terminal = (int) DB::table('telegram_notification_deliveries')
-            ->whereIn('state', ['dead', 'unavailable'])
-            ->where('updated_at', '>=', now()->subDay())
-            ->where(function ($q): void {
-                $q->whereNull('last_failure')
-                    ->orWhere('last_failure', '!=', 'superseded_by_activation');
-            })->count();
+        $terminal = (int) DenabanNotificationIssues::apply(
+            DB::table('telegram_notification_deliveries'),
+        )->where('updated_at', '>=', now()->subDay())->count();
 
         $total = $stalled + $terminal;
 
