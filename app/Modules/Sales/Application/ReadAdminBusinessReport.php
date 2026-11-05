@@ -72,6 +72,7 @@ final readonly class ReadAdminBusinessReport
             'generatedAt' => Carbon::now('Asia/Tehran')->format('Y-m-d H:i'),
         ];
     }
+
     /**
      * Shared canonical purchase-settlement totals for the existing 7/30-day
      * report and management KPIs. Authenticated, half-open UTC bounds.
@@ -117,6 +118,4 @@ final readonly class ReadAdminBusinessReport
             'buyers' => (int) ($totals->buyers_count ?? 0),
             'fulfilled' => (int) ($totals->fulfilled_count ?? 0),
         ];
-    }
-
-}
+    }}
