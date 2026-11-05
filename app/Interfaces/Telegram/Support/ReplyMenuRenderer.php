@@ -144,6 +144,9 @@ final class ReplyMenuRenderer
             $labels[] = ReplyMenuLabels::SALES_TUTORIAL;
         } else {
             $labels[] = ReplyMenuLabels::SALES_ACCOUNT;
+            if ($actor !== null && $actor->roles === ['member']) {
+                $labels[] = ReplyMenuLabels::SALES_REWARD;
+            }
             $labels[] = ReplyMenuLabels::SALES_SUPPORT;
             $labels[] = ReplyMenuLabels::SALES_TUTORIAL;
         }
