@@ -145,7 +145,7 @@ it('shows canonical verified inflows and sales independently of unavailable RW',
         $p = denabanPayload($r);
 
         return str_contains($p['text'], '🏔️ دنابان | وضعیت دنا')
-            && str_contains($p['text'], 'دریافتی‌های تأییدشده از ابتدا: 300,000 تومان')
+            && str_contains($p['text'], 'دریافتی کل: 300,000 تومان')
             && str_contains($p['text'], 'فروش امروز: 300,000 تومان')
             && str_contains($p['text'], 'نودهای متصل: نامشخص از نامشخص')
             && str_contains($p['text'], 'بعضی اطلاعات کامل نیست')
@@ -283,8 +283,8 @@ it('renders a bounded RTL rich executive dashboard and retains navigation and si
                     '<h3>⚠️ نیازمند رسیدگی</h3>',
                     '<h3>🖥️ وضعیت سرورها</h3>',
                 ])
-                && str_contains($html, 'دریافتی تأییدشده از ابتدا')
-                && str_contains($html, 'مانده اعتبار کاربران')
+                && str_contains($html, '<tr><td>💵 دریافتی کل</td>')
+                && str_contains($html, '<tr><td>💼 مانده اعتبار</td>')
                 && str_contains($html, 'فعال‌سازی‌های معوق')
                 && str_contains($html, '<tr><td>نودهای متصل</td>')
                 && str_contains($html, 'آخرین بررسی:')
@@ -292,6 +292,12 @@ it('renders a bounded RTL rich executive dashboard and retains navigation and si
                 && ! str_contains($html, 'نرخ رشد')
                 && str_contains($html, '<details><summary>جزئیات نودها</summary>')
                 && str_contains($html, 'نامشخص')
+                && str_contains($html, '<tr><td>کل کاربران</td>')
+                && str_contains($html, '<tr><td>اشتراک‌های فعال</td>')
+                && str_contains($html, '<tr><td>آنلاین پنل</td>')
+                && str_contains($html, '<tr><td>🔧 بررسی سفارش‌ها</td>')
+                && ! str_contains($html, 'دریافتی تأییدشده از ابتدا')
+                && ! str_contains($html, '<td>سفارش‌های نیازمند بررسی</td>')
                 && str_contains($html, 'فروش امروز')
                 && ! str_contains($html, 'super-secret')
                 && str_contains($buttons, 'denaban:simple')
@@ -316,7 +322,13 @@ it('renders a bounded RTL rich executive dashboard and retains navigation and si
                     '<b>⚠️ نیازمند رسیدگی</b>',
                     '<b>🖥️ وضعیت سرورها</b>',
                 ])
-                && str_contains($payload['text'], 'دریافتی‌های تأییدشده از ابتدا')
+                && str_contains($payload['text'], 'دریافتی کل:')
+                && str_contains($payload['text'], 'مانده اعتبار:')
+                && str_contains($payload['text'], 'کل کاربران:')
+                && str_contains($payload['text'], 'اشتراک‌های فعال:')
+                && str_contains($payload['text'], 'آنلاین پنل:')
+                && str_contains($payload['text'], 'بررسی سفارش‌ها:')
+                && ! str_contains($payload['text'], 'دریافتی‌های تأییدشده از ابتدا')
                 && str_contains($payload['text'], 'فعال‌سازی‌های معوق')
                 && str_contains($payload['text'], 'آخرین بررسی:')
                 && str_contains($payload['text'], '(تهران)')
