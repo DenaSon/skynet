@@ -147,7 +147,10 @@ it('queues one activation intent and sends only after a fresh owned provider che
     Http::assertSentCount(3); // CREATE, ownership GET, one Telegram send.
     Http::assertSent(static fn ($request): bool => str_contains($request->url(), '/sendMessage')
         && str_contains((string) ($request['text'] ?? ''), '📚 آموزش')
-        && str_contains((string) ($request['reply_markup'] ?? ''), '📚 آموزش'));
+        && str_contains(
+            json_encode(json_decode((string) ($request['reply_markup'] ?? '{}'), true, 512, JSON_THROW_ON_ERROR), JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+            '📚 آموزش',
+        ));
 });
 
 it('rechecks paid purchase history between reservation and activation', function (): void {
