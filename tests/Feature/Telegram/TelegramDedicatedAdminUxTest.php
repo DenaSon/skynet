@@ -218,7 +218,6 @@ it('keeps the stats entry in the persistent root Admin keyboard and denies stale
     $ordinaryBot->hearText(ReplyMenuLabels::STATS)->reply()->assertNoReply();
 });
 
-
 it('opens the KPI Rich report from the persistent root menu and rejects stale or nonprivate taps', function (): void {
     config()->set('telegram.hybrid_menu_enabled', true);
     config()->set('super_admin.telegram_ids', ['984211', '984299']);
