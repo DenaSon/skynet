@@ -84,7 +84,7 @@ final readonly class SalesSupportUi
                 $text = '<b>📚 آموزش‌های DenaGate</b>'."\n\n"
                     ."دستگاه خود را انتخاب کنید تا راهنمای نصب و اتصال را ببینید.\n\n"
                     ."🤖 اندروید: V2Box · 🍎 آیفون / آیپد: V2Box\n"
-                    ."🪟 ویندوز: v2rayN · 💻 مک: V2Box";
+                    .'🪟 ویندوز: v2rayN · 💻 مک: V2Box';
                 $keyboard->addRow(
                     InlineKeyboardButton::make('🤖 اندروید', callback_data: 'sales:help:android'),
                     InlineKeyboardButton::make('🍎 آیفون / آیپد', callback_data: 'sales:help:ios'),
