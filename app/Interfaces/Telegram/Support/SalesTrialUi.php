@@ -128,13 +128,14 @@ final readonly class SalesTrialUi
             $label = $live->ended() ? 'تست به پایان رسیده است' : match ($live->providerStatus) {
                 'ACTIVE' => '🟢 فعال', 'DISABLED' => '⏸️ غیرفعال', default => 'فعلاً قابل استفاده نیست',
             };
-            $keyboard = $this->buttons();
-            if (! $live->ended() && $live->providerStatus === 'ACTIVE') {
-                $keyboard->addRow(InlineKeyboardButton::make('🔐 لینک و کد اتصال', callback_data: 'sales:trial:link', style: ButtonStyle::SUCCESS));
-            }
+            $readyToConnect = ! $live->ended() && $live->providerStatus === 'ACTIVE';
+            $keyboard = $this->buttons(connection: $readyToConnect, guide: $readyToConnect);
             $text = '<b>🧪 تست رایگان</b>'."\n\nوضعیت: {$label}"
                 ."\nحجم باقی‌مانده: <b>".number_format($live->remainingBytes / 1048576, 1).' مگابایت</b>'
                 ."\nزمان باقی‌مانده: <b>".intdiv($minutes, 60).' ساعت و '.($minutes % 60).' دقیقه</b>';
+            if ($readyToConnect) {
+                $text .= "\n\nبرای نصب برنامه، «📚 راهنمای اتصال» را انتخاب کنید.";
+            }
             if ($live->ended()) {
                 $bot->sendMessage(text: $text, parse_mode: 'HTML',
                     reply_markup: app(ReplyMenuRenderer::class)->salesKeyboard($actor));
@@ -144,7 +145,8 @@ final readonly class SalesTrialUi
                     .'<br>📊 حجم باقی‌مانده: <b>'.number_format($live->remainingBytes / 1048576, 1).' مگابایت</b>'
                     .'<br>⏱ زمان باقی‌مانده: <b>'.intdiv($minutes, 60).' ساعت و '.($minutes % 60).' دقیقه</b></p>'
                     .'<details><summary>📋 راهنمای استفاده</summary><p>'
-                    .'برای دریافت لینک و کد اتصال از دکمه همین صفحه استفاده کنید. '
+                    .'لینک و کد اتصال را از دکمه همین صفحه دریافت کنید؛ '
+                    .'برای نصب برنامه، «📚 راهنمای اتصال» را بزنید. '
                     .'با تمام‌شدن زمان یا حجم، تست پایان می‌یابد.'
                     .'</p></details>';
                 $this->renderOverview($bot, $text, $html, $keyboard, $rich, false);
@@ -382,10 +384,7 @@ final readonly class SalesTrialUi
         TelegramUi::answerCallback($bot);
         try {
             $url = $this->trials->connection($actor->userId, (int) $this->privateUser->id($bot));
-            $keyboard = $this->buttons();
-            if (mb_strlen($url) <= 256) {
-                $keyboard->addRow(InlineKeyboardButton::make('📋 کپی لینک', copy_text: CopyTextButton::make($url)));
-            }
+            $keyboard = $this->buttons(guide: true, copyLink: $url);
             $text = '<b>🔐 لینک اتصال تست رایگان</b>'."\n\n".TelegramUi::code($url);
             $caption = $text."\n\n📷 کد بالا را اسکن کنید یا لینک را کپی کنید.";
             // Keep one connection card. Very long links use text only, preserving
@@ -434,9 +433,22 @@ final readonly class SalesTrialUi
         return 'telegram:sales:trial:'.$userId;
     }
 
-    private function buttons(): InlineKeyboardMarkup
+    private function buttons(bool $connection = false, bool $guide = false, ?string $copyLink = null): InlineKeyboardMarkup
     {
-        return InlineKeyboardMarkup::make()
+        $keyboard = InlineKeyboardMarkup::make();
+        if ($connection) {
+            $keyboard->addRow(InlineKeyboardButton::make('🔐 لینک و کد اتصال',
+                callback_data: 'sales:trial:link', style: ButtonStyle::SUCCESS));
+        }
+        if ($copyLink !== null && mb_strlen($copyLink) <= 256) {
+            $keyboard->addRow(InlineKeyboardButton::make('📋 کپی لینک',
+                copy_text: CopyTextButton::make($copyLink)));
+        }
+        if ($guide) {
+            $keyboard->addRow(InlineKeyboardButton::make('📚 راهنمای اتصال', callback_data: 'sales:help:apps'));
+        }
+
+        return $keyboard
             ->addRow(InlineKeyboardButton::make('🔄 وضعیت تست', callback_data: 'sales:trial'))
             ->addRow(InlineKeyboardButton::make('🛒 خرید اشتراک', callback_data: 'sales:buy'))
             ->addRow(InlineKeyboardButton::make('💬 پشتیبانی', callback_data: 'sales:support'),
