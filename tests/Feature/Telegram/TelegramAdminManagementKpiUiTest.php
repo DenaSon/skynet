@@ -291,7 +291,6 @@ it('denies non-roots, revoked roots and group callbacks without reading customer
     Http::assertNothingSent();
 });
 
-
 it('narrates verified weekly sales growth with lower signups without inventing a cause', function (): void {
     $data = [
         'period' => 'week',
