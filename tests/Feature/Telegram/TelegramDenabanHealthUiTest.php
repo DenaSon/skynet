@@ -6,6 +6,7 @@ use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Application\ReadAdminHealth;
 use App\Support\Health\OperationalProbe;
+use App\Support\Health\OperationalProbe;
 use GuzzleHttp\Psr7\Request as NutgramRequest;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -283,7 +284,7 @@ it('never reports a fresh batch healthy when a named basic check is missing', fu
     foreach (['DatabaseCheck', 'QueueCheck', 'ScheduleCheck'] as $name) {
         denabanHealthStore($batch, $name, 'ok', now()->toDateTimeString());
     }
-    foreach (\App\Support\Health\OperationalProbe::CHECKS as $name) {
+    foreach (OperationalProbe::CHECKS as $name) {
         denabanHealthStore($batch, 'ops_'.$name, 'ok', now()->toDateTimeString());
     }
 
