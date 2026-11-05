@@ -171,15 +171,19 @@ it('uses the Sales identity for invitations and retains reseller access only whi
             $body = uxr01Payload($request);
 
             $buttons = $body['reply_markup']['inline_keyboard'];
-            $share = $buttons[2][0]['url'] ?? '';
+            $share = $buttons[0][0]['url'] ?? '';
             $query = parse_url($share, PHP_URL_QUERY);
             parse_str(is_string($query) ? $query : '', $params);
 
             return str_contains(uxr01RichHtml($request), $url)
-                && str_contains(uxr01RichHtml($request), 'دوستان ثبت‌نام‌شده: 0')
-                && str_contains(uxr01RichHtml($request), 'دوستان دارای پاداش: <b>0</b>')
-                && str_contains(uxr01RichHtml($request), '<details><summary>📋 شرایط دریافت پاداش</summary>')
-                && $buttons[1][0]['copy_text']['text'] === $url
+                && str_contains(uxr01RichHtml($request), '<h4>🎁 دعوت کن، جایزه بگیر!</h4>')
+                && str_contains(uxr01RichHtml($request), '<table bordered striped compact>')
+                && str_contains(uxr01RichHtml($request), '<td>دوستان دعوت‌شده</td><td><b>۰ نفر</b>')
+                && str_contains(uxr01RichHtml($request), '<td>دعوت‌های پاداش‌دار</td><td><b>۰ نفر</b>')
+                && str_contains(uxr01RichHtml($request), '<details><summary>📋 چطور جایزه بگیرم؟</summary>')
+                && ($buttons[1][0]['copy_text']['text'] ?? null) === $url
+                && ($buttons[2][0]['callback_data'] ?? null) === 'sales:home'
+                && ! str_contains(json_encode($buttons, JSON_THROW_ON_ERROR), 'sales:account')
                 && parse_url($share, PHP_URL_HOST) === 't.me'
                 && parse_url($share, PHP_URL_PATH) === '/share/url'
                 && ($params['url'] ?? '') === $url
@@ -222,15 +226,61 @@ it('keeps account and invite simple views usable with unchanged owner-safe actio
     $bot->hearCallbackQueryData('sales:invite')->reply()->assertRaw(static function (Request $request): bool {
         $data = uxr01Payload($request);
 
-        return str_contains(uxr01RichHtml($request), '<summary>📋 شرایط دریافت پاداش</summary>')
-            && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:invite:simple');
+        return str_contains(uxr01RichHtml($request), '<summary>📋 چطور جایزه بگیرم؟</summary>')
+            && ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:invite:simple')
+            && ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:account');
     }, index: 1);
     $bot->hearCallbackQueryData('sales:invite:simple')->reply()->assertRaw(static function (Request $request): bool {
         $data = uxr01Payload($request);
 
         return ! isset($data['rich_message'])
-            && str_contains((string) ($data['text'] ?? ''), 'لینک اختصاصی شما')
-            && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'copy_text');
+            && str_contains((string) ($data['text'] ?? ''), 'لینک اختصاصی دعوت')
+            && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'copy_text')
+            && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'share/url');
+    }, index: 1);
+    Http::assertNothingSent();
+});
+
+
+it('opens reward directly from the member home keyboard and old invite labels without leaking reward actions to reseller home', function (): void {
+    $user = User::factory()->create();
+    $user->syncRoles(['member']);
+    $bot = uxr01Bot($user);
+    $bot->hearText('/start')->reply()->assertRaw(static function (Request $request): bool {
+        $payload = uxr01Payload($request);
+        $rows = $payload['reply_markup']['keyboard'] ?? [];
+        $html = uxr01RichHtml($request);
+
+        return ($rows[2][0]['text'] ?? null) === ReplyMenuLabels::SALES_REWARD
+            && str_contains($html, 'data="sales:invite"')
+            && str_contains($html, '🎁 دریافت جایزه');
+    }, index: 0);
+
+    $bot->hearText(ReplyMenuLabels::SALES_REWARD)->reply()
+        ->assertCalled('sendRichMessage')
+        ->assertRaw(static fn (Request $request): bool => str_contains(
+            uxr01RichHtml($request), '<h4>🎁 دعوت کن، جایزه بگیر!</h4>',
+        ), index: 0);
+
+    // Previously issued invite keyboard labels and callbacks remain routable.
+    $bot->hearText(ReplyMenuLabels::INVITE)->reply()->assertCalled('sendRichMessage');
+    $bot->hearText('👥 دعوت دوستان')->reply()->assertCalled('sendRichMessage');
+    $bot->hearCallbackQueryData('sales:invite')->reply()->assertCalled('answerCallbackQuery');
+
+    $user->syncRoles(['reseller']);
+    $bot->hearText('/start')->reply()->assertRaw(static function (Request $request): bool {
+        $data = uxr01Payload($request);
+        $buttons = json_encode($data['reply_markup']['keyboard'], JSON_THROW_ON_ERROR);
+
+        return ! str_contains($buttons, ReplyMenuLabels::SALES_REWARD)
+            && ! str_contains(uxr01RichHtml($request), 'data="sales:invite"');
+    }, index: 0);
+    // Old referral links remain owner-scoped and safe even for a reseller.
+    $bot->hearCallbackQueryData('sales:invite')->reply()->assertRaw(static function (Request $request): bool {
+        $html = uxr01RichHtml($request);
+
+        return str_contains($html, 'برای این نوع حساب')
+            && ! str_contains($html, 'با معرفی موفق ۷ دوست');
     }, index: 1);
     Http::assertNothingSent();
 });
@@ -268,13 +318,16 @@ it('places My Credit on the second row for ordinary Sales members and accepts st
             && ($rows[0][1]['text'] ?? null) === ReplyMenuLabels::SALES_SUBSCRIPTIONS
             && ($rows[1][0]['text'] ?? null) === ReplyMenuLabels::SALES_WALLET
             && ($rows[1][1]['text'] ?? null) === ReplyMenuLabels::SALES_ACCOUNT
-            && ($rows[2][0]['text'] ?? null) === ReplyMenuLabels::SALES_SUPPORT
-            && ($rows[2][1]['text'] ?? null) === ReplyMenuLabels::SALES_TUTORIAL
-            && ($rows[3][0]['text'] ?? null) === ReplyMenuLabels::SALES_PANEL_REQUEST;
+            && ($rows[2][0]['text'] ?? null) === ReplyMenuLabels::SALES_REWARD
+            && ($rows[2][1]['text'] ?? null) === ReplyMenuLabels::SALES_SUPPORT
+            && ($rows[3][0]['text'] ?? null) === ReplyMenuLabels::SALES_TUTORIAL
+            && ($rows[3][1]['text'] ?? null) === ReplyMenuLabels::SALES_PANEL_REQUEST;
     }, index: 0)->assertRaw(static function (Request $request): bool {
         $html = uxr01RichHtml($request);
 
         return str_contains($html, 'data="sales:wallet"')
+            && str_contains($html, 'data="sales:invite"')
+            && str_contains($html, '🎁 دریافت جایزه')
             && str_contains($html, 'data="sales:buy"');
     }, index: 0);
 
@@ -297,8 +350,9 @@ it('places My Credit on the second row for ordinary Sales members and accepts st
     $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(static function (Request $request): bool {
         $keyboard = uxr01Payload($request)['reply_markup']['inline_keyboard'] ?? [];
 
-        return ($keyboard[3][0]['text'] ?? null) === ReplyMenuLabels::SALES_WALLET
-            && ($keyboard[3][0]['callback_data'] ?? null) === 'sales:wallet';
+        return ($keyboard[2][0]['text'] ?? null) === ReplyMenuLabels::SALES_WALLET
+            && ($keyboard[2][0]['callback_data'] ?? null) === 'sales:wallet'
+            && ! str_contains(json_encode($keyboard, JSON_THROW_ON_ERROR), 'sales:invite');
     }, index: 1);
 
     expect(DB::table('billing_topups')->count())->toBe(0)
