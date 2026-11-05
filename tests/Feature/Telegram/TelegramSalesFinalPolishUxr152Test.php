@@ -146,7 +146,7 @@ it('gives active Sales Panel holders their unique home builder action without an
     Http::assertNothingSent();
 });
 
-it('keeps referral unavailable-state navigation open to home and account', function (): void {
+it('keeps referral unavailable-state navigation on home without the obsolete account button', function (): void {
     config()->set('telegram.sales.bot_username', '');
     $member = User::factory()->create();
     $bot = polish152Bot(987004, $member);
@@ -156,7 +156,7 @@ it('keeps referral unavailable-state navigation open to home and account', funct
         $markup = json_encode($body['reply_markup'], JSON_THROW_ON_ERROR);
 
         return str_contains($body['text'], 'لینک دعوت فعلاً در دسترس نیست')
-            && str_contains($markup, 'sales:account')
+            && ! str_contains($markup, 'sales:account')
             && str_contains($markup, 'sales:home');
     }, index: 1);
     Http::assertNothingSent();
