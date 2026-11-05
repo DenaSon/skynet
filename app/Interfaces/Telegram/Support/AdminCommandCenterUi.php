@@ -157,21 +157,21 @@ final readonly class AdminCommandCenterUi
             '<b>🏔️ دنابان | وضعیت دنا</b>',
             '',
             '<b>💰 وضعیت مالی</b>',
-            '💵 دریافتی‌های تأییدشده از ابتدا: '.self::toman(self::number($cash, 'cashInRials')),
+            '💵 دریافتی کل: '.self::toman(self::number($cash, 'cashInRials')),
             '🛒 فروش امروز: '.self::toman(self::number($stats, 'salesTodayRials')),
-            '💼 مانده فعلی کیف پول‌ها: '.self::toman(self::number($cash, 'currentWalletBalanceRials')),
+            '💼 مانده اعتبار: '.self::toman(self::number($cash, 'currentWalletBalanceRials')),
             '',
             '<b>👥 کاربران و اشتراک‌ها</b>',
-            'کاربران دناگیت: '.self::format(self::number($stats, 'localUsers')),
-            'اشتراک‌های فعال پنل: '.self::format(self::number($stats, 'subscriptionsActive')),
-            'آنلاین در پنل: '.self::format(self::number($stats, 'online')),
+            'کل کاربران: '.self::format(self::number($stats, 'localUsers')),
+            'اشتراک‌های فعال: '.self::format(self::number($stats, 'subscriptionsActive')),
+            'آنلاین پنل: '.self::format(self::number($stats, 'online')),
             '',
             '<b>⚠️ نیازمند رسیدگی</b>',
             $summary,
             '🧾 رسیدهای خرید: '.self::format(self::number($stats, 'receiptsPending')),
             '💳 رسیدهای شارژ: '.self::format($pendingTopups),
             '📦 عملیات اشتراک: '.self::format(self::number($stats, 'provisioningReview')),
-            '🔧 سفارش‌های نیازمند بررسی: '.self::format(self::number($stats, 'fulfillmentReview')),
+            '🔧 بررسی سفارش‌ها: '.self::format(self::number($stats, 'fulfillmentReview')),
             '⏳ فعال‌سازی‌های معوق: '.self::format(self::number($stats, 'fulfillmentOverdue')),
             '⚙️ کارهای ناموفق: '.self::format(self::number($stats, 'failedJobs')),
             '🔔 اعلان‌های ناموفق: '.self::format(self::number($stats, 'notificationIssues')),
@@ -228,15 +228,15 @@ final readonly class AdminCommandCenterUi
         return '<h2>🏔️ دنابان | وضعیت دنا</h2>'
             .'<h3>💰 وضعیت مالی</h3>'
             .self::richTable([
-                ['💵 دریافتی تأییدشده از ابتدا', self::toman(self::number($cash, 'cashInRials'))],
+                ['💵 دریافتی کل', self::toman(self::number($cash, 'cashInRials'))],
                 ['🛒 فروش امروز', self::toman(self::number($stats, 'salesTodayRials'))],
-                ['💼 مانده اعتبار کاربران', self::toman(self::number($cash, 'currentWalletBalanceRials'))],
+                ['💼 مانده اعتبار', self::toman(self::number($cash, 'currentWalletBalanceRials'))],
             ])
             .'<h3>👥 کاربران و اشتراک‌ها</h3>'
             .self::richTable([
-                ['کاربران دناگیت', self::format(self::number($stats, 'localUsers'))],
-                ['اشتراک‌های فعال پنل', self::format(self::number($stats, 'subscriptionsActive'))],
-                ['آنلاین در پنل', self::format(self::number($stats, 'online'))],
+                ['کل کاربران', self::format(self::number($stats, 'localUsers'))],
+                ['اشتراک‌های فعال', self::format(self::number($stats, 'subscriptionsActive'))],
+                ['آنلاین پنل', self::format(self::number($stats, 'online'))],
             ])
             .'<h3>⚠️ نیازمند رسیدگی</h3>'
             .'<p>'.TelegramUi::escape($summary).'</p>'
@@ -244,7 +244,7 @@ final readonly class AdminCommandCenterUi
                 ['🧾 رسیدهای خرید', self::format(self::number($stats, 'receiptsPending'))],
                 ['💳 رسیدهای شارژ', self::format($pendingTopups)],
                 ['📦 عملیات اشتراک', self::format(self::number($stats, 'provisioningReview'))],
-                ['🔧 سفارش‌های نیازمند بررسی', self::format(self::number($stats, 'fulfillmentReview'))],
+                ['🔧 بررسی سفارش‌ها', self::format(self::number($stats, 'fulfillmentReview'))],
                 ['⏳ فعال‌سازی‌های معوق', self::format(self::number($stats, 'fulfillmentOverdue'))],
                 ['⚙️ کارهای ناموفق', self::format(self::number($stats, 'failedJobs'))],
                 ['🔔 اعلان‌های ناموفق', self::format(self::number($stats, 'notificationIssues'))],
