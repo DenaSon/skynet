@@ -283,7 +283,7 @@ it('never reports a fresh batch healthy when a named basic check is missing', fu
     foreach (['DatabaseCheck', 'QueueCheck', 'ScheduleCheck'] as $name) {
         denabanHealthStore($batch, $name, 'ok', now()->toDateTimeString());
     }
-    foreach (\\App\\Support\\Health\\OperationalProbe::CHECKS as $name) {
+    foreach (\App\Support\Health\OperationalProbe::CHECKS as $name) {
         denabanHealthStore($batch, 'ops_'.$name, 'ok', now()->toDateTimeString());
     }
 
