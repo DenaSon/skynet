@@ -170,6 +170,11 @@ it('renders accurate RTL Rich daily comparison with two tables, live filters and
                 && str_contains($html, 'کاربران جدید · بازه قبل</td><td><b>۱</b>')
                 && str_contains($html, '۱۴۰۵/')
                 && str_contains($html, '۰۰:۰۰ تا ۱۵:۳۰')
+                && str_contains($html, '<details><summary>🧠 تحلیل عملکرد دوره</summary>')
+                && str_contains($html, '۴۰۰٬۰۰۰ تومان افزایش (+۴۰۰٫۰٪)')
+                && str_contains($html, 'فروش افزایش یافته و ثبت‌نام ثابت مانده')
+                && str_contains($html, '<b>💡 نکته قابل بررسی</b>')
+                && strpos($html, '</details>') < strpos($html, '<footer>')
                 && str_contains($html, '<footer>🕒 ')
                 && str_contains($html, 'تهران')
                 && ($buttons[0][0]['callback_data'] ?? null) === 'kpi:period:day'
@@ -194,6 +199,10 @@ it('renders accurate RTL Rich daily comparison with two tables, live filters and
         ->toContain('+۴۰۰٫۰٪')
         ->toContain('کاربران جدید · بازه اخیر: ۱')
         ->toContain('۱۴۰۵/')
+        ->toContain('🧠 تحلیل عملکرد دوره')
+        ->toContain('۴۰۰٬۰۰۰ تومان افزایش (+۴۰۰٫۰٪)')
+        ->toContain('💡 نکته قابل بررسی')
+        ->not->toContain('<details>')
         ->toContain('تهران');
 });
 
@@ -210,6 +219,8 @@ it('switches period in place and clearly differentiates complete weeks from comp
                 && str_contains($html, '۷ روز کامل گذشته')
                 && str_contains($html, 'تا ۱۴۰۵/')
                 && str_contains($html, 'بدون مبنا')
+                && str_contains($html, '<details><summary>🧠 تحلیل عملکرد دوره</summary>')
+                && str_contains($html, 'فروش بازه قبل صفر بوده')
                 && ($p['reply_markup']['inline_keyboard'][0][1]['text'] ?? null) === '✅ هفتگی'
                 && ($p['reply_markup']['inline_keyboard'][0][2]['callback_data'] ?? null) === 'kpi:period:month';
         }, index: 1);
@@ -223,6 +234,8 @@ it('switches period in place and clearly differentiates complete weeks from comp
             return str_contains($html, 'شاخص‌های مدیریتی · ماهانه')
                 && str_contains($html, 'ماه شمسی کامل گذشته')
                 && str_contains($html, 'بدون مبنا')
+                && str_contains($html, '<details><summary>🧠 تحلیل عملکرد دوره</summary>')
+                && str_contains($html, 'ثبت‌نام بازه قبل صفر بوده')
                 && ($p['reply_markup']['inline_keyboard'][0][2]['text'] ?? null) === '✅ ماهانه'
                 && str_contains($html, '<table bordered striped compact>')
                 && str_contains($html, 'بازۀ') === false;
