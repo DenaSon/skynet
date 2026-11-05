@@ -5,6 +5,7 @@ namespace App\Interfaces\Telegram\Handlers;
 use App\Interfaces\Telegram\Support\AdminCommandCenterUi;
 use App\Interfaces\Telegram\Support\AdminDashboardUi;
 use App\Interfaces\Telegram\Support\AdminFinanceWalletUi;
+use App\Interfaces\Telegram\Support\AdminManagementKpiUi;
 use App\Interfaces\Telegram\Support\AdminProviderOverviewUi;
 use App\Interfaces\Telegram\Support\AdminScopedReadUi;
 use App\Interfaces\Telegram\Support\AdminSectionsUi;
@@ -180,6 +181,17 @@ final class ReplyMenuHandler
                 }
 
                 app(AdminCommandCenterUi::class)->show($bot);
+
+                return true;
+
+            case ReplyMenuLabels::MANAGEMENT_KPIS:
+                if (! $actor->canManageRoles()) {
+                    $this->deny($bot, $actor);
+
+                    return true;
+                }
+
+                app(AdminManagementKpiUi::class)->show($bot);
 
                 return true;
 
