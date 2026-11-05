@@ -17,6 +17,34 @@ final readonly class SalesSupportUi
 {
     public function __construct(private SalesHomeUi $home) {}
 
+    /** @var array<string, array{client: string, source: string, url: string, import: string}> */
+    private const DEVICE_CLIENTS = [
+        'android' => [
+            'client' => 'V2Box',
+            'source' => 'گوگل‌پلی',
+            'url' => 'https://play.google.com/store/apps/details?id=dev.hexasoftware.v2box',
+            'import' => 'در V2Box، بخش اشتراک‌ها (Subscriptions) را باز کنید، لینک را اضافه و اشتراک را به‌روزرسانی کنید.',
+        ],
+        'ios' => [
+            'client' => 'V2Box',
+            'source' => 'اپ‌استور',
+            'url' => 'https://apps.apple.com/us/app/v2box-v2ray-client/id6446814690',
+            'import' => 'در V2Box، بخش اشتراک‌ها (Subscriptions) را باز کنید، لینک را اضافه و اشتراک را به‌روزرسانی کنید.',
+        ],
+        'windows' => [
+            'client' => 'v2rayN',
+            'source' => 'گیت‌هاب',
+            'url' => 'https://github.com/2dust/v2rayN/releases/latest',
+            'import' => 'در v2rayN، بخش گروه اشتراک (Subscription group) را باز کنید، لینک را اضافه و گروه را به‌روزرسانی کنید.',
+        ],
+        'macos' => [
+            'client' => 'V2Box',
+            'source' => 'اپ‌استور',
+            'url' => 'https://apps.apple.com/us/app/v2box-v2ray-client/id6446814690',
+            'import' => 'در V2Box، بخش اشتراک‌ها (Subscriptions) را باز کنید، لینک را اضافه و اشتراک را به‌روزرسانی کنید.',
+        ],
+    ];
+
     public function show(Nutgram $bot, string $page = 'support', bool $rich = true): void
     {
         $actor = $this->home->navigationActor($bot);
@@ -53,7 +81,10 @@ final readonly class SalesSupportUi
                 break;
 
             case 'apps':
-                $text = '<b>📚 آموزش اتصال و خرید</b>'."\n\n<blockquote>دستگاه خود را انتخاب کنید تا راهنمای نصب و اتصال را ببینید.</blockquote>";
+                $text = '<b>📚 آموزش‌های DenaGate</b>'."\n\n"
+                    ."دستگاه خود را انتخاب کنید تا راهنمای نصب و اتصال را ببینید.\n\n"
+                    ."🤖 اندروید: V2Box · 🍎 آیفون / آیپد: V2Box\n"
+                    ."🪟 ویندوز: v2rayN · 💻 مک: V2Box";
                 $keyboard->addRow(
                     InlineKeyboardButton::make('🤖 اندروید', callback_data: 'sales:help:android'),
                     InlineKeyboardButton::make('🍎 آیفون / آیپد', callback_data: 'sales:help:ios'),
@@ -113,30 +144,22 @@ final readonly class SalesSupportUi
                     'windows' => '🪟 ویندوز',
                     default => '💻 مک',
                 };
-                $client = match ($page) {
-                    'android' => 'v2rayNG',
-                    'windows' => 'v2rayN',
-                    default => 'V2Box',
-                };
-                $download = match ($page) {
-                    'android' => 'https://github.com/2dust/v2rayNG/releases/latest',
-                    'ios', 'macos' => 'https://apps.apple.com/app/v2box-v2ray-client/id6446814690',
-                    default => 'https://github.com/2dust/v2rayN/releases/latest',
-                };
-                $import = match ($page) {
-                    'android' => 'در v2rayNG، بخش گروه‌های اشتراک (Subscription group) را باز کنید، URL را اضافه کنید و اشتراک را به‌روز کنید.',
-                    'windows' => 'در v2rayN، بخش گروه اشتراک (Subscription group) را باز کنید، URL را وارد و گروه را به‌روز کنید.',
-                    default => 'در V2Box، بخش اشتراک‌ها (Subscriptions) را باز کنید، URL را اضافه و سپس به‌روز کنید.',
-                };
+                $guide = self::DEVICE_CLIENTS[$page];
+                $client = $guide['client'];
                 $text = '<b>📱 اتصال در '.$device.'</b>'."\n\n"
                     .'برنامه پیشنهادی: <b>'.$client.'</b>'."\n\n"
-                    ."۱. از دکمه «دریافت برنامه» نسخه معتبر برنامه را نصب کنید.\n\n"
-                    ."۲. وارد «سرویس‌های من» شوید و <b>لینک اتصال</b> خود را کپی کنید.\n\n"
-                    .'۳. '.$import."\n\n"
-                    ."۴. یک سرور را انتخاب کنید و اتصال را روشن کنید. در صورت درخواست مجوز اتصال، آن را تأیید کنید.\n\n"
-                    .'<blockquote>نام گزینه‌ها در نسخه‌های مختلف ممکن است متفاوت باشد. اگر وارد کردن لینک انجام نشد، از پشتیبانی کمک بگیرید؛ لینک خود را برای دیگران نفرستید.</blockquote>';
-                $keyboard->addRow(InlineKeyboardButton::make('⬇️ دریافت '.$client, url: $download))
-                    ->addRow(InlineKeyboardButton::make('📋 سرویس‌های من', callback_data: 'sales:subs:list:0'));
+                    .'۱. برنامه را از '.$guide['source']." با دکمه دانلود زیر نصب کنید.\n\n"
+                    ."۲. در «سرویس‌های من»، <b>لینک اتصال</b> خود را کپی کنید.\n\n"
+                    .'۳. '.$guide['import']."\n\n"
+                    ."۴. یک سرور را انتخاب و اتصال را روشن کنید. مجوز اتصال را در صورت درخواست تأیید کنید.\n\n"
+                    .'<blockquote>اگر سرورها نمایش داده نشدند، اشتراک را به‌روزرسانی کنید. نام گزینه‌ها ممکن است در نسخه‌های مختلف فرق کند. لینک خود را عمومی منتشر نکنید.</blockquote>';
+                $keyboard->addRow(InlineKeyboardButton::make('⬇️ دانلود '.$client.' از '.$guide['source'], url: $guide['url']));
+                if ($page === 'android') {
+                    // Secondary option for clients that prefer the existing Android app.
+                    $keyboard->addRow(InlineKeyboardButton::make('⬇️ دانلود جایگزین v2rayNG',
+                        url: 'https://github.com/2dust/v2rayNG/releases/latest'));
+                }
+                $keyboard->addRow(InlineKeyboardButton::make('📋 سرویس‌های من', callback_data: 'sales:subs:list:0'));
                 break;
 
             case 'purchase':
@@ -241,10 +264,10 @@ final readonly class SalesSupportUi
     {
         $html = '<h4>📚 آموزش‌های دناگیت</h4>'
             .'<p>برای مشاهده مراحل کامل، دستگاه یا موضوع را از دکمه‌های پایین انتخاب کنید.</p>'
-            .'<details><summary>🤖 اندروید</summary><p>با v2rayNG لینک سرویس را وارد کنید و سرور را انتخاب کنید.</p></details>'
-            .'<details><summary>🍎 آیفون و آیپد</summary><p>در V2Box اشتراک را اضافه، به‌روز و فعال کنید.</p></details>'
+            .'<details><summary>🤖 اندروید</summary><p>V2Box را از گوگل‌پلی دانلود و لینک اشتراک را اضافه کنید؛ v2rayNG نیز گزینه جایگزین است.</p></details>'
+            .'<details><summary>🍎 آیفون و آیپد</summary><p>V2Box را از اپ‌استور دانلود و اشتراک را اضافه، به‌روز و فعال کنید.</p></details>'
             .'<details><summary>🪟 ویندوز</summary><p>در v2rayN لینک را به گروه اشتراک اضافه و سرور را انتخاب کنید.</p></details>'
-            .'<details><summary>💻 مک</summary><p>در V2Box لینک سرویس را وارد و اتصال را فعال کنید.</p></details>'
+            .'<details><summary>💻 مک</summary><p>V2Box را از اپ‌استور دانلود، لینک سرویس را وارد و اتصال را فعال کنید.</p></details>'
             .'<details><summary>🛒 خرید سرویس</summary><p>پلن را انتخاب کنید؛ بعد از پرداخت، رسید را با دکمه مخصوص ارسال و نتیجه را پیگیری کنید.</p></details>'
             .'<details><summary>🔧 رفع مشکل اتصال</summary><p>وضعیت سرویس، به‌روزبودن اشتراک و اینترنت خود را بررسی کنید.</p></details>';
 
