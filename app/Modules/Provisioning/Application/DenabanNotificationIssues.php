@@ -21,6 +21,12 @@ final class DenabanNotificationIssues
         'SubscriptionLowTraffic',
     ];
 
+    /** @return list<string> */
+    public static function lowPriorityEvents(): array
+    {
+        return self::LOW_PRIORITY_EVENTS;
+    }
+
     public static function apply(Builder $query): Builder
     {
         return $query
