@@ -1403,6 +1403,17 @@ it('keeps old paid review cases reachable across pages and flags only genuinely 
                 && str_contains($buttons, 'full:list');
         }, index: 1);
 
+    $bot->hearCallbackQueryData('denaban:show')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $payload = sb05TelegramPayload($request);
+            $html = sb05TelegramRich($payload);
+            $buttons = json_encode($payload['reply_markup'] ?? null, JSON_THROW_ON_ERROR);
+
+            return str_contains($html, 'فعال‌سازی‌های معوق')
+                && str_contains($buttons, 'full:attention:1');
+        }, index: 1);
+
     expect(DB::table('sales_fulfillment_outbox')->count())->toBe(24);
-    Http::assertNothingSent();
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
+    Http::assertNotSent(static fn (Request $request): bool => $request->method() !== 'GET');
 });
