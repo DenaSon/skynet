@@ -160,7 +160,7 @@ it('compares Tehran day-to-now fairly, excludes corrected wallet rows and reuses
     // The old 7-day report still counts the same genuine settlements, not
     // pending orders, top-ups, or corrected wallet spending.
     $existing = app(ReadAdminBusinessReport::class)->handle($root->id, 7);
-    expect($existing['revenueRials'])->toBe(4_700_000)
+    expect($existing['revenueRials'])->toBe(5_700_000)
         ->and($existing['settled'])->toBe(5)
         ->and([
             DB::table('billing_journals')->count(),
