@@ -538,6 +538,10 @@ $bot->onCallbackQueryData('full:completed', function (Nutgram $bot): void {
     app(AdminFulfillmentUi::class)->browse($bot, true);
 });
 
+$bot->onCallbackQueryData('full:attention:{page}', function (Nutgram $bot, string $page): void {
+    app(AdminFulfillmentUi::class)->attention($bot, $page);
+});
+
 $bot->onCallbackQueryData('full:view:{id}', function (Nutgram $bot, string $id): void {
     app(AdminFulfillmentUi::class)->detail($bot, $id);
 });
