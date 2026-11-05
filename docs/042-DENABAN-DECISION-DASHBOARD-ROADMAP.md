@@ -60,6 +60,17 @@ Original phase 4 prohibited an extra persistent Reply Keyboard item because its 
 - Deny copied, stale, revoked and nonprivate text taps through the established guarded path. Tests cover placement, text routing, live authorization, and the preserved Admin menu.
 - No finance/provider operations, migrations, dependencies, new callback routes, duplicated KPI engine, or Sales Bot changes. Verify repository CI before merge; real Telegram client / Production smoke remains separate. Revert this single PR to roll back.
 
+## KPI-INSIGHT-01 — collapsible management narrative (approved 2026-11-05)
+
+One independent, reversible PR after the existing four phases. Scope is display-only in `AdminManagementKpiUi`; `ReadAdminManagementKpis`, canonical settlement rules, Tehran calendar bounds, RBAC and existing callbacks remain unchanged.
+
+- Add a **collapsed native Rich** `<details><summary>🧠 تحلیل عملکرد دوره</summary>` after the two existing KPI tables and before the Tehran footer. Four concise sections: **💰 فروش**, **👥 کاربران**, **📈 برداشت مدیریتی**, **💡 نکته قابل بررسی**.
+- Rich and native HTML fallback share one deterministic helper using **only** the existing authorized result; fallback shows short readable inline analysis rather than unsupported collapsible tags. No new queries, external AI, migrations, permissions, routes, buttons, or dependencies.
+- Sales analysis uses the existing local Persian interval, actual settled amount and delta, and signed growth if defined. Registration analysis uses previous/current signups, delta and signed growth. Handle rising, falling, stable, previous-zero and both-zero states; avoid infinity, fabricated growth or causal explanations.
+- Combined summary may report opposite sales and registration trends but cannot attribute reasons or infer customer retention/conversions. Suggestions to compare transaction and average-basket metrics are recommendations, **not findings**.
+- Preserve the original daily/weekly/monthly filters and same-message edits, financial caveats, timestamp, Rich tables, original fallback, error behavior, and trusted private Super Admin gates. No Provider, billing, MySQL schema, Sales Bot or Denaban behavior changes.
+- Regression tests: realistic +103.3% weekly sales / −16.5% registrations, falling sales / increasing registrations, stability, zero baselines, both-zero windows, Rich details after the two tables and before the footer, native fallback parity and existing period/RBAC tests. Require full PHP 8.4, PHPStan, Pint and MySQL CI before merge. Real Telegram expand/collapse and Production deploy remain independent operator QA.
+
 ## Evidence and release
 
 At the end of each phase record: implemented / tested (with exact CI outcome) / remaining / risks. Production execution of pending paid orders or alterations to customer balances are never part of these dashboard changes.
