@@ -62,13 +62,12 @@ final readonly class AdminCommandCenterUi
             $text = "<b>🏔️ دنابان | وضعیت دنا</b>\n\nدریافت گزارش فعلاً ممکن نیست. دوباره بررسی کنید.";
         }
 
+        // Financial navigation first, then actionable follow-up, then system tools.
+        // Every existing callback and permission/feature gate is retained.
         $keyboard = InlineKeyboardMarkup::make()
-            ->addRow(InlineKeyboardButton::make('🔄 بررسی دوباره', callback_data: 'denaban:show'));
-
-        // HEALTH-UI-01: source is the last stored Spatie batch, never a live check.
-        $keyboard->addRow(InlineKeyboardButton::make(
-            '🩺 سلامت سیستم', callback_data: 'denaban:health',
-        ));
+            ->addRow(InlineKeyboardButton::make(
+                '💳 امور مالی', callback_data: 'menu:admin:finance',
+            ));
 
         if ($attention !== null && $attention > 0) {
             $keyboard->addRow(InlineKeyboardButton::make(
@@ -84,18 +83,21 @@ final readonly class AdminCommandCenterUi
             ));
         }
 
-        $keyboard->addRow(
-            InlineKeyboardButton::make('💳 امور مالی', callback_data: 'menu:admin:finance'),
-            InlineKeyboardButton::make('🖥️ سرورها', callback_data: 'menu:admin:servers'),
-        );
-
         if (config('billing.topups_enabled', false)) {
             $keyboard->addRow(InlineKeyboardButton::make('💳 رسیدهای شارژ', callback_data: 'finance:topups:1'));
         }
         if (config('sales.manual_bank_review_enabled', false)) {
             $keyboard->addRow(InlineKeyboardButton::make('🧾 رسیدهای خرید', callback_data: 'bank:list'));
         }
-        $keyboard->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
+
+        $keyboard->addRow(
+            InlineKeyboardButton::make('🖥️ سرورها', callback_data: 'menu:admin:servers'),
+            InlineKeyboardButton::make('🩺 سلامت سیستم', callback_data: 'denaban:health'),
+        );
+        $keyboard->addRow(
+            InlineKeyboardButton::make('🔄 بررسی دوباره', callback_data: 'denaban:show'),
+            InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'),
+        );
         $keyboard->addRow(InlineKeyboardButton::make(
             $simple ? '✨ نمای جدید' : '📝 نمای ساده',
             callback_data: $simple ? 'denaban:show' : 'denaban:simple',
@@ -154,17 +156,6 @@ final readonly class AdminCommandCenterUi
         $lines = [
             '<b>🏔️ دنابان | وضعیت دنا</b>',
             '',
-            $summary,
-            '',
-            '<b>⚠️ نیازمند رسیدگی</b>',
-            '🧾 رسیدهای خرید: '.self::format(self::number($stats, 'receiptsPending')),
-            '💳 رسیدهای شارژ: '.self::format($pendingTopups),
-            '📦 عملیات اشتراک: '.self::format(self::number($stats, 'provisioningReview')),
-            '🔧 سفارش‌های نیازمند بررسی: '.self::format(self::number($stats, 'fulfillmentReview')),
-            '⏳ فعال‌سازی‌های معوق: '.self::format(self::number($stats, 'fulfillmentOverdue')),
-            '⚙️ کارهای ناموفق: '.self::format(self::number($stats, 'failedJobs')),
-            '🔔 اعلان‌های ناموفق: '.self::format(self::number($stats, 'notificationIssues')),
-            '',
             '<b>💰 وضعیت مالی</b>',
             '💵 دریافتی‌های تأییدشده از ابتدا: '.self::toman(self::number($cash, 'cashInRials')),
             '🛒 فروش امروز: '.self::toman(self::number($stats, 'salesTodayRials')),
@@ -175,6 +166,16 @@ final readonly class AdminCommandCenterUi
             'اشتراک‌های فعال پنل: '.self::format(self::number($stats, 'subscriptionsActive')),
             'آنلاین در پنل: '.self::format(self::number($stats, 'online')),
             '',
+            '<b>⚠️ نیازمند رسیدگی</b>',
+            $summary,
+            '🧾 رسیدهای خرید: '.self::format(self::number($stats, 'receiptsPending')),
+            '💳 رسیدهای شارژ: '.self::format($pendingTopups),
+            '📦 عملیات اشتراک: '.self::format(self::number($stats, 'provisioningReview')),
+            '🔧 سفارش‌های نیازمند بررسی: '.self::format(self::number($stats, 'fulfillmentReview')),
+            '⏳ فعال‌سازی‌های معوق: '.self::format(self::number($stats, 'fulfillmentOverdue')),
+            '⚙️ کارهای ناموفق: '.self::format(self::number($stats, 'failedJobs')),
+            '🔔 اعلان‌های ناموفق: '.self::format(self::number($stats, 'notificationIssues')),
+            '',
             '<b>🖥️ وضعیت سرورها</b>',
             'نودهای متصل: '.self::format(self::number($stats, 'connected'))
                 .' از '.self::format(self::number($stats, 'nodes')),
@@ -182,7 +183,7 @@ final readonly class AdminCommandCenterUi
             ...self::nodeLines($stats),
             '',
             '<blockquote>دریافتی‌ها فقط پرداخت‌های ثبت و تأییدشده‌اند؛ موجودی بانک یا سود خالص نیستند. مانده کیف پول فروش جدید نیست. اتصال نود نیز تضمین دسترسی کاربران نیست. «نامشخص» به معنی صفر نیست.</blockquote>',
-            '🔄 آخرین بررسی: '.PersianCalendar::localDateTime($snapshot['receivedAt']),
+            '🔄 آخرین بررسی: '.PersianCalendar::localDateTime($snapshot['receivedAt']).' (تهران)',
         ];
 
         return implode("\n", $lines);
@@ -225,17 +226,6 @@ final readonly class AdminCommandCenterUi
         ));
 
         return '<h2>🏔️ دنابان | وضعیت دنا</h2>'
-            .'<p>'.TelegramUi::escape($summary).'</p>'
-            .'<h3>⚠️ نیازمند رسیدگی</h3>'
-            .self::richTable([
-                ['🧾 رسیدهای خرید', self::format(self::number($stats, 'receiptsPending'))],
-                ['💳 رسیدهای شارژ', self::format($pendingTopups)],
-                ['📦 عملیات اشتراک', self::format(self::number($stats, 'provisioningReview'))],
-                ['🔧 سفارش‌های نیازمند بررسی', self::format(self::number($stats, 'fulfillmentReview'))],
-                ['⏳ فعال‌سازی‌های معوق', self::format(self::number($stats, 'fulfillmentOverdue'))],
-                ['⚙️ کارهای ناموفق', self::format(self::number($stats, 'failedJobs'))],
-                ['🔔 اعلان‌های ناموفق', self::format(self::number($stats, 'notificationIssues'))],
-            ])
             .'<h3>💰 وضعیت مالی</h3>'
             .self::richTable([
                 ['💵 دریافتی تأییدشده از ابتدا', self::toman(self::number($cash, 'cashInRials'))],
@@ -248,16 +238,30 @@ final readonly class AdminCommandCenterUi
                 ['اشتراک‌های فعال پنل', self::format(self::number($stats, 'subscriptionsActive'))],
                 ['آنلاین در پنل', self::format(self::number($stats, 'online'))],
             ])
+            .'<h3>⚠️ نیازمند رسیدگی</h3>'
+            .'<p>'.TelegramUi::escape($summary).'</p>'
+            .self::richTable([
+                ['🧾 رسیدهای خرید', self::format(self::number($stats, 'receiptsPending'))],
+                ['💳 رسیدهای شارژ', self::format($pendingTopups)],
+                ['📦 عملیات اشتراک', self::format(self::number($stats, 'provisioningReview'))],
+                ['🔧 سفارش‌های نیازمند بررسی', self::format(self::number($stats, 'fulfillmentReview'))],
+                ['⏳ فعال‌سازی‌های معوق', self::format(self::number($stats, 'fulfillmentOverdue'))],
+                ['⚙️ کارهای ناموفق', self::format(self::number($stats, 'failedJobs'))],
+                ['🔔 اعلان‌های ناموفق', self::format(self::number($stats, 'notificationIssues'))],
+            ])
             .'<h3>🖥️ وضعیت سرورها</h3>'
-            .'<p><b>نودهای متصل:</b> '.self::format(self::number($stats, 'connected'))
-            .' از '.self::format(self::number($stats, 'nodes'))
-            .' | <b>هاست‌ها:</b> '.self::format(self::number($stats, 'hosts')).'</p>'
+            .self::richTable([
+                ['نودهای متصل', self::format(self::number($stats, 'connected'))
+                    .' از '.self::format(self::number($stats, 'nodes'))],
+                ['هاست‌ها', self::format(self::number($stats, 'hosts'))],
+            ])
             .'<details><summary>جزئیات نودها</summary>'.$nodes.'</details>'
             .'<details><summary>توضیحات آمار</summary><p>'
             .'دریافتی‌ها فقط پرداخت‌های ثبت و تأییدشده‌اند؛ موجودی بانک یا سود خالص نیستند. '
             .'مانده اعتبار کاربران فروش جدید نیست. اتصال نود نیز تضمین دسترسی کاربران نیست. '
             .'«نامشخص» به معنی صفر نیست.</p></details>'
-            .'<footer>🔄 آخرین بررسی: '.TelegramUi::escape(PersianCalendar::localDateTime($snapshot['receivedAt'])).'</footer>';
+            .'<footer>🔄 آخرین بررسی: '.TelegramUi::escape(PersianCalendar::localDateTime($snapshot['receivedAt']))
+            .' (تهران)</footer>';
     }
 
     /** @param list<array{string,string}> $rows */

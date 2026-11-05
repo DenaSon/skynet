@@ -1,8 +1,8 @@
 # DenaGate — Denaban reliability and management KPI roadmap (2026-11-05)
 
-Approved sequence: four **independent** phases. Only phase 1 is authorized for implementation in the current PR. Preserve Laravel modular-monolith Actions, private trusted Super Admin checks, existing Admin/Sales routes, financial journals, Remnawave gates and customer data. Each PR requires tests, review, CI and independent live Telegram acceptance. Merge to master deploys automatically.
+Approved sequence: four **independent** phases. Phase 1 merged via [PR #374](https://github.com/DenaSon/skynet/pull/374) with successful PHP 8.4, PHPStan, Pint and MySQL CI. Phase 2 is the only implementation scope of the current PR. Preserve Laravel modular-monolith Actions, private trusted Super Admin checks, existing Admin/Sales routes, financial journals, Remnawave gates and customer data. Each PR requires tests, review, CI and independent live Telegram acceptance. Merge to master deploys automatically.
 
-## Phase 1 — reliability and actionable follow-up (current PR)
+## Phase 1 — reliability and actionable follow-up (merged PR #374)
 
 1. **Health completeness:** the latest persisted Spatie batch is healthy only if all four required basic checks (Database, Queue, Scheduler, Disk), optional Redis when in use, and all nine named operational checks are present and OK. Duplicate/missing/stale/unknown checks never show healthy. No health check runs from Telegram.
 2. **Paid fulfillment attention:** a paid managed-plan order is actionable if its existing outbox is `needs_review`; a paid pending intent is overdue if created **more than 15 minutes** ago, or a processing intent if it has not been updated for **more than 15 minutes**. Do not infer a provider failure or activation status solely from this local delay.
@@ -16,9 +16,13 @@ Approved sequence: four **independent** phases. Only phase 1 is authorized for i
 - No migrations, new packages, ENV changes, scheduler changes, finance corrections, automatic provider operations or history deletion.
 - Rollback: revert this one PR; all delivery and financial records are unchanged.
 
-## Phase 2 — Denaban presentation (not started)
+## Phase 2 — Denaban presentation (current scoped PR; CI and device QA distinct)
 
-Retain the existing operational data and authorized actions; reorder the Rich first screen: **finance → users/subscriptions → action needed → nodes/network**. Concise two-column RTL tables, restrained conditionally visible action buttons, useful verified timestamps and safe native fallback. No KPI duplication in Denaban. Preserve all existing facts, callbacks and fields.
+Reorder the existing trusted Super Admin Denaban display to **finance → users/subscriptions → action needed → nodes/network** in both the native RTL Rich primary screen and equivalent native HTML fallback. Show key metrics in four compact two-column Rich tables, including node/host counts; retain the existing collapsed per-node telemetry, metric caveats and Tehran report timestamp. Place the existing attention summary **inside** the attention section, after finance and users, not ahead of them.
+
+Rearrange only the existing inline keyboard: finance first, conditional fulfillment/notification/receipt follow-up next, servers and health afterward, refresh/back and view toggle last. Preserve every original callback ID and feature/role-based visibility condition; never unhide an action to bypass authorization. Do not add KPI comparison data, change snapshots/queries, alter health-check scheduling, modify financial figures, add packages/routes/migrations or perform Provider/financial writes.
+
+**Acceptance:** both Rich and native render all existing metrics with the same values, the four headings appear in the approved order and unknown stays unknown; the Rich report retains its HTML-escaped, collapsible node details and short Tehran footer. Preserve authorized private root access, deny revoked/group roles, preserve safe fallback, all enabled/disabled action buttons and stable callback IDs, no additional provider operations. Focused fake-Telegram tests and repository CI are required; actual Telegram iOS/Android rendering, expansion and navigation require separate operator verification. Rollback is a single PR revert.
 
 ## Phase 3 — management KPI read model (not started)
 

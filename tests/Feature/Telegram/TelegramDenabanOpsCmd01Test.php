@@ -70,6 +70,21 @@ function denabanPayload(NutgramRequest $request): array
     return $data;
 }
 
+/** @param list<string> $headings */
+function denabanSectionsInOrder(string $content, array $headings): bool
+{
+    $last = -1;
+    foreach ($headings as $heading) {
+        $position = strpos($content, $heading);
+        if ($position === false || $position <= $last) {
+            return false;
+        }
+        $last = $position;
+    }
+
+    return true;
+}
+
 it('puts Denaban first in both private root Admin menus and excludes ordinary admins', function (): void {
     denabanRoot();
     $actor = app(ResolveTelegramActor::class)->handle(991201);
@@ -261,15 +276,30 @@ it('renders a bounded RTL rich executive dashboard and retains navigation and si
 
             return ($rich['is_rtl'] ?? null) === true
                 && str_contains($html, '<h2>🏔️ دنابان')
-                && substr_count($html, '<table bordered striped compact>') === 3
+                && substr_count($html, '<table bordered striped compact>') === 4
+                && denabanSectionsInOrder($html, [
+                    '<h3>💰 وضعیت مالی</h3>',
+                    '<h3>👥 کاربران و اشتراک‌ها</h3>',
+                    '<h3>⚠️ نیازمند رسیدگی</h3>',
+                    '<h3>🖥️ وضعیت سرورها</h3>',
+                ])
+                && str_contains($html, 'دریافتی تأییدشده از ابتدا')
+                && str_contains($html, 'مانده اعتبار کاربران')
+                && str_contains($html, 'فعال‌سازی‌های معوق')
+                && str_contains($html, '<tr><td>نودهای متصل</td>')
+                && str_contains($html, 'آخرین بررسی:')
+                && str_contains($html, '(تهران)')
+                && ! str_contains($html, 'نرخ رشد')
                 && str_contains($html, '<details><summary>جزئیات نودها</summary>')
                 && str_contains($html, 'نامشخص')
                 && str_contains($html, 'فروش امروز')
                 && ! str_contains($html, 'super-secret')
                 && str_contains($buttons, 'denaban:simple')
                 && str_contains($buttons, 'denaban:show')
+                && ($payload['reply_markup']['inline_keyboard'][0][0]['callback_data'] ?? null) === 'menu:admin:finance'
                 && str_contains($buttons, 'menu:admin:finance')
                 && str_contains($buttons, 'menu:admin:servers')
+                && str_contains($buttons, 'denaban:health')
                 && str_contains($buttons, 'menu:admin');
         }, index: 1);
 
@@ -280,10 +310,58 @@ it('renders a bounded RTL rich executive dashboard and retains navigation and si
 
             return ($payload['parse_mode'] ?? null) === 'HTML'
                 && str_contains($payload['text'], '🏔️ دنابان | وضعیت دنا')
+                && denabanSectionsInOrder($payload['text'], [
+                    '<b>💰 وضعیت مالی</b>',
+                    '<b>👥 کاربران و اشتراک‌ها</b>',
+                    '<b>⚠️ نیازمند رسیدگی</b>',
+                    '<b>🖥️ وضعیت سرورها</b>',
+                ])
+                && str_contains($payload['text'], 'دریافتی‌های تأییدشده از ابتدا')
+                && str_contains($payload['text'], 'فعال‌سازی‌های معوق')
+                && str_contains($payload['text'], 'آخرین بررسی:')
+                && str_contains($payload['text'], '(تهران)')
+                && ($payload['reply_markup']['inline_keyboard'][0][0]['callback_data'] ?? null) === 'menu:admin:finance'
                 && str_contains($buttons, 'denaban:show')
                 && ! str_contains($buttons, 'denaban:simple');
         }, index: 1);
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
+});
+
+it('keeps optional review buttons gated and preserves navigation in the rearranged keyboard', function (): void {
+    denabanRoot();
+    config()->set('billing.topups_enabled', true);
+    config()->set('sales.manual_bank_review_enabled', true);
+    Http::fake(['https://denaban.test/*' => Http::response([], 503)]);
+
+    denabanBot(991201)->hearCallbackQueryData('denaban:show')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $payload = denabanPayload($request);
+            $buttons = json_encode($payload['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return str_contains($buttons, 'finance:topups:1')
+                && str_contains($buttons, 'bank:list')
+                && str_contains($buttons, 'denaban:health')
+                && str_contains($buttons, 'menu:admin:servers')
+                && str_contains($buttons, 'denaban:show')
+                && str_contains($buttons, 'denaban:simple')
+                && str_contains($buttons, 'menu:admin');
+        }, index: 1);
+
+    config()->set('billing.topups_enabled', false);
+    config()->set('sales.manual_bank_review_enabled', false);
+    denabanBot(991201)->hearCallbackQueryData('denaban:simple')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $payload = denabanPayload($request);
+            $buttons = json_encode($payload['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return ! str_contains($buttons, 'finance:topups:1')
+                && ! str_contains($buttons, 'bank:list')
+                && str_contains($buttons, 'denaban:health')
+                && str_contains($buttons, 'denaban:show');
+        }, index: 1);
+
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
+    Http::assertNotSent(static fn (Request $request): bool => $request->method() !== 'GET');
 });
 
 it('keeps denied and revoked users out of both Denaban render modes', function (): void {
