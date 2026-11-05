@@ -17,7 +17,7 @@ uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
     $this->travelTo(Carbon::parse('2026-11-05 15:30:00', 'Asia/Tehran')->utc());
-    config()->set('super_admin.telegram_ids', ['991801']);
+    config()->set('super_admin.telegram_ids', ['991801', '991802']);
     Http::preventStrayRequests();
 });
 
