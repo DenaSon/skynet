@@ -327,6 +327,43 @@ it('renders a bounded RTL rich executive dashboard and retains navigation and si
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
 });
 
+it('keeps optional review buttons gated and preserves navigation in the rearranged keyboard', function (): void {
+    denabanRoot();
+    config()->set('billing.topups_enabled', true);
+    config()->set('sales.manual_bank_review_enabled', true);
+    Http::fake(['https://denaban.test/*' => Http::response([], 503)]);
+
+    denabanBot(991201)->hearCallbackQueryData('denaban:show')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $payload = denabanPayload($request);
+            $buttons = json_encode($payload['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return str_contains($buttons, 'finance:topups:1')
+                && str_contains($buttons, 'bank:list')
+                && str_contains($buttons, 'denaban:health')
+                && str_contains($buttons, 'menu:admin:servers')
+                && str_contains($buttons, 'denaban:show')
+                && str_contains($buttons, 'denaban:simple')
+                && str_contains($buttons, 'menu:admin');
+        }, index: 1);
+
+    config()->set('billing.topups_enabled', false);
+    config()->set('sales.manual_bank_review_enabled', false);
+    denabanBot(991201)->hearCallbackQueryData('denaban:simple')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $payload = denabanPayload($request);
+            $buttons = json_encode($payload['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return ! str_contains($buttons, 'finance:topups:1')
+                && ! str_contains($buttons, 'bank:list')
+                && str_contains($buttons, 'denaban:health')
+                && str_contains($buttons, 'denaban:show');
+        }, index: 1);
+
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
+    Http::assertNotSent(static fn (Request $request): bool => $request->method() !== 'GET');
+});
+
 it('keeps denied and revoked users out of both Denaban render modes', function (): void {
     $root = denabanRoot();
     $ordinary = User::factory()->admin()->create();
