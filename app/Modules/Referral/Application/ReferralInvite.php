@@ -11,5 +11,6 @@ final readonly class ReferralInvite
         public int $earnedRials = 0,
         public ?int $remainingRewards = null,
         public ?int $rewardAmountRials = null,
+        public ?int $rewardLimit = null,
     ) {}
 }
