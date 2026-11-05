@@ -93,9 +93,20 @@ final readonly class ReadAdminManagementKpis
      */
     private function totals(int $actorId, Carbon $from, Carbon $until): array
     {
-        $startUtc = $from->copy()->utc();
-        $endUtc = $until->copy()->utc();
-        $sales = $this->business->settledTotalsBetween($actorId, $startUtc, $endUtc);
+        // At exactly midnight, today's elapsed window is empty. No positive
+        // denominator exists; return a genuine zero rather than invalid SQL.
+        if ($from->equalTo($until)) {
+            $sales = ['revenueRials' => 0, 'settled' => 0, 'renewals' => 0, 'buyers' => 0];
+            $newUsers = 0;
+        } else {
+            $startUtc = $from->copy()->utc();
+            $endUtc = $until->copy()->utc();
+            $sales = $this->business->settledTotalsBetween($actorId, $startUtc, $endUtc);
+            $newUsers = (int) DB::table('users')
+                ->where('created_at', '>=', $startUtc)
+                ->where('created_at', '<', $endUtc)
+                ->count();
+        }
 
         return [
             'from' => $from->format('Y-m-d H:i:s'),
@@ -105,10 +116,7 @@ final readonly class ReadAdminManagementKpis
             'uniqueBuyers' => $sales['buyers'],
             'newPurchases' => $sales['settled'] - $sales['renewals'],
             'renewals' => $sales['renewals'],
-            'newUsers' => (int) DB::table('users')
-                ->where('created_at', '>=', $startUtc)
-                ->where('created_at', '<', $endUtc)
-                ->count(),
+            'newUsers' => $newUsers,
         ];
     }
 
