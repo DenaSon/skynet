@@ -72,6 +72,8 @@ final class ReplyMenuLabels
 
     public const DENABAN = '🏔️ دنابان';
 
+    public const MANAGEMENT_KPIS = '📊 شاخص‌های مدیریتی';
+
     public const PRODUCTS = '📚 محصولات پایه';
 
     public const TOPUPS = '💳 بررسی شارژها';
@@ -91,7 +93,7 @@ final class ReplyMenuLabels
             self::SALES_PANEL_REQUEST, self::SALES_PANEL_STATUS, self::LEGACY_WALLET, self::LEGACY_BUILDER,
             self::OLD_WALLET_PANEL, self::OLD_BUILDER_PANEL, self::PREVIOUS_BUILDER, self::USERS,
             self::ROLES, self::PLANS, self::PRODUCTS, self::SALES_SECTION,
-            self::FINANCE_SECTION, self::SERVERS, self::STATS, self::DENABAN, self::TOPUPS, self::RECEIPTS, self::HOME,
+            self::FINANCE_SECTION, self::SERVERS, self::STATS, self::DENABAN, self::MANAGEMENT_KPIS, self::TOPUPS, self::RECEIPTS, self::HOME,
         ];
     }
 }

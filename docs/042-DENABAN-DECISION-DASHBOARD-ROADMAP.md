@@ -51,6 +51,15 @@ If Rich editing fails due to Telegram compatibility, **native HTML fallback** us
 
 **Release:** CI must pass PHP 8.4, PHPStan, Pint and MySQL checks; no provider, financial, database schema, settings or scheduling operations. A single PR revert rolls back all new UI/routes without touching phase 3 calculations. Real Telegram iOS/Android and deployed Production verification remain separate, explicit acceptance tasks.
 
+## Follow-up UX correction — persistent KPI entry (operator-approved 2026-11-05)
+
+Original phase 4 prohibited an extra persistent Reply Keyboard item because its design used the **inline Admin menu** only. The operator observed that the Admin Bot actually uses the hybrid persistent bottom menu and explicitly authorized direct KPI access. This focused follow-up supersedes **only** that earlier keyboard restriction.
+
+- Insert `📊 شاخص‌های مدیریتی` immediately after `🏔️ دنابان` in trusted Super Admin `ReplyMenuRenderer::adminKeyboard`, as a first-row pair. Preserve every previous button, including `📊 آمار و گزارش‌ها`, and the inline `kpi:period:day` callback.
+- Register the label in `ReplyMenuLabels::all()` and route the text through the existing `ReplyMenuHandler` with private-chat checks, freshly resolved trusted-root authorization, and the existing read-only `AdminManagementKpiUi::show` Action guard. Daily report opens by default; its Rich tables and daily/weekly/monthly callbacks are unchanged.
+- Deny copied, stale, revoked and nonprivate text taps through the established guarded path. Tests cover placement, text routing, live authorization, and the preserved Admin menu.
+- No finance/provider operations, migrations, dependencies, new callback routes, duplicated KPI engine, or Sales Bot changes. Verify repository CI before merge; real Telegram client / Production smoke remains separate. Revert this single PR to roll back.
+
 ## Evidence and release
 
 At the end of each phase record: implemented / tested (with exact CI outcome) / remaining / risks. Production execution of pending paid orders or alterations to customer balances are never part of these dashboard changes.

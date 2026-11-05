@@ -76,7 +76,9 @@ final class ReplyMenuRenderer
 
     public function adminKeyboard(TelegramActor $actor): ReplyKeyboardMarkup
     {
-        $labels = $actor->canManageRoles() ? [ReplyMenuLabels::DENABAN] : [];
+        $labels = $actor->canManageRoles()
+            ? [ReplyMenuLabels::DENABAN, ReplyMenuLabels::MANAGEMENT_KPIS]
+            : [];
 
         if ($actor->allows('users.view') || $actor->allows('support.view')) {
             $labels[] = ReplyMenuLabels::USERS;
