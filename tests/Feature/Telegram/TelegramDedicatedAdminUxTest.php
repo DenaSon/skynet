@@ -217,3 +217,47 @@ it('keeps the stats entry in the persistent root Admin keyboard and denies stale
     $ordinaryBot->setCommonChat(Chat::make(-984202, ChatType::GROUP));
     $ordinaryBot->hearText(ReplyMenuLabels::STATS)->reply()->assertNoReply();
 });
+
+
+it('opens the KPI Rich report from the persistent root menu and rejects stale or nonprivate taps', function (): void {
+    config()->set('telegram.hybrid_menu_enabled', true);
+    config()->set('super_admin.telegram_ids', ['984211', '984299']);
+    Http::preventStrayRequests();
+
+    $root = User::factory()->create();
+    $root->syncRoles(['super-admin']);
+    $rootBot = mb04Bot(984211, $root);
+    $actor = app(ResolveTelegramActor::class)->handle(984211);
+    expect($actor)->not->toBeNull();
+
+    $keyboard = app(ReplyMenuRenderer::class)->adminKeyboard($actor);
+    $labels = mb04Labels($keyboard);
+    expect($keyboard->keyboard[0][0]->text)->toBe(ReplyMenuLabels::DENABAN)
+        ->and($keyboard->keyboard[0][1]->text)->toBe(ReplyMenuLabels::MANAGEMENT_KPIS)
+        ->and($labels)->toContain(ReplyMenuLabels::STATS, ReplyMenuLabels::USERS, ReplyMenuLabels::FINANCE_SECTION)
+        ->and(ReplyMenuLabels::all())->toContain(ReplyMenuLabels::MANAGEMENT_KPIS);
+
+    $rootBot->hearText('/start')->reply()
+        ->assertReplyText("🛡️ مدیریت DenaGate\n\nبخش موردنظر را از منوی پایین انتخاب کنید.");
+    $rootBot->hearText(ReplyMenuLabels::MANAGEMENT_KPIS)->reply()
+        ->assertCalled('sendRichMessage');
+
+    // Ordinary and revoked Admins must not obtain root-only KPI data from
+    // copied text or previously delivered persistent keyboards.
+    $ordinary = User::factory()->admin()->create();
+    $ordinaryBot = mb04Bot(984212, $ordinary);
+    expect(mb04Labels(app(ReplyMenuRenderer::class)->adminKeyboard(
+        app(ResolveTelegramActor::class)->handle(984212),
+    )))->not->toContain(ReplyMenuLabels::MANAGEMENT_KPIS);
+    $ordinaryBot->hearText(ReplyMenuLabels::MANAGEMENT_KPIS)->reply()
+        ->assertReplyText('دسترسی مجاز نیست. منوی شما به‌روز شد.');
+
+    $root->syncRoles(['member']);
+    $rootBot->hearText(ReplyMenuLabels::MANAGEMENT_KPIS)->reply()
+        ->assertReplyText('دسترسی مجاز نیست. منوی شما به‌روز شد.');
+
+    $ordinaryBot->setCommonChat(Chat::make(-984212, ChatType::GROUP));
+    $ordinaryBot->hearText(ReplyMenuLabels::MANAGEMENT_KPIS)->reply()->assertNoReply();
+
+    Http::assertNothingSent();
+});
