@@ -27,6 +27,68 @@ final readonly class ReviewPaidFulfillment
             ->orderByDesc('orders.id')->limit(20)->get()->all();
     }
 
+    /**
+     * A paid order is overdue only after the existing 15-minute fulfillment
+     * threshold. A processing order uses its last update, not its creation.
+     *
+     * @return array{review:int,overdue:int}
+     */
+    public function attentionCounts(int $actorId): array
+    {
+        $this->access->handle($actorId);
+
+        $query = $this->attentionQuery();
+
+        return [
+            'review' => (int) (clone $query)->where('intent.state', 'needs_review')->count(),
+            'overdue' => (int) (clone $query)->whereIn('intent.state', ['pending', 'processing'])->count(),
+        ];
+    }
+
+    /**
+     * Ordered and paginated: older review cases cannot disappear behind recent
+     * orders, even when more than twenty cases are outstanding.
+     *
+     * @return array{total:int,page:int,pages:int,items:list<object>}
+     */
+    public function attention(int $actorId, string $requestedPage): array
+    {
+        $this->access->handle($actorId);
+        if (preg_match('/\\A[1-9][0-9]{0,3}\\z/D', $requestedPage) !== 1
+            || (int) $requestedPage > 1000) {
+            throw ValidationException::withMessages(['page' => 'Invalid page.']);
+        }
+
+        $query = $this->attentionQuery();
+        $total = (int) (clone $query)->count();
+        $pages = max(1, intdiv($total + 19, 20));
+        $page = min((int) $requestedPage, $pages);
+        $items = $query
+            ->orderByRaw("CASE WHEN intent.state = 'needs_review' THEN 0 ELSE 1 END")
+            ->orderBy('orders.id')
+            ->offset(($page - 1) * 20)->limit(20)->get()->all();
+
+        return compact('total', 'page', 'pages', 'items');
+    }
+
+    private function attentionQuery(): Builder
+    {
+        $threshold = now()->subMinutes(15);
+
+        return $this->base()->where('orders.status', 'paid')
+            ->where(function (Builder $query) use ($threshold): void {
+                $query->where('intent.state', 'needs_review')
+                    ->orWhere(function (Builder $query) use ($threshold): void {
+                        $query->where('intent.state', 'pending')
+                            ->where('intent.created_at', '<', $threshold);
+                    })
+                    ->orWhere(function (Builder $query) use ($threshold): void {
+                        $query->where('intent.state', 'processing')
+                            ->where('intent.updated_at', '<', $threshold);
+                    });
+            });
+    }
+
     /** @return list<object> */
     public function completed(int $actorId): array
     {
