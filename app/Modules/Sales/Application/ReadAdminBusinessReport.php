@@ -118,4 +118,5 @@ final readonly class ReadAdminBusinessReport
             'buyers' => (int) ($totals->buyers_count ?? 0),
             'fulfilled' => (int) ($totals->fulfilled_count ?? 0),
         ];
-    }}
+    }
+}
