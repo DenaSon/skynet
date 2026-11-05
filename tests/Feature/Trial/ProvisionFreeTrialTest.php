@@ -145,6 +145,9 @@ it('queues one activation intent and sends only after a fresh owned provider che
     $worker->handle(app(TelegramNotificationSender::class));
     expect(DB::table('telegram_notification_deliveries')->find($delivery->id)->state)->toBe('sent');
     Http::assertSentCount(3); // CREATE, ownership GET, one Telegram send.
+    Http::assertSent(static fn ($request): bool => str_contains($request->url(), '/sendMessage')
+        && str_contains((string) ($request['text'] ?? ''), '📚 آموزش')
+        && str_contains((string) ($request['reply_markup'] ?? ''), '📚 آموزش'));
 });
 
 it('rechecks paid purchase history between reservation and activation', function (): void {
