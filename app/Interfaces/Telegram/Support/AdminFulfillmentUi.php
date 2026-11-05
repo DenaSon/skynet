@@ -9,6 +9,7 @@ use App\Modules\Provisioning\Application\ReviewPaidFulfillment;
 use App\Modules\Provisioning\Jobs\FulfillPaidPlanOrderJob;
 use App\Support\PersianCalendar;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
@@ -99,7 +100,7 @@ final readonly class AdminFulfillmentUi
 
         try {
             $data = $this->reviews->attention($root, $page);
-        } catch (\Illuminate\Validation\ValidationException) {
+        } catch (ValidationException) {
             $this->render($bot, 'صفحه موردنظر معتبر نیست.', $this->home());
 
             return;
