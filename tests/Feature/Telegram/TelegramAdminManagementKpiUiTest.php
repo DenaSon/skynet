@@ -290,3 +290,89 @@ it('denies non-roots, revoked roots and group callbacks without reading customer
 
     Http::assertNothingSent();
 });
+
+
+it('narrates verified weekly sales growth with lower signups without inventing a cause', function (): void {
+    $data = [
+        'period' => 'week',
+        'generatedAt' => '2026-11-05 15:30',
+        'current' => [
+            'from' => '2026-10-29 00:00:00', 'until' => '2026-11-05 00:00:00',
+            'revenueRials' => 87_835_000, 'transactions' => 54,
+            'uniqueBuyers' => 31, 'newPurchases' => 52, 'renewals' => 2,
+            'newUsers' => 207,
+        ],
+        'previous' => [
+            'from' => '2026-10-22 00:00:00', 'until' => '2026-10-29 00:00:00',
+            'revenueRials' => 43_197_500, 'transactions' => 23,
+            'uniqueBuyers' => 19, 'newPurchases' => 22, 'renewals' => 1,
+            'newUsers' => 248,
+        ],
+        'growth' => ['salesPercent' => 103.3, 'newUsersPercent' => -16.5],
+    ];
+    $ui = app(AdminManagementKpiUi::class);
+    $rich = (new ReflectionMethod(AdminManagementKpiUi::class, 'richReport'))->invoke($ui, $data);
+    $plain = (new ReflectionMethod(AdminManagementKpiUi::class, 'simpleReport'))->invoke($ui, $data);
+
+    foreach ([$rich, $plain] as $report) {
+        expect($report)->toContain('۱۴۰۵/۰۸/۰۷ تا ۱۴۰۵/۰۸/۱۳')
+            ->toContain('۸٬۷۸۳٬۵۰۰ تومان')
+            ->toContain('۴٬۴۶۳٬۷۵۰ تومان افزایش (+۱۰۳٫۳٪)')
+            ->toContain('ثبت‌نام کاربران از ۲۴۸ به ۲۰۷ نفر')
+            ->toContain('۴۱ نفر کاهش (−۱۶٫۵٪)')
+            ->toContain('با وجود کاهش ثبت‌نام‌ها، فروش افزایش یافته است')
+            ->toContain('تعداد تراکنش‌ها و میانگین مبلغ سفارش');
+    }
+    expect($rich)->toContain('<details><summary>🧠 تحلیل عملکرد دوره</summary>')
+        ->toContain('</details>')
+        ->and($plain)->not->toContain('<details>')
+        ->not->toContain('<summary>')
+        ->and($rich)->not->toContain('علت افزایش فروش، مشتریان قدیمی');
+});
+
+it('handles falling sales, stable trends and zero comparison baselines without spurious percentages', function (): void {
+    $reader = new ReflectionMethod(AdminManagementKpiUi::class, 'insights');
+    $data = [
+        'period' => 'day',
+        'current' => [
+            'from' => '2026-11-05 00:00:00', 'until' => '2026-11-05 15:30:00',
+            'revenueRials' => 1_000_000, 'newUsers' => 120,
+        ],
+        'previous' => [
+            'from' => '2026-11-04 00:00:00', 'until' => '2026-11-04 15:30:00',
+            'revenueRials' => 2_000_000, 'newUsers' => 100,
+        ],
+        'growth' => ['salesPercent' => -50.0, 'newUsersPercent' => 20.0],
+    ];
+
+    $fall = $reader->invoke(null, $data);
+    expect($fall['💰 فروش'])->toContain('۱۰۰٬۰۰۰ تومان کاهش (−۵۰٫۰٪)')
+        ->and($fall['👥 کاربران'])->toContain('۲۰ نفر افزایش (+۲۰٫۰٪)')
+        ->and($fall['📈 برداشت مدیریتی'])->toContain('با وجود افزایش ثبت‌نام‌ها، فروش کاهش یافته است')
+        ->toContain('علت این اختلاف از این دو شاخص مشخص نیست');
+
+    $data['current']['revenueRials'] = $data['previous']['revenueRials'];
+    $data['current']['newUsers'] = $data['previous']['newUsers'];
+    $data['growth'] = ['salesPercent' => 0.0, 'newUsersPercent' => 0.0];
+    $stable = $reader->invoke(null, $data);
+    expect($stable['💰 فروش'])->toContain('تغییری نداشته')
+        ->and($stable['👥 کاربران'])->toContain('ثابت مانده')
+        ->and($stable['📈 برداشت مدیریتی'])->toContain('فروش ثابت مانده و ثبت‌نام ثابت مانده');
+
+    $data['previous']['revenueRials'] = 0;
+    $data['previous']['newUsers'] = 0;
+    $data['growth'] = ['salesPercent' => null, 'newUsersPercent' => null];
+    $noBaseline = $reader->invoke(null, $data);
+    expect($noBaseline['💰 فروش'])->toContain('فروش بازه قبل صفر بوده')
+        ->toContain('بدون مبنا')
+        ->and($noBaseline['👥 کاربران'])->toContain('ثبت‌نام بازه قبل صفر بوده')
+        ->toContain('بدون مبنا')
+        ->and($noBaseline['📈 برداشت مدیریتی'])->toContain('مقایسه درصدی کامل دو شاخص ممکن نیست');
+
+    $data['current']['revenueRials'] = 0;
+    $data['current']['newUsers'] = 0;
+    $allZero = $reader->invoke(null, $data);
+    expect($allZero['💰 فروش'])->toContain('فروش بازه قبل صفر بوده')
+        ->and($allZero['💡 نکته قابل بررسی'])->toContain('اگر انتظار فروش وجود دارد');
+    expect(implode(' ', $allZero))->not->toContain('INF', 'NaN', 'رشد بی‌نهایت');
+});
