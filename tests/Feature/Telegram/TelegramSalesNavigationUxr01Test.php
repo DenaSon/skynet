@@ -236,7 +236,7 @@ it('keeps account and invite simple views usable with unchanged owner-safe actio
         return ! isset($data['rich_message'])
             && str_contains((string) ($data['text'] ?? ''), 'لینک اختصاصی دعوت')
             && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'copy_text')
-            && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'share/url');
+            && str_starts_with((string) ($data['reply_markup']['inline_keyboard'][0][0]['url'] ?? ''), 'https://t.me/share/url?');
     }, index: 1);
     Http::assertNothingSent();
 });
