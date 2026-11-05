@@ -1367,17 +1367,59 @@ it('keeps old paid review cases reachable across pages and flags only genuinely 
     $staleIntent['created_at'] = now()->subMinutes(20);
     DB::table('sales_fulfillment_outbox')->insert($staleIntent);
 
+    $processingOrder = $orderTemplate;
+    unset($processingOrder['id']);
+    $processingOrder['idempotency_key'] = 'denaban-processing-paid';
+    $processingOrderId = DB::table('sales_orders')->insertGetId($processingOrder);
+    $processingIntent = $intentTemplate;
+    unset($processingIntent['id']);
+    $processingIntent['sales_order_id'] = $processingOrderId;
+    $processingIntent['event_key'] = 'denaban-processing-event';
+    $processingIntent['state'] = 'processing';
+    $processingIntent['created_at'] = now()->subMinutes(30);
+    $processingIntent['updated_at'] = now()->subMinutes(20);
+    DB::table('sales_fulfillment_outbox')->insert($processingIntent);
+
+    // An old but not yet paid order must never be called overdue.
+    $unpaidOrder = $orderTemplate;
+    unset($unpaidOrder['id']);
+    $unpaidOrder['idempotency_key'] = 'denaban-unpaid-order';
+    $unpaidOrder['status'] = 'pending_payment';
+    $unpaidId = DB::table('sales_orders')->insertGetId($unpaidOrder);
+    $unpaidIntent = $intentTemplate;
+    unset($unpaidIntent['id']);
+    $unpaidIntent['sales_order_id'] = $unpaidId;
+    $unpaidIntent['event_key'] = 'denaban-unpaid-event';
+    $unpaidIntent['state'] = 'pending';
+    $unpaidIntent['created_at'] = now()->subMinutes(30);
+    DB::table('sales_fulfillment_outbox')->insert($unpaidIntent);
+
+    // Active processing does not become overdue merely because its creation was old.
+    $freshOrder = $orderTemplate;
+    unset($freshOrder['id']);
+    $freshOrder['idempotency_key'] = 'denaban-fresh-processing';
+    $freshId = DB::table('sales_orders')->insertGetId($freshOrder);
+    $freshIntent = $intentTemplate;
+    unset($freshIntent['id']);
+    $freshIntent['sales_order_id'] = $freshId;
+    $freshIntent['event_key'] = 'denaban-fresh-event';
+    $freshIntent['state'] = 'processing';
+    $freshIntent['created_at'] = now()->subMinutes(30);
+    $freshIntent['updated_at'] = now();
+    DB::table('sales_fulfillment_outbox')->insert($freshIntent);
+
     $counts = $reader->attentionCounts($data['root']->id);
-    expect($counts)->toBe(['review' => 22, 'overdue' => 1]);
+    expect($counts)->toBe(['review' => 22, 'overdue' => 2]);
 
     $first = $reader->attention($data['root']->id, '1');
     $last = $reader->attention($data['root']->id, '2');
-    expect($first['total'])->toBe(23)
+    expect($first['total'])->toBe(24)
         ->and($first['pages'])->toBe(2)
         ->and($first['items'])->toHaveCount(20)
         ->and($first['items'][0]->id)->toBe($oldest)
-        ->and($last['items'])->toHaveCount(3)
-        ->and($last['items'][2]->id)->toBe($staleOrderId);
+        ->and($last['items'])->toHaveCount(4)
+        ->and($last['items'][2]->id)->toBe($staleOrderId)
+        ->and($last['items'][3]->id)->toBe($processingOrderId);
 
     $guest = User::factory()->create();
     expect(fn () => $reader->attention($guest->id, '1'))->toThrow(AuthorizationException::class)
@@ -1413,7 +1455,7 @@ it('keeps old paid review cases reachable across pages and flags only genuinely 
                 && str_contains($buttons, 'full:attention:1');
         }, index: 1);
 
-    expect(DB::table('sales_fulfillment_outbox')->count())->toBe(24);
+    expect(DB::table('sales_fulfillment_outbox')->count())->toBe(27);
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
     Http::assertNotSent(static fn (Request $request): bool => $request->method() !== 'GET');
 });
