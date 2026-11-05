@@ -439,6 +439,7 @@ it('offers a real configured Telegram contact and short guides with working back
                 return str_contains($html, '<summary>📱 مراحل نصب و اتصال</summary>')
                     && str_contains($html, '<b>'.$client.'</b>')
                     && str_contains($html, '<b>لینک اتصال</b>')
+                    && str_contains($html, '«تست رایگان»')
                     && str_contains($html, 'اشتراک را به‌روزرسانی کنید')
                     && $keyboard[0][0]['url'] === $download
                     && $keyboard[0][0]['text'] === '⬇️ دانلود '.$client.' از '.$source
@@ -465,6 +466,7 @@ it('offers a real configured Telegram contact and short guides with working back
                 return ! isset($body['rich_message'])
                     && str_contains($text, '<b>'.$client.'</b>')
                     && str_contains($text, '<b>لینک اتصال</b>')
+                    && str_contains($text, '«تست رایگان»')
                     && str_contains($text, 'اشتراک را به‌روزرسانی کنید')
                     && $keyboard[0][0]['url'] === $download
                     && $keyboard[0][0]['text'] === '⬇️ دانلود '.$client.' از '.$source

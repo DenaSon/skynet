@@ -267,6 +267,7 @@ it('shows live minutes and MiB and uses the existing QR renderer after activatio
             && str_contains($html, 'زمان باقی‌مانده:')
             && str_contains($html, '<summary>📋 راهنمای استفاده</summary>')
             && str_contains($markup, 'sales:trial:link')
+            && str_contains($markup, 'sales:help:apps')
             && str_contains($markup, 'sales:trial:simple')
             && ! str_contains($html, 'vless://');
     }, index: 1);
@@ -276,9 +277,25 @@ it('shows live minutes and MiB and uses the existing QR renderer after activatio
 
             return ! isset($data['rich_message'])
                 && str_contains((string) ($data['text'] ?? ''), 'حجم باقی‌مانده:')
-                && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:trial:link');
+                && str_contains((string) ($data['text'] ?? ''), '📚 راهنمای اتصال')
+                && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:trial:link')
+                && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:help:apps');
         }, index: 1);
-    $bot->hearCallbackQueryData('sales:trial:link')->reply()->assertCalled('sendPhoto', 1)->assertCalled('sendMessage', 0);
+    // The QR upload stream is closed after delivery; never inspect the fake's
+    // already-consumed multipart body. The text fallback assertions below
+    // verify guide, status and copy-button parity without rereading QR bytes.
+    $bot->hearCallbackQueryData('sales:trial:link')->reply()
+        ->assertCalled('sendPhoto', 1)->assertCalled('sendMessage', 0);
+    $bot->hearCallbackQueryData('sales:help:apps')->reply()->assertRaw(
+        static function (Request $request): bool {
+            $data = trialUiPayload($request);
+            $buttons = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return str_contains(trialUiRichHtml($request), 'V2Box را از گوگل‌پلی دانلود')
+                && str_contains($buttons, 'sales:help:android')
+                && str_contains($buttons, 'sales:help:ios');
+        }, index: 1,
+    );
     $this->trialRemote['userTraffic']['usedTrafficBytes'] = ProvisionFreeTrial::BYTES;
     $bot->hearCallbackQueryData('sales:trial:link')->reply()->assertCalled('sendMessage')->assertCalled('sendPhoto', 0);
 });
@@ -488,7 +505,8 @@ it('keeps a very long trial URL intact in one text message without a second QR m
             return str_contains($data['text'], '<code>'.$url.'</code>')
                 && ($data['parse_mode'] ?? null) === 'HTML'
                 && ($data['protect_content'] ?? false) !== true
-                && ! str_contains(json_encode($data['reply_markup']), 'copy_text');
+                && ! str_contains(json_encode($data['reply_markup']), 'copy_text')
+                && str_contains(json_encode($data['reply_markup']), 'sales:help:apps');
         }, index: 1);
 });
 
@@ -505,6 +523,7 @@ it('retains the private trial link as text when Telegram rejects the QR upload',
             return str_contains($data['text'], '<code>https://sub.example.test/private-trial</code>')
                 && ($data['parse_mode'] ?? null) === 'HTML'
                 && ($data['protect_content'] ?? false) !== true
-                && str_contains(json_encode($data['reply_markup']), 'copy_text');
+                && str_contains(json_encode($data['reply_markup']), 'copy_text')
+                && str_contains(json_encode($data['reply_markup']), 'sales:help:apps');
         }, index: 2);
 });
