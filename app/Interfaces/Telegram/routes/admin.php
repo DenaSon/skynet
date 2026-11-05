@@ -15,6 +15,7 @@ use App\Interfaces\Telegram\Support\AdminDashboardUi;
 use App\Interfaces\Telegram\Support\AdminFinanceWalletUi;
 use App\Interfaces\Telegram\Support\AdminFulfillmentUi;
 use App\Interfaces\Telegram\Support\AdminHealthUi;
+use App\Interfaces\Telegram\Support\AdminManagementKpiUi;
 use App\Interfaces\Telegram\Support\AdminHostBatchUi;
 use App\Interfaces\Telegram\Support\AdminHostOperationsUi;
 use App\Interfaces\Telegram\Support\AdminHostsUi;
@@ -407,6 +408,11 @@ $bot->onCallbackQueryData('denaban:health:simple', function (Nutgram $bot): void
 // OPS-CMD-01A: private, read-only investigation of terminal notification deliveries.
 $bot->onCallbackQueryData('denaban:notifications:{page}', function (Nutgram $bot, string $page): void {
     app(AdminNotificationFailuresUi::class)->show($bot, $page);
+});
+
+// KPI-UI-01: separate, private trusted-root management comparisons.
+$bot->onCallbackQueryData('kpi:period:{period}', function (Nutgram $bot, string $period): void {
+    app(AdminManagementKpiUi::class)->show($bot, $period);
 });
 
 // STAT-01: read-only, private Super Admin dashboard with bounded provider GETs.
