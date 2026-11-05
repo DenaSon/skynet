@@ -150,7 +150,7 @@ final readonly class TelegramNotificationSender
             if ($status->id !== $trialId || $status->ended() || $status->providerStatus !== 'ACTIVE') {
                 throw new NotificationUnavailable('trial_not_active');
             }
-            $this->text($bot, $chat, "<b>✅ تست رایگان شما فعال شد</b>\n\nحجم: <b>۲۵۰ مگابایت</b> · اعتبار: <b>۲ ساعت</b>\nاز بخش تست رایگان، وضعیت و لینک اتصال را ببینید.",
+            $this->text($bot, $chat, "<b>✅ تست رایگان شما فعال شد</b>\n\nحجم: <b>۲۵۰ مگابایت</b> · اعتبار: <b>۲ ساعت</b>\nاز بخش تست رایگان، لینک اتصال را دریافت کنید. برای نصب برنامه، دکمه «📚 آموزش» را از منوی بات بزنید.",
                 $this->trialMenu($userId, $chat), 'HTML');
 
             return;
@@ -596,8 +596,12 @@ final readonly class TelegramNotificationSender
                     'callback_data' => 'sales:subs:page:'.$orderId.':0',
                 ]];
             }
+            $rows[] = [[
+                'text' => '📚 راهنمای اتصال',
+                'callback_data' => 'sales:help:apps',
+            ]];
             $keyboard = json_encode(['inline_keyboard' => $rows], JSON_THROW_ON_ERROR);
-            $this->text($bot, $chat, "✅ اشتراک شما فعال شد!\nسفارش #{$orderId}\n\nبرای دریافت اتصال دکمه زیر را انتخاب کنید.", $keyboard);
+            $this->text($bot, $chat, "✅ اشتراک شما فعال شد!\nسفارش #{$orderId}\n\nبرای دریافت لینک اتصال یا مشاهده راهنمای نصب از دکمه‌های زیر استفاده کنید.", $keyboard);
 
             return;
         }
