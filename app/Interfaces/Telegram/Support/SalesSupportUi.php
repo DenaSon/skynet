@@ -73,8 +73,7 @@ final readonly class SalesSupportUi
                     ? 'ارتباط مستقیم فعلاً در دسترس نیست. راهنمای اتصال و خرید را ببینید.'
                     : 'برای گفتگو با اپراتور، دکمه «ارتباط با پشتیبان» را بزنید. گفتگوی خصوصی تلگرام باز می‌شود.');
                 $keyboard->addRow(InlineKeyboardButton::make('📚 آموزش اتصال و خرید', callback_data: 'sales:help:apps'))
-                    ->addRow(InlineKeyboardButton::make('🔧 رفع مشکل اتصال', callback_data: 'sales:help:troubleshoot'))
-                    ->addRow(InlineKeyboardButton::make('📋 سرویس‌های من', callback_data: 'sales:subs:list:0'));
+                    ->addRow(InlineKeyboardButton::make('🔧 رفع مشکل اتصال', callback_data: 'sales:help:troubleshoot'));
                 if (in_array('reseller', $actor->roles, true)) {
                     $keyboard->addRow(InlineKeyboardButton::make('🧩 راهنمای پلن‌ساز', callback_data: 'sales:help:builder'));
                 }
@@ -159,7 +158,6 @@ final readonly class SalesSupportUi
                     $keyboard->addRow(InlineKeyboardButton::make('⬇️ دانلود جایگزین v2rayNG',
                         url: 'https://github.com/2dust/v2rayNG/releases/latest'));
                 }
-                $keyboard->addRow(InlineKeyboardButton::make('📋 سرویس‌های من', callback_data: 'sales:subs:list:0'));
                 break;
 
             case 'purchase':
@@ -179,7 +177,6 @@ final readonly class SalesSupportUi
                     ."🔄 پروفایل را در برنامه به‌روز کنید و یک بار اتصال را قطع و وصل کنید.\n\n"
                     ."🌐 اتصال اینترنت را بررسی کنید؛ در صورت امکان با اینترنت دیگری هم امتحان کنید.\n\n"
                     .'<blockquote>اگر مشکل ادامه داشت، شماره سرویس و نوع دستگاه را برای پشتیبان بفرستید؛ لینک اتصال را عمومی منتشر نکنید.</blockquote>';
-                $keyboard->addRow(InlineKeyboardButton::make('📋 سرویس‌های من', callback_data: 'sales:subs:list:0'));
                 break;
 
             default:
@@ -190,6 +187,10 @@ final readonly class SalesSupportUi
         if ($operator !== null) {
             $keyboard->addRow(InlineKeyboardButton::make('💬 ارتباط با پشتیبان', url: $operator));
         }
+        // Keep the service shortcut below the operator on support/connection pages.
+        if (in_array($page, ['support', 'android', 'ios', 'windows', 'macos', 'troubleshoot'], true)) {
+            $keyboard->addRow(InlineKeyboardButton::make('📋 سرویس‌های من', callback_data: 'sales:subs:list:0'));
+        }
 
         $richHtml = match ($page) {
             'support' => $this->richSupport($operator !== null),
@@ -198,12 +199,10 @@ final readonly class SalesSupportUi
             default => null,
         };
 
-        // A plain HTML guide remains accessible even if a client cannot show Rich.
+        // Preserve automatic plain HTML fallback and legacy simple callbacks,
+        // without adding another visible button to the Rich guide.
         $plainKeyboard = clone $keyboard;
         $this->appendNavigation($plainKeyboard, $page);
-        if ($rich && $richHtml !== null) {
-            $keyboard->addRow(InlineKeyboardButton::make('↩️ نمایش ساده', callback_data: 'sales:help:simple:'.$page));
-        }
         $this->appendNavigation($keyboard, $page);
 
         if ($rich && $richHtml !== null) {

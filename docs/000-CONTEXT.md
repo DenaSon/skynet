@@ -1,3 +1,7 @@
+## SALES-GUIDE-03 — simpler help buttons (2026-11-06)
+
+The Sales support and guide presenter no longer displays its optional «نمایش ساده» button; Rich transport still falls back to HTML on failure, and older `sales:help:simple:*` callbacks continue to work. «سرویس‌های من» now follows the configured «ارتباط با پشتیبان» action on support and connection/troubleshooting pages, with no fabricated operator URL when absent. The previous device client downloads, onboarding, authorized actions and data are unchanged. Regression coverage in `TelegramSalesNavigationUxr01Test`; see [docs/032](032-SALES-RICH-UX-ROADMAP.md). No provider, payment, trial lifecycle, deployment setting or schema change.
+
 ## SALES-GUIDE-02 — in-flow connection tutorial links (2026-11-06)
 
 Phase 2 adds the existing `sales:help:apps` action to verified paid-service activation notices and to active trial status/QR-card actions, reusing phase-1 device tutorials. Paid details/connection cards already had that route. The trial's one activation notification keeps the persistent Sales reply keyboard and refers to its existing «📚 آموزش» control (no duplicate message), while expired/failed trial flows and account/Provider authorization stay unchanged. Device guide wording now covers trial credentials as well as paid purchases. See [docs/032](032-SALES-RICH-UX-ROADMAP.md). No schema, ENV, RW, financial or trial-lifecycle change; source CI and live Telegram acceptance remain separate.

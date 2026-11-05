@@ -395,8 +395,12 @@ it('offers a real configured Telegram contact and short guides with working back
 
         $buttons = array_merge(...$body['reply_markup']['inline_keyboard']);
 
+        $labels = array_column($buttons, 'text');
+
         return str_contains(uxr01RichHtml($request), 'ارتباط با پشتیبان')
-            && in_array('https://t.me/DenaGateOperator', array_column($buttons, 'url'), true);
+            && in_array('https://t.me/DenaGateOperator', array_column($buttons, 'url'), true)
+            && array_search('📋 سرویس‌های من', $labels, true) === array_search('💬 ارتباط با پشتیبان', $labels, true) + 1
+            && ! str_contains(json_encode($buttons, JSON_THROW_ON_ERROR), 'sales:help:simple:');
     });
     foreach (['apps', 'android', 'ios', 'windows', 'macos', 'purchase', 'troubleshoot'] as $page) {
         $bot->hearCallbackQueryData('sales:help:'.$page)->reply()
@@ -407,9 +411,17 @@ it('offers a real configured Telegram contact and short guides with working back
                     ? json_decode($data['rich_message'], true, 512, JSON_THROW_ON_ERROR)
                     : ($data['rich_message'] ?? []);
 
+                $buttons = array_merge(...$data['reply_markup']['inline_keyboard']);
+                $labels = array_column($buttons, 'text');
+                $operator = array_search('💬 ارتباط با پشتیبان', $labels, true);
+                $services = array_search('📋 سرویس‌های من', $labels, true);
+                $hasServiceShortcut = in_array($page, ['android', 'ios', 'windows', 'macos', 'troubleshoot'], true);
+
                 return ($rich['is_rtl'] ?? false) === true
                     && str_contains(uxr01RichHtml($request), '<details>')
-                    && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:help:simple:'.$page);
+                    && ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:help:simple:')
+                    && $operator !== false
+                    && ($hasServiceShortcut ? $services === $operator + 1 : $services === false);
             }, index: 1);
     }
     // Old combined-desktop callback remains plain and navigates to each OS.
@@ -451,7 +463,8 @@ it('offers a real configured Telegram contact and short guides with working back
                     && ! str_contains($encoded, 'docs.rw')
                     && str_contains($encoded, 'sales:subs:list:0')
                     && str_contains($encoded, 'sales:help:apps')
-                    && str_contains($encoded, 'sales:home');
+                    && str_contains($encoded, 'sales:home')
+                    && ! str_contains($encoded, 'sales:help:simple:');
             }, index: 1,
         );
 
@@ -507,7 +520,7 @@ it('offers a real configured Telegram contact and short guides with working back
             && str_contains($html, '<summary>🔧 مشکل اتصال دارید؟</summary>')
             && str_contains($buttons, 'sales:help:troubleshoot')
             && str_contains($buttons, 'sales:subs:list:0')
-            && str_contains($buttons, 'sales:help:simple:support');
+            && ! str_contains($buttons, 'sales:help:simple:support');
     }, index: 1);
     $bot->hearCallbackQueryData('sales:support:simple')->reply()->assertRaw(static function (Request $request): bool {
         $body = uxr01Payload($request);
