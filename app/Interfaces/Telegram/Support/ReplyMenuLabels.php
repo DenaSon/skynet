@@ -26,6 +26,8 @@ final class ReplyMenuLabels
 
     public const SALES_APP = '📱 اپلیکیشن';
 
+    public const SALES_REWARD = '🎁 دریافت جایزه';
+
     public const BUY = '🛒 خرید اشتراک';
 
     public const SUBSCRIPTIONS = '📦 سرویس‌های من';
@@ -88,7 +90,7 @@ final class ReplyMenuLabels
     public static function all(): array
     {
         return [
-            self::BUY, self::SUBSCRIPTIONS, self::CATALOG, self::ACCOUNT, self::INVITE,
+            self::BUY, self::SUBSCRIPTIONS, self::CATALOG, self::ACCOUNT, self::INVITE, self::SALES_REWARD,
             self::SETTINGS, self::ADMIN, self::SALES_WALLET, self::WALLET, self::BUILDER, self::SALES_REPORTS,
             self::SALES_PANEL_REQUEST, self::SALES_PANEL_STATUS, self::LEGACY_WALLET, self::LEGACY_BUILDER,
             self::OLD_WALLET_PANEL, self::OLD_BUILDER_PANEL, self::PREVIOUS_BUILDER, self::USERS,

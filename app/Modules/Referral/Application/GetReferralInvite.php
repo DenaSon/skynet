@@ -58,6 +58,7 @@ final class GetReferralInvite
             earnedRials: $earned,
             remainingRewards: $policy === null ? null : max(0, $policy['limit'] - $rewarded),
             rewardAmountRials: $policy['amount'] ?? null,
+            rewardLimit: $policy['limit'] ?? null,
         );
     }
 }

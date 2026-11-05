@@ -254,7 +254,7 @@ it('makes Sales Panel application discoverable via persistent menu and Account f
         $keyboard = $data['reply_markup']['keyboard'] ?? [];
 
         return ($data['reply_markup']['is_persistent'] ?? null) === true
-            && ($keyboard[3][0]['text'] ?? null) === '🧩 درخواست نمایندگی';
+            && ($keyboard[3][1]['text'] ?? null) === '🧩 درخواست نمایندگی';
     }, index: 0);
     $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(static function (Request $request): bool {
         $data = panel01Payload($request);
@@ -291,7 +291,7 @@ it('shows existing application status instead of duplicate request in persistent
     $bot->hearText('/start')->reply()->assertRaw(static function (Request $request): bool {
         $keyboard = panel01Payload($request)['reply_markup']['keyboard'] ?? [];
 
-        return ($keyboard[3][0]['text'] ?? null) === '📨 وضعیت درخواست نمایندگی';
+        return ($keyboard[3][1]['text'] ?? null) === '📨 وضعیت درخواست نمایندگی';
     }, index: 0);
     $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(static function (Request $request): bool {
         $data = panel01Payload($request);

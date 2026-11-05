@@ -148,17 +148,20 @@ it('shows only the referrer own registered and rewarded friends with current cap
         ->and($summary->rewardedCount)->toBe(1)
         ->and($summary->earnedRials)->toBe(300000)
         ->and($summary->remainingRewards)->toBe(6)
-        ->and($summary->rewardAmountRials)->toBe(300000);
+        ->and($summary->rewardAmountRials)->toBe(300000)
+        ->and($summary->rewardLimit)->toBe(7);
     config()->set('referral.max_rewards_per_referrer', 1);
     config()->set('referral.reward_tomans', 45000);
     $changed = app(GetReferralInvite::class)->handle($referrer->id);
     expect($changed->earnedRials)->toBe(300000)
         ->and($changed->remainingRewards)->toBe(0)
-        ->and($changed->rewardAmountRials)->toBe(450000);
+        ->and($changed->rewardAmountRials)->toBe(450000)
+        ->and($changed->rewardLimit)->toBe(1);
     config()->set('referral.rewards_enabled', false);
     $disabled = app(GetReferralInvite::class)->handle($referrer->id);
     expect($disabled->earnedRials)->toBe(300000)
-        ->and($disabled->remainingRewards)->toBeNull();
+        ->and($disabled->remainingRewards)->toBeNull()
+        ->and($disabled->rewardLimit)->toBeNull();
 });
 
 it('retains existing Sales invite copy and share controls while showing live reward terms', function (): void {
@@ -186,13 +189,78 @@ it('retains existing Sales invite copy and share controls while showing live rew
 
         return ($rich['is_rtl'] ?? false) === true
             && str_contains($html, $url)
-            && str_contains($html, 'دوستان ثبت‌نام‌شده: 1')
-            && str_contains($html, 'دوستان دارای پاداش: <b>1</b>')
-            && str_contains($html, '30,000 تومان')
-            && str_contains($html, 'ظرفیت باقی‌مانده: <b>6</b>')
-            && str_contains($html, '<summary>📋 شرایط دریافت پاداش</summary>')
+            && str_contains($html, '<table bordered striped compact>')
+            && str_contains($html, '<td>دوستان دعوت‌شده</td><td><b>۱ نفر</b>')
+            && str_contains($html, '<td>دعوت‌های پاداش‌دار</td><td><b>۱ نفر</b>')
+            && str_contains($html, '<td>مجموع پاداش</td><td><b>۳۰۰٬۰۰۰ ریال</b>')
+            && str_contains($html, '<td>ظرفیت باقی‌مانده</td><td><b>۶ نفر</b>')
+            && str_contains($html, '<td>هدیه هر دعوت موفق</td><td><b>۳۰۰٬۰۰۰ ریال</b>')
+            && str_contains($html, '<summary>📋 چطور جایزه بگیرم؟</summary>')
+            && str_contains($html, 'با معرفی موفق ۷ دوست')
+            && str_contains($html, '۲٬۱۰۰٬۰۰۰ ریال جایزه بگیری!')
+            && ! str_contains($html, 'تست رایگان و خریدهای نمایندگی')
+            && ($markup['inline_keyboard'][0][0]['text'] ?? null) === '📤 اشتراک‌گذاری در تلگرام'
+            && str_starts_with((string) ($markup['inline_keyboard'][0][0]['url'] ?? ''), 'https://t.me/share/url?')
             && ($markup['inline_keyboard'][1][0]['copy_text']['text'] ?? null) === $url
-            && str_starts_with((string) ($markup['inline_keyboard'][2][0]['url'] ?? ''), 'https://t.me/share/url?');
+            && ($markup['inline_keyboard'][2][0]['callback_data'] ?? null) === 'sales:home'
+            && ! str_contains(json_encode($markup, JSON_THROW_ON_ERROR), 'sales:invite:simple');
     });
+    Http::assertNothingSent();
+});
+
+it('never promises a prize when referral rewards are disabled while keeping the invite usable', function (): void {
+    $referrer = Fixture::member();
+    $telegramId = 9800000 + $referrer->id;
+    config()->set('telegram.sales.bot_username', 'DenaGate_Test_Bot');
+    config()->set('referral.rewards_enabled', false);
+
+    $bot = Nutgram::fake();
+    require base_path('app/Interfaces/Telegram/routes/sales.php');
+    $bot->setCommonUser(TelegramUser::make($telegramId, false, 'Referral'));
+    $bot->setCommonChat(Chat::make($telegramId, ChatType::PRIVATE));
+    $bot->hearText('/invite')->reply()->assertRaw(static function (PsrRequest $request): bool {
+        $data = FakeNutgram::getActualData($request);
+        $rich = is_string($data['rich_message'] ?? null)
+            ? json_decode($data['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+            : ($data['rich_message'] ?? []);
+        $html = (string) ($rich['html'] ?? '');
+        $keyboard = is_string($data['reply_markup'] ?? null)
+            ? json_decode($data['reply_markup'], true, 512, JSON_THROW_ON_ERROR)
+            : ($data['reply_markup'] ?? []);
+
+        return str_contains($html, 'طرح جایزه فعلاً فعال نیست')
+            && str_contains($html, '<td>مجموع پاداش</td>')
+            && ! str_contains($html, 'هدیه هر دعوت موفق')
+            && ! str_contains($html, '۲٬۱۰۰٬۰۰۰ ریال')
+            && str_starts_with((string) ($keyboard['inline_keyboard'][0][0]['url'] ?? ''), 'https://t.me/share/url?')
+            && isset($keyboard['inline_keyboard'][1][0]['copy_text'])
+            && ($keyboard['inline_keyboard'][2][0]['callback_data'] ?? null) === 'sales:home';
+    });
+    Http::assertNothingSent();
+});
+
+it('updates the full invite prize wording from valid reward policy without changing credited history', function (): void {
+    $referrer = Fixture::member();
+    $telegramId = 9800000 + $referrer->id;
+    config()->set('telegram.sales.bot_username', 'DenaGate_Test_Bot');
+    config()->set('referral.reward_tomans', 45000);
+    config()->set('referral.max_rewards_per_referrer', 3);
+
+    $bot = Nutgram::fake();
+    require base_path('app/Interfaces/Telegram/routes/sales.php');
+    $bot->setCommonUser(TelegramUser::make($telegramId, false, 'Referral'));
+    $bot->setCommonChat(Chat::make($telegramId, ChatType::PRIVATE));
+    $bot->hearCallbackQueryData('sales:invite')->reply()->assertRaw(static function (PsrRequest $request): bool {
+        $data = FakeNutgram::getActualData($request);
+        $rich = is_string($data['rich_message'] ?? null)
+            ? json_decode($data['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+            : ($data['rich_message'] ?? []);
+        $html = (string) ($rich['html'] ?? '');
+
+        return str_contains($html, '<td>هدیه هر دعوت موفق</td><td><b>۴۵۰٬۰۰۰ ریال</b>')
+            && str_contains($html, 'با معرفی موفق ۳ دوست')
+            && str_contains($html, '۱٬۳۵۰٬۰۰۰ ریال جایزه بگیری!')
+            && ! str_contains($html, '۲٬۱۰۰٬۰۰۰ ریال');
+    }, index: 1);
     Http::assertNothingSent();
 });
