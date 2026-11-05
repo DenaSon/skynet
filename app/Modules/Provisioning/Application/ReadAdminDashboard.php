@@ -21,6 +21,7 @@ final readonly class ReadAdminDashboard
         private AssertCatalogManagementAccess $access,
         private ReadAdminProviderOverview $overview,
         private RemnawaveApiClientFactory $factory,
+        private ReviewPaidFulfillment $fulfillment,
     ) {}
 
     /**
@@ -29,7 +30,7 @@ final readonly class ReadAdminDashboard
      *   subscriptionsActive:?int, subscriptionsExpired:?int, subscriptionsLimited:?int,
      *   localUsers:int, localActive:int, telegramLinked:int, salesReachable:int,
      *   adminReachable:int, salesRecent:int, salesTodayRials:int,
-     *   provisioningReview:int, fulfillmentReview:int, receiptsPending:int,
+     *   provisioningReview:int, fulfillmentReview:int, fulfillmentOverdue:int, receiptsPending:int,
      *   failedJobs:int, notificationIssues:int, receivedAt:string,
      *   nodeSummaries:list<array<string,int|string|bool|null>>|null
      * }
@@ -68,16 +69,12 @@ final readonly class ReadAdminDashboard
             'salesTodayRials' => (int) $bank + (int) $wallet,
             'provisioningReview' => (int) DB::table('provisioning_operations')->where('state', 'needs_review')->count(),
             'fulfillmentReview' => (int) DB::table('sales_fulfillment_outbox')->where('state', 'needs_review')->count(),
+            'fulfillmentOverdue' => $this->fulfillment->attentionCounts($actorId)['overdue'],
             'receiptsPending' => (int) DB::table('sales_bank_payment_claims')->where('status', 'submitted')->count(),
             'failedJobs' => (int) DB::table('failed_jobs')->count(),
-            'notificationIssues' => (int) DB::table('telegram_notification_deliveries')
-                ->whereIn('state', ['dead', 'unavailable'])
-                // Successful activation makes the earlier payment notice obsolete,
-                // not an outstanding issue. Preserve its immutable delivery record.
-                ->where(function ($query): void {
-                    $query->whereNull('last_failure')
-                        ->orWhere('last_failure', '!=', 'superseded_by_activation');
-                })->count(),
+            'notificationIssues' => (int) DenabanNotificationIssues::apply(
+                DB::table('telegram_notification_deliveries'),
+            )->count(),
             'receivedAt' => now()->timezone('Asia/Tehran')->format('Y-m-d H:i'),
         ];
 
