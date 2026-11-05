@@ -1,6 +1,6 @@
 # DenaGate — Denaban reliability and management KPI roadmap (2026-11-05)
 
-Approved sequence: four **independent** phases. Phase 1 merged via [PR #374](https://github.com/DenaSon/skynet/pull/374) with successful PHP 8.4, PHPStan, Pint and MySQL CI. Phase 2 is the only implementation scope of the current PR. Preserve Laravel modular-monolith Actions, private trusted Super Admin checks, existing Admin/Sales routes, financial journals, Remnawave gates and customer data. Each PR requires tests, review, CI and independent live Telegram acceptance. Merge to master deploys automatically.
+Approved sequence: four **independent** phases. Phase 1 merged via [PR #374](https://github.com/DenaSon/skynet/pull/374) with successful PHP 8.4, PHPStan, Pint and MySQL CI. Phase 2 merged via [PR #375](https://github.com/DenaSon/skynet/pull/375) with successful PHP 8.4, PHPStan, Pint and MySQL CI. **Phase 3 is the only implementation scope of the current PR.** Preserve Laravel modular-monolith Actions, private trusted Super Admin checks, existing Admin/Sales routes, financial journals, Remnawave gates and customer data. Each PR requires tests, review, CI and independent live Telegram acceptance. Merge to master deploys automatically.
 
 ## Phase 1 — reliability and actionable follow-up (merged PR #374)
 
@@ -16,7 +16,7 @@ Approved sequence: four **independent** phases. Phase 1 merged via [PR #374](htt
 - No migrations, new packages, ENV changes, scheduler changes, finance corrections, automatic provider operations or history deletion.
 - Rollback: revert this one PR; all delivery and financial records are unchanged.
 
-## Phase 2 — Denaban presentation (current scoped PR; CI and device QA distinct)
+## Phase 2 — Denaban presentation (merged PR #375; real-device QA separate)
 
 Reorder the existing trusted Super Admin Denaban display to **finance → users/subscriptions → action needed → nodes/network** in both the native RTL Rich primary screen and equivalent native HTML fallback. Show key metrics in four compact two-column Rich tables, including node/host counts; retain the existing collapsed per-node telemetry, metric caveats and Tehran report timestamp. Place the existing attention summary **inside** the attention section, after finance and users, not ahead of them.
 
@@ -24,9 +24,20 @@ Rearrange only the existing inline keyboard: finance first, conditional fulfillm
 
 **Acceptance:** both Rich and native render all existing metrics with the same values, the four headings appear in the approved order and unknown stays unknown; the Rich report retains its HTML-escaped, collapsible node details and short Tehran footer. Preserve authorized private root access, deny revoked/group roles, preserve safe fallback, all enabled/disabled action buttons and stable callback IDs, no additional provider operations. Focused fake-Telegram tests and repository CI are required; actual Telegram iOS/Android rendering, expansion and navigation require separate operator verification. Rollback is a single PR revert.
 
-## Phase 3 — management KPI read model (not started)
+## Phase 3 — management KPI read model (current scoped PR)
 
-Reuse canonical bank/wallet settled-sale sources and `users.created_at` without another ledger. Agree and test identical refund, renewal, timezone and half-open window definitions across the existing business reports before computing growth. Report new registered users, settled revenue, transaction count and unique buyers. Day: Tehran today-to-now vs yesterday-to-same-time; week: last seven *complete* days vs preceding seven; month: last *complete* Persian month vs the preceding complete month. Baseline zero does not produce a fabricated growth percentage. No schema, external analytics provider or settlement-write changes.
+New private root-authorized `ReadAdminManagementKpis` Application Action accepts **only** `day`, `week` or `month`. No bot UI or route is added in this phase.
+
+The existing `ReadAdminBusinessReport` now exposes one authorized `settledTotalsBetween` read method used by *both* the current 7/30-day report and the new KPI action. It retains the verified bank and wallet `UNION ALL` query and its exact earlier semantics: verified bank settlement amounts remain counted even if the order status later changes to refunded, whereas corrected/refunded wallet orders are excluded. This describes **recorded gross settled purchase activity**, not bank balance, new cash, net profit or net-of-all-refunds sales. Wallet top-ups and pending orders are excluded. `sales_renewal_orders` remains the canonical renewal marker and buyer uniqueness comes from the buyer ID of settled rows. The phase does not retroactively alter existing revenue/accounting figures.
+
+**Date windows** are half-open `[from, until)`, based on calendar days in `Asia/Tehran` and converted to UTC solely for indexed SQL reads:
+- `day`: Tehran midnight → captured current time; previous Tehran midnight → **yesterday at the identical local clock time**, not all of yesterday.
+- `week`: the last **seven complete** Tehran days, excluding today; previous seven complete days immediately preceding them.
+- `month`: the **last complete Persian civil month** versus the previous complete Persian civil month. Reuse `PersianCalendar::dayOfMonth` to locate month starts through leap Esfand, year boundaries and unequal month lengths; no approximation using 30 Gregorian days.
+
+Both periods expose Tehran-local `from` and exclusive `until`, revenues in rials, transaction count, unique buyers, new purchases, renewals and **new registered local users** (based on `users.created_at`, not bot contact count). Growth percentages are rounded to one decimal. If the previous amount is zero, percentage is `null` (undefined), including both-zero scenarios; clients in phase 4 must show a label instead of fabricated infinity/zero. Use actual `generatedAt` in Tehran and do not equate new user accounts with active/paid subscribers.
+
+**Acceptance / safety:** authorized root and invalid-period denial, canonical 7/30-day report parity, genuine bank/wallet settlement inclusion and corrected wallet exclusion, buyer deduplication, renewal separation, exact UTC SQL boundaries, incomplete current day, week upper edges, 29/30-day leap Persian Esfand and year transition, positive/negative/zero-baseline growth, no writes/no Provider/Telegram requests. Full PHP 8.4 tests, PHPStan, Pint and disposable MySQL CI must pass before merge. No migrations, new dependencies, settings, caches, finance actions, provider calls or new Telegram endpoints. Rollback is a single PR revert.
 
 ## Phase 4 — separate management KPI Rich UI (not started)
 
