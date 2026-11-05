@@ -34,6 +34,62 @@ final readonly class ReadAdminBusinessReport
         $today = Carbon::now('Asia/Tehran')->startOfDay();
         $from = $today->copy()->subDays($days - 1)->utc();
         $until = $today->copy()->addDay()->utc();
+        $totals = $this->settledTotalsBetween($actorId, $from, $until);
+
+        $contacts = static fn (string $botKey) => DB::table('telegram_bot_contacts')->where('bot_key', $botKey);
+        $sales = $contacts('sales');
+        $admin = $contacts('admin');
+
+        $settled = (int) ($totals['settled']);
+        $renewals = (int) ($totals['renewals']);
+
+        return [
+            'days' => $days,
+            'start' => $from->copy()->timezone('Asia/Tehran')->format('Y-m-d'),
+            'end' => $today->format('Y-m-d'),
+            'revenueRials' => (int) ($totals['revenueRials']),
+            'settled' => $settled,
+            'newPurchases' => $settled - $renewals,
+            'renewals' => $renewals,
+            'buyers' => (int) ($totals['buyers']),
+            'fulfilled' => (int) ($totals['fulfilled']),
+            'pendingNow' => (int) DB::table('sales_orders')->where('status', 'pending_payment')->count(),
+            'newUsers' => (int) DB::table('users')->where('created_at', '>=', $from)
+                ->where('created_at', '<', $until)->count(),
+            'linkedTelegram' => (int) DB::table('telegram_accounts')->count(),
+            'salesContacts' => (int) (clone $sales)->count(),
+            'adminContacts' => (int) (clone $admin)->count(),
+            'salesReachable' => (int) (clone $sales)->where('delivery_status', 'reachable')->count(),
+            'adminReachable' => (int) (clone $admin)->where('delivery_status', 'reachable')->count(),
+            'salesEngaged' => (int) (clone $sales)->where('last_seen_at', '>=', $from)
+                ->where('last_seen_at', '<', $until)->count(),
+            'adminEngaged' => (int) (clone $admin)->where('last_seen_at', '>=', $from)
+                ->where('last_seen_at', '<', $until)->count(),
+            'salesNewContacts' => (int) (clone $sales)->where('created_at', '>=', $from)
+                ->where('created_at', '<', $until)->count(),
+            'adminNewContacts' => (int) (clone $admin)->where('created_at', '>=', $from)
+                ->where('created_at', '<', $until)->count(),
+            'generatedAt' => Carbon::now('Asia/Tehran')->format('Y-m-d H:i'),
+        ];
+    }
+
+    /**
+     * Shared canonical purchase-settlement totals for the existing 7/30-day
+     * report and management KPIs. Authenticated, half-open UTC bounds.
+     *
+     * Verified bank settlements remain recorded inflows; corrected/refunded
+     * wallet orders are excluded exactly as in STAT-02. This is gross settled
+     * purchase activity, not net profit or bank account balance.
+     *
+     * @return array{revenueRials:int,settled:int,renewals:int,buyers:int,fulfilled:int}
+     */
+    public function settledTotalsBetween(int $actorId, Carbon $from, Carbon $until): array
+    {
+        $this->access->handle($actorId);
+        if ($until->lessThanOrEqualTo($from)) {
+            throw ValidationException::withMessages(['period' => 'Invalid reporting interval.']);
+        }
+
         $bank = DB::table('sales_bank_settlements as payment')
             ->join('sales_orders as orders', 'orders.id', '=', 'payment.sales_order_id')
             ->leftJoin('sales_renewal_orders as renewal', 'renewal.sales_order_id', '=', 'orders.id')
@@ -55,40 +111,12 @@ final readonly class ReadAdminBusinessReport
             ->selectRaw('COUNT(*) as settled_count, COUNT(DISTINCT buyer_id) as buyers_count, COALESCE(SUM(amount_rials), 0) as revenue_rials, COALESCE(SUM(CASE WHEN renewed = 1 THEN 1 ELSE 0 END), 0) as renewal_count, COALESCE(SUM(CASE WHEN order_status = \'fulfilled\' THEN 1 ELSE 0 END), 0) as fulfilled_count')
             ->first();
 
-        $contacts = static fn (string $botKey) => DB::table('telegram_bot_contacts')->where('bot_key', $botKey);
-        $sales = $contacts('sales');
-        $admin = $contacts('admin');
-
-        $settled = (int) ($totals->settled_count ?? 0);
-        $renewals = (int) ($totals->renewal_count ?? 0);
-
         return [
-            'days' => $days,
-            'start' => $from->copy()->timezone('Asia/Tehran')->format('Y-m-d'),
-            'end' => $today->format('Y-m-d'),
             'revenueRials' => (int) ($totals->revenue_rials ?? 0),
-            'settled' => $settled,
-            'newPurchases' => $settled - $renewals,
-            'renewals' => $renewals,
+            'settled' => (int) ($totals->settled_count ?? 0),
+            'renewals' => (int) ($totals->renewal_count ?? 0),
             'buyers' => (int) ($totals->buyers_count ?? 0),
             'fulfilled' => (int) ($totals->fulfilled_count ?? 0),
-            'pendingNow' => (int) DB::table('sales_orders')->where('status', 'pending_payment')->count(),
-            'newUsers' => (int) DB::table('users')->where('created_at', '>=', $from)
-                ->where('created_at', '<', $until)->count(),
-            'linkedTelegram' => (int) DB::table('telegram_accounts')->count(),
-            'salesContacts' => (int) (clone $sales)->count(),
-            'adminContacts' => (int) (clone $admin)->count(),
-            'salesReachable' => (int) (clone $sales)->where('delivery_status', 'reachable')->count(),
-            'adminReachable' => (int) (clone $admin)->where('delivery_status', 'reachable')->count(),
-            'salesEngaged' => (int) (clone $sales)->where('last_seen_at', '>=', $from)
-                ->where('last_seen_at', '<', $until)->count(),
-            'adminEngaged' => (int) (clone $admin)->where('last_seen_at', '>=', $from)
-                ->where('last_seen_at', '<', $until)->count(),
-            'salesNewContacts' => (int) (clone $sales)->where('created_at', '>=', $from)
-                ->where('created_at', '<', $until)->count(),
-            'adminNewContacts' => (int) (clone $admin)->where('created_at', '>=', $from)
-                ->where('created_at', '<', $until)->count(),
-            'generatedAt' => Carbon::now('Asia/Tehran')->format('Y-m-d H:i'),
         ];
     }
 }
