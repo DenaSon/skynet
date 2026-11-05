@@ -148,17 +148,20 @@ it('shows only the referrer own registered and rewarded friends with current cap
         ->and($summary->rewardedCount)->toBe(1)
         ->and($summary->earnedRials)->toBe(300000)
         ->and($summary->remainingRewards)->toBe(6)
-        ->and($summary->rewardAmountRials)->toBe(300000);
+        ->and($summary->rewardAmountRials)->toBe(300000)
+        ->and($summary->rewardLimit)->toBe(7);
     config()->set('referral.max_rewards_per_referrer', 1);
     config()->set('referral.reward_tomans', 45000);
     $changed = app(GetReferralInvite::class)->handle($referrer->id);
     expect($changed->earnedRials)->toBe(300000)
         ->and($changed->remainingRewards)->toBe(0)
-        ->and($changed->rewardAmountRials)->toBe(450000);
+        ->and($changed->rewardAmountRials)->toBe(450000)
+        ->and($changed->rewardLimit)->toBe(1);
     config()->set('referral.rewards_enabled', false);
     $disabled = app(GetReferralInvite::class)->handle($referrer->id);
     expect($disabled->earnedRials)->toBe(300000)
-        ->and($disabled->remainingRewards)->toBeNull();
+        ->and($disabled->remainingRewards)->toBeNull()
+        ->and($disabled->rewardLimit)->toBeNull();
 });
 
 it('retains existing Sales invite copy and share controls while showing live reward terms', function (): void {
@@ -186,13 +189,21 @@ it('retains existing Sales invite copy and share controls while showing live rew
 
         return ($rich['is_rtl'] ?? false) === true
             && str_contains($html, $url)
-            && str_contains($html, 'دوستان ثبت‌نام‌شده: 1')
-            && str_contains($html, 'دوستان دارای پاداش: <b>1</b>')
-            && str_contains($html, '30,000 تومان')
-            && str_contains($html, 'ظرفیت باقی‌مانده: <b>6</b>')
-            && str_contains($html, '<summary>📋 شرایط دریافت پاداش</summary>')
+            && str_contains($html, '<table bordered striped compact>')
+            && str_contains($html, '<td>دوستان دعوت‌شده</td><td><b>۱ نفر</b>')
+            && str_contains($html, '<td>دعوت‌های پاداش‌دار</td><td><b>۱ نفر</b>')
+            && str_contains($html, '<td>مجموع پاداش</td><td><b>۳۰۰٬۰۰۰ ریال</b>')
+            && str_contains($html, '<td>ظرفیت باقی‌مانده</td><td><b>۶ نفر</b>')
+            && str_contains($html, '<td>هدیه هر دعوت موفق</td><td><b>۳۰۰٬۰۰۰ ریال</b>')
+            && str_contains($html, '<summary>📋 چطور جایزه بگیرم؟</summary>')
+            && str_contains($html, 'با معرفی موفق ۷ دوست')
+            && str_contains($html, '۲٬۱۰۰٬۰۰۰ ریال جایزه بگیری!')
+            && ! str_contains($html, 'تست رایگان و خریدهای نمایندگی')
+            && ($markup['inline_keyboard'][0][0]['text'] ?? null) === '📤 اشتراک‌گذاری در تلگرام'
+            && str_starts_with((string) ($markup['inline_keyboard'][0][0]['url'] ?? ''), 'https://t.me/share/url?')
             && ($markup['inline_keyboard'][1][0]['copy_text']['text'] ?? null) === $url
-            && str_starts_with((string) ($markup['inline_keyboard'][2][0]['url'] ?? ''), 'https://t.me/share/url?');
+            && ($markup['inline_keyboard'][2][0]['callback_data'] ?? null) === 'sales:home'
+            && ! str_contains(json_encode($markup, JSON_THROW_ON_ERROR), 'sales:invite:simple');
     });
     Http::assertNothingSent();
 });
