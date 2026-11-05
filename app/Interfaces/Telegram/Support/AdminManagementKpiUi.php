@@ -88,7 +88,7 @@ final readonly class AdminManagementKpiUi
     }
 
     /**
-     * @param array<string,mixed> $data ReadAdminManagementKpis authorized result
+     * @param  array<string,mixed>  $data  ReadAdminManagementKpis authorized result
      */
     private function richReport(array $data): string
     {
@@ -124,7 +124,7 @@ final readonly class AdminManagementKpiUi
     /**
      * Native HTML fallback uses the exact same authorized result and buttons.
      *
-     * @param array<string,mixed> $data
+     * @param  array<string,mixed>  $data
      */
     private function simpleReport(array $data): string
     {
