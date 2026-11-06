@@ -124,14 +124,26 @@ final readonly class AdminRwBackupUi
             $keyboard = InlineKeyboardMarkup::make();
             if ($item['state'] === 'ready') {
                 $keyboard->addRow(InlineKeyboardButton::make('⬇️ دریافت لینک دانلود', callback_data: 'admin:rwbackup:download:'.$id));
-                $keyboard->addRow(InlineKeyboardButton::make('🗑️ حذف نسخه', callback_data: 'admin:rwbackup:delete:'.$id));
+                $keyboard->addRow(InlineKeyboardButton::make('🗑️ حذف بک‌آپ', callback_data: 'admin:rwbackup:delete:'.$id));
             }
-            $keyboard->addRow(InlineKeyboardButton::make('◀️ لیست بک‌آپ‌ها', callback_data: 'admin:rwbackup:list:1'));
-            $text = 'شناسه: '.TelegramUi::code($id)
-                ."\nزمان: ".self::date($item['timestamp'])
-                ."\nحجم: ".self::size($item['size'])
-                ."\nوضعیت: ".self::label($item['state']);
-            $this->show($bot, '📦 جزئیات بک‌آپ', $text, $keyboard);
+            $keyboard->addRow(InlineKeyboardButton::make('◀️ بازگشت به فهرست', callback_data: 'admin:rwbackup:list:1'));
+            $state = self::label($item['state']);
+            $date = self::date($item['timestamp']);
+            $size = self::size($item['size']);
+            $text = 'وضعیت: '.$state."\n"
+                .'تاریخ ایجاد: '.$date."\n"
+                .'حجم فایل: '.$size."\n"
+                .'شناسه نسخه: '.TelegramUi::code($id);
+            $rich = '<table bordered striped compact>'
+                .'<tr><td>وضعیت</td><td><b>'.TelegramUi::escape($state).'</b></td></tr>'
+                .'<tr><td>تاریخ ایجاد</td><td><code>'.TelegramUi::escape($date).'</code></td></tr>'
+                .'<tr><td>حجم فایل</td><td>'.TelegramUi::escape($size).'</td></tr>'
+                .'<tr><td>شناسه</td><td><code>'.TelegramUi::escape($id).'</code></td></tr>'
+                .'</table>';
+            if ($item['state'] !== 'ready') {
+                $keyboard->addRow(InlineKeyboardButton::make('🔄 به‌روزرسانی وضعیت', callback_data: 'admin:rwbackup:view:'.$id));
+            }
+            $this->show($bot, '📦 جزئیات بک‌آپ', $text, $keyboard, $rich);
         } catch (Throwable) {
             $this->listing($bot);
         }
@@ -145,11 +157,11 @@ final readonly class AdminRwBackupUi
         }
         $token = bin2hex(random_bytes(12));
         Cache::put(self::tokenKey('create', $root['userId'], $token), true, now()->addMinutes(3));
-        $this->show($bot, '➕ تهیه بک‌آپ جدید',
-            'بک‌آپ دیتابیس، پیکربندی Remnawave و گواهی‌ها روی سرور RW ساخته و با Restic رمزنگاری می‌شود. تأیید می‌کنی؟',
+        $this->show($bot, '➕ تأیید ایجاد بک‌آپ',
+            "یک نسخه رمزنگاری‌شده از پایگاه داده، تنظیمات و گواهی‌های سرور ایجاد خواهد شد.\nآیا ایجاد بک‌آپ جدید را تأیید می‌کنید؟",
             InlineKeyboardMarkup::make()
-                ->addRow(InlineKeyboardButton::make('✅ شروع', callback_data: 'admin:rwbackup:apply:'.$token))
-                ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'admin:rwbackup:list:1')));
+                ->addRow(InlineKeyboardButton::make('✅ تأیید و شروع', callback_data: 'admin:rwbackup:apply:'.$token))
+                ->addRow(InlineKeyboardButton::make('◀️ انصراف', callback_data: 'admin:rwbackup:list:1')));
     }
 
     public function apply(Nutgram $bot, string $token): void
@@ -166,14 +178,14 @@ final readonly class AdminRwBackupUi
         }
         try {
             $id = $this->backup->start();
-            $this->show($bot, '⏳ بک‌آپ آغاز شد',
-                'شناسه: '.TelegramUi::code($id)."\nعملیات روی سرور در پس‌زمینه اجرا می‌شود. برای مشاهده نتیجه لیست را تازه‌سازی کن.",
+            $this->show($bot, '⏳ ایجاد بک‌آپ آغاز شد',
+                'شناسه نسخه: '.TelegramUi::code($id)."\nبک‌آپ در پس‌زمینه ایجاد می‌شود. برای مشاهده نتیجه، وضعیت نسخه را به‌روزرسانی کنید.",
                 InlineKeyboardMarkup::make()
                     ->addRow(InlineKeyboardButton::make('🔄 مشاهده وضعیت', callback_data: 'admin:rwbackup:view:'.$id))
-                    ->addRow(InlineKeyboardButton::make('◀️ لیست', callback_data: 'admin:rwbackup:list:1')));
+                    ->addRow(InlineKeyboardButton::make('◀️ بازگشت به فهرست', callback_data: 'admin:rwbackup:list:1')));
         } catch (Throwable) {
-            $this->show($bot, '⚠️ شروع ناموفق', 'عملیات آغاز نشد یا بک‌آپ دیگری در حال اجراست.',
-                InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make('◀️ لیست', callback_data: 'admin:rwbackup:list:1')));
+            $this->show($bot, '⚠️ ایجاد بک‌آپ ناموفق بود', 'عملیات آغاز نشد. ممکن است بک‌آپ دیگری در حال ایجاد باشد یا ارتباط با سرور برقرار نباشد.',
+                InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make('◀️ بازگشت به فهرست', callback_data: 'admin:rwbackup:list:1')));
         }
     }
 
@@ -206,9 +218,9 @@ final readonly class AdminRwBackupUi
             }
             $stage = 'telegram_send';
             $bot->sendMessage(
-                text: "🔐 لینک دانلود یک‌بارمصرف تا ۱۰ دقیقه معتبر است.\nفایل بک‌آپ محرمانه است؛ لینک را برای دیگران ارسال نکن.",
+                text: "🔐 لینک دانلود فقط یک‌بار و تا ۱۰ دقیقه اعتبار دارد.\nبرای حفظ محرمانگی بک‌آپ، لینک را در اختیار دیگران قرار ندهید.",
                 reply_markup: InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make(
-                    '⬇️ دانلود فایل رمزنگاری‌شده',
+                    '⬇️ دانلود بک‌آپ رمزنگاری‌شده',
                     url: $url,
                 )),
             );
@@ -217,8 +229,8 @@ final readonly class AdminRwBackupUi
                 'stage' => $stage,
                 'exception' => $exception::class,
             ]);
-            $this->show($bot, '⚠️ دانلود', 'ساخت لینک دانلود ممکن نیست.',
-                InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make('◀️ لیست', callback_data: 'admin:rwbackup:list:1')));
+            $this->show($bot, '⚠️ دریافت لینک ناموفق بود', 'ایجاد لینک دانلود در حال حاضر امکان‌پذیر نیست.',
+                InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make('◀️ بازگشت به فهرست', callback_data: 'admin:rwbackup:list:1')));
         }
     }
 
@@ -232,11 +244,11 @@ final readonly class AdminRwBackupUi
             $this->backup->info($id);
             $token = bin2hex(random_bytes(12));
             Cache::put(self::tokenKey('delete', $root['userId'], $token), $id, now()->addMinutes(3));
-            $this->show($bot, '🗑️ حذف بک‌آپ',
-                'آیا حذف دائمی '.TelegramUi::code($id)." را تأیید می‌کنی؟\nاین عملیات قابل بازگشت نیست. آخرین نسخه سالم قابل حذف نخواهد بود.",
+            $this->show($bot, '🗑️ تأیید حذف بک‌آپ',
+                'شناسه نسخه: '.TelegramUi::code($id)."\nآیا حذف دائمی این نسخه را تأیید می‌کنید؟\nاین اقدام قابل بازگشت نیست. آخرین نسخه سالم قابل حذف نخواهد بود.",
                 InlineKeyboardMarkup::make()
-                    ->addRow(InlineKeyboardButton::make('🗑️ تأیید حذف', callback_data: 'admin:rwbackup:remove:'.$token))
-                    ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'admin:rwbackup:view:'.$id)));
+                    ->addRow(InlineKeyboardButton::make('🗑️ تأیید حذف دائمی', callback_data: 'admin:rwbackup:remove:'.$token))
+                    ->addRow(InlineKeyboardButton::make('◀️ انصراف', callback_data: 'admin:rwbackup:view:'.$id)));
         } catch (Throwable) {
             $this->listing($bot);
         }
@@ -257,12 +269,12 @@ final readonly class AdminRwBackupUi
         }
         try {
             $this->backup->delete($id);
-            $this->show($bot, '✅ نسخه حذف شد', 'فایل انتخابی از سرور پاک شد.',
-                InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make('◀️ لیست', callback_data: 'admin:rwbackup:list:1')));
+            $this->show($bot, '✅ بک‌آپ حذف شد', 'نسخه انتخاب‌شده با موفقیت از سرور حذف شد.',
+                InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make('◀️ بازگشت به فهرست', callback_data: 'admin:rwbackup:list:1')));
         } catch (Throwable) {
-            $this->show($bot, '⚠️ حذف انجام نشد',
-                'فایل در حال استفاده است، یا آخرین نسخه سالم است، یا ارتباط قطع شده.',
-                InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make('◀️ لیست', callback_data: 'admin:rwbackup:list:1')));
+            $this->show($bot, '⚠️ حذف بک‌آپ ناموفق بود',
+                'حذف این نسخه امکان‌پذیر نیست. نسخه ممکن است در حال استفاده یا آخرین بک‌آپ سالم باشد.',
+                InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make('◀️ بازگشت به فهرست', callback_data: 'admin:rwbackup:list:1')));
         }
     }
 
@@ -274,13 +286,13 @@ final readonly class AdminRwBackupUi
     private static function label(string $state): string
     {
         return match ($state) {
-            'ready' => '✅ آماده', 'running' => '⏳ در حال تهیه', default => '🔴 ناموفق',
+            'ready' => '✅ آماده', 'running' => '⏳ در حال ایجاد', default => '❌ ناموفق',
         };
     }
 
     private static function size(int $bytes): string
     {
-        return number_format($bytes / 1048576, 1).' MB';
+        return number_format($bytes / 1048576, 1).' مگابایت';
     }
 
     private static function date(int $timestamp): string
