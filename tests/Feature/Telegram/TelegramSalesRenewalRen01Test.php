@@ -8,6 +8,7 @@ use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Sales\Application\CalculatePlanQuote;
 use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\CreatePendingPlanOrder;
+use App\Modules\Sales\Application\CreatePendingRenewalOrder;
 use App\Modules\Sales\Application\ManagePlanPricing;
 use App\Modules\Sales\Application\ManagePlans;
 use App\Modules\Sales\Application\PlanDefinition;
@@ -24,6 +25,7 @@ use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 use SergiX44\Nutgram\Testing\FakeNutgram;
+use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
 
@@ -332,3 +334,72 @@ it('fails closed on provider outage and mismatched immutable remote identity', f
         ->and(DB::table('sales_renewal_drafts')->count())->toBe(0)
         ->and(DB::table('sales_order_settlements')->count())->toBe(0);
 })->with([true, false]);
+
+it('shows a short bold quoted renewal credit warning with exactly two ordered buttons', function (): void {
+    $data = ren01Fixture();
+    Role::findOrCreate('reseller', 'web');
+    $data['buyer']->syncRoles(['reseller']);
+    config()->set('sales.renewal_enabled', true);
+    config()->set('sales.wallet_settlement_enabled', true);
+    config()->set('billing.topups_enabled', true);
+    config()->set('billing.payment_card_number', '6037991234567890');
+    ren01FakeRemote(ren01Remote($data['order']));
+    $bot = ren01Bot($data['telegram']);
+
+    $bot->hearCallbackQueryData('sales:subs:renew:checkout:'.$data['order'].':0')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $payload = ren01Payload($request);
+            $text = (string) ($payload['text'] ?? '');
+            $buttons = $payload['reply_markup']['inline_keyboard'] ?? [];
+
+            return ($payload['parse_mode'] ?? null) === 'HTML'
+                && str_contains($text, '<b>❌ اعتبار شما کافی نیست</b>')
+                && str_contains($text, 'برای تمدید این سرویس، ابتدا اعتبار پنل خود را افزایش دهید.')
+                && str_contains($text, '<blockquote>🔄 سفارش تمدید #')
+                && str_contains($text, 'پلن: &lt;Dena &amp; Name&gt;')
+                && str_contains($text, 'حجم: 20 گیگابایت')
+                && str_contains($text, 'مدت: 30 روز')
+                && str_contains($text, 'مبلغ تمدید:')
+                && ! str_contains($text, 'اعتبار کافی نیست یا پرداخت از اعتبار موقتاً غیرفعال است')
+                && ! str_contains($text, 'در انتظار پرداخت')
+                && count($buttons) === 2
+                && count($buttons[0]) === 1
+                && ($buttons[0][0]['text'] ?? null) === '➕ افزایش اعتبار'
+                && ($buttons[0][0]['style'] ?? null) === 'success'
+                && ($buttons[0][0]['callback_data'] ?? null) === 'sales:wallet:topup'
+                && ($buttons[1][0]['text'] ?? null) === '💰 اعتبار من'
+                && ($buttons[1][0]['callback_data'] ?? null) === 'sales:wallet';
+        }, index: 2);
+
+    $renewal = DB::table('sales_renewal_orders')->sole();
+    expect(DB::table('sales_orders')->where('id', $renewal->sales_order_id)->value('status'))->toBe('pending_payment')
+        ->and(DB::table('sales_order_settlements')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe(0)
+        ->and(DB::table('sales_bank_payment_claims')->count())->toBe(0);
+    Http::assertSent(static fn (Request $r): bool => $r->method() === 'GET');
+});
+
+it('never advertises an unavailable top-up action on an insufficient renewal', function (): void {
+    $data = ren01Fixture();
+    Role::findOrCreate('reseller', 'web');
+    $data['buyer']->syncRoles(['reseller']);
+    config()->set('sales.renewal_enabled', true);
+    config()->set('sales.wallet_settlement_enabled', true);
+    config()->set('billing.topups_enabled', false);
+    ren01FakeRemote(ren01Remote($data['order']));
+    $bot = ren01Bot($data['telegram']);
+
+    $bot->hearCallbackQueryData('sales:subs:renew:checkout:'.$data['order'].':0')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $payload = ren01Payload($request);
+            $text = (string) ($payload['text'] ?? '');
+            $buttons = $payload['reply_markup']['inline_keyboard'] ?? [];
+
+            return str_contains($text, '<b>❌ اعتبار شما کافی نیست</b>')
+                && str_contains($text, 'افزایش اعتبار فعلاً در دسترس نیست')
+                && count($buttons) === 1
+                && ($buttons[0][0]['callback_data'] ?? null) === 'sales:wallet'
+                && ! str_contains(json_encode($buttons, JSON_THROW_ON_ERROR), 'sales:wallet:topup');
+        }, index: 2);
+    expect(DB::table('sales_order_settlements')->count())->toBe(0);
+});
