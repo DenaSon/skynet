@@ -2,10 +2,12 @@
 
 declare(strict_types=1);
 
+use App\Interfaces\Telegram\Support\RwBackupDownloadUrl;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Application\RwBackupOperations;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
@@ -115,11 +117,11 @@ it('generates backup URLs from the canonical HTTPS origin behind an HTTP proxy',
     $originalRequest = app('request');
     try {
         // Runflare terminates TLS before the HTTP request reaches PHP-FPM.
-        app('url')->setRequest(\Illuminate\Http\Request::create(
+        app('url')->setRequest(Request::create(
             'http://internal.runflare.test/api/telegram/webhook', 'POST'
         ));
         $token = str_repeat('a', 64);
-        expect(\App\Interfaces\Telegram\Support\RwBackupDownloadUrl::forToken($token))
+        expect(RwBackupDownloadUrl::forToken($token))
             ->toBe('https://backup.denagate.example/internal/rw-backups/'.$token);
     } finally {
         app('url')->setRequest($originalRequest);
@@ -135,8 +137,8 @@ it('refuses insecure or malformed public origins for backup links', function ():
         'https://backup.denagate.example/path',
     ] as $origin) {
         config()->set('app.url', $origin);
-        expect(fn () => \App\Interfaces\Telegram\Support\RwBackupDownloadUrl::forToken($token))
-            ->toThrow(\RuntimeException::class);
+        expect(fn () => RwBackupDownloadUrl::forToken($token))
+            ->toThrow(RuntimeException::class);
     }
 });
 
