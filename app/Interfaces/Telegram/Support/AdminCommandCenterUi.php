@@ -59,7 +59,7 @@ final readonly class AdminCommandCenterUi
 
             return;
         } catch (\Throwable) {
-            $text = "<b>🏔️ دنابان | وضعیت دنا</b>\n\nدریافت گزارش فعلاً ممکن نیست. دوباره بررسی کنید.";
+            $text = "<b>📡 دنابان | وضعیت دنا</b>\n\nدریافت گزارش فعلاً ممکن نیست. دوباره بررسی کنید.";
         }
 
         // Financial navigation first, then actionable follow-up, then system tools.
@@ -154,7 +154,7 @@ final readonly class AdminCommandCenterUi
                 : 'در بخش‌های بررسی‌شده موردی برای پیگیری ثبت نشده.');
 
         $lines = [
-            '<b>🏔️ دنابان | وضعیت دنا</b>',
+            '<b>📡 دنابان | وضعیت دنا</b>',
             '',
             '<b>💰 وضعیت مالی</b>',
             '💵 دریافتی کل: '.self::toman(self::number($cash, 'cashInRials')),
@@ -225,7 +225,7 @@ final readonly class AdminCommandCenterUi
             self::nodeLines($stats),
         ));
 
-        return '<h2>🏔️ دنابان | وضعیت دنا</h2>'
+        return '<h2>📡 دنابان | وضعیت دنا</h2>'
             .'<h3>💰 وضعیت مالی</h3>'
             .self::richTable([
                 ['💵 دریافتی کل', self::toman(self::number($cash, 'cashInRials'))],

@@ -48,7 +48,7 @@ final readonly class AdminRwBackupUi
             return;
         }
         $back = InlineKeyboardMarkup::make()
-            ->addRow(InlineKeyboardButton::make('◀️ بازگشت به تنظیمات', callback_data: 'admin:welcome:show'));
+            ->addRow(InlineKeyboardButton::make('◀️ کنترل پنل', callback_data: 'menu:admin:control'));
         if (config('rw_backup.enabled') !== true) {
             $this->show($bot, '🗄️ مدیریت بک‌آپ', 'مدیریت بک‌آپ در حال حاضر غیرفعال است.', $back);
 
@@ -83,7 +83,7 @@ final readonly class AdminRwBackupUi
                 $keyboard->addRow(...$nav);
             }
             $keyboard->addRow(InlineKeyboardButton::make('🔄 به‌روزرسانی', callback_data: 'admin:rwbackup:list:'.$requested));
-            $keyboard->addRow(InlineKeyboardButton::make('◀️ بازگشت به تنظیمات', callback_data: 'admin:welcome:show'));
+            $keyboard->addRow(InlineKeyboardButton::make('◀️ کنترل پنل', callback_data: 'menu:admin:control'));
 
             $total = self::size(array_sum(array_column($items, 'size')));
             $count = number_format(count($items));

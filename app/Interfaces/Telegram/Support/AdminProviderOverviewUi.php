@@ -66,6 +66,7 @@ final readonly class AdminProviderOverviewUi
         );
 
         $keyboard->addRow(InlineKeyboardButton::make('🌐 مدیریت DNS', callback_data: 'cf2:zones'));
+        $keyboard->addRow(InlineKeyboardButton::make('👥 کاربران پنل', callback_data: 'menu:admin:panelusers'));
         $keyboard->addRow(InlineKeyboardButton::make('🔄 به‌روزرسانی', callback_data: 'servers:refresh'));
 
         $keyboard->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));

@@ -53,10 +53,9 @@ final class SettingsHandler
             ->addRow(InlineKeyboardButton::make('🧩 خوشامدگویی نماینده', callback_data: 'admin:welcome:edit:reseller'))
             ->addRow(InlineKeyboardButton::make('🔐 مدیریت سرویس توسط نماینده', callback_data: 'admin:reseller-status:show'))
             ->addRow(InlineKeyboardButton::make('🧰 تنظیمات عملیاتی', callback_data: 'admin:ops:show'))
-            ->addRow(InlineKeyboardButton::make('🗄️ مدیریت بک‌آپ', callback_data: 'admin:rwbackup:list:1'))
-            ->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
+            ->addRow(InlineKeyboardButton::make('◀️ کنترل پنل', callback_data: 'menu:admin:control'));
 
-        $this->render($bot, '<b>⚙️ تنظیمات</b>'."\n\nبخش موردنظر را انتخاب کنید.", $keyboard);
+        $this->render($bot, '<b>⚙️ تنظیمات سیستم</b>'."\n\nبخش موردنظر را انتخاب کنید.", $keyboard);
     }
 
     /** Root-only control for the reseller Mini App; no Provider operation here. */
