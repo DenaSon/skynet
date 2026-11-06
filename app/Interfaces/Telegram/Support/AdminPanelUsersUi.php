@@ -84,7 +84,7 @@ final readonly class AdminPanelUsersUi
         }
 
         $keyboard->addRow(InlineKeyboardButton::make('🔄 به‌روزرسانی', callback_data: 'rw:users:page:'.$requestedPage));
-        $keyboard->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
+        $keyboard->addRow(InlineKeyboardButton::make('◀️ سرورها', callback_data: 'menu:admin:servers'));
 
         $this->render($bot, $message, $keyboard);
     }
@@ -120,7 +120,7 @@ final readonly class AdminPanelUsersUi
         $keyboard = InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('🔄 به‌روزرسانی', callback_data: "rw:users:view:{$id}:{$requestedPage}"))
             ->addRow(InlineKeyboardButton::make('◀️ کاربران پنل', callback_data: 'rw:users:page:'.$requestedPage))
-            ->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
+            ->addRow(InlineKeyboardButton::make('◀️ سرورها', callback_data: 'menu:admin:servers'));
 
         $result = $this->detailRead->handle($actor->userId, (int) $id);
 
@@ -154,7 +154,7 @@ final readonly class AdminPanelUsersUi
     private function backKeyboard(): InlineKeyboardMarkup
     {
         return InlineKeyboardMarkup::make()
-            ->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
+            ->addRow(InlineKeyboardButton::make('◀️ سرورها', callback_data: 'menu:admin:servers'));
     }
 
     private function render(Nutgram $bot, string $message, InlineKeyboardMarkup $keyboard): void

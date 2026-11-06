@@ -39,22 +39,26 @@ final readonly class AdminNotificationTopicUi
             ->where('user_id', $actor->userId)->where('chat_id', $this->privateUser->id($bot))
             ->first(['admin_notification_thread_id']);
         $thread = $contact?->admin_notification_thread_id;
+        $back = $this->backKeyboard($actor);
 
         if ($thread !== null && (int) $thread > 1) {
-            $this->render($bot, "✅ اعلان‌های مدیریت برای شما فعال است.\n\nاعلان‌های مجاز در اتاق «🔔 اعلان‌های مدیریت» نمایش داده می‌شوند.");
+            $this->render($bot, "✅ اعلان‌های مدیریت برای شما فعال است.\n\nاعلان‌های مجاز در اتاق «🔔 اعلان‌های مدیریت» نمایش داده می‌شوند.", $back);
 
             return;
         }
 
         if ($thread !== null) {
-            $this->render($bot, "⚠️ وضعیت ساخت اتاق اعلان‌ها نیازمند بررسی است.\nبرای جلوگیری از ساخت اتاق تکراری، لطفاً با مدیر اصلی هماهنگ کنید.");
+            $this->render($bot, "⚠️ وضعیت ساخت اتاق اعلان‌ها نیازمند بررسی است.\nبرای جلوگیری از ساخت اتاق تکراری، لطفاً با مدیر اصلی هماهنگ کنید.", $back);
 
             return;
         }
 
         $keyboard = InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('🔔 فعال‌سازی اعلان‌های من', callback_data: 'admin:notice-topic:enable'))
-            ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'menu:admin'));
+            ->addRow(InlineKeyboardButton::make(
+                $actor->canManageRoles() ? '◀️ تنظیمات سیستم' : '◀️ مدیریت',
+                callback_data: $actor->canManageRoles() ? 'admin:welcome:show' : 'menu:admin',
+            ));
         $this->render($bot, "🔔 اعلان‌های مدیریت\n\nیک اتاق خصوصی برای اعلان‌های مجاز شما ساخته می‌شود. این قابلیت اختیاری است.", $keyboard);
     }
 
@@ -123,12 +127,12 @@ final readonly class AdminNotificationTopicUi
             }
         } catch (Throwable) {
             // Keep the uncertain reservation: a blind retry may create duplicate topics.
-            $this->render($bot, "⚠️ ساخت اتاق اعلان‌ها تأیید نشد.\nبرای بررسی و جلوگیری از ایجاد اتاق تکراری، با مدیر اصلی هماهنگ کنید.");
+            $this->render($bot, "⚠️ ساخت اتاق اعلان‌ها تأیید نشد.\nبرای بررسی و جلوگیری از ایجاد اتاق تکراری، با مدیر اصلی هماهنگ کنید.", $this->backKeyboard($actor));
 
             return;
         }
 
-        $this->render($bot, "✅ اتاق «🔔 اعلان‌های مدیریت» ساخته شد.\n\nاز این پس اعلان‌های مجاز در اتاق اختصاصی شما نمایش داده می‌شوند.");
+        $this->render($bot, "✅ اتاق «🔔 اعلان‌های مدیریت» ساخته شد.\n\nاز این پس اعلان‌های مجاز در اتاق اختصاصی شما نمایش داده می‌شوند.", $this->backKeyboard($actor));
     }
 
     private function authorized(Nutgram $bot): ?TelegramActor
@@ -147,6 +151,15 @@ final readonly class AdminNotificationTopicUi
         }
 
         return $actor;
+    }
+
+    private function backKeyboard(TelegramActor $actor): InlineKeyboardMarkup
+    {
+        return InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make(
+                $actor->canManageRoles() ? '◀️ تنظیمات سیستم' : '◀️ مدیریت',
+                callback_data: $actor->canManageRoles() ? 'admin:welcome:show' : 'menu:admin',
+            ));
     }
 
     private function render(Nutgram $bot, string $message, ?InlineKeyboardMarkup $keyboard = null): void
