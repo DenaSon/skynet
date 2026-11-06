@@ -94,7 +94,7 @@ case "${ARGS[1]}" in
   stream)
     [[ ${#ARGS[@]} -eq 3 ]] || exit 64
     valid_id "${ARGS[2]}" || exit 64
-    flock -s 9
+    flock -n -s 9 || exit 75
     archive="$(require_ready "${ARGS[2]}")"
     cat -- "$archive"
     ;;
