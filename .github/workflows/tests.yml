@@ -280,6 +280,11 @@ jobs:
       - name: Migrate disposable MySQL database
         run: php artisan migrate --force
 
+      - name: Verify consistent KPI snapshots on MySQL
+        env:
+          KPI_MYSQL_SMOKE: '1'
+        run: php tests/Smoke/kpi_mysql_snapshot.php
+
       - name: Verify real Redis provider queue and legacy database drain
         env:
           PROVIDER_REDIS_SMOKE: '1'

@@ -374,7 +374,7 @@ it('separates direct reseller and unknown settled channels without guessing hist
         ->and($data['current']['topBuyers'][0]['buyerUserId'])->toBe($reseller->id)
         ->and($data['current']['topBuyers'][0]['revenueRials'])->toBe(2_000_000)
         ->and($data['current']['topThreeRevenueRials'])->toBe(3_500_000)
-        ->and($data['current']['topThreeSharePercent'])->toBe(92.1);
+        ->and($data['current']['topThreeSharePercent'])->toEqualWithDelta(3_500_000 / 3_800_000 * 100, 0.000001);
     Http::assertNothingSent();
 });
 
