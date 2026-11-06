@@ -16,16 +16,18 @@ flock -x 9
 [[ -r "$PW" && -d /opt/remnawave ]] || exit 69
 [[ ! -e "$FINAL" ]] || exit 73
 
-STAGE="$(mktemp -d "$BASE/.stage.XXXXXXXX")"
+STAGE=""
 cleanup() {
   local code=$?
   if ((code != 0)); then
     printf 'failed\n' > "$STATE"
     rm -f -- "$FINAL" "$FINAL.sha256" "$FINAL.part" "$FINAL.sha256.part"
   fi
-  rm -rf -- "$STAGE"
+  [[ -z "$STAGE" ]] || rm -rf -- "$STAGE"
 }
 trap cleanup EXIT
+trap 'exit 1' TERM INT
+STAGE="$(mktemp -d "$BASE/.stage.XXXXXXXX")"
 export RESTIC_PASSWORD_FILE="$PW"
 
 mkdir -p "$STAGE/extras" "$STAGE/repository"
