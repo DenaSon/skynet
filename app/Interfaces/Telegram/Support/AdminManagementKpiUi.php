@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Interfaces\Telegram\Support;
 
 use App\Modules\Identity\Application\ResolveTelegramActor;
-use App\Modules\Sales\Application\ReadAdminManagementKpis;
+use App\Modules\Sales\Application\ReadAdminSalesChannelKpis;
 use App\Support\PersianCalendar;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Carbon;
@@ -23,7 +23,7 @@ final readonly class AdminManagementKpiUi
     public function __construct(
         private PrivateTelegramUser $private,
         private ResolveTelegramActor $actors,
-        private ReadAdminManagementKpis $kpis,
+        private ReadAdminSalesChannelKpis $channels,
         private MenuRenderer $menus,
     ) {}
 
@@ -54,9 +54,12 @@ final readonly class AdminManagementKpiUi
         $keyboard = $this->keyboard($period);
         $rich = null;
         try {
-            $data = $this->kpis->handle($actor->userId, $period);
-            $text = $this->simpleReport($data);
-            $rich = $this->richReport($data);
+            // One authorized snapshot includes the canonical management metrics and
+            // both channel windows; do not issue an independent KPI read.
+            $report = $this->channels->handle($actor->userId, $period);
+            $data = $report['management'];
+            $text = $this->simpleReport($data, $report);
+            $rich = $this->richReport($data, $report);
         } catch (AuthorizationException) {
             $this->menus->denyAccess($bot);
 
@@ -90,7 +93,7 @@ final readonly class AdminManagementKpiUi
     /**
      * @param  array<string,mixed>  $data  ReadAdminManagementKpis authorized result
      */
-    private function richReport(array $data): string
+    private function richReport(array $data, ?array $channels = null): string
     {
         $current = $data['current'];
         $previous = $data['previous'];
@@ -102,6 +105,7 @@ final readonly class AdminManagementKpiUi
             .'<p>📅 بازه مقایسه: '.self::range($previous, $data['period']).'</p>'
             .'<h3>💰 عملکرد فروش</h3>'
             .self::comparisonTable(self::salesRows($data))
+            .($channels === null ? '' : self::richChannels($channels))
             .'<h3>👥 ثبت‌نام کاربران</h3>'
             .self::table([
                 ['کاربران جدید · بازه اخیر', self::count($current['newUsers'])],
@@ -120,7 +124,7 @@ final readonly class AdminManagementKpiUi
      *
      * @param  array<string,mixed>  $data
      */
-    private function simpleReport(array $data): string
+    private function simpleReport(array $data, ?array $channels = null): string
     {
         $current = $data['current'];
         $previous = $data['previous'];
@@ -132,6 +136,7 @@ final readonly class AdminManagementKpiUi
             ."\n📅 بازه مقایسه: ".self::range($previous, $data['period'])
             ."\n\n<b>💰 عملکرد فروش</b>"
             .self::simpleComparisons(self::salesRows($data))
+            .($channels === null ? '' : self::simpleChannels($channels))
             ."\n\n<b>👥 ثبت‌نام کاربران</b>"
             ."\nکاربران جدید · بازه اخیر: ".self::count($current['newUsers'])
             ."\nکاربران جدید · بازه قبل: ".self::count($previous['newUsers'])
@@ -141,6 +146,130 @@ final readonly class AdminManagementKpiUi
             .' «بدون مبنا» یعنی بازه قبل صفر بوده است.'
             .' میانگین به نزدیک‌ترین تومان گرد شده است.</blockquote>'
             ."\n🕒 ".PersianCalendar::localDateTime($data['generatedAt']).' (تهران)';
+    }
+
+    /**
+     * Phase 3: display only the canonical read model created in phase 2.
+     * The denominator includes UNKNOWN historical sales, not just known channels.
+     *
+     * @param  array<string,mixed>  $report
+     */
+    private static function richChannels(array $report): string
+    {
+        return '<h3>🏷️ کانال‌های فروش</h3>'
+            .self::comparisonTable(self::channelRows($report))
+            .'<details><summary>🏆 تمرکز فروش</summary>'
+            .self::comparisonTable(self::concentrationRows($report))
+            .'</details>'
+            .'<p>کانال نامشخص شامل سفارش‌های قدیمی فاقد دسته‌بندی است.</p>';
+    }
+
+    /** @param array<string,mixed> $report */
+    private static function simpleChannels(array $report): string
+    {
+        return "\n\n<b>🏷️ کانال‌های فروش</b>"
+            .self::simpleComparisons(self::channelRows($report))
+            ."\n\n<b>🏆 تمرکز فروش</b>"
+            .self::simpleComparisons(self::concentrationRows($report))
+            ."\nکانال نامشخص شامل سفارش‌های قدیمی فاقد دسته‌بندی است.";
+    }
+
+    /**
+     * @param  array<string,mixed>  $report
+     * @return list<array{string,string,string,string}>
+     */
+    private static function channelRows(array $report): array
+    {
+        $current = $report['current']['channels'];
+        $previous = $report['previous']['channels'];
+        $currentRevenue = $report['management']['current']['revenueRials'];
+        $previousRevenue = $report['management']['previous']['revenueRials'];
+        $rows = [];
+
+        foreach ([
+            'direct' => ['فروش مستقیم', 'سهم فروش مستقیم'],
+            'reseller' => ['فروش نمایندگی', 'سهم فروش نمایندگی'],
+            'unknown' => ['کانال نامشخص', 'سهم نامشخص'],
+        ] as $category => [$salesLabel, $shareLabel]) {
+            $recent = $current[$category]['revenueRials'];
+            $prior = $previous[$category]['revenueRials'];
+            $recentShare = self::share($recent, $currentRevenue);
+            $priorShare = self::share($prior, $previousRevenue);
+            $rows[] = [
+                $salesLabel, self::money($recent), self::money($prior), self::comparisonPercent($recent, $prior),
+            ];
+            $rows[] = [
+                $shareLabel, self::shareValue($recentShare), self::shareValue($priorShare),
+                self::sharePointChange($recentShare, $priorShare),
+            ];
+        }
+
+        $recentResellers = $current['reseller']['uniqueBuyers'];
+        $priorResellers = $previous['reseller']['uniqueBuyers'];
+        $rows[] = [
+            'نمایندگان خریدار', self::count($recentResellers), self::count($priorResellers),
+            self::comparisonPercent($recentResellers, $priorResellers),
+        ];
+
+        return $rows;
+    }
+
+    /**
+     * @param  array<string,mixed>  $report
+     * @return list<array{string,string,string,string}>
+     */
+    private static function concentrationRows(array $report): array
+    {
+        $current = $report['current'];
+        $previous = $report['previous'];
+
+        return [
+            [
+                'فروش حداکثر ۳ خریدار برتر',
+                self::money($current['topThreeRevenueRials']),
+                self::money($previous['topThreeRevenueRials']),
+                self::comparisonPercent($current['topThreeRevenueRials'], $previous['topThreeRevenueRials']),
+            ],
+            [
+                'سهم خریداران برتر از کل',
+                self::shareValue($current['topThreeSharePercent']),
+                self::shareValue($previous['topThreeSharePercent']),
+                self::sharePointChange($current['topThreeSharePercent'], $previous['topThreeSharePercent']),
+            ],
+            [
+                'تعداد خریداران برتر',
+                self::count(count($current['topBuyers'])),
+                self::count(count($previous['topBuyers'])),
+                self::comparisonPercent(count($current['topBuyers']), count($previous['topBuyers'])),
+            ],
+        ];
+    }
+
+    /** The share denominator includes direct, reseller and unknown settlements. */
+    private static function share(int $part, int $total): ?float
+    {
+        return $total === 0 ? null : $part / $total * 100;
+    }
+
+    private static function shareValue(?float $value): string
+    {
+        return $value === null
+            ? 'بدون مبنا'
+            : PersianCalendar::digits(str_replace('.', '٫', number_format($value, 1))).'٪';
+    }
+
+    /** Share movement is percentage POINTS, never relative percent growth. */
+    private static function sharePointChange(?float $current, ?float $previous): string
+    {
+        if ($current === null || $previous === null) {
+            return 'قابل محاسبه نیست';
+        }
+
+        $delta = round($current - $previous, 1);
+        $sign = $delta > 0 ? '+' : ($delta < 0 ? '−' : '');
+
+        return $sign.PersianCalendar::digits(str_replace('.', '٫', number_format(abs($delta), 1)))
+            .' واحد درصد';
     }
 
     /**
