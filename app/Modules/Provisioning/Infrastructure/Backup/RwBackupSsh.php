@@ -7,7 +7,7 @@ namespace App\Modules\Provisioning\Infrastructure\Backup;
 use RuntimeException;
 use Symfony\Component\Process\Process;
 
-final class RwBackupSsh
+class RwBackupSsh
 {
     public static function validId(string $id): bool
     {
