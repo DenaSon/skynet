@@ -13,6 +13,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
+use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
 
@@ -348,6 +349,7 @@ it('separates direct reseller and unknown settled channels without guessing hist
 
     // An old discounted order must stay UNKNOWN even when the buyer has a
     // current reseller role or a reseller-looking price.
+    Role::findOrCreate('reseller', 'web');
     $historical->assignRole('reseller');
     DB::table('sales_orders')->where('id', $old)->update(['discount_percent' => 35]);
     $bankRefund = kpiSettlement($fourth, 'bank', '2026-11-05 13:00:00', 200_000, category: 'reseller');
