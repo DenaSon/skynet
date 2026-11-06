@@ -897,3 +897,27 @@ $bot->onCallbackQueryData('full:service:apply:{token}', function (Nutgram $bot, 
 $bot->onCallbackQueryData('full:service:check:{id}', function (Nutgram $bot, string $id): void {
     app(AdminSubscriptionStatusUi::class)->check($bot, $id);
 });
+
+
+// RW-BACKUP-01: trusted private root-only backup administration.
+$bot->onCallbackQueryData('admin:rwbackup:list:{page}', function (Nutgram $bot, string $page): void {
+    app(\App\Interfaces\Telegram\Support\AdminRwBackupUi::class)->listing($bot, $page);
+});
+$bot->onCallbackQueryData('admin:rwbackup:view:{id}', function (Nutgram $bot, string $id): void {
+    app(\App\Interfaces\Telegram\Support\AdminRwBackupUi::class)->detail($bot, $id);
+});
+$bot->onCallbackQueryData('admin:rwbackup:prepare', function (Nutgram $bot): void {
+    app(\App\Interfaces\Telegram\Support\AdminRwBackupUi::class)->prepare($bot);
+});
+$bot->onCallbackQueryData('admin:rwbackup:apply:{token}', function (Nutgram $bot, string $token): void {
+    app(\App\Interfaces\Telegram\Support\AdminRwBackupUi::class)->apply($bot, $token);
+});
+$bot->onCallbackQueryData('admin:rwbackup:download:{id}', function (Nutgram $bot, string $id): void {
+    app(\App\Interfaces\Telegram\Support\AdminRwBackupUi::class)->download($bot, $id);
+});
+$bot->onCallbackQueryData('admin:rwbackup:delete:{id}', function (Nutgram $bot, string $id): void {
+    app(\App\Interfaces\Telegram\Support\AdminRwBackupUi::class)->prepareDelete($bot, $id);
+});
+$bot->onCallbackQueryData('admin:rwbackup:remove:{token}', function (Nutgram $bot, string $token): void {
+    app(\App\Interfaces\Telegram\Support\AdminRwBackupUi::class)->remove($bot, $token);
+});
