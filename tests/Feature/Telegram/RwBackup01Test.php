@@ -108,3 +108,52 @@ it('lists old and managed backups without making a remote mutation', function ()
     $bot = backup01Bot(899101);
     $bot->hearCallbackQueryData('admin:rwbackup:list:1')->reply()->assertCalled('editMessageText');
 });
+
+it('generates backup URLs from the canonical HTTPS origin behind an HTTP proxy', function (): void {
+    config()->set('app.url', 'https://backup.denagate.example');
+
+    $originalRequest = app('request');
+    try {
+        // Runflare terminates TLS before the HTTP request reaches PHP-FPM.
+        app('url')->setRequest(\Illuminate\Http\Request::create(
+            'http://internal.runflare.test/api/telegram/webhook', 'POST'
+        ));
+        $token = str_repeat('a', 64);
+        expect(\App\Interfaces\Telegram\Support\RwBackupDownloadUrl::forToken($token))
+            ->toBe('https://backup.denagate.example/internal/rw-backups/'.$token);
+    } finally {
+        app('url')->setRequest($originalRequest);
+    }
+});
+
+it('refuses insecure or malformed public origins for backup links', function (): void {
+    $token = str_repeat('a', 64);
+    foreach ([
+        'http://backup.denagate.example',
+        'https://alice:pass@backup.denagate.example',
+        'https://backup.denagate.example?token=bad',
+        'https://backup.denagate.example/path',
+    ] as $origin) {
+        config()->set('app.url', $origin);
+        expect(fn () => \App\Interfaces\Telegram\Support\RwBackupDownloadUrl::forToken($token))
+            ->toThrow(\RuntimeException::class);
+    }
+});
+
+it('sends the download link from an authorized Telegram backup callback', function (): void {
+    config()->set('rw_backup.enabled', true);
+    config()->set('app.url', 'https://backup.denagate.example');
+    backup01User(true, 899101);
+
+    $id = 'denagate-rw-20261106T141129Z';
+    $remote = Mockery::mock(RwBackupOperations::class);
+    $remote->shouldReceive('info')->once()->with($id)->andReturn([
+        'size' => 128993280,
+        'sha256' => 'cb89e3e01a0306352411103b195b605d6c4a94f51d56efd46e3280cd37f9489c',
+    ]);
+    app()->instance(RwBackupOperations::class, $remote);
+
+    $bot = backup01Bot(899101);
+    $bot->hearCallbackQueryData('admin:rwbackup:download:'.$id)
+        ->reply()->assertCalled('sendMessage');
+});
