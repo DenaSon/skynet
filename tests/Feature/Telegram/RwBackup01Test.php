@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
-use App\Modules\Provisioning\Infrastructure\Backup\RwBackupSsh;
+use App\Modules\Provisioning\Application\RwBackupOperations;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use SergiX44\Nutgram\Nutgram;
@@ -43,11 +43,11 @@ function backup01User(bool $root, int $id): User
 }
 
 it('rejects invalid or path-traversing remote archive identifiers', function (): void {
-    expect(RwBackupSsh::validId('rw-20261106T141129Z-1234abcd'))->toBeTrue()
-        ->and(RwBackupSsh::validId('denagate-rw-20261106T141129Z'))->toBeTrue()
-        ->and(RwBackupSsh::validId('../../etc/passwd'))->toBeFalse()
-        ->and(RwBackupSsh::validId('rw-20261106T141129Z-1234abcd;id'))->toBeFalse()
-        ->and(RwBackupSsh::validId('rw-20261106T141129Z'))->toBeFalse();
+    expect(RwBackupOperations::validId('rw-20261106T141129Z-1234abcd'))->toBeTrue()
+        ->and(RwBackupOperations::validId('denagate-rw-20261106T141129Z'))->toBeTrue()
+        ->and(RwBackupOperations::validId('../../etc/passwd'))->toBeFalse()
+        ->and(RwBackupOperations::validId('rw-20261106T141129Z-1234abcd;id'))->toBeFalse()
+        ->and(RwBackupOperations::validId('rw-20261106T141129Z'))->toBeFalse();
 });
 
 it('never exposes the download endpoint without a one-time grant', function (): void {
@@ -80,11 +80,11 @@ it('shows the entry only through the Super Admin settings flow', function (): vo
 it('does not contact the backup server for an untrusted user', function (): void {
     config()->set('rw_backup.enabled', true);
     backup01User(false, 899103);
-    $remote = Mockery::mock(RwBackupSsh::class);
+    $remote = Mockery::mock(RwBackupOperations::class);
     $remote->shouldNotReceive('all');
     $remote->shouldNotReceive('start');
     $remote->shouldNotReceive('delete');
-    app()->instance(RwBackupSsh::class, $remote);
+    app()->instance(RwBackupOperations::class, $remote);
 
     $bot = backup01Bot(899103);
     $bot->hearCallbackQueryData('admin:rwbackup:list:1')->reply()->assertCalled('editMessageText');
@@ -94,7 +94,7 @@ it('does not contact the backup server for an untrusted user', function (): void
 it('lists old and managed backups without making a remote mutation', function (): void {
     config()->set('rw_backup.enabled', true);
     backup01User(true, 899101);
-    $remote = Mockery::mock(RwBackupSsh::class);
+    $remote = Mockery::mock(RwBackupOperations::class);
     $remote->shouldReceive('all')->once()->andReturn([
         ['id' => 'denagate-rw-20261106T141129Z', 'state' => 'ready',
             'size' => 129761280, 'timestamp' => 1793973600],
@@ -103,7 +103,7 @@ it('lists old and managed backups without making a remote mutation', function ()
     ]);
     $remote->shouldNotReceive('start');
     $remote->shouldNotReceive('delete');
-    app()->instance(RwBackupSsh::class, $remote);
+    app()->instance(RwBackupOperations::class, $remote);
 
     $bot = backup01Bot(899101);
     $bot->hearCallbackQueryData('admin:rwbackup:list:1')->reply()->assertCalled('editMessageText');
