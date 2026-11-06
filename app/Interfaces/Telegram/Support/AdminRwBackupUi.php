@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Interfaces\Telegram\Support;
 
 use App\Modules\Identity\Application\ResolveTelegramActor;
-use App\Modules\Provisioning\Infrastructure\Backup\RwBackupSsh;
+use App\Modules\Provisioning\Application\RwBackupOperations;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use SergiX44\Nutgram\Nutgram;
@@ -21,7 +21,7 @@ final readonly class AdminRwBackupUi
         private PrivateTelegramUser $private,
         private ResolveTelegramActor $actors,
         private MenuRenderer $menus,
-        private RwBackupSsh $backup,
+        private RwBackupOperations $backup,
     ) {}
 
     /** @return array{userId:int,telegramId:int}|null */
@@ -101,7 +101,7 @@ final readonly class AdminRwBackupUi
         if ($this->root($bot) === null) {
             return;
         }
-        if (! RwBackupSsh::validId($id)) {
+        if (! RwBackupOperations::validId($id)) {
             $this->listing($bot);
 
             return;
@@ -170,7 +170,7 @@ final readonly class AdminRwBackupUi
     public function download(Nutgram $bot, string $id): void
     {
         $root = $this->root($bot);
-        if ($root === null || ! RwBackupSsh::validId($id) || config('rw_backup.enabled') !== true) {
+        if ($root === null || ! RwBackupOperations::validId($id) || config('rw_backup.enabled') !== true) {
             return;
         }
         try {
@@ -203,7 +203,7 @@ final readonly class AdminRwBackupUi
     public function prepareDelete(Nutgram $bot, string $id): void
     {
         $root = $this->root($bot);
-        if ($root === null || ! RwBackupSsh::validId($id) || config('rw_backup.enabled') !== true) {
+        if ($root === null || ! RwBackupOperations::validId($id) || config('rw_backup.enabled') !== true) {
             return;
         }
         try {
@@ -228,7 +228,7 @@ final readonly class AdminRwBackupUi
             return;
         }
         $id = Cache::pull(self::tokenKey('delete', $root['userId'], $token));
-        if (! is_string($id) || ! RwBackupSsh::validId($id)) {
+        if (! is_string($id) || ! RwBackupOperations::validId($id)) {
             $this->listing($bot);
 
             return;
