@@ -58,8 +58,11 @@ final readonly class CreatePendingPlanOrder
                 throw ValidationException::withMessages(['squad' => 'Plan is not ready for checkout.']);
             }
 
+            // Persist role-at-checkout for managed plans and renewals.
+            $buyerCategory = $this->buyers->isReseller($buyerId) ? 'reseller' : 'direct';
             DB::table('sales_orders')->insertOrIgnore([
                 'buyer_user_id' => $buyerId,
+                'buyer_category' => $buyerCategory,
                 'idempotency_key' => $idempotencyKey,
                 'product_slug' => $plan->productSlug,
                 'product_name' => $quote->planName,
