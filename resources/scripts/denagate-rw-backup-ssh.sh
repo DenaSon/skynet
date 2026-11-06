@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Root-owned forced SSH command. SSH_ORIGINAL_COMMAND is never evaluated.
 set -Eeuo pipefail
-set -f
+# Do not disable pathname expansion: list/start/delete require controlled
+# glob patterns under root-owned directories. SSH_ORIGINAL_COMMAND is parsed
+# as data, and backup IDs are strictly validated before being used as paths.
 umask 077
 BASE=/var/backups/denagate-rw-managed
 LEGACY=/var/backups/denagate-rw

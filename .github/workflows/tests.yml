@@ -108,6 +108,9 @@ jobs:
       - name: Validate RW backup shell scripts
         run: bash -n resources/scripts/denagate-rw-backup-ssh.sh resources/scripts/denagate-rw-backup-worker.sh
 
+      - name: Validate RW forced-command behavior
+        run: bash tests/Shell/rw-backup-ssh-regression.sh
+
       - name: Execute tests
         run: php artisan test
 
