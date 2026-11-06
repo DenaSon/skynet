@@ -87,8 +87,8 @@ it('does not contact the backup server for an untrusted user', function (): void
     app()->instance(RwBackupOperations::class, $remote);
 
     $bot = backup01Bot(899103);
-    $bot->hearCallbackQueryData('admin:rwbackup:list:1')->reply()->assertCalled('editMessageText');
-    $bot->hearCallbackQueryData('admin:rwbackup:prepare')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('admin:rwbackup:list:1')->reply()->assertCalled('answerCallbackQuery');
+    $bot->hearCallbackQueryData('admin:rwbackup:prepare')->reply()->assertCalled('answerCallbackQuery');
 });
 
 it('lists old and managed backups without making a remote mutation', function (): void {
