@@ -180,7 +180,11 @@ it('renders accurate RTL Rich daily comparison with two tables, live filters and
                 && str_contains($html, 'کاربران جدید · بازه قبل</td><td><b>۱</b>')
                 && str_contains($html, '۱۴۰۵/')
                 && str_contains($html, '۰۰:۰۰ تا ۱۵:۳۰')
+                && str_contains($html, '<p><b>🧭 جمع‌بندی</b> ')
                 && str_contains($html, '<details><summary>🧠 تحلیل عملکرد دوره</summary>')
+                && str_contains($html, '<b>🧾 سفارش‌ها</b>')
+                && str_contains($html, '<b>🏷️ کانال‌ها</b>')
+                && str_contains($html, '<b>🏆 تمرکز فروش</b>')
                 && str_contains($html, '۴۰۰٬۰۰۰ تومان افزایش (+۴۰۰٫۰٪)')
                 && str_contains($html, 'فروش افزایش یافته و ثبت‌نام ثابت مانده')
                 && str_contains($html, '<b>💡 نکته قابل بررسی</b>')
@@ -211,6 +215,7 @@ it('renders accurate RTL Rich daily comparison with two tables, live filters and
         ->toContain("<b>تعداد سفارش‌ها</b>\nاخیر: ۲ · قبل: ۱\nتغییر: +۱۰۰٫۰٪")
         ->toContain('کاربران جدید · بازه اخیر: ۱')
         ->toContain('۱۴۰۵/')
+        ->toContain('🧭 جمع‌بندی')
         ->toContain('🧠 تحلیل عملکرد دوره')
         ->toContain('۴۰۰٬۰۰۰ تومان افزایش (+۴۰۰٫۰٪)')
         ->toContain('💡 نکته قابل بررسی')
@@ -277,7 +282,8 @@ it('falls back after a rich transport error with the same comparisons and native
     $bot->shouldReceive('sendRichMessage')->once()->andReturnUsing(function (...$arguments) use (&$keyboard): void {
         foreach ($arguments as $argument) {
             if ($argument instanceof InputRichMessage) {
-                expect($argument->html)->toContain('میانگین مبلغ سفارش</td><td>اخیر: <b>۲۰۰٬۰۰۰ تومان</b>')
+                expect($argument->html)->toContain('<b>🧭 جمع‌بندی</b> ')
+                    ->toContain('میانگین مبلغ سفارش</td><td>اخیر: <b>۲۰۰٬۰۰۰ تومان</b>')
                     ->toContain('فروش نمایندگی</td><td>اخیر: <b>۲۰۰٬۰۰۰ تومان</b>')
                     ->toContain('سهم فروش نمایندگی</td><td>اخیر: <b>۱۰۰٫۰٪</b>');
             }
@@ -289,7 +295,11 @@ it('falls back after a rich transport error with the same comparisons and native
     });
     $bot->shouldReceive('sendMessage')->once()->andReturnUsing(function (...$arguments) use (&$keyboard): null {
         $text = $arguments[0];
-        expect($text)->toContain("<b>میانگین مبلغ سفارش</b>\nاخیر: ۲۰۰٬۰۰۰ تومان · قبل: ۱۰۰٬۰۰۰ تومان\nتغییر: +۱۰۰٫۰٪")
+        expect($text)->toContain('<b>🧭 جمع‌بندی</b>')
+            ->toContain('<b>🧾 سفارش‌ها</b>')
+            ->toContain('<b>🏷️ کانال‌ها</b>')
+            ->toContain('<b>🏆 تمرکز فروش</b>')
+            ->toContain("<b>میانگین مبلغ سفارش</b>\nاخیر: ۲۰۰٬۰۰۰ تومان · قبل: ۱۰۰٬۰۰۰ تومان\nتغییر: +۱۰۰٫۰٪")
             ->toContain("<b>فروش نمایندگی</b>\nاخیر: ۲۰۰٬۰۰۰ تومان · قبل: ۰ تومان\nتغییر: بدون مبنا")
             ->toContain("<b>سهم فروش نمایندگی</b>\nاخیر: ۱۰۰٫۰٪ · قبل: ۰٫۰٪\nتغییر: +۱۰۰٫۰ واحد درصد")
             ->not->toContain('<table', '<br>', '<details>');
@@ -607,5 +617,123 @@ it('keeps empty and historical unknown channel shares truthful in both Rich and 
             ->toContain('بدون مبنا', 'قابل محاسبه نیست')
             ->not->toContain('INF', 'NaN', '∞', 'سهم مستقیم از کل مشخص');
     }
+    Http::assertNothingSent();
+});
+
+// Improvement phase 4: actual read-model data feeds one visible and reproducible
+// summary + grounded observations. Rendering must not query or write again.
+it('grounds the visible takeaway and expandable narrative in the canonical channel and order snapshot', function (): void {
+    $root = kpiUiRoot();
+    $direct = kpiUiUser('2026-09-01 12:00:00');
+    $resellerOne = kpiUiUser('2026-09-01 12:00:00');
+    $resellerTwo = kpiUiUser('2026-09-01 12:00:00');
+    $historical = kpiUiUser('2026-09-01 12:00:00');
+
+    kpiUiSettlement($direct, 'bank', '2026-11-04 11:00:00', 1_000_000, 'direct');
+    kpiUiSettlement($resellerOne, 'wallet', '2026-11-04 12:00:00', 1_000_000, 'reseller');
+    kpiUiSettlement($direct, 'bank', '2026-11-05 09:00:00', 2_000_000, 'direct');
+    kpiUiSettlement($resellerOne, 'wallet', '2026-11-05 10:00:00', 3_000_000, 'reseller');
+    kpiUiSettlement($resellerTwo, 'bank', '2026-11-05 11:00:00', 1_000_000, 'reseller');
+    kpiUiSettlement($historical, 'bank', '2026-11-05 12:00:00', 1_000_000);
+
+    $report = app(ReadAdminSalesChannelKpis::class)->handle($root->id, 'day');
+    $ui = app(AdminManagementKpiUi::class);
+    DB::enableQueryLog();
+    DB::flushQueryLog();
+    try {
+        $rich = (new ReflectionMethod(AdminManagementKpiUi::class, 'richReport'))
+            ->invoke($ui, $report['management'], $report);
+        $plain = (new ReflectionMethod(AdminManagementKpiUi::class, 'simpleReport'))
+            ->invoke($ui, $report['management'], $report);
+        $insights = (new ReflectionMethod(AdminManagementKpiUi::class, 'insights'))
+            ->invoke(null, $report['management'], $report);
+        expect(DB::getQueryLog())->toBe([]);
+    } finally {
+        DB::disableQueryLog();
+    }
+
+    expect($report['management']['current']['revenueRials'])->toBe(7_000_000)
+        ->and($report['current']['topThreeSharePercent'])->toBe(85.7)
+        ->and($insights['🧾 سفارش‌ها'])->toContain(
+            'از ۲ به ۴', 'خریداران یکتا از ۲ به ۴',
+            '۴ خرید غیرتمدیدی و ۰ تمدید',
+            'میانگین سفارش: ۱۷۵٬۰۰۰ تومان (قبل: ۱۰۰٬۰۰۰ تومان)',
+        )
+        ->and($insights['🏷️ کانال‌ها'])->toContain(
+            'مستقیم ۲۸٫۶٪ (۲۰۰٬۰۰۰ تومان)',
+            'نمایندگی ۵۷٫۱٪ (۴۰۰٬۰۰۰ تومان)',
+            'نامشخص ۱۴٫۳٪ (۱۰۰٬۰۰۰ تومان)',
+            'نمایندگان خریدار: ۲ (قبل: ۱)',
+        )
+        ->and($insights['🏆 تمرکز فروش'])->toContain(
+            'حداکثر ۳ خریدار برتر ۶۰۰٬۰۰۰ تومان',
+            '۸۵٫۷٪ از کل فروش',
+            'سهم بازه قبل: ۱۰۰٫۰٪',
+        )
+        ->and($insights['💡 نکته قابل بررسی'])->toContain('فروش نامشخص سفارش‌های قدیمی')
+        ->and(array_keys($insights))->toContain('💰 فروش', '👥 کاربران', '📈 برداشت مدیریتی')
+        ->and(array_keys($insights))->toHaveCount(7);
+
+    foreach ([$rich, $plain] as $display) {
+        expect($display)->toContain(
+            '🧭 جمع‌بندی',
+            '🧾 سفارش‌ها',
+            '🏷️ کانال‌ها',
+            '🏆 تمرکز فروش',
+            'فروش نامشخص سفارش‌های قدیمی',
+        )
+            ->not->toContain('علت افزایش فروش، کانال نمایندگی', 'INF', 'NaN', '∞');
+    }
+    expect($rich)->toContain('<p><b>🧭 جمع‌بندی</b> ')
+        ->toContain('<details><summary>🧠 تحلیل عملکرد دوره</summary>')
+        ->and(strpos($rich, '<p><b>🧭 جمع‌بندی</b> '))->toBeLessThan(strpos($rich, '<details><summary>🧠 تحلیل عملکرد دوره</summary>'))
+        ->and(substr_count($rich, '<b>💡 نکته قابل بررسی</b>'))->toBe(1)
+        ->and($plain)->not->toContain('<details>', '<table', '<br>')
+        ->and(substr_count($plain, '<b>💡 نکته قابل بررسی</b>'))->toBe(1)
+        ->and(mb_strlen(strip_tags($plain)))->toBeLessThanOrEqual(4096);
+    Http::assertNothingSent();
+});
+
+it('uses a single evidence-led suggestion when concentration rises and unknown share is absent', function (): void {
+    $root = kpiUiRoot();
+    $buyers = [];
+    foreach (range(1, 4) as $index) {
+        $buyers[] = kpiUiUser('2026-09-01 12:00:00');
+    }
+    foreach ($buyers as $buyer) {
+        kpiUiSettlement($buyer, 'wallet', '2026-11-04 10:00:00', 1_000_000, 'direct');
+    }
+    kpiUiSettlement($buyers[0], 'bank', '2026-11-05 10:00:00', 1_000_000, 'reseller');
+
+    $report = app(ReadAdminSalesChannelKpis::class)->handle($root->id, 'day');
+    $insights = (new ReflectionMethod(AdminManagementKpiUi::class, 'insights'))
+        ->invoke(null, $report['management'], $report);
+    expect($report['previous']['topThreeSharePercent'])->toBe(75.0)
+        ->and($report['current']['topThreeSharePercent'])->toBe(100.0)
+        ->and($insights['💡 نکته قابل بررسی'])->toContain('تغییر تمرکز فروش را در دوره بعد')
+        ->and($insights['🏷️ کانال‌ها'])->toContain('نامشخص ۰٫۰٪')
+        ->and(array_keys($insights))->toHaveCount(7);
+    Http::assertNothingSent();
+});
+
+it('keeps missing windows and zero orders explicit instead of inventing growth or an explanation', function (): void {
+    $root = kpiUiRoot();
+    $report = app(ReadAdminSalesChannelKpis::class)->handle($root->id, 'week');
+    $ui = app(AdminManagementKpiUi::class);
+    $insights = (new ReflectionMethod(AdminManagementKpiUi::class, 'insights'))
+        ->invoke(null, $report['management'], $report);
+    $rich = (new ReflectionMethod(AdminManagementKpiUi::class, 'richReport'))
+        ->invoke($ui, $report['management'], $report);
+    $plain = (new ReflectionMethod(AdminManagementKpiUi::class, 'simpleReport'))
+        ->invoke($ui, $report['management'], $report);
+
+    expect($insights['🧾 سفارش‌ها'])->toContain('۰ به ۰', 'میانگین سفارش: بدون سفارش')
+        ->and($insights['🏷️ کانال‌ها'])->toContain('مستقیم بدون مبنا', 'نمایندگی بدون مبنا', 'نامشخص بدون مبنا')
+        ->and($insights['🏆 تمرکز فروش'])->toContain('معادل بدون مبنا')
+        ->and($insights['💡 نکته قابل بررسی'])->toContain('سفارش تسویه‌شده‌ای ثبت نشده')
+        ->and($insights['📈 برداشت مدیریتی'])->toContain('مقایسه درصدی کامل')
+        ->and($rich.$plain)->not->toContain('INF', 'NaN', '∞', 'رشد قطعی');
+    expect($plain)->not->toContain('<details>', '<table', '<br>')
+        ->and(mb_strlen(strip_tags($plain)))->toBeLessThanOrEqual(4096);
     Http::assertNothingSent();
 });
