@@ -57,30 +57,26 @@ it('returns from root catalog, roles and servers to the control panel without re
     $bot = adminNav2Bot($root, 994801);
 
     $bot->hearCallbackQueryData('menu:admin:sales')->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool =>
-            adminNav2Has($r, 'menu:admin:control')
+        ->assertRaw(static fn (NutgramRequest $r): bool => adminNav2Has($r, 'menu:admin:control')
             && adminNav2Has($r, 'menu:admin:products')
             && adminNav2Has($r, 'menu:admin:plans')
             && str_contains((string) (adminNav2Payload($r)['text'] ?? ''), 'کاتالوگ'), index: 1);
 
     $bot->hearCallbackQueryData('menu:admin:roles')->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool =>
-            adminNav2Has($r, 'menu:admin:control')
+        ->assertRaw(static fn (NutgramRequest $r): bool => adminNav2Has($r, 'menu:admin:control')
             && adminNav2Has($r, 'rbac:new'), index: 1);
 
     config()->set('services.remnawave.url', null);
     config()->set('services.remnawave.token', null);
     Http::fake();
     $bot->hearCallbackQueryData('menu:admin:servers')->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool =>
-            adminNav2Has($r, 'menu:admin:control')
+        ->assertRaw(static fn (NutgramRequest $r): bool => adminNav2Has($r, 'menu:admin:control')
             && adminNav2Has($r, 'menu:admin:panelusers')
             && adminNav2Has($r, 'servers:refresh'), index: 1);
 
     // Invalid pages never reach the remote provider and still have a visible way back.
     $bot->hearCallbackQueryData('rw:users:page:9999')->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool =>
-            adminNav2Has($r, 'menu:admin:servers'), index: 1);
+        ->assertRaw(static fn (NutgramRequest $r): bool => adminNav2Has($r, 'menu:admin:servers'), index: 1);
 
     Http::assertNothingSent();
 });
@@ -92,18 +88,15 @@ it('moves the root notification shortcut under system settings while retaining d
     $root->syncRoles(['super-admin']);
     $rootBot = adminNav2Bot($root, 994801);
     $rootBot->hearCallbackQueryData('menu:admin')->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool =>
-            adminNav2Has($r, 'menu:admin:control')
+        ->assertRaw(static fn (NutgramRequest $r): bool => adminNav2Has($r, 'menu:admin:control')
             && ! adminNav2Has($r, 'admin:notice-topic:show'), index: 1);
 
     $rootBot->hearCallbackQueryData('admin:welcome:show')->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool =>
-            adminNav2Has($r, 'admin:notice-topic:show')
+        ->assertRaw(static fn (NutgramRequest $r): bool => adminNav2Has($r, 'admin:notice-topic:show')
             && adminNav2Has($r, 'admin:ops:show')
             && adminNav2Has($r, 'menu:admin:control'), index: 1);
     $rootBot->hearCallbackQueryData('admin:notice-topic:show')->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool =>
-            adminNav2Has($r, 'admin:welcome:show'), index: 1);
+        ->assertRaw(static fn (NutgramRequest $r): bool => adminNav2Has($r, 'admin:welcome:show'), index: 1);
 
     $role = Role::findOrCreate('finance-nav-operator', 'web');
     foreach (['purchases.view', 'purchases.review'] as $permission) {
@@ -114,12 +107,10 @@ it('moves the root notification shortcut under system settings while retaining d
     $operatorBot = adminNav2Bot($operator, 994802);
 
     $operatorBot->hearCallbackQueryData('menu:admin')->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool =>
-            adminNav2Has($r, 'admin:notice-topic:show')
+        ->assertRaw(static fn (NutgramRequest $r): bool => adminNav2Has($r, 'admin:notice-topic:show')
             && ! adminNav2Has($r, 'menu:admin:control'), index: 1);
     $operatorBot->hearCallbackQueryData('admin:notice-topic:show')->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool =>
-            adminNav2Has($r, 'menu:admin')
+        ->assertRaw(static fn (NutgramRequest $r): bool => adminNav2Has($r, 'menu:admin')
             && ! adminNav2Has($r, 'admin:welcome:show'), index: 1);
 
     $operatorBot->hearCallbackQueryData('menu:admin:control')->reply()
@@ -135,8 +126,7 @@ it('keeps delegated catalog navigation returning to the accessible Admin home', 
     $bot = adminNav2Bot($operator, 994803);
 
     $bot->hearCallbackQueryData('menu:admin:sales')->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool =>
-            adminNav2Has($r, 'menu:admin')
+        ->assertRaw(static fn (NutgramRequest $r): bool => adminNav2Has($r, 'menu:admin')
             && ! adminNav2Has($r, 'menu:admin:control')
             && adminNav2Has($r, 'menu:admin:plans'), index: 1);
     Http::assertNothingSent();
