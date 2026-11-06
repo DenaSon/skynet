@@ -112,7 +112,7 @@ final readonly class AdminManagementKpiUi
                 ['کاربران جدید · بازه قبل', self::count($previous['newUsers'])],
                 ['تغییر ثبت‌نام', self::percent($growth['newUsersPercent'])],
             ])
-            .self::richInsights($data)
+            .self::richInsights($data, $channels)
             .'<footer>🕒 '.TelegramUi::escape(PersianCalendar::localDateTime($data['generatedAt']))
             .' (تهران) · فروش تسویه‌شده، نه سود خالص یا شارژ کیف پول.'
             .' «بدون مبنا» یعنی مقدار بازه قبل صفر بوده است.'
@@ -141,7 +141,7 @@ final readonly class AdminManagementKpiUi
             ."\nکاربران جدید · بازه اخیر: ".self::count($current['newUsers'])
             ."\nکاربران جدید · بازه قبل: ".self::count($previous['newUsers'])
             ."\nتغییر ثبت‌نام: ".self::percent($growth['newUsersPercent'])
-            .self::simpleInsights($data)
+            .self::simpleInsights($data, $channels)
             ."\n\n<blockquote>فروش تسویه‌شده است، نه سود خالص یا شارژ کیف پول."
             .' «بدون مبنا» یعنی بازه قبل صفر بوده است.'
             .' میانگین به نزدیک‌ترین تومان گرد شده است.</blockquote>'
@@ -366,7 +366,7 @@ final readonly class AdminManagementKpiUi
      * @param  array<string,mixed>  $data
      * @return array<string, string>
      */
-    private static function insights(array $data): array
+    private static function insights(array $data, ?array $channels = null): array
     {
         $current = $data['current'];
         $previous = $data['previous'];
@@ -414,19 +414,70 @@ final readonly class AdminManagementKpiUi
             ? 'اگر انتظار فروش وجود دارد، وضعیت تسویه‌های ثبت‌شده را بررسی کنید.'
             : 'برای بررسی عوامل تغییر فروش، تعداد تراکنش‌ها و میانگین مبلغ سفارش را بین دو دوره مقایسه کنید.';
 
-        return [
+        $items = [
             '💰 فروش' => $sales,
             '👥 کاربران' => $users,
             '📈 برداشت مدیریتی' => $takeaway,
-            '💡 نکته قابل بررسی' => $tip,
         ];
+
+        if ($channels !== null) {
+            // All further observations reuse the same authorized snapshot; no SQL,
+            // current-role inference, discount-based reclassification or AI claims.
+            $recent = $channels['current'];
+            $prior = $channels['previous'];
+            $recentCategories = $recent['channels'];
+            $priorCategories = $prior['channels'];
+            $items['🧾 سفارش‌ها'] = 'سفارش‌های تسویه‌شده از '.self::count($previous['transactions'])
+                .' به '.self::count($current['transactions']).' و خریداران یکتا از '
+                .self::count($previous['uniqueBuyers']).' به '.self::count($current['uniqueBuyers'])
+                .' رسیده‌اند. از سفارش‌های اخیر '.self::count($current['newPurchases'])
+                .' خرید غیرتمدیدی و '.self::count($current['renewals'])
+                .' تمدید بوده است. میانگین سفارش: '.self::averageMoney(self::averageOrderRials($current))
+                .' (قبل: '.self::averageMoney(self::averageOrderRials($previous)).').';
+
+            $items['🏷️ کانال‌ها'] = 'از فروش اخیر، مستقیم '
+                .self::shareValue(self::share($recentCategories['direct']['revenueRials'], $current['revenueRials']))
+                .' ('.self::money($recentCategories['direct']['revenueRials']).')، نمایندگی '
+                .self::shareValue(self::share($recentCategories['reseller']['revenueRials'], $current['revenueRials']))
+                .' ('.self::money($recentCategories['reseller']['revenueRials']).') و نامشخص '
+                .self::shareValue(self::share($recentCategories['unknown']['revenueRials'], $current['revenueRials']))
+                .' ('.self::money($recentCategories['unknown']['revenueRials']).') بوده است. نمایندگان خریدار: '
+                .self::count($recentCategories['reseller']['uniqueBuyers'])
+                .' (قبل: '.self::count($priorCategories['reseller']['uniqueBuyers']).').';
+
+            $items['🏆 تمرکز فروش'] = 'حداکثر '.self::count(count($recent['topBuyers']))
+                .' خریدار برتر '.self::money($recent['topThreeRevenueRials'])
+                .'، معادل '.self::shareValue($recent['topThreeSharePercent'])
+                .' از کل فروش داشته‌اند (سهم بازه قبل: '
+                .self::shareValue($prior['topThreeSharePercent']).').';
+
+            if ($current['transactions'] === 0) {
+                $tip = 'در این دوره سفارش تسویه‌شده‌ای ثبت نشده است؛ وضعیت تسویه‌ها را بررسی کنید.';
+            } elseif ($recentCategories['unknown']['revenueRials'] > 0) {
+                $tip = 'برای مقایسه سهم کانال‌ها، فروش نامشخص سفارش‌های قدیمی را جداگانه در نظر بگیرید؛ کانال آن‌ها قابل استنتاج قطعی نیست.';
+            } elseif ($recent['topThreeSharePercent'] !== null
+                && $prior['topThreeSharePercent'] !== null
+                && $recent['topThreeSharePercent'] > $prior['topThreeSharePercent']) {
+                $tip = 'سهم سه خریدار برتر نسبت به بازه قبل افزایش یافته؛ تغییر تمرکز فروش را در دوره بعد هم بررسی کنید.';
+            }
+        }
+
+        $items['💡 نکته قابل بررسی'] = $tip;
+
+        return $items;
     }
 
-    /** @param  array<string,mixed>  $data */
-    private static function richInsights(array $data): string
+    /** Use the exact same short takeaway and observations in Rich and native HTML. */
+    private static function richInsights(array $data, ?array $channels = null): string
     {
-        $html = '<details><summary>🧠 تحلیل عملکرد دوره</summary>';
-        foreach (self::insights($data) as $title => $text) {
+        $insights = self::insights($data, $channels);
+        $html = '<p><b>🧭 جمع‌بندی</b> '
+            .TelegramUi::escape($insights['📈 برداشت مدیریتی']).'</p>'
+            .'<details><summary>🧠 تحلیل عملکرد دوره</summary>';
+        foreach ($insights as $title => $text) {
+            if ($title === '📈 برداشت مدیریتی') {
+                continue; // Already visible; do not repeat the same sentence.
+            }
             $html .= '<p><b>'.TelegramUi::escape($title).'</b> '
                 .TelegramUi::escape($text).'</p>';
         }
@@ -434,11 +485,16 @@ final readonly class AdminManagementKpiUi
         return $html.'</details>';
     }
 
-    /** @param  array<string,mixed>  $data */
-    private static function simpleInsights(array $data): string
+    /** @param array<string,mixed> $data */
+    private static function simpleInsights(array $data, ?array $channels = null): string
     {
-        $html = "\n\n<b>🧠 تحلیل عملکرد دوره</b>";
-        foreach (self::insights($data) as $title => $text) {
+        $insights = self::insights($data, $channels);
+        $html = "\n\n<b>🧭 جمع‌بندی</b> ".TelegramUi::escape($insights['📈 برداشت مدیریتی'])
+            ."\n\n<b>🧠 تحلیل عملکرد دوره</b>";
+        foreach ($insights as $title => $text) {
+            if ($title === '📈 برداشت مدیریتی') {
+                continue;
+            }
             $html .= "\n<b>".TelegramUi::escape($title).'</b> '.TelegramUi::escape($text);
         }
 
