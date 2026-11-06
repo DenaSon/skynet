@@ -125,6 +125,8 @@ final readonly class AdminRwBackupUi
             if ($item['state'] === 'ready') {
                 $keyboard->addRow(InlineKeyboardButton::make('⬇️ دریافت لینک دانلود', callback_data: 'admin:rwbackup:download:'.$id));
                 $keyboard->addRow(InlineKeyboardButton::make('🗑️ حذف بک‌آپ', callback_data: 'admin:rwbackup:delete:'.$id));
+            } else {
+                $keyboard->addRow(InlineKeyboardButton::make('🔄 به‌روزرسانی وضعیت', callback_data: 'admin:rwbackup:view:'.$id));
             }
             $keyboard->addRow(InlineKeyboardButton::make('◀️ بازگشت به فهرست', callback_data: 'admin:rwbackup:list:1'));
             $state = self::label($item['state']);
@@ -140,9 +142,6 @@ final readonly class AdminRwBackupUi
                 .'<tr><td>حجم فایل</td><td>'.TelegramUi::escape($size).'</td></tr>'
                 .'<tr><td>شناسه</td><td><code>'.TelegramUi::escape($id).'</code></td></tr>'
                 .'</table>';
-            if ($item['state'] !== 'ready') {
-                $keyboard->addRow(InlineKeyboardButton::make('🔄 به‌روزرسانی وضعیت', callback_data: 'admin:rwbackup:view:'.$id));
-            }
             $this->show($bot, '📦 جزئیات بک‌آپ', $text, $keyboard, $rich);
         } catch (Throwable) {
             $this->listing($bot);
