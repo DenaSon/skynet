@@ -623,7 +623,6 @@ it('keeps empty and historical unknown channel shares truthful in both Rich and 
     Http::assertNothingSent();
 });
 
-
 // Improvement phase 4: actual read-model data feeds one visible and reproducible
 // summary + grounded observations. Rendering must not query or write again.
 it('grounds the visible takeaway and expandable narrative in the canonical channel and order snapshot', function (): void {
