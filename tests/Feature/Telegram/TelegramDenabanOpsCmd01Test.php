@@ -85,17 +85,17 @@ function denabanSectionsInOrder(string $content, array $headings): bool
     return true;
 }
 
-it('puts Denaban first in both private root Admin menus and excludes ordinary admins', function (): void {
+it('keeps radar Denaban in both private root Admin menus and excludes ordinary admins', function (): void {
     denabanRoot();
     $actor = app(ResolveTelegramActor::class)->handle(991201);
     $keyboard = app(ReplyMenuRenderer::class)->adminKeyboard($actor);
-    expect($keyboard->keyboard[0][0]->text)->toBe(ReplyMenuLabels::DENABAN);
+    expect($keyboard->keyboard[2][0]->text)->toBe(ReplyMenuLabels::DENABAN_RADAR);
 
     $bot = denabanBot(991201);
     $bot->hearCallbackQueryData('menu:admin')->reply()->assertRaw(static function (NutgramRequest $r): bool {
         $payload = denabanPayload($r);
 
-        return ($payload['reply_markup']['inline_keyboard'][0][0]['callback_data'] ?? null) === 'denaban:show';
+        return ($payload['reply_markup']['inline_keyboard'][2][0]['callback_data'] ?? null) === 'denaban:show';
     }, index: 1);
 
     $ordinary = User::factory()->admin()->create();
@@ -103,7 +103,7 @@ it('puts Denaban first in both private root Admin menus and excludes ordinary ad
     $ordinaryActor = app(ResolveTelegramActor::class)->handle(991203);
     $labels = array_map(static fn ($button): string => $button->text,
         array_merge(...app(ReplyMenuRenderer::class)->adminKeyboard($ordinaryActor)->keyboard));
-    expect($labels)->not->toContain(ReplyMenuLabels::DENABAN);
+    expect($labels)->not->toContain(ReplyMenuLabels::DENABAN_RADAR);
 });
 
 it('shows canonical verified inflows and sales independently of unavailable RW', function (): void {
@@ -144,7 +144,7 @@ it('shows canonical verified inflows and sales independently of unavailable RW',
     $bot->hearCallbackQueryData('denaban:simple')->reply()->assertRaw(static function (NutgramRequest $r): bool {
         $p = denabanPayload($r);
 
-        return str_contains($p['text'], '🏔️ دنابان | وضعیت دنا')
+        return str_contains($p['text'], '📡 دنابان | وضعیت دنا')
             && str_contains($p['text'], 'دریافتی کل: 300,000 تومان')
             && str_contains($p['text'], 'فروش امروز: 300,000 تومان')
             && str_contains($p['text'], 'نودهای متصل: نامشخص از نامشخص')
@@ -275,7 +275,7 @@ it('renders a bounded RTL rich executive dashboard and retains navigation and si
             $buttons = json_encode($payload['reply_markup'], JSON_THROW_ON_ERROR);
 
             return ($rich['is_rtl'] ?? null) === true
-                && str_contains($html, '<h2>🏔️ دنابان')
+                && str_contains($html, '<h2>📡 دنابان')
                 && substr_count($html, '<table bordered striped compact>') === 4
                 && denabanSectionsInOrder($html, [
                     '<h3>💰 وضعیت مالی</h3>',
@@ -315,7 +315,7 @@ it('renders a bounded RTL rich executive dashboard and retains navigation and si
             $buttons = json_encode($payload['reply_markup'], JSON_THROW_ON_ERROR);
 
             return ($payload['parse_mode'] ?? null) === 'HTML'
-                && str_contains($payload['text'], '🏔️ دنابان | وضعیت دنا')
+                && str_contains($payload['text'], '📡 دنابان | وضعیت دنا')
                 && denabanSectionsInOrder($payload['text'], [
                     '<b>💰 وضعیت مالی</b>',
                     '<b>👥 کاربران و اشتراک‌ها</b>',

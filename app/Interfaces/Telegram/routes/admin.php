@@ -668,6 +668,10 @@ $bot->onCallbackQueryData('billing:apply:{token}', function (Nutgram $bot, strin
 
 $bot->onCallbackQueryData('menu:admin', AdminHandler::class);
 
+$bot->onCallbackQueryData('menu:admin:control', function (Nutgram $bot): void {
+    app(AdminSectionsUi::class)->control($bot);
+});
+
 $bot->onCallbackQueryData('menu:admin:users', AdminUsersHandler::class);
 
 $bot->onCallbackQueryData('menu:admin:roles', AdminRolesHandler::class);

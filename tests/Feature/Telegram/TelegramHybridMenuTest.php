@@ -139,8 +139,8 @@ it('gates privileged reply buttons by trusted root and finance feature switches'
     $actor = app(ResolveTelegramActor::class)->handle(931006);
 
     $labels = hybridLabels(app(ReplyMenuRenderer::class)->adminKeyboard($actor));
-    expect($labels)->toContain(ReplyMenuLabels::ROLES, ReplyMenuLabels::SALES_SECTION, ReplyMenuLabels::SETTINGS)
-        ->not->toContain(ReplyMenuLabels::FINANCE_SECTION, ReplyMenuLabels::TOPUPS, ReplyMenuLabels::RECEIPTS);
+    expect($labels)->toContain(ReplyMenuLabels::DASHBOARD, ReplyMenuLabels::REPORTS, ReplyMenuLabels::CONTROL_PANEL, ReplyMenuLabels::DENABAN_RADAR)
+        ->not->toContain(ReplyMenuLabels::ROLES, ReplyMenuLabels::SALES_SECTION, ReplyMenuLabels::SETTINGS, ReplyMenuLabels::TOPUPS, ReplyMenuLabels::RECEIPTS);
 
     $bot->hearText(ReplyMenuLabels::TOPUPS)->reply()
         ->assertReplyText('دسترسی مجاز نیست. منوی شما به‌روز شد.');
@@ -152,8 +152,9 @@ it('gates privileged reply buttons by trusted root and finance feature switches'
         ->not->toContain(ReplyMenuLabels::TOPUPS, ReplyMenuLabels::RECEIPTS);
 
     $bot->hearText(ReplyMenuLabels::SETTINGS)->reply()
-        ->assertReplyText('<b>⚙️ تنظیمات</b>'."\n\n".'بخش موردنظر را انتخاب کنید.');
+        ->assertReplyText('<b>⚙️ تنظیمات سیستم</b>'."\n\n".'بخش موردنظر را انتخاب کنید.');
 
+    $bot->hearText(ReplyMenuLabels::CONTROL_PANEL)->reply()->assertCalled('sendMessage');
     $bot->hearText(ReplyMenuLabels::ROLES)->reply()->assertCalled('sendMessage');
 
     config()->set('super_admin.telegram_ids', ['931099', '931098']);

@@ -76,48 +76,42 @@ final class ReplyMenuRenderer
 
     public function adminKeyboard(TelegramActor $actor): ReplyKeyboardMarkup
     {
-        $labels = $actor->canManageRoles()
-            ? [ReplyMenuLabels::DENABAN, ReplyMenuLabels::MANAGEMENT_KPIS]
-            : [];
+        if ($actor->canManageRoles()) {
+            return $this->keyboard([
+                ReplyMenuLabels::DASHBOARD,
+                ReplyMenuLabels::REPORTS,
+                ReplyMenuLabels::USERS,
+                ReplyMenuLabels::FINANCE_SECTION,
+                ReplyMenuLabels::DENABAN_RADAR,
+                ReplyMenuLabels::CONTROL_PANEL,
+            ]);
+        }
 
+        // Delegated administrators retain all existing permission-scoped shortcuts.
+        $labels = [];
         if ($actor->allows('users.view') || $actor->allows('support.view')) {
             $labels[] = ReplyMenuLabels::USERS;
         }
-
-        if ($actor->canManageRoles()) {
-            $labels[] = ReplyMenuLabels::ROLES;
+        if ($actor->allows('plans.manage') || $actor->allows('resellers.review')) {
             $labels[] = ReplyMenuLabels::SALES_SECTION;
-
-            $labels[] = ReplyMenuLabels::SERVERS;
-
-            $labels[] = ReplyMenuLabels::FINANCE_SECTION;
+        }
+        if ($actor->allows('reports.view')) {
             $labels[] = ReplyMenuLabels::STATS;
-            $labels[] = ReplyMenuLabels::SETTINGS;
+        }
+        if ($actor->allows('finance.view')) {
+            $labels[] = ReplyMenuLabels::FINANCE_SECTION;
+        }
+        if ($actor->allows('servers.view')) {
+            $labels[] = ReplyMenuLabels::SERVERS;
+        }
+        if ($actor->allows('purchases.view')) {
+            $labels[] = ReplyMenuLabels::RECEIPTS;
+        }
+        if ($actor->allows('topups.view')) {
+            $labels[] = ReplyMenuLabels::TOPUPS;
         }
 
-        if (! $actor->canManageRoles()) {
-            if ($actor->allows('plans.manage') || $actor->allows('resellers.review')) {
-                $labels[] = ReplyMenuLabels::SALES_SECTION;
-            }
-            if ($actor->allows('reports.view')) {
-                $labels[] = ReplyMenuLabels::STATS;
-            }
-            if ($actor->allows('finance.view')) {
-                $labels[] = ReplyMenuLabels::FINANCE_SECTION;
-            }
-            if ($actor->allows('servers.view')) {
-                $labels[] = ReplyMenuLabels::SERVERS;
-            }
-            if ($actor->allows('purchases.view')) {
-                $labels[] = ReplyMenuLabels::RECEIPTS;
-            }
-            if ($actor->allows('topups.view')) {
-                $labels[] = ReplyMenuLabels::TOPUPS;
-            }
-        }
-
-        // Keep account and home routes available for previously delivered buttons.
-        // Neither belongs in the compact Admin home keyboard.
+        // Previously delivered Reply buttons still route, without cluttering the new menu.
         return $this->keyboard($labels);
     }
 

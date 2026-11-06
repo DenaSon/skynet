@@ -120,22 +120,18 @@ final class MenuRenderer
         $keyboard = InlineKeyboardMarkup::make();
 
         if ($actor->canManageRoles()) {
-            $keyboard->addRow(InlineKeyboardButton::make('🏔️ دنابان', callback_data: 'denaban:show'));
-            $keyboard->addRow(InlineKeyboardButton::make('📊 شاخص‌های مدیریتی', callback_data: 'kpi:period:day'));
-            $keyboard->addRow(InlineKeyboardButton::make('⚙️ تنظیمات', callback_data: 'menu:settings'));
+            $keyboard->addRow(
+                InlineKeyboardButton::make('🧭 داشبورد', callback_data: 'kpi:period:day'),
+                InlineKeyboardButton::make('📈 گزارش‌ها', callback_data: 'stats:overview'),
+            );
             $keyboard->addRow(
                 InlineKeyboardButton::make('👥 کاربران', callback_data: 'menu:admin:users'),
-                InlineKeyboardButton::make('🔐 نقش‌ها', callback_data: 'menu:admin:roles'),
+                InlineKeyboardButton::make('💳 امور مالی', callback_data: 'menu:admin:finance'),
             );
-            $keyboard->addRow(InlineKeyboardButton::make('📦 محصولات و پلن‌ها', callback_data: 'menu:admin:sales'));
-
             $keyboard->addRow(
-                InlineKeyboardButton::make('🖥️ مدیریت سرورها', callback_data: 'menu:admin:servers'),
-                InlineKeyboardButton::make('👥 کاربران پنل', callback_data: 'menu:admin:panelusers'),
+                InlineKeyboardButton::make('📡 دنابان', callback_data: 'denaban:show'),
+                InlineKeyboardButton::make('⚙️ کنترل پنل', callback_data: 'menu:admin:control'),
             );
-
-            $keyboard->addRow(InlineKeyboardButton::make('💳 امور مالی', callback_data: 'menu:admin:finance'));
-            $keyboard->addRow(InlineKeyboardButton::make('📊 آمار و گزارش‌ها', callback_data: 'stats:overview'));
         } else {
             if ($actor->allows('users.view') || $actor->allows('support.view')) {
                 $keyboard->addRow(InlineKeyboardButton::make('👥 کاربران', callback_data: 'menu:admin:users'));
@@ -157,12 +153,36 @@ final class MenuRenderer
             }
         }
 
-        if (config('telegram_notifications.admin_topic.enabled') === true
+        if (! $actor->canManageRoles()
+            && config('telegram_notifications.admin_topic.enabled') === true
             && AdminNotificationTopicUi::eligible($actor)) {
             $keyboard->addRow(InlineKeyboardButton::make('🔔 اعلان‌های من', callback_data: 'admin:notice-topic:show'));
         }
 
         $this->render($bot, "🛡️ مدیریت DenaGate\n\nبخش موردنظر را انتخاب کنید.", $keyboard);
+    }
+
+    public function showAdminControlPanel(Nutgram $bot, TelegramActor $actor): void
+    {
+        if (! $actor->canManageRoles()) {
+            $this->denyAccess($bot);
+
+            return;
+        }
+
+        $keyboard = InlineKeyboardMarkup::make()
+            ->addRow(
+                InlineKeyboardButton::make('📦 کاتالوگ', callback_data: 'menu:admin:sales'),
+                InlineKeyboardButton::make('🖥️ سرورها', callback_data: 'menu:admin:servers'),
+            )
+            ->addRow(
+                InlineKeyboardButton::make('💾 پشتیبان‌گیری', callback_data: 'admin:rwbackup:list:1'),
+                InlineKeyboardButton::make('🔐 نقش‌ها و دسترسی‌ها', callback_data: 'menu:admin:roles'),
+            )
+            ->addRow(InlineKeyboardButton::make('⚙️ تنظیمات سیستم', callback_data: 'admin:welcome:show'))
+            ->addRow(InlineKeyboardButton::make('◀️ بازگشت به مدیریت', callback_data: 'menu:admin'));
+
+        $this->render($bot, "⚙️ کنترل پنل\n\nبخش موردنظر را انتخاب کنید.", $keyboard);
     }
 
     public function showAdminReceiptQueues(Nutgram $bot, TelegramActor $actor): void
@@ -196,10 +216,13 @@ final class MenuRenderer
         if ($reviews) {
             $keyboard->addRow(InlineKeyboardButton::make('🧩 درخواست‌های پنل فروش', callback_data: 'sp:list:1'));
         }
-        $keyboard->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
+        $keyboard->addRow(InlineKeyboardButton::make(
+            $root ? '◀️ کنترل پنل' : '◀️ مدیریت',
+            callback_data: $root ? 'menu:admin:control' : 'menu:admin',
+        ));
 
         $this->render($bot, $root
-            ? "📦 محصولات و پلن‌ها\n\nاز این بخش می‌توانید محصولات، پلن‌ها و قیمت‌های فروش را مدیریت کنید."
+            ? "📦 کاتالوگ\n\nمدیریت محصولات، پلن‌ها و قیمت‌ها."
             : "📦 محصولات و پلن‌ها\n\nبخش موردنظر را انتخاب کنید.", $keyboard);
     }
 
@@ -502,7 +525,7 @@ final class MenuRenderer
             $keyboard->addRow(InlineKeyboardButton::make('بعدی ▶️', callback_data: 'rbac:page:'.($page->page + 1)));
         }
 
-        $keyboard->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
+        $keyboard->addRow(InlineKeyboardButton::make('◀️ کنترل پنل', callback_data: 'menu:admin:control'));
         $this->render($bot, $text, $keyboard);
     }
 

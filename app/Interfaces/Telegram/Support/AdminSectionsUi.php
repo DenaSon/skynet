@@ -19,6 +19,16 @@ final readonly class AdminSectionsUi
         private MenuRenderer $menus,
     ) {}
 
+    public function control(Nutgram $bot): void
+    {
+        $actor = $this->actor($bot);
+        if ($actor === null) {
+            return;
+        }
+
+        $this->menus->showAdminControlPanel($bot, $actor);
+    }
+
     public function sales(Nutgram $bot): void
     {
         $telegramId = $this->privateUser->id($bot);

@@ -186,7 +186,7 @@ it('adds the Health button to the existing Denaban keyboard without changing its
 
             return str_contains($buttons, 'denaban:health')
                 && str_contains($buttons, 'denaban:show')
-                && str_contains($payload['text'], '🏔️ دنابان | وضعیت دنا');
+                && str_contains($payload['text'], '📡 دنابان | وضعیت دنا');
         }, index: 1);
 
     Http::assertSent(static fn ($request): bool => $request->method() === 'GET');

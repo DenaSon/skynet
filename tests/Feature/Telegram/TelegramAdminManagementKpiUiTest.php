@@ -127,9 +127,11 @@ it('adds a root-only KPI entry under Denaban without replacing existing stats or
         ->assertRaw(static function (NutgramRequest $request): bool {
             $buttons = kpiUiPayload($request)['reply_markup']['inline_keyboard'];
 
-            return ($buttons[0][0]['callback_data'] ?? null) === 'denaban:show'
-                && ($buttons[1][0]['callback_data'] ?? null) === 'kpi:period:day'
-                && ($buttons[1][0]['text'] ?? null) === '📊 شاخص‌های مدیریتی'
+            return ($buttons[0][0]['callback_data'] ?? null) === 'kpi:period:day'
+                && ($buttons[0][0]['text'] ?? null) === '🧭 داشبورد'
+                && ($buttons[0][1]['callback_data'] ?? null) === 'stats:overview'
+                && ($buttons[2][0]['callback_data'] ?? null) === 'denaban:show'
+                && ($buttons[2][1]['callback_data'] ?? null) === 'menu:admin:control'
                 && str_contains(json_encode($buttons, JSON_THROW_ON_ERROR), 'stats:overview')
                 && str_contains(json_encode($buttons, JSON_THROW_ON_ERROR), 'menu:admin:finance');
         }, index: 1);
@@ -162,7 +164,7 @@ it('renders accurate RTL Rich daily comparison with two tables, live filters and
             $buttons = $payload['reply_markup']['inline_keyboard'];
 
             return ($rich['is_rtl'] ?? null) === true
-                && str_contains($html, '<h2>📊 شاخص‌های مدیریتی · روزانه</h2>')
+                && str_contains($html, '<h2>🧭 داشبورد · روزانه</h2>')
                 && substr_count($html, '<table bordered striped compact>') === 4
                 && str_contains($html, '<h3>💰 عملکرد فروش</h3>')
                 && str_contains($html, '<h3>👥 ثبت‌نام کاربران</h3>')
@@ -369,7 +371,7 @@ it('switches period in place and clearly differentiates complete weeks from comp
             $html = (string) ($rich['html'] ?? '');
 
             expect($html)->toContain(
-                'شاخص‌های مدیریتی · هفتگی',
+                'داشبورد · هفتگی',
                 '۷ روز کامل گذشته',
                 'تا ۱۴۰۵/',
                 'بدون مبنا',
@@ -388,7 +390,7 @@ it('switches period in place and clearly differentiates complete weeks from comp
             $html = (string) ($rich['html'] ?? '');
 
             expect($html)->toContain(
-                'شاخص‌های مدیریتی · ماهانه',
+                'داشبورد · ماهانه',
                 'ماه شمسی کامل گذشته',
                 'بدون مبنا',
                 '<details><summary>🧠 تحلیل عملکرد دوره</summary>',

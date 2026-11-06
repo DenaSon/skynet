@@ -254,7 +254,7 @@ it('navigates between product and plan menus without stealing other pending form
     $actor = app(ResolveTelegramActor::class)->handle(978001);
     $buttons = array_map(static fn ($button): string => $button->text,
         array_merge(...app(ReplyMenuRenderer::class)->adminKeyboard($actor)->keyboard));
-    expect($buttons)->toContain(ReplyMenuLabels::SALES_SECTION)
+    expect($buttons)->toContain(ReplyMenuLabels::CONTROL_PANEL)
         ->not->toContain(ReplyMenuLabels::PRODUCTS);
 
     $bot->hearCallbackQueryData('plan:products')->reply()->assertCalled('editMessageText');

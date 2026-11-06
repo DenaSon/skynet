@@ -85,7 +85,7 @@ it('fails safely with no provider credentials while keeping Super Admin navigati
     $actor = app(ResolveTelegramActor::class)->handle(997001);
     $keyboard = app(ReplyMenuRenderer::class)->homeKeyboard($actor);
     $labels = array_map(static fn ($button): string => $button->text, array_merge(...$keyboard->keyboard));
-    expect($labels)->toContain(ReplyMenuLabels::SERVERS);
+    expect($labels)->toContain(ReplyMenuLabels::CONTROL_PANEL);
 
     $bot->hearText('/servers')->reply()
         ->assertReplyText("🖥️ وضعیت سرورها\n\nدریافت اطلاعات ممکن نیست. کمی بعد دوباره تلاش کنید.");
@@ -243,7 +243,7 @@ it('always exposes safe server navigation to Super Admin even without panel conf
     $actor = app(ResolveTelegramActor::class)->handle(997001);
     $keyboard = app(ReplyMenuRenderer::class)->homeKeyboard($actor);
     $labels = array_map(static fn ($button): string => $button->text, array_merge(...$keyboard->keyboard));
-    expect($labels)->toContain(ReplyMenuLabels::SERVERS);
+    expect($labels)->toContain(ReplyMenuLabels::CONTROL_PANEL);
 
     $safe = "🖥️ وضعیت سرورها\n\nدریافت اطلاعات ممکن نیست. کمی بعد دوباره تلاش کنید.";
     $bot->hearText('/servers')->reply()->assertReplyText($safe);
@@ -290,7 +290,7 @@ it('shows zero Nodes and refreshes current data using GET only, with the root me
     $actor = app(ResolveTelegramActor::class)->handle(997001);
     $keyboard = app(ReplyMenuRenderer::class)->homeKeyboard($actor);
     $labels = array_map(static fn ($button): string => $button->text, array_merge(...$keyboard->keyboard));
-    expect($labels)->toContain(ReplyMenuLabels::SERVERS);
+    expect($labels)->toContain(ReplyMenuLabels::CONTROL_PANEL);
 
     $expected = "🖥️ وضعیت سرورها\n\nسرورهای متصل: 0 از 0\nمیزبان‌ها: 0\nگروه‌ها: 1\nپروفایل‌ها: 1\nنمونه‌های فعال پنل: 1\nدرخواست‌های داخلی نیازمند بررسی: 0\n\nهنوز سروری تعریف نشده است.\n\n📊 آمار گزارش‌شده پنل\nهسته‌های CPU: 2\nRAM مصرف‌شده: 1.15 از 1.92 GiB (60٪)\nRAM آزاد: 0.77 GiB\nزمان فعالیت: 6 ساعت و 29 دقیقه\nکاربران کل: 2\nکاربران آنلاین: 0";
 

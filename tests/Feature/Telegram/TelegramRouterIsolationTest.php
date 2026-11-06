@@ -120,6 +120,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:kpi:period:{period}';
     // MB-05B adds one guarded, unadvertised Admin-only read command.
     $expected['ADMIN'][] = 'command:servers';
+    // ADMIN-MENU-01: new private root-only navigation, old routes remain registered.
+    $expected['ADMIN'][] = 'callback:menu:admin:control';
     // SRO-02 adds two guarded, read-only Admin callbacks without changing the MB-01 baseline.
     $expected['ADMIN'][] = 'callback:menu:admin:servers';
     $expected['ADMIN'][] = 'callback:servers:simple';
@@ -322,8 +324,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(287)
-        ->and(count(array_unique($legacy)))->toBe(287);
+        ->and(count($legacy))->toBe(288)
+        ->and(count(array_unique($legacy)))->toBe(288);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {

@@ -99,7 +99,7 @@ final readonly class AdminManagementKpiUi
         $previous = $data['previous'];
         $growth = $data['growth'];
 
-        return '<h2>📊 شاخص‌های مدیریتی · '.self::label($data['period']).'</h2>'
+        return '<h2>🧭 داشبورد · '.self::label($data['period']).'</h2>'
             .'<p>'.self::description($data['period']).'</p>'
             .'<p>📅 بازه اخیر: '.self::range($current, $data['period']).'</p>'
             .'<p>📅 بازه مقایسه: '.self::range($previous, $data['period']).'</p>'
@@ -130,7 +130,7 @@ final readonly class AdminManagementKpiUi
         $previous = $data['previous'];
         $growth = $data['growth'];
 
-        return '<b>📊 شاخص‌های مدیریتی · '.self::label($data['period']).'</b>'
+        return '<b>🧭 داشبورد · '.self::label($data['period']).'</b>'
             ."\n".self::description($data['period'])
             ."\n📅 بازه اخیر: ".self::range($current, $data['period'])
             ."\n📅 بازه مقایسه: ".self::range($previous, $data['period'])

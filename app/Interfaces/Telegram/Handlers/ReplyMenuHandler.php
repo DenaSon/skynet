@@ -115,6 +115,17 @@ final class ReplyMenuHandler
 
                 return true;
 
+            case ReplyMenuLabels::CONTROL_PANEL:
+                if (! $actor->canManageRoles()) {
+                    $this->deny($bot, $actor);
+
+                    return true;
+                }
+
+                app(AdminSectionsUi::class)->control($bot);
+
+                return true;
+
             case ReplyMenuLabels::SETTINGS:
                 app(SettingsHandler::class)->__invoke($bot);
 
@@ -173,6 +184,7 @@ final class ReplyMenuHandler
 
                 return true;
 
+            case ReplyMenuLabels::DENABAN_RADAR:
             case ReplyMenuLabels::DENABAN:
                 if (! $actor->canManageRoles()) {
                     $this->deny($bot, $actor);
@@ -184,6 +196,7 @@ final class ReplyMenuHandler
 
                 return true;
 
+            case ReplyMenuLabels::DASHBOARD:
             case ReplyMenuLabels::MANAGEMENT_KPIS:
                 if (! $actor->canManageRoles()) {
                     $this->deny($bot, $actor);
@@ -195,6 +208,7 @@ final class ReplyMenuHandler
 
                 return true;
 
+            case ReplyMenuLabels::REPORTS:
             case ReplyMenuLabels::STATS:
                 if (! $actor->allows('reports.view')) {
                     $this->deny($bot, $actor);

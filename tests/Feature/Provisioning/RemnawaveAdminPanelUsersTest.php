@@ -115,7 +115,7 @@ it('keeps the existing hybrid users menu unchanged while restricting provider re
     $buttons = app(ReplyMenuRenderer::class)->homeKeyboard($actor)->keyboard;
     $labels = array_map(static fn ($button): string => $button->text, array_merge(...$buttons));
 
-    expect($labels)->toContain(ReplyMenuLabels::SERVERS)
+    expect($labels)->toContain(ReplyMenuLabels::CONTROL_PANEL)
         ->not->toContain('👥 کاربران پنل');
     expect($actor->canManageRoles())->toBeTrue();
 });
