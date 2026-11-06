@@ -332,7 +332,6 @@ it('preserves verified bank history for refunded orders exactly like the existin
     Http::assertNothingSent();
 });
 
-
 it('separates direct reseller and unknown settled channels without guessing historical roles', function (): void {
     $root = kpiRoot();
     $direct = kpiUser('2026-09-01 12:00:00');
