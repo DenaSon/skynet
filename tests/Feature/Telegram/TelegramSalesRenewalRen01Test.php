@@ -8,7 +8,6 @@ use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Sales\Application\CalculatePlanQuote;
 use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\CreatePendingPlanOrder;
-use App\Modules\Sales\Application\CreatePendingRenewalOrder;
 use App\Modules\Sales\Application\ManagePlanPricing;
 use App\Modules\Sales\Application\ManagePlans;
 use App\Modules\Sales\Application\PlanDefinition;
