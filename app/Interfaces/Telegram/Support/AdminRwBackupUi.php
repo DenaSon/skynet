@@ -8,6 +8,7 @@ use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Provisioning\Application\RwBackupOperations;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
@@ -173,20 +174,28 @@ final readonly class AdminRwBackupUi
         if ($root === null || ! RwBackupOperations::validId($id) || config('rw_backup.enabled') !== true) {
             return;
         }
+
+        // Only log a fixed stage and exception class: never a token, URL, chat
+        // identifier or Telegram exception message.
+        $stage = 'remote_info';
         try {
             $this->backup->info($id);
+            $stage = 'url';
             $token = bin2hex(random_bytes(32));
-            $url = route('rw-backup.download', ['token' => $token]);
-            if (! str_starts_with($url, 'https://')) {
-                throw new \RuntimeException('HTTPS required for backup delivery.');
-            }
-            Cache::put('rwbackup:download:'.hash('sha256', $token), [
-                'userId' => $root['userId'], 'telegramId' => $root['telegramId'], 'id' => $id,
-            ], now()->addMinutes(10));
+            $url = RwBackupDownloadUrl::forToken($token);
 
+            $stage = 'cache';
+            if (Cache::put('rwbackup:download:'.hash('sha256', $token), [
+                'userId' => $root['userId'], 'telegramId' => $root['telegramId'], 'id' => $id,
+            ], now()->addMinutes(10)) !== true) {
+                throw new \RuntimeException('Cannot store one-time download grant.');
+            }
+
+            $stage = 'callback';
             if ($bot->isCallbackQuery()) {
                 TelegramUi::answerCallback($bot);
             }
+            $stage = 'telegram_send';
             $bot->sendMessage(
                 text: "🔐 لینک دانلود یک‌بارمصرف تا ۱۰ دقیقه معتبر است.\nفایل بک‌آپ محرمانه است؛ لینک را برای دیگران ارسال نکن.",
                 reply_markup: InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make(
@@ -194,7 +203,11 @@ final readonly class AdminRwBackupUi
                     url: $url,
                 )),
             );
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            Log::warning('rw_backup.download_link_failed', [
+                'stage' => $stage,
+                'exception' => $exception::class,
+            ]);
             $this->show($bot, '⚠️ دانلود', 'ساخت لینک دانلود ممکن نیست.',
                 InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make('◀️ لیست', callback_data: 'admin:rwbackup:list:1')));
         }
