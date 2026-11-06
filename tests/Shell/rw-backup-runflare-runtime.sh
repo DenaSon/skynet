@@ -3,7 +3,7 @@
 set -Eeuo pipefail
 SOURCE=resources/scripts/prepare-rw-backup-ssh.sh
 TMP="$(mktemp -d)"
-trap 'rm -rf -- "$TMP"' EXIT
+trap 'sudo rm -rf -- "$TMP"' EXIT
 
 # With feature OFF and no Secret, the existing postStart flow must still work.
 RW_BACKUP_ENABLED=false /bin/sh "$SOURCE" > "$TMP/disabled.log"
@@ -39,7 +39,7 @@ grep -q 'credentials ready' "$TMP/ready.log"
 [[ "$(sudo stat -c '%a %U:%G' "$TMP/secrets/rw-backup-known-hosts")" == '640 root:www-data' ]]
 sudo -u www-data test -r "$TMP/secrets/rw-backup-ssh"
 sudo -u www-data test -r "$TMP/secrets/rw-backup-known-hosts"
-sudo ssh-keygen -y -P '' -f "$TMP/secrets/rw-backup-ssh" > "$TMP/derived-pub"
+sudo -u www-data ssh-keygen -y -P '' -f "$TMP/secrets/rw-backup-ssh" > "$TMP/derived-pub"
 cmp -s "$TMP/derived-pub" <(ssh-keygen -y -P '' -f "$TMP/test-id")
 
 # Invalid base64 must fail without overwriting the previous valid key.
