@@ -6,6 +6,7 @@ use App\Interfaces\Telegram\Support\ReplyMenuRenderer;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
+use GuzzleHttp\Psr7\Request;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -15,6 +16,7 @@ use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\ReplyKeyboardMarkup;
 use SergiX44\Nutgram\Telegram\Types\Message\Message;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
+use SergiX44\Nutgram\Testing\FakeNutgram;
 
 uses(RefreshDatabase::class);
 
@@ -283,8 +285,8 @@ it('shows root-only control panel routes in Inline and persistent menus without 
     ]);
 
     $bot->hearCallbackQueryData('menu:admin:control')->reply()
-        ->assertRaw(static function (\GuzzleHttp\Psr7\Request $request): bool {
-            $data = \SergiX44\Nutgram\Testing\FakeNutgram::getActualData($request);
+        ->assertRaw(static function (Request $request): bool {
+            $data = FakeNutgram::getActualData($request);
             $markup = is_string($data['reply_markup'] ?? null)
                 ? json_decode($data['reply_markup'], true, 512, JSON_THROW_ON_ERROR)
                 : ($data['reply_markup'] ?? []);
