@@ -206,7 +206,7 @@ it('polishes the RTL backup overview without naming the upstream provider or cha
                 && ($buttons[1][0]['callback_data'] ?? null) === 'admin:rwbackup:view:'.$id
                 && ($buttons[2][0]['callback_data'] ?? null) === 'admin:rwbackup:list:1'
                 && ($buttons[3][0]['callback_data'] ?? null) === 'admin:welcome:show';
-        }, index: 1);
+        }, index: 0);
 });
 
 it('keeps archive details compact and only offers destructive actions for ready archives', function (): void {
@@ -234,7 +234,7 @@ it('keeps archive details compact and only offers destructive actions for ready 
                 && ($buttons[0][0]['callback_data'] ?? null) === 'admin:rwbackup:download:'.$id
                 && ($buttons[1][0]['callback_data'] ?? null) === 'admin:rwbackup:delete:'.$id
                 && ($buttons[2][0]['callback_data'] ?? null) === 'admin:rwbackup:list:1';
-        }, index: 1);
+        }, index: 0);
 
     backup01Bot(899101)->hearCallbackQueryData('admin:rwbackup:view:'.$id)->reply()
         ->assertRaw(static function (NutgramRequest $request) use ($id): bool {
@@ -246,7 +246,7 @@ it('keeps archive details compact and only offers destructive actions for ready 
                 && ($buttons[0][0]['callback_data'] ?? null) === 'admin:rwbackup:view:'.$id
                 && ($buttons[1][0]['callback_data'] ?? null) === 'admin:rwbackup:list:1'
                 && ! str_contains(json_encode($buttons, JSON_THROW_ON_ERROR), 'admin:rwbackup:delete:');
-        }, index: 1);
+        }, index: 0);
 });
 
 it('uses formal language in backup confirmation and preserves create confirmation callbacks', function (): void {
@@ -266,5 +266,5 @@ it('uses formal language in backup confirmation and preserves create confirmatio
                 && ! str_contains($html, 'Remnawave')
                 && str_starts_with((string) ($buttons[0][0]['callback_data'] ?? ''), 'admin:rwbackup:apply:')
                 && ($buttons[1][0]['callback_data'] ?? null) === 'admin:rwbackup:list:1';
-        }, index: 1);
+        }, index: 0);
 });
