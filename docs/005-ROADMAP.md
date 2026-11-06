@@ -1,3 +1,7 @@
+## KPI improvement follow-up — phase 1 only (2026-11-06)
+
+Approved plan: (1) complete period comparisons and average order value; (2) accurate sales-channel data; (3) direct/reseller and concentration presentation; (4) concise management narrative. Only phase 1 is authorized and implemented in this source change; later phases require separate authorization. Preserve canonical financial/date semantics and existing UI access/navigation. Acceptance and release boundaries: [docs/042](042-DENABAN-DECISION-DASHBOARD-ROADMAP.md#kpi-improvement-follow-up--approved-four-phase-plan-2026-11-06).
+
 ## DENABAN-MGMT — reliability and separate KPI dashboard (approved 2026-11-05)
 
 See [docs/042-DENABAN-DECISION-DASHBOARD-ROADMAP.md](042-DENABAN-DECISION-DASHBOARD-ROADMAP.md). Four independent phases: (1) health completeness, accessible paginated paid-fulfillment review and overdue detection, low-priority manager-notification noise suppression **without deleting history**; (2) Denaban RTL Rich layout ordering: finance, users, attention, network; (3) canonical read-only growth comparisons for settled sales and new registrations; (4) a **separate** native Rich KPI screen with daily/weekly/monthly inline selectors. **Phases 1–3 are merged (#374, #375, #376); phase 4 adds only a separate private Root Rich KPI dashboard, its three period callbacks and regression tests.** No provider/payment writes or extra KPI surface inside Denaban.

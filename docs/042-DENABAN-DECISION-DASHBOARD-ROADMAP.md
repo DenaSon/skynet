@@ -74,3 +74,24 @@ One independent, reversible PR after the existing four phases. Scope is display-
 ## Evidence and release
 
 At the end of each phase record: implemented / tested (with exact CI outcome) / remaining / risks. Production execution of pending paid orders or alterations to customer balances are never part of these dashboard changes.
+
+## KPI improvement follow-up — approved four-phase plan (2026-11-06)
+
+This is a separate follow-up to the original four Denaban/KPI phases above. The operator approved the plan and authorized **only improvement phase 1** for implementation and closure. Keep each phase in an independent PR; do not start phases 2–4 inside phase 1.
+
+| Phase | Scope | Status |
+| --- | --- | --- |
+| 1 — complete comparisons | Compare recent/previous settled sales, order count, unique buyers, non-renewal purchases and renewals; add average settled order value and percentage change. | Implemented in this scoped source change; CI and live device acceptance are separate. |
+| 2 — sales channel data | Define immutable buyer category for new orders, historical unknown handling and read-only direct/reseller and top-three-buyer aggregates. No guessing historical category from discounts or current roles. | Planned; separate implementation authorization required. |
+| 3 — reseller presentation | Compare direct/reseller sales and shares, buying resellers and top-three-buyer concentration in concise Rich/native views. | Planned; separate implementation authorization required. |
+| 4 — management narrative | Short visible takeaway and expandable, data-supported observations plus one relevant suggestion using all approved metrics. | Planned; existing narrative is unchanged in phase 1. |
+
+### Improvement phase 1 — comparison contract
+
+- Change only `AdminManagementKpiUi`, focused tests and necessary documents. Derive comparisons from the existing authorized `ReadAdminManagementKpis` current/previous snapshot; **no added SQL, changed settlement definition, date windows, schema, configuration, dependencies or provider operations**.
+- Keep two compact RTL tables. Sales rows show the recent value, previous value and signed percentage change in a two-column layout with line breaks inside the value cell; retain the registration table, existing expandable narrative, exact period filters, refresh/back callbacks and Tehran footer. Label non-renewal orders «خرید غیرتمدیدی», not new customers.
+- Average order value is the period's canonical settled revenue divided by its settled order count, including both new purchases and renewals. It is **not** revenue per unique buyer. Use unrounded ratios for percentage comparisons and round only displayed average tomans to the nearest whole toman. This is display-only statistical arithmetic, never a monetary posting or repricing operation.
+- Zero orders means an undefined average: show «بدون سفارش» for the value and «قابل محاسبه نیست» for its change if either period has no orders. A genuine zero average with nonzero orders remains zero. Zero previous values for otherwise defined comparisons remain «بدون مبنا»; do not invent infinity or a zero growth rate.
+- Rich and native HTML use the same comparison rows. Rich transport failures preserve values, units, dates and native buttons. Keep existing private trusted-root checks and same-message callback behavior.
+- Acceptance: actual bank/wallet fixture reads through the existing callback; all count comparisons; weighted order average vs unique buyers; rising/falling/stable and zero baseline cases; absent vs zero averages; rounding without distorting growth; no reads/writes during presentation; matching Rich/native values and transport-error fallback; existing role, group, period and settlement regressions. Run PHP 8.4/8.5, PHPStan, Pint and applicable MySQL/Redis CI; record actual outcomes in the PR. Native iOS/Android rendering remains operator QA.
+- Compatibility inspected 2026-11-06: official Bot API changelog remains 10.3 and pinned Nutgram 4.50.3 supports `InputRichMessage(html:, is_rtl:)`; reuse the current compact table/line-break transport, with no SDK upgrade. Rollback is a single PR revert, with no customer data change.

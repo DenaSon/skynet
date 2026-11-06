@@ -101,15 +101,7 @@ final readonly class AdminManagementKpiUi
             .'<p>📅 بازه اخیر: '.self::range($current, $data['period']).'</p>'
             .'<p>📅 بازه مقایسه: '.self::range($previous, $data['period']).'</p>'
             .'<h3>💰 عملکرد فروش</h3>'
-            .self::table([
-                ['فروش بازه اخیر', self::money($current['revenueRials'])],
-                ['فروش بازه قبل', self::money($previous['revenueRials'])],
-                ['تغییر فروش', self::percent($growth['salesPercent'])],
-                ['تراکنش‌ها · بازه اخیر', self::count($current['transactions'])],
-                ['خریداران یکتا · بازه اخیر', self::count($current['uniqueBuyers'])],
-                ['خرید جدید · بازه اخیر', self::count($current['newPurchases'])],
-                ['تمدید · بازه اخیر', self::count($current['renewals'])],
-            ])
+            .self::comparisonTable(self::salesRows($data))
             .'<h3>👥 ثبت‌نام کاربران</h3>'
             .self::table([
                 ['کاربران جدید · بازه اخیر', self::count($current['newUsers'])],
@@ -119,7 +111,8 @@ final readonly class AdminManagementKpiUi
             .self::richInsights($data)
             .'<footer>🕒 '.TelegramUi::escape(PersianCalendar::localDateTime($data['generatedAt']))
             .' (تهران) · فروش تسویه‌شده، نه سود خالص یا شارژ کیف پول.'
-            .' «بدون مبنا» یعنی مقدار بازه قبل صفر بوده است.</footer>';
+            .' «بدون مبنا» یعنی مقدار بازه قبل صفر بوده است.'
+            .' میانگین به نزدیک‌ترین تومان گرد شده است.</footer>';
     }
 
     /**
@@ -138,21 +131,103 @@ final readonly class AdminManagementKpiUi
             ."\n📅 بازه اخیر: ".self::range($current, $data['period'])
             ."\n📅 بازه مقایسه: ".self::range($previous, $data['period'])
             ."\n\n<b>💰 عملکرد فروش</b>"
-            ."\nفروش بازه اخیر: ".self::money($current['revenueRials'])
-            ."\nفروش بازه قبل: ".self::money($previous['revenueRials'])
-            ."\nتغییر فروش: ".self::percent($growth['salesPercent'])
-            ."\nتراکنش‌ها: ".self::count($current['transactions'])
-            ."\nخریداران یکتا: ".self::count($current['uniqueBuyers'])
-            ."\nخرید جدید: ".self::count($current['newPurchases'])
-            ."\nتمدید: ".self::count($current['renewals'])
+            .self::simpleComparisons(self::salesRows($data))
             ."\n\n<b>👥 ثبت‌نام کاربران</b>"
             ."\nکاربران جدید · بازه اخیر: ".self::count($current['newUsers'])
             ."\nکاربران جدید · بازه قبل: ".self::count($previous['newUsers'])
             ."\nتغییر ثبت‌نام: ".self::percent($growth['newUsersPercent'])
             .self::simpleInsights($data)
             ."\n\n<blockquote>فروش تسویه‌شده است، نه سود خالص یا شارژ کیف پول."
-            .' «بدون مبنا» یعنی بازه قبل صفر بوده است.</blockquote>'
+            .' «بدون مبنا» یعنی بازه قبل صفر بوده است.'
+            .' میانگین به نزدیک‌ترین تومان گرد شده است.</blockquote>'
             ."\n🕒 ".PersianCalendar::localDateTime($data['generatedAt']).' (تهران)';
+    }
+
+    /**
+     * Display-only comparisons from the same authorized snapshot. No extra reads.
+     *
+     * @param  array<string,mixed>  $data
+     * @return list<array{string,string,string,string}>
+     */
+    private static function salesRows(array $data): array
+    {
+        $current = $data['current'];
+        $previous = $data['previous'];
+        $currentAverage = self::averageOrderRials($current);
+        $previousAverage = self::averageOrderRials($previous);
+        $rows = [
+            [
+                'فروش تسویه‌شده', self::money($current['revenueRials']),
+                self::money($previous['revenueRials']), self::percent($data['growth']['salesPercent']),
+            ],
+            [
+                'میانگین مبلغ سفارش', self::averageMoney($currentAverage),
+                self::averageMoney($previousAverage), self::comparisonPercent($currentAverage, $previousAverage),
+            ],
+        ];
+
+        foreach ([
+            'transactions' => 'تعداد سفارش‌ها',
+            'uniqueBuyers' => 'خریداران یکتا',
+            'newPurchases' => 'خرید غیرتمدیدی',
+            'renewals' => 'تمدید',
+        ] as $key => $label) {
+            $rows[] = [
+                $label, self::count($current[$key]), self::count($previous[$key]),
+                self::comparisonPercent($current[$key], $previous[$key]),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /** @param array{revenueRials:int,transactions:int} $totals */
+    private static function averageOrderRials(array $totals): ?float
+    {
+        // Averages are display statistics, never monetary postings. Keep the
+        // unrounded quotient for comparisons; round only the displayed tomans.
+        return $totals['transactions'] === 0 ? null : $totals['revenueRials'] / $totals['transactions'];
+    }
+
+    private static function averageMoney(?float $rials): string
+    {
+        return $rials === null ? 'بدون سفارش'
+            : PersianCalendar::digits(number_format($rials / 10, 0, '٫', '٬')).' تومان';
+    }
+
+    private static function comparisonPercent(?float $current, ?float $previous): string
+    {
+        if ($current === null || $previous === null) {
+            return 'قابل محاسبه نیست';
+        }
+
+        return self::percent($previous === 0.0 ? null : round(($current - $previous) / $previous * 100, 1));
+    }
+
+    /** @param list<array{string,string,string,string}> $rows */
+    private static function comparisonTable(array $rows): string
+    {
+        $html = '<table bordered striped compact>';
+        foreach ($rows as [$label, $current, $previous, $change]) {
+            $html .= '<tr><td>'.TelegramUi::escape($label).'</td><td>اخیر: <b>'
+                .TelegramUi::escape($current).'</b><br>قبل: '.TelegramUi::escape($previous)
+                .'<br>تغییر: '.TelegramUi::escape($change).'</td></tr>';
+        }
+
+        return $html.'</table>';
+    }
+
+    /** @param list<array{string,string,string,string}> $rows */
+    private static function simpleComparisons(array $rows): string
+    {
+        $text = '';
+        foreach ($rows as [$label, $current, $previous, $change]) {
+            $text .= "\n\n<b>".TelegramUi::escape($label).'</b>'
+                ."\nاخیر: ".TelegramUi::escape($current).' · قبل: '.TelegramUi::escape($previous)
+                ."\nتغییر: ".TelegramUi::escape($change);
+        }
+
+        return $text;
     }
 
     /**
