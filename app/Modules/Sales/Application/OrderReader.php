@@ -190,6 +190,7 @@ final class OrderReader
             planRevision: ($row->plan_revision ?? null) === null ? null : (int) $row->plan_revision,
             pricingRevision: ($row->pricing_revision ?? null) === null ? null : (int) $row->pricing_revision,
             internalSquadUuid: ($row->internal_squad_uuid ?? null) === null ? null : (string) $row->internal_squad_uuid,
+            buyerCategory: ($row->buyer_category ?? null) === null ? null : (string) $row->buyer_category,
         );
     }
 }
