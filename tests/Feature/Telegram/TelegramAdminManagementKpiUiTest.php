@@ -12,8 +12,11 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
+use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 use SergiX44\Nutgram\Testing\FakeNutgram;
 
@@ -164,8 +167,11 @@ it('renders accurate RTL Rich daily comparison with two tables, live filters and
                 && str_contains($html, '۵۰۰٬۰۰۰ تومان')
                 && str_contains($html, '۱۰۰٬۰۰۰ تومان')
                 && str_contains($html, '+۴۰۰٫۰٪')
-                && str_contains($html, 'خریداران یکتا · بازه اخیر</td><td><b>۱</b>')
-                && str_contains($html, 'تراکنش‌ها · بازه اخیر</td><td><b>۲</b>')
+                && str_contains($html, 'خریداران یکتا</td><td>اخیر: <b>۱</b><br>قبل: ۱<br>تغییر: ۰٫۰٪')
+                && str_contains($html, 'تعداد سفارش‌ها</td><td>اخیر: <b>۲</b><br>قبل: ۱<br>تغییر: +۱۰۰٫۰٪')
+                && str_contains($html, 'میانگین مبلغ سفارش</td><td>اخیر: <b>۲۵۰٬۰۰۰ تومان</b><br>قبل: ۱۰۰٬۰۰۰ تومان<br>تغییر: +۱۵۰٫۰٪')
+                && str_contains($html, 'خرید غیرتمدیدی</td><td>اخیر: <b>۲</b><br>قبل: ۱<br>تغییر: +۱۰۰٫۰٪')
+                && str_contains($html, 'تمدید</td><td>اخیر: <b>۰</b><br>قبل: ۰<br>تغییر: بدون مبنا')
                 && str_contains($html, 'کاربران جدید · بازه اخیر</td><td><b>۱</b>')
                 && str_contains($html, 'کاربران جدید · بازه قبل</td><td><b>۱</b>')
                 && str_contains($html, '۱۴۰۵/')
@@ -197,6 +203,8 @@ it('renders accurate RTL Rich daily comparison with two tables, live filters and
     expect($plain)->toContain('۵۰۰٬۰۰۰ تومان')
         ->toContain('۱۰۰٬۰۰۰ تومان')
         ->toContain('+۴۰۰٫۰٪')
+        ->toContain("<b>میانگین مبلغ سفارش</b>\nاخیر: ۲۵۰٬۰۰۰ تومان · قبل: ۱۰۰٬۰۰۰ تومان\nتغییر: +۱۵۰٫۰٪")
+        ->toContain("<b>تعداد سفارش‌ها</b>\nاخیر: ۲ · قبل: ۱\nتغییر: +۱۰۰٫۰٪")
         ->toContain('کاربران جدید · بازه اخیر: ۱')
         ->toContain('۱۴۰۵/')
         ->toContain('🧠 تحلیل عملکرد دوره')
@@ -205,6 +213,133 @@ it('renders accurate RTL Rich daily comparison with two tables, live filters and
         ->not->toContain('<details>')
         ->toContain('تهران');
 });
+
+it('compares every sales metric in rich and native output without querying or rewriting the snapshot', function (): void {
+    $data = [
+        'period' => 'week', 'generatedAt' => '2026-11-05 15:30',
+        'current' => [
+            'from' => '2026-10-29 00:00:00', 'until' => '2026-11-05 00:00:00',
+            'revenueRials' => 12_000_000, 'transactions' => 15, 'uniqueBuyers' => 8,
+            'newPurchases' => 12, 'renewals' => 3, 'newUsers' => 10,
+        ],
+        'previous' => [
+            'from' => '2026-10-22 00:00:00', 'until' => '2026-10-29 00:00:00',
+            'revenueRials' => 10_000_000, 'transactions' => 10, 'uniqueBuyers' => 10,
+            'newPurchases' => 8, 'renewals' => 2, 'newUsers' => 10,
+        ],
+        'growth' => ['salesPercent' => 20.0, 'newUsersPercent' => 0.0],
+    ];
+    $snapshot = $data;
+    $ui = app(AdminManagementKpiUi::class);
+    DB::enableQueryLog();
+    DB::flushQueryLog();
+    try {
+        $rich = (new ReflectionMethod(AdminManagementKpiUi::class, 'richReport'))->invoke($ui, $data);
+        $plain = (new ReflectionMethod(AdminManagementKpiUi::class, 'simpleReport'))->invoke($ui, $data);
+        expect(DB::getQueryLog())->toBe([]);
+    } finally {
+        DB::disableQueryLog();
+    }
+
+    foreach ([
+        ['فروش تسویه‌شده', '۱٬۲۰۰٬۰۰۰ تومان', '۱٬۰۰۰٬۰۰۰ تومان', '+۲۰٫۰٪'],
+        ['میانگین مبلغ سفارش', '۸۰٬۰۰۰ تومان', '۱۰۰٬۰۰۰ تومان', '−۲۰٫۰٪'],
+        ['تعداد سفارش‌ها', '۱۵', '۱۰', '+۵۰٫۰٪'],
+        ['خریداران یکتا', '۸', '۱۰', '−۲۰٫۰٪'],
+        ['خرید غیرتمدیدی', '۱۲', '۸', '+۵۰٫۰٪'],
+        ['تمدید', '۳', '۲', '+۵۰٫۰٪'],
+    ] as [$label, $current, $previous, $change]) {
+        expect($rich)->toContain('<td>'.$label.'</td><td>اخیر: <b>'.$current
+            .'</b><br>قبل: '.$previous.'<br>تغییر: '.$change.'</td>')
+            ->and($plain)->toContain('<b>'.$label."</b>\nاخیر: ".$current
+                .' · قبل: '.$previous."\nتغییر: ".$change);
+    }
+    expect($data)->toBe($snapshot)
+        ->and($plain)->not->toContain('<table', '<br>', '<details>')
+        ->and(mb_strlen(strip_tags($plain)))->toBeLessThanOrEqual(4096);
+    Http::assertNothingSent();
+});
+
+it('falls back after a rich transport error with the same comparisons and native buttons', function (): void {
+    kpiUiRoot();
+    $buyer = kpiUiUser('2026-09-01 12:00:00');
+    kpiUiSettlement($buyer, 'bank', '2026-11-04 12:00:00', 1_000_000);
+    kpiUiSettlement($buyer, 'wallet', '2026-11-05 12:00:00', 2_000_000);
+    $keyboard = null;
+    $bot = Mockery::mock(Nutgram::class);
+    $bot->shouldReceive('chat')->andReturn(Chat::make(991901, ChatType::PRIVATE));
+    $bot->shouldReceive('user')->andReturn(TelegramUser::make(991901, false, 'Admin'));
+    $bot->shouldReceive('isCallbackQuery')->andReturn(false);
+    $bot->shouldReceive('sendRichMessage')->once()->andReturnUsing(function (...$arguments) use (&$keyboard): void {
+        foreach ($arguments as $argument) {
+            if ($argument instanceof InputRichMessage) {
+                expect($argument->html)->toContain('میانگین مبلغ سفارش</td><td>اخیر: <b>۲۰۰٬۰۰۰ تومان</b>');
+            }
+            if ($argument instanceof InlineKeyboardMarkup) {
+                $keyboard = $argument;
+            }
+        }
+        throw new TelegramException('Bad Request: rich messages unavailable', 400);
+    });
+    $bot->shouldReceive('sendMessage')->once()->andReturnUsing(function (...$arguments) use (&$keyboard): null {
+        $text = $arguments[0];
+        expect($text)->toContain("<b>میانگین مبلغ سفارش</b>\nاخیر: ۲۰۰٬۰۰۰ تومان · قبل: ۱۰۰٬۰۰۰ تومان\nتغییر: +۱۰۰٫۰٪")
+            ->not->toContain('<table', '<br>', '<details>');
+        expect($keyboard)->toBeInstanceOf(InlineKeyboardMarkup::class)
+            ->and(in_array($keyboard, $arguments, true))->toBeTrue()
+            ->and(in_array('HTML', $arguments, true))->toBeTrue()
+            ->and(json_encode($keyboard, JSON_THROW_ON_ERROR))->toContain('kpi:period:day', 'kpi:period:week', 'kpi:period:month', 'menu:admin');
+
+        return null;
+    });
+
+    app(AdminManagementKpiUi::class)->show($bot);
+    Http::assertNothingSent();
+});
+
+it('distinguishes missing averages from zero and compares before display rounding', function (
+    int $currentRevenue, int $currentCount, int $previousRevenue, int $previousCount,
+    string $currentAverage, string $previousAverage, string $averageChange, string $countChange,
+): void {
+    $data = [
+        'period' => 'day', 'generatedAt' => '2026-11-05 15:30',
+        'current' => [
+            'from' => '2026-11-05 00:00:00', 'until' => '2026-11-05 15:30:00',
+            'revenueRials' => $currentRevenue, 'transactions' => $currentCount,
+            'uniqueBuyers' => $currentCount, 'newPurchases' => $currentCount,
+            'renewals' => 0, 'newUsers' => 0,
+        ],
+        'previous' => [
+            'from' => '2026-11-04 00:00:00', 'until' => '2026-11-04 15:30:00',
+            'revenueRials' => $previousRevenue, 'transactions' => $previousCount,
+            'uniqueBuyers' => $previousCount, 'newPurchases' => $previousCount,
+            'renewals' => 0, 'newUsers' => 0,
+        ],
+        'growth' => [
+            'salesPercent' => $previousRevenue === 0 ? null
+                : round(($currentRevenue - $previousRevenue) / $previousRevenue * 100, 1),
+            'newUsersPercent' => null,
+        ],
+    ];
+    $ui = app(AdminManagementKpiUi::class);
+    $rich = (new ReflectionMethod(AdminManagementKpiUi::class, 'richReport'))->invoke($ui, $data);
+    $plain = (new ReflectionMethod(AdminManagementKpiUi::class, 'simpleReport'))->invoke($ui, $data);
+
+    expect($rich)->toContain('میانگین مبلغ سفارش</td><td>اخیر: <b>'.$currentAverage
+        .'</b><br>قبل: '.$previousAverage.'<br>تغییر: '.$averageChange.'</td>')
+        ->and($plain)->toContain("<b>میانگین مبلغ سفارش</b>\nاخیر: ".$currentAverage
+            .' · قبل: '.$previousAverage."\nتغییر: ".$averageChange)
+        ->toContain("\nتغییر: ".$countChange)
+        ->and($rich.$plain)->not->toContain('NaN', 'INF', '∞');
+})->with([
+    'both empty' => [0, 0, 0, 0, 'بدون سفارش', 'بدون سفارش', 'قابل محاسبه نیست', 'بدون مبنا'],
+    'new sales' => [1_000_000, 2, 0, 0, '۵۰٬۰۰۰ تومان', 'بدون سفارش', 'قابل محاسبه نیست', 'بدون مبنا'],
+    'no current orders' => [0, 0, 1_000_000, 2, 'بدون سفارش', '۵۰٬۰۰۰ تومان', 'قابل محاسبه نیست', '−۱۰۰٫۰٪'],
+    'real zero average' => [0, 2, 1_000_000, 2, '۰ تومان', '۵۰٬۰۰۰ تومان', '−۱۰۰٫۰٪', '۰٫۰٪'],
+    'zero average baseline' => [1_000_000, 2, 0, 2, '۵۰٬۰۰۰ تومان', '۰ تومان', 'بدون مبنا', '۰٫۰٪'],
+    'unrounded percentage' => [100, 3, 100, 6, '۳ تومان', '۲ تومان', '+۱۰۰٫۰٪', '−۵۰٫۰٪'],
+    'whole toman rounding' => [1_000_010, 3, 2_000_020, 6, '۳۳٬۳۳۴ تومان', '۳۳٬۳۳۴ تومان', '۰٫۰٪', '−۵۰٫۰٪'],
+]);
 
 it('switches period in place and clearly differentiates complete weeks from complete Persian months', function (): void {
     kpiUiRoot();
