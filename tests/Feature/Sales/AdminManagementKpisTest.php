@@ -6,6 +6,7 @@ use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Sales\Application\ReadAdminBusinessReport;
 use App\Modules\Sales\Application\ReadAdminManagementKpis;
+use App\Modules\Sales\Application\ReadAdminSalesChannelKpis;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -39,10 +40,11 @@ function kpiUser(string $localTime): User
     ]);
 }
 
-function kpiBareOrder(User $buyer, string $status, int $amount): int
+function kpiBareOrder(User $buyer, string $status, int $amount, ?string $category = null): int
 {
     return (int) DB::table('sales_orders')->insertGetId([
         'buyer_user_id' => $buyer->id,
+        'buyer_category' => $category,
         'idempotency_key' => bin2hex(random_bytes(16)),
         'product_slug' => 'kpi-fixture',
         'product_name' => 'KPI test order',
@@ -60,8 +62,9 @@ function kpiSettlement(
     int $amount,
     string $status = 'fulfilled',
     bool $renewal = false,
+    ?string $category = null,
 ): int {
-    $order = kpiBareOrder($buyer, $status, $amount);
+    $order = kpiBareOrder($buyer, $status, $amount, $category);
     $settledAt = Carbon::parse($localTime, 'Asia/Tehran')->utc();
     $journal = (int) DB::table('billing_journals')->insertGetId([
         'kind' => 'purchase', 'idempotency_key' => 'kpi-journal-'.$order,
@@ -326,5 +329,74 @@ it('preserves verified bank history for refunded orders exactly like the existin
         ->and($existing['settled'])->toBe(1)
         ->and(DB::table('sales_bank_settlements')->count())->toBe(1)
         ->and(DB::table('sales_order_settlements')->count())->toBe(1);
+    Http::assertNothingSent();
+});
+
+
+it('separates direct reseller and unknown settled channels without guessing historical roles', function (): void {
+    $root = kpiRoot();
+    $direct = kpiUser('2026-09-01 12:00:00');
+    $reseller = kpiUser('2026-09-01 12:00:00');
+    $historical = kpiUser('2026-09-01 12:00:00');
+    $fourth = kpiUser('2026-09-01 12:00:00');
+    $fifth = kpiUser('2026-09-01 12:00:00');
+
+    kpiSettlement($direct, 'bank', '2026-11-04 10:00:00', 400_000, category: 'direct');
+    kpiSettlement($historical, 'wallet', '2026-11-04 10:00:00', 200_000);
+    kpiSettlement($direct, 'bank', '2026-11-05 10:00:00', 1_000_000, category: 'direct');
+    kpiSettlement($reseller, 'wallet', '2026-11-05 11:00:00', 2_000_000, category: 'reseller');
+    $old = kpiSettlement($historical, 'bank', '2026-11-05 12:00:00', 500_000);
+
+    // An old discounted order must stay UNKNOWN even when the buyer has a
+    // current reseller role or a reseller-looking price.
+    $historical->assignRole('reseller');
+    DB::table('sales_orders')->where('id', $old)->update(['discount_percent' => 35]);
+    $bankRefund = kpiSettlement($fourth, 'bank', '2026-11-05 13:00:00', 200_000, category: 'reseller');
+    DB::table('sales_orders')->where('id', $bankRefund)->update(['status' => 'refunded']);
+    kpiSettlement($fifth, 'wallet', '2026-11-05 13:30:00', 100_000, category: 'direct');
+    $walletRefund = kpiSettlement($reseller, 'wallet', '2026-11-05 14:00:00', 9_000_000, category: 'reseller');
+    DB::table('sales_orders')->where('id', $walletRefund)->update(['status' => 'refunded']);
+    kpiBareOrder($reseller, 'pending_payment', 50_000_000, 'reseller');
+
+    $data = app(ReadAdminSalesChannelKpis::class)->handle($root->id, 'day');
+    expect($data['current']['channels']['direct'])->toBe([
+        'revenueRials' => 1_100_000, 'transactions' => 2, 'uniqueBuyers' => 2,
+    ])->and($data['current']['channels']['reseller'])->toBe([
+        'revenueRials' => 2_200_000, 'transactions' => 2, 'uniqueBuyers' => 2,
+    ])->and($data['current']['channels']['unknown'])->toBe([
+        'revenueRials' => 500_000, 'transactions' => 1, 'uniqueBuyers' => 1,
+    ])->and($data['previous']['channels']['direct']['revenueRials'])->toBe(400_000)
+        ->and($data['previous']['channels']['unknown']['revenueRials'])->toBe(200_000)
+        ->and($data['management']['current']['revenueRials'])->toBe(3_800_000)
+        ->and(array_sum(array_column($data['current']['channels'], 'revenueRials')))->toBe(3_800_000)
+        ->and($data['current']['topBuyers'])->toHaveCount(3)
+        ->and($data['current']['topBuyers'][0]['buyerUserId'])->toBe($reseller->id)
+        ->and($data['current']['topBuyers'][0]['revenueRials'])->toBe(2_000_000)
+        ->and($data['current']['topThreeRevenueRials'])->toBe(3_500_000)
+        ->and($data['current']['topThreeSharePercent'])->toBe(92.1);
+    Http::assertNothingSent();
+});
+
+it('keeps unknown historical orders separate and protects empty and unauthorized channel reads', function (): void {
+    $root = kpiRoot();
+    $ordinary = User::factory()->admin()->create();
+    $reader = app(ReadAdminSalesChannelKpis::class);
+
+    expect(fn () => $reader->handle($ordinary->id, 'day'))->toThrow(AuthorizationException::class)
+        ->and(fn () => $reader->handle($root->id, 'invalid'))->toThrow(ValidationException::class);
+
+    $data = $reader->handle($root->id, 'week');
+    expect($data['current']['channels']['direct']['revenueRials'])->toBe(0)
+        ->and($data['current']['channels']['reseller']['uniqueBuyers'])->toBe(0)
+        ->and($data['current']['channels']['unknown']['transactions'])->toBe(0)
+        ->and($data['current']['topBuyers'])->toBe([])
+        ->and($data['current']['topThreeSharePercent'])->toBeNull();
+
+    $this->travelTo(Carbon::parse('2026-11-05 00:00:00', 'Asia/Tehran')->utc());
+    $midnight = $reader->handle($root->id, 'day');
+    expect($midnight['current']['topBuyers'])->toBe([])
+        ->and($midnight['current']['topThreeRevenueRials'])->toBe(0)
+        ->and($midnight['current']['topThreeSharePercent'])->toBeNull()
+        ->and($midnight['previous']['topThreeSharePercent'])->toBeNull();
     Http::assertNothingSent();
 });
