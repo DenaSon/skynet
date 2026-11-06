@@ -38,6 +38,68 @@ Do NOT change a running production SSH configuration without maintaining a separ
    Ensure the PHP-FPM user can read both mounted files. Rebuild the Laravel config cache. Test SSH from the actual running PHP container with strict host checking. Only enable RW_BACKUP_ENABLED=true after full operator acceptance.
 7. Configure web proxy for HTTPS streaming of files larger than 100 MB: do not buffer complete streams or enforce a short upstream timeout. Suppress sensitive bearer-link paths in request logs.
 
+## Runflare deployment — persistent credential source (RW-BACKUP-02)
+
+The existing Laravel postStart command calls /bin/sh /var/www/resources/scripts/prepare-ssh-runtime.sh,
+which now calls prepare-rw-backup-ssh.sh after the existing outbound SSH setup.
+
+**Verified identity (2026-11-06):** RW at 194.5.193.234:22; ED25519 server
+fingerprint SHA256:GOhp0wGAGpHHvKMrOUi0zZyj+IqLf7kTPa5ehluDht4;
+dedicated client ED25519 fingerprint
+SHA256:UYGvU7PFhf3957DhEFQ6d0xllJO9CcOzmWbBXGFLL0A.
+The public host key is pinned at resources/ssh/rw-backup-known-hosts.
+Do not substitute unauthenticated ssh-keyscan output.
+
+1. On the **operator's Windows computer** where the registered passphrase-free key resides,
+   run this in PowerShell:
+
+       $key = Join-Path $HOME ".ssh\denagate_rw_backup"
+       ssh-keygen -lf "$key.pub"
+       $encoded = [Convert]::ToBase64String([IO.File]::ReadAllBytes($key))
+       $encoded | Set-Clipboard
+       Remove-Variable encoded
+
+   Verify the client fingerprint above before copying. This base64 string represents
+   the private key: it is **not encryption**. Never share it in a chat, Git commit,
+   issue, shell command argument, or screenshot. Clear the clipboard after setup.
+
+2. In **Runflare > project skynet > Secrets**, store the copied value as a
+   protected secret and expose it to the laravel service under the variable
+   RW_BACKUP_SSH_PRIVATE_KEY_B64 via a Secret reference, not a plain env variable.
+   See https://runflare.com/docs/secret/ and
+   https://runflare.com/docs/setup-environment-variable/ .
+   Saving changes to environment settings may restart the service.
+
+3. Configure these service environment values (no credentials in source):
+
+       RW_BACKUP_ENABLED=false
+       RW_BACKUP_SSH_HOST=194.5.193.234
+       RW_BACKUP_SSH_PORT=22
+       RW_BACKUP_SSH_USER=root
+       RW_BACKUP_SSH_KEY_PATH=/run/secrets/rw-backup-ssh
+       RW_BACKUP_SSH_KNOWN_HOSTS_PATH=/run/secrets/rw-backup-known-hosts
+
+4. The root-run postStart hook validates the decoded private key without logging it,
+   refuses passphrases or wrong client fingerprints, verifies the pinned host key,
+   and installs files as root:www-data with mode 0640 under /run/secrets.
+   If the directory does not exist it is created with mode 0750. An existing
+   /run/secrets directory is never re-permissioned. No key Secret is needed
+   while RW_BACKUP_ENABLED=false, preserving the prior Node SSH setup.
+
+5. Verify from the actual **Laravel container** without printing secret contents:
+
+       stat -c '%a %U:%G %n' /run/secrets/rw-backup-ssh /run/secrets/rw-backup-known-hosts
+       su -s /bin/sh www-data -c 'test -r /run/secrets/rw-backup-ssh && test -r /run/secrets/rw-backup-known-hosts && echo WWW_DATA_CAN_READ=YES'
+
+   Next, test the read-only SSH list command as www-data; keep the application
+   feature disabled until complete list/download/checksum/restore acceptance.
+
+**Rollback:** Keep RW_BACKUP_ENABLED=false. Removing the Runflare secret reference
+stops future provisioning after the next deployment; already running pods may still
+hold the key until terminated. Revoking the restricted authorized_keys entry on RW
+disables the credential immediately. Never print raw env vars, /proc/*/environ, or
+private keys while troubleshooting.
+
 ## Test/acceptance plan
 
 - Super Admin entry in Settings, private-chat only; ordinary admins, revoked accounts, expired confirmation tokens and arbitrary archive IDs cannot list, start, download or delete.

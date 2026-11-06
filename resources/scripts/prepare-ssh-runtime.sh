@@ -22,4 +22,7 @@ command -v ssh >/dev/null
 command -v ssh-keyscan >/dev/null
 test -x "$ASKPASS"
 
+# Optional RW backup identity: isolated from Node SSH setup and default-off.
+/bin/sh /var/www/resources/scripts/prepare-rw-backup-ssh.sh
+
 echo "SSH runtime ready."
