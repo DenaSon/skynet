@@ -48,9 +48,9 @@ final readonly class AdminRwBackupUi
             return;
         }
         $back = InlineKeyboardMarkup::make()
-            ->addRow(InlineKeyboardButton::make('◀️ تنظیمات', callback_data: 'admin:welcome:show'));
+            ->addRow(InlineKeyboardButton::make('◀️ بازگشت به تنظیمات', callback_data: 'admin:welcome:show'));
         if (config('rw_backup.enabled') !== true) {
-            $this->show($bot, '🗄️ مدیریت بک‌آپ', 'قابلیت هنوز در سرور فعال نشده است.', $back);
+            $this->show($bot, '🗄️ مدیریت بک‌آپ', 'مدیریت بک‌آپ در حال حاضر غیرفعال است.', $back);
 
             return;
         }
@@ -63,37 +63,46 @@ final readonly class AdminRwBackupUi
                 throw new \RuntimeException('Invalid page.');
             }
             $keyboard = InlineKeyboardMarkup::make()
-                ->addRow(InlineKeyboardButton::make('➕ تهیه بک‌آپ جدید', callback_data: 'admin:rwbackup:prepare'));
+                ->addRow(InlineKeyboardButton::make('➕ ایجاد بک‌آپ جدید', callback_data: 'admin:rwbackup:prepare'));
             $rows = array_slice($items, ($requested - 1) * 6, 6);
             $table = '';
             foreach ($rows as $item) {
                 $label = self::label($item['state']).' '.self::date($item['timestamp']).' · '.self::size($item['size']);
                 $keyboard->addRow(InlineKeyboardButton::make($label, callback_data: 'admin:rwbackup:view:'.$item['id']));
-                $table .= '<tr><td>'.TelegramUi::escape(self::date($item['timestamp']))
-                    .'</td><td>'.TelegramUi::escape(self::label($item['state'])).'</td></tr>';
+                $table .= '<tr><td><code>'.TelegramUi::escape(self::date($item['timestamp']))
+                    .'</code></td><td>'.TelegramUi::escape(self::label($item['state'])).'</td></tr>';
             }
             $nav = [];
             if ($requested > 1) {
-                $nav[] = InlineKeyboardButton::make('◀️ قبلی', callback_data: 'admin:rwbackup:list:'.($requested - 1));
+                $nav[] = InlineKeyboardButton::make('◀️ صفحه قبل', callback_data: 'admin:rwbackup:list:'.($requested - 1));
             }
             if ($requested < $pages) {
-                $nav[] = InlineKeyboardButton::make('بعدی ▶️', callback_data: 'admin:rwbackup:list:'.($requested + 1));
+                $nav[] = InlineKeyboardButton::make('صفحه بعد ▶️', callback_data: 'admin:rwbackup:list:'.($requested + 1));
             }
             if ($nav !== []) {
                 $keyboard->addRow(...$nav);
             }
-            $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'admin:rwbackup:list:'.$requested));
-            $keyboard->addRow(InlineKeyboardButton::make('◀️ تنظیمات', callback_data: 'admin:welcome:show'));
+            $keyboard->addRow(InlineKeyboardButton::make('🔄 به‌روزرسانی', callback_data: 'admin:rwbackup:list:'.$requested));
+            $keyboard->addRow(InlineKeyboardButton::make('◀️ بازگشت به تنظیمات', callback_data: 'admin:welcome:show'));
 
-            $total = array_sum(array_column($items, 'size'));
-            $text = 'تعداد نسخه‌ها: '.count($items).' · حجم آرشیوها: '.self::size($total)
+            $total = self::size(array_sum(array_column($items, 'size')));
+            $count = number_format(count($items));
+            $notice = '⚠️ نسخه‌هایی که دانلود نشده‌اند، فقط روی سرور نگهداری می‌شوند.';
+            $text = 'نسخه‌های موجود: '.$count.' · حجم کل: '.$total
                 ."\nصفحه $requested از $pages\n"
-                .'رمز بک‌آپ جداگانه نگهداری می‌شود. نسخه دانلودنشده خارج از سرور محفوظ نیست.';
-            $rich = $table === '' ? '<p>هنوز نسخه‌ای موجود نیست.</p>'
-                : '<table bordered striped compact>'.$table.'</table>';
-            $this->show($bot, '🗄️ مدیریت بک‌آپ Remnawave', $text, $keyboard, $rich);
+                .($items === [] ? 'هنوز نسخه پشتیبانی ثبت نشده است.'
+                    : 'برای مشاهده جزئیات، نسخه موردنظر را انتخاب کنید.')
+                ."\n".$notice;
+            $rich = '<p>نسخه‌ها: <b>'.TelegramUi::escape($count).'</b>'
+                .' · حجم کل: <b>'.TelegramUi::escape($total).'</b></p>'
+                .($table === '' ? '<p>هنوز نسخه پشتیبانی ثبت نشده است.</p>'
+                    : '<table bordered striped compact><tr><td>تاریخ ایجاد</td><td>وضعیت</td></tr>'
+                    .$table.'</table>')
+                .'<p>صفحه '.$requested.' از '.$pages.'</p>'
+                .'<footer>'.TelegramUi::escape($notice).'</footer>';
+            $this->show($bot, '🗄️ مدیریت بک‌آپ', $text, $keyboard, $rich);
         } catch (Throwable) {
-            $this->show($bot, '🗄️ مدیریت بک‌آپ', 'ارتباط با سرور بک‌آپ برقرار نشد یا پاسخ معتبر نبود.', $back);
+            $this->show($bot, '🗄️ مدیریت بک‌آپ', 'دریافت فهرست بک‌آپ‌ها در حال حاضر امکان‌پذیر نیست.', $back);
         }
     }
 
@@ -279,10 +288,10 @@ final readonly class AdminRwBackupUi
         return Carbon::createFromTimestamp($timestamp, 'UTC')->setTimezone('Asia/Tehran')->format('Y/m/d H:i');
     }
 
-    private function show(Nutgram $bot, string $title, string $detail, InlineKeyboardMarkup $keyboard, ?string $table = null): void
+    private function show(Nutgram $bot, string $title, string $detail, InlineKeyboardMarkup $keyboard, ?string $richBody = null): void
     {
         $html = '<h2>'.TelegramUi::escape($title).'</h2>'
-            .($table ?? '').'<p>'.TelegramUi::escape(strip_tags($detail)).'</p>';
+            .($richBody ?? '<p>'.TelegramUi::escape(strip_tags($detail)).'</p>');
         try {
             TelegramUi::editRichText($bot, new InputRichMessage(html: $html, is_rtl: true), $keyboard);
 
