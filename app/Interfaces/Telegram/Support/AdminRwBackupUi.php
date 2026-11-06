@@ -176,6 +176,10 @@ final readonly class AdminRwBackupUi
         try {
             $this->backup->info($id);
             $token = bin2hex(random_bytes(32));
+            $url = route('rw-backup.download', ['token' => $token]);
+            if (! str_starts_with($url, 'https://')) {
+                throw new \RuntimeException('HTTPS required for backup delivery.');
+            }
             Cache::put('rwbackup:download:'.hash('sha256', $token), [
                 'userId' => $root['userId'], 'telegramId' => $root['telegramId'], 'id' => $id,
             ], now()->addMinutes(10));
@@ -187,7 +191,7 @@ final readonly class AdminRwBackupUi
                 text: "🔐 لینک دانلود یک‌بارمصرف تا ۱۰ دقیقه معتبر است.\nفایل بک‌آپ محرمانه است؛ لینک را برای دیگران ارسال نکن.",
                 reply_markup: InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make(
                     '⬇️ دانلود فایل رمزنگاری‌شده',
-                    url: route('rw-backup.download', ['token' => $token]),
+                    url: $url,
                 )),
             );
         } catch (Throwable) {
