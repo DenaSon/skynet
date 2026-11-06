@@ -41,6 +41,8 @@ it('creates a pending-payment order with an immutable pricing and volume snapsho
         ->and($order->publicPriceRials)->toBe(300_000)
         ->and($order->totalPriceRials)->toBe(300_000)
         ->and($order->discountPercent)->toBe(0)
+        ->and($order->buyerCategory)->toBe('direct')
+        ->and(DB::table('sales_orders')->where('id', $order->id)->value('buyer_category'))->toBe('direct')
         ->and($order->status)->toBe('pending_payment');
 
     // Future tariff edits must not rewrite an existing financial quote snapshot.
@@ -66,7 +68,12 @@ it('reseller orders snapshot discount using the same public catalog rate', funct
     expect($order->publicPriceRials)->toBe(300_000)
         ->and($order->discountPercent)->toBe(35)
         ->and($order->discountRials)->toBe(105_000)
+        ->and($order->buyerCategory)->toBe('reseller')
         ->and($order->totalPriceRials)->toBe(195_000);
+
+    // Role revocation never rewrites the accepted order's channel snapshot.
+    $buyer->syncRoles(['member']);
+    expect(app(OrderReader::class)->find($buyer->id, $order->id)->buyerCategory)->toBe('reseller');
 });
 
 it('prevents duplicates on repeated Telegram callback tokens even after tariff changes', function (): void {
@@ -81,6 +88,7 @@ it('prevents duplicates on repeated Telegram callback tokens even after tariff c
 
     expect($repeat->id)->toBe($first->id)
         ->and($repeat->totalPriceRials)->toBe(300_000)
+        ->and($repeat->buyerCategory)->toBe('direct')
         ->and(DB::table('sales_orders')->count())->toBe(1);
 
     $otherQuote = app(CalculateQuote::class)->handle($buyer->id, 'vpn-access', 30, 10);

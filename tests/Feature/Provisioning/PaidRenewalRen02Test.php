@@ -178,6 +178,7 @@ it('creates a stable payable renewal order bound to the old subscription without
     expect($again->id)->toBe($one->id)
         ->and(DB::table('sales_renewal_orders')->count())->toBe(1)
         ->and(DB::table('sales_orders')->count())->toBe(2)
+        ->and(DB::table('sales_orders')->whereNotNull('buyer_category')->where('buyer_category', 'direct')->count())->toBe(2)
         ->and(DB::table('provisioning_subscriptions')->count())->toBe(1)
         ->and(DB::table('provisioning_order_links')->count())->toBe(1)
         ->and(DB::table('sales_order_settlements')->count())->toBe(0);

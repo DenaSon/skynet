@@ -23,5 +23,6 @@ final readonly class OrderDetails
         public ?int $planRevision = null,
         public ?int $pricingRevision = null,
         public ?string $internalSquadUuid = null,
+        public ?string $buyerCategory = null,
     ) {}
 }

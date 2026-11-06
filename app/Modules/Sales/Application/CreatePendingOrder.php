@@ -37,8 +37,11 @@ final class CreatePendingOrder
                 throw ValidationException::withMessages(['quote' => 'The rate or buyer role changed. Review the new price.']);
             }
 
+            // Persist role-at-checkout; never infer a historic channel from discounts.
+            $buyerCategory = app(ResolveSalesBuyer::class)->isReseller($buyerId) ? 'reseller' : 'direct';
             DB::table('sales_orders')->insertOrIgnore([
                 'buyer_user_id' => $buyerId,
+                'buyer_category' => $buyerCategory,
                 'idempotency_key' => $idempotencyKey,
                 'product_slug' => $fresh->productSlug,
                 'product_name' => $fresh->productName,
