@@ -267,8 +267,8 @@ it('compares every sales metric in rich and native output without querying or re
 it('falls back after a rich transport error with the same comparisons and native buttons', function (): void {
     kpiUiRoot();
     $buyer = kpiUiUser('2026-09-01 12:00:00');
-    kpiUiSettlement($buyer, 'bank', '2026-11-04 12:00:00', 1_000_000);
-    kpiUiSettlement($buyer, 'wallet', '2026-11-05 12:00:00', 2_000_000);
+    kpiUiSettlement($buyer, 'bank', '2026-11-04 12:00:00', 1_000_000, 'direct');
+    kpiUiSettlement($buyer, 'wallet', '2026-11-05 12:00:00', 2_000_000, 'reseller');
     $keyboard = null;
     $bot = Mockery::mock(Nutgram::class);
     $bot->shouldReceive('chat')->andReturn(Chat::make(991901, ChatType::PRIVATE));
@@ -277,7 +277,9 @@ it('falls back after a rich transport error with the same comparisons and native
     $bot->shouldReceive('sendRichMessage')->once()->andReturnUsing(function (...$arguments) use (&$keyboard): void {
         foreach ($arguments as $argument) {
             if ($argument instanceof InputRichMessage) {
-                expect($argument->html)->toContain('میانگین مبلغ سفارش</td><td>اخیر: <b>۲۰۰٬۰۰۰ تومان</b>');
+                expect($argument->html)->toContain('میانگین مبلغ سفارش</td><td>اخیر: <b>۲۰۰٬۰۰۰ تومان</b>')
+                    ->toContain('فروش نمایندگی</td><td>اخیر: <b>۲۰۰٬۰۰۰ تومان</b>')
+                    ->toContain('سهم فروش نمایندگی</td><td>اخیر: <b>۱۰۰٫۰٪</b>');
             }
             if ($argument instanceof InlineKeyboardMarkup) {
                 $keyboard = $argument;
@@ -288,6 +290,8 @@ it('falls back after a rich transport error with the same comparisons and native
     $bot->shouldReceive('sendMessage')->once()->andReturnUsing(function (...$arguments) use (&$keyboard): null {
         $text = $arguments[0];
         expect($text)->toContain("<b>میانگین مبلغ سفارش</b>\nاخیر: ۲۰۰٬۰۰۰ تومان · قبل: ۱۰۰٬۰۰۰ تومان\nتغییر: +۱۰۰٫۰٪")
+            ->toContain("<b>فروش نمایندگی</b>\nاخیر: ۲۰۰٬۰۰۰ تومان · قبل: ۰ تومان\nتغییر: بدون مبنا")
+            ->toContain("<b>سهم فروش نمایندگی</b>\nاخیر: ۱۰۰٫۰٪ · قبل: ۰٫۰٪\nتغییر: +۱۰۰٫۰ واحد درصد")
             ->not->toContain('<table', '<br>', '<details>');
         expect($keyboard)->toBeInstanceOf(InlineKeyboardMarkup::class)
             ->and(in_array($keyboard, $arguments, true))->toBeTrue()
