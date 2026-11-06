@@ -118,40 +118,45 @@ final readonly class ReadAdminBusinessReport
             throw ValidationException::withMessages(['period' => 'Invalid reporting interval.']);
         }
 
-        $categorySql = "CASE WHEN buyer_category IN ('direct', 'reseller') THEN buyer_category ELSE 'unknown' END";
-        $groups = DB::query()->fromSub($this->settledRowsBetween($from, $until), 'settled')
-            ->selectRaw("$categorySql as category, COUNT(*) as transactions, COUNT(DISTINCT buyer_id) as buyers, COALESCE(SUM(amount_rials), 0) as revenue_rials")
-            ->groupByRaw($categorySql)->get();
+        // Also keep standalone breakdown callers consistent; nested calls reuse
+        // the surrounding management report transaction and its snapshot.
+        return DB::transaction(function () use ($from, $until): array {
+            $categorySql = "CASE WHEN buyer_category IN ('direct', 'reseller') THEN buyer_category ELSE 'unknown' END";
+            $groups = DB::query()->fromSub($this->settledRowsBetween($from, $until), 'settled')
+                ->selectRaw("$categorySql as category, COUNT(*) as transactions, COUNT(DISTINCT buyer_id) as buyers, COALESCE(SUM(amount_rials), 0) as revenue_rials")
+                ->groupByRaw($categorySql)->get();
 
-        $empty = ['revenueRials' => 0, 'transactions' => 0, 'uniqueBuyers' => 0];
-        $channels = ['direct' => $empty, 'reseller' => $empty, 'unknown' => $empty];
-        foreach ($groups as $group) {
-            $channels[$group->category] = [
-                'revenueRials' => (int) $group->revenue_rials,
-                'transactions' => (int) $group->transactions,
-                'uniqueBuyers' => (int) $group->buyers,
+            $empty = ['revenueRials' => 0, 'transactions' => 0, 'uniqueBuyers' => 0];
+            $channels = ['direct' => $empty, 'reseller' => $empty, 'unknown' => $empty];
+            foreach ($groups as $group) {
+                $channels[$group->category] = [
+                    'revenueRials' => (int) $group->revenue_rials,
+                    'transactions' => (int) $group->transactions,
+                    'uniqueBuyers' => (int) $group->buyers,
+                ];
+            }
+
+            // One bounded SQL top-three, never materialize the full buyer ledger.
+            $top = DB::query()->fromSub($this->settledRowsBetween($from, $until), 'settled')
+                ->selectRaw('buyer_id, COUNT(*) as transactions, COALESCE(SUM(amount_rials), 0) as revenue_rials')
+                ->groupBy('buyer_id')->orderByDesc('revenue_rials')->orderBy('buyer_id')
+                ->limit(3)->get()
+                ->map(static fn (object $buyer): array => [
+                    'buyerUserId' => (int) $buyer->buyer_id,
+                    'revenueRials' => (int) $buyer->revenue_rials,
+                    'transactions' => (int) $buyer->transactions,
+                ])->all();
+            $revenue = array_sum(array_column($channels, 'revenueRials'));
+            $topRevenue = array_sum(array_column($top, 'revenueRials'));
+
+            return [
+                'channels' => $channels,
+                'topBuyers' => $top,
+                'topThreeRevenueRials' => $topRevenue,
+                // Round only in the presenter, after computing percentage-point changes.
+                'topThreeSharePercent' => $revenue === 0 ? null : $topRevenue / $revenue * 100.0,
             ];
-        }
-
-        // One bounded SQL top-three, never materialize the full buyer ledger.
-        $top = DB::query()->fromSub($this->settledRowsBetween($from, $until), 'settled')
-            ->selectRaw('buyer_id, COUNT(*) as transactions, COALESCE(SUM(amount_rials), 0) as revenue_rials')
-            ->groupBy('buyer_id')->orderByDesc('revenue_rials')->orderBy('buyer_id')
-            ->limit(3)->get()
-            ->map(static fn (object $buyer): array => [
-                'buyerUserId' => (int) $buyer->buyer_id,
-                'revenueRials' => (int) $buyer->revenue_rials,
-                'transactions' => (int) $buyer->transactions,
-            ])->all();
-        $revenue = array_sum(array_column($channels, 'revenueRials'));
-        $topRevenue = array_sum(array_column($top, 'revenueRials'));
-
-        return [
-            'channels' => $channels,
-            'topBuyers' => $top,
-            'topThreeRevenueRials' => $topRevenue,
-            'topThreeSharePercent' => $revenue === 0 ? null : round($topRevenue / $revenue * 100, 1),
-        ];
+        });
     }
 
     /** Shared bank/wallet purchase rows for both existing and channel aggregates. */

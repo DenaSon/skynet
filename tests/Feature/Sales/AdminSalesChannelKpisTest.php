@@ -229,7 +229,7 @@ it('attributes canonical bank and wallet settlements without guessing unknown hi
             ['buyerUserId' => $direct->id, 'revenueRials' => 1_750_000, 'transactions' => 3],
         ])
         ->and($current['topThreeRevenueRials'])->toBe(6_750_000)
-        ->and($current['topThreeSharePercent'])->toBe(98.5)
+        ->and($current['topThreeSharePercent'])->toEqualWithDelta(6_750_000 / 6_850_000 * 100, 0.000001)
         ->and($snapshot['previous']['channels']['reseller']['revenueRials'])->toBe(300_000)
         ->and($snapshot['previous']['channels']['unknown']['transactions'])->toBe(0)
         ->and(app(ReadAdminBusinessReport::class)->settledTotalsBetween(

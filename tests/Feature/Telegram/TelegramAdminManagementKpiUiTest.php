@@ -553,7 +553,7 @@ it('shows direct reseller and unknown sales with percentage-point share movement
     $report = app(ReadAdminSalesChannelKpis::class)->handle($root->id, 'day');
     expect($report['management']['current']['revenueRials'])->toBe(7_000_000)
         ->and($report['current']['topThreeRevenueRials'])->toBe(6_000_000)
-        ->and($report['current']['topThreeSharePercent'])->toBe(85.7);
+        ->and($report['current']['topThreeSharePercent'])->toEqualWithDelta(600 / 7, 0.000001);
 
     $ui = app(AdminManagementKpiUi::class);
     DB::enableQueryLog();
@@ -653,7 +653,7 @@ it('grounds the visible takeaway and expandable narrative in the canonical chann
     }
 
     expect($report['management']['current']['revenueRials'])->toBe(7_000_000)
-        ->and($report['current']['topThreeSharePercent'])->toBe(85.7)
+        ->and($report['current']['topThreeSharePercent'])->toEqualWithDelta(600 / 7, 0.000001)
         ->and($insights['🧾 سفارش‌ها'])->toContain(
             'از ۲ به ۴', 'خریداران یکتا از ۲ به ۴',
             '۴ خرید غیرتمدیدی و ۰ تمدید',
@@ -737,3 +737,30 @@ it('keeps missing windows and zero orders explicit instead of inventing growth o
         ->and(mb_strlen(strip_tags($plain)))->toBeLessThanOrEqual(4096);
     Http::assertNothingSent();
 });
+
+it('rounds concentration movement only after subtracting precise shares', function (bool $decline): void {
+    $root = kpiUiRoot();
+    $recent = [170_000, 170_000, 160_600, 124_850, 124_850, 124_850, 124_850];
+    $prior = [170_000, 170_000, 159_400, 125_150, 125_150, 125_150, 125_150];
+    if ($decline) {
+        [$recent, $prior] = [$prior, $recent];
+    }
+    foreach ($recent as $index => $amount) {
+        $buyer = kpiUiUser('2026-09-01 12:00:00');
+        kpiUiSettlement($buyer, 'wallet', '2026-11-05 10:00:00', $amount, 'direct');
+        kpiUiSettlement($buyer, 'bank', '2026-11-04 10:00:00', $prior[$index], 'direct');
+    }
+
+    $report = app(ReadAdminSalesChannelKpis::class)->handle($root->id, 'day');
+    expect($report['current']['topThreeSharePercent'])->toEqualWithDelta($decline ? 49.94 : 50.06, 0.000001)
+        ->and($report['previous']['topThreeSharePercent'])->toEqualWithDelta($decline ? 50.06 : 49.94, 0.000001);
+
+    $ui = app(AdminManagementKpiUi::class);
+    foreach (['richReport', 'simpleReport'] as $method) {
+        $text = (new ReflectionMethod(AdminManagementKpiUi::class, $method))
+            ->invoke($ui, $report['management'], $report);
+        expect($text)->toContain('۵۰٫۱٪', '۴۹٫۹٪', ($decline ? '−' : '+').'۰٫۱ واحد درصد')
+            ->not->toContain(($decline ? '−' : '+').'۰٫۲ واحد درصد');
+    }
+    Http::assertNothingSent();
+})->with(['increase' => [false], 'decrease' => [true]]);

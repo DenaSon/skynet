@@ -64,7 +64,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        php: ${{ fromJSON(github.event_name == 'schedule' && '["8.4","8.5"]' || '["8.4"]') }}
+        php: ['8.4', '8.5']
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -279,6 +279,11 @@ jobs:
 
       - name: Migrate disposable MySQL database
         run: php artisan migrate --force
+
+      - name: Verify consistent KPI snapshots on MySQL
+        env:
+          KPI_MYSQL_SMOKE: '1'
+        run: php tests/Smoke/kpi_mysql_snapshot.php
 
       - name: Verify real Redis provider queue and legacy database drain
         env:
