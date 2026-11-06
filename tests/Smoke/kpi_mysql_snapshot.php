@@ -11,6 +11,7 @@ use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Role;
 
 require dirname(__DIR__, 2).'/vendor/autoload.php';
@@ -134,7 +135,7 @@ kpiAssert($afterCorrection['current']['topThreeRevenueRials'] === 2200, 'New top
 try {
     $reader->handle($root->id, 'invalid');
     throw new RuntimeException('Invalid period was accepted.');
-} catch (\Illuminate\Validation\ValidationException) {
+} catch (ValidationException) {
     kpiAssert(DB::transactionLevel() === 0, 'Failed read leaked a transaction.');
 }
 Http::assertNothingSent();
