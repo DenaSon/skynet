@@ -80,6 +80,11 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
 
     expect(count($matches))->toBe(111); // Immutable MB-01 baseline
 
+    // RW-BACKUP-01: private trusted-root settings screen and guarded operations.
+    foreach (['list:{page}', 'view:{id}', 'prepare', 'apply:{token}',
+        'download:{id}', 'delete:{id}', 'remove:{token}'] as $route) {
+        $expected['ADMIN'][] = 'callback:admin:rwbackup:'.$route;
+    }
     // Opt-in Admin-only notification topic. No Sales or shared handlers.
     $expected['ADMIN'][] = 'command:adminnotifications';
     $expected['ADMIN'][] = 'callback:admin:notice-topic:show';
@@ -317,8 +322,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(280)
-        ->and(count(array_unique($legacy)))->toBe(280);
+        ->and(count($legacy))->toBe(287)
+        ->and(count(array_unique($legacy)))->toBe(287);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {
