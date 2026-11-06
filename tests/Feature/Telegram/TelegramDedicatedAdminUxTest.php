@@ -93,10 +93,11 @@ it('shows only authorized real Admin operations for trusted roots and gates fina
 
     $keyboard = app(ReplyMenuRenderer::class)->homeKeyboard($actor);
     $labels = mb04Labels($keyboard);
-    expect($labels)->toContain(ReplyMenuLabels::USERS, ReplyMenuLabels::ROLES, ReplyMenuLabels::SALES_SECTION)
-        ->toContain(ReplyMenuLabels::FINANCE_SECTION, ReplyMenuLabels::STATS)
+    expect($labels)->toContain(ReplyMenuLabels::USERS, ReplyMenuLabels::DASHBOARD, ReplyMenuLabels::REPORTS)
+        ->toContain(ReplyMenuLabels::FINANCE_SECTION, ReplyMenuLabels::DENABAN_RADAR, ReplyMenuLabels::CONTROL_PANEL)
         ->not->toContain(ReplyMenuLabels::TOPUPS, ReplyMenuLabels::RECEIPTS,
-            ReplyMenuLabels::BUY, ReplyMenuLabels::SUBSCRIPTIONS, ReplyMenuLabels::HOME)
+            ReplyMenuLabels::BUY, ReplyMenuLabels::SUBSCRIPTIONS, ReplyMenuLabels::HOME,
+            ReplyMenuLabels::ROLES, ReplyMenuLabels::SALES_SECTION, ReplyMenuLabels::SERVERS, ReplyMenuLabels::SETTINGS)
         ->and(count($keyboard->keyboard[0]))->toBe(2);
 
     $bot->hearText('/start')->reply()->assertCalled('sendMessage');
@@ -198,8 +199,10 @@ it('keeps the stats entry in the persistent root Admin keyboard and denies stale
     $rootBot = mb04Bot(984201, $root);
     expect(mb04Labels(app(ReplyMenuRenderer::class)->adminKeyboard(
         app(ResolveTelegramActor::class)->handle(984201),
-    )))->toContain(ReplyMenuLabels::STATS);
+    )))->toContain(ReplyMenuLabels::REPORTS);
 
+    $rootBot->hearText(ReplyMenuLabels::REPORTS)->reply()->assertCalled('sendRichMessage');
+    // Previously delivered text buttons remain valid.
     $rootBot->hearText(ReplyMenuLabels::STATS)->reply()->assertCalled('sendRichMessage');
 
     $ordinary = User::factory()->admin()->create();
@@ -231,13 +234,16 @@ it('opens the KPI Rich report from the persistent root menu and rejects stale or
 
     $keyboard = app(ReplyMenuRenderer::class)->adminKeyboard($actor);
     $labels = mb04Labels($keyboard);
-    expect($keyboard->keyboard[0][0]->text)->toBe(ReplyMenuLabels::DENABAN)
-        ->and($keyboard->keyboard[0][1]->text)->toBe(ReplyMenuLabels::MANAGEMENT_KPIS)
-        ->and($labels)->toContain(ReplyMenuLabels::STATS, ReplyMenuLabels::USERS, ReplyMenuLabels::FINANCE_SECTION)
+    expect($keyboard->keyboard[0][0]->text)->toBe(ReplyMenuLabels::DASHBOARD)
+        ->and($keyboard->keyboard[0][1]->text)->toBe(ReplyMenuLabels::REPORTS)
+        ->and($keyboard->keyboard[2][0]->text)->toBe(ReplyMenuLabels::DENABAN_RADAR)
+        ->and($keyboard->keyboard[2][1]->text)->toBe(ReplyMenuLabels::CONTROL_PANEL)
+        ->and($labels)->toContain(ReplyMenuLabels::REPORTS, ReplyMenuLabels::USERS, ReplyMenuLabels::FINANCE_SECTION)
         ->and(ReplyMenuLabels::all())->toContain(ReplyMenuLabels::MANAGEMENT_KPIS);
 
     $rootBot->hearText('/start')->reply()
         ->assertReplyText("🛡️ مدیریت DenaGate\n\nبخش موردنظر را از منوی پایین انتخاب کنید.");
+    $rootBot->hearText(ReplyMenuLabels::DASHBOARD)->reply()->assertCalled('sendRichMessage');
     $rootBot->hearText(ReplyMenuLabels::MANAGEMENT_KPIS)->reply()
         ->assertCalled('sendRichMessage');
 
@@ -259,4 +265,51 @@ it('opens the KPI Rich report from the persistent root menu and rejects stale or
     $ordinaryBot->hearText(ReplyMenuLabels::MANAGEMENT_KPIS)->reply()->assertNoReply();
 
     Http::assertNothingSent();
+});
+
+it('shows root-only control panel routes in Inline and persistent menus without weakening RBAC', function (): void {
+    config()->set('telegram.hybrid_menu_enabled', true);
+    config()->set('super_admin.telegram_ids', ['984311', '984399']);
+
+    $root = User::factory()->create();
+    $root->syncRoles(['super-admin']);
+    $bot = mb04Bot(984311, $root);
+    $actor = app(ResolveTelegramActor::class)->handle(984311);
+    expect($actor)->not->toBeNull();
+    expect(mb04Labels(app(ReplyMenuRenderer::class)->adminKeyboard($actor)))->toBe([
+        ReplyMenuLabels::DASHBOARD, ReplyMenuLabels::REPORTS,
+        ReplyMenuLabels::USERS, ReplyMenuLabels::FINANCE_SECTION,
+        ReplyMenuLabels::DENABAN_RADAR, ReplyMenuLabels::CONTROL_PANEL,
+    ]);
+
+    $bot->hearCallbackQueryData('menu:admin:control')->reply()
+        ->assertRaw(static function (\GuzzleHttp\Psr7\Request $request): bool {
+            $data = \SergiX44\Nutgram\Testing\FakeNutgram::getActualData($request);
+            $markup = is_string($data['reply_markup'] ?? null)
+                ? json_decode($data['reply_markup'], true, 512, JSON_THROW_ON_ERROR)
+                : ($data['reply_markup'] ?? []);
+            $buttons = $markup['inline_keyboard'] ?? [];
+
+            return ($buttons[0][0]['callback_data'] ?? null) === 'menu:admin:sales'
+                && ($buttons[0][1]['callback_data'] ?? null) === 'menu:admin:servers'
+                && ($buttons[1][0]['callback_data'] ?? null) === 'admin:rwbackup:list:1'
+                && ($buttons[1][1]['callback_data'] ?? null) === 'menu:admin:roles'
+                && ($buttons[2][0]['callback_data'] ?? null) === 'admin:welcome:show'
+                && ($buttons[3][0]['callback_data'] ?? null) === 'menu:admin';
+        }, index: 1);
+    $bot->hearText(ReplyMenuLabels::CONTROL_PANEL)->reply()
+        ->assertReplyText("⚙️ کنترل پنل\n\nبخش موردنظر را انتخاب کنید.");
+
+    $ordinary = User::factory()->admin()->create();
+    $ordinaryBot = mb04Bot(984312, $ordinary);
+    $ordinaryBot->hearText(ReplyMenuLabels::CONTROL_PANEL)->reply()
+        ->assertReplyText('دسترسی مجاز نیست. منوی شما به‌روز شد.');
+    $ordinaryBot->hearCallbackQueryData('menu:admin:control')->reply()
+        ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.']);
+
+    $root->syncRoles(['member']);
+    $bot->hearCallbackQueryData('menu:admin:control')->reply()
+        ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.']);
+    $ordinaryBot->setCommonChat(Chat::make(-984312, ChatType::GROUP));
+    $ordinaryBot->hearCallbackQueryData('menu:admin:control')->reply()->assertNoReply();
 });

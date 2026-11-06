@@ -73,10 +73,11 @@ it('rejects a downloaded token after its user loses Super Admin eligibility', fu
     expect(Cache::has('rwbackup:download:'.hash('sha256', $token)))->toBeFalse();
 });
 
-it('shows the entry only through the Super Admin settings flow', function (): void {
+it('keeps the backup entry under the root control panel and supports old settings callbacks', function (): void {
     backup01User(true, 899101);
     $bot = backup01Bot(899101);
 
+    $bot->hearCallbackQueryData('menu:admin:control')->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('admin:welcome:show')->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('admin:rwbackup:list:1')->reply()->assertCalled('editMessageText');
 });
@@ -205,7 +206,7 @@ it('polishes the RTL backup overview without naming the upstream provider or cha
                 && ($buttons[0][0]['callback_data'] ?? null) === 'admin:rwbackup:prepare'
                 && ($buttons[1][0]['callback_data'] ?? null) === 'admin:rwbackup:view:'.$id
                 && ($buttons[2][0]['callback_data'] ?? null) === 'admin:rwbackup:list:1'
-                && ($buttons[3][0]['callback_data'] ?? null) === 'admin:welcome:show';
+                && ($buttons[3][0]['callback_data'] ?? null) === 'menu:admin:control';
         }, index: 0);
 });
 
