@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Interfaces\Telegram\Http;
 
 use App\Modules\Identity\Application\ResolveTelegramActor;
-use App\Modules\Provisioning\Infrastructure\Backup\RwBackupSsh;
+use App\Modules\Provisioning\Application\RwBackupOperations;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -15,7 +15,7 @@ final readonly class RwBackupDownloadController
 {
     public function __construct(
         private ResolveTelegramActor $actors,
-        private RwBackupSsh $backups,
+        private RwBackupOperations $backups,
     ) {}
 
     public function __invoke(Request $request, string $token): StreamedResponse
@@ -34,7 +34,7 @@ final readonly class RwBackupDownloadController
         $userId = $grant['userId'] ?? null;
         $id = $grant['id'] ?? null;
         abort_unless(is_int($telegramId) && is_int($userId) && is_string($id)
-            && RwBackupSsh::validId($id), 404);
+            && RwBackupOperations::validId($id), 404);
 
         $actor = $this->actors->handle($telegramId);
         abort_unless($actor?->canManageRoles() === true && $actor->userId === $userId, 404);
