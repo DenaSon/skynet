@@ -6,6 +6,7 @@ use App\Interfaces\Telegram\Support\AdminManagementKpiUi;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Sales\Application\ReadAdminManagementKpis;
+use App\Modules\Sales\Application\ReadAdminSalesChannelKpis;
 use GuzzleHttp\Psr7\Request as NutgramRequest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -74,10 +75,11 @@ function kpiUiRich(NutgramRequest $request): array
     return is_string($rich) ? json_decode($rich, true, 512, JSON_THROW_ON_ERROR) : $rich;
 }
 
-function kpiUiSettlement(User $buyer, string $method, string $localTime, int $amount): void
+function kpiUiSettlement(User $buyer, string $method, string $localTime, int $amount, ?string $category = null): void
 {
     $order = (int) DB::table('sales_orders')->insertGetId([
         'buyer_user_id' => $buyer->id,
+        'buyer_category' => $category,
         'idempotency_key' => bin2hex(random_bytes(16)),
         'product_slug' => 'kpi-ui',
         'product_name' => 'KPI test plan',
@@ -161,9 +163,11 @@ it('renders accurate RTL Rich daily comparison with two tables, live filters and
 
             return ($rich['is_rtl'] ?? null) === true
                 && str_contains($html, '<h2>📊 شاخص‌های مدیریتی · روزانه</h2>')
-                && substr_count($html, '<table bordered striped compact>') === 2
+                && substr_count($html, '<table bordered striped compact>') === 4
                 && str_contains($html, '<h3>💰 عملکرد فروش</h3>')
                 && str_contains($html, '<h3>👥 ثبت‌نام کاربران</h3>')
+                && str_contains($html, '<h3>🏷️ کانال‌های فروش</h3>')
+                && str_contains($html, '<details><summary>🏆 تمرکز فروش</summary>')
                 && str_contains($html, '۵۰۰٬۰۰۰ تومان')
                 && str_contains($html, '۱۰۰٬۰۰۰ تومان')
                 && str_contains($html, '+۴۰۰٫۰٪')
@@ -263,8 +267,8 @@ it('compares every sales metric in rich and native output without querying or re
 it('falls back after a rich transport error with the same comparisons and native buttons', function (): void {
     kpiUiRoot();
     $buyer = kpiUiUser('2026-09-01 12:00:00');
-    kpiUiSettlement($buyer, 'bank', '2026-11-04 12:00:00', 1_000_000);
-    kpiUiSettlement($buyer, 'wallet', '2026-11-05 12:00:00', 2_000_000);
+    kpiUiSettlement($buyer, 'bank', '2026-11-04 12:00:00', 1_000_000, 'direct');
+    kpiUiSettlement($buyer, 'wallet', '2026-11-05 12:00:00', 2_000_000, 'reseller');
     $keyboard = null;
     $bot = Mockery::mock(Nutgram::class);
     $bot->shouldReceive('chat')->andReturn(Chat::make(991901, ChatType::PRIVATE));
@@ -273,7 +277,9 @@ it('falls back after a rich transport error with the same comparisons and native
     $bot->shouldReceive('sendRichMessage')->once()->andReturnUsing(function (...$arguments) use (&$keyboard): void {
         foreach ($arguments as $argument) {
             if ($argument instanceof InputRichMessage) {
-                expect($argument->html)->toContain('میانگین مبلغ سفارش</td><td>اخیر: <b>۲۰۰٬۰۰۰ تومان</b>');
+                expect($argument->html)->toContain('میانگین مبلغ سفارش</td><td>اخیر: <b>۲۰۰٬۰۰۰ تومان</b>')
+                    ->toContain('فروش نمایندگی</td><td>اخیر: <b>۲۰۰٬۰۰۰ تومان</b>')
+                    ->toContain('سهم فروش نمایندگی</td><td>اخیر: <b>۱۰۰٫۰٪</b>');
             }
             if ($argument instanceof InlineKeyboardMarkup) {
                 $keyboard = $argument;
@@ -284,6 +290,8 @@ it('falls back after a rich transport error with the same comparisons and native
     $bot->shouldReceive('sendMessage')->once()->andReturnUsing(function (...$arguments) use (&$keyboard): null {
         $text = $arguments[0];
         expect($text)->toContain("<b>میانگین مبلغ سفارش</b>\nاخیر: ۲۰۰٬۰۰۰ تومان · قبل: ۱۰۰٬۰۰۰ تومان\nتغییر: +۱۰۰٫۰٪")
+            ->toContain("<b>فروش نمایندگی</b>\nاخیر: ۲۰۰٬۰۰۰ تومان · قبل: ۰ تومان\nتغییر: بدون مبنا")
+            ->toContain("<b>سهم فروش نمایندگی</b>\nاخیر: ۱۰۰٫۰٪ · قبل: ۰٫۰٪\nتغییر: +۱۰۰٫۰ واحد درصد")
             ->not->toContain('<table', '<br>', '<details>');
         expect($keyboard)->toBeInstanceOf(InlineKeyboardMarkup::class)
             ->and(in_array($keyboard, $arguments, true))->toBeTrue()
@@ -516,4 +524,88 @@ it('handles falling sales, stable trends and zero comparison baselines without s
     expect($allZero['💰 فروش'])->toContain('فروش بازه قبل صفر بوده')
         ->and($allZero['💡 نکته قابل بررسی'])->toContain('اگر انتظار فروش وجود دارد');
     expect(implode(' ', $allZero))->not->toContain('INF', 'NaN', 'رشد بی‌نهایت');
+});
+
+it('shows direct reseller and unknown sales with percentage-point share movements and top-three concentration', function (): void {
+    $root = kpiUiRoot();
+    $direct = kpiUiUser('2026-09-01 12:00:00');
+    $resellerOne = kpiUiUser('2026-09-01 12:00:00');
+    $resellerTwo = kpiUiUser('2026-09-01 12:00:00');
+    $historical = kpiUiUser('2026-09-01 12:00:00');
+
+    kpiUiSettlement($direct, 'bank', '2026-11-04 11:00:00', 1_000_000, 'direct');
+    kpiUiSettlement($resellerOne, 'wallet', '2026-11-04 12:00:00', 1_000_000, 'reseller');
+    kpiUiSettlement($direct, 'bank', '2026-11-05 09:00:00', 2_000_000, 'direct');
+    kpiUiSettlement($resellerOne, 'wallet', '2026-11-05 10:00:00', 3_000_000, 'reseller');
+    kpiUiSettlement($resellerTwo, 'bank', '2026-11-05 11:00:00', 1_000_000, 'reseller');
+    kpiUiSettlement($historical, 'bank', '2026-11-05 12:00:00', 1_000_000);
+
+    $report = app(ReadAdminSalesChannelKpis::class)->handle($root->id, 'day');
+    expect($report['management']['current']['revenueRials'])->toBe(7_000_000)
+        ->and($report['current']['topThreeRevenueRials'])->toBe(6_000_000)
+        ->and($report['current']['topThreeSharePercent'])->toBe(85.7);
+
+    $ui = app(AdminManagementKpiUi::class);
+    DB::enableQueryLog();
+    DB::flushQueryLog();
+    try {
+        $rich = (new ReflectionMethod(AdminManagementKpiUi::class, 'richReport'))
+            ->invoke($ui, $report['management'], $report);
+        $plain = (new ReflectionMethod(AdminManagementKpiUi::class, 'simpleReport'))
+            ->invoke($ui, $report['management'], $report);
+        expect(DB::getQueryLog())->toBe([]);
+    } finally {
+        DB::disableQueryLog();
+    }
+
+    foreach ([
+        ['فروش مستقیم', '۲۰۰٬۰۰۰ تومان', '۱۰۰٬۰۰۰ تومان', '+۱۰۰٫۰٪'],
+        ['سهم فروش مستقیم', '۲۸٫۶٪', '۵۰٫۰٪', '−۲۱٫۴ واحد درصد'],
+        ['فروش نمایندگی', '۴۰۰٬۰۰۰ تومان', '۱۰۰٬۰۰۰ تومان', '+۳۰۰٫۰٪'],
+        ['سهم فروش نمایندگی', '۵۷٫۱٪', '۵۰٫۰٪', '+۷٫۱ واحد درصد'],
+        ['کانال نامشخص', '۱۰۰٬۰۰۰ تومان', '۰ تومان', 'بدون مبنا'],
+        ['سهم نامشخص', '۱۴٫۳٪', '۰٫۰٪', '+۱۴٫۳ واحد درصد'],
+        ['نمایندگان خریدار', '۲', '۱', '+۱۰۰٫۰٪'],
+        ['فروش حداکثر ۳ خریدار برتر', '۶۰۰٬۰۰۰ تومان', '۲۰۰٬۰۰۰ تومان', '+۲۰۰٫۰٪'],
+        ['سهم خریداران برتر از کل', '۸۵٫۷٪', '۱۰۰٫۰٪', '−۱۴٫۳ واحد درصد'],
+        ['تعداد خریداران برتر', '۳', '۲', '+۵۰٫۰٪'],
+    ] as [$label, $current, $previous, $change]) {
+        expect($rich)->toContain('<td>'.$label.'</td><td>اخیر: <b>'.$current
+            .'</b><br>قبل: '.$previous.'<br>تغییر: '.$change.'</td>')
+            ->and($plain)->toContain('<b>'.$label."</b>\nاخیر: ".$current
+                .' · قبل: '.$previous."\nتغییر: ".$change);
+    }
+
+    expect($rich)->toContain('<details><summary>🏆 تمرکز فروش</summary>')
+        ->toContain('<h3>🏷️ کانال‌های فروش</h3>')
+        ->and($plain)->not->toContain('<details>', '<table', '<br>')
+        ->and($rich.$plain)->not->toContain('INF', 'NaN', '∞')
+        ->and(mb_strlen(strip_tags($plain)))->toBeLessThanOrEqual(4096);
+
+    // The real Telegram path must use the same authoritative channel snapshot.
+    kpiUiBot()->hearCallbackQueryData('kpi:period:day')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $html = (string) (kpiUiRich($request)['html'] ?? '');
+
+            return str_contains($html, 'فروش نمایندگی</td><td>اخیر: <b>۴۰۰٬۰۰۰ تومان</b>')
+                && str_contains($html, 'سهم خریداران برتر از کل</td><td>اخیر: <b>۸۵٫۷٪</b>');
+        }, index: 1);
+    Http::assertNothingSent();
+});
+
+it('keeps empty and historical unknown channel shares truthful in both Rich and fallback views', function (): void {
+    $root = kpiUiRoot();
+    $report = app(ReadAdminSalesChannelKpis::class)->handle($root->id, 'week');
+    $ui = app(AdminManagementKpiUi::class);
+    $rich = (new ReflectionMethod(AdminManagementKpiUi::class, 'richReport'))
+        ->invoke($ui, $report['management'], $report);
+    $plain = (new ReflectionMethod(AdminManagementKpiUi::class, 'simpleReport'))
+        ->invoke($ui, $report['management'], $report);
+
+    foreach ([$rich, $plain] as $value) {
+        expect($value)->toContain('کانال نامشخص', 'نمایندگان خریدار', 'سهم خریداران برتر از کل')
+            ->toContain('بدون مبنا', 'قابل محاسبه نیست')
+            ->not->toContain('INF', 'NaN', '∞', 'سهم مستقیم از کل مشخص');
+    }
+    Http::assertNothingSent();
 });
