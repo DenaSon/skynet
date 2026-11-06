@@ -599,6 +599,39 @@ final readonly class SalesCheckoutUi
             return;
         }
 
+        // A verified insufficient balance on a reseller renewal is an actionable
+        // payment notice, not the general-purpose order details screen.
+        if ($sourceRenewal !== null && $isReseller && $order->status === 'pending_payment'
+            && $latestReceipt !== 'submitted' && $balance !== null && $balance < $order->totalPriceRials) {
+            $topupAvailable = config('billing.topups_enabled', false) === true
+                && app(ManualPaymentUi::class)->cardNumber() !== null;
+            $buttons = InlineKeyboardMarkup::make();
+            if ($topupAvailable) {
+                $buttons->addRow(InlineKeyboardButton::make(
+                    '➕ افزایش اعتبار', callback_data: 'sales:wallet:topup', style: ButtonStyle::SUCCESS,
+                ));
+            }
+            $buttons->addRow(InlineKeyboardButton::make('💰 اعتبار من', callback_data: 'sales:wallet'));
+
+            $guidance = $topupAvailable
+                ? 'برای تمدید این سرویس، ابتدا اعتبار پنل خود را افزایش دهید.'
+                : 'افزایش اعتبار فعلاً در دسترس نیست. موجودی خود را در «اعتبار من» بررسی کنید.';
+
+            $this->render($bot,
+                '<b>❌ اعتبار شما کافی نیست</b>'
+                ."\n\n".$guidance
+                ."\n\n<blockquote>🔄 سفارش تمدید #{$order->id}"
+                ."\nپلن: ".TelegramUi::escape($this->safe($order->productName))
+                ."\nحجم: ".($order->trafficGb === null ? 'نامحدود' : $order->trafficGb.' گیگابایت')
+                ."\nمدت: {$order->durationDays} روز"
+                ."\nمبلغ تمدید: ".TelegramUi::toman($order->totalPriceRials).' تومان</blockquote>',
+                $buttons,
+                html: true,
+            );
+
+            return;
+        }
+
         $keyboard = InlineKeyboardMarkup::make();
         if ($walletEligible) {
             $keyboard->addRow(InlineKeyboardButton::make(
