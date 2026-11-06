@@ -130,6 +130,7 @@ it('registers exactly one pending reseller order with immutable price and custom
         ->and($order->buyerUserId)->toBe($buyer->id)
         ->and($order->totalPriceRials)->toBe(650_002)
         ->and($order->discountPercent)->toBe(35)
+        ->and($order->buyerCategory)->toBe('reseller')
         ->and($order->internalSquadUuid)->toBe('11111111-2222-4333-8444-555555555555')
         ->and(app(ManageResellerServiceLabels::class)->pendingName($buyer->id, $orderId))->toBe('customer_01')
         ->and(DB::table('sales_orders')->count())->toBe(1);
