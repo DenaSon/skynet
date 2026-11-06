@@ -27,6 +27,8 @@ cleanup() {
 }
 trap cleanup EXIT
 trap 'exit 1' TERM INT
+AVAILABLE_MB="$(df -Pm "$BASE" | awk 'NR==2 {print $4}')"
+[[ "$AVAILABLE_MB" =~ ^[0-9]+$ && "$AVAILABLE_MB" -ge 512 ]] || exit 70
 STAGE="$(mktemp -d "$BASE/.stage.XXXXXXXX")"
 export RESTIC_PASSWORD_FILE="$PW"
 
