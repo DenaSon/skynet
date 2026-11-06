@@ -26,7 +26,8 @@ final readonly class RwBackupDownloadController
         // One-use high-entropy bearer link, delivered only in a verified private
         // Super Admin chat. No guest listing or archive enumeration is possible.
         $key = 'rwbackup:download:'.hash('sha256', $token);
-        $grant = Cache::pull($key);
+        $grant = Cache::lock('rwbackup:grant-lock:'.hash('sha256', $token), 10)
+            ->block(3, static fn (): mixed => Cache::pull($key));
         abort_unless(is_array($grant), 404);
 
         $telegramId = $grant['telegramId'] ?? null;
