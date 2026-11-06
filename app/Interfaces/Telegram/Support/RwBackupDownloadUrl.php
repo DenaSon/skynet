@@ -25,7 +25,8 @@ final class RwBackupDownloadUrl
         if (! is_array($parts)
             || ($parts['scheme'] ?? null) !== 'https'
             || ! isset($parts['host'])
-            || isset($parts['user'], $parts['pass'])
+            || isset($parts['user'])
+            || isset($parts['pass'])
             || isset($parts['query'])
             || isset($parts['fragment'])
             || ! in_array($parts['path'] ?? '', ['', '/'], true)) {
