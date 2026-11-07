@@ -114,7 +114,7 @@ it('caches sanitized Remnawave names from the existing node GET without a second
     $named = flt02Node(3, 400, 200);
     $named['name'] = 'Amsterdam <NL>';
     $untrusted = flt02Node(2, 100, 50, uuid: FLT02_OTHER);
-    $untrusted['name'] = "Invalid\\nName";
+    $untrusted['name'] = "Invalid\nName";
     flt02Feed([$named, $untrusted]);
 
     expect(app(MonitorNodeFiltering::class)->scan())->toBe(2);
