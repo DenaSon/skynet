@@ -31,6 +31,8 @@ final class CheckHostRegionalProbe
 
     private const MAX_POLL_ATTEMPTS = 9;
 
+    private const MIN_RESULT_HTTP_TIMEOUT_NS = 100_000_000;
+
     /** @return list<array{name:string,asn:string,city:string}> */
     public function iranNodes(): array
     {
@@ -139,8 +141,14 @@ final class CheckHostRegionalProbe
                 }
             }
 
-            // Bound each HTTP request to the remaining budget, including slow network I/O.
-            $latest = $this->get('/check-result/'.rawurlencode($id), min(6.0, $remaining / 1_000_000_000));
+            // A nearly exhausted deadline must not create an invalid sub-millisecond
+            // Guzzle timeout. Keep the latest valid snapshot and finish as pending.
+            $timeout = self::resultPollTimeout($remaining);
+            if ($timeout === null) {
+                break;
+            }
+
+            $latest = $this->get('/check-result/'.rawurlencode($id), $timeout);
             if (isset($latest['error'])) {
                 throw new RuntimeException('Check-Host result unavailable.');
             }
@@ -244,6 +252,15 @@ final class CheckHostRegionalProbe
         }
 
         return $failure ? false : null;
+    }
+
+    private static function resultPollTimeout(int $remainingNs): ?float
+    {
+        if ($remainingNs < self::MIN_RESULT_HTTP_TIMEOUT_NS) {
+            return null;
+        }
+
+        return min(6.0, $remainingNs / 1_000_000_000);
     }
 
     /** @return array<string,mixed> */
