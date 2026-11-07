@@ -18,6 +18,9 @@ use RuntimeException;
  */
 final class FilteringFoundation
 {
+    // Optional presentation metadata; SQL observations remain strictly numeric.
+    public const NODE_NAME_CACHE_KEY = 'filtering:node:names';
+
     private const MODULES = ['node', 'regional'];
 
     private const OUTCOMES = ['healthy', 'suspicious', 'disrupted', 'unknown'];
