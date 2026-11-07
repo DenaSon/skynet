@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
 use App\Interfaces\Telegram\Notifications\TelegramNotificationSender;
 use App\Modules\Filtering\Application\FilteringFoundation;
+use App\Modules\Filtering\Application\FilteringIncidentNotice;
 use App\Modules\Filtering\Application\FilteringIncidentAlerts;
 use App\Modules\Filtering\Application\MonitorNodeFiltering;
 use App\Modules\Filtering\Application\ScanRegionalFiltering;
@@ -264,6 +265,11 @@ it('records a single durable root notice and one recovery without leaking to sal
         ->and($opened->bot_key)->toBe('admin')
         ->and((int) $opened->recipient_user_id)->toBe($root->id)
         ->and(DB::table('telegram_notification_deliveries')->count())->toBe(1);
+
+    // The new root filtering center is discoverable from the existing alert.
+    $notice = app(FilteringIncidentNotice::class)->messageFor($opened);
+    expect($notice)->toContain('/filtering')
+        ->not->toContain('flt:home', 'token', 'password');
 
     app(DispatchTelegramNotification::class, ['deliveryId' => (int) $opened->id])
         ->handle(app(TelegramNotificationSender::class));

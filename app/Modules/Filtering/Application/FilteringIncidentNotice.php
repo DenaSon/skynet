@@ -91,6 +91,7 @@ final readonly class FilteringIncidentNotice
             ."\nآخرین مشاهده: ".htmlspecialchars((string) $row->last_observed_at, ENT_QUOTES, 'UTF-8').' (UTC)'
             .($row->resolved_at === null ? '' : "\nزمان رفع: ".htmlspecialchars((string) $row->resolved_at, ENT_QUOTES, 'UTF-8').' (UTC)')
             .($causes === [] ? '' : "\nنشانه‌ها: ".implode('، ', array_keys($causes)))
+            ."\n\nبرای مشاهده جزئیات: /filtering"
             ."\n\nاین یک هشدار مبتنی بر نشانه‌هاست؛ فیلترینگ قطعی یا سلامت مسیر کاربر را اثبات نمی‌کند.";
     }
 }
