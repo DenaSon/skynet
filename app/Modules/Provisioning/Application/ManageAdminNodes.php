@@ -165,6 +165,15 @@ final readonly class ManageAdminNodes
                 }
             }
             $this->authorizeWrite($actorId);
+            $api = new RemnawaveNodesApi($this->factory->make());
+            foreach ($api->all() as $existing) {
+                if ((is_string($existing['name'] ?? null)
+                        && mb_strtolower($existing['name']) === mb_strtolower($name))
+                    || (($existing['address'] ?? null) === $address
+                        && ($existing['port'] ?? null) === $port)) {
+                    throw ValidationException::withMessages(['node' => 'Node is already registered.']);
+                }
+            }
 
             $data = [
                 'name' => $name,
@@ -175,7 +184,7 @@ final readonly class ManageAdminNodes
                     'activeInbounds' => array_map('strtolower', $chosen),
                 ],
             ];
-            $created = (new RemnawaveNodesApi($this->factory->make()))->create($data);
+            $created = $api->create($data);
 
             if (! self::uuidValid($created['uuid'] ?? null)) {
                 throw new UnexpectedValueException('Node create outcome is not verifiable.');

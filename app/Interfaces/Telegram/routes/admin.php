@@ -284,6 +284,9 @@ $bot->onCallbackQueryData('nw1:trust:{token}', function (Nutgram $bot, string $t
 $bot->onCallbackQueryData('nw4:recent', function (Nutgram $bot): void {
     app(AdminNodeSetupUi::class)->resumeRecent($bot);
 });
+$bot->onCallbackQueryData('nw4:close:{identifier}', function (Nutgram $bot, string $identifier): void {
+    app(AdminNodeSetupUi::class)->closeRecent($bot, $identifier);
+});
 
 $bot->onCallbackQueryData('nw3:resume:{identifier}', function (Nutgram $bot, string $identifier): void {
     app(AdminNodeSetupUi::class)->completionOverview($bot, $identifier);

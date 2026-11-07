@@ -59,14 +59,15 @@ function node01Bot(int $telegramId = 951111, bool $private = true): Nutgram
     return $bot;
 }
 
-function node01FakeProvider(bool $postFail = false): void
+function node01FakeProvider(bool $postFail = false, bool $includeExisting = true): void
 {
-    Http::fake(static function (Request $r) use ($postFail) {
+    Http::fake(static function (Request $r) use ($postFail, $includeExisting) {
         if ($r->url() === 'https://remna.node01.test/api/nodes' && $r->method() === 'GET') {
-            return Http::response(['response' => [[
+            return Http::response(['response' => $includeExisting ? [[
                 'uuid' => NODE01_UUID, 'name' => 'Germany-01',
+                'address' => 'node.example.com', 'port' => 2222,
                 'isConnected' => true, 'isDisabled' => false,
-            ]]], 200);
+            ]] : []], 200);
         }
         if ($r->url() === 'https://remna.node01.test/api/nodes/'.NODE01_UUID && $r->method() === 'GET') {
             return Http::response(['response' => [
@@ -150,7 +151,7 @@ it('keeps Node creation disabled by default and rejects invalid input before POS
 it('guides Admin name/address, profile, inbound, preview and a one-use provider POST', function (): void {
     $actors = node01Actors();
     config()->set('services.remnawave.writes_enabled', true);
-    node01FakeProvider();
+    node01FakeProvider(includeExisting: false);
     $bot = node01Bot();
     $ui = app(AdminNodesUi::class);
 
@@ -171,7 +172,7 @@ it('guides Admin name/address, profile, inbound, preview and a one-use provider 
     expect(Cache::get($key))->toBeNull();
     $bot->hearCallbackQueryData('node1:apply:'.$draft['token'])->reply()->assertCalled('editMessageText');
 
-    Http::assertSentCount(5);
+    Http::assertSentCount(6);
     Http::assertSent(static fn (Request $r): bool => $r->method() === 'POST'
         && $r->url() === 'https://remna.node01.test/api/nodes'
         && $r['name'] === 'Germany-01'
@@ -248,7 +249,7 @@ it('rejects out-of-range management ports in the shared Node create action', fun
 it('consumes confirmation even if provider response is uncertain and never retries POST', function (): void {
     $actors = node01Actors();
     config()->set('services.remnawave.writes_enabled', true);
-    node01FakeProvider(postFail: true);
+    node01FakeProvider(postFail: true, includeExisting: false);
     $ui = app(AdminNodesUi::class);
     $bot = node01Bot();
 
@@ -457,4 +458,41 @@ it('distinguishes fresh server setup from existing node registration without cha
         }, index: 1);
     Http::assertSentCount(1);
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
+});
+
+it('rejects duplicate ready Nodes by name or exact management endpoint before POST', function (): void {
+    $actors = node01Actors();
+    node01FakeProvider();
+    config()->set('services.remnawave.writes_enabled', true);
+    $action = app(ManageAdminNodes::class);
+
+    expect(fn () => $action->create(
+        $actors['root']->id, 'Germany-01', 'another.example.com', NODE01_PROFILE, [NODE01_INBOUND], 2222
+    ))->toThrow(ValidationException::class);
+    expect(fn () => $action->create(
+        $actors['root']->id, 'Sydney-02', 'node.example.com', NODE01_PROFILE, [NODE01_INBOUND], 2222
+    ))->toThrow(ValidationException::class);
+    expect(collect(Http::recorded())->filter(static fn (array $pair): bool => $pair[0]->method() === 'POST'))->toBeEmpty();
+});
+
+it('NW-04 allows private root to close a stale recent bookmark without a provider write', function (): void {
+    $actors = node01Actors();
+    config()->set('services.remnawave.node_ssh_setup_enabled', true);
+    config()->set('services.remnawave.node_ssh_install_enabled', true);
+    Http::preventStrayRequests();
+    $id = str_repeat('b', 32);
+    Cache::put('nw02:last:'.$actors['root']->id, $id, now()->addHours(3));
+    Cache::put('nw02:status:'.$id, [
+        'owner' => $actors['root']->id, 'name' => 'AU-Sydney-01', 'state' => 'failed',
+    ], now()->addHours(3));
+
+    node01Bot(951112)->hearCallbackQueryData('nw4:close:'.$id)->reply();
+    expect(Cache::get('nw02:last:'.$actors['root']->id))->toBe($id);
+
+    node01Bot()->hearCallbackQueryData('nw2:status:'.$id)->reply()->assertCalled('editMessageText');
+    node01Bot()->hearCallbackQueryData('nw4:close:'.$id)->reply()->assertCalled('editMessageText');
+    expect(Cache::get('nw02:last:'.$actors['root']->id))->toBeNull()
+        ->and(Cache::get('nw02:status:'.$id)['state'])->toBe('failed');
+    node01Bot()->hearCallbackQueryData('nw4:close:'.$id)->reply();
+    Http::assertNothingSent();
 });

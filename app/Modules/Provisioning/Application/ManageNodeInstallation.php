@@ -8,6 +8,7 @@ use App\Jobs\InstallRemnawaveNode;
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
 use App\Modules\Provisioning\Infrastructure\NodeSetup\NodeSshInstaller;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveApiClientFactory;
+use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveNodesApi;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use RuntimeException;
@@ -164,6 +165,13 @@ final readonly class ManageNodeInstallation
         try {
             $state = $this->meta($identifier);
             if ($state['owner'] === $actorId) {
+                // A ready Node may have been registered by the separate manual wizard.
+                if ($this->matchesConnectedReadyNode($state)) {
+                    $this->closeRecent($actorId, $identifier);
+
+                    return null;
+                }
+
                 return $identifier;
             }
         } catch (Throwable) {
@@ -173,6 +181,66 @@ final readonly class ManageNodeInstallation
         Cache::forget('nw02:last:'.$actorId);
 
         return null;
+    }
+
+    /**
+     * Read-only reconciliation for a Node registered through the independent
+     * ready-Node wizard. Never assume completion from an installation state.
+     */
+    public function matchingConnectedNode(int $actorId, string $identifier): bool
+    {
+        $this->access->handle($actorId);
+        $state = $this->meta($identifier);
+        if ($state['owner'] !== $actorId) {
+            throw new RuntimeException('Installation belongs to another operator.');
+        }
+
+        return $this->matchesConnectedReadyNode($state);
+    }
+
+    /**
+     * Close only the owner's exact recent bookmark. Preserve the installation
+     * checkpoint, history and any in-flight job; never mutate VPS or Provider.
+     */
+    public function closeRecent(int $actorId, string $identifier): bool
+    {
+        $this->access->handle($actorId);
+        $state = $this->meta($identifier);
+        if ($state['owner'] !== $actorId
+            || Cache::get('nw02:last:'.$actorId) !== $identifier) {
+            return false;
+        }
+
+        Cache::forget('nw02:last:'.$actorId);
+
+        return true;
+    }
+
+    /** @param array<string,mixed> $state */
+    private function matchesConnectedReadyNode(array $state): bool
+    {
+        if (($state['state'] ?? null) !== 'running'
+            || isset($state['nodeStage'])
+            || ! is_string($state['name'] ?? null)
+            || ! is_string($state['ip'] ?? null)) {
+            return false;
+        }
+
+        try {
+            foreach ((new RemnawaveNodesApi($this->factory->make()))->all() as $node) {
+                if (($node['name'] ?? null) === $state['name']
+                    && ($node['address'] ?? null) === $state['ip']
+                    && ($node['port'] ?? null) === 2222
+                    && ($node['isConnected'] ?? null) === true
+                    && ($node['isDisabled'] ?? null) === false) {
+                    return true;
+                }
+            }
+        } catch (Throwable) {
+            // An unavailable or incomplete Provider response must not hide setup.
+        }
+
+        return false;
     }
 
     /**

@@ -209,6 +209,7 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:cfg2:cancel';
     // NW-04: resume one actor-owned installation from existing Admin Node menu.
     $expected['ADMIN'][] = 'callback:nw4:recent';
+    $expected['ADMIN'][] = 'callback:nw4:close:{identifier}';
     // NW-03 retains Admin-only routing for confirmed Node/Host linking.
     $expected['ADMIN'][] = 'callback:nw3:resume:{identifier}';
     $expected['ADMIN'][] = 'callback:nw3:node:prepare:{identifier}';
@@ -324,8 +325,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(288)
-        ->and(count(array_unique($legacy)))->toBe(288);
+        ->and(count($legacy))->toBe(289)
+        ->and(count(array_unique($legacy)))->toBe(289);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {
