@@ -55,7 +55,7 @@ final class FilteringFoundation
         $observed = CarbonImmutable::instance($observedAt)->utc()->startOfSecond();
         $providerObserved = $providerObservedAt === null
             ? null : CarbonImmutable::instance($providerObservedAt)->utc()->startOfSecond();
-        if ($observed->greaterThan(now()->addMinute())
+        if ($observed->lessThan(now()->subDay()) || $observed->greaterThan(now()->addMinute())
             || ($providerObserved !== null && $providerObserved->greaterThan($observed->addMinute()))) {
             throw new InvalidArgumentException('Filtering observation timestamp is invalid.');
         }
@@ -181,7 +181,7 @@ final class FilteringFoundation
             }
         }
 
-        $state = $incident?->state ?? 'unknown';
+        $state = $incident->state ?? 'unknown';
         if ($incident === null && $latest !== []) {
             $outcomes = array_column($latest, 'outcome');
             $state = in_array('unknown', $outcomes, true) ? 'unknown' : 'healthy';
@@ -220,13 +220,16 @@ final class FilteringFoundation
         }
         $causes = $evidence['causes'] ?? [];
         if (! is_array($causes) || ! array_is_list($causes)
-            || count($causes) > 2 || count(array_unique($causes)) !== count($causes)) {
+            || count($causes) > 2) {
             throw new InvalidArgumentException('Filtering causes are invalid.');
         }
         foreach ($causes as $cause) {
             if (! is_string($cause) || ! in_array($cause, self::CAUSES[$module], true)) {
                 throw new InvalidArgumentException('Unsupported filtering cause.');
             }
+        }
+        if (count(array_unique($causes)) !== count($causes)) {
+            throw new InvalidArgumentException('Duplicate filtering causes.');
         }
         if (($outcome === 'healthy' || $outcome === 'unknown') !== ($causes === [])) {
             throw new InvalidArgumentException('Filtering outcome and causes disagree.');
