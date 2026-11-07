@@ -39,35 +39,36 @@ it('migrates both independent tables and guards evidence on rollback', function 
 
 it('deduplicates an active composite incident and resolves only after both modules recover', function (): void {
     $foundation = app(FilteringFoundation::class);
-    $first = $foundation->record(FLT01_NODE, 'node', 'disrupted', now(), [
+    $base = now()->subMinutes(10);
+    $first = $foundation->record(FLT01_NODE, 'node', 'disrupted', $base, [
         'causes' => ['online_zero', 'traffic_zero'], 'online_users' => 0,
         'rx_bytes_per_sec' => 0, 'tx_bytes_per_sec' => 0,
     ]);
-    $foundation->record(FLT01_NODE, 'node', 'disrupted', now(), ['causes' => ['online_zero']]);
+    $foundation->record(FLT01_NODE, 'node', 'disrupted', $base, ['causes' => ['online_zero']]);
     expect(DB::table('filtering_checks')->count())->toBe(1)
         ->and(DB::table('filtering_incidents')->count())->toBe(1)
         ->and($first['state'])->toBe('disrupted');
 
-    $foundation->record(FLT01_NODE, 'regional', 'suspicious', now()->addMinute(), [
+    $foundation->record(FLT01_NODE, 'regional', 'suspicious', $base->copy()->addMinute(), [
         'causes' => ['regional_possible'], 'completed_probes' => 4, 'failed_probes' => 2,
     ]);
     expect($foundation->read(FLT01_NODE)['state'])->toBe('disrupted')
         ->and(DB::table('filtering_incidents')->count())->toBe(1);
 
-    $foundation->record(FLT01_NODE, 'node', 'healthy', now()->addMinutes(2));
+    $foundation->record(FLT01_NODE, 'node', 'healthy', $base->copy()->addMinutes(2));
     $remaining = $foundation->read(FLT01_NODE);
     expect($remaining['state'])->toBe('suspicious')
         ->and(array_keys($remaining['affected_modules']))->toBe(['regional']);
 
-    $foundation->record(FLT01_NODE, 'regional', 'unknown', now()->addMinutes(3));
+    $foundation->record(FLT01_NODE, 'regional', 'unknown', $base->copy()->addMinutes(3));
     expect($foundation->read(FLT01_NODE)['state'])->toBe('suspicious');
 
-    $foundation->record(FLT01_NODE, 'regional', 'healthy', now()->addMinutes(4));
+    $foundation->record(FLT01_NODE, 'regional', 'healthy', $base->copy()->addMinutes(4));
     expect($foundation->read(FLT01_NODE)['incident_id'])->toBeNull()
         ->and(DB::table('filtering_incidents')->whereNotNull('resolved_at')->count())->toBe(1)
         ->and(DB::table('filtering_incidents')->whereNotNull('active_node_uuid')->count())->toBe(0);
 
-    $foundation->record(FLT01_NODE, 'node', 'suspicious', now()->addMinutes(5), ['causes' => ['online_zero']]);
+    $foundation->record(FLT01_NODE, 'node', 'suspicious', $base->copy()->addMinutes(5), ['causes' => ['online_zero']]);
     expect(DB::table('filtering_incidents')->count())->toBe(2)
         ->and(DB::table('filtering_incidents')->whereNotNull('active_node_uuid')->count())->toBe(1);
 });
