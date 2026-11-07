@@ -79,7 +79,8 @@ final class FilteringFoundation
 
             $latest = DB::table('filtering_checks')
                 ->where('node_uuid', $nodeUuid)->where('module', $module)
-                ->orderByDesc('observed_at')->orderByDesc('id')->first(['id', 'observed_at']);
+                ->orderByDesc('observed_at')->orderByDesc('id')
+                ->lockForUpdate()->first(['id', 'observed_at']);
             $current = DB::table('filtering_checks')
                 ->where('node_uuid', $nodeUuid)->where('module', $module)
                 ->where('observed_at', $observed)->first(['id']);
