@@ -53,16 +53,20 @@ function nw03Ready(): array
     return compact('actor', 'other', 'id');
 }
 
-function nw03Api(bool $connected = true, bool $nodeWriteFails = false): object
+function nw03Api(bool $connected = true, bool $nodeWriteFails = false, bool $existingNode = false): object
 {
     $connection = (object) ['connected' => $connected];
-    Http::fake(static function (Request $r) use ($connection, $nodeWriteFails) {
+    Http::fake(static function (Request $r) use ($connection, $nodeWriteFails, $existingNode) {
         $method = $r->method();
         $url = $r->url();
         $base = 'https://rw.nw03.test/api/';
 
         if ($method === 'GET' && $url === $base.'nodes') {
-            return Http::response(['response' => []], 200);
+            return Http::response(['response' => $existingNode ? [[
+                'uuid' => NW03_NODE, 'name' => 'ParsaNode02',
+                'address' => '194.5.192.133', 'port' => 2222,
+                'isConnected' => true, 'isDisabled' => false,
+            ]] : []], 200);
         }
         if ($method === 'GET' && $url === $base.'config-profiles') {
             return Http::response(['response' => ['configProfiles' => [
@@ -189,4 +193,15 @@ it('NW-03 Host port input never consumes text from a newer legacy Node wizard', 
     $bot->hearText('1234')->reply();
     expect(Cache::get('nw03:hostDraft:'.$owner))->toBeNull()
         ->and(Cache::get($legacy)['stage'])->toBe('info');
+});
+
+
+it('NW-03 refuses duplicate registration after the same Node was registered manually', function (): void {
+    $ready = nw03Ready();
+    nw03Api(existingNode: true);
+    $action = app(CompleteNodeSetup::class);
+
+    expect(fn () => $action->previewNode($ready['actor']->id, $ready['id']))->toThrow(RuntimeException::class)
+        ->and(fn () => $action->registerNode($ready['actor']->id, $ready['id']))->toThrow(RuntimeException::class);
+    expect(collect(Http::recorded())->filter(static fn (array $pair): bool => $pair[0]->method() === 'POST'))->toBeEmpty();
 });

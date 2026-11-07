@@ -204,3 +204,84 @@ it('NW-04 retains the uncertain state when a recovery poll cannot reach the VPS'
     expect(app(ManageNodeInstallation::class)->status($fixture['actor']->id, $id)['state'])->toBe('uncertain');
     Http::assertNothingSent();
 });
+
+
+it('NW-04 hides a completed ready-Node bookmark only after an exact connected RW match', function (): void {
+    $fixture = nw02Fixture();
+    Queue::fake();
+    $manager = app(ManageNodeInstallation::class);
+    $id = $manager->enqueue($fixture['actor']->id, $fixture['ready']);
+    $state = Cache::get('nw02:status:'.$id);
+    $state['state'] = 'running';
+    Cache::put('nw02:status:'.$id, $state, now()->addHour());
+
+    Http::fake([
+        'https://rw.nw02.test/api/nodes' => Http::response(['response' => [[
+            'uuid' => '550e8400-e29b-41d4-a716-446655440012',
+            'name' => 'Node-Test-02',
+            'address' => '194.5.192.133',
+            'port' => 2222,
+            'isConnected' => true,
+            'isDisabled' => false,
+        ]]], 200),
+    ]);
+
+    expect($manager->matchingConnectedNode($fixture['actor']->id, $id))->toBeTrue()
+        ->and($manager->recent($fixture['actor']->id))->toBeNull()
+        ->and(Cache::get('nw02:last:'.$fixture['actor']->id))->toBeNull()
+        ->and(Cache::get('nw02:status:'.$id)['state'])->toBe('running');
+
+    Http::assertSent(static fn (Request $r): bool => $r->method() === 'GET'
+        && $r->url() === 'https://rw.nw02.test/api/nodes');
+    expect(collect(Http::recorded())->filter(static fn (array $pair): bool => $pair[0]->method() !== 'GET'))->toBeEmpty();
+});
+
+it('NW-04 does not dismiss unmatched, disconnected or coordinator-owned recent installs', function (): void {
+    $fixture = nw02Fixture();
+    Queue::fake();
+    $manager = app(ManageNodeInstallation::class);
+    $id = $manager->enqueue($fixture['actor']->id, $fixture['ready']);
+    $state = Cache::get('nw02:status:'.$id);
+    $state['state'] = 'running';
+    Cache::put('nw02:status:'.$id, $state, now()->addHour());
+
+    Http::fake([
+        'https://rw.nw02.test/api/nodes' => Http::response(['response' => [[
+            'name' => 'Node-Test-02',
+            'address' => '194.5.192.133',
+            'port' => 2222,
+            'isConnected' => false,
+            'isDisabled' => false,
+        ]]], 200),
+    ]);
+    expect($manager->recent($fixture['actor']->id))->toBe($id);
+
+    $state['nodeStage'] = 'registered';
+    Cache::put('nw02:status:'.$id, $state, now()->addHour());
+    expect($manager->recent($fixture['actor']->id))->toBe($id);
+
+    $state['nodeStage'] = null;
+    Cache::put('nw02:status:'.$id, $state, now()->addHour());
+    Http::fake(['https://rw.nw02.test/api/nodes' => Http::response([], 503)]);
+    expect($manager->recent($fixture['actor']->id))->toBe($id);
+});
+
+it('NW-04 manually closes only the exact operator bookmark without clearing installation', function (): void {
+    $fixture = nw02Fixture();
+    Queue::fake();
+    Http::preventStrayRequests();
+    $manager = app(ManageNodeInstallation::class);
+    $id = $manager->enqueue($fixture['actor']->id, $fixture['ready']);
+    $otherId = str_repeat('b', 32);
+    $state = Cache::get('nw02:status:'.$id);
+    Cache::put('nw02:status:'.$otherId, $state, now()->addHour());
+
+    expect($manager->closeRecent($fixture['actor']->id, $otherId))->toBeFalse()
+        ->and(Cache::get('nw02:last:'.$fixture['actor']->id))->toBe($id)
+        ->and(fn () => $manager->closeRecent($fixture['other']->id, $id))->toThrow(AuthorizationException::class)
+        ->and($manager->closeRecent($fixture['actor']->id, $id))->toBeTrue()
+        ->and(Cache::get('nw02:last:'.$fixture['actor']->id))->toBeNull()
+        ->and(Cache::get('nw02:status:'.$id)['state'])->toBe('queued')
+        ->and($manager->closeRecent($fixture['actor']->id, $id))->toBeFalse();
+    Http::assertNothingSent();
+});
