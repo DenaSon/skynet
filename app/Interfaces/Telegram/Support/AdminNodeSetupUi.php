@@ -311,7 +311,7 @@ final readonly class AdminNodeSetupUi
         $draft['stage'] = 'preview';
         $this->save($id, $draft);
         $this->render($bot, "🖥️ بازبینی مشخصات سرور\n\n"
-            .'نام: '.$draft['name']."\nIP: ".$draft['ip']."\nپورت: ".$draft['port']."\n"
+            .'نام: '.$draft['name']."\nIP: ".$draft['ip']."\nپورت SSH: ".$draft['port']."\nپورت ارتباط نود: 2222\n"
             .'کاربر: '.$draft['username']."\nپروفایل: ".$draft['profile']['name']."\nورودی: ".$inbound['name']
             .(isset($draft['dnsName']) ? "\nدامنه: ".$draft['dnsName'] : '')
             ."\n\nدر این مرحله هیچ تغییری روی سرور انجام نمی‌شود.",
@@ -563,7 +563,8 @@ final readonly class AdminNodeSetupUi
             ], now()->addMinutes(10));
             $this->render($bot, "➕ تأیید ثبت سرور\n\n"
                 .'نام: '.$review['name']."\n"
-                .'IP: '.$review['address']."\n\n"
+                .'IP: '.$review['address']."\n"
+                .'پورت ارتباط نود: '.$review['port']."\n\n"
                 .'سرور در پنل ثبت می‌شود؛ هیچ کاربری جابه‌جا نخواهد شد.',
                 InlineKeyboardMarkup::make()
                     ->addRow(InlineKeyboardButton::make('✅ ثبت سرور', callback_data: 'nw3:node:apply:'.$token))

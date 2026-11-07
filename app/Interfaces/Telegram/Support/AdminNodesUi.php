@@ -191,7 +191,7 @@ final readonly class AdminNodesUi
         Cache::forget(TelegramBotContext::current()->cacheKey('node03:draft:'.$root));
         $this->save($root, ['stage' => 'info']);
         $this->render($bot,
-            "➕ ثبت نود آماده — گام ۱ از ۳\n\nاین مسیر برای سروری است که نود روی آن نصب شده است.\nنام و آدرس سرور را در یک پیام بفرستید:\n\n"
+            "➕ ثبت نود آماده — گام ۱ از ۴\n\nاین مسیر برای سروری است که نود روی آن نصب شده است.\nنام و آدرس سرور را در یک پیام بفرستید:\n\n"
             ."Germany-01 | node.example.com\n\nآدرس باید IP یا نام دامنه باشد؛ بدون http و پورت.",
             $this->cancelKeyboard());
     }
@@ -209,8 +209,31 @@ final readonly class AdminNodesUi
         }
         $root = $actor->userId;
         $state = $this->draft($root);
-        if ($state === null || ($state['stage'] ?? null) !== 'info') {
+        if ($state === null || ! in_array($state['stage'] ?? null, ['info', 'node_port'], true)) {
             return false;
+        }
+
+        if ($state['stage'] === 'node_port') {
+            if (! ctype_digit($input) || strlen($input) > 5
+                || (int) $input < 1 || (int) $input > 65535) {
+                $this->render($bot, 'پورت ارتباط نود باید عددی بین ۱ تا ۶۵۵۳۵ باشد. نمونه: 2222', $this->cancelKeyboard());
+
+                return true;
+            }
+            try {
+                $profiles = $this->nodes->profiles($root);
+            } catch (Throwable) {
+                $this->render($bot, 'دریافت پروفایل‌ها ممکن نشد. دوباره تلاش کنید.', $this->cancelKeyboard());
+
+                return true;
+            }
+            $state['port'] = (int) $input;
+            $state['stage'] = 'profile';
+            $state['profiles'] = $profiles;
+            $this->save($root, $state);
+            $this->showProfiles($bot, $profiles);
+
+            return true;
         }
 
         $parts = explode('|', $input);
@@ -223,14 +246,13 @@ final readonly class AdminNodesUi
         $address = trim($parts[1]);
         try {
             $this->nodes->validateIdentity($root, $name, $address);
-            $profiles = $this->nodes->profiles($root);
         } catch (Throwable) {
-            $this->render($bot, 'اطلاعات معتبر نیست یا دریافت پروفایل‌ها ممکن نشد. دوباره بررسی کنید.', $this->cancelKeyboard());
+            $this->render($bot, 'نام یا آدرس معتبر نیست. دوباره بررسی کنید.', $this->cancelKeyboard());
 
             return true;
         }
-        $this->save($root, ['stage' => 'profile', 'name' => $name, 'address' => $address, 'profiles' => $profiles]);
-        $this->showProfiles($bot, $profiles);
+        $this->save($root, ['stage' => 'node_port', 'name' => $name, 'address' => $address]);
+        $this->render($bot, "➕ ثبت نود آماده — گام ۲ از ۴\n\nپورت ارتباط نود با پنل را ارسال کنید.\nپورت پیش‌فرض نصب دناگیت: 2222\n\nاین پورت با پورت SSH و اتصال کاربران متفاوت است.", $this->cancelKeyboard());
 
         return true;
     }
@@ -301,14 +323,20 @@ final readonly class AdminNodesUi
 
             return;
         }
+        if (! is_int($state['port'] ?? null) || $state['port'] < 1 || $state['port'] > 65535) {
+            $this->render($bot, 'پورت نود مشخص نیست. ثبت را از ابتدا آغاز کنید.', $this->cancelKeyboard());
+
+            return;
+        }
         $token = bin2hex(random_bytes(16));
         $state['stage'] = 'preview';
         $state['token'] = $token;
         $this->save($root, $state);
         $this->render($bot,
-            "➕ ثبت نود آماده — گام ۳ از ۳\n\n"
+            "➕ ثبت نود آماده — گام ۴ از ۴\n\n"
             .'نام: '.$this->safe($state['name'])."\n"
             .'آدرس: '.$this->safe($state['address'])."\n"
+            .'پورت ارتباط نود: '.$state['port']."\n"
             .'پروفایل: '.$this->safe($state['profile']['name'])."\n"
             .'ورودی‌های انتخاب‌شده: '.count($state['selected'])."\n\n"
             .'با تأیید، درخواست ساخت نود ارسال می‌شود. از تأیید دوباره خودداری کنید.',
@@ -346,9 +374,12 @@ final readonly class AdminNodesUi
             return;
         }
         try {
+            if (! is_int($state['port'] ?? null) || $state['port'] < 1 || $state['port'] > 65535) {
+                throw ValidationException::withMessages(['node' => 'Node management port is missing.']);
+            }
             $uuid = $this->nodes->create(
                 $root, $state['name'], $state['address'],
-                $state['profile']['uuid'], $state['selected'],
+                $state['profile']['uuid'], $state['selected'], $state['port'],
             );
             $this->render($bot, "✅ نود در پنل ثبت شد.\n\nاتصال واقعی سرور را جداگانه بررسی کنید.",
                 InlineKeyboardMarkup::make()
@@ -388,7 +419,7 @@ final readonly class AdminNodesUi
             ));
         }
         $keyboard->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'node1:cancel'));
-        $this->render($bot, "➕ ثبت نود آماده — گام ۲ از ۳\n\nپروفایل را انتخاب کنید."
+        $this->render($bot, "➕ ثبت نود آماده — گام ۳ از ۴\n\nپروفایل را انتخاب کنید."
             .($profiles === [] ? "\n\nهنوز پروفایلی در پنل وجود ندارد." : ''), $keyboard);
     }
 
