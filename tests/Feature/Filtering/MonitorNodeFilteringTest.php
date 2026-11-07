@@ -237,6 +237,7 @@ it('does not turn provider failures or disappeared Nodes into false recovery', f
         app(RemnawaveApiClientFactory::class),
         app(FilteringFoundation::class),
         app(FilteringIncidentAlerts::class),
+        app(\App\Modules\Filtering\Application\ScanRegionalFiltering::class),
     );
     flt02Feed([flt02Node(2, 10, 10)]);
     $this->travel(1)->minutes();
