@@ -90,12 +90,13 @@ final readonly class ScanRegionalFiltering
             $previous = DB::table('filtering_checks')
                 ->where('node_uuid', $uuid)->where('module', 'regional')
                 ->where('observed_at', '<', $observed)
-                ->orderByDesc('observed_at')->first(['observed_at', 'evidence']);
+                ->orderByDesc('observed_at')->first(['observed_at', 'outcome', 'evidence']);
             $elapsed = $previous === null ? PHP_INT_MAX
                 : $observed->timestamp - CarbonImmutable::parse($previous->observed_at)->timestamp;
             $prior = $previous === null ? 'unknown'
                 : RegionalRoundClassifier::classify($this->decode($previous->evidence));
-            $consecutive = $elapsed > 0 && $elapsed <= self::WINDOW_SECONDS;
+            $consecutive = $elapsed > 0 && $elapsed <= self::WINDOW_SECONDS
+                && $previous !== null && $previous->outcome !== 'unknown';
             $current = $this->foundation->read($uuid)['affected_modules']['regional']['causes'] ?? [];
             $current = is_array($current) ? $current : [];
 

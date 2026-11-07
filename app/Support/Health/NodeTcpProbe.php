@@ -106,8 +106,8 @@ final readonly class NodeTcpProbe
      * Regional probes must never fall back to legacy IP-only matching.
      * An explicit active inbound and matching current Host are mandatory.
      *
-     * @param array<string, mixed> $node
-     * @param array<string, mixed> $host
+     * @param  array<string, mixed>  $node
+     * @param  array<string, mixed>  $host
      */
     private static function verifiedInbound(array $node, array $host): bool
     {
@@ -115,9 +115,20 @@ final readonly class NodeTcpProbe
         $active = is_array($profile) ? ($profile['activeInbounds'] ?? null) : null;
         $inbound = $host['inbound'] ?? null;
 
-        return is_array($active) && array_is_list($active) && $active !== []
-            && is_array($inbound)
-            && is_string($inbound['configProfileInboundUuid'] ?? null);
+        if (! is_array($active) || ! array_is_list($active) || $active === []
+            || ! is_array($inbound) || ! is_string($inbound['configProfileInboundUuid'] ?? null)) {
+            return false;
+        }
+
+        foreach ($active as $item) {
+            if (is_array($item) && is_string($item['uuid'] ?? null)
+                && strcasecmp($item['uuid'], $inbound['configProfileInboundUuid']) === 0
+                && array_key_exists('port', $item)) {
+                return is_int($item['port']) && $item['port'] === $host['port'];
+            }
+        }
+
+        return true;
     }
 
     /** Required by the remote-probe adapter to fail closed on externally supplied targets. */

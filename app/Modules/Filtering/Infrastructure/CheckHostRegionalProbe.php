@@ -73,7 +73,7 @@ final class CheckHostRegionalProbe
     }
 
     /**
-     * @param list<array{name:string,asn:string,city:string}> $nodes
+     * @param  list<array{name:string,asn:string,city:string}>  $nodes
      * @return array{completed_probes:int,failed_probes:int,pending_probes:int,asn_count:int,city_count:int,failed_asn_count:int,failed_city_count:int,successful_probes:int}
      */
     public function tcp(string $ip, int $port, array $nodes): array
@@ -167,7 +167,7 @@ final class CheckHostRegionalProbe
     }
 
     /**
-     * @param array<string,mixed>|list<mixed>|null $raw
+     * @param  array<string,mixed>|list<mixed>|null  $raw
      * @return bool|null null is pending/invalid; never infer failure.
      */
     private static function result(mixed $raw, string $expectedIp): ?bool

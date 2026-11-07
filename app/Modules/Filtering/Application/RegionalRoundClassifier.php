@@ -7,7 +7,7 @@ namespace App\Modules\Filtering\Application;
 final class RegionalRoundClassifier
 {
     /**
-     * @param array<string,int> $counts
+     * @param  array<string,int>  $counts
      * @return 'unknown'|'clear'|'possible'|'likely'
      */
     public static function classify(array $counts): string
@@ -35,7 +35,8 @@ final class RegionalRoundClassifier
     /**
      * An independent known-good Internet TCP target must be usable from
      * diverse Iranian vantage points before high-confidence escalation.
-     * @param array<string,int> $counts
+     *
+     * @param  array<string,int>  $counts
      */
     public static function externalControlHealthy(array $counts): bool
     {
