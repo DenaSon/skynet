@@ -210,7 +210,7 @@ it('shows validated cached Remnawave names in node, access and incident views wi
     expect($incident['label'])->toBe('Amsterdam <NL>')
         ->and($reader->incident($root->id, $incident['id'])['label'])->toBe('Amsterdam <NL>');
 
-    Cache::put(FilteringFoundation::NODE_NAME_CACHE_KEY, [$uuid => "Invalid\\nName"], now()->addDay());
+    Cache::put(FilteringFoundation::NODE_NAME_CACHE_KEY, [$uuid => "Invalid\nName"], now()->addDay());
     expect($reader->node($root->id, $uuid)['label'])->toBe(strtoupper(substr($uuid, 0, 8)));
     Http::assertNothingSent();
 });
