@@ -478,6 +478,12 @@ final readonly class AdminNodeSetupUi
 
             return;
         }
+        if ($status['state'] === 'running' && $this->installer->matchingConnectedNode($root, $identifier)) {
+            $this->installer->closeRecent($root, $identifier);
+            $this->render($bot, "✅ سرور «".$status['name']."» در پنل ثبت و متصل است.\n\nپیگیری راه‌اندازی قبلی بسته شد؛ هیچ تغییری روی سرور انجام نشد.", $this->back());
+
+            return;
+        }
         $description = match ($status['state']) {
             'queued' => 'در صف آماده‌سازی. اگر انتظار طولانی شد، وضعیت اجرای کارهای پس‌زمینه را بررسی کنید.',
             'launching', 'pending' => 'در حال شروع عملیات. می‌توانید کمی بعد وضعیت را تازه‌سازی کنید.',
@@ -488,6 +494,10 @@ final readonly class AdminNodeSetupUi
             default => '⚠️ نتیجه نصب هنوز روشن نیست. وضعیت سرور را بررسی کنید؛ شروع دوباره ممکن است نصب قبلی را تکرار کند.',
         };
         $keyboard = $this->statusKeyboard($identifier);
+        if (in_array($status['state'], ['running', 'failed', 'uncertain'], true)
+            && $this->installer->recent($root) === $identifier) {
+            $keyboard->addRow(InlineKeyboardButton::make('✅ بستن پیگیری راه‌اندازی', callback_data: 'nw4:close:'.$identifier));
+        }
         if ($status['state'] === 'running'
             && config('services.remnawave.writes_enabled') === true
             && config('services.remnawave.node_ssh_install_enabled') === true) {
@@ -495,6 +505,24 @@ final readonly class AdminNodeSetupUi
         }
         $this->render($bot, "🖥️ وضعیت آماده‌سازی\n\nنام: ".$status['name']."\n".$description,
             $keyboard);
+    }
+
+    public function closeRecent(Nutgram $bot, string $identifier): void
+    {
+        $root = $this->root($bot);
+        if ($root === null) {
+            return;
+        }
+        try {
+            if (! $this->installer->closeRecent($root, $identifier)) {
+                $this->expired($bot);
+
+                return;
+            }
+            $this->render($bot, "✅ پیگیری راه‌اندازی از منوی نودها بسته شد.\n\nاطلاعات نصب حفظ شده و هیچ تغییری روی VPS یا پنل انجام نشده است.", $this->back());
+        } catch (Throwable) {
+            $this->expired($bot);
+        }
     }
 
     public function completionOverview(Nutgram $bot, string $identifier): void
@@ -506,6 +534,12 @@ final readonly class AdminNodeSetupUi
         Cache::forget('nw03:hostDraft:'.$root);
         Cache::forget('nw03:confirm:'.$root);
         try {
+            if ($this->installer->matchingConnectedNode($root, $identifier)) {
+                $this->installer->closeRecent($root, $identifier);
+                $this->render($bot, "✅ این سرور قبلاً از مسیر ثبت نود آماده به پنل متصل شده است.\n\nنیازی به ثبت دوباره نیست.", $this->back());
+
+                return;
+            }
             $step = $this->completion->progress($root, $identifier);
             $keyboard = InlineKeyboardMarkup::make();
             $message = '🖥️ تکمیل اتصال سرور';
