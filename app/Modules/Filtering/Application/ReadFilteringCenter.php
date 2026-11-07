@@ -8,8 +8,8 @@ use App\Modules\Identity\Application\AssertCatalogManagementAccess;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Facades\Cache;
-use Throwable;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 /**
  * FLT-04: authorized, bounded SQL read model. No Remnawave, Check-Host,
