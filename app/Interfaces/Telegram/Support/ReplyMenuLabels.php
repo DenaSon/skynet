@@ -83,6 +83,8 @@ final class ReplyMenuLabels
 
     public const CONTROL_PANEL = '⚙️ کنترل پنل';
 
+    public const FILTERING = 'فیلترینگ';
+
     public const MANAGEMENT_KPIS = '📊 شاخص‌های مدیریتی';
 
     public const PRODUCTS = '📚 محصولات پایه';
@@ -105,7 +107,7 @@ final class ReplyMenuLabels
             self::OLD_WALLET_PANEL, self::OLD_BUILDER_PANEL, self::PREVIOUS_BUILDER, self::USERS,
             self::ROLES, self::PLANS, self::PRODUCTS, self::SALES_SECTION,
             self::FINANCE_SECTION, self::SERVERS, self::STATS, self::DENABAN, self::MANAGEMENT_KPIS, self::TOPUPS, self::RECEIPTS, self::HOME,
-            self::DENABAN_RADAR, self::DASHBOARD, self::REPORTS, self::CONTROL_PANEL,
+            self::DENABAN_RADAR, self::DASHBOARD, self::REPORTS, self::CONTROL_PANEL, self::FILTERING,
         ];
     }
 }

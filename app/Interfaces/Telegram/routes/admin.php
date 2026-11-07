@@ -13,6 +13,7 @@ use App\Interfaces\Telegram\Support\AdminConfigProfileOperationsUi;
 use App\Interfaces\Telegram\Support\AdminConfigProfilesUi;
 use App\Interfaces\Telegram\Support\AdminDashboardUi;
 use App\Interfaces\Telegram\Support\AdminFinanceWalletUi;
+use App\Interfaces\Telegram\Support\AdminFilteringUi;
 use App\Interfaces\Telegram\Support\AdminFulfillmentUi;
 use App\Interfaces\Telegram\Support\AdminHealthUi;
 use App\Interfaces\Telegram\Support\AdminHostBatchUi;
@@ -391,6 +392,50 @@ $bot->onCallbackQueryData('node3:apply:{token}', function (Nutgram $bot, string 
 });
 $bot->onCallbackQueryData('node3:cancel', function (Nutgram $bot): void {
     app(AdminNodeBatchUi::class)->cancel($bot);
+});
+
+// FLT-04: private trusted-root filtering center; reads never execute provider probes.
+$bot->onCommand('filtering', function (Nutgram $bot): void {
+    app(AdminFilteringUi::class)->show($bot);
+});
+$bot->onCallbackQueryData('flt:home', function (Nutgram $bot): void {
+    app(AdminFilteringUi::class)->show($bot);
+});
+$bot->onCallbackQueryData('flt:home:simple', function (Nutgram $bot): void {
+    app(AdminFilteringUi::class)->show($bot, simple: true);
+});
+$bot->onCallbackQueryData('flt:nodes:{page}', function (Nutgram $bot, string $page): void {
+    app(AdminFilteringUi::class)->nodes($bot, $page);
+});
+$bot->onCallbackQueryData('flt:nodes:simple:{page}', function (Nutgram $bot, string $page): void {
+    app(AdminFilteringUi::class)->nodes($bot, $page, simple: true);
+});
+$bot->onCallbackQueryData('flt:access:{page}', function (Nutgram $bot, string $page): void {
+    app(AdminFilteringUi::class)->access($bot, $page);
+});
+$bot->onCallbackQueryData('flt:access:simple:{page}', function (Nutgram $bot, string $page): void {
+    app(AdminFilteringUi::class)->access($bot, $page, simple: true);
+});
+$bot->onCallbackQueryData('flt:node:{uuid}', function (Nutgram $bot, string $uuid): void {
+    app(AdminFilteringUi::class)->node($bot, $uuid);
+});
+$bot->onCallbackQueryData('flt:node:simple:{uuid}', function (Nutgram $bot, string $uuid): void {
+    app(AdminFilteringUi::class)->node($bot, $uuid, simple: true);
+});
+$bot->onCallbackQueryData('flt:history:{page}', function (Nutgram $bot, string $page): void {
+    app(AdminFilteringUi::class)->history($bot, $page);
+});
+$bot->onCallbackQueryData('flt:history:simple:{page}', function (Nutgram $bot, string $page): void {
+    app(AdminFilteringUi::class)->history($bot, $page, simple: true);
+});
+$bot->onCallbackQueryData('flt:incident:{id}', function (Nutgram $bot, string $id): void {
+    app(AdminFilteringUi::class)->incident($bot, $id);
+});
+$bot->onCallbackQueryData('flt:incident:simple:{id}', function (Nutgram $bot, string $id): void {
+    app(AdminFilteringUi::class)->incident($bot, $id, simple: true);
+});
+$bot->onCallbackQueryData('flt:recheck:{uuid}', function (Nutgram $bot, string $uuid): void {
+    app(AdminFilteringUi::class)->recheck($bot, $uuid);
 });
 
 // OPS-CMD-01: private Super Admin Denaban snapshot and refresh.

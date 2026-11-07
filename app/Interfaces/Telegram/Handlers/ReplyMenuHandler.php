@@ -5,6 +5,7 @@ namespace App\Interfaces\Telegram\Handlers;
 use App\Interfaces\Telegram\Support\AdminCommandCenterUi;
 use App\Interfaces\Telegram\Support\AdminDashboardUi;
 use App\Interfaces\Telegram\Support\AdminFinanceWalletUi;
+use App\Interfaces\Telegram\Support\AdminFilteringUi;
 use App\Interfaces\Telegram\Support\AdminManagementKpiUi;
 use App\Interfaces\Telegram\Support\AdminProviderOverviewUi;
 use App\Interfaces\Telegram\Support\AdminScopedReadUi;
@@ -112,6 +113,17 @@ final class ReplyMenuHandler
 
             case ReplyMenuLabels::INVITE:
                 app(InviteHandler::class)->__invoke($bot);
+
+                return true;
+
+            case ReplyMenuLabels::FILTERING:
+                if (! $actor->canManageRoles()) {
+                    $this->deny($bot, $actor);
+
+                    return true;
+                }
+
+                app(AdminFilteringUi::class)->show($bot);
 
                 return true;
 

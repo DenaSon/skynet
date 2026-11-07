@@ -163,25 +163,28 @@ final readonly class ScanRegionalFiltering
     }
 
     /** Emergency confirmation: one per Node / 15 min and one provider-wide / 5 min. */
-    public function queueConfirmation(string $nodeUuid): void
+    public function queueConfirmation(string $nodeUuid): bool
     {
         if (config('filtering.regional_monitor_enabled', false) !== true
             || ! preg_match('/\A[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\z/iD', $nodeUuid)) {
-            return;
+            return false;
         }
         try {
             $bucket = (int) floor(now()->timestamp / 300);
             if (! Cache::add('filtering:regional:extra:global:'.$bucket, true, now()->addMinutes(5))) {
-                return;
+                return false;
             }
             if (! Cache::add('filtering:regional:extra:node:'.strtolower($nodeUuid), true, now()->addMinutes(15))) {
-                return;
+                return false;
             }
             DB::afterCommit(static function () use ($nodeUuid): void {
                 ScanRegionalNodeJob::dispatch(strtolower($nodeUuid));
             });
+
+            return true;
         } catch (Throwable) {
             // A dead cache or queue must not affect Node incident persistence.
+            return false;
         }
     }
 
