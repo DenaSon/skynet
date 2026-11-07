@@ -3,14 +3,18 @@
 declare(strict_types=1);
 
 use App\Modules\Filtering\Application\FilteringFoundation;
+use App\Modules\Filtering\Application\MonitorNodeFiltering;
 use App\Modules\Filtering\Application\RegionalRoundClassifier;
 use App\Modules\Filtering\Application\ScanRegionalFiltering;
 use App\Modules\Filtering\Infrastructure\CheckHostRegionalProbe;
+use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveNodeSummary;
 use App\Support\Health\NodeTcpProbe;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -217,22 +221,20 @@ it('queues a guarded regional confirmation when a Node signal joins an existing 
     app(FilteringFoundation::class)->record(FLT03_NODE, 'regional', 'suspicious', now(), [
         'causes' => ['regional_possible'],
     ]);
-    $clock = now()->startOfMinute();
-    $make = static fn (int $users): \App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveNodeSummary =>
-        new \App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveNodeSummary(
-            uuid: FLT03_NODE, name: 'Node', connected: true, disabled: false,
-            usersOnline: $users, rxBytesPerSec: 50, txBytesPerSec: 50,
-        );
-    $monitor = app(\App\Modules\Filtering\Application\MonitorNodeFiltering::class);
+    $make = static fn (int $users): RemnawaveNodeSummary => new RemnawaveNodeSummary(
+        uuid: FLT03_NODE, name: 'Node', connected: true, disabled: false,
+        usersOnline: $users, rxBytesPerSec: 50, txBytesPerSec: 50,
+    );
+    $monitor = app(MonitorNodeFiltering::class);
     $this->travel(1)->minutes();
-    $monitor->observe($make(2), \Carbon\CarbonImmutable::instance(now())->startOfMinute());
+    $monitor->observe($make(2), CarbonImmutable::instance(now())->startOfMinute());
     $this->travel(1)->minutes();
-    $monitor->observe($make(0), \Carbon\CarbonImmutable::instance(now())->startOfMinute());
+    $monitor->observe($make(0), CarbonImmutable::instance(now())->startOfMinute());
     $this->travel(1)->minutes();
-    $monitor->observe($make(0), \Carbon\CarbonImmutable::instance(now())->startOfMinute());
+    $monitor->observe($make(0), CarbonImmutable::instance(now())->startOfMinute());
 
     expect(app(FilteringFoundation::class)->read(FLT03_NODE)['affected_modules'])->toHaveKeys(['regional', 'node'])
-        ->and(\Illuminate\Support\Facades\Cache::get('filtering:regional:extra:node:'.FLT03_NODE))->toBeTrue();
+        ->and(Cache::get('filtering:regional:extra:node:'.FLT03_NODE))->toBeTrue();
 });
 
 it('rejects private and reserved destinations before any TCP provider request', function (): void {
