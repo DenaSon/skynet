@@ -25,6 +25,7 @@ final class FilteringFoundation
     private const COUNTERS = [
         'online_users', 'rx_bytes_per_sec', 'tx_bytes_per_sec',
         'completed_probes', 'failed_probes', 'asn_count', 'city_count',
+        'failed_asn_count', 'failed_city_count', 'pending_probes',
     ];
 
     private const CAUSES = [

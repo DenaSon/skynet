@@ -7,6 +7,7 @@ use App\Interfaces\Telegram\Support\SalesNativeMenu;
 use App\Modules\Billing\Application\VerifyWalletOrderDebit;
 use App\Modules\Filtering\Application\MonitorNodeFiltering;
 use App\Modules\Filtering\Application\PruneFilteringHistory;
+use App\Modules\Filtering\Application\ScanRegionalFiltering;
 use App\Modules\Provisioning\Jobs\FulfillPaidPlanOrderJob;
 use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\ConfigureRate;
@@ -93,6 +94,15 @@ Artisan::command('filtering:nodes:scan', function (): int {
 
     return 0;
 })->purpose('Collect read-only per-Node filtering signals and queue guarded Admin notices');
+
+// FLT-03: gated Iran regional TCP observations; no Telegram webhook/network work.
+Schedule::command('filtering:regional:scan')->everyFiveMinutes()->withoutOverlapping(5);
+Artisan::command('filtering:regional:scan', function (): int {
+    $count = app(ScanRegionalFiltering::class)->scan();
+    $this->info("Recorded {$count} regional Node observation(s).");
+
+    return 0;
+})->purpose('Run bounded Check-Host Iran TCP reachability observations');
 
 // FLT-01: bounded retention only; no polling, alerts or provider interactions.
 Schedule::command('filtering:prune')->everyFiveMinutes()->withoutOverlapping(5);

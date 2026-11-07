@@ -28,6 +28,7 @@ final readonly class MonitorNodeFiltering
         private RemnawaveApiClientFactory $clients,
         private FilteringFoundation $foundation,
         private FilteringIncidentAlerts $alerts,
+        private ?ScanRegionalFiltering $regional = null,
     ) {}
 
     /** Number of valid and eligible Nodes sampled; disabled until live verification. */
@@ -166,6 +167,9 @@ final readonly class MonitorNodeFiltering
             $id = $after['incident_id'] ?? $before['incident_id'];
             if ($id !== null && $outcome !== 'unknown') {
                 $this->alerts->sync($id);
+                if ($before['incident_id'] === null && $after['incident_id'] !== null) {
+                    $this->regional?->queueConfirmation($uuid);
+                }
             }
         }, 3);
     }

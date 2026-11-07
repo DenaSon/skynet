@@ -7,4 +7,6 @@ return [
     // after validating real RW fields. Alerts need separate live acceptance.
     'node_monitor_enabled' => (bool) env('FILTERING_NODE_MONITOR_ENABLED', false),
     'node_alerts_enabled' => (bool) env('FILTERING_NODE_ALERTS_ENABLED', false),
+    'regional_monitor_enabled' => (bool) env('FILTERING_REGIONAL_MONITOR_ENABLED', false),
+    'regional_alerts_enabled' => (bool) env('FILTERING_REGIONAL_ALERTS_ENABLED', false),
 ];
