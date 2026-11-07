@@ -20,12 +20,12 @@ This is a **suspected user-reachability disruption monitor**, not a definitive c
 
 ## 2. Source baseline verified on master, 2026-11-07
 
-- \`app/Modules/Provisioning/Infrastructure/Remnawave/RemnawaveReadApi.php\`: \`inventory()\` normalizes Node \`usersOnline\`, \`rxBytesPerSec\`, \`txBytesPerSec\`, connection and disable flags. Actual rate presence/freshness must be verified on real Nodes; nullable is **UNKNOWN**, never zero.
-- \`RemnawaveNodeTelemetry::onlineUsers()\` and \`ReadAdminNodeMetrics\` already provide a display-oriented per-Node online count; \`ReadAdminNodeMetrics::handle(actorId)\` is an actor-authorized UI read and must **not** be misused as an unattended scheduler actor.
-- \`NodeTcpProbe\` and \`network:tcp-probe\` run once per minute from DenaGate's server to approved direct customer-facing endpoints. This is **not** an Iranian regional probe and its one-endpoint-per-node selection is not automatically sufficient for all transports.
-- \`routes/console.php\` uses Laravel Scheduler with non-overlap guards. Existing Telegram delivery, operational health and Rich-first RTL UI must be reused, not duplicated.
-- NVLBot read-only references: \`DenaSon/nvl-bot/docs/PHASE6D_CHECKHOST.md\`, \`docs/PHASE6E_FILTERING.md\`, \`checkhost_probe.py\`, \`regional_filtering.py\`. **Port the limited behavior into current PHP/Laravel; do not add a Python service or copy unrelated failover complexity.**
-- Canonical policy: \`AGENTS.md\`, \`docs/004-STANDARDS.md\`, \`docs/017-TELEGRAM-UX-IDENTITY.md\`, \`docs/041-ADMIN-TELEGRAM-RICH-UI-ROADMAP.md\`, and the current master source.
+- `app/Modules/Provisioning/Infrastructure/Remnawave/RemnawaveReadApi.php`: `inventory()` normalizes Node `usersOnline`, `rxBytesPerSec`, `txBytesPerSec`, connection and disable flags. Actual rate presence/freshness must be verified on real Nodes; nullable is **UNKNOWN**, never zero.
+- `RemnawaveNodeTelemetry::onlineUsers()` and `ReadAdminNodeMetrics` already provide a display-oriented per-Node online count; `ReadAdminNodeMetrics::handle(actorId)` is an actor-authorized UI read and must **not** be misused as an unattended scheduler actor.
+- `NodeTcpProbe` and `network:tcp-probe` run once per minute from DenaGate's server to approved direct customer-facing endpoints. This is **not** an Iranian regional probe and its one-endpoint-per-node selection is not automatically sufficient for all transports.
+- `routes/console.php` uses Laravel Scheduler with non-overlap guards. Existing Telegram delivery, operational health and Rich-first RTL UI must be reused, not duplicated.
+- NVLBot read-only references: `DenaSon/nvl-bot/docs/PHASE6D_CHECKHOST.md`, `docs/PHASE6E_FILTERING.md`, `checkhost_probe.py`, `regional_filtering.py`. **Port the limited behavior into current PHP/Laravel; do not add a Python service or copy unrelated failover complexity.**
+- Canonical policy: `AGENTS.md`, `docs/004-STANDARDS.md`, `docs/017-TELEGRAM-UX-IDENTITY.md`, `docs/041-ADMIN-TELEGRAM-RICH-UI-ROADMAP.md`, and the current master source.
 
 No infrastructure, provider, data or Telegram behavior is changed by this planning artifact.
 
@@ -48,8 +48,8 @@ Share one incident evaluator / notification routing / status presenter and persi
 **Cadence:** Scheduler every minute; snapshots sampled independently per active, enabled Node, not by summing all Nodes.
 
 Two **independent OR triggers**, requiring **two consecutive valid, fresh observations** of the same signal:
-- **Online trigger:** per-Node \`usersOnline === 0\` twice.
-- **Traffic trigger:** per-Node \`rxBytesPerSec === 0 AND txBytesPerSec === 0\` in each of two consecutive observations. If either rate is unavailable, that traffic sample is UNKNOWN, not zero.
+- **Online trigger:** per-Node `usersOnline === 0` twice.
+- **Traffic trigger:** per-Node `rxBytesPerSec === 0 AND txBytesPerSec === 0` in each of two consecutive observations. If either rate is unavailable, that traffic sample is UNKNOWN, not zero.
 - Either trigger is enough to open or update an incident; simultaneous zero online + traffic is stronger evidence, **not** a prerequisite to notify.
 
 **Noise control:** eligible Nodes must be enabled and have recent positive activity observed by this monitor (online > 0 or RX/TX > 0) within the preceding 30 minutes. A previously never-active Node, intentionally disabled Node or newly registered Node remains IDLE/UNKNOWN instead of generating perpetual zero alerts. This is a proposed baseline rule; calibrate against live node behavior before enabling alert delivery, without changing the approved OR/two-sample policy. A missing or failed API read, duplicate/stale observation, time gap beyond the expected schedule tolerance, disabled status or unknown field must break that signal's consecutive-zero streak; do not fabricate a zero. A successful fetch timestamp shows collection time, **not** guaranteed freshness of upstream telemetry without provider evidence.
@@ -62,7 +62,7 @@ Two **independent OR triggers**, requiring **two consecutive valid, fresh observ
 
 **Cadence:** every five minutes for approved eligible Nodes/targets. On a Node-monitor alert, enqueue at most one out-of-cycle regional confirmation per affected Node under a cooldown and provider-wide budget; no synchronous probe in Telegram webhook.
 
-**Reference request protocol (NVLBot 6D):** discover Iranian nodes via \`/nodes/hosts\`; start TCP via \`/check-tcp\` with approved \`host:port\` and repeated \`node\` parameters; get a \`request_id\`; poll \`/check-result/{request_id}\` within strict timeout/attempt bounds. Normalize SUCCESS, FAIL, PENDING/UNKNOWN separately. A \`null\` response or an API error is **not** a TCP failure; protect against rate limits, retries, malformed payloads, duplicate/changed nodes and oversized outputs.
+**Reference request protocol (NVLBot 6D):** discover Iranian nodes via `/nodes/hosts`; start TCP via `/check-tcp` with approved `host:port` and repeated `node` parameters; get a `request_id`; poll `/check-result/{request_id}` within strict timeout/attempt bounds. Normalize SUCCESS, FAIL, PENDING/UNKNOWN separately. A `null` response or an API error is **not** a TCP failure; protect against rate limits, retries, malformed payloads, duplicate/changed nodes and oversized outputs.
 
 **Coverage:** target eight available Iranian probes across diverse networks/cities when available. Never hardcode an assumption that eight nodes always exist. A verdict requires at least 4 completed probes from 4 distinct ASNs and 2 cities; otherwise UNKNOWN. City/ASN come from trusted provider metadata, not inferred from test success.
 
@@ -73,20 +73,20 @@ Two **independent OR triggers**, requiring **two consecutive valid, fresh observ
 - Escalate to high-confidence regional warning only after **two consecutive eligible LIKELY rounds** and a successful independent external-control TCP test that distinguishes a target issue from broad probe/provider failure. Otherwise retain POSSIBLE/UNKNOWN as appropriate; repeated POSSIBLE alone does not silently become LIKELY.
 - Recover only after repeated eligible healthy rounds; an unknown/partial response is never recovery.
 
-**Target choice:** prioritize verified direct customer-facing TCP service ports. Validate current RW Host/Node/inbound association, public destination resolution, disabled state and transport context each run. Existing \`NodeTcpProbe::targets()\` may be reused where its limitations fit; it is not proof that every service port or CDN domain is covered. For Cloudflare-proxied XHTTP, disclose that generic TCP to a Node origin does not validate the end-user HTTPS/CDN path; do not equate it with an end-to-end service test. One selected target per Node in v1 unless justified within the phase and approved separately.
+**Target choice:** prioritize verified direct customer-facing TCP service ports. Validate current RW Host/Node/inbound association, public destination resolution, disabled state and transport context each run. Existing `NodeTcpProbe::targets()` may be reused where its limitations fit; it is not proof that every service port or CDN domain is covered. For Cloudflare-proxied XHTTP, disclose that generic TCP to a Node origin does not validate the end-user HTTPS/CDN path; do not equate it with an end-to-end service test. One selected target per Node in v1 unless justified within the phase and approved separately.
 
 No client configuration changes, service restarts or automated remediation.
 
 ## 6. Incident lifecycle, data and 24h retention (FLT-01)
 
 **One additive Laravel schema migration**, introducing two small indexed MySQL tables:
-- \`filtering_checks\`: bounded normalized observations (\`node_uuid\`, \`module\`, \`observed_at\`, \`outcome\`, \`signal values / compact evidence\`, provider-check freshness/time fields). No secrets, raw full API bodies or indefinite metrics.
-- \`filtering_incidents\`: authoritative incident identity and lifecycle (\`node_uuid\`, \`state\`, \`opened_at\`, \`updated_at\`, \`resolved_at\`, dedupe/notification markers, compact causes/affected modules and recovery state).
+- `filtering_checks`: bounded normalized observations (`node_uuid`, `module`, `observed_at`, `outcome`, `signal values / compact evidence`, provider-check freshness/time fields). No secrets, raw full API bodies or indefinite metrics.
+- `filtering_incidents`: authoritative incident identity and lifecycle (`node_uuid`, `state`, `opened_at`, `updated_at`, `resolved_at`, dedupe/notification markers, compact causes/affected modules and recovery state).
 
 A single Node can have at most **one active composite incident** joining independent module evidence; make concurrent opens/transitions idempotent under MySQL-compatible locking/uniqueness. Clearly distinguish healthy, suspicious, disrupted and unknown states; an isolated source recovery does not resolve the composite while another source remains abnormal. Store only minimum information needed for deterministic transitions and an operator-readable 24h history. If samples are insufficient due to restarts or cache loss, safely resume from durable data or warm up without false alerts.
 
 **Retention and cleanup (approved, automatic):**
-- Raw \`filtering_checks\` older than **24 hours from observation timestamp** are deleted automatically.
+- Raw `filtering_checks` older than **24 hours from observation timestamp** are deleted automatically.
 - **Resolved** incidents older than **24 hours after resolution** are deleted automatically.
 - **Active** incidents remain until ended, regardless of age; do not clear their dedupe state during pruning.
 - Run Laravel Scheduler pruning every **five minutes**, without manual confirmation. Deletion is bounded/chunked and uses indexed timestamps to avoid table locks and unnecessary DB/CPU spikes.
@@ -113,8 +113,8 @@ No giant unpaginated histories, inline destructive actions, protocol-level debug
 
 ### FLT-01 — Foundation, schema, cleanup (one scoped PR)
 - Review master and relevant current docs; finalize minimal rows/columns/indexes, incident transition contract, permission boundaries and practical locking/idempotency.
-- Add the **one additive migration** for \`filtering_checks\` and \`filtering_incidents\`; application service for observation/incident lifecycle, shared status read, bounded cleanup command + every-five-minute Scheduler + lightweight tests. No live monitor polling or Telegram filtering UI yet.
-- Tests: MySQL migration/rollback, schema compatibility, concurrency/idempotence, active incident never pruned, resolved incident age measured from \`resolved_at\`, exact >24h cutoff, old/new/unknown boundaries, no other table cleanup, chunked prune, scheduler overlap guard.
+- Add the **one additive migration** for `filtering_checks` and `filtering_incidents`; application service for observation/incident lifecycle, shared status read, bounded cleanup command + every-five-minute Scheduler + lightweight tests. No live monitor polling or Telegram filtering UI yet.
+- Tests: MySQL migration/rollback, schema compatibility, concurrency/idempotence, active incident never pruned, resolved incident age measured from `resolved_at`, exact >24h cutoff, old/new/unknown boundaries, no other table cleanup, chunked prune, scheduler overlap guard.
 - Phase acceptance: foundation is independently safe to merge/deploy, feature inert until next phases. **Do not implement FLT-02/03/04 in this PR.**
 
 ### FLT-02 — Remnawave Node monitor + alerts (one scoped PR)
@@ -135,7 +135,7 @@ No giant unpaginated histories, inline destructive actions, protocol-level debug
 ## 9. Change control, rollout and evidence
 
 - This PR is **documentation-only**; creates **no** migrations, jobs, tables, DNS, Provider calls, bot menu entries or Production configuration changes.
-- Each future FLT phase requires a **separate explicit implementation instruction** and one independently reviewable PR. Do not merge unfinished phases. Respect current \`master\`, CI/production auto-deploy behavior and review the diff before merging. Keep rollback practical and no destructive schema operations.
+- Each future FLT phase requires a **separate explicit implementation instruction** and one independently reviewable PR. Do not merge unfinished phases. Respect current `master`, CI/production auto-deploy behavior and review the diff before merging. Keep rollback practical and no destructive schema operations.
 - Never claim live monitoring/alerts/Host-check verification from documentation or mock CI alone. Record actual versioned API compatibility, timeouts, false-positive sample findings and operator acceptance.
 - Monitoring must remain **extensible and scalable without overengineering**: small cohesive actions, reused adapters/outbox/health/Telegram primitives, explicit contracts, bounded resource consumption, test seams and no unnecessary abstractions, dependencies or rewrites. Architecture changes beyond these constraints require risk/alternative assessment and explicit approval.
 - Update this reference and the minimum necessary docs at phase completion; do not silently change threshold, retention, permission, rollout or recovery semantics.
