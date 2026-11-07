@@ -12,6 +12,7 @@ use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use GuzzleHttp\Psr7\Request as NutgramRequest;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -80,6 +81,16 @@ function flt04Bot(int $telegramId = 995001): Nutgram
     return $bot;
 }
 
+/** The real Admin registry includes the Reply-menu text handler. */
+function flt04ReplyBot(int $telegramId = 995001): Nutgram
+{
+    $bot = app(Nutgram::class);
+    $bot->setCommonUser(TelegramUser::make($telegramId, false, 'Operator'));
+    $bot->setCommonChat(Chat::make($telegramId, ChatType::PRIVATE));
+
+    return $bot;
+}
+
 function flt04Uuid(int $number): string
 {
     return sprintf('550e8400-e29b-41d4-a716-%012d', $number);
@@ -126,12 +137,13 @@ it('opens trusted private Rich screens and refreshes from stored evidence withou
     config()->set('filtering.node_monitor_enabled', true);
     $bot = flt04Bot();
 
-    $bot->hearText(ReplyMenuLabels::FILTERING)->reply()->assertCalled('sendRichMessage');
+    flt04ReplyBot()->hearText(ReplyMenuLabels::FILTERING)->reply()->assertCalled('sendRichMessage');
     $bot->hearCallbackQueryData('flt:home')->reply()
         ->assertRaw(static function (NutgramRequest $request): bool {
             $p = flt04Payload($request);
             $rich = $p['rich_message'] ?? [];
             $html = is_string($rich) ? (json_decode($rich, true)['html'] ?? '') : ($rich['html'] ?? '');
+
             return str_contains($html, 'فیلترینگ')
                 && str_contains($html, 'نمای کلی')
                 && flt04Has($request, 'flt:nodes:1')
@@ -147,8 +159,7 @@ it('opens trusted private Rich screens and refreshes from stored evidence withou
     $bot->hearCallbackQueryData('flt:node:'.$uuid)->reply()
         ->assertRaw(static fn (NutgramRequest $r): bool => flt04Has($r, 'flt:recheck:'.flt04Uuid(401)), index: 1);
     $bot->hearCallbackQueryData('flt:home:simple')->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool =>
-            str_contains((string) (flt04Payload($r)['text'] ?? ''), 'فیلترینگ')
+        ->assertRaw(static fn (NutgramRequest $r): bool => str_contains((string) (flt04Payload($r)['text'] ?? ''), 'فیلترینگ')
             && flt04Has($r, 'flt:nodes:1')
             && flt04Has($r, 'flt:history:1')
             && ! isset(flt04Payload($r)['rich_message']), index: 1);
@@ -242,10 +253,11 @@ it('guards all read actions, stale keyboards, forged pages and revoked roots', f
     $member = User::factory()->admin()->create();
     TelegramAccount::query()->create(['user_id' => $member->id, 'telegram_user_id' => 995003]);
     $reader = app(ReadFilteringCenter::class);
-    expect(fn () => $reader->overview($member->id))->toThrow(\Illuminate\Auth\Access\AuthorizationException::class);
-    $memberBot = flt04Bot(995003);
-    $memberBot->hearText(ReplyMenuLabels::FILTERING)->reply()
+    expect(fn () => $reader->overview($member->id))->toThrow(AuthorizationException::class);
+    $memberReplyBot = flt04ReplyBot(995003);
+    $memberReplyBot->hearText(ReplyMenuLabels::FILTERING)->reply()
         ->assertReplyText('دسترسی مجاز نیست. منوی شما به‌روز شد.');
+    $memberBot = flt04Bot(995003);
     $memberBot->hearCallbackQueryData('flt:home')->reply()
         ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.']);
     $memberBot->hearCallbackQueryData('flt:recheck:'.flt04Uuid(801))->reply()
@@ -253,19 +265,18 @@ it('guards all read actions, stale keyboards, forged pages and revoked roots', f
 
     $rootBot = flt04Bot();
     $rootBot->hearCallbackQueryData('flt:nodes:999')->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool =>
-            str_contains((string) (flt04Payload($r)['text'] ?? ''), 'معتبر نیست'), index: 1);
+        ->assertRaw(static fn (NutgramRequest $r): bool => str_contains((string) (flt04Payload($r)['text'] ?? ''), 'معتبر نیست'), index: 1);
     $rootBot->hearCallbackQueryData('flt:node:bad-id')->reply()->assertCalled('editMessageText');
 
     $root->syncRoles(['member']);
-    expect(fn () => $reader->overview($root->id))->toThrow(\Illuminate\Auth\Access\AuthorizationException::class);
-    $rootBot->hearText(ReplyMenuLabels::FILTERING)->reply()
+    expect(fn () => $reader->overview($root->id))->toThrow(AuthorizationException::class);
+    flt04ReplyBot()->hearText(ReplyMenuLabels::FILTERING)->reply()
         ->assertReplyText('دسترسی مجاز نیست. منوی شما به‌روز شد.');
     $rootBot->hearCallbackQueryData('flt:home')->reply()
         ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.']);
 
-    $memberBot->setCommonChat(Chat::make(-995003, ChatType::GROUP));
-    $memberBot->hearText(ReplyMenuLabels::FILTERING)->reply()->assertNoReply();
+    $memberReplyBot->setCommonChat(Chat::make(-995003, ChatType::GROUP));
+    $memberReplyBot->hearText(ReplyMenuLabels::FILTERING)->reply()->assertNoReply();
     Queue::assertNothingPushed();
     Http::assertNothingSent();
 });

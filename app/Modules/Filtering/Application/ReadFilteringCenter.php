@@ -217,7 +217,7 @@ final readonly class ReadFilteringCenter
     }
 
     /** @param array<string,mixed>|null $node
-     * @param array<string,mixed>|null $region
+     * @param  array<string,mixed>|null  $region
      */
     private static function observedState(?array $node, ?array $region): string
     {
