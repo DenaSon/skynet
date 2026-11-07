@@ -7,6 +7,8 @@ namespace App\Modules\Filtering\Application;
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\JoinClause;
+use Illuminate\Support\Facades\Cache;
+use Throwable;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -80,6 +82,7 @@ final readonly class ReadFilteringCenter
     {
         $this->access->handle($userId);
 
+        $names = $this->nodeNames();
         $query = DB::table('filtering_incidents')->where(static function ($q): void {
             $q->whereNull('resolved_at')->orWhere('resolved_at', '>=', now()->subDay());
         });
@@ -91,6 +94,7 @@ final readonly class ReadFilteringCenter
             ->map(static fn (object $row): array => [
                 'id' => (int) $row->id,
                 'uuid' => (string) $row->node_uuid,
+                'label' => $names[(string) $row->node_uuid] ?? strtoupper(substr((string) $row->node_uuid, 0, 8)),
                 'state' => (string) $row->state,
                 'opened_at' => (string) $row->opened_at,
                 'last_at' => (string) $row->last_observed_at,
@@ -117,9 +121,12 @@ final readonly class ReadFilteringCenter
             return null;
         }
 
+        $names = $this->nodeNames();
+
         return [
             'id' => (int) $row->id,
             'uuid' => (string) $row->node_uuid,
+            'label' => $names[(string) $row->node_uuid] ?? strtoupper(substr((string) $row->node_uuid, 0, 8)),
             'state' => (string) $row->state,
             'opened_at' => (string) $row->opened_at,
             'last_at' => (string) $row->last_observed_at,
@@ -162,6 +169,7 @@ final readonly class ReadFilteringCenter
             return [];
         }
         sort($uuids);
+        $names = $this->nodeNames();
 
         // One indexed max(timestamp) per Node/module; no unbounded raw history
         // read or N+1 provider calls. MySQL and SQLite support joinSub.
@@ -197,7 +205,7 @@ final readonly class ReadFilteringCenter
             $state = $incident === null ? self::observedState($node, $region) : (string) $incident->state;
             $items[] = [
                 'uuid' => $uuid,
-                'label' => strtoupper(substr($uuid, 0, 8)),
+                'label' => $names[$uuid] ?? strtoupper(substr($uuid, 0, 8)),
                 'state' => $state,
                 'causes' => self::causes($active),
                 'node_at' => $node['at'] ?? null,
@@ -249,6 +257,33 @@ final readonly class ReadFilteringCenter
     private static function newer(?string $old, ?string $new): ?string
     {
         return $new !== null && ($old === null || $new > $old) ? $new : $old;
+    }
+
+    /** @return array<string,string> */
+    private function nodeNames(): array
+    {
+        try {
+            $names = Cache::get(FilteringFoundation::NODE_NAME_CACHE_KEY);
+        } catch (Throwable) {
+            return [];
+        }
+
+        if (! is_array($names) || count($names) > self::MAX_NODES) {
+            return [];
+        }
+
+        $safe = [];
+        foreach ($names as $uuid => $name) {
+            if (! is_string($uuid) || ! self::validUuid($uuid)
+                || ! is_string($name) || trim($name) !== $name
+                || $name === '' || mb_strlen($name) > 80
+                || preg_match('/[\\x00-\\x1F\\x7F]/u', $name) !== 0) {
+                continue;
+            }
+            $safe[$uuid] = $name;
+        }
+
+        return $safe;
     }
 
     /** @return array<string,mixed> */
