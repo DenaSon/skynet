@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Filtering\Infrastructure;
 
 use App\Support\Health\NodeTcpProbe;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use InvalidArgumentException;
 use RuntimeException;
@@ -199,10 +200,19 @@ final class CheckHostRegionalProbe
     private function get(string $path): array
     {
         try {
+            // Rate-limit backoff is provider-wide; a single 429 must not
+            // trigger another four TCP submissions in the same scan.
+            if (Cache::get('filtering:regional:checkhost:cooldown') === true) {
+                throw new RuntimeException('Check-Host provider is cooling down.');
+            }
             $response = Http::acceptJson()->timeout(5)->connectTimeout(2)
                 ->withHeaders(['User-Agent' => 'DenaGate-Regional-Monitor/FLT03'])
                 ->withOptions(['allow_redirects' => false])
                 ->get(self::ORIGIN.$path);
+            if ($response->status() === 429) {
+                Cache::put('filtering:regional:checkhost:cooldown', true, now()->addMinutes(15));
+                throw new RuntimeException('Check-Host provider rate limit.');
+            }
             if (! $response->successful() || $response->redirect()
                 || strlen($response->body()) > self::MAX_RESPONSE_BYTES) {
                 throw new RuntimeException('Check-Host request failed or response too large.');

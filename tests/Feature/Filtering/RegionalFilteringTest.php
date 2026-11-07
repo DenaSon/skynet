@@ -198,6 +198,43 @@ it('fails closed for rate limits, insufficient coverage and invalid metadata', f
     expect(DB::table('filtering_incidents')->count())->toBe(0);
 });
 
+it('backs off all regional provider requests after a 429 response', function (): void {
+    $GLOBALS['flt03_rate_limit'] = true;
+    expect(fn () => app(CheckHostRegionalProbe::class)->iranNodes())->toThrow(RuntimeException::class);
+    Http::assertSentCount(1);
+
+    $GLOBALS['flt03_rate_limit'] = false;
+    expect(fn () => app(CheckHostRegionalProbe::class)->iranNodes())->toThrow(RuntimeException::class);
+    Http::assertSentCount(1);
+
+    $this->travel(16)->minutes();
+    expect(app(CheckHostRegionalProbe::class)->iranNodes())->toHaveCount(8);
+    Http::assertSentCount(2);
+});
+
+it('queues a guarded regional confirmation when a Node signal joins an existing composite incident', function (): void {
+    config()->set('filtering.node_monitor_enabled', true);
+    app(FilteringFoundation::class)->record(FLT03_NODE, 'regional', 'suspicious', now(), [
+        'causes' => ['regional_possible'],
+    ]);
+    $clock = now()->startOfMinute();
+    $make = static fn (int $users): \App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveNodeSummary =>
+        new \App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveNodeSummary(
+            uuid: FLT03_NODE, name: 'Node', connected: true, disabled: false,
+            usersOnline: $users, rxBytesPerSec: 50, txBytesPerSec: 50,
+        );
+    $monitor = app(\App\Modules\Filtering\Application\MonitorNodeFiltering::class);
+    $this->travel(1)->minutes();
+    $monitor->observe($make(2), \Carbon\CarbonImmutable::instance(now())->startOfMinute());
+    $this->travel(1)->minutes();
+    $monitor->observe($make(0), \Carbon\CarbonImmutable::instance(now())->startOfMinute());
+    $this->travel(1)->minutes();
+    $monitor->observe($make(0), \Carbon\CarbonImmutable::instance(now())->startOfMinute());
+
+    expect(app(FilteringFoundation::class)->read(FLT03_NODE)['affected_modules'])->toHaveKeys(['regional', 'node'])
+        ->and(\Illuminate\Support\Facades\Cache::get('filtering:regional:extra:node:'.FLT03_NODE))->toBeTrue();
+});
+
 it('rejects private and reserved destinations before any TCP provider request', function (): void {
     $provider = app(CheckHostRegionalProbe::class);
     $nodes = $provider->iranNodes();
