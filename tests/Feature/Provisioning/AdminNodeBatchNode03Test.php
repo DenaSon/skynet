@@ -286,7 +286,7 @@ it('serializes create, individual and group Node writes using the same short-liv
     expect($lock->get())->toBeTrue();
     try {
         expect(fn () => app(ManageAdminNodes::class)->create(
-            $root->id, 'NewNode', 'new.example.com', NODE03_PROFILE, [NODE03_INBOUND],
+            $root->id, 'NewNode', 'new.example.com', NODE03_PROFILE, [NODE03_INBOUND], 2222,
         ))->toThrow(LockTimeoutException::class);
 
         expect(fn () => app(ManageAdminNodeOperations::class)->perform(

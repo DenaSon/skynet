@@ -131,10 +131,13 @@ final readonly class ManageAdminNodes
      *
      * @param  list<string>  $inboundUuids
      */
-    public function create(int $actorId, string $name, string $address, string $profileUuid, array $inboundUuids, ?int $port = null): string
+    public function create(int $actorId, string $name, string $address, string $profileUuid, array $inboundUuids, int $port): string
     {
         $this->validateIdentity($actorId, $name, $address);
         $this->authorizeWrite($actorId);
+        if ($port < 1 || $port > 65535) {
+            throw ValidationException::withMessages(['node' => 'Invalid Node management port.']);
+        }
         self::uuid($profileUuid);
         if ($inboundUuids === [] || count($inboundUuids) > 30) {
             throw ValidationException::withMessages(['node' => 'Choose at least one inbound.']);
@@ -166,14 +169,12 @@ final readonly class ManageAdminNodes
             $data = [
                 'name' => $name,
                 'address' => $address,
+                'port' => $port,
                 'configProfile' => [
                     'activeConfigProfileUuid' => strtolower($profileUuid),
                     'activeInbounds' => array_map('strtolower', $chosen),
                 ],
             ];
-            if ($port !== null) {
-                $data['port'] = $port;
-            }
             $created = (new RemnawaveNodesApi($this->factory->make()))->create($data);
 
             if (! self::uuidValid($created['uuid'] ?? null)) {

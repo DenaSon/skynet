@@ -20,7 +20,7 @@ final readonly class CompleteNodeSetup
         private ManageCloudflareDns $dns,
     ) {}
 
-    /** @return array{name:string,address:string,profile:string,inbound:string} */
+    /** @return array{name:string,address:string,port:int,profile:string,inbound:string} */
     public function previewNode(int $actorId, string $id): array
     {
         $this->writes();
@@ -34,6 +34,7 @@ final readonly class CompleteNodeSetup
         return [
             'name' => $state['name'],
             'address' => $state['ip'],
+            'port' => 2222,
             'profile' => $state['profileUuid'],
             'inbound' => $state['inboundUuid'],
         ];

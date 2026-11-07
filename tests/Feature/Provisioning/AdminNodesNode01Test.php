@@ -123,7 +123,7 @@ it('denies non-root and nonprivate Node actions without provider requests', func
     $nodes = app(ManageAdminNodes::class);
 
     expect(fn () => $nodes->all($actors['buyer']->id))->toThrow(AuthorizationException::class)
-        ->and(fn () => $nodes->create($actors['buyer']->id, 'X', 'host.example.com', NODE01_PROFILE, [NODE01_INBOUND]))
+        ->and(fn () => $nodes->create($actors['buyer']->id, 'X', 'host.example.com', NODE01_PROFILE, [NODE01_INBOUND], 2222))
         ->toThrow(AuthorizationException::class);
     Http::assertNothingSent();
 
@@ -140,7 +140,7 @@ it('keeps Node creation disabled by default and rejects invalid input before POS
 
     expect(Cache::get(TelegramBotContext::current()->cacheKey('node01:draft:'.$actors['root']->id)))->toBeNull();
     $nodes = app(ManageAdminNodes::class);
-    expect(fn () => $nodes->create($actors['root']->id, 'Germany-01', 'node.example.com', NODE01_PROFILE, [NODE01_INBOUND]))
+    expect(fn () => $nodes->create($actors['root']->id, 'Germany-01', 'node.example.com', NODE01_PROFILE, [NODE01_INBOUND], 2222))
         ->toThrow(ValidationException::class);
     expect(fn () => $nodes->validateIdentity($actors['root']->id, 'Unsafe', 'https://node.example.com'))
         ->toThrow(ValidationException::class);
@@ -156,6 +156,10 @@ it('guides Admin name/address, profile, inbound, preview and a one-use provider 
 
     $bot->hearCallbackQueryData('node1:begin')->reply()->assertCalled('editMessageText');
     $bot->hearText('Germany-01 | node.example.com')->reply()->assertCalled('sendMessage');
+    $key = TelegramBotContext::current()->cacheKey('node01:draft:'.$actors['root']->id);
+    expect(Cache::get($key)['stage'])->toBe('node_port');
+    $bot->hearText('2222')->reply()->assertCalled('sendMessage');
+    expect(Cache::get($key)['stage'])->toBe('profile');
     $bot->hearCallbackQueryData('node1:profile:0')->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('node1:inbound:0')->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('node1:preview')->reply()->assertCalled('editMessageText');
@@ -172,12 +176,73 @@ it('guides Admin name/address, profile, inbound, preview and a one-use provider 
         && $r->url() === 'https://remna.node01.test/api/nodes'
         && $r['name'] === 'Germany-01'
         && $r['address'] === 'node.example.com'
-        && ! array_key_exists('port', $r->data())
+        && $r['port'] === 2222
         && $r['configProfile'] === [
             'activeConfigProfileUuid' => NODE01_PROFILE,
             'activeInbounds' => [NODE01_INBOUND],
         ]);
     expect(collect(Http::recorded())->filter(static fn ($pair): bool => $pair[0]->method() === 'POST'))->toHaveCount(1);
+});
+
+it('requires an explicit valid Node management port for a ready server', function (): void {
+    $actors = node01Actors();
+    config()->set('services.remnawave.writes_enabled', true);
+    node01FakeProvider();
+    $bot = node01Bot();
+    $key = TelegramBotContext::current()->cacheKey('node01:draft:'.$actors['root']->id);
+
+    $bot->hearCallbackQueryData('node1:begin')->reply();
+    $bot->hearText('Sydney-01 | node.example.com')->reply();
+    foreach (['0', '65536', '-1', '2222x'] as $invalid) {
+        $bot->hearText($invalid)->reply();
+        expect(Cache::get($key)['stage'])->toBe('node_port');
+    }
+    expect(collect(Http::recorded())->filter(static fn (array $pair): bool => $pair[0]->method() === 'POST'))->toBeEmpty();
+
+    $bot->hearText('2456')->reply();
+    expect(Cache::get($key)['port'])->toBe(2456);
+    $bot->hearCallbackQueryData('node1:profile:0')->reply();
+    $bot->hearCallbackQueryData('node1:inbound:0')->reply();
+    $bot->hearCallbackQueryData('node1:preview')->reply();
+    expect(Cache::get($key)['port'])->toBe(2456);
+    $token = Cache::get($key)['token'];
+    $bot->hearCallbackQueryData('node1:apply:'.$token)->reply();
+
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'POST'
+        && $request->url() === 'https://remna.node01.test/api/nodes'
+        && $request['port'] === 2456);
+});
+
+it('rejects an old ready-node draft without a management port before provider POST', function (): void {
+    $actors = node01Actors();
+    config()->set('services.remnawave.writes_enabled', true);
+    node01FakeProvider();
+    $key = TelegramBotContext::current()->cacheKey('node01:draft:'.$actors['root']->id);
+    $token = bin2hex(random_bytes(16));
+    Cache::put($key, [
+        'stage' => 'preview', 'name' => 'Sydney-01', 'address' => 'node.example.com',
+        'profile' => ['uuid' => NODE01_PROFILE, 'name' => 'Main'],
+        'selected' => [NODE01_INBOUND], 'token' => $token,
+    ], now()->addMinutes(3));
+
+    node01Bot()->hearCallbackQueryData('node1:apply:'.$token)->reply();
+    expect(Cache::get($key))->toBeNull();
+    Http::assertNothingSent();
+});
+
+it('rejects out-of-range management ports in the shared Node create action', function (): void {
+    $actors = node01Actors();
+    config()->set('services.remnawave.writes_enabled', true);
+    node01FakeProvider();
+    $nodes = app(ManageAdminNodes::class);
+
+    foreach ([0, 65536] as $invalid) {
+        expect(fn () => $nodes->create(
+            $actors['root']->id, 'Sydney-01', 'node.example.com',
+            NODE01_PROFILE, [NODE01_INBOUND], $invalid
+        ))->toThrow(ValidationException::class);
+    }
+    Http::assertNothingSent();
 });
 
 it('consumes confirmation even if provider response is uncertain and never retries POST', function (): void {
@@ -189,6 +254,7 @@ it('consumes confirmation even if provider response is uncertain and never retri
 
     $bot->hearCallbackQueryData('node1:begin')->reply();
     $bot->hearText('Germany-01 | node.example.com')->reply();
+    $bot->hearText('2222')->reply();
     $bot->hearCallbackQueryData('node1:profile:0')->reply();
     $bot->hearCallbackQueryData('node1:inbound:0')->reply();
     $bot->hearCallbackQueryData('node1:preview')->reply();
@@ -207,12 +273,12 @@ it('revalidates chosen profile/inbounds and current root authority immediately b
     config()->set('services.remnawave.writes_enabled', true);
     $nodes = app(ManageAdminNodes::class);
 
-    expect(fn () => $nodes->create($actors['root']->id, 'Germany', 'node.example.com', NODE01_PROFILE, [NODE01_UUID]))
+    expect(fn () => $nodes->create($actors['root']->id, 'Germany', 'node.example.com', NODE01_PROFILE, [NODE01_UUID], 2222))
         ->toThrow(ValidationException::class);
     expect(collect(Http::recorded())->filter(static fn ($pair): bool => $pair[0]->method() === 'POST'))->toBeEmpty();
 
     $actors['root']->syncRoles(['member']);
-    expect(fn () => $nodes->create($actors['root']->id, 'Germany', 'node.example.com', NODE01_PROFILE, [NODE01_INBOUND]))
+    expect(fn () => $nodes->create($actors['root']->id, 'Germany', 'node.example.com', NODE01_PROFILE, [NODE01_INBOUND], 2222))
         ->toThrow(AuthorizationException::class);
     expect(collect(Http::recorded())->filter(static fn ($pair): bool => $pair[0]->method() === 'POST'))->toBeEmpty();
 });
@@ -344,7 +410,7 @@ it('NW-01 yields to a newer legacy Node wizard instead of intercepting its text'
     $bot->hearCallbackQueryData('node1:begin')->reply();
     $bot->hearText('Legacy-01 | node.example.com')->reply();
     expect(Cache::get($key))->toBeNull();
-    expect(Cache::get(TelegramBotContext::current()->cacheKey('node01:draft:'.$actors['root']->id))['stage'])->toBe('profile');
+    expect(Cache::get(TelegramBotContext::current()->cacheKey('node01:draft:'.$actors['root']->id))['stage'])->toBe('node_port');
 });
 
 it('NW-04 private Admin can resume a recent setup while ordinary users cannot', function (): void {
