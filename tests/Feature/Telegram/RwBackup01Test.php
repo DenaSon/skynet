@@ -197,7 +197,7 @@ it('polishes the RTL backup overview without naming the upstream provider or cha
             $buttons = $data['reply_markup']['inline_keyboard'] ?? [];
 
             return ($data['rich_message']['is_rtl'] ?? false) === true
-                && str_contains($html, '<h2>🗄️ مدیریت بک‌آپ</h2>')
+                && str_contains($html, '<h2>🗄️ مدیریت بک‌آپ سرور مرکزی</h2>')
                 && ! str_contains($html, 'Remnawave')
                 && str_contains($html, '<table bordered striped compact>')
                 && str_contains($html, 'تاریخ ایجاد')

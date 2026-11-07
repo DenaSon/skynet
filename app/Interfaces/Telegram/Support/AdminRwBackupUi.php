@@ -50,7 +50,7 @@ final readonly class AdminRwBackupUi
         $back = InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('◀️ کنترل پنل', callback_data: 'menu:admin:control'));
         if (config('rw_backup.enabled') !== true) {
-            $this->show($bot, '🗄️ مدیریت بک‌آپ', 'مدیریت بک‌آپ در حال حاضر غیرفعال است.', $back);
+            $this->show($bot, '🗄️ مدیریت بک‌آپ سرور مرکزی', 'مدیریت بک‌آپ در حال حاضر غیرفعال است.', $back);
 
             return;
         }
@@ -100,9 +100,9 @@ final readonly class AdminRwBackupUi
                     .$table.'</table>')
                 .'<p>صفحه '.$requested.' از '.$pages.'</p>'
                 .'<footer>'.TelegramUi::escape($notice).'</footer>';
-            $this->show($bot, '🗄️ مدیریت بک‌آپ', $text, $keyboard, $rich);
+            $this->show($bot, '🗄️ مدیریت بک‌آپ سرور مرکزی', $text, $keyboard, $rich);
         } catch (Throwable) {
-            $this->show($bot, '🗄️ مدیریت بک‌آپ', 'دریافت فهرست بک‌آپ‌ها در حال حاضر امکان‌پذیر نیست.', $back);
+            $this->show($bot, '🗄️ مدیریت بک‌آپ سرور مرکزی', 'دریافت فهرست بک‌آپ‌ها در حال حاضر امکان‌پذیر نیست.', $back);
         }
     }
 
