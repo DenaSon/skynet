@@ -79,6 +79,31 @@ final readonly class RemnawaveReadApi
 
     public function inventory(): RemnawaveDiscoverySnapshot
     {
+        $nodes = $this->nodes();
+        $hosts = $this->list($this->response('HostsController_getHosts'), 'hosts');
+        $squads = $this->objectResponse('InternalSquadController_getInternalSquads');
+        $profiles = $this->objectResponse('ConfigProfileController_getConfigProfiles');
+
+        // Validate the collection shapes without retaining raw secrets/configs.
+        $this->list($squads['internalSquads'] ?? null, 'internalSquads');
+        $this->list($profiles['configProfiles'] ?? null, 'configProfiles');
+
+        return new RemnawaveDiscoverySnapshot(
+            nodes: $nodes,
+            hosts: count($hosts),
+            internalSquads: $this->total($squads, 'internalSquads'),
+            configProfiles: $this->total($profiles, 'configProfiles'),
+        );
+    }
+
+    /**
+     * Bounded read-only Node list; unlike inventory() this does not fetch Hosts,
+     * Squads or Profiles on every one-minute filtering observation.
+     *
+     * @return list<RemnawaveNodeSummary>
+     */
+    public function nodes(): array
+    {
         $remoteNodes = $this->list(
             $this->response('NodesController_getNodes'),
             'nodes',
@@ -112,20 +137,7 @@ final readonly class RemnawaveReadApi
             );
         }
 
-        $hosts = $this->list($this->response('HostsController_getHosts'), 'hosts');
-        $squads = $this->objectResponse('InternalSquadController_getInternalSquads');
-        $profiles = $this->objectResponse('ConfigProfileController_getConfigProfiles');
-
-        // Validate the collection shapes without retaining raw secrets/configs.
-        $this->list($squads['internalSquads'] ?? null, 'internalSquads');
-        $this->list($profiles['configProfiles'] ?? null, 'configProfiles');
-
-        return new RemnawaveDiscoverySnapshot(
-            nodes: $nodes,
-            hosts: count($hosts),
-            internalSquads: $this->total($squads, 'internalSquads'),
-            configProfiles: $this->total($profiles, 'configProfiles'),
-        );
+        return $nodes;
     }
 
     /** @param array<string,mixed> $node */

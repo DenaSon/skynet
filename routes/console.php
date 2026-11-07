@@ -5,6 +5,7 @@ use App\Interfaces\Telegram\Notifications\TrialEndMonitor;
 use App\Interfaces\Telegram\Processing\SalesTelegramRuntime;
 use App\Interfaces\Telegram\Support\SalesNativeMenu;
 use App\Modules\Billing\Application\VerifyWalletOrderDebit;
+use App\Modules\Filtering\Application\MonitorNodeFiltering;
 use App\Modules\Filtering\Application\PruneFilteringHistory;
 use App\Modules\Provisioning\Jobs\FulfillPaidPlanOrderJob;
 use App\Modules\Sales\Application\ConfigureProduct;
@@ -83,6 +84,15 @@ Schedule::command('health:check --no-notification')
 Schedule::command('model:prune', ['--model' => [HealthCheckResultHistoryItem::class]])
     ->dailyAt('03:45')->when(static fn (): bool => config('denagate_health.enabled') === true)
     ->withoutOverlapping();
+
+// FLT-02: separately gated, bounded Remnawave GET-only Node observations.
+Schedule::command('filtering:nodes:scan')->everyMinute()->withoutOverlapping(2);
+Artisan::command('filtering:nodes:scan', function (): int {
+    $count = app(MonitorNodeFiltering::class)->scan();
+    $this->info("Recorded {$count} eligible Node observation(s).");
+
+    return 0;
+})->purpose('Collect read-only per-Node filtering signals and queue guarded Admin notices');
 
 // FLT-01: bounded retention only; no polling, alerts or provider interactions.
 Schedule::command('filtering:prune')->everyFiveMinutes()->withoutOverlapping(5);
