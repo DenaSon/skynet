@@ -296,4 +296,10 @@ final class CheckHostRegionalProbe
             throw new RuntimeException('Check-Host request unavailable.', 0, $error);
         }
     }
+
+    private static function validNodeName(string $name): bool
+    {
+        return strlen($name) <= 100
+            && preg_match('/\\A[a-z0-9][a-z0-9.-]*\\.node\\.check-host\\.net\\z/D', $name) === 1;
+    }
 }
