@@ -33,7 +33,7 @@ final readonly class NodeTcpProbe
      *
      * @return array<string, array{ip:string,port:int}>
      */
-    public function targets(): array
+    public function targets(bool $requireVerifiedInbound = false): array
     {
         $client = $this->factory->make();
         $nodes = (new RemnawaveNodesApi($client))->all();
@@ -66,7 +66,8 @@ final readonly class NodeTcpProbe
             if (! is_string($uuid)
                 || preg_match('/\A[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}\z/D', $uuid) !== 1
                 || ! is_bool($node['isDisabled'] ?? null)
-                || $node['isDisabled'] || ! is_string($address)) {
+                || $node['isDisabled'] || ! is_string($address)
+                || ($requireVerifiedInbound && ($node['isConnected'] ?? null) !== true)) {
                 continue;
             }
 
@@ -79,6 +80,7 @@ final readonly class NodeTcpProbe
             $ports = [];
             foreach ($directHosts[$ip] ?? [] as $host) {
                 if ($host['port'] !== ($node['port'] ?? null)
+                    && (! $requireVerifiedInbound || self::verifiedInbound($node, $host))
                     && self::matchesActiveInbound($node, $host)) {
                     $ports[] = $host['port'];
                 }
@@ -98,6 +100,41 @@ final readonly class NodeTcpProbe
         }
 
         return $targets;
+    }
+
+    /**
+     * Regional probes must never fall back to legacy IP-only matching.
+     * An explicit active inbound and matching current Host are mandatory.
+     *
+     * @param  array<string, mixed>  $node
+     * @param  array<string, mixed>  $host
+     */
+    private static function verifiedInbound(array $node, array $host): bool
+    {
+        $profile = $node['configProfile'] ?? null;
+        $active = is_array($profile) ? ($profile['activeInbounds'] ?? null) : null;
+        $inbound = $host['inbound'] ?? null;
+
+        if (! is_array($active) || ! array_is_list($active) || $active === []
+            || ! is_array($inbound) || ! is_string($inbound['configProfileInboundUuid'] ?? null)) {
+            return false;
+        }
+
+        foreach ($active as $item) {
+            if (is_array($item) && is_string($item['uuid'] ?? null)
+                && strcasecmp($item['uuid'], $inbound['configProfileInboundUuid']) === 0
+                && array_key_exists('port', $item)) {
+                return is_int($item['port']) && $item['port'] === $host['port'];
+            }
+        }
+
+        return true;
+    }
+
+    /** Required by the remote-probe adapter to fail closed on externally supplied targets. */
+    public static function approvedPublicIpv4(string $address): bool
+    {
+        return self::publicIpv4($address);
     }
 
     /**

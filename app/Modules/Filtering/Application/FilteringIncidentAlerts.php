@@ -23,9 +23,10 @@ final readonly class FilteringIncidentAlerts
      */
     public function sync(int $incidentId): void
     {
-        if (config('filtering.node_monitor_enabled', false) !== true
-            || config('filtering.node_alerts_enabled', false) !== true
-            || config('telegram_notifications.enabled', false) !== true) {
+        if (! (
+            (config('filtering.node_monitor_enabled', false) === true && config('filtering.node_alerts_enabled', false) === true)
+            || (config('filtering.regional_monitor_enabled', false) === true && config('filtering.regional_alerts_enabled', false) === true)
+        ) || config('telegram_notifications.enabled', false) !== true) {
             return;
         }
 

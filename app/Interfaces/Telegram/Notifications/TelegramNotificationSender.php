@@ -70,8 +70,10 @@ final readonly class TelegramNotificationSender
         $token = $this->token($bot);
 
         if (in_array($delivery->event_type, ['FilteringOpened', 'FilteringEscalated', 'FilteringRecovered'], true)) {
-            if ($bot !== 'admin' || config('filtering.node_monitor_enabled', false) !== true
-                || config('filtering.node_alerts_enabled', false) !== true) {
+            if ($bot !== 'admin' || ! (
+                (config('filtering.node_monitor_enabled', false) === true && config('filtering.node_alerts_enabled', false) === true)
+                || (config('filtering.regional_monitor_enabled', false) === true && config('filtering.regional_alerts_enabled', false) === true)
+            )) {
                 throw new NotificationUnavailable('not_authorized');
             }
             $actor = $this->actors->handle($chat);
