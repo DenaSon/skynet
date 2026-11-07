@@ -17,7 +17,7 @@ final readonly class ScanRegionalFiltering
 {
     private const MAX_TARGETS_PER_TICK = 5;
 
-    private const WINDOW_SECONDS = 420;
+    private const WINDOW_SECONDS = 720;
 
     public function __construct(
         private NodeTcpProbe $targets,
@@ -26,7 +26,7 @@ final readonly class ScanRegionalFiltering
         private FilteringIncidentAlerts $alerts,
     ) {}
 
-    /** Run a scheduled five-minute page or one authorized incident confirmation. */
+    /** Run a scheduled ten-minute page or one authorized incident confirmation. */
     public function scan(?string $onlyNodeUuid = null): int
     {
         if (config('filtering.regional_monitor_enabled', false) !== true) {
@@ -48,7 +48,7 @@ final readonly class ScanRegionalFiltering
             // monopolizing provider-wide requests as the fleet grows.
             ksort($targets);
             $count = count($targets);
-            $cursor = (int) (floor(now()->timestamp / 300) * self::MAX_TARGETS_PER_TICK) % $count;
+            $cursor = (int) (floor(now()->timestamp / 600) * self::MAX_TARGETS_PER_TICK) % $count;
             $keys = array_keys($targets);
             $selected = [];
             for ($i = 0; $i < self::MAX_TARGETS_PER_TICK; $i++) {

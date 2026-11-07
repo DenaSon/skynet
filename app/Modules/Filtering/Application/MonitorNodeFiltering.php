@@ -18,7 +18,7 @@ use UnexpectedValueException;
  */
 final readonly class MonitorNodeFiltering
 {
-    private const WINDOW_SECONDS = 90;
+    private const WINDOW_SECONDS = 180;
 
     private const BASELINE_MINUTES = 30;
 
@@ -144,10 +144,10 @@ final readonly class MonitorNodeFiltering
         sort($causes);
         // Recover exactly the affected signals. An unrelated unavailable
         // counter must not strand an otherwise fully recovered incident.
+        // Positive online users establish activity even when upstream RX/TX is missing.
+        // Confirmed zero-traffic or zero-online incidents still take precedence.
         $outcome = $causes !== [] ? 'disrupted' : (
-            $active !== [] || (
-                self::online($evidence) === 'positive' && self::traffic($evidence) === 'positive'
-            ) ? 'healthy' : 'unknown'
+            $active !== [] || self::online($evidence) === 'positive' ? 'healthy' : 'unknown'
         );
         if ($causes !== []) {
             $evidence['causes'] = $causes;
