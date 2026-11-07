@@ -131,6 +131,7 @@ it('NW-03 creates Node once on installer port 2222 and verifies live Connected',
     nw03Api();
     $action = app(CompleteNodeSetup::class);
     expect($action->previewNode($ready['actor']->id, $ready['id'])['address'])->toBe('194.5.192.133')
+        ->and($action->previewNode($ready['actor']->id, $ready['id'])['port'])->toBe(2222)
         ->and($action->registerNode($ready['actor']->id, $ready['id']))->toBe(NW03_NODE)
         ->and($action->nodeStatus($ready['actor']->id, $ready['id'])['connected'])->toBeTrue()
         ->and($action->progress($ready['actor']->id, $ready['id'])['nodeStage'])->toBe('registered');
