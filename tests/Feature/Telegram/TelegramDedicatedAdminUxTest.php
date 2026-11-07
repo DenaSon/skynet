@@ -282,6 +282,7 @@ it('shows root-only control panel routes in Inline and persistent menus without 
         ReplyMenuLabels::DASHBOARD, ReplyMenuLabels::REPORTS,
         ReplyMenuLabels::USERS, ReplyMenuLabels::FINANCE_SECTION,
         ReplyMenuLabels::DENABAN_RADAR, ReplyMenuLabels::CONTROL_PANEL,
+        ReplyMenuLabels::FILTERING,
     ]);
 
     $bot->hearCallbackQueryData('menu:admin:control')->reply()

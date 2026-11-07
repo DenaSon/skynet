@@ -103,6 +103,21 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     // Admin-only user filter and pending-search cancellation; never on the Sales Bot.
     $expected['ADMIN'][] = 'callback:users:resellers:{page}';
     $expected['ADMIN'][] = 'callback:users:cancelsearch';
+    // FLT-04: trusted-root filtering route inventory, Admin Bot only.
+    $expected['ADMIN'][] = 'command:filtering';
+    $expected['ADMIN'][] = 'callback:flt:home';
+    $expected['ADMIN'][] = 'callback:flt:home:simple';
+    $expected['ADMIN'][] = 'callback:flt:nodes:{page}';
+    $expected['ADMIN'][] = 'callback:flt:nodes:simple:{page}';
+    $expected['ADMIN'][] = 'callback:flt:access:{page}';
+    $expected['ADMIN'][] = 'callback:flt:access:simple:{page}';
+    $expected['ADMIN'][] = 'callback:flt:node:{uuid}';
+    $expected['ADMIN'][] = 'callback:flt:node:simple:{uuid}';
+    $expected['ADMIN'][] = 'callback:flt:history:{page}';
+    $expected['ADMIN'][] = 'callback:flt:history:simple:{page}';
+    $expected['ADMIN'][] = 'callback:flt:incident:{id}';
+    $expected['ADMIN'][] = 'callback:flt:incident:simple:{id}';
+    $expected['ADMIN'][] = 'callback:flt:recheck:{uuid}';
     // OPS-CMD-01: read-only root-only Denaban callback.
     $expected['ADMIN'][] = 'callback:denaban:show';
     $expected['ADMIN'][] = 'callback:denaban:simple';
@@ -325,8 +340,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(289)
-        ->and(count(array_unique($legacy)))->toBe(289);
+        ->and(count($legacy))->toBe(303)
+        ->and(count(array_unique($legacy)))->toBe(303);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {
