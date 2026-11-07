@@ -107,6 +107,22 @@ it('is OFF by default in deployment settings and registers two-minute scheduler 
         ->and($event->withoutOverlapping)->toBeTrue();
 });
 
+it('caches sanitized Remnawave names from the existing node GET without a second provider request', function (): void {
+    config()->set('cache.default', 'array');
+    \Illuminate\Support\Facades\Cache::flush();
+
+    $named = flt02Node(3, 400, 200);
+    $named['name'] = 'Amsterdam <NL>';
+    $untrusted = flt02Node(2, 100, 50, uuid: FLT02_OTHER);
+    $untrusted['name'] = "Invalid\\nName";
+    flt02Feed([$named, $untrusted]);
+
+    expect(app(MonitorNodeFiltering::class)->scan())->toBe(2);
+    $names = \Illuminate\Support\Facades\Cache::get(FilteringFoundation::NODE_NAME_CACHE_KEY);
+    expect($names)->toBe([FLT02_NODE => 'Amsterdam <NL>']);
+    Http::assertSentCount(1);
+});
+
 it('opens on two consecutive online zero samples with positive baseline even when traffic stays positive', function (): void {
     flt02Step(2, 100, 200, 0);
     flt02Step(0, 130, 140);
