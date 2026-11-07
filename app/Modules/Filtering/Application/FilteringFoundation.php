@@ -91,17 +91,18 @@ final class FilteringFoundation
                 return;
             }
 
-            $incident = DB::table('filtering_incidents')
-                ->where('active_node_uuid', $nodeUuid)->lockForUpdate()->first();
-
-            if ($incident === null && $outcome === 'healthy') {
-                return;
-            }
-
             $now = now();
-            if ($incident === null) {
-                // Unique non-NULL active_node_uuid is the concurrency backstop.
-                DB::table('filtering_incidents')->insertOrIgnore([
+            if ($outcome === 'healthy') {
+                $incident = DB::table('filtering_incidents')
+                    ->where('active_node_uuid', $nodeUuid)->lockForUpdate()->first();
+                if ($incident === null) {
+                    return;
+                }
+            } else {
+                // Attempt an atomic reservation on every abnormal sample.
+                // Under competing first opens, the loser MUST update the winner's
+                // module map rather than return and silently discard its signal.
+                $created = DB::table('filtering_incidents')->insertOrIgnore([
                     'node_uuid' => $nodeUuid,
                     'active_node_uuid' => $nodeUuid,
                     'state' => $outcome,
@@ -118,8 +119,9 @@ final class FilteringFoundation
                 if ($incident === null) {
                     throw new RuntimeException('Filtering incident could not be reserved.');
                 }
-
-                return;
+                if ($created === 1) {
+                    return;
+                }
             }
 
             /** @var array<string, mixed> $modules */
