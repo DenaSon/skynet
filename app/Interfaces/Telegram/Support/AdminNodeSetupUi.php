@@ -480,7 +480,7 @@ final readonly class AdminNodeSetupUi
         }
         if ($status['state'] === 'running' && $this->installer->matchingConnectedNode($root, $identifier)) {
             $this->installer->closeRecent($root, $identifier);
-            $this->render($bot, "✅ سرور «".$status['name']."» در پنل ثبت و متصل است.\n\nپیگیری راه‌اندازی قبلی بسته شد؛ هیچ تغییری روی سرور انجام نشد.", $this->back());
+            $this->render($bot, '✅ سرور «'.$status['name']."» در پنل ثبت و متصل است.\n\nپیگیری راه‌اندازی قبلی بسته شد؛ هیچ تغییری روی سرور انجام نشد.", $this->back());
 
             return;
         }

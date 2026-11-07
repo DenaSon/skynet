@@ -205,7 +205,6 @@ it('NW-04 retains the uncertain state when a recovery poll cannot reach the VPS'
     Http::assertNothingSent();
 });
 
-
 it('NW-04 hides a completed ready-Node bookmark only after an exact connected RW match', function (): void {
     $fixture = nw02Fixture();
     Queue::fake();

@@ -460,7 +460,6 @@ it('distinguishes fresh server setup from existing node registration without cha
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
 });
 
-
 it('rejects duplicate ready Nodes by name or exact management endpoint before POST', function (): void {
     $actors = node01Actors();
     node01FakeProvider();

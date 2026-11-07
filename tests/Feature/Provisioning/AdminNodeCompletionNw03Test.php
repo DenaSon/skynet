@@ -195,7 +195,6 @@ it('NW-03 Host port input never consumes text from a newer legacy Node wizard', 
         ->and(Cache::get($legacy)['stage'])->toBe('info');
 });
 
-
 it('NW-03 refuses duplicate registration after the same Node was registered manually', function (): void {
     $ready = nw03Ready();
     nw03Api(existingNode: true);
