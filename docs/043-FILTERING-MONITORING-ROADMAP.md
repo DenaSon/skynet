@@ -205,3 +205,10 @@ This section records only the FLT-01 implementation design for review; merge, Pr
 
 - Production diagnostics after the 12-second polling update reported `InvalidArgumentException` during result retrieval at 12-second intervals. The PHP adapter now refuses result HTTP requests when less than 100 ms remain in its monotonic budget, rather than passing a near-zero timeout to the HTTP client. It preserves the last valid snapshot and reports any unresolved probes as pending, never TCP failures. The existing 12-second deadline, 1.5-second polling interval, nine-attempt cap, six-second per-request maximum, rate-limit cooldown, alert gates and scheduler are unchanged.
 - Tests cover invalid/tiny remaining budgets, valid timeout caps, late completion and partial result preservation. CI is not proof of real Iran probe reliability; check live scheduled observations and sanitized logs after auto-deployment before enabling regional alerts.
+
+
+### FLT-04 Admin Node labels follow-up (2026-11-08)
+
+- Read-only `NodesController_getNodes` samples already include each Node's UUID and display name. The two-minute FLT-02 monitor now caches a bounded, validated UUID-to-name map for 24 hours, using the existing shared Laravel cache; no extra Remnawave call in Telegram callbacks, no new SQL column/table, and no new dependency.
+- The authorized filtering overview's Node list, Iran regional list, Node detail, and incident history/detail prefer the cached name while keeping the UUID callback identifiers and short UUID fallback. Unsafe/empty/oversized labels are ignored; Rich HTML is escaped. Cache failure only affects names, never telemetry classification or alert outcomes. Names for removed/older Nodes gracefully fall back once the cache expires.
+- Rates may be absent in a provider response even when online users are present: preserve distinct `null`/UNKNOWN and zero; do not change RX/TX conversion without live schema evidence. Regional Check-Host UNKNOWN remains UNKNOWN; evaluate logs and consecutive real scheduled results before any separate reliability patch or regional alert enablement.
