@@ -67,7 +67,7 @@ final readonly class MonitorNodeFiltering
             foreach ($nodes as $node) {
                 $name = trim($node->name);
                 if ($name !== '' && mb_strlen($name) <= 80
-                    && preg_match('/[\\x00-\\x1F\\x7F]/u', $name) !== 1) {
+                    && preg_match('/[\x00-\x1F\x7F]/u', $name) === 0) {
                     $names[strtolower($node->uuid)] = $name;
                 }
             }
