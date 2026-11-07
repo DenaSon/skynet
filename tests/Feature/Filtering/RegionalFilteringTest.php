@@ -194,6 +194,33 @@ it('keeps polling bounded delayed results beyond the old four-second window', fu
         ->and($GLOBALS['flt03_result_poll_count'])->toBe(6);
 });
 
+it('skips near-zero Check-Host result timeouts instead of passing them to Guzzle', function (): void {
+    $timeout = new ReflectionMethod(CheckHostRegionalProbe::class, 'resultPollTimeout');
+
+    expect($timeout->invoke(null, -1))->toBeNull()
+        ->and($timeout->invoke(null, 0))->toBeNull()
+        ->and($timeout->invoke(null, 999_999))->toBeNull()
+        ->and($timeout->invoke(null, 99_999_999))->toBeNull()
+        ->and($timeout->invoke(null, 100_000_000))->toBe(0.1)
+        ->and($timeout->invoke(null, 1_500_000_000))->toBe(1.5)
+        ->and($timeout->invoke(null, 9_000_000_000))->toBe(6.0);
+});
+
+it('retains completed TCP evidence when one regional result stays pending', function (): void {
+    $GLOBALS['flt03_pending'] = [8];
+    $GLOBALS['flt03_failed'] = [1];
+    Log::spy();
+
+    $provider = app(CheckHostRegionalProbe::class);
+    $result = $provider->tcp('8.8.8.8', 443, $provider->iranNodes());
+
+    expect($result['completed_probes'])->toBe(7)
+        ->and($result['failed_probes'])->toBe(1)
+        ->and($result['successful_probes'])->toBe(6)
+        ->and($result['pending_probes'])->toBe(1)
+        ->and($GLOBALS['flt03_result_poll_count'])->toBe(9);
+});
+
 it('preserves pending on exhausted polling budget without inventing TCP failures', function (): void {
     $GLOBALS['flt03_pending'] = range(1, 8);
     Log::spy();
