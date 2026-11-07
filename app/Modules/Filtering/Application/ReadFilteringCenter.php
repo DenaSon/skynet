@@ -277,7 +277,7 @@ final readonly class ReadFilteringCenter
             if (! is_string($uuid) || ! self::validUuid($uuid)
                 || ! is_string($name) || trim($name) !== $name
                 || $name === '' || mb_strlen($name) > 80
-                || preg_match('/[\\x00-\\x1F\\x7F]/u', $name) !== 0) {
+                || preg_match('/[\x00-\x1F\x7F]/u', $name) !== 0) {
                 continue;
             }
             $safe[$uuid] = $name;
