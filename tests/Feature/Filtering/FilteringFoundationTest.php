@@ -103,6 +103,8 @@ it('rejects untrusted observations, secret evidence and incoherent outcomes', fu
         fn () => $service->record(FLT01_NODE, 'node', 'unknown', now(), ['token' => 'secret']),
         fn () => $service->record(FLT01_NODE, 'node', 'unknown', now(), ['rx_bytes_per_sec' => -1]),
         fn () => $service->record(FLT01_NODE, 'node', 'unknown', now()->addMinutes(10)),
+        fn () => $service->record(FLT01_NODE, 'node', 'unknown', now()->subDays(2)),
+        fn () => $service->record(FLT01_NODE, 'node', 'disrupted', now(), ['causes' => [['online_zero']]]),
         fn () => $service->record(FLT01_NODE, 'node', 'unknown', now(), [], now()->addMinutes(10)),
         fn () => $service->record(FLT01_NODE, 'regional', 'suspicious', now(), ['causes' => ['traffic_zero']]),
     ] as $invalid) {
