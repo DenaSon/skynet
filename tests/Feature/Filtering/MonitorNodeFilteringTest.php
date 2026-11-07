@@ -79,7 +79,7 @@ function flt02Feed(array $nodes): void
     $GLOBALS['flt02_provider_error'] = false;
 }
 
-function flt02Step(?int $online, ?int $rx, ?int $tx, int $minutes = 1): void
+function flt02Step(?int $online, ?int $rx, ?int $tx, int $minutes = 2): void
 {
     if ($minutes > 0) {
         Carbon::setTestNow(now()->addMinutes($minutes));
@@ -88,7 +88,7 @@ function flt02Step(?int $online, ?int $rx, ?int $tx, int $minutes = 1): void
     app(MonitorNodeFiltering::class)->scan();
 }
 
-it('is OFF by default in deployment settings and registers minute scheduler with overlap lock', function (): void {
+it('is OFF by default in deployment settings and registers two-minute scheduler with overlap lock', function (): void {
     $defaults = require base_path('config/filtering.php');
     expect($defaults['node_monitor_enabled'])->toBeFalse()
         ->and($defaults['node_alerts_enabled'])->toBeFalse();
@@ -103,7 +103,7 @@ it('is OFF by default in deployment settings and registers minute scheduler with
         static fn ($event): bool => str_contains((string) $event->command, 'filtering:nodes:scan'),
     );
     expect($event)->not->toBeNull()
-        ->and($event->expression)->toBe('* * * * *')
+        ->and($event->expression)->toBe('*/2 * * * *')
         ->and($event->withoutOverlapping)->toBeTrue();
 });
 
@@ -214,13 +214,35 @@ it('keeps never-active nodes and unknown rates from raising traffic-zero alerts'
     flt02Step(3, null, null);
     flt02Step(3, null, null);
     expect(DB::table('filtering_incidents')->count())->toBe(0);
-    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['latest']['node']['outcome'])->toBe('unknown');
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['latest']['node']['outcome'])->toBe('healthy');
 
     // No baseline inside the 30 minute window, even after consecutive zeros.
     $this->travel(31)->minutes();
     flt02Step(0, 0, 0, 0);
     flt02Step(0, 0, 0);
     expect(DB::table('filtering_incidents')->count())->toBe(0);
+});
+
+it('shows positive online activity as healthy with missing rates but retains independent zero-traffic alert', function (): void {
+    flt02Step(5, null, null, 0);
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['latest']['node']['outcome'])->toBe('healthy');
+    flt02Step(4, null, 0);
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['latest']['node']['outcome'])->toBe('healthy');
+    flt02Step(3, 0, 0);
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBeNull();
+    flt02Step(2, 0, 0);
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['affected_modules']['node']['causes'])
+        ->toBe(['traffic_zero']);
+});
+
+it('requires valid consecutive two-minute observations and resets after a four-minute gap', function (): void {
+    flt02Step(5, 50, 50, 0);
+    flt02Step(0, 50, 50);
+    flt02Step(0, 50, 50, 4);
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBeNull();
+    flt02Step(0, 50, 50);
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['affected_modules']['node']['causes'])
+        ->toBe(['online_zero']);
 });
 
 it('does not turn provider failures or disappeared Nodes into false recovery', function (): void {

@@ -87,7 +87,7 @@ Schedule::command('model:prune', ['--model' => [HealthCheckResultHistoryItem::cl
     ->withoutOverlapping();
 
 // FLT-02: separately gated, bounded Remnawave GET-only Node observations.
-Schedule::command('filtering:nodes:scan')->everyMinute()->withoutOverlapping(2);
+Schedule::command('filtering:nodes:scan')->everyTwoMinutes()->withoutOverlapping(3);
 Artisan::command('filtering:nodes:scan', function (): int {
     $count = app(MonitorNodeFiltering::class)->scan();
     $this->info("Recorded {$count} eligible Node observation(s).");
@@ -96,7 +96,7 @@ Artisan::command('filtering:nodes:scan', function (): int {
 })->purpose('Collect read-only per-Node filtering signals and queue guarded Admin notices');
 
 // FLT-03: gated Iran regional TCP observations; no Telegram webhook/network work.
-Schedule::command('filtering:regional:scan')->everyFiveMinutes()->withoutOverlapping(5);
+Schedule::command('filtering:regional:scan')->everyTenMinutes()->withoutOverlapping(5)->runInBackground();
 Artisan::command('filtering:regional:scan', function (): int {
     $count = app(ScanRegionalFiltering::class)->scan();
     $this->info("Recorded {$count} regional Node observation(s).");

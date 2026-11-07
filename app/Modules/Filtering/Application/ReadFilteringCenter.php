@@ -208,8 +208,8 @@ final readonly class ReadFilteringCenter
                 'node_outcome' => $node['outcome'] ?? 'unknown',
                 'regional_outcome' => $region['outcome'] ?? 'unknown',
                 'regional' => $region['evidence'] ?? [],
-                'node_fresh' => self::fresh($node['at'] ?? null, 150),
-                'regional_fresh' => self::fresh($region['at'] ?? null, 660),
+                'node_fresh' => self::fresh($node['at'] ?? null, 300),
+                'regional_fresh' => self::fresh($region['at'] ?? null, 1320),
             ];
         }
 
@@ -221,24 +221,19 @@ final readonly class ReadFilteringCenter
      */
     private static function observedState(?array $node, ?array $region): string
     {
-        $enabled = [];
+        // Node activity is the primary overall status when enabled. Regional
+        // reachability remains explicitly UNKNOWN until verified; a confirmed
+        // regional disruption still takes precedence via the active incident.
         if (config('filtering.node_monitor_enabled', false) === true) {
-            $enabled[] = [$node, 150];
+            return $node !== null && $node['outcome'] === 'healthy'
+                && self::fresh($node['at'], 300) ? 'healthy' : 'unknown';
         }
         if (config('filtering.regional_monitor_enabled', false) === true) {
-            $enabled[] = [$region, 660];
-        }
-        if ($enabled === []) {
-            return 'unknown';
-        }
-        foreach ($enabled as [$check, $seconds]) {
-            if ($check === null || $check['outcome'] !== 'healthy'
-                || ! self::fresh($check['at'], $seconds)) {
-                return 'unknown';
-            }
+            return $region !== null && $region['outcome'] === 'healthy'
+                && self::fresh($region['at'], 1320) ? 'healthy' : 'unknown';
         }
 
-        return 'healthy';
+        return 'unknown';
     }
 
     private static function fresh(?string $at, int $seconds): bool

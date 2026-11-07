@@ -203,6 +203,31 @@ it('projects fresh, unknown, stale and active composite states without inventing
     Http::assertNothingSent();
 });
 
+it('keeps fresh healthy online activity visible while regional reachability stays unknown', function (): void {
+    $root = flt04Root();
+    $uuid = flt04Uuid(504);
+    config()->set('filtering.node_monitor_enabled', true);
+    config()->set('filtering.regional_monitor_enabled', true);
+
+    app(FilteringFoundation::class)->record($uuid, 'node', 'healthy', now()->subMinutes(3), [
+        'online_users' => 5,
+    ]);
+    app(FilteringFoundation::class)->record($uuid, 'regional', 'unknown', now()->subMinutes(9), [
+        'completed_probes' => 0, 'pending_probes' => 8,
+    ]);
+
+    $data = app(ReadFilteringCenter::class)->node($root->id, $uuid);
+    expect($data['state'])->toBe('healthy')
+        ->and($data['regional_outcome'])->toBe('unknown')
+        ->and($data['node_fresh'])->toBeTrue()
+        ->and($data['regional_fresh'])->toBeTrue();
+
+    $this->travel(3)->minutes();
+    $stale = app(ReadFilteringCenter::class)->node($root->id, $uuid);
+    expect($stale['state'])->toBe('unknown')
+        ->and($stale['node_fresh'])->toBeFalse();
+});
+
 it('bounds list pagination and preserves open incidents beyond the 24-hour resolved-history window', function (): void {
     $root = flt04Root();
     for ($i = 1; $i <= 13; $i++) {

@@ -45,7 +45,7 @@ Share one incident evaluator / notification routing / status presenter and persi
 
 ## 4. FLT-02 Node signal policy (operator-approved)
 
-**Cadence:** Scheduler every minute; snapshots sampled independently per active, enabled Node, not by summing all Nodes.
+**Cadence:** Scheduler every two minutes (operator-approved post-launch correction 2026-11-07); snapshots sampled independently per active, enabled Node, not by summing all Nodes.
 
 Two **independent OR triggers**, requiring **two consecutive valid, fresh observations** of the same signal:
 - **Online trigger:** per-Node `usersOnline === 0` twice.
@@ -60,7 +60,7 @@ Two **independent OR triggers**, requiring **two consecutive valid, fresh observ
 
 ## 5. FLT-03 Check-Host regional policy
 
-**Cadence:** every five minutes for approved eligible Nodes/targets. On a Node-monitor alert, enqueue at most one out-of-cycle regional confirmation per affected Node under a cooldown and provider-wide budget; no synchronous probe in Telegram webhook.
+**Cadence:** every ten minutes for approved eligible Nodes/targets (operator-approved post-launch correction 2026-11-07). On a Node-monitor alert, enqueue at most one out-of-cycle regional confirmation per affected Node under a cooldown and provider-wide budget; no synchronous probe in Telegram webhook.
 
 **Reference request protocol (NVLBot 6D):** discover Iranian nodes via `/nodes/hosts`; start TCP via `/check-tcp` with approved `host:port` and repeated `node` parameters; get a `request_id`; poll `/check-result/{request_id}` within strict timeout/attempt bounds. Normalize SUCCESS, FAIL, PENDING/UNKNOWN separately. A `null` response or an API error is **not** a TCP failure; protect against rate limits, retries, malformed payloads, duplicate/changed nodes and oversized outputs.
 
@@ -176,7 +176,7 @@ This section records only the FLT-01 implementation design for review; merge, Pr
 - Spatial classifier: >=4 completed results from >=4 distinct ASNs and >=2 distinct cities; POSSIBLE requires >=2 completed failed probes from >=2 ASNs and >=25% failed; LIKELY candidate requires >=4 failures from >=4 failed ASNs and >=2 failed cities with >=60% failed.
 - Temporal classifier: no escalation from a single LIKELY candidate; two consecutive eligible LIKELY rounds within seven minutes plus a separate healthy TCP control against fixed 1.1.1.1:443, tested from Iranian Check-Host probes, are required for a disrupted verdict. UNKNOWN/insufficient response never means healthy. Two consecutive eligible CLEAR rounds are required to resolve existing regional evidence. Confirmed regional issues remain sticky through weaker or incomplete rounds.
 - Regional evaluations use the existing shared composite incident and idempotent Admin notification outbox without adding SQL migrations or a new delivery mechanism.
-- The five-minute Scheduler is limited to at most five Nodes per run (round-robin for larger fleets), up to eight Iranian probes per target, bounded timeouts and no overlaps. Node alert out-of-cycle confirmation is queued only when regional monitoring is enabled, with one per Node/15 min and at most one extra request cluster-wide per five-minute bucket. No remote operations run inside a Telegram webhook.
+- The ten-minute Scheduler is limited to at most five Nodes per run (round-robin for larger fleets), up to eight Iranian probes per target, bounded timeouts and no overlaps. Node alert out-of-cycle confirmation is queued only when regional monitoring is enabled, with one per Node/15 min and at most one extra request cluster-wide per five-minute bucket. No remote operations run inside a Telegram webhook.
 - Flags are safe by default: FILTERING_REGIONAL_MONITOR_ENABLED=false and FILTERING_REGIONAL_ALERTS_ENABLED=false. The previous Node monitor and alerts have independent rollout gates. A cache outage conservatively disables extra probes while leaving scheduled scans independently gated.
 - The external control is a **different TCP destination** on the same Check-Host provider, not an independent monitoring provider. Filtering remains suspected, never proven. Real Iran probe coverage, a known-good control and one approved live direct Node service port require explicit operator-authorized smoke validation before enabling live alerts.
 
@@ -191,3 +191,12 @@ This section records only the FLT-01 implementation design for review; merge, Pr
 - **Screens:** overview, per-Node last online and RX/TX plus composite causes, regional completed/failed/pending probes, 24-hour history/detail, refresh/empty states, compact navigation, RTL Rich-first tables with the same authorized native HTML fallback and buttons. UUIDs are displayed in shortened form; no tokens, IPs, raw provider payload, arbitrary URLs or internal implementation names in UI.
 - **Manual checks:** one explicit, async, gated «بررسی مجدد» per known Node. Reuses FLT-03 queueConfirmation and its node/global cooldown, worker revalidates current RW direct service targets and flags. The queue method returns whether a request was admitted so Telegram never claims success for a cooldown/disabled request. Refresh never starts a new job. No operator-controlled TCP destination input.
 - **Acceptance:** independent PR, PHP/Pest, PHPStan, Pint, MySQL regression, Rich/fallback and root/revoked/forged checks. Existing incident notices now include the /filtering navigation command, without adding callbacks or links to insecure destinations. Live Bot client visual acceptance and real RW/Check-Host smoke remain separate gates. No new migration, dependency, write to Provider/DNS, forced production enablement or auto-remediation. Do not merge without operator review/approval.
+
+
+## Post-launch cadence and delayed-result fix (approved 2026-11-07)
+
+- Node monitor cadence **2 minutes**, regional Check-Host **10 minutes**; filtering history prune remains **5 minutes**. Existing health, notification, Sales and Node TCP schedules are unchanged.
+- Two valid consecutive observations and independent online-zero / RX-TX-zero detection remain mandatory. Continuity windows: **180s Node**, **720s regional**; freshness: **300s Node**, **1320s regional**. The recent-positive-activity baseline remains 30 minutes. Missing telemetry is UNKNOWN, never zero; a verified incident overrides positive online activity.
+- When Node monitoring is enabled, a recent positive online count with missing rates may be shown as **healthy Node activity**, even if regional reachability is UNKNOWN; the regional status remains **explicitly unknown**, never implied accessible from Iran. Confirmed regional incidents are never hidden by Node activity.
+- Check-Host result polling occurs at **0s, 2s, and 4s**, stopping as soon as all eight (or fewer) accepted probes have a valid result; unresolved entries remain pending rather than failed. The ten-minute scheduled command uses Laravel background execution and its existing overlap lock, without new infrastructure or provider writes.
+- A separate PR is required. Source CI/Pest, Pint, PHPStan and MySQL checks precede any merge; enablement and live Iran/Telegram acceptance stay separate, and notification feature gates are left unchanged.

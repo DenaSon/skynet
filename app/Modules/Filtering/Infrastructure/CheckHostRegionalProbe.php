@@ -111,10 +111,12 @@ final class CheckHostRegionalProbe
             throw new RuntimeException('Check-Host node selection changed.');
         }
 
+        // Iran probes can remain pending beyond 1.2 seconds. Poll at 0/2/4s,
+        // stopping early as soon as every result has a valid TCP verdict.
         $latest = [];
         for ($attempt = 0; $attempt < 3; $attempt++) {
             if ($attempt > 0) {
-                usleep(600000);
+                sleep(2);
             }
             $latest = $this->get('/check-result/'.rawurlencode($id));
             if (array_keys($latest) === ['error'] || isset($latest['error'])) {
@@ -122,8 +124,9 @@ final class CheckHostRegionalProbe
             }
             $done = true;
             foreach ($nodes as $node) {
-                if (! isset($latest[$node['name']])) {
+                if (self::result($latest[$node['name']] ?? null, $ip) === null) {
                     $done = false;
+                    break;
                 }
             }
             if ($done) {

@@ -35,6 +35,8 @@ beforeEach(function (): void {
     config()->set('cache.default', 'array');
     $GLOBALS['flt03_failed'] = [];
     $GLOBALS['flt03_pending'] = [];
+    $GLOBALS['flt03_delay_results'] = false;
+    $GLOBALS['flt03_result_poll_count'] = 0;
     $GLOBALS['flt03_rate_limit'] = false;
     $GLOBALS['flt03_control_bad'] = false;
     $GLOBALS['flt03_bad_metadata'] = false;
@@ -73,10 +75,12 @@ beforeEach(function (): void {
         if ($url === 'https://check-host.net/check-result/primary123'
             || $url === 'https://check-host.net/check-result/control123') {
             $control = str_ends_with($url, '/control123');
+            $poll = $control ? 0 : ++$GLOBALS['flt03_result_poll_count'];
             $result = [];
             for ($i = 1; $i <= 8; $i++) {
                 $failed = $control ? $GLOBALS['flt03_control_bad'] : in_array($i, $GLOBALS['flt03_failed'], true);
-                $result["ir{$i}.node.check-host.net"] = in_array($i, $GLOBALS['flt03_pending'], true)
+                $result["ir{$i}.node.check-host.net"] = (in_array($i, $GLOBALS['flt03_pending'], true)
+                    || ($GLOBALS['flt03_delay_results'] && $poll === 1))
                     ? null : ($failed ? [['error' => 'Timeout']]
                         : [['time' => 0.03, 'address' => $control ? '1.1.1.1' : '8.8.8.8']]);
             }
@@ -110,7 +114,7 @@ function flt03Scan(int $minutes = 0): void
     app(ScanRegionalFiltering::class)->scan();
 }
 
-it('is gated off in deployment defaults and uses a nonoverlapping five-minute scheduler', function (): void {
+it('is gated off in deployment defaults and uses a nonoverlapping ten-minute background scheduler', function (): void {
     $default = require base_path('config/filtering.php');
     expect($default['regional_monitor_enabled'])->toBeFalse()
         ->and($default['regional_alerts_enabled'])->toBeFalse();
@@ -123,8 +127,9 @@ it('is gated off in deployment defaults and uses a nonoverlapping five-minute sc
         static fn ($event): bool => str_contains((string) $event->command, 'filtering:regional:scan'),
     );
     expect($event)->not->toBeNull()
-        ->and($event->expression)->toBe('*/5 * * * *')
-        ->and($event->withoutOverlapping)->toBeTrue();
+        ->and($event->expression)->toBe('*/10 * * * *')
+        ->and($event->withoutOverlapping)->toBeTrue()
+        ->and($event->runInBackground)->toBeTrue();
 });
 
 it('uses only current verified RW direct targets and the existing read-only client', function (): void {
@@ -151,6 +156,18 @@ it('normalizes successful, failed and pending probes and preserves ASN diversity
         && substr_count($r->url(), '&node=') === 8);
 });
 
+it('waits for delayed Iran results and stops after all eight TCP responses are valid', function (): void {
+    $GLOBALS['flt03_delay_results'] = true;
+    flt03Scan();
+
+    $result = DB::table('filtering_checks')->where('module', 'regional')->first();
+    $evidence = json_decode($result->evidence ?? '{}', true);
+    expect($result->outcome)->toBe('healthy')
+        ->and($evidence['completed_probes'])->toBe(8)
+        ->and($evidence['pending_probes'])->toBe(0)
+        ->and($GLOBALS['flt03_result_poll_count'])->toBe(2);
+});
+
 it('enforces completed-probe, ASN, city and failure quorum thresholds', function (): void {
     $base = ['completed_probes' => 8, 'failed_probes' => 0, 'asn_count' => 8,
         'city_count' => 2, 'failed_asn_count' => 0, 'failed_city_count' => 0];
@@ -167,9 +184,9 @@ it('opens one composite incident and escalates only after two likely rounds with
     $first = app(FilteringFoundation::class)->read(FLT03_NODE);
     expect($first['state'])->toBe('suspicious');
     $GLOBALS['flt03_failed'] = [1, 2, 3, 5, 6];
-    flt03Scan(5);
+    flt03Scan(10);
     expect(app(FilteringFoundation::class)->read(FLT03_NODE)['state'])->toBe('suspicious');
-    flt03Scan(5);
+    flt03Scan(10);
     expect(app(FilteringFoundation::class)->read(FLT03_NODE)['state'])->toBe('disrupted')
         ->and(app(FilteringFoundation::class)->read(FLT03_NODE)['incident_id'])->toBe($first['incident_id']);
     expect(DB::table('filtering_incidents')->count())->toBe(1);
@@ -182,12 +199,12 @@ it('requires two eligible clear rounds for recovery and does not recover on pend
     $old = app(FilteringFoundation::class)->read(FLT03_NODE)['incident_id'];
     $GLOBALS['flt03_pending'] = [1, 2, 3, 4, 5];
     $GLOBALS['flt03_failed'] = [];
-    flt03Scan(5);
+    flt03Scan(10);
     expect(app(FilteringFoundation::class)->read(FLT03_NODE)['incident_id'])->toBe($old);
     $GLOBALS['flt03_pending'] = [];
-    flt03Scan(5);
+    flt03Scan(10);
     expect(app(FilteringFoundation::class)->read(FLT03_NODE)['incident_id'])->toBe($old);
-    flt03Scan(5);
+    flt03Scan(10);
     expect(app(FilteringFoundation::class)->read(FLT03_NODE)['incident_id'])->toBeNull()
         ->and(DB::table('filtering_incidents')->where('state', 'resolved')->count())->toBe(1);
 });
@@ -198,7 +215,7 @@ it('fails closed for rate limits, insufficient coverage and invalid metadata', f
     expect(app(FilteringFoundation::class)->read(FLT03_NODE)['state'])->toBe('unknown');
     $GLOBALS['flt03_rate_limit'] = false;
     $GLOBALS['flt03_bad_metadata'] = true;
-    flt03Scan(5);
+    flt03Scan(10);
     expect(DB::table('filtering_incidents')->count())->toBe(0);
 });
 
@@ -249,11 +266,11 @@ it('rejects private and reserved destinations before any TCP provider request', 
 it('does not promote repeated POSSIBLE or failed external control to LIKELY', function (): void {
     $GLOBALS['flt03_failed'] = [1, 2, 3, 5];
     flt03Scan();
-    flt03Scan(5);
+    flt03Scan(10);
     expect(app(FilteringFoundation::class)->read(FLT03_NODE)['state'])->toBe('suspicious');
     $GLOBALS['flt03_failed'] = [1, 2, 3, 5, 6];
-    flt03Scan(5);
+    flt03Scan(10);
     $GLOBALS['flt03_control_bad'] = true;
-    flt03Scan(5);
+    flt03Scan(10);
     expect(app(FilteringFoundation::class)->read(FLT03_NODE)['state'])->toBe('suspicious');
 });
