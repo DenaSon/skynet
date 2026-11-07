@@ -7,6 +7,7 @@ use App\Interfaces\Telegram\Notifications\TelegramNotificationSender;
 use App\Modules\Filtering\Application\FilteringFoundation;
 use App\Modules\Filtering\Application\FilteringIncidentAlerts;
 use App\Modules\Filtering\Application\MonitorNodeFiltering;
+use App\Modules\Filtering\Application\ScanRegionalFiltering;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveApiClientFactory;
@@ -237,7 +238,7 @@ it('does not turn provider failures or disappeared Nodes into false recovery', f
         app(RemnawaveApiClientFactory::class),
         app(FilteringFoundation::class),
         app(FilteringIncidentAlerts::class),
-        app(\App\Modules\Filtering\Application\ScanRegionalFiltering::class),
+        app(ScanRegionalFiltering::class),
     );
     flt02Feed([flt02Node(2, 10, 10)]);
     $this->travel(1)->minutes();
