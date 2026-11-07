@@ -5,6 +5,7 @@ use App\Interfaces\Telegram\Notifications\TrialEndMonitor;
 use App\Interfaces\Telegram\Processing\SalesTelegramRuntime;
 use App\Interfaces\Telegram\Support\SalesNativeMenu;
 use App\Modules\Billing\Application\VerifyWalletOrderDebit;
+use App\Modules\Filtering\Application\PruneFilteringHistory;
 use App\Modules\Provisioning\Jobs\FulfillPaidPlanOrderJob;
 use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\ConfigureRate;
@@ -82,6 +83,15 @@ Schedule::command('health:check --no-notification')
 Schedule::command('model:prune', ['--model' => [HealthCheckResultHistoryItem::class]])
     ->dailyAt('03:45')->when(static fn (): bool => config('denagate_health.enabled') === true)
     ->withoutOverlapping();
+
+// FLT-01: bounded retention only; no polling, alerts or provider interactions.
+Schedule::command('filtering:prune')->everyFiveMinutes()->withoutOverlapping(5);
+Artisan::command('filtering:prune', function (): int {
+    $pruned = app(PruneFilteringHistory::class)->run();
+    $this->info('Filtering history pruned: '.$pruned['checks'].' checks, '.$pruned['incidents'].' resolved incidents.');
+
+    return 0;
+})->purpose('Prune expired filtering checks and resolved incidents in bounded batches');
 
 // Reuse the existing proven pruning logic without a second deletion path.
 Schedule::command('system:cleanup')->weekly()->withoutOverlapping();

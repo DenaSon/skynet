@@ -325,6 +325,11 @@ jobs:
           REDIS_DB: '15'
         run: php tests/Smoke/referral_queue_redis.php
 
+      - name: Verify FLT-01 concurrent incident safety and guarded rollback on MySQL
+        env:
+          FILTERING_MYSQL_SMOKE: '1'
+        run: php tests/Smoke/filtering_mysql.php
+
       - name: Validate historical receipts and guarded rollback on MySQL
         run: php tests/Smoke/mb02_mysql_migration.php
 
