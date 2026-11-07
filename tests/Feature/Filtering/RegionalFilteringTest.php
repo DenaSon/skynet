@@ -17,8 +17,10 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schedule;
+use Illuminate\Support\Sleep;
 
 uses(RefreshDatabase::class);
 
@@ -36,11 +38,17 @@ beforeEach(function (): void {
     $GLOBALS['flt03_failed'] = [];
     $GLOBALS['flt03_pending'] = [];
     $GLOBALS['flt03_delay_results'] = false;
+    $GLOBALS['flt03_pending_until_poll'] = 0;
+    $GLOBALS['flt03_message_failure'] = false;
+    $GLOBALS['flt03_message_unknown'] = false;
+    $GLOBALS['flt03_wrong_address'] = false;
+    $GLOBALS['flt03_result_http_error'] = false;
     $GLOBALS['flt03_result_poll_count'] = 0;
     $GLOBALS['flt03_rate_limit'] = false;
     $GLOBALS['flt03_control_bad'] = false;
     $GLOBALS['flt03_bad_metadata'] = false;
     Queue::fake();
+    Sleep::fake();
     Http::preventStrayRequests();
     Http::fake(static function (Request $request) {
         $url = $request->url();
@@ -75,14 +83,21 @@ beforeEach(function (): void {
         if ($url === 'https://check-host.net/check-result/primary123'
             || $url === 'https://check-host.net/check-result/control123') {
             $control = str_ends_with($url, '/control123');
+            if (! $control && $GLOBALS['flt03_result_http_error']) {
+                return Http::response(['error' => 'unavailable'], 503);
+            }
             $poll = $control ? 0 : ++$GLOBALS['flt03_result_poll_count'];
             $result = [];
             for ($i = 1; $i <= 8; $i++) {
                 $failed = $control ? $GLOBALS['flt03_control_bad'] : in_array($i, $GLOBALS['flt03_failed'], true);
                 $result["ir{$i}.node.check-host.net"] = (in_array($i, $GLOBALS['flt03_pending'], true)
-                    || ($GLOBALS['flt03_delay_results'] && $poll === 1))
-                    ? null : ($failed ? [['error' => 'Timeout']]
-                        : [['time' => 0.03, 'address' => $control ? '1.1.1.1' : '8.8.8.8']]);
+                    || ($GLOBALS['flt03_delay_results'] && $poll === 1)
+                    || (! $control && $poll <= $GLOBALS['flt03_pending_until_poll']))
+                    ? null : ($failed
+                        ? ($GLOBALS['flt03_message_failure'] ? [['message' => 'Connection timed out']] : [['error' => 'Timeout']])
+                        : ($GLOBALS['flt03_message_unknown'] ? [['message' => 'Still checking']]
+                            : [['time' => 0.03, 'address' => $control ? '1.1.1.1'
+                                : ($GLOBALS['flt03_wrong_address'] ? '9.9.9.9' : '8.8.8.8')]]));
             }
 
             return Http::response($result);
@@ -166,6 +181,75 @@ it('waits for delayed Iran results and stops after all eight TCP responses are v
         ->and($evidence['completed_probes'])->toBe(8)
         ->and($evidence['pending_probes'])->toBe(0)
         ->and($GLOBALS['flt03_result_poll_count'])->toBe(2);
+});
+
+it('keeps polling bounded delayed results beyond the old four-second window', function (): void {
+    $GLOBALS['flt03_pending_until_poll'] = 5;
+    $provider = app(CheckHostRegionalProbe::class);
+    $nodes = $provider->iranNodes();
+    $result = $provider->tcp('8.8.8.8', 443, $nodes);
+
+    expect($result['completed_probes'])->toBe(8)
+        ->and($result['pending_probes'])->toBe(0)
+        ->and($GLOBALS['flt03_result_poll_count'])->toBe(6);
+});
+
+it('preserves pending on exhausted polling budget without inventing TCP failures', function (): void {
+    $GLOBALS['flt03_pending'] = range(1, 8);
+    Log::spy();
+    $provider = app(CheckHostRegionalProbe::class);
+    $result = $provider->tcp('8.8.8.8', 443, $provider->iranNodes());
+
+    expect($result['completed_probes'])->toBe(0)
+        ->and($result['failed_probes'])->toBe(0)
+        ->and($result['pending_probes'])->toBe(8)
+        ->and($GLOBALS['flt03_result_poll_count'])->toBe(9);
+    Log::shouldHaveReceived('notice')->once()->withArgs(
+        static fn (string $message, array $context): bool => $message === 'Filtering Check-Host TCP results incomplete'
+            && $context['pending'] === 8 && $context['polls'] === 9
+            && $context['progress'][0] === ['completed' => 0, 'pending' => 8, 'invalid' => 0],
+    );
+});
+
+it('recognizes explicit TCP connection messages but never interprets ambiguous messages or mismatched addresses as failure', function (): void {
+    $provider = app(CheckHostRegionalProbe::class);
+    $nodes = $provider->iranNodes();
+
+    $GLOBALS['flt03_failed'] = [1, 2];
+    $GLOBALS['flt03_message_failure'] = true;
+    $result = $provider->tcp('8.8.8.8', 443, $nodes);
+    expect($result['completed_probes'])->toBe(8)
+        ->and($result['failed_probes'])->toBe(2);
+
+    $GLOBALS['flt03_failed'] = [];
+    $GLOBALS['flt03_message_failure'] = false;
+    $GLOBALS['flt03_message_unknown'] = true;
+    $result = $provider->tcp('8.8.8.8', 443, $nodes);
+    expect($result['completed_probes'])->toBe(0)
+        ->and($result['failed_probes'])->toBe(0)
+        ->and($result['pending_probes'])->toBe(8);
+
+    $GLOBALS['flt03_message_unknown'] = false;
+    $GLOBALS['flt03_wrong_address'] = true;
+    $result = $provider->tcp('8.8.8.8', 443, $nodes);
+    expect($result['completed_probes'])->toBe(0)
+        ->and($result['failed_probes'])->toBe(0)
+        ->and($result['pending_probes'])->toBe(8);
+});
+
+it('logs sanitized provider transport failures and never treats HTTP 503 as TCP failure', function (): void {
+    $GLOBALS['flt03_result_http_error'] = true;
+    Log::spy();
+    flt03Scan();
+
+    $row = DB::table('filtering_checks')->where('module', 'regional')->first();
+    expect($row->outcome)->toBe('unknown')
+        ->and(json_decode($row->evidence ?? '{}', true))->toBe([]);
+    Log::shouldHaveReceived('warning')->once()->withArgs(
+        static fn (string $message, array $context): bool => $message === 'Filtering Check-Host request unavailable'
+            && $context['phase'] === 'result' && $context['http_status'] === 503
+            && ! array_key_exists('url', $context) && ! array_key_exists('ip', $context),
+    );
 });
 
 it('enforces completed-probe, ASN, city and failure quorum thresholds', function (): void {
