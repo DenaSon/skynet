@@ -13,6 +13,7 @@ use App\Interfaces\Telegram\Support\TelegramUserContactLink;
 use App\Modules\Billing\Application\BrowsePhotoTopups;
 use App\Modules\Billing\Application\VerifyWalletOrderDebit;
 use App\Modules\Billing\Application\ViewWallet;
+use App\Modules\Filtering\Application\FilteringIncidentNotice;
 use App\Modules\Identity\Application\AdminCapabilityAccess;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\TelegramRecipient;
@@ -67,6 +68,24 @@ final readonly class TelegramNotificationSender
         }
 
         $token = $this->token($bot);
+
+        if (in_array($delivery->event_type, ['FilteringOpened', 'FilteringEscalated', 'FilteringRecovered'], true)) {
+            if ($bot !== 'admin' || config('filtering.node_monitor_enabled', false) !== true
+                || config('filtering.node_alerts_enabled', false) !== true) {
+                throw new NotificationUnavailable('not_authorized');
+            }
+            $actor = $this->actors->handle($chat);
+            if ($actor === null || $actor->userId !== $userId || ! $actor->canManageRoles()) {
+                throw new NotificationUnavailable('not_authorized');
+            }
+            $message = app(FilteringIncidentNotice::class)->messageFor($delivery);
+            if ($message === null) {
+                throw new NotificationUnavailable('obsolete_filtering_notice');
+            }
+            $this->text('admin', $chat, $message, null, 'HTML');
+
+            return;
+        }
 
         if ($delivery->event_type === 'ReferralRewardCredited') {
             $orderId = (int) $delivery->order_id;
