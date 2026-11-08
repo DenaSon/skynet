@@ -13,12 +13,15 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
     config()->set('super_admin.telegram_ids', ['969001']);
     config()->set('billing.topups_enabled', true);
+    Role::findOrCreate('reseller', 'web');
+    Role::findOrCreate('member', 'web');
 });
 
 function amountCorrectionRoot(): User
