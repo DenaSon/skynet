@@ -157,6 +157,8 @@ final class ReplyMenuRenderer
         if ($trialVisible) {
             $labels[] = ReplyMenuLabels::SALES_TRIAL;
         }
+        // Place announcements near the end; never reorder the Buy/Services row.
+        $labels[] = ReplyMenuLabels::SALES_ANNOUNCEMENTS;
         $keyboard = $this->keyboard($labels);
 
         // Native Telegram styles apply only to Sales, not legacy/Admin menus.
