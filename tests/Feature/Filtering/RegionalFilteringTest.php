@@ -14,6 +14,7 @@ use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveNodeSummary;
 use App\Support\Health\NodeTcpProbe;
 use Carbon\CarbonImmutable;
+use Cron\CronExpression;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Carbon;
@@ -261,7 +262,7 @@ it('is gated off in deployment defaults and uses a nonoverlapping ten-minute bac
         ->and($event->withoutOverlapping)->toBeTrue()
         ->and($event->runInBackground)->toBeTrue();
 
-    $cron = new \Cron\CronExpression($event->expression);
+    $cron = new CronExpression($event->expression);
     foreach ([3, 13, 23, 33, 43, 53] as $minute) {
         expect($cron->isDue(sprintf('2026-11-08 12:%02d:00', $minute)))->toBeTrue();
     }
