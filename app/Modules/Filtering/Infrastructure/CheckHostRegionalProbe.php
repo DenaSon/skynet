@@ -21,7 +21,7 @@ final class CheckHostRegionalProbe
 {
     private const ORIGIN = 'https://check-host.net';
 
-    private const MAX_IR_NODES = 8;
+    private const MAX_IR_NODES = 4;
 
     private const MAX_RESPONSE_BYTES = 160000;
 
@@ -58,29 +58,35 @@ final class CheckHostRegionalProbe
         }
         usort($list, static fn (array $a, array $b): int => strcmp($a['name'], $b['name']));
 
-        // First diversify ASNs/cities, then fill spare positions. Never
-        // pretend that the provider always supplies eight Iranian nodes.
+        // With exactly four probes, every result must cover a different ASN
+        // and at least two cities. Prefer a deterministic cross-city/ASN pair,
+        // then fill with unused ASNs. Insufficient diversity means no probe.
         $selected = [];
-        $usedAsns = [];
-        $usedCities = [];
-        foreach ([true, false] as $diverse) {
-            foreach ($list as $node) {
-                if (count($selected) >= self::MAX_IR_NODES) {
+        foreach ($list as $first) {
+            foreach ($list as $second) {
+                if ($first['asn'] !== $second['asn'] && $first['city'] !== $second['city']) {
+                    $selected = [$first, $second];
                     break 2;
                 }
-                if (in_array($node['name'], array_column($selected, 'name'), true)) {
-                    continue;
-                }
-                if ($diverse && isset($usedAsns[$node['asn']]) && isset($usedCities[$node['city']])) {
-                    continue;
-                }
-                $selected[] = $node;
-                $usedAsns[$node['asn']] = true;
-                $usedCities[$node['city']] = true;
             }
         }
+        if ($selected === []) {
+            return [];
+        }
 
-        return $selected;
+        $usedAsns = array_fill_keys(array_column($selected, 'asn'), true);
+        foreach ($list as $node) {
+            if (count($selected) >= self::MAX_IR_NODES) {
+                break;
+            }
+            if (isset($usedAsns[$node['asn']])) {
+                continue;
+            }
+            $selected[] = $node;
+            $usedAsns[$node['asn']] = true;
+        }
+
+        return count($selected) === self::MAX_IR_NODES ? $selected : [];
     }
 
     /**
@@ -109,7 +115,9 @@ final class CheckHostRegionalProbe
         foreach ($nodes as $node) {
             $query .= '&node='.rawurlencode($node['name']);
         }
+        $startHttpAt = hrtime(true);
         $started = $this->get('/check-tcp?'.$query);
+        $startHttpMs = intdiv(hrtime(true) - $startHttpAt, 1_000_000);
         $id = $started['request_id'] ?? null;
         if (($started['ok'] ?? null) !== 1 || ! is_string($id)
             || ! preg_match('/\A[a-zA-Z0-9_-]{1,80}\z/D', $id)) {
@@ -127,6 +135,8 @@ final class CheckHostRegionalProbe
         $deadline = $startedAt + self::POLL_TIMEOUT_NS;
         $latest = [];
         $progress = [];
+        $resultHttpTotalMs = 0;
+        $resultHttpMaxMs = 0;
         for ($attempt = 0; $attempt < self::MAX_POLL_ATTEMPTS; $attempt++) {
             $remaining = $deadline - hrtime(true);
             if ($remaining <= 0) {
@@ -148,7 +158,11 @@ final class CheckHostRegionalProbe
                 break;
             }
 
+            $resultHttpAt = hrtime(true);
             $latest = $this->get('/check-result/'.rawurlencode($id), $timeout);
+            $resultHttpMs = intdiv(hrtime(true) - $resultHttpAt, 1_000_000);
+            $resultHttpTotalMs += $resultHttpMs;
+            $resultHttpMaxMs = max($resultHttpMaxMs, $resultHttpMs);
             if (isset($latest['error'])) {
                 throw new RuntimeException('Check-Host result unavailable.');
             }
@@ -197,15 +211,24 @@ final class CheckHostRegionalProbe
             }
         }
 
+        $diagnostics = [
+            'selected' => count($nodes),
+            'completed' => $completed,
+            'failed' => $failed,
+            'pending' => count($nodes) - $completed,
+            'polls' => count($progress),
+            'start_http_ms' => $startHttpMs,
+            'result_http_total_ms' => $resultHttpTotalMs,
+            'result_http_max_ms' => $resultHttpMaxMs,
+            'elapsed_ms' => intdiv(hrtime(true) - $startedAt, 1_000_000),
+        ];
         if ($completed < count($nodes)) {
             Log::notice('Filtering Check-Host TCP results incomplete', [
-                'completed' => $completed,
-                'failed' => $failed,
-                'pending' => count($nodes) - $completed,
-                'polls' => count($progress),
+                ...$diagnostics,
                 'progress' => $progress,
-                'elapsed_ms' => intdiv(hrtime(true) - $startedAt, 1_000_000),
             ]);
+        } else {
+            Log::info('Filtering Check-Host TCP results complete', $diagnostics);
         }
 
         return [
@@ -267,6 +290,7 @@ final class CheckHostRegionalProbe
     private function get(string $path, float $timeoutSeconds = 6.0): array
     {
         $status = null;
+        $requestStartedAt = hrtime(true);
         try {
             // Keep the existing provider-wide 429 cooldown across Node targets.
             if (Cache::get('filtering:regional:checkhost:cooldown') === true) {
@@ -308,6 +332,7 @@ final class CheckHostRegionalProbe
                 'http_status' => $status,
                 'exception_type' => class_basename($cause),
                 'curl_code' => $curlCode,
+                'elapsed_ms' => intdiv(hrtime(true) - $requestStartedAt, 1_000_000),
             ]);
 
             throw new RuntimeException('Check-Host request unavailable.', 0, $error);
