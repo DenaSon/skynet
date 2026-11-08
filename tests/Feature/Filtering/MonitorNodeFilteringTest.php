@@ -401,6 +401,62 @@ it('rejects old private filtering outbox intents and group destination changes b
     Http::assertNotSent(static fn (Request $request): bool => str_contains($request->url(), '/sendMessage'));
 });
 
+it('delivers group recovery only after a successfully sent group opening', function (): void {
+    config()->set('filtering.notification_group_chat_id', '-1001234567890');
+    config()->set('filtering.node_alerts_enabled', true);
+    config()->set('telegram_notifications.enabled', true);
+    config()->set('super_admin.telegram_ids', ['9980021', '9980022']);
+    Role::findOrCreate('super-admin', 'web');
+    $root = User::factory()->create();
+    $root->syncRoles(['super-admin']);
+    TelegramAccount::query()->create(['user_id' => $root->id, 'telegram_user_id' => 9980021]);
+
+    flt02Step(1, 10, 10, 0);
+    flt02Step(0, 100, 100);
+    flt02Step(0, 100, 100);
+    $opening = DB::table('telegram_notification_deliveries')->where('event_type', 'FilteringOpened')->first();
+    app(DispatchTelegramNotification::class, ['deliveryId' => (int) $opening->id])
+        ->handle(app(TelegramNotificationSender::class));
+
+    flt02Step(2, 100, 100);
+    flt02Step(2, 100, 100);
+    $recovery = DB::table('telegram_notification_deliveries')->where('event_type', 'FilteringRecovered')->first();
+    expect($recovery)->not->toBeNull()
+        ->and($recovery->event_key)->toBe('flt:1:recover:group:-1001234567890');
+    app(DispatchTelegramNotification::class, ['deliveryId' => (int) $recovery->id])
+        ->handle(app(TelegramNotificationSender::class));
+
+    expect(DB::table('telegram_notification_deliveries')->where('state', 'sent')->count())->toBe(2);
+    $posts = Http::recorded(static fn (Request $r): bool => str_contains($r->url(), '/sendMessage'));
+    expect($posts)->toHaveCount(2);
+    foreach ($posts as [$request]) {
+        expect((string) $request->data()['chat_id'])->toBe('-1001234567890');
+    }
+});
+
+it('never sends an already queued group notice if the ENV destination is removed', function (): void {
+    config()->set('filtering.notification_group_chat_id', '-1001234567890');
+    config()->set('filtering.node_alerts_enabled', true);
+    config()->set('telegram_notifications.enabled', true);
+    config()->set('super_admin.telegram_ids', ['9980021', '9980022']);
+    Role::findOrCreate('super-admin', 'web');
+    $root = User::factory()->create();
+    $root->syncRoles(['super-admin']);
+    TelegramAccount::query()->create(['user_id' => $root->id, 'telegram_user_id' => 9980021]);
+
+    flt02Step(1, 10, 10, 0);
+    flt02Step(0, 100, 100);
+    flt02Step(0, 100, 100);
+    $opening = DB::table('telegram_notification_deliveries')->where('event_type', 'FilteringOpened')->first();
+
+    config()->set('filtering.notification_group_chat_id', null);
+    app(DispatchTelegramNotification::class, ['deliveryId' => (int) $opening->id])
+        ->handle(app(TelegramNotificationSender::class));
+    expect(DB::table('telegram_notification_deliveries')->where('id', $opening->id)->value('state'))
+        ->toBe('unavailable');
+    Http::assertNotSent(static fn (Request $request): bool => str_contains($request->url(), '/sendMessage'));
+});
+
 it('uses only one provider GET for Node snapshots and rejects malformed identities', function (): void {
     flt02Feed([flt02Node(1, 100, 10)]);
     expect(app(MonitorNodeFiltering::class)->scan())->toBe(1);
