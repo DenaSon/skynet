@@ -89,6 +89,111 @@ function flt02Step(?int $online, ?int $rx, ?int $tx, int $minutes = 2): void
     app(MonitorNodeFiltering::class)->scan();
 }
 
+function flt02EnableRootNotifications(): void
+{
+    config()->set('filtering.node_alerts_enabled', true);
+    config()->set('telegram_notifications.enabled', true);
+    config()->set('super_admin.telegram_ids', ['9980021']);
+    Role::findOrCreate('super-admin', 'web');
+
+    $root = User::factory()->create();
+    $root->syncRoles(['super-admin']);
+    TelegramAccount::query()->create(['user_id' => $root->id, 'telegram_user_id' => 9980021]);
+}
+
+it('preserves all AMS-02-like low-activity incidents and measurements without sending online-only notices', function (): void {
+    flt02EnableRootNotifications();
+
+    for ($cycle = 0; $cycle < 9; $cycle++) {
+        flt02Step(1, null, null, $cycle === 0 ? 0 : 2);
+        flt02Step(0, null, null);
+        flt02Step(0, null, null);
+        expect(app(FilteringFoundation::class)->read(FLT02_NODE)['state'])->toBe('disrupted');
+        for ($i = 0; $i < 6; $i++) {
+            flt02Step(1, null, null);
+        }
+        expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBeNull();
+    }
+
+    expect(DB::table('filtering_incidents')->count())->toBe(9)
+        ->and(DB::table('filtering_checks')->where('module', 'node')->count())->toBe(81)
+        ->and(DB::table('telegram_notification_deliveries')->count())->toBe(0);
+});
+
+it('does not notify for a one-off three-user spike but notifies after two sustained three-plus observations', function (): void {
+    flt02EnableRootNotifications();
+    flt02Step(1, null, null, 0);
+    flt02Step(3, null, null);
+    flt02Step(1, null, null);
+    flt02Step(0, null, null);
+    flt02Step(0, null, null);
+
+    expect(DB::table('filtering_incidents')->count())->toBe(1)
+        ->and(DB::table('telegram_notification_deliveries')->count())->toBe(0);
+});
+
+it('retains independent traffic-zero alerts on low-user nodes', function (): void {
+    flt02EnableRootNotifications();
+    flt02Step(1, 100, 100, 0);
+    flt02Step(1, 0, 0);
+    flt02Step(1, 0, 0);
+
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['affected_modules']['node']['causes'])
+        ->toBe(['traffic_zero'])
+        ->and(DB::table('telegram_notification_deliveries')->where('event_type', 'FilteringOpened')->count())
+        ->toBe(1);
+});
+
+it('throttles repeated online-only openings for thirty minutes without suppressing new incidents', function (): void {
+    flt02EnableRootNotifications();
+    flt02Step(3, 10, 10, 0);
+    flt02Step(4, 10, 10);
+    flt02Step(0, 10, 10);
+    flt02Step(0, 10, 10);
+    expect(DB::table('telegram_notification_deliveries')->where('event_type', 'FilteringOpened')->count())
+        ->toBe(1);
+
+    for ($i = 0; $i < 6; $i++) {
+        flt02Step(4, 10, 10);
+    }
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBeNull();
+
+    flt02Step(0, 10, 10);
+    flt02Step(0, 10, 10);
+    expect(DB::table('filtering_incidents')->count())->toBe(2)
+        ->and(DB::table('telegram_notification_deliveries')->where('event_type', 'FilteringOpened')->count())
+        ->toBe(1);
+
+    for ($i = 0; $i < 6; $i++) {
+        flt02Step(4, 10, 10);
+    }
+    $this->travel(20)->minutes();
+    flt02Step(4, 10, 10, 0);
+    flt02Step(4, 10, 10);
+    flt02Step(0, 10, 10);
+    flt02Step(0, 10, 10);
+    expect(DB::table('filtering_incidents')->count())->toBe(3)
+        ->and(DB::table('telegram_notification_deliveries')->where('event_type', 'FilteringOpened')->count())
+        ->toBe(2);
+});
+
+it('resets the ten-minute recovery window after an unavailable observation', function (): void {
+    flt02Step(3, 10, 10, 0);
+    flt02Step(0, 10, 10);
+    flt02Step(0, 10, 10);
+    for ($i = 0; $i < 4; $i++) {
+        flt02Step(3, 10, 10);
+    }
+    flt02Step(null, null, null);
+    flt02Step(3, 10, 10);
+    flt02Step(3, 10, 10);
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['state'])->toBe('disrupted');
+    for ($i = 0; $i < 4; $i++) {
+        flt02Step(3, 10, 10);
+    }
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBeNull();
+});
+
 it('is OFF by default in deployment settings and registers two-minute scheduler with overlap lock', function (): void {
     $defaults = require base_path('config/filtering.php');
     expect($defaults['node_monitor_enabled'])->toBeFalse()
