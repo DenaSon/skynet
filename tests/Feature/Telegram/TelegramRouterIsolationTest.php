@@ -361,6 +361,8 @@ it('keeps Sales identity, navigation and buyer routes isolated from Admin callba
         'command:buy',
         'command:account',
         'command:link {code}',
+        'callback:sales:ann:list',
+        'callback:sales:ann:view:{id}',
         'callback:sales:home',
         'callback:sales:buy:simple:{page}',
         'callback:sales:buy',
