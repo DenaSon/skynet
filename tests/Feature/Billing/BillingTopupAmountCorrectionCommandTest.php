@@ -18,7 +18,7 @@ use Spatie\Permission\Models\Role;
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
-    config()->set('super_admin.telegram_ids', ['969001']);
+    config()->set('super_admin.telegram_ids', ['969001', '969002']);
     config()->set('billing.topups_enabled', true);
     Role::findOrCreate('reseller', 'web');
     Role::findOrCreate('member', 'web');
