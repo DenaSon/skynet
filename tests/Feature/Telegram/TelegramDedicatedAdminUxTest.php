@@ -297,8 +297,9 @@ it('shows root-only control panel routes in Inline and persistent menus without 
                 && ($buttons[0][1]['callback_data'] ?? null) === 'menu:admin:servers'
                 && ($buttons[1][0]['callback_data'] ?? null) === 'admin:rwbackup:list:1'
                 && ($buttons[1][1]['callback_data'] ?? null) === 'menu:admin:roles'
-                && ($buttons[2][0]['callback_data'] ?? null) === 'admin:welcome:show'
-                && ($buttons[3][0]['callback_data'] ?? null) === 'menu:admin';
+                && ($buttons[2][0]['callback_data'] ?? null) === 'admin:ann:list:1'
+                && ($buttons[3][0]['callback_data'] ?? null) === 'admin:welcome:show'
+                && ($buttons[4][0]['callback_data'] ?? null) === 'menu:admin';
         }, index: 1);
     $bot->hearText(ReplyMenuLabels::CONTROL_PANEL)->reply()
         ->assertReplyText("⚙️ کنترل پنل\n\nبخش موردنظر را انتخاب کنید.");
