@@ -356,7 +356,6 @@ final readonly class SalesSubscriptionsUi
         }
 
         $keyboard->addRow(InlineKeyboardButton::make('📚 آموزش اتصال', callback_data: 'sales:help:apps'))
-            ->addRow(InlineKeyboardButton::make('↩️ نمایش ساده', callback_data: 'sales:subs:simple:'.$orderId.':'.$cursor))
             ->addRow(InlineKeyboardButton::make('🔄 بررسی دوباره', callback_data: 'sales:subs:view:'.$orderId.':'.$cursor))
             ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'sales:subs:list:'.$cursor))
             ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
@@ -468,8 +467,6 @@ final readonly class SalesSubscriptionsUi
                     : 'پرداخت تمدید فعلاً فعال نیست؛ هیچ مبلغی بابت این پیش‌نمایش دریافت نشده است.')
                 .'</p></details>';
             $plainButtons = clone $buttons;
-            $buttons->addRow(InlineKeyboardButton::make('↩️ نمایش ساده',
-                callback_data: 'sales:subs:renew:simple:'.$sourceId.':'.$cursor));
             try {
                 TelegramUi::editRichText($bot, new InputRichMessage(html: $html, is_rtl: true), $buttons);
             } catch (TelegramException $exception) {
@@ -889,7 +886,6 @@ final readonly class SalesSubscriptionsUi
         $text = trim(implode("\n", $lines));
         if ($rich && $items !== []) {
             $plainKeyboard = clone $keyboard;
-            $keyboard->addRow(InlineKeyboardButton::make('↩️ نمایش ساده', callback_data: 'sales:subs:search:simple:'.$cursor));
             $html .= '<p>برای بررسی وضعیت لحظه‌ای یا ویرایش نام، «جزئیات» همان سرویس را انتخاب کنید.</p>';
             if ($bot->isCallbackQuery()) {
                 TelegramUi::answerCallback($bot);
