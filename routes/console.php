@@ -95,8 +95,9 @@ Artisan::command('filtering:nodes:scan', function (): int {
     return 0;
 })->purpose('Collect read-only per-Node filtering signals and queue guarded Admin notices');
 
-// FLT-03: gated Iran regional TCP observations; no Telegram webhook/network work.
-Schedule::command('filtering:regional:scan')->everyTenMinutes()->withoutOverlapping(5)->runInBackground();
+// FLT-03: gated Iran regional TCP observations; offset from common :00/:30
+// scheduled work while retaining one read-only scan every ten minutes.
+Schedule::command('filtering:regional:scan')->cron('3-59/10 * * * *')->withoutOverlapping(5)->runInBackground();
 Artisan::command('filtering:regional:scan', function (): int {
     $count = app(ScanRegionalFiltering::class)->scan();
     $this->info("Recorded {$count} regional Node observation(s).");
