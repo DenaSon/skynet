@@ -304,7 +304,6 @@ final readonly class SalesHomeUi
         // The existing native two-column buy buttons remain available during
         // the in-message CTA client pilot. They continue the validated checkout.
         $simpleKeyboard = clone $keyboard;
-        $keyboard->addRow(InlineKeyboardButton::make('↩️ نمایش ساده', callback_data: 'sales:buy:simple:'.$page));
         try {
             TelegramUi::answerCallback($bot);
             TelegramUi::editRichText($bot, new InputRichMessage(html: $richHtml, is_rtl: true), $keyboard);
@@ -566,7 +565,6 @@ final readonly class SalesHomeUi
                 .'</p></details>'
                 .'<p>برای وضعیت لحظه‌ای و انقضا، جزئیات هر سرویس را بررسی کنید.</p>';
             $plainKeyboard = clone $keyboard;
-            $keyboard->addRow(InlineKeyboardButton::make('↩️ نمایش ساده', callback_data: 'sales:account:simple'));
             $this->renderRich($bot, $html, $text, $keyboard, $plainKeyboard);
 
             return;

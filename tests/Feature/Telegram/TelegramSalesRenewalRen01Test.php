@@ -200,7 +200,7 @@ it('shows an owner-only Sales preview with escaped plan name and no payment or p
                 && str_contains($html, 'هیچ مبلغی')
                 && str_contains($html, '<summary>📋 شرایط تمدید</summary>')
                 && str_contains($markup, 'sales:subs:view:')
-                && str_contains($markup, 'sales:subs:renew:simple:')
+                && ! str_contains($markup, 'sales:subs:renew:simple:')
                 && ! str_contains($markup, 'sales:payment:start:')
                 && ! str_contains($markup, 'sales:checkout:wallet:')
                 && ! str_contains($html, 'sensitive-credential');

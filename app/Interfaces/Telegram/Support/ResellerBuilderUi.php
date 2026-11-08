@@ -331,10 +331,6 @@ final readonly class ResellerBuilderUi
         if ($rich && TelegramBotContext::current()->key === 'sales') {
             $checkout = "sales:checkout:preview:{$quote->planId}:{$quote->durationDays}:".($quote->trafficGb ?? 0);
             $plainKeyboard = clone $keyboard;
-            $keyboard->addRow(InlineKeyboardButton::make(
-                '↩️ نمایش ساده',
-                callback_data: "builder:quote:simple:{$quote->planId}:".($quote->trafficGb ?? 0).":{$quote->durationDays}:{$page}",
-            ));
             $html = '<h4>🧮 پیش‌نمایش پلن سفارشی</h4>'
                 .'<p>📦 <b>'.TelegramUi::escape($this->safe($plan->name)).'</b>'
                 .'<br>📊 حجم: '.($quote->trafficGb === null ? 'نامحدود' : $quote->trafficGb.' گیگابایت')

@@ -204,7 +204,7 @@ it('preserves unlimited traffic as NULL and lets only the owner view managed-pla
             return str_contains($html, '#'.$order->id)
                 && str_contains($html, 'در انتظار پرداخت')
                 && str_contains($markup, 'sales:checkout:view:'.$order->id)
-                && str_contains($markup, 'sales:checkout:orders:simple');
+                && ! str_contains($markup, 'sales:checkout:orders:simple');
         });
     $bot->hearCallbackQueryData('sales:checkout:orders:simple')->reply()
         ->assertRaw(static function (Request $request): bool {

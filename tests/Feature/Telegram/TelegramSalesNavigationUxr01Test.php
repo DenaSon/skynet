@@ -213,7 +213,7 @@ it('keeps account and invite simple views usable with unchanged owner-safe actio
             && str_contains($html, '📋 سرویس‌های ثبت‌شده')
             && str_contains($html, '<summary>📊 سوابق مالی حساب</summary>')
             && str_contains($html, '<summary>🪪 اطلاعات عضویت</summary>')
-            && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:account:simple');
+            && ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:account:simple');
     }, index: 1);
     $bot->hearCallbackQueryData('sales:account:simple')->reply()->assertRaw(static function (Request $request): bool {
         $data = uxr01Payload($request);

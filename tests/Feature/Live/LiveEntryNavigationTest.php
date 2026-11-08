@@ -239,7 +239,8 @@ it('uses a direct Web App button in the account view and preserves the legacy ca
             return count($apps) === 1
                 && ($apps[0]['web_app']['url'] ?? null) === 'https://live.denagate.ir'
                 && ! array_key_exists('callback_data', $apps[0])
-                && ($last[0]['callback_data'] ?? null) === 'sales:account:simple';
+                && ($last[0]['web_app']['url'] ?? null) === 'https://live.denagate.ir'
+                && ! str_contains(json_encode($markup, JSON_THROW_ON_ERROR), 'sales:account:simple');
         }, index: 0);
 
     $bot->hearCallbackQueryData('sales:live')->reply()

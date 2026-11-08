@@ -141,7 +141,7 @@ it('counts only a bounded owner-scoped page and marks confirmed live status with
             return str_contains(rshRich($request), 'علی &amp; &lt;دوست&gt;')
                 && str_contains(rshRich($request), 'استعلام لحظه‌ای فقط برای')
                 && str_contains(rshRich($request), 'نامشخص')
-                && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:health:simple:0')
+                && ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:health:simple:0')
                 && ! str_contains(rshRich($request), 'private-health.test')
                 && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), "sales:subs:view:{$owned}:0")
                 && ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), "sales:subs:view:{$foreign}:0");
@@ -239,7 +239,7 @@ it('renders a compact RTL status table and retains every native health callback'
                 && ! str_contains($html, 'private-health.test')
                 && str_contains($buttons, "sales:subs:view:{$order}:0")
                 && str_contains($buttons, 'sales:health:0')
-                && str_contains($buttons, 'sales:health:simple:0')
+                && ! str_contains($buttons, 'sales:health:simple:0')
                 && str_contains($buttons, 'sales:report:30')
                 && str_contains($buttons, 'sales:home');
         }, index: 1);

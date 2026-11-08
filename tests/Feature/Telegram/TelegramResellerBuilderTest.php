@@ -141,7 +141,7 @@ it('renders real reseller prices and a guarded green checkout CTA in Rich withou
                 && str_contains($html, '44,100 تومان')
                 && str_contains($html, '<tg-button type="callback_data" style="success" data="'.$checkout.'">🛒 ادامه خرید</tg-button>')
                 && str_contains($buttons, $checkout)
-                && str_contains($buttons, "builder:quote:simple:{$id}:30:45:1")
+                && ! str_contains($buttons, "builder:quote:simple:{$id}:30:45:1")
                 && str_contains($buttons, 'builder:custom:'.$id.':1');
         }, index: 1,
     );

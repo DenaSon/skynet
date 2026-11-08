@@ -83,7 +83,6 @@ final readonly class ResellerSalesReportUi
         $keyboard = $this->keyboard($days);
         if ($rich && $html !== null) {
             $plainKeyboard = clone $keyboard;
-            $keyboard->addRow(InlineKeyboardButton::make('↩️ نمایش ساده', callback_data: 'sales:report:simple:'.$days));
             try {
                 TelegramUi::editRichText($bot, new InputRichMessage(html: $html, is_rtl: true), $keyboard);
             } catch (TelegramException $exception) {

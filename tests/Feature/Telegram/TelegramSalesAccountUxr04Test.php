@@ -127,7 +127,7 @@ it('calculates paid purchase totals for the entire owned history without countin
             && str_contains(uxr04RichHtml($request), 'خریدهای پرداخت‌شده: <b>2</b>')
             && str_contains(uxr04RichHtml($request), 'تاریخ عضویت:')
             && str_contains(uxr04RichHtml($request), '<details>')
-            && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:account:simple');
+            && ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:account:simple');
     });
     Http::assertNothingSent();
 });
