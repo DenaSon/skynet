@@ -23,6 +23,8 @@ final readonly class MonitorNodeFiltering
 
     private const BASELINE_MINUTES = 30;
 
+    private const RECOVERY_SECONDS = 600;
+
     private const MAX_NODES = 100;
 
     public function __construct(
@@ -150,7 +152,8 @@ final readonly class MonitorNodeFiltering
             $streak = $contiguous && $currentState === $priorState;
 
             if (in_array($cause, $causes, true)) {
-                if ($streak && $currentState === 'positive') {
+                if ($streak && $currentState === 'positive'
+                    && $this->hasSustainedPositive($history, $signal, $minute)) {
                     $causes = array_values(array_diff($causes, [$cause]));
                 }
             } elseif ($baseline && $streak && $currentState === 'zero') {
@@ -216,6 +219,33 @@ final readonly class MonitorNodeFiltering
         $data = json_decode($evidence, true);
 
         return is_array($data) ? $data : [];
+    }
+
+    /**
+     * Recover an affected signal only after ten uninterrupted minutes of
+     * valid positive samples. An unknown/zero sample or stale gap resets the
+     * sequence; existing 30-minute bounded history is sufficient.
+     */
+    private function hasSustainedPositive(
+        \Illuminate\Support\Collection $history,
+        string $signal,
+        CarbonImmutable $minute,
+    ): bool {
+        $cursor = $minute;
+        foreach ($history as $check) {
+            $observed = CarbonImmutable::parse($check->observed_at);
+            $gap = $cursor->timestamp - $observed->timestamp;
+            if ($gap <= 0 || $gap > self::WINDOW_SECONDS
+                || self::$signal($this->parseEvidence($check->evidence)) !== 'positive') {
+                return false;
+            }
+            if ($minute->timestamp - $observed->timestamp >= self::RECOVERY_SECONDS) {
+                return true;
+            }
+            $cursor = $observed;
+        }
+
+        return false;
     }
 
     /** @param array<string, mixed> $fields */
