@@ -116,7 +116,7 @@ final readonly class AdminAnnouncementsUi
 
         $this->retireCompeting($root, (int) $this->private->id($bot));
         Cache::put($this->draftKey($root), ['mode' => 'new', 'step' => 'title'], now()->addMinutes(10));
-        $this->notice($bot, '➕ ثبت اطلاعیه\n\nعنوان اطلاعیه را ارسال کنید (حداکثر ۱۲۰ نویسه).', $this->cancelKeyboard());
+        $this->notice($bot, "➕ ثبت اطلاعیه\n\nعنوان اطلاعیه را ارسال کنید (حداکثر ۱۲۰ نویسه).", $this->cancelKeyboard());
     }
 
     public function edit(Nutgram $bot, string $id, string $field): void
@@ -195,7 +195,7 @@ final readonly class AdminAnnouncementsUi
         if ($draft['mode'] === 'new' && $step === 'title') {
             $draft['step'] = 'body';
             Cache::put($key, $draft, now()->addMinutes(10));
-            $this->notice($bot, '✅ عنوان ثبت شد.\n\nاکنون متن اطلاعیه را ارسال کنید (حداکثر ۱۵۰۰ نویسه).',
+            $this->notice($bot, "✅ عنوان ثبت شد.\n\nاکنون متن اطلاعیه را ارسال کنید (حداکثر ۱۵۰۰ نویسه).",
                 $this->cancelKeyboard());
 
             return true;
@@ -253,7 +253,7 @@ final readonly class AdminAnnouncementsUi
         }
         $draft['step'] = 'confirm-new';
         Cache::put($key, $draft, now()->addMinutes(3));
-        $this->notice($bot, '📢 انتشار اطلاعیه\n\nبا تأیید، این اطلاعیه برای کاربران بات فروش قابل مشاهده خواهد بود.',
+        $this->notice($bot, "📢 انتشار اطلاعیه\n\nبا تأیید، این اطلاعیه برای کاربران بات فروش قابل مشاهده خواهد بود.",
             InlineKeyboardMarkup::make()
                 ->addRow(InlineKeyboardButton::make('✅ تأیید انتشار', callback_data: 'admin:ann:commit:'.$token, style: ButtonStyle::SUCCESS))
                 ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'admin:ann:cancel')));
@@ -305,8 +305,8 @@ final readonly class AdminAnnouncementsUi
             'id' => $number, 'revision' => (int) $row->revision, 'action' => $action, 'token' => $token,
         ], now()->addMinutes(3));
         $message = $action === 'publish'
-            ? '✅ انتشار اطلاعیه\n\nپس از تأیید، کاربران بات فروش می‌توانند این اطلاعیه را مشاهده کنند.'
-            : '⏸️ لغو انتشار\n\nاین اطلاعیه از فهرست مشتریان پنهان می‌شود؛ متن آن حفظ خواهد شد.';
+            ? "✅ انتشار اطلاعیه\n\nپس از تأیید، کاربران بات فروش می‌توانند این اطلاعیه را مشاهده کنند."
+            : "⏸️ لغو انتشار\n\nاین اطلاعیه از فهرست مشتریان پنهان می‌شود؛ متن آن حفظ خواهد شد.";
         $this->notice($bot, $message, InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make(
                 $action === 'publish' ? '✅ تأیید انتشار' : '⏸️ تأیید لغو انتشار',
