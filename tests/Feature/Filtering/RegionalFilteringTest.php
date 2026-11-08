@@ -231,6 +231,18 @@ it('preserves a regional recovery notice when only regional alerts are enabled',
         ->toBe(1);
 });
 
+it('keeps qualified rounds eligible across bounded five-target rotation cycles', function (): void {
+    $window = new ReflectionMethod(ScanRegionalFiltering::class, 'continuityWindowSeconds');
+
+    expect($window->invoke(null, 1))->toBe(720)
+        ->and($window->invoke(null, 5))->toBe(720)
+        ->and($window->invoke(null, 6))->toBe(1320)
+        ->and($window->invoke(null, 10))->toBe(1320)
+        ->and($window->invoke(null, 11))->toBe(1920)
+        ->and($window->invoke(null, 30))->toBe(3600)
+        ->and($window->invoke(null, 50))->toBe(3600);
+});
+
 it('is gated off in deployment defaults and uses a nonoverlapping ten-minute background scheduler', function (): void {
     $default = require base_path('config/filtering.php');
     expect($default['regional_monitor_enabled'])->toBeFalse()
