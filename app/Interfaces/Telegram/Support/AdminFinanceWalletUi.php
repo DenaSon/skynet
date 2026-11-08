@@ -705,7 +705,7 @@ final readonly class AdminFinanceWalletUi
                 '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
             ]);
             $digits = str_replace([',', '٬', ' '], '', $digits);
-            if (preg_match('/\\A[1-9][0-9]{0,7}\\z/D', $digits) !== 1
+            if (preg_match('/\A[1-9][0-9]{0,7}\z/D', $digits) !== 1
                 || (int) $digits > 10_000_000) {
                 $this->notice($bot, 'مبلغ واقعی بانک را به تومان وارد کنید؛ مانند 900000.');
 
@@ -715,10 +715,10 @@ final readonly class AdminFinanceWalletUi
             if ($bankAmountRials !== $row['amount_rials']) {
                 $this->render($bot,
                     '<b>⛔ مغایرت مبلغ واریزی</b>'
-                    ."\\n\\nدرخواست #{$row['id']}"
-                    ."\\nمبلغ درخواست: ".TelegramUi::toman($row['amount_rials']).' تومان'
-                    ."\\nمبلغ بانک: ".TelegramUi::toman($bankAmountRials).' تومان'
-                    ."\\n\\nتأیید مسدود است. مبلغ را دوباره بررسی کنید یا رسید را رد کنید.",
+                    ."\n\nدرخواست #{$row['id']}"
+                    ."\nمبلغ درخواست: ".TelegramUi::toman($row['amount_rials']).' تومان'
+                    ."\nمبلغ بانک: ".TelegramUi::toman($bankAmountRials).' تومان'
+                    ."\n\nتأیید مسدود است. مبلغ را دوباره بررسی کنید یا رسید را رد کنید.",
                     InlineKeyboardMarkup::make()
                         ->addRow(InlineKeyboardButton::make('❌ رد رسید',
                             callback_data: 'finance:topup:decision:'.$row['id'].':r', style: ButtonStyle::DANGER))
@@ -734,9 +734,9 @@ final readonly class AdminFinanceWalletUi
             ], now()->addMinutes(10));
             $this->render($bot,
                 '<b>🔎 بررسی شارژ · مرحله ۲ از ۳</b>'
-                ."\\n\\nدرخواست #{$row['id']} · مبلغ بانک: <b>"
+                ."\n\nدرخواست #{$row['id']} · مبلغ بانک: <b>"
                 .TelegramUi::toman($bankAmountRials).' تومان</b>'
-                ."\\n\\nمبلغ مطابقت دارد. حالا شناسه <b>واقعی و یکتای تراکنش بانکی</b> را وارد کنید.",
+                ."\n\nمبلغ مطابقت دارد. حالا شناسه <b>واقعی و یکتای تراکنش بانکی</b> را وارد کنید.",
                 $this->backTopups());
 
             return true;
@@ -751,7 +751,7 @@ final readonly class AdminFinanceWalletUi
             return true;
         }
         $reference = strtoupper(trim($value));
-        if (preg_match('/\\A[A-Z0-9_-]{6,64}\\z/D', $reference) !== 1) {
+        if (preg_match('/\A[A-Z0-9_-]{6,64}\z/D', $reference) !== 1) {
             $this->notice($bot, 'شناسه بانکی معتبر (۶ تا ۶۴ نویسه انگلیسی یا عدد) وارد کنید.');
 
             return true;
@@ -760,12 +760,12 @@ final readonly class AdminFinanceWalletUi
 
         $token = $this->tokens->issue($actor->userId, $row['id'], true, $reference, $bankAmountRials);
         $this->render($bot,
-            '<b>✅ تأیید نهایی شارژ · مرحله ۳ از ۳</b>'."\\n\\nکاربر #{$row['user_id']} · درخواست #{$row['id']}"
-            ."\\nمبلغ درخواست: <b>".TelegramUi::toman($row['amount_rials']).' تومان</b>'
-            ."\\nمبلغ تأییدشده بانک: <b>".TelegramUi::toman($bankAmountRials).' تومان</b>'
-            ."\\nشناسه بانک: ".TelegramUi::code($reference)
-            ."\\n\\n<b>تا زدن دکمه «تأیید و افزایش موجودی»، شارژ در صف باقی می‌ماند.</b>"
-            ."\\nآیا دریافت واقعی وجه را در گردش بانک بررسی کرده‌اید؟",
+            '<b>✅ تأیید نهایی شارژ · مرحله ۳ از ۳</b>'."\n\nکاربر #{$row['user_id']} · درخواست #{$row['id']}"
+            ."\nمبلغ درخواست: <b>".TelegramUi::toman($row['amount_rials']).' تومان</b>'
+            ."\nمبلغ تأییدشده بانک: <b>".TelegramUi::toman($bankAmountRials).' تومان</b>'
+            ."\nشناسه بانک: ".TelegramUi::code($reference)
+            ."\n\n<b>تا زدن دکمه «تأیید و افزایش موجودی»، شارژ در صف باقی می‌ماند.</b>"
+            ."\nآیا دریافت واقعی وجه را در گردش بانک بررسی کرده‌اید؟",
             InlineKeyboardMarkup::make()
                 ->addRow(InlineKeyboardButton::make('✅ تأیید و افزایش موجودی', callback_data: 'finance:topup:apply:'.$token, style: ButtonStyle::SUCCESS))
                 ->addRow(InlineKeyboardButton::make('◀️ انصراف', callback_data: 'finance:topups:1')));
