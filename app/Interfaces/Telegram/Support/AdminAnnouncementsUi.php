@@ -6,7 +6,6 @@ namespace App\Interfaces\Telegram\Support;
 
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Identity\Application\ResolveTelegramActor;
-use App\Modules\Identity\Application\TelegramActor;
 use App\Modules\Sales\Application\ManageAnnouncements;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
