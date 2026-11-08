@@ -67,6 +67,7 @@ it('permits a trusted root to confirm an independently checked payment once', fu
     $root = User::factory()->create();
     $root->syncRoles(['super-admin']);
     $bot = billingTelegramBot(888001, $root);
+    require base_path('app/Interfaces/Telegram/routes/legacy_text.php');
 
     $bot->hearText('/topups')->reply()->assertCalled('sendMessage');
     $bot->hearCallbackQueryData("billing:review:{$id}:a")->reply()->assertCalled('editMessageText');
