@@ -163,6 +163,31 @@ it('keeps the low-user alert guard when an unrelated regional incident has notif
         ->not->toContain('دسترسی نامطمئن از ایران');
 });
 
+it('uses the Node signal time when an older regional incident predates strong online activity', function (): void {
+    flt02EnableRootNotifications();
+    config()->set('filtering.regional_monitor_enabled', true);
+    config()->set('filtering.regional_alerts_enabled', false);
+
+    app(FilteringFoundation::class)->record(
+        FLT02_NODE, 'regional', 'suspicious', now()->subHours(2)->startOfMinute(),
+        ['causes' => ['regional_possible']],
+    );
+    flt02Step(3, 100, 100, 0);
+    flt02Step(4, 100, 100);
+    flt02Step(0, 100, 100);
+    flt02Step(0, 100, 100);
+
+    expect(DB::table('filtering_incidents')->count())->toBe(1)
+        ->and(DB::table('telegram_notification_deliveries')
+            ->where('event_type', 'FilteringOpened')->count())->toBe(1);
+
+    $notice = app(FilteringIncidentNotice::class)->messageFor(
+        DB::table('telegram_notification_deliveries')->first(),
+    );
+    expect($notice)->toContain('کاربران آنلاین صفر')
+        ->not->toContain('دسترسی نامطمئن از ایران');
+});
+
 it('retains independent traffic-zero alerts on low-user nodes', function (): void {
     flt02EnableRootNotifications();
     flt02Step(1, 100, 100, 0);
