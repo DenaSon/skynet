@@ -359,7 +359,7 @@ it('shows bold escaped catalog prices and sorts both plan lists by each buyers p
                 && $body['reply_markup']['inline_keyboard'][0][1]['callback_data'] === "catalog:detail:{$expensive}:1"
                 && $body['reply_markup']['inline_keyboard'][0][0]['text'] === '900,000 تومان'
                 && str_contains(sb02RichHtml($request), '<p>صفحه 2 از 2</p>')
-                && str_contains(json_encode($body['reply_markup'], JSON_THROW_ON_ERROR), 'sales:buy:simple:2');
+                && ! str_contains(json_encode($body['reply_markup'], JSON_THROW_ON_ERROR), 'sales:buy:simple:2');
         }, index: 1);
     $bot->hearCallbackQueryData('sales:buy:simple:2')->reply()
         ->assertRaw(static function (Request $request) use ($payload): bool {
@@ -399,7 +399,7 @@ it('buys directly from Rich catalog but retains read-only legacy quote links and
             && ! str_contains($html, 'sales:catalog:preview:')
             && ! str_contains($html, 'جزئیات این پلن')
             && str_contains($buttons, 'catalog:detail:'.$plan.':1')
-            && str_contains($buttons, 'sales:catalog:simple:1');
+            && ! str_contains($buttons, 'sales:catalog:simple:1');
     }, index: 1);
 
     // A button from an already-delivered old message must still open a
@@ -418,7 +418,7 @@ it('buys directly from Rich catalog but retains read-only legacy quote links and
                 && str_contains($html, $expectedPrice)
                 && str_contains($html, '<tg-button type="callback_data" style="success" data="catalog:detail:'.$plan.':1">🛒 ادامه خرید</tg-button>')
                 && ($isReseller === str_contains($html, 'تخفیف پنل فروش: 35٪'))
-                && str_contains((string) ($data['reply_markup'] ?? ''), 'sales:catalog:preview:simple:'.$plan.':1');
+                && ! str_contains((string) ($data['reply_markup'] ?? ''), 'sales:catalog:preview:simple:'.$plan.':1');
         }, index: 1);
 
     $bot->hearCallbackQueryData("sales:catalog:preview:simple:{$plan}:1")->reply()
@@ -524,7 +524,7 @@ it('shows real Sales main navigation and keeps bounded buyer-quoted ready plans 
                 : $body['reply_markup'];
 
             return substr_count(sb02RichHtml($request), '<tg-button-row>') === 1
-                && str_contains(json_encode($body, JSON_THROW_ON_ERROR), 'sales:buy:simple:2')
+                && ! str_contains(json_encode($body, JSON_THROW_ON_ERROR), 'sales:buy:simple:2')
                 && $markup['inline_keyboard'][0][1]['text'] === 'Plan home-6 · 30گیگ/30روز';
         }, index: 1);
     $buyer->assignRole('reseller');
