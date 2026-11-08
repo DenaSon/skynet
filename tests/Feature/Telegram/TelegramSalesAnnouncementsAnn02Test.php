@@ -3,9 +3,9 @@
 declare(strict_types=1);
 
 use App\Interfaces\Telegram\Support\ReplyMenuLabels;
-use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Interfaces\Telegram\Support\ReplyMenuRenderer;
 use App\Interfaces\Telegram\Support\SalesAnnouncementsUi;
+use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use GuzzleHttp\Psr7\Request as NutgramRequest;
