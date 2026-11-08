@@ -13,6 +13,7 @@ use App\Interfaces\Telegram\Support\TelegramUserContactLink;
 use App\Modules\Billing\Application\BrowsePhotoTopups;
 use App\Modules\Billing\Application\VerifyWalletOrderDebit;
 use App\Modules\Billing\Application\ViewWallet;
+use App\Modules\Filtering\Application\FilteringGroupDestination;
 use App\Modules\Filtering\Application\FilteringIncidentNotice;
 use App\Modules\Identity\Application\AdminCapabilityAccess;
 use App\Modules\Identity\Application\ResolveTelegramActor;
@@ -43,6 +44,36 @@ final readonly class TelegramNotificationSender
     public function send(object $delivery): void
     {
         $userId = (int) $delivery->recipient_user_id;
+        $bot = (string) $delivery->bot_key;
+
+        if (in_array($delivery->event_type, ['FilteringOpened', 'FilteringEscalated', 'FilteringRecovered'], true)) {
+            if ($bot !== 'admin' || ! (
+                (config('filtering.node_monitor_enabled', false) === true && config('filtering.node_alerts_enabled', false) === true)
+                || (config('filtering.regional_monitor_enabled', false) === true && config('filtering.regional_alerts_enabled', false) === true)
+            )) {
+                throw new NotificationUnavailable('not_authorized');
+            }
+
+            // Recheck a current trusted sponsor, but send exclusively to the
+            // configured private group, never to the sponsor's own chat.
+            $sponsorChat = $this->recipients->forActiveUser($userId);
+            $actor = $sponsorChat === null ? null : $this->actors->handle($sponsorChat);
+            if ($actor === null || $actor->userId !== $userId || ! $actor->canManageRoles()) {
+                throw new NotificationUnavailable('not_authorized');
+            }
+            $groupChat = FilteringGroupDestination::chatId();
+            if ($groupChat === null) {
+                throw new NotificationUnavailable('filtering_group_not_configured');
+            }
+            $message = app(FilteringIncidentNotice::class)->messageFor($delivery);
+            if ($message === null) {
+                throw new NotificationUnavailable('obsolete_filtering_notice');
+            }
+            $this->text('admin', $groupChat, $message, null, 'HTML', false);
+
+            return;
+        }
+
         $chat = $this->recipients->forActiveUser($userId);
 
         if ($chat === null || $chat < 1) {
@@ -68,26 +99,6 @@ final readonly class TelegramNotificationSender
         }
 
         $token = $this->token($bot);
-
-        if (in_array($delivery->event_type, ['FilteringOpened', 'FilteringEscalated', 'FilteringRecovered'], true)) {
-            if ($bot !== 'admin' || ! (
-                (config('filtering.node_monitor_enabled', false) === true && config('filtering.node_alerts_enabled', false) === true)
-                || (config('filtering.regional_monitor_enabled', false) === true && config('filtering.regional_alerts_enabled', false) === true)
-            )) {
-                throw new NotificationUnavailable('not_authorized');
-            }
-            $actor = $this->actors->handle($chat);
-            if ($actor === null || $actor->userId !== $userId || ! $actor->canManageRoles()) {
-                throw new NotificationUnavailable('not_authorized');
-            }
-            $message = app(FilteringIncidentNotice::class)->messageFor($delivery);
-            if ($message === null) {
-                throw new NotificationUnavailable('obsolete_filtering_notice');
-            }
-            $this->text('admin', $chat, $message, null, 'HTML');
-
-            return;
-        }
 
         if ($delivery->event_type === 'ReferralRewardCredited') {
             $orderId = (int) $delivery->order_id;
@@ -700,7 +711,8 @@ final readonly class TelegramNotificationSender
         }
         $result = Http::timeout(10)->asForm()->post($this->api($this->token($bot), 'sendMessage'), $fields);
 
-        $this->check($result, $bot, $chat);
+        // A group 403 must not mark an unrelated private Admin contact blocked.
+        $this->check($result, $bot, $chat > 0 ? $chat : null);
     }
 
     private function photo(string $bot, int $chat, string $fileId, string $sourceBot, string $caption, string $keyboard, bool $notification = true): void
