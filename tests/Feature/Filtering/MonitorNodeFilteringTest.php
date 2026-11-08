@@ -475,7 +475,8 @@ it('sends exactly one group notice per incident and protects recovery after root
     $otherRoot->syncRoles(['super-admin']);
     TelegramAccount::query()->create(['user_id' => $otherRoot->id, 'telegram_user_id' => 9980022]);
 
-    flt02Step(1, 10, 10, 0);
+    flt02Step(3, 10, 10, 0);
+    flt02Step(4, 10, 10);
     flt02Step(0, 100, 100);
     flt02Step(0, 100, 100);
 
@@ -531,7 +532,8 @@ it('fails closed with missing or malformed group ID and never falls back to priv
         config()->set('filtering.notification_group_chat_id', $invalid);
         expect(FilteringGroupDestination::chatId())->toBeNull();
     }
-    flt02Step(1, 10, 10, 0);
+    flt02Step(3, 10, 10, 0);
+    flt02Step(4, 10, 10);
     flt02Step(0, 100, 100);
     flt02Step(0, 100, 100);
 
@@ -550,7 +552,8 @@ it('rejects old private filtering outbox intents and group destination changes b
     $root->syncRoles(['super-admin']);
     TelegramAccount::query()->create(['user_id' => $root->id, 'telegram_user_id' => 9980021]);
 
-    flt02Step(1, 10, 10, 0);
+    flt02Step(3, 10, 10, 0);
+    flt02Step(4, 10, 10);
     flt02Step(0, 100, 100);
     flt02Step(0, 100, 100);
 
@@ -588,7 +591,8 @@ it('delivers group recovery only after a successfully sent group opening', funct
     $root->syncRoles(['super-admin']);
     TelegramAccount::query()->create(['user_id' => $root->id, 'telegram_user_id' => 9980021]);
 
-    flt02Step(1, 10, 10, 0);
+    flt02Step(3, 10, 10, 0);
+    flt02Step(4, 10, 10);
     flt02Step(0, 100, 100);
     flt02Step(0, 100, 100);
     $opening = DB::table('telegram_notification_deliveries')->where('event_type', 'FilteringOpened')->first();
@@ -622,7 +626,8 @@ it('never sends an already queued group notice if the ENV destination is removed
     $root->syncRoles(['super-admin']);
     TelegramAccount::query()->create(['user_id' => $root->id, 'telegram_user_id' => 9980021]);
 
-    flt02Step(1, 10, 10, 0);
+    flt02Step(3, 10, 10, 0);
+    flt02Step(4, 10, 10);
     flt02Step(0, 100, 100);
     flt02Step(0, 100, 100);
     $opening = DB::table('telegram_notification_deliveries')->where('event_type', 'FilteringOpened')->first();
@@ -654,7 +659,8 @@ it('does not mark a private Admin contact blocked when the group rejects a messa
         'updated_at' => now(),
     ]);
 
-    flt02Step(1, 10, 10, 0);
+    flt02Step(3, 10, 10, 0);
+    flt02Step(4, 10, 10);
     flt02Step(0, 100, 100);
     flt02Step(0, 100, 100);
     $opening = DB::table('telegram_notification_deliveries')->where('event_type', 'FilteringOpened')->first();
