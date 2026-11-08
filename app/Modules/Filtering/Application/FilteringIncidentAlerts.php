@@ -53,37 +53,47 @@ final readonly class FilteringIncidentAlerts
             return;
         }
 
-        $created = 0;
+        // The existing delivery table requires a real user FK. Use one
+        // currently authorized root as the delivery sponsor, never as the
+        // destination. Group notices are one-per-event, not one-per-root.
+        $groupChatId = FilteringGroupDestination::chatId();
+        if ($groupChatId === null) {
+            return; // No fallback to private Admin Bot messages.
+        }
+
+        $recipientUserId = null;
         foreach ($this->trust->allowedTelegramIds() as $telegramId) {
             $actor = $this->actors->handle((int) $telegramId);
-            if ($actor === null || ! $actor->canManageRoles()) {
-                continue;
-            }
-            $key = "flt:{$incidentId}:{$kind}:root:{$actor->userId}";
-            $inserted = DB::table('telegram_notification_deliveries')->insertOrIgnore([
-                'event_key' => $key,
-                'event_type' => $type,
-                'recipient_user_id' => $actor->userId,
-                'bot_key' => 'admin',
-                'state' => 'pending',
-                'available_at' => now(),
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-            if ($inserted === 1) {
-                $created++;
-                $deliveryId = (int) DB::table('telegram_notification_deliveries')
-                    ->where('event_key', $key)->value('id');
-                DB::afterCommit(static function () use ($deliveryId): void {
-                    DispatchTelegramNotification::dispatch($deliveryId);
-                });
+            if ($actor !== null && $actor->canManageRoles()) {
+                $recipientUserId = $actor->userId;
+                break;
             }
         }
-        if ($created > 0) {
+        if ($recipientUserId === null) {
+            return;
+        }
+
+        $key = FilteringGroupDestination::eventKey($incidentId, $kind, $groupChatId);
+        $inserted = DB::table('telegram_notification_deliveries')->insertOrIgnore([
+            'event_key' => $key,
+            'event_type' => $type,
+            'recipient_user_id' => $recipientUserId,
+            'bot_key' => 'admin',
+            'state' => 'pending',
+            'available_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        if ($inserted === 1) {
             DB::table('filtering_incidents')->where('id', $incidentId)->update([
                 'last_notified_state' => $incident->state,
                 'last_notified_at' => now(),
             ]);
+            $deliveryId = (int) DB::table('telegram_notification_deliveries')
+                ->where('event_key', $key)->value('id');
+            DB::afterCommit(static function () use ($deliveryId): void {
+                DispatchTelegramNotification::dispatch($deliveryId);
+            });
         }
     }
 }
