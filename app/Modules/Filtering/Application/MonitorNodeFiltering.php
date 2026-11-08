@@ -187,7 +187,7 @@ final readonly class MonitorNodeFiltering
             $after = $this->foundation->record($uuid, 'node', $outcome, $minute, $evidence);
             $id = $after['incident_id'] ?? $before['incident_id'];
             if ($id !== null && $outcome !== 'unknown') {
-                $this->alerts->sync($id);
+                $this->alerts->sync($id, 'node');
                 // A new Node signal may join an already-open regional
                 // incident. Confirm that signal too, not only first opens.
                 if (! isset($before['affected_modules']['node'])
