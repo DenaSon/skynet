@@ -163,9 +163,18 @@ final readonly class FilteringIncidentAlerts
             ->where('opened_at', '>=', now()->subMinutes(self::ONLINE_REPEAT_COOLDOWN_MINUTES))
             ->whereNotNull('last_notified_state')
             ->orderByDesc('opened_at')->limit(self::MAX_RECENT_INCIDENTS)
-            ->get(['opened_at']);
+            ->get(['id', 'opened_at']);
 
         foreach ($recent as $previous) {
+            // A queued, failed or unavailable intent is not proof that an
+            // administrator received the opening. Do not hide a new alert.
+            if (! DB::table('telegram_notification_deliveries')
+                ->where('event_type', 'FilteringOpened')
+                ->where('event_key', 'like', "flt:{$previous->id}:open:%")
+                ->where('state', 'sent')->exists()) {
+                continue;
+            }
+
             // The incident's modules are cleared upon resolution; its opening
             // Node check is the durable evidence of what triggered that alert.
             $check = DB::table('filtering_checks')
