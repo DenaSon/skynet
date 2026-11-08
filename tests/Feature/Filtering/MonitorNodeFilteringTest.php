@@ -142,6 +142,10 @@ it('opens on two consecutive online zero samples with positive baseline even whe
 
     flt02Step(2, 100, 300);
     expect(app(FilteringFoundation::class)->read(FLT02_NODE)['state'])->toBe('disrupted');
+    for ($i = 0; $i < 4; $i++) {
+        flt02Step(1, 110, 100);
+    }
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['state'])->toBe('disrupted');
     flt02Step(1, 110, 100);
     expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBeNull()
         ->and(DB::table('filtering_incidents')->where('state', 'resolved')->count())->toBe(1);
@@ -157,6 +161,10 @@ it('opens on two consecutive zero traffic snapshots even while online is positiv
 
     flt02Step(2, 5, 0);
     expect(app(FilteringFoundation::class)->read(FLT02_NODE)['state'])->toBe('disrupted');
+    for ($i = 0; $i < 4; $i++) {
+        flt02Step(2, 0, 3);
+    }
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['state'])->toBe('disrupted');
     flt02Step(2, 0, 3);
     expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBeNull();
 });
@@ -170,10 +178,14 @@ it('requires both affected signals to recover and never uses unknown as recovery
     flt02Step(null, null, null);
     flt02Step(2, 0, 0);
     flt02Step(1, 0, 0);
+    for ($i = 0; $i < 4; $i++) {
+        flt02Step(1, 0, 0);
+    }
     expect(app(FilteringFoundation::class)->read(FLT02_NODE)['affected_modules']['node']['causes'])
         ->toBe(['traffic_zero']);
-    flt02Step(3, 50, 0);
-    flt02Step(3, 50, 1);
+    for ($i = 0; $i < 6; $i++) {
+        flt02Step(3, 50, 1);
+    }
     expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBeNull();
 });
 
@@ -185,6 +197,10 @@ it('recovers a confirmed online signal even when unrelated traffic counters rema
         ->toBe(['online_zero']);
 
     flt02Step(3, null, null);
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['state'])->toBe('disrupted');
+    for ($i = 0; $i < 4; $i++) {
+        flt02Step(2, null, null);
+    }
     expect(app(FilteringFoundation::class)->read(FLT02_NODE)['state'])->toBe('disrupted');
     flt02Step(2, null, null);
     expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBeNull();
@@ -198,6 +214,10 @@ it('recovers a confirmed traffic signal even when the unrelated online count is 
         ->toBe(['traffic_zero']);
 
     flt02Step(null, 30, 0);
+    for ($i = 0; $i < 4; $i++) {
+        flt02Step(null, 30, 1);
+    }
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['state'])->toBe('disrupted');
     flt02Step(null, 30, 1);
     expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBeNull();
 });
@@ -295,7 +315,8 @@ it('records a single durable root notice and one recovery without leaking to sal
     $root->syncRoles(['super-admin']);
     TelegramAccount::query()->create(['user_id' => $root->id, 'telegram_user_id' => 9980021]);
 
-    flt02Step(1, 10, 10, 0);
+    flt02Step(3, 10, 10, 0);
+    flt02Step(4, 10, 10);
     flt02Step(0, 100, 100);
     flt02Step(0, 100, 100);
 
@@ -320,6 +341,10 @@ it('records a single durable root notice and one recovery without leaking to sal
     expect(DB::table('telegram_notification_deliveries')->where('event_type', 'FilteringOpened')->count())->toBe(1);
 
     flt02Step(3, 100, 100);
+    for ($i = 0; $i < 4; $i++) {
+        flt02Step(4, 100, 100);
+    }
+    expect(DB::table('telegram_notification_deliveries')->where('event_type', 'FilteringRecovered')->count())->toBe(0);
     flt02Step(4, 100, 100);
     $recovered = DB::table('telegram_notification_deliveries')->where('event_type', 'FilteringRecovered')->first();
     expect($recovered)->not->toBeNull()
