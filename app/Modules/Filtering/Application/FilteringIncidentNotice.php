@@ -6,6 +6,7 @@ namespace App\Modules\Filtering\Application;
 
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveApiClientFactory;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveReadApi;
+use App\Support\PersianCalendar;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -48,7 +49,7 @@ final readonly class FilteringIncidentNotice
             }
         }
 
-        $name = $row->node_uuid;
+        $name = 'نود '.strtoupper(substr((string) $row->node_uuid, 0, 8));
         try {
             foreach ((new RemnawaveReadApi($this->clients->make()))->nodes() as $node) {
                 if (strtolower($node->uuid) === $row->node_uuid && mb_strlen($node->name) <= 80) {
@@ -61,9 +62,9 @@ final readonly class FilteringIncidentNotice
         }
         $escaped = htmlspecialchars((string) $name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $heading = match ($kind) {
-            'open' => '⚠️ احتمال اختلال دسترسی کاربران',
-            'escalate' => '🚨 افزایش شدت اختلال',
-            default => '✅ رفع اختلال مشاهده‌شده',
+            'open' => '⚠️ نیازمند بررسی',
+            'escalate' => '🚨 اختلال ثبت‌شده',
+            default => '✅ وضعیت عادی شد',
         };
 
         $causes = [];
@@ -75,10 +76,10 @@ final readonly class FilteringIncidentNotice
             }
             foreach ($module['causes'] as $cause) {
                 $label = match ($cause) {
-                    'online_zero' => 'کاربران آنلاین: صفر',
-                    'traffic_zero' => 'ارسال و دریافت: صفر',
-                    'regional_possible' => 'اختلال احتمالی در دسترسی منطقه‌ای',
-                    'regional_likely' => 'اختلال گسترده در دسترسی منطقه‌ای',
+                    'online_zero' => 'کاربران آنلاین صفر',
+                    'traffic_zero' => 'ترافیک صفر',
+                    'regional_possible' => 'دسترسی نامطمئن از ایران',
+                    'regional_likely' => 'اختلال گسترده دسترسی از ایران',
                     default => null,
                 };
                 if ($label !== null) {
@@ -87,14 +88,16 @@ final readonly class FilteringIncidentNotice
             }
         }
 
-        return '<b>'.$heading.'</b>'
-            ."\n\nنود: <b>{$escaped}</b>"
-            ."\nشناسه: <code>".htmlspecialchars((string) $row->node_uuid, ENT_QUOTES, 'UTF-8').'</code>'
-            ."\nشروع بررسی: ".htmlspecialchars((string) $row->opened_at, ENT_QUOTES, 'UTF-8').' (UTC)'
-            ."\nآخرین مشاهده: ".htmlspecialchars((string) $row->last_observed_at, ENT_QUOTES, 'UTF-8').' (UTC)'
-            .($row->resolved_at === null ? '' : "\nزمان رفع: ".htmlspecialchars((string) $row->resolved_at, ENT_QUOTES, 'UTF-8').' (UTC)')
-            .($causes === [] ? '' : "\nنشانه‌ها: ".implode('، ', array_keys($causes)))
-            ."\n\nبرای مشاهده جزئیات، بخش «فیلترینگ» را در گفتگوی خصوصی بات مدیریتی باز کنید."
-            ."\n\nاین یک هشدار مبتنی بر نشانه‌هاست؛ فیلترینگ قطعی یا سلامت مسیر کاربر را اثبات نمی‌کند.";
+        $eventTime = match ($kind) {
+            'open' => $row->opened_at,
+            'recover' => $row->resolved_at,
+            default => $row->last_observed_at,
+        };
+        $time = PersianCalendar::utcDateTime((string) $eventTime);
+
+        return '<b>'.$heading.' — '.$escaped.'</b>'
+            .($kind === 'recover' || $causes === [] ? ''
+                : "\n".(count($causes) === 1 ? 'نشانه: ' : 'نشانه‌ها: ').implode('، ', array_keys($causes)))
+            ."\n🕒 ".$time.' (تهران)';
     }
 }
