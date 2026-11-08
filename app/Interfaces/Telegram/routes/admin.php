@@ -404,34 +404,34 @@ $bot->onCallbackQueryData('flt:home', function (Nutgram $bot): void {
 $bot->onCallbackQueryData('flt:home:simple', function (Nutgram $bot): void {
     app(AdminFilteringUi::class)->show($bot);
 });
-$bot->onCallbackQueryData('flt:nodes:{page}', function (Nutgram $bot, string $page): void {
-    app(AdminFilteringUi::class)->nodes($bot, $page);
-});
 $bot->onCallbackQueryData('flt:nodes:simple:{page}', function (Nutgram $bot, string $page): void {
     app(AdminFilteringUi::class)->nodes($bot, $page);
 });
-$bot->onCallbackQueryData('flt:access:{page}', function (Nutgram $bot, string $page): void {
-    app(AdminFilteringUi::class)->access($bot, $page);
+$bot->onCallbackQueryData('flt:nodes:{page}', function (Nutgram $bot, string $page): void {
+    app(AdminFilteringUi::class)->nodes($bot, $page);
 });
 $bot->onCallbackQueryData('flt:access:simple:{page}', function (Nutgram $bot, string $page): void {
     app(AdminFilteringUi::class)->access($bot, $page);
 });
-$bot->onCallbackQueryData('flt:node:{uuid}', function (Nutgram $bot, string $uuid): void {
-    app(AdminFilteringUi::class)->node($bot, $uuid);
+$bot->onCallbackQueryData('flt:access:{page}', function (Nutgram $bot, string $page): void {
+    app(AdminFilteringUi::class)->access($bot, $page);
 });
 $bot->onCallbackQueryData('flt:node:simple:{uuid}', function (Nutgram $bot, string $uuid): void {
     app(AdminFilteringUi::class)->node($bot, $uuid);
 });
-$bot->onCallbackQueryData('flt:history:{page}', function (Nutgram $bot, string $page): void {
-    app(AdminFilteringUi::class)->history($bot, $page);
+$bot->onCallbackQueryData('flt:node:{uuid}', function (Nutgram $bot, string $uuid): void {
+    app(AdminFilteringUi::class)->node($bot, $uuid);
 });
 $bot->onCallbackQueryData('flt:history:simple:{page}', function (Nutgram $bot, string $page): void {
     app(AdminFilteringUi::class)->history($bot, $page);
 });
-$bot->onCallbackQueryData('flt:incident:{id}', function (Nutgram $bot, string $id): void {
-    app(AdminFilteringUi::class)->incident($bot, $id);
+$bot->onCallbackQueryData('flt:history:{page}', function (Nutgram $bot, string $page): void {
+    app(AdminFilteringUi::class)->history($bot, $page);
 });
 $bot->onCallbackQueryData('flt:incident:simple:{id}', function (Nutgram $bot, string $id): void {
+    app(AdminFilteringUi::class)->incident($bot, $id);
+});
+$bot->onCallbackQueryData('flt:incident:{id}', function (Nutgram $bot, string $id): void {
     app(AdminFilteringUi::class)->incident($bot, $id);
 });
 $bot->onCallbackQueryData('flt:recheck:{uuid}', function (Nutgram $bot, string $uuid): void {
