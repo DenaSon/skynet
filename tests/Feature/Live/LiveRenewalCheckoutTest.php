@@ -129,7 +129,7 @@ function live4cCredit(User $root, User $buyer, int $amount = 1_000_000): void
     $ref = 'WALLET4C'.strtoupper(bin2hex(random_bytes(5)));
     $topup = app(RequestTopup::class)->handle($buyer->id, $amount, 'live4c:'.bin2hex(random_bytes(8)));
     app(SubmitTopupReference::class)->handle($buyer->id, $topup, $ref);
-    app(ReviewTopup::class)->handle($root->id, $topup, true, $ref);
+    app(ReviewTopup::class)->handle($root->id, $topup, true, $ref, (int) DB::table('billing_topups')->where('id', $topup)->value('amount_rials'));
 }
 
 function live4cNoDebit(): void

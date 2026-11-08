@@ -116,7 +116,7 @@ function wal03Credit(User $buyer, User $root, int $amount, string $ref): void
     app(SubmitTopupPhoto::class)->handle(
         $buyer->id, $id, 989001, 'wallet-photo-'.$ref, 'unique-wallet-'.$ref, random_int(1001, 90001),
     );
-    app(ReviewTopup::class)->handle($root->id, $id, true, $ref);
+    app(ReviewTopup::class)->handle($root->id, $id, true, $ref, (int) DB::table('billing_topups')->where('id', $id)->value('amount_rials'));
 }
 
 function wal03Ready(): void

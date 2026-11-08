@@ -108,7 +108,7 @@ function live3cCredit(User $root, User $buyer, int $amount = 1_000_000): void
     $reference = 'WALLETLIVE'.strtoupper(bin2hex(random_bytes(5)));
     $topup = app(RequestTopup::class)->handle($buyer->id, $amount, 'live3c:'.bin2hex(random_bytes(8)));
     app(SubmitTopupReference::class)->handle($buyer->id, $topup, $reference);
-    app(ReviewTopup::class)->handle($root->id, $topup, true, $reference);
+    app(ReviewTopup::class)->handle($root->id, $topup, true, $reference, (int) DB::table('billing_topups')->where('id', $topup)->value('amount_rials'));
 }
 
 function live3cAssertNoPurchase(): void

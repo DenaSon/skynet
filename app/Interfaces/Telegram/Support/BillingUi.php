@@ -2,6 +2,7 @@
 
 namespace App\Interfaces\Telegram\Support;
 
+use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Billing\Application\ListTopupReviews;
 use App\Modules\Billing\Application\RequestTopup;
 use App\Modules\Billing\Application\ReviewTopup;
@@ -11,6 +12,8 @@ use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\TelegramActor;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
@@ -180,6 +183,7 @@ final class BillingUi
             return;
         }
 
+        Cache::forget($this->amountKey($actor->userId));
         $rows = $this->reviews->handle($actor->userId);
         $lines = ['💳 درخواست‌های شارژ در انتظار بررسی', ''];
         $keyboard = InlineKeyboardMarkup::make();
@@ -228,15 +232,123 @@ final class BillingUi
             return;
         }
 
+        // Starting a legacy review invalidates competing Admin input drafts.
+        Cache::forget(TelegramBotContext::current()->cacheKey('telegram:finance:wallet:'.$actor->userId));
+        Cache::forget(TelegramBotContext::current()->cacheKey('telegram:bankreview:reference:'.$actor->userId));
         $approve = $decision === 'a';
+        if ($approve) {
+            Cache::put($this->amountKey($actor->userId), [
+                'topup' => $row['id'], 'reference' => $row['reference'],
+            ], now()->addMinutes(10));
+            $this->render($bot,
+                "🔎 بررسی شارژ · مرحله ۱ از ۲\n\nدرخواست #{$row['id']} | کاربر #{$row['user_id']}"
+                ."\nمبلغ درخواست: ".number_format(intdiv($row['amount_rials'], 10)).' تومان'
+                ."\nشناسه اعلامی: {$row['reference']}"
+                ."\n\nمبلغ واقعی مشاهده‌شده در بانک را به تومان وارد کنید.",
+                InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make('◀️ انصراف', callback_data: 'menu:billing-reviews')));
+
+            return;
+        }
+        Cache::forget($this->amountKey($actor->userId));
         $token = $this->tokens->issue($actor->userId, $row['id'], $approve, $row['reference']);
-        $operation = $approve ? 'تأیید و شارژ کیف پول' : 'رد درخواست بدون شارژ';
+        $operation = 'رد درخواست بدون شارژ';
 
         $keyboard = InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('✅ تأیید تصمیم', callback_data: 'billing:apply:'.$token))
             ->addRow(InlineKeyboardButton::make('انصراف', callback_data: 'menu:billing-reviews'));
 
         $this->render($bot, "⚠️ {$operation}\n\nدرخواست #{$row['id']} | کاربر #{$row['user_id']}\nمبلغ: ".number_format(intdiv($row['amount_rials'], 10))." تومان\nشناسه اعلامی: {$row['reference']}\n\nدر صورت تأیید، شما مسئول تطبیق واقعی تراکنش بانکی هستید. کد تأیید ۳ دقیقه اعتبار دارد.", $keyboard);
+    }
+
+    /** Legacy reference-based reviews must require a separately entered bank amount. */
+    public function text(Nutgram $bot, string $value): bool
+    {
+        if (TelegramBotContext::current()->key !== TelegramBotContext::ADMIN) {
+            return false;
+        }
+        $telegramId = $this->privateUser->id($bot);
+        $actor = $telegramId === null ? null : $this->resolve->handle($telegramId);
+        if ($actor === null) {
+            return false;
+        }
+        $key = $this->amountKey($actor->userId);
+        $state = Cache::get($key);
+        if (! is_array($state) || ! is_int($state['topup'] ?? null)
+            || ! is_string($state['reference'] ?? null)) {
+            return false;
+        }
+        if (str_starts_with(trim($value), '/') || in_array($value, ReplyMenuLabels::all(), true)) {
+            Cache::forget($key);
+
+            return false;
+        }
+        if (! $actor->canManageRoles()) {
+            Cache::forget($key);
+            $this->menus->denyAccess($bot);
+
+            return true;
+        }
+
+        $digits = strtr(trim($value), [
+            '۰' => '0', '۱' => '1', '۲' => '2', '۳' => '3', '۴' => '4',
+            '۵' => '5', '۶' => '6', '۷' => '7', '۸' => '8', '۹' => '9',
+            '٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4',
+            '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
+        ]);
+        $digits = str_replace([',', '٬', ' '], '', $digits);
+        if (preg_match('/\A[1-9][0-9]{0,7}\z/D', $digits) !== 1
+            || (int) $digits > 10_000_000) {
+            $this->notice($bot, 'مبلغ واقعی بانک را به تومان وارد کنید؛ مانند 900000.');
+
+            return true;
+        }
+
+        $topup = DB::table('billing_topups')->where('id', $state['topup'])
+            ->where('status', 'submitted')
+            ->where('payment_reference', $state['reference'])->first();
+        if ($topup === null) {
+            Cache::forget($key);
+            $this->notice($bot, 'درخواست دیگر قابل بررسی نیست.');
+
+            return true;
+        }
+
+        $verifiedAmountRials = (int) $digits * 10;
+        if ($verifiedAmountRials !== (int) $topup->amount_rials) {
+            $this->render($bot,
+                "⛔ مغایرت مبلغ واریزی\n\nمبلغ درخواست: "
+                .number_format(intdiv((int) $topup->amount_rials, 10))." تومان\nمبلغ بانک: "
+                .number_format(intdiv($verifiedAmountRials, 10))
+                ." تومان\n\nتأیید مسدود است. مبلغ را دوباره بررسی کنید یا رسید را رد کنید.",
+                InlineKeyboardMarkup::make()
+                    ->addRow(InlineKeyboardButton::make('❌ رد رسید',
+                        callback_data: 'billing:review:'.$topup->id.':r'))
+                    ->addRow(InlineKeyboardButton::make('◀️ انصراف', callback_data: 'menu:billing-reviews')));
+
+            return true;
+        }
+
+        Cache::forget($key);
+        $token = $this->tokens->issue(
+            $actor->userId, (int) $topup->id, true, $state['reference'], $verifiedAmountRials,
+        );
+        $this->render($bot,
+            "✅ تأیید نهایی شارژ · مرحله ۲ از ۲\n\nدرخواست #{$topup->id}"
+            ."\nمبلغ درخواست: ".number_format(intdiv((int) $topup->amount_rials, 10)).' تومان'
+            ."\nمبلغ تأییدشده بانک: ".number_format(intdiv($verifiedAmountRials, 10)).' تومان'
+            ."\nشناسه بانک: ".$state['reference']
+            ."\n\nپس از بررسی گردش واقعی بانک، تأیید نهایی کنید.",
+            InlineKeyboardMarkup::make()
+                ->addRow(InlineKeyboardButton::make('✅ تأیید و افزایش موجودی',
+                    callback_data: 'billing:apply:'.$token))
+                ->addRow(InlineKeyboardButton::make('◀️ انصراف', callback_data: 'menu:billing-reviews')));
+
+        return true;
+    }
+
+    private function amountKey(int $operatorId): string
+    {
+        return TelegramBotContext::current()->cacheKey('telegram:billing:legacy-amount:'.$operatorId);
     }
 
     public function applyReview(Nutgram $bot, string $token): void
@@ -262,7 +374,7 @@ final class BillingUi
         }
 
         try {
-            $this->reviewTopup->handle($actor->userId, $request['topup'], $request['approve'], $request['reference']);
+            $this->reviewTopup->handle($actor->userId, $request['topup'], $request['approve'], $request['reference'], $request['verified_amount_rials'] ?? null);
         } catch (ValidationException|AuthorizationException|UniqueConstraintViolationException) {
             $this->notice($bot, 'عملیات رد شد: درخواست تغییر کرده یا این تراکنش قبلاً تأیید شده است.');
 

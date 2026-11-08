@@ -74,7 +74,7 @@ final readonly class CreditVerifiedAdminBankTopup
 
             // Writes the shared bank claim, immutable verified receipt, balanced
             // postings, reviewed_by/reviewed_at and approval in this transaction.
-            $this->review->handle($actorId, $topupId, true, $reference);
+            $this->review->handle($actorId, $topupId, true, $reference, $amountRials);
 
             return $topupId;
         }, 3);

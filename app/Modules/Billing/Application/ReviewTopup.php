@@ -11,9 +11,9 @@ final class ReviewTopup
 {
     public function __construct(private readonly ClaimVerifiedBankReference $bankReferences) {}
 
-    public function handle(int $operatorId, int $topupId, bool $approve, string $expectedReference): bool
+    public function handle(int $operatorId, int $topupId, bool $approve, string $expectedReference, ?int $verifiedAmountRials = null): bool
     {
-        return DB::transaction(function () use ($operatorId, $topupId, $approve, $expectedReference): bool {
+        return DB::transaction(function () use ($operatorId, $topupId, $approve, $expectedReference, $verifiedAmountRials): bool {
             app(AssertBillingAccess::class)->topupReviewer($operatorId);
 
             $topup = DB::table('billing_topups')->where('id', $topupId)->lockForUpdate()->first();
@@ -30,6 +30,13 @@ final class ReviewTopup
             }
 
             if ($approve) {
+                // Require an independently entered bank amount for every approval path.
+                // Old callbacks or callers without this attestation must fail closed.
+                if ($verifiedAmountRials === null || $verifiedAmountRials < 1
+                    || $verifiedAmountRials !== (int) $topup->amount_rials) {
+                    throw ValidationException::withMessages(['amount' => 'Verified bank amount must exactly match the requested top-up.']);
+                }
+
                 $this->bankReferences->handle($operatorId, 'wallet_topup', $topupId, $expectedReference);
 
                 DB::table('billing_verified_receipts')->insert([

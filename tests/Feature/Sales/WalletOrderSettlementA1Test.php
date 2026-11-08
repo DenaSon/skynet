@@ -52,7 +52,7 @@ function a1Credit(User $buyer, int $amountRials, string $reference): void
 
     $topupId = app(RequestTopup::class)->handle($buyer->id, $amountRials, 'test:topup:'.bin2hex(random_bytes(8)));
     app(SubmitTopupReference::class)->handle($buyer->id, $topupId, $reference);
-    app(ReviewTopup::class)->handle($root->id, $topupId, true, strtoupper($reference));
+    app(ReviewTopup::class)->handle($root->id, $topupId, true, strtoupper($reference), (int) DB::table('billing_topups')->where('id', $topupId)->value('amount_rials'));
 }
 
 it('keeps all wallet purchase writes disabled by default', function (): void {

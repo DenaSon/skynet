@@ -4,7 +4,6 @@ use App\Interfaces\Telegram\Notifications\SubscriptionAlertMonitor;
 use App\Interfaces\Telegram\Notifications\TrialEndMonitor;
 use App\Interfaces\Telegram\Processing\SalesTelegramRuntime;
 use App\Interfaces\Telegram\Support\SalesNativeMenu;
-use App\Modules\Billing\Application\CorrectVerifiedTopupAmount;
 use App\Modules\Billing\Application\VerifyWalletOrderDebit;
 use App\Modules\Filtering\Application\MonitorNodeFiltering;
 use App\Modules\Filtering\Application\PruneFilteringHistory;
@@ -59,67 +58,6 @@ Artisan::command('sales:telegram:menu:register', function (): int {
 
     return 0;
 })->purpose('Register the native Telegram command menu on the Sales Bot only');
-
-// One incident only: receipt #56, customer #494. Always preview first.
-// Never scheduled, invoked from Telegram, or silently run during deploy.
-Artisan::command(
-    'finance:correct-topup-56 {--operator-id=} {--bank-amount-toman=} {--reason=} {--apply} {--confirm=}',
-    function (): int {
-        $operator = (string) $this->option('operator-id');
-        $bankAmount = (string) $this->option('bank-amount-toman');
-        if (preg_match('/\A[1-9][0-9]{0,14}\z/D', $operator) !== 1 || (int) $operator < 1
-            || $bankAmount !== '900000') {
-            $this->error('Specify a valid trusted --operator-id and independently verified --bank-amount-toman=900000.');
-
-            return 1;
-        }
-
-        $correction = app(CorrectVerifiedTopupAmount::class);
-        try {
-            $state = $correction->preview((int) $operator, 494, 56, 9_000_000);
-        } catch (Throwable $exception) {
-            $this->error('Preflight denied: source receipt, reviewer, ledger, or available balance needs review.');
-
-            return 1;
-        }
-
-        // Fail closed on any data drift from the reviewed production incident.
-        if ($state['wallet_id'] !== 2393 || $state['original_rials'] !== 90_000_000
-            || $state['adjustment_rials'] !== 81_000_000 || $state['balance_rials'] !== 86_425_000) {
-            $this->error('Unexpected wallet/topup/amount/balance. No write permitted.');
-
-            return 1;
-        }
-
-        $this->line('Receipt 56 | user 494 | wallet 2393');
-        $this->line('Original: 9,000,000 toman | bank verified: 900,000 toman');
-        $this->line('Correction: -8,100,000 toman | current: 8,642,500 toman | expected: 542,500 toman');
-
-        if ($this->option('apply') !== true) {
-            $this->info('DRY RUN: no changes made.');
-
-            return 0;
-        }
-        $reason = trim((string) $this->option('reason'));
-        if ((string) $this->option('confirm') !== 'CORRECT-56-8100000' || $reason === '' || mb_strlen($reason) > 200) {
-            $this->error('Apply requires --confirm=CORRECT-56-8100000 and --reason (1-200 chars).');
-
-            return 1;
-        }
-
-        try {
-            $journal = $correction->correct((int) $operator, 494, 56, 9_000_000, 86_425_000, $reason);
-        } catch (Throwable $exception) {
-            report($exception);
-            $this->error('Correction not confirmed. Review ledger and correction audit before any retry.');
-
-            return 1;
-        }
-        $this->info('Recorded one balanced audited correction. Journal #'.$journal.'. Verify wallet and report totals.');
-
-        return 0;
-    }
-)->purpose('One-off guarded reconciliation of verified overstatement in topup #56');
 
 // Node TCP targets are derived from RW Nodes + direct Hosts every run.
 // No manual UUID/IP mapping and no network probes in Telegram.

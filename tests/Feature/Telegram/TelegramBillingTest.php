@@ -67,11 +67,15 @@ it('permits a trusted root to confirm an independently checked payment once', fu
     $root = User::factory()->create();
     $root->syncRoles(['super-admin']);
     $bot = billingTelegramBot(888001, $root);
+    require base_path('app/Interfaces/Telegram/routes/legacy_text.php');
 
     $bot->hearText('/topups')->reply()->assertCalled('sendMessage');
     $bot->hearCallbackQueryData("billing:review:{$id}:a")->reply()->assertCalled('editMessageText');
+    $bot->hearText('۹۰۰۰۰۰')->reply()->assertCalled('sendMessage');
+    expect(DB::table('billing_journals')->count())->toBe(0);
+    $bot->hearText('۴۰۰۰۰۰')->reply()->assertCalled('sendMessage');
 
-    $token = app(BillingReviewTokens::class)->issue($root->id, $id, true, 'TRANSFER1234');
+    $token = app(BillingReviewTokens::class)->issue($root->id, $id, true, 'TRANSFER1234', 4000000);
     $bot->hearCallbackQueryData('billing:apply:'.$token)->reply()->assertCalled('editMessageText');
 
     expect(app(ViewWallet::class)->handle($reseller->id)->balanceRials)->toBe(4000000);

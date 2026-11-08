@@ -217,7 +217,7 @@ it('cannot credit the same bank transfer to another order or a reseller topup', 
     $buyer->assignRole('reseller');
     $topup = app(RequestTopup::class)->handle($buyer->id, 1_000_000, 'a2:topup:test:1');
     app(SubmitTopupReference::class)->handle($buyer->id, $topup, 'DUPA2TRANSFER');
-    expect(fn () => app(ReviewTopup::class)->handle($root->id, $topup, true, 'DUPA2TRANSFER'))
+    expect(fn () => app(ReviewTopup::class)->handle($root->id, $topup, true, 'DUPA2TRANSFER', (int) DB::table('billing_topups')->where('id', $topup)->value('amount_rials')))
         ->toThrow(QueryException::class);
 
     expect(DB::table('sales_bank_settlements')->count())->toBe(1)
@@ -232,7 +232,7 @@ it('does not treat an existing wallet verified receipt as new direct bank income
     $root = a2Account(990101, 'super-admin');
     $topup = app(RequestTopup::class)->handle($buyer->id, 1_000_000, 'a2:topup:test:2');
     app(SubmitTopupReference::class)->handle($buyer->id, $topup, 'BANKOLD123');
-    app(ReviewTopup::class)->handle($root->id, $topup, true, 'BANKOLD123');
+    app(ReviewTopup::class)->handle($root->id, $topup, true, 'BANKOLD123', (int) DB::table('billing_topups')->where('id', $topup)->value('amount_rials'));
 
     $order = a2Order($buyer);
     $claim = a2Submit(990117, $order);
@@ -368,7 +368,7 @@ it('blocks reuse of a reference reserved for a direct sale by a different wallet
     $topup = app(RequestTopup::class)->handle($buyer->id, 1_000_000, 'b0:duplicate:topup');
     app(SubmitTopupReference::class)->handle($buyer->id, $topup, 'B0SAMEBANKREF');
 
-    expect(fn () => app(ReviewTopup::class)->handle($root->id, $topup, true, 'B0SAMEBANKREF'))
+    expect(fn () => app(ReviewTopup::class)->handle($root->id, $topup, true, 'B0SAMEBANKREF', (int) DB::table('billing_topups')->where('id', $topup)->value('amount_rials')))
         ->toThrow(QueryException::class);
 
     expect(DB::table('billing_verified_receipts')->count())->toBe(0)
