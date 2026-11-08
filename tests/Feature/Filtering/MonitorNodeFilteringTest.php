@@ -172,6 +172,12 @@ it('throttles repeated online-only openings for thirty minutes without suppressi
     expect(DB::table('telegram_notification_deliveries')->where('event_type', 'FilteringOpened')->count())
         ->toBe(1);
 
+    $opening = DB::table('telegram_notification_deliveries')->where('event_type', 'FilteringOpened')->first();
+    app(DispatchTelegramNotification::class, ['deliveryId' => (int) $opening->id])
+        ->handle(app(TelegramNotificationSender::class));
+    expect(DB::table('telegram_notification_deliveries')->where('id', $opening->id)->value('state'))
+        ->toBe('sent');
+
     for ($i = 0; $i < 6; $i++) {
         flt02Step(4, 10, 10);
     }
@@ -192,6 +198,26 @@ it('throttles repeated online-only openings for thirty minutes without suppressi
     flt02Step(0, 10, 10);
     flt02Step(0, 10, 10);
     expect(DB::table('filtering_incidents')->count())->toBe(3)
+        ->and(DB::table('telegram_notification_deliveries')->where('event_type', 'FilteringOpened')->count())
+        ->toBe(2);
+});
+
+it('does not hide a new opening after an older notification was only queued', function (): void {
+    flt02EnableRootNotifications();
+    flt02Step(3, 10, 10, 0);
+    flt02Step(4, 10, 10);
+    flt02Step(0, 10, 10);
+    flt02Step(0, 10, 10);
+    expect(DB::table('telegram_notification_deliveries')->where('event_type', 'FilteringOpened')
+        ->where('state', 'pending')->count())->toBe(1);
+
+    for ($i = 0; $i < 6; $i++) {
+        flt02Step(4, 10, 10);
+    }
+    flt02Step(0, 10, 10);
+    flt02Step(0, 10, 10);
+
+    expect(DB::table('filtering_incidents')->count())->toBe(2)
         ->and(DB::table('telegram_notification_deliveries')->where('event_type', 'FilteringOpened')->count())
         ->toBe(2);
 });
