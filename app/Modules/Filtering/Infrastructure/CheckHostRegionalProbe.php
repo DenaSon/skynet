@@ -25,11 +25,11 @@ final class CheckHostRegionalProbe
 
     private const MAX_RESPONSE_BYTES = 160000;
 
-    private const POLL_TIMEOUT_NS = 12_000_000_000;
+    private const POLL_TIMEOUT_NS = 16_000_000_000;
 
     private const POLL_INTERVAL_MS = 1500;
 
-    private const MAX_POLL_ATTEMPTS = 9;
+    private const MAX_POLL_ATTEMPTS = 11;
 
     private const MIN_RESULT_HTTP_TIMEOUT_NS = 100_000_000;
 
