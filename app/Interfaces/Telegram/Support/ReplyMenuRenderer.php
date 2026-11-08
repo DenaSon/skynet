@@ -3,6 +3,7 @@
 namespace App\Interfaces\Telegram\Support;
 
 use App\Modules\Identity\Application\TelegramActor;
+use App\Modules\Sales\Application\ReadPublishedAnnouncements;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\KeyboardButton;
@@ -157,8 +158,10 @@ final class ReplyMenuRenderer
         if ($trialVisible) {
             $labels[] = ReplyMenuLabels::SALES_TRIAL;
         }
-        // Place announcements near the end; never reorder the Buy/Services row.
-        $labels[] = ReplyMenuLabels::SALES_ANNOUNCEMENTS;
+        // No announcement shortcut unless at least one item is currently published.
+        if (app(ReadPublishedAnnouncements::class)->hasPublished()) {
+            $labels[] = ReplyMenuLabels::SALES_ANNOUNCEMENTS;
+        }
         $keyboard = $this->keyboard($labels);
 
         // Native Telegram styles apply only to Sales, not legacy/Admin menus.
