@@ -93,7 +93,7 @@ function flt02EnableRootNotifications(): void
 {
     config()->set('filtering.node_alerts_enabled', true);
     config()->set('telegram_notifications.enabled', true);
-    config()->set('super_admin.telegram_ids', ['9980021']);
+    config()->set('super_admin.telegram_ids', ['9980021', '9980022']);
     Role::findOrCreate('super-admin', 'web');
 
     $root = User::factory()->create();
