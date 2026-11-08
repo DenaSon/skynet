@@ -473,7 +473,6 @@ final readonly class SalesTrialUi
             return;
         }
         $plainKeyboard = clone $keyboard;
-        $keyboard->addRow(InlineKeyboardButton::make('↩️ نمایش ساده', callback_data: 'sales:trial:simple'));
         if ($acknowledge) {
             TelegramUi::answerCallback($bot);
         }
