@@ -73,7 +73,7 @@ it('credits a manually verified transfer once using balanced liability and cash 
 
     app(SubmitTopupReference::class)->handle($reseller->id, $id, 'bank102938');
     expect(app(ListTopupReviews::class)->handle($root->id))->toHaveCount(1);
-    expect(app(ReviewTopup::class)->handle($root->id, $id, true, 'BANK102938'))->toBeTrue();
+    expect(app(ReviewTopup::class)->handle($root->id, $id, true, 'BANK102938', (int) DB::table('billing_topups')->where('id', $id)->value('amount_rials')))->toBeTrue();
 
     expect(app(ViewWallet::class)->handle($reseller->id)->balanceRials)->toBe(5000000)
         ->and(DB::table('billing_verified_receipts')->count())->toBe(1)
@@ -86,7 +86,7 @@ it('credits a manually verified transfer once using balanced liability and cash 
     $credits = (int) DB::table('billing_postings')->where('side', 'credit')->sum('amount_rials');
     expect($debits)->toBe(5000000)->and($credits)->toBe($debits);
 
-    expect(fn () => app(ReviewTopup::class)->handle($root->id, $id, true, 'BANK102938'))
+    expect(fn () => app(ReviewTopup::class)->handle($root->id, $id, true, 'BANK102938', (int) DB::table('billing_topups')->where('id', $id)->value('amount_rials')))
         ->toThrow(ValidationException::class);
 
     expect(DB::table('billing_journals')->count())->toBe(1);
@@ -104,7 +104,7 @@ it('never credits rejected or merely submitted requests', function (): void {
         ->and(DB::table('billing_journals')->count())->toBe(0)
         ->and(DB::table('billing_verified_receipts')->count())->toBe(0);
 
-    expect(fn () => app(ReviewTopup::class)->handle($root->id, $id, true, 'PROOF55555'))
+    expect(fn () => app(ReviewTopup::class)->handle($root->id, $id, true, 'PROOF55555', (int) DB::table('billing_topups')->where('id', $id)->value('amount_rials')))
         ->toThrow(ValidationException::class);
 });
 
@@ -118,9 +118,9 @@ it('rejects reuse of an already approved bank transfer reference by another rese
 
     app(SubmitTopupReference::class)->handle($one->id, $first, 'DUPLICATE999');
     app(SubmitTopupReference::class)->handle($two->id, $second, 'duplicate999');
-    app(ReviewTopup::class)->handle($root->id, $first, true, 'DUPLICATE999');
+    app(ReviewTopup::class)->handle($root->id, $first, true, 'DUPLICATE999', (int) DB::table('billing_topups')->where('id', $first)->value('amount_rials'));
 
-    expect(fn () => app(ReviewTopup::class)->handle($root->id, $second, true, 'DUPLICATE999'))
+    expect(fn () => app(ReviewTopup::class)->handle($root->id, $second, true, 'DUPLICATE999', (int) DB::table('billing_topups')->where('id', $second)->value('amount_rials')))
         ->toThrow(ValidationException::class);
 
     expect(app(ViewWallet::class)->handle($one->id)->balanceRials)->toBe(1000000)
@@ -149,10 +149,10 @@ it('requires current allowlisted root privileges to review even if a review butt
 
     $ordinary = User::factory()->admin()->create();
     expect(fn () => app(ListTopupReviews::class)->handle($ordinary->id))->toThrow(AuthorizationException::class)
-        ->and(fn () => app(ReviewTopup::class)->handle($ordinary->id, $id, true, 'CHECK123456'))->toThrow(AuthorizationException::class);
+        ->and(fn () => app(ReviewTopup::class)->handle($ordinary->id, $id, true, 'CHECK123456', (int) DB::table('billing_topups')->where('id', $id)->value('amount_rials')))->toThrow(AuthorizationException::class);
 
     config()->set('super_admin.telegram_ids', ['858585', '999999']);
-    expect(fn () => app(ReviewTopup::class)->handle($root->id, $id, true, 'CHECK123456'))->toThrow(AuthorizationException::class);
+    expect(fn () => app(ReviewTopup::class)->handle($root->id, $id, true, 'CHECK123456', (int) DB::table('billing_topups')->where('id', $id)->value('amount_rials')))->toThrow(AuthorizationException::class);
     expect(app(ViewWallet::class)->handle($reseller->id)->balanceRials)->toBe(0);
 });
 
@@ -172,12 +172,12 @@ it('records a member top-up photo without credit and only credits after a real r
     app(SubmitTopupPhoto::class)->handle($member->id, $id, 900001, 'tg-photo-file-one', 'tg-unique-one', 71);
     expect(DB::table('billing_topup_photos')->count())->toBe(1);
 
-    app(ReviewTopup::class)->handle($root->id, $id, true, 'REALBANK123');
+    app(ReviewTopup::class)->handle($root->id, $id, true, 'REALBANK123', (int) DB::table('billing_topups')->where('id', $id)->value('amount_rials'));
     expect(app(ViewWallet::class)->handle($member->id)->balanceRials)->toBe(500000)
         ->and(DB::table('billing_bank_reference_claims')->where('payment_reference', 'REALBANK123')->count())->toBe(1)
         ->and(DB::table('billing_topups')->where('id', $id)->value('payment_reference'))->toBe('REALBANK123')
         ->and(DB::table('billing_postings')->count())->toBe(2);
-    expect(fn () => app(ReviewTopup::class)->handle($root->id, $id, true, 'REALBANK123'))->toThrow(ValidationException::class);
+    expect(fn () => app(ReviewTopup::class)->handle($root->id, $id, true, 'REALBANK123', (int) DB::table('billing_topups')->where('id', $id)->value('amount_rials')))->toThrow(ValidationException::class);
 });
 
 it('blocks foreign, repeated and cross-purpose photo reuse without creating credit', function (): void {
@@ -210,4 +210,29 @@ it('rejects recharge requests over 10 million tomans without creating a financia
         ->toThrow(ValidationException::class);
     expect(DB::table('billing_topups')->count())->toBe(0)
         ->and(DB::table('billing_journals')->count())->toBe(0);
+});
+
+
+it('fails closed on absent or mismatched bank amount before any wallet or reference write', function (): void {
+    config()->set('billing.topups_enabled', true);
+    $root = billingRoot();
+    $reseller = billingReseller();
+    $id = app(RequestTopup::class)->handle($reseller->id, 90_000_000, 'topup:mismatch:1234');
+    app(SubmitTopupPhoto::class)->handle(
+        $reseller->id, $id, 900001, 'mismatch-photo-file', 'mismatch-photo-unique', 91,
+    );
+
+    expect(fn () => app(ReviewTopup::class)->handle($root->id, $id, true, 'BANK-MISMATCH'))->toThrow(ValidationException::class);
+    expect(fn () => app(ReviewTopup::class)->handle($root->id, $id, true, 'BANK-MISMATCH', 9_000_000))
+        ->toThrow(ValidationException::class);
+    expect(DB::table('billing_topups')->where('id', $id)->value('status'))->toBe('submitted')
+        ->and(DB::table('billing_bank_reference_claims')->count())->toBe(0)
+        ->and(DB::table('billing_verified_receipts')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe(0)
+        ->and(DB::table('billing_postings')->count())->toBe(0)
+        ->and(app(ViewWallet::class)->handle($reseller->id)->balanceRials)->toBe(0);
+
+    app(ReviewTopup::class)->handle($root->id, $id, true, 'BANK-MISMATCH', 90_000_000);
+    expect(app(ViewWallet::class)->handle($reseller->id)->balanceRials)->toBe(90_000_000)
+        ->and(DB::table('billing_journals')->count())->toBe(1);
 });

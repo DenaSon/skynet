@@ -131,6 +131,9 @@ it('requires the real bank reference and one-use confirmation for a Sales photo 
     $bot->hearCallbackQueryData('finance:topup:decision:'.$id.':a')->reply()->assertCalled('editMessageText');
     $bot->hearText('BAD')->reply()->assertCalled('sendMessage');
     expect(DB::table('billing_journals')->count())->toBe(0);
+    $bot->hearText('900000')->reply()->assertCalled('sendMessage');
+    expect(DB::table('billing_journals')->count())->toBe(0);
+    $bot->hearText('۸۰۰۰۰')->reply()->assertCalled('sendMessage');
     $bot->hearText('BANKVERIFIED9876')->reply()->assertRaw(static function (Request $request): bool {
         $data = fin01Data($request);
 
@@ -138,7 +141,7 @@ it('requires the real bank reference and one-use confirmation for a Sales photo 
             && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'finance:topup:apply:');
     });
     expect(DB::table('billing_journals')->count())->toBe(0);
-    $token = app(BillingReviewTokens::class)->issue($root->id, $id, true, 'BANKVERIFIED9876');
+    $token = app(BillingReviewTokens::class)->issue($root->id, $id, true, 'BANKVERIFIED9876', 800000);
     $bot->hearCallbackQueryData('finance:topup:apply:'.$token)->reply()->assertCalled('editMessageText');
     expect(app(ViewWallet::class)->handle($customer->id)->balanceRials)->toBe(800000)
         ->and(DB::table('billing_journals')->count())->toBe(1)

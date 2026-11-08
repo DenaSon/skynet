@@ -50,7 +50,7 @@ it('reads bounded customer wallets and journals as a root, including nonactive c
 
     $photo = app(BrowsePhotoTopups::class)->photo($root->id, $request);
     expect($photo['file_id'])->toBe('wallet-photo-file');
-    app(ReviewTopup::class)->handle($root->id, $request, true, 'REALDEPOSIT889901');
+    app(ReviewTopup::class)->handle($root->id, $request, true, 'REALDEPOSIT889901', (int) DB::table('billing_topups')->where('id', $request)->value('amount_rials'));
     $details = app(BrowseCustomerWallets::class)->detail($root->id, $buyer->id);
     expect($details['balance_rials'])->toBe(550000)
         ->and($details['entries'])->toHaveCount(1)
@@ -65,7 +65,7 @@ it('reads bounded customer wallets and journals as a root, including nonactive c
     $buyer->forceFill(['is_active' => false])->save();
     expect(app(BrowseCustomerWallets::class)->detail($root->id, $buyer->id)['active'])->toBeFalse();
     expect(app(BrowseCustomerWallets::class)->page($root->id)[0]['id'])->toBe($buyer->id);
-    expect(fn () => app(ReviewTopup::class)->handle($root->id, $request, true, 'REALDEPOSIT889901'))
+    expect(fn () => app(ReviewTopup::class)->handle($root->id, $request, true, 'REALDEPOSIT889901', (int) DB::table('billing_topups')->where('id', $request)->value('amount_rials')))
         ->toThrow(ValidationException::class);
     expect(DB::table('billing_journals')->count())->toBe(1);
 });
@@ -100,8 +100,8 @@ it('blocks stale, missing or reused deposit approvals and leaves rejected photos
     app(SubmitTopupPhoto::class)->handle($second->id, $b, 999004, 'topup-b-file', 'fin01-id-b', 32);
 
     expect(fn () => app(BrowsePhotoTopups::class)->photo($root->id, 999999))->toThrow(ValidationException::class);
-    app(ReviewTopup::class)->handle($root->id, $a, true, 'BANK-REF-UNIQUE');
-    expect(fn () => app(ReviewTopup::class)->handle($root->id, $b, true, 'BANK-REF-UNIQUE'))
+    app(ReviewTopup::class)->handle($root->id, $a, true, 'BANK-REF-UNIQUE', (int) DB::table('billing_topups')->where('id', $a)->value('amount_rials'));
+    expect(fn () => app(ReviewTopup::class)->handle($root->id, $b, true, 'BANK-REF-UNIQUE', (int) DB::table('billing_topups')->where('id', $b)->value('amount_rials')))
         ->toThrow(ValidationException::class);
     expect(app(ViewWallet::class)->handle($second->id)->balanceRials)->toBe(0);
     app(ReviewTopup::class)->handle($root->id, $b, false, 'PHOTO-REJECT');

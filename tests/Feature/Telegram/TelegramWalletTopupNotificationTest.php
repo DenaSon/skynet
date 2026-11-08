@@ -179,7 +179,7 @@ it('records one Sales review result after Admin confirms; never before or on a r
     $bot->setCommonUser(TelegramUser::make(916001, false, 'Root'));
     $bot->setCommonChat(Chat::make(916001, ChatType::PRIVATE));
 
-    $token = app(BillingReviewTokens::class)->issue($data['root']->id, $data['topup'], true, 'BANKVERIFIED7001');
+    $token = app(BillingReviewTokens::class)->issue($data['root']->id, $data['topup'], true, 'BANKVERIFIED7001', 500000);
     $bot->hearCallbackQueryData('finance:topup:apply:'.$token)->reply()->assertCalled('editMessageText');
 
     $review = DB::table('telegram_notification_deliveries')->where('event_type', 'WalletTopupApproved')->first();
@@ -214,7 +214,7 @@ it('adds the green panel application action only after a confirmed topup reaches
     $settings->save();
     $data = finNotSubmitted();
     DB::transaction(static function () use ($data): void {
-        app(ReviewTopup::class)->handle($data['root']->id, $data['topup'], true, 'BANKVERIFIED7002');
+        app(ReviewTopup::class)->handle($data['root']->id, $data['topup'], true, 'BANKVERIFIED7002', (int) DB::table('billing_topups')->where('id', $data['topup'])->value('amount_rials'));
         app(WalletTopupNotificationOutbox::class)->reviewed($data['topup']);
     });
     $delivery = DB::table('telegram_notification_deliveries')
@@ -254,7 +254,7 @@ it('adds the green panel application action only after a confirmed topup reaches
 it('delivers the original approved wallet message when panel threshold config is invalid', function (): void {
     $data = finNotSubmitted();
     DB::transaction(static function () use ($data): void {
-        app(ReviewTopup::class)->handle($data['root']->id, $data['topup'], true, 'BANKVERIFIED7003');
+        app(ReviewTopup::class)->handle($data['root']->id, $data['topup'], true, 'BANKVERIFIED7003', (int) DB::table('billing_topups')->where('id', $data['topup'])->value('amount_rials'));
         app(WalletTopupNotificationOutbox::class)->reviewed($data['topup']);
     });
     PanelWalletFunding::credit($data['buyer']->id, 5_000_000);
@@ -366,6 +366,7 @@ it('keeps wallet pending until a verified bank reference and the explicit final 
         ->and(count(app(BrowsePhotoTopups::class)->pending($data['root']->id)))->toBe(1);
 
     $callback = '';
+    $bot->hearText('۵۰۰۰۰')->reply()->assertCalled('sendMessage');
     $bot->hearText('BANKVERIFIED889900')->reply()->assertRaw(
         static function (PsrRequest $request) use (&$callback): bool {
             $payload = FakeNutgram::getActualData($request);

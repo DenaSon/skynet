@@ -79,7 +79,7 @@ it('separates admin credits from ordinary topups across financial reports withou
     );
     $normal = app(RequestTopup::class)->handle($buyer->id, 500_000, 'verified:customer:normal');
     app(SubmitTopupPhoto::class)->handle($buyer->id, $normal, 958112, 'photo-file-verified', 'verified-unique-photo', 14);
-    app(ReviewTopup::class)->handle($root->id, $normal, true, 'CUSTOMER-TOPUP-BANK');
+    app(ReviewTopup::class)->handle($root->id, $normal, true, 'CUSTOMER-TOPUP-BANK', (int) DB::table('billing_topups')->where('id', $normal)->value('amount_rials'));
 
     expect(DB::table('billing_topups')->where('id', $normal)->value('origin'))->toBe('customer')
         ->and(DB::table('billing_topups')->where('id', $manual)->value('origin'))->toBe('admin_verified_bank');
