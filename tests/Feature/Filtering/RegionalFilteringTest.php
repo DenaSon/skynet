@@ -47,6 +47,8 @@ beforeEach(function (): void {
     $GLOBALS['flt03_rate_limit'] = false;
     $GLOBALS['flt03_control_bad'] = false;
     $GLOBALS['flt03_bad_metadata'] = false;
+    $GLOBALS['flt03_metadata_override'] = null;
+    $GLOBALS['flt03_requested_nodes'] = [];
     Queue::fake();
     Sleep::fake();
     Http::preventStrayRequests();
@@ -69,12 +71,15 @@ beforeEach(function (): void {
             return Http::response(['error' => 'rate limited'], 429);
         }
         if ($url === 'https://check-host.net/nodes/hosts') {
-            return Http::response(['nodes' => $GLOBALS['flt03_bad_metadata'] ? [] : flt03Meta()]);
+            return Http::response(['nodes' => $GLOBALS['flt03_bad_metadata']
+                ? [] : ($GLOBALS['flt03_metadata_override'] ?? flt03Meta())]);
         }
         if (str_starts_with($url, 'https://check-host.net/check-tcp?')) {
             $control = str_contains($url, '1.1.1.1%3A443');
+            preg_match_all('/[?&]node=([^&]+)/', $url, $matches);
+            $GLOBALS['flt03_requested_nodes'] = array_map('rawurldecode', $matches[1]);
             $nodes = [];
-            foreach (array_keys(flt03Meta()) as $name) {
+            foreach ($GLOBALS['flt03_requested_nodes'] as $name) {
                 $nodes[$name] = ['ir', 'Iran', 'Tehran', '1.1.1.1', 'AS123'];
             }
 
@@ -88,9 +93,11 @@ beforeEach(function (): void {
             }
             $poll = $control ? 0 : ++$GLOBALS['flt03_result_poll_count'];
             $result = [];
-            for ($i = 1; $i <= 8; $i++) {
+            foreach ($GLOBALS['flt03_requested_nodes'] as $name) {
+                preg_match('/\\Air([1-8])\\.node\\.check-host\\.net\\z/D', $name, $nodeMatch);
+                $i = (int) $nodeMatch[1];
                 $failed = $control ? $GLOBALS['flt03_control_bad'] : in_array($i, $GLOBALS['flt03_failed'], true);
-                $result["ir{$i}.node.check-host.net"] = (in_array($i, $GLOBALS['flt03_pending'], true)
+                $result[$name] = (in_array($i, $GLOBALS['flt03_pending'], true)
                     || ($GLOBALS['flt03_delay_results'] && $poll === 1)
                     || (! $control && $poll <= $GLOBALS['flt03_pending_until_poll']))
                     ? null : ($failed
@@ -155,30 +162,31 @@ it('uses only current verified RW direct targets and the existing read-only clie
     Http::assertSent(static fn (Request $r): bool => $r->method() === 'GET');
 });
 
-it('normalizes successful, failed and pending probes and preserves ASN diversity', function (): void {
+it('selects four diverse Iranian probes and classifies completed TCP results', function (): void {
     $GLOBALS['flt03_failed'] = [1, 2];
-    $GLOBALS['flt03_pending'] = [3];
     $provider = app(CheckHostRegionalProbe::class);
     $nodes = $provider->iranNodes();
-    expect($nodes)->toHaveCount(8);
+    expect($nodes)->toHaveCount(4)
+        ->and(array_unique(array_column($nodes, 'asn')))->toHaveCount(4)
+        ->and(array_unique(array_column($nodes, 'city')))->toHaveCount(2);
     $result = $provider->tcp('8.8.8.8', 443, $nodes);
     expect($result)->toMatchArray([
-        'completed_probes' => 7, 'failed_probes' => 2, 'pending_probes' => 1,
-        'asn_count' => 7, 'failed_asn_count' => 2,
+        'completed_probes' => 4, 'failed_probes' => 2, 'pending_probes' => 0,
+        'asn_count' => 4, 'city_count' => 2, 'failed_asn_count' => 2,
     ]);
     expect(RegionalRoundClassifier::classify($result))->toBe('possible');
     Http::assertSent(static fn (Request $r): bool => str_contains($r->url(), 'host=8.8.8.8%3A443')
-        && substr_count($r->url(), '&node=') === 8);
+        && substr_count($r->url(), '&node=') === 4);
 });
 
-it('waits for delayed Iran results and stops after all eight TCP responses are valid', function (): void {
+it('waits for delayed Iran results and stops after all four TCP responses are valid', function (): void {
     $GLOBALS['flt03_delay_results'] = true;
     flt03Scan();
 
     $result = DB::table('filtering_checks')->where('module', 'regional')->first();
     $evidence = json_decode($result->evidence ?? '{}', true);
     expect($result->outcome)->toBe('healthy')
-        ->and($evidence['completed_probes'])->toBe(8)
+        ->and($evidence['completed_probes'])->toBe(4)
         ->and($evidence['pending_probes'])->toBe(0)
         ->and($GLOBALS['flt03_result_poll_count'])->toBe(2);
 });
@@ -189,9 +197,65 @@ it('keeps polling bounded delayed results beyond the old four-second window', fu
     $nodes = $provider->iranNodes();
     $result = $provider->tcp('8.8.8.8', 443, $nodes);
 
-    expect($result['completed_probes'])->toBe(8)
+    expect($result['completed_probes'])->toBe(4)
         ->and($result['pending_probes'])->toBe(0)
         ->and($GLOBALS['flt03_result_poll_count'])->toBe(6);
+});
+
+it('logs bounded poll timings for completed checks without exposing targets', function (): void {
+    Log::spy();
+    flt03Scan();
+
+    Log::shouldHaveReceived('info')->once()->withArgs(
+        static fn (string $message, array $context): bool => $message === 'Filtering Check-Host TCP results complete'
+            && $context['selected'] === 4 && $context['completed'] === 4
+            && $context['pending'] === 0 && $context['polls'] === 1
+            && is_int($context['start_http_ms'] ?? null)
+            && is_int($context['result_http_total_ms'] ?? null)
+            && is_int($context['result_http_max_ms'] ?? null)
+            && is_int($context['elapsed_ms'] ?? null)
+            && ! array_key_exists('ip', $context)
+            && ! array_key_exists('request_id', $context)
+            && ! array_key_exists('url', $context),
+    );
+});
+
+it('skips checks when four distinct Iran ASNs are unavailable', function (): void {
+    $meta = flt03Meta();
+    foreach ($meta as $name => $row) {
+        $meta[$name]['asn'] = str_starts_with($name, 'ir1.') ? 'AS2001' : 'AS2002';
+    }
+    $GLOBALS['flt03_metadata_override'] = $meta;
+
+    expect(app(CheckHostRegionalProbe::class)->iranNodes())->toBe([]);
+    flt03Scan();
+    expect(DB::table('filtering_checks')->where('module', 'regional')->value('outcome'))->toBe('unknown');
+    Http::assertNotSent(static fn (Request $request): bool => str_contains($request->url(), '/check-tcp?'));
+});
+
+it('skips checks when Iran candidates cannot cover two cities', function (): void {
+    $meta = flt03Meta();
+    foreach ($meta as $name => $row) {
+        $meta[$name]['location'][2] = 'Tehran';
+    }
+    $GLOBALS['flt03_metadata_override'] = $meta;
+
+    expect(app(CheckHostRegionalProbe::class)->iranNodes())->toBe([]);
+    flt03Scan();
+    expect(DB::table('filtering_checks')->where('module', 'regional')->value('outcome'))->toBe('unknown');
+    Http::assertNotSent(static fn (Request $request): bool => str_contains($request->url(), '/check-tcp?'));
+});
+
+it('rejects requests with more than four selected nodes', function (): void {
+    $provider = app(CheckHostRegionalProbe::class);
+    $nodes = $provider->iranNodes();
+    $extra = $nodes[0];
+    $extra['name'] = 'extra.node.check-host.net';
+    $extra['asn'] = 'AS9999';
+
+    expect(fn () => $provider->tcp('8.8.8.8', 443, [...$nodes, $extra]))
+        ->toThrow(InvalidArgumentException::class);
+    Http::assertSentCount(1);
 });
 
 it('skips near-zero Check-Host result timeouts instead of passing them to Guzzle', function (): void {
@@ -207,17 +271,18 @@ it('skips near-zero Check-Host result timeouts instead of passing them to Guzzle
 });
 
 it('retains completed TCP evidence when one regional result stays pending', function (): void {
-    $GLOBALS['flt03_pending'] = [8];
+    $GLOBALS['flt03_pending'] = [3];
     $GLOBALS['flt03_failed'] = [1];
     Log::spy();
 
     $provider = app(CheckHostRegionalProbe::class);
     $result = $provider->tcp('8.8.8.8', 443, $provider->iranNodes());
 
-    expect($result['completed_probes'])->toBe(7)
+    expect($result['completed_probes'])->toBe(3)
         ->and($result['failed_probes'])->toBe(1)
-        ->and($result['successful_probes'])->toBe(6)
+        ->and($result['successful_probes'])->toBe(2)
         ->and($result['pending_probes'])->toBe(1)
+        ->and(RegionalRoundClassifier::classify($result))->toBe('unknown')
         ->and($GLOBALS['flt03_result_poll_count'])->toBe(9);
 });
 
@@ -229,12 +294,13 @@ it('preserves pending on exhausted polling budget without inventing TCP failures
 
     expect($result['completed_probes'])->toBe(0)
         ->and($result['failed_probes'])->toBe(0)
-        ->and($result['pending_probes'])->toBe(8)
+        ->and($result['pending_probes'])->toBe(4)
         ->and($GLOBALS['flt03_result_poll_count'])->toBe(9);
     Log::shouldHaveReceived('notice')->once()->withArgs(
         static fn (string $message, array $context): bool => $message === 'Filtering Check-Host TCP results incomplete'
-            && $context['pending'] === 8 && $context['polls'] === 9
-            && $context['progress'][0] === ['completed' => 0, 'pending' => 8, 'invalid' => 0],
+            && $context['pending'] === 4 && $context['selected'] === 4 && $context['polls'] === 9
+            && isset($context['start_http_ms'], $context['result_http_total_ms'], $context['result_http_max_ms'], $context['elapsed_ms'])
+            && $context['progress'][0] === ['completed' => 0, 'pending' => 4, 'invalid' => 0],
     );
 });
 
@@ -245,7 +311,7 @@ it('recognizes explicit TCP connection messages but never interprets ambiguous m
     $GLOBALS['flt03_failed'] = [1, 2];
     $GLOBALS['flt03_message_failure'] = true;
     $result = $provider->tcp('8.8.8.8', 443, $nodes);
-    expect($result['completed_probes'])->toBe(8)
+    expect($result['completed_probes'])->toBe(4)
         ->and($result['failed_probes'])->toBe(2);
 
     $GLOBALS['flt03_failed'] = [];
@@ -254,14 +320,14 @@ it('recognizes explicit TCP connection messages but never interprets ambiguous m
     $result = $provider->tcp('8.8.8.8', 443, $nodes);
     expect($result['completed_probes'])->toBe(0)
         ->and($result['failed_probes'])->toBe(0)
-        ->and($result['pending_probes'])->toBe(8);
+        ->and($result['pending_probes'])->toBe(4);
 
     $GLOBALS['flt03_message_unknown'] = false;
     $GLOBALS['flt03_wrong_address'] = true;
     $result = $provider->tcp('8.8.8.8', 443, $nodes);
     expect($result['completed_probes'])->toBe(0)
         ->and($result['failed_probes'])->toBe(0)
-        ->and($result['pending_probes'])->toBe(8);
+        ->and($result['pending_probes'])->toBe(4);
 });
 
 it('logs sanitized provider transport failures and never treats HTTP 503 as TCP failure', function (): void {
@@ -275,6 +341,7 @@ it('logs sanitized provider transport failures and never treats HTTP 503 as TCP 
     Log::shouldHaveReceived('warning')->once()->withArgs(
         static fn (string $message, array $context): bool => $message === 'Filtering Check-Host request unavailable'
             && $context['phase'] === 'result' && $context['http_status'] === 503
+            && is_int($context['elapsed_ms'] ?? null)
             && ! array_key_exists('url', $context) && ! array_key_exists('ip', $context),
     );
 });
@@ -340,7 +407,7 @@ it('backs off all regional provider requests after a 429 response', function ():
     Http::assertSentCount(1);
 
     $this->travel(16)->minutes();
-    expect(app(CheckHostRegionalProbe::class)->iranNodes())->toHaveCount(8);
+    expect(app(CheckHostRegionalProbe::class)->iranNodes())->toHaveCount(4);
     Http::assertSentCount(2);
 });
 
@@ -375,11 +442,11 @@ it('rejects private and reserved destinations before any TCP provider request', 
 });
 
 it('does not promote repeated POSSIBLE or failed external control to LIKELY', function (): void {
-    $GLOBALS['flt03_failed'] = [1, 2, 3, 5];
+    $GLOBALS['flt03_failed'] = [1, 2];
     flt03Scan();
     flt03Scan(10);
     expect(app(FilteringFoundation::class)->read(FLT03_NODE)['state'])->toBe('suspicious');
-    $GLOBALS['flt03_failed'] = [1, 2, 3, 5, 6];
+    $GLOBALS['flt03_failed'] = [1, 2, 3, 5];
     flt03Scan(10);
     $GLOBALS['flt03_control_bad'] = true;
     flt03Scan(10);
