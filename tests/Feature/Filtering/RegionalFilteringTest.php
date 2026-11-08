@@ -309,6 +309,30 @@ it('keeps polling bounded delayed results beyond the old four-second window', fu
         ->and($GLOBALS['flt03_result_poll_count'])->toBe(6);
 });
 
+it('accepts TCP results first completed on the eleventh poll within the new bounded budget', function (): void {
+    $GLOBALS['flt03_pending_until_poll'] = 10;
+    $provider = app(CheckHostRegionalProbe::class);
+    $result = $provider->tcp('8.8.8.8', 443, $provider->iranNodes());
+
+    expect($result['completed_probes'])->toBe(4)
+        ->and($result['failed_probes'])->toBe(0)
+        ->and($result['pending_probes'])->toBe(0)
+        ->and($GLOBALS['flt03_result_poll_count'])->toBe(11);
+});
+
+it('sets the polling deadline to sixteen seconds without relaxing per-request timeouts', function (): void {
+    $type = new ReflectionClass(CheckHostRegionalProbe::class);
+
+    expect($type->getReflectionConstant('POLL_TIMEOUT_NS')->getValue())->toBe(16_000_000_000)
+        ->and($type->getReflectionConstant('POLL_INTERVAL_MS')->getValue())->toBe(1500)
+        ->and($type->getReflectionConstant('MAX_POLL_ATTEMPTS')->getValue())->toBe(11);
+
+    $timeout = new ReflectionMethod(CheckHostRegionalProbe::class, 'resultPollTimeout');
+    expect($timeout->invoke(null, 16_000_000_000))->toBe(6.0)
+        ->and($timeout->invoke(null, 100_000_000))->toBe(0.1)
+        ->and($timeout->invoke(null, 99_999_999))->toBeNull();
+});
+
 it('logs bounded poll timings for completed checks without exposing targets', function (): void {
     Log::spy();
     flt03Scan();
@@ -390,7 +414,7 @@ it('retains completed TCP evidence when one regional result stays pending', func
         ->and($result['successful_probes'])->toBe(2)
         ->and($result['pending_probes'])->toBe(1)
         ->and(RegionalRoundClassifier::classify($result))->toBe('unknown')
-        ->and($GLOBALS['flt03_result_poll_count'])->toBe(9);
+        ->and($GLOBALS['flt03_result_poll_count'])->toBe(11);
 });
 
 it('preserves pending on exhausted polling budget without inventing TCP failures', function (): void {
@@ -402,10 +426,10 @@ it('preserves pending on exhausted polling budget without inventing TCP failures
     expect($result['completed_probes'])->toBe(0)
         ->and($result['failed_probes'])->toBe(0)
         ->and($result['pending_probes'])->toBe(4)
-        ->and($GLOBALS['flt03_result_poll_count'])->toBe(9);
+        ->and($GLOBALS['flt03_result_poll_count'])->toBe(11);
     Log::shouldHaveReceived('notice')->once()->withArgs(
         static fn (string $message, array $context): bool => $message === 'Filtering Check-Host TCP results incomplete'
-            && $context['pending'] === 4 && $context['selected'] === 4 && $context['polls'] === 9
+            && $context['pending'] === 4 && $context['selected'] === 4 && $context['polls'] === 11
             && isset($context['start_http_ms'], $context['result_http_total_ms'], $context['result_http_max_ms'], $context['elapsed_ms'])
             && $context['progress'][0] === ['completed' => 0, 'pending' => 4, 'invalid' => 0],
     );
