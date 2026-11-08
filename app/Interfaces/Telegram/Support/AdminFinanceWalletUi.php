@@ -379,11 +379,11 @@ final readonly class AdminFinanceWalletUi
         Cache::forget(TelegramBotContext::current()->cacheKey('admin:ops:draft:'.$actor->userId));
         $this->clear($actor->userId);
         if ($decision === 'a') {
-            Cache::put($this->key($actor->userId), ['kind' => 'reference', 'topup' => $row['id']], now()->addMinutes(10));
+            Cache::put($this->key($actor->userId), ['kind' => 'bank_amount', 'topup' => $row['id']], now()->addMinutes(10));
             $this->render($bot,
-                '<b>🔎 بررسی شارژ · مرحله ۱ از ۲</b>'."\n\nدرخواست #{$row['id']} · کاربر #{$row['user_id']}"
+                '<b>🔎 بررسی شارژ · مرحله ۱ از ۳</b>'."\n\nدرخواست #{$row['id']} · کاربر #{$row['user_id']}"
                 ."\nمبلغ: <b>".TelegramUi::toman($row['amount_rials']).' تومان</b>'
-                ."\n\nهنوز شارژی ثبت نشده است. پس از تطبیق مبلغ در بانک، شناسه <b>واقعی و یکتای تراکنش</b> را ارسال کنید."
+                 ."\n\nمبلغ <b>واقعی مشاهده‌شده در گردش بانک</b> را به تومان وارد کنید.\nمثال: <code>900000</code>\nهنوز شارژی ثبت نشده است."
                 ."\n<blockquote>تصویر رسید به‌تنهایی دلیل واریز نیست. مبلغ و دریافت وجه باید جداگانه بررسی شوند.</blockquote>",
                 $this->backTopups());
 
@@ -657,7 +657,7 @@ final readonly class AdminFinanceWalletUi
         }
         $state = Cache::get($this->key($linked->userId));
         if (! is_array($state) || ! in_array($state['kind'] ?? null, [
-            'find', 'reference', 'manual_amount', 'manual_reference', 'manual_reason', 'manual_confirm',
+            'find', 'bank_amount', 'reference', 'manual_amount', 'manual_reference', 'manual_reason', 'manual_confirm',
         ], true)) {
             return false;
         }
@@ -689,27 +689,83 @@ final readonly class AdminFinanceWalletUi
 
             return true;
         }
-        $reference = strtoupper(trim($value));
-        if (preg_match('/\A[A-Z0-9_-]{6,64}\z/D', $reference) !== 1) {
-            $this->notice($bot, 'شناسه بانکی معتبر (۶ تا ۶۴ نویسه انگلیسی یا عدد) وارد کنید.');
-
-            return true;
-        }
         $row = $this->photo($actor->userId, (string) $state['topup']);
-        $this->clear($actor->userId);
         if ($row === null) {
+            $this->clear($actor->userId);
             $this->notice($bot, 'این رسید دیگر در صف بررسی نیست.');
 
             return true;
         }
 
-        $token = $this->tokens->issue($actor->userId, $row['id'], true, $reference);
+        if ($state['kind'] === 'bank_amount') {
+            $digits = strtr(trim($value), [
+                '۰' => '0', '۱' => '1', '۲' => '2', '۳' => '3', '۴' => '4',
+                '۵' => '5', '۶' => '6', '۷' => '7', '۸' => '8', '۹' => '9',
+                '٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4',
+                '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
+            ]);
+            $digits = str_replace([',', '٬', ' '], '', $digits);
+            if (preg_match('/\\A[1-9][0-9]{0,7}\\z/D', $digits) !== 1
+                || (int) $digits > 10_000_000) {
+                $this->notice($bot, 'مبلغ واقعی بانک را به تومان وارد کنید؛ مانند 900000.');
+
+                return true;
+            }
+            $bankAmountRials = (int) $digits * 10;
+            if ($bankAmountRials !== $row['amount_rials']) {
+                $this->render($bot,
+                    '<b>⛔ مغایرت مبلغ واریزی</b>'
+                    ."\\n\\nدرخواست #{$row['id']}"
+                    ."\\nمبلغ درخواست: ".TelegramUi::toman($row['amount_rials']).' تومان'
+                    ."\\nمبلغ بانک: ".TelegramUi::toman($bankAmountRials).' تومان'
+                    ."\\n\\nتأیید مسدود است. مبلغ را دوباره بررسی کنید یا رسید را رد کنید.",
+                    InlineKeyboardMarkup::make()
+                        ->addRow(InlineKeyboardButton::make('❌ رد رسید',
+                            callback_data: 'finance:topup:decision:'.$row['id'].':r', style: ButtonStyle::DANGER))
+                        ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'finance:topups:1')));
+
+                return true;
+            }
+
+            Cache::put($this->key($actor->userId), [
+                'kind' => 'reference',
+                'topup' => $row['id'],
+                'verified_amount_rials' => $bankAmountRials,
+            ], now()->addMinutes(10));
+            $this->render($bot,
+                '<b>🔎 بررسی شارژ · مرحله ۲ از ۳</b>'
+                ."\\n\\nدرخواست #{$row['id']} · مبلغ بانک: <b>"
+                .TelegramUi::toman($bankAmountRials).' تومان</b>'
+                ."\\n\\nمبلغ مطابقت دارد. حالا شناسه <b>واقعی و یکتای تراکنش بانکی</b> را وارد کنید.",
+                $this->backTopups());
+
+            return true;
+        }
+
+        $bankAmountRials = $state['verified_amount_rials'] ?? null;
+        if ($state['kind'] !== 'reference' || ! is_int($bankAmountRials)
+            || $bankAmountRials !== $row['amount_rials']) {
+            $this->clear($actor->userId);
+            $this->notice($bot, 'مبلغ بررسی‌شده معتبر نیست. رسید را دوباره از صف باز کنید.');
+
+            return true;
+        }
+        $reference = strtoupper(trim($value));
+        if (preg_match('/\\A[A-Z0-9_-]{6,64}\\z/D', $reference) !== 1) {
+            $this->notice($bot, 'شناسه بانکی معتبر (۶ تا ۶۴ نویسه انگلیسی یا عدد) وارد کنید.');
+
+            return true;
+        }
+        $this->clear($actor->userId);
+
+        $token = $this->tokens->issue($actor->userId, $row['id'], true, $reference, $bankAmountRials);
         $this->render($bot,
-            '<b>✅ تأیید نهایی شارژ · مرحله ۲ از ۲</b>'."\n\nکاربر #{$row['user_id']} · درخواست #{$row['id']}"
-            ."\nمبلغ: <b>".TelegramUi::toman($row['amount_rials']).' تومان</b>'
-            ."\nشناسه بانک: ".TelegramUi::code($reference)
-            ."\n\n<b>تا زدن دکمه «تأیید و افزایش موجودی»، شارژ در صف باقی می‌ماند.</b>"
-            ."\nبا تأیید نهایی، این مبلغ فقط یک‌بار اضافه می‌شود. آیا دریافت واقعی وجه را بررسی کرده‌اید؟",
+            '<b>✅ تأیید نهایی شارژ · مرحله ۳ از ۳</b>'."\\n\\nکاربر #{$row['user_id']} · درخواست #{$row['id']}"
+            ."\\nمبلغ درخواست: <b>".TelegramUi::toman($row['amount_rials']).' تومان</b>'
+            ."\\nمبلغ تأییدشده بانک: <b>".TelegramUi::toman($bankAmountRials).' تومان</b>'
+            ."\\nشناسه بانک: ".TelegramUi::code($reference)
+            ."\\n\\n<b>تا زدن دکمه «تأیید و افزایش موجودی»، شارژ در صف باقی می‌ماند.</b>"
+            ."\\nآیا دریافت واقعی وجه را در گردش بانک بررسی کرده‌اید؟",
             InlineKeyboardMarkup::make()
                 ->addRow(InlineKeyboardButton::make('✅ تأیید و افزایش موجودی', callback_data: 'finance:topup:apply:'.$token, style: ButtonStyle::SUCCESS))
                 ->addRow(InlineKeyboardButton::make('◀️ انصراف', callback_data: 'finance:topups:1')));
@@ -736,7 +792,7 @@ final readonly class AdminFinanceWalletUi
         }
         try {
             DB::transaction(function () use ($actor, $data): void {
-                $this->review->handle($actor->userId, $data['topup'], $data['approve'], $data['reference']);
+                $this->review->handle($actor->userId, $data['topup'], $data['approve'], $data['reference'], $data['verified_amount_rials'] ?? null);
                 $this->notifications->reviewed($data['topup']);
             });
         } catch (AuthorizationException|ValidationException|UniqueConstraintViolationException) {

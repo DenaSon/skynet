@@ -6,6 +6,7 @@ use App\Interfaces\Telegram\Handlers\SettingsHandler;
 use App\Interfaces\Telegram\Support\AdminAccountingUi;
 use App\Interfaces\Telegram\Support\AdminAnnouncementsUi;
 use App\Interfaces\Telegram\Support\AdminCloudflareDnsUi;
+use App\Interfaces\Telegram\Support\BillingUi;
 use App\Interfaces\Telegram\Support\AdminConfigProfileOperationsUi;
 use App\Interfaces\Telegram\Support\AdminFinanceWalletUi;
 use App\Interfaces\Telegram\Support\AdminHostOperationsUi;
@@ -33,6 +34,10 @@ $bot->onText('{volume}', function (Nutgram $bot, string $volume): void {
     }
 
     if (app(ManualPaymentUi::class)->text($bot, $volume)) {
+        return;
+    }
+
+    if (app(BillingUi::class)->text($bot, $volume)) {
         return;
     }
 

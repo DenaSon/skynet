@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Cache;
 
 final class BillingReviewTokens
 {
-    public function issue(int $operatorId, int $topupId, bool $approve, string $reference): string
+    public function issue(int $operatorId, int $topupId, bool $approve, string $reference, ?int $verifiedAmountRials = null): string
     {
         $token = bin2hex(random_bytes(12));
 
@@ -16,13 +16,14 @@ final class BillingReviewTokens
             'topup' => $topupId,
             'approve' => $approve,
             'reference' => $reference,
+            'verified_amount_rials' => $verifiedAmountRials,
         ], now()->addMinutes(3));
 
         return $token;
     }
 
     /**
-     * @return array{operator:int,topup:int,approve:bool,reference:string}|null
+     * @return array{operator:int,topup:int,approve:bool,reference:string,verified_amount_rials:?int}|null
      */
     public function consume(int $operatorId, string $token): ?array
     {
