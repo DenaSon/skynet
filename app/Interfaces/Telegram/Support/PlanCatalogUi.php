@@ -130,7 +130,6 @@ final readonly class PlanCatalogUi
         $plainText = implode("\n", $lines);
         if ($sales && $rich && $entries !== []) {
             $simpleKeyboard = clone $keyboard;
-            $keyboard->addRow(InlineKeyboardButton::make('↩️ نمایش ساده', callback_data: 'sales:catalog:simple:'.$page));
             $this->renderRich($bot, $richHtml, $plainText, $keyboard, $simpleKeyboard, 'HTML');
 
             return;
@@ -208,7 +207,6 @@ final readonly class PlanCatalogUi
                 .'<tg-button-row><tg-button type="callback_data" style="success" data="'.$callback.'">🛒 ادامه خرید</tg-button></tg-button-row>'
                 .'<details><summary>📋 شرایط پلن</summary><p>حجم و مدت اشتراک مطابق مشخصات بالا است. قیمت نهایی و آمادگی سرویس پیش از ثبت سفارش دوباره بررسی می‌شوند.</p></details>';
             $simpleKeyboard = clone $keyboard;
-            $keyboard->addRow(InlineKeyboardButton::make('↩️ نمایش ساده', callback_data: 'sales:catalog:preview:simple:'.$quote->planId.':'.$page));
             $this->renderRich($bot, $html, implode("\n", $lines), $keyboard, $simpleKeyboard);
 
             return;
