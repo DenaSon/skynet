@@ -24,8 +24,11 @@ final readonly class FilteringIncidentNotice
             default => null,
         };
 
-        if ($kind === null || ! preg_match('/\Aflt:([1-9][0-9]*):'.$kind.':root:([1-9][0-9]*)\z/D', (string) $delivery->event_key, $matches)
-            || (int) $matches[2] !== (int) $delivery->recipient_user_id) {
+        // Legacy personal intents and changed/unconfigured group IDs must
+        // never leak filtering notices into private Admin Bot conversations.
+        if ($kind === null || (string) $delivery->bot_key !== 'admin'
+            || ! preg_match('/\Aflt:([1-9][0-9]*):'.$kind.':group:(-[1-9][0-9]*)\z/D', (string) $delivery->event_key, $matches)
+            || (int) $matches[2] !== FilteringGroupDestination::chatId()) {
             return null;
         }
 
@@ -38,7 +41,7 @@ final readonly class FilteringIncidentNotice
         if ($kind !== 'open') {
             // Do not send a recovery/escalation without a previously delivered opening.
             $opening = DB::table('telegram_notification_deliveries')
-                ->where('event_key', "flt:{$id}:open:root:".(int) $delivery->recipient_user_id)
+                ->where('event_key', FilteringGroupDestination::eventKey($id, 'open', (int) $matches[2]))
                 ->where('event_type', 'FilteringOpened')->where('state', 'sent')->exists();
             if (! $opening) {
                 return null;
@@ -91,7 +94,7 @@ final readonly class FilteringIncidentNotice
             ."\nآخرین مشاهده: ".htmlspecialchars((string) $row->last_observed_at, ENT_QUOTES, 'UTF-8').' (UTC)'
             .($row->resolved_at === null ? '' : "\nزمان رفع: ".htmlspecialchars((string) $row->resolved_at, ENT_QUOTES, 'UTF-8').' (UTC)')
             .($causes === [] ? '' : "\nنشانه‌ها: ".implode('، ', array_keys($causes)))
-            ."\n\nبرای مشاهده جزئیات: /filtering"
+            ."\n\nبرای مشاهده جزئیات، بخش «فیلترینگ» را در گفتگوی خصوصی بات مدیریتی باز کنید."
             ."\n\nاین یک هشدار مبتنی بر نشانه‌هاست؛ فیلترینگ قطعی یا سلامت مسیر کاربر را اثبات نمی‌کند.";
     }
 }

@@ -45,15 +45,27 @@ final readonly class FilteringIncidentAlerts
             return;
         }
 
+        $groupChatId = FilteringGroupDestination::chatId();
+        if ($groupChatId === null) {
+            return; // No private-chat fallback.
+        }
+
+        // A preexisting private opening or a rotated group must not strand
+        // an active incident without an opening in its current group.
+        $groupOpening = FilteringGroupDestination::eventKey($incidentId, 'open', $groupChatId);
+        $hasGroupOpening = DB::table('telegram_notification_deliveries')
+            ->where('event_key', $groupOpening)->exists();
+
         $kind = null;
         $type = null;
-        if ($incident->state === 'resolved' && $incident->last_notified_state !== null
+        if ($incident->state !== 'resolved' && ! $hasGroupOpening) {
+            $kind = 'open';
+            $type = 'FilteringOpened';
+        } elseif ($incident->state === 'resolved' && $hasGroupOpening
+            && $incident->last_notified_state !== null
             && $incident->last_notified_state !== 'resolved') {
             $kind = 'recover';
             $type = 'FilteringRecovered';
-        } elseif ($incident->state !== 'resolved' && $incident->last_notified_state === null) {
-            $kind = 'open';
-            $type = 'FilteringOpened';
         } elseif ($incident->state === 'disrupted' && $incident->last_notified_state === 'suspicious') {
             $kind = 'escalate';
             $type = 'FilteringEscalated';
@@ -69,37 +81,42 @@ final readonly class FilteringIncidentAlerts
             return;
         }
 
-        $created = 0;
+        // The existing delivery table requires a real user FK. Use one
+        // currently authorized root as the delivery sponsor, never as the
+        // destination. Group notices are one-per-event, not one-per-root.
+        $recipientUserId = null;
         foreach ($this->trust->allowedTelegramIds() as $telegramId) {
             $actor = $this->actors->handle((int) $telegramId);
-            if ($actor === null || ! $actor->canManageRoles()) {
-                continue;
-            }
-            $key = "flt:{$incidentId}:{$kind}:root:{$actor->userId}";
-            $inserted = DB::table('telegram_notification_deliveries')->insertOrIgnore([
-                'event_key' => $key,
-                'event_type' => $type,
-                'recipient_user_id' => $actor->userId,
-                'bot_key' => 'admin',
-                'state' => 'pending',
-                'available_at' => now(),
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-            if ($inserted === 1) {
-                $created++;
-                $deliveryId = (int) DB::table('telegram_notification_deliveries')
-                    ->where('event_key', $key)->value('id');
-                DB::afterCommit(static function () use ($deliveryId): void {
-                    DispatchTelegramNotification::dispatch($deliveryId);
-                });
+            if ($actor !== null && $actor->canManageRoles()) {
+                $recipientUserId = $actor->userId;
+                break;
             }
         }
-        if ($created > 0) {
+        if ($recipientUserId === null) {
+            return;
+        }
+
+        $key = FilteringGroupDestination::eventKey($incidentId, $kind, $groupChatId);
+        $inserted = DB::table('telegram_notification_deliveries')->insertOrIgnore([
+            'event_key' => $key,
+            'event_type' => $type,
+            'recipient_user_id' => $recipientUserId,
+            'bot_key' => 'admin',
+            'state' => 'pending',
+            'available_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        if ($inserted === 1) {
             DB::table('filtering_incidents')->where('id', $incidentId)->update([
                 'last_notified_state' => $incident->state,
                 'last_notified_at' => now(),
             ]);
+            $deliveryId = (int) DB::table('telegram_notification_deliveries')
+                ->where('event_key', $key)->value('id');
+            DB::afterCommit(static function () use ($deliveryId): void {
+                DispatchTelegramNotification::dispatch($deliveryId);
+            });
         }
     }
 
@@ -157,6 +174,11 @@ final readonly class FilteringIncidentAlerts
 
     private function recentOnlineOnlyOpeningExists(object $incident): bool
     {
+        $groupChatId = FilteringGroupDestination::chatId();
+        if ($groupChatId === null) {
+            return false;
+        }
+
         $recent = DB::table('filtering_incidents')
             ->where('node_uuid', $incident->node_uuid)
             ->where('id', '!=', $incident->id)
@@ -170,7 +192,7 @@ final readonly class FilteringIncidentAlerts
             // administrator received the opening. Do not hide a new alert.
             if (! DB::table('telegram_notification_deliveries')
                 ->where('event_type', 'FilteringOpened')
-                ->where('event_key', 'like', "flt:{$previous->id}:open:%")
+                ->where('event_key', FilteringGroupDestination::eventKey((int) $previous->id, 'open', $groupChatId))
                 ->where('state', 'sent')->exists()) {
                 continue;
             }
