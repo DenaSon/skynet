@@ -488,8 +488,9 @@ it('sends exactly one group notice per incident and protects recovery after root
         ->and(DB::table('telegram_notification_deliveries')->count())->toBe(1);
 
     $notice = app(FilteringIncidentNotice::class)->messageFor($opened);
-    expect($notice)->toContain('گفتگوی خصوصی بات مدیریتی')
-        ->not->toContain('flt:home', 'token', 'password');
+    expect($notice)->toContain('⚠️ نیازمند بررسی —', 'نشانه: کاربران آنلاین صفر', '🕒', '(تهران)')
+        ->not->toContain('شناسه:', 'UTC', 'گفتگوی خصوصی', 'اثبات', 'token', 'password');
+    expect(substr_count($notice, "\n"))->toBe(2);
 
     app(DispatchTelegramNotification::class, ['deliveryId' => (int) $opened->id])
         ->handle(app(TelegramNotificationSender::class));
@@ -501,6 +502,16 @@ it('sends exactly one group notice per incident and protects recovery after root
     Http::assertNotSent(static fn (Request $request): bool => str_contains($request->url(), '/sendMessage')
         && (string) $request->data()['chat_id'] === '9980021');
 
+    $escalation = (object) [
+        'event_type' => 'FilteringEscalated',
+        'event_key' => 'flt:1:escalate:group:-1001234567890',
+        'bot_key' => 'admin',
+    ];
+    $escalationNotice = app(FilteringIncidentNotice::class)->messageFor($escalation);
+    expect($escalationNotice)->toContain('🚨 اختلال ثبت‌شده —', 'نشانه: کاربران آنلاین صفر', '🕒')
+        ->not->toContain('شناسه:', 'UTC', 'اثبات');
+    expect(substr_count($escalationNotice, "\n"))->toBe(2);
+
     flt02Step(0, 100, 100);
     expect(DB::table('telegram_notification_deliveries')->where('event_type', 'FilteringOpened')->count())->toBe(1);
 
@@ -511,6 +522,11 @@ it('sends exactly one group notice per incident and protects recovery after root
     $recovered = DB::table('telegram_notification_deliveries')->where('event_type', 'FilteringRecovered')->first();
     expect($recovered)->not->toBeNull()
         ->and(DB::table('telegram_notification_deliveries')->count())->toBe(2);
+
+    $recoveryNotice = app(FilteringIncidentNotice::class)->messageFor($recovered);
+    expect($recoveryNotice)->toContain('✅ وضعیت عادی شد —', '🕒', '(تهران)')
+        ->not->toContain('نشانه:', 'شناسه:', 'UTC', 'اثبات', 'گفتگوی خصوصی');
+    expect(substr_count($recoveryNotice, "\n"))->toBe(1);
 
     $root->forceFill(['is_active' => false])->save();
     app(DispatchTelegramNotification::class, ['deliveryId' => (int) $recovered->id])
