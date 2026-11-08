@@ -377,6 +377,7 @@ final readonly class AdminFinanceWalletUi
             return;
         }
         Cache::forget(TelegramBotContext::current()->cacheKey('admin:ops:draft:'.$actor->userId));
+        Cache::forget(TelegramBotContext::current()->cacheKey('telegram:bankreview:reference:'.$actor->userId));
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:billing:legacy-amount:'.$actor->userId));
         $this->clear($actor->userId);
         if ($decision === 'a') {
