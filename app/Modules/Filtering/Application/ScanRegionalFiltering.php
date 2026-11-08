@@ -148,12 +148,14 @@ final readonly class ScanRegionalFiltering
                 $evidence['causes'] = $causes;
             }
 
-            DB::transaction(function () use ($uuid, $outcome, $observed, $evidence): void {
+            DB::transaction(function () use ($uuid, $outcome, $observed, $evidence, $round, $consecutive, $prior): void {
                 $before = $this->foundation->read($uuid);
                 $after = $this->foundation->record($uuid, 'regional', $outcome, $observed, $evidence);
                 $incident = $after['incident_id'] ?? $before['incident_id'];
                 if ($incident !== null && $outcome !== 'unknown') {
-                    $this->alerts->sync($incident);
+                    $confirmed = in_array($round, ['possible', 'likely'], true)
+                        && $consecutive && in_array($prior, ['possible', 'likely'], true);
+                    $this->alerts->sync($incident, 'regional', $confirmed);
                 }
             }, 3);
             $checked++;
