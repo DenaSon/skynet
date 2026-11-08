@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Interfaces\Telegram\Support\ReplyMenuLabels;
+use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Interfaces\Telegram\Support\ReplyMenuRenderer;
 use App\Interfaces\Telegram\Support\SalesAnnouncementsUi;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
@@ -93,7 +94,7 @@ function ann02Rich(NutgramRequest $request): array
 it('preserves Sales first-row priority and exposes announcements on both home keyboards', function (): void {
     $buyer = ann02User();
     $bot = ann02Bot($buyer);
-    $reply = app(ReplyMenuRenderer::class)->salesKeyboard(app(\App\Modules\Identity\Application\ResolveTelegramActor::class)->handle(976201));
+    $reply = app(ReplyMenuRenderer::class)->salesKeyboard(app(ResolveTelegramActor::class)->handle(976201));
     expect($reply->keyboard[0][0]->text)->toBe(ReplyMenuLabels::SALES_BUY)
         ->and($reply->keyboard[0][1]->text)->toBe(ReplyMenuLabels::SALES_SUBSCRIPTIONS)
         ->and(json_encode($reply, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR))
