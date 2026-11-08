@@ -162,7 +162,7 @@ function ren02WalletPay(array $data, int $renewalOrder): void
     $topup = app(RequestTopup::class)->handle($data['buyer']->id, 1_500_000, 'ren02-topup:'.bin2hex(random_bytes(8)));
     app(SubmitTopupPhoto::class)->handle($data['buyer']->id, $topup, $data['telegram'],
         'ren02-wallet-photo-'.$topup, 'ren02-wallet-unique-'.$topup, $topup + 300);
-    app(ReviewTopup::class)->handle($data['root']->id, $topup, true, 'REN02WALLET'.$topup);
+    app(ReviewTopup::class)->handle($data['root']->id, $topup, true, 'REN02WALLET'.$topup, (int) DB::table('billing_topups')->where('id', $topup)->value('amount_rials'));
     app(SettleWalletOrder::class)->handle(SubscriptionViewer::telegram($data['telegram']), $renewalOrder);
 }
 
