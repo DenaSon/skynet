@@ -30,18 +30,39 @@ final readonly class FilteringIncidentAlerts
      * Existing notification deliveries handle retries and leases. This method
      * makes no HTTP request and never sends directly from the monitor.
      */
-    public function sync(int $incidentId): void
+    public function sync(int $incidentId, string $sourceModule, bool $regionalConfirmed = false): void
     {
-        if (! (
-            (config('filtering.node_monitor_enabled', false) === true && config('filtering.node_alerts_enabled', false) === true)
-            || (config('filtering.regional_monitor_enabled', false) === true && config('filtering.regional_alerts_enabled', false) === true)
-        ) || config('telegram_notifications.enabled', false) !== true) {
+        $nodeAlerts = config('filtering.node_monitor_enabled', false) === true
+            && config('filtering.node_alerts_enabled', false) === true;
+        $regionalAlerts = config('filtering.regional_monitor_enabled', false) === true
+            && config('filtering.regional_alerts_enabled', false) === true;
+        if (config('telegram_notifications.enabled', false) !== true
+            || (! $nodeAlerts && ! $regionalAlerts)
+            || ! in_array($sourceModule, ['node', 'regional'], true)) {
             return;
         }
 
         $incident = DB::table('filtering_incidents')->where('id', $incidentId)
             ->lockForUpdate()->first();
         if ($incident === null) {
+            return;
+        }
+
+        // Recovery closes the shared incident and may be observed by either
+        // scanner. For openings/escalations only the currently enabled source
+        // can initiate an alert, and regional probes need two valid rounds.
+        $resolved = $incident->state === 'resolved';
+        if (! $resolved && (
+            ($sourceModule === 'node' && ! $nodeAlerts)
+            || ($sourceModule === 'regional' && (! $regionalAlerts || ! $regionalConfirmed))
+        )) {
+            return;
+        }
+
+        $modules = json_decode((string) $incident->affected_modules, true);
+        $sourceState = is_array($modules) && is_array($modules[$sourceModule] ?? null)
+            ? ($modules[$sourceModule]['state'] ?? null) : null;
+        if (! $resolved && ! in_array($sourceState, ['suspicious', 'disrupted'], true)) {
             return;
         }
 
@@ -58,15 +79,15 @@ final readonly class FilteringIncidentAlerts
 
         $kind = null;
         $type = null;
-        if ($incident->state !== 'resolved' && ! $hasGroupOpening) {
+        if (! $resolved && ! $hasGroupOpening) {
             $kind = 'open';
             $type = 'FilteringOpened';
-        } elseif ($incident->state === 'resolved' && $hasGroupOpening
+        } elseif ($resolved && $hasGroupOpening
             && $incident->last_notified_state !== null
             && $incident->last_notified_state !== 'resolved') {
             $kind = 'recover';
             $type = 'FilteringRecovered';
-        } elseif ($incident->state === 'disrupted' && $incident->last_notified_state === 'suspicious') {
+        } elseif ($sourceState === 'disrupted' && $incident->last_notified_state === 'suspicious') {
             $kind = 'escalate';
             $type = 'FilteringEscalated';
         }
@@ -77,7 +98,7 @@ final readonly class FilteringIncidentAlerts
         // Preserve every SQL incident and sample, but only notify on
         // online-only zero incidents after meaningful prior user activity.
         // Independent traffic/regional evidence must bypass this noise guard.
-        if ($kind === 'open' && $this->deferOnlineOnlyOpening($incident)) {
+        if ($kind === 'open' && $sourceModule === 'node' && $this->deferOnlineOnlyOpening($incident)) {
             return;
         }
 
@@ -109,7 +130,7 @@ final readonly class FilteringIncidentAlerts
         ]);
         if ($inserted === 1) {
             DB::table('filtering_incidents')->where('id', $incidentId)->update([
-                'last_notified_state' => $incident->state,
+                'last_notified_state' => $resolved ? 'resolved' : $sourceState,
                 'last_notified_at' => now(),
             ]);
             $deliveryId = (int) DB::table('telegram_notification_deliveries')
@@ -127,7 +148,7 @@ final readonly class FilteringIncidentAlerts
     private function deferOnlineOnlyOpening(object $incident): bool
     {
         $modules = json_decode((string) $incident->affected_modules, true);
-        if (! is_array($modules) || array_key_exists('regional', $modules)) {
+        if (! is_array($modules)) {
             return false;
         }
         $causes = $modules['node']['causes'] ?? null;
