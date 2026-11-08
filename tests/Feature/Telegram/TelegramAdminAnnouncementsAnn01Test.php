@@ -11,8 +11,11 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
+use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 use SergiX44\Nutgram\Testing\FakeNutgram;
 
@@ -125,5 +128,68 @@ it('keeps published content after editing and denies actions after root role rev
     $bot->hearCallbackQueryData('admin:ann:save:'.$draft['token'])->reply();
     expect(DB::table('announcements')->where('id', $id)->value('body'))->toBe('توضیح')
         ->and(DB::table('announcements')->where('id', $id)->value('status'))->toBe('published');
+    Http::assertNothingSent();
+});
+
+it('renders escaped RTL rich announcement lists with the expected native callbacks', function (): void {
+    $root = User::factory()->create();
+    $root->syncRoles(['super-admin']);
+    $bot = annUi01Bot($root, 994801);
+    app(ManageAnnouncements::class)->create($root->id, 'اطلاعیه <VIP>', 'متن & تست', true);
+
+    $bot->hearCallbackQueryData('admin:ann:list:1')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $data = annUi01Payload($request);
+            $rich = is_string($data['rich_message'] ?? null)
+                ? json_decode($data['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+                : ($data['rich_message'] ?? []);
+            $buttons = json_encode($data['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
+
+            return ($rich['is_rtl'] ?? null) === true
+                && str_contains((string) ($rich['html'] ?? ''), '<table bordered striped compact>')
+                && str_contains((string) ($rich['html'] ?? ''), '&lt;VIP&gt;')
+                && ! str_contains((string) ($rich['html'] ?? ''), '<VIP>')
+                && str_contains($buttons, 'admin:ann:view:1')
+                && str_contains($buttons, 'admin:ann:new');
+        }, index: 1);
+    Http::assertNothingSent();
+});
+
+it('falls back to safe native HTML with the same announcement and controls', function (): void {
+    $root = User::factory()->create();
+    $root->syncRoles(['super-admin']);
+    TelegramAccount::query()->create(['user_id' => $root->id, 'telegram_user_id' => 994801]);
+    app(ManageAnnouncements::class)->create($root->id, 'عنوان <b>مهم</b>', 'متن آزمایشی', true);
+
+    $keyboard = null;
+    $bot = Mockery::mock(Nutgram::class);
+    $bot->shouldReceive('chat')->andReturn(Chat::make(994801, ChatType::PRIVATE));
+    $bot->shouldReceive('user')->andReturn(TelegramUser::make(994801, false, 'Root'));
+    $bot->shouldReceive('isCallbackQuery')->andReturn(false);
+    $bot->shouldReceive('sendRichMessage')->once()->andReturnUsing(function (...$arguments) use (&$keyboard): void {
+        foreach ($arguments as $argument) {
+            if ($argument instanceof InputRichMessage) {
+                expect($argument->html)->toContain('عنوان &lt;b&gt;مهم&lt;/b&gt;')
+                    ->not->toContain('<b>مهم</b>');
+            }
+            if ($argument instanceof InlineKeyboardMarkup) {
+                $keyboard = $argument;
+            }
+        }
+
+        throw new TelegramException('Rich unavailable', 400);
+    });
+    $bot->shouldReceive('sendMessage')->once()->andReturnUsing(function (...$arguments) use (&$keyboard): null {
+        expect($arguments[0])->toContain('عنوان &lt;b&gt;مهم&lt;/b&gt;')
+            ->not->toContain('عنوان <b>مهم</b>');
+        expect($keyboard)->toBeInstanceOf(InlineKeyboardMarkup::class)
+            ->and(in_array($keyboard, $arguments, true))->toBeTrue()
+            ->and(in_array('HTML', $arguments, true))->toBeTrue()
+            ->and(json_encode($keyboard, JSON_THROW_ON_ERROR))->toContain('admin:ann:view:1', 'admin:ann:new');
+
+        return null;
+    });
+
+    app(\App\Interfaces\Telegram\Support\AdminAnnouncementsUi::class)->browse($bot);
     Http::assertNothingSent();
 });
