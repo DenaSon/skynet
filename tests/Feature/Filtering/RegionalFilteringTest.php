@@ -14,6 +14,7 @@ use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveNodeSummary;
 use App\Support\Health\NodeTcpProbe;
 use Carbon\CarbonImmutable;
+use Cron\CronExpression;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Carbon;
@@ -257,9 +258,17 @@ it('is gated off in deployment defaults and uses a nonoverlapping ten-minute bac
         static fn ($event): bool => str_contains((string) $event->command, 'filtering:regional:scan'),
     );
     expect($event)->not->toBeNull()
-        ->and($event->expression)->toBe('*/10 * * * *')
+        ->and($event->expression)->toBe('3-59/10 * * * *')
         ->and($event->withoutOverlapping)->toBeTrue()
         ->and($event->runInBackground)->toBeTrue();
+
+    $cron = new CronExpression($event->expression);
+    foreach ([3, 13, 23, 33, 43, 53] as $minute) {
+        expect($cron->isDue(sprintf('2026-11-08 12:%02d:00', $minute)))->toBeTrue();
+    }
+    foreach ([0, 10, 20, 30, 40, 50] as $minute) {
+        expect($cron->isDue(sprintf('2026-11-08 12:%02d:00', $minute)))->toBeFalse();
+    }
 });
 
 it('uses only current verified RW direct targets and the existing read-only client', function (): void {
