@@ -159,11 +159,66 @@ it('opens trusted private Rich screens and refreshes from stored evidence withou
     $bot->hearCallbackQueryData('flt:node:'.$uuid)->reply()
         ->assertRaw(static fn (NutgramRequest $r): bool => flt04Has($r, 'flt:recheck:'.flt04Uuid(401)), index: 1);
     $bot->hearCallbackQueryData('flt:home:simple')->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool => str_contains((string) (flt04Payload($r)['text'] ?? ''), 'فیلترینگ')
+        ->assertRaw(static fn (NutgramRequest $r): bool => isset(flt04Payload($r)['rich_message'])
             && flt04Has($r, 'flt:nodes:1')
             && flt04Has($r, 'flt:history:1')
-            && ! isset(flt04Payload($r)['rich_message']), index: 1);
+            && ! str_contains(json_encode(flt04Payload($r)['reply_markup'], JSON_THROW_ON_ERROR), 'simple'), index: 1);
 
+    Queue::assertNothingPushed();
+    Http::assertNothingSent();
+});
+
+it('keeps all filtering screens Rich-first with no visible simple-view control, including legacy callbacks', function (): void {
+    flt04Root();
+    $uuid = flt04Uuid(411);
+    flt04Healthy($uuid);
+    config()->set('filtering.node_monitor_enabled', true);
+    app(FilteringFoundation::class)->record($uuid, 'node', 'disrupted', now()->startOfMinute(), [
+        'online_users' => 0, 'causes' => ['online_zero'],
+    ]);
+    $incidentId = (string) DB::table('filtering_incidents')->value('id');
+
+    $callbacks = [
+        'flt:home',
+        'flt:nodes:1',
+        'flt:access:1',
+        'flt:node:'.$uuid,
+        'flt:history:1',
+        'flt:incident:'.$incidentId,
+        'flt:home:simple',
+        'flt:nodes:simple:1',
+        'flt:access:simple:1',
+        'flt:node:simple:'.$uuid,
+        'flt:history:simple:1',
+        'flt:incident:simple:'.$incidentId,
+    ];
+
+    $bot = flt04Bot();
+    foreach ($callbacks as $callback) {
+        $bot->hearCallbackQueryData($callback)->reply()
+            ->assertRaw(static function (NutgramRequest $request) use ($callback): bool {
+                $data = flt04Payload($request);
+                $markup = json_encode($data['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
+                $valid = isset($data['rich_message'])
+                    && ! str_contains($markup, 'simple')
+                    && ! str_contains($markup, 'نمای ساده')
+                    && ! str_contains($markup, 'نمای جدید');
+                if (! $valid) {
+                    throw new RuntimeException('Unexpected filtering display mode for callback: '.$callback);
+                }
+
+                return true;
+            }, index: 1);
+    }
+
+    $bot->hearCallbackQueryData('flt:incident:'.$incidentId)->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $rich = flt04Payload($request)['rich_message'] ?? [];
+            $html = is_string($rich) ? (json_decode($rich, true)['html'] ?? '') : ($rich['html'] ?? '');
+
+            return str_contains($html, 'جزئیات هشدار')
+                && ! str_contains($html, 'اثبات قطعی فیلترینگ');
+        }, index: 1);
     Queue::assertNothingPushed();
     Http::assertNothingSent();
 });
@@ -399,7 +454,7 @@ it('falls back to native HTML with identical data and buttons after a Rich trans
         expect(in_array($markup, $args, true))->toBeTrue()
             ->and(json_encode($markup, JSON_THROW_ON_ERROR))->toContain(
                 'flt:nodes:1', 'flt:history:1', 'flt:access:1', 'flt:home',
-            );
+            )->not->toContain('simple', 'نمای ساده');
 
         return null;
     });
