@@ -284,7 +284,7 @@ function cash01Topup(User $root, User $customer, int $amountRials, string $key, 
     config()->set('billing.topups_enabled', true);
     $id = app(RequestTopup::class)->handle($customer->id, $amountRials, 'cash01:'.$key);
     app(SubmitTopupPhoto::class)->handle($customer->id, $id, 998251, 'file-cash-'.$key, 'unique-cash-'.$key, $id);
-    app(ReviewTopup::class)->handle($root->id, $id, true, 'CASH01-'.$id);
+    app(ReviewTopup::class)->handle($root->id, $id, true, 'CASH01-'.$id, (int) DB::table('billing_topups')->where('id', $id)->value('amount_rials'));
     // Re-date immutable proof in this fixture to cover historical periods.
     DB::table('billing_verified_receipts')->where('topup_id', $id)->update(['verified_at' => $verifiedAt]);
 
