@@ -3,7 +3,6 @@
 namespace App\Interfaces\Telegram\Support;
 
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
-
 use App\Modules\Billing\Application\ListTopupReviews;
 use App\Modules\Billing\Application\RequestTopup;
 use App\Modules\Billing\Application\ReviewTopup;
@@ -184,6 +183,7 @@ final class BillingUi
             return;
         }
 
+        Cache::forget($this->amountKey($actor->userId));
         $rows = $this->reviews->handle($actor->userId);
         $lines = ['💳 درخواست‌های شارژ در انتظار بررسی', ''];
         $keyboard = InlineKeyboardMarkup::make();
@@ -232,6 +232,8 @@ final class BillingUi
             return;
         }
 
+        // Starting a legacy review invalidates any other Finance wallet draft.
+        Cache::forget(TelegramBotContext::current()->cacheKey('telegram:finance:wallet:'.$actor->userId));
         $approve = $decision === 'a';
         if ($approve) {
             Cache::put($this->amountKey($actor->userId), [
@@ -239,7 +241,7 @@ final class BillingUi
             ], now()->addMinutes(10));
             $this->render($bot,
                 "🔎 بررسی شارژ · مرحله ۱ از ۲\n\nدرخواست #{$row['id']} | کاربر #{$row['user_id']}"
-                ."\nمبلغ درخواست: ".number_format(intdiv($row['amount_rials'], 10))." تومان"
+                ."\nمبلغ درخواست: ".number_format(intdiv($row['amount_rials'], 10)).' تومان'
                 ."\nشناسه اعلامی: {$row['reference']}"
                 ."\n\nمبلغ <b>واقعی مشاهده‌شده در بانک</b> را به تومان وارد کنید.",
                 InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make('◀️ انصراف', callback_data: 'menu:billing-reviews')));
@@ -248,7 +250,7 @@ final class BillingUi
         }
         Cache::forget($this->amountKey($actor->userId));
         $token = $this->tokens->issue($actor->userId, $row['id'], $approve, $row['reference']);
-        $operation = $approve ? 'تأیید و شارژ کیف پول' : 'رد درخواست بدون شارژ';
+        $operation = 'رد درخواست بدون شارژ';
 
         $keyboard = InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('✅ تأیید تصمیم', callback_data: 'billing:apply:'.$token))
