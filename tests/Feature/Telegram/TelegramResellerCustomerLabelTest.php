@@ -382,7 +382,7 @@ it('searches only private reseller customer names and routes results to original
             return str_contains(rslRichHtml($request), 'علی &amp; &lt;دوست&gt;')
                 && ! str_contains(rslRichHtml($request), 'سارا')
                 && ! str_contains(rslRichHtml($request), 'علی & <دوست>')
-                && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:subs:search:simple:0')
+                && ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:subs:search:simple:0')
                 && ($markup['inline_keyboard'][0][0]['callback_data'] ?? null) === "sales:subs:view:{$named}:0"
                 && ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), "sales:subs:view:{$unmatched}:0");
         });
@@ -552,7 +552,7 @@ it('makes the Sales report visible only to resellers and provides 7/30 day navig
                 && str_contains(rslRichHtml($request), 'مجموع فروش تأییدشده')
                 && str_contains(rslRichHtml($request), '<summary>🛒 جزئیات فروش</summary>')
                 && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:report:7')
-                && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:report:simple:30')
+                && ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:report:simple:30')
                 && ! str_contains(rslRichHtml($request), 'شماره موبایل');
         }, index: 1);
     $bot->hearCallbackQueryData('sales:report:simple:7')->reply()->assertRaw(static function (Request $request): bool {
