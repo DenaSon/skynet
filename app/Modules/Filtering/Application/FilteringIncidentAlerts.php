@@ -162,12 +162,20 @@ final readonly class FilteringIncidentAlerts
 
     private function hasStrongOnlineBaseline(object $incident): bool
     {
-        $openedAt = CarbonImmutable::parse($incident->opened_at);
+        // A composite incident may have started hours before its first Node
+        // signal. Anchor the 30-minute user baseline to the current Node
+        // observation, not to an unrelated regional opening timestamp.
+        $modules = json_decode((string) $incident->affected_modules, true);
+        $observedAt = is_array($modules) ? ($modules['node']['observed_at'] ?? null) : null;
+        if (! is_string($observedAt)) {
+            return false;
+        }
+        $nodeAt = CarbonImmutable::parse($observedAt);
         $rows = DB::table('filtering_checks')
             ->where('node_uuid', $incident->node_uuid)
             ->where('module', 'node')
-            ->where('observed_at', '>=', $openedAt->subMinutes(self::ONLINE_BASELINE_MINUTES))
-            ->where('observed_at', '<=', $openedAt)
+            ->where('observed_at', '>=', $nodeAt->subMinutes(self::ONLINE_BASELINE_MINUTES))
+            ->where('observed_at', '<=', $nodeAt)
             ->orderByDesc('observed_at')->limit(32)
             ->get(['observed_at', 'evidence']);
 
