@@ -202,6 +202,62 @@ it('keeps polling bounded delayed results beyond the old four-second window', fu
         ->and($GLOBALS['flt03_result_poll_count'])->toBe(6);
 });
 
+it('logs bounded poll timings for completed checks without exposing targets', function (): void {
+    Log::spy();
+    flt03Scan();
+
+    Log::shouldHaveReceived('info')->once()->withArgs(
+        static fn (string $message, array $context): bool => $message === 'Filtering Check-Host TCP results complete'
+            && $context['selected'] === 4 && $context['completed'] === 4
+            && $context['pending'] === 0 && $context['polls'] === 1
+            && is_int($context['start_http_ms'] ?? null)
+            && is_int($context['result_http_total_ms'] ?? null)
+            && is_int($context['result_http_max_ms'] ?? null)
+            && is_int($context['elapsed_ms'] ?? null)
+            && ! array_key_exists('ip', $context)
+            && ! array_key_exists('request_id', $context)
+            && ! array_key_exists('url', $context),
+    );
+});
+
+it('skips checks when four distinct Iran ASNs are unavailable', function (): void {
+    $meta = flt03Meta();
+    foreach ($meta as $name => $row) {
+        $meta[$name]['asn'] = str_starts_with($name, 'ir1.') ? 'AS2001' : 'AS2002';
+    }
+    $GLOBALS['flt03_metadata_override'] = $meta;
+
+    expect(app(CheckHostRegionalProbe::class)->iranNodes())->toBe([]);
+    flt03Scan();
+    expect(DB::table('filtering_checks')->where('module', 'regional')->value('outcome'))->toBe('unknown');
+    Http::assertNotSent(static fn (Request $request): bool => str_contains($request->url(), '/check-tcp?'));
+});
+
+it('skips checks when Iran candidates cannot cover two cities', function (): void {
+    $meta = flt03Meta();
+    foreach ($meta as $name => $row) {
+        $meta[$name]['location'][2] = 'Tehran';
+    }
+    $GLOBALS['flt03_metadata_override'] = $meta;
+
+    expect(app(CheckHostRegionalProbe::class)->iranNodes())->toBe([]);
+    flt03Scan();
+    expect(DB::table('filtering_checks')->where('module', 'regional')->value('outcome'))->toBe('unknown');
+    Http::assertNotSent(static fn (Request $request): bool => str_contains($request->url(), '/check-tcp?'));
+});
+
+it('rejects requests with more than four selected nodes', function (): void {
+    $provider = app(CheckHostRegionalProbe::class);
+    $nodes = $provider->iranNodes();
+    $extra = $nodes[0];
+    $extra['name'] = 'extra.node.check-host.net';
+    $extra['asn'] = 'AS9999';
+
+    expect(fn () => $provider->tcp('8.8.8.8', 443, [...$nodes, $extra]))
+        ->toThrow(InvalidArgumentException::class);
+    Http::assertSentCount(1);
+});
+
 it('skips near-zero Check-Host result timeouts instead of passing them to Guzzle', function (): void {
     $timeout = new ReflectionMethod(CheckHostRegionalProbe::class, 'resultPollTimeout');
 
@@ -238,7 +294,7 @@ it('preserves pending on exhausted polling budget without inventing TCP failures
 
     expect($result['completed_probes'])->toBe(0)
         ->and($result['failed_probes'])->toBe(0)
-        ->and($result['pending_probes'])->toBe(8)
+        ->and($result['pending_probes'])->toBe(4)
         ->and($GLOBALS['flt03_result_poll_count'])->toBe(9);
     Log::shouldHaveReceived('notice')->once()->withArgs(
         static fn (string $message, array $context): bool => $message === 'Filtering Check-Host TCP results incomplete'
