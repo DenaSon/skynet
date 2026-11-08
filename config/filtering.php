@@ -9,4 +9,7 @@ return [
     'node_alerts_enabled' => (bool) env('FILTERING_NODE_ALERTS_ENABLED', false),
     'regional_monitor_enabled' => (bool) env('FILTERING_REGIONAL_MONITOR_ENABLED', false),
     'regional_alerts_enabled' => (bool) env('FILTERING_REGIONAL_ALERTS_ENABLED', false),
+
+    // Filtering notices go only to this private group; absent/invalid ID fails closed.
+    'notification_group_chat_id' => env('FILTERING_NOTIFICATION_GROUP_CHAT_ID'),
 ];
