@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
 use App\Interfaces\Telegram\Notifications\TelegramNotificationSender;
 use App\Modules\Filtering\Application\FilteringFoundation;
+use App\Modules\Filtering\Application\FilteringGroupDestination;
 use App\Modules\Filtering\Application\FilteringIncidentAlerts;
 use App\Modules\Filtering\Application\FilteringIncidentNotice;
 use App\Modules\Filtering\Application\MonitorNodeFiltering;
@@ -355,7 +356,7 @@ it('fails closed with missing or malformed group ID and never falls back to priv
 
     foreach ([null, '', '9980021', '100', '-1abc', '-999999999999999999999999'] as $invalid) {
         config()->set('filtering.notification_group_chat_id', $invalid);
-        expect(\App\Modules\Filtering\Application\FilteringGroupDestination::chatId())->toBeNull();
+        expect(FilteringGroupDestination::chatId())->toBeNull();
     }
     flt02Step(1, 10, 10, 0);
     flt02Step(0, 100, 100);
