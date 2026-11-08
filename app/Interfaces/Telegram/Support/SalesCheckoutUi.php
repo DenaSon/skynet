@@ -250,7 +250,6 @@ final readonly class SalesCheckoutUi
 
         if ($rich && $orders !== []) {
             $plainKeyboard = clone $keyboard;
-            $keyboard->addRow(InlineKeyboardButton::make('↩️ نمایش ساده', callback_data: 'sales:checkout:orders:simple'));
             $this->renderRich($bot, $richHtml, implode("\n", $lines), $keyboard, $plainKeyboard);
 
             return;
