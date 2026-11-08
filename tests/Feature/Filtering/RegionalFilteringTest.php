@@ -3,11 +3,11 @@
 declare(strict_types=1);
 
 use App\Modules\Filtering\Application\FilteringFoundation;
+use App\Modules\Filtering\Application\FilteringIncidentNotice;
 use App\Modules\Filtering\Application\MonitorNodeFiltering;
 use App\Modules\Filtering\Application\RegionalRoundClassifier;
 use App\Modules\Filtering\Application\ScanRegionalFiltering;
 use App\Modules\Filtering\Infrastructure\CheckHostRegionalProbe;
-use App\Modules\Filtering\Application\FilteringIncidentNotice;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveNodeSummary;
