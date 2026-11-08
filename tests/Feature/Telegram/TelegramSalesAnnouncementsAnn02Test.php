@@ -94,6 +94,7 @@ function ann02Rich(NutgramRequest $request): array
 it('preserves Sales first-row priority and exposes announcements on both home keyboards', function (): void {
     $buyer = ann02User();
     $bot = ann02Bot($buyer);
+    ann02Record('اطلاعیه منتشرشده', 'متن اطلاعیه');
     $reply = app(ReplyMenuRenderer::class)->salesKeyboard(app(ResolveTelegramActor::class)->handle(976201));
     expect($reply->keyboard[0][0]->text)->toBe(ReplyMenuLabels::SALES_BUY)
         ->and($reply->keyboard[0][1]->text)->toBe(ReplyMenuLabels::SALES_SUBSCRIPTIONS)
@@ -112,6 +113,73 @@ it('preserves Sales first-row priority and exposes announcements on both home ke
             && $reply[0][1]['text'] === ReplyMenuLabels::SALES_SUBSCRIPTIONS
             && in_array(ReplyMenuLabels::SALES_ANNOUNCEMENTS, $labels, true);
     }, index: 0);
+    Http::assertNothingSent();
+});
+
+it('hides announcement entry from both Sales menus until a notice is published and removes it when withdrawn', function (): void {
+    $buyer = ann02User();
+    $bot = ann02Bot($buyer);
+    $actor = app(ResolveTelegramActor::class)->handle(976201);
+
+    $draft = ann02Record('اطلاعیه پیش‌نویس', 'مخفی', 'draft');
+    $future = ann02Record('اطلاعیه آینده', 'هنوز منتشر نشده');
+    DB::table('announcements')->where('id', $future)->update(['published_at' => now()->addDay()]);
+
+    $persistent = static fn (): string => json_encode(
+        app(ReplyMenuRenderer::class)->salesKeyboard($actor), JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,
+    );
+    expect($persistent())->not->toContain(ReplyMenuLabels::SALES_ANNOUNCEMENTS);
+
+    $verifyHome = static function (bool $shown) use ($bot): void {
+        $bot->hearText('/start')->reply()->assertRaw(
+            static function (NutgramRequest $request) use ($shown): bool {
+                $payload = ann02Payload($request);
+                $html = (string) (ann02Rich($request)['html'] ?? '');
+                $keyboard = json_encode($payload['reply_markup'] ?? [], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+
+                return str_contains($html, 'data="sales:ann:list"') === $shown
+                    && str_contains($keyboard, ReplyMenuLabels::SALES_ANNOUNCEMENTS) === $shown
+                    && ($payload['reply_markup']['keyboard'][0][0]['text'] ?? null) === ReplyMenuLabels::SALES_BUY
+                    && ($payload['reply_markup']['keyboard'][0][1]['text'] ?? null) === ReplyMenuLabels::SALES_SUBSCRIPTIONS;
+            }, index: 0,
+        );
+    };
+    $verifyHome(false);
+
+    $visible = ann02Record('خبر تازه', 'متن خبر تازه');
+    expect($persistent())->toContain(ReplyMenuLabels::SALES_ANNOUNCEMENTS);
+    $verifyHome(true);
+
+    DB::table('announcements')->where('id', $visible)->update(['status' => 'draft']);
+    expect($persistent())->not->toContain(ReplyMenuLabels::SALES_ANNOUNCEMENTS);
+    $verifyHome(false);
+
+    // A current published row restores both shortcuts without cache invalidation.
+    DB::table('announcements')->where('id', $draft)->update([
+        'status' => 'published', 'published_at' => now()->subMinute(),
+    ]);
+    expect($persistent())->toContain(ReplyMenuLabels::SALES_ANNOUNCEMENTS);
+    $verifyHome(true);
+    Http::assertNothingSent();
+});
+
+it('applies the same visibility rule to reseller persistent menus', function (): void {
+    $reseller = ann02User('reseller');
+    $bot = ann02Bot($reseller);
+    $actor = app(ResolveTelegramActor::class)->handle(976201);
+
+    $keyboard = static fn (): string => json_encode(
+        app(ReplyMenuRenderer::class)->salesKeyboard($actor), JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,
+    );
+
+    expect($keyboard())->not->toContain(ReplyMenuLabels::SALES_ANNOUNCEMENTS);
+    $id = ann02Record('خبر نمایندگان', 'متن اطلاعیه');
+    expect($keyboard())->toContain(ReplyMenuLabels::SALES_ANNOUNCEMENTS);
+    $bot->hearText('/start')->reply()->assertRaw(static function (NutgramRequest $request): bool {
+        return str_contains((string) (ann02Rich($request)['html'] ?? ''), 'data="sales:ann:list"');
+    }, index: 0);
+    DB::table('announcements')->where('id', $id)->update(['status' => 'draft']);
+    expect($keyboard())->not->toContain(ReplyMenuLabels::SALES_ANNOUNCEMENTS);
     Http::assertNothingSent();
 });
 
