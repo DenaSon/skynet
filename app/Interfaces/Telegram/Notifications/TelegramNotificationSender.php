@@ -80,8 +80,6 @@ final readonly class TelegramNotificationSender
             throw new NotificationUnavailable('inactive');
         }
 
-        $bot = (string) $delivery->bot_key;
-
         if ($bot === 'admin') {
             if (DB::table('telegram_bot_contacts')->where('user_id', $userId)
                 ->where('bot_key', 'admin')->where('delivery_status', 'blocked')->exists()) {
