@@ -17,7 +17,7 @@ final class ScanRegionalNodeJob implements ShouldQueue
 
     public int $tries = 1;
 
-    public int $timeout = 45;
+    public int $timeout = 75;
 
     public function __construct(public readonly string $nodeUuid) {}
 

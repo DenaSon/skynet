@@ -8,6 +8,7 @@ use App\Modules\Filtering\Application\MonitorNodeFiltering;
 use App\Modules\Filtering\Application\RegionalRoundClassifier;
 use App\Modules\Filtering\Application\ScanRegionalFiltering;
 use App\Modules\Filtering\Infrastructure\CheckHostRegionalProbe;
+use App\Modules\Filtering\Jobs\ScanRegionalNodeJob;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveNodeSummary;
@@ -309,6 +310,30 @@ it('keeps polling bounded delayed results beyond the old four-second window', fu
         ->and($GLOBALS['flt03_result_poll_count'])->toBe(6);
 });
 
+it('accepts TCP results first completed on the eleventh poll within the new bounded budget', function (): void {
+    $GLOBALS['flt03_pending_until_poll'] = 10;
+    $provider = app(CheckHostRegionalProbe::class);
+    $result = $provider->tcp('8.8.8.8', 443, $provider->iranNodes());
+
+    expect($result['completed_probes'])->toBe(4)
+        ->and($result['failed_probes'])->toBe(0)
+        ->and($result['pending_probes'])->toBe(0)
+        ->and($GLOBALS['flt03_result_poll_count'])->toBe(11);
+});
+
+it('sets the polling deadline to sixteen seconds without relaxing per-request timeouts', function (): void {
+    $type = new ReflectionClass(CheckHostRegionalProbe::class);
+
+    expect($type->getReflectionConstant('POLL_TIMEOUT_NS')->getValue())->toBe(16_000_000_000)
+        ->and($type->getReflectionConstant('POLL_INTERVAL_MS')->getValue())->toBe(1500)
+        ->and($type->getReflectionConstant('MAX_POLL_ATTEMPTS')->getValue())->toBe(11);
+
+    $timeout = new ReflectionMethod(CheckHostRegionalProbe::class, 'resultPollTimeout');
+    expect($timeout->invoke(null, 16_000_000_000))->toBe(6.0)
+        ->and($timeout->invoke(null, 100_000_000))->toBe(0.1)
+        ->and($timeout->invoke(null, 99_999_999))->toBeNull();
+});
+
 it('logs bounded poll timings for completed checks without exposing targets', function (): void {
     Log::spy();
     flt03Scan();
@@ -390,7 +415,7 @@ it('retains completed TCP evidence when one regional result stays pending', func
         ->and($result['successful_probes'])->toBe(2)
         ->and($result['pending_probes'])->toBe(1)
         ->and(RegionalRoundClassifier::classify($result))->toBe('unknown')
-        ->and($GLOBALS['flt03_result_poll_count'])->toBe(9);
+        ->and($GLOBALS['flt03_result_poll_count'])->toBe(11);
 });
 
 it('preserves pending on exhausted polling budget without inventing TCP failures', function (): void {
@@ -402,10 +427,10 @@ it('preserves pending on exhausted polling budget without inventing TCP failures
     expect($result['completed_probes'])->toBe(0)
         ->and($result['failed_probes'])->toBe(0)
         ->and($result['pending_probes'])->toBe(4)
-        ->and($GLOBALS['flt03_result_poll_count'])->toBe(9);
+        ->and($GLOBALS['flt03_result_poll_count'])->toBe(11);
     Log::shouldHaveReceived('notice')->once()->withArgs(
         static fn (string $message, array $context): bool => $message === 'Filtering Check-Host TCP results incomplete'
-            && $context['pending'] === 4 && $context['selected'] === 4 && $context['polls'] === 9
+            && $context['pending'] === 4 && $context['selected'] === 4 && $context['polls'] === 11
             && isset($context['start_http_ms'], $context['result_http_total_ms'], $context['result_http_max_ms'], $context['elapsed_ms'])
             && $context['progress'][0] === ['completed' => 0, 'pending' => 4, 'invalid' => 0],
     );
@@ -476,6 +501,26 @@ it('opens one composite incident and escalates only after two likely rounds with
         ->and(app(FilteringFoundation::class)->read(FLT03_NODE)['incident_id'])->toBe($first['incident_id']);
     expect(DB::table('filtering_incidents')->count())->toBe(1);
     Http::assertSent(static fn (Request $r): bool => str_contains($r->url(), 'host=1.1.1.1%3A443'));
+});
+
+it('keeps queued likely-round confirmation within its job budget after extending polling', function (): void {
+    $GLOBALS['flt03_failed'] = [1, 2, 3, 5, 6];
+    flt03Scan();
+    expect(app(FilteringFoundation::class)->read(FLT03_NODE)['state'])->toBe('suspicious');
+
+    $job = new ScanRegionalNodeJob(FLT03_NODE);
+    expect($job->tries)->toBe(1)
+        ->and($job->timeout)->toBe(75)
+        ->and(config('queue.connections.database.retry_after'))->toBeGreaterThan($job->timeout);
+
+    $this->travel(10)->minutes();
+    $job->handle(app(ScanRegionalFiltering::class));
+
+    expect(DB::table('filtering_checks')->where('module', 'regional')->count())->toBe(2)
+        ->and(app(FilteringFoundation::class)->read(FLT03_NODE)['state'])->toBe('disrupted');
+
+    Http::assertSent(static fn (Request $request): bool => str_contains($request->url(), '/check-tcp?')
+        && str_contains($request->url(), 'host=1.1.1.1%3A443'));
 });
 
 it('requires two eligible clear rounds for recovery and does not recover on pending or API failure', function (): void {
