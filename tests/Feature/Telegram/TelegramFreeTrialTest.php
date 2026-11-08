@@ -67,7 +67,7 @@ it('requires a private native self-contact and explicit masked one-time confirma
                 && str_contains($html, '<b>۲ ساعت</b>')
                 && str_contains($html, '<summary>📋 شرایط استفاده</summary>')
                 && str_contains($buttons, 'sales:trial:contact')
-                && str_contains($buttons, 'sales:trial:simple');
+                && ! str_contains($buttons, 'sales:trial:simple');
         }, index: 1);
     $bot->hearCallbackQueryData('sales:trial:simple')->reply()
         ->assertRaw(static function (Request $request): bool {
@@ -268,7 +268,7 @@ it('shows live minutes and MiB and uses the existing QR renderer after activatio
             && str_contains($html, '<summary>📋 راهنمای استفاده</summary>')
             && str_contains($markup, 'sales:trial:link')
             && str_contains($markup, 'sales:help:apps')
-            && str_contains($markup, 'sales:trial:simple')
+            && ! str_contains($markup, 'sales:trial:simple')
             && ! str_contains($html, 'vless://');
     }, index: 1);
     $bot->hearCallbackQueryData('sales:trial:simple')->reply()
@@ -339,7 +339,7 @@ it('renders pending trial processing without exposing a second Contact confirmat
 
         return str_contains(trialUiRichHtml($request), 'در حال آماده‌سازی')
             && str_contains(trialUiRichHtml($request), 'راهنمای پیگیری')
-            && str_contains($keyboard, 'sales:trial:simple')
+            && ! str_contains($keyboard, 'sales:trial:simple')
             && ! str_contains($keyboard, 'sales:trial:contact');
     }, index: 1);
 
