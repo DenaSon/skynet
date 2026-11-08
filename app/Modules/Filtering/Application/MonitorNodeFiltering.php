@@ -8,6 +8,7 @@ use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveApiClientFactory;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveNodeSummary;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveReadApi;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Throwable;
@@ -227,7 +228,7 @@ final readonly class MonitorNodeFiltering
      * sequence; existing 30-minute bounded history is sufficient.
      */
     private function hasSustainedPositive(
-        \Illuminate\Support\Collection $history,
+        Collection $history,
         string $signal,
         CarbonImmutable $minute,
     ): bool {
