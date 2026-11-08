@@ -196,14 +196,18 @@ it('keeps all filtering screens Rich-first with no visible simple-view control, 
     $bot = flt04Bot();
     foreach ($callbacks as $callback) {
         $bot->hearCallbackQueryData($callback)->reply()
-            ->assertRaw(static function (NutgramRequest $request): bool {
+            ->assertRaw(static function (NutgramRequest $request) use ($callback): bool {
                 $data = flt04Payload($request);
                 $markup = json_encode($data['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
-
-                return isset($data['rich_message'])
+                $valid = isset($data['rich_message'])
                     && ! str_contains($markup, 'simple')
                     && ! str_contains($markup, 'نمای ساده')
                     && ! str_contains($markup, 'نمای جدید');
+                if (! $valid) {
+                    throw new RuntimeException('Unexpected filtering display mode for callback: '.$callback);
+                }
+
+                return true;
             }, index: 1);
     }
 
