@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Sales\Application;
 
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 
 final class ReadPublishedAnnouncements
@@ -25,7 +26,7 @@ final class ReadPublishedAnnouncements
             ->first(['id', 'title', 'body', 'published_at']);
     }
 
-    private function visible(): \Illuminate\Database\Query\Builder
+    private function visible(): Builder
     {
         return DB::table('announcements')->where('status', 'published')
             ->whereNotNull('published_at')
