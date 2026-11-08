@@ -137,6 +137,62 @@ it('does not notify on a solitary three-user spike in a low-activity window', fu
         ->and(DB::table('telegram_notification_deliveries')->count())->toBe(0);
 });
 
+it('keeps the low-user alert guard when an unrelated regional incident has notifications disabled', function (): void {
+    flt02EnableRootNotifications();
+    config()->set('filtering.regional_monitor_enabled', true);
+    config()->set('filtering.regional_alerts_enabled', false);
+
+    app(FilteringFoundation::class)->record(
+        FLT02_NODE, 'regional', 'suspicious', now()->subMinutes(2)->startOfMinute(),
+        ['causes' => ['regional_possible']],
+    );
+    flt02Step(1, 100, 100, 0);
+    flt02Step(0, 100, 100);
+    flt02Step(0, 100, 100);
+
+    expect(DB::table('filtering_incidents')->count())->toBe(1)
+        ->and(DB::table('telegram_notification_deliveries')->count())->toBe(0);
+
+    flt02Step(0, 0, 0);
+    flt02Step(0, 0, 0);
+    $opening = DB::table('telegram_notification_deliveries')->where('event_type', 'FilteringOpened')->first();
+    expect($opening)->not->toBeNull()
+        ->and(DB::table('telegram_notification_deliveries')->count())->toBe(1);
+    expect(app(FilteringIncidentNotice::class)->messageFor($opening))
+        ->toContain('ترافیک صفر')
+        ->not->toContain('دسترسی نامطمئن از ایران');
+});
+
+it('uses the Node signal time when an older regional incident predates strong online activity', function (): void {
+    flt02EnableRootNotifications();
+    config()->set('filtering.regional_monitor_enabled', true);
+    config()->set('filtering.regional_alerts_enabled', false);
+
+    $now = now();
+    $this->travelTo($now->copy()->subHours(2));
+    app(FilteringFoundation::class)->record(
+        FLT02_NODE, 'regional', 'suspicious', now()->startOfMinute(),
+        ['causes' => ['regional_possible']],
+    );
+    $this->travelTo($now);
+    flt02Step(3, 100, 100, 0);
+    flt02Step(4, 100, 100);
+    flt02Step(0, 100, 100);
+    flt02Step(0, 100, 100);
+
+    expect(DB::table('filtering_incidents')->count())->toBe(1)
+        ->and(DB::table('filtering_incidents')->value('opened_at'))
+        ->toBe($now->copy()->subHours(2)->toDateTimeString())
+        ->and(DB::table('telegram_notification_deliveries')
+            ->where('event_type', 'FilteringOpened')->count())->toBe(1);
+
+    $notice = app(FilteringIncidentNotice::class)->messageFor(
+        DB::table('telegram_notification_deliveries')->first(),
+    );
+    expect($notice)->toContain('کاربران آنلاین صفر')
+        ->not->toContain('دسترسی نامطمئن از ایران');
+});
+
 it('retains independent traffic-zero alerts on low-user nodes', function (): void {
     flt02EnableRootNotifications();
     flt02Step(1, 100, 100, 0);

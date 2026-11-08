@@ -19,6 +19,8 @@ final readonly class ScanRegionalFiltering
 
     private const WINDOW_SECONDS = 720;
 
+    private const MAX_CONTINUITY_WINDOW_SECONDS = 3600;
+
     public function __construct(
         private NodeTcpProbe $targets,
         private CheckHostRegionalProbe $provider,
@@ -41,6 +43,11 @@ final readonly class ScanRegionalFiltering
             return 0;
         }
 
+        // Each 10-minute tick scans at most five targets. For a larger fleet
+        // the same Node is revisited over multiple ticks; the validity window
+        // must cover that bounded cycle without increasing provider requests.
+        $eligibleTargetCount = count($targets);
+
         if ($onlyNodeUuid !== null) {
             $targets = array_intersect_key($targets, [strtolower($onlyNodeUuid) => true]);
         } elseif (count($targets) > self::MAX_TARGETS_PER_TICK) {
@@ -60,6 +67,8 @@ final readonly class ScanRegionalFiltering
         if ($targets === []) {
             return 0;
         }
+        $continuityWindow = self::continuityWindowSeconds($onlyNodeUuid === null
+            ? $eligibleTargetCount : 1);
 
         try {
             $nodes = $this->provider->iranNodes();
@@ -95,7 +104,7 @@ final readonly class ScanRegionalFiltering
                 : $observed->timestamp - CarbonImmutable::parse($previous->observed_at)->timestamp;
             $prior = $previous === null ? 'unknown'
                 : RegionalRoundClassifier::classify($this->decode($previous->evidence));
-            $consecutive = $elapsed > 0 && $elapsed <= self::WINDOW_SECONDS
+            $consecutive = $elapsed > 0 && $elapsed <= $continuityWindow
                 && $previous !== null && $previous->outcome !== 'unknown';
             $current = $this->foundation->read($uuid)['affected_modules']['regional']['causes'] ?? [];
             $current = is_array($current) ? $current : [];
@@ -148,12 +157,14 @@ final readonly class ScanRegionalFiltering
                 $evidence['causes'] = $causes;
             }
 
-            DB::transaction(function () use ($uuid, $outcome, $observed, $evidence): void {
+            DB::transaction(function () use ($uuid, $outcome, $observed, $evidence, $round, $consecutive, $prior): void {
                 $before = $this->foundation->read($uuid);
                 $after = $this->foundation->record($uuid, 'regional', $outcome, $observed, $evidence);
                 $incident = $after['incident_id'] ?? $before['incident_id'];
                 if ($incident !== null && $outcome !== 'unknown') {
-                    $this->alerts->sync($incident);
+                    $confirmed = in_array($round, ['possible', 'likely'], true)
+                        && $consecutive && in_array($prior, ['possible', 'likely'], true);
+                    $this->alerts->sync($incident, 'regional', $confirmed);
                 }
             }, 3);
             $checked++;
@@ -186,6 +197,18 @@ final readonly class ScanRegionalFiltering
             // A dead cache or queue must not affect Node incident persistence.
             return false;
         }
+    }
+
+    /**
+     * Bound eligible consecutive rounds to the rotating scan budget.
+     * The 60-minute cap fails closed instead of trusting very stale probes.
+     */
+    private static function continuityWindowSeconds(int $eligibleTargets): int
+    {
+        $ticksPerNode = (int) ceil($eligibleTargets / self::MAX_TARGETS_PER_TICK);
+
+        return min(self::MAX_CONTINUITY_WINDOW_SECONDS,
+            max(self::WINDOW_SECONDS, $ticksPerNode * 600 + 120));
     }
 
     /** @return array<string, int> */

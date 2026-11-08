@@ -68,9 +68,19 @@ final readonly class FilteringIncidentNotice
         };
 
         $causes = [];
+        $hasEnabledCause = false;
         /** @var array<string, mixed> $modules */
         $modules = json_decode((string) $row->affected_modules, true, 512, JSON_THROW_ON_ERROR);
-        foreach ($modules as $module) {
+        foreach ($modules as $source => $module) {
+            // The group message must not disclose disabled module signals.
+            // A queued opening also fails closed if its only alert source was
+            // disabled after it was created but before Telegram delivery.
+            if (($source === 'node' && ! (config('filtering.node_monitor_enabled', false) === true
+                && config('filtering.node_alerts_enabled', false) === true))
+                || ($source === 'regional' && ! (config('filtering.regional_monitor_enabled', false) === true
+                    && config('filtering.regional_alerts_enabled', false) === true))) {
+                continue;
+            }
             if (! is_array($module) || ! is_array($module['causes'] ?? null)) {
                 continue;
             }
@@ -84,8 +94,13 @@ final readonly class FilteringIncidentNotice
                 };
                 if ($label !== null) {
                     $causes[$label] = true;
+                    $hasEnabledCause = true;
                 }
             }
+        }
+
+        if ($kind !== 'recover' && ! $hasEnabledCause) {
+            return null;
         }
 
         $eventTime = match ($kind) {
