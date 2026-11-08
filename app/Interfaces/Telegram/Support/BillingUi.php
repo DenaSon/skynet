@@ -232,8 +232,9 @@ final class BillingUi
             return;
         }
 
-        // Starting a legacy review invalidates any other Finance wallet draft.
+        // Starting a legacy review invalidates competing Admin input drafts.
         Cache::forget(TelegramBotContext::current()->cacheKey('telegram:finance:wallet:'.$actor->userId));
+        Cache::forget(TelegramBotContext::current()->cacheKey('telegram:bankreview:reference:'.$actor->userId));
         $approve = $decision === 'a';
         if ($approve) {
             Cache::put($this->amountKey($actor->userId), [
@@ -243,7 +244,7 @@ final class BillingUi
                 "🔎 بررسی شارژ · مرحله ۱ از ۲\n\nدرخواست #{$row['id']} | کاربر #{$row['user_id']}"
                 ."\nمبلغ درخواست: ".number_format(intdiv($row['amount_rials'], 10)).' تومان'
                 ."\nشناسه اعلامی: {$row['reference']}"
-                ."\n\nمبلغ <b>واقعی مشاهده‌شده در بانک</b> را به تومان وارد کنید.",
+                ."\n\nمبلغ واقعی مشاهده‌شده در بانک را به تومان وارد کنید.",
                 InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make('◀️ انصراف', callback_data: 'menu:billing-reviews')));
 
             return;
@@ -281,7 +282,7 @@ final class BillingUi
 
             return false;
         }
-        if (! $actor->canManageRoles() || ! config('billing.topups_enabled', false)) {
+        if (! $actor->canManageRoles()) {
             Cache::forget($key);
             $this->menus->denyAccess($bot);
 
