@@ -168,16 +168,21 @@ it('uses the Node signal time when an older regional incident predates strong on
     config()->set('filtering.regional_monitor_enabled', true);
     config()->set('filtering.regional_alerts_enabled', false);
 
+    $now = now();
+    $this->travelTo($now->copy()->subHours(2));
     app(FilteringFoundation::class)->record(
-        FLT02_NODE, 'regional', 'suspicious', now()->subHours(2)->startOfMinute(),
+        FLT02_NODE, 'regional', 'suspicious', now()->startOfMinute(),
         ['causes' => ['regional_possible']],
     );
+    $this->travelTo($now);
     flt02Step(3, 100, 100, 0);
     flt02Step(4, 100, 100);
     flt02Step(0, 100, 100);
     flt02Step(0, 100, 100);
 
     expect(DB::table('filtering_incidents')->count())->toBe(1)
+        ->and(DB::table('filtering_incidents')->value('opened_at'))
+        ->toBe($now->copy()->subHours(2)->toDateTimeString())
         ->and(DB::table('telegram_notification_deliveries')
             ->where('event_type', 'FilteringOpened')->count())->toBe(1);
 
