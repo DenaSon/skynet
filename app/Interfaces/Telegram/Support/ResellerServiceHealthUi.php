@@ -129,7 +129,6 @@ final readonly class ResellerServiceHealthUi
                 .'نیازمند پیگیری ممکن است شامل سرویس فعالی باشد که به پایان حجم یا زمان نزدیک است.'
                 .'</p></details>';
             $plainButtons = clone $buttons;
-            $buttons->addRow(InlineKeyboardButton::make('↩️ نمایش ساده', callback_data: 'sales:health:simple:'.$cursor));
             try {
                 TelegramUi::editRichText($bot, new InputRichMessage(html: $html, is_rtl: true), $buttons);
             } catch (TelegramException $exception) {
