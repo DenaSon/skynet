@@ -119,7 +119,7 @@ it('keeps published content after editing and denies actions after root role rev
     $id = app(ManageAnnouncements::class)->create($root->id, 'عنوان', 'توضیح', true);
 
     $bot->hearCallbackQueryData('admin:ann:edit:'.$id.':body')->reply();
-    $bot->hearText("متن ویرایش شده")->reply();
+    $bot->hearText('متن ویرایش شده')->reply();
     $draft = Cache::get('admin:ann:draft:'.$root->id);
     $root->syncRoles(['member']);
     $bot->hearCallbackQueryData('admin:ann:save:'.$draft['token'])->reply();
