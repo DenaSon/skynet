@@ -691,7 +691,7 @@ it('opens Rich service details by default and preserves the old pilot and simple
                 && str_contains($html, 'تاریخ انقضا:')
                 && ! str_contains($html, 'private-sb06-credential')
                 && str_contains($buttons, "sales:subs:link:{$order}:0")
-                && str_contains($buttons, "sales:subs:simple:{$order}:0")
+                && ! str_contains($buttons, "sales:subs:simple:{$order}:0")
                 && str_contains($buttons, "sales:subs:view:{$order}:0")
                 && str_contains($buttons, 'sales:help:apps')
                 && ! str_contains($buttons, '✨ نمایش جدید');
@@ -776,7 +776,7 @@ it('shows a member-first limited service summary with exact exhausted quota and 
                 && str_contains($html, '<details><summary>🧾 مشخصات سفارش</summary>')
                 && str_contains($html, '<details><summary>📱 راهنمای اتصال</summary>')
                 && str_contains($buttons, 'sales:buy')
-                && str_contains($buttons, 'sales:subs:simple:')
+                && ! str_contains($buttons, 'sales:subs:simple:')
                 && str_contains($buttons, 'sales:subs:list:')
                 && ! str_contains($buttons, 'sales:subs:link:')
                 && ! str_contains($html, 'private-sb06-credential')
@@ -883,7 +883,7 @@ it('shows reseller customer-first Rich details with exact zero quota and safe ne
                 && str_contains($html, '<details><summary>📱 راهنمای اتصال</summary>')
                 && str_contains($actions, 'sales:buy')
                 && str_contains($actions, "sales:subs:label:edit:{$order}:0")
-                && str_contains($actions, "sales:subs:simple:{$order}:0")
+                && ! str_contains($actions, "sales:subs:simple:{$order}:0")
                 && ! str_contains($actions, 'sales:subs:link:')
                 && ! str_contains($html, 'private-sb06-credential')
                 && ! str_contains($html, '0.00 گیگابایت');
