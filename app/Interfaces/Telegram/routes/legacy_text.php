@@ -4,6 +4,7 @@ use App\Interfaces\Telegram\Handlers\OperationalSettingsHandler;
 use App\Interfaces\Telegram\Handlers\ReplyMenuHandler;
 use App\Interfaces\Telegram\Handlers\SettingsHandler;
 use App\Interfaces\Telegram\Support\AdminAccountingUi;
+use App\Interfaces\Telegram\Support\AdminAnnouncementsUi;
 use App\Interfaces\Telegram\Support\AdminCloudflareDnsUi;
 use App\Interfaces\Telegram\Support\AdminConfigProfileOperationsUi;
 use App\Interfaces\Telegram\Support\AdminFinanceWalletUi;
@@ -36,6 +37,12 @@ $bot->onText('{volume}', function (Nutgram $bot, string $volume): void {
     }
 
     if (app(ReplyMenuHandler::class)->handle($bot, $volume)) {
+        return;
+    }
+
+    // ANN-01: multi-line content from a trusted Admin-only, owner-bound draft.
+    // Reply-menu navigation, SSH secret handling and bank review retain precedence.
+    if (app(AdminAnnouncementsUi::class)->text($bot, $bot->message()->text ?? $volume)) {
         return;
     }
 

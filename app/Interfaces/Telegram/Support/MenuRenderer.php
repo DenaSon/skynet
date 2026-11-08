@@ -179,6 +179,7 @@ final class MenuRenderer
                 InlineKeyboardButton::make('💾 پشتیبان‌گیری', callback_data: 'admin:rwbackup:list:1'),
                 InlineKeyboardButton::make('🔐 نقش‌ها و دسترسی‌ها', callback_data: 'menu:admin:roles'),
             )
+            ->addRow(InlineKeyboardButton::make('📢 مدیریت اعلانات', callback_data: 'admin:ann:list:1'))
             ->addRow(InlineKeyboardButton::make('⚙️ تنظیمات سیستم', callback_data: 'admin:welcome:show'))
             ->addRow(InlineKeyboardButton::make('◀️ بازگشت به مدیریت', callback_data: 'menu:admin'));
 

@@ -76,6 +76,8 @@ final class ReplyMenuHandler
         $this->pendingBuilder->forget($actor->userId);
         // Navigation also retires an abandoned personal accounting text draft.
         Cache::forget('admin:accounting:draft:'.$actor->userId);
+        Cache::forget('admin:ann:draft:'.$actor->userId);
+        Cache::forget('admin:ann:transition:'.$actor->userId);
 
         switch ($text) {
             case ReplyMenuLabels::BUY:
