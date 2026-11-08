@@ -3,6 +3,7 @@
 namespace App\Interfaces\Telegram\Support;
 
 use App\Modules\Identity\Application\TelegramActor;
+use App\Modules\Sales\Application\ReadPublishedAnnouncements;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\KeyboardButton;
@@ -156,6 +157,10 @@ final class ReplyMenuRenderer
         }
         if ($trialVisible) {
             $labels[] = ReplyMenuLabels::SALES_TRIAL;
+        }
+        // No announcement shortcut unless at least one item is currently published.
+        if (app(ReadPublishedAnnouncements::class)->hasPublished()) {
+            $labels[] = ReplyMenuLabels::SALES_ANNOUNCEMENTS;
         }
         $keyboard = $this->keyboard($labels);
 

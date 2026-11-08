@@ -18,6 +18,7 @@ use App\Modules\Provisioning\Application\ListMyServices;
 use App\Modules\Referral\Application\GetReferralInvite;
 use App\Modules\Sales\Application\ListQuotedPresets;
 use App\Modules\Sales\Application\QuotedPreset;
+use App\Modules\Sales\Application\ReadPublishedAnnouncements;
 use App\Modules\Sales\Application\SalesPanelRequests;
 use App\Modules\Sales\Application\SummarizeSalesPurchases;
 use App\Support\PersianCalendar;
@@ -143,6 +144,9 @@ final readonly class SalesHomeUi
             $keyboard->addRow(InlineKeyboardButton::make('💬 پشتیبانی', callback_data: 'sales:support'));
         }
         $keyboard->addRow(InlineKeyboardButton::make('📋 همه پلن‌ها و قیمت‌ها', callback_data: 'menu:plan-catalog'));
+        if (app(ReadPublishedAnnouncements::class)->hasPublished()) {
+            $keyboard->addRow(InlineKeyboardButton::make(ReplyMenuLabels::SALES_ANNOUNCEMENTS, callback_data: 'sales:ann:list'));
+        }
         if ($isReseller && config('denagate_live.enabled') === true) {
             $keyboard->addRow(InlineKeyboardButton::make(
                 ReplyMenuLabels::SALES_APP,
@@ -324,6 +328,7 @@ final readonly class SalesHomeUi
             ReplyMenuLabels::SALES_ACCOUNT, ReplyMenuLabels::ACCOUNT => 'account',
             ReplyMenuLabels::SALES_SUPPORT => 'support',
             ReplyMenuLabels::SALES_TUTORIAL => 'tutorial',
+            ReplyMenuLabels::SALES_ANNOUNCEMENTS => 'announcements',
             ReplyMenuLabels::SALES_TRIAL => 'trial',
             ReplyMenuLabels::SALES_APP => 'app',
             ReplyMenuLabels::SALES_PANEL_REQUEST, ReplyMenuLabels::SALES_PANEL_STATUS,
@@ -371,6 +376,9 @@ final readonly class SalesHomeUi
                 break;
             case 'panel':
                 $this->panel($bot);
+                break;
+            case 'announcements':
+                app(SalesAnnouncementsUi::class)->browse($bot);
                 break;
             case 'tutorial':
                 app(SalesSupportUi::class)->show($bot, 'apps');

@@ -9,6 +9,12 @@ use Illuminate\Support\Facades\DB;
 
 final class ReadPublishedAnnouncements
 {
+    /** A lightweight indexed lookup; always reflects the currently published state. */
+    public function hasPublished(): bool
+    {
+        return $this->visible()->exists();
+    }
+
     /** @return list<object> */
     public function latest(): array
     {
