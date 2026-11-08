@@ -14,7 +14,7 @@ Decision: 2026-11-08. Scope-first plan for customer-facing, pull-only announceme
 
 ## ANN-02: customer presentation — separate stacked PR
 
-- **Sales Bot only:** persistent `📢 اطلاعیه‌ها` and Rich-home entry, three most recent published announcements ordered by `published_at DESC, id DESC`, short summaries, full detail, suitable empty state, back/home.
+- **Sales Bot only:** show the persistent `📢 اطلاعیه‌ها` and Rich-home entry **only while at least one announcement is currently published**. Hide both shortcuts when the table is empty, contains only drafts/future-dated rows, or when the last published row is withdrawn. Refresh on each rendered keyboard/home (no stale visibility cache). Preserve the empty-state page for taps on old Telegram keyboards. When available: three most recent published announcements ordered by `published_at DESC, id DESC`, short summaries, full detail, back/home.
 - Customer reads must re-check published status for each click; old callbacks for unpublished announcements must fail closed.
 - Preserve buy/services first row, role-based existing buttons, private active buyer access, RTL Rich-first and same-authorized-snapshot native fallback.
 - No schema/migration, outbox, scheduled/automatic broadcast, read receipts, categories, expiry, attachments, link CTA, pagination, or Mini App surface in ANN-02.
