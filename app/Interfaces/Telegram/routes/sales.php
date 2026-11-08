@@ -5,6 +5,7 @@ use App\Interfaces\Telegram\Support\PlanCatalogUi;
 use App\Interfaces\Telegram\Support\ResellerBuilderUi;
 use App\Interfaces\Telegram\Support\ResellerSalesReportUi;
 use App\Interfaces\Telegram\Support\ResellerServiceHealthUi;
+use App\Interfaces\Telegram\Support\SalesAnnouncementsUi;
 use App\Interfaces\Telegram\Support\SalesCheckoutUi;
 use App\Interfaces\Telegram\Support\SalesHomeUi;
 use App\Interfaces\Telegram\Support\SalesLiveEntry;
@@ -53,6 +54,14 @@ $bot->onCommand('account', function (Nutgram $bot): void {
 
 $bot->onCommand('link {code}', function (Nutgram $bot, string $code): void {
     app(SalesHomeUi::class)->link($bot, $code);
+});
+
+// ANN-02: pull-only customer announcements, isolated from Admin Bot and dispatch.
+$bot->onCallbackQueryData('sales:ann:list', function (Nutgram $bot): void {
+    app(SalesAnnouncementsUi::class)->browse($bot);
+});
+$bot->onCallbackQueryData('sales:ann:view:{id}', function (Nutgram $bot, string $id): void {
+    app(SalesAnnouncementsUi::class)->detail($bot, $id);
 });
 
 $bot->onCallbackQueryData('sales:home', function (Nutgram $bot): void {
