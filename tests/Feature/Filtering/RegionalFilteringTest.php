@@ -7,6 +7,9 @@ use App\Modules\Filtering\Application\MonitorNodeFiltering;
 use App\Modules\Filtering\Application\RegionalRoundClassifier;
 use App\Modules\Filtering\Application\ScanRegionalFiltering;
 use App\Modules\Filtering\Infrastructure\CheckHostRegionalProbe;
+use App\Modules\Filtering\Application\FilteringIncidentNotice;
+use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
+use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveNodeSummary;
 use App\Support\Health\NodeTcpProbe;
 use Carbon\CarbonImmutable;
@@ -21,6 +24,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schedule;
 use Illuminate\Support\Sleep;
+use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
 
@@ -135,6 +139,97 @@ function flt03Scan(int $minutes = 0): void
     }
     app(ScanRegionalFiltering::class)->scan();
 }
+
+function flt03EnableGroupAlerts(bool $nodeAlerts, bool $regionalAlerts): void
+{
+    config()->set('filtering.node_monitor_enabled', true);
+    config()->set('filtering.node_alerts_enabled', $nodeAlerts);
+    config()->set('filtering.regional_alerts_enabled', $regionalAlerts);
+    config()->set('filtering.notification_group_chat_id', '-1001234567890');
+    config()->set('telegram_notifications.enabled', true);
+    config()->set('super_admin.telegram_ids', ['9980021', '9980022']);
+    Role::findOrCreate('super-admin', 'web');
+
+    $root = User::factory()->create();
+    $root->syncRoles(['super-admin']);
+    TelegramAccount::query()->create(['user_id' => $root->id, 'telegram_user_id' => 9980021]);
+}
+
+it('does not enqueue regional-only alerts when regional notifications are disabled even if node alerts are on', function (): void {
+    flt03EnableGroupAlerts(nodeAlerts: true, regionalAlerts: false);
+    $GLOBALS['flt03_failed'] = [1, 2];
+    flt03Scan();
+    flt03Scan(10);
+
+    expect(app(FilteringFoundation::class)->read(FLT03_NODE)['state'])->toBe('suspicious')
+        ->and(DB::table('filtering_checks')->where('module', 'regional')->count())->toBe(2)
+        ->and(DB::table('filtering_incidents')->count())->toBe(1)
+        ->and(DB::table('telegram_notification_deliveries')->count())->toBe(0);
+
+    $GLOBALS['flt03_failed'] = [1, 2, 3, 5, 6];
+    flt03Scan(10);
+    expect(DB::table('telegram_notification_deliveries')->count())->toBe(0);
+});
+
+it('requires two consecutive qualified regional rounds before the first group alert', function (): void {
+    flt03EnableGroupAlerts(nodeAlerts: false, regionalAlerts: true);
+    $GLOBALS['flt03_failed'] = [1, 2];
+
+    flt03Scan();
+    expect(app(FilteringFoundation::class)->read(FLT03_NODE)['state'])->toBe('suspicious')
+        ->and(DB::table('filtering_incidents')->count())->toBe(1)
+        ->and(DB::table('telegram_notification_deliveries')->count())->toBe(0);
+
+    flt03Scan(10);
+    $opening = DB::table('telegram_notification_deliveries')
+        ->where('event_type', 'FilteringOpened')->first();
+
+    expect($opening)->not->toBeNull()
+        ->and($opening->event_key)->toBe('flt:1:open:group:-1001234567890')
+        ->and(DB::table('telegram_notification_deliveries')->count())->toBe(1);
+    expect(app(FilteringIncidentNotice::class)->messageFor($opening))
+        ->toContain('دسترسی نامطمئن از ایران')
+        ->not->toContain('کاربران آنلاین صفر');
+
+    flt03Scan(10);
+    expect(DB::table('telegram_notification_deliveries')->count())->toBe(1);
+});
+
+it('resets regional alert confirmation after an UNKNOWN round without removing the incident', function (): void {
+    flt03EnableGroupAlerts(nodeAlerts: false, regionalAlerts: true);
+    $GLOBALS['flt03_failed'] = [1, 2];
+    flt03Scan();
+
+    $GLOBALS['flt03_pending'] = [3];
+    flt03Scan(10);
+    expect(DB::table('filtering_checks')->where('module', 'regional')
+        ->orderByDesc('observed_at')->value('outcome'))->toBe('unknown');
+
+    $GLOBALS['flt03_pending'] = [];
+    flt03Scan(10);
+    expect(DB::table('telegram_notification_deliveries')->count())->toBe(0);
+    flt03Scan(10);
+    expect(DB::table('telegram_notification_deliveries')->where('event_type', 'FilteringOpened')->count())
+        ->toBe(1);
+    expect(DB::table('filtering_incidents')->count())->toBe(1);
+});
+
+it('preserves a regional recovery notice when only regional alerts are enabled', function (): void {
+    flt03EnableGroupAlerts(nodeAlerts: false, regionalAlerts: true);
+    $GLOBALS['flt03_failed'] = [1, 2];
+    flt03Scan();
+    flt03Scan(10);
+    expect(DB::table('telegram_notification_deliveries')->where('event_type', 'FilteringOpened')->count())
+        ->toBe(1);
+
+    $GLOBALS['flt03_failed'] = [];
+    flt03Scan(10);
+    expect(app(FilteringFoundation::class)->read(FLT03_NODE)['state'])->toBe('suspicious');
+    flt03Scan(10);
+    expect(app(FilteringFoundation::class)->read(FLT03_NODE)['incident_id'])->toBeNull()
+        ->and(DB::table('telegram_notification_deliveries')->where('event_type', 'FilteringRecovered')->count())
+        ->toBe(1);
+});
 
 it('is gated off in deployment defaults and uses a nonoverlapping ten-minute background scheduler', function (): void {
     $default = require base_path('config/filtering.php');
