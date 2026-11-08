@@ -176,13 +176,13 @@ final readonly class AdminFilteringUi
         $rows = [];
         $keyboard = InlineKeyboardMarkup::make();
         foreach ($data['rows'] as $incident) {
-            $short = strtoupper(substr($incident['uuid'], 0, 8));
+            $label = $incident['label'];
             $rows[] = [
-                $short,
+                $label,
                 self::status($incident['state']).' · '.self::time($incident['opened_at']),
             ];
             $keyboard->addRow(InlineKeyboardButton::make(
-                self::symbol($incident['state']).' نود '.$short,
+                self::symbol($incident['state']).' نود '.$label,
                 callback_data: 'flt:incident:'.$incident['id'],
             ));
         }
@@ -231,7 +231,7 @@ final readonly class AdminFilteringUi
         }
 
         $rows = [
-            ['نود', strtoupper(substr($incident['uuid'], 0, 8))],
+            ['نود', $incident['label']],
             ['وضعیت', self::status($incident['state'])],
             ['شروع', self::time($incident['opened_at'])],
             ['آخرین مشاهده', self::time($incident['last_at'])],

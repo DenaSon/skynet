@@ -168,6 +168,53 @@ it('opens trusted private Rich screens and refreshes from stored evidence withou
     Http::assertNothingSent();
 });
 
+it('shows validated cached Remnawave names in node, access and incident views without provider reads', function (): void {
+    $root = flt04Root();
+    $uuid = flt04Uuid(450);
+    flt04Healthy($uuid);
+    Cache::put(FilteringFoundation::NODE_NAME_CACHE_KEY, [$uuid => 'Amsterdam <NL>'], now()->addDay());
+
+    $reader = app(ReadFilteringCenter::class);
+    expect($reader->node($root->id, $uuid)['label'])->toBe('Amsterdam <NL>')
+        ->and($reader->nodes($root->id)['rows'][0]['label'])->toBe('Amsterdam <NL>');
+
+    $bot = flt04Bot();
+    $bot->hearCallbackQueryData('flt:nodes:1')->reply()->assertRaw(
+        static function (NutgramRequest $request): bool {
+            $raw = flt04Payload($request)['rich_message'] ?? [];
+            $html = is_string($raw) ? (json_decode($raw, true)['html'] ?? '') : ($raw['html'] ?? '');
+
+            return str_contains($html, 'Amsterdam &lt;NL&gt;')
+                && flt04Has($request, 'flt:node:'.flt04Uuid(450));
+        },
+        index: 1,
+    );
+    $bot->hearCallbackQueryData('flt:access:1')->reply()->assertRaw(
+        static fn (NutgramRequest $request): bool => str_contains(
+            json_encode(flt04Payload($request), JSON_THROW_ON_ERROR), 'Amsterdam',
+        ),
+        index: 1,
+    );
+    $bot->hearCallbackQueryData('flt:node:'.$uuid)->reply()->assertRaw(
+        static fn (NutgramRequest $request): bool => str_contains(
+            json_encode(flt04Payload($request), JSON_THROW_ON_ERROR), 'Amsterdam',
+        ),
+        index: 1,
+    );
+
+    app(FilteringFoundation::class)->record(
+        $uuid, 'node', 'disrupted', now()->startOfMinute(),
+        ['online_users' => 0, 'causes' => ['online_zero']],
+    );
+    $incident = $reader->history($root->id)['rows'][0];
+    expect($incident['label'])->toBe('Amsterdam <NL>')
+        ->and($reader->incident($root->id, $incident['id'])['label'])->toBe('Amsterdam <NL>');
+
+    Cache::put(FilteringFoundation::NODE_NAME_CACHE_KEY, [$uuid => "Invalid\nName"], now()->addDay());
+    expect($reader->node($root->id, $uuid)['label'])->toBe(strtoupper(substr($uuid, 0, 8)));
+    Http::assertNothingSent();
+});
+
 it('projects fresh, unknown, stale and active composite states without inventing healthy or leaking metadata', function (): void {
     $root = flt04Root();
     $healthy = flt04Uuid(501);

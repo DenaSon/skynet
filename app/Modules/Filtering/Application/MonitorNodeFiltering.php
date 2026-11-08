@@ -8,6 +8,7 @@ use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveApiClientFactory;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveNodeSummary;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveReadApi;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 use UnexpectedValueException;
@@ -57,6 +58,22 @@ final readonly class MonitorNodeFiltering
             $this->unknownForKnownNodes($minute);
 
             return 0;
+        }
+
+        // Reuse the authenticated GET snapshot for optional Admin Bot labels.
+        // A cache failure must never prevent metric sampling or incident recording.
+        try {
+            $names = [];
+            foreach ($nodes as $node) {
+                $name = trim($node->name);
+                if ($name !== '' && mb_strlen($name) <= 80
+                    && preg_match('/[\x00-\x1F\x7F]/u', $name) === 0) {
+                    $names[strtolower($node->uuid)] = $name;
+                }
+            }
+            Cache::put(FilteringFoundation::NODE_NAME_CACHE_KEY, $names, now()->addDay());
+        } catch (Throwable) {
+            // Numeric health observations remain authoritative.
         }
 
         // Collection time is not a guarantee of upstream metric freshness.

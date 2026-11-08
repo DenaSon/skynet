@@ -16,6 +16,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -105,6 +106,22 @@ it('is OFF by default in deployment settings and registers two-minute scheduler 
     expect($event)->not->toBeNull()
         ->and($event->expression)->toBe('*/2 * * * *')
         ->and($event->withoutOverlapping)->toBeTrue();
+});
+
+it('caches sanitized Remnawave names from the existing node GET without a second provider request', function (): void {
+    config()->set('cache.default', 'array');
+    Cache::flush();
+
+    $named = flt02Node(3, 400, 200);
+    $named['name'] = 'Amsterdam <NL>';
+    $untrusted = flt02Node(2, 100, 50, uuid: FLT02_OTHER);
+    $untrusted['name'] = "Invalid\nName";
+    flt02Feed([$named, $untrusted]);
+
+    expect(app(MonitorNodeFiltering::class)->scan())->toBe(2);
+    $names = Cache::get(FilteringFoundation::NODE_NAME_CACHE_KEY);
+    expect($names)->toBe([FLT02_NODE => 'Amsterdam <NL>']);
+    Http::assertSentCount(1);
 });
 
 it('opens on two consecutive online zero samples with positive baseline even when traffic stays positive', function (): void {
