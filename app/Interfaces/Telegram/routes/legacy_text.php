@@ -6,7 +6,6 @@ use App\Interfaces\Telegram\Handlers\SettingsHandler;
 use App\Interfaces\Telegram\Support\AdminAccountingUi;
 use App\Interfaces\Telegram\Support\AdminAnnouncementsUi;
 use App\Interfaces\Telegram\Support\AdminCloudflareDnsUi;
-use App\Interfaces\Telegram\Support\BillingUi;
 use App\Interfaces\Telegram\Support\AdminConfigProfileOperationsUi;
 use App\Interfaces\Telegram\Support\AdminFinanceWalletUi;
 use App\Interfaces\Telegram\Support\AdminHostOperationsUi;
@@ -16,6 +15,7 @@ use App\Interfaces\Telegram\Support\AdminNodeOperationsUi;
 use App\Interfaces\Telegram\Support\AdminNodeSetupUi;
 use App\Interfaces\Telegram\Support\AdminNodesUi;
 use App\Interfaces\Telegram\Support\AdminWalletReversalUi;
+use App\Interfaces\Telegram\Support\BillingUi;
 use App\Interfaces\Telegram\Support\ManualPaymentUi;
 use App\Interfaces\Telegram\Support\PlanAdminUi;
 use App\Interfaces\Telegram\Support\ProductAdminUi;
@@ -34,10 +34,6 @@ $bot->onText('{volume}', function (Nutgram $bot, string $volume): void {
     }
 
     if (app(ManualPaymentUi::class)->text($bot, $volume)) {
-        return;
-    }
-
-    if (app(BillingUi::class)->text($bot, $volume)) {
         return;
     }
 
@@ -60,6 +56,10 @@ $bot->onText('{volume}', function (Nutgram $bot, string $volume): void {
     }
 
     if (app(AdminFinanceWalletUi::class)->text($bot, $volume)) {
+        return;
+    }
+
+    if (app(BillingUi::class)->text($bot, $volume)) {
         return;
     }
 
