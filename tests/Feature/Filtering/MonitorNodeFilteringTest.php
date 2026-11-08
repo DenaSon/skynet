@@ -120,7 +120,7 @@ it('preserves all AMS-02-like low-activity incidents and measurements without se
         ->and(DB::table('telegram_notification_deliveries')->count())->toBe(0);
 });
 
-it('does not notify for a one-off three-user spike but notifies after two sustained three-plus observations', function (): void {
+it('does not notify on a solitary three-user spike in a low-activity window', function (): void {
     flt02EnableRootNotifications();
     flt02Step(1, null, null, 0);
     flt02Step(3, null, null);
@@ -140,6 +140,25 @@ it('retains independent traffic-zero alerts on low-user nodes', function (): voi
 
     expect(app(FilteringFoundation::class)->read(FLT02_NODE)['affected_modules']['node']['causes'])
         ->toBe(['traffic_zero'])
+        ->and(DB::table('telegram_notification_deliveries')->where('event_type', 'FilteringOpened')->count())
+        ->toBe(1);
+});
+
+it('notifies when confirmed traffic-zero joins an unnotified online-only incident', function (): void {
+    flt02EnableRootNotifications();
+    flt02Step(1, 100, 100, 0);
+    flt02Step(0, 100, 100);
+    flt02Step(0, 100, 100);
+
+    expect(DB::table('filtering_incidents')->count())->toBe(1)
+        ->and(DB::table('telegram_notification_deliveries')->count())->toBe(0);
+
+    flt02Step(0, 0, 0);
+    flt02Step(0, 0, 0);
+
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['affected_modules']['node']['causes'])
+        ->toBe(['online_zero', 'traffic_zero'])
+        ->and(DB::table('filtering_incidents')->count())->toBe(1)
         ->and(DB::table('telegram_notification_deliveries')->where('event_type', 'FilteringOpened')->count())
         ->toBe(1);
 });
