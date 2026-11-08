@@ -42,7 +42,7 @@ $bot->onText('{volume}', function (Nutgram $bot, string $volume): void {
 
     // ANN-01: multi-line content from a trusted Admin-only, owner-bound draft.
     // Reply-menu navigation, SSH secret handling and bank review retain precedence.
-    if (app(AdminAnnouncementsUi::class)->text($bot, $bot->message()?->text ?? $volume)) {
+    if (app(AdminAnnouncementsUi::class)->text($bot, $bot->message()->text ?? $volume)) {
         return;
     }
 
