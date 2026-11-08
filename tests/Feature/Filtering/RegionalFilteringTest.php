@@ -8,6 +8,7 @@ use App\Modules\Filtering\Application\MonitorNodeFiltering;
 use App\Modules\Filtering\Application\RegionalRoundClassifier;
 use App\Modules\Filtering\Application\ScanRegionalFiltering;
 use App\Modules\Filtering\Infrastructure\CheckHostRegionalProbe;
+use App\Modules\Filtering\Jobs\ScanRegionalNodeJob;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveNodeSummary;
@@ -500,6 +501,26 @@ it('opens one composite incident and escalates only after two likely rounds with
         ->and(app(FilteringFoundation::class)->read(FLT03_NODE)['incident_id'])->toBe($first['incident_id']);
     expect(DB::table('filtering_incidents')->count())->toBe(1);
     Http::assertSent(static fn (Request $r): bool => str_contains($r->url(), 'host=1.1.1.1%3A443'));
+});
+
+it('keeps queued likely-round confirmation within its job budget after extending polling', function (): void {
+    $GLOBALS['flt03_failed'] = [1, 2, 3, 5, 6];
+    flt03Scan();
+    expect(app(FilteringFoundation::class)->read(FLT03_NODE)['state'])->toBe('suspicious');
+
+    $job = new ScanRegionalNodeJob(FLT03_NODE);
+    expect($job->tries)->toBe(1)
+        ->and($job->timeout)->toBe(75)
+        ->and(config('queue.connections.database.retry_after'))->toBeGreaterThan($job->timeout);
+
+    $this->travel(10)->minutes();
+    $job->handle(app(ScanRegionalFiltering::class));
+
+    expect(DB::table('filtering_checks')->where('module', 'regional')->count())->toBe(2)
+        ->and(app(FilteringFoundation::class)->read(FLT03_NODE)['state'])->toBe('disrupted');
+
+    Http::assertSent(static fn (Request $request): bool => str_contains($request->url(), '/check-tcp?')
+        && str_contains($request->url(), 'host=1.1.1.1%3A443'));
 });
 
 it('requires two eligible clear rounds for recovery and does not recover on pending or API failure', function (): void {
