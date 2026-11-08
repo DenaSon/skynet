@@ -290,6 +290,13 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:admin:welcome:show';
     $expected['ADMIN'][] = 'callback:admin:welcome:edit:{kind}';
     $expected['ADMIN'][] = 'callback:admin:welcome:cancel';
+    // ANN-01: trusted-root management callbacks belong only to the Admin Bot.
+    foreach ([
+        'list:{page}', 'view:{id}', 'new', 'edit:{id}:{field}', 'save:{token}',
+        'prepare-new:{token}', 'commit:{token}', 'prepare:{id}:{action}', 'apply:{token}', 'cancel',
+    ] as $name) {
+        $expected['ADMIN'][] = 'callback:admin:ann:'.$name;
+    }
     // Root-only wallet corrections stay separated from wallet-detail wildcards.
     $expected['ADMIN'][] = 'callback:finance:reverse:list:{user}:{page}';
     $expected['ADMIN'][] = 'callback:finance:reverse:prepare:{user}:{topup}';
