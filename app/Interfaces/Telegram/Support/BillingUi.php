@@ -238,10 +238,10 @@ final class BillingUi
                 'topup' => $row['id'], 'reference' => $row['reference'],
             ], now()->addMinutes(10));
             $this->render($bot,
-                "🔎 بررسی شارژ · مرحله ۱ از ۲\\n\\nدرخواست #{$row['id']} | کاربر #{$row['user_id']}"
-                ."\\nمبلغ درخواست: ".number_format(intdiv($row['amount_rials'], 10))." تومان"
-                ."\\nشناسه اعلامی: {$row['reference']}"
-                ."\\n\\nمبلغ <b>واقعی مشاهده‌شده در بانک</b> را به تومان وارد کنید.",
+                "🔎 بررسی شارژ · مرحله ۱ از ۲\n\nدرخواست #{$row['id']} | کاربر #{$row['user_id']}"
+                ."\nمبلغ درخواست: ".number_format(intdiv($row['amount_rials'], 10))." تومان"
+                ."\nشناسه اعلامی: {$row['reference']}"
+                ."\n\nمبلغ <b>واقعی مشاهده‌شده در بانک</b> را به تومان وارد کنید.",
                 InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make('◀️ انصراف', callback_data: 'menu:billing-reviews')));
 
             return;
@@ -293,7 +293,7 @@ final class BillingUi
             '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
         ]);
         $digits = str_replace([',', '٬', ' '], '', $digits);
-        if (preg_match('/\\A[1-9][0-9]{0,7}\\z/D', $digits) !== 1
+        if (preg_match('/\A[1-9][0-9]{0,7}\z/D', $digits) !== 1
             || (int) $digits > 10_000_000) {
             $this->notice($bot, 'مبلغ واقعی بانک را به تومان وارد کنید؛ مانند 900000.');
 
@@ -313,10 +313,10 @@ final class BillingUi
         $verifiedAmountRials = (int) $digits * 10;
         if ($verifiedAmountRials !== (int) $topup->amount_rials) {
             $this->render($bot,
-                "⛔ مغایرت مبلغ واریزی\\n\\nمبلغ درخواست: "
-                .number_format(intdiv((int) $topup->amount_rials, 10))." تومان\\nمبلغ بانک: "
+                "⛔ مغایرت مبلغ واریزی\n\nمبلغ درخواست: "
+                .number_format(intdiv((int) $topup->amount_rials, 10))." تومان\nمبلغ بانک: "
                 .number_format(intdiv($verifiedAmountRials, 10))
-                ." تومان\\n\\nتأیید مسدود است. مبلغ را دوباره بررسی کنید یا رسید را رد کنید.",
+                ." تومان\n\nتأیید مسدود است. مبلغ را دوباره بررسی کنید یا رسید را رد کنید.",
                 InlineKeyboardMarkup::make()
                     ->addRow(InlineKeyboardButton::make('❌ رد رسید',
                         callback_data: 'billing:review:'.$topup->id.':r'))
@@ -330,11 +330,11 @@ final class BillingUi
             $actor->userId, (int) $topup->id, true, $state['reference'], $verifiedAmountRials,
         );
         $this->render($bot,
-            "✅ تأیید نهایی شارژ · مرحله ۲ از ۲\\n\\nدرخواست #{$topup->id}"
-            ."\\nمبلغ درخواست: ".number_format(intdiv((int) $topup->amount_rials, 10)).' تومان'
-            ."\\nمبلغ تأییدشده بانک: ".number_format(intdiv($verifiedAmountRials, 10)).' تومان'
-            ."\\nشناسه بانک: ".$state['reference']
-            ."\\n\\nپس از بررسی گردش واقعی بانک، تأیید نهایی کنید.",
+            "✅ تأیید نهایی شارژ · مرحله ۲ از ۲\n\nدرخواست #{$topup->id}"
+            ."\nمبلغ درخواست: ".number_format(intdiv((int) $topup->amount_rials, 10)).' تومان'
+            ."\nمبلغ تأییدشده بانک: ".number_format(intdiv($verifiedAmountRials, 10)).' تومان'
+            ."\nشناسه بانک: ".$state['reference']
+            ."\n\nپس از بررسی گردش واقعی بانک، تأیید نهایی کنید.",
             InlineKeyboardMarkup::make()
                 ->addRow(InlineKeyboardButton::make('✅ تأیید و افزایش موجودی',
                     callback_data: 'billing:apply:'.$token))
