@@ -168,6 +168,7 @@ final readonly class AdminFinanceWalletUi
                 'topup' => 'شارژ',
                 'admin_verified_topup' => 'افزایش اعتبار توسط مدیر',
                 'topup_reversal' => 'اصلاح شارژ',
+                'topup_amount_correction' => 'اصلاح مبلغ شارژ',
                 'purchase_reversal' => 'اصلاح خرید',
                 default => 'پرداخت',
             };
@@ -233,6 +234,7 @@ final readonly class AdminFinanceWalletUi
                 'topup' => 'شارژ',
                 'admin_verified_topup' => 'افزایش اعتبار توسط مدیر',
                 'topup_reversal' => 'اصلاح شارژ',
+                'topup_amount_correction' => 'اصلاح مبلغ شارژ',
                 'purchase_reversal' => 'اصلاح خرید',
                 default => 'پرداخت',
             };
