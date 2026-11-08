@@ -68,6 +68,7 @@ final readonly class FilteringIncidentNotice
         };
 
         $causes = [];
+        $hasEnabledCause = false;
         /** @var array<string, mixed> $modules */
         $modules = json_decode((string) $row->affected_modules, true, 512, JSON_THROW_ON_ERROR);
         foreach ($modules as $source => $module) {
@@ -93,11 +94,12 @@ final readonly class FilteringIncidentNotice
                 };
                 if ($label !== null) {
                     $causes[$label] = true;
+                    $hasEnabledCause = true;
                 }
             }
         }
 
-        if ($kind !== 'recover' && $causes === []) {
+        if ($kind !== 'recover' && ! $hasEnabledCause) {
             return null;
         }
 
