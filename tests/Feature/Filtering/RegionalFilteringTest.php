@@ -47,6 +47,8 @@ beforeEach(function (): void {
     $GLOBALS['flt03_rate_limit'] = false;
     $GLOBALS['flt03_control_bad'] = false;
     $GLOBALS['flt03_bad_metadata'] = false;
+    $GLOBALS['flt03_metadata_override'] = null;
+    $GLOBALS['flt03_requested_nodes'] = [];
     Queue::fake();
     Sleep::fake();
     Http::preventStrayRequests();
@@ -69,12 +71,15 @@ beforeEach(function (): void {
             return Http::response(['error' => 'rate limited'], 429);
         }
         if ($url === 'https://check-host.net/nodes/hosts') {
-            return Http::response(['nodes' => $GLOBALS['flt03_bad_metadata'] ? [] : flt03Meta()]);
+            return Http::response(['nodes' => $GLOBALS['flt03_bad_metadata']
+                ? [] : ($GLOBALS['flt03_metadata_override'] ?? flt03Meta())]);
         }
         if (str_starts_with($url, 'https://check-host.net/check-tcp?')) {
             $control = str_contains($url, '1.1.1.1%3A443');
+            preg_match_all('/[?&]node=([^&]+)/', $url, $matches);
+            $GLOBALS['flt03_requested_nodes'] = array_map('rawurldecode', $matches[1]);
             $nodes = [];
-            foreach (array_keys(flt03Meta()) as $name) {
+            foreach ($GLOBALS['flt03_requested_nodes'] as $name) {
                 $nodes[$name] = ['ir', 'Iran', 'Tehran', '1.1.1.1', 'AS123'];
             }
 
@@ -88,9 +93,11 @@ beforeEach(function (): void {
             }
             $poll = $control ? 0 : ++$GLOBALS['flt03_result_poll_count'];
             $result = [];
-            for ($i = 1; $i <= 8; $i++) {
+            foreach ($GLOBALS['flt03_requested_nodes'] as $name) {
+                preg_match('/\\Air([1-8])\\.node\\.check-host\\.net\\z/D', $name, $nodeMatch);
+                $i = (int) $nodeMatch[1];
                 $failed = $control ? $GLOBALS['flt03_control_bad'] : in_array($i, $GLOBALS['flt03_failed'], true);
-                $result["ir{$i}.node.check-host.net"] = (in_array($i, $GLOBALS['flt03_pending'], true)
+                $result[$name] = (in_array($i, $GLOBALS['flt03_pending'], true)
                     || ($GLOBALS['flt03_delay_results'] && $poll === 1)
                     || (! $control && $poll <= $GLOBALS['flt03_pending_until_poll']))
                     ? null : ($failed
