@@ -150,7 +150,7 @@ function sb05WalletOrder(): array
     config()->set('billing.topups_enabled', true);
     $topup = app(RequestTopup::class)->handle($data['buyer']->id, 1_500_000, 'patch02:wallet:credit');
     app(SubmitTopupPhoto::class)->handle($data['buyer']->id, $topup, 975099, 'patch02-wallet-file', 'patch02-wallet-unique', 9200);
-    app(ReviewTopup::class)->handle($data['root']->id, $topup, true, 'PATCH02WALLET100');
+    app(ReviewTopup::class)->handle($data['root']->id, $topup, true, 'PATCH02WALLET100', (int) DB::table('billing_topups')->where('id', $topup)->value('amount_rials'));
     config()->set('sales.wallet_settlement_enabled', true);
     config()->set('sales.auto_fulfillment_enabled', true);
     config()->set('services.remnawave.writes_enabled', true);
@@ -383,7 +383,7 @@ it('fulfills a ready customer wallet order once through the existing provider jo
     config()->set('billing.topups_enabled', true);
     $topup = app(RequestTopup::class)->handle($data['buyer']->id, 1_500_000, 'patch01:wallet:credit');
     app(SubmitTopupPhoto::class)->handle($data['buyer']->id, $topup, 975099, 'patch01-wallet-file', 'patch01-wallet-unique', 9200);
-    app(ReviewTopup::class)->handle($data['root']->id, $topup, true, 'PATCH01WALLET100');
+    app(ReviewTopup::class)->handle($data['root']->id, $topup, true, 'PATCH01WALLET100', (int) DB::table('billing_topups')->where('id', $topup)->value('amount_rials'));
     config()->set('sales.wallet_settlement_enabled', true);
     config()->set('sales.auto_fulfillment_enabled', true);
     config()->set('services.remnawave.writes_enabled', true);
@@ -1081,7 +1081,7 @@ it('reaches later eligible recovery orders past a full rejected batch while reta
         config()->set('billing.topups_enabled', true);
         $topup = app(RequestTopup::class)->handle($data['buyer']->id, 43_000_000, 'recovery-batch-topup');
         app(SubmitTopupPhoto::class)->handle($data['buyer']->id, $topup, 975099, 'batch-photo', 'batch-unique', 9300);
-        app(ReviewTopup::class)->handle($data['root']->id, $topup, true, 'BATCHWALLET100');
+        app(ReviewTopup::class)->handle($data['root']->id, $topup, true, 'BATCHWALLET100', (int) DB::table('billing_topups')->where('id', $topup)->value('amount_rials'));
     }
     $quote = app(CalculatePlanQuote::class)->handle($data['buyer']->id, $data['plan'], 30, 20);
     $orders = [];
