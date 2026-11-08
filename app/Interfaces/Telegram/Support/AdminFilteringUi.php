@@ -25,7 +25,7 @@ final readonly class AdminFilteringUi
         private MenuRenderer $menus,
     ) {}
 
-    public function show(Nutgram $bot, bool $simple = false): void
+    public function show(Nutgram $bot): void
     {
         $userId = $this->root($bot);
         if ($userId === null) {
@@ -54,23 +54,21 @@ final readonly class AdminFilteringUi
         $node = ($data['node_enabled'] ? 'فعال' : 'غیرفعال').' · '.self::time($data['node_at']);
         $regional = ($data['regional_enabled'] ? 'فعال' : 'غیرفعال').' · '.self::time($data['regional_at']);
         $desc = $data['total'] === 0
-            ? 'هنوز داده‌ای برای نمایش ثبت نشده است.'
-            : 'آخرین وضعیت ثبت‌شده برای '.self::number($data['total']).' نود دارای سابقه';
+            ? 'داده‌ای ثبت نشده است.'
+            : 'وضعیت '.self::number($data['total']).' نود';
         $rich = '<h2>🚦 فیلترینگ</h2>'
             .'<p>'.self::esc($desc).'</p>'
             .'<h3>📊 نمای کلی</h3>'.self::table($rows)
             .'<h3>🕒 وضعیت بررسی‌ها</h3>'.self::table([
-                ['کاربران و ترافیک · هر ۲ دقیقه', $node],
-                ['دسترسی از ایران · هر ۱۰ دقیقه', $regional],
-            ])
-            .'<footer>تازه‌سازی فقط داده‌های ذخیره‌شده را نمایش می‌دهد. نتیجه قدیمی یا ناموجود، سالم محسوب نمی‌شود.</footer>';
+                ['کاربران و ترافیک', $node],
+                ['دسترسی از ایران', $regional],
+            ]);
         $text = '<b>🚦 فیلترینگ</b>'
             ."\n".self::esc($desc)
             ."\n\n<b>📊 نمای کلی</b>".self::simpleRows($rows)
             ."\n\n<b>🕒 وضعیت بررسی‌ها</b>"
             ."\nکاربران و ترافیک: ".self::esc($node)
-            ."\nدسترسی از ایران: ".self::esc($regional)
-            ."\n\n<blockquote>تازه‌سازی فقط داده‌های ذخیره‌شده را نشان می‌دهد؛ وضعیت قدیمی یا ناموجود، سالم نیست.</blockquote>";
+            ."\nدسترسی از ایران: ".self::esc($regional);
 
         $keyboard = InlineKeyboardMarkup::make()
             ->addRow(
@@ -78,23 +76,24 @@ final readonly class AdminFilteringUi
                 InlineKeyboardButton::make('🌐 بررسی دسترسی', callback_data: 'flt:access:1'),
             )
             ->addRow(InlineKeyboardButton::make('🚨 هشدارها و تاریخچه', callback_data: 'flt:history:1'))
-            ->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'flt:home'))
-            ->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'))
-            ->addRow(self::mode($simple, 'flt:home', 'flt:home:simple'));
-        $this->render($bot, $rich, $text, $keyboard, $simple);
+            ->addRow(
+                InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'flt:home'),
+                InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'),
+            );
+        $this->render($bot, $rich, $text, $keyboard);
     }
 
-    public function nodes(Nutgram $bot, string $page = '1', bool $simple = false): void
+    public function nodes(Nutgram $bot, string $page = '1'): void
     {
-        $this->list($bot, $page, 'nodes', $simple);
+        $this->list($bot, $page, 'nodes');
     }
 
-    public function access(Nutgram $bot, string $page = '1', bool $simple = false): void
+    public function access(Nutgram $bot, string $page = '1'): void
     {
-        $this->list($bot, $page, 'access', $simple);
+        $this->list($bot, $page, 'access');
     }
 
-    public function node(Nutgram $bot, string $uuid, bool $simple = false): void
+    public function node(Nutgram $bot, string $uuid): void
     {
         $userId = $this->root($bot);
         if ($userId === null) {
@@ -119,11 +118,11 @@ final readonly class AdminFilteringUi
 
         $info = [
             ['کاربران آنلاین', self::value($node['online'])],
-            ['دریافت در ثانیه', self::rate($node['rx'])],
-            ['ارسال در ثانیه', self::rate($node['tx'])],
-            ['آخرین مشاهده نود', self::time($node['node_at'])],
-            ['بررسی دسترسی ایران', self::time($node['regional_at'])],
-            ['وضعیت دسترسی', self::status($node['regional_outcome'])],
+            ['دریافت', self::rate($node['rx'])],
+            ['ارسال', self::rate($node['tx'])],
+            ['آخرین بررسی نود', self::time($node['node_at'])],
+            ['دسترسی از ایران', self::status($node['regional_outcome'])],
+            ['آخرین بررسی ایران', self::time($node['regional_at'])],
         ];
         $regional = $node['regional'];
         $region = self::regionRows($regional);
@@ -132,24 +131,22 @@ final readonly class AdminFilteringUi
             .'<p><b>'.self::esc(self::status($node['state'])).'</b></p>'
             .self::table($info)
             .'<h3>🌐 بررسی دسترسی</h3>'.self::table($region)
-            .'<p>نشانه‌ها: '.self::esc($cause).'</p>'
-            .'<footer>نتایج بر اساس آخرین مشاهده ذخیره‌شده‌اند؛ بررسی مجدد ممکن است چند دقیقه طول بکشد.</footer>';
+            .($node['causes'] === [] ? '' : '<p>نشانه‌ها: '.self::esc($cause).'</p>');
         $text = '<b>🖥️ نود '.self::esc($node['label']).'</b>'
             ."\n".self::esc(self::status($node['state']))
             .self::simpleRows($info)
             ."\n\n<b>🌐 بررسی دسترسی</b>".self::simpleRows($region)
-            ."\nنشانه‌ها: ".self::esc($cause)
-            ."\n\n<blockquote>آمار ذخیره‌شده است و تازه‌سازی به‌معنای اجرای آزمون جدید نیست.</blockquote>";
+            .($node['causes'] === [] ? '' : "\nنشانه‌ها: ".self::esc($cause));
         $keyboard = InlineKeyboardMarkup::make()
-            ->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'flt:node:'.$node['uuid']))
-            ->addRow(InlineKeyboardButton::make('🔎 بررسی مجدد', callback_data: 'flt:recheck:'.$node['uuid']))
-            ->addRow(InlineKeyboardButton::make('◀️ وضعیت نودها', callback_data: 'flt:nodes:1'))
-            ->addRow(InlineKeyboardButton::make('🏠 فیلترینگ', callback_data: 'flt:home'))
-            ->addRow(self::mode($simple, 'flt:node:'.$node['uuid'], 'flt:node:simple:'.$node['uuid']));
-        $this->render($bot, $rich, $text, $keyboard, $simple);
+            ->addRow(
+                InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'flt:node:'.$node['uuid']),
+                InlineKeyboardButton::make('🔎 بررسی مجدد', callback_data: 'flt:recheck:'.$node['uuid']),
+            )
+            ->addRow(InlineKeyboardButton::make('◀️ وضعیت نودها', callback_data: 'flt:nodes:1'));
+        $this->render($bot, $rich, $text, $keyboard);
     }
 
-    public function history(Nutgram $bot, string $page = '1', bool $simple = false): void
+    public function history(Nutgram $bot, string $page = '1'): void
     {
         $userId = $this->root($bot);
         if ($userId === null) {
@@ -189,20 +186,18 @@ final readonly class AdminFilteringUi
         $empty = $rows === [] ? 'در ۲۴ ساعت گذشته هشداری ثبت نشده است.' : '';
         $rich = '<h2>🚨 هشدارها و تاریخچه</h2>'
             .($empty !== '' ? '<p>'.self::esc($empty).'</p>' : self::table($rows))
-            .'<footer>صفحه '.self::number($data['page']).' از '.self::number($data['pages'])
-            .' · رخدادهای باز و رخدادهای رفع‌شده در ۲۴ ساعت اخیر</footer>';
+            .'<footer>صفحه '.self::number($data['page']).' از '.self::number($data['pages']).'</footer>';
         $text = '<b>🚨 هشدارها و تاریخچه</b>'
             .($empty !== '' ? "\n".self::esc($empty) : self::simpleRows($rows))
             ."\n\nصفحه ".self::number($data['page']).' از '.self::number($data['pages']);
 
         self::pagination($keyboard, 'flt:history:', $data);
         $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'flt:history:'.$data['page']))
-            ->addRow(InlineKeyboardButton::make('◀️ فیلترینگ', callback_data: 'flt:home'))
-            ->addRow(self::mode($simple, 'flt:history:'.$data['page'], 'flt:history:simple:'.$data['page']));
-        $this->render($bot, $rich, $text, $keyboard, $simple);
+            ->addRow(InlineKeyboardButton::make('◀️ فیلترینگ', callback_data: 'flt:home'));
+        $this->render($bot, $rich, $text, $keyboard);
     }
 
-    public function incident(Nutgram $bot, string $id, bool $simple = false): void
+    public function incident(Nutgram $bot, string $id): void
     {
         $userId = $this->root($bot);
         if ($userId === null) {
@@ -235,18 +230,18 @@ final readonly class AdminFilteringUi
             ['وضعیت', self::status($incident['state'])],
             ['شروع', self::time($incident['opened_at'])],
             ['آخرین مشاهده', self::time($incident['last_at'])],
-            ['رفع اختلال', self::time($incident['resolved_at'])],
-            ['نشانه‌ها', self::causes($incident['causes'])],
         ];
-        $rich = '<h2>🚨 جزئیات هشدار</h2>'.self::table($rows)
-            .'<footer>وجود هشدار، اثبات قطعی فیلترینگ نیست.</footer>';
-        $text = '<b>🚨 جزئیات هشدار</b>'.self::simpleRows($rows)
-            ."\n\n<blockquote>وجود هشدار، اثبات قطعی فیلترینگ نیست.</blockquote>";
+        if ($incident['resolved_at'] !== null) {
+            $rows[] = ['رفع اختلال', self::time($incident['resolved_at'])];
+        }
+        if ($incident['causes'] !== []) {
+            $rows[] = ['نشانه‌ها', self::causes($incident['causes'])];
+        }
+        $rich = '<h2>🚨 جزئیات هشدار</h2>'.self::table($rows);
+        $text = '<b>🚨 جزئیات هشدار</b>'.self::simpleRows($rows);
         $keyboard = InlineKeyboardMarkup::make()
-            ->addRow(InlineKeyboardButton::make('◀️ تاریخچه', callback_data: 'flt:history:1'))
-            ->addRow(InlineKeyboardButton::make('🏠 فیلترینگ', callback_data: 'flt:home'))
-            ->addRow(self::mode($simple, 'flt:incident:'.$id, 'flt:incident:simple:'.$id));
-        $this->render($bot, $rich, $text, $keyboard, $simple);
+            ->addRow(InlineKeyboardButton::make('◀️ تاریخچه', callback_data: 'flt:history:1'));
+        $this->render($bot, $rich, $text, $keyboard);
     }
 
     /** Manual check is a queued, cooldown-limited action: never a synchronous provider call. */
@@ -268,18 +263,18 @@ final readonly class AdminFilteringUi
             return;
         }
         $message = match ($status) {
-            'queued' => '✅ درخواست بررسی ثبت شد. نتیجه پس از اجرا در بخش دسترسی نمایش داده می‌شود.',
-            'disabled' => '⏸️ بررسی دوره‌ای دسترسی غیرفعال است. امکان درخواست جدید وجود ندارد.',
-            'cooldown' => '⏳ بررسی دیگری اخیراً درخواست شده است. کمی بعد دوباره اقدام کنید.',
-            default => 'این نود برای بررسی مجدد در دسترس نیست.',
+            'queued' => '✅ بررسی ثبت شد؛ نتیجه در بخش دسترسی نمایش داده می‌شود.',
+            'disabled' => '⏸️ بررسی دسترسی غیرفعال است.',
+            'cooldown' => '⏳ بررسی اخیر در جریان است؛ کمی بعد اقدام کنید.',
+            default => 'بررسی مجدد این نود ممکن نیست.',
         };
         $keyboard = InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('🔄 مشاهده آخرین وضعیت', callback_data: 'flt:node:'.$uuid))
             ->addRow(InlineKeyboardButton::make('◀️ فیلترینگ', callback_data: 'flt:home'));
-        $this->render($bot, '<h2>🔎 بررسی مجدد</h2><p>'.self::esc($message).'</p>', self::esc($message), $keyboard, false);
+        $this->render($bot, '<h2>🔎 بررسی مجدد</h2><p>'.self::esc($message).'</p>', self::esc($message), $keyboard);
     }
 
-    private function list(Nutgram $bot, string $requested, string $view, bool $simple): void
+    private function list(Nutgram $bot, string $requested, string $view): void
     {
         $userId = $this->root($bot);
         if ($userId === null) {
@@ -327,16 +322,16 @@ final readonly class AdminFilteringUi
         $message = $rows === [] ? 'هنوز داده‌ای برای نمایش وجود ندارد.' : '';
         $rich = '<h2>'.$title.'</h2>'
             .($message === '' ? self::table($rows) : '<p>'.self::esc($message).'</p>')
-            .'<footer>صفحه '.self::number($data['page']).' از '.self::number($data['pages'])
-            .' · نتایج فقط از سابقه ذخیره‌شده خوانده می‌شوند.</footer>';
+            .'<footer>صفحه '.self::number($data['page']).' از '.self::number($data['pages']).'</footer>';
         $text = '<b>'.$title.'</b>'
             .($message === '' ? self::simpleRows($rows) : "\n".self::esc($message))
             ."\n\nصفحه ".self::number($data['page']).' از '.self::number($data['pages']);
         self::pagination($keyboard, 'flt:'.$view.':', $data);
-        $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'flt:'.$view.':'.$data['page']))
-            ->addRow(InlineKeyboardButton::make('◀️ فیلترینگ', callback_data: 'flt:home'))
-            ->addRow(self::mode($simple, 'flt:'.$view.':'.$data['page'], 'flt:'.$view.':simple:'.$data['page']));
-        $this->render($bot, $rich, $text, $keyboard, $simple);
+        $keyboard->addRow(
+            InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'flt:'.$view.':'.$data['page']),
+            InlineKeyboardButton::make('◀️ فیلترینگ', callback_data: 'flt:home'),
+        );
+        $this->render($bot, $rich, $text, $keyboard);
     }
 
     private function root(Nutgram $bot): ?int
@@ -376,16 +371,13 @@ final readonly class AdminFilteringUi
         string $rich,
         string $plain,
         InlineKeyboardMarkup $keyboard,
-        bool $simple,
     ): void {
-        if (! $simple) {
-            try {
-                TelegramUi::editRichText($bot, new InputRichMessage(html: $rich, is_rtl: true), $keyboard);
+        try {
+            TelegramUi::editRichText($bot, new InputRichMessage(html: $rich, is_rtl: true), $keyboard);
 
-                return;
-            } catch (TelegramException $exception) {
-                report($exception);
-            }
+            return;
+        } catch (TelegramException $exception) {
+            report($exception);
         }
         if ($bot->isCallbackQuery()) {
             TelegramUi::editText($bot, $plain, $keyboard, 'HTML');
@@ -423,20 +415,14 @@ final readonly class AdminFilteringUi
     private static function regionRows(array $data): array
     {
         return [
-            ['تکمیل‌شده', self::value($data['completed_probes'] ?? null)],
-            ['موفق', isset($data['completed_probes'], $data['failed_probes'])
-                ? self::value($data['completed_probes'] - $data['failed_probes']) : 'نامشخص'],
-            ['ناموفق', self::value($data['failed_probes'] ?? null)],
-            ['در انتظار', self::value($data['pending_probes'] ?? null)],
-            ['شبکه‌های مستقل', self::value($data['asn_count'] ?? null)],
-            ['شهرها', self::value($data['city_count'] ?? null)],
+            ['پاسخ‌ها', self::value($data['completed_probes'] ?? null).' کامل · '
+                .self::value($data['pending_probes'] ?? null).' در انتظار'],
+            ['نتایج', (isset($data['completed_probes'], $data['failed_probes'])
+                ? self::value($data['completed_probes'] - $data['failed_probes']) : 'نامشخص')
+                .' موفق · '.self::value($data['failed_probes'] ?? null).' ناموفق'],
+            ['پوشش', self::value($data['asn_count'] ?? null).' شبکه · '
+                .self::value($data['city_count'] ?? null).' شهر'],
         ];
-    }
-
-    private static function mode(bool $simple, string $rich, string $plain): InlineKeyboardButton
-    {
-        return InlineKeyboardButton::make($simple ? '✨ نمای جدید' : '📝 نمای ساده',
-            callback_data: $simple ? $rich : $plain);
     }
 
     /** @param array{page:int,pages:int} $data */
