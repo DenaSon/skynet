@@ -212,7 +212,6 @@ it('rejects recharge requests over 10 million tomans without creating a financia
         ->and(DB::table('billing_journals')->count())->toBe(0);
 });
 
-
 it('fails closed on absent or mismatched bank amount before any wallet or reference write', function (): void {
     config()->set('billing.topups_enabled', true);
     $root = billingRoot();
