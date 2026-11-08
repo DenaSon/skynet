@@ -7,6 +7,7 @@ namespace App\Modules\Billing\Application;
 use App\Modules\Identity\Application\AssertBillingAccess;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -57,9 +58,16 @@ final readonly class ReadAdminCashReceipts
         if ($from !== null) {
             $topups->where('receipt.verified_at', '>=', $from);
         }
+        // A bank-attested partial correction changes the confirmed cash amount,
+        // not the immutable original receipt or the number of incoming transfers.
+        $netTopup = 'topup.amount_rials';
+        if (Schema::hasTable('billing_topup_amount_corrections')) {
+            $topups->leftJoin('billing_topup_amount_corrections as correction', 'correction.topup_id', '=', 'topup.id');
+            $netTopup = 'topup.amount_rials - COALESCE(correction.adjustment_amount_rials, 0)';
+        }
         $topupTotals = $topups->selectRaw("COUNT(*) as receipts_count,
-                COALESCE(SUM(topup.amount_rials), 0) as amount_rials,
-                COALESCE(SUM(CASE WHEN topup.origin = 'admin_verified_bank' THEN topup.amount_rials ELSE 0 END), 0) as admin_amount_rials,
+                COALESCE(SUM($netTopup), 0) as amount_rials,
+                COALESCE(SUM(CASE WHEN topup.origin = 'admin_verified_bank' THEN $netTopup ELSE 0 END), 0) as admin_amount_rials,
                 COALESCE(SUM(CASE WHEN topup.origin = 'admin_verified_bank' THEN 1 ELSE 0 END), 0) as admin_count")->first();
 
         // Direct bank settlements represent genuinely new recorded inflows.
