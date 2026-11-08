@@ -18,6 +18,7 @@ use App\Modules\Provisioning\Application\ListMyServices;
 use App\Modules\Referral\Application\GetReferralInvite;
 use App\Modules\Sales\Application\ListQuotedPresets;
 use App\Modules\Sales\Application\QuotedPreset;
+use App\Modules\Sales\Application\ReadPublishedAnnouncements;
 use App\Modules\Sales\Application\SalesPanelRequests;
 use App\Modules\Sales\Application\SummarizeSalesPurchases;
 use App\Support\PersianCalendar;
@@ -143,7 +144,9 @@ final readonly class SalesHomeUi
             $keyboard->addRow(InlineKeyboardButton::make('💬 پشتیبانی', callback_data: 'sales:support'));
         }
         $keyboard->addRow(InlineKeyboardButton::make('📋 همه پلن‌ها و قیمت‌ها', callback_data: 'menu:plan-catalog'));
-        $keyboard->addRow(InlineKeyboardButton::make(ReplyMenuLabels::SALES_ANNOUNCEMENTS, callback_data: 'sales:ann:list'));
+        if (app(ReadPublishedAnnouncements::class)->hasPublished()) {
+            $keyboard->addRow(InlineKeyboardButton::make(ReplyMenuLabels::SALES_ANNOUNCEMENTS, callback_data: 'sales:ann:list'));
+        }
         if ($isReseller && config('denagate_live.enabled') === true) {
             $keyboard->addRow(InlineKeyboardButton::make(
                 ReplyMenuLabels::SALES_APP,
