@@ -63,6 +63,38 @@ $bot->onCallbackQueryData('admin:welcome:cancel', function (Nutgram $bot): void 
     app(SettingsHandler::class)->cancel($bot);
 });
 
+// ANN-01: trusted-root announcements. No customer broadcasts or Sales routes.
+$bot->onCallbackQueryData('admin:ann:list:{page}', function (Nutgram $bot, string $page): void {
+    app(AdminAnnouncementsUi::class)->browse($bot, $page);
+});
+$bot->onCallbackQueryData('admin:ann:view:{id}', function (Nutgram $bot, string $id): void {
+    app(AdminAnnouncementsUi::class)->detail($bot, $id);
+});
+$bot->onCallbackQueryData('admin:ann:new', function (Nutgram $bot): void {
+    app(AdminAnnouncementsUi::class)->begin($bot);
+});
+$bot->onCallbackQueryData('admin:ann:edit:{id}:{field}', function (Nutgram $bot, string $id, string $field): void {
+    app(AdminAnnouncementsUi::class)->edit($bot, $id, $field);
+});
+$bot->onCallbackQueryData('admin:ann:save:{token}', function (Nutgram $bot, string $token): void {
+    app(AdminAnnouncementsUi::class)->save($bot, $token);
+});
+$bot->onCallbackQueryData('admin:ann:prepare-new:{token}', function (Nutgram $bot, string $token): void {
+    app(AdminAnnouncementsUi::class)->prepareNew($bot, $token);
+});
+$bot->onCallbackQueryData('admin:ann:commit:{token}', function (Nutgram $bot, string $token): void {
+    app(AdminAnnouncementsUi::class)->commitNew($bot, $token);
+});
+$bot->onCallbackQueryData('admin:ann:prepare:{id}:{action}', function (Nutgram $bot, string $id, string $action): void {
+    app(AdminAnnouncementsUi::class)->prepare($bot, $id, $action);
+});
+$bot->onCallbackQueryData('admin:ann:apply:{token}', function (Nutgram $bot, string $token): void {
+    app(AdminAnnouncementsUi::class)->apply($bot, $token);
+});
+$bot->onCallbackQueryData('admin:ann:cancel', function (Nutgram $bot): void {
+    app(AdminAnnouncementsUi::class)->cancel($bot);
+});
+
 // Root-only runtime management of three operational settings. Independent from Topics.
 $bot->onCallbackQueryData('admin:ops:show', function (Nutgram $bot): void {
     app(OperationalSettingsHandler::class)->show($bot);
