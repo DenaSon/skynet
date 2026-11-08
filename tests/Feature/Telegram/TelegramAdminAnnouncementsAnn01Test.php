@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Interfaces\Telegram\Support\AdminAnnouncementsUi;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Sales\Application\ManageAnnouncements;
@@ -190,6 +191,6 @@ it('falls back to safe native HTML with the same announcement and controls', fun
         return null;
     });
 
-    app(\App\Interfaces\Telegram\Support\AdminAnnouncementsUi::class)->browse($bot);
+    app(AdminAnnouncementsUi::class)->browse($bot);
     Http::assertNothingSent();
 });
