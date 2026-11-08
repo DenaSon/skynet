@@ -12,12 +12,14 @@ Decision: 2026-11-08. Scope-first plan for customer-facing, pull-only announceme
 - Reuse existing text wizard safeguards. The new wizard must not consume SSH credentials, finance forms or unrelated privileged input. The existing buttons and routes remain registered.
 - Source-level gates: focused DB and Fake Telegram tests, PHP 8.4/8.5, PHPStan, Pint, architecture regressions. CI is not proof of live Telegram/Production acceptance. Do not merge without explicit review.
 
-## ANN-02: customer presentation — not in phase 1
+## ANN-02: customer presentation — separate stacked PR
 
 - **Sales Bot only:** persistent `📢 اطلاعیه‌ها` and Rich-home entry, three most recent published announcements ordered by `published_at DESC, id DESC`, short summaries, full detail, suitable empty state, back/home.
 - Customer reads must re-check published status for each click; old callbacks for unpublished announcements must fail closed.
 - Preserve buy/services first row, role-based existing buttons, private active buyer access, RTL Rich-first and same-authorized-snapshot native fallback.
-- No schema/migration, outbox, scheduled/automatic broadcast, read receipts, categories, expiry, attachments, link CTA, pagination, or Mini App surface in ANN-02. Its implementation needs a separate approval and PR.
+- No schema/migration, outbox, scheduled/automatic broadcast, read receipts, categories, expiry, attachments, link CTA, pagination, or Mini App surface in ANN-02.
+- Implementation isolated in `feature/ann-02-sales-announcements`, based on the green ANN-01 commit (`db7e1b33`). PR targets ANN-01 until the prerequisite is merged. This does not grant authorization to merge either phase; real Telegram device QA remains separate.
+- Sales list: 0–3 latest published notices; each has a trimmed 120-character one-line teaser, Tehran publication date and an owner-gated detail callback. Detail displays the complete 1500-character body with safe HTML and multiline preservation. A withdrawn announcement cannot be reopened via a stale callback. Both list and detail have native Rich-first + parity HTML fallback.
 
 ## Release and rollback
 
