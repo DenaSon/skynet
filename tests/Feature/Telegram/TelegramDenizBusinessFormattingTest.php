@@ -17,7 +17,7 @@ it('renders Persian headings, bold, italic, inline code and approved clickable l
     $raw = "### راهنمای نمایندگی\n"
         ."**نمایندگی دناگیت** و *راهنمای ثبت‌نام*\n"
         ."__اعتبار اولیه__، _موجودی_ و `نام کاربری`\n"
-        ."[ورود به بات](https://t.me/denaGateBot) 🌿";
+        .'[ورود به بات](https://t.me/denaGateBot) 🌿';
 
     $html = app(DenizBusinessMessageFormatter::class)->format($raw);
 
