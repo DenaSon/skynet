@@ -41,7 +41,7 @@
 - Third bot identity: `@denixobot`. Only its own `/api/telegram/ai/webhook` accepts `bot_key=ai`; Admin and Sales registrations are untouched.
 - Stage 1 operator secrets/settings later: `TELEGRAM_DENIX_TOKEN`, `TELEGRAM_DENIX_WEBHOOK_SECRET` (distinct from both bots), `DENAGATE_AI_GROUP_CHAT_ID` (negative chat ID), optional `TELEGRAM_DENIX_BOT_USERNAME=denixobot`. Keep `TELEGRAM_DENIX_ENABLED=false` and `DENAGATE_AI_ENABLED=false` until final acceptance.
 - Stage 2 operator queue: existing Redis/database connection and separate Supervisor `queue:work --queue=ai --sleep=3 --tries=1 --timeout=45 --max-time=3600` with a single worker and effective `retry_after > 45`; do not change the `default` worker. Then register via `php artisan telegram:webhook:set --bot=denix` only when explicitly approved.
-- Only trusted, linked, active Super Admins in the configured group can submit `/ai` and reply to Denix; short-lived Redis/default-cache replay fences prevent duplicated billable work and uncertain Telegram resend. A minimal per-actor/group throttle is applied at intake. Full model selection and conversation memory remain AI-02B.
+- Only trusted, linked, active Super Admins in the configured group can submit `/ai` and reply to Denix; seven-day replay fences require an atomic shared Redis/database Cache store and prevent duplicated billable work and uncertain Telegram resend. A minimal per-actor/group throttle is applied at intake. Full model selection and conversation memory remain AI-02B.
 - No migrations or new infrastructure; GitHub CI is not real Telegram, GapGPT-through-Laravel, or Runflare queue acceptance. Test in the real group only after secret/worker/operator approvals.
 
 **AI-02B / PR 3 — models, limited context, cost/reliability**
