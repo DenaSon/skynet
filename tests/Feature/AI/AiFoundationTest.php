@@ -27,7 +27,7 @@ function gapgptChatResponse(string $text = 'پاسخ آزمایشی'): array
 }
 
 it('uses the official OpenAI-compatible chat-completions contract and the chosen model', function (): void {
-    Http::fake(['api.gapgpt.app/*' => Http::response(gapgptChatResponse())]);
+    Http::fake(['https://api.gapgpt.app/*' => Http::response(gapgptChatResponse())]);
 
     $answer = app(AskAssistant::class)->handle('سلام', 'gpt-6-luna');
 
@@ -84,7 +84,7 @@ it('keeps the documented model choices explicit and small', function (): void {
 });
 
 it('hides upstream response bodies and credentials on provider failures', function (): void {
-    Http::fake(['api.gapgpt.app/*' => Http::response([
+    Http::fake(['https://api.gapgpt.app/*' => Http::response([
         'error' => ['message' => 'SECRET-test-only-ai-key should never be exposed'],
     ], 429)]);
 
@@ -98,7 +98,7 @@ it('hides upstream response bodies and credentials on provider failures', functi
 });
 
 it('rejects empty or unreasonably long provider text', function (): void {
-    Http::fake(['api.gapgpt.app/*' => Http::sequence()
+    Http::fake(['https://api.gapgpt.app/*' => Http::sequence()
         ->push(gapgptChatResponse(' '))
         ->push(gapgptChatResponse(str_repeat('x', 6001)))]);
 
