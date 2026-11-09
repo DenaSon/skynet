@@ -235,7 +235,8 @@ it('blocks untrusted owner, revoked rights and disabled Business connection befo
 
     config()->set('denagate_ai.business_replies_enabled', false);
     denizP2Run(denizP2Job(207));
-    Http::assertSentCount(2);
+    // Replacing Http::fake in this test resets the request recorder.
+    Http::assertSentCount(1);
     Http::assertNotSent(fn (Request $req): bool => $req->url() === 'https://api.gapgpt.app/v1/chat/completions'
         || str_ends_with($req->url(), '/sendMessage'));
 });
