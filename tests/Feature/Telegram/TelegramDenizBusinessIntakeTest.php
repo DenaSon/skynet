@@ -120,6 +120,7 @@ it('never trusts connection updates from other accounts or without reply permiss
 });
 
 it('recognizes only incoming private customer text from the previously validated connection', function (): void {
+    $this->withoutExceptionHandling();
     Log::spy();
     denizBusinessPost($this, denizBusinessConnection(31009));
 
