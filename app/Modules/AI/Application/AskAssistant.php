@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\AI\Application;
 
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
@@ -84,8 +86,26 @@ final readonly class AskAssistant
                 outputTokens: $response->usage->outputTokens,
             );
         } catch (Throwable $error) {
-            // Provider responses and exception messages may contain secrets or private prompts.
-            Log::warning('AI request failed.', ['exception_type' => $error::class]);
+            // Do not log upstream messages, response bodies, prompts, headers or credentials.
+            // Record enough safe metadata to locate SDK failures during rollout.
+            $category = match (true) {
+                $error instanceof RequestException => 'http_error',
+                $error instanceof ConnectionException => 'transport_error',
+                $error instanceof RuntimeException && $error->getMessage() === 'Invalid AI response.' => 'invalid_response',
+                default => 'provider_or_sdk_error',
+            };
+
+            $code = $error->getCode();
+            Log::warning('AI request failed.', [
+                'category' => $category,
+                'exception_type' => $error::class,
+                'http_status' => $error instanceof RequestException
+                    ? $error->response->status()
+                    : ($code >= 400 && $code <= 599 ? $code : null),
+                'source_file' => basename($error->getFile()),
+                'source_line' => $error->getLine(),
+                'previous_exception_type' => $error->getPrevious() ? $error->getPrevious()::class : null,
+            ]);
 
             throw new RuntimeException('AI request could not be completed.');
         }
