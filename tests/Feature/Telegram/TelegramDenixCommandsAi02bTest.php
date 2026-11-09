@@ -189,7 +189,7 @@ it('queues a free, timed reply when a manager exceeds the paid conversation quot
         && $job->remainingSeconds <= 600);
     Http::assertNothingSent();
 
-    $notice = Queue::pushed(SendDenixQuotaNotice::class)->first()['job'];
+    $notice = Queue::pushed(SendDenixQuotaNotice::class)->first();
     Http::fake(['https://api.telegram.org/*' => Http::response(['ok' => true])]);
 
     $notice->handle(app(DenixGroupAccess::class), app(DenixMessageSender::class));
@@ -219,7 +219,7 @@ it('explains the daily group quota independently of the manager quota', function
     Queue::assertPushed(SendDenixQuotaNotice::class, fn (SendDenixQuotaNotice $job): bool => $job->quota === 'group'
         && $job->remainingSeconds > 0 && $job->remainingSeconds <= 86400);
 
-    $notice = Queue::pushed(SendDenixQuotaNotice::class)->first()['job'];
+    $notice = Queue::pushed(SendDenixQuotaNotice::class)->first();
     Http::fake(['https://api.telegram.org/*' => Http::response(['ok' => true])]);
     $notice->handle(app(DenixGroupAccess::class), app(DenixMessageSender::class));
 
