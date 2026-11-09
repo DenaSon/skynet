@@ -56,7 +56,7 @@ final readonly class DenixConversationState
     public function history(int $chatId, ?int $threadId, int $userId): array
     {
         $stored = Cache::get($this->key($chatId, $threadId, $userId, 'history'));
-        $max = (int) config('denagate_ai.context_max_messages', 6);
+        $max = (int) config('denagate_ai.context_max_messages', 10);
         $limit = (int) config('denagate_ai.context_max_chars', 6000);
 
         if (! is_array($stored) || count($stored) > $max || count($stored) % 2 !== 0) {
@@ -95,7 +95,7 @@ final readonly class DenixConversationState
         ];
 
         $limit = (int) config('denagate_ai.context_max_chars', 6000);
-        $max = (int) config('denagate_ai.context_max_messages', 6);
+        $max = (int) config('denagate_ai.context_max_messages', 10);
 
         while (count($messages) > $max
             || array_sum(array_map(static fn (array $message): int => mb_strlen($message['content']), $messages)) > $limit) {
