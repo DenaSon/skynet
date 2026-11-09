@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Tests\TestCase;
 
 uses(RefreshDatabase::class);
 
@@ -33,7 +34,9 @@ beforeEach(function (): void {
     config()->set('cache.default', 'database');
     config()->set('queue.default', 'database');
     config()->set('queue.connections.database.retry_after', 90);
-    app(DenizBusinessSupportSettings::class)->fill(['enabled' => true])->save();
+    $settings = app(DenizBusinessSupportSettings::class);
+    $settings->enabled = true;
+    $settings->save();
 
     Cache::flush();
     Queue::fake();
@@ -55,9 +58,9 @@ function denizP2Payload(int $updateId, int $chatId = 190011, string $text = 'س�
     ];
 }
 
-function denizP2Post(array $payload): void
+function denizP2Post(TestCase $test, array $payload): void
 {
-    test()->postJson('/api/telegram/ai/webhook', $payload, [
+    $test->postJson('/api/telegram/ai/webhook', $payload, [
         'X-Telegram-Bot-Api-Secret-Token' => 'deniz-secret',
     ])->assertNoContent();
 }
@@ -125,11 +128,13 @@ function denizP2FakeHttp(?callable $hook = null, bool $canReply = true, int $own
 
 it('keeps responses OFF after deployment unless both root toggle and deployment gate are enabled', function (): void {
     config()->set('denagate_ai.business_replies_enabled', false);
-    denizP2Post(denizP2Payload(40001));
+    denizP2Post($this, denizP2Payload(40001));
 
     config()->set('denagate_ai.business_replies_enabled', true);
-    app(DenizBusinessSupportSettings::class)->fill(['enabled' => false])->save();
-    denizP2Post(denizP2Payload(40002));
+    $settings = app(DenizBusinessSupportSettings::class);
+    $settings->enabled = false;
+    $settings->save();
+    denizP2Post($this, denizP2Payload(40002));
 
     Queue::assertNothingPushed();
     Http::assertNothingSent();
@@ -138,12 +143,12 @@ it('keeps responses OFF after deployment unless both root toggle and deployment 
 });
 
 it('enqueues a single private customer message on ai without contacting Telegram or GapGPT in webhook', function (): void {
-    denizP2Post(denizP2Payload(40003));
-    denizP2Post(denizP2Payload(40003));
+    denizP2Post($this, denizP2Payload(40003));
+    denizP2Post($this, denizP2Payload(40003));
 
     $redelivered = denizP2Payload(40004);
     $redelivered['business_message']['message_id'] = 40003;
-    denizP2Post($redelivered);
+    denizP2Post($this, $redelivered);
 
     Queue::assertPushed(AnswerDenizBusinessMessage::class, 1);
     Queue::assertPushed(AnswerDenizBusinessMessage::class,
@@ -164,7 +169,7 @@ it('ignores unsupported private messages, bots and stale customer messages befor
         array_replace_recursive(denizP2Payload(40010), ['business_message' => ['text' => str_repeat('x', 2001)]]),
     ];
     foreach ($cases as $payload) {
-        denizP2Post($payload);
+        denizP2Post($this, $payload);
     }
 
     Queue::assertNothingPushed();
@@ -173,7 +178,7 @@ it('ignores unsupported private messages, bots and stale customer messages befor
 
 it('bounds customer quota independently of admin and provides at most one hourly free quota notice', function (): void {
     for ($i = 0; $i < 8; $i++) {
-        denizP2Post(denizP2Payload(40100 + $i));
+        denizP2Post($this, denizP2Payload(40100 + $i));
     }
 
     Queue::assertPushed(AnswerDenizBusinessMessage::class, 6);
@@ -236,7 +241,9 @@ it('blocks untrusted owner, revoked rights and disabled Business connection befo
 it('revalidates rights and operator switch after model inference and suppresses stale replies', function (): void {
     denizP2FakeHttp(static function (Request $request) {
         if ($request->url() === 'https://api.gapgpt.app/v1/chat/completions') {
-            app(DenizBusinessSupportSettings::class)->fill(['enabled' => false])->save();
+            $settings = app(DenizBusinessSupportSettings::class);
+    $settings->enabled = false;
+    $settings->save();
 
             return Http::response(denizP2ProviderResponse());
         }
@@ -280,16 +287,16 @@ it('never retries a potentially successful but unconfirmed Telegram send', funct
 it('routes a human request without AI and pauses that private conversation until explicit resume', function (): void {
     denizP2FakeHttp();
 
-    denizP2Post(denizP2Payload(40200, text: 'پشتیبان انسانی'));
+    denizP2Post($this, denizP2Payload(40200, text: 'پشتیبان انسانی'));
     Queue::assertPushed(AnswerDenizBusinessMessage::class,
         fn (AnswerDenizBusinessMessage $job): bool => $job->kind === 'handoff');
     denizP2Run(new AnswerDenizBusinessMessage('connection_A', 190011, 190011, 40200, now()->timestamp, 'پشتیبان انسانی', 'handoff'));
 
     expect(Cache::has('denix:business:handoff:'.hash('sha256', 'connection_A').':190011'))->toBeTrue();
-    denizP2Post(denizP2Payload(40201));
+    denizP2Post($this, denizP2Payload(40201));
     Queue::assertPushed(AnswerDenizBusinessMessage::class, 1);
 
-    denizP2Post(denizP2Payload(40202, text: 'شروع دنیز'));
+    denizP2Post($this, denizP2Payload(40202, text: 'شروع دنیز'));
     Queue::assertPushed(AnswerDenizBusinessMessage::class, 2);
     denizP2Run(new AnswerDenizBusinessMessage('connection_A', 190011, 190011, 40202, now()->timestamp, 'شروع دنیز', 'resume'));
 
@@ -301,10 +308,10 @@ it('routes a human request without AI and pauses that private conversation until
 it('pauses Deniz on a human reply from the support account but not on the bot outgoing echo', function (): void {
     $human = denizP2Payload(40203);
     $human['business_message']['from']['id'] = 191010;
-    denizP2Post($human);
+    denizP2Post($this, $human);
     expect(Cache::has('denix:business:handoff:'.hash('sha256', 'connection_A').':190011'))->toBeTrue();
 
-    denizP2Post(denizP2Payload(40204));
+    denizP2Post($this, denizP2Payload(40204));
     Queue::assertNothingPushed();
 
     Cache::forget('denix:business:handoff:'.hash('sha256', 'connection_A').':190011');
@@ -312,7 +319,7 @@ it('pauses Deniz on a human reply from the support account but not on the bot ou
     $echo['update_id'] = 40205;
     $echo['business_message']['message_id'] = 40205;
     $echo['business_message']['sender_business_bot'] = ['id' => 100003, 'is_bot' => true];
-    denizP2Post($echo);
+    denizP2Post($this, $echo);
     expect(Cache::has('denix:business:handoff:'.hash('sha256', 'connection_A').':190011'))->toBeFalse();
 });
 
