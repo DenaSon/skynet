@@ -86,6 +86,14 @@ it('retains up to thirty bounded messages per manager, group and topic', functio
         ->and($state->history(-100987654321, 12, 170002))->toBeEmpty()
         ->and($state->history(-100123456789, 12, 170001))->toBeEmpty();
 
+    // A different manager has a separate thirty-message window.
+    foreach (range(1, 15) as $turn) {
+        $state->remember(-100987654321, 12, 170002, 'مدیر دوم '.$turn, 'پاسخ دوم '.$turn);
+    }
+
+    expect($state->history(-100987654321, 12, 170002))->toHaveCount(30)
+        ->and($state->history(-100987654321, 12, 170001)[0]['content'])->toBe('سؤال 2');
+
     $state->selectModel(-100987654321, 12, 170001, 2);
     expect($state->model(-100987654321, 12, 170001))->toBe('gapgpt-deepseek-v4.1-flash')
         ->and($state->model(-100987654321, 13, 170001))->toBe('gpt-6-luna')
