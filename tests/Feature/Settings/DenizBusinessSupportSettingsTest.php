@@ -21,7 +21,7 @@ use SergiX44\Nutgram\Testing\FakeNutgram;
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
-    config()->set('super_admin.telegram_ids', ['191101']);
+    config()->set('super_admin.telegram_ids', ['191101', '191103']);
     config()->set('nutgram.token', '100001:admin-bot');
     Http::preventStrayRequests();
     Http::fake();
