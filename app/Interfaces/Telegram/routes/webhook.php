@@ -17,3 +17,7 @@ Route::middleware('api')->post('/api/telegram/admin/webhook', TelegramWebhookCon
 Route::middleware('api')->post('/api/telegram/sales/webhook', TelegramWebhookController::class)
     ->defaults('bot_key', 'sales')
     ->name('telegram.sales.webhook');
+
+Route::middleware('api')->post('/api/telegram/ai/webhook', TelegramWebhookController::class)
+    ->defaults('bot_key', 'ai')
+    ->name('telegram.denix.webhook');
