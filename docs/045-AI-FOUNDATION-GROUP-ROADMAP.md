@@ -115,6 +115,12 @@
 - Clip raw input to 3500 Unicode characters **before** HTML generation to avoid broken closing tags. No schema, provider, webhook, queue, quota or runtime-settings change.
 - Verification: pure renderer tests (Persian, RTL/newlines, nested emphasis, HTML escaping, link attribute safety, malformed/escaped Markdown, code blocks and length cap); mocked Telegram delivery tests (formatted success, definite parse error fallback, nonformat 400, HTTP 5xx, transport failure); existing Business job and Admin/Sales regression plus PHPStan/Pint/MySQL CI. Fake transport is not visual Telegram client acceptance.
 
+### Deniz greeting + quota notice copy polish (2026-11-09)
+
+- Prevent duplicate opening greetings in **Telegram Business**: the required first-message disclosure `سلام، من دنیز، دستیار هوش مصنوعی دناگیت هستم. 🌿` stays. Remove only a standalone *leading* `سلام` and its punctuation/whitespace from the model's first-turn answer before appending; retain later greetings, the answer body, the saved conversation memory and Unicode words such as `سلامتی`.
+- Apply the operator-approved formal notice **only** to exhausted user/group conversation quotas and Business customer chat quotas: `⏳ تعداد پیام‌های مجاز در این بازه زمانی تکمیل شده است.` / `امکان ادامه گفت‌وگو حدود {زمان باقی‌مانده} دیگر فعال می‌شود.` / `از همراهی شما سپاسگزاریم.` Keep human-readable minute/hour calculations; do not change control-command throttling copy, rate-limit keys, retry intervals, queue or access policy.
+- CI acceptance: tests for first response with a model greeting, no greeting and Unicode boundary; tests for Business quota message without a model request and group user/group notice; control quota unchanged; regression CI, Pint, PHPStan and MySQL. Real Telegram client QA and Runflare deployment are distinct from GitHub PR CI. A merge should trigger a new push run; it does not guarantee the run or deployment succeeds.
+
 ## Release gates, rollback and deferred scope
 
 - Each PR: smallest code change, focused Pest tests, PHPStan/Pint and current CI matrix; explicitly record PHP 8.5 evidence where applicable. No mocks presented as real API or Telegram acceptance.
