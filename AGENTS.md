@@ -1,6 +1,11 @@
-## AI — approved planning checkpoint (2026-11-09)
+## Deniz AI — merged development baseline (2026-11-09)
 
-Before implementing GapGPT or Admin group AI features, follow [docs/045-AI-FOUNDATION-GROUP-ROADMAP.md](docs/045-AI-FOUNDATION-GROUP-ROADMAP.md): AI-01 foundation, AI-02A group chat, AI-02B models/context, each in a separate explicitly authorised PR. Reuse the Laravel modular monolith, Identity guards, Nutgram and existing queue/Redis; dedicated `ai` worker, default OFF, no customer data or privileged Agent tools. Documentation does not authorize installation, deployment, API calls or merging implementation PRs.
+The GapGPT foundation, Deniz management-group Bot, Telegram Business support, Admin-only activation switch, scoped customer support prompt, safe Telegram HTML replies and 5× management-group quotas are **implemented on `master` through PR #437**. Do **not** treat old AI-01/AI-02 planning paragraphs as pending implementations. Read the [current implementation contract](docs/045-AI-FOUNDATION-GROUP-ROADMAP.md#current-implementation--authoritative-snapshot-2026-11-09) before changing Deniz.
+
+- Keep management Bot, Admin Bot, Sales Bot and private Business customer routes isolated. AI has no financial/provider/root actions. Preserve live Telegram Business owner and `can_reply` checks, one-shot sends, existing `ai` worker, short-lived per-customer state, human handoff, role authorization, independent Business kill switch and Admin Bot confirmation.
+- Current manager limits: **25 AI requests/actor/10 minutes** and **250/group/day**; controls still **10/minute**. Business limits must remain **5/customer/10 minutes, 20/customer/day, 50 total/day**. Never conflate management and Business quotas.
+- The Business-only prompt is consultative and confidence-building but bound to verified product facts (eligible 35% reseller discount, retained 900,000-toman initial wallet credit, real DenaGate Live features). No invented income, uptime, instantaneous approval or access to live customer data. Preserve the official `@denaGateBot` CTA, restrained emoji, first-turn AI identity, and safe Telegram HTML formatting.
+- [PR #437](https://github.com/DenaSon/skynet/pull/437) source CI and [post-merge master Tests](https://github.com/DenaSon/skynet/actions/runs/42683930764) succeeded. This is not proof of Runflare deployment or real Telegram post-merge acceptance. Changes to code, secrets, Production deployment and newly privileged capabilities require their own approved scope and test evidence.
 
 ## Filtering Monitoring Center — normative planning reference (2026-11-07)
 

@@ -1,6 +1,44 @@
 # AI-01 / AI-02 — GapGPT foundation and Denix group chat
 
-**Status (2026-11-09): AI-01, AI-02A and AI-02B merged (#425–#427); Deniz identity/knowledge update pending CI.** Two phases, three small independent PRs. Explicit operator approval is required to start each implementation scope. `master` auto-deploys to Production.
+**Current source checkpoint (2026-11-09): AI foundation, management-group chat, Telegram Business support and recent tone, formatting and manager-quota updates are merged through PR #437.** Earlier planning and implementation phases below are retained as historical records; where they say *planned*, *not activated* or show older quotas, the current-state section takes precedence. `master` auto-deploys; CI success does not prove Runflare deployment.
+
+
+## Current implementation — authoritative snapshot (2026-11-09)
+
+The following describes **merged source on master**, not confirmation that Runflare has deployed that exact SHA. Previous phase sections in this document remain historical. Source lineage: AI foundation/group #425–#427, Telegram Business intake and Admin switch #432, customer replies #433, support-only prompt tone #434, safe Telegram HTML formatting #435, first-turn greeting and quota text #436, and consultative sales guidance plus 5× management quotas #437.
+
+### Runtime and access boundaries
+
+- One Deniz assistant identity serves two **strictly separate** contexts: a role-checked management group (explicit `/ai` or reply to the bot), and private customer messages received via a connected **personal Telegram Business support account**, not the bot's private inbox. Admin, Sales and Deniz bots, their tokens/webhooks and route scopes remain independent. No AI tools with business/financial/provider write access.
+- The authenticated Business webhook uses update receipts and an additional message replay fence. It accepts only valid private incoming customer text; edits, deletions, bot echoes and malformed messages do not trigger inference. A dedicated one-shot job on the existing `ai` queue checks Telegram `getBusinessConnection` (exact owner, connection ID, active state, `can_reply`) **before inference and again before sending**. Replies include the Business connection ID and message reply target, subject to the 24-hour inbound-message window. An uncertain network outcome is never blindly retried.
+- Business reply activation requires `DENAGATE_AI_ENABLED=true`, `TELEGRAM_DENIX_ENABLED=true`, `DENAGATE_AI_BUSINESS_REPLIES_ENABLED=true`, a **positive Telegram account user ID** in `DENAGATE_AI_SUPPORT_BUSINESS_USER_ID`, and the root-only Spatie `deniz_business_support.enabled` switch (Admin Bot `تنظیمات سیستم → پشتیبانی هوشمند دنیز`). The independent Business gate and Settings default to OFF. Either OFF suppresses Business sends; the global AI switch also affects the management group. A negative chat/group ID is not the Business user ID.
+- Redis/database Cache keeps short-lived per-session context (up to **30 alternating messages**, **6,000 characters**, **30-minute TTL**) and stores an AI turn only after confirmed Telegram delivery. Business `پشتیبان انسانی` pauses responses for the conversation for 24 hours; outgoing human support-account messages also pause, excluding bot echoes. The customer may resume with `شروع دنیز`. This is not an assignment/ticketing service or a promised human response SLA.
+
+### Effective rate limits — merged PR #437
+
+| Scope | Current limit | Window |
+| --- | ---: | --- |
+| Trusted management-group actor | **25** AI requests | 10 minutes |
+| Shared management-group total | **250** AI requests | 24 hours |
+| Management control commands `/aimodel`, `/ainew`, `/aistatus` | **10** per actor | 60 seconds |
+| Business customer | **5** AI requests | 10 minutes |
+| Business customer | **20** AI requests | 24 hours |
+| Business channel, all customers | **50** AI requests | 24 hours |
+
+Only the **management AI conversation limits** increased 5× (formerly 5/10 min per actor and 50/day per group). The Business limits, control-command throttling, duration of windows, queue topology and model options did not change. On an exhausted conversation quota, a nonbillable timed notice starts with «⏳ تعداد پیام‌های مجاز در این بازه زمانی تکمیل شده است.»; Business quota notices are limited to one per customer per hour. Control-command cooldown wording is separate.
+
+### Current support response and content contract
+
+- The same public product knowledge is shared with a **Business-only System prompt layer** through `AskAssistant(..., customerSupport: true)`; management-group guidance is not given the sales layer. Deniz discloses its AI identity in the first Business response, removes only a redundant *leading standalone* «سلام» produced by the model on that first turn, gives clear troubleshooting steps, uses occasional modest emoji, and avoids unnecessary repeated greetings.
+- Deniz acts as both a support assistant and **consultative product guide**: lead with relevant verified strengths, not excessive disclaimers, and use contextual CTA `@denaGateBot` for purchase, balance, renewal, tutorials, reseller demo/application. Accurate reseller facts: **35% discount only on eligible plans**; DenaGate Live reseller/customer/service management; **900,000-toman initial wallet credit** remains available for purchases and is not an extra nonrefundable membership fee. Upon satisfying conditions and management approval, activation proceeds; do not suggest approved enrollment is inherently “not guaranteed.” Never guarantee income, an instant approval, all-plan discounts, perfect uptime or unverified features. The live Sales Bot determines current eligibility, tariff and application terms.
+- `DenizBusinessMessageFormatter` converts a bounded subset of AI Markdown (bold, italic, inline/fenced code, headings and validated HTTP(S) links) into safely escaped Telegram HTML. The existing Business sender uses `parse_mode=HTML`, exact connection ID and reply target. A plain-text fallback is allowed **once only for an explicit HTTP 400 entity-parse rejection**, never for ambiguous transport, 5xx or unrelated 400. Existing Admin/Sales/group senders remain unchanged.
+
+### Verification, release, and outstanding acceptance
+
+- [PR #437 Tests run 42683541183](https://github.com/DenaSon/skynet/actions/runs/42683541183): **1,725 passed / 12,092 assertions**, with PHP 8.4, PHPStan, Pint, MySQL migration/rollback and frontend checks successful. Its [post-merge master Tests run 42683930764](https://github.com/DenaSon/skynet/actions/runs/42683930764) also succeeded. The PR evidence does **not** certify PHP 8.5.
+- The operator previously reported successful real Telegram Business replies, but CI uses mocked providers/Telegram and **does not verify Runflare deployment SHA or real responses after PR #437**. Separate live acceptance: confirm the deployed SHA, message formatting, sales voice, owner/rights and quota behavior. GitHub branch pruning is an independent administrative workflow, not the deployment gate.
+- Operator rollback: disable the Business deployment gate or the Spatie switch; `DENAGATE_AI_ENABLED=false` disables all AI contexts. No new migration, provider write, secret, BotFather setting or webhook registration was introduced by the later prompt/format/quota polishing PRs.
+
 
 ## Contract and design
 
