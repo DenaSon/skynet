@@ -1,3 +1,28 @@
+# Module boundaries — current snapshot (2026-11-09)
+
+This section reflects the modules present in the current `master` baseline. Dated phase notes below describe historical implementation checkpoints and should not be read as current feature or rollout status.
+
+| Boundary | Responsibility today |
+| --- | --- |
+| `Identity` | Users, identity resolution, RBAC, authorized actor and audit |
+| `Billing` | Wallets, verified bank references and unified financial journal |
+| `Sales` | Plans, catalog, prices, orders, bank review and fulfillment intent |
+| `Provisioning` | Remnawave adapter, managed subscriptions, provider lifecycle and reconciliation |
+| `Filtering` | Node/regional evidence, incidents, alerts and bounded retention |
+| `Referral`, `Onboarding`, `Trial` | Referral attribution/reward, signup composition and time-limited trial |
+| `Administration` | Lightweight administration module registration |
+| `Interfaces/Telegram` | Admin/Sales Bot transports, UI, contact/notification delivery |
+| `Interfaces/Web/Live` | Livewire Mini App presentation using shared Application actions |
+
+## Current dependency policy
+
+- Keep business decisions and authorization in the relevant Application actions. Presenters should consume these actions instead of reaching into business persistence.
+- Cross-module calls should prefer the owning module's Application surface; external Remnawave requests are Provisioning's responsibility.
+- The existing cross-layer imports and direct SQL in sensitive payment/provider/notification flows are **known legacy exceptions**, not approved patterns for new code. Their precise Telegram and Filtering/Provisioning import exceptions are guarded in `tests/Architecture/ModuleBoundariesTest.php`. The checks are import-focused; they do not yet enforce every SQL or dynamic dependency.
+- Preserve all existing idempotency, payment attestation, RBAC, notification delivery, retries and provider reconciliation. No automatic refactor or new dependency is authorized by this document.
+
+---
+
 ## REF-02 delivery boundary
 
 Sales owns reward-delivery fields on its existing fulfillment outbox; only the Referral queue job invokes processing. Referral/Billing retain eligibility and ledger ownership. Provisioning only captures local policy with successful completion and safely enqueues after commit; reward retries never call the provider. [Contract](031-REFERRAL-REWARDS-PLAN.md).
