@@ -93,6 +93,10 @@ final readonly class DenixGroupMessage
         RateLimiter::hit('denix:user:'.$userId, 600);
         RateLimiter::hit('denix:group:'.$chatId, 86400);
 
+        if (! is_string($prompt)) {
+            return;
+        }
+
         AnswerDenixMessage::dispatch($chatId, $userId, $messageId, $threadId, $prompt);
     }
 
