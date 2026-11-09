@@ -133,6 +133,9 @@ it('recognizes only incoming private customer text from the previously validated
         array_replace_recursive(denizBusinessMessage(31012), ['business_message' => ['from' => ['is_bot' => true]]]),
         array_replace_recursive(denizBusinessMessage(31013), ['business_message' => ['sender_chat' => ['id' => 1]]]),
         array_replace_recursive(denizBusinessMessage(31014), ['business_message' => ['text' => str_repeat('x', 2001)]]),
+        array_replace_recursive(denizBusinessMessage(31020), ['business_message' => ['sender_business_bot' => ['id' => 100003, 'is_bot' => true]]]),
+        array_replace_recursive(denizBusinessMessage(31021), ['business_message' => ['from' => ['id' => 191010]]]),
+        array_replace_recursive(denizBusinessMessage(31022), ['business_message' => ['from' => ['id' => 190012]]]),
     ];
 
     foreach ($invalid as $payload) {
