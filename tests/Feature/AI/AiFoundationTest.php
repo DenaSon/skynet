@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Modules\AI\Application\AskAssistant;
 use App\Modules\AI\Application\ModelCatalog;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
 
@@ -108,7 +109,7 @@ it('sanitizes upstream server errors rather than exposing provider content', fun
 
 it('sanitizes transport failures without retrying a billable request', function (): void {
     Http::fake(['https://api.gapgpt.app/*' => function () {
-        throw new \Illuminate\Http\Client\ConnectionException('private transport details');
+        throw new ConnectionException('private transport details');
     }]);
 
     expect(fn () => app(AskAssistant::class)->handle('سلام'))
