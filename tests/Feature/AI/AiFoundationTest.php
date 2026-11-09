@@ -97,6 +97,24 @@ it('hides upstream response bodies and credentials on provider failures', functi
     }
 });
 
+it('sanitizes upstream server errors rather than exposing provider content', function (): void {
+    Http::fake(['https://api.gapgpt.app/*' => Http::response([
+        'error' => ['message' => 'private upstream response'],
+    ], 503)]);
+
+    expect(fn () => app(AskAssistant::class)->handle('سلام'))
+        ->toThrow(RuntimeException::class, 'AI request could not be completed.');
+});
+
+it('sanitizes transport failures without retrying a billable request', function (): void {
+    Http::fake(['https://api.gapgpt.app/*' => function () {
+        throw new \\Illuminate\\Http\\Client\\ConnectionException('private transport details');
+    }]);
+
+    expect(fn () => app(AskAssistant::class)->handle('سلام'))
+        ->toThrow(RuntimeException::class, 'AI request could not be completed.');
+});
+
 it('rejects empty or unreasonably long provider text', function (): void {
     Http::fake(['https://api.gapgpt.app/*' => Http::sequence()
         ->push(gapgptChatResponse(' '))
