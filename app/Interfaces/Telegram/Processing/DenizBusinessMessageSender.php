@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Telegram\Processing;
 
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 use Throwable;
 
 final class DenizBusinessMessageSender
 {
+    public function __construct(private readonly DenizBusinessMessageFormatter $formatter) {}
+
     public function send(string $connectionId, int $chatId, int $messageId, string $text): void
     {
         $token = config('telegram.denix.token');
@@ -18,28 +21,54 @@ final class DenizBusinessMessageSender
             throw new RuntimeException('Deniz Business delivery is not configured.');
         }
 
-        // Explicit Business scope is mandatory: never fall back to a normal bot DM.
+        $plain = mb_substr($text, 0, 3500);
+        $payload = [
+            'business_connection_id' => $connectionId,
+            'chat_id' => $chatId,
+            'text' => $this->formatter->format($plain),
+            'parse_mode' => 'HTML',
+            'reply_parameters' => json_encode([
+                'message_id' => $messageId,
+                'allow_sending_without_reply' => false,
+            ], JSON_THROW_ON_ERROR),
+        ];
+
+        // Keep the exact Business scope and reply target in both attempts.
+        // Never fall back to a normal bot DM.
         try {
-            $response = Http::timeout(6)->asForm()->post(
-                'https://api.telegram.org/bot'.$token.'/sendMessage',
-                [
-                    'business_connection_id' => $connectionId,
-                    'chat_id' => $chatId,
-                    'text' => mb_substr($text, 0, 3500),
-                    'reply_parameters' => json_encode([
-                        'message_id' => $messageId,
-                        'allow_sending_without_reply' => false,
-                    ], JSON_THROW_ON_ERROR),
-                ],
-            );
+            $url = 'https://api.telegram.org/bot'.$token.'/sendMessage';
+            $response = Http::timeout(6)->asForm()->post($url, $payload);
+
+            if ($this->isCertainFormattingRejection($response)) {
+                // An explicit HTTP 400 entity-parse error guarantees that
+                // Telegram did NOT deliver the formatted message. One plain
+                // fallback is safe; network timeouts / 5xx are NOT retried.
+                unset($payload['parse_mode']);
+                $payload['text'] = $plain;
+                $response = Http::timeout(6)->asForm()->post($url, $payload);
+            }
 
             if (! $response->successful() || $response->json('ok') !== true) {
                 throw new RuntimeException('Telegram rejected Business delivery.');
             }
         } catch (Throwable) {
-            // Sending may already have succeeded before a transport error.
-            // Do not retry, and never leak the BotFather token in exception text.
+            // Transport outcomes may be ambiguous. Never log URLs, message
+            // contents or BotFather credentials; never retry those failures.
             throw new RuntimeException('Deniz Business delivery failed.');
         }
+    }
+
+    private function isCertainFormattingRejection(Response $response): bool
+    {
+        if ($response->status() !== 400) {
+            return false;
+        }
+
+        $description = $response->json('description');
+
+        return is_string($description)
+            && (str_contains(strtolower($description), 'parse entities')
+                || str_contains(strtolower($description), 'unsupported start tag')
+                || str_contains(strtolower($description), 'can\'t find end tag'));
     }
 }
