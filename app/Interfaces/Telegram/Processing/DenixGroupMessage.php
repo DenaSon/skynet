@@ -54,6 +54,13 @@ final readonly class DenixGroupMessage
             throw new RuntimeException('Denix asynchronous queue is not configured.');
         }
 
+        $cacheName = config('cache.default');
+        $cacheDriver = is_string($cacheName) ? config('cache.stores.'.$cacheName.'.driver') : null;
+
+        if (! in_array($cacheDriver, ['redis', 'database'], true)) {
+            throw new RuntimeException('Denix shared cache is not configured.');
+        }
+
         // Message identity is independent of Telegram update_id, which is separately
         // guarded by TelegramUpdateReceipts. Keep this fence on ambiguous enqueue failures.
         $fence = 'denix:message:'.$chatId.':'.$messageId;
