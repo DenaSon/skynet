@@ -9,7 +9,7 @@ return [
     'max_input_chars' => 2000,
     'max_output_chars' => 6000,
     'timeout_seconds' => 20,
-    'context_max_messages' => 10,
+    'context_max_messages' => 30,
     'context_max_chars' => 6000,
     'context_ttl_minutes' => 30,
     'user_requests_per_10_minutes' => 5,
