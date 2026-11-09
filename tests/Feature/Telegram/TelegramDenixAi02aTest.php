@@ -28,6 +28,7 @@ beforeEach(function (): void {
     config()->set('telegram.denix.group_chat_id', -100987654321);
     config()->set('telegram.denix.enabled', true);
     config()->set('denagate_ai.enabled', true);
+    config()->set('cache.default', 'database');
     config()->set('queue.default', 'database');
     config()->set('queue.connections.database.retry_after', 90);
     config()->set('super_admin.telegram_ids', ['150001', '150002']);
