@@ -8,11 +8,11 @@
 ## Current implementation snapshot (2026-11-09)
 
 - **Deployable:** one Laravel 13 / PHP 8.4+ application, one shared business database and common queues/scheduler. MySQL and Redis are used in the operator-reported production deployment; CI/checkout alone does not verify live infrastructure.
-- **Business modules:** \`Identity\`, \`Billing\`, \`Sales\`, \`Provisioning\`, \`Filtering\`, \`Referral\`, \`Onboarding\`, \`Trial\` and the lightweight \`Administration\` registration. These are namespaces inside the same application, not microservices or separately deployed packages.
-- **Presenters:** \`app/Interfaces/Telegram\` exposes separate Admin and Sales bot contexts; \`app/Interfaces/Web/Live\` exposes the Livewire Mini App. Both consume shared Application actions where implemented.
+- **Business modules:** `Identity`, `Billing`, `Sales`, `Provisioning`, `Filtering`, `Referral`, `Onboarding`, `Trial` and the lightweight `Administration` registration. These are namespaces inside the same application, not microservices or separately deployed packages.
+- **Presenters:** `app/Interfaces/Telegram` exposes separate Admin and Sales bot contexts; `app/Interfaces/Web/Live` exposes the Livewire Mini App. Both consume shared Application actions where implemented.
 - **External integration:** Remnawave API adapters belong to Provisioning Infrastructure. Domain-specific queued jobs, notification outbox and scheduled tasks remain in the same Laravel deployment.
 - **Known legacy seams, preserved:** selected Sales/Provisioning/Filtering/Trial application actions import Telegram notification classes; Filtering directly reads Provisioning's Remnawave Infrastructure; some Telegram UI and console commands read business tables. These are **tracked coupling**, not a reason to rewrite tested payments, monitoring or provider operations without a separate approval.
-- **New regression checks:** \`tests/Architecture/ModuleBoundariesTest.php\` preserves the existing boundary rules and pins the known Telegram and Filtering provider imports to exact files/classes. Removing an exception is allowed; adding another requires an explicit review. This import-oriented guard does **not** prove all runtime/SQL boundaries or live behavior.
+- **New regression checks:** `tests/Architecture/ModuleBoundariesTest.php` preserves the existing boundary rules and pins the known Telegram and Filtering provider imports to exact files/classes. Removing an exception is allowed; adding another requires an explicit review. This import-oriented guard does **not** prove all runtime/SQL boundaries or live behavior.
 
 This section is a source-level snapshot, not an authorization for refactoring, migration, deployment changes or live Provider writes.
 
@@ -27,7 +27,7 @@ These are *design rules*, not an invitation to create empty folders or abstract 
 
 ## Minimal layout (current)
 
-\`\`\`text
+```text
 app/
   Modules/
     Identity/ Billing/ Sales/ Provisioning/
@@ -41,9 +41,9 @@ bootstrap/providers.php  # explicit providers where needed
 database/               # one shared migration entrypoint
 tests/                  # feature and architecture regression
 docs/
-\`\`\`
+```
 
-Within a module, introduce `Domain/`, `Application/`, `Infrastructure/`, and `Presentation/` folders **as real code requires them**. Do not invent a framework for discovering modules. Each module uses `App\\Modules\\...` via existing `App\\` Composer PSR-4 autoloading.
+Within a module, introduce `Domain/`, `Application/`, `Infrastructure/`, and `Presentation/` folders **as real code requires them**. Do not invent a framework for discovering modules. Each module uses `App\\Modules\\...` via existing `App\` Composer PSR-4 autoloading.
 
 ## Integration rules
 Avoid reaching into another module's persistence, internal model, or domain implementation. Expose carefully scoped application contracts when genuine cross-module use cases appear. Do not build an event bus solely to couple empty modules.
