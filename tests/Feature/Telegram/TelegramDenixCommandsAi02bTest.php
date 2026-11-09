@@ -10,10 +10,12 @@ use App\Interfaces\Telegram\Processing\DenixMessageSender;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Spatie\Permission\Models\Role;
+use Tests\TestCase;
 
 uses(RefreshDatabase::class);
 
@@ -41,7 +43,6 @@ beforeEach(function (): void {
     Cache::flush();
     Queue::fake();
     Http::preventStrayRequests();
-    Http::fake();
 });
 
 function denixCMessage(int $messageId, string $text, int $sender = 180001, int $chat = -100987654321, ?int $thread = 12): array
@@ -61,7 +62,7 @@ function denixCMessage(int $messageId, string $text, int $sender = 180001, int $
     return ['update_id' => $messageId, 'message' => $message];
 }
 
-function denixCPost(\Tests\TestCase $test, array $payload): void
+function denixCPost(TestCase $test, array $payload): void
 {
     $test->postJson('/api/telegram/ai/webhook', $payload, [
         'X-Telegram-Bot-Api-Secret-Token' => 'denix-test-secret',
@@ -86,8 +87,7 @@ it('routes numbered model choices and status/reset commands only to the AI queue
 
     Queue::assertPushed(HandleDenixCommand::class, 4);
     Queue::assertNotPushed(AnswerDenixMessage::class);
-    Queue::assertPushed(HandleDenixCommand::class, fn (HandleDenixCommand $job): bool =>
-        $job->queue === 'ai' && $job->chatId === -100987654321 && $job->threadId === 12
+    Queue::assertPushed(HandleDenixCommand::class, fn (HandleDenixCommand $job): bool => $job->queue === 'ai' && $job->chatId === -100987654321 && $job->threadId === 12
         && $job->command === 'aimodel' && $job->choice === 2);
     Http::assertNothingSent();
 });
@@ -105,8 +105,7 @@ it('chooses a live-verified model, clears only that context and displays safe st
     $state->remember(-100987654321, 12, 180001, 'جدید', 'جواب');
     denixCRun(new HandleDenixCommand(-100987654321, 180001, 10101, 12, 'aistatus', null));
 
-    Http::assertSent(fn (\Illuminate\Http\Client\Request $request): bool =>
-        str_ends_with($request->url(), '/sendMessage')
+    Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/sendMessage')
         && str_contains($request['text'], 'gapgpt-deepseek-v4.1-flash')
         && str_contains($request['text'], '30 دقیقه')
         && ! str_contains($request['text'], 'denix-test-secret')
@@ -125,8 +124,7 @@ it('never selects a raw unverified model name or a nonexistent number', function
     denixCPost($this, denixCMessage(10203, '/aimodel@anotherbot 2'));
 
     Queue::assertPushed(HandleDenixCommand::class, 2);
-    Queue::assertPushed(HandleDenixCommand::class, fn (HandleDenixCommand $job): bool =>
-        $job->command === 'aimodel' && $job->choice === 0);
+    Queue::assertPushed(HandleDenixCommand::class, fn (HandleDenixCommand $job): bool => $job->command === 'aimodel' && $job->choice === 0);
     Queue::assertNotPushed(AnswerDenixMessage::class);
     expect(app(DenixConversationState::class)->model(-100987654321, 12, 180001))->toBe('gpt-6-luna');
 });
