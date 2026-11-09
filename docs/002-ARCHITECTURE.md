@@ -1,9 +1,21 @@
 # Architecture
 
-**Status:** Foundation decision; feature design pending.
+**Status:** Accepted architecture decision (ADR 0001). The dated phase notes below are historical; the current code snapshot is recorded here as of 2026-11-09.
 
 ## Style
 **Modular Monolith:** one Laravel application, one primary database, one deployment unit. Domain boundaries exist inside the application rather than as separate services.
+
+## Current implementation snapshot (2026-11-09)
+
+- **Deployable:** one Laravel 13 / PHP 8.4+ application, one shared business database and common queues/scheduler. MySQL and Redis are used in the operator-reported production deployment; CI/checkout alone does not verify live infrastructure.
+- **Business modules:** \`Identity\`, \`Billing\`, \`Sales\`, \`Provisioning\`, \`Filtering\`, \`Referral\`, \`Onboarding\`, \`Trial\` and the lightweight \`Administration\` registration. These are namespaces inside the same application, not microservices or separately deployed packages.
+- **Presenters:** \`app/Interfaces/Telegram\` exposes separate Admin and Sales bot contexts; \`app/Interfaces/Web/Live\` exposes the Livewire Mini App. Both consume shared Application actions where implemented.
+- **External integration:** Remnawave API adapters belong to Provisioning Infrastructure. Domain-specific queued jobs, notification outbox and scheduled tasks remain in the same Laravel deployment.
+- **Known legacy seams, preserved:** selected Sales/Provisioning/Filtering/Trial application actions import Telegram notification classes; Filtering directly reads Provisioning's Remnawave Infrastructure; some Telegram UI and console commands read business tables. These are **tracked coupling**, not a reason to rewrite tested payments, monitoring or provider operations without a separate approval.
+- **New regression checks:** \`tests/Architecture/ModuleBoundariesTest.php\` preserves the existing boundary rules and pins the known Telegram and Filtering provider imports to exact files/classes. Removing an exception is allowed; adding another requires an explicit review. This import-oriented guard does **not** prove all runtime/SQL boundaries or live behavior.
+
+This section is a source-level snapshot, not an authorization for refactoring, migration, deployment changes or live Provider writes.
+
 
 ## Direction of dependencies
 - **Presentation:** HTTP controllers, future Livewire/API/Telegram adapters. Calls application use cases.
@@ -13,29 +25,31 @@
 
 These are *design rules*, not an invitation to create empty folders or abstract interfaces for hypothetical features.
 
-## Minimal layout
+## Minimal layout (current)
 
-```text
+\`\`\`text
 app/
   Modules/
-    Identity/
-      IdentityServiceProvider.php
-    Administration/
-      AdministrationServiceProvider.php
-  Shared/              # create only on demonstrated cross-module needs
-bootstrap/providers.php # explicit provider list
-database/               # shared migration entrypoint for now
-tests/
+    Identity/ Billing/ Sales/ Provisioning/
+    Filtering/ Referral/ Onboarding/ Trial/ Administration/
+  Interfaces/
+    Telegram/  # Admin Bot + Sales Bot presentation and runtime
+    Web/       # Livewire Mini App presentation
+  Settings/
+  Support/
+bootstrap/providers.php  # explicit providers where needed
+database/               # one shared migration entrypoint
+tests/                  # feature and architecture regression
 docs/
-```
+\`\`\`
 
 Within a module, introduce `Domain/`, `Application/`, `Infrastructure/`, and `Presentation/` folders **as real code requires them**. Do not invent a framework for discovering modules. Each module uses `App\\Modules\\...` via existing `App\\` Composer PSR-4 autoloading.
 
 ## Integration rules
 Avoid reaching into another module's persistence, internal model, or domain implementation. Expose carefully scoped application contracts when genuine cross-module use cases appear. Do not build an event bus solely to couple empty modules.
 
-## Runtime reality
-The initial repository retains Laravel's default local SQLite, database queue/cache/session settings. Production MySQL and Redis have been discussed as future environment choices but have **not** been configured or verified here.
+## Runtime reality (updated 2026-11-09)
+Production is reported by the operator as MySQL-backed with Redis-backed runtime services; queue/cache/database drivers are environment-dependent. CI uses isolated test services. This architecture review does not independently verify current Production health or deployment configuration.
 
 ## Identity implementation (F3)
 Identity owns its Eloquent User model and session-authenticated web endpoints. Authentication, authorization and administrative user-management actions remain within Identity; Administration stays UI-only until a real composition requirement arises. No separate token API or public signup exists. See [Identity ADR](adr/0003-identity-foundation.md).
@@ -49,7 +63,7 @@ Webhook receipts use a database unique update ID, 90-second processing lease, pr
 
 The future Livewire UI may call the same Application Actions directly; REST is not mandatory for an in-process presenter. See [ADR 0004](adr/0004-telegram-first.md).
 
-## Open decisions
+## Historical open decisions (foundation checkpoint)
 Administrative Web UI, F11-A2 verified direct bank settlement, F11-B outbox dispatch/reconciliation, production DB/cache topology, authorized node actions and real provider/network E2E remain future work. F10-E1/E2/E3 are merged; F11-A1 wallet settlement/outbox storage is merged, OFF by default. Remnawave **is** selected as the external subscription panel API; independent SSH/WireGuard/Core/Edge transport choices remain open.
 
 See [ADR 0001](adr/0001-modular-monolith.md).
@@ -66,7 +80,7 @@ The identity module owns dynamic roles/permissions via Spatie Permission v8 (sin
 ## F10-D — Provider user lifecycle and uncertain-write recovery
 The Provisioning Application layer coordinates a durable `provisioning_subscriptions` / `provisioning_operations` reservation before each remote write. Transport remains in Infrastructure, and Billing/Sales/Telegram have **no direct dependency** on the provider. A second write is prohibited until a previous ambiguous operation has been reconciled. The customer subscription URL is secret and only returned by internal read after provider marker verification. No HTTP route, Telegram handler or order is wired to new write actions; the module remains default-disabled. See [F10-D runbook](012-REMNAWAVE-USER-LIFECYCLE.md).
 
-## Current integration seam (F10-E and F11-A1 merged; F11-B future)
+## Historical integration seam (F10-E and F11-A1 checkpoint)
 
 ```text
 Telegram adapter / future Livewire presenter
