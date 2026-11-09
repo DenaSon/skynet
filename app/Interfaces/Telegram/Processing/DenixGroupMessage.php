@@ -101,7 +101,7 @@ final readonly class DenixGroupMessage
      */
     private function control(string $text): ?array
     {
-        if (preg_match('/\\A\\/(aimodel|ainew|aistatus)(?:@([a-zA-Z][a-zA-Z0-9_]{4,31}))?(?:\\s+([^\\s]+))?\\s*\\z/iu', $text, $matches) !== 1) {
+        if (preg_match('/\\A\\/(aimodel|ainew|aistatus)(?:@([a-zA-Z][a-zA-Z0-9_]{4,31}))?(?:\\s+([^\\s]+))?\\s*\\z/iu', $text, $matches, PREG_UNMATCHED_AS_NULL) !== 1) {
             return null;
         }
 
