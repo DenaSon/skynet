@@ -3,6 +3,7 @@
 namespace App\Interfaces\Telegram\Http;
 
 use App\Interfaces\Telegram\Processing\ClaimState;
+use App\Interfaces\Telegram\Processing\DenizBusinessIntake;
 use App\Interfaces\Telegram\Processing\ProcessDenixTelegramUpdate;
 use App\Interfaces\Telegram\Processing\ProcessSalesTelegramUpdate;
 use App\Interfaces\Telegram\Processing\ProcessTelegramUpdate;
@@ -23,6 +24,7 @@ final class TelegramWebhookController
         ProcessTelegramUpdate $adminProcessor,
         ProcessSalesTelegramUpdate $salesProcessor,
         ProcessDenixTelegramUpdate $denixProcessor,
+        DenizBusinessIntake $businessIntake,
         TelegramUpdateReceipts $receipts,
         TelegramBotContacts $contacts,
     ): Response {
@@ -91,7 +93,9 @@ final class TelegramWebhookController
         }
 
         try {
-            if ($denix) {
+            if ($denix && $this->isBusinessUpdate($request)) {
+                $businessIntake->handle($request);
+            } elseif ($denix) {
                 $denixProcessor->handle();
             } elseif ($sales) {
                 $salesProcessor->handle();
@@ -154,5 +158,18 @@ final class TelegramWebhookController
         }
 
         return response()->noContent();
+    }
+
+    private function isBusinessUpdate(Request $request): bool
+    {
+        $payload = $request->all();
+
+        foreach (['business_connection', 'business_message', 'edited_business_message', 'deleted_business_messages'] as $field) {
+            if (array_key_exists($field, $payload)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

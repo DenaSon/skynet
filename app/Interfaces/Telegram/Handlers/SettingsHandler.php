@@ -54,7 +54,8 @@ final class SettingsHandler
                 InlineKeyboardButton::make('🧩 خوشامد نماینده', callback_data: 'admin:welcome:edit:reseller'),
             )
             ->addRow(InlineKeyboardButton::make('🔐 مدیریت سرویس توسط نماینده', callback_data: 'admin:reseller-status:show'))
-            ->addRow(InlineKeyboardButton::make('🧰 تنظیمات عملیاتی', callback_data: 'admin:ops:show'));
+            ->addRow(InlineKeyboardButton::make('🧰 تنظیمات عملیاتی', callback_data: 'admin:ops:show'))
+            ->addRow(InlineKeyboardButton::make('🤖 پشتیبانی هوشمند دنیز', callback_data: 'admin:deniz-support:show'));
 
         if (config('telegram_notifications.admin_topic.enabled') === true) {
             $keyboard->addRow(InlineKeyboardButton::make('🔔 اعلان‌های من', callback_data: 'admin:notice-topic:show'));

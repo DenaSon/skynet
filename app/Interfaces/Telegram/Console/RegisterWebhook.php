@@ -82,7 +82,9 @@ final class RegisterWebhook extends Command
             };
             $accepted = $bot->setWebhook(
                 url: $url,
-                allowed_updates: $denix ? ['message'] : ['message', 'callback_query'],
+                allowed_updates: $denix
+                    ? ['message', 'business_connection', 'business_message', 'edited_business_message', 'deleted_business_messages']
+                    : ['message', 'callback_query'],
                 drop_pending_updates: false,
                 secret_token: $secret,
             );

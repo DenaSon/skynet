@@ -307,6 +307,10 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     // Super Admin-only financial user directory: legacy routes remain registered.
     $expected['ADMIN'][] = 'callback:users:filtered:{mode}:{page}';
     $expected['ADMIN'][] = 'callback:users:sort:{mode}';
+    // Deniz Business support policy only in trusted Admin settings.
+    $expected['ADMIN'][] = 'callback:admin:deniz-support:show';
+    $expected['ADMIN'][] = 'callback:admin:deniz-support:prepare:{state}';
+    $expected['ADMIN'][] = 'callback:admin:deniz-support:apply:{token}';
     // Three operator settings, deliberately isolated from existing callbacks.
     $expected['ADMIN'][] = 'callback:admin:ops:show';
     $expected['ADMIN'][] = 'callback:admin:ops:edit:{kind}';
@@ -347,8 +351,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(313)
-        ->and(count(array_unique($legacy)))->toBe(313);
+        ->and(count($legacy))->toBe(316)
+        ->and(count(array_unique($legacy)))->toBe(316);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {

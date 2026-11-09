@@ -3,6 +3,7 @@
 use App\Interfaces\Telegram\Handlers\AdminHandler;
 use App\Interfaces\Telegram\Handlers\AdminRolesHandler;
 use App\Interfaces\Telegram\Handlers\AdminUsersHandler;
+use App\Interfaces\Telegram\Handlers\DenizBusinessSupportSettingsHandler;
 use App\Interfaces\Telegram\Handlers\OperationalSettingsHandler;
 use App\Interfaces\Telegram\Handlers\SettingsHandler;
 use App\Interfaces\Telegram\Support\AdminAccountingUi;
@@ -51,6 +52,17 @@ use SergiX44\Nutgram\Nutgram;
 
 /** @var Nutgram $bot */
 // Admin-only registrations. Existing authorization and confirmation checks remain inside the handlers.
+
+// Root-only Deniz Business support switch; no Business AI replies in this phase.
+$bot->onCallbackQueryData('admin:deniz-support:show', function (Nutgram $bot): void {
+    app(DenizBusinessSupportSettingsHandler::class)->show($bot);
+});
+$bot->onCallbackQueryData('admin:deniz-support:prepare:{state}', function (Nutgram $bot, string $state): void {
+    app(DenizBusinessSupportSettingsHandler::class)->prepare($bot, $state);
+});
+$bot->onCallbackQueryData('admin:deniz-support:apply:{token}', function (Nutgram $bot, string $token): void {
+    app(DenizBusinessSupportSettingsHandler::class)->apply($bot, $token);
+});
 
 // Root-only Sales welcome text settings on the existing Admin Bot.
 $bot->onCallbackQueryData('admin:welcome:show', function (Nutgram $bot): void {
