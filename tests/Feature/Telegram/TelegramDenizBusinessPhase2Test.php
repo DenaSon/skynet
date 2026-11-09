@@ -242,8 +242,8 @@ it('revalidates rights and operator switch after model inference and suppresses 
     denizP2FakeHttp(static function (Request $request) {
         if ($request->url() === 'https://api.gapgpt.app/v1/chat/completions') {
             $settings = app(DenizBusinessSupportSettings::class);
-    $settings->enabled = false;
-    $settings->save();
+            $settings->enabled = false;
+            $settings->save();
 
             return Http::response(denizP2ProviderResponse());
         }
