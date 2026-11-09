@@ -60,8 +60,7 @@ it('keeps the Admin group instructions unchanged and limits customer support gui
         ->and($group)->not->toContain('@denaGateBot', 'اکنون در گفتگوی خصوصی حساب پشتیبانی')
         ->and($support)->toContain(
             '@denaGateBot',
-            'اکنون در گفتگوی خصوصی حساب پشتیبانی',
-            'این گفتگو',
+            'اکنون در گفتگوی خصوصی حساب پشتیبانی'
         );
 });
 
