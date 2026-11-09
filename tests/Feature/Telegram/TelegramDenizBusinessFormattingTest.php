@@ -33,7 +33,7 @@ it('renders nested emphasis and preserves literal Markdown in code fences', func
     $raw = "**سلام *دوست* من**\n```php\n\$x = '**literal** <tag> & value';\n```";
 
     expect(app(DenizBusinessMessageFormatter::class)->format($raw))
-        ->toBe("<b>سلام <i>دوست</i> من</b>\n<pre>\$x = '&#039;**literal** &lt;tag&gt; &amp; value&#039;;</pre>");
+        ->toBe("<b>سلام <i>دوست</i> من</b>\n<pre>\$x = &#039;**literal** &lt;tag&gt; &amp; value&#039;;</pre>");
 });
 
 it('escapes raw HTML and unsafe link attributes without allowing arbitrary HTML', function (): void {
@@ -107,37 +107,45 @@ it('falls back exactly once to plain text only on a certain Telegram HTML entity
         ->and($requests[1]['reply_parameters'])->toBe($requests[0]['reply_parameters']);
 });
 
-it('never retries an ambiguous Telegram network failure or a rejected non-formatting message', function (): void {
+it('never retries an ambiguous Telegram network failure', function (): void {
     $attempts = 0;
     Http::fake([
         'https://api.telegram.org/*' => function () use (&$attempts) {
             $attempts++;
+
             throw new ConnectionException('private network details');
         },
     ]);
 
     expect(fn () => app(DenizBusinessMessageSender::class)->send('trustedConnection', 190011, 74, '**سلام**'))
         ->toThrow(RuntimeException::class, 'Deniz Business delivery failed.');
-    expect($attempts)->toBe(1);
 
+    expect($attempts)->toBe(1);
+});
+
+it('never retries an unrelated HTTP 400 rejection', function (): void {
     Http::fake([
         'https://api.telegram.org/*' => Http::response(['ok' => false, 'description' => 'Bad Request: chat not found'], 400),
     ]);
 
     expect(fn () => app(DenizBusinessMessageSender::class)->send('trustedConnection', 190011, 75, '**سلام**'))
         ->toThrow(RuntimeException::class, 'Deniz Business delivery failed.');
+
     Http::assertSentCount(1);
 });
 
-it('never resends after a 5xx delivery error or a failed plain fallback', function (): void {
+it('never retries an HTTP 5xx delivery error', function (): void {
     Http::fake([
         'https://api.telegram.org/*' => Http::response(['ok' => false], 503),
     ]);
 
     expect(fn () => app(DenizBusinessMessageSender::class)->send('trustedConnection', 190011, 76, '**سلام**'))
         ->toThrow(RuntimeException::class, 'Deniz Business delivery failed.');
-    Http::assertSentCount(1);
 
+    Http::assertSentCount(1);
+});
+
+it('tries the plain fallback only once even if that fallback fails', function (): void {
     Http::fake([
         'https://api.telegram.org/*' => Http::sequence()
             ->push(['ok' => false, 'description' => "Bad Request: can't parse entities"], 400)
@@ -146,5 +154,6 @@ it('never resends after a 5xx delivery error or a failed plain fallback', functi
 
     expect(fn () => app(DenizBusinessMessageSender::class)->send('trustedConnection', 190011, 77, '**سلام**'))
         ->toThrow(RuntimeException::class, 'Deniz Business delivery failed.');
+
     Http::assertSentCount(2);
 });
