@@ -97,6 +97,16 @@
 - **Rollback:** turn either switch OFF; queued workers independently re-check both before buying or sending. Existing Admin/Sales/group bots remain unaffected. No schema migrations or new dependencies in Phase 2.
 
 
+
+### Deniz Business — customer-support tone polish (2026-11-09)
+
+- Keep the existing `DenizKnowledge` product facts and the exact **Admin group System prompt** unchanged. Apply a short, support-specific instruction suffix only for `AnswerDenizBusinessMessage` via the existing `AskAssistant` and `DenixAssistant` classes; no additional agent, model, provider, database or worker.
+- Support tone: warm, concise, patient, professional Persian; avoid repeated greetings, generic deflections to "support" while already in the support chat, multiple diagnostic questions at once, redundant introductions and ungrounded claims. Use **one relevant emoji in some replies**, not every reply; a serious troubleshooting flow may omit emojis. Existing first-message AI disclosure remains intact.
+- Provide the user's approved official Sales Bot handle **`@denaGateBot`** when the user needs a self-service action (plans, subscription management, wallet, renewal, training or reseller demo/application). Include only the relevant path, without recurring unsolicited promotion. Never imply Deniz has account access or executed a payment/order.
+- For human assistance, ask the customer to send the existing exact keyword **«پشتیبان انسانی»** in the *same Business conversation* to pause automatic replies; do not promise response times or new escalation infrastructure. Do not ask for passwords, login codes or private configuration keys.
+- Keep the current ChatGPT Business rights checks, quotas, short-lived per-customer context, global kill switches, Admin/Sales route boundaries and existing tests. Add focused mock-provider tests proving which System instructions reach GapGPT in the Business vs Admin contexts. Prompt instructions improve likely answer quality but do not guarantee deterministic wording; real Telegram message quality requires manual acceptance.
+
+
 ## Release gates, rollback and deferred scope
 
 - Each PR: smallest code change, focused Pest tests, PHPStan/Pint and current CI matrix; explicitly record PHP 8.5 evidence where applicable. No mocks presented as real API or Telegram acceptance.
