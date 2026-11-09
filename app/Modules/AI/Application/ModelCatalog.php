@@ -14,6 +14,8 @@ final class ModelCatalog
         'gapgpt-deepseek-v4.1-flash',
         'gpt-6.1-terra',
         'gpt-6.1-sol',
+        'gemini-2.5-flash-lite',
+        'gpt-5-nano',
     ];
 
     // Only these models have passed a real GapGPT smoke test.
@@ -22,9 +24,32 @@ final class ModelCatalog
         'gapgpt-deepseek-v4.1-flash',
     ];
 
+    // Candidates are disabled until the operator verifies exact GapGPT IDs and prices.
+    public const ECONOMY_CANDIDATES = [
+        'gemini-2.5-flash-lite',
+        'gpt-5-nano',
+    ];
+
+    /**
+     * @return list<string>
+     */
+    public static function selectable(): array
+    {
+        $enabled = config('denagate_ai.verified_economy_models', []);
+
+        if (! is_array($enabled)) {
+            return self::SELECTABLE;
+        }
+
+        return [
+            ...self::SELECTABLE,
+            ...array_values(array_intersect(self::ECONOMY_CANDIDATES, $enabled)),
+        ];
+    }
+
     public function selectedByNumber(int $number): ?string
     {
-        return self::SELECTABLE[$number - 1] ?? null;
+        return self::selectable()[$number - 1] ?? null;
     }
 
     public function resolve(?string $requested = null): string
