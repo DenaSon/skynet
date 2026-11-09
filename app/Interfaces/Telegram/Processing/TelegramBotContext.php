@@ -10,9 +10,11 @@ final readonly class TelegramBotContext
 
     public const SALES = 'sales';
 
+    public const DENIX = 'ai';
+
     public function __construct(public string $key)
     {
-        if (! in_array($key, [self::ADMIN, self::SALES], true)) {
+        if (! in_array($key, [self::ADMIN, self::SALES, self::DENIX], true)) {
             throw new InvalidArgumentException('Unknown Telegram bot context.');
         }
     }
@@ -22,12 +24,12 @@ final readonly class TelegramBotContext
         // This value comes from a server-owned route default, never from update JSON.
         $key = request()->route('bot_key');
 
-        return new self($key === self::SALES ? self::SALES : self::ADMIN);
+        return new self(is_string($key) ? $key : self::ADMIN);
     }
 
     public function cacheKey(string $legacyKey): string
     {
         // Preserve in-flight keys on the original bot until their normal TTL expires.
-        return $this->key === self::ADMIN ? $legacyKey : 'telegram:sales:'.$legacyKey;
+        return $this->key === self::ADMIN ? $legacyKey : 'telegram:'.$this->key.':'.$legacyKey;
     }
 }

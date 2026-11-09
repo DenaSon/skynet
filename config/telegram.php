@@ -12,6 +12,13 @@ return [
         'bot_username' => env('TELEGRAM_SALES_BOT_USERNAME'),
         'support_username' => env('TELEGRAM_SALES_SUPPORT_USERNAME'),
     ],
+    'denix' => [
+        'enabled' => (bool) env('TELEGRAM_DENIX_ENABLED', false),
+        'token' => env('TELEGRAM_DENIX_TOKEN'),
+        'webhook_secret' => env('TELEGRAM_DENIX_WEBHOOK_SECRET'),
+        'bot_username' => env('TELEGRAM_DENIX_BOT_USERNAME', 'denixobot'),
+        'group_chat_id' => env('DENAGATE_AI_GROUP_CHAT_ID'),
+    ],
     'public_signup_enabled' => env('TELEGRAM_PUBLIC_SIGNUP_ENABLED', false),
     'hybrid_menu_enabled' => env('TELEGRAM_HYBRID_MENU_ENABLED', false),
 ];

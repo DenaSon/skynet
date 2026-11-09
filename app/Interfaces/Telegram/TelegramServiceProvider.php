@@ -8,7 +8,9 @@ use App\Interfaces\Telegram\Console\IssueLinkCommand;
 use App\Interfaces\Telegram\Console\PruneUpdates;
 use App\Interfaces\Telegram\Console\RegisterWebhook;
 use App\Interfaces\Telegram\Console\RemindPendingReceipts;
+use App\Interfaces\Telegram\Processing\DenixTelegramRuntime;
 use App\Interfaces\Telegram\Processing\NutgramUpdateProcessor;
+use App\Interfaces\Telegram\Processing\ProcessDenixTelegramUpdate;
 use App\Interfaces\Telegram\Processing\ProcessSalesTelegramUpdate;
 use App\Interfaces\Telegram\Processing\ProcessTelegramUpdate;
 use App\Interfaces\Telegram\Processing\SalesTelegramRuntime;
@@ -20,6 +22,7 @@ final class TelegramServiceProvider extends ServiceProvider
     {
         $this->app->bind(ProcessTelegramUpdate::class, NutgramUpdateProcessor::class);
         $this->app->bind(ProcessSalesTelegramUpdate::class, SalesTelegramRuntime::class);
+        $this->app->bind(ProcessDenixTelegramUpdate::class, DenixTelegramRuntime::class);
     }
 
     public function boot(): void
