@@ -307,6 +307,10 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     // Super Admin-only financial user directory: legacy routes remain registered.
     $expected['ADMIN'][] = 'callback:users:filtered:{mode}:{page}';
     $expected['ADMIN'][] = 'callback:users:sort:{mode}';
+    // Deniz Business support policy only in trusted Admin settings.
+    $expected['ADMIN'][] = 'callback:admin:deniz-support:show';
+    $expected['ADMIN'][] = 'callback:admin:deniz-support:prepare:{state}';
+    $expected['ADMIN'][] = 'callback:admin:deniz-support:apply:{token}';
     // Three operator settings, deliberately isolated from existing callbacks.
     $expected['ADMIN'][] = 'callback:admin:ops:show';
     $expected['ADMIN'][] = 'callback:admin:ops:edit:{kind}';
