@@ -5,6 +5,9 @@ declare(strict_types=1);
 return [
     // No network request can be made until an operator explicitly opts in.
     'enabled' => (bool) env('DENAGATE_AI_ENABLED', false),
+    // Additional deployment safety gate: an old ON database toggle never activates
+    // customer replies solely due to a source deployment. The root DB switch remains independent.
+    'business_replies_enabled' => (bool) env('DENAGATE_AI_BUSINESS_REPLIES_ENABLED', false),
     'default_model' => 'gpt-6-luna',
     'max_input_chars' => 2000,
     'max_output_chars' => 6000,
