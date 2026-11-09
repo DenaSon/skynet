@@ -199,7 +199,8 @@ it('queues a free, timed reply when a manager exceeds the paid conversation quot
     Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/sendMessage')
         && $request['chat_id'] === -100987654321
         && $request['message_thread_id'] === 12
-        && str_contains($request['text'], 'سهمیه گفتگوی شما')
+        && str_contains($request['text'], 'تعداد پیام‌های مجاز در این بازه زمانی تکمیل شده است.')
+        && str_contains($request['text'], 'از همراهی شما سپاسگزاریم.')
         && str_contains($request['text'], 'دقیقه')
         && json_decode($request['reply_parameters'], true)['message_id'] === 10601);
 
@@ -224,7 +225,7 @@ it('explains the daily group quota independently of the manager quota', function
     Http::fake(['https://api.telegram.org/*' => Http::response(['ok' => true])]);
     $notice->handle(app(DenixGroupAccess::class), app(DenixMessageSender::class));
 
-    Http::assertSent(fn (Request $request): bool => str_contains($request['text'], 'سهمیه گفتگوی گروه')
+    Http::assertSent(fn (Request $request): bool => str_contains($request['text'], 'تعداد پیام‌های مجاز در این بازه زمانی تکمیل شده است.')
         && str_contains($request['text'], 'ساعت'));
     Http::assertSentCount(1);
 });
@@ -240,6 +241,12 @@ it('responds briefly to exhausted control-command quota without using GapGPT', f
     Queue::assertNotPushed(HandleDenixCommand::class);
     Queue::assertPushed(SendDenixQuotaNotice::class, fn (SendDenixQuotaNotice $job): bool => $job->quota === 'control'
         && $job->remainingSeconds > 0 && $job->remainingSeconds <= 60);
+
+    $notice = Queue::pushed(SendDenixQuotaNotice::class)->first();
+    Http::fake(['https://api.telegram.org/*' => Http::response(['ok' => true])]);
+    $notice->handle(app(DenixGroupAccess::class), app(DenixMessageSender::class));
+
+    Http::assertSent(fn (Request $request): bool => str_contains($request['text'], 'تعداد درخواست‌های کنترلی شما زیاد شده.'));
 });
 
 it('never sends a pending cooldown notice after group access is revoked', function (): void {
