@@ -89,9 +89,17 @@ final class AnswerDenizBusinessMessage implements ShouldQueue
             }
 
             if ($this->kind !== 'answer') {
+                $remainingMinutes = max(1, (int) ceil(max(0, $this->retrySeconds) / 60));
+                $hours = intdiv($remainingMinutes, 60);
+                $minutes = $remainingMinutes % 60;
+                $time = $hours === 0
+                    ? "{$remainingMinutes} دقیقه"
+                    : ($minutes === 0 ? "{$hours} ساعت" : "{$hours} ساعت و {$minutes} دقیقه");
+
                 $text = match ($this->kind) {
-                    'quota' => '⏳ سهمیه گفتگوی هوشمند فعلاً تکمیل شده است. حدود '
-                        .max(1, (int) ceil($this->retrySeconds / 60)).' دقیقه دیگر دوباره تلاش کنید.',
+                    'quota' => "⏳ تعداد پیام‌های مجاز در این بازه زمانی تکمیل شده است.\n\n"
+                        ."امکان ادامه گفت‌وگو حدود {$time} دیگر فعال می‌شود.\n\n"
+                        .'از همراهی شما سپاسگزاریم.',
                     'handoff' => 'حتماً 🌿 برای گفتگو با پشتیبان انسانی، پیام خود را همین‌جا بفرستید. '
                         .'دنیز تا ۲۴ ساعت در این گفتگو پاسخ خودکار نمی‌دهد. '
                         .'برای بازگشت، «شروع دنیز» را ارسال کنید.',
@@ -150,7 +158,24 @@ final class AnswerDenizBusinessMessage implements ShouldQueue
                 return;
             }
 
-            $reply = ($firstTurn ? "سلام، من دنیز، دستیار هوش مصنوعی دناگیت هستم. 🌿\n\n" : '').$answer->text;
+            $replyText = $answer->text;
+
+            if ($firstTurn) {
+                // The first reply has a mandatory AI disclosure. If the model
+                // also starts with a greeting, show "سلام" only once.
+                $replyText = trim(preg_replace(
+                    '/^\s*سلام(?![\p{L}\p{N}])[\s،,؛.!؟:]*/u',
+                    '',
+                    $replyText,
+                    1,
+                ) ?? $replyText);
+            }
+
+            $reply = $firstTurn
+                ? 'سلام، من دنیز، دستیار هوش مصنوعی دناگیت هستم. 🌿'
+                    .($replyText !== '' ? "\n\n".$replyText : '')
+                : $replyText;
+
             $reply = mb_substr($reply, 0, 3500);
             $sender->send($this->connectionId, $this->chatId, $this->messageId, $reply);
 
