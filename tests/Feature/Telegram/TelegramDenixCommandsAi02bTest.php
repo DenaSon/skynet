@@ -108,7 +108,7 @@ it('chooses a live-verified model, clears only that context and displays safe st
     Http::assertSent(fn (\Illuminate\Http\Client\Request $request): bool =>
         str_ends_with($request->url(), '/sendMessage')
         && str_contains($request['text'], 'gapgpt-deepseek-v4.1-flash')
-        && str_contains($request['text'], '۳۰ دقیقه')
+        && str_contains($request['text'], '30 دقیقه')
         && ! str_contains($request['text'], 'denix-test-secret')
         && ! str_contains($request['text'], '100987654321'));
 
