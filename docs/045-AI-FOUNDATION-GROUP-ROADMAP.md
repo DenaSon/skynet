@@ -59,6 +59,12 @@
 - Keep only the two real-smoke-tested model IDs selectable by default. New *candidates* `gemini-2.5-flash-lite` and `gpt-5-nano` stay OFF until their exact IDs, chat completion compatibility, real GapGPT price and response quality are verified. After verification, operators may opt in per exact ID via `DENAGATE_AI_VERIFIED_ECONOMY_MODELS` (comma-separated; unknown IDs are ignored). `gpt-5-nano` is deprecated upstream with a December 11, 2026 shutdown notice; avoid enabling it for a long-lived default. No automatic provider catalog or prices are assumed.
 - No BotFather token/Webhook changes, no migrations, new dependencies, queue changes, extra Agent tools or new operational permissions. Existing `ai` worker and `default` worker remain separate.
 
+### Deniz support copy and quota feedback (2026-11-09)
+
+- Versioned `DenizKnowledge` stays small and public: balanced conversational Persian, basic support routing, reseller tools (management of services/orders/customers, app and read-only demo), published-plan **35% reseller discount where applicable**, and operator-stated **900,000-toman initial wallet credit**. This balance is retained for purchases and not debited by application submission. **The live application threshold is operator-configurable and can differ**, so Deniz always directs users to the current Sales Bot application screen for the binding amount and approval status. No live account lookup, hardcoded checkout price, business write, or guaranteed activation.
+- When paid per-manager (5/10 min) or group (50/day) quota runs out, enqueue **one nonbillable plain-text notice per accepted Telegram message** on the existing dedicated `ai` queue, with remaining time derived from the existing RateLimiter; the smaller control-command limit also gets a brief notice. Check group and Super Admin rights again before sending. Retain webhook/message replay fences, topic-specific reply, and one-shot Telegram send; no new rate store, database, migration, dependency, worker or provider call.
+- Validate quota notices and concise prompt in automated tests; live Telegram behavior after deployment is a separate acceptance step.
+
 ## Release gates, rollback and deferred scope
 
 - Each PR: smallest code change, focused Pest tests, PHPStan/Pint and current CI matrix; explicitly record PHP 8.5 evidence where applicable. No mocks presented as real API or Telegram acceptance.
