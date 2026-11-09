@@ -40,8 +40,7 @@ final readonly class AskAssistant
 
         $historyCharacters = 0;
         foreach ($history as $message) {
-            if (! is_array($message)
-                || ! in_array($message['role'] ?? null, ['user', 'assistant'], true)
+            if (! in_array($message['role'] ?? null, ['user', 'assistant'], true)
                 || ! is_string($message['content'] ?? null)
                 || ($length = mb_strlen($message['content'])) < 1
                 || $length > (int) config('denagate_ai.max_output_chars', 6000)) {
