@@ -1,6 +1,6 @@
 # AI-01 / AI-02 — GapGPT foundation and Denix group chat
 
-**Status (2026-11-09): AI-01 merged as PR #425; AI-02A source in review; AI-02B not started.** Two phases, three small independent PRs. Explicit operator approval is required to start each implementation scope. `master` auto-deploys to Production.
+**Status (2026-11-09): AI-01 merged (#425); AI-02A merged (#426); AI-02B source under review.** Two phases, three small independent PRs. Explicit operator approval is required to start each implementation scope. `master` auto-deploys to Production.
 
 ## Contract and design
 
@@ -22,8 +22,8 @@
 
 - Source PR adds `laravel/ai` v1.3.0 (`openai-compatible`) with locked `symfony/yaml`, a scoped text-only Application Action, explicit model allowlist, config flags and fake HTTP tests. No Telegram integration or new tables.
 - Deployment ENV (future operator step): `DENAGATE_AI_ENABLED=false`, `GAPGPT_API_KEY` as a secret; optional `GAPGPT_BASE_URL` only for documented GapGPT endpoints. No key or real upstream call in CI.
-- Until a controlled live GapGPT smoke verifies at least two exact model IDs, model compatibility, pricing and actual usage remain **unverified**. Never set the enable flag in Production based only on fake tests.
-- Do not merge this PR without explicit operator instruction; separate AI-02 authorisation remains required.
+- Real GapGPT API smoke succeeded for `gpt-6-luna` and `gapgpt-deepseek-v4.1-flash` (HTTP 200, text plus usage). Full Laravel-to-GapGPT and live Telegram acceptance still require operator-controlled activation.
+- AI-01 was merged in PR #425; AI-02A was merged in PR #426. Subsequent AI-02B and activation remain separate gates.
 
 ## AI-02 — independent Denix Telegram bot (PR 2 + PR 3)
 
@@ -40,15 +40,15 @@
 
 - Third bot identity: `@denixobot`. Only its own `/api/telegram/ai/webhook` accepts `bot_key=ai`; Admin and Sales registrations are untouched.
 - Stage 1 operator secrets/settings later: `TELEGRAM_DENIX_TOKEN`, `TELEGRAM_DENIX_WEBHOOK_SECRET` (distinct from both bots), `DENAGATE_AI_GROUP_CHAT_ID` (negative chat ID), optional `TELEGRAM_DENIX_BOT_USERNAME=denixobot`. Keep `TELEGRAM_DENIX_ENABLED=false` and `DENAGATE_AI_ENABLED=false` until final acceptance.
-- Stage 2 operator queue: existing Redis/database connection and separate Supervisor `queue:work --queue=ai --sleep=3 --tries=1 --timeout=45 --max-time=3600` with a single worker and effective `retry_after > 45`; do not change the `default` worker. Then register via `php artisan telegram:webhook:set --bot=denix` only when explicitly approved.
+- Stage 2 operator queue: the dedicated Runflare Supervisor program **is already defined** (operator-reported): `queue:work --queue=ai --sleep=3 --tries=1 --timeout=45 --max-time=3600`, `numprocs=1`. Still verify it is running on a shared Redis/database Queue/Cache, with effective `retry_after > 45` and the `default` worker isolated. Register `php artisan telegram:webhook:set --bot=denix` only during the authorized rollout.
 - Only trusted, linked, active Super Admins in the configured group can submit `/ai` and reply to Denix; seven-day replay fences require an atomic shared Redis/database Cache store and prevent duplicated billable work and uncertain Telegram resend. A minimal per-actor/group throttle is applied at intake. Full model selection and conversation memory remain AI-02B.
 - No migrations or new infrastructure; GitHub CI is not real Telegram, GapGPT-through-Laravel, or Runflare queue acceptance. Test in the real group only after secret/worker/operator approvals.
 
 **AI-02B / PR 3 — models, limited context, cost/reliability**
 
 - Add `/aimodel` (allowlist selection), `/ainew` (clear context) and `/aistatus` (safe model/limit overview); no free-form model identifier from chat.
-- Use existing Redis Cache for bounded short-lived message context, scoped by Denix Bot + chat + topic + actor. Suggested initial limits to tune after smoke: up to 6 messages / 30-minute TTL, 2,000 input characters, 5 requests per actor per 10 minutes and 50 per group per day. Never persist raw conversation history indefinitely.
-- Revalidate group, actor authorization, kill switch and model at job execution; enforce bounded concurrency, response length and timeouts. Track redacted counts/latency and provider-reported usage if present; do not infer exact billing from absent/ambiguous usage.
+- Use existing shared Redis/database Cache for bounded short-lived message context, scoped by Denix Bot + chat + topic + actor: 6 alternating messages / sliding 30-minute TTL, up to 6,000 context characters, 2,000 input characters, 5 requests per actor per 10 minutes and 50 per group per day. Never persist raw conversation history indefinitely. Only two real-smoke-verified models are selectable via numeric choices; no raw model IDs from chat.
+- Revalidate group, actor authorization, kill switch and model at job execution; lock the actor/topic session during a billable call and record memory only after successful Telegram delivery. Track only model, redacted latency and provider-reported token usage when nonzero; do not infer exact billing from missing/ambiguous usage.
 - Test callback/command conflicts, privacy/group/role denial, duplicate updates/jobs, thread and actor isolation, model changes, expired history, queue outage, upstream failure and Telegram send ambiguity. Real group/Topic smoke and permission-revocation checks are distinct from CI.
 
 ## Release gates, rollback and deferred scope
