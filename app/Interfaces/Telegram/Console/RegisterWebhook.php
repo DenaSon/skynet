@@ -2,6 +2,7 @@
 
 namespace App\Interfaces\Telegram\Console;
 
+use App\Interfaces\Telegram\Processing\DenixTelegramRuntime;
 use App\Interfaces\Telegram\Processing\SalesTelegramRuntime;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
@@ -9,29 +10,53 @@ use SergiX44\Nutgram\Nutgram;
 
 final class RegisterWebhook extends Command
 {
-    protected $signature = 'telegram:webhook:set {url? : Public HTTPS webhook URL (default: existing legacy Admin URL)} {--bot=admin : admin or sales}';
+    protected $signature = 'telegram:webhook:set {url? : Public HTTPS webhook URL (default: existing legacy Admin URL)} {--bot=admin : admin, sales or denix}';
 
     protected $description = 'Register a protected Telegram webhook';
 
-    public function handle(Nutgram $adminBot, SalesTelegramRuntime $salesRuntime): int
+    public function handle(Nutgram $adminBot, SalesTelegramRuntime $salesRuntime, DenixTelegramRuntime $denixRuntime): int
     {
         $key = $this->option('bot');
 
-        if (! in_array($key, ['admin', 'sales'], true)) {
+        if (! in_array($key, ['admin', 'sales', 'denix'], true)) {
             $this->error('Unknown bot. Choose admin or sales.');
 
             return self::FAILURE;
         }
 
         $sales = $key === 'sales';
-        $secret = $sales ? config('telegram.sales.webhook_secret') : config('telegram.webhook_secret');
-        $token = $sales ? config('telegram.sales.token') : config('nutgram.token');
-        $url = (string) ($this->argument('url') ?: route($sales ? 'telegram.sales.webhook' : 'telegram.webhook'));
+        $denix = $key === 'denix';
+        $secret = match ($key) {
+            'sales' => config('telegram.sales.webhook_secret'),
+            'denix' => config('telegram.denix.webhook_secret'),
+            default => config('telegram.webhook_secret'),
+        };
+        $token = match ($key) {
+            'sales' => config('telegram.sales.token'),
+            'denix' => config('telegram.denix.token'),
+            default => config('nutgram.token'),
+        };
+        $route = match ($key) {
+            'sales' => 'telegram.sales.webhook',
+            'denix' => 'telegram.denix.webhook',
+            default => 'telegram.webhook',
+        };
+        $url = (string) ($this->argument('url') ?: route($route));
 
         if ($sales && (config('telegram.sales.enabled', false) !== true
             || $token === config('nutgram.token')
             || $secret === config('telegram.webhook_secret'))) {
             $this->error('Sales bot is disabled or its credentials are not independent.');
+
+            return self::FAILURE;
+        }
+
+        if ($denix && (config('telegram.denix.enabled', false) !== true
+            || config('denagate_ai.enabled', false) !== true
+            || $token === config('nutgram.token') || $token === config('telegram.sales.token')
+            || $secret === config('telegram.webhook_secret')
+            || $secret === config('telegram.sales.webhook_secret'))) {
+            $this->error('Denix bot is disabled or its credentials are not independent.');
 
             return self::FAILURE;
         }
@@ -50,10 +75,14 @@ final class RegisterWebhook extends Command
         }
 
         try {
-            $bot = $sales ? $salesRuntime->make() : $adminBot;
+            $bot = match ($key) {
+                'sales' => $salesRuntime->make(),
+                'denix' => $denixRuntime->make(),
+                default => $adminBot,
+            };
             $accepted = $bot->setWebhook(
                 url: $url,
-                allowed_updates: ['message', 'callback_query'],
+                allowed_updates: $denix ? ['message'] : ['message', 'callback_query'],
                 drop_pending_updates: false,
                 secret_token: $secret,
             );
