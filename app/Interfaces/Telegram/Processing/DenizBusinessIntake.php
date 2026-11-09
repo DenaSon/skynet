@@ -88,6 +88,9 @@ final class DenizBusinessIntake
             || ! is_int(data_get($message, 'from.id'))
             || data_get($message, 'from.id') < 1
             || data_get($message, 'from.is_bot') !== false
+            || data_get($message, 'from.id') === $ownerId
+            || data_get($message, 'from.id') !== data_get($message, 'chat.id')
+            || data_get($message, 'sender_business_bot') !== null
             || data_get($message, 'sender_chat') !== null
             || ! is_int($message['message_id'] ?? null)
             || $message['message_id'] < 1
@@ -121,7 +124,7 @@ final class DenizBusinessIntake
     private function validId(mixed $id): bool
     {
         return is_string($id) && $id !== '' && strlen($id) <= 256
-            && preg_match('/\A[A-Za-z0-9_-]+\z/D', $id) === 1;
+            && trim($id) === $id;
     }
 
     private function key(string $id): string
