@@ -3,6 +3,7 @@
 namespace App\Interfaces\Telegram\Http;
 
 use App\Interfaces\Telegram\Processing\ClaimState;
+use App\Interfaces\Telegram\Processing\ProcessDenixTelegramUpdate;
 use App\Interfaces\Telegram\Processing\ProcessSalesTelegramUpdate;
 use App\Interfaces\Telegram\Processing\ProcessTelegramUpdate;
 use App\Interfaces\Telegram\Processing\TelegramBotContacts;
@@ -21,14 +22,34 @@ final class TelegramWebhookController
         Request $request,
         ProcessTelegramUpdate $adminProcessor,
         ProcessSalesTelegramUpdate $salesProcessor,
+        ProcessDenixTelegramUpdate $denixProcessor,
         TelegramUpdateReceipts $receipts,
         TelegramBotContacts $contacts,
     ): Response {
         $context = TelegramBotContext::current();
         $sales = $context->key === TelegramBotContext::SALES;
+        $denix = $context->key === TelegramBotContext::DENIX;
 
-        $secret = $sales ? config('telegram.sales.webhook_secret') : config('telegram.webhook_secret');
-        $token = $sales ? config('telegram.sales.token') : config('nutgram.token');
+        $secret = match ($context->key) {
+            TelegramBotContext::SALES => config('telegram.sales.webhook_secret'),
+            TelegramBotContext::DENIX => config('telegram.denix.webhook_secret'),
+            default => config('telegram.webhook_secret'),
+        };
+        $token = match ($context->key) {
+            TelegramBotContext::SALES => config('telegram.sales.token'),
+            TelegramBotContext::DENIX => config('telegram.denix.token'),
+            default => config('nutgram.token'),
+        };
+
+        if ($denix && (config('telegram.denix.enabled', false) !== true
+            || config('denagate_ai.enabled', false) !== true
+            || ! is_string($token) || $token === ''
+            || $token === config('nutgram.token') || $token === config('telegram.sales.token')
+            || ! is_string($secret) || $secret === ''
+            || $secret === config('telegram.webhook_secret')
+            || $secret === config('telegram.sales.webhook_secret'))) {
+            return response('Webhook not configured.', 503);
+        }
 
         if ($sales && (config('telegram.sales.enabled', false) !== true
             || ! is_string($token) || $token === ''
@@ -49,7 +70,7 @@ final class TelegramWebhookController
         }
 
         // The code may deploy before migrate. Do not claim Sales updates in old schema.
-        if ($sales && ! Schema::hasColumn('telegram_updates', 'bot_key')) {
+        if (($sales || $denix) && ! Schema::hasColumn('telegram_updates', 'bot_key')) {
             return response('Webhook not configured.', 503);
         }
 
@@ -70,7 +91,9 @@ final class TelegramWebhookController
         }
 
         try {
-            if ($sales) {
+            if ($denix) {
+                $denixProcessor->handle();
+            } elseif ($sales) {
                 $salesProcessor->handle();
             } else {
                 $adminProcessor->handle();
@@ -78,7 +101,9 @@ final class TelegramWebhookController
 
             // Contact bookkeeping must never force a completed business update to run twice.
             try {
-                $contacts->record($request, $context->key);
+                if (! $denix) {
+                    $contacts->record($request, $context->key);
+                }
             } catch (Throwable $ignored) {
                 Log::warning('Telegram contact tracking failed', [
                     'bot_key' => $context->key,
