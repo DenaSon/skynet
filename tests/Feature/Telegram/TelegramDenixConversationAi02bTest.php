@@ -13,6 +13,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
@@ -73,7 +74,7 @@ it('retains only six bounded messages and isolates each group topic and actor', 
     $state = app(DenixConversationState::class);
 
     foreach (range(1, 5) as $turn) {
-        $state->remember(-100987654321, 12, 170001, 'سؤال '. $turn, 'پاسخ '. $turn);
+        $state->remember(-100987654321, 12, 170001, 'سؤال '.$turn, 'پاسخ '.$turn);
     }
 
     $history = $state->history(-100987654321, 12, 170001);
@@ -151,7 +152,7 @@ it('rejects malformed, privileged or oversized history before any provider reque
         array_fill(0, 7, ['role' => 'user', 'content' => 'x']),
     ] as $invalidHistory) {
         expect(fn () => app(AskAssistant::class)->handle('سؤال', null, $invalidHistory))
-            ->toThrow(\Illuminate\Validation\ValidationException::class);
+            ->toThrow(ValidationException::class);
     }
 
     Http::assertNothingSent();
