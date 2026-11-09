@@ -159,7 +159,7 @@ it('ignores untrusted actors and unrelated messages without enqueueing', functio
     $payloads[] = array_replace_recursive(denixMessage(9017), ['message' => ['chat' => ['type' => 'private', 'id' => 150001]]]);
     $payloads[] = array_replace_recursive(denixMessage(9018), ['message' => ['from' => ['is_bot' => true]]]);
     $payloads[] = array_replace_recursive(denixMessage(9019), ['message' => ['from' => ['id' => 0]]]);
-    $payloads[] = array_replace_recursive(denixMessage(9022), ['message' => ['sender_chat' => ['id' => -100987654321, 'type' => 'supergroup']]]);
+    $payloads[] = array_replace_recursive(denixMessage(9022), ['message' => ['sender_chat' => ['id' => -100987654321, 'type' => 'supergroup', 'title' => 'Anonymous Group']]]);
 
     foreach ($payloads as $payload) {
         $this->postJson('/api/telegram/ai/webhook', $payload, denixHeaders())->assertNoContent();
