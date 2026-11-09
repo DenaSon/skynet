@@ -43,6 +43,13 @@ final class AnswerDenixMessage implements ShouldQueue
             return;
         }
 
+        $cacheName = config('cache.default');
+        $cacheDriver = is_string($cacheName) ? config('cache.stores.'.$cacheName.'.driver') : null;
+
+        if (! in_array($cacheDriver, ['redis', 'database'], true)) {
+            throw new RuntimeException('Denix shared cache is not configured.');
+        }
+
         // This durable cache fence is claimed before the billable request, not
         // after the Telegram send. Duplicate/manual retries never buy a second call.
         if (! Cache::add('denix:attempt:'.$this->chatId.':'.$this->messageId, true, now()->addDays(7))) {
