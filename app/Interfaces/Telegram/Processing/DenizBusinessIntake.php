@@ -4,18 +4,21 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Telegram\Processing;
 
-use App\Settings\DenizBusinessSupportSettings;
+use App\Interfaces\Telegram\Jobs\AnswerDenizBusinessMessage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
-use Throwable;
+use Illuminate\Support\Facades\RateLimiter;
+use RuntimeException;
 
 /**
- * Telegram Business update boundary. Phase one never calls AI, sends messages
- * or persists customer conversations. Group routing remains untouched.
+ * Isolated authenticated Business intake. Never performs billable/Telegram
+ * network IO inside webhook handlers; the AI worker checks live permissions.
  */
 final class DenizBusinessIntake
 {
+    public function __construct(private readonly DenizBusinessConnectionGuard $access) {}
+
     public function handle(Request $request): void
     {
         $connection = $request->input('business_connection');
@@ -69,47 +72,113 @@ final class DenizBusinessIntake
     /** @param array<string, mixed> $message */
     private function message(array $message): void
     {
-        // Missing settings, configuration, or Redis must not allow AI work.
-        try {
-            if (! DenizBusinessSupportSettings::isEnabled()) {
-                return;
-            }
-        } catch (Throwable) {
+        // The deployment gate, operator switch and global AI switch must all
+        // be ON before accepting a billable customer request.
+        if (! $this->access->enabled()) {
             return;
         }
 
         $ownerId = $this->trustedOwnerId();
         $connectionId = $message['business_connection_id'] ?? null;
+        $chatId = data_get($message, 'chat.id');
+        $fromId = data_get($message, 'from.id');
+        $messageId = $message['message_id'] ?? null;
+        $date = $message['date'] ?? null;
         $text = $message['text'] ?? null;
 
         if ($ownerId === null || ! $this->validId($connectionId)
             || data_get($message, 'chat.type') !== 'private'
-            || ! is_int(data_get($message, 'chat.id'))
-            || ! is_int(data_get($message, 'from.id'))
-            || data_get($message, 'from.id') < 1
+            || ! is_int($chatId) || $chatId < 1
+            || ! is_int($fromId) || $fromId < 1
             || data_get($message, 'from.is_bot') !== false
-            || data_get($message, 'from.id') === $ownerId
-            || data_get($message, 'from.id') !== data_get($message, 'chat.id')
             || data_get($message, 'sender_business_bot') !== null
             || data_get($message, 'sender_chat') !== null
-            || ! is_int($message['message_id'] ?? null)
-            || $message['message_id'] < 1
-            || ! is_string($text) || trim($text) === ''
-            || mb_strlen($text) > (int) config('denagate_ai.max_input_chars', 2000)) {
+            || ! is_int($messageId) || $messageId < 1
+            || ! is_int($date) || $date < now()->timestamp - 86400
+            || $date > now()->timestamp + 60) {
             return;
         }
 
-        $verified = Cache::get($this->key($connectionId));
+        $connectionKey = hash('sha256', $connectionId);
+        $handoffKey = 'denix:business:handoff:'.$connectionKey.':'.$chatId;
 
-        if (! is_array($verified) || ($verified['owner_id'] ?? null) !== $ownerId
-            || ($verified['active'] ?? null) !== true
-            || ($verified['can_reply'] ?? null) !== true) {
+        if ($fromId === $ownerId) {
+            // A human agent has answered from the connected Business account.
+            // Suppress all subsequent AI replies in that conversation for 24h.
+            if ($chatId !== $ownerId) {
+                Cache::put($handoffKey, true, now()->addDay());
+            }
+
             return;
         }
 
-        // Intentionally no enqueue, provider request, customer data log, or
-        // outbound Telegram send until the separately approved phase two.
-        Log::info('Deniz Business message passed intake validation.');
+        if ($fromId !== $chatId || ! is_string($text) || trim($text) === ''
+            || mb_strlen($text) > (int) config('denagate_ai.max_input_chars', 2000)
+            || Cache::has($handoffKey) && trim($text) !== 'شروع دنیز') {
+            return;
+        }
+
+        $cacheName = config('cache.default');
+        $cacheDriver = is_string($cacheName) ? config('cache.stores.'.$cacheName.'.driver') : null;
+        $queueName = config('queue.default');
+        $queueDriver = is_string($queueName) ? config('queue.connections.'.$queueName.'.driver') : null;
+        $retryAfter = is_string($queueName) ? config('queue.connections.'.$queueName.'.retry_after') : null;
+
+        if (! in_array($cacheDriver, ['redis', 'database'], true)
+            || ! in_array($queueDriver, ['redis', 'database'], true)
+            || ! is_numeric($retryAfter) || (int) $retryAfter <= 45) {
+            throw new RuntimeException('Deniz Business async queue/cache is not configured.');
+        }
+
+        // Webhook receipts protect update_id; this independent seven-day
+        // fence protects against the same message arriving under another update.
+        $fence = 'denix:business:message:'.$connectionKey.':'.$chatId.':'.$messageId;
+
+        if (! Cache::add($fence, true, now()->addDays(7))) {
+            return;
+        }
+
+        $kind = match (trim($text)) {
+            'پشتیبان انسانی', 'اپراتور', 'صحبت با پشتیبان' => 'handoff',
+            'شروع دنیز' => 'resume',
+            default => 'answer',
+        };
+        $retrySeconds = 0;
+
+        if ($kind === 'answer') {
+            $userKey = 'denix:business:quota:user:'.$connectionKey.':'.$chatId;
+            $dailyKey = 'denix:business:quota:day:'.$connectionKey.':'.$chatId;
+            $globalKey = 'denix:business:quota:global';
+
+            $limitedKey = match (true) {
+                RateLimiter::tooManyAttempts($userKey, 5) => $userKey,
+                RateLimiter::tooManyAttempts($dailyKey, 20) => $dailyKey,
+                RateLimiter::tooManyAttempts($globalKey, 50) => $globalKey,
+                default => null,
+            };
+
+            if ($limitedKey !== null) {
+                $noticeKey = 'denix:business:quota:notice:'.$connectionKey.':'.$chatId;
+
+                if (RateLimiter::tooManyAttempts($noticeKey, 1)) {
+                    return;
+                }
+
+                $kind = 'quota';
+                $retrySeconds = RateLimiter::availableIn($limitedKey);
+                RateLimiter::hit($noticeKey, 3600);
+            } else {
+                RateLimiter::hit($userKey, 600);
+                RateLimiter::hit($dailyKey, 86400);
+                RateLimiter::hit($globalKey, 86400);
+            }
+        }
+
+        // Missing connection update cache isn't authority to deny forever:
+        // getBusinessConnection at execution is the authoritative live check.
+        AnswerDenizBusinessMessage::dispatch(
+            $connectionId, $chatId, $fromId, $messageId, $date, trim($text), $kind, $retrySeconds,
+        );
     }
 
     private function trustedOwnerId(): ?int

@@ -44,7 +44,8 @@ final readonly class DenizBusinessSupportSettingsHandler
             return;
         }
 
-        $status = $active ? '🟢 فعال' : '⚪ غیرفعال';
+        $ready = config('denagate_ai.business_replies_enabled') === true;
+        $status = $active && $ready ? '🟢 فعال' : ($active ? '🟠 در انتظار راه‌اندازی' : '⚪ غیرفعال');
         $buttons = InlineKeyboardMarkup::make()
             ->addRow(
                 InlineKeyboardButton::make('✅ فعال‌سازی', callback_data: 'admin:deniz-support:prepare:on'),
@@ -55,11 +56,11 @@ final readonly class DenizBusinessSupportSettingsHandler
         $plain = '<b>🤖 پشتیبانی هوشمند دنیز</b>'
             ."\n\nوضعیت مجوز پاسخ‌گویی: <b>{$status}</b>"
             ."\n\nاین گزینه فقط پاسخ‌گویی در حساب پشتیبانی را کنترل می‌کند و گفتگوی مدیریتی دنیز را تغییر نمی‌دهد."
-            ."\n\n<blockquote>پاسخ‌گویی خودکار هنوز آماده استفاده عمومی نیست.</blockquote>";
+            ."\n\n<blockquote>پاسخ‌گویی فقط پس از تکمیل اتصال حساب پشتیبانی فعال می‌شود.</blockquote>";
         $html = '<h3>🤖 پشتیبانی هوشمند دنیز</h3>'
             .'<table bordered striped compact><tr><td>مجوز پاسخ‌گویی</td><td>'.TelegramUi::escape($status).'</td></tr></table>'
             .'<p>این گزینه فقط حساب پشتیبانی را کنترل می‌کند؛ گفتگوی مدیریتی بدون تغییر باقی می‌ماند.</p>'
-            .'<footer>پاسخ‌گویی خودکار هنوز آماده استفاده عمومی نیست.</footer>';
+            .'<footer>پاسخ‌گویی فقط پس از تکمیل اتصال حساب پشتیبانی فعال می‌شود.</footer>';
 
         $this->render($bot, $plain, $buttons, $html);
     }
