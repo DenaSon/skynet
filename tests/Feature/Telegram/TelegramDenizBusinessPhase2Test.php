@@ -208,6 +208,52 @@ it('calls getBusinessConnection twice, purchases one answer and sends only from 
         ->and(app(DenixConversationState::class)->history(-100987654321, null, 190011))->toBeEmpty();
 });
 
+it('introduces Deniz once when the first model answer also starts with سلام', function (): void {
+    denizP2FakeHttp(static fn (Request $req) => $req->url() === 'https://api.gapgpt.app/v1/chat/completions'
+        ? Http::response(denizP2ProviderResponse('سلام، بفرمایید چطور می‌توانم کمکتون کنم؟'))
+        : null);
+
+    denizP2Run(denizP2Job(215));
+
+    $expected = "سلام، من دنیز، دستیار هوش مصنوعی دناگیت هستم. 🌿\n\n"
+        .'بفرمایید چطور می‌توانم کمکتون کنم؟';
+
+    Http::assertSent(fn (Request $req): bool => str_ends_with($req->url(), '/sendMessage')
+        && $req['text'] === $expected
+        && substr_count($req['text'], 'سلام') === 1);
+
+    $history = app(DenixConversationState::class)->history(190011, null, 190011);
+    expect($history)->toHaveCount(2)
+        ->and($history[1]['content'])->toBe($expected);
+});
+
+it('preserves an answer with no initial greeting and does not mistake سلامتی for سلام', function (): void {
+    denizP2FakeHttp(static fn (Request $req) => $req->url() === 'https://api.gapgpt.app/v1/chat/completions'
+        ? Http::response(denizP2ProviderResponse('سلامتی و امنیت ارتباط برای ما مهم است.'))
+        : null);
+
+    denizP2Run(denizP2Job(216));
+
+    Http::assertSent(fn (Request $req): bool => str_ends_with($req->url(), '/sendMessage')
+        && str_contains($req['text'], "\n\nسلامتی و امنیت ارتباط برای ما مهم است."));
+});
+
+it('uses the approved formal quota notice with a human-readable remaining time without calling AI', function (): void {
+    denizP2FakeHttp();
+
+    denizP2Run(new AnswerDenizBusinessMessage(
+        'connection_A', 190011, 190011, 217, now()->timestamp, 'سلام دنیز', 'quota', 3900,
+    ));
+
+    Http::assertSentCount(3);
+    Http::assertSent(fn (Request $req): bool => str_ends_with($req->url(), '/sendMessage')
+        && $req['business_connection_id'] === 'connection_A'
+        && $req['text'] === "⏳ تعداد پیام‌های مجاز در این بازه زمانی تکمیل شده است.\n\n"
+            ."امکان ادامه گفت‌وگو حدود 1 ساعت و 5 دقیقه دیگر فعال می‌شود.\n\n"
+            .'از همراهی شما سپاسگزاریم.');
+    Http::assertNotSent(fn (Request $req): bool => $req->url() === 'https://api.gapgpt.app/v1/chat/completions');
+});
+
 it('renders provider Markdown as safe Telegram HTML in the full Business job', function (): void {
     denizP2FakeHttp(static fn (Request $req) => $req->url() === 'https://api.gapgpt.app/v1/chat/completions'
         ? Http::response(denizP2ProviderResponse('**نمایندگی دناگیت** و [بات فروش](https://t.me/denaGateBot)'))
