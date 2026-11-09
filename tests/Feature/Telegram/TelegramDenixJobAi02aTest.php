@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Interfaces\Telegram\Jobs\AnswerDenixMessage;
+use App\Interfaces\Telegram\Processing\DenixConversationState;
 use App\Interfaces\Telegram\Processing\DenixGroupAccess;
 use App\Interfaces\Telegram\Processing\DenixMessageSender;
 use App\Modules\AI\Application\AskAssistant;
@@ -60,7 +61,7 @@ function denixFakeChat(string $text = 'پاسخ دنیکس'): array
 
 function executeDenixJob(AnswerDenixMessage $job): void
 {
-    $job->handle(app(DenixGroupAccess::class), app(AskAssistant::class), app(DenixMessageSender::class));
+    $job->handle(app(DenixGroupAccess::class), app(AskAssistant::class), app(DenixMessageSender::class), app(DenixConversationState::class));
 }
 
 it('calls GapGPT once and delivers a plain Telegram reply to the original group topic', function (): void {
