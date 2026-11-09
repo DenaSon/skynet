@@ -58,10 +58,7 @@ it('keeps the Admin group instructions unchanged and limits customer support gui
 
     expect(str_starts_with($support, $group.' '))->toBeTrue()
         ->and($group)->not->toContain('@denaGateBot', 'اکنون در گفتگوی خصوصی حساب پشتیبانی')
-        ->and($support)->toContain(
-            '@denaGateBot',
-            'اکنون در گفتگوی خصوصی حساب پشتیبانی'
-        );
+        ->and($support)->toContain('@denaGateBot', 'اکنون در گفتگوی خصوصی حساب پشتیبانی');
 });
 
 it('sends support-only bot navigation, restrained emoji and human handoff rules in the System prompt', function (): void {
