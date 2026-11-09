@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 use App\Interfaces\Telegram\Processing\DenizBusinessMessageFormatter;
 use App\Interfaces\Telegram\Processing\DenizBusinessMessageSender;
-use Illuminate\Http\Client\Request;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 
 beforeEach(function (): void {
@@ -60,7 +60,7 @@ it('truncates before HTML rendering so formatted tags remain balanced', function
     $raw = str_repeat('ز', 3490).' **'.str_repeat('م', 100).'**';
     $html = app(DenizBusinessMessageFormatter::class)->format($raw);
 
-    expect($html)->toBe(str_repeat('ز', 3490).' **'.str_repeat('م', 8))
+    expect($html)->toBe(str_repeat('ز', 3490).' **'.str_repeat('م', 7))
         ->and(mb_strlen($html))->toBe(3500)
         ->and(substr_count($html, '<b>'))->toBe(0);
 });
@@ -108,15 +108,17 @@ it('falls back exactly once to plain text only on a certain Telegram HTML entity
 });
 
 it('never retries an ambiguous Telegram network failure or a rejected non-formatting message', function (): void {
+    $attempts = 0;
     Http::fake([
-        'https://api.telegram.org/*' => function () {
+        'https://api.telegram.org/*' => function () use (&$attempts) {
+            $attempts++;
             throw new ConnectionException('private network details');
         },
     ]);
 
     expect(fn () => app(DenizBusinessMessageSender::class)->send('trustedConnection', 190011, 74, '**سلام**'))
         ->toThrow(RuntimeException::class, 'Deniz Business delivery failed.');
-    Http::assertSentCount(1);
+    expect($attempts)->toBe(1);
 
     Http::fake([
         'https://api.telegram.org/*' => Http::response(['ok' => false, 'description' => 'Bad Request: chat not found'], 400),
