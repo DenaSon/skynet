@@ -15,12 +15,12 @@ final readonly class DenixConversationState
     public function model(int $chatId, ?int $threadId, int $userId): string
     {
         $cached = Cache::get($this->key($chatId, $threadId, $userId, 'model'));
-        $model = is_string($cached) && in_array($cached, ModelCatalog::SELECTABLE, true)
+        $model = is_string($cached) && in_array($cached, ModelCatalog::selectable(), true)
             ? $cached
             : $this->models->resolve();
 
         // Only independently verified GapGPT models may be used by Denix.
-        if (! in_array($model, ModelCatalog::SELECTABLE, true)) {
+        if (! in_array($model, ModelCatalog::selectable(), true)) {
             throw new RuntimeException('Denix model is not approved for group conversations.');
         }
 
