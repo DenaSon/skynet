@@ -118,6 +118,7 @@ final readonly class DenizBusinessSupportSettingsHandler
         }
 
         $key = $this->key($root);
+        $telegramId = $this->private->id($bot);
 
         try {
             // A single-use confirmation cannot be replayed by concurrent callbacks.
@@ -140,7 +141,7 @@ final readonly class DenizBusinessSupportSettingsHandler
                 return;
             }
 
-            Cache::lock('admin:deniz-support:write', 10)->block(2, function () use ($root, $draft): void {
+            Cache::lock('admin:deniz-support:write', 10)->block(2, function () use ($root, $draft, $telegramId): void {
                 $settings = app(DenizBusinessSupportSettings::class);
                 $settings->refresh();
                 if ($settings->enabled !== $draft['old']) {
@@ -148,7 +149,7 @@ final readonly class DenizBusinessSupportSettingsHandler
                 }
 
                 // Deny mutations after revocation, even if a valid confirmation exists.
-                $actor = $this->actors->handle((int) $this->private->idFromActorUser($root));
+                $actor = $telegramId !== null ? $this->actors->handle($telegramId) : null;
                 if ($actor === null || ! $actor->canManageRoles()) {
                     throw new AuthorizationException;
                 }
