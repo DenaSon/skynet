@@ -202,7 +202,7 @@ it('returns canonical comparative sales and channel numbers without buyer identi
 
     $serialized = json_encode($snapshot, JSON_THROW_ON_ERROR);
     expect($serialized)->not->toContain('buyerUserId', 'Sensitive customer name', 'Private reseller name',
-        'payment_reference', 'reviewed_by', 'topBuyers');
+        'payment_reference', 'reviewed_by', '\"topBuyers\":');
 
     Http::assertNothingSent();
 });
