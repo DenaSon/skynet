@@ -151,7 +151,7 @@ it('keeps control commands available without consuming the twenty-five paid requ
     foreach (range(1, 26) as $number) {
         denixCPost($this, denixCMessage(10400 + $number, '/ai سؤال '.$number));
     }
-    denixCPost($this, denixCMessage(10420, '/aistatus'));
+    denixCPost($this, denixCMessage(10440, '/aistatus'));
 
     Queue::assertPushed(AnswerDenixMessage::class, 25);
     Queue::assertPushed(HandleDenixCommand::class, 1);
