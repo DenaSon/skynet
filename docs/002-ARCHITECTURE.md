@@ -16,9 +16,8 @@
 
 This section is a source-level snapshot, not an authorization for refactoring, migration, deployment changes or live Provider writes.
 
-
 ## Direction of dependencies
-- **Presentation:** HTTP controllers, future Livewire/API/Telegram adapters. Calls application use cases.
+- **Presentation:** HTTP controllers, Livewire and Telegram adapters (and any future API adapter). Calls application use cases.
 - **Application:** actions/use cases and DTOs; coordinates domain behavior.
 - **Domain:** business concepts and rules, avoiding framework/UI concerns where practical.
 - **Infrastructure:** Eloquent, external service clients, queues, and other technical adapters.
@@ -43,7 +42,7 @@ tests/                  # feature and architecture regression
 docs/
 ```
 
-Within a module, introduce `Domain/`, `Application/`, `Infrastructure/`, and `Presentation/` folders **as real code requires them**. Do not invent a framework for discovering modules. Each module uses `App\\Modules\\...` via existing `App\` Composer PSR-4 autoloading.
+Within a module, introduce `Domain/`, `Application/`, `Infrastructure/`, and `Presentation/` folders **as real code requires them**. Do not invent a framework for discovering modules. Each module uses `App\\Modules\\...` via existing `App\\` Composer PSR-4 autoloading.
 
 ## Integration rules
 Avoid reaching into another module's persistence, internal model, or domain implementation. Expose carefully scoped application contracts when genuine cross-module use cases appear. Do not build an event bus solely to couple empty modules.
@@ -61,7 +60,7 @@ Identity owns its Eloquent User model and session-authenticated web endpoints. A
 
 Webhook receipts use a database unique update ID, 90-second processing lease, processed marker and retry on failure. This reduces duplicate handling but cannot provide exactly-once delivery of outbound Telegram messages. Simple commands run synchronously; time-consuming operations require durable queue design later.
 
-The future Livewire UI may call the same Application Actions directly; REST is not mandatory for an in-process presenter. See [ADR 0004](adr/0004-telegram-first.md).
+The Livewire UI can call the same Application Actions directly; REST is not mandatory for an in-process presenter. See [ADR 0004](adr/0004-telegram-first.md).
 
 ## Historical open decisions (foundation checkpoint)
 Administrative Web UI, F11-A2 verified direct bank settlement, F11-B outbox dispatch/reconciliation, production DB/cache topology, authorized node actions and real provider/network E2E remain future work. F10-E1/E2/E3 are merged; F11-A1 wallet settlement/outbox storage is merged, OFF by default. Remnawave **is** selected as the external subscription panel API; independent SSH/WireGuard/Core/Edge transport choices remain open.
