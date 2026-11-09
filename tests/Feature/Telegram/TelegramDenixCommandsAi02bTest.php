@@ -147,13 +147,13 @@ it('does not allow a non-root, forged group, or revoked root to mutate session s
     Http::assertNothingSent();
 });
 
-it('keeps control commands available without consuming the five paid requests quota', function (): void {
-    foreach (range(1, 6) as $number) {
+it('keeps control commands available without consuming the twenty-five paid requests quota', function (): void {
+    foreach (range(1, 26) as $number) {
         denixCPost($this, denixCMessage(10400 + $number, '/ai سؤال '.$number));
     }
     denixCPost($this, denixCMessage(10420, '/aistatus'));
 
-    Queue::assertPushed(AnswerDenixMessage::class, 5);
+    Queue::assertPushed(AnswerDenixMessage::class, 25);
     Queue::assertPushed(HandleDenixCommand::class, 1);
     Queue::assertPushed(SendDenixQuotaNotice::class, 1);
     Http::assertNothingSent();
@@ -170,10 +170,39 @@ it('keeps every Denix command fail-closed when the global AI switch is disabled'
     Http::assertNothingSent();
 });
 
+it('allows the twenty-fifth manager request but blocks the twenty-sixth without affecting Business', function (): void {
+    expect(config('denagate_ai.user_requests_per_10_minutes'))->toBe(25)
+        ->and(config('denagate_ai.group_requests_per_day'))->toBe(250);
+
+    $key = 'denix:user:180001';
+    foreach (range(1, 24) as $unused) {
+        RateLimiter::hit($key, 600);
+    }
+
+    denixCPost($this, denixCMessage(10511, '/ai سؤال مجاز'));
+    denixCPost($this, denixCMessage(10512, '/ai سؤال بعدی'));
+
+    Queue::assertPushed(AnswerDenixMessage::class, 1);
+    Queue::assertPushed(SendDenixQuotaNotice::class, fn (SendDenixQuotaNotice $job): bool => $job->quota === 'user');
+    expect(RateLimiter::attempts($key))->toBe(25);
+});
+
+it('allows the two-hundred-fiftieth group request but blocks the next one', function (): void {
+    foreach (range(1, 249) as $unused) {
+        RateLimiter::hit('denix:group:-100987654321', 86400);
+    }
+
+    denixCPost($this, denixCMessage(10513, '/ai سؤال آخر گروه'));
+    denixCPost($this, denixCMessage(10514, '/ai سؤال بعدی گروه'));
+
+    Queue::assertPushed(AnswerDenixMessage::class, 1);
+    Queue::assertPushed(SendDenixQuotaNotice::class, fn (SendDenixQuotaNotice $job): bool => $job->quota === 'group');
+});
+
 it('queues a free, timed reply when a manager exceeds the paid conversation quota', function (): void {
     $key = 'denix:user:180001';
 
-    foreach (range(1, 5) as $unused) {
+    foreach (range(1, 25) as $unused) {
         RateLimiter::hit($key, 600);
     }
 
@@ -211,7 +240,7 @@ it('queues a free, timed reply when a manager exceeds the paid conversation quot
 });
 
 it('explains the daily group quota independently of the manager quota', function (): void {
-    for ($i = 0; $i < 50; $i++) {
+    for ($i = 0; $i < 250; $i++) {
         RateLimiter::hit('denix:group:-100987654321', 86400);
     }
 
