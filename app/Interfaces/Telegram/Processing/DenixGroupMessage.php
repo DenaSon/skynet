@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Interfaces\Telegram\Processing;
 
 use App\Interfaces\Telegram\Jobs\AnswerDenixMessage;
+use App\Interfaces\Telegram\Jobs\HandleDenixCommand;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\RateLimiter;
@@ -40,9 +41,11 @@ final readonly class DenixGroupMessage
             return;
         }
 
-        $prompt = $this->prompt($message, $text);
+        $control = $this->control($text);
+        $prompt = $control === null ? $this->prompt($message, $text) : null;
 
-        if ($prompt === null || $prompt === '' || mb_strlen($prompt) > (int) config('denagate_ai.max_input_chars', 2000)) {
+        if ($control === null && ($prompt === null || $prompt === ''
+            || mb_strlen($prompt) > (int) config('denagate_ai.max_input_chars', 2000))) {
             return;
         }
 
@@ -70,8 +73,20 @@ final readonly class DenixGroupMessage
             return;
         }
 
-        if (RateLimiter::tooManyAttempts('denix:user:'.$userId, 5)
-            || RateLimiter::tooManyAttempts('denix:group:'.$chatId, 50)) {
+        if ($control !== null) {
+            // Management commands do not consume the paid inference quota.
+            if (RateLimiter::tooManyAttempts('denix:control:'.$userId, 10)) {
+                return;
+            }
+
+            RateLimiter::hit('denix:control:'.$userId, 60);
+            HandleDenixCommand::dispatch($chatId, $userId, $messageId, $threadId, $control['command'], $control['choice']);
+
+            return;
+        }
+
+        if (RateLimiter::tooManyAttempts('denix:user:'.$userId, (int) config('denagate_ai.user_requests_per_10_minutes', 5))
+            || RateLimiter::tooManyAttempts('denix:group:'.$chatId, (int) config('denagate_ai.group_requests_per_day', 50))) {
             return;
         }
 
@@ -79,6 +94,39 @@ final readonly class DenixGroupMessage
         RateLimiter::hit('denix:group:'.$chatId, 86400);
 
         AnswerDenixMessage::dispatch($chatId, $userId, $messageId, $threadId, $prompt);
+    }
+
+    /**
+     * @return array{command: string, choice: int|null}|null
+     */
+    private function control(string $text): ?array
+    {
+        if (preg_match('/\\A\\/(aimodel|ainew|aistatus)(?:@([a-zA-Z][a-zA-Z0-9_]{4,31}))?(?:\\s+([^\\s]+))?\\s*\\z/iu', $text, $matches, PREG_UNMATCHED_AS_NULL) !== 1) {
+            return null;
+        }
+
+        $username = config('telegram.denix.bot_username', 'denixobot');
+
+        if (! is_string($username)
+            || (isset($matches[2]) && strcasecmp($matches[2], $username) !== 0)) {
+            return null;
+        }
+
+        $command = strtolower($matches[1]);
+        $argument = $matches[3] ?? null;
+
+        if ($command !== 'aimodel' && $argument !== null) {
+            return null;
+        }
+
+        $choice = null;
+
+        if ($command === 'aimodel' && $argument !== null) {
+            // Only indexed, allowlisted choices are accepted; never raw model IDs.
+            $choice = ctype_digit($argument) && strlen($argument) <= 2 ? (int) $argument : 0;
+        }
+
+        return ['command' => $command, 'choice' => $choice];
     }
 
     /**

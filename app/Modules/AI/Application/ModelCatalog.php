@@ -16,6 +16,17 @@ final class ModelCatalog
         'gpt-6.1-sol',
     ];
 
+    // Only these models have passed a real GapGPT smoke test.
+    public const SELECTABLE = [
+        'gpt-6-luna',
+        'gapgpt-deepseek-v4.1-flash',
+    ];
+
+    public function selectedByNumber(int $number): ?string
+    {
+        return self::SELECTABLE[$number - 1] ?? null;
+    }
+
     public function resolve(?string $requested = null): string
     {
         $model = $requested ?? config('denagate_ai.default_model');

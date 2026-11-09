@@ -18,7 +18,10 @@ final readonly class AskAssistant
 
     public function __construct(private ModelCatalog $models) {}
 
-    public function handle(string $prompt, ?string $modelId = null): AssistantAnswer
+    /**
+     * @param  list<array<string, mixed>>  $history
+     */
+    public function handle(string $prompt, ?string $modelId = null, array $history = []): AssistantAnswer
     {
         if (config('denagate_ai.enabled') !== true) {
             throw new RuntimeException('AI is disabled.');
@@ -31,6 +34,26 @@ final readonly class AskAssistant
             throw ValidationException::withMessages(['prompt' => 'Invalid AI prompt.']);
         }
 
+        if (count($history) > (int) config('denagate_ai.context_max_messages', 6)) {
+            throw ValidationException::withMessages(['history' => 'Invalid AI history.']);
+        }
+
+        $historyCharacters = 0;
+        foreach ($history as $message) {
+            if (! in_array($message['role'] ?? null, ['user', 'assistant'], true)
+                || ! is_string($message['content'] ?? null)
+                || ($length = mb_strlen($message['content'])) < 1
+                || $length > (int) config('denagate_ai.max_output_chars', 6000)) {
+                throw ValidationException::withMessages(['history' => 'Invalid AI history.']);
+            }
+
+            $historyCharacters += $length;
+        }
+
+        if ($historyCharacters > (int) config('denagate_ai.context_max_chars', 6000)) {
+            throw ValidationException::withMessages(['history' => 'Invalid AI history.']);
+        }
+
         $key = config('ai.providers.gapgpt.key');
         $url = config('ai.providers.gapgpt.url');
 
@@ -41,7 +64,7 @@ final readonly class AskAssistant
         }
 
         try {
-            $response = (new DenixAssistant)->prompt(
+            $response = (new DenixAssistant)->withMessages($history)->prompt(
                 $prompt,
                 provider: 'gapgpt',
                 model: $model,
