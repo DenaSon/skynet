@@ -3,8 +3,9 @@
 declare(strict_types=1);
 
 use App\Interfaces\Telegram\Jobs\AnswerDenixMessage;
-use App\Interfaces\Telegram\Processing\ProcessDenixTelegramUpdate;
+use App\Interfaces\Telegram\Processing\ClaimState;
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
+use App\Interfaces\Telegram\Processing\TelegramUpdateReceipts;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -105,8 +106,7 @@ it('accepts only a valid trusted Super Admin command in the configured group', f
     $this->postJson('/api/telegram/ai/webhook', $payload, denixHeaders())->assertNoContent();
 
     Queue::assertPushed(AnswerDenixMessage::class, 1);
-    Queue::assertPushed(AnswerDenixMessage::class, fn (AnswerDenixMessage $job): bool =>
-        $job->queue === 'ai'
+    Queue::assertPushed(AnswerDenixMessage::class, fn (AnswerDenixMessage $job): bool => $job->queue === 'ai'
         && $job->chatId === -100987654321
         && $job->telegramUserId === 150001
         && $job->messageId === 9004
@@ -123,10 +123,10 @@ it('isolates Denix receipt identity from Admin and Sales bots', function (): voi
     denixTrustedRoot();
     $this->postJson('/api/telegram/ai/webhook', denixMessage(9005), denixHeaders())->assertNoContent();
 
-    expect(app(\App\Interfaces\Telegram\Processing\TelegramUpdateReceipts::class)->claim(9005, TelegramBotContext::ADMIN))
-        ->toBe(\App\Interfaces\Telegram\Processing\ClaimState::Claimed)
-        ->and(app(\App\Interfaces\Telegram\Processing\TelegramUpdateReceipts::class)->claim(9005, TelegramBotContext::SALES))
-        ->toBe(\App\Interfaces\Telegram\Processing\ClaimState::Claimed)
+    expect(app(TelegramUpdateReceipts::class)->claim(9005, TelegramBotContext::ADMIN))
+        ->toBe(ClaimState::Claimed)
+        ->and(app(TelegramUpdateReceipts::class)->claim(9005, TelegramBotContext::SALES))
+        ->toBe(ClaimState::Claimed)
         ->and(DB::table('telegram_updates')->where('update_id', 9005)->count())->toBe(3);
 
     expect(fn () => new TelegramBotContext('mystery'))->toThrow(InvalidArgumentException::class);
@@ -148,7 +148,7 @@ it('ignores untrusted actors and unrelated messages without enqueueing', functio
     ];
     $payloads[] = array_replace_recursive(denixMessage(9017), ['message' => ['chat' => ['type' => 'private', 'id' => 150001]]]);
     $payloads[] = array_replace_recursive(denixMessage(9018), ['message' => ['from' => ['is_bot' => true]]]);
-    $payloads[] = array_replace_recursive(denixMessage(9019), ['message' => ['from' => ['id' => null]]]);
+    $payloads[] = array_replace_recursive(denixMessage(9019), ['message' => ['from' => ['id' => 0]]]);
 
     foreach ($payloads as $payload) {
         $this->postJson('/api/telegram/ai/webhook', $payload, denixHeaders())->assertNoContent();
@@ -166,7 +166,7 @@ it('only accepts replies to this Denix bot and preserves the topic ID', function
     $message['message']['reply_to_message'] = [
         'message_id' => 55,
         'chat' => ['id' => -100987654321],
-        'from' => ['id' => 100003, 'is_bot' => true],
+        'from' => ['id' => 100003, 'is_bot' => true, 'first_name' => 'Denix'],
         'text' => 'سلام',
     ];
     $this->postJson('/api/telegram/ai/webhook', $message, denixHeaders())->assertNoContent();
@@ -174,13 +174,12 @@ it('only accepts replies to this Denix bot and preserves the topic ID', function
     $otherBot = denixMessage(9021, text: 'اشتباه');
     $otherBot['message']['reply_to_message'] = [
         'chat' => ['id' => -100987654321],
-        'from' => ['id' => 100001, 'is_bot' => true],
+        'from' => ['id' => 100001, 'is_bot' => true, 'first_name' => 'Other Bot'],
     ];
     $this->postJson('/api/telegram/ai/webhook', $otherBot, denixHeaders())->assertNoContent();
 
     Queue::assertPushed(AnswerDenixMessage::class, 1);
-    Queue::assertPushed(AnswerDenixMessage::class, fn (AnswerDenixMessage $job): bool =>
-        $job->question === 'توضیح بیشتر بده' && $job->threadId === 12);
+    Queue::assertPushed(AnswerDenixMessage::class, fn (AnswerDenixMessage $job): bool => $job->question === 'توضیح بیشتر بده' && $job->threadId === 12);
 });
 
 it('rejects synchronous queues and does not create billable work inside webhooks', function (): void {
