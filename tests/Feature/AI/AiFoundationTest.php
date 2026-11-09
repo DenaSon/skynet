@@ -41,7 +41,7 @@ it('uses the official OpenAI-compatible chat-completions contract and the chosen
         && $request->hasHeader('Authorization', 'Bearer test-only-ai-key')
         && $request['model'] === 'gpt-6-luna'
         && $request['messages'][0]['role'] === 'system'
-        && str_contains($request['messages'][0]['content'], 'دنیکس')
+        && str_contains($request['messages'][0]['content'], 'دنیز')
         && $request['messages'][1]['role'] === 'user'
         && $request['messages'][1]['content'] === 'سلام'
         && $request['max_tokens'] === 700
