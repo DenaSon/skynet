@@ -1,0 +1,121 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Interfaces\Telegram\Processing;
+
+use App\Modules\AI\Application\ModelCatalog;
+use Illuminate\Support\Facades\Cache;
+use RuntimeException;
+
+final readonly class DenixConversationState
+{
+    public function __construct(private ModelCatalog $models) {}
+
+    public function model(int $chatId, ?int $threadId, int $userId): string
+    {
+        $cached = Cache::get($this->key($chatId, $threadId, $userId, 'model'));
+        $model = is_string($cached) && in_array($cached, ModelCatalog::SELECTABLE, true)
+            ? $cached
+            : $this->models->resolve();
+
+        // Only independently verified GapGPT models may be used by Denix.
+        if (! in_array($model, ModelCatalog::SELECTABLE, true)) {
+            throw new RuntimeException('Denix model is not approved for group conversations.');
+        }
+
+        if ($cached === $model) {
+            Cache::put($this->key($chatId, $threadId, $userId, 'model'), $model, $this->expiresAt());
+        }
+
+        return $model;
+    }
+
+    public function selectModel(int $chatId, ?int $threadId, int $userId, int $number): ?string
+    {
+        $model = $this->models->selectedByNumber($number);
+
+        if ($model === null) {
+            return null;
+        }
+
+        Cache::put($this->key($chatId, $threadId, $userId, 'model'), $model, $this->expiresAt());
+        Cache::forget($this->key($chatId, $threadId, $userId, 'history'));
+
+        return $model;
+    }
+
+    public function clearHistory(int $chatId, ?int $threadId, int $userId): void
+    {
+        Cache::forget($this->key($chatId, $threadId, $userId, 'history'));
+    }
+
+    /**
+     * @return list<array{role: string, content: string}>
+     */
+    public function history(int $chatId, ?int $threadId, int $userId): array
+    {
+        $stored = Cache::get($this->key($chatId, $threadId, $userId, 'history'));
+        $max = (int) config('denagate_ai.context_max_messages', 6);
+        $limit = (int) config('denagate_ai.context_max_chars', 6000);
+
+        if (! is_array($stored) || count($stored) > $max || count($stored) % 2 !== 0) {
+            return [];
+        }
+
+        $characters = 0;
+
+        foreach (array_values($stored) as $i => $message) {
+            if (! is_array($message)
+                || ($message['role'] ?? null) !== ($i % 2 === 0 ? 'user' : 'assistant')
+                || ! is_string($message['content'] ?? null)
+                || ($size = mb_strlen($message['content'])) < 1) {
+                return [];
+            }
+
+            $characters += $size;
+        }
+
+        if ($characters > $limit) {
+            return [];
+        }
+
+        /** @var list<array{role: string, content: string}> $stored */
+        return array_values($stored);
+    }
+
+    public function remember(int $chatId, ?int $threadId, int $userId, string $question, string $answer): void
+    {
+        $messages = [
+            ...$this->history($chatId, $threadId, $userId),
+            ['role' => 'user', 'content' => $question],
+            ['role' => 'assistant', 'content' => $answer],
+        ];
+
+        $limit = (int) config('denagate_ai.context_max_chars', 6000);
+        $max = (int) config('denagate_ai.context_max_messages', 6);
+
+        while (count($messages) > $max
+            || array_sum(array_map(static fn (array $message): int => mb_strlen($message['content']), $messages)) > $limit) {
+            array_shift($messages);
+            array_shift($messages);
+        }
+
+        Cache::put($this->key($chatId, $threadId, $userId, 'history'), $messages, $this->expiresAt());
+    }
+
+    public function lockKey(int $chatId, ?int $threadId, int $userId): string
+    {
+        return $this->key($chatId, $threadId, $userId, 'lock');
+    }
+
+    private function key(int $chatId, ?int $threadId, int $userId, string $suffix): string
+    {
+        return 'denix:session:ai:'.$chatId.':'.($threadId ?? 0).':'.$userId.':'.$suffix;
+    }
+
+    private function expiresAt(): \DateTimeInterface
+    {
+        return now()->addMinutes((int) config('denagate_ai.context_ttl_minutes', 30));
+    }
+}
