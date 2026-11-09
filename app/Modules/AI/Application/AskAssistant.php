@@ -19,7 +19,7 @@ final readonly class AskAssistant
     public function __construct(private ModelCatalog $models) {}
 
     /**
-     * @param  list<array{role: string, content: string}>  $history
+     * @param  list<array<string, mixed>>  $history
      */
     public function handle(string $prompt, ?string $modelId = null, array $history = []): AssistantAnswer
     {
