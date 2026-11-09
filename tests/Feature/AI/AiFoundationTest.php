@@ -82,6 +82,8 @@ it('keeps the documented model choices explicit and small', function (): void {
         'gapgpt-deepseek-v4.1-flash',
         'gpt-6.1-terra',
         'gpt-6.1-sol',
+        'gemini-2.5-flash-lite',
+        'gpt-5-nano',
     ]);
 });
 
