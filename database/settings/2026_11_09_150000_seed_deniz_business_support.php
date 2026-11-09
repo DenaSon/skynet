@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Settings\DenizBusinessSupportSettings;
 use Spatie\LaravelSettings\Migrations\SettingsMigration;
 
 return new class extends SettingsMigration
@@ -15,7 +16,7 @@ return new class extends SettingsMigration
     public function down(): void
     {
         // Never silently discard an operator's enabled setting during rollback.
-        if (app(\App\Settings\DenizBusinessSupportSettings::class)->enabled === true) {
+        if (app(DenizBusinessSupportSettings::class)->enabled === true) {
             throw new RuntimeException('Disable Deniz Business support before rolling back its settings.');
         }
 
