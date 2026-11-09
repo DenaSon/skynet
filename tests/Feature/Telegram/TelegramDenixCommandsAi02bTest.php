@@ -193,6 +193,7 @@ it('queues a free, timed reply when a manager exceeds the paid conversation quot
     Http::fake(['https://api.telegram.org/*' => Http::response(['ok' => true])]);
 
     $notice->handle(app(DenixGroupAccess::class), app(DenixMessageSender::class));
+    $notice->handle(app(DenixGroupAccess::class), app(DenixMessageSender::class));
 
     Http::assertSentCount(1);
     Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/sendMessage')
