@@ -66,3 +66,87 @@ it('keeps reward financial SQL inside Billing', function (): void {
         expect($file->getContents())->not->toContain('billing_postings', 'billing_wallets', 'billing_journals');
     }
 });
+
+arch('identity does not depend on provider infrastructure')
+    ->expect('App\\Modules\\Identity')
+    ->not->toUse('App\\Modules\\Provisioning\\Infrastructure');
+
+arch('billing does not depend on provider infrastructure')
+    ->expect('App\\Modules\\Billing')
+    ->not->toUse('App\\Modules\\Provisioning\\Infrastructure');
+
+it('does not introduce new module-to-Telegram imports beyond explicit legacy seams', function (): void {
+    // Snapshot of pre-existing imports, not a blanket exemption for a module.
+    // Removing a legacy import is allowed; adding another one fails this guard.
+    $legacy = [
+        'Filtering/Application/FilteringIncidentAlerts.php' => [
+            'App\\Interfaces\\Telegram\\Notifications\\DispatchTelegramNotification',
+        ],
+        'Provisioning/Application/FulfillPaidPlanOrder.php' => [
+            'App\\Interfaces\\Telegram\\Notifications\\PaymentNotificationOutbox',
+        ],
+        'Provisioning/Application/FulfillPaidRenewalOrder.php' => [
+            'App\\Interfaces\\Telegram\\Notifications\\PaymentNotificationOutbox',
+        ],
+        'Sales/Application/ManualBankPayments.php' => [
+            'App\\Interfaces\\Telegram\\Notifications\\PaymentNotificationOutbox',
+        ],
+        'Sales/Application/ReferralRewardOutbox.php' => [
+            'App\\Interfaces\\Telegram\\Notifications\\ReferralRewardNotificationOutbox',
+        ],
+        'Sales/Application/SettleWalletOrder.php' => [
+            'App\\Interfaces\\Telegram\\Notifications\\PaymentNotificationOutbox',
+        ],
+        'Trial/Application/EndFreeTrial.php' => [
+            'App\\Interfaces\\Telegram\\Notifications\\TrialNotificationOutbox',
+        ],
+        'Trial/Application/ProvisionFreeTrial.php' => [
+            'App\\Interfaces\\Telegram\\Notifications\\TrialNotificationOutbox',
+        ],
+    ];
+
+    foreach ((new Finder)->files()->in(dirname(__DIR__, 2).'/app/Modules')->name('*.php') as $file) {
+        $path = str_replace('\\', '/', $file->getRelativePathname());
+
+        foreach (explode("\n", $file->getContents()) as $line) {
+            $line = trim($line);
+            if (! str_starts_with($line, 'use App\\Interfaces\\Telegram\\')) {
+                continue;
+            }
+
+            $import = substr(rtrim($line, ';'), 4);
+            expect(in_array($import, $legacy[$path] ?? [], true))
+                ->toBeTrue("Unexpected module-to-Telegram dependency: {$path}: {$import}");
+        }
+    }
+});
+
+it('does not expand existing Filtering-to-Provisioning infrastructure imports', function (): void {
+    // These read-only Remnawave imports predate this architecture guard.
+    $legacy = [
+        'Application/FilteringIncidentNotice.php' => [
+            'App\\Modules\\Provisioning\\Infrastructure\\Remnawave\\RemnawaveApiClientFactory',
+            'App\\Modules\\Provisioning\\Infrastructure\\Remnawave\\RemnawaveReadApi',
+        ],
+        'Application/MonitorNodeFiltering.php' => [
+            'App\\Modules\\Provisioning\\Infrastructure\\Remnawave\\RemnawaveApiClientFactory',
+            'App\\Modules\\Provisioning\\Infrastructure\\Remnawave\\RemnawaveNodeSummary',
+            'App\\Modules\\Provisioning\\Infrastructure\\Remnawave\\RemnawaveReadApi',
+        ],
+    ];
+
+    foreach ((new Finder)->files()->in(dirname(__DIR__, 2).'/app/Modules/Filtering')->name('*.php') as $file) {
+        $path = str_replace('\\', '/', $file->getRelativePathname());
+
+        foreach (explode("\n", $file->getContents()) as $line) {
+            $line = trim($line);
+            if (! str_starts_with($line, 'use App\\Modules\\Provisioning\\Infrastructure\\')) {
+                continue;
+            }
+
+            $import = substr(rtrim($line, ';'), 4);
+            expect(in_array($import, $legacy[$path] ?? [], true))
+                ->toBeTrue("Unexpected Filtering provider dependency: {$path}: {$import}");
+        }
+    }
+});
