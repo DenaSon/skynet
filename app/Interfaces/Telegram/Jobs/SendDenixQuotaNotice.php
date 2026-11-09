@@ -61,11 +61,13 @@ final class SendDenixQuotaNotice implements ShouldQueue
             ? "{$remainingMinutes} دقیقه"
             : ($minutes === 0 ? "{$hours} ساعت" : "{$hours} ساعت و {$minutes} دقیقه");
 
-        $text = match ($this->quota) {
-            'group' => "⏳ سهمیه گفتگوی گروه فعلاً تکمیل شده. حدود {$time} دیگر دوباره فعال می‌شود.",
-            'control' => "⏳ تعداد درخواست‌های کنترلی شما زیاد شده. حدود {$time} دیگر دوباره تلاش کن.",
-            default => "⏳ سهمیه گفتگوی شما فعلاً تکمیل شده. حدود {$time} دیگر می‌تونی دوباره سؤال بپرسی.",
-        };
+        $notice = "⏳ تعداد پیام‌های مجاز در این بازه زمانی تکمیل شده است.\n\n"
+            ."امکان ادامه گفت‌وگو حدود {$time} دیگر فعال می‌شود.\n\n"
+            .'از همراهی شما سپاسگزاریم.';
+
+        $text = $this->quota === 'control'
+            ? "⏳ تعداد درخواست‌های کنترلی شما زیاد شده. حدود {$time} دیگر دوباره تلاش کن."
+            : $notice;
 
         // No model request, conversation-state write, or retry of ambiguous sends.
         $sender->send($this->chatId, $this->messageId, $this->threadId, $text);
