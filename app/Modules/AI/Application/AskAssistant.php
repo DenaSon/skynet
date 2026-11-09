@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\AI\Application;
 
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
 use Throwable;
@@ -59,8 +60,10 @@ final readonly class AskAssistant
                 inputTokens: $response->usage->inputTokens,
                 outputTokens: $response->usage->outputTokens,
             );
-        } catch (Throwable) {
-            // SDK/HTTP exceptions may include provider response bodies or credentials.
+        } catch (Throwable $error) {
+            // Provider responses and exception messages may contain secrets or private prompts.
+            Log::warning('AI request failed.', ['exception_type' => $error::class]);
+
             throw new RuntimeException('AI request could not be completed.');
         }
     }
