@@ -95,7 +95,7 @@ final readonly class DenixGroupMessage
         $userKey = 'denix:user:'.$userId;
         $groupKey = 'denix:group:'.$chatId;
 
-        if (RateLimiter::tooManyAttempts($userKey, (int) config('denagate_ai.user_requests_per_10_minutes', 5))) {
+        if (RateLimiter::tooManyAttempts($userKey, (int) config('denagate_ai.user_requests_per_10_minutes', 25))) {
             SendDenixQuotaNotice::dispatch(
                 $chatId, $userId, $messageId, $threadId, 'user', RateLimiter::availableIn($userKey),
             );
@@ -103,7 +103,7 @@ final readonly class DenixGroupMessage
             return;
         }
 
-        if (RateLimiter::tooManyAttempts($groupKey, (int) config('denagate_ai.group_requests_per_day', 50))) {
+        if (RateLimiter::tooManyAttempts($groupKey, (int) config('denagate_ai.group_requests_per_day', 250))) {
             SendDenixQuotaNotice::dispatch(
                 $chatId, $userId, $messageId, $threadId, 'group', RateLimiter::availableIn($groupKey),
             );

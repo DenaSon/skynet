@@ -56,9 +56,15 @@ it('keeps the Admin group instructions unchanged and limits customer support gui
     $group = $knowledge->instructions();
     $support = $knowledge->instructions(customerSupport: true);
 
-    expect(str_starts_with($support, $group.' '))->toBeTrue()
-        ->and($group)->not->toContain('@denaGateBot', 'اکنون در گفتگوی خصوصی حساب پشتیبانی')
-        ->and($support)->toContain('@denaGateBot', 'اکنون در گفتگوی خصوصی حساب پشتیبانی');
+    expect($group)->toContain('فعال‌سازی پس از بررسی و تأیید مدیریت انجام می‌شود و فوری یا تضمینی نیست.')
+        ->not->toContain('@denaGateBot', 'اکنون در گفتگوی خصوصی حساب پشتیبانی', 'نقش مشاور حرفه‌ای و معرف محصولات')
+        ->and($support)->toContain(
+            '@denaGateBot',
+            'اکنون در گفتگوی خصوصی حساب پشتیبانی',
+            'نقش مشاور حرفه‌ای و معرف محصولات',
+            'پس از تکمیل شرایط و تأیید درخواست توسط مدیریت، نمایندگی فعال می‌شود',
+        )
+        ->not->toContain('فعال‌سازی پس از بررسی و تأیید مدیریت انجام می‌شود و فوری یا تضمینی نیست.');
 });
 
 it('sends support-only bot navigation, restrained emoji and human handoff rules in the System prompt', function (): void {
@@ -76,6 +82,21 @@ it('sends support-only bot navigation, restrained emoji and human handoff rules 
 
     expect((new DenixAssistant)->instructions())->toBe(app(DenizKnowledge::class)->instructions())
         ->and((new DenixAssistant(customerSupport: true))->instructions())->toBe(app(DenizKnowledge::class)->instructions(true));
+});
+
+it('sends truthful sales consultation guidance only to customer-support AI calls', function (): void {
+    Http::fake(['https://api.gapgpt.app/*' => Http::response(gapgptChatResponse())]);
+
+    app(AskAssistant::class)->handle('شرایط نمایندگی و تضمین فعال‌سازی چیه؟', customerSupport: true);
+
+    Http::assertSent(fn ($request): bool => $request['messages'][0]['role'] === 'system'
+        && str_contains($request['messages'][0]['content'], '۳۵٪')
+        && str_contains($request['messages'][0]['content'], '۹۰۰٬۰۰۰ تومان')
+        && str_contains($request['messages'][0]['content'], 'فعال‌سازی نمایندگی انجام می‌شود')
+        && str_contains($request['messages'][0]['content'], 'مزیت‌های محصول را با جمله‌های هشداردهنده پشت‌سرهم خنثی نکن')
+        && str_contains($request['messages'][0]['content'], '@denaGateBot')
+        && ! str_contains($request['messages'][0]['content'], 'فوری یا تضمینی نیست')
+        && ! isset($request['tools']));
 });
 
 it('rejects disabled AI before sending a request', function (): void {
