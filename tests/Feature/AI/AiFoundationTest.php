@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use App\Modules\AI\Application\AskAssistant;
-use App\Modules\AI\Application\DenaAssistant;
 use App\Modules\AI\Application\ModelCatalog;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
@@ -29,12 +28,6 @@ function gapgptChatResponse(string $text = 'پاسخ آزمایشی'): array
 
 it('uses the official OpenAI-compatible chat-completions contract and the chosen model', function (): void {
     Http::fake(['https://api.gapgpt.app/*' => Http::response(gapgptChatResponse())]);
-
-    try {
-        (new DenaAssistant)->prompt('سلام', provider: 'gapgpt', model: 'gpt-6-luna', timeout: 20);
-    } catch (Throwable $exception) {
-        throw new RuntimeException('SDK diagnostic: '. $exception::class.'; HTTP requests: '. Http::recorded()->count());
-    }
 
     $answer = app(AskAssistant::class)->handle('سلام', 'gpt-6-luna');
 
