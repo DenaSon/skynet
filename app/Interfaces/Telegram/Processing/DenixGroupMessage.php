@@ -28,7 +28,8 @@ final readonly class DenixGroupMessage
         $text = data_get($message, 'text');
 
         if (! is_int($chatId) || ! is_int($userId) || ! is_int($messageId)
-            || $messageId < 1 || ! is_string($text) || data_get($message, 'from.is_bot') === true
+            || $messageId < 1 || ! is_string($text) || data_get($message, 'from.is_bot') !== false
+            || data_get($message, 'sender_chat') !== null
             || ! $this->access->allowed($chatId, $userId)) {
             return;
         }
