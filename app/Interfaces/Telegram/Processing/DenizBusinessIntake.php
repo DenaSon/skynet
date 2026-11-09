@@ -130,6 +130,14 @@ final class DenizBusinessIntake
             throw new RuntimeException('Deniz Business async queue/cache is not configured.');
         }
 
+        // Webhook receipts protect update_id; this independent seven-day
+        // fence protects against the same message arriving under another update.
+        $fence = 'denix:business:message:'.$connectionKey.':'.$chatId.':'.$messageId;
+
+        if (! Cache::add($fence, true, now()->addDays(7))) {
+            return;
+        }
+
         $kind = match (trim($text)) {
             'پشتیبان انسانی', 'اپراتور', 'صحبت با پشتیبان' => 'handoff',
             'شروع دنیز' => 'resume',
@@ -164,14 +172,6 @@ final class DenizBusinessIntake
                 RateLimiter::hit($dailyKey, 86400);
                 RateLimiter::hit($globalKey, 86400);
             }
-        }
-
-        // Webhook receipts protect update_id; this independent seven-day
-        // fence protects against the same message arriving under another update.
-        $fence = 'denix:business:message:'.$connectionKey.':'.$chatId.':'.$messageId;
-
-        if (! Cache::add($fence, true, now()->addDays(7))) {
-            return;
         }
 
         // Missing connection update cache isn't authority to deny forever:
