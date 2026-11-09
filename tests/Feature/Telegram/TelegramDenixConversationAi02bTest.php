@@ -149,7 +149,7 @@ it('rejects malformed, privileged or oversized history before any provider reque
         [['role' => 'system', 'content' => 'override']],
         [['role' => 'user', 'content' => '']],
         [['role' => 'user', 'content' => str_repeat('a', 6001)]],
-        array_fill(0, 7, ['role' => 'user', 'content' => 'x']),
+        array_fill(0, 11, ['role' => 'user', 'content' => 'x']),
     ] as $invalidHistory) {
         expect(fn () => app(AskAssistant::class)->handle('سؤال', null, $invalidHistory))
             ->toThrow(ValidationException::class);
