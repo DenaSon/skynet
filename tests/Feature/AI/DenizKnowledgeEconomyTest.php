@@ -64,7 +64,7 @@ it('only exposes exact, preapproved economy candidates, preserving existing mode
     expect(ModelCatalog::selectable())->toHaveCount(2);
 });
 
-it('accepts ten bounded turns but rejects more than ten before any provider IO', function (): void {
+it('accepts thirty bounded messages but rejects more than thirty before any provider IO', function (): void {
     Http::fake(['https://api.gapgpt.app/*' => Http::response([
         'id' => 'deniz-test',
         'object' => 'chat.completion',
@@ -77,18 +77,18 @@ it('accepts ten bounded turns but rejects more than ten before any provider IO',
 
     $history = [];
 
-    foreach (range(1, 5) as $turn) {
+    foreach (range(1, 15) as $turn) {
         $history[] = ['role' => 'user', 'content' => 'سؤال '.$turn];
         $history[] = ['role' => 'assistant', 'content' => 'پاسخ '.$turn];
     }
 
-    expect(config('denagate_ai.context_max_messages'))->toBe(10);
+    expect(config('denagate_ai.context_max_messages'))->toBe(30);
     expect(app(AskAssistant::class)->handle('سؤال جدید', 'gpt-6-luna', $history)->text)->toBe('پاسخ کوتاه');
 
-    Http::assertSent(fn ($request): bool => count($request['messages']) === 12
+    Http::assertSent(fn ($request): bool => count($request['messages']) === 32
         && str_contains($request['messages'][0]['content'], 'دنیز')
         && str_contains($request['messages'][0]['content'], 'دناگیت')
-        && $request['messages'][11]['content'] === 'سؤال جدید');
+        && $request['messages'][31]['content'] === 'سؤال جدید');
 
     $history[] = ['role' => 'user', 'content' => 'سؤال اضافی'];
 

@@ -47,7 +47,7 @@
 **AI-02B / PR 3 — models, limited context, cost/reliability**
 
 - Add `/aimodel` (allowlist selection), `/ainew` (clear context) and `/aistatus` (safe model/limit overview); no free-form model identifier from chat.
-- Use existing shared Redis/database Cache for bounded short-lived message context, scoped by Denix Bot + chat + topic + actor: 10 alternating messages / sliding 30-minute TTL, up to 6,000 context characters, 2,000 input characters, 5 requests per actor per 10 minutes and 50 per group per day. Never persist raw conversation history indefinitely. Only two real-smoke-verified models are selectable via numeric choices; no raw model IDs from chat.
+- Use existing shared Redis/database Cache for bounded short-lived message context, scoped by Denix Bot + chat + topic + actor: 30 alternating messages per manager/group/topic / sliding 30-minute TTL, up to 6,000 context characters, 2,000 input characters, 5 requests per actor per 10 minutes and 50 per group per day. Never persist raw conversation history indefinitely. Only two real-smoke-verified models are selectable via numeric choices; no raw model IDs from chat.
 - Revalidate group, actor authorization, kill switch and model at job execution; lock the actor/topic session during a billable call and record memory only after successful Telegram delivery. Track only model, redacted latency and provider-reported token usage when nonzero; do not infer exact billing from missing/ambiguous usage.
 - Test callback/command conflicts, privacy/group/role denial, duplicate updates/jobs, thread and actor isolation, model changes, expired history, queue outage, upstream failure and Telegram send ambiguity. Real group/Topic smoke and permission-revocation checks are distinct from CI.
 
@@ -55,7 +55,7 @@
 ### Deniz identity and economy candidates (2026-11-09)
 
 - Customer-facing assistant name is **«دنیز» / Deniz**; internal `Denix*` names, BotFather username `@denixobot`, webhook and Redis keys remain unchanged for compatibility. Operator can update only the display name using BotFather.
-- A short versioned `DenizKnowledge` prompt contains **fixed, public** product facts and assistant boundaries, not mutable prices, uptime, sales metrics or customer/provider data. It is sent with each request; Redis conversation context is separately capped at **10 alternating messages**, **6,000 characters**, and **30 minutes** (no new persistent store).
+- A short versioned `DenizKnowledge` prompt contains **fixed, public** product facts and assistant boundaries, not mutable prices, uptime, sales metrics or customer/provider data. It is sent with each request; Redis conversation context is separately capped at **30 alternating messages**, **6,000 characters**, and **30 minutes** (no new persistent store).
 - Keep only the two real-smoke-tested model IDs selectable by default. New *candidates* `gemini-2.5-flash-lite` and `gpt-5-nano` stay OFF until their exact IDs, chat completion compatibility, real GapGPT price and response quality are verified. After verification, operators may opt in per exact ID via `DENAGATE_AI_VERIFIED_ECONOMY_MODELS` (comma-separated; unknown IDs are ignored). `gpt-5-nano` is deprecated upstream with a December 11, 2026 shutdown notice; avoid enabling it for a long-lived default. No automatic provider catalog or prices are assumed.
 - No BotFather token/Webhook changes, no migrations, new dependencies, queue changes, extra Agent tools or new operational permissions. Existing `ai` worker and `default` worker remain separate.
 

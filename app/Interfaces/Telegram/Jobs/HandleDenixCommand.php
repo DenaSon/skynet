@@ -103,7 +103,7 @@ final class HandleDenixCommand implements ShouldQueue
     private function statusMessage(string $model): string
     {
         $input = (int) config('denagate_ai.max_input_chars', 2000);
-        $messages = (int) config('denagate_ai.context_max_messages', 10);
+        $messages = (int) config('denagate_ai.context_max_messages', 30);
         $minutes = (int) config('denagate_ai.context_ttl_minutes', 30);
         $perUser = (int) config('denagate_ai.user_requests_per_10_minutes', 5);
         $perGroup = (int) config('denagate_ai.group_requests_per_day', 50);

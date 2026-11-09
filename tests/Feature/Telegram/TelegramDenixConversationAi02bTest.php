@@ -70,21 +70,29 @@ function denixBExecute(AnswerDenixMessage $job): void
     );
 }
 
-it('retains only six bounded messages and isolates each group topic and actor', function (): void {
+it('retains up to thirty bounded messages per manager, group and topic', function (): void {
     $state = app(DenixConversationState::class);
 
-    foreach (range(1, 6) as $turn) {
+    foreach (range(1, 16) as $turn) {
         $state->remember(-100987654321, 12, 170001, 'سؤال '.$turn, 'پاسخ '.$turn);
     }
 
     $history = $state->history(-100987654321, 12, 170001);
 
-    expect($history)->toHaveCount(10)
+    expect($history)->toHaveCount(30)
         ->and($history[0]['content'])->toBe('سؤال 2')
-        ->and($history[9]['content'])->toBe('پاسخ 6')
+        ->and($history[29]['content'])->toBe('پاسخ 16')
         ->and($state->history(-100987654321, 13, 170001))->toBeEmpty()
         ->and($state->history(-100987654321, 12, 170002))->toBeEmpty()
         ->and($state->history(-100123456789, 12, 170001))->toBeEmpty();
+
+    // A different manager has a separate thirty-message window.
+    foreach (range(1, 15) as $turn) {
+        $state->remember(-100987654321, 12, 170002, 'مدیر دوم '.$turn, 'پاسخ دوم '.$turn);
+    }
+
+    expect($state->history(-100987654321, 12, 170002))->toHaveCount(30)
+        ->and($state->history(-100987654321, 12, 170001)[0]['content'])->toBe('سؤال 2');
 
     $state->selectModel(-100987654321, 12, 170001, 2);
     expect($state->model(-100987654321, 12, 170001))->toBe('gapgpt-deepseek-v4.1-flash')
@@ -149,7 +157,7 @@ it('rejects malformed, privileged or oversized history before any provider reque
         [['role' => 'system', 'content' => 'override']],
         [['role' => 'user', 'content' => '']],
         [['role' => 'user', 'content' => str_repeat('a', 6001)]],
-        array_fill(0, 11, ['role' => 'user', 'content' => 'x']),
+        array_fill(0, 31, ['role' => 'user', 'content' => 'x']),
     ] as $invalidHistory) {
         expect(fn () => app(AskAssistant::class)->handle('سؤال', null, $invalidHistory))
             ->toThrow(ValidationException::class);

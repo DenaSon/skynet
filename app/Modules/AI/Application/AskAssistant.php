@@ -34,7 +34,7 @@ final readonly class AskAssistant
             throw ValidationException::withMessages(['prompt' => 'Invalid AI prompt.']);
         }
 
-        if (count($history) > (int) config('denagate_ai.context_max_messages', 10)) {
+        if (count($history) > (int) config('denagate_ai.context_max_messages', 30)) {
             throw ValidationException::withMessages(['history' => 'Invalid AI history.']);
         }
 
