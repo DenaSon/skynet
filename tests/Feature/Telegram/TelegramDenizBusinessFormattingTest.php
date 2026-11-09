@@ -49,6 +49,13 @@ it('escapes raw HTML and unsafe link attributes without allowing arbitrary HTML'
         ->not->toContain('<script>', '<b>fake</b>', 'href="javascript:');
 });
 
+it('does not create Telegram links with embedded credentials or unescaped labels', function (): void {
+    $raw = '[نام کاربری](https://test:secret@example.org/path) [نام <ویژه>](https://t.me/denaGateBot)';
+
+    expect(app(DenizBusinessMessageFormatter::class)->format($raw))
+        ->toBe('[نام کاربری](https://test:secret@example.org/path) <a href="https://t.me/denaGateBot">نام &lt;ویژه&gt;</a>');
+});
+
 it('does not invent formatting for malformed or escaped Markdown or identifiers', function (): void {
     $raw = "این **متن ناقص است\n"
         .'sample_variable_name and 2*2=4 and \*not italic\*';
