@@ -113,6 +113,16 @@ it('never purchases a second AI response after a billable provider failure', fun
     Http::assertSentCount(1);
 });
 
+it('requires a shared replay store and never invokes the provider from an array cache', function (): void {
+    Http::fake();
+    config()->set('cache.default', 'array');
+
+    expect(fn () => executeDenixJob(denixJob(83)))
+        ->toThrow(RuntimeException::class, 'Denix shared cache is not configured.');
+
+    Http::assertNothingSent();
+});
+
 it('will not resend after a Telegram delivery failure of uncertain outcome', function (): void {
     Http::fake([
         'https://api.gapgpt.app/*' => Http::response(denixFakeChat()),
