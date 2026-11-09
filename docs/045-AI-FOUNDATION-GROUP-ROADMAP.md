@@ -1,10 +1,10 @@
-# AI-01 / AI-02 — GapGPT foundation and Admin group chat
+# AI-01 / AI-02 — GapGPT foundation and Denix group chat
 
 **Status (2026-11-09): AI-01 source implementation in review; AI-02 not started.** Two phases, three small independent PRs. Explicit operator approval is required to start each implementation scope. `master` auto-deploys to Production.
 
 ## Contract and design
 
-- Reuse Laravel 13 Modular Monolith: `app/Modules/AI/Application` for use cases/model allowlist; `app/Interfaces/Telegram` for Admin-only group presentation. No separate service or generic AI gateway.
+- Reuse Laravel 13 Modular Monolith: `app/Modules/AI/Application` for use cases/model allowlist; `app/Interfaces/Telegram` for the separate Denix bot and Super Admin-only group presentation. No separate service or generic AI gateway.
 - Use the official `laravel/ai` SDK with a named `openai-compatible` provider if its **installed** version and GapGPT response format pass verification. GapGPT documents OpenAI `chat.completions`, Bearer API key and `https://api.gapgpt.app/v1` (optional alternate: `https://api.gapapi.com/v1`). Verify the final SDK configuration and real request before activation.
 - Initial *candidates*, not proven-live allowlist: `gpt-6-luna`, `gapgpt-deepseek-v4.1-flash`, `gpt-6.1-terra`, `gpt-6.1-sol`. Only enable IDs that return valid live text responses. No model-specific clients or automatic unverified model discovery.
 - Secrets and infrastructure URL in deployment ENV; separate `DENAGATE_AI_ENABLED=false` global kill switch and trusted `DENAGATE_AI_GROUP_CHAT_ID`. Reject missing/invalid settings, group IDs and unknown models. Never put API keys, prompts or provider payloads in logs.
@@ -18,7 +18,6 @@
 - Test missing key, disabled switch, unknown model, malformed/empty response, timeout, 429/5xx, sensitive log redaction and ordinary success with fakes. Separate controlled **real** GapGPT smoke of at least two approved model IDs; no live key in CI or Git.
 - Exit: reproducible supported SDK contract, offline CI green, real provider behavior documented separately. No Production key configuration or enablement as part of source PR.
 
-
 ### AI-01 source checkpoint
 
 - Source PR adds `laravel/ai` v1.3.0 (`openai-compatible`) with locked `symfony/yaml`, a scoped text-only Application Action, explicit model allowlist, config flags and fake HTTP tests. No Telegram integration or new tables.
@@ -26,19 +25,21 @@
 - Until a controlled live GapGPT smoke verifies at least two exact model IDs, model compatibility, pricing and actual usage remain **unverified**. Never set the enable flag in Production based only on fake tests.
 - Do not merge this PR without explicit operator instruction; separate AI-02 authorisation remains required.
 
-## AI-02 — Admin Telegram group conversation (PR 2 + PR 3)
+## AI-02 — independent Denix Telegram bot (PR 2 + PR 3)
+
+**Approved identity:** Denix (`@denixobot`) is a third Telegram bot in the same Laravel application; its BotFather creation is complete. Keep its token, independent webhook secret, Runflare ENV and webhook registration for the later operator-controlled activation stage; no token in Git or chat.
 
 **AI-02A / PR 2 — isolated group intake and first reply**
 
-- Register only Admin Bot `/ai` and explicit reply-to-bot continuation. Do not change or weaken `PrivateTelegramUser`, legacy command/menu precedence, Sales Bot routes or existing financial/provider authorization.
+- Add a dedicated Denix Nutgram runtime and handler registry, independent token and secret, a protected `/api/telegram/ai/webhook` route and explicit `bot_key=ai` (no unknown-key fallback to Admin). Register only Denix `/ai` and explicit reply-to-Denix continuation. Do not change or weaken `PrivateTelegramUser`, existing Admin/Sales handlers, menus or financial/provider authorization.
 - Accept only the configured Telegram `group`/`supergroup` chat ID and a fresh active, allowlisted Super Admin using the existing Identity checks. Validate numeric `from.id`; reject anonymous admins, channels, other groups, users, bots and unrelated group messages. Keep Telegram Privacy Mode enabled when sufficient; confirm actual Nutgram route precedence with real group smoke.
-- Reuse `TelegramUpdateReceipts`; guard one AI intent per Admin Bot + chat + message identity before dispatch. The webhook only validates/enqueues; any ambiguous upstream delivery must not blindly re-run billable requests. Output replies in the same chat/topic, with escaped Telegram text and bounded message size.
+- Reuse `TelegramUpdateReceipts`; guard one AI intent per Denix Bot + chat + message identity before dispatch. The webhook only validates/enqueues; any ambiguous upstream delivery must not blindly re-run billable requests. Output replies in the same chat/topic, with escaped Telegram text and bounded message size.
 - Use existing queue connection but dedicated queue name `ai`: one separately supervised worker; `--queue=ai --tries=1 --timeout=45 --max-time=3600`. Check the effective `retry_after` is greater than worker timeout, HTTP timeout is shorter than worker timeout, worker/replica count, and the default queue remains untouched. Reject sync/null connections for billable AI jobs. A new Runflare Supervisor program is an **operator-approved deployment step**, not part of documentation.
 
 **AI-02B / PR 3 — models, limited context, cost/reliability**
 
 - Add `/aimodel` (allowlist selection), `/ainew` (clear context) and `/aistatus` (safe model/limit overview); no free-form model identifier from chat.
-- Use existing Redis Cache for bounded short-lived message context, scoped by Admin Bot + chat + topic + actor. Suggested initial limits to tune after smoke: up to 6 messages / 30-minute TTL, 2,000 input characters, 5 requests per actor per 10 minutes and 50 per group per day. Never persist raw conversation history indefinitely.
+- Use existing Redis Cache for bounded short-lived message context, scoped by Denix Bot + chat + topic + actor. Suggested initial limits to tune after smoke: up to 6 messages / 30-minute TTL, 2,000 input characters, 5 requests per actor per 10 minutes and 50 per group per day. Never persist raw conversation history indefinitely.
 - Revalidate group, actor authorization, kill switch and model at job execution; enforce bounded concurrency, response length and timeouts. Track redacted counts/latency and provider-reported usage if present; do not infer exact billing from absent/ambiguous usage.
 - Test callback/command conflicts, privacy/group/role denial, duplicate updates/jobs, thread and actor isolation, model changes, expired history, queue outage, upstream failure and Telegram send ambiguity. Real group/Topic smoke and permission-revocation checks are distinct from CI.
 
