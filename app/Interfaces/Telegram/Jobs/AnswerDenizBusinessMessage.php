@@ -71,13 +71,18 @@ final class AnswerDenizBusinessMessage implements ShouldQueue
                 return;
             }
 
+            $attempt = 'denix:business:attempt:'.$session.':'.$this->chatId.':'.$this->messageId;
+
+            // A replay needs no Telegram lookup, AI call, or second delivery.
+            if (Cache::has($attempt)) {
+                return;
+            }
+
             // Connection/owner/rights are fetched from Telegram on the worker.
             // Incoming business_connection payloads never authorize a paid action.
             if (! $access->allowed($this->connectionId)) {
                 return;
             }
-
-            $attempt = 'denix:business:attempt:'.$session.':'.$this->chatId.':'.$this->messageId;
 
             if (! Cache::add($attempt, true, now()->addDays(7))) {
                 return;
