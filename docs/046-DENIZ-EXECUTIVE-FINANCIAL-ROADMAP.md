@@ -1,6 +1,6 @@
 # Deniz Executive — financial evidence foundation (AI-EXEC)
 
-**Status (2026-11-10):** Phase 1 source implementation on a feature branch; it must not be labeled merged, deployed or live-accepted until the actual PR/CI/deploy evidence is recorded.
+**Status (2026-11-10):** Phase 1 **merged** in [PR #439](https://github.com/DenaSon/skynet/pull/439), squash commit `bea2fded367af7a49e8ea2a63b3b617f11ff4e2f`. [PR CI 42713553455](https://github.com/DenaSon/skynet/actions/runs/42713553455) passed PHP 8.4 (1,730 tests / 12,159 assertions), PHPStan, Pint, MySQL migration/rollback and frontend checks. PHP 8.5 is scheduled-only in the current workflow and was **not** run for this PR. CI success does not establish Runflare deployment or live Telegram acceptance; **no AI/Telegram consumer is wired in phase 1**. Phases 2–4 remain pending separate authorization.
 
 ## Objective and approved phases
 
