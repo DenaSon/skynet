@@ -36,6 +36,13 @@ it('renders nested emphasis and preserves literal Markdown in code fences', func
         ->toBe("<b>سلام <i>دوست</i> من</b>\n<pre>\$x = &#039;**literal** &lt;tag&gt; &amp; value&#039;;</pre>");
 });
 
+it('does not interpret link markup nested inside inline code', function (): void {
+    $raw = '`[ورود به بات](https://t.me/denaGateBot)`';
+
+    expect(app(DenizBusinessMessageFormatter::class)->format($raw))
+        ->toBe('<code>[ورود به بات](https://t.me/denaGateBot)</code>');
+});
+
 it('escapes raw HTML and unsafe link attributes without allowing arbitrary HTML', function (): void {
     $raw = '<script>alert("x")</script> & <b>fake</b> '
         .'[مراجعه](https://example.org/plan?a=1&b=2) '
