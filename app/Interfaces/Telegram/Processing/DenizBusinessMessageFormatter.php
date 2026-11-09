@@ -79,7 +79,7 @@ final class DenizBusinessMessageFormatter
     }
 
     /**
-     * @param array<string|int, array{0: ?string, 1: int}> $matches
+     * @param  array<string|int, array{0: ?string, 1: int}>  $matches
      */
     private function matched(array $matches, string $name): bool
     {
