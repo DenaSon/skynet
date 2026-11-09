@@ -103,16 +103,52 @@ it('revalidates group, kill switch and Super Admin authorization at execution ti
     Http::assertNothingSent();
 });
 
-it('never purchases a second AI response after a billable provider failure', function (): void {
-    Http::fake(['https://api.gapgpt.app/*' => Http::response([
-        'error' => ['message' => 'private upstream details'],
-    ], 503)]);
-
-    expect(fn () => executeDenixJob(denixJob(81)))
-        ->toThrow(RuntimeException::class, 'AI request could not be completed.');
+it('sends one safe fallback in the same topic after provider failure without a second AI charge', function (): void {
+    Http::fake([
+        'https://api.gapgpt.app/*' => Http::response([
+            'error' => ['message' => 'private upstream details'],
+        ], 503),
+        'https://api.telegram.org/*' => Http::response(['ok' => true]),
+    ]);
 
     executeDenixJob(denixJob(81));
+    executeDenixJob(denixJob(81));
+
+    Http::assertSentCount(2);
+    Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/sendMessage')
+        && $request['chat_id'] === -100987654321
+        && $request['message_thread_id'] === 12
+        && json_decode($request['reply_parameters'], true)['message_id'] === 81
+        && str_contains($request['text'], 'چند دقیقه دیگه')
+        && ! str_contains($request['text'], 'private upstream details'));
+    expect(app(DenixConversationState::class)->history(-100987654321, 12, 160001))->toBeEmpty();
+});
+
+it('does not deliver a provider-failure notice after authorization is revoked during inference', function (): void {
+    Http::fake(['https://api.gapgpt.app/*' => function () {
+        config()->set('telegram.denix.group_chat_id', -100111222333);
+
+        return Http::response(['error' => ['message' => 'provider unavailable']], 503);
+    }]);
+
+    executeDenixJob(denixJob(84));
+
     Http::assertSentCount(1);
+});
+
+it('does not resend fallback after uncertain Telegram delivery failure', function (): void {
+    Http::fake([
+        'https://api.gapgpt.app/*' => Http::response([
+            'error' => ['message' => 'provider unavailable'],
+        ], 503),
+        'https://api.telegram.org/*' => Http::response(['ok' => false], 500),
+    ]);
+
+    expect(fn () => executeDenixJob(denixJob(85)))
+        ->toThrow(RuntimeException::class, 'Denix response delivery failed.');
+
+    executeDenixJob(denixJob(85));
+    Http::assertSentCount(2);
 });
 
 it('requires a shared replay store and never invokes the provider from an array cache', function (): void {

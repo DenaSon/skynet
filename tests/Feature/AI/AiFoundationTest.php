@@ -6,6 +6,7 @@ use App\Modules\AI\Application\AskAssistant;
 use App\Modules\AI\Application\ModelCatalog;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 beforeEach(function (): void {
@@ -126,4 +127,38 @@ it('rejects empty or unreasonably long provider text', function (): void {
 
     expect(fn () => app(AskAssistant::class)->handle('سلام'))->toThrow(RuntimeException::class, 'AI request could not be completed.');
     expect(fn () => app(AskAssistant::class)->handle('سلام'))->toThrow(RuntimeException::class, 'AI request could not be completed.');
+});
+
+it('records safe, actionable provider diagnostics without upstream message or credentials', function (): void {
+    Log::spy();
+    Http::fake(['https://api.gapgpt.app/*' => Http::response([
+        'error' => ['message' => 'SECRET-test-only-ai-key private conversation'],
+    ], 503)]);
+
+    expect(fn () => app(AskAssistant::class)->handle('سلام'))
+        ->toThrow(RuntimeException::class, 'AI request could not be completed.');
+
+    Log::shouldHaveReceived('warning')->once()->withArgs(
+        fn (string $message, array $context): bool => $message === 'AI request failed.'
+            && in_array($context['category'] ?? null, ['http_error', 'provider_or_sdk_error'], true)
+            && is_string($context['exception_type'] ?? null)
+            && is_string($context['source_file'] ?? null)
+            && is_int($context['source_line'] ?? null)
+            && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'SECRET-test-only-ai-key')
+            && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'private conversation'),
+    );
+});
+
+it('distinguishes an invalid model response in sanitized diagnostics', function (): void {
+    Log::spy();
+    Http::fake(['https://api.gapgpt.app/*' => Http::response(gapgptChatResponse(' '))]);
+
+    expect(fn () => app(AskAssistant::class)->handle('سلام'))
+        ->toThrow(RuntimeException::class, 'AI request could not be completed.');
+
+    Log::shouldHaveReceived('warning')->once()->withArgs(
+        fn (string $message, array $context): bool => $message === 'AI request failed.'
+            && ($context['category'] ?? null) === 'invalid_response'
+            && ($context['exception_type'] ?? null) === RuntimeException::class,
+    );
 });

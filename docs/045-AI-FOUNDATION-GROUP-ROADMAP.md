@@ -65,6 +65,14 @@
 - When paid per-manager (5/10 min) or group (50/day) quota runs out, enqueue **one nonbillable plain-text notice per accepted Telegram message** on the existing dedicated `ai` queue, with remaining time derived from the existing RateLimiter; the smaller control-command limit also gets a brief notice. Check group and Super Admin rights again before sending. Retain webhook/message replay fences, topic-specific reply, and one-shot Telegram send; no new rate store, database, migration, dependency, worker or provider call.
 - Validate quota notices and concise prompt in automated tests; live Telegram behavior after deployment is a separate acceptance step.
 
+### Deniz failure handling and runtime logging (2026-11-09)
+
+- Follow-up hardening for the operator-observed Production failure: a root-owned daily Laravel log prevented the dedicated `www` AI worker from appending, then intermittent `AskAssistant` RuntimeExceptions caused silent unanswered messages. The original upstream exception message was not retained, so its exact cause is still **unverified**.
+- The existing Runflare root `resources/scripts/prepare-ssh-runtime.sh` postStart hook now repairs ownership/mode of **only** the Laravel `laravel*.log` files, refuses symlink targets and sets the log directory SGID group `www-data`. Laravel single/daily/monthly rotation uses `0664` so newly created files remain writable by the `www` queue workers and the `www-data` PHP-FPM group. The hook does not touch backup SSH keys or other storage data.
+- `AskAssistant` records sanitized exception category, exception class, HTTP status when safely available, source basename/line and previous exception class. Never log upstream exception messages, provider bodies, prompts, headers, keys or raw conversation history. This metadata may not conclusively identify every SDK failure; production follow-up is needed.
+- Only if the one-shot AI request raises a RuntimeException, the authorized `AnswerDenixMessage` job attempts one safe plain-text message in the original topic and reply thread. No AI retry, no stored failed conversation turn, no new quota or worker. Telegram send failure remains a non-retriable failed job; duplicate execution remains guarded by the existing seven-day attempt key. Authorization is checked again before sending.
+- Source acceptance: focused fallback/replay/revocation and sanitized logging tests, config assertions, shell syntax, full PHP 8.4/8.5 CI, PHPStan and Pint. Production smoke after deploy remains separate: verify both `www` and `www-data` can append to today's log, next day's rotation permissions, safe warning metadata and a new valid Telegram message.
+
 ## Release gates, rollback and deferred scope
 
 - Each PR: smallest code change, focused Pest tests, PHPStan/Pint and current CI matrix; explicitly record PHP 8.5 evidence where applicable. No mocks presented as real API or Telegram acceptance.
