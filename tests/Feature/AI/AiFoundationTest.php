@@ -129,7 +129,6 @@ it('rejects empty or unreasonably long provider text', function (): void {
     expect(fn () => app(AskAssistant::class)->handle('سلام'))->toThrow(RuntimeException::class, 'AI request could not be completed.');
 });
 
-
 it('records safe, actionable provider diagnostics without upstream message or credentials', function (): void {
     Log::spy();
     Http::fake(['https://api.gapgpt.app/*' => Http::response([
