@@ -165,7 +165,8 @@ it('only accepts replies to this Denix bot and preserves the topic ID', function
     $message['message']['message_thread_id'] = 12;
     $message['message']['reply_to_message'] = [
         'message_id' => 55,
-        'chat' => ['id' => -100987654321],
+        'date' => 1794219000,
+        'chat' => ['id' => -100987654321, 'type' => 'supergroup', 'title' => 'DenaGate Operations'],
         'from' => ['id' => 100003, 'is_bot' => true, 'first_name' => 'Denix'],
         'text' => 'سلام',
     ];
@@ -173,7 +174,9 @@ it('only accepts replies to this Denix bot and preserves the topic ID', function
 
     $otherBot = denixMessage(9021, text: 'اشتباه');
     $otherBot['message']['reply_to_message'] = [
-        'chat' => ['id' => -100987654321],
+        'message_id' => 56,
+        'date' => 1794219000,
+        'chat' => ['id' => -100987654321, 'type' => 'supergroup', 'title' => 'DenaGate Operations'],
         'from' => ['id' => 100001, 'is_bot' => true, 'first_name' => 'Other Bot'],
     ];
     $this->postJson('/api/telegram/ai/webhook', $otherBot, denixHeaders())->assertNoContent();
