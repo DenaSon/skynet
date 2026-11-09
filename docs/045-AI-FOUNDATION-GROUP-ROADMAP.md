@@ -1,6 +1,6 @@
 # AI-01 / AI-02 — GapGPT foundation and Admin group chat
 
-**Status (2026-11-09): approved planning only; not implemented.** Two phases, three small independent PRs. Explicit operator approval is required to start each implementation scope. `master` auto-deploys to Production.
+**Status (2026-11-09): AI-01 source implementation in review; AI-02 not started.** Two phases, three small independent PRs. Explicit operator approval is required to start each implementation scope. `master` auto-deploys to Production.
 
 ## Contract and design
 
@@ -17,6 +17,14 @@
 - No new business tables. Do not publish/run conversation-store migrations unless proven necessary and separately approved; no permanent history in this phase.
 - Test missing key, disabled switch, unknown model, malformed/empty response, timeout, 429/5xx, sensitive log redaction and ordinary success with fakes. Separate controlled **real** GapGPT smoke of at least two approved model IDs; no live key in CI or Git.
 - Exit: reproducible supported SDK contract, offline CI green, real provider behavior documented separately. No Production key configuration or enablement as part of source PR.
+
+
+### AI-01 source checkpoint
+
+- Source PR adds `laravel/ai` v1.3.0 (`openai-compatible`) with locked `symfony/yaml`, a scoped text-only Application Action, explicit model allowlist, config flags and fake HTTP tests. No Telegram integration or new tables.
+- Deployment ENV (future operator step): `DENAGATE_AI_ENABLED=false`, `GAPGPT_API_KEY` as a secret; optional `GAPGPT_BASE_URL` only for documented GapGPT endpoints. No key or real upstream call in CI.
+- Until a controlled live GapGPT smoke verifies at least two exact model IDs, model compatibility, pricing and actual usage remain **unverified**. Never set the enable flag in Production based only on fake tests.
+- Do not merge this PR without explicit operator instruction; separate AI-02 authorisation remains required.
 
 ## AI-02 — Admin Telegram group conversation (PR 2 + PR 3)
 
