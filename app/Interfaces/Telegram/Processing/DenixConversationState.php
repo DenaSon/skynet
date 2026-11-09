@@ -65,7 +65,9 @@ final readonly class DenixConversationState
 
         $characters = 0;
 
-        foreach (array_values($stored) as $i => $message) {
+        $stored = array_values($stored);
+
+        foreach ($stored as $i => $message) {
             if (! is_array($message)
                 || ($message['role'] ?? null) !== ($i % 2 === 0 ? 'user' : 'assistant')
                 || ! is_string($message['content'] ?? null)
@@ -81,7 +83,7 @@ final readonly class DenixConversationState
         }
 
         /** @var list<array{role: string, content: string}> $stored */
-        return array_values($stored);
+        return $stored;
     }
 
     public function remember(int $chatId, ?int $threadId, int $userId, string $question, string $answer): void
