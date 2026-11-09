@@ -11,6 +11,8 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Cache;
+use RuntimeException;
 
 final class SendDenixQuotaNotice implements ShouldQueue
 {
@@ -36,6 +38,18 @@ final class SendDenixQuotaNotice implements ShouldQueue
         // A queued notice never bypasses the same group/role/kill-switch checks.
         if (! $access->allowed($this->chatId, $this->telegramUserId)
             || ! in_array($this->quota, ['user', 'group', 'control'], true)) {
+            return;
+        }
+
+        $cacheStore = config('cache.default');
+        $driver = is_string($cacheStore) ? config('cache.stores.'.$cacheStore.'.driver') : null;
+
+        if (! in_array($driver, ['redis', 'database'], true)) {
+            throw new RuntimeException('Deniz shared cache is not configured.');
+        }
+
+        // Never resend a notice after an ambiguous Telegram delivery, even on manual job replay.
+        if (! Cache::add('denix:quota-notice:'.$this->chatId.':'.$this->messageId, true, now()->addDays(7))) {
             return;
         }
 
