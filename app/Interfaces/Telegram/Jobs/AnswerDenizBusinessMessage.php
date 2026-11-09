@@ -156,6 +156,7 @@ final class AnswerDenizBusinessMessage implements ShouldQueue
         }
     }
 
+    /** @phpstan-impure */
     private function withinReplyWindow(): bool
     {
         $now = now()->timestamp;
