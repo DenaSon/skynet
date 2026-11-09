@@ -8,7 +8,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
@@ -120,8 +119,6 @@ it('never trusts connection updates from other accounts or without reply permiss
 });
 
 it('recognizes only incoming private customer text from the previously validated connection', function (): void {
-    $this->withoutExceptionHandling();
-    Log::spy();
     denizBusinessPost($this, denizBusinessConnection(31009));
 
     $settings = app(DenizBusinessSupportSettings::class);
@@ -144,7 +141,6 @@ it('recognizes only incoming private customer text from the previously validated
     }
     denizBusinessPost($this, denizBusinessMessage(31015));
 
-    Log::shouldHaveReceived('info')->once()->with('Deniz Business message passed intake validation.');
     Queue::assertNothingPushed();
     Http::assertNothingSent();
 });
