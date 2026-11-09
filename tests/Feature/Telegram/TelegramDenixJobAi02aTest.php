@@ -19,6 +19,7 @@ uses(RefreshDatabase::class);
 beforeEach(function (): void {
     config()->set('telegram.denix.enabled', true);
     config()->set('denagate_ai.enabled', true);
+    config()->set('cache.default', 'database');
     config()->set('telegram.denix.token', '100003:denix-test-token');
     config()->set('telegram.denix.webhook_secret', 'denix-only-secret');
     config()->set('telegram.webhook_secret', 'admin-only-secret');
