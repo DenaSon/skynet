@@ -14,6 +14,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Cache;
+use RuntimeException;
 
 final class HandleDenixCommand implements ShouldQueue
 {
@@ -41,6 +42,13 @@ final class HandleDenixCommand implements ShouldQueue
     ): void {
         if (! $access->allowed($this->chatId, $this->telegramUserId)) {
             return;
+        }
+
+        $cacheName = config('cache.default');
+        $cacheDriver = is_string($cacheName) ? config('cache.stores.'.$cacheName.'.driver') : null;
+
+        if (! in_array($cacheDriver, ['redis', 'database'], true)) {
+            throw new RuntimeException('Denix shared cache is not configured.');
         }
 
         $lock = Cache::lock($state->lockKey($this->chatId, $this->threadId, $this->telegramUserId), 35);
