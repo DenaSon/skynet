@@ -81,16 +81,16 @@ final class HandleDenixCommand implements ShouldQueue
             $model = $state->selectModel($this->chatId, $this->threadId, $this->telegramUserId, $this->choice);
 
             if ($model !== null) {
-                return "✅ مدل دنیکس تغییر کرد: {$model}\nحافظه گفتگوی قبلی پاک شد.";
+                return "✅ مدل دنیز تغییر کرد: {$model}\nحافظه گفتگوی قبلی پاک شد.";
             }
         }
 
         $options = [];
-        foreach (ModelCatalog::SELECTABLE as $number => $model) {
+        foreach (ModelCatalog::selectable() as $number => $model) {
             $options[] = ($number + 1).'. '.$model;
         }
 
-        return "🤖 مدل فعلی: {$current}\n\n".implode("\n", $options)."\n\nبرای انتخاب: /aimodel 1 یا /aimodel 2";
+        return "🤖 مدل فعلی: {$current}\n\n".implode("\n", $options)."\n\nبرای انتخاب: /aimodel و شماره مدل";
     }
 
     private function resetMessage(DenixConversationState $state): string
@@ -103,12 +103,12 @@ final class HandleDenixCommand implements ShouldQueue
     private function statusMessage(string $model): string
     {
         $input = (int) config('denagate_ai.max_input_chars', 2000);
-        $messages = (int) config('denagate_ai.context_max_messages', 6);
+        $messages = (int) config('denagate_ai.context_max_messages', 10);
         $minutes = (int) config('denagate_ai.context_ttl_minutes', 30);
         $perUser = (int) config('denagate_ai.user_requests_per_10_minutes', 5);
         $perGroup = (int) config('denagate_ai.group_requests_per_day', 50);
 
-        return "🤖 وضعیت دنیکس\nمدل: {$model}\nحافظه: {$messages} پیام، {$minutes} دقیقه\nحداکثر سؤال: {$input} نویسه"
+        return "🤖 وضعیت دنیز\nمدل: {$model}\nحافظه: {$messages} پیام، {$minutes} دقیقه\nحداکثر سؤال: {$input} نویسه"
             ."\nسقف درخواست: {$perUser} درخواست در ۱۰ دقیقه برای هر مدیر، {$perGroup} درخواست روزانه در گروه."
             ."\n\nبرای تغییر مدل: /aimodel\nبرای شروع گفتگوی جدید: /ainew";
     }

@@ -16,9 +16,7 @@ final class DenixAssistant implements Agent, HasTools
 
     public function instructions(): string
     {
-        return 'تو دنیکس (Denix)، دستیار هوش مصنوعی دناگیت هستی. پاسخ‌ها را روشن و خلاصه و به فارسی بده. '
-            .'به داده‌های حساب کاربران یا وضعیت زنده سرویس‌ها دسترسی نداری؛ هیچ اطلاعات واقعی درباره آن‌ها جعل نکن. '
-            .'هیچ اقدام مدیریتی، مالی یا تغییر سرویس را انجام نده.';
+        return app(DenizKnowledge::class)->instructions();
     }
 
     public function tools(): iterable
