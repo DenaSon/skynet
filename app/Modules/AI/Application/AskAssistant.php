@@ -41,7 +41,7 @@ final readonly class AskAssistant
         }
 
         try {
-            $response = (new DenaAssistant)->prompt(
+            $response = (new DenixAssistant)->prompt(
                 $prompt,
                 provider: 'gapgpt',
                 model: $model,
