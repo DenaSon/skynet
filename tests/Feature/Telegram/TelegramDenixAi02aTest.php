@@ -195,6 +195,16 @@ it('rejects synchronous queues and does not create billable work inside webhooks
     Http::assertNothingSent();
 });
 
+it('fails closed when the cache cannot provide a shared replay fence', function (): void {
+    denixTrustedRoot();
+    config()->set('cache.default', 'array');
+
+    $this->postJson('/api/telegram/ai/webhook', denixMessage(9040), denixHeaders())->assertInternalServerError();
+
+    Queue::assertNothingPushed();
+    Http::assertNothingSent();
+});
+
 it('never registers the Denix webhook when its operator switches are off', function (): void {
     config()->set('telegram.denix.enabled', false);
 
