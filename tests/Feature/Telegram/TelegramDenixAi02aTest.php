@@ -120,6 +120,15 @@ it('accepts only a valid trusted Super Admin command in the configured group', f
     Http::assertNothingSent();
 });
 
+it('accepts a command explicitly addressed to denixobot rather than other Telegram bots', function (): void {
+    denixTrustedRoot();
+
+    $this->postJson('/api/telegram/ai/webhook', denixMessage(9006, text: '/ai@denixobot یک سؤال کوتاه'), denixHeaders())->assertNoContent();
+
+    Queue::assertPushed(AnswerDenixMessage::class, 1);
+    Queue::assertPushed(AnswerDenixMessage::class, fn (AnswerDenixMessage $job): bool => $job->question === 'یک سؤال کوتاه');
+});
+
 it('isolates Denix receipt identity from Admin and Sales bots', function (): void {
     denixTrustedRoot();
     $this->postJson('/api/telegram/ai/webhook', denixMessage(9005), denixHeaders())->assertNoContent();
@@ -150,6 +159,7 @@ it('ignores untrusted actors and unrelated messages without enqueueing', functio
     $payloads[] = array_replace_recursive(denixMessage(9017), ['message' => ['chat' => ['type' => 'private', 'id' => 150001]]]);
     $payloads[] = array_replace_recursive(denixMessage(9018), ['message' => ['from' => ['is_bot' => true]]]);
     $payloads[] = array_replace_recursive(denixMessage(9019), ['message' => ['from' => ['id' => 0]]]);
+    $payloads[] = array_replace_recursive(denixMessage(9022), ['message' => ['sender_chat' => ['id' => -100987654321, 'type' => 'supergroup']]]);
 
     foreach ($payloads as $payload) {
         $this->postJson('/api/telegram/ai/webhook', $payload, denixHeaders())->assertNoContent();
