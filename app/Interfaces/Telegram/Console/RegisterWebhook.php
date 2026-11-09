@@ -19,7 +19,7 @@ final class RegisterWebhook extends Command
         $key = $this->option('bot');
 
         if (! in_array($key, ['admin', 'sales', 'denix'], true)) {
-            $this->error('Unknown bot. Choose admin or sales.');
+            $this->error('Unknown bot. Choose admin, sales or denix.');
 
             return self::FAILURE;
         }
