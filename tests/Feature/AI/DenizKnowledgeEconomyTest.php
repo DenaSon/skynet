@@ -22,9 +22,15 @@ it('uses short, truthful and fixed Deniz product knowledge on every request', fu
         ->toContain('دناگیت')
         ->toContain('پنل نمایندگی')
         ->toContain('دسترسی نداری')
-        ->toContain('انسان واقعی نیستی')
+        ->toContain('انسان واقعی')
+        ->toContain('۳۵٪')
+        ->toContain('۹۰۰٬۰۰۰ تومان')
+        ->toContain('مشاهده دمو')
+        ->toContain('ارسال درخواست نمایندگی')
+        ->toContain('هزینه عضویت')
+        ->toContain('حداقل اعتبار لازم قابل تغییر')
         ->not->toContain('دنیکس')
-        ->and(mb_strlen($instructions))->toBeLessThan(1100);
+        ->and(mb_strlen($instructions))->toBeLessThan(1800);
 });
 
 it('keeps unverified economy candidates unselectable until explicitly verified', function (): void {

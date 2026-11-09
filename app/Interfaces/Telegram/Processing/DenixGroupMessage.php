@@ -6,6 +6,7 @@ namespace App\Interfaces\Telegram\Processing;
 
 use App\Interfaces\Telegram\Jobs\AnswerDenixMessage;
 use App\Interfaces\Telegram\Jobs\HandleDenixCommand;
+use App\Interfaces\Telegram\Jobs\SendDenixQuotaNotice;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\RateLimiter;
@@ -75,7 +76,13 @@ final readonly class DenixGroupMessage
 
         if ($control !== null) {
             // Management commands do not consume the paid inference quota.
-            if (RateLimiter::tooManyAttempts('denix:control:'.$userId, 10)) {
+            $controlKey = 'denix:control:'.$userId;
+
+            if (RateLimiter::tooManyAttempts($controlKey, 10)) {
+                SendDenixQuotaNotice::dispatch(
+                    $chatId, $userId, $messageId, $threadId, 'control', RateLimiter::availableIn($controlKey),
+                );
+
                 return;
             }
 
@@ -85,8 +92,22 @@ final readonly class DenixGroupMessage
             return;
         }
 
-        if (RateLimiter::tooManyAttempts('denix:user:'.$userId, (int) config('denagate_ai.user_requests_per_10_minutes', 5))
-            || RateLimiter::tooManyAttempts('denix:group:'.$chatId, (int) config('denagate_ai.group_requests_per_day', 50))) {
+        $userKey = 'denix:user:'.$userId;
+        $groupKey = 'denix:group:'.$chatId;
+
+        if (RateLimiter::tooManyAttempts($userKey, (int) config('denagate_ai.user_requests_per_10_minutes', 5))) {
+            SendDenixQuotaNotice::dispatch(
+                $chatId, $userId, $messageId, $threadId, 'user', RateLimiter::availableIn($userKey),
+            );
+
+            return;
+        }
+
+        if (RateLimiter::tooManyAttempts($groupKey, (int) config('denagate_ai.group_requests_per_day', 50))) {
+            SendDenixQuotaNotice::dispatch(
+                $chatId, $userId, $messageId, $threadId, 'group', RateLimiter::availableIn($groupKey),
+            );
+
             return;
         }
 
