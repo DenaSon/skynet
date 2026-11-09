@@ -107,6 +107,14 @@
 - Keep the current Telegram Business rights checks, quotas, short-lived per-customer context, global kill switches, Admin/Sales route boundaries and existing tests. Add focused mock-provider tests proving which System instructions reach GapGPT in the Business vs Admin contexts. Prompt instructions improve likely answer quality but do not guarantee deterministic wording; real Telegram message quality requires manual acceptance.
 
 
+### Deniz Business reply formatting polish (2026-11-09)
+
+- Render the **existing** Telegram Business AI response with a small, internal Markdown-to-Telegram-HTML formatter. Supported and tested subset: `**bold**` / `__bold__`, `*italic*` / `_italic_`, inline and fenced code, short Markdown headings, and validated HTTP(S) inline links. Keep Persian RTL/newlines, emoji and `@denaGateBot` readable. Escape all raw model-supplied HTML, text and URLs; malformed markers remain harmless text. No new dependency, model or prompt changes.
+- Keep the existing **Business connection ID**, private-chat destination, reply-to message and no-retry delivery contract. Send `parse_mode=HTML` only for this Business sender; the Admin-group sender, Sales bot and their contracts are untouched.
+- If and only if Telegram returns an explicit HTTP 400 **entity parsing** error, send one plain-text version with the exact same Business connection and reply target. No retry on other 400 errors, 5xx, timeouts or ambiguous transport errors. Do not log Telegram tokens, private content or raw upstream errors.
+- Clip raw input to 3500 Unicode characters **before** HTML generation to avoid broken closing tags. No schema, provider, webhook, queue, quota or runtime-settings change.
+- Verification: pure renderer tests (Persian, RTL/newlines, nested emphasis, HTML escaping, link attribute safety, malformed/escaped Markdown, code blocks and length cap); mocked Telegram delivery tests (formatted success, definite parse error fallback, nonformat 400, HTTP 5xx, transport failure); existing Business job and Admin/Sales regression plus PHPStan/Pint/MySQL CI. Fake transport is not visual Telegram client acceptance.
+
 ## Release gates, rollback and deferred scope
 
 - Each PR: smallest code change, focused Pest tests, PHPStan/Pint and current CI matrix; explicitly record PHP 8.5 evidence where applicable. No mocks presented as real API or Telegram acceptance.

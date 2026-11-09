@@ -208,6 +208,26 @@ it('calls getBusinessConnection twice, purchases one answer and sends only from 
         ->and(app(DenixConversationState::class)->history(-100987654321, null, 190011))->toBeEmpty();
 });
 
+it('renders provider Markdown as safe Telegram HTML in the full Business job', function (): void {
+    denizP2FakeHttp(static fn (Request $req) => $req->url() === 'https://api.gapgpt.app/v1/chat/completions'
+        ? Http::response(denizP2ProviderResponse('**نمایندگی دناگیت** و [بات فروش](https://t.me/denaGateBot)'))
+        : null);
+
+    denizP2Run(denizP2Job(214));
+
+    Http::assertSentCount(4);
+    Http::assertSent(fn (Request $req): bool => str_ends_with($req->url(), '/sendMessage')
+        && $req['business_connection_id'] === 'connection_A'
+        && $req['chat_id'] === 190011
+        && $req['parse_mode'] === 'HTML'
+        && str_contains($req['text'], '<b>نمایندگی دناگیت</b>')
+        && str_contains($req['text'], '<a href="https://t.me/denaGateBot">بات فروش</a>'));
+
+    $history = app(DenixConversationState::class)->history(190011, null, 190011);
+    expect($history)->toHaveCount(2)
+        ->and($history[1]['content'])->toContain('**نمایندگی دناگیت**');
+});
+
 it('isolates histories for two customers and does not reintroduce itself on a continued chat', function (): void {
     denizP2FakeHttp();
     denizP2Run(denizP2Job(202));
