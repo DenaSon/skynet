@@ -20,6 +20,11 @@ beforeEach(function (): void {
     config()->set('telegram.denix.enabled', true);
     config()->set('denagate_ai.enabled', true);
     config()->set('telegram.denix.token', '100003:denix-test-token');
+    config()->set('telegram.denix.webhook_secret', 'denix-only-secret');
+    config()->set('telegram.webhook_secret', 'admin-only-secret');
+    config()->set('telegram.sales.webhook_secret', 'sales-only-secret');
+    config()->set('nutgram.token', '100001:admin-token');
+    config()->set('telegram.sales.token', '100002:sales-token');
     config()->set('telegram.denix.group_chat_id', -100987654321);
     config()->set('ai.providers.gapgpt.key', 'test-gapgpt-key');
     config()->set('ai.providers.gapgpt.url', 'https://api.gapgpt.app/v1');
