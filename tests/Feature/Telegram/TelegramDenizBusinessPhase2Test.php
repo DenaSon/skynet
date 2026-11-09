@@ -260,6 +260,54 @@ it('revalidates rights and operator switch after model inference and suppresses 
     expect(app(DenixConversationState::class)->history(190011, null, 190011))->toBeEmpty();
 });
 
+it('suppresses a prepared answer if Telegram revokes can_reply between the two live checks', function (): void {
+    $checks = 0;
+
+    denizP2FakeHttp(static function (Request $request) use (&$checks) {
+        if (str_ends_with($request->url(), '/getBusinessConnection')) {
+            $checks++;
+            if ($checks === 2) {
+                return Http::response([
+                    'ok' => true,
+                    'result' => [
+                        'id' => 'connection_A',
+                        'user' => ['id' => 191010, 'is_bot' => false],
+                        'rights' => ['can_reply' => false],
+                        'is_enabled' => true,
+                    ],
+                ]);
+            }
+        }
+
+        return null;
+    });
+
+    denizP2Run(denizP2Job(212));
+
+    expect($checks)->toBe(2);
+    Http::assertSentCount(3);
+    Http::assertNotSent(fn (Request $request): bool => str_ends_with($request->url(), '/sendMessage'));
+    expect(app(DenixConversationState::class)->history(190011, null, 190011))->toBeEmpty();
+});
+
+it('suppresses an AI answer if a human operator responds during model inference', function (): void {
+    denizP2FakeHttp(static function (Request $request) {
+        if ($request->url() === 'https://api.gapgpt.app/v1/chat/completions') {
+            Cache::put('denix:business:handoff:'.hash('sha256', 'connection_A').':190011', true, now()->addDay());
+
+            return Http::response(denizP2ProviderResponse());
+        }
+
+        return null;
+    });
+
+    denizP2Run(denizP2Job(213));
+
+    Http::assertSentCount(2);
+    Http::assertNotSent(fn (Request $request): bool => str_ends_with($request->url(), '/sendMessage'));
+    expect(app(DenixConversationState::class)->history(190011, null, 190011))->toBeEmpty();
+});
+
 it('sends a single safe fallback on provider error and does not store an unconfirmed answer', function (): void {
     denizP2FakeHttp(static fn (Request $req) => $req->url() === 'https://api.gapgpt.app/v1/chat/completions'
         ? Http::response(['error' => ['message' => 'PRIVATE-UPSTREAM-SECRET']], 503)
