@@ -15,6 +15,7 @@ use Throwable;
  */
 final class DenizBusinessConnectionGuard
 {
+    /** @phpstan-impure */
     public function enabled(): bool
     {
         if (config('telegram.denix.enabled') !== true
@@ -32,6 +33,7 @@ final class DenizBusinessConnectionGuard
         }
     }
 
+    /** @phpstan-impure */
     public function allowed(string $connectionId): bool
     {
         if (! $this->enabled() || $connectionId === '' || strlen($connectionId) > 256) {
