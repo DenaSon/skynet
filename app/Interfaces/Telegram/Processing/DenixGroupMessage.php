@@ -93,10 +93,6 @@ final readonly class DenixGroupMessage
         RateLimiter::hit('denix:user:'.$userId, 600);
         RateLimiter::hit('denix:group:'.$chatId, 86400);
 
-        if (! is_string($prompt)) {
-            return;
-        }
-
         AnswerDenixMessage::dispatch($chatId, $userId, $messageId, $threadId, $prompt);
     }
 
@@ -112,20 +108,20 @@ final readonly class DenixGroupMessage
         $username = config('telegram.denix.bot_username', 'denixobot');
 
         if (! is_string($username)
-            || (isset($matches[2]) && $matches[2] !== '' && strcasecmp($matches[2], $username) !== 0)) {
+            || (isset($matches[2]) && strcasecmp($matches[2], $username) !== 0)) {
             return null;
         }
 
         $command = strtolower($matches[1]);
         $argument = $matches[3] ?? null;
 
-        if ($command !== 'aimodel' && $argument !== null && $argument !== '') {
+        if ($command !== 'aimodel' && $argument !== null) {
             return null;
         }
 
         $choice = null;
 
-        if ($command === 'aimodel' && $argument !== null && $argument !== '') {
+        if ($command === 'aimodel' && $argument !== null) {
             // Only indexed, allowlisted choices are accepted; never raw model IDs.
             $choice = ctype_digit($argument) && strlen($argument) <= 2 ? (int) $argument : 0;
         }
