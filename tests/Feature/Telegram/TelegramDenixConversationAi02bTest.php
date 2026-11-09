@@ -73,15 +73,15 @@ function denixBExecute(AnswerDenixMessage $job): void
 it('retains only six bounded messages and isolates each group topic and actor', function (): void {
     $state = app(DenixConversationState::class);
 
-    foreach (range(1, 5) as $turn) {
+    foreach (range(1, 6) as $turn) {
         $state->remember(-100987654321, 12, 170001, 'سؤال '.$turn, 'پاسخ '.$turn);
     }
 
     $history = $state->history(-100987654321, 12, 170001);
 
-    expect($history)->toHaveCount(6)
-        ->and($history[0]['content'])->toBe('سؤال 3')
-        ->and($history[5]['content'])->toBe('پاسخ 5')
+    expect($history)->toHaveCount(10)
+        ->and($history[0]['content'])->toBe('سؤال 2')
+        ->and($history[9]['content'])->toBe('پاسخ 6')
         ->and($state->history(-100987654321, 13, 170001))->toBeEmpty()
         ->and($state->history(-100987654321, 12, 170002))->toBeEmpty()
         ->and($state->history(-100123456789, 12, 170001))->toBeEmpty();
