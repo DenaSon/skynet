@@ -56,7 +56,7 @@ final class ModelCatalog
     {
         $model = $requested ?? config('denagate_ai.default_model');
 
-        if (! is_string($model) || ! in_array($model, self::MODELS, true)) {
+        if (! is_string($model) || ! in_array($model, self::selectable(), true)) {
             throw ValidationException::withMessages(['model' => 'Unsupported AI model.']);
         }
 
