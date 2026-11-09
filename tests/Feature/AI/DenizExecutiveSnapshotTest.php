@@ -298,10 +298,10 @@ it('blocks ordinary admins, unallowlisted roots and revoked or inactive super ad
         }
     }
 
-    $root->update(['is_active' => false]);
+    DB::table('users')->where('id', $root->id)->update(['is_active' => false]);
     expect(fn () => $reader->handle($root->id, 'sales', 'week'))->toThrow(AuthorizationException::class);
 
-    $root->update(['is_active' => true]);
+    DB::table('users')->where('id', $root->id)->update(['is_active' => true]);
     $root->syncRoles(['admin']);
     expect(fn () => $reader->handle($root->id, 'wallet', 'current'))->toThrow(AuthorizationException::class);
 
