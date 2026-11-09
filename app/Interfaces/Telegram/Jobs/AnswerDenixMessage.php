@@ -73,7 +73,24 @@ final class AnswerDenixMessage implements ShouldQueue
             }
 
             $started = hrtime(true);
-            $answer = $ask->handle($this->question, $model, $history);
+
+            try {
+                $answer = $ask->handle($this->question, $model, $history);
+            } catch (RuntimeException) {
+                // The one-shot AI attempt is already reserved. Do not retry a potentially
+                // billable call or store a failed conversation turn. Respond in the same
+                // topic only while the original Super Admin authorization still holds.
+                if ($access->allowed($this->chatId, $this->telegramUserId)) {
+                    $sender->send(
+                        $this->chatId,
+                        $this->messageId,
+                        $this->threadId,
+                        '🌿 متأسفم، فعلاً در پردازش درخواستت مشکلی پیش اومده. لطفاً چند دقیقه دیگه دوباره امتحان کن. 💚',
+                    );
+                }
+
+                return;
+            }
 
             Log::info('Denix AI response generated.', [
                 'model' => $answer->model,
