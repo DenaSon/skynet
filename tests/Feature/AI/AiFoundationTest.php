@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use App\Modules\AI\Application\AskAssistant;
+use App\Modules\AI\Application\DenixAssistant;
+use App\Modules\AI\Application\DenizKnowledge;
 use App\Modules\AI\Application\ModelCatalog;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
@@ -47,6 +49,33 @@ it('uses the official OpenAI-compatible chat-completions contract and the chosen
         && $request['messages'][1]['content'] === 'سلام'
         && $request['max_tokens'] === 700
         && ! isset($request['tools']));
+});
+
+it('keeps the Admin group instructions unchanged and limits customer support guidance to Business conversations', function (): void {
+    $knowledge = app(DenizKnowledge::class);
+    $group = $knowledge->instructions();
+    $support = $knowledge->instructions(customerSupport: true);
+
+    expect(str_starts_with($support, $group.' '))->toBeTrue()
+        ->and($group)->not->toContain('@denaGateBot', 'اکنون در گفتگوی خصوصی حساب پشتیبانی')
+        ->and($support)->toContain('@denaGateBot', 'اکنون در گفتگوی خصوصی حساب پشتیبانی');
+});
+
+it('sends support-only bot navigation, restrained emoji and human handoff rules in the System prompt', function (): void {
+    Http::fake(['https://api.gapgpt.app/*' => Http::response(gapgptChatResponse())]);
+
+    app(AskAssistant::class)->handle('از کجا اعتبارم را افزایش بدم؟', 'gpt-6-luna', customerSupport: true);
+
+    Http::assertSent(fn ($request): bool => $request->url() === 'https://api.gapgpt.app/v1/chat/completions'
+        && $request['model'] === 'gpt-6-luna'
+        && str_contains($request['messages'][0]['content'], '@denaGateBot')
+        && str_contains($request['messages'][0]['content'], 'در بعضی پاسخ‌های مناسب از یک ایموجی')
+        && str_contains($request['messages'][0]['content'], 'پشتیبان انسانی')
+        && str_contains($request['messages'][0]['content'], 'سؤال تکراری نپرس')
+        && ! isset($request['tools']));
+
+    expect((new DenixAssistant)->instructions())->toBe(app(DenizKnowledge::class)->instructions())
+        ->and((new DenixAssistant(customerSupport: true))->instructions())->toBe(app(DenizKnowledge::class)->instructions(true));
 });
 
 it('rejects disabled AI before sending a request', function (): void {

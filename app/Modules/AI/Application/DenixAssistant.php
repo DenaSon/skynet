@@ -14,9 +14,11 @@ final class DenixAssistant implements Agent, HasTools
 {
     use Promptable;
 
+    public function __construct(private readonly bool $customerSupport = false) {}
+
     public function instructions(): string
     {
-        return app(DenizKnowledge::class)->instructions();
+        return app(DenizKnowledge::class)->instructions($this->customerSupport);
     }
 
     public function tools(): iterable

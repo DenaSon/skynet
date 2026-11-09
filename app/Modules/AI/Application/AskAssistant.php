@@ -23,7 +23,7 @@ final readonly class AskAssistant
     /**
      * @param  list<array<string, mixed>>  $history
      */
-    public function handle(string $prompt, ?string $modelId = null, array $history = []): AssistantAnswer
+    public function handle(string $prompt, ?string $modelId = null, array $history = [], bool $customerSupport = false): AssistantAnswer
     {
         if (config('denagate_ai.enabled') !== true) {
             throw new RuntimeException('AI is disabled.');
@@ -66,7 +66,7 @@ final readonly class AskAssistant
         }
 
         try {
-            $response = (new DenixAssistant)->withMessages($history)->prompt(
+            $response = (new DenixAssistant(customerSupport: $customerSupport))->withMessages($history)->prompt(
                 $prompt,
                 provider: 'gapgpt',
                 model: $model,

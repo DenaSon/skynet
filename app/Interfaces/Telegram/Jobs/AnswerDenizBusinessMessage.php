@@ -121,7 +121,7 @@ final class AnswerDenizBusinessMessage implements ShouldQueue
             $started = hrtime(true);
 
             try {
-                $answer = $ask->handle($this->question, $model, $history);
+                $answer = $ask->handle($this->question, $model, $history, customerSupport: true);
             } catch (RuntimeException) {
                 if (! Cache::has($pauseKey) && $access->enabled()
                     && $this->withinReplyWindow() && $access->allowed($this->connectionId)) {
