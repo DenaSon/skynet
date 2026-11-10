@@ -193,7 +193,6 @@ it('bounds customer quota independently of admin and provides at most one hourly
     Http::assertNothingSent();
 });
 
-
 it('enforces the 80-per-day customer budget independently of the 20-per-10-minute window', function (): void {
     for ($batch = 0; $batch < 4; $batch++) {
         for ($i = 0; $i < 20; $i++) {
@@ -224,7 +223,7 @@ it('provides a safe trace for correlating intake and worker delivery without cus
             && preg_match('/\\A[a-f0-9]{16}\\z/D', $job->traceId) === 1);
 
     Log::shouldHaveReceived('info')->with('Deniz Business intake dispatched.',
-        \Mockery::on(static fn (array $context): bool => is_string($context['trace'] ?? null)
+        Mockery::on(static fn (array $context): bool => is_string($context['trace'] ?? null)
             && preg_match('/\\A[a-f0-9]{16}\\z/D', $context['trace']) === 1
             && $context['kind'] === 'answer'
             && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), '199997')
@@ -239,7 +238,7 @@ it('logs a non-identifying reason after a Business response is successfully deli
     ));
 
     Log::shouldHaveReceived('info')->with('Deniz Business worker outcome.',
-        \Mockery::on(static fn (array $context): bool => ($context['trace'] ?? null) === 'trace-test-42501'
+        Mockery::on(static fn (array $context): bool => ($context['trace'] ?? null) === 'trace-test-42501'
             && ($context['kind'] ?? null) === 'answer'
             && ($context['reason'] ?? null) === 'answer_sent'
             && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), '190011')))->once();
