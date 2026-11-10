@@ -46,6 +46,7 @@ it('renders six compact report cards in one grid and updates the selected report
         ->assertSee('aria-label="شاخص‌های فروش و حساب"', false)
         ->assertSee('grid grid-cols-3', false)
         ->assertSee('min-h-28', false)
+        ->assertSee('text-center text-2xl', false)
         ->assertDontSee('report-sales-metrics-title')
         ->assertDontSee('report-account-metrics-title')
         ->assertSee('role="group"', false)
@@ -97,6 +98,8 @@ it('keeps all original report fields, price conversion and a single loading anno
     $metric = file_get_contents(resource_path('views/components/live/report-metric.blade.php'));
     expect($metric)->toContain('min-h-28')
         ->toContain('rounded-[18px]')
+        ->toContain('w-full text-center text-2xl')
+        ->toContain('sm:text-3xl')
         ->toContain('number_format($value)');
 
     expect(substr_count($reports, 'wire:loading.delay wire:target="selectReportDays"'))->toBe(1)
