@@ -8,7 +8,9 @@ use App\Modules\Billing\Application\ReadAdminAccountingReport;
 use App\Modules\Billing\Application\ReadAdminCashReceipts;
 use App\Modules\Billing\Application\ReadAdminWalletSummary;
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
+use App\Modules\Sales\Application\ReadAdminBusinessReport;
 use App\Modules\Sales\Application\ReadAdminSalesChannelKpis;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -25,6 +27,7 @@ final readonly class ReadDenizExecutiveSnapshot
         'cash' => ['7', '30', 'all'],
         'accounting' => ['7', '30', 'month'],
         'wallet' => ['current'],
+        'users' => ['current'],
     ];
 
     public function __construct(
@@ -33,6 +36,7 @@ final readonly class ReadDenizExecutiveSnapshot
         private ReadAdminCashReceipts $cash,
         private ReadAdminAccountingReport $accounting,
         private ReadAdminWalletSummary $wallets,
+        private ReadAdminBusinessReport $business,
     ) {}
 
     /** @return array<string, mixed> */
@@ -52,6 +56,7 @@ final readonly class ReadDenizExecutiveSnapshot
             'cash' => $this->cashSnapshot($actorId, $period),
             'accounting' => $this->accountingSnapshot($actorId, $period),
             'wallet' => $this->walletSnapshot($actorId),
+            'users' => $this->usersSnapshot($actorId),
         };
     }
 
@@ -171,6 +176,40 @@ final readonly class ReadDenizExecutiveSnapshot
                 'Ledger-derived balances are a point-in-time credit liability, not revenue or available bank cash.',
                 'Reseller/member categories represent current roles, not historical order attribution.',
                 'Pending top-ups are not verified receipts.',
+            ],
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function usersSnapshot(int $actorId): array
+    {
+        // Only existing local Identity/Sales data. ReadAdminDashboard is NOT used
+        // because it additionally performs Remnawave network requests.
+        $week = $this->business->handle($actorId, 7);
+        $month = $this->business->handle($actorId, 30);
+
+        return [
+            ...self::metadata('users', 'current', 'LocalIdentityAndReadAdminBusinessReport', now('Asia/Tehran')->format('Y-m-d H:i')),
+            'windows' => [
+                'last7Days' => ['start' => $week['start'], 'endInclusive' => $week['end']],
+                'last30Days' => ['start' => $month['start'], 'endInclusive' => $month['end']],
+            ],
+            'metrics' => [
+                'registeredUsers' => (int) DB::table('users')->count(),
+                'activeAccounts' => (int) DB::table('users')->where('is_active', true)->count(),
+                'linkedTelegramAccounts' => $week['linkedTelegram'],
+                'newUsers7Days' => $week['newUsers'],
+                'newUsers30Days' => $month['newUsers'],
+                'uniqueBuyers7Days' => $week['buyers'],
+                'uniqueBuyers30Days' => $month['buyers'],
+                'renewals7Days' => $week['renewals'],
+                'renewals30Days' => $month['renewals'],
+            ],
+            'limitations' => [
+                'Only local registered user accounts and settled-purchase aggregates.',
+                'An active local account is not an active Remnawave subscription or an online user.',
+                'Buyer counts over 7/30 days are not cohort conversion rates or retention percentages.',
+                'No Remnawave, provider, network or external user-count requests were performed.',
             ],
         ];
     }
