@@ -45,7 +45,7 @@ final readonly class ManageResellerServiceLabels
      * Optional customer names for a bounded page of owned new-plan orders.
      * Unlike service-only labels, pending purchases are intentionally included.
      *
-     * @param list<int> $orderIds
+     * @param  list<int>  $orderIds
      * @return array<int, string>
      */
     public function forRecentNewPlanOrders(int $buyerId, array $orderIds): array
