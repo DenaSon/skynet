@@ -161,6 +161,13 @@ final readonly class DenixGroupMessage
             return null;
         }
 
+        // These shortcuts are just prefilled /ai questions: the existing
+        // trusted-group, rate-limit, queue and per-actor guards remain intact.
+        $shortcut = DenixCommandCatalog::analysisQuestion($text, $username);
+        if ($shortcut !== null) {
+            return $shortcut;
+        }
+
         if (preg_match('/\A\/ai(?:@([a-zA-Z][a-zA-Z0-9_]{4,31}))?(?:\s+([\s\S]*))?\z/iu', $text, $matches) === 1) {
             if (isset($matches[1]) && $matches[1] !== '' && strcasecmp($matches[1], $username) !== 0) {
                 return null;
