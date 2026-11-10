@@ -451,7 +451,6 @@ it('never attempts Business delivery when the 24-hour reply window has expired i
     Http::assertNothingSent();
 });
 
-
 it('does not blame a first-time customer when shared Business capacity is depleted', function (): void {
     $global = 'denix:business:quota:global';
     for ($i = 0; $i < 50; $i++) {
