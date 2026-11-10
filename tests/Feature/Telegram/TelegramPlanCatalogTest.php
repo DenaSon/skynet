@@ -3,6 +3,7 @@
 use App\Interfaces\Telegram\Support\PendingShopVolume;
 use App\Interfaces\Telegram\Support\ReplyMenuLabels;
 use App\Interfaces\Telegram\Support\ReplyMenuRenderer;
+use App\Interfaces\Telegram\Support\TelegramUi;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
@@ -82,6 +83,13 @@ function b15Preset(
     return $plan->id;
 }
 
+it('keeps two-column plan labels short, sanitized and unambiguous', function (): void {
+    expect(TelegramUi::planSelectionLabel('پایه'))->toBe('انتخاب پایه')
+        ->and(TelegramUi::planSelectionLabel("  پایه\nنام‌گذاری  "))->toBe('انتخاب پایه نام‌گذار…')
+        ->and(TelegramUi::planSelectionLabel(''))->toBe('انتخاب پلن')
+        ->and(mb_strlen(TelegramUi::planSelectionLabel(str_repeat('الف', 40))))->toBeLessThanOrEqual(19);
+});
+
 it('presents no unpriced or draft plans in either Telegram entry point', function (): void {
     $root = b15Root();
     $user = User::factory()->create();
@@ -130,16 +138,16 @@ it('uses actual published buyer quotes including one reseller discount and unlim
                 ? json_decode($body['reply_markup'], true, flags: JSON_THROW_ON_ERROR)
                 : $body['reply_markup'];
             $finite = $markup['inline_keyboard'][0][0];
-            $unlimitedButton = $markup['inline_keyboard'][2][0];
+            $unlimitedButton = $markup['inline_keyboard'][1][0];
 
-            return str_ends_with($finite['text'], '… · 30گیگ/30روز')
-                && str_starts_with($finite['text'], '🔎 ')
-                && mb_strlen($finite['text']) < 50
-                && count($markup['inline_keyboard'][0]) === 1
+            return $finite['text'] === 'انتخاب '.str_repeat('الف', 11).'…'
+                && mb_strlen($finite['text']) <= 19
+                && count($markup['inline_keyboard'][0]) === 2
+                && count($markup['inline_keyboard'][1]) === 1
                 && $finite['style'] === 'primary'
                 && $finite['callback_data'] === "catalog:detail:{$public}:1"
                 && str_contains($body['text'], '<b>90,000 تومان</b>')
-                && $unlimitedButton['text'] === '🔎 Plan unlimite… · نامحدود/30روز'
+                && $unlimitedButton['text'] === 'انتخاب Plan unlimi…'
                 && $unlimitedButton['callback_data'] === "catalog:detail:{$unlimited}:1";
         });
     $bot->hearCallbackQueryData("catalog:detail:{$public}:1")->reply()
