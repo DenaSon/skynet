@@ -75,6 +75,8 @@ final class DenizBusinessIntake
         // The deployment gate, operator switch and global AI switch must all
         // be ON before accepting a billable customer request.
         if (! $this->access->enabled()) {
+            Log::info('Deniz Business intake skipped.', ['reason' => 'business_disabled']);
+
             return;
         }
 
@@ -85,6 +87,8 @@ final class DenizBusinessIntake
         $messageId = $message['message_id'] ?? null;
         $date = $message['date'] ?? null;
         $text = $message['text'] ?? null;
+        // Random, non-identifying correlation token; never log chat, owner, text or connection IDs.
+        $trace = bin2hex(random_bytes(8));
 
         if ($ownerId === null || ! $this->validId($connectionId)
             || data_get($message, 'chat.type') !== 'private'
@@ -96,6 +100,8 @@ final class DenizBusinessIntake
             || ! is_int($messageId) || $messageId < 1
             || ! is_int($date) || $date < now()->timestamp - 86400
             || $date > now()->timestamp + 60) {
+            Log::info('Deniz Business intake skipped.', ['trace' => $trace, 'reason' => 'invalid_message_metadata']);
+
             return;
         }
 
@@ -109,12 +115,21 @@ final class DenizBusinessIntake
                 Cache::put($handoffKey, true, now()->addDay());
             }
 
+            Log::info('Deniz Business intake skipped.', ['trace' => $trace, 'reason' => 'human_reply_handoff']);
+
             return;
         }
 
         if ($fromId !== $chatId || ! is_string($text) || trim($text) === ''
-            || mb_strlen($text) > (int) config('denagate_ai.max_input_chars', 2000)
-            || Cache::has($handoffKey) && trim($text) !== 'شروع دنیز') {
+            || mb_strlen($text) > (int) config('denagate_ai.max_input_chars', 2000)) {
+            Log::info('Deniz Business intake skipped.', ['trace' => $trace, 'reason' => 'unsupported_customer_message']);
+
+            return;
+        }
+
+        if (Cache::has($handoffKey) && trim($text) !== 'شروع دنیز') {
+            Log::info('Deniz Business intake skipped.', ['trace' => $trace, 'reason' => 'human_handoff_active']);
+
             return;
         }
 
@@ -135,6 +150,8 @@ final class DenizBusinessIntake
         $fence = 'denix:business:message:'.$connectionKey.':'.$chatId.':'.$messageId;
 
         if (! Cache::add($fence, true, now()->addDays(7))) {
+            Log::info('Deniz Business intake skipped.', ['trace' => $trace, 'reason' => 'duplicate_message']);
+
             return;
         }
 
@@ -144,6 +161,7 @@ final class DenizBusinessIntake
             default => 'answer',
         };
         $retrySeconds = 0;
+        $limitedScope = null;
 
         if ($kind === 'answer') {
             $userKey = 'denix:business:quota:user:'.$connectionKey.':'.$chatId;
@@ -153,10 +171,10 @@ final class DenizBusinessIntake
             // The shared Business budget is distinct from each customer's
             // personal limits. Exhausting it must NEVER accuse a first-time
             // customer of using their own allowance.
-            $globalLimit = max(1, (int) config('denagate_ai.business_global_requests_per_day', 50));
+            $globalLimit = max(1, (int) config('denagate_ai.business_global_requests_per_day', 200));
             $limitedScope = match (true) {
-                RateLimiter::tooManyAttempts($userKey, 5) => 'user',
-                RateLimiter::tooManyAttempts($dailyKey, 20) => 'daily',
+                RateLimiter::tooManyAttempts($userKey, (int) config('denagate_ai.business_customer_requests_per_10_minutes', 20)) => 'user',
+                RateLimiter::tooManyAttempts($dailyKey, (int) config('denagate_ai.business_customer_requests_per_day', 80)) => 'daily',
                 RateLimiter::tooManyAttempts($globalKey, $globalLimit) => 'global',
                 default => null,
             };
@@ -173,6 +191,7 @@ final class DenizBusinessIntake
                     // Safe aggregate metadata only: never log customer ID,
                     // connection ID, message text, Bot token or AI prompt.
                     Log::warning('Deniz Business shared capacity exhausted.', [
+                        'trace' => $trace,
                         'scope' => 'global',
                         'limit' => $globalLimit,
                         'attempts' => RateLimiter::attempts($globalKey),
@@ -183,6 +202,13 @@ final class DenizBusinessIntake
                 $noticeKey = 'denix:business:quota:notice:'.$connectionKey.':'.$chatId;
 
                 if (RateLimiter::tooManyAttempts($noticeKey, 1)) {
+                    Log::info('Deniz Business intake skipped.', [
+                        'trace' => $trace,
+                        'reason' => 'quota_notice_throttled',
+                        'scope' => $limitedScope,
+                        'retry_seconds' => RateLimiter::availableIn($limitedKey),
+                    ]);
+
                     return;
                 }
 
@@ -199,8 +225,14 @@ final class DenizBusinessIntake
         // Missing connection update cache isn't authority to deny forever:
         // getBusinessConnection at execution is the authoritative live check.
         AnswerDenizBusinessMessage::dispatch(
-            $connectionId, $chatId, $fromId, $messageId, $date, trim($text), $kind, $retrySeconds,
+            $connectionId, $chatId, $fromId, $messageId, $date, trim($text), $kind, $retrySeconds, $trace,
         );
+
+        Log::info('Deniz Business intake dispatched.', [
+            'trace' => $trace,
+            'kind' => $kind,
+            'scope' => $limitedScope,
+        ]);
     }
 
     private function trustedOwnerId(): ?int
