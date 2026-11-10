@@ -86,7 +86,8 @@ final readonly class PlanCatalogUi
         foreach (array_slice($entries, ($page - 1) * 5, 5) as $entry) {
             $lines[] = ($entry->plan->featured ? '⭐ ' : '📦 ')
                 .'<b>'.TelegramUi::escape($this->safe($entry->plan->name)).'</b> · <b>'.$this->spec($entry).'</b>';
-            $lines[] = '💰 <b>'.$this->toman($entry->quote->totalPriceRials).' تومان</b>';
+            $lines[] = ($reseller ? '💰 قیمت نماینده: <b>' : '💰 <b>')
+                .$this->toman($entry->quote->totalPriceRials).' تومان</b>';
             $lines[] = '';
             $callback = "catalog:detail:{$entry->plan->id}:{$page}";
             $richHtml .= '<p>'.($entry->plan->featured ? '⭐' : '📦')
