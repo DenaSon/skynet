@@ -93,7 +93,7 @@ function executive02Sale(User $root, int $amount): void
         'payment_claim_id' => $claim,
         'billing_journal_id' => $journal,
         'verified_by' => $root->id,
-        'payment_reference' => 'PRIVATEBANKREFERENCE',
+        'payment_reference' => 'PRIVATEBANKREFERENCE'.$order,
         'amount_rials' => $amount,
         'settled_at' => $at,
     ]);
@@ -276,4 +276,105 @@ it('provides an exact rolling 24-hour statement to the Deniz executive model and
         && ! str_contains($request['text'], 'PRIVATEBANKREFERENCE'));
 
     expect(app(DenixConversationState::class)->history(-100987654321, 12, 180001))->toBeEmpty();
+});
+
+it('answers natural sales questions and same-topic follow-ups from freshly re-read settlement data', function (): void {
+    $this->travelTo(Carbon::parse('2026-11-08 15:30:00', 'Asia/Tehran')->utc());
+    $root = executive02Root();
+    executive02Sale($root, 1_000_000);
+    Http::fake([
+        'https://api.gapgpt.app/*' => Http::response(executive02Response('🧠 تحلیل: مقایسه ثبت شده است.')),
+        'https://api.telegram.org/*' => Http::response(['ok' => true, 'result' => ['message_id' => 925]]),
+    ]);
+
+    executive02Job(220, 'فروش ۲۴ ساعت اخیر چطور بوده؟');
+    $state = app(DenixConversationState::class);
+    expect($state->executiveSelection(-100987654321, 12, 180001))
+        ->toBe(['dataset' => 'sales', 'period' => '24h'])
+        ->and($state->history(-100987654321, 12, 180001))->toBeEmpty();
+
+    // New settlement after the first analysis: do not reuse a cached number.
+    executive02Sale($root, 700_000);
+    executive02Job(221, 'چرا بیشتر شده؟');
+
+    $calls = Http::recorded()->map(fn (array $pair): Request => $pair[0])
+        ->filter(fn (Request $request): bool => str_contains($request->url(), 'gapgpt.app/v1/chat/completions'))
+        ->values();
+    expect($calls)->toHaveCount(2)
+        ->and($calls[0]['messages'][1]['content'])->toContain('"revenueRials":1000000')
+        ->and($calls[1]['messages'][1]['content'])->toContain('"revenueRials":1700000')
+        ->and($calls[1]['messages'][1]['content'])->toContain('چرا بیشتر شده؟');
+
+    Http::assertSentCount(4);
+    expect($state->history(-100987654321, 12, 180001))->toBeEmpty();
+});
+
+it('selects common natural-language finance intents and refuses mixed evidence without charging AI', function (): void {
+    executive02Root();
+    $prepare = app(PrepareDenizExecutiveAnalysis::class);
+
+    foreach ([
+        ['امروز فروش چقدر شده؟', '"dataset":"sales","period":"day"'],
+        ['نمایندگی‌ها چطور فروش داشتن؟', '"dataset":"sales","period":"week"'],
+        ['در ۳۰ روز اخیر چقدر شارژ داشتیم؟', '"dataset":"cash","period":"30"'],
+        ['موجودی کیف پول‌ها چقدره؟', '"dataset":"wallet","period":"current"'],
+        ['هزینه‌های این ماه چطور بوده؟', '"dataset":"accounting","period":"month"'],
+    ] as [$question, $expected]) {
+        expect($prepare->handle(180001, $question)['prompt'])->toContain($expected);
+    }
+
+    foreach ([
+        'فروش و شارژ کیف پول را باهم تحلیل کن',
+        'میزان فروش در برابر سود چقدر است؟',
+        'فروش این ماه چطور بوده؟',
+        'فروش دیروز چقدر بود؟',
+    ] as $question) {
+        expect(fn () => $prepare->handle(180001, $question))
+            ->toThrow(InvalidArgumentException::class);
+    }
+
+    Http::assertNothingSent();
+});
+
+it('stores only a per-actor per-topic report selector and clears it on reset or model change', function (): void {
+    executive02Root();
+    $state = app(DenixConversationState::class);
+    $state->rememberExecutiveSelection(-100987654321, 12, 180001, 'sales', 'week');
+
+    expect($state->executiveSelection(-100987654321, 12, 180001))
+        ->toBe(['dataset' => 'sales', 'period' => 'week'])
+        ->and($state->executiveSelection(-100987654321, 13, 180001))->toBeNull()
+        ->and($state->executiveSelection(-100987654321, 12, 180002))->toBeNull();
+
+    expect(app(PrepareDenizExecutiveAnalysis::class)->handle(
+        180001, 'سلام', $state->executiveSelection(-100987654321, 12, 180001),
+    ))->toBeNull();
+
+    $state->clearHistory(-100987654321, 12, 180001);
+    expect($state->executiveSelection(-100987654321, 12, 180001))->toBeNull();
+
+    $state->rememberExecutiveSelection(-100987654321, 12, 180001, 'sales', 'week');
+    expect($state->selectModel(-100987654321, 12, 180001, 2))
+        ->toBe('gapgpt-deepseek-v4.1-flash')
+        ->and($state->executiveSelection(-100987654321, 12, 180001))->toBeNull();
+
+    Http::assertNothingSent();
+});
+
+it('does not remember executive follow-ups when Telegram delivery is uncertain', function (): void {
+    $this->travelTo(Carbon::parse('2026-11-08 15:30:00', 'Asia/Tehran')->utc());
+    $root = executive02Root();
+    executive02Sale($root, 600_000);
+
+    Http::fake([
+        'https://api.gapgpt.app/*' => Http::response(executive02Response()),
+        'https://api.telegram.org/*' => Http::response(['ok' => false], 503),
+    ]);
+
+    expect(fn () => executive02Job(223, 'فروش ۲۴ ساعت اخیر چطوره؟'))
+        ->toThrow(RuntimeException::class, 'Denix response delivery failed.');
+
+    expect(app(DenixConversationState::class)->executiveSelection(-100987654321, 12, 180001))
+        ->toBeNull();
+    Http::assertSentCount(2);
 });

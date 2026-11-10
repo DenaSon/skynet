@@ -41,6 +41,27 @@ Unspecified supported periods use a fixed, clearly labeled default (sales = last
 
 **Non-goals:** No Admin/Sales/Business bot changes, new menu/command or provider permission, schema or migration, new package, finance mutation, AI SQL reader, web interface, plan-margin or ROI calculations, or scheduled digests. Rollback is an isolated PR revert.
 
+## Phase 3 — controlled natural questions and fresh-data follow-ups (2026-11-10)
+
+**Approved implementation scope:** a small extension of the existing `PrepareDenizExecutiveAnalysis`, `DenixConversationState` and `AnswerDenixMessage`; no new AI tools, tables, bot, model, package, finance SQL or Provider writes. This is **bounded dataset selection**, not unrestricted AI tool/function calling.
+
+### Natural managerial questions
+
+Root managers in the existing Deniz group can ask a short ordinary Persian question with a clear financial topic, for example `/ai فروش ۲۴ ساعت اخیر چطور بوده؟`, `/ai چقدر شارژ داشتیم؟`, `/ai هزینه‌های این ماه چطور بوده؟`, `/ai وضعیت کیف پول‌ها چطور است؟`. A strict on-server keyword router maps to the **four existing canonical** datasets: sales, cash receipts, accounting and current wallets. Approved report windows remain the same. Explicit unsupported windows (e.g. sales current Persian month, cash today, arbitrary 3 days) must fail with a clear **nonbillable** message. Multi-dataset requests with different report-window semantics ask the manager to narrow the question rather than invent comparable data. Ordinary greetings and nonfinancial chat still use the original non-executive assistant.
+
+### Context and security
+
+After the **successful** sending of a root-authorized executive result, cache only `{dataset,period}` with the existing 30-minute TTL and existing `group:topic:telegram_actor` isolation. **Never cache financial figures, sampled customer rows, prompts or analytical replies** in the ordinary chat history. Follow-up questions such as `/ai چرا بیشتر شده؟`, `/ai چه پیشنهادی داری؟` or `/ai هفتگی چطور؟` may reuse the selector, but **read a fresh authorized snapshot on every request**, and pass only a new bounded aggregated evidence JSON to the chosen existing model. No historical model memory of financial figures or stale calculations is assumed. User `/ainew` or changing the AI model clears the selection along with the generic history. A failed inference, denied/revoked root, invalid period or uncertain Telegram delivery cannot create a new selector.
+
+The existing intake root+group checks, rate limits (25/manager/10min; 250/group/day), one-shot queue and delivery checks remain authoritative. Root verification is repeated in the financial Action at execution time. Telegram command visibility does not constitute access. Business customer support remains separate and cannot request financial data.
+
+### Limitations and acceptance
+
+- Only one verified dataset per answer in phase 3; arbitrary joins, cross-dataset ROI, historical wallet balances, date ranges and model-driven SQL are **not** supported.
+- Causal explanations are hypotheses unless recorded data proves them. The deterministic Laravel financial headline retains reported exact numeric facts; Deniz distinguishes observation, inference and proposed next action.
+- Source CI must prove selector isolation across users/topics, new DB reads for each follow-up, reset/revoke/failure behavior, no finance in generic chat history, multi-topic rejection, unsupported periods, and Business isolation.
+- Real production finance totals, live Telegram command registration and mobile HTML rendering require separate operator validation after deployment; mocked GitHub CI is not real-world acceptance. Phase 4 retains that live sign-off boundary.
+
 ## Deniz management-group formatting safety (2026-11-10)
 
 The management group sender reuses the existing `DenizBusinessMessageFormatter` to convert a small Markdown subset (`###` headings, `**bold**`, links, code) to **escaped Telegram HTML**. This addresses raw Markdown in live group evidence without changing the Business support sender, models, permissions, queues or financial Actions. Every message remains bounded to 3,500 input characters before conversion; HTML tags are not truncated post-formatting.
