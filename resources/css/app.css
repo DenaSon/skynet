@@ -85,6 +85,19 @@
         text-align: start;
     }
 
+    /* The base dg-stat rule is more specific than Tailwind text utilities.
+       Respect the opt-in centered KPI typography in both Live and Demo. */
+    .denagate-live .dg-stat.text-center {
+        text-align: center;
+        font-size: 1.5rem;
+    }
+
+    @media (min-width: 40rem) {
+        .denagate-live .dg-stat.text-center {
+            font-size: 1.875rem;
+        }
+    }
+
     .denagate-live .dg-btn-primary {
         display: inline-flex;
         min-height: 44px;
