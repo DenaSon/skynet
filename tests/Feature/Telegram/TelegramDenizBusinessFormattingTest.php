@@ -138,7 +138,6 @@ it('never retries an ambiguous Telegram network failure', function (): void {
     expect($attempts)->toBe(1);
 });
 
-
 it('classifies Telegram delivery failures without storing request bodies or credentials in logs', function (): void {
     Log::spy();
     Http::fake([
@@ -150,7 +149,7 @@ it('classifies Telegram delivery failures without storing request bodies or cred
     ))->toThrow(RuntimeException::class, 'Deniz Business delivery failed.');
 
     Log::shouldHaveReceived('warning')->with('Deniz Business delivery failed.',
-        \Mockery::on(static fn (array $context): bool => ($context['http_status'] ?? null) === 403
+        Mockery::on(static fn (array $context): bool => ($context['http_status'] ?? null) === 403
             && ($context['phase'] ?? null) === 'html'
             && ($context['exception_type'] ?? null) === RuntimeException::class
             && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'PRIVATE')
