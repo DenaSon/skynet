@@ -635,7 +635,7 @@
                             <article wire:key="live-service-{{ $service->orderId }}" class="dg-card p-4 sm:p-5">
                                 <div class="flex flex-wrap items-start justify-between gap-3">
                                     <div class="min-w-0">
-                                        <h2 class="break-words text-base font-extrabold text-[#1B2935]">{{ $labels[$service->orderId] ?? $service->productName }}</h2>
+                                        <h2 class="break-words text-base font-extrabold text-[#1B2935]">{{ $labels[$service->orderId] ?? 'نام مشتری ثبت نشده' }}</h2>
                                         <p class="mt-1 break-words text-xs leading-6 text-[#71818B]">{{ $service->productName }} · {{ $service->durationDays }} روز{{ $service->trafficGb === null ? '' : ' · '.number_format($service->trafficGb).' گیگابایت' }}</p>
                                     </div>
                                     <span class="dg-status" data-tone="{{ match ($service->status) { 'failed' => 'danger', 'needs_review', 'provisioning' => 'warning', default => 'neutral' } }}">{{ $serviceStatus }}</span>
