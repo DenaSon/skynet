@@ -41,6 +41,7 @@ final readonly class DenixConversationState
 
         Cache::put($this->key($chatId, $threadId, $userId, 'model'), $model, $this->expiresAt());
         Cache::forget($this->key($chatId, $threadId, $userId, 'history'));
+        $this->clearExecutiveSelection($chatId, $threadId, $userId);
 
         return $model;
     }
@@ -48,6 +49,7 @@ final readonly class DenixConversationState
     public function clearHistory(int $chatId, ?int $threadId, int $userId): void
     {
         Cache::forget($this->key($chatId, $threadId, $userId, 'history'));
+        $this->clearExecutiveSelection($chatId, $threadId, $userId);
     }
 
     /**
@@ -104,6 +106,42 @@ final readonly class DenixConversationState
         }
 
         Cache::put($this->key($chatId, $threadId, $userId, 'history'), $messages, $this->expiresAt());
+    }
+
+    /**
+     * Keep only the report selector, never financial values, prompts or model output.
+     *
+     * @return array{dataset:string,period:string}|null
+     */
+    public function executiveSelection(int $chatId, ?int $threadId, int $userId): ?array
+    {
+        $stored = Cache::get($this->key($chatId, $threadId, $userId, 'executive'));
+        $periods = [
+            'sales' => ['24h', 'day', 'week', 'month'],
+            'cash' => ['7', '30', 'all'],
+            'accounting' => ['7', '30', 'month'],
+            'wallet' => ['current'],
+        ];
+
+        if (! is_array($stored) || ! is_string($stored['dataset'] ?? null)
+            || ! is_string($stored['period'] ?? null)
+            || ! in_array($stored['period'], $periods[$stored['dataset']] ?? [], true)) {
+            return null;
+        }
+
+        return ['dataset' => $stored['dataset'], 'period' => $stored['period']];
+    }
+
+    public function rememberExecutiveSelection(int $chatId, ?int $threadId, int $userId, string $dataset, string $period): void
+    {
+        // Only selectors produced by an authorized canonical financial read.
+        Cache::put($this->key($chatId, $threadId, $userId, 'executive'),
+            ['dataset' => $dataset, 'period' => $period], $this->expiresAt());
+    }
+
+    public function clearExecutiveSelection(int $chatId, ?int $threadId, int $userId): void
+    {
+        Cache::forget($this->key($chatId, $threadId, $userId, 'executive'));
     }
 
     public function lockKey(int $chatId, ?int $threadId, int $userId): string

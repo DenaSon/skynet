@@ -76,13 +76,15 @@ final class AnswerDenixMessage implements ShouldQueue
                 return;
             }
 
-            // Explicit financial requests use bounded, root-authorized snapshots.
-            // Ordinary group chat never reads financial data or receives this mode.
-            // We intentionally do not persist financial context until phase 3.
+            // Only root-authorized financial selections can enter executive mode.
+            // Follow-ups use a cached *selector* and always fetch fresh evidence;
+            // the ordinary conversation cache never stores financial numbers.
             $executive = null;
             try {
                 $executive = app(PrepareDenizExecutiveAnalysis::class)->handle(
-                    $this->telegramUserId, $this->question,
+                    $this->telegramUserId,
+                    $this->question,
+                    $state->executiveSelection($this->chatId, $this->threadId, $this->telegramUserId),
                 );
             } catch (AuthorizationException) {
                 return;
@@ -151,9 +153,15 @@ final class AnswerDenixMessage implements ShouldQueue
             );
             $sender->send($this->chatId, $this->messageId, $this->threadId, $reply);
 
-            // Finance stays stateless in phase 2: subsequent generic questions
-            // cannot receive stale numbers from the old conversation cache.
-            if ($executive === null) {
+            // Never cache financial figures or generated analysis. Retain only
+            // the permitted report selector after successful delivery for a
+            // bounded same-manager/same-topic follow-up with fresh DB reads.
+            if ($executive !== null) {
+                $state->rememberExecutiveSelection(
+                    $this->chatId, $this->threadId, $this->telegramUserId,
+                    $executive['dataset'], $executive['period'],
+                );
+            } else {
                 $state->remember($this->chatId, $this->threadId, $this->telegramUserId, $this->question, $reply);
             }
         } finally {

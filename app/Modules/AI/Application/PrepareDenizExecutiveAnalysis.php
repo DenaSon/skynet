@@ -9,10 +9,8 @@ use Illuminate\Auth\Access\AuthorizationException;
 use InvalidArgumentException;
 
 /**
- * AI-EXEC-02: explicit, bounded executive requests only.
- *
- * Open-ended dataset selection and conversational follow-ups belong to phase 3.
- * Financial records never enter a generic chat or conversation cache.
+ * AI-EXEC-03: bounded executive intent selection and follow-ups.
+ * Only authorized aggregate read Actions provide evidence; no finance is cached.
  */
 final readonly class PrepareDenizExecutiveAnalysis
 {
@@ -22,11 +20,12 @@ final readonly class PrepareDenizExecutiveAnalysis
     ) {}
 
     /**
-     * @return array{prompt:string,headline:string}|null
+     * @param array{dataset:string,period:string}|null $context
+     * @return array{prompt:string,headline:string,dataset:string,period:string}|null
      */
-    public function handle(int $telegramUserId, string $question): ?array
+    public function handle(int $telegramUserId, string $question, ?array $context = null): ?array
     {
-        $selected = self::select($question);
+        $selected = self::select($question, $context);
         if ($selected === null) {
             return null;
         }
@@ -84,14 +83,16 @@ final readonly class PrepareDenizExecutiveAnalysis
         return [
             'prompt' => $prompt,
             'headline' => self::headline($snapshot),
+            'dataset' => $selected['dataset'],
+            'period' => $selected['period'],
         ];
     }
 
     /** @return array{dataset:string,period:string}|null */
-    private static function select(string $question): ?array
+    private static function select(string $question, ?array $context = null): ?array
     {
         if (preg_match('/\A\s*(?:دنیز[،,:]?\s*)?(?:تحلیل|گزارش)\s+(شارژ کیف پول|کیف پول|حسابداری|نقدینگی|دریافتی‌ها|دریافتی ها|نمایندگی|فروش|مالی)(?=\s|\z)/u', trim($question), $matches) !== 1) {
-            return null;
+            return self::naturalSelection($question, $context);
         }
 
         $subject = $matches[1];
@@ -102,15 +103,33 @@ final readonly class PrepareDenizExecutiveAnalysis
             'کیف پول' => 'wallet',
         };
 
+        // Never silently replace an explicitly requested unsupported duration
+        // with a seven-day default. Approved windows only.
+        if (preg_match_all('/([0-9۰-۹]+)\\s*(ساعت|روز)/u', $question, $durations, PREG_SET_ORDER) > 0) {
+            foreach ($durations as $duration) {
+                $number = strtr($duration[1], ['۰' => '0', '۱' => '1', '۲' => '2', '۳' => '3', '۴' => '4',
+                    '۵' => '5', '۶' => '6', '۷' => '7', '۸' => '8', '۹' => '9']);
+                $allowed = match ($dataset) {
+                    'sales' => $duration[2] === 'ساعت' && $number === '24',
+                    'cash', 'accounting' => $duration[2] === 'روز' && in_array($number, ['7', '30'], true),
+                    'wallet' => false,
+                };
+
+                if (! $allowed) {
+                    throw new InvalidArgumentException('این بازه برای گزارش انتخابی پشتیبانی نمی‌شود. لطفاً یکی از بازه‌های مجاز همان گزارش را انتخاب کنید.');
+                }
+            }
+        }
+
         // Report semantics are *not* interchangeable. Refuse a requested
         // calendar-current period if the canonical Action supplies another.
-        if ($dataset === 'sales' && preg_match('/(?:این ماه|ماه جاری|(?:۳۰|30)\s*روز|از ابتدا)/u', $question) === 1) {
+        if ($dataset === 'sales' && preg_match('/(?:این ماه|ماه جاری|این هفته|دیروز|(?:۳۰|30)\s*روز|از ابتدا)/u', $question) === 1) {
             throw new InvalidArgumentException('گزارش فروش ماهانه فعلاً آخرین ماه کامل شمسی را نشان می‌دهد؛ برای همان بازه «تحلیل فروش ماهانه» را بپرسید.');
         }
         if ($dataset === 'cash' && preg_match('/(?:این ماه|ماه جاری|ماهانه|ماه قبل|امروز|روزانه)/u', $question) === 1) {
             throw new InvalidArgumentException('برای گزارش دریافت‌ها فعلاً بازه‌های ۷ روز، ۳۰ روز و از ابتدا در دسترس است.');
         }
-        if ($dataset === 'accounting' && preg_match('/(?:از ابتدا|از آغاز|کل تاریخ)/u', $question) === 1) {
+        if ($dataset === 'accounting' && preg_match('/(?:از ابتدا|از آغاز|کل تاریخ|دیروز|این هفته)/u', $question) === 1) {
             throw new InvalidArgumentException('گزارش حسابداری فعلاً برای ۷ روز، ۳۰ روز یا ماه جاری در دسترس است.');
         }
         if ($dataset === 'wallet' && preg_match('/(?:دیروز|گذشته|قبلی|قبل|هفته|ماه|(?:۳۰|30|۷|7)\s*روز)/u', $question) === 1) {
@@ -129,6 +148,73 @@ final readonly class PrepareDenizExecutiveAnalysis
         };
 
         return ['dataset' => $dataset, 'period' => $period];
+    }
+
+    /**
+     * Recognize only a small financial vocabulary; never ask the model to
+     * choose tables, actions, access scope or raw SQL. Multiple datasets need
+     * an explicit narrower question because their periods may not align.
+     *
+     * @param array{dataset:string,period:string}|null $context
+     * @return array{dataset:string,period:string}|null
+     */
+    private static function naturalSelection(string $question, ?array $context): ?array
+    {
+        $subjectPatterns = [
+            'sales' => '/فروش|سفارش|خرید|نمایند/u',
+            'cash' => '/نقدینگی|دریافت|شارژ|واریز/u',
+            'accounting' => '/حسابداری|مالی|هزینه|سود|برداشت مالک/u',
+            'wallet' => '/کیف پول|مانده اعتبار/u',
+        ];
+
+        $datasets = [];
+        foreach ($subjectPatterns as $dataset => $pattern) {
+            if (preg_match($pattern, $question) === 1) {
+                $datasets[] = $dataset;
+            }
+        }
+
+        // A top-up request is cash, not a wallet-liability balance request.
+        if (in_array('cash', $datasets, true) && preg_match('/شارژ\s+کیف پول/u', $question) === 1) {
+            $datasets = array_values(array_diff($datasets, ['wallet']));
+        }
+
+        if (count($datasets) > 1) {
+            throw new InvalidArgumentException('برای تحلیل دقیق، فعلاً فروش، نقدینگی، حسابداری یا کیف پول را جداگانه بپرسید؛ بازه گزارش‌های مختلف همیشه یکسان نیست.');
+        }
+
+        $hasPeriod = preg_match('/(?:۲۴|24)\s*ساعت|امروز|دیروز|روزانه|هفته|هفتگی|ماه|ماهانه|(?:۳۰|30|۷|7)\s*روز|از ابتدا|از آغاز|کل تاریخ/u', $question) === 1;
+
+        if ($datasets === []) {
+            if ($context === null
+                || preg_match('/چرا|چطور|چه |چی |چقدر|بیشتر توضیح|مقایسه|نسبت به|پیشنهاد|بهتر|بدتر|رشد|افت|کاهش|افزایش|حالا|وضعیت/u', $question) !== 1) {
+                return null;
+            }
+
+            if (! $hasPeriod) {
+                return $context;
+            }
+
+            $dataset = $context['dataset'];
+        } else {
+            $dataset = $datasets[0];
+
+            if (! $hasPeriod && $context !== null && $context['dataset'] === $dataset) {
+                return $context;
+            }
+        }
+
+        // Delegate all period validation and defaulting to the existing
+        // canonical explicit selector: no second financial period policy.
+        $subject = match ($dataset) {
+            'sales' => 'فروش',
+            'cash' => 'نقدینگی',
+            'accounting' => 'حسابداری',
+            'wallet' => 'کیف پول',
+            default => throw new InvalidArgumentException('نوع گزارش پشتیبانی نمی‌شود.'),
+        };
+
+        return self::select('تحلیل '.$subject.' '.$question);
     }
 
     /** @param array<string, mixed> $snapshot */
