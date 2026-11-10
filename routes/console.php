@@ -26,8 +26,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Schedule;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use Spatie\Health\Commands\DispatchQueueCheckJobsCommand;
 use Spatie\Health\Commands\ScheduleCheckHeartbeatCommand;
@@ -118,7 +118,7 @@ Artisan::command('deniz:telegram:commands:register {--dry-run : Preview without 
 })->purpose('Register Deniz slash commands for its configured management group only');
 
 // Read-only, privacy-safe P0 diagnostics. Never prints customer identities,
- // connection IDs, user questions, tokens or provider response bodies.
+// connection IDs, user questions, tokens or provider response bodies.
 Artisan::command('deniz:business:status', function (DenizBusinessConnectionGuard $access): int {
     $global = 'denix:business:quota:global';
     $attempts = RateLimiter::attempts($global);
