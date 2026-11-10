@@ -60,13 +60,13 @@
                 <p class="mt-2 text-sm text-[#71818B]">فهرست سرویس‌ها</p>
             </div>
             <div class="mb-5 grid grid-cols-2 gap-3">
-                <section class="dg-card p-4">
-                    <p class="text-xs text-[#71818B]">کل سرویس‌ها</p>
-                    <p class="dg-stat mt-2">۱۸</p>
+                <section class="dg-card flex min-h-32 flex-col items-center justify-between gap-3 p-4 text-center">
+                    <p class="text-xs font-semibold leading-5 text-[#536C76]">کل سرویس‌ها</p>
+                    <p class="dg-stat block w-full text-center text-2xl sm:text-3xl">۱۸</p>
                 </section>
-                <section class="dg-card p-4">
-                    <p class="text-xs text-[#71818B]">فعال در سوابق داخلی</p>
-                    <p class="dg-stat mt-2">۱۵</p>
+                <section class="dg-card flex min-h-32 flex-col items-center justify-between gap-3 p-4 text-center">
+                    <p class="text-xs font-semibold leading-5 text-[#536C76]">فعال در سوابق داخلی</p>
+                    <p class="dg-stat block w-full text-center text-2xl sm:text-3xl">۱۵</p>
                 </section>
             </div>
             <div class="space-y-3">
@@ -162,11 +162,11 @@
             @if (count($plans) === 0)
                 <section class="dg-empty">در حال حاضر پلنی برای نمایش موجود نیست.</section>
             @else
-                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div class="grid grid-cols-1 justify-items-center gap-3 sm:grid-cols-2 sm:gap-4">
                     @foreach ($plans as $plan)
-                        <article class="dg-card flex flex-col p-4 sm:p-5">
+                        <article class="dg-card dg-plan-card flex flex-col p-4 sm:p-5" data-tone="{{ ['teal', 'blue', 'sand'][$loop->index % 3] }}">
                             <h2 class="break-words text-base font-extrabold text-[#1B2935]">{{ $plan['name'] }}</h2>
-                            <p class="mt-2 text-xs leading-7 text-[#71818B]">{{ number_format($plan['durationDays']) }} روز · {{ $plan['trafficGb'] === null ? 'حجم نامحدود' : number_format($plan['trafficGb']).' گیگابایت' }}</p>
+                            <p class="mt-2 text-sm font-extrabold leading-7 text-[#354C58]">{{ number_format($plan['durationDays']) }} روز · {{ $plan['trafficGb'] === null ? 'حجم نامحدود' : number_format($plan['trafficGb']).' گیگابایت' }}</p>
                             <p class="dg-stat mt-4 text-[#087F73]" dir="ltr">{{ $toman($plan['resellerRials']) }} <span class="text-xs font-medium text-[#71818B]">تومان</span></p>
                             <p class="mt-1 text-xs text-[#71818B]">با تخفیف نمایندگی {{ $plan['discountPercent'] }}٪</p>
                             <div class="mt-4 flex items-center justify-between gap-3 border-t border-[#E7ECEF] pt-3 text-xs text-[#71818B]">
