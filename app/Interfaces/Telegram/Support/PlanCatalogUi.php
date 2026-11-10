@@ -62,6 +62,7 @@ final readonly class PlanCatalogUi
         $lastPage = max(1, (int) ceil(count($entries) / 5));
         $page = min(max(1, $page), $lastPage);
         $keyboard = InlineKeyboardMarkup::make();
+        $planButtons = [];
 
         $lines = [
             '📋 پلن‌ها و قیمت‌ها',
@@ -83,26 +84,28 @@ final readonly class PlanCatalogUi
             $richHtml .= '<p>🏷️ قیمت اختصاصی پنل فروش برای شما محاسبه شده است.</p>';
         }
         foreach (array_slice($entries, ($page - 1) * 5, 5) as $entry) {
-            $lines[] = ($entry->plan->featured ? '⭐ ' : '📦 ').'<b>'.TelegramUi::escape($this->safe($entry->plan->name)).'</b>';
-            $lines[] = '📊 <b>'.$this->spec($entry).'</b>';
-            $lines[] = '💰 مبلغ: <b>'.$this->toman($entry->quote->totalPriceRials).' تومان</b>';
+            $lines[] = ($entry->plan->featured ? '⭐ ' : '📦 ')
+                .'<b>'.TelegramUi::escape($this->safe($entry->plan->name)).'</b> · <b>'.$this->spec($entry).'</b>';
+            $lines[] = ($reseller ? '💰 قیمت نماینده: <b>' : '💰 <b>')
+                .$this->toman($entry->quote->totalPriceRials).' تومان</b>';
             $lines[] = '';
             $callback = "catalog:detail:{$entry->plan->id}:{$page}";
             $richHtml .= '<p>'.($entry->plan->featured ? '⭐' : '📦')
-                .' <b>'.TelegramUi::escape($this->safe($entry->plan->name)).'</b><br>'
-                .'📊 <b>'.$this->spec($entry).'</b><br>'
+                .' <b>'.TelegramUi::escape($this->safe($entry->plan->name)).'</b> · <b>'.$this->spec($entry).'</b><br>'
                 .($reseller
-                    ? 'قیمت عمومی: '.$this->toman($entry->quote->publicPriceRials).' تومان<br>'
-                        .'تخفیف شما: '.$entry->quote->discountPercent.'٪<br>قیمت نماینده: '
-                    : 'مبلغ نهایی: ')
-                .'<b>'.$this->toman($entry->quote->totalPriceRials).' تومان</b></p>';
-            // A single native plan selection avoids duplicated price/name buttons
-            // and remains usable when Rich text is not supported by the client.
-            $keyboard->addRow(InlineKeyboardButton::make(
-                '🔎 '.TelegramUi::planButtonLabel($entry->plan->name, $entry->quote->trafficGb, $entry->quote->durationDays),
+                    ? '🏷️ عمومی: '.$this->toman($entry->quote->publicPriceRials).' تومان'
+                        .' · تخفیف: '.$entry->quote->discountPercent.'٪<br>'
+                    : '')
+                .'💰 <b>'.$this->toman($entry->quote->totalPriceRials).' تومان</b></p>';
+            $planButtons[] = InlineKeyboardButton::make(
+                TelegramUi::planSelectionLabel($entry->plan->name),
                 callback_data: $callback,
                 style: ButtonStyle::PRIMARY,
-            ));
+            );
+        }
+        // Keep two buttons per row without changing the individual detail callbacks.
+        foreach (array_chunk($planButtons, 2) as $row) {
+            $keyboard->addRow(...$row);
         }
 
         if ($entries === []) {

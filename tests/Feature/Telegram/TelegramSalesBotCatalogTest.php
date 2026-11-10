@@ -115,7 +115,7 @@ it('presents only current published plans to the linked member with working home
                 : $body['reply_markup'];
 
             return count($markup['inline_keyboard'][0]) === 1
-                && $markup['inline_keyboard'][0][0]['text'] === '🔎 Plan public-30 · 30گیگ/30روز'
+                && $markup['inline_keyboard'][0][0]['text'] === 'انتخاب Plan public…'
                 && $markup['inline_keyboard'][0][0]['callback_data'] === "catalog:detail:{$publicId}:1"
                 && $markup['inline_keyboard'][0][0]['style'] === 'primary'
                 && str_contains((string) $body['text'], '<b>100,000 تومان</b>');
@@ -150,7 +150,7 @@ it('shows reseller discounts once and safely previews custom builder volume and 
                 : $body['reply_markup'];
 
             return count($markup['inline_keyboard'][0]) === 1
-                && $markup['inline_keyboard'][0][0]['text'] === '🔎 Plan both-plan · 30گیگ/30روز'
+                && str_starts_with($markup['inline_keyboard'][0][0]['text'], 'انتخاب Plan both')
                 && $markup['inline_keyboard'][0][0]['callback_data'] === "catalog:detail:{$presetId}:1"
                 && $markup['inline_keyboard'][0][0]['style'] === 'primary'
                 && str_contains($body['text'], '<b>90,000 تومان</b>');
@@ -304,20 +304,23 @@ it('shows bold escaped catalog prices and sorts both plan lists by each buyers p
     $bot->hearCallbackQueryData('catalog:list:1')->reply()
         ->assertRaw(static function (Request $request) use ($payload, $expected, $expectedPrices): bool {
             $body = $payload($request);
-            $rows = array_slice($body['reply_markup']['inline_keyboard'], 0, 5);
-            foreach ($rows as $row) {
-                if (count($row) !== 1 || $row[0]['style'] !== 'primary') {
+            $rows = array_slice($body['reply_markup']['inline_keyboard'], 0, 3);
+            if (array_map('count', $rows) !== [2, 2, 1]) {
+                return false;
+            }
+            $buttons = array_merge(...$rows);
+            foreach ($buttons as $button) {
+                if ($button['style'] !== 'primary' || ! str_starts_with($button['text'], 'انتخاب ')) {
                     return false;
                 }
             }
-            $callbacks = array_map(static fn (array $row): string => $row[0]['callback_data'],
-                $rows);
+            $callbacks = array_map(static fn (array $button): string => $button['callback_data'], $buttons);
 
             return $callbacks === array_map(static fn (int $id): string => "catalog:detail:{$id}:1", $expected)
                 && array_reduce($expectedPrices, static fn (bool $ok, string $price): bool => $ok
                     && str_contains(sb02RichHtml($request), '<b>'.$price.'</b>'), true)
-                && str_starts_with($rows[0][0]['text'], '🔎 ')
-                && str_contains(sb02RichHtml($request), '📊 <b>30 گیگ / 30 روز</b>')
+                && str_starts_with($rows[0][0]['text'], 'انتخاب ')
+                && str_contains(sb02RichHtml($request), '<b>30 گیگ / 30 روز</b>')
                 && str_contains(sb02RichHtml($request), '&lt;ارزان &amp; &quot;پایه&quot;&gt;')
                 && ! str_contains(sb02RichHtml($request), '<tg-button-row>')
                 && ! str_contains(sb02RichHtml($request), 'sales:catalog:preview:')
@@ -331,26 +334,29 @@ it('shows bold escaped catalog prices and sorts both plan lists by each buyers p
 
             return $body['reply_markup']['inline_keyboard'][0][0]['callback_data'] === "catalog:detail:{$expensive}:2"
                 && count($body['reply_markup']['inline_keyboard'][0]) === 1
-                && str_starts_with($body['reply_markup']['inline_keyboard'][0][0]['text'], '🔎 ')
+                && str_starts_with($body['reply_markup']['inline_keyboard'][0][0]['text'], 'انتخاب ')
                 && str_contains(sb02RichHtml($request), '<b>900,000 تومان</b>')
                 && ! str_contains(sb02RichHtml($request), '<tg-button-row>');
         }, index: 1);
     $bot->hearCallbackQueryData('sales:buy')->reply()
         ->assertRaw(static function (Request $request) use ($payload, $expected, $expectedPrices): bool {
             $body = $payload($request);
-            $rows = array_slice($body['reply_markup']['inline_keyboard'], 0, 5);
-            foreach ($rows as $row) {
-                if (count($row) !== 1 || $row[0]['style'] !== 'primary') {
+            $rows = array_slice($body['reply_markup']['inline_keyboard'], 0, 3);
+            if (array_map('count', $rows) !== [2, 2, 1]) {
+                return false;
+            }
+            $buttons = array_merge(...$rows);
+            foreach ($buttons as $button) {
+                if ($button['style'] !== 'primary' || ! str_starts_with($button['text'], 'انتخاب ')) {
                     return false;
                 }
             }
-            $callbacks = array_map(static fn (array $row): string => $row[0]['callback_data'],
-                $rows);
+            $callbacks = array_map(static fn (array $button): string => $button['callback_data'], $buttons);
 
             return $callbacks === array_map(static fn (int $id): string => "catalog:detail:{$id}:1", $expected)
                 && array_reduce($expectedPrices, static fn (bool $ok, string $price): bool => $ok
                     && str_contains(sb02RichHtml($request), '<b>'.$price.'</b>'), true)
-                && str_starts_with($rows[0][0]['text'], '🔎 ')
+                && str_starts_with($rows[0][0]['text'], 'انتخاب ')
                 && str_contains(sb02RichHtml($request), '<p>صفحه 1 از 2</p>')
                 && ! str_contains(sb02RichHtml($request), '<tg-button-row>')
                 && ! str_contains(sb02RichHtml($request), 'sales:catalog:preview:');
@@ -361,10 +367,38 @@ it('shows bold escaped catalog prices and sorts both plan lists by each buyers p
 
             return $body['reply_markup']['inline_keyboard'][0][0]['callback_data'] === "catalog:detail:{$expensive}:1"
                 && count($body['reply_markup']['inline_keyboard'][0]) === 1
-                && str_starts_with($body['reply_markup']['inline_keyboard'][0][0]['text'], '🔎 ')
+                && str_starts_with($body['reply_markup']['inline_keyboard'][0][0]['text'], 'انتخاب ')
                 && str_contains(sb02RichHtml($request), '<b>900,000 تومان</b>')
                 && str_contains(sb02RichHtml($request), '<p>صفحه 2 از 2</p>')
                 && ! str_contains(json_encode($body['reply_markup'], JSON_THROW_ON_ERROR), 'sales:buy:simple:2');
+        }, index: 1);
+    // Legacy clients receive the same compact 2+2+1 native layout.
+    $bot->hearCallbackQueryData('sales:buy:simple:1')->reply()
+        ->assertRaw(static function (Request $request) use ($payload, $expected, $expectedPrices): bool {
+            $body = $payload($request);
+            $rows = array_slice($body['reply_markup']['inline_keyboard'], 0, 3);
+            $buttons = array_merge(...$rows);
+
+            return ! isset($body['rich_message'])
+                && array_map('count', $rows) === [2, 2, 1]
+                && array_map(static fn (array $button): string => $button['callback_data'], $buttons)
+                    === array_map(static fn (int $id): string => "catalog:detail:{$id}:1", $expected)
+                && array_reduce($expectedPrices, static fn (bool $ok, string $price): bool => $ok
+                    && str_contains((string) ($body['text'] ?? ''), '<b>'.$price.'</b>'), true)
+                && str_contains((string) $body['text'], '&lt;ارزان &amp; &quot;پایه&quot;&gt;')
+                && ! str_contains((string) $body['text'], '🔎');
+        }, index: 1);
+    $bot->hearCallbackQueryData('sales:catalog:simple:1')->reply()
+        ->assertRaw(static function (Request $request) use ($payload, $expected): bool {
+            $body = $payload($request);
+            $rows = array_slice($body['reply_markup']['inline_keyboard'], 0, 3);
+            $buttons = array_merge(...$rows);
+
+            return ! isset($body['rich_message'])
+                && array_map('count', $rows) === [2, 2, 1]
+                && array_map(static fn (array $button): string => $button['callback_data'], $buttons)
+                    === array_map(static fn (int $id): string => "catalog:detail:{$id}:1", $expected)
+                && str_contains((string) $body['text'], 'پلن‌ها و قیمت‌ها');
         }, index: 1);
     $bot->hearCallbackQueryData('sales:buy:simple:2')->reply()
         ->assertRaw(static function (Request $request) use ($payload): bool {
@@ -401,7 +435,7 @@ it('buys directly from Rich catalog but retains read-only legacy quote links and
 
         return str_contains($html, $expectedPrice)
             && ! str_contains($html, '<tg-button-row>')
-            && str_contains($html, '📊 <b>30 گیگ / 30 روز</b>')
+            && str_contains($html, '<b>30 گیگ / 30 روز</b>')
             && ! str_contains($html, 'sales:catalog:preview:')
             && ! str_contains($html, 'جزئیات این پلن')
             && str_contains($buttons, 'catalog:detail:'.$plan.':1')
@@ -511,9 +545,10 @@ it('shows real Sales main navigation and keeps bounded buyer-quoted ready plans 
                 : $body['reply_markup'];
 
             return str_contains(sb02RichHtml($request), '&lt;Home&gt; &amp; offer')
-                && count($markup['inline_keyboard'][0]) === 1
-                && $markup['inline_keyboard'][0][0]['text'] === '🔎 <Home> & offer · 30گیگ/30روز'
+                && count($markup['inline_keyboard'][0]) === 2
+                && str_starts_with($markup['inline_keyboard'][0][0]['text'], 'انتخاب <Home>')
                 && $markup['inline_keyboard'][0][0]['callback_data'] === 'catalog:detail:'.$ready[0].':1'
+                && $markup['inline_keyboard'][0][1]['callback_data'] === 'catalog:detail:'.$ready[1].':1'
                 && $markup['inline_keyboard'][0][0]['style'] === 'primary'
                 && str_contains(sb02RichHtml($request), '<b>100,000 تومان</b>')
                 && ! str_contains(sb02RichHtml($request), '<tg-button-row>')
@@ -533,7 +568,7 @@ it('shows real Sales main navigation and keeps bounded buyer-quoted ready plans 
             return ! str_contains(sb02RichHtml($request), '<tg-button-row>')
                 && ! str_contains(json_encode($body, JSON_THROW_ON_ERROR), 'sales:buy:simple:2')
                 && count($markup['inline_keyboard'][0]) === 1
-                && $markup['inline_keyboard'][0][0]['text'] === '🔎 Plan home-6 · 30گیگ/30روز';
+                && $markup['inline_keyboard'][0][0]['text'] === 'انتخاب Plan home-6';
         }, index: 1);
     $buyer->assignRole('reseller');
     $bot->hearCallbackQueryData('sales:home:1')->reply()->assertRaw(static function (Request $request): bool {
