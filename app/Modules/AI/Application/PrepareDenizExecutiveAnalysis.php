@@ -68,6 +68,7 @@ final readonly class PrepareDenizExecutiveAnalysis
                     'metrics' => $snapshot['metrics'],
                 ],
                 'wallet' => ['metrics' => $snapshot['metrics']],
+                default => throw new \LogicException('Unsupported executive dataset.'),
             },
         ];
 
@@ -99,6 +100,7 @@ final readonly class PrepareDenizExecutiveAnalysis
             'شارژ کیف پول', 'نقدینگی', 'دریافتی‌ها', 'دریافتی ها' => 'cash',
             'حسابداری', 'مالی' => 'accounting',
             'کیف پول' => 'wallet',
+            default => throw new \LogicException('Unsupported executive subject.'),
         };
 
         // Report semantics are *not* interchangeable. Refuse a requested
@@ -124,6 +126,7 @@ final readonly class PrepareDenizExecutiveAnalysis
             'accounting' => preg_match('/(?:۳۰|30)\s*روز/u', $question) === 1 ? '30'
                 : (preg_match('/(?:۷|7)\s*روز/u', $question) === 1 ? '7' : 'month'),
             'wallet' => 'current',
+            default => throw new \LogicException('Unsupported executive period.'),
         };
 
         return ['dataset' => $dataset, 'period' => $period];
@@ -140,6 +143,7 @@ final readonly class PrepareDenizExecutiveAnalysis
                 'day' => 'امروز تا این ساعت در برابر دیروز تا همین ساعت',
                 'week' => '۷ روز کامل گذشته در برابر ۷ روز قبل',
                 'month' => 'آخرین ماه کامل شمسی در برابر ماه قبل',
+                default => throw new \LogicException('Unsupported sales period.'),
             }
                 ."\nفروش تسویه‌شده: ".$money($snapshot['windows']['current']['revenueRials'])
                 .' (قبل: '.$money($snapshot['windows']['previous']['revenueRials']).')'
@@ -151,6 +155,7 @@ final readonly class PrepareDenizExecutiveAnalysis
                 '7' => '۷ روز شامل امروز',
                 '30' => '۳۰ روز شامل امروز',
                 'all' => 'از ابتدای فعالیت',
+                default => throw new \LogicException('Unsupported cash period.'),
             }
                 ."\nورودی نقدی: ".$money($snapshot['metrics']['cashInRials'])
                 .' | شارژ کیف پول: '.$money($snapshot['metrics']['topupsRials'])
@@ -160,6 +165,7 @@ final readonly class PrepareDenizExecutiveAnalysis
                 '7' => '۷ روز شامل امروز',
                 '30' => '۳۰ روز شامل امروز',
                 'month' => 'ماه جاری شمسی تا امروز',
+                default => throw new \LogicException('Unsupported accounting period.'),
             }
                 ."\nفروش: ".$money($snapshot['metrics']['salesRials'])
                 .' | هزینه ثبت‌شده: '.$money($snapshot['metrics']['expensesRials'])
@@ -170,6 +176,7 @@ final readonly class PrepareDenizExecutiveAnalysis
                 .' | نمایندگان: '.$money($snapshot['metrics']['resellerBalanceRials'])
                 .' | کاربران عادی: '.$money($snapshot['metrics']['memberBalanceRials'])
                 ."\n🕒 ".$generated,
+            default => throw new \LogicException('Unsupported executive dataset.'),
         };
     }
 }
