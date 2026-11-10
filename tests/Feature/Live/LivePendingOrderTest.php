@@ -130,10 +130,9 @@ it('shows plans before nine owned named orders per page and restores the same pa
         ->and(fn () => $reader->pageNewPlans($owner->id, 9, -1))->toThrow(ValidationException::class);
     $names = app(ManageResellerServiceLabels::class)->forRecentNewPlanOrders($owner->id,
         [$ids[0], $ids[19], $foreignOrder->id]);
-    expect($names)->toBe([
-        $ids[0] => 'مشتری 0',
-        $ids[19] => 'مشتری <ویژه> & تست',
-    ]);
+    expect($names[$ids[0]] ?? null)->toBe('مشتری 0')
+        ->and($names[$ids[19]] ?? null)->toBe('مشتری <ویژه> & تست')
+        ->and(array_key_exists($foreignOrder->id, $names))->toBeFalse();
 
     $this->actingAs($owner)->withSession(['denagate_live.user_id' => $owner->id]);
     $page = Livewire::test(Dashboard::class)
@@ -209,8 +208,7 @@ it('resets only recent-order paging after a new purchase and keeps reseller orde
     $owner->syncRoles(['member']);
     $page->call('nextRecentOrders')->assertForbidden();
 
-    expect(fn () => app(OrderReader::class)->pageNewPlans($foreign->id, 9, $latest))
-        ->not->toThrow(ValidationException::class);
+    expect(app(OrderReader::class)->pageNewPlans($foreign->id, 9, $latest)->orders)->toBe([]);
     expect(DB::table('billing_journals')->count())->toBe(0);
     Http::assertNothingSent();
 });
