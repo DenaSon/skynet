@@ -8,6 +8,7 @@ use App\Interfaces\Telegram\Processing\DenixGroupAccess;
 use App\Interfaces\Telegram\Processing\DenixMessageSender;
 use App\Modules\AI\Application\AskAssistant;
 use App\Modules\AI\Application\DenixAssistant;
+use App\Modules\AI\Application\DenizExecutiveAssistant;
 use App\Modules\AI\Application\PrepareDenizExecutiveAnalysis;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
@@ -18,6 +19,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
+use Laravel\Ai\Attributes\MaxTokens;
 use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
@@ -175,7 +177,7 @@ it('sends canonical sales evidence plus an executive-only prompt and never expor
     Http::assertSentCount(2);
     Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.gapgpt.app/v1/chat/completions'
         && $request['model'] === 'gpt-6-luna'
-        && str_contains($request['messages'][0]['content'], 'مشاور ارشد حسابداری')
+        && str_contains($request['messages'][0]['content'], 'مشاور ارشد مالی')
         && str_contains($request['messages'][1]['content'], '"revenueRials":2500000')
         && str_contains($request['messages'][1]['content'], '"reseller"')
         && ! str_contains(json_encode($request['messages'], JSON_THROW_ON_ERROR), 'PRIVATEBANKREFERENCE')
@@ -377,4 +379,87 @@ it('does not remember executive follow-ups when Telegram delivery is uncertain',
     expect(app(DenixConversationState::class)->executiveSelection(-100987654321, 12, 180001))
         ->toBeNull();
     Http::assertSentCount(2);
+});
+
+it('reads registered and active users only from local Identity and settled Sales data, never Remnawave', function (): void {
+    $root = executive02Root();
+    User::factory()->create(['is_active' => true]);
+    $localCount = User::query()->count();
+
+    $prepared = app(PrepareDenizExecutiveAnalysis::class)->handle(180001, 'تعداد کاربران چند نفر است؟');
+    expect($prepared['dataset'])->toBe('users')
+        ->and($prepared['period'])->toBe('current')
+        ->and($prepared['headline'])->toContain('کاربران محلی دناگیت', 'ثبت‌شده: '.$localCount)
+        ->and($prepared['prompt'])->toContain('"dataset":"users","period":"current"')
+        ->and($prepared['prompt'])->toContain('"registeredUsers":'.$localCount)
+        ->and($prepared['prompt'])->toContain('"activeAccounts":2')
+        ->and($prepared['prompt'])->not->toContain('Never Export This Name', 'PRIVATEBANKREFERENCE');
+
+    $last30 = app(PrepareDenizExecutiveAnalysis::class)->handle(180001, 'ثبت نام ۳۰ روز اخیر چقدر بوده؟');
+    expect($last30['dataset'])->toBe('users');
+
+    foreach (['کاربران آنلاین چقدرند؟', 'تعداد اشتراک فعال چنده؟', 'گزارش کاربران این ماه'] as $question) {
+        // Online and RW subscription metrics cannot be inferred from local users.
+        if ($question === 'تعداد اشتراک فعال چنده؟') {
+            expect(app(PrepareDenizExecutiveAnalysis::class)->handle(180001, $question))->toBeNull();
+
+            continue;
+        }
+
+        expect(fn () => app(PrepareDenizExecutiveAnalysis::class)->handle(180001, $question))
+            ->toThrow(InvalidArgumentException::class);
+    }
+
+    Http::assertNothingSent();
+});
+
+it('maps full money received to corrected cash-all report rather than stale accounting context', function (): void {
+    $root = executive02Root();
+    executive02Sale($root, 2_500_000);
+
+    $prepared = app(PrepareDenizExecutiveAnalysis::class)->handle(
+        180001, 'کل ورود پول چقدر بوده؟', ['dataset' => 'accounting', 'period' => 'month'],
+    );
+
+    expect($prepared['dataset'])->toBe('cash')
+        ->and($prepared['period'])->toBe('all')
+        ->and($prepared['prompt'])->toContain('"dataset":"cash","period":"all"')
+        ->and($prepared['prompt'])->toContain('"cashInRials":2500000')
+        ->and($prepared['headline'])->toContain('ورودی نقدی: 250,000 تومان')
+        ->and($prepared['headline'])->not->toContain('سود برآوردی');
+
+    Http::assertNothingSent();
+});
+
+it('renders canonical Jalali report boundaries and deterministic insight signals without model conversion', function (): void {
+    $root = executive02Root();
+    executive02Sale($root, 3_000_000);
+
+    $accounting = app(PrepareDenizExecutiveAnalysis::class)->handle(180001, 'تحلیل مالی ماه جاری');
+    expect($accounting['headline'])->toContain('بازه شمسی: ۱۴۰۵/۰۸/۰۱ تا ۱۴۰۵/۰۸/۱۹')
+        ->and($accounting['prompt'])->toContain('"windowFa":{"start":"۱۴۰۵/۰۸/۰۱","endInclusive":"۱۴۰۵/۰۸/۱۹"}')
+        ->and($accounting['prompt'])->toContain('"recordedExpenseSharePercent":0');
+
+    $sales = app(PrepareDenizExecutiveAnalysis::class)->handle(180001, 'تحلیل فروش هفتگی');
+    expect($sales['prompt'])->toContain('"averageOrderRials":3000000')
+        ->and($sales['prompt'])->toContain('"renewalSharePercent":0')
+        ->and($sales['prompt'])->toContain('"windowFa"')
+        ->and(mb_strlen($sales['prompt']))->toBeLessThanOrEqual(2000);
+
+    Http::assertNothingSent();
+});
+
+it('keeps the higher token allowance executive-only and does not grant tools or new models', function (): void {
+    $executive = new ReflectionClass(DenizExecutiveAssistant::class);
+    $standard = new ReflectionClass(DenixAssistant::class);
+    $attribute = MaxTokens::class;
+
+    expect($executive->getAttributes($attribute))->toHaveCount(1)
+        ->and($standard->getAttributes($attribute))->toHaveCount(1)
+        ->and($executive->getAttributes($attribute)[0]->getArguments()[0])->toBe(1100)
+        ->and($standard->getAttributes($attribute)[0]->getArguments()[0])->toBe(700)
+        ->and(iterator_to_array((new DenizExecutiveAssistant)->tools()))->toBeEmpty()
+        ->and((new DenizExecutiveAssistant)->instructions())->toContain('مشاور ارشد مالی');
+
+    Http::assertNothingSent();
 });

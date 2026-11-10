@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\AI\Application;
 
 use App\Modules\Identity\Application\ResolveTelegramActor;
+use App\Support\PersianCalendar;
 use Illuminate\Auth\Access\AuthorizationException;
 use InvalidArgumentException;
 
@@ -50,6 +51,9 @@ final readonly class PrepareDenizExecutiveAnalysis
             'currency' => $snapshot['currency'],
             'source' => $snapshot['source'],
             'generatedAt' => $snapshot['generatedAt'],
+            'generatedAtFa' => PersianCalendar::localDateTime($snapshot['generatedAt']),
+            'windowFa' => self::persianWindows($snapshot),
+            'signals' => self::insightSignals($snapshot),
             'data' => match ($selected['dataset']) {
                 'sales' => [
                     'windows' => $snapshot['windows'],
@@ -67,13 +71,14 @@ final readonly class PrepareDenizExecutiveAnalysis
                     'metrics' => $snapshot['metrics'],
                 ],
                 'wallet' => ['metrics' => $snapshot['metrics']],
+                'users' => ['metrics' => $snapshot['metrics'], 'windows' => $snapshot['windows']],
                 default => throw new \LogicException('Unsupported executive dataset.'),
             },
         ];
 
         $prompt = 'پرسش مدیر: '.$question."\n"
             .'داده تجمیعی تأییدشده (مبالغ IRR، زمان تهران): '
-            .json_encode($evidence, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+            .json_encode($evidence, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
 
         if (mb_strlen($prompt) > (int) config('denagate_ai.max_input_chars', 2000)) {
             // Do not truncate financial evidence or present partial data as complete.
@@ -91,7 +96,7 @@ final readonly class PrepareDenizExecutiveAnalysis
     /** @return array{dataset:string,period:string}|null */
     private static function select(string $question, ?array $context = null): ?array
     {
-        if (preg_match('/\A\s*(?:دنیز[،,:]?\s*)?(?:تحلیل|گزارش)\s+(شارژ کیف پول|کیف پول|حسابداری|نقدینگی|دریافتی‌ها|دریافتی ها|نمایندگی|فروش|مالی)(?=\s|\z)/u', trim($question), $matches) !== 1) {
+        if (preg_match('/\A\s*(?:دنیز[،,:]?\s*)?(?:تحلیل|گزارش)\s+(شارژ کیف پول|کیف پول|حسابداری|نقدینگی|دریافتی‌ها|دریافتی ها|نمایندگی|فروش|مالی|کاربران|کاربرها|کاربر)(?=\s|\z)/u', trim($question), $matches) !== 1) {
             return self::naturalSelection($question, $context);
         }
 
@@ -101,6 +106,7 @@ final readonly class PrepareDenizExecutiveAnalysis
             'شارژ کیف پول', 'نقدینگی', 'دریافتی‌ها', 'دریافتی ها' => 'cash',
             'حسابداری', 'مالی' => 'accounting',
             'کیف پول' => 'wallet',
+            'کاربران', 'کاربرها', 'کاربر' => 'users',
         };
 
         // Never silently replace an explicitly requested unsupported duration
@@ -113,6 +119,7 @@ final readonly class PrepareDenizExecutiveAnalysis
                     'sales' => $duration[2] === 'ساعت' && $number === '24',
                     'cash', 'accounting' => $duration[2] === 'روز' && in_array($number, ['7', '30'], true),
                     'wallet' => false,
+                    'users' => $duration[2] === 'روز' && in_array($number, ['7', '30'], true),
                 };
 
                 if (! $allowed) {
@@ -132,6 +139,9 @@ final readonly class PrepareDenizExecutiveAnalysis
         if ($dataset === 'accounting' && preg_match('/(?:از ابتدا|از آغاز|کل تاریخ|دیروز|این هفته)/u', $question) === 1) {
             throw new InvalidArgumentException('گزارش حسابداری فعلاً برای ۷ روز، ۳۰ روز یا ماه جاری در دسترس است.');
         }
+        if ($dataset === 'users' && preg_match('/(?:دیروز|ماه قبل|ماه جاری|این ماه|هفته قبل|این هفته|آنلاین|اشتراک فعال|کاربران پنل|(?:۲۴|24)\\s*ساعت)/u', $question) === 1) {
+            throw new InvalidArgumentException('در این گزارش فقط کاربران محلی و ثبت‌نام یا خریدهای ۷ و ۳۰ روز اخیر قابل بررسی هستند؛ آمار آنلاین یا اشتراک‌های پنل از این مسیر دریافت نمی‌شود.');
+        }
         if ($dataset === 'wallet' && preg_match('/(?:دیروز|گذشته|قبلی|قبل|هفته|ماه|(?:۳۰|30|۷|7)\s*روز)/u', $question) === 1) {
             throw new InvalidArgumentException('گزارش کیف پول فعلاً فقط مانده لحظه‌ای را نشان می‌دهد، نه مانده تاریخی.');
         }
@@ -144,7 +154,7 @@ final readonly class PrepareDenizExecutiveAnalysis
                 : (preg_match('/(?:۳۰|30)\s*روز/u', $question) === 1 ? '30' : '7'),
             'accounting' => preg_match('/(?:۳۰|30)\s*روز/u', $question) === 1 ? '30'
                 : (preg_match('/(?:۷|7)\s*روز/u', $question) === 1 ? '7' : 'month'),
-            'wallet' => 'current',
+            'wallet', 'users' => 'current',
         };
 
         return ['dataset' => $dataset, 'period' => $period];
@@ -162,9 +172,10 @@ final readonly class PrepareDenizExecutiveAnalysis
     {
         $subjectPatterns = [
             'sales' => '/فروش|سفارش|خرید|نمایند/u',
-            'cash' => '/نقدینگی|دریافت|شارژ|واریز/u',
+            'cash' => '/نقدینگی|دریافت|شارژ|واریز|ورود\\s*پول|ورودی\\s*پول|پول\\s*وارد/u',
             'accounting' => '/حسابداری|مالی|هزینه|سود|برداشت مالک/u',
             'wallet' => '/کیف پول|مانده اعتبار/u',
+            'users' => '/کاربر|ثبت[‌ ]?نام|مشتری|اعضا/u',
         ];
 
         $datasets = [];
@@ -211,16 +222,92 @@ final readonly class PrepareDenizExecutiveAnalysis
             'cash' => 'نقدینگی',
             'accounting' => 'حسابداری',
             'wallet' => 'کیف پول',
+            'users' => 'کاربران',
             default => throw new InvalidArgumentException('نوع گزارش پشتیبانی نمی‌شود.'),
         };
 
-        return self::select('تحلیل '.$subject.' '.$question);
+        $allCash = $dataset === 'cash' && ! $hasPeriod
+            && preg_match('/(?:کل|مجموع|جمع)\\s*(?:ورود|ورودی|دریافت|واریز|نقدینگی)/u', $question) === 1;
+
+        return self::select('تحلیل '.$subject.' '.$question.($allCash ? ' از ابتدا' : ''));
+    }
+
+    /**
+     * Display-only Persian dates supplied by Laravel, not generated by AI.
+     *
+     * @param  array<string, mixed>  $snapshot
+     * @return array<string, mixed>
+     */
+    private static function persianWindows(array $snapshot): array
+    {
+        if ($snapshot['dataset'] === 'sales') {
+            return [
+                'currentFrom' => PersianCalendar::localDateTime($snapshot['windows']['current']['from']),
+                'currentUntilExclusive' => PersianCalendar::localDateTime($snapshot['windows']['current']['until']),
+                'previousFrom' => PersianCalendar::localDateTime($snapshot['windows']['previous']['from']),
+                'previousUntilExclusive' => PersianCalendar::localDateTime($snapshot['windows']['previous']['until']),
+            ];
+        }
+
+        if (in_array($snapshot['dataset'], ['cash', 'accounting'], true)) {
+            $start = $snapshot['window']['start'];
+
+            return [
+                'start' => $start === null ? null : PersianCalendar::date($start),
+                'endInclusive' => PersianCalendar::date($snapshot['window']['endInclusive']),
+            ];
+        }
+
+        if ($snapshot['dataset'] === 'users') {
+            return [
+                'last7DaysFrom' => PersianCalendar::date($snapshot['windows']['last7Days']['start']),
+                'last30DaysFrom' => PersianCalendar::date($snapshot['windows']['last30Days']['start']),
+                'endInclusive' => PersianCalendar::date($snapshot['windows']['last7Days']['endInclusive']),
+            ];
+        }
+
+        return [];
+    }
+
+    /**
+     * Only arithmetic signals from the same verified source window.
+     *
+     * @param  array<string, mixed>  $snapshot
+     * @return array<string, int|float|null>
+     */
+    private static function insightSignals(array $snapshot): array
+    {
+        $ratio = static fn (int $part, int $whole): ?float => $whole > 0
+            ? round($part * 100 / $whole, 1) : null;
+
+        return match ($snapshot['dataset']) {
+            'sales' => [
+                'averageOrderRials' => $snapshot['windows']['current']['transactions'] > 0
+                    ? intdiv($snapshot['windows']['current']['revenueRials'], $snapshot['windows']['current']['transactions']) : null,
+                'previousAverageOrderRials' => $snapshot['windows']['previous']['transactions'] > 0
+                    ? intdiv($snapshot['windows']['previous']['revenueRials'], $snapshot['windows']['previous']['transactions']) : null,
+                'renewalSharePercent' => $ratio($snapshot['windows']['current']['renewals'], $snapshot['windows']['current']['transactions']),
+            ],
+            'cash' => [
+                'topupShareOfCashPercent' => $ratio($snapshot['metrics']['topupsRials'], $snapshot['metrics']['cashInRials']),
+            ],
+            'accounting' => [
+                'recordedExpenseSharePercent' => $ratio($snapshot['metrics']['expensesRials'], $snapshot['metrics']['salesRials']),
+            ],
+            'wallet' => [
+                'resellerShareOfCreditPercent' => $ratio($snapshot['metrics']['resellerBalanceRials'], $snapshot['metrics']['balanceRials']),
+            ],
+            'users' => [
+                'activeAccountSharePercent' => $ratio($snapshot['metrics']['activeAccounts'], $snapshot['metrics']['registeredUsers']),
+            ],
+            default => [],
+        };
     }
 
     /** @param array<string, mixed> $snapshot */
     private static function headline(array $snapshot): string
     {
-        $generated = $snapshot['generatedAt'].' (تهران)';
+        $generated = PersianCalendar::localDateTime($snapshot['generatedAt']).' (تهران)';
         $money = static fn (int $rials): string => number_format(intdiv($rials, 10)).' تومان';
 
         return match ($snapshot['dataset']) {
@@ -255,12 +342,21 @@ final readonly class PrepareDenizExecutiveAnalysis
             }
             ."\nفروش: ".$money($snapshot['metrics']['salesRials'])
             .' | هزینه ثبت‌شده: '.$money($snapshot['metrics']['expensesRials'])
+            ."\nبازه شمسی: ".PersianCalendar::date($snapshot['window']['start']).' تا '.PersianCalendar::date($snapshot['window']['endInclusive'])
             ."\nسود برآوردی (نه قطعی): ".$money($snapshot['metrics']['profitRials'])
             ."\n🕒 ".$generated,
             'wallet' => '💳 موجودی لحظه‌ای کیف پول‌ها'
                 ."\nمانده کل: ".$money($snapshot['metrics']['balanceRials'])
                 .' | نمایندگان: '.$money($snapshot['metrics']['resellerBalanceRials'])
                 .' | کاربران عادی: '.$money($snapshot['metrics']['memberBalanceRials'])
+                .' | سایر: '.$money($snapshot['metrics']['otherBalanceRials'])
+                ."\n🕒 ".$generated,
+            'users' => '👥 کاربران محلی دناگیت'
+                ."\nثبت‌شده: ".$snapshot['metrics']['registeredUsers']
+                .' | حساب‌های فعال: '.$snapshot['metrics']['activeAccounts']
+                .' | ثبت‌نام ۷ روز: '.$snapshot['metrics']['newUsers7Days']
+                .' | ثبت‌نام ۳۰ روز: '.$snapshot['metrics']['newUsers30Days']
+                .' | خریداران یکتای ۳۰ روز: '.$snapshot['metrics']['uniqueBuyers30Days']
                 ."\n🕒 ".$generated,
             default => throw new \LogicException('Unsupported executive dataset.'),
         };

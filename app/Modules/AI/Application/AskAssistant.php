@@ -70,7 +70,10 @@ final readonly class AskAssistant
         }
 
         try {
-            $response = (new DenixAssistant(customerSupport: $customerSupport, executive: $executive))->withMessages($history)->prompt(
+            $agent = $executive
+                ? new DenizExecutiveAssistant
+                : new DenixAssistant(customerSupport: $customerSupport);
+            $response = $agent->withMessages($history)->prompt(
                 $prompt,
                 provider: 'gapgpt',
                 model: $model,
