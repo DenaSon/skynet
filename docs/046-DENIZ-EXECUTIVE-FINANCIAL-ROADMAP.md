@@ -41,6 +41,40 @@ Unspecified supported periods use a fixed, clearly labeled default (sales = last
 
 **Non-goals:** No Admin/Sales/Business bot changes, new menu/command or provider permission, schema or migration, new package, finance mutation, AI SQL reader, web interface, plan-margin or ROI calculations, or scheduled digests. Rollback is an isolated PR revert.
 
+## Phase 2 polish — Telegram commands and rolling 24-hour sales (2026-11-10)
+
+This narrow addition to phase 2 does not authorize open-ended phase 3, financial writes, new models or customer Business changes.
+
+### Group-scoped command menu
+
+DenixCommandCatalog is the single source of both the native Telegram slash list and the trusted group's shortcut-to-question mapping:
+
+| Command | Group analysis/action |
+| --- | --- |
+| /ai | Type /ai followed by the custom question |
+| /sales24h | Sales in rolling last 24h compared to the preceding 24h |
+| /salesweek | Sales of last 7 complete Tehran days |
+| /resellers | Reseller channel over last 7 complete Tehran days |
+| /cash30 | Cash receipts over 30 calendar days including today |
+| /accounting | Current Persian month-to-date accounting |
+| /wallet | Current ledger-derived wallet balance |
+| /aimodel, /ainew, /aistatus | Original group model/reset/status commands |
+
+**Registration is an explicit operator step, not part of git merge or Scheduler:**
+
+    php artisan deniz:telegram:commands:register --dry-run
+    php artisan deniz:telegram:commands:register
+
+The second command invokes Telegram Bot API setMyCommands with scope type=chat and chat_id=DENAGATE_AI_GROUP_CHAT_ID, using the distinct Deniz Bot token. Only this group scope is changed: global BotFather defaults, other groups and Admin/Sales Bot command menus are preserved. Existing management commands are included so they are not lost when the group-specific list is replaced. Without an actual successful operator invocation and Telegram UI verification, do not claim the live command menu is visible.
+
+The group menu is only a discovery surface, **not** an access grant. The established webhook/queued-job active trusted Super Admin checks, rate limits, replay fences, model budget and financial authorization still govern execution; shortcuts consume the ordinary paid AI request quota. Non-root members may see the menu but cannot invoke financial analysis. Financial answers remain visible to anyone who can read this group; operators must restrict its membership. Wrong bot targets and extra shortcut arguments are ignored.
+
+### The exact rolling 24h period
+
+The additional sales/24h period extends the canonical ReadAdminManagementKpis → ReadAdminSalesChannelKpis → ReadDenizExecutiveSnapshot → PrepareDenizExecutiveAnalysis chain; no parallel purchases SQL. At request time T, compute the **half-open** periods [T-24h, T) and [T-48h, T-24h), convert Tehran endpoints to UTC for settlement queries, and preserve existing refunded wallet/bank history semantics, unknown channels, concentration redaction and null growth when the prior amount is zero. This is not sales/day (Tehran today to now). The existing transaction and read-only root checks remain unchanged.
+
+Tests cover fixed-clock boundaries and refund behavior, AI snapshot evidence, slash alias routing and authorization, registration scope/offline dry run and failure paths. No migration or new dependency. GitHub PHP 8.4/PHPStan/Pint/MySQL verification is required before merge; real Telegram/BotFather UI and Production behavior need a separate operator check.
+
 ## Phase 1 implementation contract
 
 Class: `app/Modules/AI/Application/ReadDenizExecutiveSnapshot.php`.
