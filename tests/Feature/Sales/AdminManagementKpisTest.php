@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Modules\AI\Application\ReadDenizExecutiveSnapshot;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Sales\Application\ReadAdminBusinessReport;
@@ -402,7 +403,6 @@ it('keeps unknown historical orders separate and protects empty and unauthorized
     Http::assertNothingSent();
 });
 
-
 it('compares exact rolling twenty-four-hour windows using canonical bank and wallet settlements', function (): void {
     $root = kpiRoot();
     $buyer = kpiUser('2026-09-01 12:00:00');
@@ -436,7 +436,7 @@ it('compares exact rolling twenty-four-hour windows using canonical bank and wal
         ->and($report['current']['channels']['reseller']['revenueRials'])->toBe(500_000)
         ->and($report['previous']['channels']['unknown']['revenueRials'])->toBe(700_000);
 
-    $snapshot = app(\App\Modules\AI\Application\ReadDenizExecutiveSnapshot::class)
+    $snapshot = app(ReadDenizExecutiveSnapshot::class)
         ->handle($root->id, 'sales', '24h');
     expect($snapshot['windows']['current'])->toBe($kpis['current'])
         ->and($snapshot['channels']['current'])->toBe($report['current']['channels'])
@@ -445,7 +445,7 @@ it('compares exact rolling twenty-four-hour windows using canonical bank and wal
         ->toBe('2026-11-05 00:00:00');
 
     $other = User::factory()->admin()->create();
-    expect(fn () => app(\App\Modules\AI\Application\ReadDenizExecutiveSnapshot::class)
+    expect(fn () => app(ReadDenizExecutiveSnapshot::class)
         ->handle($other->id, 'sales', '24h'))->toThrow(AuthorizationException::class);
     Http::assertNothingSent();
 });
