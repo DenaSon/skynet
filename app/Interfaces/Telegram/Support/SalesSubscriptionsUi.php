@@ -432,10 +432,25 @@ final readonly class SalesSubscriptionsUi
 
         $name = TelegramUi::escape($this->clean($draft->planName));
         $traffic = $draft->trafficGb === null ? 'نامحدود' : $draft->trafficGb.' گیگابایت';
-        $message = '<b>🔄 پیش‌نمایش تمدید سرویس #'.$draft->sourceOrderId.'</b>'
+        $resellerId = $this->resellerId($bot);
+        $customerLabel = null;
+        if ($resellerId !== null) {
+            try {
+                $customerLabel = $this->customerLabels->get($resellerId, $sourceId);
+            } catch (Throwable) {
+                // Optional display metadata must not block a verified renewal preview.
+            }
+        }
+        $heading = $resellerId === null
+            ? '🔄 پیش‌نمایش تمدید سرویس #'.$draft->sourceOrderId
+            : '🔄 پیش‌نمایش تمدید سرویس'.($customerLabel === null
+                ? '' : ' «'.TelegramUi::escape($this->clean($customerLabel)).'»');
+        $orderReference = $resellerId === null ? '' : "\nشماره سفارش: #{$draft->sourceOrderId}";
+        $message = '<b>'.$heading.'</b>'
             ."\n\nپلن: {$name}"
             ."\nمدت تمدید: {$draft->durationDays} روز"
             ."\nحجم پلن: {$traffic}"
+            .$orderReference
             ."\nقیمت فعلی: <b>".TelegramUi::toman($draft->priceRials).' تومان</b>'
             ."\n\n<blockquote>این پیش‌نمایش فقط برای همین سرویس ذخیره شد."
             .(config('sales.renewal_enabled', false) === true
@@ -456,11 +471,12 @@ final readonly class SalesSubscriptionsUi
         }
 
         if ($rich) {
-            $html = '<h4>🔄 پیش‌نمایش تمدید سرویس #'.$draft->sourceOrderId.'</h4>'
+            $html = '<h4>'.$heading.'</h4>'
                 .'<p>پلن: <b>'.$name.'</b>'
                 .'<br>مدت تمدید: '.$draft->durationDays.' روز'
                 .'<br>حجم پلن: '.$traffic.'</p>'
                 .'<p>💰 قیمت فعلی: <b>'.TelegramUi::toman($draft->priceRials).' تومان</b></p>'
+                .($resellerId === null ? '' : '<details><summary>🧾 مشخصات سفارش</summary><p>شماره سفارش: #'.$draft->sourceOrderId.'</p></details>')
                 .'<details><summary>📋 شرایط تمدید</summary><p>'
                 .(config('sales.renewal_enabled', false) === true
                     ? 'این پیش‌نمایش فقط برای همین سرویس است. پرداخت فقط بعد از انتخاب و تأیید شما آغاز می‌شود و اعتبار همان اشتراک افزایش می‌یابد.'
