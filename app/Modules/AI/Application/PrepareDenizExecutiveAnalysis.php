@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\AI\Application;
 
 use App\Modules\Identity\Application\ResolveTelegramActor;
+use App\Support\PersianCalendar;
 use Illuminate\Auth\Access\AuthorizationException;
 use InvalidArgumentException;
 
@@ -50,6 +51,9 @@ final readonly class PrepareDenizExecutiveAnalysis
             'currency' => $snapshot['currency'],
             'source' => $snapshot['source'],
             'generatedAt' => $snapshot['generatedAt'],
+            'generatedAtFa' => PersianCalendar::localDateTime($snapshot['generatedAt']),
+            'windowFa' => self::persianWindows($snapshot),
+            'signals' => self::insightSignals($snapshot),
             'data' => match ($selected['dataset']) {
                 'sales' => [
                     'windows' => $snapshot['windows'],
@@ -67,6 +71,7 @@ final readonly class PrepareDenizExecutiveAnalysis
                     'metrics' => $snapshot['metrics'],
                 ],
                 'wallet' => ['metrics' => $snapshot['metrics']],
+                'users' => ['metrics' => $snapshot['metrics'], 'windows' => $snapshot['windows']],
                 default => throw new \LogicException('Unsupported executive dataset.'),
             },
         ];
@@ -91,7 +96,7 @@ final readonly class PrepareDenizExecutiveAnalysis
     /** @return array{dataset:string,period:string}|null */
     private static function select(string $question, ?array $context = null): ?array
     {
-        if (preg_match('/\A\s*(?:دنیز[،,:]?\s*)?(?:تحلیل|گزارش)\s+(شارژ کیف پول|کیف پول|حسابداری|نقدینگی|دریافتی‌ها|دریافتی ها|نمایندگی|فروش|مالی)(?=\s|\z)/u', trim($question), $matches) !== 1) {
+        if (preg_match('/\A\s*(?:دنیز[،,:]?\s*)?(?:تحلیل|گزارش)\s+(شارژ کیف پول|کیف پول|حسابداری|نقدینگی|دریافتی‌ها|دریافتی ها|نمایندگی|فروش|مالی|کاربران|کاربرها|کاربر)(?=\s|\z)/u', trim($question), $matches) !== 1) {
             return self::naturalSelection($question, $context);
         }
 
@@ -101,6 +106,7 @@ final readonly class PrepareDenizExecutiveAnalysis
             'شارژ کیف پول', 'نقدینگی', 'دریافتی‌ها', 'دریافتی ها' => 'cash',
             'حسابداری', 'مالی' => 'accounting',
             'کیف پول' => 'wallet',
+            'کاربران', 'کاربرها', 'کاربر' => 'users',
         };
 
         // Never silently replace an explicitly requested unsupported duration
@@ -112,7 +118,7 @@ final readonly class PrepareDenizExecutiveAnalysis
                 $allowed = match ($dataset) {
                     'sales' => $duration[2] === 'ساعت' && $number === '24',
                     'cash', 'accounting' => $duration[2] === 'روز' && in_array($number, ['7', '30'], true),
-                    'wallet' => false,
+                    'wallet', 'users' => false,
                 };
 
                 if (! $allowed) {
@@ -132,6 +138,9 @@ final readonly class PrepareDenizExecutiveAnalysis
         if ($dataset === 'accounting' && preg_match('/(?:از ابتدا|از آغاز|کل تاریخ|دیروز|این هفته)/u', $question) === 1) {
             throw new InvalidArgumentException('گزارش حسابداری فعلاً برای ۷ روز، ۳۰ روز یا ماه جاری در دسترس است.');
         }
+        if ($dataset === 'users' && preg_match('/(?:دیروز|ماه قبل|هفته قبل|(?:۲۴|24)\\s*ساعت)/u', $question) === 1) {
+            throw new InvalidArgumentException('آمار کاربران فقط وضعیت فعلی و گزارش‌های محلی ۷ و ۳۰ روز اخیر را نشان می‌دهد.');
+        }
         if ($dataset === 'wallet' && preg_match('/(?:دیروز|گذشته|قبلی|قبل|هفته|ماه|(?:۳۰|30|۷|7)\s*روز)/u', $question) === 1) {
             throw new InvalidArgumentException('گزارش کیف پول فعلاً فقط مانده لحظه‌ای را نشان می‌دهد، نه مانده تاریخی.');
         }
@@ -144,7 +153,7 @@ final readonly class PrepareDenizExecutiveAnalysis
                 : (preg_match('/(?:۳۰|30)\s*روز/u', $question) === 1 ? '30' : '7'),
             'accounting' => preg_match('/(?:۳۰|30)\s*روز/u', $question) === 1 ? '30'
                 : (preg_match('/(?:۷|7)\s*روز/u', $question) === 1 ? '7' : 'month'),
-            'wallet' => 'current',
+            'wallet', 'users' => 'current',
         };
 
         return ['dataset' => $dataset, 'period' => $period];
@@ -162,9 +171,10 @@ final readonly class PrepareDenizExecutiveAnalysis
     {
         $subjectPatterns = [
             'sales' => '/فروش|سفارش|خرید|نمایند/u',
-            'cash' => '/نقدینگی|دریافت|شارژ|واریز/u',
+            'cash' => '/نقدینگی|دریافت|شارژ|واریز|ورود\\s*پول|ورودی\\s*پول|پول\\s*وارد/u',
             'accounting' => '/حسابداری|مالی|هزینه|سود|برداشت مالک/u',
             'wallet' => '/کیف پول|مانده اعتبار/u',
+            'users' => '/کاربر|ثبت[‌ ]?نام|مشتری|اعضا/u',
         ];
 
         $datasets = [];
@@ -211,16 +221,20 @@ final readonly class PrepareDenizExecutiveAnalysis
             'cash' => 'نقدینگی',
             'accounting' => 'حسابداری',
             'wallet' => 'کیف پول',
+            'users' => 'کاربران',
             default => throw new InvalidArgumentException('نوع گزارش پشتیبانی نمی‌شود.'),
         };
 
-        return self::select('تحلیل '.$subject.' '.$question);
+        $allCash = $dataset === 'cash' && ! $hasPeriod
+            && preg_match('/(?:کل|مجموع|جمع)\\s*(?:ورود|ورودی|دریافت|واریز|نقدینگی)/u', $question) === 1;
+
+        return self::select('تحلیل '.$subject.' '.$question.($allCash ? ' از ابتدا' : ''));
     }
 
     /** @param array<string, mixed> $snapshot */
     private static function headline(array $snapshot): string
     {
-        $generated = $snapshot['generatedAt'].' (تهران)';
+        $generated = PersianCalendar::localDateTime($snapshot['generatedAt']).' (تهران)';
         $money = static fn (int $rials): string => number_format(intdiv($rials, 10)).' تومان';
 
         return match ($snapshot['dataset']) {
@@ -261,6 +275,7 @@ final readonly class PrepareDenizExecutiveAnalysis
                 ."\nمانده کل: ".$money($snapshot['metrics']['balanceRials'])
                 .' | نمایندگان: '.$money($snapshot['metrics']['resellerBalanceRials'])
                 .' | کاربران عادی: '.$money($snapshot['metrics']['memberBalanceRials'])
+                .' | سایر: '.$money($snapshot['metrics']['otherBalanceRials'])
                 ."\n🕒 ".$generated,
             default => throw new \LogicException('Unsupported executive dataset.'),
         };
