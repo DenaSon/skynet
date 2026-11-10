@@ -12,6 +12,7 @@ use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -289,7 +290,6 @@ it('never sends a pending cooldown notice after group access is revoked', functi
     Http::assertNothingSent();
 });
 
-
 it('routes every registered Deniz financial shortcut as a normal quota-bound group analysis', function (): void {
     $shortcuts = [
         '/sales24h' => 'تحلیل فروش ۲۴ ساعت اخیر',
@@ -334,7 +334,7 @@ it('keeps all shortcut messages root and group scoped and rejects spoofed names 
 it('registers only the configured group-scoped menu and never sends it to another bot', function (): void {
     Http::fake(['https://api.telegram.org/*' => Http::response(['ok' => true, 'result' => true])]);
 
-    expect(\Illuminate\Support\Facades\Artisan::call('deniz:telegram:commands:register'))->toBe(0);
+    expect(Artisan::call('deniz:telegram:commands:register'))->toBe(0);
 
     Http::assertSentCount(1);
     Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
@@ -351,19 +351,19 @@ it('registers only the configured group-scoped menu and never sends it to anothe
 it('previews Deniz group commands offline and fails closed on disabled or rejected registration', function (): void {
     Http::fake(['https://api.telegram.org/*' => Http::response(['ok' => false, 'result' => false], 403)]);
 
-    expect(\Illuminate\Support\Facades\Artisan::call('deniz:telegram:commands:register', ['--dry-run' => true]))->toBe(0);
+    expect(Artisan::call('deniz:telegram:commands:register', ['--dry-run' => true]))->toBe(0);
     Http::assertNothingSent();
 
     config()->set('telegram.denix.enabled', false);
-    expect(\Illuminate\Support\Facades\Artisan::call('deniz:telegram:commands:register'))->toBe(1);
+    expect(Artisan::call('deniz:telegram:commands:register'))->toBe(1);
     Http::assertNothingSent();
 
     config()->set('telegram.denix.enabled', true);
     config()->set('telegram.denix.token', '100001:admin-token');
-    expect(\Illuminate\Support\Facades\Artisan::call('deniz:telegram:commands:register'))->toBe(1);
+    expect(Artisan::call('deniz:telegram:commands:register'))->toBe(1);
     Http::assertNothingSent();
 
     config()->set('telegram.denix.token', '100003:denix-test-token');
-    expect(\Illuminate\Support\Facades\Artisan::call('deniz:telegram:commands:register'))->toBe(1);
+    expect(Artisan::call('deniz:telegram:commands:register'))->toBe(1);
     Http::assertSentCount(1);
 });
