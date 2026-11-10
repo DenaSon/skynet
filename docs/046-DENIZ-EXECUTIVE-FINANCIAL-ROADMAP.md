@@ -11,6 +11,36 @@ Deniz should become a trusted Super Admin-only management-group advisor for evid
 3. **AI-EXEC-03 — Controlled follow-up questions.** Limited dataset/period selection, follow-up context and evidence-aware comparisons; do not grant arbitrary SQL, open-ended tools or financial writes. Requires separate approval and PR.
 4. **AI-EXEC-04 — Security, quality and live acceptance.** Test root revocation, scope isolation, period alignment, fidelity, sensitive-data minimization, failure modes and actual authorized Telegram experience; release enablement remains explicitly controlled.
 
+
+## Phase 2 implementation contract — explicit Deniz Executive analysis
+
+Phase 2 uses the **existing** management-group \`/ai\` or direct reply-to-Deniz path, the existing dedicated \`ai\` queue, 25-request/manager/10min and 250-request/group/day limits, the current two verified GapGPT models and the existing one-shot Telegram send. The authenticated group/actor check runs at webhook intake and again in the async job. The financial snapshot Action additionally rechecks the **current trusted, active, Telegram-linked Super Admin** before data access, and the job rechecks group/actor rights before calling the model or sending the response.
+
+Only **explicit** analysis/report phrases at the *start* of the manager's question opt in to financial reads. For example:
+
+| Explicit manager question in the existing group | Dataset and authoritative window |
+| --- | --- |
+| \`/ai تحلیل فروش امروز\` | \`sales/day\` (today vs yesterday at the same Tehran clock time) |
+| \`/ai گزارش نمایندگی هفتگی\` | \`sales/week\` (last complete seven days, not calendar week to date) |
+| \`/ai تحلیل فروش ماهانه\` | \`sales/month\` (**previous complete** Persian month vs the preceding complete month) |
+| \`/ai گزارش نقدینگی ۷ روز\` / \`۳۰ روز\` / \`از ابتدا\` | \`cash/7\`, \`cash/30\`, \`cash/all\` |
+| \`/ai تحلیل مالی ماه جاری\` / \`گزارش حسابداری ۷ روز\` | \`accounting/month\` (month to date) / \`accounting/7\` |
+| \`/ai گزارش کیف پول\` | \`wallet/current\` (current ledger-derived liability) |
+
+Unspecified supported periods use a fixed, clearly labeled default (sales = last seven **complete** days, cash = last seven **calendar** days including today, accounting = current Persian month, wallet = current). Unsupported **explicit** windows such as "sales this month" or "cash Persian month to date" yield a friendly nonbillable notice instead of silently reinterpreting the request. General group chat continues via the original conversational prompt with **no financial reads**.
+
+**Data handling:** \`PrepareDenizExecutiveAnalysis\` selects from the four existing \`ReadDenizExecutiveSnapshot\` datasets, serializes a strict aggregated field allowlist as a bounded JSON user message (source, timezone, currency, actual reporting windows, metrics and concentration without buyer identities), and always shows an **application-rendered deterministic canonical facts header** with the real Tehran report time and monetary values correctly converted from integer rials to tomans. This prevents an unconstrained LLM from being the sole source of the displayed headline values. Any financial read failure or oversize input produces a clear notice **without a paid inference or fabricated zeros**. No raw customer records, invoice references, names, Telegram IDs, bank receipt details, arbitrary SQL, tools or provider calls are sent to the LLM.
+
+**Distinct system context:** \`DenizExecutiveKnowledge\` is the **executive-only** system prompt. It requires evidence/inference/action separation, conservative causal interpretation, actionable KPI suggestions, and correct sales/cash/wallet/profit distinctions. It does **not** replace \`DenizKnowledge\` (ordinary group assistant) or its Business-only customer-support extension. The existing agent's tool list stays empty. Both established models remain selectable; no new models or model-wide token/cost changes.
+
+**Context boundary:** In phase 2 each executive request analyzes **one authorized dataset/window**, without AI tool calls, cross-dataset joins or conversational follow-up routing. Executive questions and responses are **not saved** to the existing ordinary-group conversation cache, avoiding accidental reuse of stale monetary figures. Multiple datasets, arbitrary date ranges, conversational drilldowns and follow-up selection are reserved for separately approved phase 3.
+
+**Privacy:** Only trusted Super Admins can initiate a financial request; however, any member of the configured Telegram group may be able to **read** the result. Operators must ensure group membership is appropriate for sensitive aggregate finance. All outgoing model/Telegram calls require active authorization. Failure, callback, AI and telemetry logs must not include raw financial evidence or customer details.
+
+**Verification for phase 2:** Focused fake-provider/Telegram tests must validate accurate source money in sent group text, strictly aggregated and bounded JSON in the GapGPT request, exact root-only execution rights, nonfinancial chat and customer-support isolation, unsupported-period notices without AI billing, no financial state persistence in chat history, and one-shot/uncertain delivery. Full repository CI (PHP 8.4, PHPStan, Pint, MySQL, frontend) and a reviewed PR are required before merge. Scheduled PHP 8.5 is separate. Real Runflare deployment, connected management group membership and actual GapGPT/Telegram answer quality **cannot be inferred from fakes**; final real-world acceptance remains phase 4.
+
+**Non-goals:** No Admin/Sales/Business bot changes, new menu/command or provider permission, schema or migration, new package, finance mutation, AI SQL reader, web interface, plan-margin or ROI calculations, or scheduled digests. Rollback is an isolated PR revert.
+
 ## Phase 1 implementation contract
 
 Class: `app/Modules/AI/Application/ReadDenizExecutiveSnapshot.php`.
