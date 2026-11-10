@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Modules\AI\Application\ReadDenizExecutiveSnapshot;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Sales\Application\ReadAdminBusinessReport;
@@ -399,5 +400,52 @@ it('keeps unknown historical orders separate and protects empty and unauthorized
         ->and($midnight['current']['topThreeRevenueRials'])->toBe(0)
         ->and($midnight['current']['topThreeSharePercent'])->toBeNull()
         ->and($midnight['previous']['topThreeSharePercent'])->toBeNull();
+    Http::assertNothingSent();
+});
+
+it('compares exact rolling twenty-four-hour windows using canonical bank and wallet settlements', function (): void {
+    $root = kpiRoot();
+    $buyer = kpiUser('2026-09-01 12:00:00');
+
+    kpiSettlement($buyer, 'bank', '2026-11-04 15:30:00', 1_000_000, category: 'direct'); // inclusive
+    kpiSettlement($buyer, 'wallet', '2026-11-05 15:29:59', 500_000, category: 'reseller');
+    $bankRefund = kpiSettlement($buyer, 'bank', '2026-11-05 13:00:00', 200_000, category: 'direct');
+    DB::table('sales_orders')->where('id', $bankRefund)->update(['status' => 'refunded']);
+    $walletRefund = kpiSettlement($buyer, 'wallet', '2026-11-05 14:00:00', 9_000_000, category: 'reseller');
+    DB::table('sales_orders')->where('id', $walletRefund)->update(['status' => 'refunded']);
+
+    kpiSettlement($buyer, 'bank', '2026-11-04 15:29:59', 700_000); // previous window
+    kpiSettlement($buyer, 'wallet', '2026-11-03 15:30:00', 900_000, category: 'direct');
+    kpiSettlement($buyer, 'bank', '2026-11-03 15:29:59', 5_000_000); // outside both
+    kpiSettlement($buyer, 'bank', '2026-11-05 15:30:00', 5_000_000); // at the exclusive upper bound
+
+    $report = app(ReadAdminSalesChannelKpis::class)->handle($root->id, '24h');
+    $kpis = $report['management'];
+
+    expect($kpis['period'])->toBe('24h')
+        ->and($kpis['current']['from'])->toBe('2026-11-04 15:30:00')
+        ->and($kpis['current']['until'])->toBe('2026-11-05 15:30:00')
+        ->and($kpis['previous']['from'])->toBe('2026-11-03 15:30:00')
+        ->and($kpis['previous']['until'])->toBe('2026-11-04 15:30:00')
+        ->and($kpis['current']['revenueRials'])->toBe(1_700_000)
+        ->and($kpis['previous']['revenueRials'])->toBe(1_600_000)
+        ->and($kpis['current']['transactions'])->toBe(3)
+        ->and($kpis['previous']['transactions'])->toBe(2)
+        ->and($kpis['growth']['salesPercent'])->toBe(6.3)
+        ->and($report['current']['channels']['direct']['revenueRials'])->toBe(1_200_000)
+        ->and($report['current']['channels']['reseller']['revenueRials'])->toBe(500_000)
+        ->and($report['previous']['channels']['unknown']['revenueRials'])->toBe(700_000);
+
+    $snapshot = app(ReadDenizExecutiveSnapshot::class)
+        ->handle($root->id, 'sales', '24h');
+    expect($snapshot['windows']['current'])->toBe($kpis['current'])
+        ->and($snapshot['channels']['current'])->toBe($report['current']['channels'])
+        ->and($snapshot['concentration']['current']['topBuyersCount'])->toBe(1)
+        ->and(app(ReadAdminManagementKpis::class)->handle($root->id, 'day')['current']['from'])
+        ->toBe('2026-11-05 00:00:00');
+
+    $other = User::factory()->admin()->create();
+    expect(fn () => app(ReadDenizExecutiveSnapshot::class)
+        ->handle($other->id, 'sales', '24h'))->toThrow(AuthorizationException::class);
     Http::assertNothingSent();
 });

@@ -128,6 +128,7 @@ it('selects only explicit trusted executive requests with correct temporal seman
 
     foreach ([
         ['تحلیل فروش امروز', '"dataset":"sales","period":"day"'],
+        ['تحلیل فروش ۲۴ ساعت اخیر', '"dataset":"sales","period":"24h"'],
         ['گزارش نمایندگی هفتگی', '"dataset":"sales","period":"week"'],
         ['تحلیل فروش ماهانه', '"dataset":"sales","period":"month"'],
         ['گزارش نقدینگی ۳۰ روز', '"dataset":"cash","period":"30"'],
@@ -248,5 +249,31 @@ it('does not repeat paid executive requests or cache financial evidence after an
     expect(fn () => executive02Job(105, 'تحلیل فروش هفتگی'))->toThrow(RuntimeException::class, 'Denix response delivery failed.');
     executive02Job(105, 'تحلیل فروش هفتگی');
     Http::assertSentCount(2);
+    expect(app(DenixConversationState::class)->history(-100987654321, 12, 180001))->toBeEmpty();
+});
+
+it('provides an exact rolling 24-hour statement to the Deniz executive model and group reply', function (): void {
+    $this->travelTo(Carbon::parse('2026-11-08 15:30:00', 'Asia/Tehran')->utc());
+    $root = executive02Root();
+    executive02Sale($root, 2_500_000); // settled at 10:00 Tehran today
+
+    Http::fake([
+        'https://api.gapgpt.app/*' => Http::response(executive02Response()),
+        'https://api.telegram.org/*' => Http::response(['ok' => true, 'result' => ['message_id' => 907]]),
+    ]);
+
+    executive02Job(107, 'تحلیل فروش ۲۴ ساعت اخیر');
+
+    Http::assertSentCount(2);
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.gapgpt.app/v1/chat/completions'
+        && str_contains($request['messages'][1]['content'], '"period":"24h"')
+        && str_contains($request['messages'][1]['content'], '"from":"2026-11-07 15:30:00"')
+        && str_contains($request['messages'][1]['content'], '"until":"2026-11-08 15:30:00"')
+        && str_contains($request['messages'][1]['content'], '"revenueRials":2500000'));
+    Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/sendMessage')
+        && str_contains($request['text'], '۲۴ ساعت اخیر')
+        && str_contains($request['text'], '250,000 تومان')
+        && ! str_contains($request['text'], 'PRIVATEBANKREFERENCE'));
+
     expect(app(DenixConversationState::class)->history(-100987654321, 12, 180001))->toBeEmpty();
 });

@@ -152,7 +152,7 @@ it('ignores untrusted actors and unrelated messages without enqueueing', functio
         denixMessage(9011, chatId: -100111222333),
         denixMessage(9012, text: '/ai@anotherbot private'),
         denixMessage(9013, text: 'پیام عادی گروه'),
-        denixMessage(9014, text: '/wallet'),
+        denixMessage(9014, text: '/unregistered'),
         denixMessage(9015, text: '/ai'),
         denixMessage(9016, text: '/ai '.str_repeat('a', 2100)),
     ];

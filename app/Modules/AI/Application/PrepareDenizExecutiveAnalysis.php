@@ -118,8 +118,9 @@ final readonly class PrepareDenizExecutiveAnalysis
         }
 
         $period = match ($dataset) {
-            'sales' => preg_match('/(?:امروز|روزانه)/u', $question) === 1 ? 'day'
-                : (preg_match('/(?:ماه|ماهانه)/u', $question) === 1 ? 'month' : 'week'),
+            'sales' => preg_match('/(?:۲۴|24)\s*ساعت/u', $question) === 1 ? '24h'
+                : (preg_match('/(?:امروز|روزانه)/u', $question) === 1 ? 'day'
+                    : (preg_match('/(?:ماه|ماهانه)/u', $question) === 1 ? 'month' : 'week')),
             'cash' => preg_match('/(?:از ابتدا|از آغاز|کل تاریخ)/u', $question) === 1 ? 'all'
                 : (preg_match('/(?:۳۰|30)\s*روز/u', $question) === 1 ? '30' : '7'),
             'accounting' => preg_match('/(?:۳۰|30)\s*روز/u', $question) === 1 ? '30'
@@ -141,6 +142,7 @@ final readonly class PrepareDenizExecutiveAnalysis
                 'day' => 'امروز تا این ساعت در برابر دیروز تا همین ساعت',
                 'week' => '۷ روز کامل گذشته در برابر ۷ روز قبل',
                 'month' => 'آخرین ماه کامل شمسی در برابر ماه قبل',
+                '24h' => '۲۴ ساعت اخیر در برابر ۲۴ ساعت قبل از آن',
                 default => throw new \LogicException('Unsupported sales period.'),
             }
             ."\nفروش تسویه‌شده: ".$money($snapshot['windows']['current']['revenueRials'])

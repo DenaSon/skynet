@@ -2,6 +2,7 @@
 
 use App\Interfaces\Telegram\Notifications\SubscriptionAlertMonitor;
 use App\Interfaces\Telegram\Notifications\TrialEndMonitor;
+use App\Interfaces\Telegram\Processing\DenixCommandCatalog;
 use App\Interfaces\Telegram\Processing\SalesTelegramRuntime;
 use App\Interfaces\Telegram\Support\SalesNativeMenu;
 use App\Modules\Billing\Application\VerifyWalletOrderDebit;
@@ -21,6 +22,7 @@ use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schedule;
 use Illuminate\Validation\ValidationException;
 use Spatie\Health\Commands\DispatchQueueCheckJobsCommand;
@@ -58,6 +60,58 @@ Artisan::command('sales:telegram:menu:register', function (): int {
 
     return 0;
 })->purpose('Register the native Telegram command menu on the Sales Bot only');
+
+// Register only the configured Deniz management group's native slash menu.
+// This is an explicit operator action, never a deploy hook or scheduled job.
+Artisan::command('deniz:telegram:commands:register {--dry-run : Preview without a Telegram request}', function (): int {
+    $chat = config('telegram.denix.group_chat_id');
+    if ((! is_int($chat) && (! is_string($chat) || preg_match('/\A-[1-9][0-9]*\z/D', $chat) !== 1))
+        || (int) $chat >= 0) {
+        $this->error('Configure a valid negative Deniz management group chat ID.');
+
+        return 1;
+    }
+
+    $commands = DenixCommandCatalog::telegramCommands();
+    if ($this->option('dry-run')) {
+        foreach ($commands as $command) {
+            $this->line('/'.$command['command'].' — '.$command['description']);
+        }
+
+        return 0;
+    }
+
+    $token = config('telegram.denix.token');
+    if (config('telegram.denix.enabled') !== true
+        || config('denagate_ai.enabled') !== true
+        || ! is_string($token) || preg_match('/\A[1-9][0-9]*:[A-Za-z0-9_-]+\z/D', $token) !== 1
+        || $token === config('nutgram.token') || $token === config('telegram.sales.token')) {
+        $this->error('Deniz is disabled or its independent Bot token is not configured.');
+
+        return 1;
+    }
+
+    try {
+        $response = Http::timeout(10)->asJson()->post('https://api.telegram.org/bot'.$token.'/setMyCommands', [
+            'commands' => $commands,
+            'scope' => ['type' => 'chat', 'chat_id' => (int) $chat],
+        ]);
+    } catch (Throwable) {
+        $this->error('Could not register the Deniz group command menu.');
+
+        return 1;
+    }
+
+    if (! $response->successful() || $response->json('ok') !== true || $response->json('result') !== true) {
+        $this->error('Telegram did not confirm Deniz group command registration.');
+
+        return 1;
+    }
+
+    $this->info('Deniz management group commands registered.');
+
+    return 0;
+})->purpose('Register Deniz slash commands for its configured management group only');
 
 // Node TCP targets are derived from RW Nodes + direct Hosts every run.
 // No manual UUID/IP mapping and no network probes in Telegram.

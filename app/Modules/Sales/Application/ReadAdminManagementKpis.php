@@ -32,14 +32,21 @@ final readonly class ReadAdminManagementKpis
     public function handle(int $actorId, string $period): array
     {
         $this->access->handle($actorId);
-        if (! in_array($period, ['day', 'week', 'month'], true)) {
+        if (! in_array($period, ['day', 'week', 'month', '24h'], true)) {
             throw ValidationException::withMessages(['period' => 'Unsupported KPI period.']);
         }
 
         $now = Carbon::now('Asia/Tehran');
         $today = $now->copy()->startOfDay();
 
-        if ($period === 'day') {
+        if ($period === '24h') {
+            // A rolling 24-hour interval, not the Tehran day-to-now KPI.
+            // Half-open boundaries exclude settlements at the exact request instant.
+            $currentFrom = $now->copy()->subHours(24);
+            $currentUntil = $now;
+            $previousFrom = $now->copy()->subHours(48);
+            $previousUntil = $currentFrom->copy();
+        } elseif ($period === 'day') {
             // Compare the same local clock interval, not today vs all of yesterday.
             $currentFrom = $today;
             $currentUntil = $now;

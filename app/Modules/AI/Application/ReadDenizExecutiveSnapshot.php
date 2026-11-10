@@ -21,7 +21,7 @@ use Illuminate\Validation\ValidationException;
 final readonly class ReadDenizExecutiveSnapshot
 {
     private const PERIODS = [
-        'sales' => ['day', 'week', 'month'],
+        'sales' => ['day', 'week', 'month', '24h'],
         'cash' => ['7', '30', 'all'],
         'accounting' => ['7', '30', 'month'],
         'wallet' => ['current'],
@@ -88,7 +88,7 @@ final readonly class ReadDenizExecutiveSnapshot
                 'Gross settled purchases are not net profit, bank cash or wallet top-ups.',
                 'Verified bank settlements remain in gross history even after a later refund; refunded wallet orders are excluded.',
                 'Unknown historical sales channels must not be reassigned.',
-                'Day compares elapsed Tehran time; week compares complete seven-day windows; month compares complete Persian months.',
+                '24h compares the most recent rolling 24 hours with the preceding 24 hours; day compares elapsed Tehran time; week compares complete seven-day windows; month compares complete Persian months.',
                 'Undefined growth or share is null, not zero percent.',
             ],
         ];
