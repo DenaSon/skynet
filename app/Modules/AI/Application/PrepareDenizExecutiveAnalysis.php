@@ -20,7 +20,7 @@ final readonly class PrepareDenizExecutiveAnalysis
     ) {}
 
     /**
-     * @param array{dataset:string,period:string}|null $context
+     * @param  array{dataset:string,period:string}|null  $context
      * @return array{prompt:string,headline:string,dataset:string,period:string}|null
      */
     public function handle(int $telegramUserId, string $question, ?array $context = null): ?array
@@ -155,7 +155,7 @@ final readonly class PrepareDenizExecutiveAnalysis
      * choose tables, actions, access scope or raw SQL. Multiple datasets need
      * an explicit narrower question because their periods may not align.
      *
-     * @param array{dataset:string,period:string}|null $context
+     * @param  array{dataset:string,period:string}|null  $context
      * @return array{dataset:string,period:string}|null
      */
     private static function naturalSelection(string $question, ?array $context): ?array
