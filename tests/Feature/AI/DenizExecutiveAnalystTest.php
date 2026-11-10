@@ -463,3 +463,130 @@ it('keeps the higher token allowance executive-only and does not grant tools or 
 
     Http::assertNothingSent();
 });
+
+
+
+it('builds evidence-led cost-quality risk insight instead of merely repeating dashboard totals', function (): void {
+    $root = executive02Root();
+    executive02Sale($root, 229_717_500);
+
+    DB::table('accounting_entries')->insert([
+        'kind' => 'expense',
+        'category' => 'server',
+        'amount_rials' => 300_000,
+        'created_by' => $root->id,
+        'idempotency_key' => 'executive-decision-expense',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $prepared = app(PrepareDenizExecutiveAnalysis::class)->handle(
+        180001, 'بزرگ‌ترین ریسک مالی دناگیت چیست و اولویت بررسی کدام است؟',
+    );
+
+    expect($prepared['dataset'])->toBe('decision')
+        ->and($prepared['period'])->toBe('current')
+        ->and($prepared['headline'])->toContain('بررسی راهبردی')
+        ->and($prepared['prompt'])->toContain('"focus":"risk"')
+        ->and($prepared['prompt'])->toContain('"type":"cost_recording"')
+        ->and($prepared['prompt'])->toContain('ثبت هزینه‌های عملیاتی ممکن است ناقص')
+        ->and($prepared['prompt'])->toContain('تکمیل ثبت هزینه‌ها')
+        ->and($prepared['prompt'])->toContain('"recordedExpenseSharePercent":0.1')
+        ->and($prepared['prompt'])->toContain('"sales":"۷ روز کامل')
+        ->and($prepared['prompt'])->toContain('"wallet":"مانده لحظه‌ای')
+        ->and(mb_strlen($prepared['prompt']))->toBeLessThanOrEqual(2000);
+
+    Http::assertNothingSent();
+});
+
+it('routes growth and sales channel investment questions to multi-KPI evidence without choosing an invented winner', function (): void {
+    $root = executive02Root();
+    executive02Sale($root, 3_000_000);
+
+    $prepare = app(PrepareDenizExecutiveAnalysis::class);
+    foreach ([
+        ['اگر فقط یک اقدام برای افزایش فروش هفته آینده پیشنهاد بدهی چیست و چرا؟', 'growth'],
+        ['بهتر است روی فروش مستقیم سرمایه‌گذاری کنیم یا نمایندگان فعلی؟', 'channel'],
+        ['برای توسعه کسب‌وکار چه اولویتی داریم؟', 'general'],
+    ] as [$question, $focus]) {
+        $prepared = $prepare->handle(180001, $question);
+
+        expect($prepared['dataset'])->toBe('decision')
+            ->and($prepared['prompt'])->toContain('"focus":"'.$focus.'"')
+            ->and($prepared['prompt'])->toContain('"directRials":3000000')
+            ->and($prepared['prompt'])->toContain('"resellerRials":0')
+            ->and($prepared['prompt'])->toContain('"orders":1')
+            ->and($prepared['prompt'])->toContain('بازه گزارش‌ها متفاوت است')
+            ->and(mb_strlen($prepared['prompt']))->toBeLessThanOrEqual(2000);
+    }
+
+    // A number-only question still uses the original short, single-source report.
+    expect($prepare->handle(180001, 'تحلیل فروش هفتگی')['dataset'])->toBe('sales');
+
+    $prompt = app(\App\Modules\AI\Application\DenizExecutiveKnowledge::class)->instructions();
+    expect($prompt)->toContain('یک اقدام اولویت‌دار', 'برنده سرمایه‌گذاری قطعی اعلام نکن');
+
+    Http::assertNothingSent();
+});
+
+it('does not fabricate opportunities or risk flags when the existing reports have no supporting activity', function (): void {
+    executive02Root();
+
+    $prepared = app(PrepareDenizExecutiveAnalysis::class)->handle(180001, 'بزرگترین ریسک مالی چیست؟');
+    expect($prepared['dataset'])->toBe('decision')
+        ->and($prepared['prompt'])->toContain('"candidates":[]')
+        ->and($prepared['prompt'])->toContain('"salesGrowthPercent":null')
+        ->and($prepared['prompt'])->toContain('"recordedExpenseSharePercent":null')
+        ->and($prepared['prompt'])->not->toContain('PRIVATEBANKREFERENCE');
+
+    Http::assertNothingSent();
+});
+
+it('answers strategic manager questions through the existing root-only group job and refreshes the evidence on follow-ups', function (): void {
+    $root = executive02Root();
+    executive02Sale($root, 1_100_000);
+
+    Http::fake([
+        'https://api.gapgpt.app/*' => Http::response(executive02Response(
+            'یافته: سهم خریدهای مستقیم بالاتر است؛ اقدام: نرخ خرید مجدد دو کانال را بسنجید.',
+        )),
+        'https://api.telegram.org/*' => Http::response(['ok' => true, 'result' => ['message_id' => 960]]),
+    ]);
+
+    executive02Job(310, 'برای رشد فروش چه اقدامی را پیشنهاد می‌دی؟');
+    $state = app(DenixConversationState::class);
+    expect($state->executiveSelection(-100987654321, 12, 180001))
+        ->toBe(['dataset' => 'decision', 'period' => 'current'])
+        ->and($state->history(-100987654321, 12, 180001))->toBeEmpty();
+
+    executive02Sale($root, 900_000);
+    executive02Job(311, 'چرا این اقدام اولویت دارد؟');
+
+    $requests = Http::recorded()->map(fn (array $pair): Request => $pair[0])
+        ->filter(fn (Request $request): bool => str_contains($request->url(), 'gapgpt.app/v1/chat/completions'))
+        ->values();
+
+    expect($requests)->toHaveCount(2)
+        ->and($requests[0]['messages'][1]['content'])->toContain('"revenueRials":1100000')
+        ->and($requests[1]['messages'][1]['content'])->toContain('"revenueRials":2000000')
+        ->and($requests[1]['messages'][1]['content'])->toContain('چرا این اقدام اولویت دارد؟');
+
+    foreach ($requests as $request) {
+        expect(json_encode($request['messages'], JSON_THROW_ON_ERROR))
+            ->not->toContain('PRIVATEBANKREFERENCE', 'Never Export This Name', 'buyerUserId');
+    }
+
+    expect($state->history(-100987654321, 12, 180001))->toBeEmpty();
+    Http::assertSentCount(4);
+});
+
+it('rejects ordinary or untrusted users before constructing any multi-report strategic evidence', function (): void {
+    executive02Root();
+    $reader = app(PrepareDenizExecutiveAnalysis::class);
+    foreach ([180002, 180003] as $telegramId) {
+        expect(fn () => $reader->handle($telegramId, 'بزرگترین ریسک مالی دناگیت چیست؟'))
+            ->toThrow(\Illuminate\Auth\Access\AuthorizationException::class);
+    }
+
+    Http::assertNothingSent();
+});
