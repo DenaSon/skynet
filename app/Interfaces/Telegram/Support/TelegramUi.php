@@ -281,6 +281,20 @@ final class TelegramUi
         ]);
     }
 
+    /**
+     * Short native label for two-column plan selection; specs and prices remain
+     * visible in the accompanying Rich/HTML message rather than on the button.
+     */
+    public static function planSelectionLabel(string $name): string
+    {
+        $name = trim((string) preg_replace('/[\\x00-\\x1F\\x7F\\x{202A}-\\x{202E}]+/u', ' ', $name));
+        if (mb_strlen($name) > 12) {
+            $name = rtrim(mb_substr($name, 0, 11)).'…';
+        }
+
+        return 'انتخاب '.($name === '' ? 'پلن' : $name);
+    }
+
     public static function planButtonLabel(string $name, ?int $trafficGb, int $durationDays): string
     {
         $name = trim((string) preg_replace('/[\x00-\x1F\x7F\x{202A}-\x{202E}]+/u', ' ', $name));
