@@ -6,6 +6,7 @@ namespace App\Interfaces\Telegram\Processing;
 
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 use Throwable;
 
@@ -35,9 +36,13 @@ final class DenizBusinessMessageSender
 
         // Keep the exact Business scope and reply target in both attempts.
         // Never fall back to a normal bot DM.
+        $httpStatus = null;
+        $phase = 'html';
+
         try {
             $url = 'https://api.telegram.org/bot'.$token.'/sendMessage';
             $response = Http::timeout(6)->asForm()->post($url, $payload);
+            $httpStatus = $response->status();
 
             if ($this->isCertainFormattingRejection($response)) {
                 // An explicit HTTP 400 entity-parse error guarantees that
@@ -45,15 +50,23 @@ final class DenizBusinessMessageSender
                 // fallback is safe; network timeouts / 5xx are NOT retried.
                 unset($payload['parse_mode']);
                 $payload['text'] = $plain;
+                $phase = 'plain_fallback';
                 $response = Http::timeout(6)->asForm()->post($url, $payload);
+                $httpStatus = $response->status();
             }
 
             if (! $response->successful() || $response->json('ok') !== true) {
                 throw new RuntimeException('Telegram rejected Business delivery.');
             }
-        } catch (Throwable) {
-            // Transport outcomes may be ambiguous. Never log URLs, message
-            // contents or BotFather credentials; never retry those failures.
+        } catch (Throwable $error) {
+            // A failed send can be ambiguous: log only the phase, status and type.
+            // Never log URLs, Telegram bodies, message text or credentials; never retry.
+            Log::warning('Deniz Business delivery failed.', [
+                'phase' => $phase,
+                'http_status' => $httpStatus,
+                'exception_type' => $error::class,
+            ]);
+
             throw new RuntimeException('Deniz Business delivery failed.');
         }
     }
