@@ -100,7 +100,6 @@ final readonly class PrepareDenizExecutiveAnalysis
             'شارژ کیف پول', 'نقدینگی', 'دریافتی‌ها', 'دریافتی ها' => 'cash',
             'حسابداری', 'مالی' => 'accounting',
             'کیف پول' => 'wallet',
-            default => throw new \LogicException('Unsupported executive subject.'),
         };
 
         // Report semantics are *not* interchangeable. Refuse a requested
@@ -126,7 +125,6 @@ final readonly class PrepareDenizExecutiveAnalysis
             'accounting' => preg_match('/(?:۳۰|30)\s*روز/u', $question) === 1 ? '30'
                 : (preg_match('/(?:۷|7)\s*روز/u', $question) === 1 ? '7' : 'month'),
             'wallet' => 'current',
-            default => throw new \LogicException('Unsupported executive period.'),
         };
 
         return ['dataset' => $dataset, 'period' => $period];
