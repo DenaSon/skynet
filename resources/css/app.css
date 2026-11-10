@@ -38,6 +38,31 @@
         box-shadow: 0 10px 30px rgb(14 34 44 / 4%);
     }
 
+    /* UX-02: opt-in plan styling only; demo cards stay unchanged until UX-03. */
+    .denagate-live .dg-plan-card {
+        width: 100%;
+        max-width: 23.5rem;
+        justify-self: center;
+        border-color: #a5dcd1;
+        background: linear-gradient(145deg, #eaf8f4 0%, #ffffff 82%);
+        box-shadow: 0 10px 24px rgb(14 34 44 / 5%);
+    }
+
+    .denagate-live .dg-plan-card[data-tone="blue"] {
+        border-color: #b6d0e9;
+        background: linear-gradient(145deg, #edf5fc 0%, #ffffff 82%);
+    }
+
+    .denagate-live .dg-plan-card[data-tone="sand"] {
+        border-color: #e4d3ad;
+        background: linear-gradient(145deg, #fbf5e9 0%, #ffffff 82%);
+    }
+
+    .denagate-live .dg-plan-card[data-tone="builder"] {
+        border-color: #c9d6df;
+        background: linear-gradient(145deg, #f0f5f8 0%, #ffffff 82%);
+    }
+
     .denagate-live .dg-card-accent {
         padding: 1.25rem;
         border: 1px solid #ccece4;

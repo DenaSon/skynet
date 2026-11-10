@@ -127,6 +127,7 @@ it('distinguishes an unnamed customer from the plan name while preserving servic
     Livewire::test(Dashboard::class)
         ->call('showSection', 'services')
         ->assertSee('نام مشتری ثبت نشده')
+        ->assertSee('block w-full text-center text-2xl sm:text-3xl', false)
         ->assertSee('پلن اختصاصی')
         ->assertSee('شماره سفارش:')
         ->assertSee((string) $orderId)

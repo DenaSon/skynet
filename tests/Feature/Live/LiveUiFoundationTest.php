@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-it('defines exactly ten reusable UI primitives without leaking selectors outside DenaGate Live', function (): void {
+it('defines the scoped UI primitives without leaking selectors outside DenaGate Live', function (): void {
     $css = file_get_contents(resource_path('css/app.css'));
 
     expect($css)->toBeString()
@@ -15,6 +15,7 @@ it('defines exactly ten reusable UI primitives without leaking selectors outside
 
     expect($matches[1])->toBe([
         'dg-card',
+        'dg-plan-card',
         'dg-card-accent',
         'dg-stat',
         'dg-btn-primary',
