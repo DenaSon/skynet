@@ -38,7 +38,7 @@
         box-shadow: 0 10px 30px rgb(14 34 44 / 4%);
     }
 
-    /* UX-02: opt-in plan styling only; demo cards stay unchanged until UX-03. */
+    /* Opt-in plan styling shared by reseller Live and the read-only demo (UX-02/03). */
     .denagate-live .dg-plan-card {
         width: 100%;
         max-width: 23.5rem;
