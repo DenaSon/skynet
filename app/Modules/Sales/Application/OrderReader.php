@@ -35,17 +35,40 @@ final class OrderReader
     /** @return list<OrderDetails> */
     public function recentNewPlans(int $buyerId): array
     {
+        return $this->pageNewPlans($buyerId, 10)->orders;
+    }
+
+    /**
+     * Owner-scoped, newest-first keyset pagination for NEW plan purchases only.
+     * Renewals remain in their separate flow; no provider requests are made.
+     */
+    public function pageNewPlans(int $buyerId, int $limit = 9, ?int $beforeOrderId = null): OrderCursorPage
+    {
         app(ResolveSalesBuyer::class)->isReseller($buyerId);
 
-        return DB::table('sales_orders as orders')
+        if ($limit < 1 || $limit > 50 || ($beforeOrderId !== null && $beforeOrderId < 1)) {
+            throw ValidationException::withMessages(['page' => 'Invalid order pagination.']);
+        }
+
+        $query = DB::table('sales_orders as orders')
             ->where('orders.buyer_user_id', $buyerId)
             ->whereNotNull('orders.plan_id')
             ->whereNotExists(static function (Builder $query): void {
                 $query->selectRaw('1')->from('sales_renewal_orders as renewals')
                     ->whereColumn('renewals.sales_order_id', 'orders.id');
-            })
-            ->orderByDesc('orders.id')->limit(10)->select('orders.*')->get()
-            ->map(fn (object $row): OrderDetails => $this->map($row))->all();
+            });
+
+        if ($beforeOrderId !== null) {
+            $query->where('orders.id', '<', $beforeOrderId);
+        }
+
+        $rows = $query->orderByDesc('orders.id')->limit($limit + 1)->get(['orders.*']);
+        $orders = $rows->take($limit)->map(fn (object $row): OrderDetails => $this->map($row))->all();
+
+        return new OrderCursorPage(
+            orders: array_values($orders),
+            nextBeforeOrderId: $rows->count() > $limit ? $orders[count($orders) - 1]->id : null,
+        );
     }
 
     /** Reject renewals even when a caller supplies a valid owned order ID. */
