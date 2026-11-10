@@ -6,6 +6,7 @@ namespace App\Modules\Sales\Application;
 
 use App\Modules\Identity\Application\ResolveSalesBuyer;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -59,7 +60,7 @@ final readonly class ManageResellerServiceLabels
             ->where('orders.buyer_user_id', $buyerId)
             ->whereNotNull('orders.plan_id')
             ->whereIn('orders.id', $orderIds)
-            ->whereNotExists(static function (\Illuminate\Database\Query\Builder $query): void {
+            ->whereNotExists(static function (Builder $query): void {
                 $query->selectRaw('1')->from('sales_renewal_orders as renewals')
                     ->whereColumn('renewals.sales_order_id', 'orders.id');
             })
