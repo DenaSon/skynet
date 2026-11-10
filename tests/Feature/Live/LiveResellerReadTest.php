@@ -118,6 +118,24 @@ it('shows the real owned wallet, settled revenue, counts and customer labels wit
     Http::assertNothingSent();
 });
 
+it('distinguishes an unnamed customer from the plan name while preserving service type and order ID', function (): void {
+    $owner = liveReadUser(879010);
+    PanelWalletFunding::credit($owner->id, 2_000_000);
+    $this->actingAs($owner)->withSession(['denagate_live.user_id' => $owner->id]);
+    $orderId = liveReadOrder($owner);
+
+    Livewire::test(Dashboard::class)
+        ->call('showSection', 'services')
+        ->assertSee('نام مشتری ثبت نشده')
+        ->assertSee('پلن اختصاصی')
+        ->assertSee('شماره سفارش:')
+        ->assertSee((string) $orderId)
+        ->call('openService', $orderId)
+        ->assertSet('selectedServiceOrderId', $orderId);
+
+    Http::assertNothingSent();
+});
+
 it('lists only a bounded reseller-owned service page and supports cursor reset', function (): void {
     $owner = liveReadUser(879003);
     $this->actingAs($owner)->withSession(['denagate_live.user_id' => $owner->id]);
