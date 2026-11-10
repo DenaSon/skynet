@@ -62,7 +62,6 @@ final readonly class PlanCatalogUi
         $lastPage = max(1, (int) ceil(count($entries) / 5));
         $page = min(max(1, $page), $lastPage);
         $keyboard = InlineKeyboardMarkup::make();
-        $planButtons = [];
 
         $lines = [
             '📋 پلن‌ها و قیمت‌ها',
@@ -97,15 +96,22 @@ final readonly class PlanCatalogUi
                         .' · تخفیف: '.$entry->quote->discountPercent.'٪<br>'
                     : '')
                 .'💰 <b>'.$this->toman($entry->quote->totalPriceRials).' تومان</b></p>';
-            $planButtons[] = InlineKeyboardButton::make(
-                TelegramUi::planSelectionLabel($entry->plan->name),
-                callback_data: $callback,
-                style: ButtonStyle::PRIMARY,
+            if ($sales) {
+                $richHtml .= '<tg-button-row><tg-button type="callback_data" style="success" data="'.$callback.'">🛒 خرید این پلن</tg-button></tg-button-row>';
+            }
+            // Restore the familiar price + name/specification pair, retaining both callbacks.
+            $keyboard->addRow(
+                InlineKeyboardButton::make(
+                    $this->toman($entry->quote->totalPriceRials).' تومان',
+                    callback_data: $callback,
+                    style: ButtonStyle::PRIMARY,
+                ),
+                InlineKeyboardButton::make(
+                    TelegramUi::planButtonLabel($entry->plan->name, $entry->quote->trafficGb, $entry->quote->durationDays),
+                    callback_data: $callback,
+                    style: ButtonStyle::PRIMARY,
+                ),
             );
-        }
-        // Keep two buttons per row without changing the individual detail callbacks.
-        foreach (array_chunk($planButtons, 2) as $row) {
-            $keyboard->addRow(...$row);
         }
 
         if ($entries === []) {
