@@ -560,7 +560,7 @@ final readonly class TelegramNotificationSender
             // No credential or remote identifier is placed in callback data.
             $orderId = (int) $delivery->order_id;
             $keyboard = json_encode(['inline_keyboard' => [[
-                ['text' => '📋 سرویس من', 'callback_data' => 'sales:subs:view:'.$orderId.':0', 'style' => 'primary'],
+                ['text' => '🔎 بررسی سرویس', 'callback_data' => 'sales:subs:view:'.$orderId.':0', 'style' => 'primary'],
             ]]], JSON_THROW_ON_ERROR);
             $this->text($bot, $chat, $message, $keyboard, 'HTML');
 
@@ -585,7 +585,7 @@ final readonly class TelegramNotificationSender
                 throw new NotificationUnavailable('renewal_not_complete');
             }
             $keyboard = json_encode(['inline_keyboard' => [[
-                ['text' => '📦 سرویس من', 'callback_data' => 'sales:subs:view:'.$source.':0',
+                ['text' => '🔎 بررسی سرویس', 'callback_data' => 'sales:subs:view:'.$source.':0',
                     'style' => 'primary'],
             ]]], JSON_THROW_ON_ERROR);
             $this->text($bot, $chat,

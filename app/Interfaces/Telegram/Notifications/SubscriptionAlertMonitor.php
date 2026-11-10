@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Telegram\Notifications;
 
+use App\Interfaces\Telegram\Support\TelegramUi;
 use App\Modules\Provisioning\Application\RemnawaveSubscriptionLifecycle;
 use DateTimeImmutable;
 use Illuminate\Support\Facades\DB;
@@ -74,21 +75,23 @@ final readonly class SubscriptionAlertMonitor
 
         $seconds = $live['expires'] - now()->getTimestamp();
         $subscription = $live['subscription'];
-        $order = $live['order'];
+        $service = $live['customer_label'] === null
+            ? 'سرویس شما'
+            : 'سرویس <b>'.TelegramUi::escape($live['customer_label']).'</b>';
         $key = (string) $delivery->event_key;
 
         if ($type === 'SubscriptionExpiry24h'
             && $live['status'] === 'ACTIVE'
             && $seconds > 3600 && $seconds <= 86400
             && hash_equals(self::eventKey('expiry24', $subscription, $live['expires']), $key)) {
-            return "<b>⏳ یک روز تا پایان اشتراک</b>\n\nسرویس #{$order} تا حدود ۲۴ ساعت آینده منقضی می‌شود.\nبرای جلوگیری از قطع اتصال، تمدید سرویس را بررسی کنید.";
+            return "<b>⏳ یک روز تا پایان اشتراک</b>\n\n{$service} تا حدود ۲۴ ساعت آینده منقضی می‌شود.\nبرای جلوگیری از قطع اتصال، تمدید سرویس را بررسی کنید.";
         }
 
         if ($type === 'SubscriptionExpiry1h'
             && $live['status'] === 'ACTIVE'
             && $seconds > 0 && $seconds <= 3600
             && hash_equals(self::eventKey('expiry1', $subscription, $live['expires']), $key)) {
-            return "<b>🚨 اعتبار اشتراک رو به پایان است</b>\n\nکمتر از یک ساعت تا پایان سرویس #{$order} باقی مانده است.";
+            return "<b>🚨 اعتبار اشتراک رو به پایان است</b>\n\nکمتر از یک ساعت تا پایان {$service} باقی مانده است.";
         }
 
         if ($type === 'SubscriptionLowTraffic'
@@ -101,7 +104,7 @@ final readonly class SubscriptionAlertMonitor
                 && hash_equals(self::eventKey('low350', $subscription, (int) $generation), $key)) {
                 $megabytes = intdiv($live['remaining'], 1024 * 1024);
 
-                return "<b>📉 حجم اشتراک رو به پایان است</b>\n\nحجم باقی‌مانده سرویس #{$order}: <b>{$megabytes} مگابایت</b>.\nبرای جلوگیری از قطع اتصال، شارژ یا تمدید سرویس را بررسی کنید.";
+                return "<b>📉 حجم اشتراک رو به پایان است</b>\n\nحجم باقی‌مانده {$service}: <b>{$megabytes} مگابایت</b>.\nبرای جلوگیری از قطع اتصال، شارژ یا تمدید سرویس را بررسی کنید.";
             }
         }
 
@@ -109,7 +112,7 @@ final readonly class SubscriptionAlertMonitor
     }
 
     /**
-     * @return array{order:int,buyer:int,subscription:int,remote:int,reference:string,expires:int,used:int,limit:int,remaining:int,status:string}|null
+     * @return array{order:int,buyer:int,subscription:int,remote:int,reference:string,customer_label:?string,expires:int,used:int,limit:int,remaining:int,status:string}|null
      */
     private function live(int $orderId, int $buyerId, bool $retryRemoteFailure = false): ?array
     {
@@ -153,6 +156,8 @@ final readonly class SubscriptionAlertMonitor
             'subscription' => (int) $binding->subscription_id,
             'remote' => (int) $binding->remote_user_id,
             'reference' => (string) $binding->reference,
+            'customer_label' => trim((string) ($fresh->customer_label ?? '')) === ''
+                ? null : trim((string) $fresh->customer_label),
             'expires' => $expires,
             'used' => $remote->usedTrafficBytes,
             'limit' => $remote->trafficLimitBytes,
@@ -168,16 +173,17 @@ final readonly class SubscriptionAlertMonitor
             ->join('provisioning_subscriptions as sub', 'sub.id', '=', 'links.provisioning_subscription_id')
             ->join('users as buyer', 'buyer.id', '=', 'orders.buyer_user_id')
             ->join('telegram_bot_contacts as contact', 'contact.user_id', '=', 'buyer.id')
+            ->leftJoin('sales_service_customer_labels as labels', 'labels.sales_order_id', '=', 'orders.id')
             ->where('orders.id', $orderId)->where('buyer.id', $buyerId)
             ->whereIn('orders.status', ['paid', 'fulfilled'])
             ->where('sub.state', 'active')->whereNotNull('sub.remote_user_id')
             ->where('buyer.is_active', true)
             ->where('contact.bot_key', 'sales')->where('contact.delivery_status', 'reachable')
-            ->select('sub.id as subscription_id', 'sub.reference', 'sub.remote_user_id')
+            ->select('sub.id as subscription_id', 'sub.reference', 'sub.remote_user_id', 'labels.label as customer_label')
             ->first();
     }
 
-    /** @param array{order:int,buyer:int,subscription:int,remote:int,reference:string,expires:int,used:int,limit:int,remaining:int,status:string} $live */
+    /** @param array{order:int,buyer:int,subscription:int,remote:int,reference:string,customer_label:?string,expires:int,used:int,limit:int,remaining:int,status:string} $live */
     private function record(array $live): void
     {
         DB::transaction(function () use ($live): void {

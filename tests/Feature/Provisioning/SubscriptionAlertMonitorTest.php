@@ -170,6 +170,87 @@ it('warns below 350 MiB and rearms only after verified quota replenishment', fun
         ->and(DB::table('subscription_alert_states')->value('quota_generation'))->toBe(2);
 });
 
+it('shows the owner-linked customer username instead of an order ID in a 24-hour warning and keeps the service callback', function (): void {
+    $data = subAlertFixture();
+    DB::table('sales_service_customer_labels')->insert([
+        'sales_order_id' => $data['order'],
+        'label' => 'علی <دوست> & رضا',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+    $remote = subAlertRemote($data['reference'], now()->addHours(12)->toIso8601String());
+    subAlertHttp($remote);
+
+    app(SubscriptionAlertMonitor::class)->scan();
+    $deliveryId = (int) DB::table('telegram_notification_deliveries')
+        ->where('event_type', 'SubscriptionExpiry24h')->value('id');
+    expect($deliveryId)->toBeGreaterThan(0);
+
+    app(DispatchTelegramNotification::class, ['deliveryId' => $deliveryId])
+        ->handle(app(TelegramNotificationSender::class));
+
+    expect(DB::table('telegram_notification_deliveries')->where('id', $deliveryId)->value('state'))->toBe('sent');
+    Http::assertSent(static function (Request $request) use ($data): bool {
+        if ($request->method() !== 'POST' || ! str_contains($request->url(), 'sendMessage')) {
+            return false;
+        }
+        parse_str((string) $request->body(), $payload);
+        $keyboard = json_decode((string) ($payload['reply_markup'] ?? ''), true);
+
+        return str_contains((string) ($payload['text'] ?? ''), 'سرویس <b>علی &lt;دوست&gt; &amp; رضا</b>')
+            && ! str_contains((string) ($payload['text'] ?? ''), 'سرویس #'.$data['order'])
+            && ! str_contains((string) ($payload['text'] ?? ''), 'sk_')
+            && ($keyboard['inline_keyboard'][0][0]['text'] ?? null) === '🔎 بررسی سرویس'
+            && ($keyboard['inline_keyboard'][0][0]['callback_data'] ?? null) === 'sales:subs:view:'.$data['order'].':0';
+    });
+});
+
+it('uses the customer username in a one-hour expiry warning, not the internal order ID', function (): void {
+    $data = subAlertFixture();
+    DB::table('sales_service_customer_labels')->insert([
+        'sales_order_id' => $data['order'], 'label' => 'test_user',
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+    $remote = subAlertRemote($data['reference'], now()->addMinutes(35)->toIso8601String());
+    subAlertHttp($remote);
+    $monitor = app(SubscriptionAlertMonitor::class);
+    $monitor->scan();
+    $delivery = DB::table('telegram_notification_deliveries')
+        ->where('event_type', 'SubscriptionExpiry1h')->first();
+
+    expect($delivery)->not->toBeNull();
+    $message = $monitor->messageFor($delivery);
+    expect($message)->toContain('پایان سرویس <b>test_user</b>')
+        ->not->toContain('سرویس #'.$data['order'], 'sk_');
+    Http::assertNotSent(static fn (Request $r): bool => $r->method() === 'POST');
+});
+
+it('rechecks the latest saved username for low-traffic notices and falls back safely if missing', function (): void {
+    $data = subAlertFixture();
+    DB::table('sales_service_customer_labels')->insert([
+        'sales_order_id' => $data['order'], 'label' => 'نام اولیه',
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+    $gb = 1024 * 1024 * 1024;
+    $remote = subAlertRemote($data['reference'], now()->addDays(9)->toIso8601String(),
+        $gb - 200 * 1024 * 1024);
+    subAlertHttp($remote);
+    $monitor = app(SubscriptionAlertMonitor::class);
+    $monitor->scan();
+    $delivery = DB::table('telegram_notification_deliveries')
+        ->where('event_type', 'SubscriptionLowTraffic')->first();
+
+    expect($delivery)->not->toBeNull();
+    DB::table('sales_service_customer_labels')->where('sales_order_id', $data['order'])
+        ->update(['label' => 'نام نهایی']);
+    expect($monitor->messageFor($delivery))->toContain('حجم باقی‌مانده سرویس <b>نام نهایی</b>: <b>200 مگابایت</b>')
+        ->not->toContain('نام اولیه', 'سرویس #'.$data['order']);
+
+    DB::table('sales_service_customer_labels')->where('sales_order_id', $data['order'])->delete();
+    expect($monitor->messageFor($delivery))->toContain('حجم باقی‌مانده سرویس شما: <b>200 مگابایت</b>')
+        ->not->toContain('سرویس #'.$data['order'], 'sk_');
+});
+
 it('does not send queued warnings after renewal, refund or loss of Sales contact', function (): void {
     $data = subAlertFixture();
     $remote = subAlertRemote($data['reference'], now()->addHours(23)->toIso8601String());
