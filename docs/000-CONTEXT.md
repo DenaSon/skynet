@@ -1,3 +1,7 @@
+## Deniz Business reliability correction — scoped PR in progress (2026-11-10)
+
+Operator-approved **4× Business support limits** (20/customer/10min, 80/customer/day, default 200 Business-wide/day), safe tracing from intake to worker, delivery/permission outcomes and separate failed-job counts. The old 5/20/50 figures in the historical merged checkpoint below describe the previous baseline. This is not merged or proven on Runflare merely because it exists on a PR branch; an explicitly configured `DENAGATE_AI_BUSINESS_GLOBAL_REQUESTS_PER_DAY=50` must be changed to 200 at rollout to apply the new shared ceiling. Manager limits and one-shot Business privacy/rights rules remain unchanged. See [docs/045](045-AI-FOUNDATION-GROUP-ROADMAP.md).
+
 ## Deniz AI — latest merged source checkpoint (2026-11-09)
 
 AI foundation, isolated management-group assistant and Telegram Business customer support are **merged in `master` through PR #437**. This supersedes older planning-only statements; detailed implementation boundaries and historical PR references are in [`docs/045`](045-AI-FOUNDATION-GROUP-ROADMAP.md#current-implementation--authoritative-snapshot-2026-11-09).
