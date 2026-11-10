@@ -341,6 +341,7 @@ final readonly class PrepareDenizExecutiveAnalysis
             }
             ."\nفروش: ".$money($snapshot['metrics']['salesRials'])
             .' | هزینه ثبت‌شده: '.$money($snapshot['metrics']['expensesRials'])
+            ."\nبازه شمسی: ".PersianCalendar::date($snapshot['window']['start']).' تا '.PersianCalendar::date($snapshot['window']['endInclusive'])
             ."\nسود برآوردی (نه قطعی): ".$money($snapshot['metrics']['profitRials'])
             ."\n🕒 ".$generated,
             'wallet' => '💳 موجودی لحظه‌ای کیف پول‌ها'
@@ -348,6 +349,13 @@ final readonly class PrepareDenizExecutiveAnalysis
                 .' | نمایندگان: '.$money($snapshot['metrics']['resellerBalanceRials'])
                 .' | کاربران عادی: '.$money($snapshot['metrics']['memberBalanceRials'])
                 .' | سایر: '.$money($snapshot['metrics']['otherBalanceRials'])
+                ."\n🕒 ".$generated,
+            'users' => '👥 کاربران محلی دناگیت'
+                ."\nثبت‌شده: ".$snapshot['metrics']['registeredUsers']
+                .' | حساب‌های فعال: '.$snapshot['metrics']['activeAccounts']
+                .' | ثبت‌نام ۷ روز: '.$snapshot['metrics']['newUsers7Days']
+                .' | ثبت‌نام ۳۰ روز: '.$snapshot['metrics']['newUsers30Days']
+                .' | خریداران یکتای ۳۰ روز: '.$snapshot['metrics']['uniqueBuyers30Days']
                 ."\n🕒 ".$generated,
             default => throw new \LogicException('Unsupported executive dataset.'),
         };
