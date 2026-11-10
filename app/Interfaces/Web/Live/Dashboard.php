@@ -143,6 +143,13 @@ final class Dashboard extends Component
     public ?int $createdOrderId = null;
 
     #[Locked]
+    public ?int $recentOrdersCursor = null;
+
+    /** @var list<int|null> */
+    #[Locked]
+    public array $recentOrdersHistory = [];
+
+    #[Locked]
     public ?string $walletConfirmToken = null;
 
     #[Locked]
@@ -160,6 +167,7 @@ final class Dashboard extends Component
         if (in_array($section, self::SECTIONS, true)) {
             if ($this->section !== $section) {
                 $this->resetPlanSelection();
+                $this->resetRecentOrdersPagination();
             }
             $this->section = $section;
             $this->serviceCursor = null;
@@ -822,6 +830,40 @@ final class Dashboard extends Component
         $this->serviceLabelNotice = null;
     }
 
+    /** Advance only when the owner-scoped current page has a next cursor. */
+    public function nextRecentOrders(): void
+    {
+        $buyerId = $this->resellerId();
+        if ($this->section !== 'shop' || $this->selectedPlanId !== null || $this->createdOrderId !== null) {
+            return;
+        }
+
+        $page = app(OrderReader::class)->pageNewPlans($buyerId, 9, $this->recentOrdersCursor);
+        if ($page->nextBeforeOrderId === null) {
+            return;
+        }
+
+        $this->recentOrdersHistory[] = $this->recentOrdersCursor;
+        $this->recentOrdersCursor = $page->nextBeforeOrderId;
+    }
+
+    public function previousRecentOrders(): void
+    {
+        $this->resellerId();
+        if ($this->section !== 'shop' || $this->selectedPlanId !== null || $this->createdOrderId !== null
+            || $this->recentOrdersHistory === []) {
+            return;
+        }
+
+        $this->recentOrdersCursor = array_pop($this->recentOrdersHistory);
+    }
+
+    private function resetRecentOrdersPagination(): void
+    {
+        $this->recentOrdersCursor = null;
+        $this->recentOrdersHistory = [];
+    }
+
     /** Select only a currently quoted preset or a published reseller builder. */
     public function selectPlan(int $planId): void
     {
@@ -906,6 +948,7 @@ final class Dashboard extends Component
                 $buyerId, $quote, $this->orderIntentKey, $this->customerUsername,
             );
             $this->createdOrderId = $order->id;
+            $this->resetRecentOrdersPagination();
         } catch (ValidationException $exception) {
             if (isset($exception->errors()['label'])) {
                 $this->orderError = 'نام کاربری مشتری را در یک خط و حداکثر ۶۰ نویسه وارد کنید.';
@@ -1191,16 +1234,26 @@ final class Dashboard extends Component
             'createdOrder' => null,
             'createdCustomerName' => null,
             'recentOrders' => [],
+            'recentOrderLabels' => [],
+            'recentOrdersNextCursor' => null,
+            'recentOrdersHasPrevious' => false,
         ];
 
         try {
             if ($this->section === 'shop' && $this->createdOrderId !== null) {
                 $data['createdOrder'] = app(OrderReader::class)->findNewPlan($userId, $this->createdOrderId);
                 $data['createdCustomerName'] = app(ManageResellerServiceLabels::class)
-                    ->pendingName($userId, $this->createdOrderId);
+                    ->forRecentNewPlanOrders($userId, [$this->createdOrderId])[$this->createdOrderId] ?? null;
             } elseif ($this->section === 'shop') {
                 if ($this->selectedPlanId === null) {
-                    $data['recentOrders'] = app(OrderReader::class)->recentNewPlans($userId);
+                    $orderPage = app(OrderReader::class)->pageNewPlans($userId, 9, $this->recentOrdersCursor);
+                    $data['recentOrders'] = $orderPage->orders;
+                    $data['recentOrdersNextCursor'] = $orderPage->nextBeforeOrderId;
+                    $data['recentOrdersHasPrevious'] = $this->recentOrdersHistory !== [];
+                    $data['recentOrderLabels'] = app(ManageResellerServiceLabels::class)
+                        ->forRecentNewPlanOrders($userId, array_map(
+                            static fn ($order): int => $order->id, $orderPage->orders,
+                        ));
                 }
                 $presets = app(ListQuotedPresets::class)->handle($userId);
                 $builders = app(ListResellerBuilders::class)->handle($userId);

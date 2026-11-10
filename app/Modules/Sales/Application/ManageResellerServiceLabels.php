@@ -6,6 +6,7 @@ namespace App\Modules\Sales\Application;
 
 use App\Modules\Identity\Application\ResolveSalesBuyer;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -30,6 +31,41 @@ final readonly class ManageResellerServiceLabels
             ->whereIn('orders.status', ['paid', 'fulfilled'])
             ->whereIn('orders.id', $orderIds)
             ->whereNotNull('labels.label')->select('orders.id', 'labels.label')
+            ->get();
+
+        $labels = [];
+        foreach ($rows as $row) {
+            $labels[(int) $row->id] = (string) $row->label;
+        }
+
+        return $labels;
+    }
+
+    /**
+     * Optional customer names for a bounded page of owned new-plan orders.
+     * Unlike service-only labels, pending purchases are intentionally included.
+     *
+     * @param  list<int>  $orderIds
+     * @return array<int, string>
+     */
+    public function forRecentNewPlanOrders(int $buyerId, array $orderIds): array
+    {
+        $this->authorize($buyerId);
+        if ($orderIds === []) {
+            return [];
+        }
+
+        $rows = DB::table('sales_service_customer_labels as labels')
+            ->join('sales_orders as orders', 'orders.id', '=', 'labels.sales_order_id')
+            ->where('orders.buyer_user_id', $buyerId)
+            ->whereNotNull('orders.plan_id')
+            ->whereIn('orders.id', $orderIds)
+            ->whereNotExists(static function (Builder $query): void {
+                $query->selectRaw('1')->from('sales_renewal_orders as renewals')
+                    ->whereColumn('renewals.sales_order_id', 'orders.id');
+            })
+            ->whereNotNull('labels.label')
+            ->select('orders.id', 'labels.label')
             ->get();
 
         $labels = [];

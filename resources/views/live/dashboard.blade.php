@@ -127,30 +127,6 @@
                                 {{ $quoteError ?? $walletError ?? $orderError ?? 'این پلن در دسترس نیست. لطفاً یکی از پلن‌های موجود را انتخاب کنید.' }}
                             </p>
                         @endif
-                        @if (count($recentOrders) > 0)
-                            <section class="dg-card mb-6 p-4 sm:p-5">
-                                <h2 class="text-base font-extrabold text-[#1B2935]">سفارش‌های اخیر من</h2>
-                                <p class="mt-2 text-xs leading-6 text-[#71818B]">تا ۱۰ سفارش اخیر؛ برای جزئیات یا پرداخت، یک سفارش را انتخاب کنید.</p>
-                                <div class="mt-3 divide-y divide-[#EFF2F4]">
-                                    @foreach ($recentOrders as $order)
-                                        <button type="button" wire:key="live-order-{{ $order->id }}" wire:click="openOrder({{ $order->id }})" wire:target="openOrder" wire:loading.attr="disabled"
-                                            class="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg py-2.5 text-right focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]">
-                                            <span class="min-w-0">
-                                                <span class="block text-sm font-bold text-[#1B2935]">#{{ $order->id }} · {{ $order->productName }}</span>
-                                                <span class="mt-1 block text-xs leading-5 text-[#71818B]">{{ match ($order->status) {
-                                                    'pending_payment' => 'در انتظار پرداخت',
-                                                    'paid' => 'پرداخت ثبت‌شده؛ سرویس در انتظار آماده‌سازی',
-                                                    'fulfilled' => 'سرویس در سوابق ثبت شده است',
-                                                    'needs_review' => 'نیازمند بررسی',
-                                                    default => 'مشاهده وضعیت',
-                                                } }}</span>
-                                            </span>
-                                            <span class="shrink-0 text-xs font-bold text-[#087F73]">مشاهده ←</span>
-                                        </button>
-                                    @endforeach
-                                </div>
-                            </section>
-                        @endif
                         @if (count($catalogPresets) === 0 && count($catalogBuilders) === 0)
                             <section class="dg-empty">
                                 در حال حاضر پلنی برای خرید موجود نیست.
@@ -178,6 +154,43 @@
                                     </article>
                                 @endforeach
                             </div>
+                        @endif
+                        @if (count($recentOrders) > 0 || $recentOrdersHasPrevious)
+                            <section class="dg-card mt-6 p-4 sm:p-5" aria-label="سفارش‌های اخیر من">
+                                <h2 class="text-base font-extrabold text-[#1B2935]">سفارش‌های اخیر من</h2>
+                                <p class="mt-2 text-xs leading-6 text-[#71818B]">۹ سفارش در هر صفحه؛ برای جزئیات یا پرداخت، یک سفارش را انتخاب کنید.</p>
+                                <div class="mt-3 divide-y divide-[#EFF2F4]">
+                                    @foreach ($recentOrders as $order)
+                                        <button type="button" wire:key="live-order-{{ $order->id }}" wire:click="openOrder({{ $order->id }})" wire:target="openOrder" wire:loading.attr="disabled"
+                                            class="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg py-2.5 text-right focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]">
+                                            <span class="min-w-0">
+                                                <span class="block break-words text-sm font-bold text-[#1B2935]">👤 {{ $recentOrderLabels[$order->id] ?? 'نام مشتری ثبت نشده' }}</span>
+                                                <span class="mt-1 block break-words text-xs leading-5 text-[#536C76]">{{ $order->productName }} · سفارش #{{ $order->id }}</span>
+                                                <span class="mt-1 block text-xs leading-5 text-[#71818B]">{{ match ($order->status) {
+                                                    'pending_payment' => 'در انتظار پرداخت',
+                                                    'paid' => 'پرداخت ثبت‌شده؛ سرویس در انتظار آماده‌سازی',
+                                                    'fulfilled' => 'سرویس در سوابق ثبت شده است',
+                                                    'needs_review' => 'نیازمند بررسی',
+                                                    default => 'مشاهده وضعیت',
+                                                } }}</span>
+                                            </span>
+                                            <span class="shrink-0 text-xs font-bold text-[#087F73]">مشاهده ←</span>
+                                        </button>
+                                    @endforeach
+                                </div>
+                                @if ($recentOrdersHasPrevious || $recentOrdersNextCursor !== null)
+                                    <nav class="mt-4 flex items-center justify-between gap-3 border-t border-[#EFF2F4] pt-4" aria-label="صفحه‌بندی سفارش‌های اخیر">
+                                        @if ($recentOrdersHasPrevious)
+                                            <button type="button" wire:click="previousRecentOrders" wire:target="previousRecentOrders,nextRecentOrders" wire:loading.attr="disabled" class="dg-btn-secondary">صفحه قبل</button>
+                                        @else
+                                            <span></span>
+                                        @endif
+                                        @if ($recentOrdersNextCursor !== null)
+                                            <button type="button" wire:click="nextRecentOrders" wire:target="previousRecentOrders,nextRecentOrders" wire:loading.attr="disabled" class="dg-btn-secondary">صفحه بعد</button>
+                                        @endif
+                                    </nav>
+                                @endif
+                            </section>
                         @endif
                     @else
                         <button type="button" wire:click="backToPlans" wire:target="backToPlans" wire:loading.attr="disabled" class="mb-5 min-h-11 text-sm font-bold text-[#087F73] focus-visible:outline-2 focus-visible:outline-[#14B8A6]">→ بازگشت به پلن‌ها</button>
@@ -622,7 +635,7 @@
                             <article wire:key="live-service-{{ $service->orderId }}" class="dg-card p-4 sm:p-5">
                                 <div class="flex flex-wrap items-start justify-between gap-3">
                                     <div class="min-w-0">
-                                        <h2 class="break-words text-base font-extrabold text-[#1B2935]">{{ $labels[$service->orderId] ?? $service->productName }}</h2>
+                                        <h2 class="break-words text-base font-extrabold text-[#1B2935]">{{ $labels[$service->orderId] ?? 'نام مشتری ثبت نشده' }}</h2>
                                         <p class="mt-1 break-words text-xs leading-6 text-[#71818B]">{{ $service->productName }} · {{ $service->durationDays }} روز{{ $service->trafficGb === null ? '' : ' · '.number_format($service->trafficGb).' گیگابایت' }}</p>
                                     </div>
                                     <span class="dg-status" data-tone="{{ match ($service->status) { 'failed' => 'danger', 'needs_review', 'provisioning' => 'warning', default => 'neutral' } }}">{{ $serviceStatus }}</span>
