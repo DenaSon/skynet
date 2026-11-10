@@ -1,15 +1,45 @@
 # Deniz Executive — financial evidence foundation (AI-EXEC)
 
-**Status (2026-11-10):** Phase 1 **merged** in [PR #439](https://github.com/DenaSon/skynet/pull/439), squash commit `bea2fded367af7a49e8ea2a63b3b617f11ff4e2f`. [PR CI 42713553455](https://github.com/DenaSon/skynet/actions/runs/42713553455) passed PHP 8.4 (1,730 tests / 12,159 assertions), PHPStan, Pint, MySQL migration/rollback and frontend checks. PHP 8.5 is scheduled-only in the current workflow and was **not** run for this PR. CI success does not establish Runflare deployment or live Telegram acceptance; **no AI/Telegram consumer is wired in phase 1**. Phases 2–4 remain pending separate authorization.
+**Status (2026-11-10):** Phase 1 **merged** in [PR #439](https://github.com/DenaSon/skynet/pull/439), squash commit `bea2fded367af7a49e8ea2a63b3b617f11ff4e2f`. [PR CI 42713553455](https://github.com/DenaSon/skynet/actions/runs/42713553455) passed PHP 8.4 (1,730 tests / 12,159 assertions), PHPStan, Pint, MySQL migration/rollback and frontend checks. PHP 8.5 is scheduled-only in the current workflow and was **not** run for this PR. CI success does not establish Runflare deployment or live Telegram acceptance; **no AI/Telegram consumer is wired in phase 1**. Phase 2 was explicitly approved and implemented in [PR #441](https://github.com/DenaSon/skynet/pull/441); [phase-2 PR CI run 42750373338](https://github.com/DenaSon/skynet/actions/runs/42750373338) passed PHP 8.4 (1,736 tests / 12,233 assertions), PHPStan, Pint, MySQL migration/rollback and frontend checks. PR merge/deploy status must be checked independently; mocked CI does not verify Runflare, live GapGPT or real Telegram. Phases 3–4 remain pending separate authorization.
 
 ## Objective and approved phases
 
 Deniz should become a trusted Super Admin-only management-group advisor for evidence-led financial, accounting, sales and growth decisions. The same customer-support persona and its permissions stay unchanged. Four independently reviewable phases:
 
-1. **AI-EXEC-01 — Financial evidence snapshot (this PR only).** Add a small read-only Application Action returning bounded, explicit, machine-readable reports from existing canonical financial Actions. No Telegram or AI integration in this phase.
-2. **AI-EXEC-02 — Executive interpretation.** Scope an independent executive prompt and integrate verified snapshots into the trusted management route, with clear fact / inference / recommendation distinctions. No Customer Business changes. Requires a separate explicit start, PR and acceptance.
+1. **AI-EXEC-01 — Financial evidence snapshot (merged PR #439).** Add a small read-only Application Action returning bounded, explicit, machine-readable reports from existing canonical financial Actions. No Telegram or AI integration in this phase.
+2. **AI-EXEC-02 — Executive interpretation (approved; PR #441).** Independent executive prompt and verified snapshots in the trusted management route, with clear fact / inference / recommendation distinctions. No Customer Business changes. Code/CI review is separate from live Telegram acceptance.
 3. **AI-EXEC-03 — Controlled follow-up questions.** Limited dataset/period selection, follow-up context and evidence-aware comparisons; do not grant arbitrary SQL, open-ended tools or financial writes. Requires separate approval and PR.
 4. **AI-EXEC-04 — Security, quality and live acceptance.** Test root revocation, scope isolation, period alignment, fidelity, sensitive-data minimization, failure modes and actual authorized Telegram experience; release enablement remains explicitly controlled.
+
+
+## Phase 2 implementation contract — explicit Deniz Executive analysis
+
+Phase 2 uses the **existing** management-group `/ai` or direct reply-to-Deniz path, the existing dedicated `ai` queue, 25-request/manager/10min and 250-request/group/day limits, the current two verified GapGPT models and the existing one-shot Telegram send. The authenticated group/actor check runs at webhook intake and again in the async job. The financial snapshot Action additionally rechecks the **current trusted, active, Telegram-linked Super Admin** before data access, and the job rechecks group/actor rights before calling the model or sending the response.
+
+Only **explicit** analysis/report phrases at the *start* of the manager's question opt in to financial reads. For example:
+
+| Explicit manager question in the existing group | Dataset and authoritative window |
+| --- | --- |
+| `/ai تحلیل فروش امروز` | `sales/day` (today vs yesterday at the same Tehran clock time) |
+| `/ai گزارش نمایندگی هفتگی` | `sales/week` (last complete seven days, not calendar week to date) |
+| `/ai تحلیل فروش ماهانه` | `sales/month` (**previous complete** Persian month vs the preceding complete month) |
+| `/ai گزارش نقدینگی ۷ روز` / `۳۰ روز` / `از ابتدا` | `cash/7`, `cash/30`, `cash/all` |
+| `/ai تحلیل مالی ماه جاری` / `گزارش حسابداری ۷ روز` | `accounting/month` (month to date) / `accounting/7` |
+| `/ai گزارش کیف پول` | `wallet/current` (current ledger-derived liability) |
+
+Unspecified supported periods use a fixed, clearly labeled default (sales = last seven **complete** days, cash = last seven **calendar** days including today, accounting = current Persian month, wallet = current). Unsupported **explicit** windows such as "sales this month" or "cash Persian month to date" yield a friendly nonbillable notice instead of silently reinterpreting the request. General group chat continues via the original conversational prompt with **no financial reads**.
+
+**Data handling:** `PrepareDenizExecutiveAnalysis` selects from the four existing `ReadDenizExecutiveSnapshot` datasets, serializes a strict aggregated field allowlist as a bounded JSON user message (source, timezone, currency, actual reporting windows, metrics and concentration without buyer identities), and always shows an **application-rendered deterministic canonical facts header** with the real Tehran report time and monetary values correctly converted from integer rials to tomans. This prevents an unconstrained LLM from being the sole source of the displayed headline values. Any financial read failure or oversize input produces a clear notice **without a paid inference or fabricated zeros**. No raw customer records, invoice references, names, Telegram IDs, bank receipt details, arbitrary SQL, tools or provider calls are sent to the LLM.
+
+**Distinct system context:** `DenizExecutiveKnowledge` is the **executive-only** system prompt. It requires evidence/inference/action separation, conservative causal interpretation, actionable KPI suggestions, and correct sales/cash/wallet/profit distinctions. It does **not** replace `DenizKnowledge` (ordinary group assistant) or its Business-only customer-support extension. The existing agent's tool list stays empty. Both established models remain selectable; no new models or model-wide token/cost changes.
+
+**Context boundary:** In phase 2 each executive request analyzes **one authorized dataset/window**, without AI tool calls, cross-dataset joins or conversational follow-up routing. Executive questions and responses are **not saved** to the existing ordinary-group conversation cache, avoiding accidental reuse of stale monetary figures. Multiple datasets, arbitrary date ranges, conversational drilldowns and follow-up selection are reserved for separately approved phase 3.
+
+**Privacy:** Only trusted Super Admins can initiate a financial request; however, any member of the configured Telegram group may be able to **read** the result. Operators must ensure group membership is appropriate for sensitive aggregate finance. All outgoing model/Telegram calls require active authorization. Failure, callback, AI and telemetry logs must not include raw financial evidence or customer details.
+
+**Verification for phase 2:** Focused fake-provider/Telegram tests must validate accurate source money in sent group text, strictly aggregated and bounded JSON in the GapGPT request, exact root-only execution rights, nonfinancial chat and customer-support isolation, unsupported-period notices without AI billing, no financial state persistence in chat history, and one-shot/uncertain delivery. Full repository CI (PHP 8.4, PHPStan, Pint, MySQL, frontend) and a reviewed PR are required before merge. Scheduled PHP 8.5 is separate. Real Runflare deployment, connected management group membership and actual GapGPT/Telegram answer quality **cannot be inferred from fakes**; final real-world acceptance remains phase 4.
+
+**Non-goals:** No Admin/Sales/Business bot changes, new menu/command or provider permission, schema or migration, new package, finance mutation, AI SQL reader, web interface, plan-margin or ROI calculations, or scheduled digests. Rollback is an isolated PR revert.
 
 ## Phase 1 implementation contract
 

@@ -23,10 +23,14 @@ final readonly class AskAssistant
     /**
      * @param  list<array<string, mixed>>  $history
      */
-    public function handle(string $prompt, ?string $modelId = null, array $history = [], bool $customerSupport = false): AssistantAnswer
+    public function handle(string $prompt, ?string $modelId = null, array $history = [], bool $customerSupport = false, bool $executive = false): AssistantAnswer
     {
         if (config('denagate_ai.enabled') !== true) {
             throw new RuntimeException('AI is disabled.');
+        }
+
+        if ($customerSupport && $executive) {
+            throw ValidationException::withMessages(['mode' => 'Conflicting AI assistant modes.']);
         }
 
         $model = $this->models->resolve($modelId);
@@ -66,7 +70,7 @@ final readonly class AskAssistant
         }
 
         try {
-            $response = (new DenixAssistant(customerSupport: $customerSupport))->withMessages($history)->prompt(
+            $response = (new DenixAssistant(customerSupport: $customerSupport, executive: $executive))->withMessages($history)->prompt(
                 $prompt,
                 provider: 'gapgpt',
                 model: $model,

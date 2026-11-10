@@ -8,6 +8,8 @@ use App\Interfaces\Telegram\Processing\DenixConversationState;
 use App\Interfaces\Telegram\Processing\DenixGroupAccess;
 use App\Interfaces\Telegram\Processing\DenixMessageSender;
 use App\Modules\AI\Application\AskAssistant;
+use App\Modules\AI\Application\PrepareDenizExecutiveAnalysis;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -15,7 +17,9 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use InvalidArgumentException;
 use RuntimeException;
+use Throwable;
 
 final class AnswerDenixMessage implements ShouldQueue
 {
@@ -72,10 +76,48 @@ final class AnswerDenixMessage implements ShouldQueue
                 return;
             }
 
+            // Explicit financial requests use bounded, root-authorized snapshots.
+            // Ordinary group chat never reads financial data or receives this mode.
+            // We intentionally do not persist financial context until phase 3.
+            $executive = null;
+            try {
+                $executive = app(PrepareDenizExecutiveAnalysis::class)->handle(
+                    $this->telegramUserId, $this->question,
+                );
+            } catch (AuthorizationException) {
+                return;
+            } catch (InvalidArgumentException $error) {
+                if ($access->allowed($this->chatId, $this->telegramUserId)) {
+                    $sender->send($this->chatId, $this->messageId, $this->threadId, $error->getMessage());
+                }
+
+                return;
+            } catch (Throwable) {
+                // Financial read failures are unknown, never zero or stale data.
+                // Do not send an unsupported report to the paid AI provider.
+                if ($access->allowed($this->chatId, $this->telegramUserId)) {
+                    $sender->send(
+                        $this->chatId, $this->messageId, $this->threadId,
+                        'داده‌های این گزارش فعلاً در دسترس نیست. لطفاً دوباره تلاش کنید.',
+                    );
+                }
+
+                return;
+            }
+
+            if ($executive !== null && ! $access->allowed($this->chatId, $this->telegramUserId)) {
+                return;
+            }
+
             $started = hrtime(true);
 
             try {
-                $answer = $ask->handle($this->question, $model, $history);
+                $answer = $ask->handle(
+                    $executive['prompt'] ?? $this->question,
+                    $model,
+                    $executive === null ? $history : [],
+                    executive: $executive !== null,
+                );
             } catch (RuntimeException) {
                 // The one-shot AI attempt is already reserved. Do not retry a potentially
                 // billable call or store a failed conversation turn. Respond in the same
@@ -103,11 +145,17 @@ final class AnswerDenixMessage implements ShouldQueue
                 return;
             }
 
-            $reply = mb_substr($answer->text, 0, 3500);
+            $reply = mb_substr(
+                $executive === null ? $answer->text : $executive['headline']."\n\n".$answer->text,
+                0, 3500,
+            );
             $sender->send($this->chatId, $this->messageId, $this->threadId, $reply);
 
-            // Never retain an assistant turn that was not successfully delivered.
-            $state->remember($this->chatId, $this->threadId, $this->telegramUserId, $this->question, $reply);
+            // Finance stays stateless in phase 2: subsequent generic questions
+            // cannot receive stale numbers from the old conversation cache.
+            if ($executive === null) {
+                $state->remember($this->chatId, $this->threadId, $this->telegramUserId, $this->question, $reply);
+            }
         } finally {
             $lock->release();
         }

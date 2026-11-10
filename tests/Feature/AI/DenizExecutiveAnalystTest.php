@@ -1,0 +1,252 @@
+<?php
+
+declare(strict_types=1);
+
+use App\Interfaces\Telegram\Jobs\AnswerDenixMessage;
+use App\Interfaces\Telegram\Processing\DenixConversationState;
+use App\Interfaces\Telegram\Processing\DenixGroupAccess;
+use App\Interfaces\Telegram\Processing\DenixMessageSender;
+use App\Modules\AI\Application\AskAssistant;
+use App\Modules\AI\Application\DenixAssistant;
+use App\Modules\AI\Application\PrepareDenizExecutiveAnalysis;
+use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
+use App\Modules\Identity\Infrastructure\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Validation\ValidationException;
+use Spatie\Permission\Models\Role;
+
+uses(RefreshDatabase::class);
+
+beforeEach(function (): void {
+    $this->travelTo(Carbon::parse('2026-11-10 15:30', 'Asia/Tehran')->utc());
+    config()->set('denagate_ai.enabled', true);
+    config()->set('telegram.denix.enabled', true);
+    config()->set('cache.default', 'database');
+    config()->set('telegram.denix.token', '100003:denix-executive-test');
+    config()->set('telegram.denix.webhook_secret', 'exec-secret');
+    config()->set('nutgram.token', '100001:admin');
+    config()->set('telegram.webhook_secret', 'admin-secret');
+    config()->set('telegram.sales.token', '100002:sales');
+    config()->set('telegram.sales.webhook_secret', 'sales-secret');
+    config()->set('telegram.denix.group_chat_id', -100987654321);
+    config()->set('ai.providers.gapgpt.key', 'test-only-key');
+    config()->set('ai.providers.gapgpt.url', 'https://api.gapgpt.app/v1');
+    config()->set('super_admin.telegram_ids', ['180001', '180002']);
+    Cache::flush();
+    Http::preventStrayRequests();
+});
+
+function executive02Root(): User
+{
+    Role::findOrCreate('super-admin', 'web');
+    $root = User::factory()->create(['is_active' => true]);
+    $root->syncRoles(['super-admin']);
+    TelegramAccount::query()->create(['user_id' => $root->id, 'telegram_user_id' => 180001]);
+
+    return $root;
+}
+
+function executive02Sale(User $root, int $amount): void
+{
+    $buyer = User::factory()->create(['name' => 'Never Export This Name']);
+    $order = (int) DB::table('sales_orders')->insertGetId([
+        'buyer_user_id' => $buyer->id,
+        'buyer_category' => 'direct',
+        'idempotency_key' => bin2hex(random_bytes(16)),
+        'product_slug' => 'executive02',
+        'product_name' => 'Private plan name',
+        'duration_days' => 30,
+        'traffic_gb' => 20,
+        'public_price_rials' => $amount,
+        'discount_percent' => 0,
+        'discount_rials' => 0,
+        'total_price_rials' => $amount,
+        'status' => 'fulfilled',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+    $journal = (int) DB::table('billing_journals')->insertGetId([
+        'kind' => 'direct_bank_sale',
+        'idempotency_key' => 'executive02:bank:'.$order,
+        'created_at' => now(),
+    ]);
+    $at = Carbon::parse('2026-11-08 10:00:00', 'Asia/Tehran')->utc();
+    $claim = (int) DB::table('sales_bank_payment_claims')->insertGetId([
+        'sales_order_id' => $order,
+        'buyer_user_id' => $buyer->id,
+        'photo_encrypted' => 'private-receipt',
+        'photo_fingerprint' => hash('sha256', 'exec02-'.$order),
+        'telegram_message_key' => 'exec02-'.$order,
+        'status' => 'approved',
+        'reviewed_by' => $root->id,
+        'reviewed_at' => $at,
+        'created_at' => $at,
+        'updated_at' => $at,
+    ]);
+    DB::table('sales_bank_settlements')->insert([
+        'sales_order_id' => $order,
+        'payment_claim_id' => $claim,
+        'billing_journal_id' => $journal,
+        'verified_by' => $root->id,
+        'payment_reference' => 'PRIVATEBANKREFERENCE',
+        'amount_rials' => $amount,
+        'settled_at' => $at,
+    ]);
+}
+
+function executive02Response(string $text = '🧠 تحلیل: فروش قابل بررسی است. 💡 اقدام پیشنهادی: روند خرید مجدد را پایش کنید.'): array
+{
+    return [
+        'id' => 'executive02-chat',
+        'object' => 'chat.completion',
+        'model' => 'gpt-6-luna',
+        'choices' => [
+            ['index' => 0, 'message' => ['role' => 'assistant', 'content' => $text], 'finish_reason' => 'stop'],
+        ],
+        'usage' => ['prompt_tokens' => 50, 'completion_tokens' => 30],
+    ];
+}
+
+function executive02Job(int $messageId, string $question): void
+{
+    (new AnswerDenixMessage(-100987654321, 180001, $messageId, 12, $question))->handle(
+        app(DenixGroupAccess::class),
+        app(AskAssistant::class),
+        app(DenixMessageSender::class),
+        app(DenixConversationState::class),
+    );
+}
+
+it('selects only explicit trusted executive requests with correct temporal semantics', function (): void {
+    executive02Root();
+    $prepare = app(PrepareDenizExecutiveAnalysis::class);
+
+    foreach ([
+        ['تحلیل فروش امروز', '"dataset":"sales","period":"day"'],
+        ['گزارش نمایندگی هفتگی', '"dataset":"sales","period":"week"'],
+        ['تحلیل فروش ماهانه', '"dataset":"sales","period":"month"'],
+        ['گزارش نقدینگی ۳۰ روز', '"dataset":"cash","period":"30"'],
+        ['گزارش دریافتی‌ها از ابتدا', '"dataset":"cash","period":"all"'],
+        ['تحلیل شارژ کیف پول', '"dataset":"cash","period":"7"'],
+        ['گزارش حسابداری ۷ روز', '"dataset":"accounting","period":"7"'],
+        ['تحلیل مالی ماه جاری', '"dataset":"accounting","period":"month"'],
+        ['گزارش کیف پول', '"dataset":"wallet","period":"current"'],
+    ] as [$question, $expected]) {
+        $prepared = $prepare->handle(180001, $question);
+        expect($prepared)->not->toBeNull()
+            ->and($prepared['prompt'])->toContain($expected)
+            ->and(mb_strlen($prepared['prompt']))->toBeLessThanOrEqual(2000)
+            ->and($prepared['headline'])->toContain('🕒');
+    }
+
+    expect($prepare->handle(180001, 'سلام به دنیز'))->toBeNull()
+        ->and($prepare->handle(180001, 'اینترنت قطع شده'))->toBeNull();
+    Http::assertNothingSent();
+});
+
+it('rejects misleading time ranges instead of silently mapping current-month sales or cash to a different period', function (): void {
+    executive02Root();
+    $prepare = app(PrepareDenizExecutiveAnalysis::class);
+
+    foreach (['تحلیل فروش این ماه', 'گزارش فروش ماه جاری', 'گزارش نقدینگی این ماه', 'تحلیل کیف پول ماه قبل'] as $question) {
+        expect(fn () => $prepare->handle(180001, $question))
+            ->toThrow(InvalidArgumentException::class);
+    }
+
+    Http::assertNothingSent();
+});
+
+it('sends canonical sales evidence plus an executive-only prompt and never exports customer details', function (): void {
+    $root = executive02Root();
+    executive02Sale($root, 2_500_000);
+    Http::fake([
+        'https://api.gapgpt.app/*' => Http::response(executive02Response()),
+        'https://api.telegram.org/*' => Http::response(['ok' => true, 'result' => ['message_id' => 900]]),
+    ]);
+
+    executive02Job(101, 'تحلیل فروش هفتگی');
+
+    Http::assertSentCount(2);
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.gapgpt.app/v1/chat/completions'
+        && $request['model'] === 'gpt-6-luna'
+        && str_contains($request['messages'][0]['content'], 'مشاور ارشد حسابداری')
+        && str_contains($request['messages'][1]['content'], '"revenueRials":2500000')
+        && str_contains($request['messages'][1]['content'], '"reseller"')
+        && ! str_contains(json_encode($request['messages'], JSON_THROW_ON_ERROR), 'PRIVATEBANKREFERENCE')
+        && ! str_contains(json_encode($request['messages'], JSON_THROW_ON_ERROR), 'Never Export This Name')
+        && ! str_contains(json_encode($request['messages'], JSON_THROW_ON_ERROR), 'buyerUserId')
+        && ! str_contains(json_encode($request['messages'], JSON_THROW_ON_ERROR), 'Private plan name'));
+    Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/sendMessage')
+        && $request['chat_id'] === -100987654321
+        && $request['message_thread_id'] === 12
+        && str_contains($request['text'], '250,000 تومان')
+        && str_contains($request['text'], '🧠 تحلیل')
+        && str_contains($request['text'], '۷ روز کامل')
+        && ! str_contains($request['text'], 'PRIVATEBANKREFERENCE'));
+
+    // Finance is deliberately absent from the ordinary group conversation cache.
+    expect(app(DenixConversationState::class)->history(-100987654321, 12, 180001))->toBeEmpty();
+});
+
+it('keeps ordinary group chat and customer-support prompts distinct', function (): void {
+    executive02Root();
+    Http::fake([
+        'https://api.gapgpt.app/*' => Http::response(executive02Response('جواب عادی')),
+        'https://api.telegram.org/*' => Http::response(['ok' => true, 'result' => ['message_id' => 902]]),
+    ]);
+
+    executive02Job(102, 'سلام');
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.gapgpt.app/v1/chat/completions'
+        && $request['messages'][1]['content'] === 'سلام'
+        && ! str_contains($request['messages'][0]['content'], 'مشاور ارشد حسابداری')
+        && str_contains($request['messages'][0]['content'], 'دستیار هوش مصنوعی دناگیت'));
+
+    expect(app(DenixConversationState::class)->history(-100987654321, 12, 180001))->toHaveCount(2);
+
+    expect(app(DenixAssistant::class)->instructions())->not->toContain('مشاور ارشد حسابداری');
+    expect((new DenixAssistant(customerSupport: true))->instructions())
+        ->toContain('اکنون در گفتگوی خصوصی حساب پشتیبانی')
+        ->not->toContain('مشاور ارشد حسابداری');
+
+    expect(fn () => app(AskAssistant::class)->handle('سؤال', customerSupport: true, executive: true))
+        ->toThrow(ValidationException::class);
+});
+
+it('does not issue paid AI calls on unsupported financial windows or denied identities', function (): void {
+    executive02Root();
+    Http::fake([
+        'https://api.gapgpt.app/*' => Http::response(executive02Response()),
+        'https://api.telegram.org/*' => Http::response(['ok' => true]),
+    ]);
+
+    executive02Job(103, 'تحلیل فروش این ماه');
+    Http::assertSentCount(1);
+    Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/sendMessage')
+        && str_contains($request['text'], 'آخرین ماه کامل'));
+
+    DB::table('users')->where('id', TelegramAccount::query()->where('telegram_user_id', 180001)->firstOrFail()->user_id)
+        ->update(['is_active' => false]);
+    executive02Job(104, 'تحلیل فروش هفتگی');
+
+    Http::assertSentCount(1);
+    expect(app(DenixConversationState::class)->history(-100987654321, 12, 180001))->toBeEmpty();
+});
+
+it('does not repeat paid executive requests or cache financial evidence after an uncertain send', function (): void {
+    $root = executive02Root();
+    executive02Sale($root, 1_000_000);
+    Http::fake([
+        'https://api.gapgpt.app/*' => Http::response(executive02Response()),
+        'https://api.telegram.org/*' => Http::response(['ok' => false], 503),
+    ]);
+
+    expect(fn () => executive02Job(105, 'تحلیل فروش هفتگی'))->toThrow(RuntimeException::class, 'Denix response delivery failed.');
+    executive02Job(105, 'تحلیل فروش هفتگی');
+    Http::assertSentCount(2);
+    expect(app(DenixConversationState::class)->history(-100987654321, 12, 180001))->toBeEmpty();
+});
