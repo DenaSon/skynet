@@ -250,7 +250,8 @@ final readonly class SalesHomeUi
             $spec = ($entry->quote->trafficGb === null ? 'حجم نامحدود' : $entry->quote->trafficGb.' گیگابایت')
                 .' · '.$entry->quote->durationDays.' روز';
             $lines[] = '📦 <b>'.$this->name($entry->plan->name).'</b> · <b>'.$spec.'</b>';
-            $lines[] = '💰 <b>'.TelegramUi::toman($entry->quote->totalPriceRials).' تومان</b>';
+            $lines[] = ($isReseller ? '💰 قیمت شما: <b>' : '💰 <b>')
+                .TelegramUi::toman($entry->quote->totalPriceRials).' تومان</b>';
             $lines[] = '';
             $callback = 'catalog:detail:'.$entry->plan->id.':1';
             $richHtml .= '<p>📦 <b>'.$this->name($entry->plan->name).'</b> · <b>'.$spec.'</b><br>'
