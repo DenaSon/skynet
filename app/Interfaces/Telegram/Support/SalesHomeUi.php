@@ -247,33 +247,27 @@ final readonly class SalesHomeUi
             .($pages > 1 ? '<p>صفحه '.$page.' از '.$pages.'</p>' : '');
         foreach (array_slice($entries, ($page - 1) * 5, 5) as $entry) {
             $lines[] = '📦 <b>'.$this->name($entry->plan->name).'</b>';
-            $lines[] = ($entry->quote->trafficGb === null ? 'حجم نامحدود' : $entry->quote->trafficGb.' گیگابایت')
-                .' · '.$entry->quote->durationDays.' روز';
+            $lines[] = '📊 <b>'.($entry->quote->trafficGb === null ? 'حجم نامحدود' : $entry->quote->trafficGb.' گیگابایت')
+                .' · '.$entry->quote->durationDays.' روز</b>';
             $lines[] = ($isReseller ? 'قیمت مخصوص پنل فروش: <b>' : 'مبلغ: <b>')
                 .TelegramUi::toman($entry->quote->totalPriceRials).' تومان</b>';
             $lines[] = '';
             $callback = 'catalog:detail:'.$entry->plan->id.':1';
             $richHtml .= '<p>📦 <b>'.$this->name($entry->plan->name).'</b><br>'
-                .($entry->quote->trafficGb === null ? 'حجم نامحدود' : $entry->quote->trafficGb.' گیگابایت')
-                .' · '.$entry->quote->durationDays.' روز<br>'
+                .'📊 <b>'.($entry->quote->trafficGb === null ? 'حجم نامحدود' : $entry->quote->trafficGb.' گیگابایت')
+                .' · '.$entry->quote->durationDays.' روز</b><br>'
                 .($isReseller
                     ? '🏷️ قیمت عمومی: '.TelegramUi::toman($entry->quote->publicPriceRials).' تومان<br>'
                         .'🎁 تخفیف نماینده: '.$entry->quote->discountPercent.'٪<br>قیمت شما: '
                     : 'مبلغ نهایی: ')
-                .'<b>'.TelegramUi::toman($entry->quote->totalPriceRials).' تومان</b></p>'
-                .'<tg-button-row><tg-button type="callback_data" style="success" data="'.$callback.'">🛒 خرید</tg-button></tg-button-row>';
-            $keyboard->addRow(
-                InlineKeyboardButton::make(
-                    TelegramUi::toman($entry->quote->totalPriceRials).' تومان',
-                    callback_data: $callback,
-                    style: ButtonStyle::PRIMARY,
-                ),
-                InlineKeyboardButton::make(
-                    TelegramUi::planButtonLabel($entry->plan->name, $entry->quote->trafficGb, $entry->quote->durationDays),
-                    callback_data: $callback,
-                    style: ButtonStyle::PRIMARY,
-                ),
-            );
+                .'<b>'.TelegramUi::toman($entry->quote->totalPriceRials).' تومان</b></p>';
+            // One native selection per plan on both Rich and legacy clients.
+            // The callback still opens the existing validated plan preview.
+            $keyboard->addRow(InlineKeyboardButton::make(
+                '🔎 '.TelegramUi::planButtonLabel($entry->plan->name, $entry->quote->trafficGb, $entry->quote->durationDays),
+                callback_data: $callback,
+                style: ButtonStyle::PRIMARY,
+            ));
         }
         if ($entries === []) {
             $lines[] = 'فعلاً پلن آماده خریدی وجود ندارد. می‌توانید فهرست پلن‌ها را ببینید یا با پشتیبانی گفتگو کنید.';
@@ -301,8 +295,7 @@ final readonly class SalesHomeUi
             return;
         }
 
-        // The existing native two-column buy buttons remain available during
-        // the in-message CTA client pilot. They continue the validated checkout.
+        // One native plan button works with both Rich rendering and HTML fallback.
         $simpleKeyboard = clone $keyboard;
         try {
             TelegramUi::answerCallback($bot);
