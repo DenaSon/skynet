@@ -49,6 +49,7 @@ final readonly class PrepareDenizExecutiveAnalysis
             'period' => $snapshot['period'],
             'timezone' => $snapshot['timezone'],
             'currency' => $snapshot['currency'],
+            'source' => $snapshot['source'],
             'generatedAt' => $snapshot['generatedAt'],
             'data' => match ($selected['dataset']) {
                 'sales' => [
@@ -102,13 +103,16 @@ final readonly class PrepareDenizExecutiveAnalysis
 
         // Report semantics are *not* interchangeable. Refuse a requested
         // calendar-current period if the canonical Action supplies another.
-        if ($dataset === 'sales' && preg_match('/(?:این ماه|ماه جاری)/u', $question) === 1) {
+        if ($dataset === 'sales' && preg_match('/(?:این ماه|ماه جاری|(?:۳۰|30)\s*روز|از ابتدا)/u', $question) === 1) {
             throw new InvalidArgumentException('گزارش فروش ماهانه فعلاً آخرین ماه کامل شمسی را نشان می‌دهد؛ برای همان بازه «تحلیل فروش ماهانه» را بپرسید.');
         }
-        if ($dataset === 'cash' && preg_match('/(?:این ماه|ماه جاری)/u', $question) === 1) {
+        if ($dataset === 'cash' && preg_match('/(?:این ماه|ماه جاری|ماهانه|ماه قبل|امروز|روزانه)/u', $question) === 1) {
             throw new InvalidArgumentException('برای گزارش دریافت‌ها فعلاً بازه‌های ۷ روز، ۳۰ روز و از ابتدا در دسترس است.');
         }
-        if ($dataset === 'wallet' && preg_match('/(?:دیروز|گذشته|قبلی|قبل|هفته|ماه)/u', $question) === 1) {
+        if ($dataset === 'accounting' && preg_match('/(?:از ابتدا|از آغاز|کل تاریخ)/u', $question) === 1) {
+            throw new InvalidArgumentException('گزارش حسابداری فعلاً برای ۷ روز، ۳۰ روز یا ماه جاری در دسترس است.');
+        }
+        if ($dataset === 'wallet' && preg_match('/(?:دیروز|گذشته|قبلی|قبل|هفته|ماه|(?:۳۰|30|۷|7)\s*روز)/u', $question) === 1) {
             throw new InvalidArgumentException('گزارش کیف پول فعلاً فقط مانده لحظه‌ای را نشان می‌دهد، نه مانده تاریخی.');
         }
 
