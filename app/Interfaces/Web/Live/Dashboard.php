@@ -1243,7 +1243,7 @@ final class Dashboard extends Component
             if ($this->section === 'shop' && $this->createdOrderId !== null) {
                 $data['createdOrder'] = app(OrderReader::class)->findNewPlan($userId, $this->createdOrderId);
                 $data['createdCustomerName'] = app(ManageResellerServiceLabels::class)
-                    ->pendingName($userId, $this->createdOrderId);
+                    ->forRecentNewPlanOrders($userId, [$this->createdOrderId])[$this->createdOrderId] ?? null;
             } elseif ($this->section === 'shop') {
                 if ($this->selectedPlanId === null) {
                     $orderPage = app(OrderReader::class)->pageNewPlans($userId, 9, $this->recentOrdersCursor);
