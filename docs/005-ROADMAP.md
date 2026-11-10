@@ -1,3 +1,7 @@
+## Deniz Business support — scoped incident correction (2026-11-10; PR review)
+
+The operator approved **4× Business-only request limits** (20/customer/10 minutes, 80/customer/day, default 200 total/day), plus a targeted code review and privacy-safe observability for silent replies. Existing 5/20/50 figures below remain historical for the already merged baseline; they are not the limits proposed by this correction. Do not change manager quotas, human-handoff/permission checks, one-shot replay controls or the 24-hour Telegram reply rule. A pre-existing explicit Runflare global-quota ENV override of 50 must be updated separately after review or it keeps the old shared cap. No new migration or worker. PR CI and post-merge Runflare acceptance are separate. See docs/045.
+
 ## Deniz AI — baseline v1 accepted; development paused (2026-11-10)
 
 **Product decision:** The operator considers Deniz's Telegram Business customer support and trusted Super Admin management-group financial/strategy assistant useful and stable for a **baseline v1**. No major blocker was reported in current live usage. Close the active AI feature-development phase; do not start new AI features, models, providers, finance actions, commands, migrations or architecture changes without a fresh scoped approval. Bug fixes remain separately reviewed and tested.
