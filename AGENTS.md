@@ -1,3 +1,7 @@
+## Deniz Business reliability review — approved change under independent PR (2026-11-10)
+
+The operator approved **4× customer-support capacity only**: 20 AI requests/customer/10 minutes, 80/customer/day and 200 Business-wide/day. Retain manager limits (25/actor/10min and 250/group/day) and existing one-shot Business delivery guards. Add only privacy-safe trace IDs, reason-category logs and Business-vs-management failed-job diagnostics; no raw Telegram IDs, prompts, generated replies, credentials or provider responses. The optional global-capacity ENV override takes precedence: an old explicit 50 must be updated to 200 as a separately controlled Runflare setting after review. No unauthorized merge or claim of production acceptance; see docs/045. Historical 5/20/50 limits below describe the previous merged baseline.
+
 ## Deniz AI — merged development baseline (2026-11-09)
 
 The GapGPT foundation, Deniz management-group Bot, Telegram Business support, Admin-only activation switch, scoped customer support prompt, safe Telegram HTML replies and 5× management-group quotas are **implemented on `master` through PR #437**. Do **not** treat old AI-01/AI-02 planning paragraphs as pending implementations. Read the [current implementation contract](docs/045-AI-FOUNDATION-GROUP-ROADMAP.md#current-implementation--authoritative-snapshot-2026-11-09) before changing Deniz.
