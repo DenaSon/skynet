@@ -278,7 +278,6 @@ it('provides an exact rolling 24-hour statement to the Deniz executive model and
     expect(app(DenixConversationState::class)->history(-100987654321, 12, 180001))->toBeEmpty();
 });
 
-
 it('answers natural sales questions and same-topic follow-ups from freshly re-read settlement data', function (): void {
     $this->travelTo(Carbon::parse('2026-11-08 15:30:00', 'Asia/Tehran')->utc());
     $root = executive02Root();
