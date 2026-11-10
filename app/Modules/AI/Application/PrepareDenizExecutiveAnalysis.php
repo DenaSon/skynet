@@ -118,7 +118,8 @@ final readonly class PrepareDenizExecutiveAnalysis
                 $allowed = match ($dataset) {
                     'sales' => $duration[2] === 'ساعت' && $number === '24',
                     'cash', 'accounting' => $duration[2] === 'روز' && in_array($number, ['7', '30'], true),
-                    'wallet', 'users' => false,
+                    'wallet' => false,
+                    'users' => $duration[2] === 'روز' && in_array($number, ['7', '30'], true),
                 };
 
                 if (! $allowed) {
@@ -138,8 +139,8 @@ final readonly class PrepareDenizExecutiveAnalysis
         if ($dataset === 'accounting' && preg_match('/(?:از ابتدا|از آغاز|کل تاریخ|دیروز|این هفته)/u', $question) === 1) {
             throw new InvalidArgumentException('گزارش حسابداری فعلاً برای ۷ روز، ۳۰ روز یا ماه جاری در دسترس است.');
         }
-        if ($dataset === 'users' && preg_match('/(?:دیروز|ماه قبل|هفته قبل|(?:۲۴|24)\\s*ساعت)/u', $question) === 1) {
-            throw new InvalidArgumentException('آمار کاربران فقط وضعیت فعلی و گزارش‌های محلی ۷ و ۳۰ روز اخیر را نشان می‌دهد.');
+        if ($dataset === 'users' && preg_match('/(?:دیروز|ماه قبل|ماه جاری|این ماه|هفته قبل|این هفته|آنلاین|اشتراک فعال|کاربران پنل|(?:۲۴|24)\\s*ساعت)/u', $question) === 1) {
+            throw new InvalidArgumentException('در این گزارش فقط کاربران محلی و ثبت‌نام یا خریدهای ۷ و ۳۰ روز اخیر قابل بررسی هستند؛ آمار آنلاین یا اشتراک‌های پنل از این مسیر دریافت نمی‌شود.');
         }
         if ($dataset === 'wallet' && preg_match('/(?:دیروز|گذشته|قبلی|قبل|هفته|ماه|(?:۳۰|30|۷|7)\s*روز)/u', $question) === 1) {
             throw new InvalidArgumentException('گزارش کیف پول فعلاً فقط مانده لحظه‌ای را نشان می‌دهد، نه مانده تاریخی.');
