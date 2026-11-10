@@ -46,8 +46,14 @@ final class AnswerDenizBusinessMessage implements ShouldQueue
         DenixConversationState $state,
         AskAssistant $ask,
     ): void {
-        if (! $access->enabled() || ! $this->withinReplyWindow()
-            || ! in_array($this->kind, ['answer', 'quota', 'handoff', 'resume'], true)) {
+        if (! $access->enabled()) {
+            $this->logBlocked('business_disabled');
+
+            return;
+        }
+
+        if (! $this->withinReplyWindow()
+            || ! in_array($this->kind, ['answer', 'quota', 'capacity', 'handoff', 'resume'], true)) {
             return;
         }
 
@@ -81,6 +87,8 @@ final class AnswerDenizBusinessMessage implements ShouldQueue
             // Connection/owner/rights are fetched from Telegram on the worker.
             // Incoming business_connection payloads never authorize a paid action.
             if (! $access->allowed($this->connectionId)) {
+                $this->logBlocked('connection_denied');
+
                 return;
             }
 
@@ -97,6 +105,9 @@ final class AnswerDenizBusinessMessage implements ShouldQueue
                     : ($minutes === 0 ? "{$hours} ساعت" : "{$hours} ساعت و {$minutes} دقیقه");
 
                 $text = match ($this->kind) {
+                    'capacity' => "⏳ ظرفیت پاسخ‌گویی هوشمند دنیز موقتاً تکمیل شده است.\n\n"
+                        ."این محدودیت مربوط به سهمیه شخصی شما نیست. حدود {$time} دیگر دوباره تلاش کنید.\n\n"
+                        .'برای دریافت راهنمایی از پشتیبانی انسانی، «پشتیبان انسانی» را ارسال کنید.',
                     'quota' => "⏳ تعداد پیام‌های مجاز در این بازه زمانی تکمیل شده است.\n\n"
                         ."امکان ادامه گفت‌وگو حدود {$time} دیگر فعال می‌شود.\n\n"
                         .'از همراهی شما سپاسگزاریم.',
@@ -183,6 +194,14 @@ final class AnswerDenizBusinessMessage implements ShouldQueue
             $state->remember($this->chatId, null, $this->customerId, $this->question, $reply);
         } finally {
             $lock->release();
+        }
+    }
+
+    private function logBlocked(string $reason): void
+    {
+        if (Cache::add('denix:business:ops:blocked:'.$reason, true, now()->addMinutes(10))) {
+            // No personal data, Telegram connection IDs, question text or secrets.
+            Log::warning('Deniz Business answer suppressed.', ['reason' => $reason]);
         }
     }
 
