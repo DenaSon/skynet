@@ -213,6 +213,57 @@ it('resets only recent-order paging after a new purchase and keeps reseller orde
     Http::assertNothingSent();
 });
 
+it('excludes renewal orders across all recent-purchase pages and prevents opening them', function (): void {
+    $owner = live3bReseller(944455);
+    $plan = live3bPlan();
+    $quote = app(CalculatePlanQuote::class)->handle($owner->id, $plan, 30, 30);
+    $register = app(RegisterPendingResellerOrder::class);
+    $orders = [];
+    for ($i = 0; $i < 11; $i++) {
+        $orders[] = $register->handle($owner->id, $quote, bin2hex(random_bytes(16)), 'کاربر '.$i)->id;
+    }
+    $renewal = $register->handle($owner->id, $quote, bin2hex(random_bytes(16)), 'فقط تمدید');
+    $subscriptionId = DB::table('provisioning_subscriptions')->insertGetId([
+        'reference' => 'live-ux01-test-renewal',
+        'remote_username' => 'live_ux01_test',
+        'state' => 'active',
+        'last_operation_key' => 'live-ux01-test-renewal',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+    DB::table('sales_renewal_orders')->insert([
+        'sales_order_id' => $renewal->id,
+        'source_order_id' => $orders[0],
+        'provisioning_subscription_id' => $subscriptionId,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $reader = app(OrderReader::class);
+    $first = $reader->pageNewPlans($owner->id);
+    $second = $reader->pageNewPlans($owner->id, 9, $first->nextBeforeOrderId);
+    expect(array_map(static fn ($order): int => $order->id, $first->orders))
+        ->toBe(array_reverse(array_slice($orders, 2)))
+        ->and(array_map(static fn ($order): int => $order->id, $second->orders))
+        ->toBe(array_reverse(array_slice($orders, 0, 2)))
+        ->and($second->nextBeforeOrderId)->toBeNull()
+        ->and(app(ManageResellerServiceLabels::class)->forRecentNewPlanOrders($owner->id, [$renewal->id]))->toBe([]);
+
+    $this->actingAs($owner)->withSession(['denagate_live.user_id' => $owner->id]);
+    Livewire::test(Dashboard::class)
+        ->call('showSection', 'shop')
+        ->assertDontSee('فقط تمدید')
+        ->call('nextRecentOrders')
+        ->assertDontSee('فقط تمدید')
+        ->call('openOrder', $renewal->id)
+        ->assertSee('سفارش در دسترس نیست')
+        ->assertSet('createdOrderId', null);
+    expect(DB::table('billing_journals')->count())->toBe(0)
+        ->and(DB::table('sales_order_settlements')->count())->toBe(0)
+        ->and(DB::table('provisioning_operations')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
 it('registers exactly one pending reseller order with immutable price and customer name', function (): void {
     $buyer = live3bReseller(944411);
     $plan = live3bPlan();
