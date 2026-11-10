@@ -25,6 +25,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schedule;
 use Illuminate\Support\Facades\Schema;
@@ -122,7 +123,7 @@ Artisan::command('deniz:telegram:commands:register {--dry-run : Preview without 
 Artisan::command('deniz:business:status', function (DenizBusinessConnectionGuard $access): int {
     $global = 'denix:business:quota:global';
     $attempts = RateLimiter::attempts($global);
-    $limit = max(1, (int) config('denagate_ai.business_global_requests_per_day', 50));
+    $limit = max(1, (int) config('denagate_ai.business_global_requests_per_day', 200));
     $queue = config('queue.default');
 
     $this->line('Business gate: '.($access->enabled() ? 'enabled' : 'disabled'));
@@ -131,12 +132,16 @@ Artisan::command('deniz:business:status', function (DenizBusinessConnectionGuard
     $this->line('Cache driver: '.config('cache.default'));
     $this->line('Queue driver: '.$queue);
 
-    if ($queue === 'database' && Schema::hasTable('jobs')) {
-        $this->line('Pending ai jobs: '.DB::table('jobs')->where('queue', 'ai')->count());
+    $driver = is_string($queue) ? config('queue.connections.'.$queue.'.driver') : null;
+    if (in_array($driver, ['redis', 'database'], true)) {
+        $this->line('Pending ai jobs: '.Queue::connection($queue)->size('ai'));
     }
 
     if (Schema::hasTable('failed_jobs')) {
-        $this->line('Failed ai jobs: '.DB::table('failed_jobs')->where('queue', 'ai')->count());
+        $failed = DB::table('failed_jobs')->where('queue', 'ai');
+        $this->line('Failed ai jobs: '.(clone $failed)->count());
+        $this->line('Failed Business ai jobs: '.(clone $failed)->where('payload', 'like', '%AnswerDenizBusinessMessage%')->count());
+        $this->line('Failed management ai jobs: '.(clone $failed)->where('payload', 'like', '%AnswerDenixMessage%')->count());
     }
 
     return 0;
@@ -158,7 +163,7 @@ Artisan::command('deniz:business:quota:reopen {--confirm : I approve reopening t
 
     Log::warning('Deniz Business shared quota manually reopened.', [
         'prior_attempts' => $attempts,
-        'limit' => max(1, (int) config('denagate_ai.business_global_requests_per_day', 50)),
+        'limit' => max(1, (int) config('denagate_ai.business_global_requests_per_day', 200)),
     ]);
     $this->info('Shared Business quota reopened; personal customer quotas remain unchanged.');
 

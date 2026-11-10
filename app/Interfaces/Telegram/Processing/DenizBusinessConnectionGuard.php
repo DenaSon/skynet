@@ -56,11 +56,22 @@ final class DenizBusinessConnectionGuard
                 return false;
             }
 
-            return ($details['id'] ?? null) === $connectionId
-                && data_get($details, 'user.id') === $this->ownerId()
-                && data_get($details, 'user.is_bot') === false
-                && ($details['is_enabled'] ?? null) === true
-                && data_get($details, 'rights.can_reply') === true;
+            $denial = match (true) {
+                ($details['id'] ?? null) !== $connectionId => 'connection_mismatch',
+                data_get($details, 'user.id') !== $this->ownerId() => 'owner_mismatch',
+                data_get($details, 'user.is_bot') !== false => 'invalid_owner_type',
+                ($details['is_enabled'] ?? null) !== true => 'connection_disabled',
+                data_get($details, 'rights.can_reply') !== true => 'reply_right_missing',
+                default => null,
+            };
+
+            if ($denial !== null) {
+                Log::warning('Deniz Business connection check denied.', ['reason' => $denial]);
+
+                return false;
+            }
+
+            return true;
         } catch (Throwable $error) {
             // Never record token-bearing URLs, raw Telegram bodies or user data.
             Log::warning('Deniz Business connection check failed.', [

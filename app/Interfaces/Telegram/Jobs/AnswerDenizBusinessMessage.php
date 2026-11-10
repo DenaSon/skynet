@@ -16,6 +16,7 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
+use Throwable;
 
 final class AnswerDenizBusinessMessage implements ShouldQueue
 {
@@ -36,6 +37,7 @@ final class AnswerDenizBusinessMessage implements ShouldQueue
         public readonly string $question,
         public readonly string $kind = 'answer',
         public readonly int $retrySeconds = 0,
+        public readonly ?string $traceId = null,
     ) {
         $this->onQueue('ai');
     }
@@ -46,14 +48,24 @@ final class AnswerDenizBusinessMessage implements ShouldQueue
         DenixConversationState $state,
         AskAssistant $ask,
     ): void {
+        $trace = $this->traceId ?? bin2hex(random_bytes(8));
+
         if (! $access->enabled()) {
             $this->logBlocked('business_disabled');
+            $this->logOutcome($trace, 'business_disabled');
 
             return;
         }
 
-        if (! $this->withinReplyWindow()
-            || ! in_array($this->kind, ['answer', 'quota', 'capacity', 'handoff', 'resume'], true)) {
+        if (! $this->withinReplyWindow()) {
+            $this->logOutcome($trace, 'reply_window_expired');
+
+            return;
+        }
+
+        if (! in_array($this->kind, ['answer', 'quota', 'capacity', 'handoff', 'resume'], true)) {
+            $this->logOutcome($trace, 'unsupported_kind');
+
             return;
         }
 
@@ -61,6 +73,8 @@ final class AnswerDenizBusinessMessage implements ShouldQueue
         $cacheDriver = is_string($cacheName) ? config('cache.stores.'.$cacheName.'.driver') : null;
 
         if (! in_array($cacheDriver, ['redis', 'database'], true)) {
+            $this->logOutcome($trace, 'shared_cache_invalid');
+
             throw new RuntimeException('Deniz Business shared cache is not configured.');
         }
 
@@ -69,11 +83,15 @@ final class AnswerDenizBusinessMessage implements ShouldQueue
         $lock = Cache::lock('denix:business:lock:'.$session.':'.$this->chatId, 39);
 
         if (! $lock->get()) {
+            $this->logOutcome($trace, 'conversation_lock_busy');
+
             return;
         }
 
         try {
             if ($this->kind !== 'resume' && Cache::has($pauseKey)) {
+                $this->logOutcome($trace, 'human_handoff_active');
+
                 return;
             }
 
@@ -81,6 +99,8 @@ final class AnswerDenizBusinessMessage implements ShouldQueue
 
             // A replay needs no Telegram lookup, AI call, or second delivery.
             if (Cache::has($attempt)) {
+                $this->logOutcome($trace, 'duplicate_attempt');
+
                 return;
             }
 
@@ -88,11 +108,14 @@ final class AnswerDenizBusinessMessage implements ShouldQueue
             // Incoming business_connection payloads never authorize a paid action.
             if (! $access->allowed($this->connectionId)) {
                 $this->logBlocked('connection_denied');
+                $this->logOutcome($trace, 'connection_denied');
 
                 return;
             }
 
             if (! Cache::add($attempt, true, now()->addDays(7))) {
+                $this->logOutcome($trace, 'duplicate_attempt');
+
                 return;
             }
 
@@ -127,6 +150,10 @@ final class AnswerDenizBusinessMessage implements ShouldQueue
                     if ($this->kind === 'handoff') {
                         Cache::put($pauseKey, true, now()->addDay());
                     }
+
+                    $this->logOutcome($trace, $this->kind.'_sent');
+                } else {
+                    $this->logOutcome($trace, 'notice_delivery_not_authorized');
                 }
 
                 return;
@@ -150,12 +177,16 @@ final class AnswerDenizBusinessMessage implements ShouldQueue
                         $this->messageId,
                         '🌿 متأسفم، فعلاً در آماده‌کردن پاسخ مشکلی پیش اومده. لطفاً کمی بعد دوباره پیام بدهید.',
                     );
+                    $this->logOutcome($trace, 'fallback_sent');
+                } else {
+                    $this->logOutcome($trace, 'fallback_not_authorized');
                 }
 
                 return;
             }
 
             Log::info('Deniz Business AI response generated.', [
+                'trace' => $trace,
                 'model' => $answer->model,
                 'input_tokens_reported' => $answer->inputTokens > 0 ? $answer->inputTokens : null,
                 'output_tokens_reported' => $answer->outputTokens > 0 ? $answer->outputTokens : null,
@@ -166,6 +197,8 @@ final class AnswerDenizBusinessMessage implements ShouldQueue
             // must veto a paid answer even if inference was already completed.
             if (Cache::has($pauseKey) || ! $access->enabled() || ! $this->withinReplyWindow()
                 || ! $access->allowed($this->connectionId)) {
+                $this->logOutcome($trace, 'post_inference_guard_changed');
+
                 return;
             }
 
@@ -192,9 +225,28 @@ final class AnswerDenizBusinessMessage implements ShouldQueue
 
             // A failed/uncertain Telegram send must not pollute conversational memory.
             $state->remember($this->chatId, null, $this->customerId, $this->question, $reply);
+            $this->logOutcome($trace, 'answer_sent');
+        } catch (Throwable $error) {
+            // Preserve one-shot semantics; record only safe diagnostic metadata.
+            Log::warning('Deniz Business worker failed.', [
+                'trace' => $trace,
+                'kind' => $this->kind,
+                'exception_type' => $error::class,
+            ]);
+
+            throw $error;
         } finally {
             $lock->release();
         }
+    }
+
+    private function logOutcome(string $trace, string $reason): void
+    {
+        Log::info('Deniz Business worker outcome.', [
+            'trace' => $trace,
+            'kind' => $this->kind,
+            'reason' => $reason,
+        ]);
     }
 
     private function logBlocked(string $reason): void

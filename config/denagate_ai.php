@@ -17,9 +17,10 @@ return [
     'context_ttl_minutes' => 30,
     'user_requests_per_10_minutes' => 25,
     'group_requests_per_day' => 250,
-    // Shared Business safety budget across ALL customers, not a personal quota.
-    // Keep the existing 50/day unless an operator explicitly approves more spend.
-    'business_global_requests_per_day' => (int) env('DENAGATE_AI_BUSINESS_GLOBAL_REQUESTS_PER_DAY', 50),
+    // Operator-approved 4x Business support capacity; independent of management-group quotas.
+    'business_customer_requests_per_10_minutes' => 20,
+    'business_customer_requests_per_day' => 80,
+    'business_global_requests_per_day' => (int) env('DENAGATE_AI_BUSINESS_GLOBAL_REQUESTS_PER_DAY', 200),
     // Enable candidates only AFTER real GapGPT smoke and provider-price verification.
     'verified_economy_models' => array_filter(array_map('trim', explode(',', (string) env('DENAGATE_AI_VERIFIED_ECONOMY_MODELS', '')))),
 ];

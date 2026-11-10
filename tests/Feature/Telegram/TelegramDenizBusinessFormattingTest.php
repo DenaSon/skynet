@@ -7,6 +7,7 @@ use App\Interfaces\Telegram\Processing\DenizBusinessMessageSender;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 beforeEach(function (): void {
     config()->set('telegram.denix.token', '100003:deniz-only-test-token');
@@ -135,6 +136,24 @@ it('never retries an ambiguous Telegram network failure', function (): void {
         ->toThrow(RuntimeException::class, 'Deniz Business delivery failed.');
 
     expect($attempts)->toBe(1);
+});
+
+it('classifies Telegram delivery failures without storing request bodies or credentials in logs', function (): void {
+    Log::spy();
+    Http::fake([
+        'https://api.telegram.org/*' => Http::response(['ok' => false, 'description' => 'PRIVATE-TELEGRAM-DETAIL'], 403),
+    ]);
+
+    expect(fn () => app(DenizBusinessMessageSender::class)->send(
+        'privateConnectionId', 190011, 77, 'PRIVATE-QUESTION',
+    ))->toThrow(RuntimeException::class, 'Deniz Business delivery failed.');
+
+    Log::shouldHaveReceived('warning')->with('Deniz Business delivery failed.',
+        Mockery::on(static fn (array $context): bool => ($context['http_status'] ?? null) === 403
+            && ($context['phase'] ?? null) === 'html'
+            && ($context['exception_type'] ?? null) === RuntimeException::class
+            && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'PRIVATE')
+            && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), '190011')))->once();
 });
 
 it('never retries an unrelated HTTP 400 rejection', function (): void {

@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\RateLimiter;
 use Tests\TestCase;
@@ -179,15 +180,61 @@ it('ignores unsupported private messages, bots and stale customer messages befor
 });
 
 it('bounds customer quota independently of admin and provides at most one hourly free quota notice', function (): void {
-    for ($i = 0; $i < 8; $i++) {
+    for ($i = 0; $i < 23; $i++) {
         denizP2Post($this, denizP2Payload(40100 + $i));
     }
 
-    Queue::assertPushed(AnswerDenizBusinessMessage::class, 6);
+    Queue::assertPushed(AnswerDenizBusinessMessage::class, 21);
     Queue::assertPushed(AnswerDenizBusinessMessage::class,
         fn (AnswerDenizBusinessMessage $job): bool => $job->kind === 'quota' && $job->retrySeconds > 0);
-    expect(Cache::has('denix:user:190011'))->toBeFalse();
+    expect(Cache::has('denix:user:190011'))->toBeFalse()
+        ->and(RateLimiter::attempts('denix:business:quota:user:'.hash('sha256', 'connection_A').':190011'))->toBe(20)
+        ->and(RateLimiter::attempts('denix:business:quota:global'))->toBe(20);
     Http::assertNothingSent();
+});
+
+it('enforces the 80-per-day customer budget independently of the 20-per-10-minute window', function (): void {
+    for ($batch = 0; $batch < 4; $batch++) {
+        for ($i = 0; $i < 20; $i++) {
+            denizP2Post($this, denizP2Payload(42000 + $batch * 20 + $i, 199996, 'پیام '.$i));
+        }
+
+        $this->travel(11)->minutes();
+    }
+
+    denizP2Post($this, denizP2Payload(42080, 199996, 'پیام بعدی'));
+
+    Queue::assertPushed(AnswerDenizBusinessMessage::class, 81);
+    Queue::assertPushed(AnswerDenizBusinessMessage::class,
+        fn (AnswerDenizBusinessMessage $job): bool => $job->messageId === 42080
+            && $job->kind === 'quota' && $job->retrySeconds > 0);
+    expect(RateLimiter::attempts('denix:business:quota:global'))->toBe(80)
+        ->and(config('denagate_ai.user_requests_per_10_minutes'))->toBe(25)
+        ->and(config('denagate_ai.group_requests_per_day'))->toBe(250);
+    Http::assertNothingSent();
+});
+
+it('carries an opaque trace from accepted Business intake into the queued job', function (): void {
+    denizP2Post($this, denizP2Payload(42500, 199997, 'متن کاملاً خصوصی'));
+
+    Queue::assertPushed(AnswerDenizBusinessMessage::class,
+        fn (AnswerDenizBusinessMessage $job): bool => is_string($job->traceId)
+            && preg_match('/\\A[a-f0-9]{16}\\z/D', $job->traceId) === 1
+            && $job->kind === 'answer');
+});
+
+it('logs a non-identifying reason after a Business response is successfully delivered', function (): void {
+    Log::spy();
+    denizP2FakeHttp();
+    denizP2Run(new AnswerDenizBusinessMessage(
+        'connection_A', 190011, 190011, 42501, now()->timestamp, 'سلام', 'answer', 0, 'trace-test-42501',
+    ));
+
+    Log::shouldHaveReceived('info')->with('Deniz Business worker outcome.',
+        Mockery::on(static fn (array $context): bool => ($context['trace'] ?? null) === 'trace-test-42501'
+            && ($context['kind'] ?? null) === 'answer'
+            && ($context['reason'] ?? null) === 'answer_sent'
+            && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), '190011')))->once();
 });
 
 it('calls getBusinessConnection twice, purchases one answer and sends only from the Business account', function (): void {
@@ -453,7 +500,7 @@ it('never attempts Business delivery when the 24-hour reply window has expired i
 
 it('does not blame a first-time customer when shared Business capacity is depleted', function (): void {
     $global = 'denix:business:quota:global';
-    for ($i = 0; $i < 50; $i++) {
+    for ($i = 0; $i < 200; $i++) {
         RateLimiter::hit($global, 86400);
     }
 
@@ -465,7 +512,7 @@ it('does not blame a first-time customer when shared Business capacity is deplet
         fn (AnswerDenizBusinessMessage $job): bool => $job->chatId === 199991
             && $job->kind === 'capacity' && $job->retrySeconds > 0);
     expect(RateLimiter::attempts('denix:business:quota:user:'.hash('sha256', 'connection_A').':199991'))->toBe(0)
-        ->and(RateLimiter::attempts($global))->toBe(50);
+        ->and(RateLimiter::attempts($global))->toBe(200);
 
     // Notice cooldown prevents spam but never consumes a personal quota.
     denizP2Post($this, denizP2Payload(41103, 199991, 'باز هم پیام'));
@@ -479,15 +526,15 @@ it('does not blame a first-time customer when shared Business capacity is deplet
 });
 
 it('keeps personal customer-limit notices independent from shared capacity', function (): void {
-    for ($i = 0; $i < 5; $i++) {
+    for ($i = 0; $i < 20; $i++) {
         denizP2Post($this, denizP2Payload(41200 + $i, 199993, 'پیام '.$i));
     }
-    denizP2Post($this, denizP2Payload(41205, 199993, 'پیام ششم'));
+    denizP2Post($this, denizP2Payload(41220, 199993, 'پیام بیست‌ویکم'));
 
     Queue::assertPushed(AnswerDenizBusinessMessage::class,
-        fn (AnswerDenizBusinessMessage $job): bool => $job->messageId === 41205
+        fn (AnswerDenizBusinessMessage $job): bool => $job->messageId === 41220
             && $job->kind === 'quota' && $job->retrySeconds > 0);
-    expect(RateLimiter::attempts('denix:business:quota:global'))->toBe(5);
+    expect(RateLimiter::attempts('denix:business:quota:global'))->toBe(20);
     Http::assertNothingSent();
 });
 
@@ -518,7 +565,8 @@ it('provides read-only incident diagnostics and requires explicit consent to reo
 
     expect(Artisan::call('deniz:business:status'))->toBe(0);
     $output = Artisan::output();
-    expect($output)->toContain('Shared Business usage: 1/50', 'Queue driver: database')
+    expect($output)->toContain('Shared Business usage: 1/200', 'Queue driver: database',
+        'Pending ai jobs:', 'Failed Business ai jobs: 0', 'Failed management ai jobs: 0')
         ->not->toContain('connection_A', '199995', 'test-gapgpt-secret');
 
     expect(Artisan::call('deniz:business:quota:reopen'))->toBe(1)
