@@ -75,7 +75,7 @@ it('limits visual changes to P2A screens and keeps Livewire bindings and compact
         ->not->toContain('@vite(');
 });
 
-it('uses compact themed live plan cards without changing demo markup, financial actions or global card styling', function (): void {
+it('uses opt-in compact plan styling shared with the read-only demo without changing operational controls', function (): void {
     $css = file_get_contents(resource_path('css/app.css'));
     $live = file_get_contents(resource_path('views/live/dashboard.blade.php'));
     $demo = file_get_contents(resource_path('views/live/demo-preview.blade.php'));
@@ -94,6 +94,11 @@ it('uses compact themed live plan cards without changing demo markup, financial 
         ->toContain('wire:click="selectPlan({{ $builder->id }})"')
         ->toContain('wire:click="prepareWalletPayment"')
         ->toContain('wire:click="confirmWalletPayment"')
-        ->and($demo)->not->toContain('dg-plan-card')
-        ->toContain('dg-card flex flex-col p-4 sm:p-5');
+        ->and($demo)->toContain('dg-card dg-plan-card flex flex-col p-4 sm:p-5')
+        ->toContain('data-tone="{{ [\'teal\', \'blue\', \'sand\'][$loop->index % 3] }}"')
+        ->toContain('justify-items-center gap-3 sm:grid-cols-2')
+        ->toContain('text-sm font-extrabold leading-7 text-[#354C58]')
+        ->toContain('dg-stat block w-full text-center text-2xl sm:text-3xl')
+        ->not->toContain('wire:click')
+        ->not->toContain('wire:submit');
 });

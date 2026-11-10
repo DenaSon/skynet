@@ -183,6 +183,13 @@ it('keeps Demo UI close to the real dashboard while exposing no operational call
         ->toContain('grid grid-cols-1 gap-3 sm:grid-cols-3 md:gap-5')
         ->toContain('grid grid-cols-3 gap-2.5 sm:gap-3')
         ->toContain('<x-live.report-metric :label="$label" :value="$value" :historical="$historical" />')
+        ->toContain('dg-card dg-plan-card flex flex-col p-4 sm:p-5')
+        ->toContain('data-tone="{{ [\'teal\', \'blue\', \'sand\'][$loop->index % 3] }}"')
+        ->toContain('grid grid-cols-1 justify-items-center gap-3 sm:grid-cols-2 sm:gap-4')
+        ->toContain('text-sm font-extrabold leading-7 text-[#354C58]')
+        ->toContain('dg-stat block w-full text-center text-2xl sm:text-3xl')
+        ->toContain('کل سرویس‌ها')
+        ->toContain('فعال در سوابق داخلی')
         ->toContain("demoSection === 'shop'")
         ->toContain("demoSection === 'services'")
         ->toContain("demoSection === 'credit'")
@@ -197,8 +204,11 @@ it('keeps Demo UI close to the real dashboard while exposing no operational call
         ->not->toContain('تمام اطلاعات این صفحه')
         ->not->toContain('هیچ کیف پول')
         ->and($dashboard)->toContain('<x-live.report-metric :label="$label" :value="$value" :historical="$isHistorical" />')
+        ->toContain('dg-card dg-plan-card flex flex-col p-4 sm:p-5')
+        ->toContain('dg-stat block w-full text-center text-2xl sm:text-3xl')
         ->and($metric)->toContain('min-h-28')
-        ->toContain('rounded-[18px]');
+        ->toContain('rounded-[18px]')
+        ->toContain('w-full text-center text-2xl');
 });
 
 it('never reads a live catalog or real operational data in DEMO-01', function (): void {

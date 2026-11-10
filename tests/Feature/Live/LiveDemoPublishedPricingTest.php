@@ -122,6 +122,11 @@ it('shows canonical current reseller prices to a signed member with no role elev
         ->assertOk()
         ->assertSee('پلن fixed-17')
         ->assertSee('پلن formula-35')
+        ->assertSee('dg-card dg-plan-card flex flex-col', false)
+        ->assertSee('data-tone="teal"', false)
+        ->assertSee('data-tone="blue"', false)
+        ->assertSee('text-sm font-extrabold leading-7 text-[#354C58]', false)
+        ->assertSee('dg-stat block w-full text-center text-2xl sm:text-3xl', false)
         ->assertDontSee('پلن builder-only')
         ->assertSee('100,000.3')
         ->assertSee('83,000.2')
@@ -138,6 +143,48 @@ it('shows canonical current reseller prices to a signed member with no role elev
     expect($member->fresh()->hasRole('member'))->toBeTrue()
         ->and($member->fresh()->hasRole('reseller'))->toBeFalse();
     foreach (['sales_orders', 'billing_journals', 'provisioning_operations', 'sales_panel_requests'] as $table) {
+        expect(DB::table($table)->count())->toBe(0);
+    }
+    Http::assertNothingSent();
+});
+
+it('renders all three shared demo card tones while keeping published prices read-only and example metrics fixed', function (): void {
+    $root = demo2Root();
+    demo2Plan($root, 'color-one');
+    demo2Plan($root, 'color-two');
+    demo2Plan($root, 'color-three');
+
+    $member = User::factory()->create();
+    $member->assignRole('member');
+    TelegramAccount::query()->create(['user_id' => $member->id, 'telegram_user_id' => 988885]);
+
+    $this->post('https://live.denagate.ir/demo/auth/telegram', ['init_data' => demo2SignedData(988885)])
+        ->assertRedirect('https://live.denagate.ir/demo/preview');
+
+    $this->get('https://live.denagate.ir/demo/preview?section=shop')
+        ->assertOk()
+        ->assertSee('پلن color-one')
+        ->assertSee('پلن color-two')
+        ->assertSee('پلن color-three')
+        ->assertSee('data-tone="teal"', false)
+        ->assertSee('data-tone="blue"', false)
+        ->assertSee('data-tone="sand"', false)
+        ->assertSee('dg-card dg-plan-card flex flex-col', false)
+        ->assertSee('grid grid-cols-1 justify-items-center gap-3 sm:grid-cols-2 sm:gap-4', false)
+        ->assertSee('text-sm font-extrabold leading-7 text-[#354C58]', false)
+        ->assertSee('کل سرویس‌ها')
+        ->assertSee('فعال در سوابق داخلی')
+        ->assertSee('w-full text-center text-2xl sm:text-3xl', false)
+        ->assertSee('سرویس‌های دارای نام')
+        ->assertSee('100,000.3')
+        ->assertDontSee('wire:click="selectPlan', false)
+        ->assertDontSee('wire:click="confirmOrder', false)
+        ->assertDontSee('wire:click="prepareWalletPayment', false)
+        ->assertDontSee('wire:submit', false);
+
+    $this->assertGuest('web');
+    expect($member->fresh()->hasRole('reseller'))->toBeFalse();
+    foreach (['sales_orders', 'billing_journals', 'sales_panel_requests', 'provisioning_operations'] as $table) {
         expect(DB::table($table)->count())->toBe(0);
     }
     Http::assertNothingSent();

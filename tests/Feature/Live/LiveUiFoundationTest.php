@@ -27,6 +27,12 @@ it('defines the scoped UI primitives without leaking selectors outside DenaGate 
         'dg-nav-item',
     ]);
 
+    // Scoped centered metrics need higher specificity than the shared .dg-stat rule.
+    expect($css)->toContain('.denagate-live .dg-stat.text-center {')
+        ->toContain('font-size: 1.5rem;')
+        ->toContain('@media (min-width: 40rem)')
+        ->toContain('font-size: 1.875rem;');
+
     $layer = explode('@layer components {', $css, 2)[1];
     $layer = explode("\n}\n\n@media", $layer, 2)[0];
 
