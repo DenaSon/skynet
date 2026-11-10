@@ -372,6 +372,34 @@ it('shows bold escaped catalog prices and sorts both plan lists by each buyers p
                 && str_contains(sb02RichHtml($request), '<p>صفحه 2 از 2</p>')
                 && ! str_contains(json_encode($body['reply_markup'], JSON_THROW_ON_ERROR), 'sales:buy:simple:2');
         }, index: 1);
+    // Legacy clients receive the same compact 2+2+1 native layout.
+    $bot->hearCallbackQueryData('sales:buy:simple:1')->reply()
+        ->assertRaw(static function (Request $request) use ($payload, $expected, $expectedPrices): bool {
+            $body = $payload($request);
+            $rows = array_slice($body['reply_markup']['inline_keyboard'], 0, 3);
+            $buttons = array_merge(...$rows);
+
+            return ! isset($body['rich_message'])
+                && array_map('count', $rows) === [2, 2, 1]
+                && array_map(static fn (array $button): string => $button['callback_data'], $buttons)
+                    === array_map(static fn (int $id): string => "catalog:detail:{$id}:1", $expected)
+                && array_reduce($expectedPrices, static fn (bool $ok, string $price): bool => $ok
+                    && str_contains((string) ($body['text'] ?? ''), '<b>'.$price.'</b>'), true)
+                && str_contains((string) $body['text'], '&lt;ارزان &amp; &quot;پایه&quot;&gt;')
+                && ! str_contains((string) $body['text'], '🔎');
+        }, index: 1);
+    $bot->hearCallbackQueryData('sales:catalog:simple:1')->reply()
+        ->assertRaw(static function (Request $request) use ($payload, $expected): bool {
+            $body = $payload($request);
+            $rows = array_slice($body['reply_markup']['inline_keyboard'], 0, 3);
+            $buttons = array_merge(...$rows);
+
+            return ! isset($body['rich_message'])
+                && array_map('count', $rows) === [2, 2, 1]
+                && array_map(static fn (array $button): string => $button['callback_data'], $buttons)
+                    === array_map(static fn (int $id): string => "catalog:detail:{$id}:1", $expected)
+                && str_contains((string) $body['text'], 'پلن‌ها و قیمت‌ها');
+        }, index: 1);
     $bot->hearCallbackQueryData('sales:buy:simple:2')->reply()
         ->assertRaw(static function (Request $request) use ($payload): bool {
             $body = $payload($request);
