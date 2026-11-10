@@ -177,7 +177,7 @@ it('sends canonical sales evidence plus an executive-only prompt and never expor
     Http::assertSentCount(2);
     Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.gapgpt.app/v1/chat/completions'
         && $request['model'] === 'gpt-6-luna'
-        && str_contains($request['messages'][0]['content'], 'مشاور ارشد حسابداری')
+        && str_contains($request['messages'][0]['content'], 'مشاور ارشد مالی')
         && str_contains($request['messages'][1]['content'], '"revenueRials":2500000')
         && str_contains($request['messages'][1]['content'], '"reseller"')
         && ! str_contains(json_encode($request['messages'], JSON_THROW_ON_ERROR), 'PRIVATEBANKREFERENCE')
