@@ -156,7 +156,8 @@ final readonly class SubscriptionAlertMonitor
             'subscription' => (int) $binding->subscription_id,
             'remote' => (int) $binding->remote_user_id,
             'reference' => (string) $binding->reference,
-            'customer_label' => trim((string) ($fresh->customer_label ?? '')) ?: null,
+            'customer_label' => trim((string) ($fresh->customer_label ?? '')) === ''
+                ? null : trim((string) $fresh->customer_label),
             'expires' => $expires,
             'used' => $remote->usedTrafficBytes,
             'limit' => $remote->trafficLimitBytes,
