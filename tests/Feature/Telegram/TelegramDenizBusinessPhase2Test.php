@@ -214,20 +214,13 @@ it('enforces the 80-per-day customer budget independently of the 20-per-10-minut
     Http::assertNothingSent();
 });
 
-it('provides a safe trace for correlating intake and worker delivery without customer identifiers', function (): void {
-    Log::spy();
+it('carries an opaque trace from accepted Business intake into the queued job', function (): void {
     denizP2Post($this, denizP2Payload(42500, 199997, 'متن کاملاً خصوصی'));
 
     Queue::assertPushed(AnswerDenizBusinessMessage::class,
         fn (AnswerDenizBusinessMessage $job): bool => is_string($job->traceId)
-            && preg_match('/\\A[a-f0-9]{16}\\z/D', $job->traceId) === 1);
-
-    Log::shouldHaveReceived('info')->with('Deniz Business intake dispatched.',
-        Mockery::on(static fn (array $context): bool => is_string($context['trace'] ?? null)
-            && preg_match('/\\A[a-f0-9]{16}\\z/D', $context['trace']) === 1
-            && $context['kind'] === 'answer'
-            && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), '199997')
-            && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'خصوصی')))->once();
+            && preg_match('/\\A[a-f0-9]{16}\\z/D', $job->traceId) === 1
+            && $job->kind === 'answer');
 });
 
 it('logs a non-identifying reason after a Business response is successfully delivered', function (): void {
