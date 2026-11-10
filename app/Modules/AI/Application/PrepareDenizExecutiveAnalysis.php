@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\AI\Application;
 
+use App\Modules\Identity\Application\ResolveTelegramActor;
+use Illuminate\Auth\Access\AuthorizationException;
 use InvalidArgumentException;
 
 /**
@@ -14,12 +16,15 @@ use InvalidArgumentException;
  */
 final readonly class PrepareDenizExecutiveAnalysis
 {
-    public function __construct(private ReadDenizExecutiveSnapshot $snapshots) {}
+    public function __construct(
+        private ReadDenizExecutiveSnapshot $snapshots,
+        private ResolveTelegramActor $actors,
+    ) {}
 
     /**
      * @return array{prompt:string,headline:string}|null
      */
-    public function handle(int $actorId, string $question): ?array
+    public function handle(int $telegramUserId, string $question): ?array
     {
         $selected = self::select($question);
         if ($selected === null) {
@@ -30,7 +35,12 @@ final readonly class PrepareDenizExecutiveAnalysis
             throw new InvalidArgumentException('لطفاً درخواست تحلیل مالی را کوتاه‌تر بنویسید.');
         }
 
-        $snapshot = $this->snapshots->handle($actorId, $selected['dataset'], $selected['period']);
+        $actor = $this->actors->handle($telegramUserId);
+        if ($actor?->canManageRoles() !== true) {
+            throw new AuthorizationException;
+        }
+
+        $snapshot = $this->snapshots->handle($actor->userId, $selected['dataset'], $selected['period']);
 
         // Serialize an explicit, small aggregate whitelist. Never pass source
         // rows, buyer IDs, bank references, user details or ledger entries.
