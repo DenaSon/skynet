@@ -252,7 +252,6 @@ it('does not repeat paid executive requests or cache financial evidence after an
     expect(app(DenixConversationState::class)->history(-100987654321, 12, 180001))->toBeEmpty();
 });
 
-
 it('provides an exact rolling 24-hour statement to the Deniz executive model and group reply', function (): void {
     $this->travelTo(Carbon::parse('2026-11-08 15:30:00', 'Asia/Tehran')->utc());
     $root = executive02Root();
