@@ -104,6 +104,117 @@ function live3bNoMoneyOrProvider(): void
     Http::assertNothingSent();
 }
 
+it('shows plans before nine owned named orders per page and restores the same page after opening an order', function (): void {
+    $owner = live3bReseller(944451);
+    $foreign = live3bReseller(944452);
+    $plan = live3bPlan();
+    $ownerQuote = app(CalculatePlanQuote::class)->handle($owner->id, $plan, 30, 30);
+    $foreignQuote = app(CalculatePlanQuote::class)->handle($foreign->id, $plan, 30, 30);
+    $register = app(RegisterPendingResellerOrder::class);
+    $ids = [];
+
+    for ($i = 0; $i < 20; $i++) {
+        $name = $i === 19 ? 'مشتری <ویژه> & تست' : 'مشتری '.$i;
+        $ids[] = $register->handle($owner->id, $ownerQuote, bin2hex(random_bytes(16)), $name)->id;
+    }
+    $foreignOrder = $register->handle($foreign->id, $foreignQuote, bin2hex(random_bytes(16)), 'نام خصوصی نماینده دیگر');
+    DB::table('sales_orders')->where('id', $ids[0])->update(['status' => 'fulfilled']);
+
+    $reader = app(OrderReader::class);
+    $first = $reader->pageNewPlans($owner->id);
+    expect(array_map(static fn ($order): int => $order->id, $first->orders))->toBe(array_reverse(array_slice($ids, 11, 9)))
+        ->and($first->nextBeforeOrderId)->toBe($ids[11])
+        ->and($reader->pageNewPlans($owner->id, 9, $first->nextBeforeOrderId)->nextBeforeOrderId)->toBe($ids[2])
+        ->and($reader->pageNewPlans($owner->id, 9, $ids[2])->nextBeforeOrderId)->toBeNull()
+        ->and(fn () => $reader->pageNewPlans($owner->id, 0))->toThrow(ValidationException::class)
+        ->and(fn () => $reader->pageNewPlans($owner->id, 9, -1))->toThrow(ValidationException::class);
+    $names = app(ManageResellerServiceLabels::class)->forRecentNewPlanOrders($owner->id,
+        [$ids[0], $ids[19], $foreignOrder->id]);
+    expect($names)->toBe([
+        $ids[0] => 'مشتری 0',
+        $ids[19] => 'مشتری <ویژه> & تست',
+    ]);
+
+    $this->actingAs($owner)->withSession(['denagate_live.user_id' => $owner->id]);
+    $page = Livewire::test(Dashboard::class)
+        ->call('showSection', 'shop')
+        ->assertSee('۹ سفارش در هر صفحه')
+        ->assertSee('مشتری &lt;ویژه&gt; &amp; تست', false)
+        ->assertSee('پلن تست فروش · سفارش #'.$ids[19])
+        ->assertDontSee('نام خصوصی نماینده دیگر')
+        ->assertDontSee('مشتری 0')
+        ->assertSee('صفحه بعد');
+    $html = $page->html();
+    expect(strpos($html, 'wire:key="live-plan-'.$plan.'"'))
+        ->toBeLessThan(strpos($html, 'aria-label="سفارش‌های اخیر من"'));
+
+    $page->call('nextRecentOrders')
+        ->assertSet('recentOrdersCursor', $ids[11])
+        ->assertSee('مشتری 10')
+        ->assertDontSee('مشتری &lt;ویژه&gt; &amp; تست', false)
+        ->assertSee('صفحه قبل')
+        ->call('openOrder', $ids[9])
+        ->assertSet('createdOrderId', $ids[9])
+        ->call('backToPlans')
+        ->assertSet('recentOrdersCursor', $ids[11])
+        ->assertSee('مشتری 9')
+        ->assertDontSee('مشتری &lt;ویژه&gt; &amp; تست', false)
+        ->call('nextRecentOrders')
+        ->assertSet('recentOrdersCursor', $ids[2])
+        ->assertSee('مشتری 0')
+        ->assertDontSee('صفحه بعد')
+        ->call('nextRecentOrders')
+        ->assertSet('recentOrdersCursor', $ids[2])
+        ->call('previousRecentOrders')
+        ->assertSet('recentOrdersCursor', $ids[11])
+        ->call('previousRecentOrders')
+        ->assertSet('recentOrdersCursor', null)
+        ->assertSee('مشتری &lt;ویژه&gt; &amp; تست', false);
+
+    expect(DB::table('sales_orders')->count())->toBe(21)
+        ->and(DB::table('billing_journals')->count())->toBe(0)
+        ->and(DB::table('sales_order_settlements')->count())->toBe(0)
+        ->and(DB::table('provisioning_operations')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('resets only recent-order paging after a new purchase and keeps reseller order ownership', function (): void {
+    $owner = live3bReseller(944453);
+    $foreign = live3bReseller(944454);
+    $plan = live3bPlan();
+    $quote = app(CalculatePlanQuote::class)->handle($owner->id, $plan, 30, 30);
+    $register = app(RegisterPendingResellerOrder::class);
+
+    for ($i = 0; $i < 10; $i++) {
+        $register->handle($owner->id, $quote, bin2hex(random_bytes(16)), 'قدیمی '.$i);
+    }
+
+    $this->actingAs($owner)->withSession(['denagate_live.user_id' => $owner->id]);
+    $page = Livewire::test(Dashboard::class)->call('showSection', 'shop')
+        ->call('nextRecentOrders')
+        ->assertSet('recentOrdersHistory', [null])
+        ->call('selectPlan', $plan)
+        ->set('customerUsername', 'خرید جدید')
+        ->call('confirmOrder')
+        ->assertSet('recentOrdersCursor', null)
+        ->assertSet('recentOrdersHistory', [])
+        ->assertSee('سفارش شما ثبت شد')
+        ->call('backToPlans')
+        ->assertSee('خرید جدید')
+        ->assertDontSee('صفحه قبل');
+    $latest = (int) DB::table('sales_orders')->where('buyer_user_id', $owner->id)->max('id');
+
+    $page->call('openOrder', $latest)
+        ->assertSet('createdOrderId', $latest);
+    $owner->syncRoles(['member']);
+    $page->call('nextRecentOrders')->assertForbidden();
+
+    expect(fn () => app(OrderReader::class)->pageNewPlans($foreign->id, 9, $latest))
+        ->not->toThrow(ValidationException::class);
+    expect(DB::table('billing_journals')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
 it('registers exactly one pending reseller order with immutable price and customer name', function (): void {
     $buyer = live3bReseller(944411);
     $plan = live3bPlan();
