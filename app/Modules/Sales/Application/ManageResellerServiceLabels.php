@@ -41,6 +41,41 @@ final readonly class ManageResellerServiceLabels
     }
 
     /**
+     * Optional customer names for a bounded page of owned new-plan orders.
+     * Unlike service-only labels, pending purchases are intentionally included.
+     *
+     * @param list<int> $orderIds
+     * @return array<int, string>
+     */
+    public function forRecentNewPlanOrders(int $buyerId, array $orderIds): array
+    {
+        $this->authorize($buyerId);
+        if ($orderIds === []) {
+            return [];
+        }
+
+        $rows = DB::table('sales_service_customer_labels as labels')
+            ->join('sales_orders as orders', 'orders.id', '=', 'labels.sales_order_id')
+            ->where('orders.buyer_user_id', $buyerId)
+            ->whereNotNull('orders.plan_id')
+            ->whereIn('orders.id', $orderIds)
+            ->whereNotExists(static function (\Illuminate\Database\Query\Builder $query): void {
+                $query->selectRaw('1')->from('sales_renewal_orders as renewals')
+                    ->whereColumn('renewals.sales_order_id', 'orders.id');
+            })
+            ->whereNotNull('labels.label')
+            ->select('orders.id', 'labels.label')
+            ->get();
+
+        $labels = [];
+        foreach ($rows as $row) {
+            $labels[(int) $row->id] = (string) $row->label;
+        }
+
+        return $labels;
+    }
+
+    /**
      * Search only private customer labels on linked, paid reseller-owned services.
      *
      * @return array{items: list<array{orderId: int, label: ?string}>, nextBeforeOrderId: ?int}
