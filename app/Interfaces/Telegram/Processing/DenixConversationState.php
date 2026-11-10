@@ -122,6 +122,7 @@ final readonly class DenixConversationState
             'accounting' => ['7', '30', 'month'],
             'wallet' => ['current'],
             'users' => ['current'],
+            'decision' => ['current'],
         ];
 
         if (! is_array($stored) || ! is_string($stored['dataset'] ?? null)
