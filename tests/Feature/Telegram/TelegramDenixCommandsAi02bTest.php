@@ -288,3 +288,82 @@ it('never sends a pending cooldown notice after group access is revoked', functi
 
     Http::assertNothingSent();
 });
+
+
+it('routes every registered Deniz financial shortcut as a normal quota-bound group analysis', function (): void {
+    $shortcuts = [
+        '/sales24h' => 'تحلیل فروش ۲۴ ساعت اخیر',
+        '/salesweek' => 'تحلیل فروش هفتگی',
+        '/resellers' => 'گزارش نمایندگی هفتگی',
+        '/cash30' => 'گزارش نقدینگی ۳۰ روز',
+        '/accounting' => 'تحلیل مالی ماه جاری',
+        '/wallet' => 'گزارش کیف پول',
+    ];
+
+    $id = 20100;
+    foreach ($shortcuts as $command => $question) {
+        denixCPost($this, denixCMessage(++$id, $command));
+        Queue::assertPushed(AnswerDenixMessage::class, fn (AnswerDenixMessage $job): bool => $job->messageId === $id
+            && $job->question === $question
+            && $job->telegramUserId === 180001
+            && $job->threadId === 12
+            && $job->queue === 'ai');
+    }
+
+    denixCPost($this, denixCMessage(++$id, '/sales24h@denixobot'));
+    Queue::assertPushed(AnswerDenixMessage::class, fn (AnswerDenixMessage $job): bool => $job->messageId === $id
+        && $job->question === 'تحلیل فروش ۲۴ ساعت اخیر');
+
+    Queue::assertPushed(AnswerDenixMessage::class, 7);
+    Queue::assertNotPushed(HandleDenixCommand::class);
+    expect(RateLimiter::attempts('denix:user:180001'))->toBe(7);
+    Http::assertNothingSent();
+});
+
+it('keeps all shortcut messages root and group scoped and rejects spoofed names or extra arguments', function (): void {
+    denixCPost($this, denixCMessage(20301, '/sales24h@otherbot'));
+    denixCPost($this, denixCMessage(20302, '/sales24h extra'));
+    denixCPost($this, denixCMessage(20303, '/sales24h', 180002)); // allowlisted but no linked root
+    denixCPost($this, denixCMessage(20304, '/sales24h', 180001, -100123456789));
+    denixCPost($this, denixCMessage(20305, '/unknownreport'));
+
+    Queue::assertNothingPushed();
+    Http::assertNothingSent();
+});
+
+it('registers only the configured group-scoped menu and never sends it to another bot', function (): void {
+    Http::fake(['https://api.telegram.org/*' => Http::response(['ok' => true, 'result' => true])]);
+
+    expect(\Illuminate\Support\Facades\Artisan::call('deniz:telegram:commands:register'))->toBe(0);
+
+    Http::assertSentCount(1);
+    Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
+        && $request->url() === 'https://api.telegram.org/bot100003:denix-test-token/setMyCommands'
+        && $request['scope'] === ['type' => 'chat', 'chat_id' => -100987654321]
+        && count($request['commands']) === 10
+        && collect($request['commands'])->pluck('command')->all() === [
+            'ai', 'sales24h', 'salesweek', 'resellers', 'cash30', 'accounting', 'wallet',
+            'aimodel', 'ainew', 'aistatus',
+        ]
+        && collect($request['commands'])->firstWhere('command', 'sales24h')['description'] === 'تحلیل فروش ۲۴ ساعت اخیر');
+});
+
+it('previews Deniz group commands offline and fails closed on disabled or rejected registration', function (): void {
+    Http::fake(['https://api.telegram.org/*' => Http::response(['ok' => false, 'result' => false], 403)]);
+
+    expect(\Illuminate\Support\Facades\Artisan::call('deniz:telegram:commands:register', ['--dry-run' => true]))->toBe(0);
+    Http::assertNothingSent();
+
+    config()->set('telegram.denix.enabled', false);
+    expect(\Illuminate\Support\Facades\Artisan::call('deniz:telegram:commands:register'))->toBe(1);
+    Http::assertNothingSent();
+
+    config()->set('telegram.denix.enabled', true);
+    config()->set('telegram.denix.token', '100001:admin-token');
+    expect(\Illuminate\Support\Facades\Artisan::call('deniz:telegram:commands:register'))->toBe(1);
+    Http::assertNothingSent();
+
+    config()->set('telegram.denix.token', '100003:denix-test-token');
+    expect(\Illuminate\Support\Facades\Artisan::call('deniz:telegram:commands:register'))->toBe(1);
+    Http::assertSentCount(1);
+});
