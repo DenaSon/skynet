@@ -9,6 +9,7 @@ use App\Modules\Sales\Application\CalculatePlanQuote;
 use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\CreatePendingPlanOrder;
 use App\Modules\Sales\Application\ManagePlanPricing;
+use App\Modules\Sales\Application\ManageResellerServiceLabels;
 use App\Modules\Sales\Application\ManagePlans;
 use App\Modules\Sales\Application\PlanDefinition;
 use App\Modules\Sales\Application\PlanPricingDefinition;
@@ -220,6 +221,78 @@ it('shows an owner-only Sales preview with escaped plan name and no payment or p
         ->and(DB::table('sales_orders')->count())->toBe(1)
         ->and(DB::table('sales_order_settlements')->count())->toBe(0);
     Http::assertSent(fn (Request $r): bool => $r->method() === 'GET');
+});
+
+it('puts the owner-managed customer username in reseller renewal headings while preserving all renewal callbacks', function (): void {
+    Role::findOrCreate('reseller', 'web');
+    $data = ren01Fixture();
+    $data['buyer']->syncRoles(['reseller']);
+    app(ManageResellerServiceLabels::class)->save($data['buyer']->id, $data['order'], 'علی <دوست> & رضا');
+    config()->set('sales.renewal_enabled', true);
+    ren01FakeRemote(ren01Remote($data['order']));
+
+    $bot = ren01Bot($data['telegram']);
+    $bot->hearCallbackQueryData('sales:subs:renew:'.$data['order'].':0')->reply()
+        ->assertRaw(static function (NutgramRequest $request) use ($data): bool {
+            $payload = ren01Payload($request);
+            $rich = is_string($payload['rich_message'] ?? null)
+                ? json_decode($payload['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+                : ($payload['rich_message'] ?? []);
+            $html = (string) ($rich['html'] ?? '');
+            $buttons = json_encode($payload['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return str_contains($html, '<h4>🔄 پیش‌نمایش تمدید سرویس «علی &lt;دوست&gt; &amp; رضا»</h4>')
+                && str_contains($html, '<summary>🧾 مشخصات سفارش</summary><p>شماره سفارش: #'.$data['order'])
+                && ! str_contains($html, '<h4>🔄 پیش‌نمایش تمدید سرویس #')
+                && ! str_contains($html, 'sensitive-credential')
+                && str_contains($buttons, 'sales:subs:renew:checkout:'.$data['order'].':0')
+                && str_contains($buttons, 'sales:subs:renew:'.$data['order'].':0')
+                && str_contains($buttons, 'sales:subs:view:'.$data['order'].':0')
+                && str_contains($buttons, 'sales:home');
+        }, index: 2);
+
+    $bot->hearCallbackQueryData('sales:subs:renew:simple:'.$data['order'].':0')->reply()
+        ->assertRaw(static function (NutgramRequest $request) use ($data): bool {
+            $payload = ren01Payload($request);
+            $message = (string) ($payload['text'] ?? '');
+            $buttons = json_encode($payload['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return ! isset($payload['rich_message'])
+                && str_contains($message, '<b>🔄 پیش‌نمایش تمدید سرویس «علی &lt;دوست&gt; &amp; رضا»</b>')
+                && str_contains($message, 'شماره سفارش: #'.$data['order'])
+                && ! str_contains($message, '<b>🔄 پیش‌نمایش تمدید سرویس #')
+                && str_contains($buttons, 'sales:subs:renew:checkout:'.$data['order'].':0');
+        }, index: 2);
+
+    expect(DB::table('sales_renewal_drafts')->count())->toBe(1)
+        ->and(DB::table('sales_orders')->count())->toBe(1)
+        ->and(DB::table('sales_order_settlements')->count())->toBe(0)
+        ->and(DB::table('provisioning_operations')->count())->toBe(0);
+    Http::assertNotSent(static fn (Request $request): bool => $request->method() !== 'GET');
+});
+
+it('keeps unnamed reseller renewal previews usable without promoting an internal order number to the title', function (): void {
+    Role::findOrCreate('reseller', 'web');
+    $data = ren01Fixture();
+    $data['buyer']->syncRoles(['reseller']);
+    ren01FakeRemote(ren01Remote($data['order']));
+
+    ren01Bot($data['telegram'])->hearCallbackQueryData('sales:subs:renew:'.$data['order'].':0')->reply()
+        ->assertRaw(static function (NutgramRequest $request) use ($data): bool {
+            $payload = ren01Payload($request);
+            $rich = is_string($payload['rich_message'] ?? null)
+                ? json_decode($payload['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+                : ($payload['rich_message'] ?? []);
+            $html = (string) ($rich['html'] ?? '');
+
+            return str_contains($html, '<h4>🔄 پیش‌نمایش تمدید سرویس</h4>')
+                && str_contains($html, 'شماره سفارش: #'.$data['order'])
+                && ! str_contains($html, '<h4>🔄 پیش‌نمایش تمدید سرویس #')
+                && str_contains((string) json_encode($payload['reply_markup'], JSON_THROW_ON_ERROR),
+                    'sales:subs:view:'.$data['order'].':0');
+        }, index: 2);
+
+    Http::assertNotSent(static fn (Request $request): bool => $request->method() !== 'GET');
 });
 
 it('refuses foreign buyer, disabled account, group and forged order callbacks without any draft', function (): void {
