@@ -1,3 +1,11 @@
+## Deniz AI baseline v1 — operator acceptance and feature freeze (2026-11-10)
+
+The product owner has **accepted the current Deniz customer-support and management-group experience as a usable baseline**, reports that both work well, and reports no major outstanding blocker. Close this AI development cycle rather than continuing with speculative enhancements. This is a product acceptance/freeze decision, **not** a claim of zero defects or a blanket certification of all production integrations.
+
+**Merged code baseline:** `master` `4b995ba7c653a6a2ba140606233d6a31a24b6dcc`, through [PR #446](https://github.com/DenaSon/skynet/pull/446). [Final master CI 42775938075](https://github.com/DenaSon/skynet/actions/runs/42775938075) passed PHP 8.4 (1,758 tests / 12,446 assertions), PHPStan, Pint, MySQL and frontend verification. The executive read-only analysis/Decision Intelligence implementation is in [docs/046](046-DENIZ-EXECUTIVE-FINANCIAL-ROADMAP.md); do not mistake this document's older AI-01/02 planning checkpoints for pending work.
+
+**Retained boundaries:** Deniz Business support remains isolated from root-only Executive analysis. Existing model catalog, credentials, rights checks, quotas, AI queue, Telegram Business consent/connection checks and one-shot reply safeguards remain unchanged by this documentation update. Executive reports use authorized local aggregate sources, not direct Remnawave calls or finance/provider writes. All new AI development is **paused** until a new explicit scope and acceptance criteria are approved. Regression fixes require their own evidence and review. Actual deployment SHA, live Telegram command menu registration, long-term response accuracy and model cost/latency monitoring are distinct operational evidence; do not infer them from CI or this acceptance.
+
 # AI-01 / AI-02 — GapGPT foundation and Denix group chat
 
 **Current source checkpoint (2026-11-09): AI foundation, management-group chat, Telegram Business support and recent tone, formatting and manager-quota updates are merged through PR #437.** Earlier planning and implementation phases below are retained as historical records; where they say *planned*, *not activated* or show older quotas, the current-state section takes precedence. `master` auto-deploys; CI success does not prove Runflare deployment.
