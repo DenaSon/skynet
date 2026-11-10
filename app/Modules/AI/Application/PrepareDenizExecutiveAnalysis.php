@@ -143,30 +143,30 @@ final readonly class PrepareDenizExecutiveAnalysis
                 'month' => 'آخرین ماه کامل شمسی در برابر ماه قبل',
                 default => throw new \LogicException('Unsupported sales period.'),
             }
-                ."\nفروش تسویه‌شده: ".$money($snapshot['windows']['current']['revenueRials'])
-                .' (قبل: '.$money($snapshot['windows']['previous']['revenueRials']).')'
-                ."\nسفارش‌ها: ".$snapshot['windows']['current']['transactions']
-                .' | نمایندگی: '.$money($snapshot['channels']['current']['reseller']['revenueRials'])
-                .' | مستقیم: '.$money($snapshot['channels']['current']['direct']['revenueRials'])
-                ."\n🕒 ".$generated,
+            ."\nفروش تسویه‌شده: ".$money($snapshot['windows']['current']['revenueRials'])
+            .' (قبل: '.$money($snapshot['windows']['previous']['revenueRials']).')'
+            ."\nسفارش‌ها: ".$snapshot['windows']['current']['transactions']
+            .' | نمایندگی: '.$money($snapshot['channels']['current']['reseller']['revenueRials'])
+            .' | مستقیم: '.$money($snapshot['channels']['current']['direct']['revenueRials'])
+            ."\n🕒 ".$generated,
             'cash' => '💰 دریافتی‌های ثبت‌شده · '.match ($snapshot['period']) {
                 '7' => '۷ روز شامل امروز',
                 '30' => '۳۰ روز شامل امروز',
                 'all' => 'از ابتدای فعالیت',
                 default => throw new \LogicException('Unsupported cash period.'),
             }
-                ."\nورودی نقدی: ".$money($snapshot['metrics']['cashInRials'])
-                .' | شارژ کیف پول: '.$money($snapshot['metrics']['topupsRials'])
-                ."\nفروش با کیف پول (بدون واریز جدید): ".$money($snapshot['metrics']['walletSalesRials'])
-                ."\n🕒 ".$generated,
+            ."\nورودی نقدی: ".$money($snapshot['metrics']['cashInRials'])
+            .' | شارژ کیف پول: '.$money($snapshot['metrics']['topupsRials'])
+            ."\nفروش با کیف پول (بدون واریز جدید): ".$money($snapshot['metrics']['walletSalesRials'])
+            ."\n🕒 ".$generated,
             'accounting' => '📒 حسابداری · '.match ($snapshot['period']) {
                 '7' => '۷ روز شامل امروز',
                 '30' => '۳۰ روز شامل امروز',
                 'month' => 'ماه جاری شمسی تا امروز',
                 default => throw new \LogicException('Unsupported accounting period.'),
             }
-                ."\nفروش: ".$money($snapshot['metrics']['salesRials'])
-                .' | هزینه ثبت‌شده: '.$money($snapshot['metrics']['expensesRials'])
+            ."\nفروش: ".$money($snapshot['metrics']['salesRials'])
+            .' | هزینه ثبت‌شده: '.$money($snapshot['metrics']['expensesRials'])
                 ."\nسود برآوردی (نه قطعی): ".$money($snapshot['metrics']['profitRials'])
                 ."\n🕒 ".$generated,
             'wallet' => '💳 موجودی لحظه‌ای کیف پول‌ها'
