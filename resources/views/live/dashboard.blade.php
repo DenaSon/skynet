@@ -376,40 +376,6 @@
                             @endif
                         </section>
 
-                        <section class="dg-card mt-5 p-5 sm:p-7" aria-label="اطلاعات اتصال">
-                            <h3 class="dg-heading">اطلاعات اتصال</h3>
-                            <p class="mt-2 text-xs leading-7 text-[#71818B]">لینک اتصال مخصوص این سرویس است. آن را فقط برای مشتری خود ارسال کنید.</p>
-                            @if ($serviceConnectionError)
-                                <p role="alert" class="mt-4 rounded-xl bg-[#FFF9F1] p-4 text-sm leading-7 text-[#845C23]">{{ $serviceConnectionError }}</p>
-                            @endif
-                            @if ($serviceSubscriptionUrl !== null && $serviceQrDataUri !== null)
-                                <div class="mt-5" x-data="{ copied: false, copyError: false, copying: false }">
-                                    <div class="flex justify-center rounded-2xl bg-white p-4">
-                                        <img src="{{ $serviceQrDataUri }}" alt="کد QR اتصال سرویس" width="240" height="240" class="h-auto w-full max-w-[240px]" />
-                                    </div>
-                                    <label for="live-subscription-url" class="mt-4 block text-xs font-semibold text-[#536C76]">لینک اشتراک</label>
-                                    <input id="live-subscription-url" type="text" x-ref="connectionLink" readonly dir="ltr"
-                                        value="{{ $serviceSubscriptionUrl }}"
-                                        class="dg-field mt-2 bg-[#F6F8FA] text-left text-xs"
-                                        x-on:focus="$el.select()">
-                                    <div class="mt-4 grid grid-cols-2 gap-3">
-                                        <button type="button"
-                                            x-on:click="if (copying) return; copying = true; copied = false; copyError = false; const fallback = () => { try { $refs.connectionLink.select(); return document.execCommand('copy') } catch (error) { return false } }; if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') { navigator.clipboard.writeText($refs.connectionLink.value).then(() => copied = true).catch(() => { copied = fallback(); copyError = ! copied }).finally(() => copying = false) } else { copied = fallback(); copyError = ! copied; copying = false }"
-                                            x-bind:disabled="copying" class="dg-btn-primary min-h-12"><span x-show="!copying">کپی لینک</span><span x-cloak x-show="copying">در حال کپی…</span></button>
-                                        <button type="button" wire:click="hideServiceConnection" wire:target="hideServiceConnection,revealServiceConnection" wire:loading.attr="disabled"
-                                            class="dg-btn-secondary min-h-12">پنهان کردن</button>
-                                    </div>
-                                    <p x-cloak x-show="copied" role="status" class="mt-3 text-xs font-semibold text-[#087F73]">لینک کپی شد.</p>
-                                    <p x-cloak x-show="copyError" role="alert" class="mt-3 text-xs leading-6 text-[#8e2929]">کپی خودکار ممکن نشد. لینک را انتخاب و دستی کپی کنید.</p>
-                                </div>
-                            @elseif ($selectedService->canRequestLink)
-                                <button type="button" wire:click="revealServiceConnection" wire:loading.attr="disabled" wire:target="revealServiceConnection"
-                                    class="dg-btn-secondary mt-5 min-h-12 w-full">مشاهده اطلاعات اتصال<span wire:loading.delay wire:target="revealServiceConnection" role="status" class="text-xs font-semibold">در حال دریافت…</span></button>
-                            @else
-                                <p class="mt-4 rounded-xl bg-[#F6F8FA] p-4 text-sm leading-7 text-[#71818B]">لینک اتصال این سرویس فعلاً در دسترس نیست.</p>
-                            @endif
-                        </section>
-
                         <section class="dg-card mt-5 p-5 sm:p-7" aria-label="وضعیت و مصرف سرویس">
                             <div class="flex flex-wrap items-center justify-between gap-3">
                                 <div>
@@ -453,6 +419,40 @@
                                 <p class="mt-5 rounded-2xl bg-[#F6F8FA] p-4 text-sm leading-7 text-[#71818B]">
                                     {{ $selectedService->canRequestLink ? 'برای دریافت وضعیت، مصرف و تاریخ انقضا، «بررسی وضعیت» را بزنید.' : 'اطلاعات به‌روز این سرویس فعلاً قابل دریافت نیست.' }}
                                 </p>
+                            @endif
+                        </section>
+
+                        <section class="dg-card mt-5 p-5 sm:p-7" aria-label="اطلاعات اتصال">
+                            <h3 class="dg-heading">اطلاعات اتصال</h3>
+                            <p class="mt-2 text-xs leading-7 text-[#71818B]">لینک اتصال مخصوص این سرویس است. آن را فقط برای مشتری خود ارسال کنید.</p>
+                            @if ($serviceConnectionError)
+                                <p role="alert" class="mt-4 rounded-xl bg-[#FFF9F1] p-4 text-sm leading-7 text-[#845C23]">{{ $serviceConnectionError }}</p>
+                            @endif
+                            @if ($serviceSubscriptionUrl !== null && $serviceQrDataUri !== null)
+                                <div class="mt-5" x-data="{ copied: false, copyError: false, copying: false }">
+                                    <div class="flex justify-center rounded-2xl bg-white p-4">
+                                        <img src="{{ $serviceQrDataUri }}" alt="کد QR اتصال سرویس" width="240" height="240" class="h-auto w-full max-w-[240px]" />
+                                    </div>
+                                    <label for="live-subscription-url" class="mt-4 block text-xs font-semibold text-[#536C76]">لینک اشتراک</label>
+                                    <input id="live-subscription-url" type="text" x-ref="connectionLink" readonly dir="ltr"
+                                        value="{{ $serviceSubscriptionUrl }}"
+                                        class="dg-field mt-2 bg-[#F6F8FA] text-left text-xs"
+                                        x-on:focus="$el.select()">
+                                    <div class="mt-4 grid grid-cols-2 gap-3">
+                                        <button type="button"
+                                            x-on:click="if (copying) return; copying = true; copied = false; copyError = false; const fallback = () => { try { $refs.connectionLink.select(); return document.execCommand('copy') } catch (error) { return false } }; if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') { navigator.clipboard.writeText($refs.connectionLink.value).then(() => copied = true).catch(() => { copied = fallback(); copyError = ! copied }).finally(() => copying = false) } else { copied = fallback(); copyError = ! copied; copying = false }"
+                                            x-bind:disabled="copying" class="dg-btn-primary min-h-12"><span x-show="!copying">کپی لینک</span><span x-cloak x-show="copying">در حال کپی…</span></button>
+                                        <button type="button" wire:click="hideServiceConnection" wire:target="hideServiceConnection,revealServiceConnection" wire:loading.attr="disabled"
+                                            class="dg-btn-secondary min-h-12">پنهان کردن</button>
+                                    </div>
+                                    <p x-cloak x-show="copied" role="status" class="mt-3 text-xs font-semibold text-[#087F73]">لینک کپی شد.</p>
+                                    <p x-cloak x-show="copyError" role="alert" class="mt-3 text-xs leading-6 text-[#8e2929]">کپی خودکار ممکن نشد. لینک را انتخاب و دستی کپی کنید.</p>
+                                </div>
+                            @elseif ($selectedService->canRequestLink)
+                                <button type="button" wire:click="revealServiceConnection" wire:loading.attr="disabled" wire:target="revealServiceConnection"
+                                    class="dg-btn-secondary mt-5 min-h-12 w-full">مشاهده اطلاعات اتصال<span wire:loading.delay wire:target="revealServiceConnection" role="status" class="text-xs font-semibold">در حال دریافت…</span></button>
+                            @else
+                                <p class="mt-4 rounded-xl bg-[#F6F8FA] p-4 text-sm leading-7 text-[#71818B]">لینک اتصال این سرویس فعلاً در دسترس نیست.</p>
                             @endif
                         </section>
 
