@@ -266,7 +266,7 @@ it('rejects invalid datasets or incompatible periods instead of silently substit
 
     foreach ([
         ['sales', '7'], ['cash', 'week'], ['cash', 'month'],
-        ['accounting', 'all'], ['wallet', 'day'], ['unknown', 'week'],
+        ['accounting', 'all'], ['wallet', 'day'], ['users', 'week'], ['unknown', 'week'],
     ] as [$dataset, $period]) {
         expect(fn () => $reader->handle($root->id, $dataset, $period))
             ->toThrow(ValidationException::class);
@@ -292,7 +292,7 @@ it('blocks ordinary admins, unallowlisted roots and revoked or inactive super ad
 
     $reader = app(ReadDenizExecutiveSnapshot::class);
     foreach ([$other->id, $ordinary->id] as $id) {
-        foreach ([['sales', 'week'], ['cash', '7'], ['accounting', '7'], ['wallet', 'current']] as [$dataset, $period]) {
+        foreach ([['sales', 'week'], ['cash', '7'], ['accounting', '7'], ['wallet', 'current'], ['users', 'current']] as [$dataset, $period]) {
             expect(fn () => $reader->handle($id, $dataset, $period))
                 ->toThrow(AuthorizationException::class);
         }
