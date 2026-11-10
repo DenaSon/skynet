@@ -8,6 +8,7 @@ use App\Interfaces\Telegram\Processing\DenixGroupAccess;
 use App\Interfaces\Telegram\Processing\DenixMessageSender;
 use App\Modules\AI\Application\AskAssistant;
 use App\Modules\AI\Application\DenixAssistant;
+use App\Modules\AI\Application\DenizExecutiveAssistant;
 use App\Modules\AI\Application\PrepareDenizExecutiveAnalysis;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
@@ -18,6 +19,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
+use Laravel\Ai\Attributes\MaxTokens;
 use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
@@ -379,7 +381,6 @@ it('does not remember executive follow-ups when Telegram delivery is uncertain',
     Http::assertSentCount(2);
 });
 
-
 it('reads registered and active users only from local Identity and settled Sales data, never Remnawave', function (): void {
     $root = executive02Root();
     User::factory()->create(['is_active' => true]);
@@ -449,16 +450,16 @@ it('renders canonical Jalali report boundaries and deterministic insight signals
 });
 
 it('keeps the higher token allowance executive-only and does not grant tools or new models', function (): void {
-    $executive = new ReflectionClass(\App\Modules\AI\Application\DenizExecutiveAssistant::class);
+    $executive = new ReflectionClass(DenizExecutiveAssistant::class);
     $standard = new ReflectionClass(DenixAssistant::class);
-    $attribute = \Laravel\Ai\Attributes\MaxTokens::class;
+    $attribute = MaxTokens::class;
 
     expect($executive->getAttributes($attribute))->toHaveCount(1)
         ->and($standard->getAttributes($attribute))->toHaveCount(1)
         ->and($executive->getAttributes($attribute)[0]->getArguments()[0])->toBe(1100)
         ->and($standard->getAttributes($attribute)[0]->getArguments()[0])->toBe(700)
-        ->and(iterator_to_array((new \App\Modules\AI\Application\DenizExecutiveAssistant)->tools()))->toBeEmpty()
-        ->and((new \App\Modules\AI\Application\DenizExecutiveAssistant)->instructions())->toContain('مشاور ارشد مالی');
+        ->and(iterator_to_array((new DenizExecutiveAssistant)->tools()))->toBeEmpty()
+        ->and((new DenizExecutiveAssistant)->instructions())->toContain('مشاور ارشد مالی');
 
     Http::assertNothingSent();
 });
