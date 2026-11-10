@@ -93,7 +93,7 @@ function executive02Sale(User $root, int $amount): void
         'payment_claim_id' => $claim,
         'billing_journal_id' => $journal,
         'verified_by' => $root->id,
-        'payment_reference' => 'PRIVATEBANKREFERENCE',
+        'payment_reference' => 'PRIVATEBANKREFERENCE'.$order,
         'amount_rials' => $amount,
         'settled_at' => $at,
     ]);
