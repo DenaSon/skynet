@@ -78,7 +78,7 @@ final readonly class PrepareDenizExecutiveAnalysis
 
         $prompt = 'پرسش مدیر: '.$question."\n"
             .'داده تجمیعی تأییدشده (مبالغ IRR، زمان تهران): '
-            .json_encode($evidence, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+            .json_encode($evidence, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
 
         if (mb_strlen($prompt) > (int) config('denagate_ai.max_input_chars', 2000)) {
             // Do not truncate financial evidence or present partial data as complete.
