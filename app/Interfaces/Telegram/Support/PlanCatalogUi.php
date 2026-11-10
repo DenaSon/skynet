@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
+use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
@@ -82,32 +83,26 @@ final readonly class PlanCatalogUi
             $richHtml .= '<p>🏷️ قیمت اختصاصی پنل فروش برای شما محاسبه شده است.</p>';
         }
         foreach (array_slice($entries, ($page - 1) * 5, 5) as $entry) {
-            $lines[] = ($entry->plan->featured ? '⭐ ' : '📦 ').TelegramUi::escape($this->safe($entry->plan->name));
-            $lines[] = '📊 حجم و مدت: '.$this->spec($entry);
+            $lines[] = ($entry->plan->featured ? '⭐ ' : '📦 ').'<b>'.TelegramUi::escape($this->safe($entry->plan->name)).'</b>';
+            $lines[] = '📊 <b>'.$this->spec($entry).'</b>';
             $lines[] = '💰 مبلغ: <b>'.$this->toman($entry->quote->totalPriceRials).' تومان</b>';
             $lines[] = '';
             $callback = "catalog:detail:{$entry->plan->id}:{$page}";
             $richHtml .= '<p>'.($entry->plan->featured ? '⭐' : '📦')
                 .' <b>'.TelegramUi::escape($this->safe($entry->plan->name)).'</b><br>'
-                .'حجم و مدت: '.$this->spec($entry).'<br>'
+                .'📊 <b>'.$this->spec($entry).'</b><br>'
                 .($reseller
                     ? 'قیمت عمومی: '.$this->toman($entry->quote->publicPriceRials).' تومان<br>'
                         .'تخفیف شما: '.$entry->quote->discountPercent.'٪<br>قیمت نماینده: '
                     : 'مبلغ نهایی: ')
                 .'<b>'.$this->toman($entry->quote->totalPriceRials).' تومان</b></p>';
-            if ($sales) {
-                $richHtml .= '<tg-button-row><tg-button type="callback_data" style="success" data="'.$callback.'">🛒 خرید</tg-button></tg-button-row>';
-            }
-            $keyboard->addRow(
-                InlineKeyboardButton::make(
-                    TelegramUi::toman($entry->quote->totalPriceRials).' تومان',
-                    callback_data: $callback,
-                ),
-                InlineKeyboardButton::make(
-                    TelegramUi::planButtonLabel($entry->plan->name, $entry->quote->trafficGb, $entry->quote->durationDays),
-                    callback_data: $callback,
-                ),
-            );
+            // A single native plan selection avoids duplicated price/name buttons
+            // and remains usable when Rich text is not supported by the client.
+            $keyboard->addRow(InlineKeyboardButton::make(
+                '🔎 '.TelegramUi::planButtonLabel($entry->plan->name, $entry->quote->trafficGb, $entry->quote->durationDays),
+                callback_data: $callback,
+                style: ButtonStyle::PRIMARY,
+            ));
         }
 
         if ($entries === []) {
