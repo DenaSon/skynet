@@ -174,7 +174,6 @@ it('will not resend after a Telegram delivery failure of uncertain outcome', fun
     Http::assertSentCount(2);
 });
 
-
 it('renders headings and bold safely in management-group replies without exposing raw HTML', function (): void {
     Http::fake(['https://api.telegram.org/*' => Http::response(['ok' => true, 'result' => ['message_id' => 901]])]);
 
