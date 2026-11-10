@@ -9,9 +9,11 @@ use App\Interfaces\Telegram\Processing\DenixMessageSender;
 use App\Modules\AI\Application\AskAssistant;
 use App\Modules\AI\Application\DenixAssistant;
 use App\Modules\AI\Application\DenizExecutiveAssistant;
+use App\Modules\AI\Application\DenizExecutiveKnowledge;
 use App\Modules\AI\Application\PrepareDenizExecutiveAnalysis;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Carbon;
@@ -464,8 +466,6 @@ it('keeps the higher token allowance executive-only and does not grant tools or 
     Http::assertNothingSent();
 });
 
-
-
 it('builds evidence-led cost-quality risk insight instead of merely repeating dashboard totals', function (): void {
     $root = executive02Root();
     executive02Sale($root, 229_717_500);
@@ -523,7 +523,7 @@ it('routes growth and sales channel investment questions to multi-KPI evidence w
     // A number-only question still uses the original short, single-source report.
     expect($prepare->handle(180001, 'تحلیل فروش هفتگی')['dataset'])->toBe('sales');
 
-    $prompt = app(\App\Modules\AI\Application\DenizExecutiveKnowledge::class)->instructions();
+    $prompt = app(DenizExecutiveKnowledge::class)->instructions();
     expect($prompt)->toContain('یک اقدام اولویت‌دار', 'برنده سرمایه‌گذاری قطعی اعلام نکن');
 
     Http::assertNothingSent();
@@ -585,7 +585,7 @@ it('rejects ordinary or untrusted users before constructing any multi-report str
     $reader = app(PrepareDenizExecutiveAnalysis::class);
     foreach ([180002, 180003] as $telegramId) {
         expect(fn () => $reader->handle($telegramId, 'بزرگترین ریسک مالی دناگیت چیست؟'))
-            ->toThrow(\Illuminate\Auth\Access\AuthorizationException::class);
+            ->toThrow(AuthorizationException::class);
     }
 
     Http::assertNothingSent();
