@@ -127,6 +127,8 @@ Artisan::command('deniz:business:status', function (DenizBusinessConnectionGuard
     $queue = config('queue.default');
 
     $this->line('Business gate: '.($access->enabled() ? 'enabled' : 'disabled'));
+    $this->line('Business customer 10-minute limit: '.config('denagate_ai.business_customer_requests_per_10_minutes'));
+    $this->line('Business customer 24-hour limit: '.config('denagate_ai.business_customer_requests_per_day'));
     $this->line('Shared Business usage: '.$attempts.'/'.$limit);
     $this->line('Shared quota resets in: '.RateLimiter::availableIn($global).' seconds');
     $this->line('Cache driver: '.config('cache.default'));

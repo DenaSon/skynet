@@ -1,3 +1,17 @@
+## Deniz Business quota configuration via ENV (2026-11-10; PR awaiting review)
+
+The three **Business support only** counters are independently configurable in Runflare/production ENV, retaining their current defaults:
+
+```dotenv
+DENAGATE_AI_BUSINESS_CUSTOMER_REQUESTS_PER_10_MINUTES=20
+DENAGATE_AI_BUSINESS_CUSTOMER_REQUESTS_PER_DAY=80
+DENAGATE_AI_BUSINESS_GLOBAL_REQUESTS_PER_DAY=200
+```
+
+The first two limits apply **per customer** (burst over 600 seconds and daily over 86400 seconds); the third is the separate shared capacity for **all** Business customers over 86400 seconds. Each is a **positive integer**; values less than 1 are clamped to 1 rather than treated as unlimited. The manager/group limits (25 per manager/10min and 250/group/day) are unchanged. The intake continues to use existing RateLimiter keys, 1-hour notice throttle and queue semantics; changing ENV does **not** clear current counters or create a new quota window. On deployment, refresh Laravel's cached configuration/restart the service using the existing Runflare deploy flow and confirm the effective settings using `php artisan deniz:business:status`. Do not change existing gates, permissions, model usage or emergency quota-reopen behavior; higher limits authorize more paid AI calls and may increase costs.
+
+**Release verification:** new tests override each individual Business config value and exercise the corresponding limiter boundary, with default quota and existing management-scope regression checks. PHP 8.4 full suite, Pint, PHPStan and MySQL GitHub Actions required; real Telegram Business and Runflare ENV acceptance remain operational checks. The current `master` 4x quotas were delivered by [PR #449](https://github.com/DenaSon/skynet/pull/449); earlier "PR pending" language below describes the historical pre-merge checkpoint.
+
 ## Deniz Business — scoped reliability review and 4x support capacity (2026-11-10; PR pending)
 
 **Operator-approved scoped change:** Business-only customer limits increase from **5 to 20 requests per 10 minutes**, **20 to 80 requests per customer per day**, and **50 to 200 shared Business requests per day**. Management-group limits remain **25/actor/10 minutes and 250/group/day**; no new model, permission, scheduler, database migration, provider integration or queue worker is introduced. The global limit is still overridable with `DENAGATE_AI_BUSINESS_GLOBAL_REQUESTS_PER_DAY`: **an existing Runflare override of 50 will stay 50 until the operator explicitly changes it to 200** and deploys the configuration. The limits are ceilings on *admitted* paid AI requests, not a guarantee that a response was delivered or billed.

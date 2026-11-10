@@ -214,6 +214,55 @@ it('enforces the 80-per-day customer budget independently of the 20-per-10-minut
     Http::assertNothingSent();
 });
 
+it('respects an operator-configured customer burst limit without changing management quotas', function (): void {
+    config()->set('denagate_ai.business_customer_requests_per_10_minutes', 2);
+
+    for ($i = 0; $i < 4; $i++) {
+        denizP2Post($this, denizP2Payload(43000 + $i, 196000, 'پیام '.$i));
+    }
+
+    Queue::assertPushed(AnswerDenizBusinessMessage::class, 3);
+    Queue::assertPushed(AnswerDenizBusinessMessage::class,
+        fn (AnswerDenizBusinessMessage $job): bool => $job->messageId === 43002
+            && $job->kind === 'quota' && $job->retrySeconds > 0);
+    expect(RateLimiter::attempts('denix:business:quota:user:'.hash('sha256', 'connection_A').':196000'))->toBe(2)
+        ->and(RateLimiter::attempts('denix:business:quota:global'))->toBe(2)
+        ->and(config('denagate_ai.user_requests_per_10_minutes'))->toBe(25);
+    Http::assertNothingSent();
+});
+
+it('respects an operator-configured customer daily limit independently from the burst limit', function (): void {
+    config()->set('denagate_ai.business_customer_requests_per_day', 3);
+
+    for ($i = 0; $i < 5; $i++) {
+        denizP2Post($this, denizP2Payload(43100 + $i, 196001, 'پیام '.$i));
+    }
+
+    Queue::assertPushed(AnswerDenizBusinessMessage::class, 4);
+    Queue::assertPushed(AnswerDenizBusinessMessage::class,
+        fn (AnswerDenizBusinessMessage $job): bool => $job->messageId === 43103
+            && $job->kind === 'quota' && $job->retrySeconds > 0);
+    expect(RateLimiter::attempts('denix:business:quota:day:'.hash('sha256', 'connection_A').':196001'))->toBe(3)
+        ->and(RateLimiter::attempts('denix:business:quota:global'))->toBe(3);
+    Http::assertNothingSent();
+});
+
+it('respects an operator-configured global daily limit independently of personal limits', function (): void {
+    config()->set('denagate_ai.business_global_requests_per_day', 2);
+
+    for ($i = 0; $i < 3; $i++) {
+        denizP2Post($this, denizP2Payload(43200 + $i, 196010 + $i, 'پیام '.$i));
+    }
+
+    Queue::assertPushed(AnswerDenizBusinessMessage::class, 3);
+    Queue::assertPushed(AnswerDenizBusinessMessage::class,
+        fn (AnswerDenizBusinessMessage $job): bool => $job->messageId === 43202
+            && $job->kind === 'capacity' && $job->retrySeconds > 0);
+    expect(RateLimiter::attempts('denix:business:quota:global'))->toBe(2)
+        ->and(RateLimiter::attempts('denix:business:quota:user:'.hash('sha256', 'connection_A').':196012'))->toBe(0);
+    Http::assertNothingSent();
+});
+
 it('carries an opaque trace from accepted Business intake into the queued job', function (): void {
     denizP2Post($this, denizP2Payload(42500, 199997, 'متن کاملاً خصوصی'));
 
@@ -565,7 +614,8 @@ it('provides read-only incident diagnostics and requires explicit consent to reo
 
     expect(Artisan::call('deniz:business:status'))->toBe(0);
     $output = Artisan::output();
-    expect($output)->toContain('Shared Business usage: 1/200', 'Queue driver: database',
+    expect($output)->toContain('Business customer 10-minute limit: 20', 'Business customer 24-hour limit: 80',
+        'Shared Business usage: 1/200', 'Queue driver: database',
         'Pending ai jobs:', 'Failed Business ai jobs: 0', 'Failed management ai jobs: 0')
         ->not->toContain('connection_A', '199995', 'test-gapgpt-secret');
 
