@@ -64,7 +64,7 @@ function executeDenixJob(AnswerDenixMessage $job): void
     $job->handle(app(DenixGroupAccess::class), app(AskAssistant::class), app(DenixMessageSender::class), app(DenixConversationState::class));
 }
 
-it('calls GapGPT once and delivers a plain Telegram reply to the original group topic', function (): void {
+it('calls GapGPT once and delivers a safely formatted Telegram reply to the original group topic', function (): void {
     Http::fake([
         'https://api.gapgpt.app/*' => Http::response(denixFakeChat()),
         'https://api.telegram.org/*' => Http::response(['ok' => true, 'result' => ['message_id' => 888]]),
@@ -83,7 +83,7 @@ it('calls GapGPT once and delivers a plain Telegram reply to the original group 
         && $request['message_thread_id'] === 12
         && $request['text'] === 'پاسخ دنیکس'
         && json_decode($request['reply_parameters'], true)['message_id'] === 77
-        && ! isset($request['parse_mode']));
+        && $request['parse_mode'] === 'HTML');
 });
 
 it('revalidates group, kill switch and Super Admin authorization at execution time', function (): void {
@@ -172,4 +172,48 @@ it('will not resend after a Telegram delivery failure of uncertain outcome', fun
 
     executeDenixJob(denixJob(82));
     Http::assertSentCount(2);
+});
+
+it('renders headings and bold safely in management-group replies without exposing raw HTML', function (): void {
+    Http::fake(['https://api.telegram.org/*' => Http::response(['ok' => true, 'result' => ['message_id' => 901]])]);
+
+    app(DenixMessageSender::class)->send(
+        -100987654321, 91, 12,
+        "### 🧠 تحلیل\n**موجودی کل:** 8,938,000 تومان\n<admin> & **بررسی**",
+    );
+
+    Http::assertSentCount(1);
+    Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/sendMessage')
+        && $request['parse_mode'] === 'HTML'
+        && $request['message_thread_id'] === 12
+        && json_decode($request['reply_parameters'], true)['message_id'] === 91
+        && str_contains($request['text'], '<b>🧠 تحلیل</b>')
+        && str_contains($request['text'], '<b>موجودی کل:</b>')
+        && str_contains($request['text'], '&lt;admin&gt; &amp; <b>بررسی</b>')
+        && ! str_contains($request['text'], '###')
+        && ! str_contains($request['text'], '**'));
+});
+
+it('falls back to plain text only after certain Telegram HTML entity rejection', function (): void {
+    Http::fakeSequence('https://api.telegram.org/*')
+        ->push(['ok' => false, 'description' => "Bad Request: can't parse entities"], 400)
+        ->push(['ok' => true, 'result' => ['message_id' => 902]], 200);
+
+    app(DenixMessageSender::class)->send(-100987654321, 92, 12, '**ایمن** <data>');
+    Http::assertSentCount(2);
+
+    $requests = Http::recorded()->map(fn (array $item): Request => $item[0])->values();
+    expect($requests[0]['parse_mode'])->toBe('HTML')
+        ->and($requests[0]['text'])->toContain('<b>ایمن</b>')
+        ->and($requests[1]['text'])->toBe('**ایمن** <data>')
+        ->and($requests[1]['message_thread_id'])->toBe(12)
+        ->and(isset($requests[1]['parse_mode']))->toBeFalse();
+});
+
+it('never retries an ambiguous group message failure and hides the upstream response', function (): void {
+    Http::fake(['https://api.telegram.org/*' => Http::response(['ok' => false, 'description' => 'sensitive upstream'], 503)]);
+
+    expect(fn () => app(DenixMessageSender::class)->send(-100987654321, 93, 12, '**خصوصی**'))
+        ->toThrow(RuntimeException::class, 'Denix response delivery failed.');
+    Http::assertSentCount(1);
 });

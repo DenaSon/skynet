@@ -41,6 +41,12 @@ Unspecified supported periods use a fixed, clearly labeled default (sales = last
 
 **Non-goals:** No Admin/Sales/Business bot changes, new menu/command or provider permission, schema or migration, new package, finance mutation, AI SQL reader, web interface, plan-margin or ROI calculations, or scheduled digests. Rollback is an isolated PR revert.
 
+## Deniz management-group formatting safety (2026-11-10)
+
+The management group sender reuses the existing `DenizBusinessMessageFormatter` to convert a small Markdown subset (`###` headings, `**bold**`, links, code) to **escaped Telegram HTML**. This addresses raw Markdown in live group evidence without changing the Business support sender, models, permissions, queues or financial Actions. Every message remains bounded to 3,500 input characters before conversion; HTML tags are not truncated post-formatting.
+
+On an explicit Telegram HTTP 400 *entity parse* failure only, a **single plain-text** delivery can be attempted with the same topic and reply target. Ambiguous timeouts, 5xx and other errors must not retry (avoid duplicate responses). No message body, BotFather secret, or upstream error is logged. Real mobile Telegram rendering is an operator acceptance check, not proved by mocked CI.
+
 ## Phase 2 polish — Telegram commands and rolling 24-hour sales (2026-11-10)
 
 This narrow addition to phase 2 does not authorize open-ended phase 3, financial writes, new models or customer Business changes.
