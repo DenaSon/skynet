@@ -167,8 +167,8 @@ final readonly class PrepareDenizExecutiveAnalysis
             }
             ."\nفروش: ".$money($snapshot['metrics']['salesRials'])
             .' | هزینه ثبت‌شده: '.$money($snapshot['metrics']['expensesRials'])
-                ."\nسود برآوردی (نه قطعی): ".$money($snapshot['metrics']['profitRials'])
-                ."\n🕒 ".$generated,
+            ."\nسود برآوردی (نه قطعی): ".$money($snapshot['metrics']['profitRials'])
+            ."\n🕒 ".$generated,
             'wallet' => '💳 موجودی لحظه‌ای کیف پول‌ها'
                 ."\nمانده کل: ".$money($snapshot['metrics']['balanceRials'])
                 .' | نمایندگان: '.$money($snapshot['metrics']['resellerBalanceRials'])
