@@ -1,3 +1,23 @@
+## Deniz Business — scoped reliability review and 4x support capacity (2026-11-10; PR pending)
+
+**Operator-approved scoped change:** Business-only customer limits increase from **5 to 20 requests per 10 minutes**, **20 to 80 requests per customer per day**, and **50 to 200 shared Business requests per day**. Management-group limits remain **25/actor/10 minutes and 250/group/day**; no new model, permission, scheduler, database migration, provider integration or queue worker is introduced. The global limit is still overridable with `DENAGATE_AI_BUSINESS_GLOBAL_REQUESTS_PER_DAY`: **an existing Runflare override of 50 will stay 50 until the operator explicitly changes it to 200** and deploys the configuration. The limits are ceilings on *admitted* paid AI requests, not a guarantee that a response was delivered or billed.
+
+**Production observations (pre-change):** Redis 1.31 MB used / 1.36 MB peak, zero evicted keys, zero rejected connections, no pending `ai` jobs, one running `ai` worker (45s timeout) and Redis retry-after 90s. Operator logs show successful Business AI output (3–7s) interspersed with webhook 204 responses and at least one 500ms Business job with no model output. Fifteen failed `ai` jobs shown in CLI were `AnswerDenixMessage` (management), not `AnswerDenizBusinessMessage`; old status output combined both counts. **A 204 webhook response and a DONE job do not confirm delivery to Telegram.** Current evidence does not establish Redis RAM exhaustion or the exact cause of each silent message.
+
+**Focused source review:** the intentional hourly quota-notice dedupe, 24h human handoff, unsupported input, duplicate-message fence, expired Telegram reply window, unavailable `can_reply`, and non-blocking per-chat lock can all leave a user message without an AI response. The replay/attempt fence is set before inference to prevent ambiguous double sends; do not clear it or blindly retry uncertain provider/Telegram outcomes. This patch adds privacy-safe intake decisions, a random per-message trace carried into the job, worker outcome reason tags, classified Telegram connection-right denials, and delivery error *phase/status/type* logs. Never log customer IDs, chat/connection IDs, question text, generated answer, provider bodies, URLs or tokens. This patch **does not alter one-shot semantics, human handoff or the existing one-notice-per-customer/hour cooldown**; their UX consequences remain candidates for a separately approved behavioral correction if confirmed.
+
+**Operator diagnostic after deployment (read only):**
+
+```sh
+php artisan deniz:business:status
+php artisan queue:failed
+# Inspect Runflare service stdout/stderr: local storage/logs may be empty.
+# Search: Deniz Business intake skipped / intake dispatched / worker outcome
+#         Deniz Business connection check denied / delivery failed / worker failed
+```
+
+**Acceptance:** PHP 8.4/8.5, PHPStan, Pint, relevant fake-Telegram/HTTP/queue quota tests, review of actual CI, then explicit deployment/production confirmation. In real Telegram Business, verify the same trace in intake/worker logs, customer replies, notice throttling, human handoff, blocked rights, and no duplicate sends. A PR or green CI by itself is **not** production proof.
+
 ## P0 corrective action — Deniz Business shared-capacity incident (2026-11-10)
 
 **Reported live symptom:** a first-time Telegram Business customer receives an exhausted-personal-chat-quota notice; subsequent customers receive no AI response. Inspection of source establishes a concrete *mechanism*: every admitted support message increments one **shared** `denix:business:quota:global` counter capped at **50 requests per rolling 24 hours** across *all* customers, but the old user-facing notice did not distinguish global capacity from per-user 5/10m and 20/day quotas. A customer can therefore be blocked before their own first conversation. Notice deduplication (one/customer/hour) explains silence after the first notice. **Root-cause verification against live quota counters and Runflare PHP/queue logs is still pending**; CI does not have production log access.
