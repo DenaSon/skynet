@@ -3,6 +3,7 @@
 use App\Interfaces\Telegram\Notifications\SubscriptionAlertMonitor;
 use App\Interfaces\Telegram\Notifications\TrialEndMonitor;
 use App\Interfaces\Telegram\Processing\DenixCommandCatalog;
+use App\Interfaces\Telegram\Processing\DenizBusinessConnectionGuard;
 use App\Interfaces\Telegram\Processing\SalesTelegramRuntime;
 use App\Interfaces\Telegram\Support\SalesNativeMenu;
 use App\Modules\Billing\Application\VerifyWalletOrderDebit;
@@ -23,7 +24,10 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schedule;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use Spatie\Health\Commands\DispatchQueueCheckJobsCommand;
 use Spatie\Health\Commands\ScheduleCheckHeartbeatCommand;
@@ -112,6 +116,54 @@ Artisan::command('deniz:telegram:commands:register {--dry-run : Preview without 
 
     return 0;
 })->purpose('Register Deniz slash commands for its configured management group only');
+
+// Read-only, privacy-safe P0 diagnostics. Never prints customer identities,
+// connection IDs, user questions, tokens or provider response bodies.
+Artisan::command('deniz:business:status', function (DenizBusinessConnectionGuard $access): int {
+    $global = 'denix:business:quota:global';
+    $attempts = RateLimiter::attempts($global);
+    $limit = max(1, (int) config('denagate_ai.business_global_requests_per_day', 50));
+    $queue = config('queue.default');
+
+    $this->line('Business gate: '.($access->enabled() ? 'enabled' : 'disabled'));
+    $this->line('Shared Business usage: '.$attempts.'/'.$limit);
+    $this->line('Shared quota resets in: '.RateLimiter::availableIn($global).' seconds');
+    $this->line('Cache driver: '.config('cache.default'));
+    $this->line('Queue driver: '.$queue);
+
+    if ($queue === 'database' && Schema::hasTable('jobs')) {
+        $this->line('Pending ai jobs: '.DB::table('jobs')->where('queue', 'ai')->count());
+    }
+
+    if (Schema::hasTable('failed_jobs')) {
+        $this->line('Failed ai jobs: '.DB::table('failed_jobs')->where('queue', 'ai')->count());
+    }
+
+    return 0;
+})->purpose('Inspect Deniz Business shared quota, gate and AI queue without secrets or mutations');
+
+// Explicit one-time emergency recovery, never scheduled or automatic.
+// A reset permits additional paid requests and must be operator-approved.
+Artisan::command('deniz:business:quota:reopen {--confirm : I approve reopening the paid shared Business budget}', function (): int {
+    if ($this->option('confirm') !== true) {
+        $this->error('No changes made. Reopening paid Business quota requires --confirm.');
+
+        return 1;
+    }
+
+    $global = 'denix:business:quota:global';
+    $attempts = RateLimiter::attempts($global);
+    RateLimiter::clear($global);
+    Cache::forget('denix:business:ops:global-capacity-warning');
+
+    Log::warning('Deniz Business shared quota manually reopened.', [
+        'prior_attempts' => $attempts,
+        'limit' => max(1, (int) config('denagate_ai.business_global_requests_per_day', 50)),
+    ]);
+    $this->info('Shared Business quota reopened; personal customer quotas remain unchanged.');
+
+    return 0;
+})->purpose('Explicitly reopen only the shared Deniz Business quota during an approved incident');
 
 // Node TCP targets are derived from RW Nodes + direct Hosts every run.
 // No manual UUID/IP mapping and no network probes in Telegram.

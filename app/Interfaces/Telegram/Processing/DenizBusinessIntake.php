@@ -150,21 +150,43 @@ final class DenizBusinessIntake
             $dailyKey = 'denix:business:quota:day:'.$connectionKey.':'.$chatId;
             $globalKey = 'denix:business:quota:global';
 
-            $limitedKey = match (true) {
-                RateLimiter::tooManyAttempts($userKey, 5) => $userKey,
-                RateLimiter::tooManyAttempts($dailyKey, 20) => $dailyKey,
-                RateLimiter::tooManyAttempts($globalKey, 50) => $globalKey,
+            // The shared Business budget is distinct from each customer's
+            // personal limits. Exhausting it must NEVER accuse a first-time
+            // customer of using their own allowance.
+            $globalLimit = max(1, (int) config('denagate_ai.business_global_requests_per_day', 50));
+            $limitedScope = match (true) {
+                RateLimiter::tooManyAttempts($userKey, 5) => 'user',
+                RateLimiter::tooManyAttempts($dailyKey, 20) => 'daily',
+                RateLimiter::tooManyAttempts($globalKey, $globalLimit) => 'global',
                 default => null,
             };
 
-            if ($limitedKey !== null) {
+            if ($limitedScope !== null) {
+                $limitedKey = match ($limitedScope) {
+                    'user' => $userKey,
+                    'daily' => $dailyKey,
+                    'global' => $globalKey,
+                };
+
+                if ($limitedScope === 'global'
+                    && Cache::add('denix:business:ops:global-capacity-warning', true, now()->addMinutes(10))) {
+                    // Safe aggregate metadata only: never log customer ID,
+                    // connection ID, message text, Bot token or AI prompt.
+                    Log::warning('Deniz Business shared capacity exhausted.', [
+                        'scope' => 'global',
+                        'limit' => $globalLimit,
+                        'attempts' => RateLimiter::attempts($globalKey),
+                        'retry_seconds' => RateLimiter::availableIn($globalKey),
+                    ]);
+                }
+
                 $noticeKey = 'denix:business:quota:notice:'.$connectionKey.':'.$chatId;
 
                 if (RateLimiter::tooManyAttempts($noticeKey, 1)) {
                     return;
                 }
 
-                $kind = 'quota';
+                $kind = $limitedScope === 'global' ? 'capacity' : 'quota';
                 $retrySeconds = RateLimiter::availableIn($limitedKey);
                 RateLimiter::hit($noticeKey, 3600);
             } else {

@@ -1,3 +1,24 @@
+## P0 corrective action — Deniz Business shared-capacity incident (2026-11-10)
+
+**Reported live symptom:** a first-time Telegram Business customer receives an exhausted-personal-chat-quota notice; subsequent customers receive no AI response. Inspection of source establishes a concrete *mechanism*: every admitted support message increments one **shared** `denix:business:quota:global` counter capped at **50 requests per rolling 24 hours** across *all* customers, but the old user-facing notice did not distinguish global capacity from per-user 5/10m and 20/day quotas. A customer can therefore be blocked before their own first conversation. Notice deduplication (one/customer/hour) explains silence after the first notice. **Root-cause verification against live quota counters and Runflare PHP/queue logs is still pending**; CI does not have production log access.
+
+**Bounded fix (no automatic increase to provider spend):** `DenizBusinessIntake` keeps existing 5/10min, 20/day customer and default 50/day shared limits but selects the exact exhausted scope. Global exhaustion enqueues the new `capacity` response instead of the false personal `quota` response, explicitly explains that the problem is not the customer's allowance, gives expiry guidance, and exposes the existing manual `پشتیبان انسانی` path. The 1-hour per-customer notice throttle and existing one-shot queue/reply permissions remain. The shared cap is separately configurable through optional `DENAGATE_AI_BUSINESS_GLOBAL_REQUESTS_PER_DAY`, default **50**, for an operator-approved budget change only. A 10-minute-throttled warning logs **scope, aggregate attempts, cap and seconds until reset only**; suppressed Business worker replies log only safe category tags. Never log tokens, raw Telegram identifiers, content or provider response bodies.
+
+**Runflare operator diagnostic (read-only, after deploying this fix):**
+
+```sh
+php artisan deniz:business:status
+grep -hE 'Deniz Business shared capacity exhausted|Deniz Business answer suppressed|Deniz Business connection check|AI request failed|Deniz Business AI response generated' storage/logs/laravel*.log 2>/dev/null | tail -80
+php artisan queue:failed
+```
+
+Confirm Business gate, shared attempts/remaining time, cache/queue drivers, queued/failed `ai` jobs, worker liveness and whether the GapGPT or Telegram connection is failing. **No raw user message content or credentials should be shared.** The connected GitHub Actions test logs are not the production PHP/Runflare logs.
+
+**Emergency recovery after confirming shared-capacity exhaustion:** a separate, expressly approved operator action `php artisan deniz:business:quota:reopen --confirm` clears **only** the global shared limiter and writes a safe audit warning. It leaves personal limits, the 24-hour Business permission window, Telegram rights and AI gates untouched. It enables extra chargeable AI requests in the current rolling day; run only with explicit budget authorization and do not schedule or auto-invoke. Increasing the 50/day cost ceiling is a separate business decision, not something silently done by this PR. If the shared budget immediately exhausts again, determine and approve an appropriate daily spend cap, not a recurring blind reset.
+
+**Acceptance boundaries:** fake HTTP/queue tests validate first-contact global exhaustion, truthful capacity notice, unblocked human path, personal-scope unchanged, safe status and manual-only reopen. Run CI PHP 8.4, PHPStan, Pint and MySQL, then stage/merge only after review. Production verification still requires reading real logs, checking `ai` worker and manually testing two new and one existing customer message on the correct Telegram Business account. No new model, new permission, schema migration or direct Provider call.
+
+
 ## Deniz AI baseline v1 — operator acceptance and feature freeze (2026-11-10)
 
 The product owner has **accepted the current Deniz customer-support and management-group experience as a usable baseline**, reports that both work well, and reports no major outstanding blocker. Close this AI development cycle rather than continuing with speculative enhancements. This is a product acceptance/freeze decision, **not** a claim of zero defects or a blanket certification of all production integrations.

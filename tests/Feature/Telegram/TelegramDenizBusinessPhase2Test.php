@@ -10,10 +10,12 @@ use App\Modules\AI\Application\AskAssistant;
 use App\Settings\DenizBusinessSupportSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\RateLimiter;
 use Tests\TestCase;
 
 uses(RefreshDatabase::class);
@@ -446,5 +448,84 @@ it('never attempts Business delivery when the 24-hour reply window has expired i
     denizP2FakeHttp();
     denizP2Run(denizP2Job(211, timestamp: now()->subDay()->subMinute()->timestamp));
 
+    Http::assertNothingSent();
+});
+
+it('does not blame a first-time customer when shared Business capacity is depleted', function (): void {
+    $global = 'denix:business:quota:global';
+    for ($i = 0; $i < 50; $i++) {
+        RateLimiter::hit($global, 86400);
+    }
+
+    denizP2Post($this, denizP2Payload(41101, 199991, 'سلام، اولین پیام من است'));
+    denizP2Post($this, denizP2Payload(41102, 199992, 'لطفاً کمک کنید'));
+
+    Queue::assertPushed(AnswerDenizBusinessMessage::class, 2);
+    Queue::assertPushed(AnswerDenizBusinessMessage::class,
+        fn (AnswerDenizBusinessMessage $job): bool => $job->chatId === 199991
+            && $job->kind === 'capacity' && $job->retrySeconds > 0);
+    expect(RateLimiter::attempts('denix:business:quota:user:'.hash('sha256', 'connection_A').':199991'))->toBe(0)
+        ->and(RateLimiter::attempts($global))->toBe(50);
+
+    // Notice cooldown prevents spam but never consumes a personal quota.
+    denizP2Post($this, denizP2Payload(41103, 199991, 'باز هم پیام'));
+    Queue::assertPushed(AnswerDenizBusinessMessage::class, 2);
+
+    // Human handoff is independent of the AI safety budget.
+    denizP2Post($this, denizP2Payload(41104, 199991, 'پشتیبان انسانی'));
+    Queue::assertPushed(AnswerDenizBusinessMessage::class,
+        fn (AnswerDenizBusinessMessage $job): bool => $job->messageId === 41104 && $job->kind === 'handoff');
+    Http::assertNothingSent();
+});
+
+it('keeps personal customer-limit notices independent from shared capacity', function (): void {
+    for ($i = 0; $i < 5; $i++) {
+        denizP2Post($this, denizP2Payload(41200 + $i, 199993, 'پیام '.$i));
+    }
+    denizP2Post($this, denizP2Payload(41205, 199993, 'پیام ششم'));
+
+    Queue::assertPushed(AnswerDenizBusinessMessage::class,
+        fn (AnswerDenizBusinessMessage $job): bool => $job->messageId === 41205
+            && $job->kind === 'quota' && $job->retrySeconds > 0);
+    expect(RateLimiter::attempts('denix:business:quota:global'))->toBe(5);
+    Http::assertNothingSent();
+});
+
+it('tells capacity-limited customers the true cause and offers human support without inference', function (): void {
+    denizP2FakeHttp();
+
+    denizP2Run(new AnswerDenizBusinessMessage(
+        'connection_A', 199994, 199994, 41210, now()->timestamp, 'سلام', 'capacity', 3700,
+    ));
+
+    Http::assertSentCount(3);
+    Http::assertSent(fn (Request $req): bool => str_ends_with($req->url(), '/sendMessage')
+        && $req['business_connection_id'] === 'connection_A'
+        && $req['chat_id'] === 199994
+        && str_contains($req['text'], 'ظرفیت پاسخ‌گویی هوشمند دنیز')
+        && str_contains($req['text'], 'مربوط به سهمیه شخصی شما نیست')
+        && str_contains($req['text'], 'پشتیبان انسانی')
+        && ! str_contains($req['text'], 'تعداد پیام‌های مجاز'));
+    Http::assertNotSent(fn (Request $req): bool => str_contains($req->url(), 'gapgpt.app'));
+});
+
+it('provides read-only incident diagnostics and requires explicit consent to reopen only shared quota', function (): void {
+    $global = 'denix:business:quota:global';
+    $user = 'denix:business:quota:user:'.hash('sha256', 'connection_A').':199995';
+
+    RateLimiter::hit($global, 86400);
+    RateLimiter::hit($user, 600);
+
+    expect(Artisan::call('deniz:business:status'))->toBe(0);
+    $output = Artisan::output();
+    expect($output)->toContain('Shared Business usage: 1/50', 'Queue driver: database')
+        ->not->toContain('connection_A', '199995', 'test-gapgpt-secret');
+
+    expect(Artisan::call('deniz:business:quota:reopen'))->toBe(1)
+        ->and(RateLimiter::attempts($global))->toBe(1);
+
+    expect(Artisan::call('deniz:business:quota:reopen', ['--confirm' => true]))->toBe(0)
+        ->and(RateLimiter::attempts($global))->toBe(0)
+        ->and(RateLimiter::attempts($user))->toBe(1);
     Http::assertNothingSent();
 });
