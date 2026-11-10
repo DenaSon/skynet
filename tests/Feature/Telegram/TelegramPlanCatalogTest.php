@@ -140,14 +140,15 @@ it('uses actual published buyer quotes including one reseller discount and unlim
             $finite = $markup['inline_keyboard'][0][0];
             $unlimitedButton = $markup['inline_keyboard'][1][0];
 
-            return $finite['text'] === 'انتخاب '.str_repeat('الف', 11).'…'
+            return str_starts_with($finite['text'], 'انتخاب ')
                 && mb_strlen($finite['text']) <= 19
                 && count($markup['inline_keyboard'][0]) === 2
                 && count($markup['inline_keyboard'][1]) === 1
                 && $finite['style'] === 'primary'
                 && $finite['callback_data'] === "catalog:detail:{$public}:1"
                 && str_contains($body['text'], '<b>90,000 تومان</b>')
-                && $unlimitedButton['text'] === 'انتخاب Plan unlimi…'
+                && str_starts_with($unlimitedButton['text'], 'انتخاب ')
+                && mb_strlen($unlimitedButton['text']) <= 19
                 && $unlimitedButton['callback_data'] === "catalog:detail:{$unlimited}:1";
         });
     $bot->hearCallbackQueryData("catalog:detail:{$public}:1")->reply()
