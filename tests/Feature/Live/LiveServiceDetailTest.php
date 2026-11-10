@@ -134,6 +134,41 @@ it('shows only the owned service detail and local plan data without provider net
     Http::assertNothingSent();
 });
 
+it('prioritizes service status ahead of connection details without changing controls or making automatic provider requests', function (): void {
+    $owner = live4aReseller(964110);
+    $this->actingAs($owner)->withSession(['denagate_live.user_id' => $owner->id]);
+    $order = live4aService($owner);
+    live4aMockProvider($order);
+
+    $page = Livewire::test(Dashboard::class)
+        ->call('showSection', 'services')
+        ->call('openService', $order)
+        ->assertSee('wire:click="refreshServiceUsage"', false)
+        ->assertSee('wire:click="revealServiceConnection"', false);
+
+    $html = $page->html();
+    $statusPosition = strpos($html, 'aria-label="وضعیت و مصرف سرویس"');
+    $connectionPosition = strpos($html, 'aria-label="اطلاعات اتصال"');
+    expect($statusPosition)->not->toBeFalse()
+        ->and($connectionPosition)->not->toBeFalse()
+        ->and($statusPosition)->toBeLessThan($connectionPosition);
+    Http::assertNothingSent();
+
+    $page->call('refreshServiceUsage')
+        ->assertSee('وضعیت بررسی‌شده')
+        ->assertSee('7.00')
+        ->assertSee('wire:click="revealServiceConnection"', false);
+
+    $updated = $page->html();
+    expect(strpos($updated, 'aria-label="وضعیت و مصرف سرویس"'))
+        ->toBeLessThan(strpos($updated, 'aria-label="اطلاعات اتصال"'));
+    Http::assertSentCount(1);
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET'
+        && $request->url() === 'https://remna.test/api/users/'.(200000 + $order));
+    expect(DB::table('billing_journals')->count())->toBe(0)
+        ->and(DB::table('provisioning_operations')->count())->toBe(0);
+});
+
 it('reads one exact owner-verified provider usage on explicit tap and displays safe expiry and remaining data', function (): void {
     $owner = live4aReseller(964103);
     $this->actingAs($owner)->withSession(['denagate_live.user_id' => $owner->id]);
