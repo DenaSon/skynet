@@ -317,7 +317,7 @@ it('shows bold escaped catalog prices and sorts both plan lists by each buyers p
                 && array_reduce($expectedPrices, static fn (bool $ok, string $price): bool => $ok
                     && str_contains(sb02RichHtml($request), '<b>'.$price.'</b>'), true)
                 && str_starts_with($rows[0][0]['text'], '🔎 ')
-                && str_contains(sb02RichHtml($request), '<b>📊 30 گیگ / 30 روز</b>')
+                && str_contains(sb02RichHtml($request), '📊 <b>30 گیگ / 30 روز</b>')
                 && str_contains(sb02RichHtml($request), '&lt;ارزان &amp; &quot;پایه&quot;&gt;')
                 && ! str_contains(sb02RichHtml($request), '<tg-button-row>')
                 && ! str_contains(sb02RichHtml($request), 'sales:catalog:preview:')
@@ -401,7 +401,7 @@ it('buys directly from Rich catalog but retains read-only legacy quote links and
 
         return str_contains($html, $expectedPrice)
             && ! str_contains($html, '<tg-button-row>')
-            && str_contains($html, '<b>📊 30 گیگ / 30 روز</b>')
+            && str_contains($html, '📊 <b>30 گیگ / 30 روز</b>')
             && ! str_contains($html, 'sales:catalog:preview:')
             && ! str_contains($html, 'جزئیات این پلن')
             && str_contains($buttons, 'catalog:detail:'.$plan.':1')
