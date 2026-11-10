@@ -242,7 +242,6 @@ final readonly class SalesHomeUi
         $isReseller = in_array('reseller', $actor->roles, true);
         $lines = ['<b>🛒 پلن‌های آماده خرید</b>', '', 'یک پلن را انتخاب کنید تا مشخصات سفارش را تکمیل کنید.', ''];
         $keyboard = InlineKeyboardMarkup::make();
-        $planButtons = [];
         $richHtml = '<h4>🛒 پلن‌های آماده خرید</h4>'
             .'<p>پلن موردنظر را انتخاب کنید؛ مشخصات و قیمت هر پلن پیش از خرید دوباره بررسی می‌شود.</p>'
             .($pages > 1 ? '<p>صفحه '.$page.' از '.$pages.'</p>' : '');
@@ -259,17 +258,21 @@ final readonly class SalesHomeUi
                     ? '🏷️ عمومی: '.TelegramUi::toman($entry->quote->publicPriceRials).' تومان'
                         .' · تخفیف: '.$entry->quote->discountPercent.'٪<br>'
                     : '')
-                .'💰 <b>'.TelegramUi::toman($entry->quote->totalPriceRials).' تومان</b></p>';
-            // Keep each verified plan's original callback; only its presentation changes.
-            $planButtons[] = InlineKeyboardButton::make(
-                TelegramUi::planSelectionLabel($entry->plan->name),
-                callback_data: $callback,
-                style: ButtonStyle::PRIMARY,
+                .'💰 <b>'.TelegramUi::toman($entry->quote->totalPriceRials).' تومان</b></p>'
+                .'<tg-button-row><tg-button type="callback_data" style="success" data="'.$callback.'">🛒 خرید این پلن</tg-button></tg-button-row>';
+            // Both native buttons open the same validated plan detail, as in the original layout.
+            $keyboard->addRow(
+                InlineKeyboardButton::make(
+                    TelegramUi::toman($entry->quote->totalPriceRials).' تومان',
+                    callback_data: $callback,
+                    style: ButtonStyle::PRIMARY,
+                ),
+                InlineKeyboardButton::make(
+                    TelegramUi::planButtonLabel($entry->plan->name, $entry->quote->trafficGb, $entry->quote->durationDays),
+                    callback_data: $callback,
+                    style: ButtonStyle::PRIMARY,
+                ),
             );
-        }
-        // Two compact choices per row; navigation always follows the plan choices.
-        foreach (array_chunk($planButtons, 2) as $row) {
-            $keyboard->addRow(...$row);
         }
         if ($entries === []) {
             $lines[] = 'فعلاً پلن آماده خریدی وجود ندارد. می‌توانید فهرست پلن‌ها را ببینید یا با پشتیبانی گفتگو کنید.';
@@ -297,7 +300,7 @@ final readonly class SalesHomeUi
             return;
         }
 
-        // The same two-column native plan buttons work in Rich and HTML fallback.
+        // The same paired native plan buttons work in Rich and HTML fallback.
         $simpleKeyboard = clone $keyboard;
         try {
             TelegramUi::answerCallback($bot);
