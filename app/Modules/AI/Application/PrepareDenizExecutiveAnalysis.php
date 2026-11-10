@@ -17,6 +17,7 @@ final readonly class PrepareDenizExecutiveAnalysis
 {
     public function __construct(
         private ReadDenizExecutiveSnapshot $snapshots,
+        private ReadDenizDecisionBrief $decisions,
         private ResolveTelegramActor $actors,
     ) {}
 
@@ -38,6 +39,10 @@ final readonly class PrepareDenizExecutiveAnalysis
         $actor = $this->actors->handle($telegramUserId);
         if ($actor?->canManageRoles() !== true) {
             throw new AuthorizationException;
+        }
+
+        if ($selected['dataset'] === 'decision') {
+            return $this->prepareDecision($actor->userId, $question);
         }
 
         $snapshot = $this->snapshots->handle($actor->userId, $selected['dataset'], $selected['period']);
@@ -93,9 +98,64 @@ final readonly class PrepareDenizExecutiveAnalysis
         ];
     }
 
+    /** @return array{prompt:string,headline:string,dataset:string,period:string} */
+    private function prepareDecision(int $actorId, string $question): array
+    {
+        $brief = $this->decisions->handle($actorId);
+        $focus = self::decisionFocus($question) ?? 'general';
+        $prompt = 'سؤال راهبردی مدیر: '.$question."\n"
+            .'شواهد معتبر و نامزدهای بررسی (مبالغ ریال؛ نسبت‌های بین بازه‌های متفاوت ممنوع): '
+            .json_encode(
+                ['focus' => $focus, 'brief' => $brief],
+                JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR,
+            );
+
+        if (mb_strlen($prompt) > (int) config('denagate_ai.max_input_chars', 2000)) {
+            // Never silently truncate evidence and draw confident conclusions.
+            throw new InvalidArgumentException('حجم داده‌های تصمیم‌سازی بیش از حد مجاز است؛ لطفاً سؤال مشخص‌تری بپرسید.');
+        }
+
+        return [
+            'prompt' => $prompt,
+            'headline' => '🧭 بررسی راهبردی دناگیت'
+                ."\nمبنای تحلیل: فروش دو دوره کامل ۷روزه، حسابداری ماه جاری و موجودی لحظه‌ای کیف پول"
+                ."\n🕒 ".$brief['timeFa'].' (تهران)',
+            'dataset' => 'decision',
+            'period' => 'current',
+        ];
+    }
+
+    /** Financial strategy intent only; simple numeric questions keep concise reports. */
+    private static function decisionFocus(string $question): ?string
+    {
+        $strategic = preg_match('/(?:ریسک|خطر|نگران|اولویت|استراتژ|پیشنهاد|چه\s*کار|چیکار|چه\s*اقدام|چه\s*کنیم|تصمیم|فرصت|سرمایه[‌ ]?گذاری|بهتره|بهتر\s*است|رشد)/u', $question) === 1;
+        $business = preg_match('/(?:فروش|سفارش|نمایند|مستقیم|مالی|حسابداری|هزینه|سود|درآمد|بازاریابی|کسب[‌ -]?و[‌ -]?کار|مشتری|اعتبار)/u', $question) === 1;
+        if (! $strategic || ! $business) {
+            return null;
+        }
+
+        if (preg_match('/(?:ریسک|خطر|نگران|مشکل)/u', $question) === 1) {
+            return 'risk';
+        }
+
+        if (preg_match('/(?:نمایند|مستقیم|کانال)/u', $question) === 1) {
+            return 'channel';
+        }
+
+        if (preg_match('/(?:رشد|افزایش|فروش|مشتری)/u', $question) === 1) {
+            return 'growth';
+        }
+
+        return 'general';
+    }
+
     /** @return array{dataset:string,period:string}|null */
     private static function select(string $question, ?array $context = null): ?array
     {
+        if (self::decisionFocus($question) !== null) {
+            return ['dataset' => 'decision', 'period' => 'current'];
+        }
+
         if (preg_match('/\A\s*(?:دنیز[،,:]?\s*)?(?:تحلیل|گزارش)\s+(شارژ کیف پول|کیف پول|حسابداری|نقدینگی|دریافتی‌ها|دریافتی ها|نمایندگی|فروش|مالی|کاربران|کاربرها|کاربر)(?=\s|\z)/u', trim($question), $matches) !== 1) {
             return self::naturalSelection($question, $context);
         }
