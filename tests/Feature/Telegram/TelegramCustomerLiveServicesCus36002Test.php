@@ -230,6 +230,7 @@ it('does not show RW identifiers or copy actions if the root cannot verify provi
     $root->syncRoles(['super-admin']);
     $buyer = User::factory()->create();
     $order = c360LiveOrder($buyer, 20);
+    c360LiveBot(994201, $root);
     Http::fake(['https://rw-live.test/api/users/42' => Http::response([
         'response' => [...c360LiveRemote($order), 'description' => 'foreign marker'],
     ], 200)]);
