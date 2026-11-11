@@ -230,6 +230,71 @@ it('preserves corrected cash receipts and separates historical flows from curren
     Http::assertNothingSent();
 });
 
+it('uses approved corrected top-ups and direct bank receipts in same-hour daily cash comparisons', function (): void {
+    $root = executiveRoot();
+    executiveFixture($root);
+    $buyer = User::factory()->create();
+    $todayAt = Carbon::parse('2026-11-10 12:00', 'Asia/Tehran')->utc();
+    DB::table('billing_verified_receipts')->where('payment_reference', 'EXECTOPUP1')
+        ->update(['verified_at' => $todayAt]);
+
+    executiveOrder($buyer, 'direct', 'bank', 3_000_000, '2026-11-10 12:00');
+    executiveOrder($buyer, 'direct', 'bank', 2_000_000, '2026-11-09 12:00');
+    executiveOrder($buyer, 'direct', 'bank', 9_000_000, '2026-11-09 17:00'); // after yesterday cutoff
+    executiveOrder($buyer, 'direct', 'wallet', 1_000_000, '2026-11-10 13:00');
+
+    $before = DB::table('billing_journals')->count();
+    $snapshot = app(ReadDenizExecutiveSnapshot::class)->handle($root->id, 'cash', 'day');
+    $today = app(ReadAdminCashReceipts::class)->handle($root->id, 'today');
+    $yesterday = app(ReadAdminCashReceipts::class)->handle($root->id, 'yesterday_same_time');
+
+    expect($snapshot['period'])->toBe('day')
+        ->and($snapshot['source'])->toBe('ReadAdminCashReceipts')
+        ->and($snapshot['sameTehranTime'])->toBe('15:30')
+        ->and($snapshot['windows']['current']['date'])->toBe('2026-11-10')
+        ->and($snapshot['windows']['previous']['date'])->toBe('2026-11-09')
+        ->and($snapshot['windows']['current']['cashInRials'])->toBe(4_500_000)
+        ->and($snapshot['windows']['previous']['cashInRials'])->toBe(2_000_000)
+        ->and($snapshot['windows']['current']['topupsRials'])->toBe(1_500_000)
+        ->and($snapshot['windows']['current']['bankSalesRials'])->toBe(3_000_000)
+        ->and($snapshot['windows']['current']['topupsCount'])->toBe(1)
+        ->and($snapshot['windows']['previous']['bankSalesCount'])->toBe(1)
+        ->and($snapshot['windows']['current']['cashInRials'])->toBe($today['cashInRials'])
+        ->and($snapshot['windows']['previous']['cashInRials'])->toBe($yesterday['cashInRials'])
+        ->and($snapshot['growthPercent'])->toBe(125.0)
+        ->and(DB::table('billing_journals')->count())->toBe($before);
+
+    $serialized = json_encode($snapshot, JSON_THROW_ON_ERROR);
+    expect($serialized)->not->toContain('Sensitive customer name', 'Private reseller name',
+        'payment_reference', 'billing_journals', 'topBuyers');
+    Http::assertNothingSent();
+});
+
+it('keeps signed negative growth for a real decline in verified daily cash', function (): void {
+    $root = executiveRoot();
+    $buyer = User::factory()->create();
+    executiveOrder($buyer, 'direct', 'bank', 1_000_000, '2026-11-10 12:00');
+    executiveOrder($buyer, 'direct', 'bank', 2_000_000, '2026-11-09 12:00');
+
+    $snapshot = app(ReadDenizExecutiveSnapshot::class)->handle($root->id, 'cash', 'day');
+    expect($snapshot['windows']['current']['cashInRials'])->toBe(1_000_000)
+        ->and($snapshot['windows']['previous']['cashInRials'])->toBe(2_000_000)
+        ->and($snapshot['growthPercent'])->toBe(-50.0);
+    Http::assertNothingSent();
+});
+
+it('uses undefined daily cash growth when yesterday has no verified deposits', function (): void {
+    $root = executiveRoot();
+    $buyer = User::factory()->create();
+    executiveOrder($buyer, 'direct', 'bank', 1_000_000, '2026-11-10 13:00');
+
+    $snapshot = app(ReadDenizExecutiveSnapshot::class)->handle($root->id, 'cash', 'day');
+    expect($snapshot['windows']['current']['cashInRials'])->toBe(1_000_000)
+        ->and($snapshot['windows']['previous']['cashInRials'])->toBe(0)
+        ->and($snapshot['growthPercent'])->toBeNull();
+    Http::assertNothingSent();
+});
+
 it('reuses accounting and wallet read models without inventing profit or adding writes', function (): void {
     $root = executiveRoot();
     executiveFixture($root);
@@ -272,7 +337,7 @@ it('rejects invalid datasets or incompatible periods instead of silently substit
             ->toThrow(ValidationException::class);
     }
 
-    foreach ([['sales', 'day'], ['sales', 'month'], ['cash', '30'], ['accounting', 'month']] as [$dataset, $period]) {
+    foreach ([['sales', 'day'], ['sales', 'month'], ['cash', 'day'], ['cash', '30'], ['accounting', 'month']] as [$dataset, $period]) {
         expect($reader->handle($root->id, $dataset, $period)['period'])->toBe($period);
     }
 
@@ -292,7 +357,7 @@ it('blocks ordinary admins, unallowlisted roots and revoked or inactive super ad
 
     $reader = app(ReadDenizExecutiveSnapshot::class);
     foreach ([$other->id, $ordinary->id] as $id) {
-        foreach ([['sales', 'week'], ['cash', '7'], ['accounting', '7'], ['wallet', 'current'], ['users', 'current']] as [$dataset, $period]) {
+        foreach ([['sales', 'week'], ['cash', 'day'], ['cash', '7'], ['accounting', '7'], ['wallet', 'current'], ['users', 'current']] as [$dataset, $period]) {
             expect(fn () => $reader->handle($id, $dataset, $period))
                 ->toThrow(AuthorizationException::class);
         }

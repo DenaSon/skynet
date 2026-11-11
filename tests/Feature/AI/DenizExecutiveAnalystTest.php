@@ -132,6 +132,11 @@ it('selects only explicit trusted executive requests with correct temporal seman
 
     foreach ([
         ['تحلیل فروش امروز', '"dataset":"sales","period":"day"'],
+        ['گزارش فروش امروز و دیروز', '"dataset":"sales","period":"day"'],
+        ['رشد فروش امروز نسبت به دیروز', '"dataset":"sales","period":"day"'],
+        ['تحلیل فروش دیروز', '"dataset":"sales","period":"day"'],
+        ['گزارش نقدینگی امروز', '"dataset":"cash","period":"day"'],
+        ['گزارش دریافتی‌ها دیروز تا همین ساعت', '"dataset":"cash","period":"day"'],
         ['تحلیل فروش ۲۴ ساعت اخیر', '"dataset":"sales","period":"24h"'],
         ['گزارش نمایندگی هفتگی', '"dataset":"sales","period":"week"'],
         ['تحلیل فروش ماهانه', '"dataset":"sales","period":"month"'],
@@ -196,6 +201,31 @@ it('sends canonical sales evidence plus an executive-only prompt and never expor
 
     // Finance is deliberately absent from the ordinary group conversation cache.
     expect(app(DenixConversationState::class)->history(-100987654321, 12, 180001))->toBeEmpty();
+});
+
+it('delivers a verified day-vs-yesterday cash answer through the existing trusted Deniz group job', function (): void {
+    executive02Root();
+    Http::fake([
+        'https://api.gapgpt.app/*' => Http::response(executive02Response('📊 واریزی ثبت‌شده امروز بررسی شد.')),
+        'https://api.telegram.org/*' => Http::response(['ok' => true, 'result' => ['message_id' => 903]]),
+    ]);
+
+    executive02Job(108, 'امروز چقدر پول واریز شده؟');
+
+    Http::assertSentCount(2);
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.gapgpt.app/v1/chat/completions'
+        && str_contains($request['messages'][1]['content'], '"dataset":"cash","period":"day"')
+        && str_contains($request['messages'][0]['content'], 'گزارش فروش و واریزی امروز و دیروز')
+        && ! str_contains(json_encode($request['messages'], JSON_THROW_ON_ERROR), 'payment_reference'));
+    Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/sendMessage')
+        && $request['chat_id'] === -100987654321
+        && str_contains($request['text'], 'واریزی تأییدشده')
+        && str_contains($request['text'], 'بدون مبنا')
+        && str_contains($request['text'], 'واریزی ثبت‌شده امروز بررسی شد.'));
+
+    $state = app(DenixConversationState::class);
+    expect($state->executiveSelection(-100987654321, 12, 180001))->toBe(['dataset' => 'cash', 'period' => 'day'])
+        ->and($state->history(-100987654321, 12, 180001))->toBeEmpty();
 });
 
 it('keeps ordinary group chat and customer-support prompts distinct', function (): void {
@@ -319,6 +349,9 @@ it('selects common natural-language finance intents and refuses mixed evidence w
 
     foreach ([
         ['امروز فروش چقدر شده؟', '"dataset":"sales","period":"day"'],
+        ['فروش دیروز چقدر بود؟', '"dataset":"sales","period":"day"'],
+        ['امروز چقدر پول واریز شده؟', '"dataset":"cash","period":"day"'],
+        ['واریزی امروز نسبت به دیروز چطور بوده؟', '"dataset":"cash","period":"day"'],
         ['نمایندگی‌ها چطور فروش داشتن؟', '"dataset":"sales","period":"week"'],
         ['در ۳۰ روز اخیر چقدر شارژ داشتیم؟', '"dataset":"cash","period":"30"'],
         ['موجودی کیف پول‌ها چقدره؟', '"dataset":"wallet","period":"current"'],
@@ -331,11 +364,45 @@ it('selects common natural-language finance intents and refuses mixed evidence w
         'فروش و شارژ کیف پول را باهم تحلیل کن',
         'میزان فروش در برابر سود چقدر است؟',
         'فروش این ماه چطور بوده؟',
-        'فروش دیروز چقدر بود؟',
+        'فروش کل روز دیروز چقدر بود؟',
+        'واریزی امروز و ۳۰ روز اخیر را مقایسه کن',
+        'واریزی تمام دیروز چقدر بود؟',
     ] as $question) {
         expect(fn () => $prepare->handle(180001, $question))
             ->toThrow(InvalidArgumentException::class);
     }
+
+    Http::assertNothingSent();
+});
+
+it('exposes a compact daily verified-cash report with deterministic time and a safe daily follow-up', function (): void {
+    executive02Root();
+    $prepare = app(PrepareDenizExecutiveAnalysis::class);
+    $report = $prepare->handle(180001, 'امروز چقدر پول واریز شده؟');
+
+    expect($report['dataset'])->toBe('cash')
+        ->and($report['period'])->toBe('day')
+        ->and($report['prompt'])->toContain('"dataset":"cash","period":"day"')
+        ->and($report['prompt'])->toContain('"sameTehranTime":"15:30"')
+        ->and($report['prompt'])->toContain('"growthPercent":null')
+        ->and($report['prompt'])->toContain('"cashGrowthPercent":null')
+        ->and($report['prompt'])->not->toContain('payment_reference', 'PRIVATEBANKREFERENCE', 'Never Export This Name', 'pointInTime')
+        ->and(mb_strlen($report['prompt']))->toBeLessThanOrEqual(2000)
+        ->and($report['headline'])->toContain('واریزی تأییدشده', 'امروز و دیروز تا ساعت یکسان', 'بدون مبنا');
+
+    $followup = $prepare->handle(180001, 'چرا کمتر شده؟', ['dataset' => 'cash', 'period' => 'day']);
+    expect($followup['dataset'])->toBe('cash')
+        ->and($followup['period'])->toBe('day')
+        ->and($followup['prompt'])->toContain('"dataset":"cash","period":"day"');
+
+    $state = app(DenixConversationState::class);
+    $state->rememberExecutiveSelection(-100987654321, 12, 180001, 'cash', 'day');
+    expect($state->executiveSelection(-100987654321, 12, 180001))
+        ->toBe(['dataset' => 'cash', 'period' => 'day'])
+        ->and($state->executiveSelection(-100987654321, 13, 180001))->toBeNull();
+
+    $prompt = app(DenizExecutiveKnowledge::class)->instructions();
+    expect($prompt)->toContain('گزارش فروش و واریزی امروز و دیروز', 'بدون مبنا');
 
     Http::assertNothingSent();
 });
