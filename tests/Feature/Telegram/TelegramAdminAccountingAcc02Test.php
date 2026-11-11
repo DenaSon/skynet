@@ -315,11 +315,20 @@ it('calculates verified cash inflows for 7, 30 and all-time without double-count
 
     $before = [DB::table('billing_journals')->count(), DB::table('billing_postings')->count()];
     $report = app(ReadAdminCashReceipts::class);
+    $today = $report->handle($root->id, 'today');
     $seven = $report->handle($root->id, '7');
     $thirty = $report->handle($root->id, '30');
     $all = $report->handle($root->id, 'all');
 
-    expect($seven['topupsRials'])->toBe(7_500_000)
+    expect($today['topupsRials'])->toBe(7_500_000)
+        ->and($today['topupsCount'])->toBe(1)
+        ->and($today['bankSalesRials'])->toBe(500_000)
+        ->and($today['bankSalesCount'])->toBe(1)
+        ->and($today['cashInRials'])->toBe(8_000_000)
+        ->and($today['walletSalesRials'])->toBe(2_000_000)
+        ->and($today['start'])->toBe('2026-10-22')
+        ->and($today['end'])->toBe('2026-10-22')
+        ->and($seven['topupsRials'])->toBe(7_500_000)
         ->and($seven['topupsCount'])->toBe(1)
         ->and($seven['bankSalesRials'])->toBe(500_000)
         ->and($seven['bankSalesCount'])->toBe(1)
@@ -449,6 +458,24 @@ it('returns zero cash and uses Tehran-day boundary with all-time preserving hist
         ->and($report->handle($root->id, 'all')['cashInRials'])->toBe(3_000_000);
 });
 
+it('uses Tehran midnight boundaries for today deposits and excludes prior-day approvals', function (): void {
+    $root = acc02Root();
+    $customer = User::factory()->create();
+    cash01Topup($root, $customer, 1_000_000, 'today-edge',
+        Carbon::parse('2026-10-22 00:00:00', 'Asia/Tehran')->utc());
+    cash01Topup($root, $customer, 2_000_000, 'yesterday-edge',
+        Carbon::parse('2026-10-21 23:59:59', 'Asia/Tehran')->utc());
+    acc02Purchase($root, 700_000, 'wallet', now());
+
+    $today = app(ReadAdminCashReceipts::class)->handle($root->id, 'today');
+    expect($today['topupsRials'])->toBe(1_000_000)
+        ->and($today['topupsCount'])->toBe(1)
+        ->and($today['bankSalesCount'])->toBe(0)
+        ->and($today['cashInRials'])->toBe(1_000_000)
+        ->and($today['walletSalesRials'])->toBe(700_000)
+        ->and($today['start'])->toBe('2026-10-22');
+});
+
 it('excludes voided bank-proof topups and refunded wallet purchases from reports without deleting evidence', function (): void {
     $root = acc02Root();
     $customer = User::factory()->create();
@@ -471,7 +498,7 @@ it('excludes voided bank-proof topups and refunded wallet purchases from reports
     DB::table('sales_orders')->where('id', $incidentOrder)->update(['status' => 'refunded']);
 
     $cash = app(ReadAdminCashReceipts::class);
-    foreach (['7', '30', 'all'] as $period) {
+    foreach (['today', '7', '30', 'all'] as $period) {
         $result = $cash->handle($root->id, $period);
         expect($result['topupsRials'])->toBe(2_000_000)
             ->and($result['topupsCount'])->toBe(1)
