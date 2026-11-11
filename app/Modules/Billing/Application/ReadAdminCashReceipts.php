@@ -30,7 +30,7 @@ final readonly class ReadAdminCashReceipts
      *   salesRials:int,currentWalletBalanceRials:int,generatedAt:string
      * }
      */
-    public function handle(int $actorId, string $period): array
+    public function handle(int $actorId, string $period, ?Carbon $asOf = null): array
     {
         $this->access->reviewer($actorId);
 
@@ -40,7 +40,7 @@ final readonly class ReadAdminCashReceipts
 
         // Daily comparison uses identical Tehran clock cutoffs on consecutive days.
         // The extra second includes records at the current second with SQL's < bound.
-        $now = Carbon::now('Asia/Tehran');
+        $now = ($asOf ?? Carbon::now('Asia/Tehran'))->copy()->timezone('Asia/Tehran');
         $today = $now->copy()->startOfDay();
         $start = match ($period) {
             'today' => $today->copy(),
