@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
@@ -28,7 +29,7 @@ it('keeps automatic monitoring and all Spatie notifications off until rollout', 
 });
 
 it('schedules the three Spatie health tasks every two minutes', function (): void {
-    $healthEvents = collect(app(\Illuminate\Console\Scheduling\Schedule::class)->events())
+    $healthEvents = collect(app(Schedule::class)->events())
         ->filter(static fn ($event): bool => str_contains((string) ($event->command ?? ''), 'health:'))
         ->values();
 
