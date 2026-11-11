@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
@@ -25,6 +26,18 @@ it('registers the Spatie health CLI and persists history using its own table', f
 it('keeps automatic monitoring and all Spatie notifications off until rollout', function (): void {
     expect(config('denagate_health.enabled'))->toBeFalse()
         ->and(config('health.notifications.enabled'))->toBeFalse();
+});
+
+it('schedules the three Spatie health tasks every two minutes', function (): void {
+    $healthEvents = collect(app(Schedule::class)->events())
+        ->filter(static fn ($event): bool => str_contains((string) ($event->command ?? ''), 'health:'))
+        ->values();
+
+    expect($healthEvents)->toHaveCount(3);
+
+    foreach ($healthEvents as $event) {
+        expect($event->expression)->toBe('*/2 * * * *');
+    }
 });
 
 it('does not register a public Spatie health results endpoint', function (): void {

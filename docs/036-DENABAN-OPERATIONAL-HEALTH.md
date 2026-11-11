@@ -55,7 +55,7 @@ rely solely on existing configured bot tokens and the read-only provider
 client. Check the production environment can reach the two API hosts.
 No additional public routes or notifications are created.
 
-The checks add 1 network API GET and 1-2 Telegram getMe GETs per minute when
+The checks add 1 network API GET and 1-2 Telegram getMe GETs per **two-minute Health check** when
 enabled; a network failure results in a warning/failed health observation,
 never a service deactivation.
 

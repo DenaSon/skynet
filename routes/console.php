@@ -187,13 +187,13 @@ Schedule::command('network:tcp-probe')->everyMinute()->withoutOverlapping(5);
 // Queue probes and Scheduler heartbeat precede the check in the same minute.
 // Spatie notifications are OFF; future Telegram UI will read stored results.
 Schedule::command(DispatchQueueCheckJobsCommand::class)
-    ->everyMinute()->when(static fn (): bool => config('denagate_health.enabled') === true)
+    ->everyTwoMinutes()->when(static fn (): bool => config('denagate_health.enabled') === true)
     ->withoutOverlapping(5);
 Schedule::command(ScheduleCheckHeartbeatCommand::class)
-    ->everyMinute()->when(static fn (): bool => config('denagate_health.enabled') === true)
+    ->everyTwoMinutes()->when(static fn (): bool => config('denagate_health.enabled') === true)
     ->withoutOverlapping(5);
 Schedule::command('health:check --no-notification')
-    ->everyMinute()->when(static fn (): bool => config('denagate_health.enabled') === true)
+    ->everyTwoMinutes()->when(static fn (): bool => config('denagate_health.enabled') === true)
     ->withoutOverlapping(5);
 Schedule::command('model:prune', ['--model' => [HealthCheckResultHistoryItem::class]])
     ->dailyAt('03:45')->when(static fn (): bool => config('denagate_health.enabled') === true)

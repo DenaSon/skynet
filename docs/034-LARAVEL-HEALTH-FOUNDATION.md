@@ -19,7 +19,7 @@ The `DENAGATE_HEALTH_ENABLED` setting defaults to **false**, so deployment alone
 5. Confirm `php artisan health:list` returns fresh results after at least two Scheduler cycles and verify `health_check_result_history_items` rows. Health problems should **not** automatically change purchase/fulfillment state.
 6. Rollback: turn `DENAGATE_HEALTH_ENABLED=false` and rebuild config cache. Keep historical health rows; do not drop tables during routine rollback.
 
-When enabled, the Scheduler dispatches one lightweight health job to the default queue per minute, records its own heartbeat, and runs `health:check --no-notification`. A daily targeted `model:prune` retains seven days of health history. There is no new queue or Supervisor process.
+When enabled, the Scheduler dispatches one lightweight health job to the default queue **every two minutes**, records its own heartbeat on the same cadence, and runs `health:check --no-notification` every two minutes. The platform still invokes Laravel `schedule:run` **every minute** for unrelated scheduled tasks. `ScheduleCheck::heartbeatMaxAgeInMinutes(5)` provides headroom for the new two-minute schedule; the queue heartbeat threshold remains five minutes. A daily targeted `model:prune` retains seven days of health history. There is no new queue or Supervisor process.
 
 ## Boundaries and limitations
 
