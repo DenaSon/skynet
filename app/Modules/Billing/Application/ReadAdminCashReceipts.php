@@ -106,7 +106,7 @@ final readonly class ReadAdminCashReceipts
             'period' => $period,
             'start' => $start?->format('Y-m-d'),
             'end' => $period === 'yesterday_same_time'
-                ? $start?->format('Y-m-d') : $today->format('Y-m-d'),
+                ? $start->format('Y-m-d') : $today->format('Y-m-d'),
             'topupsRials' => $topupRials,
             'topupsCount' => (int) ($topupTotals->receipts_count ?? 0),
             'customerTopupsRials' => $topupRials - $adminTopupRials,
