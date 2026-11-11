@@ -127,11 +127,12 @@ final readonly class AdminCommandCenterUi
         $bot->sendMessage(text: $text, reply_markup: $keyboard, parse_mode: 'HTML');
     }
 
-    /** @param array{cash:array<string,mixed>|null,todayCash:array<string,mixed>|null,todayKpis:array<string,mixed>|null,resellers:?int,stats:array<string,mixed>|null,pendingTopups:int|null,receivedAt:string} $snapshot */
+    /** @param array{cash:array<string,mixed>|null,todayCash:array<string,mixed>|null,yesterdayCash:array<string,mixed>|null,todayKpis:array<string,mixed>|null,resellers:?int,stats:array<string,mixed>|null,pendingTopups:int|null,receivedAt:string} $snapshot */
     private function report(array $snapshot): string
     {
         $cash = $snapshot['cash'];
         $todayCash = $snapshot['todayCash'];
+        $yesterdayCash = $snapshot['yesterdayCash'];
         $todayKpis = $snapshot['todayKpis'];
         $resellers = $snapshot['resellers'];
         $stats = $snapshot['stats'];
@@ -148,7 +149,7 @@ final readonly class AdminCommandCenterUi
         ];
         $known = array_filter($items, static fn (?int $n): bool => $n !== null);
         $incomplete = count($known) !== count($items)
-            || $cash === null || $todayCash === null || $todayKpis === null
+            || $cash === null || $todayCash === null || $yesterdayCash === null || $todayKpis === null
             || $resellers === null || self::number($stats, 'nodes') === null;
         $todo = array_sum($known);
         $summary = $todo > 0
@@ -162,6 +163,8 @@ final readonly class AdminCommandCenterUi
             '',
             '<b>💰 وضعیت مالی</b>',
             '💵 کل واریزی امروز: '.self::toman(self::number($todayCash, 'cashInRials')),
+            '💵 دیروز تا همین ساعت: '.self::toman(self::number($yesterdayCash, 'cashInRials')),
+            '📊 تغییر نسبت به دیروز: '.self::cashTrend($todayCash, $yesterdayCash),
             '🛒 فروش امروز: '.self::toman(self::number($stats, 'salesTodayRials')),
             '🛍️ تعداد فروش امروز: '.self::format(self::number($todayKpis, 'transactions')),
             '🧾 تعداد واریزی امروز: '.self::format(self::depositCount($todayCash)),
@@ -191,7 +194,7 @@ final readonly class AdminCommandCenterUi
             'هاست‌ها: '.self::format(self::number($stats, 'hosts')),
             ...self::nodeLines($stats),
             '',
-            '<blockquote>واریزی‌ها فقط پرداخت‌های ثبت و تأییدشده‌اند؛ نه موجودی بانک یا سود خالص. خرید با کیف پول، واریزی جدید نیست. اتصال نود نیز تضمین دسترسی کاربران نیست. «نامشخص» به معنی صفر نیست.</blockquote>',
+            '<blockquote>واریزی‌ها فقط پرداخت‌های ثبت و تأییدشده‌اند؛ نه موجودی بانک یا سود خالص. خرید با کیف پول، واریزی جدید نیست. مقایسه روزانه تا ساعت یکسان تهران است. اتصال نود نیز تضمین دسترسی کاربران نیست. «نامشخص» به معنی صفر نیست.</blockquote>',
             '🔄 آخرین بررسی: '.PersianCalendar::localDateTime($snapshot['receivedAt']).' (تهران)',
         ];
 
@@ -202,12 +205,13 @@ final readonly class AdminCommandCenterUi
      * Read-only Rich presentation of the exact same authorized snapshot used by
      * the legacy HTML view. Tables are deliberately two-column for mobile RTL.
      *
-     * @param  array{cash:array<string,mixed>|null,todayCash:array<string,mixed>|null,todayKpis:array<string,mixed>|null,resellers:?int,stats:array<string,mixed>|null,pendingTopups:int|null,receivedAt:string}  $snapshot
+     * @param  array{cash:array<string,mixed>|null,todayCash:array<string,mixed>|null,yesterdayCash:array<string,mixed>|null,todayKpis:array<string,mixed>|null,resellers:?int,stats:array<string,mixed>|null,pendingTopups:int|null,receivedAt:string}  $snapshot
      */
     private function richReport(array $snapshot): string
     {
         $cash = $snapshot['cash'];
         $todayCash = $snapshot['todayCash'];
+        $yesterdayCash = $snapshot['yesterdayCash'];
         $todayKpis = $snapshot['todayKpis'];
         $resellers = $snapshot['resellers'];
         $stats = $snapshot['stats'];
@@ -224,7 +228,7 @@ final readonly class AdminCommandCenterUi
         ];
         $known = array_filter($items, static fn (?int $n): bool => $n !== null);
         $incomplete = count($known) !== count($items)
-            || $cash === null || $todayCash === null || $todayKpis === null
+            || $cash === null || $todayCash === null || $yesterdayCash === null || $todayKpis === null
             || $resellers === null || self::number($stats, 'nodes') === null;
         $todo = array_sum($known);
         $summary = $todo > 0
@@ -242,6 +246,8 @@ final readonly class AdminCommandCenterUi
             .'<h3>💰 وضعیت مالی</h3>'
             .self::richTable([
                 ['💵 کل واریزی امروز', self::toman(self::number($todayCash, 'cashInRials'))],
+                ['💵 دیروز تا همین ساعت', self::toman(self::number($yesterdayCash, 'cashInRials'))],
+                ['📊 تغییر نسبت به دیروز', self::cashTrend($todayCash, $yesterdayCash)],
                 ['🛒 فروش امروز', self::toman(self::number($stats, 'salesTodayRials'))],
                 ['🛍️ تعداد فروش امروز', self::format(self::number($todayKpis, 'transactions'))],
                 ['🧾 تعداد واریزی امروز', self::format(self::depositCount($todayCash))],
@@ -276,7 +282,7 @@ final readonly class AdminCommandCenterUi
             .'<details><summary>جزئیات نودها</summary>'.$nodes.'</details>'
             .'<details><summary>توضیحات آمار</summary><p>'
             .'واریزی‌ها فقط پرداخت‌های ثبت و تأییدشده‌اند؛ نه موجودی بانک یا سود خالص. '
-            .'خرید با اعتبار کیف پول، واریزی جدید نیست. اتصال نود نیز تضمین دسترسی کاربران نیست. '
+            .'خرید با اعتبار کیف پول، واریزی جدید نیست. مقایسه روزانه تا ساعت یکسان تهران است. اتصال نود نیز تضمین دسترسی کاربران نیست. '
             .'«نامشخص» به معنی صفر نیست.</p></details>'
             .'<footer>🔄 آخرین بررسی: '.TelegramUi::escape(PersianCalendar::localDateTime($snapshot['receivedAt']))
             .' (تهران)</footer>';
@@ -381,6 +387,32 @@ final readonly class AdminCommandCenterUi
         }
 
         return number_format($bytesPerSecond / 1048576, 2).' MiB/s';
+    }
+
+    /**
+     * Change from yesterday's same-time verified cash receipts.
+     *
+     * @param  array<string,mixed>|null  $today
+     * @param  array<string,mixed>|null  $yesterday
+     */
+    private static function cashTrend(?array $today, ?array $yesterday): string
+    {
+        $current = self::number($today, 'cashInRials');
+        $previous = self::number($yesterday, 'cashInRials');
+        if ($current === null || $previous === null) {
+            return 'نامشخص';
+        }
+
+        if ($previous === 0) {
+            return 'بدون مبنا';
+        }
+
+        $change = round(($current - $previous) / $previous * 100, 1);
+        $icon = $change > 0 ? '📈' : ($change < 0 ? '📉' : '➖');
+        $sign = $change > 0 ? '+' : ($change < 0 ? '−' : '');
+        $percent = PersianCalendar::digits(str_replace('.', '٫', number_format(abs($change), 1)));
+
+        return $icon.' '.$sign.$percent.'٪';
     }
 
     /** @param array<string,mixed>|null $cash */
