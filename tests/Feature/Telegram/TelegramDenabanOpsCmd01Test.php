@@ -242,7 +242,7 @@ it('renders signed aligned cash growth for both Telegram views', function (int $
         $topup = app(RequestTopup::class)->handle($customer->id, $item['amount'], 'denaban:trend:'.$item['key']);
         app(SubmitTopupPhoto::class)->handle($customer->id, $topup, 991251,
             'file-trend-'.$item['key'], 'fingerprint-trend-'.$item['key'], $topup);
-        app(ReviewTopup::class)->handle($root->id, $topup, true, 'DENABAN-TREND-'.$item['key'],
+        app(ReviewTopup::class)->handle($root->id, $topup, true, 'DENABAN-TREND-'.strtoupper($item['key']),
             (int) DB::table('billing_topups')->where('id', $topup)->value('amount_rials'));
     }
 
