@@ -270,6 +270,19 @@ it('uses approved corrected top-ups and direct bank receipts in same-hour daily 
     Http::assertNothingSent();
 });
 
+it('keeps signed negative growth for a real decline in verified daily cash', function (): void {
+    $root = executiveRoot();
+    $buyer = User::factory()->create();
+    executiveOrder($buyer, 'direct', 'bank', 1_000_000, '2026-11-10 12:00');
+    executiveOrder($buyer, 'direct', 'bank', 2_000_000, '2026-11-09 12:00');
+
+    $snapshot = app(ReadDenizExecutiveSnapshot::class)->handle($root->id, 'cash', 'day');
+    expect($snapshot['windows']['current']['cashInRials'])->toBe(1_000_000)
+        ->and($snapshot['windows']['previous']['cashInRials'])->toBe(2_000_000)
+        ->and($snapshot['growthPercent'])->toBe(-50.0);
+    Http::assertNothingSent();
+});
+
 it('uses undefined daily cash growth when yesterday has no verified deposits', function (): void {
     $root = executiveRoot();
     $buyer = User::factory()->create();
