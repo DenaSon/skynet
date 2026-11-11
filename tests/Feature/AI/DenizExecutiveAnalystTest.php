@@ -132,6 +132,11 @@ it('selects only explicit trusted executive requests with correct temporal seman
 
     foreach ([
         ['تحلیل فروش امروز', '"dataset":"sales","period":"day"'],
+        ['گزارش فروش امروز و دیروز', '"dataset":"sales","period":"day"'],
+        ['رشد فروش امروز نسبت به دیروز', '"dataset":"sales","period":"day"'],
+        ['تحلیل فروش دیروز', '"dataset":"sales","period":"day"'],
+        ['گزارش نقدینگی امروز', '"dataset":"cash","period":"day"'],
+        ['گزارش دریافتی‌ها دیروز تا همین ساعت', '"dataset":"cash","period":"day"'],
         ['تحلیل فروش ۲۴ ساعت اخیر', '"dataset":"sales","period":"24h"'],
         ['گزارش نمایندگی هفتگی', '"dataset":"sales","period":"week"'],
         ['تحلیل فروش ماهانه', '"dataset":"sales","period":"month"'],
@@ -319,6 +324,9 @@ it('selects common natural-language finance intents and refuses mixed evidence w
 
     foreach ([
         ['امروز فروش چقدر شده؟', '"dataset":"sales","period":"day"'],
+        ['فروش دیروز چقدر بود؟', '"dataset":"sales","period":"day"'],
+        ['امروز چقدر پول واریز شده؟', '"dataset":"cash","period":"day"'],
+        ['واریزی امروز نسبت به دیروز چطور بوده؟', '"dataset":"cash","period":"day"'],
         ['نمایندگی‌ها چطور فروش داشتن؟', '"dataset":"sales","period":"week"'],
         ['در ۳۰ روز اخیر چقدر شارژ داشتیم؟', '"dataset":"cash","period":"30"'],
         ['موجودی کیف پول‌ها چقدره؟', '"dataset":"wallet","period":"current"'],
@@ -331,11 +339,45 @@ it('selects common natural-language finance intents and refuses mixed evidence w
         'فروش و شارژ کیف پول را باهم تحلیل کن',
         'میزان فروش در برابر سود چقدر است؟',
         'فروش این ماه چطور بوده؟',
-        'فروش دیروز چقدر بود؟',
+        'فروش کل روز دیروز چقدر بود؟',
+        'واریزی امروز و ۳۰ روز اخیر را مقایسه کن',
+        'واریزی تمام دیروز چقدر بود؟',
     ] as $question) {
         expect(fn () => $prepare->handle(180001, $question))
             ->toThrow(InvalidArgumentException::class);
     }
+
+    Http::assertNothingSent();
+});
+
+it('exposes a compact daily verified-cash report with deterministic time and a safe daily follow-up', function (): void {
+    executive02Root();
+    $prepare = app(PrepareDenizExecutiveAnalysis::class);
+    $report = $prepare->handle(180001, 'امروز چقدر پول واریز شده؟');
+
+    expect($report['dataset'])->toBe('cash')
+        ->and($report['period'])->toBe('day')
+        ->and($report['prompt'])->toContain('"dataset":"cash","period":"day"')
+        ->and($report['prompt'])->toContain('"sameTehranTime":"15:30"')
+        ->and($report['prompt'])->toContain('"growthPercent":null')
+        ->and($report['prompt'])->toContain('"cashGrowthPercent":null')
+        ->and($report['prompt'])->not->toContain('payment_reference', 'PRIVATEBANKREFERENCE', 'Never Export This Name', 'pointInTime')
+        ->and(mb_strlen($report['prompt']))->toBeLessThanOrEqual(2000)
+        ->and($report['headline'])->toContain('واریزی تأییدشده', 'امروز و دیروز تا ساعت یکسان', 'بدون مبنا');
+
+    $followup = $prepare->handle(180001, 'چرا کمتر شده؟', ['dataset' => 'cash', 'period' => 'day']);
+    expect($followup['dataset'])->toBe('cash')
+        ->and($followup['period'])->toBe('day')
+        ->and($followup['prompt'])->toContain('"dataset":"cash","period":"day"');
+
+    $state = app(DenixConversationState::class);
+    $state->rememberExecutiveSelection(-100987654321, 12, 180001, 'cash', 'day');
+    expect($state->executiveSelection(-100987654321, 12, 180001))
+        ->toBe(['dataset' => 'cash', 'period' => 'day'])
+        ->and($state->executiveSelection(-100987654321, 13, 180001))->toBeNull();
+
+    $prompt = app(DenizExecutiveKnowledge::class)->instructions();
+    expect($prompt)->toContain('گزارش فروش و واریزی امروز و دیروز', 'بدون مبنا');
 
     Http::assertNothingSent();
 });
