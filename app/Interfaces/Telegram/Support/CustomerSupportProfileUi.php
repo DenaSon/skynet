@@ -241,17 +241,19 @@ final readonly class CustomerSupportProfileUi
             );
         }
 
-        // Reuse the existing Super Admin-only fulfilled-order authority; never
-        // expose an action for a mismatched or unverifiable remote subscription.
-        if ($data['state'] === 'available' && $data['identityMatched']) {
-            $root = $this->private->id($bot);
-            $actor = $root === null ? null : $this->actors->handle($root);
-            if ($actor?->canManageRoles() === true) {
-                try {
-                    $this->statuses->authorizeView($actor->userId, (int) $orderId);
-                    // Directly open the existing two-step confirmation. The
-                    // existing prepare/apply callbacks independently re-check
-                    // Super Admin rights, owned order and live RW state.
+        // Root-only local history remains available when RW is temporarily
+        // unreachable. Mutating actions still require a verified live snapshot.
+        $root = $this->private->id($bot);
+        $rootActor = $root === null ? null : $this->actors->handle($root);
+        if ($rootActor?->canManageRoles() === true) {
+            try {
+                $this->statuses->authorizeView($rootActor->userId, (int) $orderId);
+                $keyboard->addRow(InlineKeyboardButton::make(
+                    '🕘 تاریخچه عملیات', callback_data: 'full:service:history:'.$orderId.':1',
+                ));
+                if ($data['state'] === 'available' && $data['identityMatched']) {
+                    // Existing status actions retain their own confirmation
+                    // and recheck permissions and live RW state.
                     $action = match (true) {
                         config('services.remnawave.writes_enabled') !== true => null,
                         $data['daysLeft'] === null || $data['daysLeft'] <= 0 => null,
@@ -269,9 +271,9 @@ final readonly class CustomerSupportProfileUi
                             ? 'full:service:view:'.$orderId
                             : 'full:service:prepare:'.$orderId.':'.$action,
                     ));
-                } catch (Throwable) {
-                    // A paid/unlinked, refunded or stale order cannot be managed here.
                 }
+            } catch (Throwable) {
+                // A refunded, unlinked or stale order is not manageable.
             }
         }
 

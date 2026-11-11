@@ -988,8 +988,16 @@ $bot->onCallbackQueryData('full:service:prepare:{id}:{mode}', function (Nutgram 
     app(AdminSubscriptionStatusUi::class)->prepare($bot, $id, $mode);
 });
 
+$bot->onCallbackQueryData('full:service:reason:{token}:{reason}', function (Nutgram $bot, string $token, string $reason): void {
+    app(AdminSubscriptionStatusUi::class)->reason($bot, $token, $reason);
+});
+
 $bot->onCallbackQueryData('full:service:apply:{token}', function (Nutgram $bot, string $token): void {
     app(AdminSubscriptionStatusUi::class)->apply($bot, $token);
+});
+
+$bot->onCallbackQueryData('full:service:history:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
+    app(AdminSubscriptionStatusUi::class)->history($bot, $id, $page);
 });
 
 $bot->onCallbackQueryData('full:service:check:{id}', function (Nutgram $bot, string $id): void {

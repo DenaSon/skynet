@@ -30,6 +30,7 @@ final class ChangeFulfilledSubscriptionStatusJob implements ShouldBeUnique, Shou
         public int $actorId,
         public string $mode,
         public string $operationKey = '',
+        public ?string $reasonCode = null,
     ) {
         $this->onConnection(ProviderQueueConnection::name());
     }
@@ -45,7 +46,7 @@ final class ChangeFulfilledSubscriptionStatusJob implements ShouldBeUnique, Shou
             if ($this->mode === 'reconcile') {
                 $statuses->reconcile($this->actorId, $this->orderId);
             } else {
-                $statuses->change($this->actorId, $this->orderId, $this->mode, $this->operationKey);
+                $statuses->change($this->actorId, $this->orderId, $this->mode, $this->operationKey, $this->reasonCode);
             }
         } catch (Throwable) {
             // Never log provider responses, subscription credentials or exceptions.

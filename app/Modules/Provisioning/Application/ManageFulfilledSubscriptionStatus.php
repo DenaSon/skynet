@@ -54,7 +54,8 @@ final readonly class ManageFulfilledSubscriptionStatus
         }
     }
 
-    public function authorizeChange(int $actorId, int $orderId, string $mode): void
+    /** @return 'active'|'disabled' */
+    public function authorizeChange(int $actorId, int $orderId, string $mode): string
     {
         if (! in_array($mode, ['enable', 'disable'], true)
             || config('services.remnawave.writes_enabled') !== true) {
@@ -66,11 +67,17 @@ final readonly class ManageFulfilledSubscriptionStatus
             || ($mode === 'enable' && $state !== 'disabled')) {
             throw ValidationException::withMessages(['subscription' => 'Subscription state changed.']);
         }
+
+        return $state;
     }
 
-    public function change(int $actorId, int $orderId, string $mode, string $operationKey): void
+    public function change(int $actorId, int $orderId, string $mode, string $operationKey, ?string $reasonCode = null): void
     {
-        $this->authorizeChange($actorId, $orderId, $mode);
+        $before = $this->authorizeChange($actorId, $orderId, $mode);
+        // Null reasons only preserve compatibility with already queued jobs.
+        if ($reasonCode !== null && ! in_array($reasonCode, ['customer', 'support', 'other'], true)) {
+            throw ValidationException::withMessages(['subscription' => 'Invalid reason.']);
+        }
         // Recheck order status and root rights after the remote status GET.
         $this->linked($actorId, $orderId);
         if (preg_match('/\Amvp04:[1-9][0-9]{0,14}:[a-f0-9]{32}\z/D', $operationKey) !== 1
@@ -79,11 +86,40 @@ final readonly class ManageFulfilledSubscriptionStatus
         }
 
         $reference = 'sales-order:'.$orderId;
+        $preflight = $before === 'active' ? 'ACTIVE' : 'DISABLED';
         if ($mode === 'disable') {
-            $this->lifecycle->disable($reference, $operationKey);
+            $this->lifecycle->disable($reference, $operationKey, $actorId, $reasonCode, $preflight);
         } else {
-            $this->lifecycle->enable($reference, $operationKey);
+            $this->lifecycle->enable($reference, $operationKey, $actorId, $reasonCode, $preflight);
         }
+    }
+
+    /**
+     * @return array{items:list<object>,page:int,hasNext:bool}
+     */
+    public function history(int $actorId, int $orderId, int $page = 1): array
+    {
+        $linked = $this->linked($actorId, $orderId);
+        if ($page < 1 || $page > 1000) {
+            throw ValidationException::withMessages(['subscription' => 'Invalid history page.']);
+        }
+
+        // The mvp04 key prefix identifies Admin Bot requests; reseller status
+        // changes share the same lifecycle but must not be attributed to Admin.
+        $rows = DB::table('provisioning_operations')
+            ->where('subscription_id', $linked->id)
+            ->where('idempotency_key', 'like', 'mvp04:'.$orderId.':%')
+            ->whereIn('kind', ['enable', 'disable'])
+            ->orderByDesc('id')
+            ->offset(($page - 1) * 8)
+            ->limit(9)
+            ->get(['kind', 'state', 'actor_user_id', 'reason_code', 'preflight_status', 'created_at']);
+
+        return [
+            'items' => $rows->take(8)->values()->all(),
+            'page' => $page,
+            'hasNext' => $rows->count() > 8,
+        ];
     }
 
     public function authorizeReconcile(int $actorId, int $orderId): void
