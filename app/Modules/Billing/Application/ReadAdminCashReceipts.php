@@ -34,13 +34,14 @@ final readonly class ReadAdminCashReceipts
     {
         $this->access->reviewer($actorId);
 
-        if (! in_array($period, ['7', '30', 'all'], true)) {
+        if (! in_array($period, ['today', '7', '30', 'all'], true)) {
             throw ValidationException::withMessages(['period' => 'Invalid cash report period.']);
         }
 
         // Include whole Tehran calendar days, not rolling 24-hour windows.
         $today = Carbon::now('Asia/Tehran')->startOfDay();
         $start = match ($period) {
+            'today' => $today->copy(),
             '7' => $today->copy()->subDays(6),
             '30' => $today->copy()->subDays(29),
             default => null,

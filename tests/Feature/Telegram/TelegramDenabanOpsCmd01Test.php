@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 use App\Interfaces\Telegram\Support\ReplyMenuLabels;
 use App\Interfaces\Telegram\Support\ReplyMenuRenderer;
+use App\Modules\Billing\Application\RequestTopup;
+use App\Modules\Billing\Application\ReviewTopup;
+use App\Modules\Billing\Application\SubmitTopupPhoto;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
@@ -12,6 +15,7 @@ use GuzzleHttp\Psr7\Request as NutgramRequest;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use SergiX44\Nutgram\Nutgram;
@@ -19,6 +23,7 @@ use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 use SergiX44\Nutgram\Testing\FakeNutgram;
+use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
 
@@ -107,6 +112,7 @@ it('keeps radar Denaban in both private root Admin menus and excludes ordinary a
 });
 
 it('shows canonical verified inflows and sales independently of unavailable RW', function (): void {
+    $this->travelTo(Carbon::parse('2026-11-11 15:00', 'Asia/Tehran')->utc());
     $root = denabanRoot();
     $orderId = DB::table('sales_orders')->insertGetId([
         'buyer_user_id' => $root->id, 'idempotency_key' => 'denaban-order',
@@ -132,10 +138,16 @@ it('shows canonical verified inflows and sales independently of unavailable RW',
         'payment_reference' => 'DENABAN-VERIFIED',
         'amount_rials' => 3_000_000, 'settled_at' => now(),
     ]);
+    $this->travelTo(Carbon::parse('2026-11-11 15:01', 'Asia/Tehran')->utc());
     Http::fake(['https://denaban.test/*' => Http::response([], 503)]);
     $before = DB::table('billing_journals')->count();
     $snap = app(ReadAdminCommandCenter::class)->handle($root->id);
     expect($snap['cash']['cashInRials'])->toBe(3_000_000)
+        ->and($snap['todayCash']['cashInRials'])->toBe(3_000_000)
+        ->and($snap['todayCash']['bankSalesCount'])->toBe(1)
+        ->and($snap['todayKpis']['transactions'])->toBe(1)
+        ->and($snap['todayKpis']['newUsers'])->toBe(1)
+        ->and($snap['resellers'])->toBe(0)
         ->and($snap['stats']['salesTodayRials'])->toBe(3_000_000)
         ->and($snap['stats']['nodes'])->toBeNull()
         ->and($snap['pendingTopups'])->toBe(0);
@@ -145,8 +157,13 @@ it('shows canonical verified inflows and sales independently of unavailable RW',
         $p = denabanPayload($r);
 
         return str_contains($p['text'], '📡 دنابان | وضعیت دنا')
-            && str_contains($p['text'], 'دریافتی کل: 300,000 تومان')
+            && str_contains($p['text'], 'کل واریزی امروز: 300,000 تومان')
+            && str_contains($p['text'], 'کل واریزی از ابتدا: 300,000 تومان')
             && str_contains($p['text'], 'فروش امروز: 300,000 تومان')
+            && str_contains($p['text'], 'تعداد فروش امروز: 1')
+            && str_contains($p['text'], 'تعداد واریزی امروز: 1')
+            && str_contains($p['text'], 'نمایندگان: 0')
+            && str_contains($p['text'], 'کاربران جدید امروز: 1')
             && str_contains($p['text'], 'نودهای متصل: نامشخص از نامشخص')
             && str_contains($p['text'], 'بعضی اطلاعات کامل نیست')
             && ! str_contains($p['text'], 'صبح بخیر')
@@ -155,6 +172,53 @@ it('shows canonical verified inflows and sales independently of unavailable RW',
     expect(DB::table('billing_journals')->count())->toBe($before);
     Http::assertSent(static fn (Request $r): bool => $r->method() === 'GET');
     Http::assertNotSent(static fn (Request $r): bool => $r->method() !== 'GET');
+});
+
+it('counts only real reseller roles, today registrations and approved wallet receipts', function (): void {
+    $this->travelTo(Carbon::parse('2026-11-11 15:00', 'Asia/Tehran')->utc());
+    $root = denabanRoot();
+    Role::findOrCreate('reseller', 'web');
+    $first = User::factory()->create();
+    $first->syncRoles(['reseller']);
+    $second = User::factory()->create();
+    $second->syncRoles(['reseller']);
+    $old = User::factory()->create();
+    DB::table('users')->where('id', $old->id)->update(['created_at' => now()->subDay()]);
+    $customer = User::factory()->create();
+
+    config()->set('billing.topups_enabled', true);
+    $topup = app(RequestTopup::class)->handle($customer->id, 2_000_000, 'denaban:daily-topup');
+    app(SubmitTopupPhoto::class)->handle($customer->id, $topup, 991251,
+        'file-denaban-daily', 'fingerprint-denaban-daily', $topup);
+    app(ReviewTopup::class)->handle($root->id, $topup, true, 'DENABAN-DAILY-TOPUP',
+        (int) DB::table('billing_topups')->where('id', $topup)->value('amount_rials'));
+
+    $this->travelTo(Carbon::parse('2026-11-11 15:01', 'Asia/Tehran')->utc());
+    Http::fake(['https://denaban.test/*' => Http::response([], 503)]);
+    $before = DB::table('billing_journals')->count();
+    $snapshot = app(ReadAdminCommandCenter::class)->handle($root->id);
+
+    expect($snapshot['todayCash']['cashInRials'])->toBe(2_000_000)
+        ->and($snapshot['todayCash']['topupsCount'])->toBe(1)
+        ->and($snapshot['todayCash']['bankSalesCount'])->toBe(0)
+        ->and($snapshot['cash']['cashInRials'])->toBe(2_000_000)
+        ->and($snapshot['todayKpis']['transactions'])->toBe(0)
+        ->and($snapshot['todayKpis']['newUsers'])->toBe(4)
+        ->and($snapshot['resellers'])->toBe(2);
+
+    denabanBot(991201)->hearCallbackQueryData('denaban:show')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $html = denabanRichHtml($request);
+
+            return str_contains($html, 'کل واریزی امروز</td><td align="left"><b>200,000 تومان</b>')
+                && str_contains($html, 'تعداد واریزی امروز</td><td align="left"><b>1</b>')
+                && str_contains($html, 'تعداد فروش امروز</td><td align="left"><b>0</b>')
+                && str_contains($html, 'نمایندگان</td><td align="left"><b>2</b>')
+                && str_contains($html, 'کاربران جدید امروز</td><td align="left"><b>4</b>');
+        }, index: 1);
+
+    expect(DB::table('billing_journals')->count())->toBe($before);
+    Http::assertNotSent(static fn (Request $request): bool => $request->method() !== 'GET');
 });
 
 it('rejects unauthorized, revoked and group callbacks without RW calls', function (): void {
@@ -283,7 +347,12 @@ it('renders a bounded RTL rich executive dashboard and retains navigation and si
                     '<h3>⚠️ نیازمند رسیدگی</h3>',
                     '<h3>🖥️ وضعیت سرورها</h3>',
                 ])
-                && str_contains($html, '<tr><td>💵 دریافتی کل</td>')
+                && str_contains($html, '<tr><td>💵 کل واریزی امروز</td>')
+                && str_contains($html, '<tr><td>💰 کل واریزی از ابتدا</td>')
+                && str_contains($html, '<tr><td>🛍️ تعداد فروش امروز</td>')
+                && str_contains($html, '<tr><td>🧾 تعداد واریزی امروز</td>')
+                && str_contains($html, '<tr><td>🤝 نمایندگان</td>')
+                && str_contains($html, '<tr><td>👤 کاربران جدید امروز</td>')
                 && str_contains($html, '<tr><td>💼 مانده اعتبار</td>')
                 && str_contains($html, 'فعال‌سازی‌های معوق')
                 && str_contains($html, '<tr><td>نودهای متصل</td>')
@@ -322,7 +391,12 @@ it('renders a bounded RTL rich executive dashboard and retains navigation and si
                     '<b>⚠️ نیازمند رسیدگی</b>',
                     '<b>🖥️ وضعیت سرورها</b>',
                 ])
-                && str_contains($payload['text'], 'دریافتی کل:')
+                && str_contains($payload['text'], 'کل واریزی امروز:')
+                && str_contains($payload['text'], 'تعداد فروش امروز:')
+                && str_contains($payload['text'], 'تعداد واریزی امروز:')
+                && str_contains($payload['text'], 'کل واریزی از ابتدا:')
+                && str_contains($payload['text'], 'نمایندگان:')
+                && str_contains($payload['text'], 'کاربران جدید امروز:')
                 && str_contains($payload['text'], 'مانده اعتبار:')
                 && str_contains($payload['text'], 'کل کاربران:')
                 && str_contains($payload['text'], 'اشتراک‌های فعال:')
