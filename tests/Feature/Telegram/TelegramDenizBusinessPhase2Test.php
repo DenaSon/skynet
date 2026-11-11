@@ -301,6 +301,7 @@ it('calls getBusinessConnection twice, purchases one answer and sends only from 
         && $req['model'] === 'gpt-6-luna'
         && str_contains($req['messages'][0]['content'], '@denaGateBot')
         && str_contains($req['messages'][0]['content'], 'گفتگوی خصوصی حساب پشتیبانی')
+        && str_contains($req['messages'][0]['content'], 'در حداکثر دو جمله کوتاه و محترمانه')
         && $req['messages'][1]['content'] === 'سلام دنیز');
     expect(app(DenixConversationState::class)->history(190011, null, 190011))->toHaveCount(2)
         ->and(app(DenixConversationState::class)->history(-100987654321, null, 190011))->toBeEmpty();

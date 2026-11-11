@@ -57,11 +57,14 @@ it('keeps the Admin group instructions unchanged and limits customer support gui
     $support = $knowledge->instructions(customerSupport: true);
 
     expect($group)->toContain('فعال‌سازی پس از بررسی و تأیید مدیریت انجام می‌شود و فوری یا تضمینی نیست.')
-        ->not->toContain('@denaGateBot', 'اکنون در گفتگوی خصوصی حساب پشتیبانی', 'نقش مشاور حرفه‌ای و معرف محصولات')
+        ->not->toContain('@denaGateBot', 'اکنون در گفتگوی خصوصی حساب پشتیبانی', 'نقش مشاور حرفه‌ای و معرف محصولات', 'تقلید لهجه')
         ->and($support)->toContain(
             '@denaGateBot',
             'اکنون در گفتگوی خصوصی حساب پشتیبانی',
             'نقش مشاور حرفه‌ای و معرف محصولات',
+            'در حداکثر دو جمله کوتاه و محترمانه پاسخ بده',
+            'در درخواست‌های نامرتبط تکراری وارد بحث طولانی نشو',
+            'صرف وجود لهجه یا شوخی نشانه نامرتبط‌بودن نیست',
             'پس از تکمیل شرایط و تأیید درخواست توسط مدیریت، نمایندگی فعال می‌شود',
         )
         ->not->toContain('فعال‌سازی پس از بررسی و تأیید مدیریت انجام می‌شود و فوری یا تضمینی نیست.');
@@ -78,6 +81,9 @@ it('sends support-only bot navigation, restrained emoji and human handoff rules 
         && str_contains($request['messages'][0]['content'], 'در بعضی پاسخ‌های مناسب از یک ایموجی')
         && str_contains($request['messages'][0]['content'], 'پشتیبان انسانی')
         && str_contains($request['messages'][0]['content'], 'سؤال تکراری نپرس')
+        && str_contains($request['messages'][0]['content'], 'تقلید لهجه')
+        && str_contains($request['messages'][0]['content'], 'در حداکثر دو جمله کوتاه')
+        && str_contains($request['messages'][0]['content'], 'گویش محلی')
         && ! isset($request['tools']));
 
     expect((new DenixAssistant)->instructions())->toBe(app(DenizKnowledge::class)->instructions())
