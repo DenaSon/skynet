@@ -30,24 +30,31 @@ final readonly class ReadAdminCashReceipts
      *   salesRials:int,currentWalletBalanceRials:int,generatedAt:string
      * }
      */
-    public function handle(int $actorId, string $period): array
+    public function handle(int $actorId, string $period, ?Carbon $asOf = null): array
     {
         $this->access->reviewer($actorId);
 
-        if (! in_array($period, ['today', '7', '30', 'all'], true)) {
+        if (! in_array($period, ['today', 'yesterday_same_time', '7', '30', 'all'], true)) {
             throw ValidationException::withMessages(['period' => 'Invalid cash report period.']);
         }
 
-        // Include whole Tehran calendar days, not rolling 24-hour windows.
-        $today = Carbon::now('Asia/Tehran')->startOfDay();
+        // Daily comparison uses identical Tehran clock cutoffs on consecutive days.
+        // The extra second includes records at the current second with SQL's < bound.
+        $now = ($asOf ?? Carbon::now('Asia/Tehran'))->copy()->timezone('Asia/Tehran');
+        $today = $now->copy()->startOfDay();
         $start = match ($period) {
             'today' => $today->copy(),
+            'yesterday_same_time' => $today->copy()->subDay(),
             '7' => $today->copy()->subDays(6),
             '30' => $today->copy()->subDays(29),
             default => null,
         };
         $from = $start?->copy()->utc();
-        $until = $today->copy()->addDay()->utc();
+        $until = match ($period) {
+            'today' => $now->copy()->addSecond()->utc(),
+            'yesterday_same_time' => $now->copy()->subDay()->addSecond()->utc(),
+            default => $today->copy()->addDay()->utc(),
+        };
 
         // The unique verified receipt is the final accepted bank proof for
         // each approved top-up. Pending/rejected requests and wallet spending
@@ -98,7 +105,8 @@ final readonly class ReadAdminCashReceipts
         return [
             'period' => $period,
             'start' => $start?->format('Y-m-d'),
-            'end' => $today->format('Y-m-d'),
+            'end' => $period === 'yesterday_same_time'
+                ? $start->format('Y-m-d') : $today->format('Y-m-d'),
             'topupsRials' => $topupRials,
             'topupsCount' => (int) ($topupTotals->receipts_count ?? 0),
             'customerTopupsRials' => $topupRials - $adminTopupRials,

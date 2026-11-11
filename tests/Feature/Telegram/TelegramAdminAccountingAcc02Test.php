@@ -476,6 +476,42 @@ it('uses Tehran midnight boundaries for today deposits and excludes prior-day ap
         ->and($today['start'])->toBe('2026-10-22');
 });
 
+it('compares today and yesterday cash only through the same Tehran clock time', function (): void {
+    $root = acc02Root();
+    $customer = User::factory()->create();
+    $asOf = Carbon::parse('2026-10-22 15:00:00', 'Asia/Tehran');
+
+    // Same-second receipts are included; next-minute and prior-day records are not.
+    cash01Topup($root, $customer, 1_000_000, 'today-in',
+        Carbon::parse('2026-10-22 15:00:00', 'Asia/Tehran')->utc());
+    cash01Topup($root, $customer, 5_000_000, 'today-later',
+        Carbon::parse('2026-10-22 15:01:00', 'Asia/Tehran')->utc());
+    cash01Topup($root, $customer, 2_000_000, 'yesterday-in',
+        Carbon::parse('2026-10-21 15:00:00', 'Asia/Tehran')->utc());
+    cash01Topup($root, $customer, 8_000_000, 'yesterday-later',
+        Carbon::parse('2026-10-21 15:01:00', 'Asia/Tehran')->utc());
+    cash01Topup($root, $customer, 3_000_000, 'two-days-ago',
+        Carbon::parse('2026-10-20 14:00:00', 'Asia/Tehran')->utc());
+    acc02Purchase($root, 500_000, 'bank',
+        Carbon::parse('2026-10-21 14:00:00', 'Asia/Tehran')->utc());
+    acc02Purchase($root, 900_000, 'wallet',
+        Carbon::parse('2026-10-22 14:00:00', 'Asia/Tehran')->utc());
+
+    $report = app(ReadAdminCashReceipts::class);
+    $today = $report->handle($root->id, 'today', $asOf);
+    $previous = $report->handle($root->id, 'yesterday_same_time', $asOf);
+    expect($today['cashInRials'])->toBe(1_000_000)
+        ->and($today['topupsCount'])->toBe(1)
+        ->and($today['walletSalesRials'])->toBe(900_000)
+        ->and($previous['cashInRials'])->toBe(2_500_000)
+        ->and($previous['topupsCount'])->toBe(1)
+        ->and($previous['bankSalesCount'])->toBe(1)
+        ->and($previous['start'])->toBe('2026-10-21')
+        ->and($previous['end'])->toBe('2026-10-21');
+
+    Http::assertNothingSent();
+});
+
 it('excludes voided bank-proof topups and refunded wallet purchases from reports without deleting evidence', function (): void {
     $root = acc02Root();
     $customer = User::factory()->create();

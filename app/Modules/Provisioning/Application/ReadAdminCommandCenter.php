@@ -9,6 +9,7 @@ use App\Modules\Identity\Application\AssertCatalogManagementAccess;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Sales\Application\ReadAdminManagementKpis;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -25,7 +26,7 @@ final readonly class ReadAdminCommandCenter
         private ReadAdminManagementKpis $management,
     ) {}
 
-    /** @return array{cash:array<string,mixed>|null,todayCash:array<string,mixed>|null,todayKpis:array<string,mixed>|null,resellers:?int,stats:array<string,mixed>|null,pendingTopups:int|null,receivedAt:string} */
+    /** @return array{cash:array<string,mixed>|null,todayCash:array<string,mixed>|null,yesterdayCash:array<string,mixed>|null,todayKpis:array<string,mixed>|null,resellers:?int,stats:array<string,mixed>|null,pendingTopups:int|null,receivedAt:string} */
     public function handle(int $actorId): array
     {
         // Authorization is mandatory and must not be swallowed as a read failure.
@@ -40,13 +41,23 @@ final readonly class ReadAdminCommandCenter
             // Financial data unavailable; keep other independent sections.
         }
 
+        $comparisonAt = Carbon::now('Asia/Tehran');
         $todayCash = null;
         try {
-            $todayCash = $this->cash->handle($actorId, 'today');
+            $todayCash = $this->cash->handle($actorId, 'today', $comparisonAt);
         } catch (AuthorizationException $exception) {
             throw $exception;
         } catch (Throwable) {
             // Today's bank inflows can be unknown without hiding all-time cash.
+        }
+
+        $yesterdayCash = null;
+        try {
+            $yesterdayCash = $this->cash->handle($actorId, 'yesterday_same_time', $comparisonAt);
+        } catch (AuthorizationException $exception) {
+            throw $exception;
+        } catch (Throwable) {
+            // Failed comparison reads never fabricate a zero or hide today's cash.
         }
 
         $todayKpis = null;
@@ -88,6 +99,7 @@ final readonly class ReadAdminCommandCenter
         return [
             'cash' => $cash,
             'todayCash' => $todayCash,
+            'yesterdayCash' => $yesterdayCash,
             'todayKpis' => $todayKpis,
             'resellers' => $resellers,
             'stats' => $stats,
