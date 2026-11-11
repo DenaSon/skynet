@@ -23,6 +23,7 @@ use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 use SergiX44\Nutgram\Testing\FakeNutgram;
+use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
 
@@ -111,6 +112,7 @@ it('keeps radar Denaban in both private root Admin menus and excludes ordinary a
 });
 
 it('shows canonical verified inflows and sales independently of unavailable RW', function (): void {
+    $this->travelTo(Carbon::parse('2026-11-11 15:00', 'Asia/Tehran')->utc());
     $root = denabanRoot();
     $orderId = DB::table('sales_orders')->insertGetId([
         'buyer_user_id' => $root->id, 'idempotency_key' => 'denaban-order',
@@ -136,6 +138,7 @@ it('shows canonical verified inflows and sales independently of unavailable RW',
         'payment_reference' => 'DENABAN-VERIFIED',
         'amount_rials' => 3_000_000, 'settled_at' => now(),
     ]);
+    $this->travelTo(Carbon::parse('2026-11-11 15:01', 'Asia/Tehran')->utc());
     Http::fake(['https://denaban.test/*' => Http::response([], 503)]);
     $before = DB::table('billing_journals')->count();
     $snap = app(ReadAdminCommandCenter::class)->handle($root->id);
@@ -174,6 +177,7 @@ it('shows canonical verified inflows and sales independently of unavailable RW',
 it('counts only real reseller roles, today registrations and approved wallet receipts', function (): void {
     $this->travelTo(Carbon::parse('2026-11-11 15:00', 'Asia/Tehran')->utc());
     $root = denabanRoot();
+    Role::findOrCreate('reseller', 'web');
     $first = User::factory()->create();
     $first->syncRoles(['reseller']);
     $second = User::factory()->create();
@@ -189,6 +193,7 @@ it('counts only real reseller roles, today registrations and approved wallet rec
     app(ReviewTopup::class)->handle($root->id, $topup, true, 'DENABAN-DAILY-TOPUP',
         (int) DB::table('billing_topups')->where('id', $topup)->value('amount_rials'));
 
+    $this->travelTo(Carbon::parse('2026-11-11 15:01', 'Asia/Tehran')->utc());
     Http::fake(['https://denaban.test/*' => Http::response([], 503)]);
     $before = DB::table('billing_journals')->count();
     $snapshot = app(ReadAdminCommandCenter::class)->handle($root->id);
