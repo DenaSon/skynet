@@ -27,6 +27,18 @@ it('keeps automatic monitoring and all Spatie notifications off until rollout', 
         ->and(config('health.notifications.enabled'))->toBeFalse();
 });
 
+it('schedules the three Spatie health tasks every two minutes', function (): void {
+    $healthEvents = collect(app(\\Illuminate\\Console\\Scheduling\\Schedule::class)->events())
+        ->filter(static fn ($event): bool => str_contains((string) ($event->command ?? ''), 'health:'))
+        ->values();
+
+    expect($healthEvents)->toHaveCount(3);
+
+    foreach ($healthEvents as $event) {
+        expect($event->expression)->toBe('*/2 * * * *');
+    }
+});
+
 it('does not register a public Spatie health results endpoint', function (): void {
     $uris = array_map(
         static fn ($route): string => $route->uri(),
