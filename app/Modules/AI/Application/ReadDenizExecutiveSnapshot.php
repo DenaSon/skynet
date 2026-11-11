@@ -10,6 +10,7 @@ use App\Modules\Billing\Application\ReadAdminWalletSummary;
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
 use App\Modules\Sales\Application\ReadAdminBusinessReport;
 use App\Modules\Sales\Application\ReadAdminSalesChannelKpis;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -24,7 +25,7 @@ final readonly class ReadDenizExecutiveSnapshot
 {
     private const PERIODS = [
         'sales' => ['day', 'week', 'month', '24h'],
-        'cash' => ['7', '30', 'all'],
+        'cash' => ['day', '7', '30', 'all'],
         'accounting' => ['7', '30', 'month'],
         'wallet' => ['current'],
         'users' => ['current'],
@@ -53,7 +54,8 @@ final readonly class ReadDenizExecutiveSnapshot
 
         return match ($dataset) {
             'sales' => $this->salesSnapshot($actorId, $period),
-            'cash' => $this->cashSnapshot($actorId, $period),
+            'cash' => $period === 'day'
+                ? $this->dailyCashSnapshot($actorId) : $this->cashSnapshot($actorId, $period),
             'accounting' => $this->accountingSnapshot($actorId, $period),
             'wallet' => $this->walletSnapshot($actorId),
             'users' => $this->usersSnapshot($actorId),
@@ -95,6 +97,46 @@ final readonly class ReadDenizExecutiveSnapshot
                 'Unknown historical sales channels must not be reassigned.',
                 '24h compares the most recent rolling 24 hours with the preceding 24 hours; day compares elapsed Tehran time; week compares complete seven-day windows; month compares complete Persian months.',
                 'Undefined growth or share is null, not zero percent.',
+            ],
+        ];
+    }
+
+    /**
+     * Compare verified incoming bank receipts, not gross sales, over equal
+     * elapsed Tehran-day windows. Finance owns all receipt/correction logic.
+     *
+     * @return array<string, mixed>
+     */
+    private function dailyCashSnapshot(int $actorId): array
+    {
+        $asOf = Carbon::now('Asia/Tehran');
+        $today = $this->cash->handle($actorId, 'today', $asOf);
+        $yesterday = $this->cash->handle($actorId, 'yesterday_same_time', $asOf);
+
+        $window = static fn (array $report): array => [
+            'date' => $report['start'],
+            'cashInRials' => $report['cashInRials'],
+            'topupsRials' => $report['topupsRials'],
+            'topupsCount' => $report['topupsCount'],
+            'bankSalesRials' => $report['bankSalesRials'],
+            'bankSalesCount' => $report['bankSalesCount'],
+        ];
+
+        return [
+            ...self::metadata('cash', 'day', 'ReadAdminCashReceipts', $today['generatedAt']),
+            'windows' => [
+                'current' => $window($today),
+                'previous' => $window($yesterday),
+            ],
+            'sameTehranTime' => $asOf->format('H:i'),
+            'growthPercent' => $yesterday['cashInRials'] > 0
+                ? round(($today['cashInRials'] - $yesterday['cashInRials']) / $yesterday['cashInRials'] * 100, 1)
+                : null,
+            'limitations' => [
+                'Both cash receipt windows are Tehran midnight to the same local clock time, not two complete days.',
+                'Verified top-ups and direct bank sales are cash; wallet-funded purchases are not new cash.',
+                'No verified cash in the previous window means undefined growth, never zero percent.',
+                'Not a live bank statement or net profit; late receipt approvals can change previous figures.',
             ],
         ];
     }
