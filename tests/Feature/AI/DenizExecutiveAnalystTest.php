@@ -203,6 +203,31 @@ it('sends canonical sales evidence plus an executive-only prompt and never expor
     expect(app(DenixConversationState::class)->history(-100987654321, 12, 180001))->toBeEmpty();
 });
 
+it('delivers a verified day-vs-yesterday cash answer through the existing trusted Deniz group job', function (): void {
+    executive02Root();
+    Http::fake([
+        'https://api.gapgpt.app/*' => Http::response(executive02Response('📊 واریزی ثبت‌شده امروز بررسی شد.')),
+        'https://api.telegram.org/*' => Http::response(['ok' => true, 'result' => ['message_id' => 903]]),
+    ]);
+
+    executive02Job(108, 'امروز چقدر پول واریز شده؟');
+
+    Http::assertSentCount(2);
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.gapgpt.app/v1/chat/completions'
+        && str_contains($request['messages'][1]['content'], '"dataset":"cash","period":"day"')
+        && str_contains($request['messages'][0]['content'], 'گزارش فروش و واریزی امروز و دیروز')
+        && ! str_contains(json_encode($request['messages'], JSON_THROW_ON_ERROR), 'payment_reference'));
+    Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/sendMessage')
+        && $request['chat_id'] === -100987654321
+        && str_contains($request['text'], 'واریزی تأییدشده')
+        && str_contains($request['text'], 'بدون مبنا')
+        && str_contains($request['text'], 'واریزی ثبت‌شده امروز بررسی شد.'));
+
+    $state = app(DenixConversationState::class);
+    expect($state->executiveSelection(-100987654321, 12, 180001))->toBe(['dataset' => 'cash', 'period' => 'day'])
+        ->and($state->history(-100987654321, 12, 180001))->toBeEmpty();
+});
+
 it('keeps ordinary group chat and customer-support prompts distinct', function (): void {
     executive02Root();
     Http::fake([
