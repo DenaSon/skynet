@@ -66,7 +66,11 @@ final readonly class PrepareDenizExecutiveAnalysis
                     'channels' => $snapshot['channels'],
                     'concentration' => $snapshot['concentration'],
                 ],
-                'cash' => [
+                'cash' => $snapshot['period'] === 'day' ? [
+                    'windows' => $snapshot['windows'],
+                    'sameTehranTime' => $snapshot['sameTehranTime'],
+                    'growthPercent' => $snapshot['growthPercent'],
+                ] : [
                     'window' => $snapshot['window'],
                     'metrics' => $snapshot['metrics'],
                     'pointInTime' => $snapshot['pointInTime'],
@@ -152,7 +156,11 @@ final readonly class PrepareDenizExecutiveAnalysis
     /** @return array{dataset:string,period:string}|null */
     private static function select(string $question, ?array $context = null): ?array
     {
-        if (self::decisionFocus($question) !== null) {
+        // An explicit same-day comparison is a concrete financial report,
+        // not a generic growth strategy over unrelated weekly windows.
+        $dailyComparison = preg_match('/امروز/u', $question) === 1
+            && preg_match('/دیروز/u', $question) === 1;
+        if (self::decisionFocus($question) !== null && ! $dailyComparison) {
             return ['dataset' => 'decision', 'period' => 'current'];
         }
 
@@ -190,11 +198,20 @@ final readonly class PrepareDenizExecutiveAnalysis
 
         // Report semantics are *not* interchangeable. Refuse a requested
         // calendar-current period if the canonical Action supplies another.
-        if ($dataset === 'sales' && preg_match('/(?:این ماه|ماه جاری|این هفته|دیروز|(?:۳۰|30)\s*روز|از ابتدا)/u', $question) === 1) {
+        if ($dataset === 'sales' && preg_match('/(?:این ماه|ماه جاری|این هفته|(?:۳۰|30)\s*روز|از ابتدا)/u', $question) === 1) {
             throw new InvalidArgumentException('گزارش فروش ماهانه فعلاً آخرین ماه کامل شمسی را نشان می‌دهد؛ برای همان بازه «تحلیل فروش ماهانه» را بپرسید.');
         }
-        if ($dataset === 'cash' && preg_match('/(?:این ماه|ماه جاری|ماهانه|ماه قبل|امروز|روزانه)/u', $question) === 1) {
-            throw new InvalidArgumentException('برای گزارش دریافت‌ها فعلاً بازه‌های ۷ روز، ۳۰ روز و از ابتدا در دسترس است.');
+        if (in_array($dataset, ['sales', 'cash'], true)
+            && preg_match('/(?:کل\s*روز\s*دیروز|تمام\s*دیروز|دیروز\s*کامل)/u', $question) === 1) {
+            throw new InvalidArgumentException('گزارش روزانه فعلاً امروز و دیروز را تا ساعت یکسان تهران مقایسه می‌کند، نه کل روز دیروز.');
+        }
+        if ($dataset === 'cash' && preg_match('/(?:این ماه|ماه جاری|ماهانه|ماه قبل)/u', $question) === 1) {
+            throw new InvalidArgumentException('گزارش واریزی فقط برای امروز و دیروز تا ساعت یکسان، ۷ روز، ۳۰ روز و از ابتدا در دسترس است.');
+        }
+        if ($dataset === 'cash'
+            && preg_match('/(?:امروز|دیروز|روزانه)/u', $question) === 1
+            && preg_match('/(?:از ابتدا|از آغاز|کل تاریخ|(?:۷|7|۳۰|30)\s*روز)/u', $question) === 1) {
+            throw new InvalidArgumentException('برای گزارش واریزی، بازه روزانه یا بازه چندروزه را جداگانه درخواست کنید.');
         }
         if ($dataset === 'accounting' && preg_match('/(?:از ابتدا|از آغاز|کل تاریخ|دیروز|این هفته)/u', $question) === 1) {
             throw new InvalidArgumentException('گزارش حسابداری فعلاً برای ۷ روز، ۳۰ روز یا ماه جاری در دسترس است.');
@@ -208,10 +225,11 @@ final readonly class PrepareDenizExecutiveAnalysis
 
         $period = match ($dataset) {
             'sales' => preg_match('/(?:۲۴|24)\s*ساعت/u', $question) === 1 ? '24h'
-                : (preg_match('/(?:امروز|روزانه)/u', $question) === 1 ? 'day'
+                : (preg_match('/(?:امروز|دیروز|روزانه)/u', $question) === 1 ? 'day'
                     : (preg_match('/(?:ماه|ماهانه)/u', $question) === 1 ? 'month' : 'week')),
-            'cash' => preg_match('/(?:از ابتدا|از آغاز|کل تاریخ)/u', $question) === 1 ? 'all'
-                : (preg_match('/(?:۳۰|30)\s*روز/u', $question) === 1 ? '30' : '7'),
+            'cash' => preg_match('/(?:امروز|دیروز|روزانه)/u', $question) === 1 ? 'day'
+                : (preg_match('/(?:از ابتدا|از آغاز|کل تاریخ)/u', $question) === 1 ? 'all'
+                    : (preg_match('/(?:۳۰|30)\s*روز/u', $question) === 1 ? '30' : '7')),
             'accounting' => preg_match('/(?:۳۰|30)\s*روز/u', $question) === 1 ? '30'
                 : (preg_match('/(?:۷|7)\s*روز/u', $question) === 1 ? '7' : 'month'),
             'wallet', 'users' => 'current',
@@ -309,6 +327,14 @@ final readonly class PrepareDenizExecutiveAnalysis
             ];
         }
 
+        if ($snapshot['dataset'] === 'cash' && $snapshot['period'] === 'day') {
+            return [
+                'today' => PersianCalendar::date($snapshot['windows']['current']['date']),
+                'yesterday' => PersianCalendar::date($snapshot['windows']['previous']['date']),
+                'sameTehranTime' => PersianCalendar::digits($snapshot['sameTehranTime']),
+            ];
+        }
+
         if (in_array($snapshot['dataset'], ['cash', 'accounting'], true)) {
             $start = $snapshot['window']['start'];
 
@@ -348,9 +374,9 @@ final readonly class PrepareDenizExecutiveAnalysis
                     ? intdiv($snapshot['windows']['previous']['revenueRials'], $snapshot['windows']['previous']['transactions']) : null,
                 'renewalSharePercent' => $ratio($snapshot['windows']['current']['renewals'], $snapshot['windows']['current']['transactions']),
             ],
-            'cash' => [
-                'topupShareOfCashPercent' => $ratio($snapshot['metrics']['topupsRials'], $snapshot['metrics']['cashInRials']),
-            ],
+            'cash' => $snapshot['period'] === 'day'
+                ? ['cashGrowthPercent' => $snapshot['growthPercent']]
+                : ['topupShareOfCashPercent' => $ratio($snapshot['metrics']['topupsRials'], $snapshot['metrics']['cashInRials'])],
             'accounting' => [
                 'recordedExpenseSharePercent' => $ratio($snapshot['metrics']['expensesRials'], $snapshot['metrics']['salesRials']),
             ],
@@ -362,6 +388,25 @@ final readonly class PrepareDenizExecutiveAnalysis
             ],
             default => [],
         };
+    }
+
+    /** @param array<string, mixed> $snapshot */
+    private static function dailyCashHeadline(array $snapshot, string $generated): string
+    {
+        $current = $snapshot['windows']['current'];
+        $previous = $snapshot['windows']['previous'];
+        $money = static fn (int $rials): string => number_format(intdiv($rials, 10)).' تومان';
+        $growth = $snapshot['growthPercent'];
+        $comparison = $growth === null ? 'بدون مبنا'
+            : ($growth > 0 ? '+' : ($growth < 0 ? '−' : ''))
+                .PersianCalendar::digits(number_format(abs($growth), 1)).'٪';
+
+        return '💵 واریزی تأییدشده · امروز و دیروز تا ساعت یکسان تهران'
+            ."\nامروز: ".$money($current['cashInRials']).' | دیروز: '.$money($previous['cashInRials'])
+            ."\nتغییر نسبت به دیروز: ".$comparison
+            ."\nامروز؛ خرید بانکی: ".$money($current['bankSalesRials'])
+            .' | شارژ کیف پول: '.$money($current['topupsRials'])
+            ."\n🕒 ".$generated;
     }
 
     /** @param array<string, mixed> $snapshot */
@@ -384,7 +429,9 @@ final readonly class PrepareDenizExecutiveAnalysis
             .' | نمایندگی: '.$money($snapshot['channels']['current']['reseller']['revenueRials'])
             .' | مستقیم: '.$money($snapshot['channels']['current']['direct']['revenueRials'])
             ."\n🕒 ".$generated,
-            'cash' => '💰 دریافتی‌های ثبت‌شده · '.match ($snapshot['period']) {
+            'cash' => $snapshot['period'] === 'day'
+                ? self::dailyCashHeadline($snapshot, $generated)
+                : '💰 دریافتی‌های ثبت‌شده · '.match ($snapshot['period']) {
                 '7' => '۷ روز شامل امروز',
                 '30' => '۳۰ روز شامل امروز',
                 'all' => 'از ابتدای فعالیت',
