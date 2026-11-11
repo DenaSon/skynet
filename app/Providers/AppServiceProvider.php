@@ -32,7 +32,7 @@ class AppServiceProvider extends ServiceProvider
         $checks = [
             DatabaseCheck::new(),
             QueueCheck::new()->failWhenHealthJobTakesLongerThanMinutes(5),
-            ScheduleCheck::new()->heartbeatMaxAgeInMinutes(2),
+            ScheduleCheck::new()->heartbeatMaxAgeInMinutes(5),
             UsedDiskSpaceCheck::new()
                 ->warnWhenUsedSpaceIsAbovePercentage(75)
                 ->failWhenUsedSpaceIsAbovePercentage(90),
