@@ -118,7 +118,7 @@ final readonly class DenixConversationState
         $stored = Cache::get($this->key($chatId, $threadId, $userId, 'executive'));
         $periods = [
             'sales' => ['24h', 'day', 'week', 'month'],
-            'cash' => ['7', '30', 'all'],
+            'cash' => ['day', '7', '30', 'all'],
             'accounting' => ['7', '30', 'month'],
             'wallet' => ['current'],
             'users' => ['current'],
