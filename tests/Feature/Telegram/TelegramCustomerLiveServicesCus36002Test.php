@@ -162,6 +162,8 @@ it('fetches a single owner-verified provider snapshot and renders credential-fre
     expect($service['state'])->toBe('available')
         ->and($service['identityMatched'])->toBeTrue()
         ->and($service['remoteStatus'])->toBe('ACTIVE')
+        ->and($service['remoteUserId'])->toBe(42)
+        ->and($service['remoteUsername'])->toBe(c360LiveRemote($order)['username'])
         ->and($service['remainingBytes'])->toBe(7 * 1073741824)
         ->and($service['daysLeft'])->toBeGreaterThanOrEqual(11);
 
@@ -173,6 +175,10 @@ it('fetches a single owner-verified provider snapshot and renders credential-fre
 
             return str_contains($text, 'Plan &lt;private&gt; 1')
                 && str_contains($text, 'تطبیق شناسه سرویس: تأیید شد')
+                && str_contains($text, 'شناسه کاربر در RW: <code>42</code>')
+                && str_contains($text, 'نام کاربری در RW: <code>'.c360LiveRemote($order)['username'].'</code>')
+                && str_contains($buttons, '"copy_text":{"text":"42"}')
+                && str_contains($buttons, '"copy_text":{"text":"'.c360LiveRemote($order)['username'].'"}')
                 && str_contains($text, 'حجم کل: 10.00 گیگابایت')
                 && str_contains($text, 'مصرف‌شده: 3.00 گیگابایت')
                 && str_contains($text, 'باقی‌مانده: 7.00 گیگابایت')
@@ -181,14 +187,72 @@ it('fetches a single owner-verified provider snapshot and renders credential-fre
                 && str_contains($buttons, "c360:l:{$buyer->id}:2:s:1")
                 && ! str_contains($text, 'credential')
                 && ! str_contains($text, 'secret-token')
-                && ! str_contains($text, 'private-short-id')
-                && ! str_contains($text, '42');
+                && ! str_contains($text, 'private-short-id');
         }, index: 1);
 
     expect(DB::table('provisioning_subscriptions')->first())->toEqual($before);
     Http::assertSentCount(2);
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET'
         && $request->url() === 'https://rw-live.test/api/users/42');
+});
+
+it('shows RW identifiers only to a trusted root, not ordinary support admins', function (): void {
+    $admin = User::factory()->admin()->create();
+    $buyer = User::factory()->create();
+    $order = c360LiveOrder($buyer, 19);
+    Http::fake(['https://rw-live.test/api/users/42' => Http::response(['response' => c360LiveRemote($order)], 200)]);
+
+    $snapshot = app(ReadCustomerLiveServices::class)->detail($admin->id, $buyer->id, $order);
+    expect($snapshot['state'])->toBe('available')
+        ->and($snapshot['remoteUserId'])->toBeNull()
+        ->and($snapshot['remoteUsername'])->toBeNull();
+
+    c360LiveBot(994203, $admin)->hearCallbackQueryData("c360:v:{$buyer->id}:{$order}:1:a:1")->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $payload = c360LivePayload($request);
+            $text = $payload['text'];
+            $buttons = json_encode($payload['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return str_contains($text, 'وضعیت پنل: 🟢 فعال')
+                && ! str_contains($text, 'شناسه کاربر در RW:')
+                && ! str_contains($text, 'نام کاربری در RW:')
+                && ! str_contains($buttons, 'copy_text')
+                && ! str_contains($text, 'private-short-id')
+                && ! str_contains($text, 'credential');
+        }, index: 1);
+
+    Http::assertSentCount(2);
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
+});
+
+it('does not show RW identifiers or copy actions if the root cannot verify provider identity', function (): void {
+    $root = User::factory()->create();
+    $root->syncRoles(['super-admin']);
+    $buyer = User::factory()->create();
+    $order = c360LiveOrder($buyer, 20);
+    Http::fake(['https://rw-live.test/api/users/42' => Http::response([
+        'response' => [...c360LiveRemote($order), 'description' => 'foreign marker'],
+    ], 200)]);
+
+    $snapshot = app(ReadCustomerLiveServices::class)->detail($root->id, $buyer->id, $order);
+    expect($snapshot['state'])->toBe('unavailable')
+        ->and($snapshot['remoteUserId'])->toBeNull()
+        ->and($snapshot['remoteUsername'])->toBeNull();
+
+    c360LiveBot(994201, $root)->hearCallbackQueryData("c360:v:{$buyer->id}:{$order}:1:a:1")->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $payload = c360LivePayload($request);
+            $text = $payload['text'];
+            $buttons = json_encode($payload['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return str_contains($text, 'وضعیت زنده: نامشخص')
+                && ! str_contains($text, 'شناسه کاربر در RW:')
+                && ! str_contains($text, 'نام کاربری در RW:')
+                && ! str_contains($buttons, 'copy_text');
+        }, index: 1);
+
+    Http::assertSentCount(2);
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
 });
 
 it('treats expired and exhausted provider status as actual panel data without leaking credentials', function (): void {

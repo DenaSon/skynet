@@ -6,6 +6,7 @@ namespace App\Modules\Provisioning\Application;
 
 use App\Modules\Identity\Application\AdminCapabilityAccess;
 use App\Modules\Identity\Application\BrowseUsers;
+use App\Modules\Identity\Application\SuperAdminTrust;
 use App\Modules\Identity\Infrastructure\Models\User;
 use DateTimeImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -51,7 +52,7 @@ final readonly class ReadCustomerLiveServices
      * @return array{
      *   orderId:int,name:string,localState:string,state:string,remoteStatus:?string,
      *   usedBytes:?int,limitBytes:?int,remainingBytes:?int,expiresAt:?string,daysLeft:?int,
-     *   identityMatched:bool
+     *   identityMatched:bool,remoteUserId:?int,remoteUsername:?string
      * }
      */
     public function detail(int $actorId, int $subjectId, int $orderId): array
@@ -72,6 +73,7 @@ final readonly class ReadCustomerLiveServices
             'state' => 'unavailable', 'remoteStatus' => null,
             'usedBytes' => null, 'limitBytes' => null, 'remainingBytes' => null,
             'expiresAt' => null, 'daysLeft' => null, 'identityMatched' => false,
+            'remoteUserId' => null, 'remoteUsername' => null,
         ];
 
         // A pending or unlinked local provisioning record cannot authorize a
@@ -80,6 +82,7 @@ final readonly class ReadCustomerLiveServices
             return $result;
         }
 
+        $verifiedRemote = null;
         try {
             // Existing lifecycle checks deterministic username/ownership marker;
             // this Admin path also verifies the exact linked numeric remote ID.
@@ -102,6 +105,7 @@ final readonly class ReadCustomerLiveServices
             $result['expiresAt'] = $expiry->format('Y-m-d\TH:i:sP');
             $result['daysLeft'] = max(0, (int) ceil(($timestamp - time()) / 86400));
             $result['identityMatched'] = true;
+            $verifiedRemote = $remote;
         } catch (Throwable) {
             // Provider transport, missing user, malformed body or marker
             // mismatch are all UNKNOWN, never "inactive" or "deleted".
@@ -116,6 +120,16 @@ final readonly class ReadCustomerLiveServices
             || $fresh->reference !== $binding->reference
             || (string) $fresh->remote_user_id !== (string) $binding->remote_user_id) {
             throw new AuthorizationException;
+        }
+
+        // Only trusted Super Admins receive the non-secret provider identifiers.
+        // Evaluate after the post-GET ownership and permission rechecks above.
+        if ($verifiedRemote !== null) {
+            $root = User::query()->with('telegramAccount')->find($actorId);
+            if ($root !== null && app(SuperAdminTrust::class)->eligible($root)) {
+                $result['remoteUserId'] = $verifiedRemote->id;
+                $result['remoteUsername'] = $verifiedRemote->username;
+            }
         }
 
         return $result;
