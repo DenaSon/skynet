@@ -145,6 +145,7 @@ it('shows canonical verified inflows and sales independently of unavailable RW',
     expect($snap['cash']['cashInRials'])->toBe(3_000_000)
         ->and($snap['todayCash']['cashInRials'])->toBe(3_000_000)
         ->and($snap['todayCash']['bankSalesCount'])->toBe(1)
+        ->and($snap['yesterdayCash']['cashInRials'])->toBe(0)
         ->and($snap['todayKpis']['transactions'])->toBe(1)
         ->and($snap['todayKpis']['newUsers'])->toBe(1)
         ->and($snap['resellers'])->toBe(0)
@@ -158,6 +159,8 @@ it('shows canonical verified inflows and sales independently of unavailable RW',
 
         return str_contains($p['text'], '📡 دنابان | وضعیت دنا')
             && str_contains($p['text'], 'کل واریزی امروز: 300,000 تومان')
+            && str_contains($p['text'], 'دیروز تا همین ساعت: 0 تومان')
+            && str_contains($p['text'], 'تغییر نسبت به دیروز: بدون مبنا')
             && str_contains($p['text'], 'کل واریزی از ابتدا: 300,000 تومان')
             && str_contains($p['text'], 'فروش امروز: 300,000 تومان')
             && str_contains($p['text'], 'تعداد فروش امروز: 1')
@@ -220,6 +223,57 @@ it('counts only real reseller roles, today registrations and approved wallet rec
     expect(DB::table('billing_journals')->count())->toBe($before);
     Http::assertNotSent(static fn (Request $request): bool => $request->method() !== 'GET');
 });
+
+it('renders signed aligned cash growth for both Telegram views', function (int $yesterday, int $today, string $expected): void {
+    $this->travelTo(Carbon::parse('2026-11-10 12:00', 'Asia/Tehran')->utc());
+    $root = denabanRoot();
+    $customer = User::factory()->create();
+    config()->set('billing.topups_enabled', true);
+
+    foreach ([
+        ['date' => '2026-11-10 14:00', 'amount' => $yesterday, 'key' => 'previous'],
+        ['date' => '2026-11-11 14:00', 'amount' => $today, 'key' => 'current'],
+    ] as $item) {
+        if ($item['amount'] === 0) {
+            continue;
+        }
+
+        $this->travelTo(Carbon::parse($item['date'], 'Asia/Tehran')->utc());
+        $topup = app(RequestTopup::class)->handle($customer->id, $item['amount'], 'denaban:trend:'.$item['key']);
+        app(SubmitTopupPhoto::class)->handle($customer->id, $topup, 991251,
+            'file-trend-'.$item['key'], 'fingerprint-trend-'.$item['key'], $topup);
+        app(ReviewTopup::class)->handle($root->id, $topup, true, 'DENABAN-TREND-'.$item['key'],
+            (int) DB::table('billing_topups')->where('id', $topup)->value('amount_rials'));
+    }
+
+    $this->travelTo(Carbon::parse('2026-11-11 15:00', 'Asia/Tehran')->utc());
+    Http::fake(['https://denaban.test/*' => Http::response([], 503)]);
+    $before = DB::table('billing_journals')->count();
+    $snapshot = app(ReadAdminCommandCenter::class)->handle($root->id);
+    expect($snapshot['todayCash']['cashInRials'])->toBe($today)
+        ->and($snapshot['yesterdayCash']['cashInRials'])->toBe($yesterday);
+
+    denabanBot(991201)->hearCallbackQueryData('denaban:show')->reply()
+        ->assertRaw(static function (NutgramRequest $request) use ($expected, $yesterday): bool {
+            $html = denabanRichHtml($request);
+
+            return str_contains($html, '<tr><td>📊 تغییر نسبت به دیروز</td><td align="left"><b>'.$expected.'</b>')
+                && str_contains($html, '<tr><td>💵 دیروز تا همین ساعت</td><td align="left"><b>'
+                    .number_format(intdiv($yesterday, 10)).' تومان</b>');
+        }, index: 1);
+    denabanBot(991201)->hearCallbackQueryData('denaban:simple')->reply()
+        ->assertRaw(static fn (NutgramRequest $request): bool => str_contains(
+            denabanPayload($request)['text'], '📊 تغییر نسبت به دیروز: '.$expected,
+        ), index: 1);
+    expect(DB::table('billing_journals')->count())->toBe($before);
+    Http::assertNotSent(static fn (Request $request): bool => $request->method() !== 'GET');
+})->with([
+    'higher' => [2_800_000, 3_500_000, '📈 +۲۵٫۰٪'],
+    'lower' => [10_000_000, 9_100_000, '📉 −۹٫۰٪'],
+    'equal' => [3_000_000, 3_000_000, '➖ ۰٫۰٪'],
+    'zero yesterday' => [0, 3_000_000, 'بدون مبنا'],
+    'zero both' => [0, 0, 'بدون مبنا'],
+]);
 
 it('rejects unauthorized, revoked and group callbacks without RW calls', function (): void {
     $root = denabanRoot();
@@ -348,6 +402,8 @@ it('renders a bounded RTL rich executive dashboard and retains navigation and si
                     '<h3>🖥️ وضعیت سرورها</h3>',
                 ])
                 && str_contains($html, '<tr><td>💵 کل واریزی امروز</td>')
+                && str_contains($html, '<tr><td>💵 دیروز تا همین ساعت</td>')
+                && str_contains($html, '<tr><td>📊 تغییر نسبت به دیروز</td>')
                 && str_contains($html, '<tr><td>💰 کل واریزی از ابتدا</td>')
                 && str_contains($html, '<tr><td>🛍️ تعداد فروش امروز</td>')
                 && str_contains($html, '<tr><td>🧾 تعداد واریزی امروز</td>')
@@ -392,6 +448,8 @@ it('renders a bounded RTL rich executive dashboard and retains navigation and si
                     '<b>🖥️ وضعیت سرورها</b>',
                 ])
                 && str_contains($payload['text'], 'کل واریزی امروز:')
+                && str_contains($payload['text'], 'دیروز تا همین ساعت:')
+                && str_contains($payload['text'], 'تغییر نسبت به دیروز:')
                 && str_contains($payload['text'], 'تعداد فروش امروز:')
                 && str_contains($payload['text'], 'تعداد واریزی امروز:')
                 && str_contains($payload['text'], 'کل واریزی از ابتدا:')
