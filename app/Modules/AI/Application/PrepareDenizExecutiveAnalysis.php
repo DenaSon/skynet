@@ -432,11 +432,11 @@ final readonly class PrepareDenizExecutiveAnalysis
             'cash' => $snapshot['period'] === 'day'
                 ? self::dailyCashHeadline($snapshot, $generated)
                 : '💰 دریافتی‌های ثبت‌شده · '.match ($snapshot['period']) {
-                '7' => '۷ روز شامل امروز',
-                '30' => '۳۰ روز شامل امروز',
-                'all' => 'از ابتدای فعالیت',
-                default => throw new \LogicException('Unsupported cash period.'),
-            }
+                    '7' => '۷ روز شامل امروز',
+                    '30' => '۳۰ روز شامل امروز',
+                    'all' => 'از ابتدای فعالیت',
+                    default => throw new \LogicException('Unsupported cash period.'),
+                }
             ."\nورودی نقدی: ".$money($snapshot['metrics']['cashInRials'])
             .' | شارژ کیف پول: '.$money($snapshot['metrics']['topupsRials'])
             ."\nفروش با کیف پول (بدون واریز جدید): ".$money($snapshot['metrics']['walletSalesRials'])
