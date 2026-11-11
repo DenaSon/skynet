@@ -127,10 +127,13 @@ final readonly class AdminCommandCenterUi
         $bot->sendMessage(text: $text, reply_markup: $keyboard, parse_mode: 'HTML');
     }
 
-    /** @param array{cash:array<string,mixed>|null,stats:array<string,mixed>|null,pendingTopups:int|null,receivedAt:string} $snapshot */
+    /** @param array{cash:array<string,mixed>|null,todayCash:array<string,mixed>|null,todayKpis:array<string,mixed>|null,resellers:?int,stats:array<string,mixed>|null,pendingTopups:int|null,receivedAt:string} $snapshot */
     private function report(array $snapshot): string
     {
         $cash = $snapshot['cash'];
+        $todayCash = $snapshot['todayCash'];
+        $todayKpis = $snapshot['todayKpis'];
+        $resellers = $snapshot['resellers'];
         $stats = $snapshot['stats'];
         $pendingTopups = $snapshot['pendingTopups'];
 
@@ -145,7 +148,8 @@ final readonly class AdminCommandCenterUi
         ];
         $known = array_filter($items, static fn (?int $n): bool => $n !== null);
         $incomplete = count($known) !== count($items)
-            || $cash === null || self::number($stats, 'nodes') === null;
+            || $cash === null || $todayCash === null || $todayKpis === null
+            || $resellers === null || self::number($stats, 'nodes') === null;
         $todo = array_sum($known);
         $summary = $todo > 0
             ? number_format($todo).' مورد برای پیگیری ثبت شده؛ جزئیات را بررسی کنید.'
@@ -157,12 +161,17 @@ final readonly class AdminCommandCenterUi
             '<b>📡 دنابان | وضعیت دنا</b>',
             '',
             '<b>💰 وضعیت مالی</b>',
-            '💵 دریافتی کل: '.self::toman(self::number($cash, 'cashInRials')),
+            '💵 کل واریزی امروز: '.self::toman(self::number($todayCash, 'cashInRials')),
             '🛒 فروش امروز: '.self::toman(self::number($stats, 'salesTodayRials')),
+            '🛍️ تعداد فروش امروز: '.self::format(self::number($todayKpis, 'transactions')),
+            '🧾 تعداد واریزی امروز: '.self::format(self::depositCount($todayCash)),
+            '💰 کل واریزی از ابتدا: '.self::toman(self::number($cash, 'cashInRials')),
             '💼 مانده اعتبار: '.self::toman(self::number($cash, 'currentWalletBalanceRials')),
             '',
             '<b>👥 کاربران و اشتراک‌ها</b>',
             'کل کاربران: '.self::format(self::number($stats, 'localUsers')),
+            '🤝 نمایندگان: '.self::format($resellers),
+            '👤 کاربران جدید امروز: '.self::format(self::number($todayKpis, 'newUsers')),
             'اشتراک‌های فعال: '.self::format(self::number($stats, 'subscriptionsActive')),
             'آنلاین پنل: '.self::format(self::number($stats, 'online')),
             '',
@@ -182,7 +191,7 @@ final readonly class AdminCommandCenterUi
             'هاست‌ها: '.self::format(self::number($stats, 'hosts')),
             ...self::nodeLines($stats),
             '',
-            '<blockquote>دریافتی‌ها فقط پرداخت‌های ثبت و تأییدشده‌اند؛ موجودی بانک یا سود خالص نیستند. مانده کیف پول فروش جدید نیست. اتصال نود نیز تضمین دسترسی کاربران نیست. «نامشخص» به معنی صفر نیست.</blockquote>',
+            '<blockquote>واریزی‌ها فقط پرداخت‌های ثبت و تأییدشده‌اند؛ نه موجودی بانک یا سود خالص. خرید با کیف پول، واریزی جدید نیست. اتصال نود نیز تضمین دسترسی کاربران نیست. «نامشخص» به معنی صفر نیست.</blockquote>',
             '🔄 آخرین بررسی: '.PersianCalendar::localDateTime($snapshot['receivedAt']).' (تهران)',
         ];
 
@@ -193,11 +202,14 @@ final readonly class AdminCommandCenterUi
      * Read-only Rich presentation of the exact same authorized snapshot used by
      * the legacy HTML view. Tables are deliberately two-column for mobile RTL.
      *
-     * @param  array{cash:array<string,mixed>|null,stats:array<string,mixed>|null,pendingTopups:int|null,receivedAt:string}  $snapshot
+     * @param  array{cash:array<string,mixed>|null,todayCash:array<string,mixed>|null,todayKpis:array<string,mixed>|null,resellers:?int,stats:array<string,mixed>|null,pendingTopups:int|null,receivedAt:string}  $snapshot
      */
     private function richReport(array $snapshot): string
     {
         $cash = $snapshot['cash'];
+        $todayCash = $snapshot['todayCash'];
+        $todayKpis = $snapshot['todayKpis'];
+        $resellers = $snapshot['resellers'];
         $stats = $snapshot['stats'];
         $pendingTopups = $snapshot['pendingTopups'];
 
@@ -212,7 +224,8 @@ final readonly class AdminCommandCenterUi
         ];
         $known = array_filter($items, static fn (?int $n): bool => $n !== null);
         $incomplete = count($known) !== count($items)
-            || $cash === null || self::number($stats, 'nodes') === null;
+            || $cash === null || $todayCash === null || $todayKpis === null
+            || $resellers === null || self::number($stats, 'nodes') === null;
         $todo = array_sum($known);
         $summary = $todo > 0
             ? number_format($todo).' مورد برای پیگیری ثبت شده؛ جزئیات را بررسی کنید.'
@@ -228,13 +241,18 @@ final readonly class AdminCommandCenterUi
         return '<h2>📡 دنابان | وضعیت دنا</h2>'
             .'<h3>💰 وضعیت مالی</h3>'
             .self::richTable([
-                ['💵 دریافتی کل', self::toman(self::number($cash, 'cashInRials'))],
+                ['💵 کل واریزی امروز', self::toman(self::number($todayCash, 'cashInRials'))],
                 ['🛒 فروش امروز', self::toman(self::number($stats, 'salesTodayRials'))],
+                ['🛍️ تعداد فروش امروز', self::format(self::number($todayKpis, 'transactions'))],
+                ['🧾 تعداد واریزی امروز', self::format(self::depositCount($todayCash))],
+                ['💰 کل واریزی از ابتدا', self::toman(self::number($cash, 'cashInRials'))],
                 ['💼 مانده اعتبار', self::toman(self::number($cash, 'currentWalletBalanceRials'))],
             ])
             .'<h3>👥 کاربران و اشتراک‌ها</h3>'
             .self::richTable([
                 ['کل کاربران', self::format(self::number($stats, 'localUsers'))],
+                ['🤝 نمایندگان', self::format($resellers)],
+                ['👤 کاربران جدید امروز', self::format(self::number($todayKpis, 'newUsers'))],
                 ['اشتراک‌های فعال', self::format(self::number($stats, 'subscriptionsActive'))],
                 ['آنلاین پنل', self::format(self::number($stats, 'online'))],
             ])
@@ -257,8 +275,8 @@ final readonly class AdminCommandCenterUi
             ])
             .'<details><summary>جزئیات نودها</summary>'.$nodes.'</details>'
             .'<details><summary>توضیحات آمار</summary><p>'
-            .'دریافتی‌ها فقط پرداخت‌های ثبت و تأییدشده‌اند؛ موجودی بانک یا سود خالص نیستند. '
-            .'مانده اعتبار کاربران فروش جدید نیست. اتصال نود نیز تضمین دسترسی کاربران نیست. '
+            .'واریزی‌ها فقط پرداخت‌های ثبت و تأییدشده‌اند؛ نه موجودی بانک یا سود خالص. '
+            .'خرید با اعتبار کیف پول، واریزی جدید نیست. اتصال نود نیز تضمین دسترسی کاربران نیست. '
             .'«نامشخص» به معنی صفر نیست.</p></details>'
             .'<footer>🔄 آخرین بررسی: '.TelegramUi::escape(PersianCalendar::localDateTime($snapshot['receivedAt']))
             .' (تهران)</footer>';
@@ -363,6 +381,15 @@ final readonly class AdminCommandCenterUi
         }
 
         return number_format($bytesPerSecond / 1048576, 2).' MiB/s';
+    }
+
+    /** @param array<string,mixed>|null $cash */
+    private static function depositCount(?array $cash): ?int
+    {
+        $topups = self::number($cash, 'topupsCount');
+        $bank = self::number($cash, 'bankSalesCount');
+
+        return $topups === null || $bank === null ? null : $topups + $bank;
     }
 
     /** @param array<string,mixed>|null $data */
