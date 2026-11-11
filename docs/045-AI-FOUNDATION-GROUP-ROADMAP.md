@@ -1,3 +1,9 @@
+## Deniz Business support off-topic reply focus — approved adjustment (2026-11-11)
+
+Scoped prompt-only refinement: append concise, friendly guidance solely in `DenizKnowledge::instructions(customerSupport: true)` for ordinary greetings, light harmless jokes, and requests unrelated to DenaGate support (e.g., accent imitation, roleplay, poetry, fiction). For purely off-topic requests, keep a respectful, varied reply to at most two sentences and refocus on DenaGate when appropriate; repeated off-topic prompts must not pull the assistant into extended entertainment or persistent persona/style changes. **Do not** reject genuine technical, purchasing, account or reseller questions merely because the customer uses a local dialect, jokes, or speaks casually.
+
+Preserve current support personality, customer navigation, approved reseller product facts, human handoff, first-message disclosure, all financial/privacy rules, model/quota/Business rights, and management-group prompts. No new classifier, regex filter, storage, tools, migrations, ENV or providers. Regression coverage checks isolation of Business instructions and the real Business job's system prompt; fake-model CI verifies prompt wiring, **not** live AI behavior. A real Business chat smoke test after rollout remains separate; rollback by reverting this source-only PR.
+
 ## Deniz Business quota configuration via ENV (2026-11-10; PR awaiting review)
 
 The three **Business support only** counters are independently configurable in Runflare/production ENV, retaining their current defaults:
