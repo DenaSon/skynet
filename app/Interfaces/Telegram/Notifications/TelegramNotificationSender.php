@@ -19,6 +19,7 @@ use App\Modules\Identity\Application\AdminCapabilityAccess;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\TelegramRecipient;
 use App\Modules\Identity\Infrastructure\Models\User;
+use App\Modules\Sales\Application\AdminPendingReceiptFollowup;
 use App\Modules\Sales\Application\ManualBankPayments;
 use App\Modules\Sales\Application\ReviewSalesPanelRequest;
 use App\Modules\Sales\Application\SalesPanelRequests;
@@ -420,6 +421,36 @@ final readonly class TelegramNotificationSender
                 ."\nفعال‌سازی پیش از ساخت اشتراک متوقف شد؛ پرداخت محفوظ است.",
                 $keyboard, 'HTML',
             );
+
+            return;
+        }
+
+        if ($delivery->event_type === AdminPendingReceiptFollowup::EVENT) {
+            $orderId = (int) $delivery->order_id;
+            if ($bot !== 'sales' || ! app(AdminPendingReceiptFollowup::class)->canDeliver($delivery)) {
+                throw new NotificationUnavailable('obsolete_receipt_followup');
+            }
+
+            $keyboard = json_encode(['inline_keyboard' => [
+                [['text' => '📷 ارسال رسید پرداخت', 'callback_data' => 'sales:payment:receipt:'.$orderId]],
+                [['text' => '📋 مشاهده سفارش', 'callback_data' => 'sales:checkout:view:'.$orderId]],
+            ]], JSON_THROW_ON_ERROR);
+            try {
+                $this->text($bot, $chat,
+                    "<b>🧾 یادآوری سفارش #{$orderId}</b>"
+                    ."\n\nاگر مبلغ سفارش را واریز کرده‌اید اما رسید ارسال نکرده‌اید،"
+                    .' لطفاً تصویر رسید را از دکمه زیر ثبت کنید.'
+                    ."\nاگر هنوز پرداخت نکرده‌اید، نیازی به اقدامی نیست."
+                    ."\n\nثبت رسید به معنی تأیید پرداخت نیست.",
+                    $keyboard, 'HTML', false,
+                );
+            } catch (NotificationUnavailable $exception) {
+                throw $exception;
+            } catch (Throwable) {
+                // One-shot customer outreach: after an ambiguous HTTP outcome,
+                // never retry and risk delivering duplicate messages.
+                throw new NotificationUnavailable('delivery_uncertain');
+            }
 
             return;
         }

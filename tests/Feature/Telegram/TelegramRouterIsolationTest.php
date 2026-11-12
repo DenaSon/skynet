@@ -101,6 +101,12 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     // ADMIN service history and reason selection remain private Admin routes.
     $expected['ADMIN'][] = 'callback:full:service:history:{id}:{page}';
     $expected['ADMIN'][] = 'callback:full:service:reason:{token}:{reason}';
+    // Root-only manual follow-up of unclaimed direct Sales orders.
+    $expected['ADMIN'][] = 'callback:receipt:followup:list:{page}';
+    $expected['ADMIN'][] = 'callback:receipt:followup:user:{user}:{page}';
+    $expected['ADMIN'][] = 'callback:receipt:followup:view:{id}';
+    $expected['ADMIN'][] = 'callback:receipt:followup:prepare:{id}';
+    $expected['ADMIN'][] = 'callback:receipt:followup:apply:{token}';
     // CUS-360-01: user profile drilldown belongs to Admin only.
     $expected['ADMIN'][] = 'callback:users:profile:{id}:{page}:{mode}';
     // Admin-only user filter and pending-search cancellation; never on the Sales Bot.
@@ -354,8 +360,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(318)
-        ->and(count(array_unique($legacy)))->toBe(318);
+        ->and(count($legacy))->toBe(323)
+        ->and(count(array_unique($legacy)))->toBe(323);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {

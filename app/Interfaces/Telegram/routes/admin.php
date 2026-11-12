@@ -30,6 +30,7 @@ use App\Interfaces\Telegram\Support\AdminNodesUi;
 use App\Interfaces\Telegram\Support\AdminNotificationFailuresUi;
 use App\Interfaces\Telegram\Support\AdminNotificationTopicUi;
 use App\Interfaces\Telegram\Support\AdminPanelUsersUi;
+use App\Interfaces\Telegram\Support\AdminPendingReceiptFollowupUi;
 use App\Interfaces\Telegram\Support\AdminProviderOverviewUi;
 use App\Interfaces\Telegram\Support\AdminRwBackupUi;
 use App\Interfaces\Telegram\Support\AdminSalesPanelRequestsUi;
@@ -652,6 +653,23 @@ $bot->onCallbackQueryData('full:prepare:{id}:{mode}', function (Nutgram $bot, st
 
 $bot->onCallbackQueryData('full:apply:{token}', function (Nutgram $bot, string $token): void {
     app(AdminFulfillmentUi::class)->apply($bot, $token);
+});
+
+// Super Admin-only customer follow-up for pending direct orders without claims.
+$bot->onCallbackQueryData('receipt:followup:list:{page}', function (Nutgram $bot, string $page): void {
+    app(AdminPendingReceiptFollowupUi::class)->browse($bot, $page);
+});
+$bot->onCallbackQueryData('receipt:followup:user:{user}:{page}', function (Nutgram $bot, string $user, string $page): void {
+    app(AdminPendingReceiptFollowupUi::class)->browse($bot, $page, $user);
+});
+$bot->onCallbackQueryData('receipt:followup:view:{id}', function (Nutgram $bot, string $id): void {
+    app(AdminPendingReceiptFollowupUi::class)->detail($bot, $id);
+});
+$bot->onCallbackQueryData('receipt:followup:prepare:{id}', function (Nutgram $bot, string $id): void {
+    app(AdminPendingReceiptFollowupUi::class)->prepare($bot, $id);
+});
+$bot->onCallbackQueryData('receipt:followup:apply:{token}', function (Nutgram $bot, string $token): void {
+    app(AdminPendingReceiptFollowupUi::class)->apply($bot, $token);
 });
 
 $bot->onCallbackQueryData('bank:list', function (Nutgram $bot): void {
