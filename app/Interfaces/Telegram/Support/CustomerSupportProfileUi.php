@@ -170,41 +170,7 @@ final readonly class CustomerSupportProfileUi
             ->addRow(InlineKeyboardButton::make('◀️ پرونده کاربر', callback_data: "users:profile:{$subjectId}:{$userPage}:{$mode}"));
 
         TelegramUi::answerCallback($bot);
-        try {
-            TelegramUi::editRichText($bot, new InputRichMessage(html: self::richService($lines), is_rtl: true), $keyboard);
-
-            return;
-        } catch (TelegramException $exception) {
-            report($exception);
-            // The same authorized fields and copy buttons on older clients.
-            TelegramUi::editText($bot, implode("\n", $lines), $keyboard, 'HTML');
-        }
-    }
-
-    /**
-     * Build Rich and fallback from the same already-escaped, authorized values.
-     *
-     * @param  list<string>  $lines
-     */
-    private static function richService(array $lines): string
-    {
-        $rows = '';
-        $notices = '';
-        foreach (array_slice($lines, 3, -3) as $line) {
-            if (str_contains($line, ': ')) {
-                [$label, $value] = explode(': ', $line, 2);
-                $rows .= '<tr><td>'.$label.'</td><td>'.$value.'</td></tr>';
-            } elseif ($line !== '') {
-                $notices .= '<p>'.$line.'</p>';
-            }
-        }
-
-        return '<h2>📦 وضعیت سرویس مشتری</h2>'
-            .'<p>'.$lines[1].'</p>'
-            .'<table bordered striped compact>'.$rows.'</table>'
-            .$notices
-            .'<p>'.$lines[count($lines) - 2].'</p>'
-            .'<footer>'.$lines[count($lines) - 1].'</footer>';
+        TelegramUi::editText($bot, implode("\n", $lines), $keyboard, 'HTML');
     }
 
     public function service(Nutgram $bot, string $subjectId, string $orderId, string $userPage, string $mode, string $servicePage): void
@@ -316,7 +282,41 @@ final readonly class CustomerSupportProfileUi
             ->addRow(InlineKeyboardButton::make('🏠 پرونده کاربر', callback_data: "users:profile:{$subjectId}:{$userPage}:{$mode}"));
 
         TelegramUi::answerCallback($bot);
-        TelegramUi::editText($bot, implode("\n", $lines), $keyboard, 'HTML');
+        try {
+            TelegramUi::editRichText($bot, new InputRichMessage(html: self::richService($lines), is_rtl: true), $keyboard);
+
+            return;
+        } catch (TelegramException $exception) {
+            report($exception);
+            // The same authorized fields and copy buttons on older clients.
+            TelegramUi::editText($bot, implode("\n", $lines), $keyboard, 'HTML');
+        }
+    }
+
+    /**
+     * Build Rich and fallback from the same already-escaped, authorized values.
+     *
+     * @param  list<string>  $lines
+     */
+    private static function richService(array $lines): string
+    {
+        $rows = '';
+        $notices = '';
+        foreach (array_slice($lines, 3, -3) as $line) {
+            if (str_contains($line, ': ')) {
+                [$label, $value] = explode(': ', $line, 2);
+                $rows .= '<tr><td>'.$label.'</td><td>'.$value.'</td></tr>';
+            } elseif ($line !== '') {
+                $notices .= '<p>'.$line.'</p>';
+            }
+        }
+
+        return '<h2>📦 وضعیت سرویس مشتری</h2>'
+            .'<p>'.$lines[1].'</p>'
+            .'<table bordered striped compact>'.$rows.'</table>'
+            .$notices
+            .'<p>'.$lines[count($lines) - 2].'</p>'
+            .'<footer>'.$lines[count($lines) - 1].'</footer>';
     }
 
     private function reader(Nutgram $bot): ?int
