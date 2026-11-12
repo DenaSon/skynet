@@ -2,6 +2,7 @@
 
 use App\Interfaces\Telegram\Support\PlanAdminDrafts;
 use App\Interfaces\Telegram\Support\PlanAdminForms;
+use GuzzleHttp\Psr7\Request;
 use App\Interfaces\Telegram\Support\ReplyMenuLabels;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
@@ -21,6 +22,7 @@ use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
+use SergiX44\Nutgram\Testing\FakeNutgram;
 use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
@@ -143,9 +145,22 @@ it('supports reseller-only builder creation and typed unlimited presets', functi
     [$root, $bot] = b14Root();
 
     $bot->hearCallbackQueryData('plan:begin:builder:0')->reply();
-    $bot->hearText('vpn-access | custom-builder | سفارش سفارشی | hybrid | 1 | 500 | 15 | 90')->reply();
+    $bot->hearText('vpn-access | custom-builder | سفارش سفارشی | hybrid | 1 | 500 | 15 | 90')->reply()
+        ->assertRaw(static function (Request $request): bool {
+            $text = (string) (FakeNutgram::getActualData($request)['text'] ?? '');
+
+            return str_contains($text, 'حجم: انتخابی (1 تا 500 گیگابایت)')
+                && str_contains($text, 'مدت: انتخابی (15 تا 90 روز)')
+                && ! str_contains($text, 'حجم: نامحدود');
+        });
     $token = app(PlanAdminDrafts::class)->peek($root->id)['token'];
     $bot->hearCallbackQueryData('plan:save:'.$token)->reply();
+    $bot->hearCallbackQueryData('plan:view:1')->reply()->assertRaw(static function (Request $request): bool {
+        $text = (string) (FakeNutgram::getActualData($request)['text'] ?? '');
+
+        return str_contains($text, 'حجم: انتخابی | مدت: انتخابی')
+            && str_contains($text, 'محدوده حجم: 1 تا 500');
+    }, index: 1);
 
     $bot->hearCallbackQueryData('plan:begin:preset:0')->reply();
     $bot->hearText('vpn-access | unlimited-30 | نامحدود | time | reseller | - | 30')->reply();
