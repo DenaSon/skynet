@@ -1491,6 +1491,48 @@ it('defaults recovery CREATE to OFF even with an uncertain paid order', function
         ->and(DB::table('sales_orders')->value('status'))->toBe('paid');
 });
 
+it('accepts a MySQL-reordered CREATE JSON payload without weakening its original reservation hash', function (): void {
+    $data = sb05RecoveryOrder();
+    config()->set('services.remnawave.recovery_create_enabled', true);
+    $key = 'sales-order:'.$data['order'].':create';
+    $row = DB::table('provisioning_operations')->where('idempotency_key', $key)->first();
+    $payload = json_decode((string) $row->expected_payload, true, 512, JSON_THROW_ON_ERROR);
+    $unchangedHash = $row->payload_hash;
+
+    // MySQL JSON columns may reorder object keys; PHP's associative array
+    // encoding then differs from the original in-memory insertion order.
+    ksort($payload);
+    expect(hash('sha256', json_encode(['sales-order:'.$data['order'], 'create', $payload], JSON_THROW_ON_ERROR)))
+        ->not->toBe($unchangedHash);
+    DB::table('provisioning_operations')->where('idempotency_key', $key)
+        ->update(['expected_payload' => json_encode($payload, JSON_THROW_ON_ERROR)]);
+
+    Http::fake();
+    $order = app(RecoverPaidPlanOrder::class)->authorize($data['root']->id, $data['order']);
+
+    expect((int) $order->id)->toBe($data['order'])
+        ->and(DB::table('provisioning_operations')->where('idempotency_key', $key)->value('payload_hash'))
+        ->toBe($unchangedHash);
+    Http::assertNothingSent();
+});
+
+it('rejects tampered or expanded CREATE JSON despite MySQL key normalization', function (): void {
+    $data = sb05RecoveryOrder();
+    config()->set('services.remnawave.recovery_create_enabled', true);
+    $key = 'sales-order:'.$data['order'].':create';
+    $payload = json_decode((string) DB::table('provisioning_operations')
+        ->where('idempotency_key', $key)->value('expected_payload'), true, 512, JSON_THROW_ON_ERROR);
+    ksort($payload);
+    $payload['unsafeAdditionalField'] = true;
+    DB::table('provisioning_operations')->where('idempotency_key', $key)
+        ->update(['expected_payload' => json_encode($payload, JSON_THROW_ON_ERROR)]);
+
+    Http::fake();
+    expect(fn () => app(RecoverPaidPlanOrder::class)->authorize($data['root']->id, $data['order']))
+        ->toThrow(RuntimeException::class, 'Original provider intent');
+    Http::assertNothingSent();
+});
+
 it('performs a fully enumerated double GET before a single separately audited recovery POST', function (): void {
     $data = sb05RecoveryOrder();
     config()->set('services.remnawave.recovery_create_enabled', true);

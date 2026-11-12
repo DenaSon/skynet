@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Provisioning\Application;
 
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
+use App\Modules\Provisioning\Infrastructure\Remnawave\CreateRemnawaveUser;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -56,8 +57,7 @@ final readonly class RecoverPaidPlanOrder
         $this->fulfill->assertSettlement($order);
 
         $expected = json_decode((string) $original->expected_payload, true, 512, JSON_THROW_ON_ERROR);
-        if (! is_array($expected) || ! hash_equals((string) $original->payload_hash,
-            hash('sha256', json_encode([$reference, 'create', $expected], JSON_THROW_ON_ERROR)))
+        if (! is_array($expected)
             || (int) $order->duration_days < 1 || (int) $order->duration_days > 3650
             || ! in_array($order->plan_kind, ['time', 'volume', 'hybrid'], true)
             || ($order->traffic_gb === null && $order->plan_kind !== 'time')
@@ -71,6 +71,28 @@ final readonly class RecoverPaidPlanOrder
             || ($expected['activeInternalSquads'] ?? null) !== [(string) $order->internal_squad_uuid]
             || ($expected['trafficLimitBytes'] ?? null) !== ($order->traffic_gb === null
                 ? 0 : (int) $order->traffic_gb * 1073741824)) {
+            throw new RuntimeException('Original provider intent does not match the immutable paid order.');
+        }
+
+        // MySQL JSON columns may normalize object key order. Reconstruct the
+        // original CreateRemnawaveUser::body() insertion order before checking
+        // the immutable reservation hash. Still reject modified/missing fields.
+        $originalBody = (new CreateRemnawaveUser(
+            username: 'sk_'.substr(hash('sha256', $reference), 0, 24),
+            expireAt: $expected['expireAt'],
+            trafficLimitBytes: $order->traffic_gb === null ? 0 : (int) $order->traffic_gb * 1073741824,
+            internalSquadUuids: [(string) $order->internal_squad_uuid],
+            description: 'SkyNetwork ref:'.hash('sha256', $reference),
+        ))->body();
+        $normalizedExpected = $expected;
+        $normalizedOriginal = $originalBody;
+        ksort($normalizedExpected);
+        ksort($normalizedOriginal);
+        if ($normalizedExpected !== $normalizedOriginal
+            || ! hash_equals(
+                (string) $original->payload_hash,
+                hash('sha256', json_encode([$reference, 'create', $originalBody], JSON_THROW_ON_ERROR)),
+            )) {
             throw new RuntimeException('Original provider intent does not match the immutable paid order.');
         }
 
