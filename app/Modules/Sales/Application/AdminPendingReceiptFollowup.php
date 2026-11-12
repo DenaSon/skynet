@@ -157,7 +157,13 @@ final readonly class AdminPendingReceiptFollowup
 
     private function contactReady(object $order): bool
     {
-        return (bool) $order->is_active && is_numeric($order->telegram_user_id)
+        // A previously direct buyer may now have the reseller role. Sales
+        // refuses receipt submission for current resellers, so never send
+        // them a reminder with a non-functional receipt callback.
+        $buyer = User::query()->find((int) $order->buyer_user_id);
+
+        return $buyer !== null && ! $buyer->hasRole('reseller')
+            && (bool) $order->is_active && is_numeric($order->telegram_user_id)
             && (int) $order->telegram_user_id > 0
             && $order->delivery_status === 'reachable'
             && (string) $order->chat_id === (string) $order->telegram_user_id;
