@@ -75,7 +75,7 @@ final class RemnawaveSubscriptionLifecycle
      * paid-order CREATE. The initial create operation and evidence are retained.
      * Two full read-only absence checks are mandatory. Not a general retry API.
      *
-     * @param list<string> $internalSquadUuids
+     * @param  list<string>  $internalSquadUuids
      */
     public function recoverCreate(
         string $reference,
