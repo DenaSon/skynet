@@ -75,7 +75,7 @@ final readonly class SalesSupportUi
                 $keyboard->addRow(InlineKeyboardButton::make('📚 آموزش اتصال و خرید', callback_data: 'sales:help:apps'))
                     ->addRow(InlineKeyboardButton::make('🔧 رفع مشکل اتصال', callback_data: 'sales:help:troubleshoot'));
                 if (in_array('reseller', $actor->roles, true)) {
-                    $keyboard->addRow(InlineKeyboardButton::make('🧩 راهنمای پلن‌ساز', callback_data: 'sales:help:builder'));
+                    $keyboard->addRow(InlineKeyboardButton::make('🧩 آموزش پلن سفارشی', callback_data: 'sales:help:builder'));
                 }
                 break;
 
@@ -96,7 +96,7 @@ final readonly class SalesSupportUi
                 }
                 $keyboard->addRow(InlineKeyboardButton::make('🔧 رفع مشکل اتصال', callback_data: 'sales:help:troubleshoot'));
                 if (in_array('reseller', $actor->roles, true)) {
-                    $keyboard->addRow(InlineKeyboardButton::make('🧩 راهنمای پلن‌ساز', callback_data: 'sales:help:builder'));
+                    $keyboard->addRow(InlineKeyboardButton::make('🧩 آموزش پلن سفارشی', callback_data: 'sales:help:builder'));
                 }
                 break;
 
@@ -115,13 +115,14 @@ final readonly class SalesSupportUi
                 break;
 
             case 'builder':
-                $text = '<b>🧩 راهنمای پلن‌ساز</b>'."\n\n"
-                    ."۱. از منوی نماینده، «پلن‌ساز» را انتخاب کنید.\n\n"
-                    ."۲. پلن مناسب و حجم و مدت دلخواه مشتری را مشخص کنید.\n\n"
-                    ."۳. قیمت نهایی را بررسی کنید و ثبت سفارش را ادامه دهید.\n\n"
-                    .'۴. پس از پرداخت و تأیید، سرویس در «سرویس‌های من» نمایش داده می‌شود.'
-                    ."\n\n<blockquote>قیمت و امکان خرید قبل از ثبت سفارش بررسی می‌شود.</blockquote>";
-                $keyboard->addRow(InlineKeyboardButton::make('🧩 ورود به پلن‌ساز', callback_data: 'menu:builder'));
+                $text = '<b>🧩 آموزش پلن سفارشی</b>'."\n\n"
+                    ."برای هر مشتری، حجم و مدت دلخواه را انتخاب کنید؛ لازم نیست به بسته‌های آماده محدود باشید.\n\n"
+                    ."۱. از منوی نماینده «پلن سفارشی» را باز کنید.\n\n"
+                    ."۲. حجم و مدت را انتخاب کنید یا مقدار دقیق را بنویسید.\n\n"
+                    ."۳. قیمت نمایندگی را ببینید و خرید را ادامه دهید.\n\n"
+                    .'پس از پرداخت و فعال‌سازی، سرویس در «سرویس‌های من» نمایش داده می‌شود.'
+                    ."\n\n<blockquote>مبلغ و امکان خرید قبل از ثبت سفارش دوباره بررسی می‌شوند.</blockquote>";
+                $keyboard->addRow(InlineKeyboardButton::make('🧩 ساخت سرویس سفارشی', callback_data: 'menu:builder'));
                 break;
 
             case 'desktop':
@@ -274,7 +275,7 @@ final readonly class SalesSupportUi
             $minimum = TelegramUi::tomanPersian(SalesPanelRequests::minimumWalletBalanceRials());
             $html .= '<details><summary>🧩 راه‌اندازی پنل فروش</summary><p>با اعتبار اولیه '.$minimum.' تومان درخواست دهید؛ پس از تأیید، تخفیف نمایندگی ۳۵٪ اعمال می‌شود.</p></details>';
         } elseif ($reseller) {
-            $html .= '<details><summary>🧩 راهنمای پلن‌ساز</summary><p>حجم و مدت دلخواه مشتری را انتخاب کنید و پیش از ثبت سفارش قیمت را ببینید.</p></details>';
+            $html .= '<details><summary>🧩 آموزش پلن سفارشی</summary><p>برای مشتری حجم و مدت دلخواه را مشخص کنید و پیش از خرید قیمت نمایندگی را ببینید.</p></details>';
         }
 
         return $html;
@@ -286,7 +287,7 @@ final readonly class SalesSupportUi
         $blocks = explode("\n\n", $text);
         $title = TelegramUi::escape(strip_tags((string) array_shift($blocks)));
         $intro = '';
-        if (in_array($page, ['android', 'ios', 'windows', 'macos'], true)) {
+        if (in_array($page, ['android', 'ios', 'windows', 'macos', 'builder'], true)) {
             $intro = '<p>'.array_shift($blocks).'</p>';
         } elseif ($page === 'panel-setup') {
             $minimum = TelegramUi::tomanPersian(SalesPanelRequests::minimumWalletBalanceRials());
@@ -314,7 +315,7 @@ final readonly class SalesSupportUi
             $label = match ($page) {
                 'purchase' => '🛒 مراحل خرید',
                 'troubleshoot' => '🔧 بررسی و رفع مشکل',
-                'builder' => '🧩 مراحل ساخت پلن',
+                'builder' => '🧩 مراحل خرید سفارشی',
                 default => '📱 مراحل نصب و اتصال',
             };
             $html .= '<details><summary>'.$label.'</summary><p>'

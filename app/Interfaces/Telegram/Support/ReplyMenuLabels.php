@@ -24,7 +24,10 @@ final class ReplyMenuLabels
 
     public const SALES_PANEL_STATUS = '📨 وضعیت درخواست نمایندگی';
 
-    public const SALES_REPORTS = '📊 گزارش‌های من';
+    public const SALES_REPORTS = '📊 گزارش‌ها';
+
+    /** Previously displayed Sales reply keyboards must remain routable. */
+    public const PREVIOUS_SALES_REPORTS = '📊 گزارش‌های من';
 
     public const SALES_APP = '📱 اپلیکیشن';
 
@@ -104,7 +107,7 @@ final class ReplyMenuLabels
     {
         return [
             self::BUY, self::SUBSCRIPTIONS, self::CATALOG, self::ACCOUNT, self::INVITE, self::SALES_REWARD,
-            self::SETTINGS, self::ADMIN, self::SALES_WALLET, self::WALLET, self::BUILDER, self::SALES_REPORTS,
+            self::SETTINGS, self::ADMIN, self::SALES_WALLET, self::WALLET, self::BUILDER, self::SALES_REPORTS, self::PREVIOUS_SALES_REPORTS,
             self::SALES_PANEL_REQUEST, self::SALES_PANEL_STATUS, self::LEGACY_WALLET, self::LEGACY_BUILDER,
             self::OLD_WALLET_PANEL, self::OLD_BUILDER_PANEL, self::PREVIOUS_BUILDER, self::USERS,
             self::ROLES, self::PLANS, self::PRODUCTS, self::SALES_SECTION,

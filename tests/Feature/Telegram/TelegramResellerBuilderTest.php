@@ -138,7 +138,7 @@ it('renders real reseller prices and a guarded green checkout CTA in Rich withou
             return ($rich['is_rtl'] ?? false) === true
                 && str_contains($html, '49,000 تومان')
                 && str_contains($html, '10٪')
-                && str_contains($html, '44,100 تومان')
+                && str_contains($html, 'مبلغ قابل پرداخت: 44,100 تومان')
                 && str_contains($html, '<tg-button type="callback_data" style="success" data="'.$checkout.'">🛒 ادامه خرید</tg-button>')
                 && str_contains($buttons, $checkout)
                 && ! str_contains($buttons, "builder:quote:simple:{$id}:30:45:1")
@@ -152,7 +152,8 @@ it('renders real reseller prices and a guarded green checkout CTA in Rich withou
 
             return ! isset($data['rich_message'])
                 && str_contains((string) ($data['text'] ?? ''), 'قیمت عمومی: 49,000 تومان')
-                && str_contains((string) ($data['text'] ?? ''), 'قیمت مخصوص پنل فروش: 44,100 تومان')
+                && str_contains((string) ($data['text'] ?? ''), '💰 مبلغ قابل پرداخت: 44,100 تومان')
+                && str_contains(json_encode(json_decode((string) ($data['reply_markup'] ?? '[]'), true, flags: JSON_THROW_ON_ERROR), JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), '🛒 ادامه خرید')
                 && str_contains((string) ($data['reply_markup'] ?? ''), $checkout);
         }, index: 1,
     );
@@ -162,7 +163,7 @@ it('renders real reseller prices and a guarded green checkout CTA in Rich withou
         static function (Request $request) use ($id): bool {
             $html = b16Rich($request);
 
-            return str_contains($html, '48,600 تومان')
+            return str_contains($html, 'مبلغ قابل پرداخت: 48,600 تومان')
                 && str_contains($html, 'sales:checkout:preview:'.$id.':45:35')
                 && ! str_contains($html, 'sensitive-credential');
         },

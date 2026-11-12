@@ -208,7 +208,9 @@ final readonly class PlanAdminUi
             default => null,
         };
 
-        $gb = $plan->trafficGb === null ? 'نامحدود' : $plan->trafficGb.' GB';
+        $gb = $plan->mode === 'builder'
+            ? ($plan->kind === 'time' ? 'نامحدود' : 'انتخابی')
+            : ($plan->trafficGb === null ? 'نامحدود' : $plan->trafficGb.' GB');
         $days = $plan->durationDays === null ? 'انتخابی' : $plan->durationDays.' روز';
         $description = [
             $this->statusIcon($plan->status)." #{$plan->id} — ".$this->safe($plan->name),
@@ -806,7 +808,13 @@ final readonly class PlanAdminUi
         try {
             if (in_array($state['type'], ['preset', 'builder', 'edit'], true)) {
                 $definition = $this->forms->plan($state['type'], $text);
-                $summary = "پلن {$definition->name}\n{$definition->slug}\nنوع: ".TelegramUi::planKind($definition->kind).' | حجم: '.($definition->trafficGb ?? 'نامحدود').' | مدت: '.($definition->durationDays ?? 'انتخابی');
+                $gb = $definition->mode === 'builder'
+                    ? ($definition->kind === 'time' ? 'نامحدود' : "انتخابی ({$definition->minGb} تا {$definition->maxGb} گیگابایت)")
+                    : ($definition->trafficGb === null ? 'نامحدود' : $definition->trafficGb.' گیگابایت');
+                $days = $definition->mode === 'builder'
+                    ? "انتخابی ({$definition->minDays} تا {$definition->maxDays} روز)"
+                    : ($definition->durationDays === null ? 'انتخابی' : $definition->durationDays.' روز');
+                $summary = "پلن {$definition->name}\n{$definition->slug}\nنوع: ".TelegramUi::planKind($definition->kind)." | حجم: {$gb} | مدت: {$days}";
             } else {
                 $plan = $this->plans->find($actor->userId, $state['plan_id']);
                 $definition = $this->forms->price($state['type'], $text, $plan);

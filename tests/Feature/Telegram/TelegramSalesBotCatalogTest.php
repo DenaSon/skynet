@@ -488,9 +488,9 @@ it('gives Sales resellers truthful custom-plan guidance without unlocking financ
     $bot = sb02Bot(977021, $reseller);
 
     $bot->hearText('/builder')->reply()->assertReplyText(
-        "🧩 پلن‌ساز پنل فروش\nصفحه 1 از 1\n\n"
-        ."حجم و مدت دلخواه را انتخاب کنید؛ امکان ثبت سفارش پس از بررسی آمادگی سرویس مشخص می‌شود.\n\n"
-        .'در حال حاضر پلن سفارشی فعالی برای پنل فروش وجود ندارد.'
+        "🧩 پلن سفارشی\nصفحه 1 از 1\n\n"
+        ."حجم و مدت موردنیاز مشتری را انتخاب کنید؛ قیمت پیش از خرید نمایش داده می‌شود.\n\n"
+        .'در حال حاضر پلن سفارشی فعالی وجود ندارد.'
     );
 
     expect(DB::table('sales_orders')->count())->toBe(0);
