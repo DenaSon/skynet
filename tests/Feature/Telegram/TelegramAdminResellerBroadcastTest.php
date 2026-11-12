@@ -19,7 +19,7 @@ use Spatie\Permission\Models\Role;
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
-    config()->set('super_admin.telegram_ids', ['995501']);
+    config()->set('super_admin.telegram_ids', ['995501', '995502']);
     config()->set('telegram_notifications.enabled', true);
     config()->set('telegram.sales.enabled', true);
     config()->set('nutgram.token', '123:admin_test');
