@@ -1,3 +1,7 @@
+## Reseller catalog volume — 1–500 GB correction (2026-11-12)
+
+**Approved single-PR follow-up:** Remove the effective 100-GB hard stop from Admin base-product validation, legacy Sales quotation and Telegram free-form entry, and align new finite-volume managed plan definitions and copyable builder examples with the **500-GB** ceiling. Preserve existing 100-GB product settings unless an operator explicitly adjusts them; keep approved prices, existing orders, role authorization, one-time confirmations, provider writes and payment paths unchanged. See [context checkpoint](000-CONTEXT.md#sales-catalog-and-reseller-builder--500-gb-configuration-boundary-2026-11-12). Test 500/501 boundaries in Admin Bot, Sales quote, reseller builder and Telegram. Run full CI before any master merge; real Telegram/Provider checks remain separate.
+
 ## Feedback-driven incremental delivery — accepted strategy and completed receipt loop (2026-11-12)
 
 **Standing prioritization strategy:** **Feedback-Driven, Evidence-Based, Incremental Development** ([standards](004-STANDARDS.md#feedback-driven-evidence-based-incremental-development-normative)). Real customer/operator reports initiate **read-only verification and scoped proposals**, not a bypass of approved phases, explicit operator approval, review/CI, finance/Provider safeguards or automatic-Production-deploy risk. Use the smallest reversible PR, observe genuine effects and separate a single success report from aggregate evidence; no new feature is authorized merely by this strategy.
