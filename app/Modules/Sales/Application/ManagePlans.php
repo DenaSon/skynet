@@ -57,6 +57,9 @@ final readonly class ManagePlans
                 throw ValidationException::withMessages(['plan' => 'Plan is archived, unavailable, or has changed.']);
             }
 
+            // Orders snapshot this revision and its Squad. Never invalidate a sold plan.
+            $this->assertUnsold($planId);
+
             $product = DB::table('sales_products')->where('slug', $definition->productSlug)->first();
 
             if ($product === null) {
@@ -129,15 +132,12 @@ final readonly class ManagePlans
             }
 
             $this->validateTransition($current, (string) $row->operation);
+            // Recheck under the plan lock: an order may appear after the token was issued.
+            $this->assertUnsold((int) $current->id);
             DB::table('sales_plan_confirmations')->where('id', $row->id)->delete();
 
             if ($row->operation === 'delete') {
-                // Future orders reference plans with a restrictive FK. Never
-                // erase a sold plan; audit rows are deliberately retained.
-                if (DB::table('sales_orders')->where('plan_id', $current->id)->exists()) {
-                    throw ValidationException::withMessages(['plan' => 'Sold plans cannot be deleted.']);
-                }
-
+                // Unsold status is verified under the plan lock above.
                 DB::table('sales_plans')->where('id', $current->id)->delete();
                 $this->audit($actorId, (int) $current->id, (string) $current->slug, 'deleted', (int) $current->revision, null);
 
@@ -196,6 +196,13 @@ final readonly class ManagePlans
         return $this->getRecord($planId);
     }
 
+    public function hasOrders(int $actorId, int $planId): bool
+    {
+        $this->authority->require($actorId, 'plans.manage');
+
+        return DB::table('sales_orders')->where('plan_id', $planId)->exists();
+    }
+
     /** @return array<string, int|string|bool|null> */
     private function values(PlanDefinition $plan): array
     {
@@ -225,6 +232,14 @@ final readonly class ManagePlans
         }
 
         $this->validateTransition($row, $operation);
+        $this->assertUnsold($planId);
+    }
+
+    private function assertUnsold(int $planId): void
+    {
+        if (DB::table('sales_orders')->where('plan_id', $planId)->exists()) {
+            throw ValidationException::withMessages(['plan' => 'Plan has existing orders; manage its tariff or create a new plan.']);
+        }
     }
 
     private function validateTransition(object $plan, string $operation): void
