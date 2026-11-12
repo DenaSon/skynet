@@ -180,6 +180,7 @@ final readonly class PlanAdminUi
         }
 
         // Squad management and remote existence checks remain trusted-root-only.
+        $hasOrders = $this->plans->hasOrders($actor->userId, $planId);
         $binding = $actor->canManageRoles()
             ? $this->bindings->status($actor->userId, $planId)
             : ['state' => 'unavailable', 'name' => null];
@@ -229,27 +230,30 @@ final readonly class PlanAdminUi
             '🛒 ثبت سفارش در بات فروش: '.(! $actor->canManageRoles() ? 'نیازمند بررسی مدیر اصلی' : ($ready ? '✅ آماده' : '⏳ هنوز آماده نیست')),
             $reason === null ? '' : 'راهنما: '.$reason,
             'فعال‌سازی اشتراک پس از تأیید پرداخت، جداگانه انجام می‌شود.',
+            $hasOrders ? '🔒 این پلن سابقه سفارش دارد. برای توقف یا شروع فروش، تعرفه را مدیریت کنید؛ برای تغییر مشخصات، پلن جدید بسازید.' : '',
         ];
 
         $keyboard = InlineKeyboardMarkup::make();
 
         if ($plan->status !== 'archived') {
-            $keyboard->addRow(InlineKeyboardButton::make('✏️ ویرایش پلن', callback_data: "plan:begin:edit:{$planId}"));
+            if (! $hasOrders) {
+                $keyboard->addRow(InlineKeyboardButton::make('✏️ ویرایش پلن', callback_data: "plan:begin:edit:{$planId}"));
+            }
             if ($plan->mode === 'preset') {
                 $keyboard->addRow(InlineKeyboardButton::make('💵 تعرفه ثابت', callback_data: "plan:begin:fixed:{$planId}"));
             }
             $keyboard->addRow(InlineKeyboardButton::make('🧮 تعرفه فرمولی', callback_data: "plan:begin:formula:{$planId}"));
         }
 
-        if (in_array($plan->status, ['draft', 'inactive'], true)) {
+        if (! $hasOrders && in_array($plan->status, ['draft', 'inactive'], true)) {
             $keyboard->addRow(InlineKeyboardButton::make('✅ فعال‌سازی پلن', callback_data: "plan:status:{$planId}:activate"));
             $keyboard->addRow(
                 InlineKeyboardButton::make('📦 آرشیو', callback_data: "plan:status:{$planId}:archive"),
                 InlineKeyboardButton::make('🗑️ حذف', callback_data: "plan:status:{$planId}:delete"),
             );
-        } elseif ($plan->status === 'active') {
+        } elseif (! $hasOrders && $plan->status === 'active') {
             $keyboard->addRow(InlineKeyboardButton::make('⏸️ غیرفعال‌سازی پلن', callback_data: "plan:status:{$planId}:deactivate"));
-        } elseif ($plan->status === 'archived') {
+        } elseif (! $hasOrders && $plan->status === 'archived') {
             $keyboard->addRow(InlineKeyboardButton::make('🗑️ حذف آرشیوشده', callback_data: "plan:status:{$planId}:delete"));
         }
 
@@ -305,6 +309,12 @@ final readonly class PlanAdminUi
 
             if ($plan->status === 'archived') {
                 $this->notice($bot, 'پلن آرشیوشده قابل ویرایش نیست.');
+
+                return;
+            }
+
+            if ($type === 'edit' && $this->plans->hasOrders($actor->userId, $planId)) {
+                $this->notice($bot, 'این پلن سابقه سفارش دارد. برای تغییر مشخصات، پلن جدید بسازید.');
 
                 return;
             }
@@ -883,6 +893,13 @@ final readonly class PlanAdminUi
 
         try {
             $plan = $this->plans->find($actor->userId, $planId);
+            if (! in_array($operation, ['pa', 'pd'], true)
+                && $this->plans->hasOrders($actor->userId, $planId)) {
+                $this->notice($bot, 'این پلن سابقه سفارش دارد. برای توقف یا شروع فروش، تعرفه را مدیریت کنید.');
+
+                return;
+            }
+
             if (in_array($operation, ['pa', 'pd'], true)) {
                 $price = $this->pricing->find($actor->userId, $planId);
                 if ($price === null) {
