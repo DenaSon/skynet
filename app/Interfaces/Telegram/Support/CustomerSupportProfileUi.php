@@ -79,6 +79,12 @@ final readonly class CustomerSupportProfileUi
         $keyboard = InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: "users:profile:{$subjectId}:{$page}:{$mode}"));
 
+        if ($actor->canManageRoles() && $profile['ordersPending'] > 0) {
+            $keyboard->addRow(InlineKeyboardButton::make(
+                '🕓 سفارش‌های بدون رسید', callback_data: "receipt:followup:user:{$subjectId}:1",
+            ));
+        }
+
         if ($profile['servicesTotal'] > 0) {
             $keyboard->addRow(InlineKeyboardButton::make(
                 '📡 وضعیت زنده سرویس‌ها', callback_data: "c360:l:{$subjectId}:{$page}:{$mode}:1",

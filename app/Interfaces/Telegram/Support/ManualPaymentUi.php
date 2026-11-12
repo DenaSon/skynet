@@ -392,6 +392,11 @@ final readonly class ManualPaymentUi
         if ($arrows !== []) {
             $keyboard->addRow(...$arrows);
         }
+        if ($actor->canManageRoles()) {
+            $keyboard->addRow(InlineKeyboardButton::make(
+                '🕓 سفارش‌های بدون رسید', callback_data: 'receipt:followup:list:1',
+            ));
+        }
         $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'bank:list:'.$number))
             ->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
         $this->render($bot, $text, $keyboard, $acknowledged);
