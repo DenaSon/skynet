@@ -127,17 +127,17 @@ final class ReplyMenuRenderer
         $isReseller = $actor !== null && in_array('reseller', $actor->roles, true);
         $hasWallet = $actor !== null && (in_array('member', $actor->roles, true) || $isReseller);
 
-        // Keep the buy/services row first. Prioritize credit for both audiences,
-        // and the existing sales report for resellers; no routes or roles change.
+        // Put the reseller's two frequent purchase actions together.
+        // Reports remain available lower down; preserve member layout.
         if ($hasWallet) {
             $labels[] = ReplyMenuLabels::SALES_WALLET;
         }
         if ($isReseller) {
-            $labels[] = ReplyMenuLabels::SALES_REPORTS;
             $labels[] = ReplyMenuLabels::BUILDER;
-            $labels[] = ReplyMenuLabels::SALES_SUPPORT;
             $labels[] = ReplyMenuLabels::SALES_ACCOUNT;
+            $labels[] = ReplyMenuLabels::SALES_SUPPORT;
             $labels[] = ReplyMenuLabels::SALES_TUTORIAL;
+            $labels[] = ReplyMenuLabels::SALES_REPORTS;
         } else {
             $labels[] = ReplyMenuLabels::SALES_ACCOUNT;
             if ($actor !== null && $actor->roles === ['member']) {
