@@ -86,7 +86,7 @@ it('creates an inactive product with an owner-bound one-time preview and audit',
     Http::fake();
 
     $bot->hearCallbackQueryData('product:form:create:0:0')->reply()->assertCalled('editMessageText');
-    $bot->hearText('vpn-new | محصول جدید | 1 | 100')->reply()->assertCalled('sendMessage');
+    $bot->hearText('vpn-new | محصول جدید | 1 | 500')->reply()->assertCalled('sendMessage');
     $s = app(ProductAdminDrafts::class)->peek($root->id);
     expect($s['stage'])->toBe('preview')
         ->and(DB::table('sales_products')->count())->toBe(0);
@@ -95,6 +95,7 @@ it('creates an inactive product with an owner-bound one-time preview and audit',
     $bot->hearCallbackQueryData('product:apply:'.$s['token'])->reply()->assertCalled('editMessageText');
 
     expect(DB::table('sales_products')->where('slug', 'vpn-new')->value('is_active'))->toBe(0)
+        ->and(DB::table('sales_products')->where('slug', 'vpn-new')->value('max_gb'))->toBe(500)
         ->and(DB::table('sales_catalog_management_audits')->where('operation', 'product.created')->count())->toBe(1)
         ->and(DB::table('sales_orders')->count())->toBe(0)
         ->and(DB::table('billing_postings')->count())->toBe(0)
@@ -204,7 +205,8 @@ it('rejects invalid volume, rate bounds, duration and duplicate slugs before wri
     $bot->hearText('bad slug | Invalid | 1 | 100')->reply();
     expect(app(ProductAdminDrafts::class)->peek($root->id)['stage'])->toBe('step:0');
 
-    $bot->hearText('vpn-access | Valid | 0 | 101')->reply();
+    $bot->hearText('vpn-access | Valid | 0 | 500')->reply();
+    $bot->hearText('vpn-access | Valid | 1 | 501')->reply();
     expect(DB::table('sales_products')->count())->toBe(0);
 
     app(ConfigureProduct::class)->handle('vpn-access', 'Original');
