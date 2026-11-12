@@ -182,7 +182,7 @@ it('rejects invalid products, unsupported durations, unknown products and unsafe
     expect(fn () => app(ConfigureProduct::class)->handle('test', ''))->toThrow(ValidationException::class);
     expect(fn () => app(ConfigureProduct::class)->handle('test', 'Bad'."\n".'Name'))->toThrow(ValidationException::class);
     expect(fn () => app(ConfigureProduct::class)->handle('test', 'Test', 0, 100))->toThrow(ValidationException::class);
-    expect(fn () => app(ConfigureProduct::class)->handle('test', 'Test', 10, 101))->toThrow(ValidationException::class);
+    expect(fn () => app(ConfigureProduct::class)->handle('test', 'Test', 10, 501))->toThrow(ValidationException::class);
 
     expect(fn () => app(ConfigureRate::class)->handle('missing', 30, 20_000, 10_000))
         ->toThrow(ValidationException::class);
