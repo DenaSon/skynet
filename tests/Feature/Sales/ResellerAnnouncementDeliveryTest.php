@@ -31,7 +31,6 @@ beforeEach(function (): void {
     Http::fake(['https://api.telegram.org/bot456:sales_unit_test/sendMessage' => Http::response(['ok' => true], 200)]);
 });
 
-/** @return User */
 function raRoot(): User
 {
     $user = User::factory()->create();
@@ -77,7 +76,7 @@ it('targets only reachable active Sales resellers, freezes content and keeps pub
         ->and(app(ReadPublishedAnnouncements::class)->latest())->toBe([])
         ->and(DB::table('telegram_notification_deliveries')->count())->toBe(1)
         ->and(DB::table('telegram_notification_deliveries')->value('event_key'))
-            ->toBe("reseller:ann:{$notice['id']}:user:{$eligible->id}")
+        ->toBe("reseller:ann:{$notice['id']}:user:{$eligible->id}")
         ->and(DB::table('telegram_notification_deliveries')->value('bot_key'))->toBe('sales');
 
     expect(fn () => $app->update($root->id, $notice['id'], 1, 'ویرایش', 'جدید'))
