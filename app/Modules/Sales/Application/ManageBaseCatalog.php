@@ -282,7 +282,7 @@ final readonly class ManageBaseCatalog
         if (($create && (! is_string($slug) || preg_match('/\A[a-z][a-z0-9-]{2,49}\z/D', $slug) !== 1))
             || ! is_string($name) || trim($name) !== $name || $name === ''
             || mb_strlen($name) > 120 || preg_match('/[\x00-\x1f\x7f]/u', $name) === 1
-            || ! is_int($min) || ! is_int($max) || $min < 1 || $max > 100 || $min > $max) {
+            || ! is_int($min) || ! is_int($max) || $min < 1 || $max > ConfigureProduct::MAX_GB || $min > $max) {
             throw $this->invalid();
         }
 
