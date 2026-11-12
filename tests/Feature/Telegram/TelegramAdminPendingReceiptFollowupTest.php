@@ -277,11 +277,27 @@ it('sends from the Sales Bot to the recorded private numeric chat and only once'
         ->and($delivery->recipient_user_id)->toBe($buyer->id)
         ->and(DB::table('sales_orders')->where('id', $order)->value('status'))->toBe('pending_payment');
     Http::assertSentCount(1);
-    Http::assertSent(static fn (Request $request): bool => str_contains($request->url(), '56789:sales_test/sendMessage')
-        && (string) $request['chat_id'] === '998099'
-        && str_contains((string) $request['reply_markup'], 'sales:payment:receipt:'.$order)
-        && str_contains((string) $request['text'], 'اگر مبلغ سفارش را واریز کرده‌اید')
-        && ! str_contains((string) $request['text'], 'پرداخت شما تأیید شد'));
+    Http::assertSent(static function (Request $request) use ($order): bool {
+        $keyboard = json_decode((string) $request['reply_markup'], true, flags: JSON_THROW_ON_ERROR);
+        $receipt = $keyboard['inline_keyboard'][0][0] ?? [];
+        $view = $keyboard['inline_keyboard'][1][0] ?? [];
+        $text = (string) $request['text'];
+
+        return str_contains($request->url(), '56789:sales_test/sendMessage')
+            && (string) $request['chat_id'] === '998099'
+            && str_contains($text, '🧾 یادآوری پرداخت سفارش #'.$order)
+            && str_contains($text, 'سلام! 👋')
+            && str_contains($text, 'سفارش شما در دناگیت هنوز در انتظار ثبت رسید پرداخت است.')
+            && str_contains($text, 'تا پرداختتان بررسی و مراحل فعال‌سازی سرویس انجام شود.')
+            && str_contains($text, 'اگر هنوز پرداخت نکرده‌اید، نیازی به اقدامی نیست. 💚')
+            && ! str_contains($text, 'پرداخت شما تأیید شد')
+            && ($receipt['text'] ?? null) === '📷 ارسال رسید پرداخت'
+            && ($receipt['callback_data'] ?? null) === 'sales:payment:receipt:'.$order
+            && ($receipt['style'] ?? null) === 'success'
+            && ($view['text'] ?? null) === '📋 مشاهده سفارش'
+            && ($view['callback_data'] ?? null) === 'sales:checkout:view:'.$order
+            && ! isset($view['style']);
+    });
 
     $job->handle(app(TelegramNotificationSender::class));
     Http::assertSentCount(1);
