@@ -34,7 +34,7 @@ final class DispatchPendingNotifications extends Command
             // delivered. Operator retries cannot bypass its at-most-once fence.
             $reset = DB::table('telegram_notification_deliveries')
                 ->where('id', (int) $retry)
-                ->where('event_type', '!=', AdminPendingReceiptFollowup::EVENT)
+                ->whereNotIn('event_type', [AdminPendingReceiptFollowup::EVENT, 'ResellerAnnouncement'])
                 ->whereIn('state', ['dead', 'unavailable'])
                 ->update([
                     'state' => 'pending', 'attempts' => 0,

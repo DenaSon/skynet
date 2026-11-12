@@ -64,6 +64,7 @@ final readonly class AdminAnnouncementsUi
             $keyboard->addRow(InlineKeyboardButton::make('بعدی ▶️', callback_data: 'admin:ann:list:'.($result['page'] + 1)));
         }
         $keyboard->addRow(InlineKeyboardButton::make('➕ ثبت اطلاعیه', callback_data: 'admin:ann:new', style: ButtonStyle::SUCCESS));
+        $keyboard->addRow(InlineKeyboardButton::make('📨 ارسال برای نمایندگان', callback_data: 'admin:ann:reseller:new'));
         $keyboard->addRow(InlineKeyboardButton::make('◀️ کنترل پنل', callback_data: 'menu:admin:control'));
 
         $this->render($bot, implode("\n", $plain), $keyboard, $rich);
@@ -85,23 +86,33 @@ final readonly class AdminAnnouncementsUi
         $status = self::status((string) $row->status);
         $title = TelegramUi::escape((string) $row->title);
         $body = TelegramUi::escape((string) $row->body);
-        $date = $row->published_at === null ? 'منتشر نشده' : self::date((string) $row->published_at);
-        $plain = '<b>📢 '.$title.'</b>'."\n".'وضعیت: '.$status."\n".'آخرین انتشار: '.$date."\n\n".$body;
+        $resellerOnly = $row->status === 'reseller_sent';
+        $dateLabel = $resellerOnly ? 'زمان ثبت ارسال' : 'آخرین انتشار';
+        $date = $resellerOnly ? self::date((string) $row->created_at)
+            : ($row->published_at === null ? 'منتشر نشده' : self::date((string) $row->published_at));
+        $plain = '<b>📢 '.$title.'</b>'."\n".'وضعیت: '.$status."\n".$dateLabel.': '.$date."\n\n".$body;
         $rich = '<h3>📢 '.$title.'</h3><table bordered striped compact>'
             .'<tr><td>وضعیت</td><td>'.$status.'</td></tr>'
-            .'<tr><td>آخرین انتشار</td><td>'.$date.'</td></tr></table>'
+            .'<tr><td>'.$dateLabel.'</td><td>'.$date.'</td></tr></table>'
             .'<p>'.str_replace("\n", '</p><p>', $body).'</p>';
-        $keyboard = InlineKeyboardMarkup::make()
-            ->addRow(
+        $keyboard = InlineKeyboardMarkup::make();
+        if ($row->status === 'reseller_sent') {
+            $stats = $this->announcements->resellerDeliveryStats($root, (int) $row->id);
+            $summary = "ارسال موفق: {$stats['sent']} | در صف: {$stats['pending']}"
+                ." | ناموفق: {$stats['failed']} | نامشخص: {$stats['uncertain']}";
+            $plain .= "\n\n".$summary;
+            $rich .= '<p>'.TelegramUi::escape($summary).'</p>';
+        } else {
+            $keyboard->addRow(
                 InlineKeyboardButton::make('✏️ عنوان', callback_data: 'admin:ann:edit:'.$row->id.':title'),
                 InlineKeyboardButton::make('📝 متن', callback_data: 'admin:ann:edit:'.$row->id.':body'),
-            )
-            ->addRow(InlineKeyboardButton::make(
+            )->addRow(InlineKeyboardButton::make(
                 $row->status === 'published' ? '⏸️ لغو انتشار' : '✅ انتشار اطلاعیه',
                 callback_data: 'admin:ann:prepare:'.$row->id.':'.($row->status === 'published' ? 'unpublish' : 'publish'),
                 style: $row->status === 'published' ? ButtonStyle::DANGER : ButtonStyle::SUCCESS,
-            ))
-            ->addRow(InlineKeyboardButton::make('◀️ اطلاعیه‌ها', callback_data: 'admin:ann:list:1'));
+            ));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('◀️ اطلاعیه‌ها', callback_data: 'admin:ann:list:1'));
 
         $this->render($bot, $plain, $keyboard, $rich);
     }
@@ -118,6 +129,19 @@ final readonly class AdminAnnouncementsUi
         $this->notice($bot, "➕ ثبت اطلاعیه\n\nعنوان اطلاعیه را ارسال کنید (حداکثر ۱۲۰ نویسه).", $this->cancelKeyboard());
     }
 
+    public function beginReseller(Nutgram $bot): void
+    {
+        $root = $this->root($bot);
+        if ($root === null) {
+            return;
+        }
+
+        $this->retireCompeting($root, (int) $this->private->id($bot));
+        Cache::put($this->draftKey($root), ['mode' => 'reseller', 'step' => 'title'], now()->addMinutes(10));
+        $this->notice($bot, "📨 ارسال اطلاعیه برای نمایندگان\n\nعنوان کوتاه اطلاعیه را ارسال کنید (حداکثر ۱۲۰ نویسه).",
+            $this->cancelKeyboard());
+    }
+
     public function edit(Nutgram $bot, string $id, string $field): void
     {
         $root = $this->root($bot);
@@ -131,8 +155,8 @@ final readonly class AdminAnnouncementsUi
             return;
         }
         $row = $this->announcements->find($root, $number);
-        if ($row === null) {
-            $this->notice($bot, 'اطلاعیه پیدا نشد.');
+        if ($row === null || $row->status === 'reseller_sent') {
+            $this->notice($bot, 'این اطلاعیه قابل ویرایش نیست.');
 
             return;
         }
@@ -191,7 +215,7 @@ final readonly class AdminAnnouncementsUi
         }
 
         $draft[$step] = $value;
-        if ($draft['mode'] === 'new' && $step === 'title') {
+        if (in_array($draft['mode'], ['new', 'reseller'], true) && $step === 'title') {
             $draft['step'] = 'body';
             Cache::put($key, $draft, now()->addMinutes(10));
             $this->notice($bot, "✅ عنوان ثبت شد.\n\nاکنون متن اطلاعیه را ارسال کنید (حداکثر ۱۵۰۰ نویسه).",
@@ -215,7 +239,7 @@ final readonly class AdminAnnouncementsUi
             return;
         }
         $draft = $this->consume($this->draftKey($root), $token, 'preview');
-        if ($draft === null) {
+        if ($draft === null || ! in_array($draft['mode'] ?? null, ['new', 'edit'], true)) {
             $this->notice($bot, 'این تأیید دیگر معتبر نیست. ثبت اطلاعیه را دوباره شروع کنید.');
 
             return;
@@ -232,6 +256,65 @@ final readonly class AdminAnnouncementsUi
                 ->addRow(InlineKeyboardButton::make('◀️ اطلاعیه‌ها', callback_data: 'admin:ann:list:1')));
         } catch (ValidationException) {
             $this->notice($bot, 'ثبت ممکن نشد؛ اطلاعیه احتمالاً تغییر کرده است. دوباره بررسی کنید.');
+        }
+    }
+
+    public function prepareReseller(Nutgram $bot, string $token): void
+    {
+        $root = $this->root($bot);
+        if ($root === null) {
+            return;
+        }
+        $key = $this->draftKey($root);
+        $draft = Cache::get($key);
+        if (! is_array($draft) || ($draft['mode'] ?? null) !== 'reseller'
+            || ($draft['step'] ?? null) !== 'preview'
+            || ! is_string($draft['token'] ?? null)
+            || ! hash_equals($draft['token'], $token)) {
+            $this->notice($bot, 'پیش‌نمایش منقضی شده است.');
+
+            return;
+        }
+
+        $count = $this->announcements->resellerRecipientCount($root);
+        $draft['step'] = 'confirm-reseller';
+        Cache::put($key, $draft, now()->addMinutes(3));
+        $this->notice($bot, "📨 تأیید ارسال به نمایندگان\n\n"
+            .'عنوان: '.TelegramUi::escape((string) $draft['title'])
+            ."\nمخاطبان قابل‌دسترسی در بات فروش: {$count} نفر"
+            ."\n\nپس از تأیید، ارسال در صف قرار می‌گیرد و قابل برگشت نیست."
+            ."\nاین اطلاعیه برای کاربران عادی منتشر نمی‌شود.",
+            InlineKeyboardMarkup::make()
+                ->addRow(InlineKeyboardButton::make('✅ تأیید و ارسال به نمایندگان',
+                    callback_data: 'admin:ann:reseller:commit:'.$token, style: ButtonStyle::SUCCESS))
+                ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'admin:ann:cancel')));
+    }
+
+    public function commitReseller(Nutgram $bot, string $token): void
+    {
+        $root = $this->root($bot);
+        if ($root === null) {
+            return;
+        }
+        $draft = $this->consume($this->draftKey($root), $token, 'confirm-reseller');
+        if ($draft === null || ($draft['mode'] ?? null) !== 'reseller') {
+            $this->notice($bot, 'این تأیید منقضی شده یا قبلاً استفاده شده است.');
+
+            return;
+        }
+        try {
+            $result = $this->announcements->sendToResellers(
+                $root, (string) $draft['title'], (string) $draft['body'],
+            );
+            $this->notice($bot, "✅ اطلاعیه در صف ارسال برای {$result['recipients']} نماینده قرار گرفت."
+                ."\nپیام‌ها از طریق بات فروش ارسال می‌شوند.",
+                InlineKeyboardMarkup::make()
+                    ->addRow(InlineKeyboardButton::make('📋 وضعیت ارسال',
+                        callback_data: 'admin:ann:view:'.$result['id']))
+                    ->addRow(InlineKeyboardButton::make('◀️ اطلاعیه‌ها', callback_data: 'admin:ann:list:1')));
+        } catch (ValidationException $exception) {
+            $this->notice($bot, $exception->validator->errors()->first('announcement')
+                ?: 'ارسال ممکن نشد. وضعیت بات فروش و اعلان‌ها را بررسی کنید.');
         }
     }
 
@@ -357,15 +440,22 @@ final readonly class AdminAnnouncementsUi
         $plain = '<b>📢 پیش‌نمایش اطلاعیه</b>'."\n\n".'<b>'.$title.'</b>'."\n\n".$body;
         $rich = '<h3>📢 پیش‌نمایش اطلاعیه</h3><h4>'.$title.'</h4>'
             .'<p>'.str_replace("\n", '</p><p>', $body).'</p>';
-        $keyboard = InlineKeyboardMarkup::make()
-            ->addRow(InlineKeyboardButton::make(
+        $keyboard = InlineKeyboardMarkup::make();
+        if ($draft['mode'] === 'reseller') {
+            $plain .= "\n\nمخاطب: فقط نمایندگان فعال در بات فروش";
+            $rich .= '<p><b>مخاطب: فقط نمایندگان فعال در بات فروش</b></p>';
+            $keyboard->addRow(InlineKeyboardButton::make('📨 ارسال برای نمایندگان',
+                callback_data: 'admin:ann:reseller:prepare:'.$draft['token'], style: ButtonStyle::SUCCESS));
+        } else {
+            $keyboard->addRow(InlineKeyboardButton::make(
                 $draft['mode'] === 'new' ? '💾 ذخیره پیش‌نویس' : '✅ ثبت تغییرات',
                 callback_data: 'admin:ann:save:'.$draft['token'],
                 style: ButtonStyle::SUCCESS,
             ));
-        if ($draft['mode'] === 'new') {
-            $keyboard->addRow(InlineKeyboardButton::make('📢 انتشار اطلاعیه',
-                callback_data: 'admin:ann:prepare-new:'.$draft['token']));
+            if ($draft['mode'] === 'new') {
+                $keyboard->addRow(InlineKeyboardButton::make('📢 انتشار اطلاعیه',
+                    callback_data: 'admin:ann:prepare-new:'.$draft['token']));
+            }
         }
         $keyboard->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'admin:ann:cancel'));
         $this->render($bot, $plain, $keyboard, $rich);
@@ -464,7 +554,11 @@ final readonly class AdminAnnouncementsUi
 
     private static function status(string $status): string
     {
-        return $status === 'published' ? '🟢 منتشرشده' : '📝 پیش‌نویس';
+        return match ($status) {
+            'published' => '🟢 منتشرشده',
+            'reseller_sent' => '📨 اطلاعیه نمایندگان',
+            default => '📝 پیش‌نویس',
+        };
     }
 
     private static function date(string $value): string

@@ -52,11 +52,20 @@ final class DispatchTelegramNotification implements ShouldQueue
             return;
         }
 
+        // Broadcasts are one-shot: once a transport attempt starts, an
+        // uncertain response or worker crash must never replay a mass message.
+        $state = $row->event_type === 'ResellerAnnouncement' ? 'sending' : 'processing';
+        if ($state === 'sending' && DB::table('telegram_notification_deliveries')
+            ->where('id', $this->deliveryId)->where('state', 'processing')
+            ->update(['state' => 'sending', 'leased_until' => null, 'updated_at' => now()]) !== 1) {
+            return;
+        }
+
         try {
             $sender->send($row);
 
             DB::table('telegram_notification_deliveries')
-                ->where('id', $this->deliveryId)->where('state', 'processing')->update([
+                ->where('id', $this->deliveryId)->where('state', $state)->update([
                     'state' => 'sent',
                     'sent_at' => now(),
                     'leased_until' => null,
@@ -65,21 +74,22 @@ final class DispatchTelegramNotification implements ShouldQueue
                 ]);
         } catch (NotificationUnavailable $e) {
             DB::table('telegram_notification_deliveries')
-                ->where('id', $this->deliveryId)->where('state', 'processing')->update([
+                ->where('id', $this->deliveryId)->where('state', $state)->update([
                     'state' => 'unavailable', 'leased_until' => null,
                     'last_failure' => $e->category,
                     'updated_at' => now(),
                 ]);
         } catch (Throwable) {
             $attempts = (int) $row->attempts;
-            $terminal = $attempts >= (int) config('telegram_notifications.max_attempts', 5);
+            $terminal = $state === 'sending'
+                || $attempts >= (int) config('telegram_notifications.max_attempts', 5);
 
             DB::table('telegram_notification_deliveries')
-                ->where('id', $this->deliveryId)->where('state', 'processing')->update([
+                ->where('id', $this->deliveryId)->where('state', $state)->update([
                     'state' => $terminal ? 'dead' : 'pending',
                     'available_at' => now()->addSeconds(min(300, 5 * (4 ** min($attempts - 1, 3)))),
                     'leased_until' => null,
-                    'last_failure' => 'transport',
+                    'last_failure' => $state === 'sending' ? 'delivery_uncertain' : 'transport',
                     'updated_at' => now(),
                 ]);
         }

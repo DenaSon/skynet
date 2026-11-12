@@ -99,6 +99,33 @@ final readonly class TelegramNotificationSender
 
         $token = $this->token($bot);
 
+        if ($delivery->event_type === 'ResellerAnnouncement') {
+            if ($bot !== 'sales'
+                || preg_match('/\\Areseller:ann:([1-9][0-9]*):user:([1-9][0-9]*)\\z/D',
+                    (string) $delivery->event_key, $matches) !== 1
+                || (int) $matches[2] !== $userId) {
+                throw new NotificationUnavailable('invalid_recipient');
+            }
+
+            $actor = $this->actors->handle($chat);
+            if ($actor === null || $actor->userId !== $userId
+                || ! in_array('reseller', $actor->roles, true)) {
+                throw new NotificationUnavailable('not_reseller');
+            }
+
+            $notice = DB::table('announcements')->where('id', (int) $matches[1])
+                ->where('status', 'reseller_sent')->first(['title', 'body']);
+            if ($notice === null) {
+                throw new NotificationUnavailable('announcement_unavailable');
+            }
+
+            $this->text('sales', $chat, '<b>📢 اطلاعیه ویژه نمایندگان دناگیت</b>'
+                ."\n\n<b>".TelegramUi::escape((string) $notice->title).'</b>'
+                ."\n\n".TelegramUi::escape((string) $notice->body), null, 'HTML', false);
+
+            return;
+        }
+
         if ($delivery->event_type === 'ReferralRewardCredited') {
             $orderId = (int) $delivery->order_id;
             if ($bot !== 'sales' || $orderId < 1) {

@@ -76,7 +76,7 @@ $bot->onCallbackQueryData('admin:welcome:cancel', function (Nutgram $bot): void 
     app(SettingsHandler::class)->cancel($bot);
 });
 
-// ANN-01: trusted-root announcements. No customer broadcasts or Sales routes.
+// Trusted-root announcement management and explicitly confirmed reseller-only Sales Bot notices.
 $bot->onCallbackQueryData('admin:ann:list:{page}', function (Nutgram $bot, string $page): void {
     app(AdminAnnouncementsUi::class)->browse($bot, $page);
 });
@@ -86,6 +86,16 @@ $bot->onCallbackQueryData('admin:ann:view:{id}', function (Nutgram $bot, string 
 $bot->onCallbackQueryData('admin:ann:new', function (Nutgram $bot): void {
     app(AdminAnnouncementsUi::class)->begin($bot);
 });
+$bot->onCallbackQueryData('admin:ann:reseller:new', function (Nutgram $bot): void {
+    app(AdminAnnouncementsUi::class)->beginReseller($bot);
+});
+$bot->onCallbackQueryData('admin:ann:reseller:prepare:{token}', function (Nutgram $bot, string $token): void {
+    app(AdminAnnouncementsUi::class)->prepareReseller($bot, $token);
+});
+$bot->onCallbackQueryData('admin:ann:reseller:commit:{token}', function (Nutgram $bot, string $token): void {
+    app(AdminAnnouncementsUi::class)->commitReseller($bot, $token);
+});
+
 $bot->onCallbackQueryData('admin:ann:edit:{id}:{field}', function (Nutgram $bot, string $id, string $field): void {
     app(AdminAnnouncementsUi::class)->edit($bot, $id, $field);
 });
