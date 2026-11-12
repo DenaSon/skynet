@@ -16,9 +16,11 @@ use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Application\FulfillPaidPlanOrder;
 use App\Modules\Provisioning\Application\GetMySubscription;
 use App\Modules\Provisioning\Application\ManageFulfilledSubscriptionStatus;
+use App\Modules\Provisioning\Application\RecoverPaidPlanOrder;
 use App\Modules\Provisioning\Application\ReviewPaidFulfillment;
 use App\Modules\Provisioning\Jobs\ChangeFulfilledSubscriptionStatusJob;
 use App\Modules\Provisioning\Jobs\FulfillPaidPlanOrderJob;
+use App\Modules\Provisioning\Jobs\RecoverPaidPlanOrderJob;
 use App\Modules\Referral\Application\GrantReferralReward;
 use App\Modules\Sales\Application\CalculatePlanQuote;
 use App\Modules\Sales\Application\ConfigureProduct;
@@ -35,6 +37,7 @@ use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Bus\UniqueLock;
 use Illuminate\Database\Events\TransactionRolledBack;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -1460,4 +1463,259 @@ it('keeps old paid review cases reachable across pages and flags only genuinely 
     expect(DB::table('sales_fulfillment_outbox')->count())->toBe(27);
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
     Http::assertNotSent(static fn (Request $request): bool => $request->method() !== 'GET');
+});
+
+/** Simulates a settled, uncertain one-shot CREATE without sending a second POST. */
+function sb05RecoveryOrder(): array
+{
+    $data = sb05Order();
+    config()->set('services.remnawave.writes_enabled', true);
+    Http::fake(['https://remna.test/api/users' => Http::response(['message' => 'unavailable'], 503)]);
+    expect(fn () => app(FulfillPaidPlanOrder::class)->handle($data['order']))
+        ->toThrow(RuntimeException::class, 'reconciliation');
+    expect(DB::table('sales_fulfillment_outbox')->value('state'))->toBe('needs_review');
+    Http::swap(new Factory);
+    Http::preventStrayRequests();
+
+    return $data;
+}
+
+it('defaults recovery CREATE to OFF even with an uncertain paid order', function (): void {
+    $data = sb05RecoveryOrder();
+    Http::fake();
+    expect(config('services.remnawave.recovery_create_enabled', false))->toBeFalse()
+        ->and(fn () => app(RecoverPaidPlanOrder::class)->handle($data['root']->id, $data['order']))
+        ->toThrow(RuntimeException::class, 'not enabled');
+    Http::assertNothingSent();
+    expect(DB::table('provisioning_operations')->count())->toBe(1)
+        ->and(DB::table('sales_orders')->value('status'))->toBe('paid');
+});
+
+it('performs a fully enumerated double GET before a single separately audited recovery POST', function (): void {
+    $data = sb05RecoveryOrder();
+    config()->set('services.remnawave.recovery_create_enabled', true);
+    $before = DB::table('billing_journals')->count();
+    $sentExpiry = null;
+
+    Http::fake(static function (Request $request) use ($data, &$sentExpiry) {
+        if ($request->method() === 'GET' && str_contains($request->url(), '/by-username/')) {
+            return Http::response(['message' => 'not found'], 404);
+        }
+        if ($request->method() === 'GET' && parse_url($request->url(), PHP_URL_PATH) === '/api/users') {
+            return Http::response(['response' => ['users' => [], 'total' => 0]], 200);
+        }
+        if ($request->method() === 'POST') {
+            $sentExpiry = (string) $request['expireAt'];
+
+            return Http::response(['response' => sb05Remote(
+                $data['order'], (string) $request['expireAt'], (int) $request['trafficLimitBytes'],
+            )], 201);
+        }
+
+        return Http::response(['message' => 'unexpected'], 500);
+    });
+
+    $remoteId = app(RecoverPaidPlanOrder::class)->handle($data['root']->id, $data['order']);
+    $key = 'sales-order:'.$data['order'].':recovery:create:1';
+    $initial = DB::table('provisioning_operations')
+        ->where('idempotency_key', 'sales-order:'.$data['order'].':create')->first();
+    $recovery = DB::table('provisioning_operations')->where('idempotency_key', $key)->first();
+
+    expect($remoteId)->toBe(52)
+        ->and($initial->state)->toBe('needs_review')
+        ->and($recovery->state)->toBe('completed')
+        ->and($recovery->kind)->toBe('create')
+        ->and($recovery->actor_user_id)->toBe($data['root']->id)
+        ->and($recovery->reason_code)->toBe('support')
+        ->and(DB::table('sales_orders')->value('status'))->toBe('fulfilled')
+        ->and(DB::table('sales_fulfillment_outbox')->value('state'))->toBe('completed')
+        ->and(DB::table('provisioning_order_links')->count())->toBe(1)
+        ->and(DB::table('billing_journals')->count())->toBe($before)
+        ->and((new DateTimeImmutable($sentExpiry))->getTimestamp())->toBeGreaterThan(now()->utc()->addDays(29)->getTimestamp());
+    Http::assertSentCount(5);
+    Http::assertSent(static fn (Request $r): bool => $r->method() === 'POST'
+        && (string) $r['username'] === 'sk_'.substr(hash('sha256', 'sales-order:'.$data['order']), 0, 24));
+    expect(fn () => app(RecoverPaidPlanOrder::class)->handle($data['root']->id, $data['order']))
+        ->toThrow(RuntimeException::class);
+    Http::assertSentCount(5);
+});
+
+it('refuses provider CREATE when a single GET finds the original username', function (): void {
+    $data = sb05RecoveryOrder();
+    config()->set('services.remnawave.recovery_create_enabled', true);
+    $op = DB::table('provisioning_operations')->first();
+    $expected = json_decode($op->expected_payload, true, 512, JSON_THROW_ON_ERROR);
+    Http::fake(['https://remna.test/api/users/by-username/*' => Http::response([
+        'response' => sb05Remote($data['order'], $expected['expireAt'], $expected['trafficLimitBytes']),
+    ], 200)]);
+
+    expect(fn () => app(RecoverPaidPlanOrder::class)->handle($data['root']->id, $data['order']))
+        ->toThrow(RuntimeException::class, 'already contains');
+    Http::assertSentCount(1);
+    Http::assertNotSent(static fn (Request $r): bool => $r->method() === 'POST');
+    expect(DB::table('provisioning_operations')->count())->toBe(1);
+});
+
+it('fails closed if a provider user appears on the second preflight and never posts', function (): void {
+    $data = sb05RecoveryOrder();
+    config()->set('services.remnawave.recovery_create_enabled', true);
+    $lists = 0;
+    Http::fake(static function (Request $r) use ($data, &$lists) {
+        if (str_contains($r->url(), '/by-username/')) {
+            return Http::response(['message' => 'not found'], 404);
+        }
+        if ($r->method() === 'GET') {
+            $lists++;
+
+            return Http::response(['response' => [
+                'users' => $lists === 1 ? [] : [sb05Remote(
+                    $data['order'], now()->utc()->addDays(30)->format('Y-m-d\TH:i:s\Z'), 20 * 1073741824,
+                )],
+                'total' => $lists === 1 ? 0 : 1,
+            ]], 200);
+        }
+
+        return Http::response(['message' => 'blocked'], 500);
+    });
+
+    expect(fn () => app(RecoverPaidPlanOrder::class)->handle($data['root']->id, $data['order']))
+        ->toThrow(RuntimeException::class, 'reconciliation');
+    $key = 'sales-order:'.$data['order'].':recovery:create:1';
+    expect(DB::table('provisioning_operations')->where('idempotency_key', $key)->value('state'))->toBe('aborted')
+        ->and(DB::table('provisioning_subscriptions')->value('state'))->toBe('needs_review')
+        ->and(DB::table('provisioning_subscriptions')->value('last_operation_key'))->toBe('sales-order:'.$data['order'].':create')
+        ->and(DB::table('sales_orders')->value('status'))->toBe('paid');
+    Http::assertSentCount(4);
+    Http::assertNotSent(static fn (Request $r): bool => $r->method() === 'POST');
+    expect(fn () => app(RecoverPaidPlanOrder::class)->handle($data['root']->id, $data['order']))
+        ->toThrow(RuntimeException::class);
+    Http::assertSentCount(4);
+
+    // The originally created user can now be reconciled using its *original*
+    // immutable expiry, not the new recovery expiry that was never POSTed.
+    $original = json_decode((string) DB::table('provisioning_operations')
+        ->where('idempotency_key', 'sales-order:'.$data['order'].':create')
+        ->value('expected_payload'), true, 512, JSON_THROW_ON_ERROR);
+    Http::swap(new Factory);
+    Http::preventStrayRequests();
+    Http::fake(['https://remna.test/api/users/by-username/*' => Http::response([
+        'response' => sb05Remote($data['order'], $original['expireAt'], $original['trafficLimitBytes']),
+    ], 200)]);
+
+    expect(app(FulfillPaidPlanOrder::class)->reconcile($data['order']))->toBe(52)
+        ->and(DB::table('sales_orders')->value('status'))->toBe('fulfilled')
+        ->and(DB::table('provisioning_order_links')->count())->toBe(1);
+    Http::assertSentCount(1);
+    Http::assertSent(static fn (Request $r): bool => $r->method() === 'GET');
+});
+
+it('reconciles a single uncertain recovery with GET only and preserves the initial CREATE audit', function (): void {
+    $data = sb05RecoveryOrder();
+    config()->set('services.remnawave.recovery_create_enabled', true);
+    Http::fake(static function (Request $r) {
+        if ($r->method() === 'GET' && str_contains($r->url(), '/by-username/')) {
+            return Http::response(['message' => 'not found'], 404);
+        }
+        if ($r->method() === 'GET') {
+            return Http::response(['response' => ['users' => [], 'total' => 0]], 200);
+        }
+
+        return Http::response(['message' => 'unavailable'], 503);
+    });
+    expect(fn () => app(RecoverPaidPlanOrder::class)->handle($data['root']->id, $data['order']))
+        ->toThrow(RuntimeException::class, 'reconciliation');
+    $key = 'sales-order:'.$data['order'].':recovery:create:1';
+    $expected = json_decode((string) DB::table('provisioning_operations')
+        ->where('idempotency_key', $key)->value('expected_payload'), true, 512, JSON_THROW_ON_ERROR);
+    config()->set('services.remnawave.recovery_create_enabled', false);
+    Http::swap(new Factory);
+    Http::preventStrayRequests();
+    Http::fake(['https://remna.test/api/users/by-username/*' => Http::response([
+        'response' => sb05Remote($data['order'], $expected['expireAt'], $expected['trafficLimitBytes']),
+    ], 200)]);
+
+    expect(app(FulfillPaidPlanOrder::class)->reconcile($data['order']))->toBe(52)
+        ->and(DB::table('sales_orders')->value('status'))->toBe('fulfilled')
+        ->and(DB::table('provisioning_operations')->where('idempotency_key', $key)->value('state'))->toBe('completed')
+        ->and(DB::table('provisioning_operations')->count())->toBe(2);
+    Http::assertSentCount(1);
+    Http::assertSent(static fn (Request $r): bool => $r->method() === 'GET');
+});
+
+it('rejects unauthorized roots, revoked plan bindings and missing settlements before recovery writes', function (): void {
+    $data = sb05RecoveryOrder();
+    config()->set('services.remnawave.recovery_create_enabled', true);
+    Http::fake();
+    $other = User::factory()->admin()->create();
+    expect(fn () => app(RecoverPaidPlanOrder::class)->authorize($other->id, $data['order']))
+        ->toThrow(AuthorizationException::class);
+    DB::table('sales_plan_internal_squad_bindings')->where('plan_id', $data['plan'])
+        ->update(['verified_at' => null]);
+    expect(fn () => app(RecoverPaidPlanOrder::class)->handle($data['root']->id, $data['order']))
+        ->toThrow(ValidationException::class);
+    Http::assertNothingSent();
+    expect(DB::table('provisioning_operations')->count())->toBe(1);
+});
+
+it('shows recovery only when independently enabled and consumes the root-only confirmation once', function (): void {
+    $data = sb05RecoveryOrder();
+    Queue::fake();
+    Http::fake();
+
+    $bot = Nutgram::fake();
+    require base_path('app/Interfaces/Telegram/routes/admin.php');
+    $bot->setCommonUser(TelegramUser::make(975001, false, 'Root'));
+    $bot->setCommonChat(Chat::make(975001, ChatType::PRIVATE));
+
+    $bot->hearCallbackQueryData('full:view:'.$data['order'])->reply()
+        ->assertRaw(static function (NutgramRequest $r): bool {
+            $buttons = json_encode(sb05TelegramPayload($r)['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return ! str_contains($buttons, 'full:prepare:') || ! str_contains($buttons, ':recovery');
+        }, index: 1);
+
+    config()->set('services.remnawave.recovery_create_enabled', true);
+    $token = null;
+
+    $bot->hearCallbackQueryData('full:view:'.$data['order'])->reply()
+        ->assertRaw(static function (NutgramRequest $r) use ($data): bool {
+            $buttons = json_encode(sb05TelegramPayload($r)['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return str_contains($buttons, 'full:prepare:'.$data['order'].':recovery');
+        }, index: 1);
+
+    $bot->hearCallbackQueryData('full:prepare:'.$data['order'].':recovery')->reply()
+        ->assertRaw(static function (NutgramRequest $r) use (&$token): bool {
+            $payload = sb05TelegramPayload($r);
+            $buttons = json_encode($payload['reply_markup'], JSON_THROW_ON_ERROR);
+            if (preg_match('/full:apply:([a-f0-9]{32})/', $buttons, $matches) !== 1) {
+                return false;
+            }
+            $token = $matches[1];
+
+            return str_contains((string) $payload['text'], 'تأیید درخواست بازیابی')
+                && str_contains($buttons, '"style":"success"');
+        }, index: 1);
+    expect($token)->not->toBeNull();
+
+    $bot->hearCallbackQueryData('full:apply:'.$token)->reply();
+    Queue::assertPushed(RecoverPaidPlanOrderJob::class, 1);
+    $bot->hearCallbackQueryData('full:apply:'.$token)->reply();
+    Queue::assertPushed(RecoverPaidPlanOrderJob::class, 1);
+    Http::assertNothingSent();
+    expect(DB::table('provisioning_operations')->count())->toBe(1)
+        ->and(DB::table('sales_orders')->value('status'))->toBe('paid');
+});
+
+it('refuses a queued recovery if the operator loses authorization after confirmation', function (): void {
+    $data = sb05RecoveryOrder();
+    config()->set('services.remnawave.recovery_create_enabled', true);
+    Http::fake();
+    $job = new RecoverPaidPlanOrderJob($data['order'], $data['root']->id);
+    expect($job->tries)->toBe(1)
+        ->and($job->uniqueId())->toBe('parsa:fulfillment:'.$data['order']);
+    $data['root']->syncRoles(['member']);
+    $job->handle(app(RecoverPaidPlanOrder::class));
+    Http::assertNothingSent();
+    expect(DB::table('provisioning_operations')->count())->toBe(1);
 });

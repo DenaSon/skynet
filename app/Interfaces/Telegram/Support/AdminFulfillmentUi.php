@@ -5,13 +5,16 @@ declare(strict_types=1);
 namespace App\Interfaces\Telegram\Support;
 
 use App\Modules\Identity\Application\ResolveTelegramActor;
+use App\Modules\Provisioning\Application\RecoverPaidPlanOrder;
 use App\Modules\Provisioning\Application\ReviewPaidFulfillment;
 use App\Modules\Provisioning\Jobs\FulfillPaidPlanOrderJob;
+use App\Modules\Provisioning\Jobs\RecoverPaidPlanOrderJob;
 use App\Support\PersianCalendar;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
+use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
@@ -24,6 +27,7 @@ final readonly class AdminFulfillmentUi
         private PrivateTelegramUser $private,
         private ResolveTelegramActor $actors,
         private ReviewPaidFulfillment $reviews,
+        private RecoverPaidPlanOrder $recoveries,
         private MenuRenderer $menus,
     ) {}
 
@@ -212,6 +216,22 @@ final readonly class AdminFulfillmentUi
                 callback_data: 'full:prepare:'.$orderId.':reconcile',
             ));
         }
+        if ($order->intent_state === 'needs_review' && $order->create_operation_id !== null) {
+            if (config('services.remnawave.recovery_create_enabled', false) === true) {
+                try {
+                    $this->recoveries->authorize($root, $orderId);
+                    $lines[] = 'بازیابی فقط پس از بررسی مجدد سرویس و تأیید نهایی مدیر ممکن است.';
+                    $buttons->addRow(InlineKeyboardButton::make(
+                        '🛠️ درخواست بازیابی کنترل‌شده',
+                        callback_data: 'full:prepare:'.$orderId.':recovery',
+                    ));
+                } catch (Throwable) {
+                    // Do not expose the write action for ineligible orders.
+                }
+            } else {
+                $lines[] = 'بازیابی فعال‌سازی فعلاً غیرفعال است.';
+            }
+        }
         $buttons->addRow(InlineKeyboardButton::make(
             '🔄 تازه‌سازی', callback_data: 'full:view:'.$orderId,
         ));
@@ -238,6 +258,10 @@ final readonly class AdminFulfillmentUi
         } elseif (in_array($order->intent_state, ['processing', 'needs_review'], true)) {
             $html .= '<blockquote>در صورت نامشخص‌بودن نتیجه، فقط وضعیت سرویس موجود بررسی می‌شود.</blockquote>';
         }
+        if ($order->intent_state === 'needs_review' && $order->create_operation_id !== null
+            && config('services.remnawave.recovery_create_enabled', false) !== true) {
+            $html .= '<blockquote>بازیابی فعال‌سازی فعلاً غیرفعال است.</blockquote>';
+        }
         $html .= '<footer>🕒 '.PersianCalendar::localDateTime(now()->toDateTimeString())
             .' (تهران) | وضعیت از سوابق فعال‌سازی خوانده می‌شود.</footer>';
         $this->render($bot, implode("\n", $lines), $buttons, $html);
@@ -250,13 +274,17 @@ final readonly class AdminFulfillmentUi
             return;
         }
         $order = $this->id($id);
-        if ($order === null || $mode !== 'reconcile') {
+        if ($order === null || ! in_array($mode, ['reconcile', 'recovery'], true)) {
             $this->render($bot, 'درخواست معتبر نیست.', $this->home());
 
             return;
         }
         try {
-            $this->reviews->authorizeRequest($root, $order, true);
+            if ($mode === 'recovery') {
+                $this->recoveries->authorize($root, $order);
+            } else {
+                $this->reviews->authorizeRequest($root, $order, true);
+            }
         } catch (Throwable) {
             $this->render($bot, 'این سفارش برای عملیات انتخاب‌شده آماده نیست.', $this->home());
 
@@ -264,10 +292,21 @@ final readonly class AdminFulfillmentUi
         }
         $token = bin2hex(random_bytes(16));
         Cache::put($this->key($root, $token), ['id' => $order, 'mode' => $mode], now()->addMinutes(3));
-        $this->render($bot,
-            '⚠️ تأیید بررسی وضعیت سفارش #'.$order."\n\n".'فقط وضعیت سرویس موجود بررسی می‌شود؛ سرویس جدیدی ساخته نخواهد شد.',
+        $recovery = $mode === 'recovery';
+        $message = $recovery
+            ? '⚠️ تأیید درخواست بازیابی سفارش #'.$order."\n\n"
+                .'این عملیات ممکن است فقط یک‌بار برای ساخت سرویس جدید در Remnawave تلاش کند. '
+                .'پیش از ساخت، نبود سرویس دوباره بررسی می‌شود. نتیجه نامشخص دوباره اجرا نمی‌شود. '
+                .'پرداخت دوباره ثبت نمی‌شود.'
+            : '⚠️ تأیید بررسی وضعیت سفارش #'.$order."\n\n"
+                .'فقط وضعیت سرویس موجود بررسی می‌شود؛ سرویس جدیدی ساخته نخواهد شد.';
+        $this->render($bot, $message,
             InlineKeyboardMarkup::make()
-                ->addRow(InlineKeyboardButton::make('✅ تأیید', callback_data: 'full:apply:'.$token))
+                ->addRow(InlineKeyboardButton::make(
+                    $recovery ? '🛠️ تأیید درخواست بازیابی' : '✅ تأیید',
+                    callback_data: 'full:apply:'.$token,
+                    style: $recovery ? ButtonStyle::SUCCESS : null,
+                ))
                 ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'full:view:'.$order)),
         );
     }
@@ -294,15 +333,20 @@ final readonly class AdminFulfillmentUi
         });
 
         if (! is_array($state) || ! is_int($state['id'] ?? null)
-            || ($state['mode'] ?? null) !== 'reconcile') {
+            || ! in_array($state['mode'] ?? null, ['reconcile', 'recovery'], true)) {
             $this->render($bot, 'این تأیید قبلاً استفاده شده یا منقضی است.', $this->home());
 
             return;
         }
         $order = $state['id'];
         try {
-            $this->reviews->authorizeRequest($root, $order, true);
-            FulfillPaidPlanOrderJob::dispatch($order, true, $root);
+            if ($state['mode'] === 'recovery') {
+                $this->recoveries->authorize($root, $order);
+                RecoverPaidPlanOrderJob::dispatch($order, $root);
+            } else {
+                $this->reviews->authorizeRequest($root, $order, true);
+                FulfillPaidPlanOrderJob::dispatch($order, true, $root);
+            }
             $this->render($bot,
                 '✅ درخواست سفارش #'.$order.' ثبت شد.'."\n\nنتیجه را از فهرست سفارش‌ها بررسی کنید.",
                 $this->home());

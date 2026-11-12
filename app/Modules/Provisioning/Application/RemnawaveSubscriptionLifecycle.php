@@ -8,6 +8,7 @@ use App\Modules\Provisioning\Infrastructure\Remnawave\CreateRemnawaveUser;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveApiClientFactory;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveUsersApi;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveUserSnapshot;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use RuntimeException;
@@ -67,6 +68,144 @@ final class RemnawaveSubscriptionLifecycle
 
             throw new RuntimeException('Remnawave create outcome is uncertain; reconciliation required.', 0, $e);
         }
+    }
+
+    /**
+     * One separately gated, at-most-once manual recovery attempt for a failed
+     * paid-order CREATE. The initial create operation and evidence are retained.
+     * Two full read-only absence checks are mandatory. Not a general retry API.
+     *
+     * @param  list<string>  $internalSquadUuids
+     */
+    public function recoverCreate(
+        string $reference,
+        string $idempotencyKey,
+        string $expireAt,
+        int $trafficLimitBytes,
+        array $internalSquadUuids,
+        int $actorId,
+    ): int {
+        $this->assertEnabled();
+        if (config('services.remnawave.recovery_create_enabled', false) !== true) {
+            throw new RuntimeException('Manual CREATE recovery is disabled.');
+        }
+        $this->assertKeys($reference, $idempotencyKey);
+        if (! preg_match('/\Asales-order:[1-9][0-9]*\z/D', $reference)
+            || $idempotencyKey !== $reference.':recovery:create:1'
+            || $actorId < 1) {
+            throw new InvalidArgumentException('Invalid scoped recovery operation.');
+        }
+
+        $data = new CreateRemnawaveUser(
+            username: self::username($reference),
+            expireAt: $expireAt,
+            trafficLimitBytes: $trafficLimitBytes,
+            internalSquadUuids: $internalSquadUuids,
+            description: self::marker($reference),
+        );
+
+        // A 404 by username alone is not proof: independently enumerate all
+        // RW users and reject incomplete inventories or ownership conflicts.
+        $this->assertAbsentInProvider($reference);
+        $reservation = $this->reserve(
+            $reference, $idempotencyKey, 'create', $data->body(), true, $actorId, 'support', null, true,
+        );
+        if ($reservation['alreadyComplete']) {
+            throw new RuntimeException('Recovery CREATE was already completed; never issue another POST.');
+        }
+
+        try {
+            // Recheck after durable reservation to narrow the race window.
+            $this->assertAbsentInProvider($reference);
+        } catch (Throwable $e) {
+            // No POST was issued. Retain the refused recovery audit and make
+            // the original uncertain CREATE reconcilable if it just appeared.
+            $this->abortRecoveryBeforePost($reference, $idempotencyKey);
+
+            throw new RuntimeException('Recovery preflight failed before any CREATE; original reconciliation remains available.', 0, $e);
+        }
+
+        try {
+            $remote = $this->api()->create($data);
+            $this->assertIdentity($remote, $reference);
+            $this->assertExpected($remote, [
+                'expireAt' => $expireAt,
+                'trafficLimitBytes' => $trafficLimitBytes,
+                'status' => 'ACTIVE',
+                'activeInternalSquads' => $internalSquadUuids,
+            ]);
+
+            return $this->complete($reference, $idempotencyKey, $remote);
+        } catch (Throwable $e) {
+            $this->ambiguous($reference, $idempotencyKey);
+
+            throw new RuntimeException('Recovery CREATE outcome requires read-only reconciliation; never replay.', 0, $e);
+        }
+    }
+
+    /** Retire a reserved recovery without touching the original operation. */
+    private function abortRecoveryBeforePost(string $reference, string $key): void
+    {
+        DB::transaction(function () use ($reference, $key): void {
+            $row = DB::table('provisioning_subscriptions')
+                ->where('reference', $reference)->lockForUpdate()->first();
+            $op = DB::table('provisioning_operations')
+                ->where('idempotency_key', $key)->lockForUpdate()->first();
+            if ($row === null || $op === null || (int) $op->subscription_id !== (int) $row->id
+                || $row->last_operation_key !== $key
+                || $row->state !== 'reserved' || $op->state !== 'reserved') {
+                throw new RuntimeException('Recovery reservation changed before read-only abort.');
+            }
+
+            DB::table('provisioning_subscriptions')->where('id', $row->id)->update([
+                'state' => 'needs_review',
+                'last_operation_key' => $reference.':create',
+                'updated_at' => now(),
+            ]);
+            DB::table('provisioning_operations')->where('id', $op->id)->update([
+                'state' => 'aborted', 'updated_at' => now(),
+            ]);
+        });
+    }
+
+    /** Full inventory preflight: no leaked credentials, no remote mutation. */
+    private function assertAbsentInProvider(string $reference): void
+    {
+        $api = $this->api();
+        try {
+            $api->byUsername(self::username($reference));
+            throw new RuntimeException('Provider already contains the requested username.');
+        } catch (RequestException $exception) {
+            if ($exception->response->status() !== 404) {
+                throw $exception;
+            }
+        }
+
+        $offset = 0;
+        $total = null;
+        do {
+            $batch = $api->list($offset, 200);
+            if ($total === null) {
+                $total = $batch['total'];
+                if ($total > 2000) {
+                    throw new RuntimeException('Provider user inventory is too large for bounded recovery preflight.');
+                }
+            }
+            if ($batch['total'] !== $total) {
+                throw new RuntimeException('Provider inventory changed during recovery preflight.');
+            }
+            foreach ($batch['users'] as $user) {
+                if ($user->username === self::username($reference)
+                    || $user->description === self::marker($reference)) {
+                    throw new RuntimeException('Provider already contains the owned subscription identity.');
+                }
+            }
+            $count = count($batch['users']);
+            if ($count === 0 && $offset < $total) {
+                throw new RuntimeException('Incomplete provider inventory; recovery denied.');
+            }
+            $offset += $count;
+        } while ($offset < $total);
     }
 
     /** Absolute (not additive) expiration makes replay detection possible. */
@@ -146,7 +285,8 @@ final class RemnawaveSubscriptionLifecycle
         if ($row === null || $op === null || (int) $op->subscription_id !== (int) $row->id
             || $op->kind !== 'create'
             || ! in_array($row->state, ['reserved', 'needs_review'], true)
-            || ! in_array($op->state, ['reserved', 'needs_review'], true)) {
+            || ! in_array($op->state, ['reserved', 'needs_review'], true)
+            || $row->last_operation_key !== $idempotencyKey) {
             throw new RuntimeException('No uncertain create to reconcile.');
         }
 
@@ -309,10 +449,26 @@ final class RemnawaveSubscriptionLifecycle
         ?int $actorId = null,
         ?string $reasonCode = null,
         ?string $preflightStatus = null,
+        bool $recovery = false,
     ): array {
         $hash = hash('sha256', json_encode([$reference, $kind, $payload], JSON_THROW_ON_ERROR));
 
-        return DB::transaction(function () use ($reference, $key, $kind, $hash, $payload, $creating, $actorId, $reasonCode, $preflightStatus): array {
+        return DB::transaction(function () use ($reference, $key, $kind, $hash, $payload, $creating, $actorId, $reasonCode, $preflightStatus, $recovery): array {
+            if ($recovery) {
+                // Match the existing order → outbox → subscription lock order.
+                // A concurrent reconciliation may complete between GET and
+                // reservation; never POST for a now-fulfilled order.
+                $orderId = (int) substr($reference, strlen('sales-order:'));
+                $order = DB::table('sales_orders')->where('id', $orderId)->lockForUpdate()->first();
+                $outbox = DB::table('sales_fulfillment_outbox')
+                    ->where('sales_order_id', $orderId)->lockForUpdate()->first();
+                if ($order === null || $order->status !== 'paid'
+                    || $outbox === null || $outbox->state !== 'needs_review'
+                    || $outbox->event_key !== $reference.':create'
+                    || DB::table('provisioning_order_links')->where('sales_order_id', $orderId)->exists()) {
+                    throw new RuntimeException('Paid-order recovery is no longer eligible.');
+                }
+            }
             $previous = DB::table('provisioning_operations')->where('idempotency_key', $key)->lockForUpdate()->first();
             $record = DB::table('provisioning_subscriptions')->where('reference', $reference)->lockForUpdate()->first();
 
@@ -337,7 +493,23 @@ final class RemnawaveSubscriptionLifecycle
                 return ['alreadyComplete' => true, 'remoteId' => (int) $record->remote_user_id];
             }
 
-            if ($creating) {
+            if ($creating && $recovery) {
+                $original = DB::table('provisioning_operations')
+                    ->where('idempotency_key', $reference.':create')->lockForUpdate()->first();
+                if ($record === null || $record->state !== 'needs_review'
+                    || $record->remote_user_id !== null
+                    || $record->last_operation_key !== $reference.':create'
+                    || $original === null || $original->state !== 'needs_review'
+                    || $original->kind !== 'create'
+                    || (int) $original->subscription_id !== (int) $record->id) {
+                    throw new RuntimeException('Original uncertain CREATE is not eligible for one-time recovery.');
+                }
+                $id = (int) $record->id;
+                $remoteId = 0;
+                DB::table('provisioning_subscriptions')->where('id', $id)->update([
+                    'state' => 'reserved', 'last_operation_key' => $key, 'updated_at' => now(),
+                ]);
+            } elseif ($creating) {
                 if ($record !== null) {
                     throw new RuntimeException('Subscription reference is already reserved.');
                 }

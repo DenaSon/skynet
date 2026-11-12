@@ -39,6 +39,8 @@ return [
         'token' => env('REMNAWAVE_API_TOKEN'),
         'timeout' => (int) env('REMNAWAVE_TIMEOUT', 15),
         'writes_enabled' => (bool) env('REMNAWAVE_WRITES_ENABLED', true),
+        // Separate emergency CREATE recovery gate. Disabled until explicitly authorized.
+        'recovery_create_enabled' => (bool) env('REMNAWAVE_RECOVERY_CREATE_ENABLED', false),
         'node_ssh_setup_enabled' => (bool) env('NODE_SSH_SETUP_ENABLED', false),
         // NW-02 independently gated: can write to VPS but NEVER to Remnawave Nodes/Hosts.
         'node_ssh_install_enabled' => (bool) env('NODE_SSH_INSTALL_ENABLED', false),
