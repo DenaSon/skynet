@@ -107,7 +107,12 @@ final class RemnawaveSubscriptionLifecycle
         // A 404 by username alone is not proof: independently enumerate all
         // RW users and reject incomplete inventories or ownership conflicts.
         $this->assertAbsentInProvider($reference);
-        $this->reserve($reference, $idempotencyKey, 'create', $data->body(), true, $actorId, 'support', null, true);
+        $reservation = $this->reserve(
+            $reference, $idempotencyKey, 'create', $data->body(), true, $actorId, 'support', null, true,
+        );
+        if ($reservation['alreadyComplete']) {
+            throw new RuntimeException('Recovery CREATE was already completed; never issue another POST.');
+        }
 
         try {
             // Recheck after durable reservation to narrow the race window.
