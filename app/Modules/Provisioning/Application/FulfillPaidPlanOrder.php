@@ -89,7 +89,7 @@ final readonly class FulfillPaidPlanOrder
             }
             $op = DB::table('provisioning_operations')->where('idempotency_key', $key)->first();
 
-            if ($local === null || $op === null || (int) $op->subscription_id !== (int) $local->id
+            if ($op === null || (int) $op->subscription_id !== (int) $local->id
                 || $op->kind !== 'create'
                 || ! in_array($op->state, ['reserved', 'needs_review', 'completed'], true)) {
                 throw new RuntimeException('No recorded create operation to reconcile; operator investigation required.');
