@@ -488,7 +488,7 @@ The trusted-root Admin flow is **«رسیدهای خرید» → «سفارش‌
 
 Current **Sales Bot** notice (`BuyerReceiptReminder`, after [PR #471](https://github.com/DenaSon/skynet/pull/471)):
 
-> **🧾 یادآوری پرداخت سفارش #<orderId>**
+> **🧾 یادآوری پرداخت سفارش** `#{orderId}`
 >
 > سلام! 👋
 >
