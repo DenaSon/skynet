@@ -1675,7 +1675,7 @@ it('shows recovery only when independently enabled and consumes the root-only co
             $token = $matches[1];
 
             return str_contains((string) $payload['text'], 'تأیید درخواست بازیابی')
-                && str_contains($buttons, '"style":"danger"');
+                && str_contains($buttons, '"style":"success"');
         }, index: 1);
     expect($token)->not->toBeNull();
 
