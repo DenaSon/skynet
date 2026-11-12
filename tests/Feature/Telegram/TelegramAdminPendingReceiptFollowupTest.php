@@ -13,6 +13,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -207,6 +208,57 @@ it('uses an actor-bound one-time confirmation then queues one auditable Sales re
     Http::assertNothingSent();
     expect(DB::table('billing_journals')->count())->toBe(0)
         ->and(DB::table('sales_orders')->where('id', $order)->value('status'))->toBe('pending_payment');
+});
+
+it('accepts the string order ID returned by Redis and consumes the confirmation exactly once', function (): void {
+    ['root' => $root, 'buyer' => $buyer, 'order' => $order] = receiptFollowupFixture();
+    $bot = receiptFollowupBot(998001, $root);
+    $token = null;
+
+    $bot->hearCallbackQueryData('receipt:followup:prepare:'.$order)->reply()
+        ->assertRaw(static function (NutgramRequest $request) use (&$token): bool {
+            $buttons = json_encode(receiptFollowupPayload($request)['reply_markup'], JSON_THROW_ON_ERROR);
+
+            if (preg_match('/receipt:followup:apply:([a-f0-9]{32})/', $buttons, $matches) !== 1) {
+                return false;
+            }
+            $token = $matches[1];
+
+            return true;
+        }, index: 1);
+    expect($token)->not->toBeNull();
+
+    // Production Redis returns strings even when Cache::put received an integer.
+    $cacheKey = 'receipt:followup:confirm:'.$root->id.':'.$token;
+    Cache::put($cacheKey, (string) $order, now()->addMinutes(3));
+
+    $bot->hearCallbackQueryData('receipt:followup:apply:'.$token)->reply();
+    $delivery = DB::table('telegram_notification_deliveries')
+        ->where('event_type', AdminPendingReceiptFollowup::EVENT)->first();
+    expect($delivery)->not->toBeNull()
+        ->and($delivery->order_id)->toBe($order)
+        ->and($delivery->recipient_user_id)->toBe($buyer->id)
+        ->and($delivery->state)->toBe('pending')
+        ->and(Cache::has($cacheKey))->toBeFalse();
+    Queue::assertPushed(DispatchTelegramNotification::class, 1);
+
+    $bot->hearCallbackQueryData('receipt:followup:apply:'.$token)->reply();
+    expect(DB::table('telegram_notification_deliveries')
+        ->where('event_type', AdminPendingReceiptFollowup::EVENT)->count())->toBe(1);
+    Queue::assertPushed(DispatchTelegramNotification::class, 1);
+    Http::assertNothingSent();
+});
+
+it('rejects malformed cached order IDs without enqueuing any reminder', function (): void {
+    ['root' => $root] = receiptFollowupFixture();
+    $bot = receiptFollowupBot(998001, $root);
+    $token = str_repeat('a', 32);
+
+    Cache::put('receipt:followup:confirm:'.$root->id.':'.$token, '1abc', now()->addMinutes(3));
+    $bot->hearCallbackQueryData('receipt:followup:apply:'.$token)->reply();
+    Queue::assertNotPushed(DispatchTelegramNotification::class);
+    expect(DB::table('telegram_notification_deliveries')->count())->toBe(0);
+    Http::assertNothingSent();
 });
 
 it('sends from the Sales Bot to the recorded private numeric chat and only once', function (): void {
