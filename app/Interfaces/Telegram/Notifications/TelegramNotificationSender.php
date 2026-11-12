@@ -432,16 +432,17 @@ final readonly class TelegramNotificationSender
             }
 
             $keyboard = json_encode(['inline_keyboard' => [
-                [['text' => '📷 ارسال رسید پرداخت', 'callback_data' => 'sales:payment:receipt:'.$orderId]],
+                [['text' => '📷 ارسال رسید پرداخت', 'callback_data' => 'sales:payment:receipt:'.$orderId, 'style' => ButtonStyle::SUCCESS->value]],
                 [['text' => '📋 مشاهده سفارش', 'callback_data' => 'sales:checkout:view:'.$orderId]],
             ]], JSON_THROW_ON_ERROR);
             try {
                 $this->text($bot, $chat,
-                    "<b>🧾 یادآوری سفارش #{$orderId}</b>"
-                    ."\n\nاگر مبلغ سفارش را واریز کرده‌اید اما رسید ارسال نکرده‌اید،"
-                    .' لطفاً تصویر رسید را از دکمه زیر ثبت کنید.'
-                    ."\nاگر هنوز پرداخت نکرده‌اید، نیازی به اقدامی نیست."
-                    ."\n\nثبت رسید به معنی تأیید پرداخت نیست.",
+                    "<b>🧾 یادآوری پرداخت سفارش #{$orderId}</b>"
+                    ."\n\nسلام! 👋"
+                    ."\n\nسفارش شما در دناگیت هنوز در انتظار ثبت رسید پرداخت است."
+                    ."\n\nاگر مبلغ سفارش را واریز کرده‌اید، لطفاً از دکمه زیر تصویر رسید خود را ارسال کنید"
+                    .' تا پرداختتان بررسی و مراحل فعال‌سازی سرویس انجام شود.'
+                    ."\n\nاگر هنوز پرداخت نکرده‌اید، نیازی به اقدامی نیست. 💚",
                     $keyboard, 'HTML', false,
                 );
             } catch (NotificationUnavailable $exception) {
