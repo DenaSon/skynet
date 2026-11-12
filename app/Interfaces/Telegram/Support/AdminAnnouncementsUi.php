@@ -236,7 +236,7 @@ final readonly class AdminAnnouncementsUi
             return;
         }
         $draft = $this->consume($this->draftKey($root), $token, 'preview');
-        if ($draft === null) {
+        if ($draft === null || ! in_array($draft['mode'] ?? null, ['new', 'edit'], true)) {
             $this->notice($bot, 'این تأیید دیگر معتبر نیست. ثبت اطلاعیه را دوباره شروع کنید.');
 
             return;
