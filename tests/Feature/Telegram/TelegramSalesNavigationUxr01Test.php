@@ -626,7 +626,7 @@ it('accepts old Sales keyboard labels and the new /buy command with existing aut
     Http::assertNothingSent();
 });
 
-it('prioritizes reseller credit and reports on row two while preserving custom plans and navigation', function (): void {
+it('pairs reseller custom plans with credit and moves renamed reports below primary actions', function (): void {
     $buyer = User::factory()->create();
     $buyer->syncRoles(['reseller']);
     $bot = uxr01Bot($buyer);
@@ -638,15 +638,27 @@ it('prioritizes reseller credit and reports on row two while preserving custom p
             && ($keyboard[0][0]['text'] ?? null) === ReplyMenuLabels::SALES_BUY
             && ($keyboard[0][1]['text'] ?? null) === ReplyMenuLabels::SALES_SUBSCRIPTIONS
             && ($keyboard[1][0]['text'] ?? null) === ReplyMenuLabels::SALES_WALLET
-            && ($keyboard[1][1]['text'] ?? null) === ReplyMenuLabels::SALES_REPORTS
-            && ($keyboard[2][0]['text'] ?? null) === ReplyMenuLabels::BUILDER
+            && ($keyboard[1][1]['text'] ?? null) === ReplyMenuLabels::BUILDER
+            && ($keyboard[2][0]['text'] ?? null) === ReplyMenuLabels::SALES_ACCOUNT
             && ($keyboard[2][1]['text'] ?? null) === ReplyMenuLabels::SALES_SUPPORT
-            && ($keyboard[3][0]['text'] ?? null) === ReplyMenuLabels::SALES_ACCOUNT
-            && ($keyboard[3][1]['text'] ?? null) === ReplyMenuLabels::SALES_TUTORIAL;
+            && ($keyboard[3][0]['text'] ?? null) === ReplyMenuLabels::SALES_TUTORIAL
+            && ($keyboard[3][1]['text'] ?? null) === ReplyMenuLabels::SALES_REPORTS;
     }, index: 0);
     $bot->hearText(ReplyMenuLabels::SALES_WALLET)->reply()->assertCalled('sendRichMessage');
     $bot->hearText(ReplyMenuLabels::WALLET)->reply()->assertCalled('sendRichMessage');
     $bot->hearText(ReplyMenuLabels::BUILDER)->reply()->assertCalled('sendMessage');
+    $bot->hearText(ReplyMenuLabels::SALES_REPORTS)->reply()->assertCalled('sendRichMessage');
+    $bot->hearText(ReplyMenuLabels::PREVIOUS_SALES_REPORTS)->reply()->assertCalled('sendRichMessage');
+
+    $bot->hearCallbackQueryData('sales:home')->reply()->assertRaw(static function (Request $request): bool {
+        $rows = uxr01Payload($request)['reply_markup']['inline_keyboard'] ?? [];
+
+        return ($rows[1][0]['callback_data'] ?? null) === 'sales:wallet'
+            && ($rows[1][1]['callback_data'] ?? null) === 'menu:builder'
+            && ($rows[2][0]['callback_data'] ?? null) === 'sales:account'
+            && ($rows[2][1]['callback_data'] ?? null) === 'sales:support'
+            && str_contains(json_encode($rows, JSON_THROW_ON_ERROR), 'sales:report:30');
+    }, index: 1);
 });
 
 it('shows member panel setup and reseller builder Rich guides without role escalation', function (): void {
@@ -689,7 +701,7 @@ it('shows member panel setup and reseller builder Rich guides without role escal
         $data = uxr01Payload($request);
         $keyboard = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
 
-        return str_contains(uxr01RichHtml($request), 'راهنمای پلن‌ساز')
+        return str_contains(uxr01RichHtml($request), 'آموزش پلن سفارشی')
             && str_contains($keyboard, 'sales:help:builder')
             && ! str_contains($keyboard, 'sales:help:panel-setup');
     }, index: 1);
@@ -697,9 +709,19 @@ it('shows member panel setup and reseller builder Rich guides without role escal
         $html = uxr01RichHtml($request);
         $keyboard = json_encode(uxr01Payload($request)['reply_markup'], JSON_THROW_ON_ERROR);
 
-        return str_contains($html, 'مراحل ساخت پلن')
+        return str_contains($html, 'مراحل خرید سفارشی')
+            && str_contains($html, 'لازم نیست به بسته‌های آماده محدود باشید')
             && str_contains($keyboard, 'menu:builder')
             && str_contains($keyboard, 'sales:help:apps');
+    }, index: 1);
+    $bot->hearCallbackQueryData('sales:help:simple:builder')->reply()->assertRaw(static function (Request $request): bool {
+        $data = uxr01Payload($request);
+        $buttons = json_encode($data['reply_markup']['inline_keyboard'] ?? [], JSON_THROW_ON_ERROR);
+
+        return ! isset($data['rich_message'])
+            && str_contains((string) ($data['text'] ?? ''), 'آموزش پلن سفارشی')
+            && str_contains((string) ($data['text'] ?? ''), 'قیمت نمایندگی را ببینید')
+            && str_contains($buttons, 'menu:builder');
     }, index: 1);
     Http::assertNothingSent();
 });
