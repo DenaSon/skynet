@@ -177,7 +177,7 @@ it('shows reseller-only builder guidance under Sales support without exposing it
         ->assertRaw(static function (Request $request): bool {
             $body = polish152Payload($request);
 
-            return str_contains(polish152RichHtml($request), 'راهنمای پلن‌ساز')
+            return str_contains(polish152RichHtml($request), 'آموزش پلن سفارشی')
                 && str_contains(json_encode($body['reply_markup'], JSON_THROW_ON_ERROR), 'menu:builder');
         }, index: 1);
     $reseller->syncRoles(['member']);
