@@ -283,9 +283,11 @@ it('falls back to an identical native history on a Rich transport error', functi
         throw new TelegramException('unsupported Rich message', 400);
     });
     $bot->shouldReceive('sendMessage')->once()->andReturnUsing(static function (...$args) use ($order): void {
-        expect($args[0])->toContain('تاریخچه عملیات سرویس #'.$order, 'بررسی پشتیبانی', 'تأییدشده')
+        $text = $args['text'] ?? $args[0];
+        $keyboard = $args['reply_markup'] ?? $args[1] ?? null;
+        expect($text)->toContain('تاریخچه عملیات سرویس #'.$order, 'بررسی پشتیبانی', 'تأییدشده')
             ->not->toContain('private-short-id', 'https://private.example.test/token');
-        expect(json_encode($args[1], JSON_THROW_ON_ERROR))->toContain('full:service:view:'.$order);
+        expect(json_encode($keyboard, JSON_THROW_ON_ERROR))->toContain('full:service:view:'.$order);
     });
 
     app(AdminSubscriptionStatusUi::class)
