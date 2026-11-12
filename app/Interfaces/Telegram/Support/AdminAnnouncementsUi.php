@@ -86,11 +86,14 @@ final readonly class AdminAnnouncementsUi
         $status = self::status((string) $row->status);
         $title = TelegramUi::escape((string) $row->title);
         $body = TelegramUi::escape((string) $row->body);
-        $date = $row->published_at === null ? 'منتشر نشده' : self::date((string) $row->published_at);
-        $plain = '<b>📢 '.$title.'</b>'."\n".'وضعیت: '.$status."\n".'آخرین انتشار: '.$date."\n\n".$body;
+        $resellerOnly = $row->status === 'reseller_sent';
+        $dateLabel = $resellerOnly ? 'زمان ثبت ارسال' : 'آخرین انتشار';
+        $date = $resellerOnly ? self::date((string) $row->created_at)
+            : ($row->published_at === null ? 'منتشر نشده' : self::date((string) $row->published_at));
+        $plain = '<b>📢 '.$title.'</b>'."\n".'وضعیت: '.$status."\n".$dateLabel.': '.$date."\n\n".$body;
         $rich = '<h3>📢 '.$title.'</h3><table bordered striped compact>'
             .'<tr><td>وضعیت</td><td>'.$status.'</td></tr>'
-            .'<tr><td>آخرین انتشار</td><td>'.$date.'</td></tr></table>'
+            .'<tr><td>'.$dateLabel.'</td><td>'.$date.'</td></tr></table>'
             .'<p>'.str_replace("\n", '</p><p>', $body).'</p>';
         $keyboard = InlineKeyboardMarkup::make();
         if ($row->status === 'reseller_sent') {
