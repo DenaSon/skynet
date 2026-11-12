@@ -1581,13 +1581,32 @@ it('fails closed if a provider user appears on the second preflight and never po
     expect(fn () => app(RecoverPaidPlanOrder::class)->handle($data['root']->id, $data['order']))
         ->toThrow(RuntimeException::class, 'reconciliation');
     $key = 'sales-order:'.$data['order'].':recovery:create:1';
-    expect(DB::table('provisioning_operations')->where('idempotency_key', $key)->value('state'))->toBe('needs_review')
+    expect(DB::table('provisioning_operations')->where('idempotency_key', $key)->value('state'))->toBe('aborted')
+        ->and(DB::table('provisioning_subscriptions')->value('state'))->toBe('needs_review')
+        ->and(DB::table('provisioning_subscriptions')->value('last_operation_key'))->toBe('sales-order:'.$data['order'].':create')
         ->and(DB::table('sales_orders')->value('status'))->toBe('paid');
     Http::assertSentCount(4);
     Http::assertNotSent(static fn (Request $r): bool => $r->method() === 'POST');
     expect(fn () => app(RecoverPaidPlanOrder::class)->handle($data['root']->id, $data['order']))
         ->toThrow(RuntimeException::class);
     Http::assertSentCount(4);
+
+    // The originally created user can now be reconciled using its *original*
+    // immutable expiry, not the new recovery expiry that was never POSTed.
+    $original = json_decode((string) DB::table('provisioning_operations')
+        ->where('idempotency_key', 'sales-order:'.$data['order'].':create')
+        ->value('expected_payload'), true, 512, JSON_THROW_ON_ERROR);
+    Http::swap(new Factory);
+    Http::preventStrayRequests();
+    Http::fake(['https://remna.test/api/users/by-username/*' => Http::response([
+        'response' => sb05Remote($data['order'], $original['expireAt'], $original['trafficLimitBytes']),
+    ], 200)]);
+
+    expect(app(FulfillPaidPlanOrder::class)->reconcile($data['order']))->toBe(52)
+        ->and(DB::table('sales_orders')->value('status'))->toBe('fulfilled')
+        ->and(DB::table('provisioning_order_links')->count())->toBe(1);
+    Http::assertSentCount(1);
+    Http::assertSent(static fn (Request $r): bool => $r->method() === 'GET');
 });
 
 it('reconciles a single uncertain recovery with GET only and preserves the initial CREATE audit', function (): void {
