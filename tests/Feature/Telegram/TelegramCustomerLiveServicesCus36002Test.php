@@ -286,7 +286,7 @@ it('keeps the authorized native service detail and copy keyboard when Rich is un
 
         throw new TelegramException('unsupported Rich message', 400);
     });
-    $bot->shouldReceive('sendMessage')->once()->andReturnUsing(static function (...$args): void {
+    $bot->shouldReceive('editMessageText')->once()->andReturnUsing(static function (...$args): void {
         $text = $args[0];
         $keyboard = $args[1];
 
