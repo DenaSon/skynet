@@ -7,6 +7,8 @@ use Illuminate\Validation\ValidationException;
 
 final class ConfigureProduct
 {
+    public const MAX_GB = 500;
+
     public function handle(string $slug, string $name, int $minGb = 1, int $maxGb = 100, bool $active = true): void
     {
         $slug = trim($slug);
@@ -20,8 +22,8 @@ final class ConfigureProduct
             throw ValidationException::withMessages(['name' => 'Product name must be 1–120 printable characters.']);
         }
 
-        if ($minGb < 1 || $maxGb > 100 || $minGb > $maxGb) {
-            throw ValidationException::withMessages(['traffic' => 'Volume limits must be between 1 and 100 GB.']);
+        if ($minGb < 1 || $maxGb > self::MAX_GB || $minGb > $maxGb) {
+            throw ValidationException::withMessages(['traffic' => 'Volume limits must be between 1 and 500 GB.']);
         }
 
         DB::table('sales_products')->updateOrInsert(
