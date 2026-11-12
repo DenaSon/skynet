@@ -287,8 +287,8 @@ it('keeps the authorized native service detail and copy keyboard when Rich is un
         throw new TelegramException('unsupported Rich message', 400);
     });
     $bot->shouldReceive('editMessageText')->once()->andReturnUsing(static function (...$args): void {
-        $text = $args[0];
-        $keyboard = $args[1];
+        $text = $args['text'] ?? $args[0];
+        $keyboard = $args['reply_markup'] ?? $args[1] ?? null;
 
         expect($text)->toContain('شناسه کاربر در RW: <code>42</code>')
             ->toContain('نام کاربری در RW: <code>')
