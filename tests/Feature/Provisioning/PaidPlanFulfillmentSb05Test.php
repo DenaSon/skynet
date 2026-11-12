@@ -1465,7 +1465,6 @@ it('keeps old paid review cases reachable across pages and flags only genuinely 
     Http::assertNotSent(static fn (Request $request): bool => $request->method() !== 'GET');
 });
 
-
 /** Simulates a settled, uncertain one-shot CREATE without sending a second POST. */
 function sb05RecoveryOrder(): array
 {
@@ -1638,7 +1637,6 @@ it('rejects unauthorized roots, revoked plan bindings and missing settlements be
     Http::assertNothingSent();
     expect(DB::table('provisioning_operations')->count())->toBe(1);
 });
-
 
 it('shows recovery only when independently enabled and consumes the root-only confirmation once', function (): void {
     $data = sb05RecoveryOrder();
