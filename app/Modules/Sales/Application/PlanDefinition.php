@@ -69,7 +69,7 @@ final readonly class PlanDefinition
             }
         } else {
             if ($this->minGb === null || $this->maxGb === null
-                || $this->minGb < 1 || $this->maxGb > 2048 || $this->minGb > $this->maxGb) {
+                || $this->minGb < 1 || $this->maxGb > ConfigureProduct::MAX_GB || $this->minGb > $this->maxGb) {
                 throw ValidationException::withMessages(['traffic' => 'Invalid finite traffic bounds.']);
             }
 
