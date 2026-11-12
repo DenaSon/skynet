@@ -234,6 +234,8 @@ it('cannot delete a plan tied to an existing immutable order', function (): void
     $root = b11Root();
     $manage = app(ManagePlans::class);
     $plan = $manage->create($root->id, b11Definition());
+    // A deletion token created before checkout must fail at final confirmation.
+    $token = $manage->requestChange($root->id, $plan->id, 1, 'delete');
 
     app(ConfigureRate::class)->handle('vpn-access', 30, 100_000, 20_000);
     $buyer = User::factory()->create();
@@ -241,9 +243,9 @@ it('cannot delete a plan tied to an existing immutable order', function (): void
     $order = app(CreatePendingOrder::class)->handle($buyer->id, $quote, bin2hex(random_bytes(16)));
     DB::table('sales_orders')->where('id', $order->id)->update(['plan_id' => $plan->id]);
 
-    $token = $manage->requestChange($root->id, $plan->id, 1, 'delete');
-
-    expect(fn () => $manage->confirmChange($root->id, $token))->toThrow(ValidationException::class)
+    expect(fn () => $manage->requestChange($root->id, $plan->id, 1, 'delete'))
+        ->toThrow(ValidationException::class)
+        ->and(fn () => $manage->confirmChange($root->id, $token))->toThrow(ValidationException::class)
         ->and(DB::table('sales_plans')->where('id', $plan->id)->exists())->toBeTrue()
         ->and(DB::table('sales_orders')->where('id', $order->id)->value('plan_id'))->toBe($plan->id)
         ->and(DB::table('sales_plan_audits')->where('operation', 'deleted')->count())->toBe(0);
