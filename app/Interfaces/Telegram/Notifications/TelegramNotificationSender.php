@@ -119,7 +119,7 @@ final readonly class TelegramNotificationSender
                 throw new NotificationUnavailable('announcement_unavailable');
             }
 
-            $this->text('sales', $chat, "<b>📢 اطلاعیه ویژه نمایندگان دناگیت</b>"
+            $this->text('sales', $chat, '<b>📢 اطلاعیه ویژه نمایندگان دناگیت</b>'
                 ."\n\n<b>".TelegramUi::escape((string) $notice->title).'</b>'
                 ."\n\n".TelegramUi::escape((string) $notice->body), null, 'HTML', false);
 
