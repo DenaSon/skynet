@@ -11,8 +11,10 @@ use App\Support\PersianCalendar;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 use Throwable;
 
 /** MVP-04: tiny private Super Admin status action on existing fulfilled orders. */
@@ -255,6 +257,7 @@ final readonly class AdminSubscriptionStatusUi
 
         $lines = ['🕘 تاریخچه عملیات سرویس #'.$order, '',
             'فقط تغییرات وضعیت ثبت‌شده از بات مدیریت نمایش داده می‌شوند.', ''];
+        $richRows = '';
         if ($history['items'] === []) {
             $lines[] = 'عملیات مدیریتی ثبت‌شده‌ای در این صفحه وجود ندارد.';
         }
@@ -270,12 +273,20 @@ final readonly class AdminSubscriptionStatusUi
                 'DISABLED' => 'غیرفعال',
                 default => 'ثبت نشده',
             };
+            $when = PersianCalendar::utcDateTime((string) $item->created_at);
+            $manager = $item->actor_user_id === null ? 'در سوابق قبلی ثبت نشده' : '#'.(int) $item->actor_user_id;
+            $reason = self::reasonLabel($item->reason_code);
             $lines[] = $action.' · '.$result;
-            $lines[] = 'زمان: '.PersianCalendar::utcDateTime((string) $item->created_at);
-            $lines[] = 'مدیر: '.($item->actor_user_id === null ? 'در سوابق قبلی ثبت نشده' : '#'.(int) $item->actor_user_id);
-            $lines[] = 'دلیل: '.self::reasonLabel($item->reason_code);
+            $lines[] = 'زمان: '.$when;
+            $lines[] = 'مدیر: '.$manager;
+            $lines[] = 'دلیل: '.$reason;
             $lines[] = 'وضعیت هنگام بررسی: '.$before;
             $lines[] = '';
+            $richRows .= '<tr><td>'.$action.'</td><td><b>'.$result.'</b>'
+                .'<p>زمان: '.$when.'</p>'
+                .'<p>مدیر: '.$manager.'</p>'
+                .'<p>دلیل: '.$reason.'</p>'
+                .'<p>وضعیت هنگام بررسی: '.$before.'</p></td></tr>';
         }
 
         $keyboard = InlineKeyboardMarkup::make();
@@ -290,7 +301,31 @@ final readonly class AdminSubscriptionStatusUi
             $keyboard->addRow(...$navigation);
         }
         $keyboard->addRow(InlineKeyboardButton::make('◀️ وضعیت اشتراک', callback_data: 'full:service:view:'.$order));
-        $this->render($bot, implode("\n", $lines), $keyboard);
+
+        $rich = '<h2>🕘 تاریخچه عملیات سرویس #'.$order.'</h2>'
+            .'<p>فقط تغییرات وضعیت ثبت‌شده از بات مدیریت نمایش داده می‌شوند.</p>'
+            .($history['items'] === []
+                ? '<p>عملیات مدیریتی ثبت‌شده‌ای در این صفحه وجود ندارد.</p>'
+                : '<table bordered striped compact>'.$richRows.'</table>')
+            .'<footer>اطلاعات ثبت‌نشده در سوابق قدیمی قابل بازیابی نیست.</footer>';
+
+        if ($bot->isCallbackQuery()) {
+            TelegramUi::answerCallback($bot);
+        }
+        try {
+            TelegramUi::editRichText($bot, new InputRichMessage(html: $rich, is_rtl: true), $keyboard);
+
+            return;
+        } catch (TelegramException $exception) {
+            report($exception);
+            // Native fallback preserves the exact authorized history and buttons.
+            if ($bot->isCallbackQuery()) {
+                TelegramUi::editText($bot, implode("\n", $lines), $keyboard);
+
+                return;
+            }
+            $bot->sendMessage(text: implode("\n", $lines), reply_markup: $keyboard);
+        }
     }
 
     private static function reasonLabel(?string $reason): string

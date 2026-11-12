@@ -14,8 +14,10 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
+use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 use SergiX44\Nutgram\Testing\FakeNutgram;
 
@@ -118,6 +120,13 @@ function adminHistoryPayload(NutgramRequest $request): array
     if (is_string($payload['reply_markup'] ?? null)) {
         $payload['reply_markup'] = json_decode($payload['reply_markup'], true, flags: JSON_THROW_ON_ERROR);
     }
+    if (isset($payload['rich_message'])) {
+        $rich = is_string($payload['rich_message'])
+            ? json_decode($payload['rich_message'], true, flags: JSON_THROW_ON_ERROR)
+            : $payload['rich_message'];
+        $payload['rich_html'] = ($rich['is_rtl'] ?? false) ? (string) ($rich['html'] ?? '') : '';
+        $payload['text'] = str_replace('</td><td>', ': ', $payload['rich_html']);
+    }
 
     return $payload;
 }
@@ -207,6 +216,8 @@ it('pages only the source order Admin operations and shows truthful legacy metad
             $text = (string) $payload['text'];
 
             return str_contains($text, 'تاریخچه عملیات سرویس #'.$order)
+                && str_contains((string) ($payload['rich_html'] ?? ''), '<table bordered striped compact>')
+                && str_contains((string) ($payload['rich_html'] ?? ''), '<footer>')
                 && str_contains($text, 'نیازمند بررسی')
                 && str_contains($text, 'بررسی پشتیبانی')
                 && str_contains($text, 'در سوابق قبلی ثبت نشده')
@@ -214,6 +225,71 @@ it('pages only the source order Admin operations and shows truthful legacy metad
                 && ! str_contains($text, 'private-short-id')
                 && ! str_contains($text, 'live:status:');
         }, index: 1);
+    Http::assertNothingSent();
+});
+
+
+it('restores and executes a queued legacy status job that has no serialized reason field', function (): void {
+    ['root' => $root, 'order' => $order] = adminHistoryFixture();
+    config()->set('services.remnawave.writes_enabled', true);
+    $remote = adminHistoryRemote($order);
+    Http::fake(static function (Request $request) use (&$remote) {
+        if ($request->method() === 'PATCH') {
+            $remote['status'] = $request['status'];
+        }
+
+        return Http::response(['response' => $remote], 200);
+    });
+
+    $key = 'mvp04:'.$order.':'.str_repeat('c', 32);
+    $oldJob = new ChangeFulfilledSubscriptionStatusJob($order, $root->id, 'disable', $key);
+    unset($oldJob->reasonCode);
+    $job = unserialize(serialize($oldJob));
+    expect($job)->toBeInstanceOf(ChangeFulfilledSubscriptionStatusJob::class)
+        ->and($job->reasonCode ?? null)->toBeNull();
+    $job->handle(app(ManageFulfilledSubscriptionStatus::class));
+
+    $row = DB::table('provisioning_operations')->where('idempotency_key', $key)->first();
+    expect($row)->not->toBeNull()
+        ->and($row->state)->toBe('completed')
+        ->and($row->actor_user_id)->toBe($root->id)
+        ->and($row->reason_code)->toBeNull();
+    Http::assertSentCount(2);
+});
+
+it('falls back to an identical native history on a Rich transport error', function (): void {
+    ['root' => $root, 'order' => $order] = adminHistoryFixture();
+    $subscription = DB::table('provisioning_subscriptions')->where('reference', 'sales-order:'.$order)->value('id');
+    DB::table('provisioning_operations')->insert([
+        'subscription_id' => $subscription,
+        'idempotency_key' => 'mvp04:'.$order.':'.str_repeat('b', 32),
+        'kind' => 'disable',
+        'payload_hash' => hash('sha256', 'fallback'),
+        'expected_payload' => '{"status":"DISABLED"}',
+        'state' => 'completed',
+        'actor_user_id' => $root->id,
+        'reason_code' => 'support',
+        'preflight_status' => 'ACTIVE',
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+
+    $bot = Mockery::mock(Nutgram::class);
+    $bot->shouldReceive('chat')->andReturn(Chat::make(994201, ChatType::PRIVATE));
+    $bot->shouldReceive('user')->andReturn(TelegramUser::make(994201, false, 'Admin'));
+    $bot->shouldReceive('isCallbackQuery')->andReturn(false);
+    $bot->shouldReceive('sendRichMessage')->once()->andReturnUsing(static function (...$args): void {
+        expect($args[0])->toBeInstanceOf(InputRichMessage::class)
+            ->and($args[0]->html)->toContain('تاریخچه عملیات سرویس', '<table bordered striped compact>');
+        throw new TelegramException('unsupported Rich message', 400);
+    });
+    $bot->shouldReceive('sendMessage')->once()->andReturnUsing(static function (...$args) use ($order): void {
+        expect($args[0])->toContain('تاریخچه عملیات سرویس #'.$order, 'بررسی پشتیبانی', 'تأییدشده')
+            ->not->toContain('private-short-id', 'https://private.example.test/token');
+        expect(json_encode($args[1], JSON_THROW_ON_ERROR))->toContain('full:service:view:'.$order);
+    });
+
+    app(\App\Interfaces\Telegram\Support\AdminSubscriptionStatusUi::class)
+        ->history($bot, (string) $order, '1');
     Http::assertNothingSent();
 });
 

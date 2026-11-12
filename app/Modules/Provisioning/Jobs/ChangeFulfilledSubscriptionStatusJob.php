@@ -25,13 +25,18 @@ final class ChangeFulfilledSubscriptionStatusJob implements ShouldBeUnique, Shou
 
     public int $uniqueFor = 180;
 
+    // A property default preserves older serialized queue payloads without
+    // this field; promoted constructor defaults do not cover unserialization.
+    public ?string $reasonCode = null;
+
     public function __construct(
         public int $orderId,
         public int $actorId,
         public string $mode,
         public string $operationKey = '',
-        public ?string $reasonCode = null,
+        ?string $reasonCode = null,
     ) {
+        $this->reasonCode = $reasonCode;
         $this->onConnection(ProviderQueueConnection::name());
     }
 
@@ -46,7 +51,7 @@ final class ChangeFulfilledSubscriptionStatusJob implements ShouldBeUnique, Shou
             if ($this->mode === 'reconcile') {
                 $statuses->reconcile($this->actorId, $this->orderId);
             } else {
-                $statuses->change($this->actorId, $this->orderId, $this->mode, $this->operationKey, $this->reasonCode);
+                $statuses->change($this->actorId, $this->orderId, $this->mode, $this->operationKey, $this->reasonCode ?? null);
             }
         } catch (Throwable) {
             // Never log provider responses, subscription credentials or exceptions.
