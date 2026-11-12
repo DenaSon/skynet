@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
+use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\CopyTextButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
@@ -188,7 +189,7 @@ final readonly class AdminPendingReceiptFollowupUi
             ."\nپیام از بات فروش برای مشتری ارسال می‌شود؛ هیچ پرداختی تأیید یا سرویسی فعال نخواهد شد."
             ."\n\nآیا تأیید می‌کنید؟";
         $keyboard = InlineKeyboardMarkup::make()
-            ->addRow(InlineKeyboardButton::make('✅ ثبت درخواست ارسال', callback_data: 'receipt:followup:apply:'.$token))
+            ->addRow(InlineKeyboardButton::make('✅ ثبت درخواست ارسال', callback_data: 'receipt:followup:apply:'.$token, style: ButtonStyle::SUCCESS))
             ->addRow(InlineKeyboardButton::make('◀️ انصراف', callback_data: 'receipt:followup:view:'.$orderId));
         $rich = '<h2>⚠️ تأیید یادآوری ارسال رسید</h2>'
             .'<table bordered striped compact><tr><td>سفارش</td><td>#'.$orderId.'</td></tr>'
