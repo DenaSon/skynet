@@ -481,3 +481,23 @@ Production Redis may return the cached order ID as a numeric **string** even whe
 ### Receipt follow-up message polish (2026-11-12)
 
 The existing one-shot `BuyerReceiptReminder` Sales Bot notification now uses a warmer, action-oriented Persian message: a greeting, a neutral statement that the receipt is still awaited, a clear receipt-upload request leading to payment review and subsequent service activation, and reassurance that unpaid orders need no action. The existing `📷 ارسال رسید پرداخت` callback uses Telegram's native green `success` button style; the secondary `📋 مشاهده سفارش` button remains neutral. Both callback destinations, the sender, authorization, delivery safety, claims and financial flows are unchanged. CI asserts exact message markers and the primary/secondary button styles; no migration or new dependency is involved.
+
+### Receipt reminder — shipped buyer journey and observed outcome (2026-11-12)
+
+The trusted-root Admin flow is **«رسیدهای خرید» → «سفارش‌های بدون رسید» → order → «📨 یادآوری ارسال رسید»**, also reachable from eligible customer profiles. Pending direct bank order, zero receipt claims/settlements, a matching reachable private Sales Bot chat, numeric Telegram ID (no public username required), one-time three-minute root-bound confirmation and six-hour quiet period remain mandatory. A buyer changing to reseller, losing the reachable Sales chat or submitting a receipt before worker execution must suppress sending. A reminder is **not** evidence of bank credit and cannot activate a service or post a ledger entry.
+
+Current **Sales Bot** notice (`BuyerReceiptReminder`, after [PR #471](https://github.com/DenaSon/skynet/pull/471)):
+
+> **🧾 یادآوری پرداخت سفارش** `#{orderId}`
+>
+> سلام! 👋
+>
+> سفارش شما در دناگیت هنوز در انتظار ثبت رسید پرداخت است.
+>
+> اگر مبلغ سفارش را واریز کرده‌اید، لطفاً از دکمه زیر تصویر رسید خود را ارسال کنید تا پرداختتان بررسی و مراحل فعال‌سازی سرویس انجام شود.
+>
+> اگر هنوز پرداخت نکرده‌اید، نیازی به اقدامی نیست. 💚
+
+The primary native inline button **«📷 ارسال رسید پرداخت»** is styled `success` (green) and retains the existing `sales:payment:receipt:{orderId}` action. Secondary **«📋 مشاهده سفارش»** stays neutral and retains `sales:checkout:view:{orderId}`. Do not imply that uploading a receipt itself approves payment or guarantees immediate activation; actual receipt review still controls financial settlement.
+
+**Feedback evidence:** The operator reported one real buyer received a reminder and then submitted the previously missing receipt. This is a single customer-journey observation, **not** a measured conversion rate or a claim that the buyer saw the newer wording/button styling. Source CI is green through [`master` run 43182056429](https://github.com/DenaSon/skynet/actions/runs/43182056429); independent real-client visual inspection of the newer green button and complete deployment evidence are separate. Per the [feedback-driven development standard](004-STANDARDS.md#feedback-driven-evidence-based-incremental-development-normative), log only privacy-safe lessons and authorize any further measurement or changes separately.

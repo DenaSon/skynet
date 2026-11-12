@@ -8,6 +8,21 @@
 5. Run `php artisan test`, `vendor/bin/phpstan analyse --no-progress`, and `vendor/bin/pint --test` (or `composer quality`) when possible; disclose what was not run.
 6. Open PR to `master`; document risks and deferred decisions.
 
+## Feedback-Driven, Evidence-Based, Incremental Development (normative)
+
+Treat real customer/operator feedback and observed Production defects as **inputs to prioritization**, not automatic implementation approval. Keep the approved Roadmap, phase acceptance criteria, security/RBAC, financial reconciliation, Provider-write gates, nonbreaking behavior and automatic-Production-deploy risk authoritative. Follow the smallest useful feedback loop:
+
+1. **Observe:** record a concrete user journey, incident or unmet need, its timestamp and affected workflow; omit personal identifiers and private payment/Telegram content from documentation. Separate observation from hypothesis.
+2. **Verify:** inspect the latest `master`, existing Actions, data contracts and relevant logs/DB evidence with least-privilege read-only queries. Confirm the root cause and which users/roles are affected; do not assume a missing bank receipt proves payment or its ownership.
+3. **Scope:** define one bounded fix or improvement, user-visible acceptance criteria, failure/replay/security guards, existing infrastructure reuse, rollback and what is explicitly **not** changing. Seek explicit approval for new capabilities, architecture, sensitive financial/Provider operations, dependencies or expanded scope.
+4. **Deliver incrementally:** independent PR, focused unit/feature tests (including negative paths), architecture boundaries, CI PHP/quality/MySQL as applicable, review fixes, and an authorized merge to `master`. Preserve current callback/API behavior, queuing and data. A green mocked test does not prove real bank, Telegram or Remnawave acceptance.
+5. **Validate in the field:** distinguish (a) simulated tests, (b) deployed commit/runtime confirmation, (c) operator-reported real behavior, (d) independently verified persisted outcomes and (e) aggregate trends. Record the evidence level, known limitations and result without claiming causality or commercial impact from one case.
+6. **Learn and repeat:** close the small issue, revisit priorities with actual outcomes, and authorize the next scope separately. Avoid speculative analytics pipelines, auto-reminders or parallel systems; if measurement is later approved, prefer existing events and privacy-safe counts first.
+
+**Illustrative accepted loop (2026-11-12):** a pending direct bank order without a submitted receipt and without a public Telegram username → inspect numeric Telegram identity and reachable Sales Bot chat → implement a one-shot, root-approved Sales Bot receipt request using existing notification delivery → fix a real Redis numeric-string confirmation bug → refine Persian copy and native green primary CTA → operator reports that one notified buyer submitted a receipt. The observation establishes a **successful reported journey for one buyer**, not a measured conversion rate, proof of bank transfer, or validation that all clients render green. Future candidate indicators (not implemented or approved by this text): eligible reminders sent, delivery failures, distinct orders with a later receipt claim within a defined period, duplicates/retries, and time-to-claim. Correlation is not proof of causation; no raw chat IDs or receipt photos in metrics.
+
+The usual source process below remains binding.
+
 ## Telegram security baseline (F4)
 - Only private Telegram chats can link or display account/admin menus; identify users by numeric Telegram ID, not username.
 - No Bot API token, webhook secret or one-time link code in the Git repository or logs. Never report raw Nutgram or HTTP exceptions; log sanitized type/operation IDs because API URLs can embed the token.
