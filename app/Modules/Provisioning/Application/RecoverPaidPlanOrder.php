@@ -60,9 +60,11 @@ final readonly class RecoverPaidPlanOrder
             hash('sha256', json_encode([$reference, 'create', $expected], JSON_THROW_ON_ERROR)))
             || (int) $order->duration_days < 1 || (int) $order->duration_days > 3650
             || ! in_array($order->plan_kind, ['time', 'volume', 'hybrid'], true)
+            || ($order->traffic_gb === null && $order->plan_kind !== 'time')
+            || ($order->traffic_gb !== null && (int) $order->traffic_gb < 1)
             || $order->plan_revision === null || ! is_string($order->internal_squad_uuid)
-            || $expected['username'] !== 'sk_'.substr(hash('sha256', $reference), 0, 24)
-            || $expected['description'] !== 'SkyNetwork ref:'.hash('sha256', $reference)
+            || ($expected['username'] ?? null) !== 'sk_'.substr(hash('sha256', $reference), 0, 24)
+            || ($expected['description'] ?? null) !== 'SkyNetwork ref:'.hash('sha256', $reference)
             || ($expected['status'] ?? null) !== 'ACTIVE'
             || ($expected['trafficLimitStrategy'] ?? null) !== 'NO_RESET'
             || ! is_string($expected['expireAt'] ?? null)
