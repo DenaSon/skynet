@@ -70,7 +70,7 @@ final readonly class FulfillPaidPlanOrder
             throw new RuntimeException('Renewal needs the separate read-only reconciliation path.');
         }
         $this->assertOrderId($orderId);
-        $state = DB::transaction(function () use ($orderId): string {
+        $decision = DB::transaction(function () use ($orderId): array {
             $order = DB::table('sales_orders')->where('id', $orderId)->lockForUpdate()->first();
             $outbox = DB::table('sales_fulfillment_outbox')->where('sales_order_id', $orderId)->lockForUpdate()->first();
 
@@ -83,7 +83,11 @@ final readonly class FulfillPaidPlanOrder
             $this->assertSettlement($order);
 
             $local = DB::table('provisioning_subscriptions')->where('reference', self::reference($orderId))->first();
-            $op = DB::table('provisioning_operations')->where('idempotency_key', self::operationKey($orderId))->first();
+            $key = $local?->last_operation_key;
+            if (! in_array($key, [self::operationKey($orderId), self::recoveryKey($orderId)], true)) {
+                throw new RuntimeException('Unexpected create operation during reconciliation.');
+            }
+            $op = DB::table('provisioning_operations')->where('idempotency_key', $key)->first();
 
             if ($local === null || $op === null || (int) $op->subscription_id !== (int) $local->id
                 || $op->kind !== 'create'
@@ -91,12 +95,12 @@ final readonly class FulfillPaidPlanOrder
                 throw new RuntimeException('No recorded create operation to reconcile; operator investigation required.');
             }
 
-            return (string) $op->state;
+            return ['state' => (string) $op->state, 'key' => $key];
         });
 
-        $remoteId = $state === 'completed'
+        $remoteId = $decision['state'] === 'completed'
             ? $this->lifecycle->subscription(self::reference($orderId))->id
-            : $this->lifecycle->reconcileCreate(self::reference($orderId), self::operationKey($orderId));
+            : $this->lifecycle->reconcileCreate(self::reference($orderId), $decision['key']);
 
         return $this->complete($orderId, $remoteId);
     }
@@ -203,18 +207,34 @@ final readonly class FulfillPaidPlanOrder
         }
     }
 
+    /** Reuse existing atomic completion after a separately audited recovery. */
+    public function completeRecovered(int $orderId, int $remoteId): int
+    {
+        $reference = self::reference($orderId);
+        if (DB::table('provisioning_subscriptions')->where('reference', $reference)
+            ->value('last_operation_key') !== self::recoveryKey($orderId)) {
+            throw new RuntimeException('Recovery operation is not the current subscription intent.');
+        }
+
+        return $this->complete($orderId, $remoteId);
+    }
+
     private function complete(int $orderId, int $remoteId): int
     {
         return DB::transaction(function () use ($orderId, $remoteId): int {
             $order = DB::table('sales_orders')->where('id', $orderId)->lockForUpdate()->first();
             $outbox = DB::table('sales_fulfillment_outbox')->where('sales_order_id', $orderId)->lockForUpdate()->first();
             $local = DB::table('provisioning_subscriptions')->where('reference', self::reference($orderId))->lockForUpdate()->first();
-            $op = DB::table('provisioning_operations')->where('idempotency_key', self::operationKey($orderId))->first();
+            $key = $local?->last_operation_key;
+            $op = in_array($key, [self::operationKey($orderId), self::recoveryKey($orderId)], true)
+                ? DB::table('provisioning_operations')->where('idempotency_key', $key)->first()
+                : null;
 
             if ($order === null || $order->status !== 'paid' || $outbox === null
                 || ! in_array($outbox->state, ['processing', 'needs_review'], true)
                 || $local === null || $local->state !== 'active' || (int) $local->remote_user_id !== $remoteId
-                || $op === null || (int) $op->subscription_id !== (int) $local->id || $op->state !== 'completed') {
+                || $op === null || $op->kind !== 'create'
+                || (int) $op->subscription_id !== (int) $local->id || $op->state !== 'completed') {
                 throw new RuntimeException('Fulfillment mapping requires operator review.');
             }
 
@@ -271,5 +291,10 @@ final readonly class FulfillPaidPlanOrder
     private static function operationKey(int $orderId): string
     {
         return self::reference($orderId).':create';
+    }
+
+    private static function recoveryKey(int $orderId): string
+    {
+        return self::reference($orderId).':recovery:create:1';
     }
 }
