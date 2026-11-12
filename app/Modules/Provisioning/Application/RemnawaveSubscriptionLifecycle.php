@@ -417,6 +417,21 @@ final class RemnawaveSubscriptionLifecycle
         $hash = hash('sha256', json_encode([$reference, $kind, $payload], JSON_THROW_ON_ERROR));
 
         return DB::transaction(function () use ($reference, $key, $kind, $hash, $payload, $creating, $actorId, $reasonCode, $preflightStatus, $recovery): array {
+            if ($recovery) {
+                // Match the existing order → outbox → subscription lock order.
+                // A concurrent reconciliation may complete between GET and
+                // reservation; never POST for a now-fulfilled order.
+                $orderId = (int) substr($reference, strlen('sales-order:'));
+                $order = DB::table('sales_orders')->where('id', $orderId)->lockForUpdate()->first();
+                $outbox = DB::table('sales_fulfillment_outbox')
+                    ->where('sales_order_id', $orderId)->lockForUpdate()->first();
+                if ($order === null || $order->status !== 'paid'
+                    || $outbox === null || $outbox->state !== 'needs_review'
+                    || $outbox->event_key !== $reference.':create'
+                    || DB::table('provisioning_order_links')->where('sales_order_id', $orderId)->exists()) {
+                    throw new RuntimeException('Paid-order recovery is no longer eligible.');
+                }
+            }
             $previous = DB::table('provisioning_operations')->where('idempotency_key', $key)->lockForUpdate()->first();
             $record = DB::table('provisioning_subscriptions')->where('reference', $reference)->lockForUpdate()->first();
 
