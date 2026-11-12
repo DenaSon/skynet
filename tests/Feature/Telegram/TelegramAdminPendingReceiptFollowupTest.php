@@ -168,7 +168,7 @@ it('requires a private trusted root and denies forged normal-admin callbacks', f
 });
 
 it('uses an actor-bound one-time confirmation then queues one auditable Sales reminder', function (): void {
-    ['root' => $root, 'order' => $order] = receiptFollowupFixture();
+    ['root' => $root, 'buyer' => $buyer, 'order' => $order] = receiptFollowupFixture();
     $bot = receiptFollowupBot(998001, $root);
     $token = null;
 
@@ -192,7 +192,7 @@ it('uses an actor-bound one-time confirmation then queues one auditable Sales re
         ->where('event_type', AdminPendingReceiptFollowup::EVENT)->first();
 
     expect($delivery)->not->toBeNull()
-        ->and($delivery->recipient_user_id)->toBe($root->id + 1)
+        ->and($delivery->recipient_user_id)->toBe($buyer->id)
         ->and($delivery->bot_key)->toBe('sales')
         ->and($delivery->order_id)->toBe($order)
         ->and($delivery->state)->toBe('pending')
@@ -261,7 +261,7 @@ it('suppresses queued reminders if a receipt arrives or payment state changes be
     DB::table('sales_bank_payment_claims')->where('sales_order_id', $order)->delete();
     DB::table('sales_orders')->where('id', $order)->update(['status' => 'paid']);
     expect(fn () => $service->detail($root->id, $order))->toThrow(ValidationException::class);
-    Queue::assertPushed(DispatchTelegramNotification::class, 1);
+    Queue::assertNotPushed(DispatchTelegramNotification::class);
 });
 
 it('suppresses blocked Sales contact, revoked root and ambiguous Telegram outcomes', function (): void {

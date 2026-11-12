@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Telegram\Support;
 
+use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Sales\Application\AdminPendingReceiptFollowup;
 use App\Support\PersianCalendar;
@@ -122,13 +123,13 @@ final readonly class AdminPendingReceiptFollowupUi
         $state = $latest === null ? 'قبلاً یادآوری ثبت نشده' : self::delivery((string) $latest->state);
         $text = "<b>🧾 سفارش بدون رسید #{$orderId}</b>\n\n"
             ."مشتری: {$name} · #{$order->buyer_user_id}\n"
-            ."پلن: ".TelegramUi::escape((string) $order->product_name)."\n"
+            .'پلن: '.TelegramUi::escape((string) $order->product_name)."\n"
             ."مبلغ سفارش: {$value}\n"
             ."زمان سفارش: {$date}\n"
             ."شناسه تلگرام: {$tgId}\n"
             ."بات فروش: {$contact}\n"
             ."آخرین یادآوری: {$state}\n\n"
-            ."⚠️ واریز بانک هنوز از این سفارش احراز نشده است.";
+            .'⚠️ واریز بانک هنوز از این سفارش احراز نشده است.';
 
         $keyboard = InlineKeyboardMarkup::make();
         if (is_numeric($order->telegram_user_id) && (int) $order->telegram_user_id > 0) {
@@ -219,7 +220,8 @@ final readonly class AdminPendingReceiptFollowupUi
         }
 
         try {
-            $this->followups->enqueue($root, $orderId, $token);
+            $deliveryId = $this->followups->enqueue($root, $orderId, $token);
+            DispatchTelegramNotification::dispatch($deliveryId);
             $message = "✅ درخواست یادآوری سفارش #{$orderId} ثبت شد."
                 ."\nوضعیت ارسال را از صفحه سفارش بررسی کنید.";
         } catch (Throwable) {

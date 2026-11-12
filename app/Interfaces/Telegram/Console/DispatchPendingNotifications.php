@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Interfaces\Telegram\Console;
 
 use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
+use App\Modules\Sales\Application\AdminPendingReceiptFollowup;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -29,8 +30,11 @@ final class DispatchPendingNotifications extends Command
                 return self::FAILURE;
             }
 
+            // An ambiguous one-shot customer message may already have been
+            // delivered. Operator retries cannot bypass its at-most-once fence.
             $reset = DB::table('telegram_notification_deliveries')
                 ->where('id', (int) $retry)
+                ->where('event_type', '!=', AdminPendingReceiptFollowup::EVENT)
                 ->whereIn('state', ['dead', 'unavailable'])
                 ->update([
                     'state' => 'pending', 'attempts' => 0,

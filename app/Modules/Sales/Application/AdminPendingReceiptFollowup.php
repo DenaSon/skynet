@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Modules\Sales\Application;
 
-use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
 use App\Modules\Identity\Application\SuperAdminTrust;
 use App\Modules\Identity\Infrastructure\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -104,10 +104,8 @@ final readonly class AdminPendingReceiptFollowup
                 'updated_at' => now(),
             ]);
 
-            DB::afterCommit(static function () use ($id): void {
-                DispatchTelegramNotification::dispatch($id);
-            });
-
+            // Telegram interface enqueues after this transaction commits.
+            // The existing scheduled outbox dispatcher recovers a lost enqueue.
             return $id;
         }, 3);
     }
@@ -174,7 +172,7 @@ final readonly class AdminPendingReceiptFollowup
             ->first(['state', 'last_failure', 'created_at', 'sent_at']);
     }
 
-    private function eligibleOrders(): \Illuminate\Database\Query\Builder
+    private function eligibleOrders(): Builder
     {
         return DB::table('sales_orders as o')
             ->join('users as u', 'u.id', '=', 'o.buyer_user_id')

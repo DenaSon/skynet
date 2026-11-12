@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Interfaces\Telegram\Notifications;
 
 use App\Interfaces\Telegram\Support\AdminNotificationTopicUi;
-use App\Modules\Sales\Application\AdminPendingReceiptFollowup;
 use App\Interfaces\Telegram\Support\ReplyMenuLabels;
 use App\Interfaces\Telegram\Support\ReplyMenuRenderer;
 use App\Interfaces\Telegram\Support\SubscriptionPageLink;
@@ -20,6 +19,7 @@ use App\Modules\Identity\Application\AdminCapabilityAccess;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\TelegramRecipient;
 use App\Modules\Identity\Infrastructure\Models\User;
+use App\Modules\Sales\Application\AdminPendingReceiptFollowup;
 use App\Modules\Sales\Application\ManualBankPayments;
 use App\Modules\Sales\Application\ReviewSalesPanelRequest;
 use App\Modules\Sales\Application\SalesPanelRequests;
@@ -439,7 +439,7 @@ final readonly class TelegramNotificationSender
                 $this->text($bot, $chat,
                     "<b>🧾 یادآوری سفارش #{$orderId}</b>"
                     ."\n\nاگر مبلغ سفارش را واریز کرده‌اید اما رسید ارسال نکرده‌اید،"
-                    ." لطفاً تصویر رسید را از دکمه زیر ثبت کنید."
+                    .' لطفاً تصویر رسید را از دکمه زیر ثبت کنید.'
                     ."\nاگر هنوز پرداخت نکرده‌اید، نیازی به اقدامی نیست."
                     ."\n\nثبت رسید به معنی تأیید پرداخت نیست.",
                     $keyboard, 'HTML', false,
