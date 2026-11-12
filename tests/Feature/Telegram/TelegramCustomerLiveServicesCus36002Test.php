@@ -49,6 +49,14 @@ function c360LivePayload(NutgramRequest $request): array
     if (is_string($data['reply_markup'] ?? null)) {
         $data['reply_markup'] = json_decode($data['reply_markup'], true, flags: JSON_THROW_ON_ERROR);
     }
+    if (isset($data['rich_message'])) {
+        $rich = is_string($data['rich_message'])
+            ? json_decode($data['rich_message'], true, flags: JSON_THROW_ON_ERROR)
+            : $data['rich_message'];
+        $data['rich_html'] = ($rich['is_rtl'] ?? false) ? (string) ($rich['html'] ?? '') : '';
+        // Normalize table labels for the original text/HTML parity assertions.
+        $data['text'] = str_replace('</td><td>', ': ', $data['rich_html']);
+    }
 
     return $data;
 }
@@ -174,6 +182,8 @@ it('fetches a single owner-verified provider snapshot and renders credential-fre
             $buttons = json_encode($payload['reply_markup'], JSON_THROW_ON_ERROR);
 
             return str_contains($text, 'Plan &lt;private&gt; 1')
+                && str_contains((string) ($payload['rich_html'] ?? ''), '<table bordered striped compact>')
+                && str_contains((string) ($payload['rich_html'] ?? ''), '<footer>🔄 زمان بررسی:')
                 && str_contains($text, 'تطبیق شناسه سرویس: تأیید شد')
                 && str_contains($text, 'شناسه کاربر در RW: <code>42</code>')
                 && str_contains($text, 'نام کاربری در RW: <code>'.c360LiveRemote($order)['username'].'</code>')
@@ -253,6 +263,42 @@ it('does not show RW identifiers or copy actions if the root cannot verify provi
         }, index: 1);
 
     Http::assertSentCount(2);
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
+});
+
+
+it('keeps the authorized native service detail and copy keyboard when Rich is unsupported', function (): void {
+    $root = User::factory()->create();
+    $root->syncRoles(['super-admin']);
+    $buyer = User::factory()->create();
+    $order = c360LiveOrder($buyer, 22);
+    c360LiveBot(994201, $root);
+    Http::fake(['https://rw-live.test/api/users/42' => Http::response(['response' => c360LiveRemote($order)], 200)]);
+
+    $bot = Mockery::mock(Nutgram::class);
+    $bot->shouldReceive('chat')->andReturn(Chat::make(994201, ChatType::PRIVATE));
+    $bot->shouldReceive('user')->andReturn(TelegramUser::make(994201, false, 'Operator'));
+    $bot->shouldReceive('isCallbackQuery')->andReturn(false);
+    $bot->shouldReceive('sendRichMessage')->once()->andReturnUsing(static function (...$args): void {
+        $rich = $args[0];
+        expect($rich->html)->toContain('<table bordered striped compact>', 'شناسه کاربر در RW');
+
+        throw new \SergiX44\Nutgram\Telegram\Exceptions\TelegramException('unsupported Rich message', 400);
+    });
+    $bot->shouldReceive('sendMessage')->once()->andReturnUsing(static function (...$args): void {
+        $text = $args[0];
+        $keyboard = $args[1];
+
+        expect($text)->toContain('شناسه کاربر در RW: <code>42</code>')
+            ->toContain('نام کاربری در RW: <code>')
+            ->not->toContain('private-short-id', 'credential');
+        expect(json_encode($keyboard, JSON_THROW_ON_ERROR))->toContain('copy_text', 'c360:l:');
+    });
+
+    app(\App\Interfaces\Telegram\Support\CustomerSupportProfileUi::class)
+        ->service($bot, (string) $buyer->id, (string) $order, '1', 'a', '1');
+
+    Http::assertSentCount(1);
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
 });
 
