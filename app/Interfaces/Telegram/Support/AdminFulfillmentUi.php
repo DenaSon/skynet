@@ -305,7 +305,7 @@ final readonly class AdminFulfillmentUi
                 ->addRow(InlineKeyboardButton::make(
                     $recovery ? '🛠️ تأیید درخواست بازیابی' : '✅ تأیید',
                     callback_data: 'full:apply:'.$token,
-                    style: $recovery ? ButtonStyle::DANGER : null,
+                    style: $recovery ? ButtonStyle::SUCCESS : null,
                 ))
                 ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'full:view:'.$order)),
         );
