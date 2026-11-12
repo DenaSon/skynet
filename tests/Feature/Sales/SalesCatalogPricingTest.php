@@ -4,6 +4,7 @@ use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Sales\Application\CalculateQuote;
 use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\ConfigureRate;
+use App\Modules\Sales\Application\CreatePendingOrder;
 use App\Modules\Sales\Application\ListProducts;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -60,6 +61,42 @@ it('quotes one through one hundred GB and rejects invalid volume or duration', f
         expect(fn () => app(CalculateQuote::class)->handle($buyer->id, 'vpn-access', $duration, 10))
             ->toThrow(ValidationException::class);
     }
+});
+
+it('accepts one through five hundred GB for explicitly expanded products, preserving quotes and pending snapshots', function (): void {
+    app(ConfigureProduct::class)->handle('vpn-access', 'VPN Access', 1, 500);
+    app(ConfigureRate::class)->handle('vpn-access', 30, 100_000, 20_000);
+    Role::findOrCreate('reseller', 'web');
+
+    $direct = User::factory()->create();
+    $reseller = User::factory()->create();
+    $reseller->assignRole('reseller');
+
+    $public = app(CalculateQuote::class)->handle($direct->id, 'vpn-access', 30, 500);
+    $partner = app(CalculateQuote::class)->handle($reseller->id, 'vpn-access', 30, 500);
+
+    expect($public->trafficGb)->toBe(500)
+        ->and($public->publicPriceRials)->toBe(10_100_000)
+        ->and($partner->discountPercent)->toBe(35)
+        ->and($partner->totalPriceRials)->toBe(6_565_000);
+
+    $order = app(CreatePendingOrder::class)->handle($reseller->id, $partner, bin2hex(random_bytes(16)));
+    expect($order->trafficGb)->toBe(500)
+        ->and($order->totalPriceRials)->toBe(6_565_000)
+        ->and($order->status)->toBe('pending_payment')
+        ->and(DB::table('billing_journals')->count())->toBe(0);
+
+    foreach ([0, 501, 1000] as $gb) {
+        expect(fn () => app(CalculateQuote::class)->handle($reseller->id, 'vpn-access', 30, $gb))
+            ->toThrow(ValidationException::class);
+    }
+    expect(fn () => app(ConfigureProduct::class)->handle('too-large', 'Bad', 1, 501))
+        ->toThrow(ValidationException::class);
+
+    // Existing 100-GB products retain their own configured limit.
+    app(ConfigureProduct::class)->handle('vpn-access', 'VPN Access', 1, 100);
+    expect(fn () => app(CalculateQuote::class)->handle($reseller->id, 'vpn-access', 30, 101))
+        ->toThrow(ValidationException::class);
 });
 
 it('uses one rate for direct and reseller purchases with exactly 35 percent off', function (): void {
