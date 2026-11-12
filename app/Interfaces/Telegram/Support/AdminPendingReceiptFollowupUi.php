@@ -221,7 +221,12 @@ final readonly class AdminPendingReceiptFollowupUi
 
         try {
             $deliveryId = $this->followups->enqueue($root, $orderId, $token);
-            DispatchTelegramNotification::dispatch($deliveryId);
+            try {
+                DispatchTelegramNotification::dispatch($deliveryId);
+            } catch (Throwable) {
+                // The durable outbox is already committed. Scheduled dispatch
+                // will recover it; do not falsely report that enqueue failed.
+            }
             $message = "✅ درخواست یادآوری سفارش #{$orderId} ثبت شد."
                 ."\nوضعیت ارسال را از صفحه سفارش بررسی کنید.";
         } catch (Throwable) {
