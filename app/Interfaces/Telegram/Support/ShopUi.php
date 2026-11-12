@@ -6,6 +6,7 @@ use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\TelegramActor;
 use App\Modules\Sales\Application\CalculateQuote;
 use App\Modules\Sales\Application\CatalogProduct;
+use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\CreatePendingOrder;
 use App\Modules\Sales\Application\ListProducts;
 use App\Modules\Sales\Application\OrderDetails;
@@ -226,8 +227,8 @@ final class ShopUi
             '٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4', '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
         ]);
 
-        if (preg_match('/^(?:[1-9]|[1-9][0-9]|100)$/D', $digits) !== 1) {
-            $this->notice($bot, 'حجم باید عدد صحیح بین ۱ تا ۱۰۰ گیگابایت باشد؛ مثلاً 75.');
+        if ((preg_match('/\A[1-9][0-9]{0,2}\z/D', $digits) !== 1 || (int) $digits > ConfigureProduct::MAX_GB)) {
+            $this->notice($bot, 'حجم باید عدد صحیح بین ۱ تا ۵۰۰ گیگابایت باشد؛ مثلاً ۲۵۰.');
 
             return;
         }
