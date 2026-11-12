@@ -9,6 +9,7 @@ use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Sales\Application\AdminPendingReceiptFollowup;
 use GuzzleHttp\Psr7\Request as NutgramRequest;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
@@ -281,6 +282,45 @@ it('suppresses blocked Sales contact, revoked root and ambiguous Telegram outcom
     $root->syncRoles(['member']);
     (new DispatchTelegramNotification($another))->handle(app(TelegramNotificationSender::class));
     expect(DB::table('telegram_notification_deliveries')->where('id', $another)->value('state'))->toBe('unavailable');
+    Http::assertNothingSent();
+});
+
+it('suppresses a direct order reminder when its buyer gains the reseller role after checkout', function (): void {
+    ['root' => $root, 'buyer' => $buyer, 'order' => $order] = receiptFollowupFixture();
+    $service = app(AdminPendingReceiptFollowup::class);
+    $id = $service->enqueue($root->id, $order, str_repeat('1', 32));
+    $buyer->syncRoles(['reseller']);
+
+    expect($service->detail($root->id, $order)['canSend'])->toBeFalse();
+    (new DispatchTelegramNotification($id))->handle(app(TelegramNotificationSender::class));
+    expect(DB::table('telegram_notification_deliveries')->where('id', $id)->value('state'))->toBe('unavailable');
+    Http::assertNothingSent();
+});
+
+it('does not let the recovery command manually retry a one-shot reminder after an uncertain send', function (): void {
+    ['root' => $root, 'order' => $order] = receiptFollowupFixture();
+    $id = app(AdminPendingReceiptFollowup::class)->enqueue($root->id, $order, str_repeat('2', 32));
+    Http::swap(new Factory);
+    Http::preventStrayRequests();
+    Http::fake(['https://api.telegram.org/*' => Http::response(['ok' => false], 500)]);
+
+    (new DispatchTelegramNotification($id))->handle(app(TelegramNotificationSender::class));
+    expect(DB::table('telegram_notification_deliveries')->where('id', $id)->value('state'))->toBe('unavailable')
+        ->and(DB::table('telegram_notification_deliveries')->where('id', $id)->value('last_failure'))->toBe('delivery_uncertain');
+    Http::assertSentCount(1);
+
+    expect(Artisan::call('telegram:notifications:dispatch', ['--retry-id' => (string) $id]))->toBe(1)
+        ->and(DB::table('telegram_notification_deliveries')->where('id', $id)->value('state'))->toBe('unavailable');
+    Http::assertSentCount(1);
+});
+
+it('does not enable a reminder when the buyer has never started the Sales Bot', function (): void {
+    ['root' => $root, 'order' => $order] = receiptFollowupFixture(contact: false);
+    $service = app(AdminPendingReceiptFollowup::class);
+    expect($service->detail($root->id, $order)['canSend'])->toBeFalse()
+        ->and(fn () => $service->enqueue($root->id, $order, str_repeat('3', 32)))
+        ->toThrow(ValidationException::class);
+    Queue::assertNotPushed(DispatchTelegramNotification::class);
     Http::assertNothingSent();
 });
 
