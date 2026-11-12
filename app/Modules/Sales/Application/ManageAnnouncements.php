@@ -6,8 +6,9 @@ namespace App\Modules\Sales\Application;
 
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
 use App\Modules\Identity\Infrastructure\Models\User;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Query\JoinClause;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 final readonly class ManageAnnouncements
@@ -194,7 +195,7 @@ final readonly class ManageAnnouncements
         ];
     }
 
-    private function eligibleResellerQuery(): \Illuminate\Database\Query\Builder
+    private function eligibleResellerQuery(): Builder
     {
         return DB::table('users as u')
             ->join('model_has_roles as m', function (JoinClause $join): void {
