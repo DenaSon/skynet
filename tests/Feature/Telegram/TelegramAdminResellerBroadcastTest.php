@@ -63,6 +63,7 @@ it('offers root-only reseller announcement compose, one-use confirmation and sta
     $bot->hearCallbackQueryData('admin:ann:list:1')->reply()->assertRaw(
         static function (NutgramRequest $request): bool {
             $data = FakeNutgram::getActualData($request);
+
             return str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'admin:ann:reseller:new');
         }, index: 1,
     );
@@ -93,6 +94,7 @@ it('offers root-only reseller announcement compose, one-use confirmation and sta
         static function (NutgramRequest $request): bool {
             $data = FakeNutgram::getActualData($request);
             $markup = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+
             return ! str_contains($markup, 'admin:ann:edit:1')
                 && ! str_contains($markup, 'admin:ann:prepare:1:publish');
         }, index: 1,
