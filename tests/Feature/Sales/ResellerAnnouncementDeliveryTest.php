@@ -28,7 +28,6 @@ beforeEach(function (): void {
     Role::findOrCreate('reseller', 'web');
     Role::findOrCreate('member', 'web');
     Http::preventStrayRequests();
-    Http::fake(['https://api.telegram.org/bot456:sales_unit_test/sendMessage' => Http::response(['ok' => true], 200)]);
 });
 
 function raRoot(): User
@@ -85,6 +84,7 @@ it('targets only reachable active Sales resellers, freezes content and keeps pub
         ->toThrow(ValidationException::class);
 
     $delivery = (int) DB::table('telegram_notification_deliveries')->value('id');
+    Http::fake(['https://api.telegram.org/bot456:sales_unit_test/sendMessage' => Http::response(['ok' => true], 200)]);
     (new DispatchTelegramNotification($delivery))->handle(app(TelegramNotificationSender::class));
 
     expect(DB::table('telegram_notification_deliveries')->value('state'))->toBe('sent')
