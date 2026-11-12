@@ -48,7 +48,7 @@ function live3aReseller(int $telegramId): User
     return $reseller;
 }
 
-function live3aPlan(User $root, string $slug, string $mode = 'preset', string $audience = 'both', int $discount = 35): int
+function live3aPlan(User $root, string $slug, string $mode = 'preset', string $audience = 'both', int $discount = 35, int $maxGb = 100): int
 {
     $plan = app(ManagePlans::class)->create($root->id, new PlanDefinition(
         productSlug: 'live-three',
@@ -60,7 +60,7 @@ function live3aPlan(User $root, string $slug, string $mode = 'preset', string $a
         trafficGb: $mode === 'preset' ? 30 : null,
         durationDays: $mode === 'preset' ? 30 : null,
         minGb: 1,
-        maxGb: 100,
+        maxGb: $maxGb,
         minDays: 7,
         maxDays: 180,
     ));
@@ -184,6 +184,29 @@ it('prices custom reseller builders only for valid integer days and GB', functio
         ->call('previewQuote')
         ->assertSee('مقدار روز یا حجم معتبر نیست')
         ->set('gbInput', '101')
+        ->call('previewQuote')
+        ->assertSee('برای این انتخاب قیمت قابل ارائه نیست');
+
+    live3aAssertNoCommerceWrites();
+});
+
+it('supports a 500-GB reseller builder preview in Live while rejecting 501 without writes', function (): void {
+    $root = live3aRoot();
+    app(ConfigureProduct::class)->handle('live-three', 'سرویس نمایندگی', 1, 500);
+    $reseller = live3aReseller(933317);
+    $planId = live3aPlan($root, 'builder-500-live', 'builder', 'reseller', 35, 500);
+
+    $this->actingAs($reseller)->withSession(['denagate_live.user_id' => $reseller->id]);
+
+    Livewire::test(Dashboard::class)
+        ->call('showSection', 'shop')
+        ->call('selectPlan', $planId)
+        ->set('daysInput', '45')
+        ->set('gbInput', '500')
+        ->call('previewQuote')
+        ->assertSee('پیش‌فاکتور شما')
+        ->assertSee('71,175')
+        ->set('gbInput', '501')
         ->call('previewQuote')
         ->assertSee('برای این انتخاب قیمت قابل ارائه نیست');
 
