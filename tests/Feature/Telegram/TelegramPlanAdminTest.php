@@ -143,7 +143,7 @@ it('supports reseller-only builder creation and typed unlimited presets', functi
     [$root, $bot] = b14Root();
 
     $bot->hearCallbackQueryData('plan:begin:builder:0')->reply();
-    $bot->hearText('vpn-access | custom-builder | سفارش سفارشی | hybrid | 1 | 100 | 15 | 90')->reply();
+    $bot->hearText('vpn-access | custom-builder | سفارش سفارشی | hybrid | 1 | 500 | 15 | 90')->reply();
     $token = app(PlanAdminDrafts::class)->peek($root->id)['token'];
     $bot->hearCallbackQueryData('plan:save:'.$token)->reply();
 
@@ -153,6 +153,7 @@ it('supports reseller-only builder creation and typed unlimited presets', functi
     $bot->hearCallbackQueryData('plan:save:'.$token)->reply();
 
     expect(DB::table('sales_plans')->where('slug', 'custom-builder')->value('mode'))->toBe('builder')
+        ->and(DB::table('sales_plans')->where('slug', 'custom-builder')->value('max_gb'))->toBe(500)
         ->and(DB::table('sales_plans')->where('slug', 'custom-builder')->value('audience'))->toBe('reseller')
         ->and(DB::table('sales_plans')->where('slug', 'unlimited-30')->value('traffic_gb'))->toBeNull()
         ->and(DB::table('sales_plans')->where('slug', 'unlimited-30')->value('kind'))->toBe('time');

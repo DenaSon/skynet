@@ -90,6 +90,26 @@ it('accepts custom Persian and Arabic numerals only after the custom-volume sele
     expect(app(PendingShopVolume::class)->peek($buyer->id))->toBeNull();
 });
 
+it('accepts 500 GB in the existing shop custom-volume flow while rejecting 501', function (): void {
+    $id = shopSampleCatalog();
+    app(ConfigureProduct::class)->handle('vpn-access', 'اشتراک VPN', 1, 500);
+    $buyer = User::factory()->create();
+    $bot = shopBot(921026, $buyer);
+
+    $bot->hearCallbackQueryData("shop:volume:{$id}:30")->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData("shop:custom:{$id}:30")->reply()->assertCalled('editMessageText');
+
+    $bot->hearText('۵۰۱')->reply()->assertCalled('sendMessage');
+    expect(app(PendingShopVolume::class)->peek($buyer->id))->not->toBeNull();
+
+    $bot->hearText('۵۰۰')->reply()->assertCalled('sendMessage');
+    expect(app(PendingShopVolume::class)->peek($buyer->id))->toBeNull();
+
+    $bot->hearCallbackQueryData("shop:quote:{$id}:30:500")->reply()->assertCalled('editMessageText');
+    expect(app(CalculateQuote::class)->handle($buyer->id, 'vpn-access', 30, 500)->trafficGb)->toBe(500)
+        ->and(DB::table('sales_orders')->count())->toBe(0);
+});
+
 it('validates custom volume, prevents cross-account state use and expires it', function (): void {
     $id = shopSampleCatalog();
     $first = User::factory()->create();

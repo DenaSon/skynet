@@ -68,11 +68,11 @@ function b16Reseller(): User
     return $user;
 }
 
-function b16Builder(User $root, string $slug = 'builder-1', string $kind = 'hybrid'): int
+function b16Builder(User $root, string $slug = 'builder-1', string $kind = 'hybrid', int $maxGb = 100): int
 {
     $plan = app(ManagePlans::class)->create($root->id, new PlanDefinition(
         'vpn-access', $slug, $slug, $kind, 'builder', 'reseller',
-        null, null, $kind === 'time' ? null : 1, $kind === 'time' ? null : 100,
+        null, null, $kind === 'time' ? null : 1, $kind === 'time' ? null : $maxGb,
         15, 90,
     ));
 
@@ -270,6 +270,34 @@ it('uses canonical integer-rial pricing with exactly one published reseller disc
     $bot->hearCallbackQueryData("builder:quote:{$id}:30:45:1")->reply()->assertCalled('editMessageText');
     expect(DB::table('sales_orders')->count())->toBe(0)
         ->and(DB::table('billing_journals')->count())->toBe(0);
+});
+
+it('quotes and previews a reseller builder at 500 GB without any provider or financial writes', function (): void {
+    app(ConfigureProduct::class)->handle('vpn-access', 'VPN Access', 1, 500);
+    $root = b16Root();
+    $id = b16Builder($root, 'builder-500', 'hybrid', 500);
+    $reseller = b16Reseller();
+    $quote = app(CalculatePlanQuote::class)->handle($reseller->id, $id, 45, 500);
+
+    expect($quote->trafficGb)->toBe(500)
+        ->and($quote->publicPriceRials)->toBe(5_190_000)
+        ->and($quote->totalPriceRials)->toBe(4_671_000)
+        ->and(fn () => app(CalculatePlanQuote::class)->handle($reseller->id, $id, 45, 501))
+        ->toThrow(ValidationException::class);
+
+    Http::preventStrayRequests();
+    Http::fake();
+    $bot = b16Bot(966019, $reseller);
+    $bot->hearCallbackQueryData("builder:detail:{$id}:1")->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData("builder:quote:{$id}:500:45:1")->reply()->assertCalled('editMessageText');
+
+    $bot->hearCallbackQueryData("builder:custom:{$id}:1")->reply()->assertCalled('editMessageText');
+    $bot->hearText('500 | 45')->reply()->assertCalled('sendMessage');
+
+    expect(DB::table('sales_orders')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe(0)
+        ->and(DB::table('provisioning_operations')->count())->toBe(0);
+    Http::assertNothingSent();
 });
 
 it('supports custom Persian numerals and a ten-minute owner-scoped input', function (): void {

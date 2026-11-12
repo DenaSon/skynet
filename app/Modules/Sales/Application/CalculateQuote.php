@@ -18,7 +18,7 @@ final class CalculateQuote
             throw ValidationException::withMessages(['product' => 'Product unavailable.']);
         }
 
-        if ($trafficGb < 1 || $trafficGb > 100 || $trafficGb < (int) $product->min_gb || $trafficGb > (int) $product->max_gb) {
+        if ($trafficGb < 1 || $trafficGb > ConfigureProduct::MAX_GB || $trafficGb < (int) $product->min_gb || $trafficGb > (int) $product->max_gb) {
             throw ValidationException::withMessages(['traffic' => 'Requested traffic exceeds product limits.']);
         }
 

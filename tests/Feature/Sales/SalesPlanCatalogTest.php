@@ -112,12 +112,27 @@ it('enforces the plan type, audience and precise bounds without accepting invali
         new PlanDefinition('vpn-access', 'unknown-kind', 'Unknown', 'wrong', 'preset', 'both', 10, 30, 1, 100, 7, 90),
         new PlanDefinition('vpn-access', 'unknown-audience', 'Unknown', 'hybrid', 'preset', 'everyone', 10, 30, 1, 100, 7, 90),
         new PlanDefinition('vpn-access', 'out-of-order', 'Days', 'hybrid', 'preset', 'both', 10, 30, 100, 1, 7, 90),
+        new PlanDefinition('vpn-access', 'over-five-hundred', 'Too large', 'hybrid', 'builder', 'reseller', null, null, 1, 501, 15, 90),
     ] as $definition) {
         expect(fn () => $manage->create($root->id, $definition))
             ->toThrow(ValidationException::class);
     }
 
     expect(DB::table('sales_plans')->count())->toBe(0);
+});
+
+it('allows reseller builder definitions through 500 GB without relaxing the 501-GB boundary', function (): void {
+    b11Product();
+    $root = b11Root();
+    $plan = app(ManagePlans::class)->create($root->id, new PlanDefinition(
+        'vpn-access', 'five-hundred-builder', 'Builder 500', 'hybrid', 'builder', 'reseller',
+        null, null, 1, 500, 15, 90,
+    ));
+
+    expect($plan->minGb)->toBe(1)
+        ->and($plan->maxGb)->toBe(500)
+        ->and($plan->status)->toBe('draft')
+        ->and(DB::table('sales_orders')->count())->toBe(0);
 });
 
 it('requires a live allowlisted root for every management read and mutation', function (): void {
