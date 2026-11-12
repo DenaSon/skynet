@@ -22,6 +22,7 @@ use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 use SergiX44\Nutgram\Testing\FakeNutgram;
+use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
 
@@ -289,6 +290,7 @@ it('suppresses a direct order reminder when its buyer gains the reseller role af
     ['root' => $root, 'buyer' => $buyer, 'order' => $order] = receiptFollowupFixture();
     $service = app(AdminPendingReceiptFollowup::class);
     $id = $service->enqueue($root->id, $order, str_repeat('1', 32));
+    Role::findOrCreate('reseller', 'web');
     $buyer->syncRoles(['reseller']);
 
     expect($service->detail($root->id, $order)['canSend'])->toBeFalse();
