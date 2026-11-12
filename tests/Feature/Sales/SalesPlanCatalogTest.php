@@ -249,6 +249,43 @@ it('cannot delete a plan tied to an existing immutable order', function (): void
         ->and(DB::table('sales_plan_audits')->where('operation', 'deleted')->count())->toBe(0);
 });
 
+it('freezes sold preset and reseller-builder revisions including confirmations issued before checkout', function (): void {
+    b11Product();
+    $root = b11Root();
+    $manage = app(ManagePlans::class);
+    app(ConfigureRate::class)->handle('vpn-access', 30, 100_000, 20_000);
+
+    foreach (['preset', 'builder'] as $mode) {
+        $plan = $manage->create($root->id, b11Definition('sold-'.$mode, 'hybrid', $mode, 'reseller'));
+        b11Activate($root, $plan->id);
+        $token = $manage->requestChange($root->id, $plan->id, 2, 'deactivate');
+
+        // Fixture: attach an immutable order to a managed plan after confirmation began.
+        // The guard is about historical order existence, regardless of payment status.
+        $buyer = User::factory()->create();
+        $quote = app(CalculateQuote::class)->handle($buyer->id, 'vpn-access', 30, 10);
+        $order = app(CreatePendingOrder::class)->handle($buyer->id, $quote, bin2hex(random_bytes(16)));
+        DB::table('sales_orders')->where('id', $order->id)->update([
+            'plan_id' => $plan->id,
+            'plan_revision' => 2,
+            'status' => $mode === 'preset' ? 'pending_payment' : 'paid',
+        ]);
+
+        $audits = DB::table('sales_plan_audits')->where('plan_id', $plan->id)->count();
+
+        expect($manage->hasOrders($root->id, $plan->id))->toBeTrue()
+            ->and(fn () => $manage->update($root->id, $plan->id, 2, b11Definition('edited-'.$mode, 'hybrid', $mode, 'reseller')))
+            ->toThrow(ValidationException::class)
+            ->and(fn () => $manage->requestChange($root->id, $plan->id, 2, 'deactivate'))
+            ->toThrow(ValidationException::class)
+            ->and(fn () => $manage->confirmChange($root->id, $token))
+            ->toThrow(ValidationException::class)
+            ->and(DB::table('sales_plans')->where('id', $plan->id)->value('revision'))->toBe(2)
+            ->and(DB::table('sales_plans')->where('id', $plan->id)->value('status'))->toBe('active')
+            ->and(DB::table('sales_plan_audits')->where('plan_id', $plan->id)->count())->toBe($audits);
+    }
+});
+
 it('does not connect new plans to F09 quote/checkout or alter existing payment gates', function (): void {
     b11Product();
     $root = b11Root();
