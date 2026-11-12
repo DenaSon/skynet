@@ -117,7 +117,16 @@ final readonly class SalesHomeUi
                 InlineKeyboardButton::make('🟢 خرید سرویس', callback_data: 'sales:buy', style: ButtonStyle::SUCCESS),
                 InlineKeyboardButton::make('📋 سرویس‌های من', callback_data: 'sales:subs:list:0', style: ButtonStyle::PRIMARY),
             );
-        if ($hasWallet) {
+        if ($isReseller) {
+            $keyboard->addRow(
+                InlineKeyboardButton::make(ReplyMenuLabels::SALES_WALLET, callback_data: 'sales:wallet'),
+                InlineKeyboardButton::make(ReplyMenuLabels::BUILDER, callback_data: 'menu:builder'),
+            );
+            $keyboard->addRow(
+                InlineKeyboardButton::make(ReplyMenuLabels::SALES_ACCOUNT, callback_data: 'sales:account'),
+                InlineKeyboardButton::make(ReplyMenuLabels::SALES_SUPPORT, callback_data: 'sales:support'),
+            );
+        } elseif ($hasWallet) {
             $keyboard->addRow(
                 InlineKeyboardButton::make(ReplyMenuLabels::SALES_WALLET, callback_data: 'sales:wallet'),
                 InlineKeyboardButton::make('👤 حساب کاربری', callback_data: 'sales:account'),
@@ -131,19 +140,18 @@ final readonly class SalesHomeUi
                 InlineKeyboardButton::make('💬 پشتیبانی', callback_data: 'sales:support'),
             );
         }
-        if ($isReseller) {
-            $keyboard->addRow(InlineKeyboardButton::make('🧩 پلن سفارشی', callback_data: 'menu:builder'));
-            $keyboard->addRow(InlineKeyboardButton::make('📊 گزارش‌های من', callback_data: 'sales:report:30'));
-        }
         if ($panelRequestLabel !== null) {
             $keyboard->addRow(InlineKeyboardButton::make(
                 $panelRequestLabel, callback_data: 'sales:panel:hub',
             ));
         }
-        if ($actor->roles !== ['member']) {
+        if ($actor->roles !== ['member'] && ! $isReseller) {
             $keyboard->addRow(InlineKeyboardButton::make('💬 پشتیبانی', callback_data: 'sales:support'));
         }
         $keyboard->addRow(InlineKeyboardButton::make('📋 همه پلن‌ها و قیمت‌ها', callback_data: 'menu:plan-catalog'));
+        if ($isReseller) {
+            $keyboard->addRow(InlineKeyboardButton::make(ReplyMenuLabels::SALES_REPORTS, callback_data: 'sales:report:30'));
+        }
         if (app(ReadPublishedAnnouncements::class)->hasPublished()) {
             $keyboard->addRow(InlineKeyboardButton::make(ReplyMenuLabels::SALES_ANNOUNCEMENTS, callback_data: 'sales:ann:list'));
         }
@@ -330,7 +338,7 @@ final readonly class SalesHomeUi
             ReplyMenuLabels::SALES_APP => 'app',
             ReplyMenuLabels::SALES_PANEL_REQUEST, ReplyMenuLabels::SALES_PANEL_STATUS,
             '🧩 درخواست پنل فروش', '📨 وضعیت درخواست پنل فروش' => 'panel',
-            ReplyMenuLabels::SALES_REPORTS => 'report',
+            ReplyMenuLabels::SALES_REPORTS, ReplyMenuLabels::PREVIOUS_SALES_REPORTS => 'report',
             ReplyMenuLabels::HOME, '🏠 صفحه اصلی', '❌ انصراف', '/cancel' => 'home',
             ReplyMenuLabels::SALES_REWARD, ReplyMenuLabels::INVITE, '👥 دعوت دوستان' => 'invite',
             ReplyMenuLabels::BUILDER, ReplyMenuLabels::PREVIOUS_BUILDER,
@@ -520,7 +528,7 @@ final readonly class SalesHomeUi
         }
         if (in_array('reseller', $actor->roles, true)) {
             $keyboard->addRow(InlineKeyboardButton::make('🧩 پلن سفارشی', callback_data: 'menu:builder'));
-            $keyboard->addRow(InlineKeyboardButton::make('📊 گزارش‌های من', callback_data: 'sales:report:30'));
+            $keyboard->addRow(InlineKeyboardButton::make(ReplyMenuLabels::SALES_REPORTS, callback_data: 'sales:report:30'));
         }
 
         $keyboard->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
