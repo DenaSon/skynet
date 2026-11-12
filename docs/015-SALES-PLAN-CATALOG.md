@@ -6,7 +6,7 @@
 
 Sales owns `sales_plans`, `sales_plan_confirmations`, `sales_plan_audits`. The existing `sales_products` / `sales_product_rates`, F09 quotes and checkout are deliberately unchanged. Nullable `sales_orders.plan_id` is reserved for future price-snapshot-backed orders, with RESTRICT on plan deletion.
 
-A plan is either a fixed `preset` or a reseller-only `builder`; kinds are `volume`, `time` (unlimited volume) and `hybrid`. Fixed presets have exact duration and, for finite volume plans, exact GB; a builder has no fixed duration/volume but defines min/max. Time-based plans store NULL for traffic, never an implicit provider sentinel. All plan durations are bounded 1–365 days and finite traffic between 1 and 2048 GB. Status transitions are `draft`, `active`, `inactive`, `archived`; each plan has audience `public`, `reseller` or `both`, featured and display order.
+A plan is either a fixed `preset` or a reseller-only `builder`; kinds are `volume`, `time` (unlimited volume) and `hybrid`. Fixed presets have exact duration and, for finite volume plans, exact GB; a builder has no fixed duration/volume but defines min/max. Time-based plans store NULL for traffic, never an implicit provider sentinel. All plan durations are bounded 1–365 days and new finite-volume plan definitions between 1 and 500 GB. Existing plan/order snapshots are not rewritten by this rule. Status transitions are `draft`, `active`, `inactive`, `archived`; each plan has audience `public`, `reseller` or `both`, featured and display order.
 
 ## Secure Application operations
 
