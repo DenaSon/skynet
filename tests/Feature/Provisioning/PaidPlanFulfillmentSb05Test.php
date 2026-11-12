@@ -1501,7 +1501,7 @@ it('performs a fully enumerated double GET before a single separately audited re
         if ($request->method() === 'GET' && str_contains($request->url(), '/by-username/')) {
             return Http::response(['message' => 'not found'], 404);
         }
-        if ($request->method() === 'GET' && str_ends_with($request->url(), '/api/users')) {
+        if ($request->method() === 'GET' && parse_url($request->url(), PHP_URL_PATH) === '/api/users') {
             return Http::response(['response' => ['users' => [], 'total' => 0]], 200);
         }
         if ($request->method() === 'POST') {
