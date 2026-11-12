@@ -18,6 +18,7 @@ use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
+use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 use SergiX44\Nutgram\Testing\FakeNutgram;
 
@@ -288,7 +289,13 @@ it('keeps the authorized native service detail and copy keyboard when Rich is un
     });
     $bot->shouldReceive('editMessageText')->once()->andReturnUsing(static function (...$args): void {
         $text = $args['text'] ?? $args[0];
-        $keyboard = $args['reply_markup'] ?? $args[1] ?? null;
+        $keyboard = null;
+        foreach ($args as $value) {
+            if ($value instanceof InlineKeyboardMarkup) {
+                $keyboard = $value;
+                break;
+            }
+        }
 
         expect($text)->toContain('شناسه کاربر در RW: <code>42</code>')
             ->toContain('نام کاربری در RW: <code>')
