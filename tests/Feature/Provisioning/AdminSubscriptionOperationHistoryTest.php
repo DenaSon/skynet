@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Interfaces\Telegram\Support\AdminSubscriptionStatusUi;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Application\ManageFulfilledSubscriptionStatus;
@@ -228,7 +229,6 @@ it('pages only the source order Admin operations and shows truthful legacy metad
     Http::assertNothingSent();
 });
 
-
 it('restores and executes a queued legacy status job that has no serialized reason field', function (): void {
     ['root' => $root, 'order' => $order] = adminHistoryFixture();
     config()->set('services.remnawave.writes_enabled', true);
@@ -288,7 +288,7 @@ it('falls back to an identical native history on a Rich transport error', functi
         expect(json_encode($args[1], JSON_THROW_ON_ERROR))->toContain('full:service:view:'.$order);
     });
 
-    app(\App\Interfaces\Telegram\Support\AdminSubscriptionStatusUi::class)
+    app(AdminSubscriptionStatusUi::class)
         ->history($bot, (string) $order, '1');
     Http::assertNothingSent();
 });
