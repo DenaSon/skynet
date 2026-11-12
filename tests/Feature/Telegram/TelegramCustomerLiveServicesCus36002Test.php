@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Interfaces\Telegram\Support\CustomerSupportProfileUi;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Application\ManageFulfilledSubscriptionStatus;
@@ -14,6 +15,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
@@ -266,7 +268,6 @@ it('does not show RW identifiers or copy actions if the root cannot verify provi
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
 });
 
-
 it('keeps the authorized native service detail and copy keyboard when Rich is unsupported', function (): void {
     $root = User::factory()->create();
     $root->syncRoles(['super-admin']);
@@ -283,7 +284,7 @@ it('keeps the authorized native service detail and copy keyboard when Rich is un
         $rich = $args[0];
         expect($rich->html)->toContain('<table bordered striped compact>', 'شناسه کاربر در RW');
 
-        throw new \SergiX44\Nutgram\Telegram\Exceptions\TelegramException('unsupported Rich message', 400);
+        throw new TelegramException('unsupported Rich message', 400);
     });
     $bot->shouldReceive('sendMessage')->once()->andReturnUsing(static function (...$args): void {
         $text = $args[0];
@@ -295,7 +296,7 @@ it('keeps the authorized native service detail and copy keyboard when Rich is un
         expect(json_encode($keyboard, JSON_THROW_ON_ERROR))->toContain('copy_text', 'c360:l:');
     });
 
-    app(\App\Interfaces\Telegram\Support\CustomerSupportProfileUi::class)
+    app(CustomerSupportProfileUi::class)
         ->service($bot, (string) $buyer->id, (string) $order, '1', 'a', '1');
 
     Http::assertSentCount(1);
