@@ -277,7 +277,7 @@ final readonly class AdminAnnouncementsUi
         $draft['step'] = 'confirm-reseller';
         Cache::put($key, $draft, now()->addMinutes(3));
         $this->notice($bot, "📨 تأیید ارسال به نمایندگان\n\n"
-            ."عنوان: ".TelegramUi::escape((string) $draft['title'])
+            .'عنوان: '.TelegramUi::escape((string) $draft['title'])
             ."\nمخاطبان قابل‌دسترسی در بات فروش: {$count} نفر"
             ."\n\nپس از تأیید، ارسال در صف قرار می‌گیرد و قابل برگشت نیست."
             ."\nاین اطلاعیه برای کاربران عادی منتشر نمی‌شود.",
