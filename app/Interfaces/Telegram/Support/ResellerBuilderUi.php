@@ -53,9 +53,9 @@ final readonly class ResellerBuilderUi
 
         $pages = max(1, (int) ceil(count($builders) / 5));
         $page = min(max(1, $page), $pages);
-        $lines = ['🧩 پلن‌ساز پنل فروش', "صفحه {$page} از {$pages}", '',
+        $lines = ['🧩 پلن سفارشی', "صفحه {$page} از {$pages}", '',
             TelegramBotContext::current()->key === 'sales'
-                ? 'حجم و مدت دلخواه را انتخاب کنید؛ امکان ثبت سفارش پس از بررسی آمادگی سرویس مشخص می‌شود.'
+                ? 'حجم و مدت موردنیاز مشتری را انتخاب کنید؛ قیمت پیش از خرید نمایش داده می‌شود.'
                 : 'پلن‌های زیر دارای تعرفه فعال هستند. فقط پیش‌نمایش قیمت است؛ سفارش و پرداخت در دسترس نیست.', ''];
         $keyboard = InlineKeyboardMarkup::make();
 
@@ -68,7 +68,7 @@ final readonly class ResellerBuilderUi
         }
 
         if ($builders === []) {
-            $lines[] = 'در حال حاضر پلن سفارشی فعالی برای پنل فروش وجود ندارد.';
+            $lines[] = 'در حال حاضر پلن سفارشی فعالی وجود ندارد.';
         }
 
         if ($page > 1) {
@@ -117,11 +117,11 @@ final readonly class ResellerBuilderUi
         }
 
         $keyboard->addRow(InlineKeyboardButton::make('✏️ حجم و مدت دلخواه', callback_data: "builder:custom:{$plan->id}:{$pg}"));
-        $keyboard->addRow(InlineKeyboardButton::make('◀️ پلن‌سازها', callback_data: 'builder:list:'.$pg));
+        $keyboard->addRow(InlineKeyboardButton::make('◀️ پلن‌های سفارشی', callback_data: 'builder:list:'.$pg));
 
         $this->render($bot, '💼 '.$this->safe($plan->name)."\n\n".$this->bounds($plan)
-            ."\n\nحجم پیشنهادی را انتخاب کنید یا برای واردکردن حجم و مدت دلخواه دکمه ✏️ را بزنید."
-            ."\n\n⚠️ این انتخاب فقط برای استعلام قیمت است.", $keyboard);
+            ."\n\nحجم موردنظر را انتخاب کنید یا برای واردکردن حجم و مدت دلخواه دکمه ✏️ را بزنید."
+            ."\n\nقیمت نهایی پیش از خرید نمایش داده می‌شود.", $keyboard);
     }
 
     public function days(Nutgram $bot, string $id, string $gb, string $page): void
@@ -217,11 +217,10 @@ final readonly class ResellerBuilderUi
             ->addRow(InlineKeyboardButton::make('❌ لغو انتخاب', callback_data: 'builder:cancel'))
             ->addRow(InlineKeyboardButton::make('◀️ انتخاب‌های پلن', callback_data: "builder:detail:{$plan->id}:{$pg}"));
 
-        $this->render($bot, "✏️ انتخاب حجم و مدت دلخواه\n\nپلن: ".$this->safe($plan->name)
-            ."\n".$this->bounds($plan)
-            ."\n\nیک پیام به شکل «حجم | مدت» ارسال کنید؛ مثل:\n{$example}"
-            ."\nبرای پلن زمانی نامحدود به‌جای حجم از - استفاده کنید."
-            ."\nفقط اعداد صحیح (فارسی یا انگلیسی)، بدون اعشار.\nاعتبار این فرم ۱۰ دقیقه است.", $keyboard);
+        $this->render($bot, "✏️ حجم و مدت دلخواه\n\n".$this->bounds($plan)
+            ."\n\nحجم و مدت را به این شکل بفرستید:\n{$example}"
+            .($plan->kind === 'time' ? "\nبرای حجم نامحدود از - استفاده کنید." : '')
+            ."\nاعداد فارسی و انگلیسی پذیرفته می‌شوند.\nاین انتخاب تا ۱۰ دقیقه معتبر است.", $keyboard);
     }
 
     /**
@@ -300,7 +299,7 @@ final readonly class ResellerBuilderUi
     private function showQuote(Nutgram $bot, PlanSummary $plan, PlanPriceQuote $quote, int $page, bool $rich = true): void
     {
         $lines = [
-            '🧮 پیش‌نمایش پلن سفارشی',
+            '🧩 سرویس سفارشی شما',
             '',
             '📦 '.$this->safe($plan->name),
             '📊 حجم: '.($quote->trafficGb === null ? 'نامحدود' : $quote->trafficGb.' گیگابایت'),
@@ -308,17 +307,17 @@ final readonly class ResellerBuilderUi
             '',
             '💵 قیمت عمومی: '.number_format(intdiv($quote->publicPriceRials + 9, 10)).' تومان',
             "🎁 تخفیف پنل فروش: {$quote->discountPercent}٪",
-            '✅ قیمت مخصوص پنل فروش: '.number_format(intdiv($quote->totalPriceRials + 9, 10)).' تومان',
+            '💰 مبلغ قابل پرداخت: '.number_format(intdiv($quote->totalPriceRials + 9, 10)).' تومان',
             '',
             TelegramBotContext::current()->key === 'sales'
-                ? 'برای ادامه، امکان ثبت سفارش را بررسی کنید.'
+                ? 'مبلغ و شرایط قبل از ثبت سفارش دوباره بررسی می‌شوند.'
                 : 'ℹ️ این قیمت برای اطلاع شماست. خرید پلن سفارشی فعلاً فعال نیست.',
         ];
 
         $keyboard = InlineKeyboardMarkup::make();
         if (TelegramBotContext::current()->key === 'sales') {
             $keyboard->addRow(InlineKeyboardButton::make(
-                '🧾 بررسی امکان ثبت سفارش',
+                '🛒 ادامه خرید',
                 callback_data: "sales:checkout:preview:{$quote->planId}:{$quote->durationDays}:".($quote->trafficGb ?? 0),
             ));
         }
@@ -331,13 +330,13 @@ final readonly class ResellerBuilderUi
         if ($rich && TelegramBotContext::current()->key === 'sales') {
             $checkout = "sales:checkout:preview:{$quote->planId}:{$quote->durationDays}:".($quote->trafficGb ?? 0);
             $plainKeyboard = clone $keyboard;
-            $html = '<h4>🧮 پیش‌نمایش پلن سفارشی</h4>'
+            $html = '<h4>🧩 سرویس سفارشی شما</h4>'
                 .'<p>📦 <b>'.TelegramUi::escape($this->safe($plan->name)).'</b>'
                 .'<br>📊 حجم: '.($quote->trafficGb === null ? 'نامحدود' : $quote->trafficGb.' گیگابایت')
                 .'<br>⏳ مدت: '.$quote->durationDays.' روز</p>'
-                .'<p>💵 قیمت عمومی: <b>'.TelegramUi::toman($quote->publicPriceRials).' تومان</b>'
-                .'<br>🎁 تخفیف نماینده: <b>'.$quote->discountPercent.'٪</b>'
-                .'<br>✅ مبلغ شما: <b>'.TelegramUi::toman($quote->totalPriceRials).' تومان</b></p>'
+                .'<p>💵 قیمت عمومی: '.TelegramUi::toman($quote->publicPriceRials).' تومان'
+                .'<br>🎁 تخفیف نماینده: '.$quote->discountPercent.'٪</p>'
+                .'<p><b>💰 مبلغ قابل پرداخت: '.TelegramUi::toman($quote->totalPriceRials).' تومان</b></p>'
                 .'<tg-button-row><tg-button type="callback_data" style="success" data="'.$checkout.'">'
                 .'🛒 ادامه خرید</tg-button></tg-button-row>'
                 .'<details><summary>📋 نکته پیش از خرید</summary><p>'
@@ -449,8 +448,8 @@ final readonly class ResellerBuilderUi
 
     private function notice(Nutgram $bot, string $message, int $page): void
     {
-        $this->render($bot, "🧩 پلن‌ساز پنل فروش\n\n{$message}", InlineKeyboardMarkup::make()
-            ->addRow(InlineKeyboardButton::make('◀️ فهرست پلن‌سازها', callback_data: 'builder:list:'.$page)));
+        $this->render($bot, "🧩 پلن سفارشی\n\n{$message}", InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('◀️ پلن‌های سفارشی', callback_data: 'builder:list:'.$page)));
     }
 
     private function render(Nutgram $bot, string $text, InlineKeyboardMarkup $keyboard): void
