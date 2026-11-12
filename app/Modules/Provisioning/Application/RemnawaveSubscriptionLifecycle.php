@@ -116,9 +116,16 @@ final class RemnawaveSubscriptionLifecycle
 
         try {
             // Recheck after durable reservation to narrow the race window.
-            // A failed preflight consumes this one recovery opportunity safely.
             $this->assertAbsentInProvider($reference);
+        } catch (Throwable $e) {
+            // No POST was issued. Retain the refused recovery audit and make
+            // the original uncertain CREATE reconcilable if it just appeared.
+            $this->abortRecoveryBeforePost($reference, $idempotencyKey);
 
+            throw new RuntimeException('Recovery preflight failed before any CREATE; original reconciliation remains available.', 0, $e);
+        }
+
+        try {
             $remote = $this->api()->create($data);
             $this->assertIdentity($remote, $reference);
             $this->assertExpected($remote, [
@@ -134,6 +141,31 @@ final class RemnawaveSubscriptionLifecycle
 
             throw new RuntimeException('Recovery CREATE outcome requires read-only reconciliation; never replay.', 0, $e);
         }
+    }
+
+    /** Retire a reserved recovery without touching the original operation. */
+    private function abortRecoveryBeforePost(string $reference, string $key): void
+    {
+        DB::transaction(function () use ($reference, $key): void {
+            $row = DB::table('provisioning_subscriptions')
+                ->where('reference', $reference)->lockForUpdate()->first();
+            $op = DB::table('provisioning_operations')
+                ->where('idempotency_key', $key)->lockForUpdate()->first();
+            if ($row === null || $op === null || (int) $op->subscription_id !== (int) $row->id
+                || $row->last_operation_key !== $key
+                || $row->state !== 'reserved' || $op->state !== 'reserved') {
+                throw new RuntimeException('Recovery reservation changed before read-only abort.');
+            }
+
+            DB::table('provisioning_subscriptions')->where('id', $row->id)->update([
+                'state' => 'needs_review',
+                'last_operation_key' => $reference.':create',
+                'updated_at' => now(),
+            ]);
+            DB::table('provisioning_operations')->where('id', $op->id)->update([
+                'state' => 'aborted', 'updated_at' => now(),
+            ]);
+        });
     }
 
     /** Full inventory preflight: no leaked credentials, no remote mutation. */
