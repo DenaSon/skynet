@@ -6,6 +6,8 @@ use App\Modules\Sales\Application\CalculatePlanQuote;
 use App\Modules\Sales\Application\CalculateQuote;
 use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\ConfigureRate;
+use App\Modules\Provisioning\Application\CheckPlanSquadReadiness;
+use App\Modules\Sales\Application\CreatePendingPlanOrder;
 use App\Modules\Sales\Application\CreatePendingOrder;
 use App\Modules\Sales\Application\ManagePlanPricing;
 use App\Modules\Sales\Application\ManagePlans;
@@ -293,6 +295,64 @@ it('rejects selected builder options below configured minimum and mismatched buy
     $reseller->syncRoles(['member']);
     expect(fn () => app(RevalidatePlanQuote::class)->handle($reseller->id, $good))
         ->toThrow(ValidationException::class);
+});
+
+it('allows sold reseller builders to reprice without changing their plan revision or verified Squad', function (): void {
+    $root = b12Root();
+    $reseller = User::factory()->create();
+    $reseller->assignRole('reseller');
+    $planId = b12Plan($root, 'safe-sold-builder', 'hybrid', 'builder', 'reseller');
+    b12Publish($root, $planId, b12Price());
+
+    config()->set('services.remnawave.squad_bindings_live_verified', true);
+    $uuid = '11111111-2222-4333-8444-555555555555';
+    DB::table('sales_plan_internal_squad_bindings')->insert([
+        'plan_id' => $planId,
+        'internal_squad_uuid' => $uuid,
+        'plan_revision' => 2,
+        'verified_at' => now(),
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    Http::preventStrayRequests();
+    Http::fake();
+    $quote = app(CalculatePlanQuote::class)->handle($reseller->id, $planId, 45, 35);
+    $order = app(CreatePendingPlanOrder::class)->handle(
+        $reseller->id, $quote, bin2hex(random_bytes(16)),
+    );
+    $snapshot = DB::table('sales_orders')->where('id', $order->id)->first();
+    $pricing = app(ManagePlanPricing::class);
+
+    expect(app(CheckPlanSquadReadiness::class)->handle($root->id, $planId))->toBeTrue()
+        ->and($snapshot->plan_revision)->toBe(2)
+        ->and($snapshot->pricing_revision)->toBe(2);
+
+    $disable = $pricing->requestChange($root->id, $planId, 2, 2, 'deactivate');
+    $pricing->confirmChange($root->id, $disable);
+    expect(fn () => app(CalculatePlanQuote::class)->handle($reseller->id, $planId, 45, 35))
+        ->toThrow(ValidationException::class);
+
+    $newRevision = $pricing->configure($root->id, $planId, 2, 3,
+        b12Price('formula', null, 80_000, 3_000, 1_000, 35));
+    $publish = $pricing->requestChange($root->id, $planId, 2, $newRevision, 'activate');
+    $pricing->confirmChange($root->id, $publish);
+    $newQuote = app(CalculatePlanQuote::class)->handle($reseller->id, $planId, 45, 35);
+    $after = DB::table('sales_orders')->where('id', $order->id)->first();
+
+    expect($newQuote->pricingRevision)->toBe(5)
+        ->and($newQuote->discountPercent)->toBe(35)
+        ->and($newQuote->totalPriceRials)->not->toBe($snapshot->total_price_rials)
+        ->and(DB::table('sales_plans')->where('id', $planId)->value('revision'))->toBe(2)
+        ->and(DB::table('sales_plan_internal_squad_bindings')->where('plan_id', $planId)->value('plan_revision'))->toBe(2)
+        ->and(app(CheckPlanSquadReadiness::class)->handle($root->id, $planId))->toBeTrue()
+        ->and($after->plan_revision)->toBe($snapshot->plan_revision)
+        ->and($after->pricing_revision)->toBe($snapshot->pricing_revision)
+        ->and($after->total_price_rials)->toBe($snapshot->total_price_rials)
+        ->and($after->internal_squad_uuid)->toBe($uuid)
+        ->and(DB::table('billing_journals')->count())->toBe(0);
+
+    Http::assertNothingSent();
 });
 
 it('does not mutate legacy F09 quote and order flow, wallets or provider', function (): void {
