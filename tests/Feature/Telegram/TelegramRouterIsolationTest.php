@@ -303,6 +303,7 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     foreach ([
         'list:{page}', 'view:{id}', 'new', 'edit:{id}:{field}', 'save:{token}',
         'prepare-new:{token}', 'commit:{token}', 'prepare:{id}:{action}', 'apply:{token}', 'cancel',
+        'reseller:new', 'reseller:prepare:{token}', 'reseller:commit:{token}',
     ] as $name) {
         $expected['ADMIN'][] = 'callback:admin:ann:'.$name;
     }
