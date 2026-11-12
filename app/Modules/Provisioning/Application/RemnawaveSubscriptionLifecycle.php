@@ -101,14 +101,14 @@ final class RemnawaveSubscriptionLifecycle
         ]);
     }
 
-    public function disable(string $reference, string $idempotencyKey): int
+    public function disable(string $reference, string $idempotencyKey, ?int $actorId = null, ?string $reasonCode = null, ?string $preflightStatus = null): int
     {
-        return $this->mutate($reference, $idempotencyKey, 'disable', ['status' => 'DISABLED']);
+        return $this->mutate($reference, $idempotencyKey, 'disable', ['status' => 'DISABLED'], [], $actorId, $reasonCode, $preflightStatus);
     }
 
-    public function enable(string $reference, string $idempotencyKey): int
+    public function enable(string $reference, string $idempotencyKey, ?int $actorId = null, ?string $reasonCode = null, ?string $preflightStatus = null): int
     {
-        return $this->mutate($reference, $idempotencyKey, 'enable', ['status' => 'ACTIVE']);
+        return $this->mutate($reference, $idempotencyKey, 'enable', ['status' => 'ACTIVE'], [], $actorId, $reasonCode, $preflightStatus);
     }
 
     /**
@@ -256,13 +256,28 @@ final class RemnawaveSubscriptionLifecycle
      * @param  array<string, mixed>  $fields
      * @param  array<string, mixed>  $postconditions
      */
-    private function mutate(string $reference, string $key, string $kind, array $fields, array $postconditions = []): int
-    {
+    private function mutate(
+        string $reference,
+        string $key,
+        string $kind,
+        array $fields,
+        array $postconditions = [],
+        ?int $actorId = null,
+        ?string $reasonCode = null,
+        ?string $preflightStatus = null,
+    ): int {
         $this->assertEnabled();
         $this->assertKeys($reference, $key);
 
+        if (($actorId !== null && $actorId < 1)
+            || ($actorId === null && ($reasonCode !== null || $preflightStatus !== null))
+            || ($reasonCode !== null && ! in_array($reasonCode, ['customer', 'support', 'other'], true))
+            || ($preflightStatus !== null && ! in_array($preflightStatus, ['ACTIVE', 'DISABLED'], true))) {
+            throw new InvalidArgumentException('Invalid administrative operation metadata.');
+        }
+
         $expected = array_merge($fields, $postconditions);
-        $reserved = $this->reserve($reference, $key, $kind, $expected, false);
+        $reserved = $this->reserve($reference, $key, $kind, $expected, false, $actorId, $reasonCode, $preflightStatus);
 
         if ($reserved['alreadyComplete']) {
             return $reserved['remoteId'];
@@ -285,11 +300,19 @@ final class RemnawaveSubscriptionLifecycle
      * @param  array<string, mixed>  $payload
      * @return array{alreadyComplete: bool, remoteId: int}
      */
-    private function reserve(string $reference, string $key, string $kind, array $payload, bool $creating): array
-    {
+    private function reserve(
+        string $reference,
+        string $key,
+        string $kind,
+        array $payload,
+        bool $creating,
+        ?int $actorId = null,
+        ?string $reasonCode = null,
+        ?string $preflightStatus = null,
+    ): array {
         $hash = hash('sha256', json_encode([$reference, $kind, $payload], JSON_THROW_ON_ERROR));
 
-        return DB::transaction(function () use ($reference, $key, $kind, $hash, $payload, $creating): array {
+        return DB::transaction(function () use ($reference, $key, $kind, $hash, $payload, $creating, $actorId, $reasonCode, $preflightStatus): array {
             $previous = DB::table('provisioning_operations')->where('idempotency_key', $key)->lockForUpdate()->first();
             $record = DB::table('provisioning_subscriptions')->where('reference', $reference)->lockForUpdate()->first();
 
@@ -297,6 +320,13 @@ final class RemnawaveSubscriptionLifecycle
                 if ($record === null || (int) $previous->subscription_id !== (int) $record->id
                     || $previous->kind !== $kind || ! hash_equals((string) $previous->payload_hash, $hash)) {
                     throw new RuntimeException('Idempotency key is bound to a different operation.');
+                }
+
+                if ($actorId !== null
+                    && ((int) $previous->actor_user_id !== $actorId
+                        || $previous->reason_code !== $reasonCode
+                        || $previous->preflight_status !== $preflightStatus)) {
+                    throw new RuntimeException('Idempotency key belongs to a different administrative request.');
                 }
 
                 if ($previous->state !== 'completed' || $record->state !== 'active'
@@ -345,6 +375,9 @@ final class RemnawaveSubscriptionLifecycle
                 'payload_hash' => $hash,
                 'expected_payload' => json_encode($payload, JSON_THROW_ON_ERROR),
                 'state' => 'reserved',
+                'actor_user_id' => $actorId,
+                'reason_code' => $reasonCode,
+                'preflight_status' => $preflightStatus,
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);

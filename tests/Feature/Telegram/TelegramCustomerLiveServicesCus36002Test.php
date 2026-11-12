@@ -500,14 +500,15 @@ it('opens the existing confirmed subscription manager only for a root-owned fulf
                 && str_contains($buttons, 'c360:l:');
         }, index: 1);
 
-    // Direct button opens the existing second-step confirmation, never writes to RW.
+    // Status changes now require an explicit reason before one-time confirmation.
     $rootBot->hearCallbackQueryData('full:service:prepare:'.$order.':disable')->reply()
         ->assertRaw(static function (NutgramRequest $request): bool {
             $data = c360LivePayload($request);
             $buttons = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
 
-            return str_contains((string) $data['text'], 'تأیید نهایی')
-                && str_contains($buttons, 'full:service:apply:');
+            return str_contains((string) $data['text'], 'دلیل')
+                && str_contains($buttons, 'full:service:reason:')
+                && ! str_contains($buttons, 'full:service:apply:');
         }, index: 1);
 
     $rootBot->hearCallbackQueryData('full:service:view:'.$order)->reply()

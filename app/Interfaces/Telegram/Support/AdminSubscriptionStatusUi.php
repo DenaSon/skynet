@@ -7,11 +7,14 @@ namespace App\Interfaces\Telegram\Support;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Provisioning\Application\ManageFulfilledSubscriptionStatus;
 use App\Modules\Provisioning\Jobs\ChangeFulfilledSubscriptionStatusJob;
+use App\Support\PersianCalendar;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 use Throwable;
 
 /** MVP-04: tiny private Super Admin status action on existing fulfilled orders. */
@@ -77,6 +80,9 @@ final readonly class AdminSubscriptionStatusUi
         }
 
         $buttons->addRow(InlineKeyboardButton::make(
+            '🕘 تاریخچه عملیات', callback_data: 'full:service:history:'.$order.':1',
+        ));
+        $buttons->addRow(InlineKeyboardButton::make(
             '🔄 تازه‌سازی', callback_data: 'full:service:view:'.$order,
         ))->addRow(InlineKeyboardButton::make(
             '◀️ سفارش', callback_data: 'full:view:'.$order,
@@ -120,7 +126,59 @@ final readonly class AdminSubscriptionStatusUi
 
         $label = $mode === 'disable' ? 'غیرفعال‌سازی' : 'فعال‌سازی مجدد';
         $this->render($bot,
-            '⚠️ تأیید نهایی'."\n\n".$label.' اشتراک سفارش #'.$order."\n\nآیا مطمئن هستید؟",
+            '📝 دلیل '.$label.' سرویس سفارش #'.$order.' را انتخاب کنید:',
+            InlineKeyboardMarkup::make()
+                ->addRow(InlineKeyboardButton::make('درخواست مشتری', callback_data: 'full:service:reason:'.$token.':customer'))
+                ->addRow(InlineKeyboardButton::make('بررسی پشتیبانی', callback_data: 'full:service:reason:'.$token.':support'))
+                ->addRow(InlineKeyboardButton::make('سایر', callback_data: 'full:service:reason:'.$token.':other'))
+                ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'full:service:view:'.$order)),
+        );
+    }
+
+    public function reason(Nutgram $bot, string $token, string $reason): void
+    {
+        $root = $this->root($bot);
+        if ($root === null) {
+            return;
+        }
+        if (preg_match('/\A[a-f0-9]{32}\z/D', $token) !== 1
+            || ! in_array($reason, ['customer', 'support', 'other'], true)) {
+            $this->render($bot, 'درخواست معتبر نیست.', $this->back(0));
+
+            return;
+        }
+
+        $key = $this->key($root, $token);
+        $state = Cache::lock($key.':lock', 10)->block(2, static function () use ($key, $reason): mixed {
+            $value = Cache::get($key);
+            if (! is_array($value) || (isset($value['reason']) && $value['reason'] !== $reason)) {
+                return null;
+            }
+            $value['reason'] = $reason;
+            Cache::put($key, $value, now()->addMinutes(3));
+
+            return $value;
+        });
+
+        if (! is_array($state) || ! is_int($state['order'] ?? null)
+            || ! in_array($state['mode'] ?? null, ['enable', 'disable'], true)) {
+            $this->render($bot, 'این درخواست منقضی شده یا قبلاً ثبت شده است.', $this->back(0));
+
+            return;
+        }
+
+        $order = $state['order'];
+        try {
+            $this->statuses->authorizeChange($root, $order, $state['mode']);
+        } catch (Throwable) {
+            $this->render($bot, 'وضعیت اشتراک تغییر کرده یا این عملیات ممکن نیست.', $this->back($order));
+
+            return;
+        }
+
+        $label = $state['mode'] === 'disable' ? 'غیرفعال‌سازی' : 'فعال‌سازی مجدد';
+        $this->render($bot,
+            '⚠️ تأیید نهایی'."\n\n".$label.' اشتراک سفارش #'.$order."\n".'دلیل: '.self::reasonLabel($reason)."\n\nآیا مطمئن هستید؟",
             InlineKeyboardMarkup::make()
                 ->addRow(InlineKeyboardButton::make('✅ تأیید', callback_data: 'full:service:apply:'.$token))
                 ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'full:service:view:'.$order)),
@@ -150,7 +208,8 @@ final readonly class AdminSubscriptionStatusUi
         });
 
         if (! is_array($state) || ! is_int($state['order'] ?? null)
-            || ! in_array($state['mode'] ?? null, ['enable', 'disable'], true)) {
+            || ! in_array($state['mode'] ?? null, ['enable', 'disable'], true)
+            || ! in_array($state['reason'] ?? null, ['customer', 'support', 'other'], true)) {
             $this->render($bot, 'این تأیید قبلاً استفاده شده یا منقضی است.', $this->back(0));
 
             return;
@@ -164,6 +223,7 @@ final readonly class AdminSubscriptionStatusUi
                 $root,
                 $state['mode'],
                 'mvp04:'.$order.':'.$token,
+                $state['reason'],
             );
             $this->render($bot,
                 '✅ درخواست ثبت شد. نتیجه را کمی بعد بررسی کنید.',
@@ -172,6 +232,110 @@ final readonly class AdminSubscriptionStatusUi
         } catch (Throwable) {
             $this->render($bot, 'ثبت درخواست ممکن نشد. وضعیت را دوباره بررسی کنید.', $this->back($order));
         }
+    }
+
+    public function history(Nutgram $bot, string $id, string $page): void
+    {
+        $root = $this->root($bot);
+        if ($root === null) {
+            return;
+        }
+        $order = $this->id($id);
+        if ($order === null || ! ctype_digit($page) || (int) $page < 1 || (int) $page > 1000) {
+            $this->render($bot, 'درخواست معتبر نیست.', $this->back(0));
+
+            return;
+        }
+
+        try {
+            $history = $this->statuses->history($root, $order, (int) $page);
+        } catch (Throwable) {
+            $this->render($bot, 'دریافت تاریخچه این سرویس ممکن نیست.', $this->back($order));
+
+            return;
+        }
+
+        $lines = ['🕘 تاریخچه عملیات سرویس #'.$order, '',
+            'فقط تغییرات وضعیت ثبت‌شده از بات مدیریت نمایش داده می‌شوند.', ''];
+        $richRows = '';
+        if ($history['items'] === []) {
+            $lines[] = 'عملیات مدیریتی ثبت‌شده‌ای در این صفحه وجود ندارد.';
+        }
+        foreach ($history['items'] as $item) {
+            $action = $item->kind === 'disable' ? '⏸️ غیرفعال‌سازی' : '✅ فعال‌سازی مجدد';
+            $result = match ($item->state) {
+                'completed' => 'تأییدشده',
+                'needs_review' => 'نیازمند بررسی',
+                default => 'نتیجه هنوز قطعی نیست',
+            };
+            $before = match ($item->preflight_status) {
+                'ACTIVE' => 'فعال',
+                'DISABLED' => 'غیرفعال',
+                default => 'ثبت نشده',
+            };
+            $when = PersianCalendar::utcDateTime((string) $item->created_at);
+            $manager = $item->actor_user_id === null ? 'در سوابق قبلی ثبت نشده' : '#'.(int) $item->actor_user_id;
+            $reason = self::reasonLabel($item->reason_code);
+            $lines[] = $action.' · '.$result;
+            $lines[] = 'زمان: '.$when;
+            $lines[] = 'مدیر: '.$manager;
+            $lines[] = 'دلیل: '.$reason;
+            $lines[] = 'وضعیت هنگام بررسی: '.$before;
+            $lines[] = '';
+            $richRows .= '<tr><td>'.$action.'</td><td><b>'.$result.'</b>'
+                .'<p>زمان: '.$when.'</p>'
+                .'<p>مدیر: '.$manager.'</p>'
+                .'<p>دلیل: '.$reason.'</p>'
+                .'<p>وضعیت هنگام بررسی: '.$before.'</p></td></tr>';
+        }
+
+        $keyboard = InlineKeyboardMarkup::make();
+        $navigation = [];
+        if ($history['page'] > 1) {
+            $navigation[] = InlineKeyboardButton::make('◀️ قبلی', callback_data: 'full:service:history:'.$order.':'.($history['page'] - 1));
+        }
+        if ($history['hasNext']) {
+            $navigation[] = InlineKeyboardButton::make('بعدی ▶️', callback_data: 'full:service:history:'.$order.':'.($history['page'] + 1));
+        }
+        if ($navigation !== []) {
+            $keyboard->addRow(...$navigation);
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('◀️ وضعیت اشتراک', callback_data: 'full:service:view:'.$order));
+
+        $rich = '<h2>🕘 تاریخچه عملیات سرویس #'.$order.'</h2>'
+            .'<p>فقط تغییرات وضعیت ثبت‌شده از بات مدیریت نمایش داده می‌شوند.</p>'
+            .($history['items'] === []
+                ? '<p>عملیات مدیریتی ثبت‌شده‌ای در این صفحه وجود ندارد.</p>'
+                : '<table bordered striped compact>'.$richRows.'</table>')
+            .'<footer>اطلاعات ثبت‌نشده در سوابق قدیمی قابل بازیابی نیست.</footer>';
+
+        if ($bot->isCallbackQuery()) {
+            TelegramUi::answerCallback($bot);
+        }
+        try {
+            TelegramUi::editRichText($bot, new InputRichMessage(html: $rich, is_rtl: true), $keyboard);
+
+            return;
+        } catch (TelegramException $exception) {
+            report($exception);
+            // Native fallback preserves the exact authorized history and buttons.
+            if ($bot->isCallbackQuery()) {
+                TelegramUi::editText($bot, implode("\n", $lines), $keyboard);
+
+                return;
+            }
+            $bot->sendMessage(text: implode("\n", $lines), reply_markup: $keyboard);
+        }
+    }
+
+    private static function reasonLabel(?string $reason): string
+    {
+        return match ($reason) {
+            'customer' => 'درخواست مشتری',
+            'support' => 'بررسی پشتیبانی',
+            'other' => 'سایر',
+            default => 'ثبت نشده',
+        };
     }
 
     public function check(Nutgram $bot, string $id): void
