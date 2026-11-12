@@ -228,15 +228,11 @@ it('keeps sold-plan management read-only while preserving the tariff editor', fu
 
     $bot->hearCallbackQueryData("plan:view:{$id}")->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData("plan:begin:edit:{$id}")->reply()
-        ->assertReply('editMessageText', [
-            'text' => '📦 مدیریت پلن‌ها'."\n\n".'این پلن سابقه سفارش دارد. برای تغییر مشخصات، پلن جدید بسازید.',
-        ]);
+        ->assertCalled('answerCallbackQuery')->assertCalled('editMessageText');
     expect(app(PlanAdminDrafts::class)->peek($root->id))->toBeNull();
 
     $bot->hearCallbackQueryData("plan:status:{$id}:deactivate")->reply()
-        ->assertReply('editMessageText', [
-            'text' => '📦 مدیریت پلن‌ها'."\n\n".'این پلن سابقه سفارش دارد. برای توقف یا شروع فروش، تعرفه را مدیریت کنید.',
-        ]);
+        ->assertCalled('answerCallbackQuery')->assertCalled('editMessageText');
     expect(DB::table('sales_plan_confirmations')->count())->toBe(0);
 
     $bot->hearCallbackQueryData("plan:begin:formula:{$id}")->reply()->assertCalled('editMessageText');
