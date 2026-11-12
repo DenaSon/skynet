@@ -1485,7 +1485,7 @@ it('defaults recovery CREATE to OFF even with an uncertain paid order', function
     Http::fake();
     expect(config('services.remnawave.recovery_create_enabled', false))->toBeFalse()
         ->and(fn () => app(RecoverPaidPlanOrder::class)->handle($data['root']->id, $data['order']))
-        ->toThrow(RuntimeException::class, 'disabled');
+        ->toThrow(RuntimeException::class, 'not enabled');
     Http::assertNothingSent();
     expect(DB::table('provisioning_operations')->count())->toBe(1)
         ->and(DB::table('sales_orders')->value('status'))->toBe('paid');
