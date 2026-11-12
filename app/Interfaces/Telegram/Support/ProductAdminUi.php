@@ -179,7 +179,7 @@ final readonly class ProductAdminUi
                 ['شناسه کوتاه انگلیسی محصول', 'vpn-premium', false],
                 ['نام محصول', 'اشتراک ویژه', false],
                 ['حداقل حجم (گیگابایت)', '1', true],
-                ['حداکثر حجم (گیگابایت)', '100', true],
+                ['حداکثر حجم (گیگابایت)', '500', true],
             ],
             'edit' => [
                 ['نام محصول', 'اشتراک ویژه', false],
@@ -291,7 +291,7 @@ final readonly class ProductAdminUi
         $s['stage'] = 'input';
         $this->drafts->store($actor->userId, $s);
         $example = match ($s['operation']) {
-            'create' => 'vpn-extra | اشتراک ویژه | 1 | 100',
+            'create' => 'vpn-extra | اشتراک ویژه | 1 | 500',
             'edit' => $this->editExample($actor->userId, $s['id']),
             'rate' => '50000 | 2000',
             default => '',
