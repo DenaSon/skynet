@@ -1638,3 +1638,67 @@ it('rejects unauthorized roots, revoked plan bindings and missing settlements be
     Http::assertNothingSent();
     expect(DB::table('provisioning_operations')->count())->toBe(1);
 });
+
+
+it('shows recovery only when independently enabled and consumes the root-only confirmation once', function (): void {
+    $data = sb05RecoveryOrder();
+    Queue::fake();
+    Http::fake();
+
+    $bot = Nutgram::fake();
+    require base_path('app/Interfaces/Telegram/routes/admin.php');
+    $bot->setCommonUser(TelegramUser::make(975001, false, 'Root'));
+    $bot->setCommonChat(Chat::make(975001, ChatType::PRIVATE));
+
+    $bot->hearCallbackQueryData('full:view:'.$data['order'])->reply()
+        ->assertRaw(static function (NutgramRequest $r): bool {
+            $buttons = json_encode(sb05TelegramPayload($r)['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return ! str_contains($buttons, 'full:prepare:') || ! str_contains($buttons, ':recovery');
+        }, index: 1);
+
+    config()->set('services.remnawave.recovery_create_enabled', true);
+    $token = null;
+
+    $bot->hearCallbackQueryData('full:view:'.$data['order'])->reply()
+        ->assertRaw(static function (NutgramRequest $r) use ($data): bool {
+            $buttons = json_encode(sb05TelegramPayload($r)['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return str_contains($buttons, 'full:prepare:'.$data['order'].':recovery');
+        }, index: 1);
+
+    $bot->hearCallbackQueryData('full:prepare:'.$data['order'].':recovery')->reply()
+        ->assertRaw(static function (NutgramRequest $r) use (&$token): bool {
+            $payload = sb05TelegramPayload($r);
+            $buttons = json_encode($payload['reply_markup'], JSON_THROW_ON_ERROR);
+            if (preg_match('/full:apply:([a-f0-9]{32})/', $buttons, $matches) !== 1) {
+                return false;
+            }
+            $token = $matches[1];
+
+            return str_contains((string) $payload['text'], 'تأیید درخواست بازیابی')
+                && str_contains($buttons, '"style":"danger"');
+        }, index: 1);
+    expect($token)->not->toBeNull();
+
+    $bot->hearCallbackQueryData('full:apply:'.$token)->reply();
+    Queue::assertPushed(RecoverPaidPlanOrderJob::class, 1);
+    $bot->hearCallbackQueryData('full:apply:'.$token)->reply();
+    Queue::assertPushed(RecoverPaidPlanOrderJob::class, 1);
+    Http::assertNothingSent();
+    expect(DB::table('provisioning_operations')->count())->toBe(1)
+        ->and(DB::table('sales_orders')->value('status'))->toBe('paid');
+});
+
+it('refuses a queued recovery if the operator loses authorization after confirmation', function (): void {
+    $data = sb05RecoveryOrder();
+    config()->set('services.remnawave.recovery_create_enabled', true);
+    Http::fake();
+    $job = new RecoverPaidPlanOrderJob($data['order'], $data['root']->id);
+    expect($job->tries)->toBe(1)
+        ->and($job->uniqueId())->toBe('parsa:fulfillment:'.$data['order']);
+    $data['root']->syncRoles(['member']);
+    $job->handle(app(RecoverPaidPlanOrder::class));
+    Http::assertNothingSent();
+    expect(DB::table('provisioning_operations')->count())->toBe(1);
+});
