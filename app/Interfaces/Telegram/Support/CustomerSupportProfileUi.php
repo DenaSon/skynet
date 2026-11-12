@@ -13,6 +13,7 @@ use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
+use SergiX44\Nutgram\Telegram\Types\Keyboard\CopyTextButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
@@ -215,6 +216,10 @@ final readonly class CustomerSupportProfileUi
         } else {
             $lines[] = 'وضعیت پنل: '.self::providerStatus($data['remoteStatus']);
             $lines[] = 'تطبیق شناسه سرویس: تأیید شد';
+            if ($data['remoteUserId'] !== null && $data['remoteUsername'] !== null) {
+                $lines[] = 'شناسه کاربر در RW: <code>'.$data['remoteUserId'].'</code>';
+                $lines[] = 'نام کاربری در RW: <code>'.TelegramUi::escape($data['remoteUsername']).'</code>';
+            }
             $lines[] = 'حجم کل: '.self::volume($data['limitBytes'], true);
             $lines[] = 'مصرف‌شده: '.self::volume($data['usedBytes']);
             $lines[] = 'باقی‌مانده: '.($data['limitBytes'] === 0 ? 'نامحدود' : self::volume($data['remainingBytes']));
@@ -229,6 +234,12 @@ final readonly class CustomerSupportProfileUi
         $lines[] = '🔄 زمان بررسی: '.PersianCalendar::localDateTime(now()->timezone('Asia/Tehran')->format('Y-m-d H:i'));
 
         $keyboard = InlineKeyboardMarkup::make();
+        if ($data['remoteUserId'] !== null && $data['remoteUsername'] !== null) {
+            $keyboard->addRow(
+                InlineKeyboardButton::make('📋 کپی شناسه RW', copy_text: CopyTextButton::make((string) $data['remoteUserId'])),
+                InlineKeyboardButton::make('📋 کپی نام کاربری RW', copy_text: CopyTextButton::make($data['remoteUsername'])),
+            );
+        }
 
         // Reuse the existing Super Admin-only fulfilled-order authority; never
         // expose an action for a mismatched or unverifiable remote subscription.
@@ -269,7 +280,41 @@ final readonly class CustomerSupportProfileUi
             ->addRow(InlineKeyboardButton::make('🏠 پرونده کاربر', callback_data: "users:profile:{$subjectId}:{$userPage}:{$mode}"));
 
         TelegramUi::answerCallback($bot);
-        TelegramUi::editText($bot, implode("\n", $lines), $keyboard, 'HTML');
+        try {
+            TelegramUi::editRichText($bot, new InputRichMessage(html: self::richService($lines), is_rtl: true), $keyboard);
+
+            return;
+        } catch (TelegramException $exception) {
+            report($exception);
+            // The same authorized fields and copy buttons on older clients.
+            TelegramUi::editText($bot, implode("\n", $lines), $keyboard, 'HTML');
+        }
+    }
+
+    /**
+     * Build Rich and fallback from the same already-escaped, authorized values.
+     *
+     * @param  list<string>  $lines
+     */
+    private static function richService(array $lines): string
+    {
+        $rows = '';
+        $notices = '';
+        foreach (array_slice($lines, 3, -3) as $line) {
+            if (str_contains($line, ': ')) {
+                [$label, $value] = explode(': ', $line, 2);
+                $rows .= '<tr><td>'.$label.'</td><td>'.$value.'</td></tr>';
+            } elseif ($line !== '') {
+                $notices .= '<p>'.$line.'</p>';
+            }
+        }
+
+        return '<h2>📦 وضعیت سرویس مشتری</h2>'
+            .'<p>'.$lines[1].'</p>'
+            .'<table bordered striped compact>'.$rows.'</table>'
+            .$notices
+            .'<p>'.$lines[count($lines) - 2].'</p>'
+            .'<footer>'.$lines[count($lines) - 1].'</footer>';
     }
 
     private function reader(Nutgram $bot): ?int
