@@ -211,10 +211,17 @@ final readonly class AdminPendingReceiptFollowupUi
         }
 
         $key = self::key($root, $token);
-        $orderId = Cache::lock($key.':lock', 10)->block(2, static function () use ($key): mixed {
+        $cachedOrderId = Cache::lock($key.':lock', 10)->block(2, static function () use ($key): mixed {
             return Cache::pull($key);
         });
-        if (! is_int($orderId) || $orderId < 1) {
+        // Redis may return a cached integer as a numeric string. Validate the
+        // exact positive ID format before casting; keep one-use checks intact.
+        $orderId = match (true) {
+            is_int($cachedOrderId) => $cachedOrderId,
+            is_string($cachedOrderId) => self::id($cachedOrderId),
+            default => null,
+        };
+        if ($orderId === null || $orderId < 1) {
             $this->render($bot, 'این تأیید قبلاً استفاده شده یا منقضی شده است.', $this->back());
 
             return;
