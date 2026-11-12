@@ -6,7 +6,10 @@ use App\Interfaces\Telegram\Support\ReplyMenuLabels;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
+use App\Modules\Sales\Application\CalculateQuote;
 use App\Modules\Sales\Application\ConfigureProduct;
+use App\Modules\Sales\Application\ConfigureRate;
+use App\Modules\Sales\Application\CreatePendingOrder;
 use App\Modules\Sales\Application\ManagePlanPricing;
 use App\Modules\Sales\Application\ManagePlans;
 use App\Modules\Sales\Application\PlanDefinition;
@@ -208,6 +211,37 @@ it('uses backend hashed one-time confirmations for publish, deactivate, archive 
     $bot->hearCallbackQueryData('plan:apply:p:'.$delete)->reply();
 
     expect(DB::table('sales_plans')->count())->toBe(0);
+});
+
+it('keeps sold-plan management read-only while preserving the tariff editor', function (): void {
+    [$root, $bot] = b14Root();
+    $id = b14Plan($root, 'sold-panel-plan');
+    $manage = app(ManagePlans::class);
+    $activate = $manage->requestChange($root->id, $id, 1, 'activate');
+    $manage->confirmChange($root->id, $activate);
+
+    app(ConfigureRate::class)->handle('vpn-access', 30, 100_000, 20_000);
+    $buyer = User::factory()->create();
+    $quote = app(CalculateQuote::class)->handle($buyer->id, 'vpn-access', 30, 10);
+    $order = app(CreatePendingOrder::class)->handle($buyer->id, $quote, bin2hex(random_bytes(16)));
+    DB::table('sales_orders')->where('id', $order->id)->update(['plan_id' => $id, 'plan_revision' => 2]);
+
+    $bot->hearCallbackQueryData("plan:view:{$id}")->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData("plan:begin:edit:{$id}")->reply()
+        ->assertReply('editMessageText', [
+            'text' => '📦 مدیریت پلن‌ها'."\n\n".'این پلن سابقه سفارش دارد. برای تغییر مشخصات، پلن جدید بسازید.',
+        ]);
+    expect(app(PlanAdminDrafts::class)->peek($root->id))->toBeNull();
+
+    $bot->hearCallbackQueryData("plan:status:{$id}:deactivate")->reply()
+        ->assertReply('editMessageText', [
+            'text' => '📦 مدیریت پلن‌ها'."\n\n".'این پلن سابقه سفارش دارد. برای توقف یا شروع فروش، تعرفه را مدیریت کنید.',
+        ]);
+    expect(DB::table('sales_plan_confirmations')->count())->toBe(0);
+
+    $bot->hearCallbackQueryData("plan:begin:formula:{$id}")->reply()->assertCalled('editMessageText');
+    expect(app(PlanAdminDrafts::class)->peek($root->id)['type'])->toBe('formula')
+        ->and(DB::table('sales_plans')->where('id', $id)->value('revision'))->toBe(2);
 });
 
 it('configures a fixed tariff in tomans then publishes and disables it separately', function (): void {
