@@ -4,18 +4,29 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Telegram\Support;
 
-/** Stable short callback modes shared by the user list, details and support profile. */
+/** Stable compact callback modes shared by user lists, details and support profiles. */
 final class UserDirectoryMode
 {
-    public const MODES = ['a', 'r', 's', 'm', 'aw', 'mw', 'rw', 'ap', 'mp', 'rp'];
+    // Legacy a/r/s/m/aw/mw/rw/ap/mp/rp modes stay valid.
+    // New modes: [segment a|m|r][sort w|p][ascending u][one optional filter].
+    public const FILTER_LABELS = [
+        '' => 'همه کاربران',
+        'b' => 'بدون خرید',
+        'q' => 'در انتظار پرداخت',
+        'v' => 'نیازمند بررسی',
+        'c' => 'اعتبار بدون خرید',
+        'i' => 'حساب‌های غیرفعال',
+        'h' => 'دارای سرویس',
+    ];
 
     public static function valid(string $mode): bool
     {
-        return in_array($mode, self::MODES, true);
+        return $mode === 's' || preg_match('/\\A[amr][wp]?u?[bqvcih]?\\z/D', $mode) === 1;
     }
 
     public static function rootOnly(string $mode): bool
     {
+        // Preserve delegated Admin a/r/search; operational and financial filters remain trusted-root-only.
         return ! in_array($mode, ['a', 'r', 's'], true);
     }
 
@@ -26,12 +37,27 @@ final class UserDirectoryMode
 
     public static function sort(string $mode): string
     {
-        return str_ends_with($mode, 'w') ? 'wallet' : (str_ends_with($mode, 'p') ? 'purchase' : 'recent');
+        return str_contains($mode, 'w') ? 'wallet' : (str_contains($mode, 'p') ? 'purchase' : 'recent');
     }
 
-    public static function for(string $type, string $sort): ?string
+    public static function direction(string $mode): string
     {
-        if (! in_array($type, ['a', 'm', 'r'], true) || ! in_array($sort, ['recent', 'wallet', 'purchase'], true)) {
+        return str_contains($mode, 'u') ? 'asc' : 'desc';
+    }
+
+    public static function filter(string $mode): string
+    {
+        $last = substr($mode, -1);
+
+        return array_key_exists($last, self::FILTER_LABELS) ? $last : '';
+    }
+
+    public static function for(string $type, string $sort, string $direction = 'desc', string $filter = ''): ?string
+    {
+        if (! in_array($type, ['a', 'm', 'r'], true)
+            || ! in_array($sort, ['recent', 'wallet', 'purchase'], true)
+            || ! in_array($direction, ['asc', 'desc'], true)
+            || ! array_key_exists($filter, self::FILTER_LABELS)) {
             return null;
         }
 
@@ -39,7 +65,7 @@ final class UserDirectoryMode
             'wallet' => 'w',
             'purchase' => 'p',
             default => '',
-        };
+        }.($direction === 'asc' ? 'u' : '').$filter;
     }
 
     public static function pageCallback(string $mode, int $page): string

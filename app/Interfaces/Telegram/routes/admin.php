@@ -930,6 +930,10 @@ $bot->onCallbackQueryData('users:sort:{mode}', function (Nutgram $bot, string $m
     app(UserManagementUi::class)->sortHelp($bot, $mode);
 });
 
+$bot->onCallbackQueryData('users:filters:{mode}', function (Nutgram $bot, string $mode): void {
+    app(UserManagementUi::class)->filterHelp($bot, $mode);
+});
+
 $bot->onCallbackQueryData('users:cancelsearch', function (Nutgram $bot): void {
     app(UserManagementUi::class)->cancelSearch($bot);
 });

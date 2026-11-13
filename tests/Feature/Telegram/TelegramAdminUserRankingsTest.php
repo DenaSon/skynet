@@ -225,3 +225,56 @@ it('denies financial ranking and forged sorted detail callbacks after trusted-ro
     $adminBot->hearCallbackQueryData('users:sort:a')->reply()
         ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.']);
 });
+
+it('offers independent filter and direction controls while preserving authorized user navigation', function (): void {
+    $root = rankingRoot();
+    $target = User::factory()->create(['name' => 'Follow-up target', 'is_active' => false]);
+    $bot = rankingBot(953001, $root);
+
+    $bot->hearCallbackQueryData('users:sort:aw')->reply()->assertRaw(
+        static function (Request $request): bool {
+            $markup = json_encode(FakeNutgram::getActualData($request)['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return str_contains($markup, 'users:filtered:awu:1')
+                && str_contains($markup, 'users:filtered:aw:1');
+        },
+        index: 1,
+    );
+
+    $bot->hearCallbackQueryData('users:filters:awu')->reply()->assertRaw(
+        static function (Request $request): bool {
+            $markup = json_encode(FakeNutgram::getActualData($request)['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return str_contains($markup, 'users:filtered:awub:1')
+                && str_contains($markup, 'users:filtered:awuq:1')
+                && str_contains($markup, 'users:filtered:awu:1');
+        },
+        index: 1,
+    );
+
+    $bot->hearCallbackQueryData('users:filtered:ai:1')->reply()->assertRaw(
+        static function (Request $request) use ($target): bool {
+            $markup = json_encode(FakeNutgram::getActualData($request)['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return str_contains($markup, 'users:view:'.$target->id.':1:ai')
+                && str_contains($markup, 'users:filters:ai')
+                && str_contains($markup, 'users:sort:ai');
+        },
+        index: 1,
+    );
+
+    $bot->hearCallbackQueryData('users:view:'.$target->id.':1:ai')->reply()
+        ->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('users:profile:'.$target->id.':1:ai')->reply()
+        ->assertCalled('editMessageText');
+});
+
+it('refuses forged filter controls when the admin lacks trusted-root permissions', function (): void {
+    $regular = User::factory()->admin()->create();
+    $bot = rankingBot(953004, $regular);
+
+    $bot->hearCallbackQueryData('users:filters:a')->reply()
+        ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.']);
+    $bot->hearCallbackQueryData('users:filtered:ab:1')->reply()
+        ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.']);
+});

@@ -94,6 +94,26 @@ final class UserManagementUi
         $this->menus->showUserSort($bot, $mode);
     }
 
+    public function filterHelp(Nutgram $bot, string $mode): void
+    {
+        $actor = $this->actor($bot);
+        if ($actor === null) {
+            return;
+        }
+        if (! $actor->canManageRoles()) {
+            $this->menus->denyAccess($bot);
+
+            return;
+        }
+        if (! UserDirectoryMode::valid($mode) || $mode === 's') {
+            $this->menus->showUserNotice($bot, 'فیلتر کاربران معتبر نیست.');
+
+            return;
+        }
+
+        $this->menus->showUserFilters($bot, $mode);
+    }
+
     public function searchHelp(Nutgram $bot): void
     {
         $actor = $this->actor($bot);
@@ -107,7 +127,7 @@ final class UserManagementUi
             text: '✍️ عبارت جست‌وجو را وارد کنید:',
             reply_markup: ForceReply::make(
                 force_reply: true,
-                input_field_placeholder: 'نام، ایمیل، شناسه یا sk_...',
+                input_field_placeholder: 'نام، شناسه تلگرام یا sk_...',
                 selective: false,
             ),
         );
