@@ -4,16 +4,12 @@ declare(strict_types=1);
 
 namespace App\Modules\Sales\Application;
 
-use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
 use App\Modules\Identity\Infrastructure\Models\User;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Query\JoinClause;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
-use Throwable;
 
 final readonly class ManageAnnouncements
 {
@@ -177,31 +173,6 @@ final readonly class ManageAnnouncements
             if ($deliveries !== []) {
                 DB::table('telegram_notification_deliveries')->insert($deliveries);
             }
-
-            // Immediately enqueue committed intents with their original staggered
-            // due times. The periodic dispatcher remains a recovery fallback if
-            // Redis is temporarily unavailable after the database commit.
-            DB::afterCommit(static function () use ($announcementId): void {
-                try {
-                    DB::table('telegram_notification_deliveries')
-                        ->where('event_type', 'ResellerAnnouncement')
-                        ->where('event_key', 'like', "reseller:ann:{$announcementId}:user:%")
-                        ->select(['id', 'available_at'])
-                        ->chunkById(100, static function ($rows): void {
-                            foreach ($rows as $row) {
-                                DispatchTelegramNotification::dispatch((int) $row->id)
-                                    ->delay(Carbon::parse((string) $row->available_at));
-                            }
-                        });
-                } catch (Throwable $exception) {
-                    // The outbox is already committed. Do not report a failed
-                    // send or retry inline: scheduled recovery remains available.
-                    Log::warning('Reseller announcement initial enqueue failed; scheduled recovery retained.', [
-                        'announcement_id' => $announcementId,
-                        'exception' => $exception::class,
-                    ]);
-                }
-            });
 
             return ['id' => $announcementId, 'recipients' => $ids->count()];
         });
