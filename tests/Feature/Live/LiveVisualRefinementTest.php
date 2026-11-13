@@ -56,8 +56,11 @@ it('limits visual changes to P2A screens and keeps Livewire bindings and compact
 
     expect($template)->toBeString()
         ->toContain('class="dg-field min-h-12 px-4"')
-        ->toContain('wire:model="daysInput"')
-        ->toContain('wire:model="gbInput"')
+        ->toContain('type="range" name="duration_days"')
+        ->toContain('type="range" name="volume_gb"')
+        ->toContain('x-model.number="value"')
+        ->toContain('x-on:click="$wire.chooseBuilderVolume(value)"')
+        ->toContain('x-on:click="$wire.chooseBuilderDays(value)"')
         ->toContain('wire:model="customerUsername"')
         ->toContain('wire:click="previewQuote"')
         ->toContain('wire:click="confirmOrder"')

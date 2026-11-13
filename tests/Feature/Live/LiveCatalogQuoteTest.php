@@ -271,3 +271,156 @@ it('rejects revoked, inactive, anonymous and non-reseller access', function (): 
 
     live3aAssertNoCommerceWrites();
 });
+
+it('renders two local Alpine slider stages with valid shortcuts and safe quote transitions', function (): void {
+    $root = live3aRoot();
+    $reseller = live3aReseller(933318);
+    $planId = live3aPlan($root, 'slider-builder', 'builder', 'reseller', 10);
+
+    $this->actingAs($reseller)->withSession(['denagate_live.user_id' => $reseller->id]);
+
+    $page = Livewire::test(Dashboard::class)
+        ->call('showSection', 'shop')
+        ->call('selectPlan', $planId)
+        ->assertSet('builderStep', 'volume')
+        ->assertSet('gbInput', '1')
+        ->assertSee('مرحله ۱ از ۲')
+        ->assertSee('type="range" name="volume_gb"', false)
+        ->assertSee('x-model.number="value"', false)
+        ->assertSee('x-on:click="$wire.chooseBuilderVolume(value)"', false)
+        ->assertSee('20 گیگ')
+        ->assertSee('75 گیگ')
+        ->assertDontSee('150 گیگ')
+        ->assertDontSee('name="duration_days"', false)
+        ->assertDontSee('پیش‌فاکتور شما');
+
+    // A forged days action before volume confirmation has no effect.
+    $page->call('chooseBuilderDays', 45)->assertSet('builderStep', 'volume');
+    $page->call('chooseBuilderVolume', 75)
+        ->assertSet('builderStep', 'days')
+        ->assertSet('gbInput', '75')
+        ->assertSee('مرحله ۲ از ۲')
+        ->assertSee('name="duration_days"', false)
+        ->assertSee('x-on:click="$wire.chooseBuilderDays(value)"', false)
+        ->assertSee('15 روز')
+        ->assertSee('90 روز')
+        ->assertDontSee('name="volume_gb"', false)
+        ->assertDontSee('پیش‌فاکتور شما');
+
+    $page->call('chooseBuilderDays', 45)
+        ->assertSet('daysInput', '45')
+        ->assertSet('builderStep', 'review')
+        ->assertSee('پیش‌فاکتور شما')
+        ->assertSee('22,050')
+        ->assertDontSee('name="volume_gb"', false)
+        ->assertDontSee('name="duration_days"', false);
+
+    $page->call('backToBuilderDays')
+        ->assertSet('builderStep', 'days')
+        ->assertSet('confirmedQuoteHash', null)
+        ->assertSet('orderIntentKey', null)
+        ->assertDontSee('پیش‌فاکتور شما')
+        ->call('backToBuilderVolume')
+        ->assertSet('builderStep', 'volume')
+        ->assertSet('gbInput', '75')
+        ->assertDontSee('پیش‌فاکتور شما');
+
+    live3aAssertNoCommerceWrites();
+});
+
+it('validates every slider boundary server-side and keeps pricing untouched at 500 GB', function (): void {
+    $root = live3aRoot();
+    app(ConfigureProduct::class)->handle('live-three', 'سرویس نمایندگی', 1, 500);
+    $reseller = live3aReseller(933319);
+    $planId = live3aPlan($root, 'slider-500', 'builder', 'reseller', 35, 500);
+
+    $this->actingAs($reseller)->withSession(['denagate_live.user_id' => $reseller->id]);
+
+    $page = Livewire::test(Dashboard::class)
+        ->call('showSection', 'shop')
+        ->call('selectPlan', $planId)
+        ->assertSee('250 گیگ')
+        ->assertSee('500 گیگ')
+        ->call('chooseBuilderVolume', 501)
+        ->assertSet('builderStep', 'volume')
+        ->assertSee('حجم انتخابی خارج از محدوده')
+        ->call('chooseBuilderVolume', 0)
+        ->assertSet('builderStep', 'volume')
+        ->call('chooseBuilderVolume', 500)
+        ->assertSet('builderStep', 'days')
+        ->assertSet('gbInput', '500')
+        ->call('chooseBuilderDays', 181)
+        ->assertSet('builderStep', 'days')
+        ->assertSee('مدت انتخابی خارج از محدوده')
+        ->assertSet('quoteRequested', false)
+        ->call('chooseBuilderDays', 45)
+        ->assertSet('builderStep', 'review')
+        ->assertSee('71,175');
+
+    // Changing the published plan after quote does not authorize old-price purchase.
+    DB::table('sales_plan_prices')->where('plan_id', $planId)->update(['status' => 'draft']);
+    $page->call('confirmOrder')
+        ->assertSet('createdOrderId', null)
+        ->assertSet('confirmedQuoteHash', null)
+        ->assertSet('orderIntentKey', null);
+
+    live3aAssertNoCommerceWrites();
+});
+
+it('skips volume sliders for time-only builder and preserves explicit reseller authorization', function (): void {
+    $root = live3aRoot();
+    $reseller = live3aReseller(933320);
+    $plan = app(ManagePlans::class)->create($root->id, new PlanDefinition(
+        'live-three', 'slider-unlimited', 'سرویس نامحدود', 'time', 'builder', 'reseller',
+        null, null, null, null, 7, 90,
+    ));
+    app(ManagePlans::class)->confirmChange(
+        $root->id, app(ManagePlans::class)->requestChange($root->id, $plan->id, 1, 'activate'),
+    );
+    $priceRevision = app(ManagePlanPricing::class)->configure(
+        $root->id, $plan->id, 2, 0,
+        new PlanPricingDefinition('formula', null, 50_000, 0, 1_000, 10, 1),
+    );
+    app(ManagePlanPricing::class)->confirmChange(
+        $root->id,
+        app(ManagePlanPricing::class)->requestChange($root->id, $plan->id, 2, $priceRevision, 'activate'),
+    );
+
+    $this->actingAs($reseller)->withSession(['denagate_live.user_id' => $reseller->id]);
+
+    $page = Livewire::test(Dashboard::class)
+        ->call('showSection', 'shop')
+        ->call('selectPlan', $plan->id)
+        ->assertSet('builderStep', 'days')
+        ->assertSet('gbInput', '')
+        ->assertSee('حجم: نامحدود')
+        ->assertDontSee('name="volume_gb"', false)
+        ->assertSee('name="duration_days"', false)
+        ->call('chooseBuilderVolume', 50)
+        ->assertSet('builderStep', 'days')
+        ->call('chooseBuilderDays', 30)
+        ->assertSet('builderStep', 'review')
+        ->assertSee('حجم نامحدود')
+        ->assertSee('پیش‌فاکتور شما');
+
+    $reseller->syncRoles(['member']);
+    $page->call('backToBuilderDays')->assertForbidden();
+
+    live3aAssertNoCommerceWrites();
+});
+
+it('keeps presets on the original immediate quote path and never displays builder sliders', function (): void {
+    $root = live3aRoot();
+    $reseller = live3aReseller(933321);
+    $preset = live3aPlan($root, 'slider-preset');
+
+    $this->actingAs($reseller)->withSession(['denagate_live.user_id' => $reseller->id]);
+
+    Livewire::test(Dashboard::class)->call('showSection', 'shop')
+        ->call('selectPlan', $preset)
+        ->assertSet('builderStep', 'none')
+        ->assertSee('پیش‌فاکتور شما')
+        ->assertDontSee('name="volume_gb"', false)
+        ->assertDontSee('name="duration_days"', false);
+    live3aAssertNoCommerceWrites();
+});

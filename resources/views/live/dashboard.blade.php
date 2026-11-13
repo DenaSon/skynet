@@ -196,31 +196,134 @@
                         <button type="button" wire:click="backToPlans" wire:target="backToPlans" wire:loading.attr="disabled" class="mb-5 min-h-11 text-sm font-bold text-[#087F73] focus-visible:outline-2 focus-visible:outline-[#14B8A6]">→ بازگشت به پلن‌ها</button>
                         <section class="dg-card p-5 sm:p-7">
                             <h2 class="text-xl font-extrabold text-[#1B2935]">{{ $selectedPlan->name }}</h2>
-                            <p class="mt-2 text-xs text-[#71818B]">{{ $selectedPlan->mode === 'builder' ? 'انتخاب مدت و حجم سرویس' : 'جزئیات پلن انتخاب‌شده' }}</p>
+                            <p class="mt-2 text-xs text-[#71818B]">{{ $selectedPlan->mode === 'builder' ? 'حجم و مدت سرویس را مشخص کنید' : 'جزئیات پلن انتخاب‌شده' }}</p>
 
                             @if ($selectedPlan->mode === 'builder')
-                                <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                                    <div>
-                                        <label for="quote-days" class="mb-2 block text-sm font-semibold text-[#536C76]">مدت سرویس (روز)</label>
-                                        <input id="quote-days" aria-describedby="quote-days-hint" type="number" min="{{ $selectedPlan->minDays }}" max="{{ $selectedPlan->maxDays }}" step="1" inputmode="numeric" wire:model="daysInput" class="dg-field min-h-12 px-4" />
-                                        <p id="quote-days-hint" class="mt-2 text-xs text-[#71818B]">{{ $selectedPlan->minDays }} تا {{ $selectedPlan->maxDays }} روز</p>
-                                    </div>
-                                    @if ($selectedPlan->kind !== 'time')
-                                        <div>
-                                            <label for="quote-gb" class="mb-2 block text-sm font-semibold text-[#536C76]">حجم سرویس (گیگابایت)</label>
-                                            <input id="quote-gb" aria-describedby="quote-gb-hint" type="number" min="{{ $selectedPlan->minGb }}" max="{{ $selectedPlan->maxGb }}" step="1" inputmode="numeric" wire:model="gbInput" class="dg-field min-h-12 px-4" />
-                                            <p id="quote-gb-hint" class="mt-2 text-xs text-[#71818B]">{{ number_format($selectedPlan->minGb) }} تا {{ number_format($selectedPlan->maxGb) }} گیگابایت</p>
+                                @if ($builderStep === 'volume' && $selectedPlan->kind !== 'time')
+                                    <div wire:key="live-builder-volume-{{ $selectedPlan->id }}"
+                                        x-data="{ value: {{ (int) $gbInput }}, min: {{ (int) $selectedPlan->minGb }}, max: {{ (int) $selectedPlan->maxGb }} }"
+                                        class="mt-6">
+                                        <p class="text-xs font-bold text-[#087F73]">مرحله ۱ از ۲ · حجم سرویس</p>
+                                        <div class="mt-4 flex items-center justify-between gap-3">
+                                            <label for="quote-gb" class="text-sm font-bold text-[#1B2935]">حجم موردنیاز را انتخاب کنید</label>
+                                            <span class="shrink-0 text-lg font-extrabold tabular-nums text-[#087F73]" aria-live="off" x-text="value + ' گیگابایت'">{{ $gbInput }} گیگابایت</span>
                                         </div>
-                                    @else
-                                        <p class="self-center text-sm font-semibold text-[#536C76]">حجم نامحدود</p>
-                                    @endif
-                                </div>
+                                        <input id="quote-gb" type="range" name="volume_gb"
+                                            min="{{ $selectedPlan->minGb }}" max="{{ $selectedPlan->maxGb }}" step="1"
+                                            x-model.number="value" x-bind:aria-valuetext="value + ' گیگابایت'"
+                                            aria-describedby="quote-gb-hint"
+                                            class="mt-4 h-11 w-full cursor-pointer accent-[#14B8A6] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]" />
+                                        <p id="quote-gb-hint" class="mt-1 flex justify-between gap-3 text-xs text-[#71818B]">
+                                            <span>{{ number_format($selectedPlan->minGb) }} گیگ</span>
+                                            <span>{{ number_format($selectedPlan->maxGb) }} گیگ</span>
+                                        </p>
+                                        <div class="mt-5 flex flex-wrap gap-2" role="group" aria-label="حجم‌های آماده">
+                                            @foreach (array_unique([(int) $selectedPlan->minGb, 10, 20, 30, 50, 75, 100, 150, 250, (int) $selectedPlan->maxGb]) as $choice)
+                                                @if ($choice >= $selectedPlan->minGb && $choice <= $selectedPlan->maxGb)
+                                                    <button type="button" x-on:click="value = {{ $choice }}"
+                                                        x-bind:aria-pressed="value === {{ $choice }} ? 'true' : 'false'"
+                                                        x-bind:class="value === {{ $choice }} ? 'border-[#14B8A6] bg-[#E7F8F3] text-[#087F73]' : 'border-[#E7ECEF] bg-white text-[#354C58]'"
+                                                        class="min-h-11 rounded-xl border px-3 py-2 text-sm font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]">{{ $choice }} گیگ</button>
+                                                @endif
+                                            @endforeach
+                                        </div>
+                                        <div class="mt-5 flex items-center justify-between gap-3">
+                                            <button type="button" x-on:click="value = Math.max(min, value - 1)"
+                                                x-bind:disabled="value <= min" aria-label="کاهش یک گیگابایت"
+                                                class="min-h-11 rounded-xl border border-[#E7ECEF] bg-white px-5 text-xl font-bold text-[#087F73] disabled:opacity-40">−</button>
+                                            <span class="text-xs font-medium text-[#71818B]">تنظیم دقیق حجم</span>
+                                            <button type="button" x-on:click="value = Math.min(max, value + 1)"
+                                                x-bind:disabled="value >= max" aria-label="افزایش یک گیگابایت"
+                                                class="min-h-11 rounded-xl border border-[#E7ECEF] bg-white px-5 text-xl font-bold text-[#087F73] disabled:opacity-40">+</button>
+                                        </div>
+                                        <button type="button" x-on:click="$wire.chooseBuilderVolume(value)"
+                                            wire:loading.attr="disabled" wire:target="chooseBuilderVolume"
+                                            class="dg-btn-primary mt-6 w-full">ادامه · انتخاب مدت
+                                            <span wire:loading.delay wire:target="chooseBuilderVolume" role="status" class="text-xs font-semibold">در حال بررسی…</span>
+                                        </button>
+                                    </div>
+                                @elseif ($builderStep === 'days')
+                                    <div wire:key="live-builder-days-{{ $selectedPlan->id }}"
+                                        x-data="{ value: {{ (int) $daysInput }}, min: {{ (int) $selectedPlan->minDays }}, max: {{ (int) $selectedPlan->maxDays }} }"
+                                        class="mt-6">
+                                        <p class="text-xs font-bold text-[#087F73]">{{ $selectedPlan->kind === 'time' ? 'انتخاب مدت سرویس' : 'مرحله ۲ از ۲ · مدت سرویس' }}</p>
+                                        <p class="mt-2 text-sm font-semibold text-[#536C76]">
+                                            حجم: {{ $selectedPlan->kind === 'time' ? 'نامحدود' : number_format((int) $gbInput).' گیگابایت' }}
+                                        </p>
+                                        <div class="mt-4 flex items-center justify-between gap-3">
+                                            <label for="quote-days" class="text-sm font-bold text-[#1B2935]">مدت سرویس را به روز مشخص کنید</label>
+                                            <span class="shrink-0 text-lg font-extrabold tabular-nums text-[#087F73]" aria-live="off" x-text="value + ' روز'">{{ $daysInput }} روز</span>
+                                        </div>
+                                        <input id="quote-days" type="range" name="duration_days"
+                                            min="{{ $selectedPlan->minDays }}" max="{{ $selectedPlan->maxDays }}" step="1"
+                                            x-model.number="value" x-bind:aria-valuetext="value + ' روز'"
+                                            aria-describedby="quote-days-hint"
+                                            class="mt-4 h-11 w-full cursor-pointer accent-[#14B8A6] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]" />
+                                        <p id="quote-days-hint" class="mt-1 flex justify-between gap-3 text-xs text-[#71818B]">
+                                            <span>{{ $selectedPlan->minDays }} روز</span><span>{{ $selectedPlan->maxDays }} روز</span>
+                                        </p>
+                                        <div class="mt-5 flex flex-wrap gap-2" role="group" aria-label="مدت‌های آماده">
+                                            @foreach (array_unique([(int) $selectedPlan->minDays, 7, 15, 30, 60, 90, 180, (int) $selectedPlan->maxDays]) as $choice)
+                                                @if ($choice >= $selectedPlan->minDays && $choice <= $selectedPlan->maxDays)
+                                                    <button type="button" x-on:click="value = {{ $choice }}"
+                                                        x-bind:aria-pressed="value === {{ $choice }} ? 'true' : 'false'"
+                                                        x-bind:class="value === {{ $choice }} ? 'border-[#14B8A6] bg-[#E7F8F3] text-[#087F73]' : 'border-[#E7ECEF] bg-white text-[#354C58]'"
+                                                        class="min-h-11 rounded-xl border px-3 py-2 text-sm font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]">{{ $choice }} روز</button>
+                                                @endif
+                                            @endforeach
+                                        </div>
+                                        <div class="mt-5 flex items-center justify-between gap-3">
+                                            <button type="button" x-on:click="value = Math.max(min, value - 1)"
+                                                x-bind:disabled="value <= min" aria-label="کاهش یک روز"
+                                                class="min-h-11 rounded-xl border border-[#E7ECEF] bg-white px-5 text-xl font-bold text-[#087F73] disabled:opacity-40">−</button>
+                                            <span class="text-xs font-medium text-[#71818B]">تنظیم دقیق مدت</span>
+                                            <button type="button" x-on:click="value = Math.min(max, value + 1)"
+                                                x-bind:disabled="value >= max" aria-label="افزایش یک روز"
+                                                class="min-h-11 rounded-xl border border-[#E7ECEF] bg-white px-5 text-xl font-bold text-[#087F73] disabled:opacity-40">+</button>
+                                        </div>
+                                        <div class="mt-6 flex flex-col gap-3 sm:flex-row">
+                                            @if ($selectedPlan->kind !== 'time')
+                                                <button type="button" wire:click="backToBuilderVolume"
+                                                    wire:loading.attr="disabled" wire:target="backToBuilderVolume"
+                                                    class="dg-btn-secondary sm:w-auto">تغییر حجم</button>
+                                            @endif
+                                            <button type="button" x-on:click="$wire.chooseBuilderDays(value)"
+                                                wire:loading.attr="disabled" wire:target="chooseBuilderDays"
+                                                class="dg-btn-primary flex-1">مشاهده قیمت نهایی
+                                                <span wire:loading.delay wire:target="chooseBuilderDays" role="status" class="text-xs font-semibold">در حال محاسبه…</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                @else
+                                    <div class="mt-6 rounded-2xl bg-[#F6F8FA] p-4">
+                                        <p class="text-xs font-semibold text-[#71818B]">مشخصات انتخاب‌شده</p>
+                                        <p class="mt-2 text-base font-extrabold text-[#1B2935]">
+                                            {{ $selectedPlan->kind === 'time' ? 'حجم نامحدود' : number_format((int) $gbInput).' گیگابایت' }} · {{ $daysInput }} روز
+                                        </p>
+                                        <div class="mt-4 flex flex-wrap gap-3">
+                                            @if ($selectedPlan->kind !== 'time')
+                                                <button type="button" wire:click="backToBuilderVolume"
+                                                    wire:loading.attr="disabled" wire:target="backToBuilderVolume"
+                                                    class="dg-btn-secondary">تغییر حجم</button>
+                                            @endif
+                                            <button type="button" wire:click="backToBuilderDays"
+                                                wire:loading.attr="disabled" wire:target="backToBuilderDays"
+                                                class="dg-btn-secondary">تغییر مدت</button>
+                                        </div>
+                                    </div>
+                                @endif
+                                @if ($builderError)
+                                    <p role="alert" class="mt-4 rounded-2xl border border-[#F0E0C9] bg-[#FFF9F1] p-4 text-sm leading-7 text-[#845C23]">{{ $builderError }}</p>
+                                @endif
                             @else
                                 <p class="mt-5 text-sm font-semibold text-[#536C76]">{{ $selectedPlan->durationDays }} روز · {{ $selectedPlan->trafficGb === null ? 'حجم نامحدود' : number_format($selectedPlan->trafficGb).' گیگابایت' }}</p>
                             @endif
 
-                            @if ($selectedPlan->mode === 'builder' || $planQuote === null)
-                            <button type="button" wire:click="previewQuote" wire:target="previewQuote" wire:loading.attr="disabled" class="dg-btn-primary mt-6 min-h-12 w-full">مشاهده قیمت نهایی<span wire:loading.delay wire:target="previewQuote" role="status" class="text-xs font-semibold">در حال محاسبه…</span></button>
+                            @if ($selectedPlan->mode !== 'builder' && $planQuote === null)
+                                <button type="button" wire:click="previewQuote" wire:target="previewQuote" wire:loading.attr="disabled" class="dg-btn-primary mt-6 min-h-12 w-full">
+                                    مشاهده قیمت نهایی
+                                    <span wire:loading.delay wire:target="previewQuote" role="status" class="text-xs font-semibold">در حال محاسبه…</span>
+                                </button>
                             @endif
 
                             @if ($orderError)

@@ -125,6 +125,11 @@ final class Dashboard extends Component
 
     public string $gbInput = '';
 
+    #[Locked]
+    public string $builderStep = 'none';
+
+    public ?string $builderError = null;
+
     public bool $quoteRequested = false;
 
     public bool $planUnavailable = false;
@@ -892,9 +897,121 @@ final class Dashboard extends Component
         $this->selectedPlanId = $plan->id;
         $this->daysInput = (string) ($plan->durationDays ?? $plan->minDays);
         $this->gbInput = $plan->kind === 'time' ? '' : (string) ($plan->trafficGb ?? $plan->minGb);
+        $this->builderStep = $plan->mode === 'builder'
+            ? ($plan->kind === 'time' ? 'days' : 'volume')
+            : 'none';
         if ($plan->mode === 'preset') {
             $this->previewQuote();
         }
+    }
+
+    /** Commit the locally adjusted GB slider only when the buyer advances. */
+    public function chooseBuilderVolume(int $gb): void
+    {
+        $buyerId = $this->resellerId();
+        if ($this->section !== 'shop' || $this->selectedPlanId === null
+            || $this->createdOrderId !== null || $this->builderStep !== 'volume') {
+            return;
+        }
+
+        try {
+            $plan = app(ListResellerBuilders::class)->find($buyerId, $this->selectedPlanId);
+        } catch (ValidationException) {
+            $this->builderError = 'این پلن دیگر در دسترس نیست. پلن دیگری انتخاب کنید.';
+
+            return;
+        }
+
+        if ($plan->kind === 'time' || $plan->minGb === null || $plan->maxGb === null
+            || $gb < $plan->minGb || $gb > $plan->maxGb) {
+            $this->builderError = 'حجم انتخابی خارج از محدوده مجاز پلن است.';
+
+            return;
+        }
+
+        $this->gbInput = (string) $gb;
+        $this->resetBuilderQuote();
+        $this->builderStep = 'days';
+    }
+
+    /** Commit duration and reuse the canonical published quote/owner checks. */
+    public function chooseBuilderDays(int $days): void
+    {
+        $buyerId = $this->resellerId();
+        if ($this->section !== 'shop' || $this->selectedPlanId === null
+            || $this->createdOrderId !== null || $this->builderStep !== 'days') {
+            return;
+        }
+
+        try {
+            $plan = app(ListResellerBuilders::class)->find($buyerId, $this->selectedPlanId);
+        } catch (ValidationException) {
+            $this->builderError = 'این پلن دیگر در دسترس نیست. پلن دیگری انتخاب کنید.';
+
+            return;
+        }
+
+        if ($days < $plan->minDays || $days > $plan->maxDays) {
+            $this->builderError = 'مدت انتخابی خارج از محدوده مجاز پلن است.';
+
+            return;
+        }
+
+        $this->daysInput = (string) $days;
+        $this->builderError = null;
+        $this->previewQuote();
+    }
+
+    public function backToBuilderVolume(): void
+    {
+        $buyerId = $this->resellerId();
+        if ($this->section !== 'shop' || $this->selectedPlanId === null
+            || $this->createdOrderId !== null || ! in_array($this->builderStep, ['days', 'review'], true)) {
+            return;
+        }
+
+        try {
+            $plan = app(ListResellerBuilders::class)->find($buyerId, $this->selectedPlanId);
+        } catch (ValidationException) {
+            $this->builderError = 'این پلن دیگر در دسترس نیست. پلن دیگری انتخاب کنید.';
+
+            return;
+        }
+
+        if ($plan->kind !== 'time') {
+            $this->resetBuilderQuote();
+            $this->builderStep = 'volume';
+        }
+    }
+
+    public function backToBuilderDays(): void
+    {
+        $buyerId = $this->resellerId();
+        if ($this->section !== 'shop' || $this->selectedPlanId === null
+            || $this->createdOrderId !== null || $this->builderStep !== 'review') {
+            return;
+        }
+
+        try {
+            app(ListResellerBuilders::class)->find($buyerId, $this->selectedPlanId);
+        } catch (ValidationException) {
+            $this->builderError = 'این پلن دیگر در دسترس نیست. پلن دیگری انتخاب کنید.';
+
+            return;
+        }
+
+        $this->resetBuilderQuote();
+        $this->builderStep = 'days';
+    }
+
+    private function resetBuilderQuote(): void
+    {
+        $this->quoteRequested = false;
+        $this->confirmedQuoteHash = null;
+        $this->orderIntentKey = null;
+        $this->orderError = null;
+        $this->customerUsername = '';
+        $this->builderError = null;
     }
 
     public function previewQuote(): void
@@ -919,6 +1036,10 @@ final class Dashboard extends Component
             $this->orderIntentKey = bin2hex(random_bytes(16));
         } catch (ValidationException) {
             // The current read-only render displays the contextual quote error.
+        }
+
+        if ($this->builderStep !== 'none') {
+            $this->builderStep = $this->confirmedQuoteHash === null ? 'days' : 'review';
         }
     }
 
@@ -1127,6 +1248,8 @@ final class Dashboard extends Component
         $this->selectedPlanId = null;
         $this->daysInput = '';
         $this->gbInput = '';
+        $this->builderStep = 'none';
+        $this->builderError = null;
         $this->quoteRequested = false;
         $this->planUnavailable = false;
         $this->customerUsername = '';
