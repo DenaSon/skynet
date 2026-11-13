@@ -183,13 +183,13 @@ final readonly class ResellerBuilderUi
         $keyboard->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'builder:cancel'));
 
         $tip = $manual
-            ? "✍️ فقط تعداد روز را به صورت عدد ارسال کنید؛ مثلاً {$plan->minDays}."
+            ? "<b>✍️ فقط تعداد روز را به صورت عدد ارسال کنید؛ مثلاً {$plan->minDays}.</b>"
             : ($awaitText
-                ? 'از گزینه‌ها انتخاب کنید یا تعداد روز دلخواه را به صورت عدد بفرستید.'
-                : 'یکی از مدت‌های آماده را انتخاب کنید یا «مدت دلخواه» را بزنید.');
-        $this->render($bot, "🧩 پلن‌ساز · مرحله ۲ از ۲\n\nپلن: ".$this->safe($plan->name)
+                ? '<b>از گزینه‌ها انتخاب کنید یا تعداد روز دلخواه را به صورت عدد بفرستید.</b>'
+                : '<b>یکی از مدت‌های آماده را انتخاب کنید یا «مدت دلخواه» را بزنید.</b>');
+        $this->render($bot, "🧩 پلن‌ساز · مرحله ۲ از ۲\n\nپلن: ".TelegramUi::escape($this->safe($plan->name))
             ."\nحجم: ".($volume === null ? 'نامحدود' : $volume.' گیگابایت')
-            ."\nمدت مجاز: {$plan->minDays} تا {$plan->maxDays} روز\n\n".$tip, $keyboard);
+            ."\nمدت مجاز: {$plan->minDays} تا {$plan->maxDays} روز\n\n".$tip, $keyboard, true);
     }
 
     public function quote(Nutgram $bot, string $id, string $gb, string $days, string $page, bool $rich = true): void
@@ -253,11 +253,9 @@ final readonly class ResellerBuilderUi
             ->addRow(InlineKeyboardButton::make('◀️ انتخاب حجم', callback_data: "builder:detail:{$plan->id}:{$pg}"))
             ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'builder:cancel'));
 
-        $this->render($bot, "🧩 پلن‌ساز · مرحله ۱ از ۲\n\nپلن: ".$this->safe($plan->name)
+        $this->render($bot, "🧩 پلن‌ساز · مرحله ۱ از ۲\n\nپلن: ".TelegramUi::escape($this->safe($plan->name))
             ."\nحجم مجاز: {$plan->minGb} تا {$plan->maxGb} گیگابایت"
-            ."\n\n✍️ حجم موردنیاز را فقط به صورت عدد بفرستید؛ مثلاً {$plan->minGb}."
-            ."\n💡 مدت سرویس را در مرحله بعد می‌پرسیم."
-            ."\n⏱ اعتبار فرم: ۱۰ دقیقه", $keyboard);
+            ."\n\n<b>✍️ حجم موردنیاز را فقط به صورت عدد بفرستید؛ مثلاً {$plan->minGb}.</b>", $keyboard, true);
     }
 
     /**
@@ -517,15 +515,16 @@ final readonly class ResellerBuilderUi
             ->addRow(InlineKeyboardButton::make('◀️ پلن‌های سفارشی', callback_data: 'builder:list:'.$page)));
     }
 
-    private function render(Nutgram $bot, string $text, InlineKeyboardMarkup $keyboard): void
+    private function render(Nutgram $bot, string $text, InlineKeyboardMarkup $keyboard, bool $html = false): void
     {
+        $parseMode = $html ? 'HTML' : null;
         if ($bot->isCallbackQuery()) {
             TelegramUi::answerCallback($bot);
-            TelegramUi::editText($bot, $text, $keyboard);
+            TelegramUi::editText($bot, $text, $keyboard, $parseMode);
 
             return;
         }
 
-        $bot->sendMessage(text: $text, reply_markup: $keyboard);
+        $bot->sendMessage(text: $text, reply_markup: $keyboard, parse_mode: $parseMode);
     }
 }
