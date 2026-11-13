@@ -19,6 +19,7 @@ use GuzzleHttp\Psr7\Request;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Route;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
@@ -565,10 +566,12 @@ it('supports preset-to-manual duration, volume back navigation, cancel and timeo
     $pending = app(PendingBuilderSelection::class);
 
     $bot->hearCallbackQueryData("builder:days:{$builder}:30:1")->reply()->assertCalled('editMessageText');
-    expect($pending->peek($reseller->id)['step'])->toBe('days')
-        ->and($pending->peek($reseller->id)['volume_gb'])->toBe(30);
+    // Preset browsing alone must not consume unrelated incoming chat messages.
+    expect($pending->peek($reseller->id))->toBeNull();
 
     $bot->hearCallbackQueryData("builder:customdays:{$builder}:30:1")->reply()->assertCalled('editMessageText');
+    expect($pending->peek($reseller->id)['step'])->toBe('days')
+        ->and($pending->peek($reseller->id)['volume_gb'])->toBe(30);
     $bot->hearCallbackQueryData("builder:detail:{$builder}:1")->reply()->assertCalled('editMessageText');
     expect($pending->peek($reseller->id))->toBeNull();
 
@@ -610,5 +613,19 @@ it('skips the volume step for unlimited time builders and retains the old combin
     $bot->hearText('- | ۳۰')->reply()->assertCalled('sendRichMessage');
 
     expect($pending->peek($reseller->id))->toBeNull()
+        ->and(DB::table('sales_orders')->count())->toBe(0);
+});
+ 
+it('accepts pre-deploy combined-input drafts without rewriting or extending their original TTL', function (): void {
+    $root = b16Root();
+    $builder = b16Builder($root, 'wizard-legacy-cache');
+    $reseller = b16Reseller();
+    $bot = b16SalesBot(966224, $reseller);
+    $key = TelegramBotContext::current()->cacheKey('telegram:builder:selection:'.$reseller->id);
+
+    Cache::put($key, ['plan_id' => $builder, 'page' => 1], now()->addMinutes(3));
+    expect(app(PendingBuilderSelection::class)->peek($reseller->id)['step'])->toBe('legacy');
+    $bot->hearText('۳۵ | ۴۵')->reply()->assertCalled('sendRichMessage');
+    expect(app(PendingBuilderSelection::class)->peek($reseller->id))->toBeNull()
         ->and(DB::table('sales_orders')->count())->toBe(0);
 });
