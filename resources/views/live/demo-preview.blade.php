@@ -177,6 +177,108 @@
                     @endforeach
                 </div>
             @endif
+
+            {{-- This is an illustrative UI sample, never a reseller quote or an order form. --}}
+            <section class="dg-card mt-6 p-5 sm:p-7" aria-label="پلن‌ساز آزمایشی"
+                x-data="{ demoBuilderStep: 'volume', demoGb: 75, demoDays: 30 }">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <h2 class="text-lg font-extrabold text-[#1B2935]">🧩 پلن‌ساز نمایندگی</h2>
+                    <span class="dg-status" data-tone="neutral">نمونه تعاملی</span>
+                </div>
+                <p class="mt-2 text-xs leading-7 text-[#617380]">مراحل انتخاب را امتحان کنید. قیمت و سفارش واقعی فقط در حساب نماینده قابل مشاهده‌اند.</p>
+
+                <div x-show="demoBuilderStep === 'volume'">
+                    <p class="mt-6 text-xs font-bold text-[#087F73]">مرحله ۱ از ۲ · حجم سرویس</p>
+                    <div class="mt-4 flex items-center justify-between gap-3">
+                        <label for="demo-builder-gb" class="text-sm font-bold text-[#1B2935]">حجم موردنیاز را انتخاب کنید</label>
+                        <span class="shrink-0 text-lg font-extrabold tabular-nums text-[#087F73]"
+                            x-text="demoGb + ' گیگابایت'">۷۵ گیگابایت</span>
+                    </div>
+                    <input id="demo-builder-gb" type="range" name="demo_volume_gb" min="1" max="500" step="1"
+                        x-model.number="demoGb" x-bind:aria-valuetext="demoGb + ' گیگابایت'"
+                        aria-describedby="demo-builder-gb-hint"
+                        class="mt-4 h-11 w-full cursor-pointer accent-[#14B8A6] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]" />
+                    <p id="demo-builder-gb-hint" class="mt-1 flex justify-between gap-3 text-xs text-[#71818B]">
+                        <span>۱ گیگ</span><span>۵۰۰ گیگ</span>
+                    </p>
+                    <div class="mt-5 flex flex-wrap gap-2" role="group" aria-label="حجم‌های آماده نمونه">
+                        @foreach ([1, 10, 20, 30, 50, 75, 100, 150, 250, 500] as $gb)
+                            <button type="button" x-on:click="demoGb = {{ $gb }}"
+                                x-bind:aria-pressed="demoGb === {{ $gb }} ? 'true' : 'false'"
+                                x-bind:class="demoGb === {{ $gb }} ? 'border-[#14B8A6] bg-[#E7F8F3] text-[#087F73]' : 'border-[#E7ECEF] bg-white text-[#354C58]'"
+                                class="min-h-11 rounded-xl border px-3 py-2 text-sm font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]">{{ $gb }} گیگ</button>
+                        @endforeach
+                    </div>
+                    <div class="mt-5 flex items-center justify-between gap-3">
+                        <button type="button" x-on:click="demoGb = Math.max(1, demoGb - 1)"
+                            x-bind:disabled="demoGb <= 1" aria-label="کاهش یک گیگابایت"
+                            class="min-h-11 rounded-xl border border-[#E7ECEF] bg-white px-5 text-xl font-bold text-[#087F73] disabled:opacity-40">−</button>
+                        <span class="text-xs font-medium text-[#71818B]">تنظیم دقیق حجم</span>
+                        <button type="button" x-on:click="demoGb = Math.min(500, demoGb + 1)"
+                            x-bind:disabled="demoGb >= 500" aria-label="افزایش یک گیگابایت"
+                            class="min-h-11 rounded-xl border border-[#E7ECEF] bg-white px-5 text-xl font-bold text-[#087F73] disabled:opacity-40">+</button>
+                    </div>
+                    <button type="button" x-on:click="demoBuilderStep = 'days'"
+                        class="dg-btn-primary mt-6 w-full">ادامه · انتخاب مدت</button>
+                </div>
+
+                <div x-cloak x-show="demoBuilderStep === 'days'">
+                    <p class="mt-6 text-xs font-bold text-[#087F73]">مرحله ۲ از ۲ · مدت سرویس</p>
+                    <p class="mt-2 text-sm font-semibold text-[#536C76]">حجم: <span x-text="demoGb + ' گیگابایت'"></span></p>
+                    <div class="mt-4 flex items-center justify-between gap-3">
+                        <label for="demo-builder-days" class="text-sm font-bold text-[#1B2935]">مدت سرویس را به روز مشخص کنید</label>
+                        <span class="shrink-0 text-lg font-extrabold tabular-nums text-[#087F73]"
+                            x-text="demoDays + ' روز'">۳۰ روز</span>
+                    </div>
+                    <input id="demo-builder-days" type="range" name="demo_duration_days" min="7" max="180" step="1"
+                        x-model.number="demoDays" x-bind:aria-valuetext="demoDays + ' روز'"
+                        aria-describedby="demo-builder-days-hint"
+                        class="mt-4 h-11 w-full cursor-pointer accent-[#14B8A6] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]" />
+                    <p id="demo-builder-days-hint" class="mt-1 flex justify-between gap-3 text-xs text-[#71818B]">
+                        <span>۷ روز</span><span>۱۸۰ روز</span>
+                    </p>
+                    <div class="mt-5 flex flex-wrap gap-2" role="group" aria-label="مدت‌های آماده نمونه">
+                        @foreach ([7, 15, 30, 60, 90, 180] as $days)
+                            <button type="button" x-on:click="demoDays = {{ $days }}"
+                                x-bind:aria-pressed="demoDays === {{ $days }} ? 'true' : 'false'"
+                                x-bind:class="demoDays === {{ $days }} ? 'border-[#14B8A6] bg-[#E7F8F3] text-[#087F73]' : 'border-[#E7ECEF] bg-white text-[#354C58]'"
+                                class="min-h-11 rounded-xl border px-3 py-2 text-sm font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]">{{ $days }} روز</button>
+                        @endforeach
+                    </div>
+                    <div class="mt-5 flex items-center justify-between gap-3">
+                        <button type="button" x-on:click="demoDays = Math.max(7, demoDays - 1)"
+                            x-bind:disabled="demoDays <= 7" aria-label="کاهش یک روز"
+                            class="min-h-11 rounded-xl border border-[#E7ECEF] bg-white px-5 text-xl font-bold text-[#087F73] disabled:opacity-40">−</button>
+                        <span class="text-xs font-medium text-[#71818B]">تنظیم دقیق مدت</span>
+                        <button type="button" x-on:click="demoDays = Math.min(180, demoDays + 1)"
+                            x-bind:disabled="demoDays >= 180" aria-label="افزایش یک روز"
+                            class="min-h-11 rounded-xl border border-[#E7ECEF] bg-white px-5 text-xl font-bold text-[#087F73] disabled:opacity-40">+</button>
+                    </div>
+                    <div class="mt-6 flex flex-col gap-3 sm:flex-row">
+                        <button type="button" x-on:click="demoBuilderStep = 'volume'"
+                            class="dg-btn-secondary sm:w-auto">تغییر حجم</button>
+                        <button type="button" x-on:click="demoBuilderStep = 'review'"
+                            class="dg-btn-primary flex-1">مشاهده مشخصات انتخاب‌شده</button>
+                    </div>
+                </div>
+
+                <div x-cloak x-show="demoBuilderStep === 'review'">
+                    <div class="mt-6 rounded-2xl bg-[#F6F8FA] p-4">
+                        <p class="text-xs font-semibold text-[#71818B]">مشخصات انتخاب‌شده · نمونه</p>
+                        <p class="mt-2 text-base font-extrabold text-[#1B2935]">
+                            <span x-text="demoGb + ' گیگابایت'"></span> · <span x-text="demoDays + ' روز'"></span>
+                        </p>
+                        <p class="mt-3 text-xs leading-7 text-[#617380]">در این پیش‌نمایش قیمت محاسبه نمی‌شود و سفارشی ثبت نخواهد شد.</p>
+                        <div class="mt-4 flex flex-wrap gap-3">
+                            <button type="button" x-on:click="demoBuilderStep = 'volume'"
+                                class="dg-btn-secondary">تغییر حجم</button>
+                            <button type="button" x-on:click="demoBuilderStep = 'days'"
+                                class="dg-btn-secondary">تغییر مدت</button>
+                        </div>
+                    </div>
+                </div>
+                <p class="mt-5 text-xs leading-7 text-[#71818B]">محدوده‌های این نمونه فقط برای آشنایی با پلن‌ساز هستند؛ محدوده و قیمت واقعی به پلن منتشرشده بستگی دارد.</p>
+            </section>
         </section>
 
         @if ($botUrl !== null)

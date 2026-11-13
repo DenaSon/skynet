@@ -232,3 +232,47 @@ it('never reads a live catalog or real operational data in DEMO-01', function ()
         ->assertDontSee('98,765,432');
     Http::assertNothingSent();
 });
+
+it('offers a local-only two-step slider preview without granting checkout or calculating a fake quote', function (): void {
+    $user = demoMember(661106);
+
+    $this->post('https://live.denagate.ir/demo/auth/telegram', [
+        'init_data' => demoSignedData(661106),
+    ])->assertRedirect('https://live.denagate.ir/demo/preview');
+
+    $response = $this->get('https://live.denagate.ir/demo/preview?section=shop');
+    $response->assertOk()
+        ->assertSee('پلن‌ساز نمایندگی')
+        ->assertSee('نمونه تعاملی')
+        ->assertSee('مرحله ۱ از ۲ · حجم سرویس')
+        ->assertSee('مرحله ۲ از ۲ · مدت سرویس')
+        ->assertSee('type="range" name="demo_volume_gb"', false)
+        ->assertSee('type="range" name="demo_duration_days"', false)
+        ->assertSee('x-model.number="demoGb"', false)
+        ->assertSee('x-model.number="demoDays"', false)
+        ->assertSee('x-on:click="demoBuilderStep = \'days\'"', false)
+        ->assertSee('x-on:click="demoBuilderStep = \'review\'"', false)
+        ->assertSee('demoGb = Math.min(500, demoGb + 1)', false)
+        ->assertSee('demoDays = Math.min(180, demoDays + 1)', false)
+        ->assertSee('demoGb = 20', false)
+        ->assertSee('demoGb = 75', false)
+        ->assertSee('demoGb = 150', false)
+        ->assertSee('demoGb = 250', false)
+        ->assertSee('demoDays = 30', false)
+        ->assertSee('demoDays = 90', false)
+        ->assertSee('در این پیش‌نمایش قیمت محاسبه نمی‌شود')
+        ->assertSee('محدوده‌های این نمونه فقط برای آشنایی')
+        ->assertDontSee('wire:click', false)
+        ->assertDontSee('wire:submit', false)
+        ->assertDontSee('wire:model', false)
+        ->assertDontSee('sales:checkout', false);
+
+    // A Demo login never creates a privileged reseller session or a business write.
+    $this->assertGuest('web');
+    expect($user->fresh()->getRoleNames()->all())->toBe(['member']);
+    foreach (['sales_orders', 'billing_journals', 'billing_postings',
+        'provisioning_operations', 'sales_panel_requests'] as $table) {
+        $this->assertDatabaseCount($table, 0);
+    }
+    Http::assertNothingSent();
+});
