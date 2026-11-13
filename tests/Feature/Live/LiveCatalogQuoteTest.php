@@ -360,8 +360,9 @@ it('validates every slider boundary server-side and keeps pricing untouched at 5
     // Changing the published plan after quote does not authorize old-price purchase.
     DB::table('sales_plan_prices')->where('plan_id', $planId)->update(['status' => 'draft']);
     $page->call('confirmOrder')
-        ->assertSee('ثبت سفارش امکان‌پذیر نیست')
-        ->assertSet('createdOrderId', null);
+        ->assertSet('createdOrderId', null)
+        ->assertSet('confirmedQuoteHash', null)
+        ->assertSet('orderIntentKey', null);
 
     live3aAssertNoCommerceWrites();
 });
