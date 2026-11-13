@@ -229,7 +229,7 @@ Artisan::command('filtering:prune', function (): int {
 
 // Reuse the existing proven pruning logic without a second deletion path.
 Schedule::command('system:cleanup')->weekly()->withoutOverlapping();
-Schedule::command('telegram:notifications:dispatch')->everyMinute()->withoutOverlapping();
+Schedule::command('telegram:notifications:dispatch')->everyMinute()->withoutOverlapping(5);
 Schedule::command('telegram:receipts:remind')->everyFifteenMinutes()->withoutOverlapping();
 Schedule::command('sales:fulfillment:dispatch')->everyMinute()->withoutOverlapping();
 Schedule::command('sales:subscriptions:alerts')->everyFiveMinutes()->withoutOverlapping();
