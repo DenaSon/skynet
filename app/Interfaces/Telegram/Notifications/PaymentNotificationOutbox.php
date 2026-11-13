@@ -76,9 +76,20 @@ final readonly class PaymentNotificationOutbox
 
         $target = $salesContact && $salesConfigured ? 'sales' : 'admin';
 
+        // Give fast automatic activation time to deliver its final, useful
+        // message instead of immediately notifying "payment confirmed".
+        // Bank rejection and Admin fallback remain immediate.
+        $fastActivation = $target === 'sales'
+            && config('sales.auto_fulfillment_enabled', false) === true
+            && config('services.remnawave.writes_enabled') === true
+            && config('services.remnawave.squad_bindings_live_verified') === true
+            && DB::table('sales_bank_payment_claims')->where('id', $claimId)
+                ->where('status', 'approved')->exists();
+
         $this->record(
             'review:'.$claimId.':buyer:'.$buyerId,
             'PaymentReviewed', $buyerId, $target, $claimId, $orderId,
+            $fastActivation ? 60 : 0,
         );
     }
 
@@ -167,8 +178,10 @@ final readonly class PaymentNotificationOutbox
 
     private function record(
         string $key, string $type, int $recipientId, string $bot, ?int $claimId, int $orderId,
+        int $delaySeconds = 0,
     ): void {
         $enabled = config('telegram_notifications.enabled', false) === true;
+        $availableAt = now()->addSeconds($delaySeconds);
 
         $id = DB::table('telegram_notification_deliveries')->insertGetId([
             'event_key' => $key,
@@ -181,14 +194,17 @@ final readonly class PaymentNotificationOutbox
             // BotFather compatibility sender already delivered.
             'state' => $enabled ? 'pending' : 'suppressed',
             'attempts' => 0,
-            'available_at' => now(),
+            'available_at' => $availableAt,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
 
         if ($enabled) {
-            DB::afterCommit(static function () use ($id): void {
-                DispatchTelegramNotification::dispatch((int) $id);
+            DB::afterCommit(static function () use ($id, $availableAt, $delaySeconds): void {
+                $dispatch = DispatchTelegramNotification::dispatch((int) $id);
+                if ($delaySeconds > 0) {
+                    $dispatch->delay($availableAt);
+                }
             });
         }
     }
