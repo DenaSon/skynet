@@ -1129,9 +1129,9 @@ it('sends the owned connection URL inline with green native copy and the existin
         $qr = $buttons[1][0] ?? [];
         $serialized = json_encode($buttons, JSON_THROW_ON_ERROR);
 
-        return $r['chat_id'] === '976901'
-            && $r['protect_content'] === 'true'
-            && $r['parse_mode'] === 'HTML'
+        return (string) $r['chat_id'] === '976901'
+            && (string) $r['protect_content'] === 'true'
+            && (string) $r['parse_mode'] === 'HTML'
             && str_contains((string) $r['text'], 'سرویس شما فعال شد')
             && str_contains((string) $r['text'], 'کد اتصال اختصاصی')
             && str_contains((string) $r['text'], 'key=abc&amp;mode=auto')
