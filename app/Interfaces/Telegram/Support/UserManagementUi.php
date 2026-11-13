@@ -107,7 +107,7 @@ final class UserManagementUi
             text: '✍️ عبارت جست‌وجو را وارد کنید:',
             reply_markup: ForceReply::make(
                 force_reply: true,
-                input_field_placeholder: 'نام، ایمیل یا شناسه',
+                input_field_placeholder: 'نام، ایمیل، شناسه یا sk_...',
                 selective: false,
             ),
         );
