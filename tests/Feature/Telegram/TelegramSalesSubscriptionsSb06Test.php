@@ -1100,6 +1100,23 @@ function sb06ActivationNotice(User $buyer, int $orderId): int
         ->value('id');
 }
 
+/** Read a form field from either native or multipart fake HTTP requests. */
+function sb06PhotoField(Request $request, string $name): ?string
+{
+    $fields = $request->data();
+    if (isset($fields[$name]) && is_scalar($fields[$name])) {
+        return (string) $fields[$name];
+    }
+    foreach ($fields as $part) {
+        if (is_array($part) && ($part['name'] ?? null) === $name
+            && is_string($part['contents'] ?? null)) {
+            return $part['contents'];
+        }
+    }
+
+    return null;
+}
+
 it('sends one protected QR photo with the full caption link and green native copy button', function (): void {
     $buyer = User::factory()->create();
     TelegramAccount::query()->create(['user_id' => $buyer->id, 'telegram_user_id' => 976901]);
@@ -1123,14 +1140,14 @@ it('sends one protected QR photo with the full caption link and green native cop
     $photoRequest = Http::recorded(static fn (Request $request): bool => str_contains($request->url(), '54321:sales_test/sendPhoto'))->first();
     expect($photoRequest)->not->toBeNull();
     $request = $photoRequest[0];
-    $buttons = json_decode((string) $request['reply_markup'], true, 512, JSON_THROW_ON_ERROR)['inline_keyboard'];
+    $buttons = json_decode((string) sb06PhotoField($request, 'reply_markup'), true, 512, JSON_THROW_ON_ERROR)['inline_keyboard'];
 
-    expect((string) $request['chat_id'])->toBe('976901')
-        ->and((string) $request['protect_content'])->toBe('true')
-        ->and((string) $request['parse_mode'])->toBe('HTML')
-        ->and((string) $request['caption'])->toContain('سرویس شما فعال شد')
-        ->and((string) $request['caption'])->toContain('لینک اتصال اختصاصی')
-        ->and((string) $request['caption'])->toContain('key=abc&amp;mode=auto')
+    expect((string) sb06PhotoField($request, 'chat_id'))->toBe('976901')
+        ->and((string) sb06PhotoField($request, 'protect_content'))->toBe('true')
+        ->and((string) sb06PhotoField($request, 'parse_mode'))->toBe('HTML')
+        ->and((string) sb06PhotoField($request, 'caption'))->toContain('سرویس شما فعال شد')
+        ->and((string) sb06PhotoField($request, 'caption'))->toContain('لینک اتصال اختصاصی')
+        ->and((string) sb06PhotoField($request, 'caption'))->toContain('key=abc&amp;mode=auto')
         ->and((string) $request->body())->toContain('denagate-activation-qr.png')
         ->and((string) $request->body())->toContain("\x89PNG\r\n\x1a\n")
         ->and($buttons[0][0]['text'] ?? null)->toBe('📋 کپی لینک اتصال')
@@ -1167,10 +1184,10 @@ it('keeps the full long URL below the QR photo but never sends an invalid copy b
         if (! str_contains($r->url(), '/sendPhoto')) {
             return false;
         }
-        $markup = (string) $r['reply_markup'];
+        $markup = (string) sb06PhotoField($r, 'reply_markup');
 
-        return str_contains((string) $r['caption'], $url)
-            && str_contains((string) $r['caption'], 'برای دکمه کپی تلگرام')
+        return str_contains((string) sb06PhotoField($r, 'caption'), $url)
+            && str_contains((string) sb06PhotoField($r, 'caption'), 'برای دکمه کپی تلگرام')
             && ! str_contains($markup, 'copy_text')
             && ! str_contains($markup, 'sales:subs:link:');
     });
@@ -1194,7 +1211,7 @@ it('sends activation and safe QR guidance when the Provider credential read fail
         if (! str_contains($r->url(), '54321:sales_test/sendMessage')) {
             return false;
         }
-        $markup = (string) $r['reply_markup'];
+        $markup = (string) sb06PhotoField($r, 'reply_markup');
 
         return str_contains((string) $r['text'], 'سرویس شما فعال شد')
             && str_contains((string) $r['text'], 'راهنمای نصب')
@@ -1227,7 +1244,7 @@ it('keeps the full link and existing QR action when the caption is too long for 
         }
 
         return str_contains((string) $r['text'], $url)
-            && str_contains((string) $r['reply_markup'], 'sales:subs:link:'.$orderId.':0');
+            && str_contains((string) sb06PhotoField($r, 'reply_markup'), 'sales:subs:link:'.$orderId.':0');
     });
     Http::assertNotSent(static fn (Request $r): bool => str_contains($r->url(), '/sendPhoto'));
 });
