@@ -15,7 +15,7 @@ uses(RefreshDatabase::class);
 
 function directoryFilterRoot(): User
 {
-    config()->set('super_admin.telegram_ids', ['984411']);
+    config()->set('super_admin.telegram_ids', ['984411', '984412']);
     $root = User::factory()->create();
     $root->syncRoles(['super-admin']);
     TelegramAccount::query()->create(['user_id' => $root->id, 'telegram_user_id' => 984411]);
@@ -114,7 +114,7 @@ it('filters inactive accounts and linked paid services and includes trial review
     ]);
     DB::table('provisioning_order_links')->insert([
         'sales_order_id' => $orderId, 'provisioning_subscription_id' => $subscriptionId,
-        'created_at' => now(), 'updated_at' => now(),
+        'created_at' => now(),
     ]);
     DB::table('trial_claims')->insert([
         'user_id' => $trialOwner->id, 'telegram_user_id' => 975621123,
