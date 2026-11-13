@@ -3,17 +3,18 @@
 declare(strict_types=1);
 
 use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
+use App\Interfaces\Telegram\Notifications\ResellerAnnouncementEnqueuer;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Sales\Application\ManageAnnouncements;
 use Illuminate\Console\Scheduling\Schedule;
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Spatie\Permission\Models\Role;
 
-uses(DatabaseMigrations::class);
+uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
     config()->set('super_admin.telegram_ids', ['994901', '994902']);
@@ -62,6 +63,7 @@ it('enqueues one delayed job per recipient only after the enclosing database tra
 
     DB::beginTransaction();
     $notice = app(ManageAnnouncements::class)->sendToResellers($root->id, 'خبر', 'متن نمایندگان');
+    app(ResellerAnnouncementEnqueuer::class)->afterCommit($notice['id']);
     Queue::assertNotPushed(DispatchTelegramNotification::class);
     expect(DB::table('telegram_notification_deliveries')->count())->toBe(3);
 
@@ -69,10 +71,10 @@ it('enqueues one delayed job per recipient only after the enclosing database tra
 
     Queue::assertPushed(DispatchTelegramNotification::class, 3);
     $jobs = Queue::pushed(DispatchTelegramNotification::class);
-    $delays = $jobs->map(static fn (array $item): int => $item['job']->delay->getTimestamp())
+    $delays = $jobs->map(static fn (DispatchTelegramNotification $job): int => $job->delay->getTimestamp())
         ->sort()->values()->all();
     expect($delays)->toBe([$now->timestamp, $now->timestamp + 3, $now->timestamp + 6])
-        ->and($jobs->pluck('job.deliveryId')->unique()->count())->toBe(3)
+        ->and($jobs->pluck('deliveryId')->unique()->count())->toBe(3)
         ->and(DB::table('telegram_notification_deliveries')->where('state', 'pending')->count())->toBe(3)
         ->and(DB::table('announcements')->where('id', $notice['id'])->value('status'))->toBe('reseller_sent');
 });
@@ -82,7 +84,8 @@ it('never enqueues or commits reseller messages when an outer transaction rolls 
     raqResellers(2);
 
     DB::beginTransaction();
-    app(ManageAnnouncements::class)->sendToResellers($root->id, 'خبر آزمایشی', 'متن');
+    $notice = app(ManageAnnouncements::class)->sendToResellers($root->id, 'خبر آزمایشی', 'متن');
+    app(ResellerAnnouncementEnqueuer::class)->afterCommit($notice['id']);
     Queue::assertNotPushed(DispatchTelegramNotification::class);
 
     DB::rollBack();
@@ -96,7 +99,8 @@ it('keeps the existing minute dispatcher as recovery when an initial Redis enque
     $this->travelTo(Carbon::parse('2026-11-13 06:00:00'));
     $root = raqRoot();
     raqResellers(2);
-    app(ManageAnnouncements::class)->sendToResellers($root->id, 'خبر', 'متن');
+    $notice = app(ManageAnnouncements::class)->sendToResellers($root->id, 'خبر', 'متن');
+    app(ResellerAnnouncementEnqueuer::class)->afterCommit($notice['id']);
 
     Queue::assertPushed(DispatchTelegramNotification::class, 2);
     // Simulate a missing transient Redis queue while committed outbox stays intact.
