@@ -1109,8 +1109,8 @@ function sb06PhotoField(Request $request, string $name): ?string
     }
     foreach ($fields as $part) {
         if (is_array($part) && ($part['name'] ?? null) === $name
-            && is_string($part['contents'] ?? null)) {
-            return $part['contents'];
+            && is_scalar($part['contents'] ?? null)) {
+            return (string) $part['contents'];
         }
     }
 
