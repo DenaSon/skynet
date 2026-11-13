@@ -615,7 +615,7 @@ it('skips the volume step for unlimited time builders and retains the old combin
     expect($pending->peek($reseller->id))->toBeNull()
         ->and(DB::table('sales_orders')->count())->toBe(0);
 });
- 
+
 it('accepts pre-deploy combined-input drafts without rewriting or extending their original TTL', function (): void {
     $root = b16Root();
     $builder = b16Builder($root, 'wizard-legacy-cache');
