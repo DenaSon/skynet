@@ -96,7 +96,7 @@ it('rejects tampering, Admin Bot signatures, stale data, future timestamps and d
     $this->assertGuest('web');
 });
 
-it('denies unlinked, ordinary and inactive accounts', function (): void {
+it('denies unlinked, roleless and inactive accounts', function (): void {
     $this->post('https://live.denagate.ir/auth/telegram', ['init_data' => liveSignedData(999000)])
         ->assertForbidden();
 
@@ -270,4 +270,76 @@ it('does not turn a malformed bot username into a recovery link or expose disabl
         ->assertDontSee('evil.example')->assertDontSee('href="https://t.me/', false);
     config()->set('denagate_live.enabled', false);
     $this->get('https://live.denagate.ir/?notice=419')->assertNotFound();
+});
+
+it('introduces reseller benefits only to a signed active ordinary member without granting panel access', function (): void {
+    config()->set('telegram.sales.bot_username', 'DenaGateSalesBot');
+    Role::findOrCreate('member', 'web');
+
+    $member = User::factory()->create();
+    $member->assignRole('member');
+    TelegramAccount::query()->create(['user_id' => $member->id, 'telegram_user_id' => 991122]);
+
+    $this->post('https://live.denagate.ir/auth/telegram', ['init_data' => liveSignedData(991122)])
+        ->assertOk()
+        ->assertSee('پنل نمایندگی دناگیت')
+        ->assertSee('۳۵٪ تخفیف ویژه در پلن‌های مشمول')
+        ->assertSee('ساخت سرویس با حجم و مدت دلخواه')
+        ->assertSee('مدیریت سرویس‌ها و مشتریان')
+        ->assertSee('https://t.me/DenaGateSalesBot?start=demo_panel', false)
+        ->assertSee('https://live.denagate.ir/demo', false)
+        ->assertSee('بازگشت به ربات دناگیت')
+        ->assertDontSee('ورود به پنل امکان‌پذیر نیست')
+        ->assertSessionMissing('denagate_live.user_id');
+
+    $this->assertGuest('web');
+    $this->get('https://live.denagate.ir/dashboard')->assertRedirect();
+    $this->get('https://live.denagate.ir/demo/preview')->assertRedirect();
+});
+
+it('keeps an invalid identity, disabled account and operator role out of the reseller introduction', function (): void {
+    Role::findOrCreate('member', 'web');
+    Role::findOrCreate('admin', 'web');
+
+    $member = User::factory()->create();
+    $member->assignRole('member');
+    TelegramAccount::query()->create(['user_id' => $member->id, 'telegram_user_id' => 991123]);
+
+    $this->post('https://live.denagate.ir/auth/telegram', [
+        'init_data' => liveSignedData(991123, token: '123:admin-bot'),
+    ])->assertForbidden()->assertDontSee('۳۵٪ تخفیف ویژه');
+
+    $member->forceFill(['is_active' => false])->save();
+    $this->post('https://live.denagate.ir/auth/telegram', [
+        'init_data' => liveSignedData(991123),
+    ])->assertForbidden()->assertDontSee('۳۵٪ تخفیف ویژه');
+
+    $operator = User::factory()->create();
+    $operator->assignRole('admin');
+    TelegramAccount::query()->create(['user_id' => $operator->id, 'telegram_user_id' => 991124]);
+    $this->post('https://live.denagate.ir/auth/telegram', [
+        'init_data' => liveSignedData(991124),
+    ])->assertForbidden()->assertDontSee('۳۵٪ تخفیف ویژه');
+
+    $this->assertGuest('web');
+});
+
+it('does not output unvalidated bot destinations on the ordinary member introduction', function (): void {
+    Role::findOrCreate('member', 'web');
+
+    $member = User::factory()->create();
+    $member->assignRole('member');
+    TelegramAccount::query()->create(['user_id' => $member->id, 'telegram_user_id' => 991125]);
+    config()->set('telegram.sales.bot_username', 'https://evil.example/redirect');
+
+    $this->post('https://live.denagate.ir/auth/telegram', [
+        'init_data' => liveSignedData(991125),
+    ])->assertOk()
+        ->assertSee('مشاهده دمو پنل')
+        ->assertSee('برای درخواست نمایندگی از بات فروش دناگیت اقدام کنید.')
+        ->assertDontSee('evil.example')
+        ->assertDontSee('data-telegram-link')
+        ->assertSessionMissing('denagate_live.user_id');
+
+    $this->assertGuest('web');
 });

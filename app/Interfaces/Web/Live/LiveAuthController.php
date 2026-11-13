@@ -32,7 +32,7 @@ final readonly class LiveAuthController
         ValidateTelegramInitData $validator,
         ResolveTelegramActor $telegram,
         ResolveSalesBuyer $buyers,
-    ): RedirectResponse {
+    ): View|RedirectResponse {
         // Reject malformed input without flashing raw Telegram credentials into session.
         $raw = $request->input('init_data');
         abort_unless(is_string($raw) && $raw !== '' && strlen($raw) <= 8192, 422);
@@ -49,7 +49,11 @@ final readonly class LiveAuthController
         $actor = $telegram->handle($telegramId);
         abort_if($actor === null, 403);
         if (! $buyers->isReseller($actor->userId)) {
-            abort(403);
+            // Only a verified, active ordinary member sees the reseller introduction.
+            // Invalid signatures, unknown identities and inactive/operator accounts stay denied.
+            abort_unless($buyers->isMember($actor->userId), 403);
+
+            return view('live.reseller-intro');
         }
 
         // No new user or permission is created; reuse the verified Telegram binding.
