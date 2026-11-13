@@ -74,7 +74,22 @@ final class BrowseUsers
         $query->orderByDesc('users.id');
 
         if ($search !== '') {
-            if (ctype_digit($search)) {
+            if (preg_match('/\\Ask_[0-9a-f]{24}\\z/D', $search) === 1) {
+                // Look up the existing local provider identity; never enumerate or contact RW.
+                // A reserved/needs_review subscription may not have an order link yet.
+                $reference = DB::table('provisioning_subscriptions')
+                    ->where('remote_username', $search)->value('reference');
+                $ownerId = null;
+
+                if (is_string($reference) && preg_match('/\\Asales-order:([1-9][0-9]*)\\z/D', $reference, $match) === 1) {
+                    $ownerId = DB::table('sales_orders')->where('id', $match[1])->value('buyer_user_id');
+                } elseif (is_string($reference) && preg_match('/\\Afree-trial:([1-9][0-9]*)\\z/D', $reference, $match) === 1) {
+                    $ownerId = DB::table('trial_claims')->where('id', $match[1])->value('user_id');
+                }
+
+                // Missing/foreign references must never fall back to another user's name.
+                $query->where('users.id', $ownerId ?? 0);
+            } elseif (ctype_digit($search)) {
                 $query->where('id', (int) $search);
             } else {
                 $query->where(function ($q) use ($search): void {

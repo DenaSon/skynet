@@ -463,3 +463,44 @@ it('keeps admin details usable when username lookup is unavailable or invalid', 
         index: 1,
     );
 });
+
+it('finds the local owner by sk_ username using the existing Admin search and profile routes', function (): void {
+    $admin = User::factory()->admin()->create();
+    $bot = configureUserManagementBot(50607, $admin);
+    $owner = User::factory()->create(['name' => 'Subscription owner']);
+    $trialId = DB::table('trial_claims')->insertGetId([
+        'user_id' => $owner->id,
+        'telegram_user_id' => 978654322,
+        'phone_fingerprint' => hash('sha256', 'admin-lookup-trial'),
+        'state' => 'needs_review',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+    $reference = 'free-trial:'.$trialId;
+    $username = 'sk_'.substr(hash('sha256', $reference), 0, 24);
+    DB::table('provisioning_subscriptions')->insert([
+        'reference' => $reference,
+        'remote_username' => $username,
+        'remote_user_id' => null,
+        'state' => 'needs_review',
+        'last_operation_key' => $reference.':create',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $bot->hearCallbackQueryData('users:search')->reply()->assertCalled('sendMessage');
+    $bot->hearText($username)->reply()->assertCalled('sendMessage');
+    $bot->hearCallbackQueryData('users:findpage:1')->reply()->assertRaw(
+        static function (Request $request) use ($owner): bool {
+            $data = FakeNutgram::getActualData($request);
+
+            return str_contains((string) ($data['reply_markup'] ?? ''), 'users:view:'.$owner->id.':1:s');
+        },
+        index: 1,
+    );
+    $bot->hearCallbackQueryData('users:view:'.$owner->id.':1:s')->reply()
+        ->assertCalled('editMessageText');
+
+    // Preserve the legacy command entry point and the same owner result.
+    $bot->hearText('/finduser '.$username)->reply()->assertCalled('sendMessage');
+});
