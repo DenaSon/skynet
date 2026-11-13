@@ -11,6 +11,7 @@ use App\Modules\Identity\Application\UserDirectoryPage;
 use App\Modules\Referral\Application\ReferralInvite;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
+use SergiX44\Nutgram\Telegram\Types\Keyboard\CopyTextButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
@@ -267,6 +268,9 @@ final class MenuRenderer
     {
         $type = UserDirectoryMode::type($mode);
         $sort = UserDirectoryMode::sort($mode);
+        $direction = UserDirectoryMode::direction($mode);
+        $filter = UserDirectoryMode::filter($mode);
+        $filterLabel = UserDirectoryMode::FILTER_LABELS[$filter];
         $header = match (true) {
             $mode === 's' => '🔎 نتایج جست‌وجوی کاربران',
             $type === 'r' => '🧩 نمایندگان',
@@ -275,12 +279,15 @@ final class MenuRenderer
         };
         $lines = [$header, '', "تعداد: {$results->total} | صفحه {$results->page} از {$results->lastPage}"];
         $sortLabel = match ($sort) {
-            'wallet' => '💰 بیشترین موجودی',
-            'purchase' => '🛒 بیشترین خرید',
-            default => '🕒 جدیدترین',
+            'wallet' => $direction === 'asc' ? '💰 کمترین موجودی' : '💰 بیشترین موجودی',
+            'purchase' => $direction === 'asc' ? '🛒 کمترین خرید' : '🛒 بیشترین خرید',
+            default => $direction === 'asc' ? '🕒 قدیمی‌ترین' : '🕒 جدیدترین',
         };
-        if ($sort !== 'recent') {
-            $lines[] = 'مرتب‌سازی: '.$sortLabel.' (تومان)';
+        if ($trustedRoot && $mode !== 's') {
+            $lines[] = 'مرتب‌سازی: '.$sortLabel.' · '.($direction === 'asc' ? 'صعودی' : 'نزولی');
+            if ($filter !== '') {
+                $lines[] = 'فیلتر: '.$filterLabel;
+            }
         }
 
         $keyboard = InlineKeyboardMarkup::make();
@@ -288,7 +295,7 @@ final class MenuRenderer
             $tab = static fn (string $name, string $target) => InlineKeyboardButton::make(
                 ($type === $target && $mode !== 's' ? '✅ ' : '').$name,
                 callback_data: UserDirectoryMode::pageCallback(
-                    UserDirectoryMode::for($target, $sort) ?? $target, 1,
+                    UserDirectoryMode::for($target, $sort, $direction, $filter) ?? $target, 1,
                 ),
             );
             $keyboard->addRow(
@@ -296,9 +303,10 @@ final class MenuRenderer
                 $tab('عادی', 'm'),
                 $tab('نمایندگان', 'r'),
             );
-            $keyboard->addRow(InlineKeyboardButton::make(
-                '🔃 مرتب‌سازی: '.$sortLabel, callback_data: 'users:sort:'.($mode === 's' ? 'a' : $mode),
-            ));
+            $keyboard->addRow(
+                InlineKeyboardButton::make('🔃 مرتب‌سازی', callback_data: 'users:sort:'.($mode === 's' ? 'a' : $mode)),
+                InlineKeyboardButton::make('🧰 فیلترها', callback_data: 'users:filters:'.($mode === 's' ? 'a' : $mode)),
+            );
         } else {
             // Existing delegated-admin directory stays unchanged and has no financial controls.
             $keyboard->addRow(
@@ -349,6 +357,8 @@ final class MenuRenderer
                 .'<table bordered striped compact>'
                 .'<tr><td>تعداد</td><td>'.number_format($results->total).'</td></tr>'
                 .'<tr><td>مرتب‌سازی</td><td>'.TelegramUi::escape($sortLabel).'</td></tr>'
+                .'<tr><td>جهت</td><td>'.($direction === 'asc' ? 'صعودی' : 'نزولی').'</td></tr>'
+                .'<tr><td>فیلتر</td><td>'.TelegramUi::escape($filterLabel).'</td></tr>'
                 .'</table><footer>مبالغ به تومان هستند؛ روی نام کاربر بزنید. '
                 .'صفحه '.number_format($results->page).' از '.number_format($results->lastPage).'</footer>';
             try {
@@ -371,13 +381,15 @@ final class MenuRenderer
     {
         $type = UserDirectoryMode::type($mode);
         $current = UserDirectoryMode::sort($mode);
+        $direction = UserDirectoryMode::direction($mode);
+        $filter = UserDirectoryMode::filter($mode);
         $keyboard = InlineKeyboardMarkup::make();
         foreach ([
-            'recent' => '🕒 جدیدترین',
-            'wallet' => '💰 بیشترین موجودی',
-            'purchase' => '🛒 بیشترین خرید',
+            'recent' => '🕒 زمان ثبت‌نام',
+            'wallet' => '💰 موجودی کیف پول',
+            'purchase' => '🛒 مجموع خرید',
         ] as $sort => $label) {
-            $target = UserDirectoryMode::for($type, $sort);
+            $target = UserDirectoryMode::for($type, $sort, $direction, $filter);
             if ($target !== null) {
                 $keyboard->addRow(InlineKeyboardButton::make(
                     ($current === $sort ? '✅ ' : '').$label,
@@ -385,11 +397,56 @@ final class MenuRenderer
                 ));
             }
         }
+        $keyboard->addRow(
+            InlineKeyboardButton::make(
+                ($direction === 'desc' ? '✅ ' : '').'⬇️ نزولی',
+                callback_data: UserDirectoryMode::pageCallback(
+                    UserDirectoryMode::for($type, $current, 'desc', $filter) ?? 'a', 1,
+                ),
+            ),
+            InlineKeyboardButton::make(
+                ($direction === 'asc' ? '✅ ' : '').'⬆️ صعودی',
+                callback_data: UserDirectoryMode::pageCallback(
+                    UserDirectoryMode::for($type, $current, 'asc', $filter) ?? 'a', 1,
+                ),
+            ),
+        );
         $keyboard->addRow(InlineKeyboardButton::make(
             '◀️ بازگشت به کاربران', callback_data: UserDirectoryMode::pageCallback($mode, 1),
         ));
 
-        $this->render($bot, "🔃 مرتب‌سازی کاربران\n\nترتیب نمایش را انتخاب کنید.", $keyboard);
+        $this->render($bot, "🔃 مرتب‌سازی کاربران\n\nمعیار و جهت مرتب‌سازی را انتخاب کنید.", $keyboard);
+    }
+
+    public function showUserFilters(Nutgram $bot, string $mode): void
+    {
+        $type = UserDirectoryMode::type($mode);
+        $sort = UserDirectoryMode::sort($mode);
+        $direction = UserDirectoryMode::direction($mode);
+        $current = UserDirectoryMode::filter($mode);
+        $keyboard = InlineKeyboardMarkup::make();
+        $buttons = [];
+        foreach (UserDirectoryMode::FILTER_LABELS as $filter => $label) {
+            $target = UserDirectoryMode::for($type, $sort, $direction, $filter);
+            if ($target !== null) {
+                $buttons[] = InlineKeyboardButton::make(
+                    ($current === $filter ? '✅ ' : '').$label,
+                    callback_data: UserDirectoryMode::pageCallback($target, 1),
+                );
+            }
+        }
+        foreach (array_chunk($buttons, 2) as $row) {
+            $keyboard->addRow(...$row);
+        }
+        $keyboard->addRow(InlineKeyboardButton::make(
+            '◀️ بازگشت به کاربران', callback_data: UserDirectoryMode::pageCallback($mode, 1),
+        ));
+
+        $this->render(
+            $bot,
+            "🧰 فیلتر کاربران\n\nیک فیلتر انتخاب کنید. نتایج براساس داده‌های ثبت‌شده دناگیت هستند، نه وضعیت لحظه‌ای سرویس در پنل.",
+            $keyboard,
+        );
     }
 
     public function showUserDetails(Nutgram $bot, UserDirectoryEntry $user, int $page = 1, bool $search = false, bool $manageRoles = false, bool $profileAllowed = true, bool $resellersOnly = false, ?string $contactUrl = null, ?string $directoryMode = null): void
@@ -402,9 +459,15 @@ final class MenuRenderer
         $roles = implode('، ', $user->roles);
         $status = $user->active ? '🟢 فعال' : '🔴 غیرفعال';
         $linked = $user->telegramLinked ? 'متصل' : 'متصل نیست';
+        $telegramId = $user->telegramUserId === null ? 'ثبت نشده' : (string) $user->telegramUserId;
         $mode = $directoryMode ?? ($search ? 's' : ($resellersOnly ? 'r' : 'a'));
 
         $keyboard = InlineKeyboardMarkup::make();
+        if ($user->telegramUserId !== null) {
+            $keyboard->addRow(InlineKeyboardButton::make(
+                '📋 کپی شناسه تلگرام', copy_text: CopyTextButton::make((string) $user->telegramUserId),
+            ));
+        }
         if ($profileAllowed) {
             $keyboard->addRow(InlineKeyboardButton::make('📋 پرونده کاربر', callback_data: "users:profile:{$user->id}:{$page}:{$mode}"));
         }
@@ -426,7 +489,7 @@ final class MenuRenderer
         $keyboard->addRow(InlineKeyboardButton::make('🏠 مدیریت', callback_data: 'menu:admin'));
 
         $footer = '💡 وضعیت حساب و اتصال تلگرام از اطلاعات ثبت‌شده خوانده می‌شود.';
-        $text = "👤 جزئیات کاربر\n\nشناسه: {$user->id}\nنام: {$name}\nایمیل: {$email}\nنقش‌ها: {$roles}\nوضعیت: {$status}\nتلگرام: {$linked}\n\n{$footer}";
+        $text = "👤 جزئیات کاربر\n\nشناسه: {$user->id}\nنام: {$name}\nایمیل: {$email}\nنقش‌ها: {$roles}\nوضعیت: {$status}\nتلگرام: {$linked}\nشناسه تلگرام: {$telegramId}\n\n{$footer}";
         $rows = [
             ['شناسه', (string) $user->id],
             ['نام', $name],
@@ -434,6 +497,7 @@ final class MenuRenderer
             ['نقش‌ها', $roles],
             ['وضعیت', $status],
             ['تلگرام', $linked],
+            ['شناسه تلگرام', $telegramId],
         ];
         $table = '';
         foreach ($rows as [$label, $value]) {
@@ -486,7 +550,7 @@ final class MenuRenderer
     {
         $this->render(
             $bot,
-            "🔎 جست‌وجوی کاربران\n\nنام، ایمیل، شناسه داخلی یا شناسه سرویس (sk_...) را ارسال کنید.\n\nحداکثر ۶۴ نویسه. برای لغو، دکمه زیر را بزنید.",
+            "🔎 جست‌وجوی کاربران\n\nنام، ایمیل، شناسه داخلی، شناسه تلگرام یا شناسه سرویس (sk_...) را ارسال کنید.\n\nحداکثر ۶۴ نویسه. برای لغو، دکمه زیر را بزنید.",
             InlineKeyboardMarkup::make()
                 ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'users:cancelsearch'))
                 ->addRow(InlineKeyboardButton::make('◀️ کاربران', callback_data: 'menu:admin:users')),
