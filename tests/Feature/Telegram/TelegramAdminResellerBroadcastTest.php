@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use GuzzleHttp\Psr7\Request as NutgramRequest;
@@ -9,6 +10,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
@@ -28,6 +30,7 @@ beforeEach(function (): void {
     Role::findOrCreate('super-admin', 'web');
     Http::preventStrayRequests();
     Http::fake();
+    Queue::fake();
 });
 
 function annBroadcastBot(User $user, int $tg): Nutgram
@@ -89,6 +92,7 @@ it('offers root-only reseller announcement compose, one-use confirmation and sta
     expect(DB::table('announcements')->count())->toBe(1)
         ->and(DB::table('announcements')->value('status'))->toBe('reseller_sent')
         ->and(DB::table('telegram_notification_deliveries')->count())->toBe(1);
+    Queue::assertPushed(DispatchTelegramNotification::class, 1);
 
     $bot->hearCallbackQueryData('admin:ann:view:1')->reply()->assertRaw(
         static function (NutgramRequest $request): bool {

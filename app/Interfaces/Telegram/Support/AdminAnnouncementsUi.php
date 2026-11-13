@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Telegram\Support;
 
+use App\Interfaces\Telegram\Notifications\ResellerAnnouncementEnqueuer;
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Sales\Application\ManageAnnouncements;
@@ -306,6 +307,7 @@ final readonly class AdminAnnouncementsUi
             $result = $this->announcements->sendToResellers(
                 $root, (string) $draft['title'], (string) $draft['body'],
             );
+            app(ResellerAnnouncementEnqueuer::class)->afterCommit((int) $result['id']);
             $this->notice($bot, "✅ اطلاعیه در صف ارسال برای {$result['recipients']} نماینده قرار گرفت."
                 ."\nپیام‌ها از طریق بات فروش ارسال می‌شوند.",
                 InlineKeyboardMarkup::make()
