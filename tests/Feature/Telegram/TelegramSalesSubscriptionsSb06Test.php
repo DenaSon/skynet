@@ -1120,8 +1120,7 @@ it('sends the owned connection URL inline with green native copy and the existin
     Http::assertSentCount(2);
     Http::assertSent(static fn (Request $r): bool => $r->method() === 'GET'
         && $r->url() === 'https://remna.test/api/users/42');
-    $messageRequest = Http::recorded(static fn (array $pair): bool =>
-        str_contains($pair[0]->url(), '54321:sales_test/sendMessage'))->first();
+    $messageRequest = Http::recorded(static fn (Request $request): bool => str_contains($request->url(), '54321:sales_test/sendMessage'))->first();
     expect($messageRequest)->not->toBeNull();
     $request = $messageRequest[0];
     $buttons = json_decode((string) $request['reply_markup'], true, 512, JSON_THROW_ON_ERROR)['inline_keyboard'];
