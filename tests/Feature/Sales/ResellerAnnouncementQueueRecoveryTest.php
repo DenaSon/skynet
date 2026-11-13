@@ -6,6 +6,7 @@ use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Sales\Application\ManageAnnouncements;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -104,7 +105,7 @@ it('keeps the existing minute dispatcher as recovery when an initial Redis enque
     $this->artisan('telegram:notifications:dispatch')->assertSuccessful();
     Queue::assertPushed(DispatchTelegramNotification::class, 2);
 
-    $events = app(\Illuminate\Console\Scheduling\Schedule::class)->events();
+    $events = app(Schedule::class)->events();
     $event = collect($events)->first(static fn ($item): bool => str_contains(
         (string) ($item->command ?? ''), 'telegram:notifications:dispatch',
     ));
