@@ -132,7 +132,7 @@ final readonly class ResellerBuilderUi
         $this->render($bot, '🧩 پلن‌ساز · '.$this->safe($plan->name)."\n\n".$intro, $keyboard);
     }
 
-    public function days(Nutgram $bot, string $id, string $gb, string $page, bool $manual = false): void
+    public function days(Nutgram $bot, string $id, string $gb, string $page, bool $manual = false, bool $awaitText = false): void
     {
         $actor = $this->actor($bot);
         if ($actor === null) {
@@ -152,7 +152,13 @@ final readonly class ResellerBuilderUi
             return;
         }
 
-        $this->pending->remember($actor->userId, $plan->id, $pg, 'days', $volume);
+        // Preset browsing must not capture unrelated chat text. Only explicit
+        // manual entry or a just-entered GB amount awaits a duration message.
+        if ($manual || $awaitText) {
+            $this->pending->remember($actor->userId, $plan->id, $pg, 'days', $volume);
+        } else {
+            $this->pending->forget($actor->userId);
+        }
         $keyboard = InlineKeyboardMarkup::make();
         if (! $manual) {
             $durations = $this->choices([$plan->minDays, 7, 15, 30, 60, 90, 180, $plan->maxDays], $plan->minDays, $plan->maxDays);
@@ -178,7 +184,9 @@ final readonly class ResellerBuilderUi
 
         $tip = $manual
             ? "✍️ فقط تعداد روز را به صورت عدد ارسال کنید؛ مثلاً {$plan->minDays}."
-            : 'یکی از مدت‌های آماده را انتخاب کنید یا «مدت دلخواه» را بزنید.';
+            : ($awaitText
+                ? 'از گزینه‌ها انتخاب کنید یا تعداد روز دلخواه را به صورت عدد بفرستید.'
+                : 'یکی از مدت‌های آماده را انتخاب کنید یا «مدت دلخواه» را بزنید.');
         $this->render($bot, "🧩 پلن‌ساز · مرحله ۲ از ۲\n\nپلن: ".$this->safe($plan->name)
             ."\nحجم: ".($volume === null ? 'نامحدود' : $volume.' گیگابایت')
             ."\nمدت مجاز: {$plan->minDays} تا {$plan->maxDays} روز\n\n".$tip, $keyboard);
@@ -308,7 +316,7 @@ final readonly class ResellerBuilderUi
                 }
 
                 // No quote or order until duration is explicitly selected.
-                $this->days($bot, (string) $plan->id, (string) $volume, (string) $selection['page']);
+                $this->days($bot, (string) $plan->id, (string) $volume, (string) $selection['page'], false, true);
 
                 return true;
             } elseif ($selection['step'] === 'days') {
