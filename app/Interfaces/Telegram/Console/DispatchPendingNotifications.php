@@ -8,6 +8,7 @@ use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
 use App\Modules\Sales\Application\AdminPendingReceiptFollowup;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 final class DispatchPendingNotifications extends Command
 {
@@ -66,6 +67,12 @@ final class DispatchPendingNotifications extends Command
 
         foreach ($ids as $id) {
             DispatchTelegramNotification::dispatch((int) $id);
+        }
+
+        if ($ids->isNotEmpty()) {
+            Log::info('Telegram notification dispatcher enqueued due messages.', [
+                'count' => $ids->count(),
+            ]);
         }
 
         $this->info('Enqueued '.count($ids).' due notification(s).');
