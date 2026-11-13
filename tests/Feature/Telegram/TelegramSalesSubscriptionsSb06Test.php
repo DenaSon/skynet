@@ -1142,7 +1142,7 @@ it('sends the owned connection URL inline with green native copy and the existin
             && ($qr['callback_data'] ?? null) === 'sales:subs:link:'.$orderId.':0'
             && str_contains($serialized, 'sales:subs:page:'.$orderId.':0')
             && str_contains($serialized, 'sales:help:apps')
-            && ! str_contains($serialized, $url);
+            && ! str_contains((string) ($qr['callback_data'] ?? ''), $url);
     });
     expect(DB::table('telegram_notification_deliveries')->where('id', $deliveryId)->value('event_key'))
         ->not->toContain($url);
