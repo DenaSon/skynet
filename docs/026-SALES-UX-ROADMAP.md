@@ -1,3 +1,7 @@
+## BUYER-LIST-48H — stale unpaid order visibility (2026-11-13)
+
+**Operator-approved scope:** Hide orders created 48 hours ago or earlier only from buyer-facing Sales Bot `/orders` / `sales:checkout:orders` and DenaGate Live reseller recent-order lists when the order is still `pending_payment`, has no `submitted`/`approved` bank claim and is not a renewal. Filter in existing owner-scoped `OrderReader` SQL before limit/keyset pagination. Preserve all stored orders, statuses, direct lookup and old buttons, possible later payment/receipt submission, settlement/Provider operations, operational histories and financial evidence. No schema, migration, scheduler or expiry transition. Verify temporal boundary, owner isolation, receipt and renewal exceptions, Rich/native and Mini App UI. This is a display-only rule, **not** order expiration; CI cannot prove real Telegram deployment.
+
 ## PATCH-02 — async provider queue and lost-payment enqueue recovery (2026-10-21; merged, source/CI complete; live acceptance pending)
 
 **Merged:** [PR #166](https://github.com/DenaSon/skynet/pull/166), commit `e3b1623fd7fb1a6580f496ce27048d627ef3576c`. [PR CI](https://github.com/DenaSon/skynet/actions/runs/39643861705) and [post-merge master CI](https://github.com/DenaSon/skynet/actions/runs/39647346184) passed. Each PHP 8.4/8.5 suite passed **735 tests / 4,724 assertions**, with PHPStan and Pint; disposable MySQL migration/rollback, wallet concurrency and real Redis worker/legacy DB drain checks also passed.
