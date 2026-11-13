@@ -1120,30 +1120,30 @@ it('sends the owned connection URL inline with green native copy and the existin
     Http::assertSentCount(2);
     Http::assertSent(static fn (Request $r): bool => $r->method() === 'GET'
         && $r->url() === 'https://remna.test/api/users/42');
-    Http::assertSent(static function (Request $r) use ($orderId, $url): bool {
-        if (! str_contains($r->url(), '54321:sales_test/sendMessage')) {
-            return false;
-        }
-        $buttons = json_decode((string) $r['reply_markup'], true, 512, JSON_THROW_ON_ERROR)['inline_keyboard'];
-        $copy = $buttons[0][0] ?? [];
-        $qr = $buttons[1][0] ?? [];
-        $serialized = json_encode($buttons, JSON_THROW_ON_ERROR);
+    $messageRequest = Http::recorded(static fn (array $pair): bool =>
+        str_contains($pair[0]->url(), '54321:sales_test/sendMessage'))->first();
+    expect($messageRequest)->not->toBeNull();
+    $request = $messageRequest[0];
+    $buttons = json_decode((string) $request['reply_markup'], true, 512, JSON_THROW_ON_ERROR)['inline_keyboard'];
 
-        return (string) $r['chat_id'] === '976901'
-            && (string) $r['protect_content'] === 'true'
-            && (string) $r['parse_mode'] === 'HTML'
-            && str_contains((string) $r['text'], 'سرویس شما فعال شد')
-            && str_contains((string) $r['text'], 'کد اتصال اختصاصی')
-            && str_contains((string) $r['text'], 'key=abc&amp;mode=auto')
-            && ($copy['text'] ?? null) === '📋 کپی کد اتصال'
-            && ($copy['style'] ?? null) === 'success'
-            && ($copy['copy_text']['text'] ?? null) === $url
-            && ($qr['text'] ?? null) === '▦ نمایش QR کد'
-            && ($qr['callback_data'] ?? null) === 'sales:subs:link:'.$orderId.':0'
-            && str_contains($serialized, 'sales:subs:page:'.$orderId.':0')
-            && str_contains($serialized, 'sales:help:apps')
-            && ! str_contains((string) ($qr['callback_data'] ?? ''), $url);
-    });
+    expect((string) $request['chat_id'])->toBe('976901')
+        ->and((string) $request['protect_content'])->toBe('true')
+        ->and((string) $request['parse_mode'])->toBe('HTML')
+        ->and((string) $request['text'])->toContain('سرویس شما فعال شد')
+        ->and((string) $request['text'])->toContain('کد اتصال اختصاصی')
+        ->and((string) $request['text'])->toContain('key=abc&amp;mode=auto')
+        ->and($buttons[0][0]['text'] ?? null)->toBe('📋 کپی کد اتصال')
+        ->and($buttons[0][0]['style'] ?? null)->toBe('success')
+        ->and($buttons[0][0]['copy_text']['text'] ?? null)->toBe($url)
+        ->and($buttons[1][0]['text'] ?? null)->toBe('▦ نمایش QR کد')
+        ->and($buttons[1][0]['callback_data'] ?? null)->toBe('sales:subs:link:'.$orderId.':0');
+    $callbacks = array_map(
+        static fn (array $row): ?string => $row[0]['callback_data'] ?? null,
+        $buttons,
+    );
+    expect($callbacks)->toContain('sales:subs:page:'.$orderId.':0')
+        ->toContain('sales:help:apps')
+        ->not->toContain($url);
     expect(DB::table('telegram_notification_deliveries')->where('id', $deliveryId)->value('event_key'))
         ->not->toContain($url);
 });
