@@ -8,6 +8,7 @@ use App\Interfaces\Telegram\Support\AdminNotificationTopicUi;
 use App\Interfaces\Telegram\Support\ReplyMenuLabels;
 use App\Interfaces\Telegram\Support\ReplyMenuRenderer;
 use App\Interfaces\Telegram\Support\SubscriptionPageLink;
+use App\Interfaces\Telegram\Support\SubscriptionQrPng;
 use App\Interfaces\Telegram\Support\TelegramUi;
 use App\Interfaces\Telegram\Support\TelegramUserContactLink;
 use App\Modules\Billing\Application\BrowsePhotoTopups;
@@ -701,17 +702,11 @@ final readonly class TelegramNotificationSender
             $rows = [];
             if ($canCopy) {
                 $rows[] = [[
-                    'text' => '📋 کپی کد اتصال',
+                    'text' => '📋 کپی لینک اتصال',
                     'copy_text' => ['text' => $url],
                     'style' => ButtonStyle::SUCCESS->value,
                 ]];
             }
-            // Only the order ID is exposed in callbacks. The existing QR
-            // screen rechecks current user ownership and live subscription.
-            $rows[] = [[
-                'text' => '▦ نمایش QR کد',
-                'callback_data' => 'sales:subs:link:'.$orderId.':0',
-            ]];
             if (app(SubscriptionPageLink::class)->configured()) {
                 $rows[] = [[
                     'text' => '🌐 صفحه اشتراک',
@@ -722,12 +717,31 @@ final readonly class TelegramNotificationSender
                 'text' => '📚 راهنمای اتصال',
                 'callback_data' => 'sales:help:apps',
             ]];
-            $keyboard = json_encode(['inline_keyboard' => $rows], JSON_THROW_ON_ERROR);
+
             $message = "<b>✅ سرویس شما فعال شد! 🎉</b>\n\nپرداخت سفارش #{$orderId} تأیید شد و سرویس شما آماده استفاده است.";
             $message .= $url === null
                 ? "\n\nبرای دریافت لینک اتصال یا مشاهده راهنمای نصب از دکمه‌های زیر استفاده کنید."
-                : "\n\n🔗 <b>کد اتصال اختصاصی</b>\n".TelegramUi::code($url)
-                    .($canCopy ? '' : "\nبرای کپی لینک طولانی، «نمایش QR کد» را انتخاب کنید.");
+                : "\n\n🔗 <b>لینک اتصال اختصاصی</b>\n".TelegramUi::code($url)
+                    .($canCopy ? '' : "\nلینک برای دکمه کپی تلگرام بیش از حد طولانی است.");
+
+            // Telegram's media-caption limit is 1,024 UTF-16 units. Keep a
+            // conservative ceiling; one protected photo holds both QR and URL.
+            // On local QR failures or oversized captions, preserve the
+            // previous text/QR retrieval route without losing the full URL.
+            if ($url !== null && mb_strlen($message) <= 800) {
+                $keyboard = json_encode(['inline_keyboard' => $rows], JSON_THROW_ON_ERROR);
+                if ($this->activationQrPhoto($chat, $url, $message, $keyboard)) {
+                    return;
+                }
+            }
+
+            // Fallback only before any Telegram photo attempt. Never issue a
+            // second message after an uncertain photo-send result.
+            $rows[] = [[
+                'text' => '▦ نمایش QR کد',
+                'callback_data' => 'sales:subs:link:'.$orderId.':0',
+            ]];
+            $keyboard = json_encode(['inline_keyboard' => $rows], JSON_THROW_ON_ERROR);
             $this->text($bot, $chat, $message, $keyboard, 'HTML');
 
             return;
@@ -808,6 +822,34 @@ final readonly class TelegramNotificationSender
 
         // A group 403 must not mark an unrelated private Admin contact blocked.
         $this->check($result, $bot, $chat > 0 ? $chat : null);
+    }
+
+    /**
+     * A single protected Telegram photo carries the QR, escaped full URL and
+     * copy button. Rendering happens locally; credentials are never persisted.
+     * Only local rendering failure may use the text fallback. A network error
+     * after sendPhoto starts must propagate to the existing delivery state.
+     */
+    private function activationQrPhoto(int $chat, string $url, string $caption, string $keyboard): bool
+    {
+        try {
+            $png = app(SubscriptionQrPng::class)->render($url);
+        } catch (Throwable) {
+            return false;
+        }
+
+        $result = Http::timeout(12)
+            ->attach('photo', $png, 'denagate-activation-qr.png', ['Content-Type' => 'image/png'])
+            ->post($this->api($this->token('sales'), 'sendPhoto'), [
+                'chat_id' => $chat,
+                'caption' => $caption,
+                'parse_mode' => 'HTML',
+                'reply_markup' => $keyboard,
+                'protect_content' => 'true',
+            ]);
+        $this->check($result, 'sales', $chat);
+
+        return true;
     }
 
     private function photo(string $bot, int $chat, string $fileId, string $sourceBot, string $caption, string $keyboard, bool $notification = true): void

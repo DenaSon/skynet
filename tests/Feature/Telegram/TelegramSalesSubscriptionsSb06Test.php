@@ -1100,7 +1100,7 @@ function sb06ActivationNotice(User $buyer, int $orderId): int
         ->value('id');
 }
 
-it('sends the owned connection URL inline with green native copy and the existing QR route', function (): void {
+it('sends one protected QR photo with the full caption link and green native copy button', function (): void {
     $buyer = User::factory()->create();
     TelegramAccount::query()->create(['user_id' => $buyer->id, 'telegram_user_id' => 976901]);
     $orderId = sb06Order($buyer);
@@ -1120,34 +1120,36 @@ it('sends the owned connection URL inline with green native copy and the existin
     Http::assertSentCount(2);
     Http::assertSent(static fn (Request $r): bool => $r->method() === 'GET'
         && $r->url() === 'https://remna.test/api/users/42');
-    $messageRequest = Http::recorded(static fn (Request $request): bool => str_contains($request->url(), '54321:sales_test/sendMessage'))->first();
-    expect($messageRequest)->not->toBeNull();
-    $request = $messageRequest[0];
+    $photoRequest = Http::recorded(static fn (Request $request): bool => str_contains($request->url(), '54321:sales_test/sendPhoto'))->first();
+    expect($photoRequest)->not->toBeNull();
+    $request = $photoRequest[0];
     $buttons = json_decode((string) $request['reply_markup'], true, 512, JSON_THROW_ON_ERROR)['inline_keyboard'];
 
     expect((string) $request['chat_id'])->toBe('976901')
         ->and((string) $request['protect_content'])->toBe('true')
         ->and((string) $request['parse_mode'])->toBe('HTML')
-        ->and((string) $request['text'])->toContain('سرویس شما فعال شد')
-        ->and((string) $request['text'])->toContain('کد اتصال اختصاصی')
-        ->and((string) $request['text'])->toContain('key=abc&amp;mode=auto')
-        ->and($buttons[0][0]['text'] ?? null)->toBe('📋 کپی کد اتصال')
+        ->and((string) $request['caption'])->toContain('سرویس شما فعال شد')
+        ->and((string) $request['caption'])->toContain('لینک اتصال اختصاصی')
+        ->and((string) $request['caption'])->toContain('key=abc&amp;mode=auto')
+        ->and((string) $request->body())->toContain('denagate-activation-qr.png')
+        ->and((string) $request->body())->toContain("\x89PNG\r\n\x1a\n")
+        ->and($buttons[0][0]['text'] ?? null)->toBe('📋 کپی لینک اتصال')
         ->and($buttons[0][0]['style'] ?? null)->toBe('success')
-        ->and($buttons[0][0]['copy_text']['text'] ?? null)->toBe($url)
-        ->and($buttons[1][0]['text'] ?? null)->toBe('▦ نمایش QR کد')
-        ->and($buttons[1][0]['callback_data'] ?? null)->toBe('sales:subs:link:'.$orderId.':0');
+        ->and($buttons[0][0]['copy_text']['text'] ?? null)->toBe($url);
     $callbacks = array_map(
         static fn (array $row): ?string => $row[0]['callback_data'] ?? null,
         $buttons,
     );
     expect($callbacks)->toContain('sales:subs:page:'.$orderId.':0')
         ->toContain('sales:help:apps')
+        ->not->toContain('sales:subs:link:'.$orderId.':0')
         ->not->toContain($url);
+    Http::assertNotSent(static fn (Request $r): bool => str_contains($r->url(), '54321:sales_test/sendMessage'));
     expect(DB::table('telegram_notification_deliveries')->where('id', $deliveryId)->value('event_key'))
         ->not->toContain($url);
 });
 
-it('keeps the full long URL selectable but never sends an invalid 256-character copy button', function (): void {
+it('keeps the full long URL below the QR photo but never sends an invalid copy button', function (): void {
     $buyer = User::factory()->create();
     TelegramAccount::query()->create(['user_id' => $buyer->id, 'telegram_user_id' => 976901]);
     $orderId = sb06Order($buyer);
@@ -1161,17 +1163,18 @@ it('keeps the full long URL selectable but never sends an invalid 256-character 
 
     app(DispatchTelegramNotification::class, ['deliveryId' => $id])->handle(app(TelegramNotificationSender::class));
     expect(DB::table('telegram_notification_deliveries')->where('id', $id)->value('state'))->toBe('sent');
-    Http::assertSent(static function (Request $r) use ($url, $orderId): bool {
-        if (! str_contains($r->url(), '/sendMessage')) {
+    Http::assertSent(static function (Request $r) use ($url): bool {
+        if (! str_contains($r->url(), '/sendPhoto')) {
             return false;
         }
         $markup = (string) $r['reply_markup'];
 
-        return str_contains((string) $r['text'], $url)
-            && str_contains((string) $r['text'], 'برای کپی لینک طولانی')
+        return str_contains((string) $r['caption'], $url)
+            && str_contains((string) $r['caption'], 'برای دکمه کپی تلگرام')
             && ! str_contains($markup, 'copy_text')
-            && str_contains($markup, 'sales:subs:link:'.$orderId.':0');
+            && ! str_contains($markup, 'sales:subs:link:');
     });
+    Http::assertNotSent(static fn (Request $r): bool => str_contains($r->url(), '/sendMessage'));
 });
 
 it('sends activation and safe QR guidance when the Provider credential read fails', function (): void {
@@ -1200,4 +1203,50 @@ it('sends activation and safe QR guidance when the Provider credential read fail
             && str_contains($markup, 'sales:subs:link:'.$orderId.':0');
     });
     Http::assertSentCount(2);
+});
+
+it('keeps the full link and existing QR action when the caption is too long for one photo', function (): void {
+    $buyer = User::factory()->create();
+    TelegramAccount::query()->create(['user_id' => $buyer->id, 'telegram_user_id' => 976901]);
+    $orderId = sb06Order($buyer);
+    sb06Activated($orderId);
+    $id = sb06ActivationNotice($buyer, $orderId);
+    $url = 'https://test.example.test/'.str_repeat('z', 900);
+    Http::fake([
+        'https://remna.test/api/users/42' => Http::response(['response' => sb06Provider($orderId, ['subscriptionUrl' => $url])]),
+        'https://api.telegram.org/*' => Http::response(['ok' => true]),
+    ]);
+
+    app(DispatchTelegramNotification::class, ['deliveryId' => $id])->handle(app(TelegramNotificationSender::class));
+
+    expect(DB::table('telegram_notification_deliveries')->where('id', $id)->value('state'))->toBe('sent');
+    Http::assertSentCount(2);
+    Http::assertSent(static function (Request $r) use ($url, $orderId): bool {
+        if (! str_contains($r->url(), '54321:sales_test/sendMessage')) {
+            return false;
+        }
+
+        return str_contains((string) $r['text'], $url)
+            && str_contains((string) $r['reply_markup'], 'sales:subs:link:'.$orderId.':0');
+    });
+    Http::assertNotSent(static fn (Request $r): bool => str_contains($r->url(), '/sendPhoto'));
+});
+
+it('never sends a duplicate text if the QR photo upload outcome is unsuccessful', function (): void {
+    $buyer = User::factory()->create();
+    TelegramAccount::query()->create(['user_id' => $buyer->id, 'telegram_user_id' => 976901]);
+    $orderId = sb06Order($buyer);
+    sb06Activated($orderId);
+    $id = sb06ActivationNotice($buyer, $orderId);
+    Http::fake([
+        'https://remna.test/api/users/42' => Http::response(['response' => sb06Provider($orderId)]),
+        'https://api.telegram.org/*/sendPhoto' => Http::response(['ok' => false], 500),
+    ]);
+
+    app(DispatchTelegramNotification::class, ['deliveryId' => $id])->handle(app(TelegramNotificationSender::class));
+
+    expect(DB::table('telegram_notification_deliveries')->where('id', $id)->value('state'))->toBe('pending');
+    Http::assertSentCount(2);
+    Http::assertSent(static fn (Request $r): bool => str_contains($r->url(), '/sendPhoto'));
+    Http::assertNotSent(static fn (Request $r): bool => str_contains($r->url(), '/sendMessage'));
 });
