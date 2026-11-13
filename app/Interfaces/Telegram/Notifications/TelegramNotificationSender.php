@@ -697,8 +697,9 @@ final readonly class TelegramNotificationSender
                 // Original connection/QR callback remains available.
             }
 
+            $canCopy = $url !== null && mb_strlen($url) <= 256;
             $rows = [];
-            if ($url !== null && mb_strlen($url) <= 256) {
+            if ($canCopy) {
                 $rows[] = [[
                     'text' => '📋 کپی کد اتصال',
                     'copy_text' => ['text' => $url],
@@ -726,7 +727,7 @@ final readonly class TelegramNotificationSender
             $message .= $url === null
                 ? "\n\nبرای دریافت لینک اتصال یا مشاهده راهنمای نصب از دکمه‌های زیر استفاده کنید."
                 : "\n\n🔗 <b>کد اتصال اختصاصی</b>\n".TelegramUi::code($url)
-                    .(mb_strlen($url) > 256 ? "\nبرای کپی، متن کد بالا را نگه دارید." : '');
+                    .($canCopy ? '' : "\nبرای کپی لینک طولانی، «نمایش QR کد» را انتخاب کنید.");
             $this->text($bot, $chat, $message, $keyboard, 'HTML');
 
             return;

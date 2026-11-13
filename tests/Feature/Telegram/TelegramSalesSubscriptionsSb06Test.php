@@ -1170,7 +1170,7 @@ it('keeps the full long URL selectable but never sends an invalid 256-character 
         $markup = (string) $r['reply_markup'];
 
         return str_contains((string) $r['text'], $url)
-            && str_contains((string) $r['text'], 'متن کد بالا را نگه دارید')
+            && str_contains((string) $r['text'], 'برای کپی لینک طولانی')
             && ! str_contains($markup, 'copy_text')
             && str_contains($markup, 'sales:subs:link:'.$orderId.':0');
     });
