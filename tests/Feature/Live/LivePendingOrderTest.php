@@ -239,7 +239,12 @@ it('excludes renewal orders across all recent-purchase pages and prevents openin
         'updated_at' => now(),
     ]);
 
+    DB::table('sales_orders')->where('id', $renewal->id)->update([
+        'created_at' => now()->subDays(3),
+    ]);
     $reader = app(OrderReader::class);
+    expect(array_map(static fn ($order): int => $order->id, $reader->recentPlans($owner->id)))
+        ->toContain($renewal->id);
     $first = $reader->pageNewPlans($owner->id);
     $second = $reader->pageNewPlans($owner->id, 9, $first->nextBeforeOrderId);
     expect(array_map(static fn ($order): int => $order->id, $first->orders))
@@ -443,4 +448,67 @@ it('requires explicit order confirmation after an automatic preset quote and rej
     $page->call('previewQuote')->call('confirmOrder')->assertSee('در انتظار پرداخت');
     expect(DB::table('sales_orders')->count())->toBe(1);
     live3bNoMoneyOrProvider();
+});
+
+it('filters stale unpaid orders before Mini App pagination without changing direct order access', function (): void {
+    $this->travelTo(now()->startOfSecond());
+    $owner = live3bReseller(944490);
+    $foreignOwner = live3bReseller(944491);
+    $plan = live3bPlan();
+    $register = app(RegisterPendingResellerOrder::class);
+    $quote = app(CalculatePlanQuote::class)->handle($owner->id, $plan, 30, 30);
+
+    $paid = $register->handle($owner->id, $quote, bin2hex(random_bytes(16)), 'خرید پرداخت‌شده')->id;
+    $review = $register->handle($owner->id, $quote, bin2hex(random_bytes(16)), 'نیازمند بررسی')->id;
+    $receipt = $register->handle($owner->id, $quote, bin2hex(random_bytes(16)), 'رسید ثبت‌شده')->id;
+    $boundary = $register->handle($owner->id, $quote, bin2hex(random_bytes(16)), 'دقیقاً ۴۸ ساعت')->id;
+    $stale = $register->handle($owner->id, $quote, bin2hex(random_bytes(16)), 'قدیمی پرداخت‌نشده')->id;
+    $recent = $register->handle($owner->id, $quote, bin2hex(random_bytes(16)), 'کمتر از ۴۸ ساعت')->id;
+    $foreignQuote = app(CalculatePlanQuote::class)->handle($foreignOwner->id, $plan, 30, 30);
+    $foreign = $register->handle($foreignOwner->id, $foreignQuote, bin2hex(random_bytes(16)), 'نماینده دیگر')->id;
+
+    DB::table('sales_orders')->whereIn('id', [$paid, $review, $receipt, $boundary, $stale])
+        ->update(['created_at' => now()->subHours(72)]);
+    DB::table('sales_orders')->where('id', $boundary)->update(['created_at' => now()->subHours(48)]);
+    DB::table('sales_orders')->where('id', $recent)->update(['created_at' => now()->subHours(48)->addSecond()]);
+    DB::table('sales_orders')->where('id', $paid)->update(['status' => 'paid']);
+    DB::table('sales_orders')->where('id', $review)->update(['status' => 'needs_review']);
+    DB::table('sales_bank_payment_claims')->insert([
+        'sales_order_id' => $receipt, 'buyer_user_id' => $owner->id,
+        'photo_encrypted' => 'test-evidence', 'photo_fingerprint' => str_repeat('f', 64),
+        'telegram_message_key' => 'tg:test:944490:1', 'status' => 'submitted',
+        'created_at' => now()->subHours(70), 'updated_at' => now()->subHours(70),
+    ]);
+
+    $reader = app(OrderReader::class);
+    $first = $reader->pageNewPlans($owner->id, 2);
+    expect(array_map(static fn ($order): int => $order->id, $first->orders))
+        ->toBe([$recent, $receipt])
+        ->and($first->nextBeforeOrderId)->toBe($receipt);
+    $second = $reader->pageNewPlans($owner->id, 2, $first->nextBeforeOrderId);
+    expect(array_map(static fn ($order): int => $order->id, $second->orders))
+        ->toBe([$review, $paid])
+        ->and($second->nextBeforeOrderId)->toBeNull()
+        ->and(array_map(static fn ($order): int => $order->id, $reader->recentPlans($owner->id)))
+        ->toBe([$recent, $receipt, $review, $paid])
+        ->and($reader->findNewPlan($owner->id, $stale)->id)->toBe($stale)
+        ->and($reader->findNewPlan($owner->id, $boundary)->id)->toBe($boundary)
+        ->and(fn () => $reader->findNewPlan($owner->id, $foreign))->toThrow(ValidationException::class);
+
+    $this->actingAs($owner)->withSession(['denagate_live.user_id' => $owner->id]);
+    Livewire::test(Dashboard::class)->call('showSection', 'shop')
+        ->assertSee('کمتر از ۴۸ ساعت')
+        ->assertSee('رسید ثبت‌شده')
+        ->assertDontSee('قدیمی پرداخت‌نشده')
+        ->assertDontSee('دقیقاً ۴۸ ساعت')
+        ->assertDontSee('نماینده دیگر')
+        ->call('openOrder', $stale)
+        ->assertSet('createdOrderId', $stale);
+
+    expect(DB::table('sales_orders')->count())->toBe(7)
+        ->and(DB::table('sales_orders')->where('id', $stale)->value('status'))->toBe('pending_payment')
+        ->and(DB::table('sales_bank_payment_claims')->where('sales_order_id', $receipt)->count())->toBe(1)
+        ->and(DB::table('billing_journals')->count())->toBe(0)
+        ->and(DB::table('provisioning_operations')->count())->toBe(0);
+    Http::assertNothingSent();
 });

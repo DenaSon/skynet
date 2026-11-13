@@ -27,8 +27,10 @@ final class OrderReader
     {
         app(ResolveSalesBuyer::class)->isReseller($buyerId);
 
-        return DB::table('sales_orders')->where('buyer_user_id', $buyerId)
-            ->whereNotNull('plan_id')->orderByDesc('id')->limit(10)->get()
+        return $this->visibleInPurchaseLists(
+            DB::table('sales_orders')->where('buyer_user_id', $buyerId)->whereNotNull('plan_id'),
+            'sales_orders',
+        )->orderByDesc('id')->limit(10)->get()
             ->map(fn (object $row): OrderDetails => $this->map($row))->all();
     }
 
@@ -62,7 +64,8 @@ final class OrderReader
             $query->where('orders.id', '<', $beforeOrderId);
         }
 
-        $rows = $query->orderByDesc('orders.id')->limit($limit + 1)->get(['orders.*']);
+        $rows = $this->visibleInPurchaseLists($query, 'orders')
+            ->orderByDesc('orders.id')->limit($limit + 1)->get(['orders.*']);
         $orders = $rows->take($limit)->map(fn (object $row): OrderDetails => $this->map($row))->all();
 
         return new OrderCursorPage(
@@ -166,6 +169,29 @@ final class OrderReader
             orders: array_values($orders),
             nextBeforeOrderId: $hasNext ? $orders[array_key_last($orders)]->id : null,
         );
+    }
+
+    /**
+     * Purchase lists only: leave payment, direct order access and history intact.
+     * Protect pending/approved bank receipts and renewals at any age.
+     */
+    private function visibleInPurchaseLists(Builder $query, string $orders): Builder
+    {
+        $cutoff = now()->subHours(48);
+
+        return $query->where(static function (Builder $visible) use ($orders, $cutoff): void {
+            $visible->where($orders.'.status', '!=', 'pending_payment')
+                ->orWhere($orders.'.created_at', '>', $cutoff)
+                ->orWhereExists(static function (Builder $claims) use ($orders): void {
+                    $claims->selectRaw('1')->from('sales_bank_payment_claims as claims')
+                        ->whereColumn('claims.sales_order_id', $orders.'.id')
+                        ->whereIn('claims.status', ['submitted', 'approved']);
+                })
+                ->orWhereExists(static function (Builder $renewals) use ($orders): void {
+                    $renewals->selectRaw('1')->from('sales_renewal_orders as renewals')
+                        ->whereColumn('renewals.sales_order_id', $orders.'.id');
+                });
+        });
     }
 
     public function find(int $buyerId, int $orderId): OrderDetails

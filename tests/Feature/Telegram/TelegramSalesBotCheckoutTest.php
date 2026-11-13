@@ -284,3 +284,54 @@ it('keeps Sales checkout blocked by an unverified Squad even if pricing is publi
         ->and(DB::table('sales_fulfillment_outbox')->count())->toBe(0);
     Http::assertNothingSent();
 });
+
+it('filters stale unpaid orders in Rich and native order lists before the ten-row limit', function (): void {
+    $this->travelTo(now()->startOfSecond());
+    $root = sb03Root();
+    $plan = sb03Plan($root, 'visibility');
+    sb03Binding($plan);
+    config()->set('services.remnawave.squad_bindings_live_verified', true);
+    $buyer = User::factory()->create();
+    $quote = app(CalculatePlanQuote::class)->handle($buyer->id, $plan, 30, 30);
+    $create = app(CreatePendingPlanOrder::class);
+
+    $visible = $create->handle($buyer->id, $quote, bin2hex(random_bytes(16)))->id;
+    $stale = [];
+    for ($i = 0; $i < 12; $i++) {
+        $stale[] = $create->handle($buyer->id, $quote, bin2hex(random_bytes(16)))->id;
+    }
+    DB::table('sales_orders')->whereIn('id', $stale)
+        ->update(['created_at' => now()->subHours(49)]);
+
+    expect(array_map(static fn ($order): int => $order->id, app(OrderReader::class)->recentPlans($buyer->id)))
+        ->toBe([$visible]);
+
+    $bot = sb03Bot(979080, $buyer);
+    $bot->hearText('/orders')->reply()->assertCalled('sendRichMessage')
+        ->assertRaw(static function (Request $request) use ($visible, $stale): bool {
+            $data = FakeNutgram::getActualData($request);
+            $rich = is_string($data['rich_message'] ?? null)
+                ? json_decode($data['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+                : ($data['rich_message'] ?? []);
+            $markup = (string) ($data['reply_markup'] ?? '');
+
+            return str_contains((string) ($rich['html'] ?? ''), '#'.$visible)
+                && ! str_contains((string) ($rich['html'] ?? ''), '#'.$stale[0])
+                && str_contains($markup, 'sales:checkout:view:'.$visible)
+                && ! str_contains($markup, 'sales:checkout:view:'.$stale[0]);
+        });
+
+    $bot->hearCallbackQueryData('sales:checkout:orders:simple')->reply()
+        ->assertRaw(static function (Request $request) use ($visible, $stale): bool {
+            $data = FakeNutgram::getActualData($request);
+            $markup = (string) ($data['reply_markup'] ?? '');
+
+            return str_contains($markup, 'sales:checkout:view:'.$visible)
+                && ! str_contains($markup, 'sales:checkout:view:'.$stale[0]);
+        }, index: 1);
+
+    expect(app(OrderReader::class)->findPlan($buyer->id, $stale[0])->id)->toBe($stale[0])
+        ->and(DB::table('sales_orders')->where('id', $stale[0])->value('status'))->toBe('pending_payment')
+        ->and(DB::table('sales_orders')->count())->toBe(13);
+    Http::assertNothingSent();
+});
