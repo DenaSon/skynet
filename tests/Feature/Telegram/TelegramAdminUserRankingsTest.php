@@ -238,7 +238,7 @@ it('offers independent filter and direction controls while preserving authorized
             return str_contains($markup, 'users:filtered:awu:1')
                 && str_contains($markup, 'users:filtered:aw:1');
         },
-        index: 0,
+        index: 1,
     );
 
     $bot->hearCallbackQueryData('users:filters:awu')->reply()->assertRaw(
@@ -249,7 +249,7 @@ it('offers independent filter and direction controls while preserving authorized
                 && str_contains($markup, 'users:filtered:awuq:1')
                 && str_contains($markup, 'users:filtered:awu:1');
         },
-        index: 0,
+        index: 1,
     );
 
     $bot->hearCallbackQueryData('users:filtered:ai:1')->reply()->assertRaw(
@@ -260,7 +260,7 @@ it('offers independent filter and direction controls while preserving authorized
                 && str_contains($markup, 'users:filters:ai')
                 && str_contains($markup, 'users:sort:ai');
         },
-        index: 0,
+        index: 1,
     );
 
     $bot->hearCallbackQueryData('users:view:'.$target->id.':1:ai')->reply()
