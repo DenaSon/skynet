@@ -19,6 +19,7 @@ use GuzzleHttp\Psr7\Request;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Route;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
@@ -452,4 +453,179 @@ it('renders custom plan button on Sales reseller home and Account without changi
         return str_contains($buttons, '🧩 پلن سفارشی')
             && str_contains($buttons, 'menu:builder');
     }, index: 1);
+});
+
+it('shows four additional ready volumes only within the published builder bounds', function (): void {
+    app(ConfigureProduct::class)->handle('vpn-access', 'VPN Access', 1, 500);
+    $root = b16Root();
+    $builder = b16Builder($root, 'wizard-500', 'hybrid', 500);
+    $reseller = b16Reseller();
+    $bot = b16SalesBot(966220, $reseller);
+
+    $bot->hearCallbackQueryData("builder:detail:{$builder}:1")->reply()->assertRaw(
+        static function (Request $request) use ($builder): bool {
+            $data = FakeNutgram::getActualData($request);
+            $markup = json_encode($data['reply_markup'] ?? [], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+            $shortcuts = [20, 75, 150, 250];
+            foreach ($shortcuts as $gb) {
+                if (! str_contains($markup, "builder:days:{$builder}:{$gb}:1")) {
+                    return false;
+                }
+            }
+
+            return str_contains((string) ($data['text'] ?? ''), 'مرحله ۱ از ۲')
+                && str_contains($markup, "builder:custom:{$builder}:1")
+                && str_contains($markup, "builder:days:{$builder}:500:1");
+        },
+        index: 1,
+    );
+    expect(app(PendingBuilderSelection::class)->peek($reseller->id))->toBeNull();
+});
+
+it('walks through separate Persian numeric volume and day input with exact guarded quote', function (): void {
+    Http::preventStrayRequests();
+    Http::fake();
+    $root = b16Root();
+    $builder = b16Builder($root, 'wizard-two-steps');
+    $reseller = b16Reseller();
+    $bot = b16SalesBot(966221, $reseller);
+    $pending = app(PendingBuilderSelection::class);
+
+    $bot->hearCallbackQueryData("builder:detail:{$builder}:1")->reply()->assertRaw(
+        static function (Request $request) use ($builder): bool {
+            $markup = json_encode(FakeNutgram::getActualData($request)['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
+
+            return str_contains($markup, "builder:days:{$builder}:20:1")
+                && str_contains($markup, "builder:days:{$builder}:75:1")
+                && ! str_contains($markup, "builder:days:{$builder}:150:1")
+                && ! str_contains($markup, "builder:days:{$builder}:250:1");
+        },
+        index: 1,
+    );
+
+    $bot->hearCallbackQueryData("builder:custom:{$builder}:1")->reply()->assertRaw(
+        static function (Request $request): bool {
+            $text = (string) (FakeNutgram::getActualData($request)['text'] ?? '');
+
+            return str_contains($text, 'مرحله ۱ از ۲')
+                && str_contains($text, 'فقط به صورت عدد')
+                && ! str_contains($text, '35 | 45');
+        },
+        index: 1,
+    );
+    expect($pending->peek($reseller->id)['step'])->toBe('volume')
+        ->and($pending->peek($reseller->id)['volume_gb'])->toBeNull();
+
+    $bot->hearText('۵۰۱')->reply()->assertCalled('sendMessage');
+    expect($pending->peek($reseller->id)['step'])->toBe('volume');
+
+    $bot->hearText('۷۵')->reply()->assertRaw(
+        static function (Request $request) use ($builder): bool {
+            $data = FakeNutgram::getActualData($request);
+            $text = (string) ($data['text'] ?? '');
+            $markup = json_encode($data['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
+
+            return str_contains($text, 'مرحله ۲ از ۲')
+                && str_contains($text, 'حجم: 75 گیگابایت')
+                && str_contains($markup, "builder:customdays:{$builder}:75:1");
+        },
+    );
+    expect($pending->peek($reseller->id)['step'])->toBe('days')
+        ->and($pending->peek($reseller->id)['volume_gb'])->toBe(75);
+
+    $bot->hearCallbackQueryData("builder:customdays:{$builder}:75:1")->reply()->assertRaw(
+        static function (Request $request): bool {
+            $text = (string) (FakeNutgram::getActualData($request)['text'] ?? '');
+
+            return str_contains($text, 'فقط تعداد روز را به صورت عدد');
+        },
+        index: 1,
+    );
+
+    $bot->hearText('۹۹۹')->reply()->assertCalled('sendMessage');
+    expect($pending->peek($reseller->id)['step'])->toBe('days');
+
+    $bot->hearText('۴۵')->reply()->assertCalled('sendRichMessage')->assertRaw(
+        static function (Request $request) use ($builder): bool {
+            return str_contains(b16Rich($request), "sales:checkout:preview:{$builder}:45:75")
+                && str_contains(b16Rich($request), 'مبلغ قابل پرداخت');
+        },
+    );
+    expect($pending->peek($reseller->id))->toBeNull()
+        ->and(DB::table('sales_orders')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe(0)
+        ->and(DB::table('provisioning_operations')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('supports preset-to-manual duration, volume back navigation, cancel and timeout', function (): void {
+    $root = b16Root();
+    $builder = b16Builder($root, 'wizard-navigation');
+    $reseller = b16Reseller();
+    $bot = b16SalesBot(966222, $reseller);
+    $pending = app(PendingBuilderSelection::class);
+
+    $bot->hearCallbackQueryData("builder:days:{$builder}:30:1")->reply()->assertCalled('editMessageText');
+    // Preset browsing alone must not consume unrelated incoming chat messages.
+    expect($pending->peek($reseller->id))->toBeNull();
+
+    $bot->hearCallbackQueryData("builder:customdays:{$builder}:30:1")->reply()->assertCalled('editMessageText');
+    expect($pending->peek($reseller->id)['step'])->toBe('days')
+        ->and($pending->peek($reseller->id)['volume_gb'])->toBe(30);
+    $bot->hearCallbackQueryData("builder:detail:{$builder}:1")->reply()->assertCalled('editMessageText');
+    expect($pending->peek($reseller->id))->toBeNull();
+
+    $bot->hearCallbackQueryData("builder:custom:{$builder}:1")->reply();
+    $this->travel(11)->minutes();
+    expect($pending->peek($reseller->id))->toBeNull();
+    $this->travelBack();
+
+    $bot->hearCallbackQueryData("builder:custom:{$builder}:1")->reply();
+    $bot->hearCallbackQueryData('builder:cancel')->reply();
+    expect($pending->peek($reseller->id))->toBeNull()
+        ->and(DB::table('sales_orders')->count())->toBe(0);
+});
+
+it('skips the volume step for unlimited time builders and retains the old combined input', function (): void {
+    $root = b16Root();
+    $builder = b16Builder($root, 'wizard-unlimited', 'time');
+    $reseller = b16Reseller();
+    $bot = b16SalesBot(966223, $reseller);
+    $pending = app(PendingBuilderSelection::class);
+
+    $bot->hearCallbackQueryData("builder:custom:{$builder}:1")->reply()->assertRaw(
+        static function (Request $request): bool {
+            $text = (string) (FakeNutgram::getActualData($request)['text'] ?? '');
+
+            return str_contains($text, 'مرحله ۲ از ۲') && str_contains($text, 'حجم: نامحدود');
+        },
+        index: 1,
+    );
+    expect($pending->peek($reseller->id)['step'])->toBe('days')
+        ->and($pending->peek($reseller->id)['volume_gb'])->toBeNull();
+
+    $bot->hearText('۳۰')->reply()->assertCalled('sendRichMessage')->assertRaw(
+        static function (Request $request) use ($builder): bool {
+            return str_contains(b16Rich($request), "sales:checkout:preview:{$builder}:30:0");
+        },
+    );
+    $bot->hearCallbackQueryData("builder:custom:{$builder}:1")->reply();
+    $bot->hearText('- | ۳۰')->reply()->assertCalled('sendRichMessage');
+
+    expect($pending->peek($reseller->id))->toBeNull()
+        ->and(DB::table('sales_orders')->count())->toBe(0);
+});
+
+it('accepts pre-deploy combined-input drafts without rewriting or extending their original TTL', function (): void {
+    $root = b16Root();
+    $builder = b16Builder($root, 'wizard-legacy-cache');
+    $reseller = b16Reseller();
+    $bot = b16SalesBot(966224, $reseller);
+    $key = TelegramBotContext::current()->cacheKey('telegram:builder:selection:'.$reseller->id);
+
+    Cache::put($key, ['plan_id' => $builder, 'page' => 1], now()->addMinutes(3));
+    expect(app(PendingBuilderSelection::class)->peek($reseller->id)['step'])->toBe('legacy');
+    $bot->hearText('۳۵ | ۴۵')->reply()->assertCalled('sendRichMessage');
+    expect(app(PendingBuilderSelection::class)->peek($reseller->id))->toBeNull()
+        ->and(DB::table('sales_orders')->count())->toBe(0);
 });

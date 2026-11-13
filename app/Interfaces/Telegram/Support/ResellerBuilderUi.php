@@ -104,7 +104,7 @@ final readonly class ResellerBuilderUi
                 '⏳ انتخاب مدت (حجم نامحدود)', callback_data: "builder:days:{$plan->id}:0:{$pg}",
             ));
         } else {
-            $sizes = $this->choices([$plan->minGb, 10, 30, 50, 100, $plan->maxGb], (int) $plan->minGb, (int) $plan->maxGb);
+            $sizes = $this->choices([$plan->minGb, 10, 20, 30, 50, 75, 100, 150, 250, $plan->maxGb], (int) $plan->minGb, (int) $plan->maxGb);
             foreach (array_chunk($sizes, 2) as $row) {
                 $buttons = array_map(
                     static fn (int $gb): InlineKeyboardButton => InlineKeyboardButton::make(
@@ -116,15 +116,23 @@ final readonly class ResellerBuilderUi
             }
         }
 
-        $keyboard->addRow(InlineKeyboardButton::make('✏️ حجم و مدت دلخواه', callback_data: "builder:custom:{$plan->id}:{$pg}"));
+        $keyboard->addRow(InlineKeyboardButton::make(
+            $plan->kind === 'time' ? '✏️ مدت دلخواه' : '✏️ حجم دلخواه',
+            callback_data: "builder:custom:{$plan->id}:{$pg}",
+        ));
         $keyboard->addRow(InlineKeyboardButton::make('◀️ پلن‌های سفارشی', callback_data: 'builder:list:'.$pg));
 
-        $this->render($bot, '💼 '.$this->safe($plan->name)."\n\n".$this->bounds($plan)
-            ."\n\nحجم موردنظر را انتخاب کنید یا برای واردکردن حجم و مدت دلخواه دکمه ✏️ را بزنید."
-            ."\n\nقیمت نهایی پیش از خرید نمایش داده می‌شود.", $keyboard);
+        $intro = $plan->kind === 'time'
+            ? 'حجم نامحدود است. فقط مدت سرویس را مشخص کنید.'
+            : "مرحله ۱ از ۲ · انتخاب حجم\n\n"
+                ."حجم مجاز: {$plan->minGb} تا {$plan->maxGb} گیگابایت"
+                ."\n\nاز گزینه‌ها انتخاب کنید یا «حجم دلخواه» را بزنید."
+                ."\n💡 مدت سرویس را در مرحله بعد تعیین می‌کنید.";
+
+        $this->render($bot, '🧩 پلن‌ساز · '.$this->safe($plan->name)."\n\n".$intro, $keyboard);
     }
 
-    public function days(Nutgram $bot, string $id, string $gb, string $page): void
+    public function days(Nutgram $bot, string $id, string $gb, string $page, bool $manual = false, bool $awaitText = false): void
     {
         $actor = $this->actor($bot);
         if ($actor === null) {
@@ -144,23 +152,44 @@ final readonly class ResellerBuilderUi
             return;
         }
 
-        $keyboard = InlineKeyboardMarkup::make();
-        $durations = $this->choices([$plan->minDays, 7, 15, 30, 60, 90, 180, $plan->maxDays], $plan->minDays, $plan->maxDays);
-        foreach (array_chunk($durations, 2) as $row) {
-            $buttons = array_map(
-                static fn (int $days): InlineKeyboardButton => InlineKeyboardButton::make(
-                    "{$days} روز", callback_data: "builder:quote:{$plan->id}:{$gb}:{$days}:{$pg}",
-                ),
-                $row,
-            );
-            $keyboard->addRow(...$buttons);
+        // Preset browsing must not capture unrelated chat text. Only explicit
+        // manual entry or a just-entered GB amount awaits a duration message.
+        if ($manual || $awaitText) {
+            $this->pending->remember($actor->userId, $plan->id, $pg, 'days', $volume);
+        } else {
+            $this->pending->forget($actor->userId);
         }
+        $keyboard = InlineKeyboardMarkup::make();
+        if (! $manual) {
+            $durations = $this->choices([$plan->minDays, 7, 15, 30, 60, 90, 180, $plan->maxDays], $plan->minDays, $plan->maxDays);
+            foreach (array_chunk($durations, 2) as $row) {
+                $buttons = array_map(
+                    static fn (int $days): InlineKeyboardButton => InlineKeyboardButton::make(
+                        "{$days} روز", callback_data: "builder:quote:{$plan->id}:{$gb}:{$days}:{$pg}",
+                    ),
+                    $row,
+                );
+                $keyboard->addRow(...$buttons);
+            }
 
-        $keyboard->addRow(InlineKeyboardButton::make('✏️ ورود حجم و مدت دقیق', callback_data: "builder:custom:{$plan->id}:{$pg}"));
-        $keyboard->addRow(InlineKeyboardButton::make('◀️ تغییر حجم', callback_data: "builder:detail:{$plan->id}:{$pg}"));
-        $this->render($bot, "⏳ انتخاب مدت\n\nپلن: ".$this->safe($plan->name)
+            $keyboard->addRow(InlineKeyboardButton::make(
+                '✏️ مدت دلخواه', callback_data: "builder:customdays:{$plan->id}:{$gb}:{$pg}",
+            ));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make(
+            $plan->kind === 'time' ? '◀️ بازگشت به پلن' : '◀️ تغییر حجم',
+            callback_data: "builder:detail:{$plan->id}:{$pg}",
+        ));
+        $keyboard->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'builder:cancel'));
+
+        $tip = $manual
+            ? "✍️ فقط تعداد روز را به صورت عدد ارسال کنید؛ مثلاً {$plan->minDays}."
+            : ($awaitText
+                ? 'از گزینه‌ها انتخاب کنید یا تعداد روز دلخواه را به صورت عدد بفرستید.'
+                : 'یکی از مدت‌های آماده را انتخاب کنید یا «مدت دلخواه» را بزنید.');
+        $this->render($bot, "🧩 پلن‌ساز · مرحله ۲ از ۲\n\nپلن: ".$this->safe($plan->name)
             ."\nحجم: ".($volume === null ? 'نامحدود' : $volume.' گیگابایت')
-            ."\nمدت مجاز: {$plan->minDays} تا {$plan->maxDays} روز\n\nمدت را انتخاب کنید:", $keyboard);
+            ."\nمدت مجاز: {$plan->minDays} تا {$plan->maxDays} روز\n\n".$tip, $keyboard);
     }
 
     public function quote(Nutgram $bot, string $id, string $gb, string $days, string $page, bool $rich = true): void
@@ -192,6 +221,9 @@ final readonly class ResellerBuilderUi
             return;
         }
 
+        if (($this->pending->peek($actor->userId)['plan_id'] ?? null) === $plan->id) {
+            $this->pending->forget($actor->userId);
+        }
         $this->showQuote($bot, $plan, $price, $pg, $rich);
     }
 
@@ -209,18 +241,23 @@ final readonly class ResellerBuilderUi
         }
 
         $this->pendingShop->forget($actor->userId);
-        $this->pending->remember($actor->userId, $plan->id, $pg);
-        $example = $plan->kind === 'time' ? '- | 30' : '35 | 45';
+        if ($plan->kind === 'time') {
+            // Unlimited-volume builders have no volume decision.
+            $this->days($bot, (string) $plan->id, '0', (string) $pg, true);
 
+            return;
+        }
+
+        $this->pending->remember($actor->userId, $plan->id, $pg, 'volume');
         $keyboard = InlineKeyboardMarkup::make()
-            ->addRow(TelegramUi::copy($example))
-            ->addRow(InlineKeyboardButton::make('❌ لغو انتخاب', callback_data: 'builder:cancel'))
-            ->addRow(InlineKeyboardButton::make('◀️ انتخاب‌های پلن', callback_data: "builder:detail:{$plan->id}:{$pg}"));
+            ->addRow(InlineKeyboardButton::make('◀️ انتخاب حجم', callback_data: "builder:detail:{$plan->id}:{$pg}"))
+            ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'builder:cancel'));
 
-        $this->render($bot, "✏️ حجم و مدت دلخواه\n\n".$this->bounds($plan)
-            ."\n\nحجم و مدت را به این شکل بفرستید:\n{$example}"
-            .($plan->kind === 'time' ? "\nبرای حجم نامحدود از - استفاده کنید." : '')
-            ."\nاعداد فارسی و انگلیسی پذیرفته می‌شوند.\nاین انتخاب تا ۱۰ دقیقه معتبر است.", $keyboard);
+        $this->render($bot, "🧩 پلن‌ساز · مرحله ۱ از ۲\n\nپلن: ".$this->safe($plan->name)
+            ."\nحجم مجاز: {$plan->minGb} تا {$plan->maxGb} گیگابایت"
+            ."\n\n✍️ حجم موردنیاز را فقط به صورت عدد بفرستید؛ مثلاً {$plan->minGb}."
+            ."\n💡 مدت سرویس را در مرحله بعد می‌پرسیم."
+            ."\n⏱ اعتبار فرم: ۱۰ دقیقه", $keyboard);
     }
 
     /**
@@ -259,22 +296,47 @@ final readonly class ResellerBuilderUi
             '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
         ]);
 
-        if (strlen($normalized) > 40 || preg_match('/\A(-|[1-9][0-9]{0,3})\s*\|\s*([1-9][0-9]{0,2})\z/D', $normalized, $matches) !== 1) {
-            $this->notice($bot, 'فرمت درست: حجم | روز؛ مانند 35 | 45 یا برای نامحدود - | 30.', $selection['page']);
-
-            return true;
-        }
+        $legacy = strlen($normalized) <= 40
+            && preg_match('/\\A(-|[1-9][0-9]{0,3})\\s*\\|\\s*([1-9][0-9]{0,2})\\z/D', $normalized, $matches) === 1;
 
         try {
             $plan = $this->builders->find($actor->userId, $selection['plan_id']);
-            $volume = $this->volume($plan, $matches[1]);
-            if ($volume === false) {
-                throw ValidationException::withMessages(['traffic' => 'Invalid volume.']);
+
+            if ($legacy) {
+                // Keep already-sent "GB | days" messages and pre-deploy drafts working.
+                $volume = $this->volume($plan, $matches[1]);
+                $duration = $this->positive($matches[2]);
+                if ($volume === false || $duration === null) {
+                    throw ValidationException::withMessages(['builder' => 'Invalid legacy selection.']);
+                }
+            } elseif ($selection['step'] === 'volume') {
+                $volume = $this->volume($plan, $normalized);
+                if ($volume === false || $volume === null) {
+                    throw ValidationException::withMessages(['traffic' => 'Invalid builder volume.']);
+                }
+
+                // No quote or order until duration is explicitly selected.
+                $this->days($bot, (string) $plan->id, (string) $volume, (string) $selection['page'], false, true);
+
+                return true;
+            } elseif ($selection['step'] === 'days') {
+                $volume = $this->volume($plan, $selection['volume_gb'] === null ? '0' : (string) $selection['volume_gb']);
+                $duration = $this->positive($normalized);
+                if ($volume === false || $duration === null) {
+                    throw ValidationException::withMessages(['duration' => 'Invalid builder duration.']);
+                }
+            } else {
+                throw ValidationException::withMessages(['builder' => 'Invalid pending builder step.']);
             }
 
-            $price = $this->quotes->handle($actor->userId, $plan->id, (int) $matches[2], $volume);
+            $price = $this->quotes->handle($actor->userId, $plan->id, $duration, $volume);
         } catch (ValidationException|AuthorizationException) {
-            $this->notice($bot, 'حجم، مدت، حداقل قیمت یا وضعیت پلن معتبر نیست؛ مقدار دیگری ارسال کنید یا فرم را لغو کنید.', $selection['page']);
+            $hint = match ($selection['step']) {
+                'volume' => 'حجم معتبر نیست؛ فقط یک عدد در محدوده مجاز پلن بفرستید.',
+                'days' => 'مدت معتبر نیست؛ فقط تعداد روز مجاز را بفرستید.',
+                default => 'حجم و مدت معتبر نیست؛ مقادیر را دوباره بررسی کنید.',
+            };
+            $this->notice($bot, $hint.' اگر تعرفه تغییر کرده، از پلن‌ساز دوباره شروع کنید.', $selection['page']);
 
             return true;
         }
@@ -321,7 +383,10 @@ final readonly class ResellerBuilderUi
                 callback_data: "sales:checkout:preview:{$quote->planId}:{$quote->durationDays}:".($quote->trafficGb ?? 0),
             ));
         }
-        $keyboard->addRow(InlineKeyboardButton::make('✏️ تغییر حجم یا مدت', callback_data: "builder:custom:{$plan->id}:{$page}"))
+        $keyboard->addRow(InlineKeyboardButton::make(
+            $plan->kind === 'time' ? '✏️ تغییر مدت' : '✏️ تغییر حجم یا مدت',
+            callback_data: "builder:custom:{$plan->id}:{$page}",
+        ))
             ->addRow(InlineKeyboardButton::make('◀️ پلن‌سازها', callback_data: 'builder:list:'.$page))
             ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'menu:home'));
 

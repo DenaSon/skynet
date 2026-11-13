@@ -7,12 +7,17 @@ use Illuminate\Support\Facades\Cache;
 
 final class PendingBuilderSelection
 {
-    public function remember(int $buyerId, int $planId, int $page): void
+    public function remember(int $buyerId, int $planId, int $page, string $step = 'volume', ?int $volumeGb = null): void
     {
-        Cache::put($this->key($buyerId), ['plan_id' => $planId, 'page' => $page], now()->addMinutes(10));
+        Cache::put($this->key($buyerId), [
+            'plan_id' => $planId,
+            'page' => $page,
+            'step' => $step,
+            'volume_gb' => $volumeGb,
+        ], now()->addMinutes(10));
     }
 
-    /** @return array{plan_id:int,page:int}|null */
+    /** @return array{plan_id:int,page:int,step:'volume'|'days'|'legacy',volume_gb:int|null}|null */
     public function peek(int $buyerId): ?array
     {
         $value = Cache::get($this->key($buyerId));
@@ -22,7 +27,20 @@ final class PendingBuilderSelection
             return null;
         }
 
-        return ['plan_id' => $value['plan_id'], 'page' => $value['page']];
+        // Accept pre-deploy drafts for their remaining TTL (old "GB | days" input).
+        $step = $value['step'] ?? 'legacy';
+        $volume = $value['volume_gb'] ?? null;
+        if (! in_array($step, ['volume', 'days', 'legacy'], true)
+            || ($volume !== null && ! is_int($volume))) {
+            return null;
+        }
+
+        return [
+            'plan_id' => $value['plan_id'],
+            'page' => $value['page'],
+            'step' => $step,
+            'volume_gb' => $volume,
+        ];
     }
 
     public function forget(int $buyerId): void

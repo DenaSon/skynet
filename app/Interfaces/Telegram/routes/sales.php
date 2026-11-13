@@ -273,6 +273,10 @@ $bot->onCallbackQueryData('builder:days:{id}:{gb}:{page}', function (Nutgram $bo
     app(ResellerBuilderUi::class)->days($bot, $id, $gb, $page);
 });
 
+$bot->onCallbackQueryData('builder:customdays:{id}:{gb}:{page}', function (Nutgram $bot, string $id, string $gb, string $page): void {
+    app(ResellerBuilderUi::class)->days($bot, $id, $gb, $page, true);
+});
+
 // Old/new clients can request a fresh authorized quote in native text.
 $bot->onCallbackQueryData('builder:quote:simple:{id}:{gb}:{days}:{page}', function (Nutgram $bot, string $id, string $gb, string $days, string $page): void {
     app(ResellerBuilderUi::class)->quote($bot, $id, $gb, $days, $page, false);
