@@ -4,16 +4,13 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Telegram\Support;
 
-use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
+use App\Interfaces\Telegram\Notifications\ResellerAnnouncementEnqueuer;
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Sales\Application\ManageAnnouncements;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
-use Throwable;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
@@ -310,7 +307,7 @@ final readonly class AdminAnnouncementsUi
             $result = $this->announcements->sendToResellers(
                 $root, (string) $draft['title'], (string) $draft['body'],
             );
-            self::enqueueResellerAnnouncement((int) $result['id']);
+            app(ResellerAnnouncementEnqueuer::class)->afterCommit((int) $result['id']);
             $this->notice($bot, "✅ اطلاعیه در صف ارسال برای {$result['recipients']} نماینده قرار گرفت."
                 ."\nپیام‌ها از طریق بات فروش ارسال می‌شوند.",
                 InlineKeyboardMarkup::make()
@@ -321,35 +318,6 @@ final readonly class AdminAnnouncementsUi
             $this->notice($bot, $exception->validator->errors()->first('announcement')
                 ?: 'ارسال ممکن نشد. وضعیت بات فروش و اعلان‌ها را بررسی کنید.');
         }
-    }
-
-    /**
-     * Trigger the existing Telegram worker only after the Sales Action commits.
-     * A containing transaction may still defer this callback. The persisted
-     * outbox and minute dispatcher are the recovery path if Redis is unavailable.
-     */
-    private static function enqueueResellerAnnouncement(int $announcementId): void
-    {
-        DB::afterCommit(static function () use ($announcementId): void {
-            try {
-                DB::table('telegram_notification_deliveries')
-                    ->where('event_type', 'ResellerAnnouncement')
-                    ->where('event_key', 'like', "reseller:ann:{$announcementId}:user:%")
-                    ->select(['id', 'available_at'])
-                    ->chunkById(100, static function ($rows): void {
-                        foreach ($rows as $row) {
-                            DispatchTelegramNotification::dispatch((int) $row->id)
-                                ->delay(Carbon::parse((string) $row->available_at));
-                        }
-                    });
-            } catch (Throwable $exception) {
-                // Do not mistake a committed announcement for a failed save.
-                Log::warning('Reseller announcement initial enqueue failed; scheduled recovery retained.', [
-                    'announcement_id' => $announcementId,
-                    'exception' => $exception::class,
-                ]);
-            }
-        });
     }
 
     public function prepareNew(Nutgram $bot, string $token): void
