@@ -1072,7 +1072,6 @@ it('preserves official subscription page access and selectable URL in the long f
     Http::assertSentCount(1);
 });
 
-
 /**
  * Activation notices reuse the existing owner-checked credential Action and
  * old QR callback; test fixtures do not simulate real Provider deployment.

@@ -1,6 +1,7 @@
 <?php
 
 use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
+use App\Interfaces\Telegram\Notifications\PaymentNotificationOutbox;
 use App\Interfaces\Telegram\Notifications\TelegramNotificationSender;
 use App\Interfaces\Telegram\Support\TelegramUi;
 use App\Modules\Identity\Application\SubscriptionViewer;
@@ -449,7 +450,7 @@ it('defers approved Sales receipt messages while keeping rejected receipts immed
     // The actual activation event has already reached Telegram, so no second
     // "payment confirmed" message may arrive at the end of the grace period.
     DB::table('sales_orders')->where('id', $data['order'])->update(['status' => 'fulfilled']);
-    app(\App\Interfaces\Telegram\Notifications\PaymentNotificationOutbox::class)
+    app(PaymentNotificationOutbox::class)
         ->activated($data['order'], $data['buyer']->id);
     DB::table('telegram_notification_deliveries')
         ->where('event_type', 'SubscriptionActivated')->update(['state' => 'sent', 'sent_at' => now()]);
@@ -482,7 +483,7 @@ it('keeps an approved payment notice when the finished activation message was no
     $id = (int) DB::table('telegram_notification_deliveries')
         ->where('event_type', 'PaymentReviewed')->value('id');
     DB::table('sales_orders')->where('id', $data['order'])->update(['status' => 'fulfilled']);
-    app(\App\Interfaces\Telegram\Notifications\PaymentNotificationOutbox::class)
+    app(PaymentNotificationOutbox::class)
         ->activated($data['order'], $data['buyer']->id);
     DB::table('telegram_notification_deliveries')->where('event_type', 'SubscriptionActivated')
         ->update(['state' => 'unavailable', 'last_failure' => 'transport']);
