@@ -116,7 +116,10 @@ final readonly class ResellerBuilderUi
             }
         }
 
-        $keyboard->addRow(InlineKeyboardButton::make('✏️ حجم دلخواه', callback_data: "builder:custom:{$plan->id}:{$pg}"));
+        $keyboard->addRow(InlineKeyboardButton::make(
+            $plan->kind === 'time' ? '✏️ مدت دلخواه' : '✏️ حجم دلخواه',
+            callback_data: "builder:custom:{$plan->id}:{$pg}",
+        ));
         $keyboard->addRow(InlineKeyboardButton::make('◀️ پلن‌های سفارشی', callback_data: 'builder:list:'.$pg));
 
         $intro = $plan->kind === 'time'
@@ -167,7 +170,10 @@ final readonly class ResellerBuilderUi
                 '✏️ مدت دلخواه', callback_data: "builder:customdays:{$plan->id}:{$gb}:{$pg}",
             ));
         }
-        $keyboard->addRow(InlineKeyboardButton::make('◀️ تغییر حجم', callback_data: "builder:detail:{$plan->id}:{$pg}"));
+        $keyboard->addRow(InlineKeyboardButton::make(
+            $plan->kind === 'time' ? '◀️ بازگشت به پلن' : '◀️ تغییر حجم',
+            callback_data: "builder:detail:{$plan->id}:{$pg}",
+        ));
         $keyboard->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'builder:cancel'));
 
         $tip = $manual
@@ -229,7 +235,7 @@ final readonly class ResellerBuilderUi
         $this->pendingShop->forget($actor->userId);
         if ($plan->kind === 'time') {
             // Unlimited-volume builders have no volume decision.
-            $this->days($bot, (string) $plan->id, '0', (string) $pg);
+            $this->days($bot, (string) $plan->id, '0', (string) $pg, true);
 
             return;
         }
@@ -369,7 +375,10 @@ final readonly class ResellerBuilderUi
                 callback_data: "sales:checkout:preview:{$quote->planId}:{$quote->durationDays}:".($quote->trafficGb ?? 0),
             ));
         }
-        $keyboard->addRow(InlineKeyboardButton::make('✏️ تغییر حجم یا مدت', callback_data: "builder:custom:{$plan->id}:{$page}"))
+        $keyboard->addRow(InlineKeyboardButton::make(
+            $plan->kind === 'time' ? '✏️ تغییر مدت' : '✏️ تغییر حجم یا مدت',
+            callback_data: "builder:custom:{$plan->id}:{$page}",
+        ))
             ->addRow(InlineKeyboardButton::make('◀️ پلن‌سازها', callback_data: 'builder:list:'.$page))
             ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'menu:home'));
 
