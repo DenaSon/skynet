@@ -112,6 +112,7 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     // Admin-only user filter and pending-search cancellation; never on the Sales Bot.
     $expected['ADMIN'][] = 'callback:users:resellers:{page}';
     $expected['ADMIN'][] = 'callback:users:cancelsearch';
+    $expected['ADMIN'][] = 'callback:users:filters:{mode}';
     // FLT-04: trusted-root filtering route inventory, Admin Bot only.
     $expected['ADMIN'][] = 'command:filtering';
     $expected['ADMIN'][] = 'callback:flt:home';
