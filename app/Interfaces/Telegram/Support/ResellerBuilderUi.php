@@ -123,7 +123,7 @@ final readonly class ResellerBuilderUi
         $keyboard->addRow(InlineKeyboardButton::make('◀️ پلن‌های سفارشی', callback_data: 'builder:list:'.$pg));
 
         $intro = $plan->kind === 'time'
-            ? "حجم نامحدود است. فقط مدت سرویس را مشخص کنید."
+            ? 'حجم نامحدود است. فقط مدت سرویس را مشخص کنید.'
             : "مرحله ۱ از ۲ · انتخاب حجم\n\n"
                 ."حجم مجاز: {$plan->minGb} تا {$plan->maxGb} گیگابایت"
                 ."\n\nاز گزینه‌ها انتخاب کنید یا «حجم دلخواه» را بزنید."
