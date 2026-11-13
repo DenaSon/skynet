@@ -101,6 +101,7 @@ it('denies unlinked, roleless and inactive accounts', function (): void {
         ->assertForbidden();
 
     $member = User::factory()->create();
+    $member->syncRoles([]);
     TelegramAccount::query()->create(['user_id' => $member->id, 'telegram_user_id' => 999001]);
     $this->post('https://live.denagate.ir/auth/telegram', ['init_data' => liveSignedData(999001)])
         ->assertForbidden();
