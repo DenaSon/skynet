@@ -629,3 +629,49 @@ it('accepts pre-deploy combined-input drafts without rewriting or extending thei
     expect(app(PendingBuilderSelection::class)->peek($reseller->id))->toBeNull()
         ->and(DB::table('sales_orders')->count())->toBe(0);
 });
+
+it('renders concise bold wizard instructions using Telegram HTML without redundant tips', function (): void {
+    $root = b16Root();
+    $id = b16Builder($root, 'wizard-copy-polish');
+    $reseller = b16Reseller();
+    $bot = b16SalesBot(966225, $reseller);
+
+    $bot->hearCallbackQueryData("builder:custom:{$id}:1")->reply()->assertRaw(
+        static function (Request $request): bool {
+            $data = FakeNutgram::getActualData($request);
+            $text = (string) ($data['text'] ?? '');
+
+            return ($data['parse_mode'] ?? null) === 'HTML'
+                && str_contains($text, '<b>✍️ حجم موردنیاز را فقط به صورت عدد بفرستید؛ مثلاً 1.</b>')
+                && ! str_contains($text, '💡 مدت سرویس را در مرحله بعد می‌پرسیم.')
+                && ! str_contains($text, '⏱ اعتبار فرم: ۱۰ دقیقه');
+        },
+        index: 1,
+    );
+
+    // Entering custom GB shows the second step with its primary instruction in bold.
+    $bot->hearText('۳۰')->reply()->assertRaw(
+        static function (Request $request): bool {
+            $data = FakeNutgram::getActualData($request);
+            $text = (string) ($data['text'] ?? '');
+
+            return ($data['parse_mode'] ?? null) === 'HTML'
+                && str_contains($text, '<b>از گزینه‌ها انتخاب کنید یا تعداد روز دلخواه را به صورت عدد بفرستید.</b>')
+                && str_contains($text, 'مدت مجاز: 15 تا 90 روز');
+        },
+    );
+
+    $bot->hearCallbackQueryData("builder:customdays:{$id}:30:1")->reply()->assertRaw(
+        static function (Request $request): bool {
+            $data = FakeNutgram::getActualData($request);
+
+            return ($data['parse_mode'] ?? null) === 'HTML'
+                && str_contains((string) ($data['text'] ?? ''), '<b>✍️ فقط تعداد روز را به صورت عدد ارسال کنید؛ مثلاً 15.</b>');
+        },
+        index: 1,
+    );
+
+    expect(DB::table('sales_orders')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe(0)
+        ->and(DB::table('provisioning_operations')->count())->toBe(0);
+});
