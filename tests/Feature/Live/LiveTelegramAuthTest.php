@@ -338,7 +338,7 @@ it('does not output unvalidated bot destinations on the ordinary member introduc
         ->assertSee('مشاهده دمو پنل')
         ->assertSee('برای درخواست نمایندگی از بات فروش دناگیت اقدام کنید.')
         ->assertDontSee('evil.example')
-        ->assertDontSee('data-telegram-link')
+        ->assertDontSee('href="https://t.me/', false)
         ->assertSessionMissing('denagate_live.user_id');
 
     $this->assertGuest('web');
