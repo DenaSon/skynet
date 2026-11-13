@@ -416,3 +416,111 @@ it('recovers expired delivery leases once while ignoring live leases and suppres
     $this->artisan('telegram:notifications:dispatch', ['--retry-id' => (string) $id])->assertFailed();
     expect(DB::table('telegram_notification_deliveries')->where('id', $id)->value('state'))->toBe('suppressed');
 });
+
+it('defers approved Sales receipt messages while keeping rejected receipts immediate', function (): void {
+    $this->travelTo(now()->startOfSecond());
+    $data = mb05aClaim();
+    config()->set('telegram.sales.enabled', true);
+    config()->set('telegram.sales.token', '54321:sales_test');
+    config()->set('sales.auto_fulfillment_enabled', true);
+    config()->set('services.remnawave.writes_enabled', true);
+    config()->set('services.remnawave.squad_bindings_live_verified', true);
+    DB::table('telegram_bot_contacts')->insert([
+        'user_id' => $data['buyer']->id, 'bot_key' => 'sales', 'chat_id' => 996099,
+        'delivery_status' => 'reachable', 'last_seen_at' => now(),
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+
+    app(ManualBankPayments::class)->review(
+        $data['root']->id, $data['claim'], true, 'DENADELAYBANK123', mb05VerifiedRials($data['claim']),
+    );
+    $delivery = DB::table('telegram_notification_deliveries')
+        ->where('event_type', 'PaymentReviewed')->first();
+    expect($delivery)->not->toBeNull()
+        ->and($delivery->bot_key)->toBe('sales')
+        ->and((string) $delivery->available_at)->toBe(now()->addSeconds(60)->toDateTimeString())
+        ->and($delivery->state)->toBe('pending');
+    Http::preventStrayRequests();
+    Http::fake(['https://api.telegram.org/*' => Http::response(['ok' => true])]);
+    app(DispatchTelegramNotification::class, ['deliveryId' => (int) $delivery->id])
+        ->handle(app(TelegramNotificationSender::class));
+    Http::assertNothingSent();
+
+    // The actual activation event has already reached Telegram, so no second
+    // "payment confirmed" message may arrive at the end of the grace period.
+    DB::table('sales_orders')->where('id', $data['order'])->update(['status' => 'fulfilled']);
+    app(\App\Interfaces\Telegram\Notifications\PaymentNotificationOutbox::class)
+        ->activated($data['order'], $data['buyer']->id);
+    DB::table('telegram_notification_deliveries')
+        ->where('event_type', 'SubscriptionActivated')->update(['state' => 'sent', 'sent_at' => now()]);
+    $this->travel(61)->seconds();
+    app(DispatchTelegramNotification::class, ['deliveryId' => (int) $delivery->id])
+        ->handle(app(TelegramNotificationSender::class));
+    expect(DB::table('telegram_notification_deliveries')->where('id', $delivery->id)->value('state'))
+        ->toBe('unavailable')
+        ->and(DB::table('telegram_notification_deliveries')->where('id', $delivery->id)->value('last_failure'))
+        ->toBe('superseded_by_activation');
+    Http::assertNothingSent();
+});
+
+it('keeps an approved payment notice when the finished activation message was not delivered', function (): void {
+    $this->travelTo(now()->startOfSecond());
+    $data = mb05aClaim();
+    config()->set('telegram.sales.enabled', true);
+    config()->set('telegram.sales.token', '54321:sales_test');
+    config()->set('sales.auto_fulfillment_enabled', true);
+    config()->set('services.remnawave.writes_enabled', true);
+    config()->set('services.remnawave.squad_bindings_live_verified', true);
+    DB::table('telegram_bot_contacts')->insert([
+        'user_id' => $data['buyer']->id, 'bot_key' => 'sales', 'chat_id' => 996099,
+        'delivery_status' => 'reachable', 'last_seen_at' => now(),
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+    app(ManualBankPayments::class)->review(
+        $data['root']->id, $data['claim'], true, 'DENAFALLBACKBANK123', mb05VerifiedRials($data['claim']),
+    );
+    $id = (int) DB::table('telegram_notification_deliveries')
+        ->where('event_type', 'PaymentReviewed')->value('id');
+    DB::table('sales_orders')->where('id', $data['order'])->update(['status' => 'fulfilled']);
+    app(\App\Interfaces\Telegram\Notifications\PaymentNotificationOutbox::class)
+        ->activated($data['order'], $data['buyer']->id);
+    DB::table('telegram_notification_deliveries')->where('event_type', 'SubscriptionActivated')
+        ->update(['state' => 'unavailable', 'last_failure' => 'transport']);
+
+    Http::preventStrayRequests();
+    Http::fake(['https://api.telegram.org/*' => Http::response(['ok' => true])]);
+    $this->travel(61)->seconds();
+    app(DispatchTelegramNotification::class, ['deliveryId' => $id])
+        ->handle(app(TelegramNotificationSender::class));
+
+    expect(DB::table('telegram_notification_deliveries')->where('id', $id)->value('state'))->toBe('sent');
+    Http::assertSentCount(1);
+    Http::assertSent(static fn (Request $r): bool => str_contains($r->url(), '54321:sales_test/sendMessage')
+        && str_contains((string) $r['text'], 'سرویس شما فعال است'));
+});
+
+it('delivers rejected receipt results immediately without a grace period', function (): void {
+    $this->travelTo(now()->startOfSecond());
+    $data = mb05aClaim();
+    config()->set('telegram.sales.enabled', true);
+    config()->set('telegram.sales.token', '54321:sales_test');
+    config()->set('sales.auto_fulfillment_enabled', true);
+    config()->set('services.remnawave.writes_enabled', true);
+    config()->set('services.remnawave.squad_bindings_live_verified', true);
+    DB::table('telegram_bot_contacts')->insert([
+        'user_id' => $data['buyer']->id, 'bot_key' => 'sales', 'chat_id' => 996099,
+        'delivery_status' => 'reachable', 'last_seen_at' => now(),
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+    app(ManualBankPayments::class)->review($data['root']->id, $data['claim'], false);
+    $delivery = DB::table('telegram_notification_deliveries')
+        ->where('event_type', 'PaymentReviewed')->first();
+    expect($delivery->available_at)->toBe(now()->toDateTimeString());
+
+    Http::preventStrayRequests();
+    Http::fake(['https://api.telegram.org/*' => Http::response(['ok' => true])]);
+    app(DispatchTelegramNotification::class, ['deliveryId' => (int) $delivery->id])
+        ->handle(app(TelegramNotificationSender::class));
+    expect(DB::table('telegram_notification_deliveries')->where('id', $delivery->id)->value('state'))->toBe('sent');
+    Http::assertSent(static fn (Request $r): bool => str_contains((string) $r['text'], 'رد شد'));
+});

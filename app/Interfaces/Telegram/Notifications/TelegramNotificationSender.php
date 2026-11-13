@@ -18,7 +18,9 @@ use App\Modules\Filtering\Application\FilteringIncidentNotice;
 use App\Modules\Identity\Application\AdminCapabilityAccess;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\TelegramRecipient;
+use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Identity\Infrastructure\Models\User;
+use App\Modules\Provisioning\Application\GetSubscriptionLink;
 use App\Modules\Sales\Application\AdminPendingReceiptFollowup;
 use App\Modules\Sales\Application\ManualBankPayments;
 use App\Modules\Sales\Application\ReviewSalesPanelRequest;
@@ -583,20 +585,26 @@ final readonly class TelegramNotificationSender
             }
 
             $order = (int) $delivery->order_id;
-            // A late, retried payment event must not tell a customer their
-            // already-active subscription is still being prepared.
-            if ($claim->status === 'approved' && DB::table('sales_orders')
+            // Suppress only after the completed activation message really
+            // reached Telegram. If final delivery failed, retain payment notice.
+            $alreadyActive = $claim->status === 'approved' && DB::table('sales_orders')
                 ->where('id', $order)->where('buyer_user_id', $userId)
-                ->where('status', 'fulfilled')->exists()) {
+                ->where('status', 'fulfilled')->exists();
+            if ($alreadyActive && DB::table('telegram_notification_deliveries')
+                ->where('event_type', 'SubscriptionActivated')
+                ->where('recipient_user_id', $userId)->where('order_id', $order)
+                ->where('bot_key', 'sales')->where('state', 'sent')->exists()) {
                 throw new NotificationUnavailable('superseded_by_activation');
             }
             $autoReady = config('sales.auto_fulfillment_enabled', false) === true
                 && config('services.remnawave.writes_enabled') === true
                 && config('services.remnawave.squad_bindings_live_verified') === true;
             $text = $claim->status === 'approved'
-                ? ($autoReady
-                    ? "✅ پرداخت سفارش #{$order} تأیید شد؛ اشتراک در حال آماده‌سازی است."
-                    : "✅ پرداخت سفارش #{$order} تأیید شد. درخواست فعال‌سازی ثبت شد؛ سرویس هنوز ساخته نشده است.")
+                ? ($alreadyActive
+                    ? "✅ پرداخت سفارش #{$order} تأیید شد؛ سرویس شما فعال است. اطلاعات اتصال را از «سرویس‌های من» دریافت کنید."
+                    : ($autoReady
+                        ? "✅ پرداخت سفارش #{$order} تأیید شد؛ اشتراک در حال آماده‌سازی است."
+                        : "✅ پرداخت سفارش #{$order} تأیید شد. درخواست فعال‌سازی ثبت شد؛ سرویس هنوز ساخته نشده است."))
                 : "❌ رسید سفارش #{$order} رد شد. در صورت نیاز می‌توانید رسید جدید بفرستید.";
 
             // A buyer's payment result is not an Admin reviewer notification.
@@ -672,13 +680,37 @@ final readonly class TelegramNotificationSender
                 throw new NotificationUnavailable('not_active');
             }
 
-            // Only an order ID is placed in callbacks. The Sales presenter
-            // rechecks authorization and active RW data on every click.
-            $buttons = [[
-                'text' => '🔐 نمایش کد اتصال',
+            // Reuse the existing authenticated owner+provider GET Action.
+            // A temporary RW read failure never hides a verified activation.
+            // Credential data is sent only to this started private Sales chat:
+            // never store it in the outbox, logs or callback data.
+            $url = null;
+            try {
+                $candidate = app(GetSubscriptionLink::class)
+                    ->handle(SubscriptionViewer::telegram($chat), $orderId)->subscriptionUrl;
+                if (strlen($candidate) <= 2048 && filter_var($candidate, FILTER_VALIDATE_URL)
+                    && parse_url($candidate, PHP_URL_SCHEME) === 'https'
+                    && preg_match('/[\\x00-\\x20\\x7F]/', $candidate) !== 1) {
+                    $url = $candidate;
+                }
+            } catch (Throwable) {
+                // Original connection/QR callback remains available.
+            }
+
+            $rows = [];
+            if ($url !== null && mb_strlen($url) <= 256) {
+                $rows[] = [[
+                    'text' => '📋 کپی کد اتصال',
+                    'copy_text' => ['text' => $url],
+                    'style' => ButtonStyle::SUCCESS->value,
+                ]];
+            }
+            // Only the order ID is exposed in callbacks. The existing QR
+            // screen rechecks current user ownership and live subscription.
+            $rows[] = [[
+                'text' => '▦ نمایش QR کد',
                 'callback_data' => 'sales:subs:link:'.$orderId.':0',
             ]];
-            $rows = [$buttons];
             if (app(SubscriptionPageLink::class)->configured()) {
                 $rows[] = [[
                     'text' => '🌐 صفحه اشتراک',
@@ -690,7 +722,12 @@ final readonly class TelegramNotificationSender
                 'callback_data' => 'sales:help:apps',
             ]];
             $keyboard = json_encode(['inline_keyboard' => $rows], JSON_THROW_ON_ERROR);
-            $this->text($bot, $chat, "✅ اشتراک شما فعال شد!\nسفارش #{$orderId}\n\nبرای دریافت لینک اتصال یا مشاهده راهنمای نصب از دکمه‌های زیر استفاده کنید.", $keyboard);
+            $message = "<b>✅ سرویس شما فعال شد! 🎉</b>\n\nپرداخت سفارش #{$orderId} تأیید شد و سرویس شما آماده استفاده است.";
+            $message .= $url === null
+                ? "\n\nبرای دریافت لینک اتصال یا مشاهده راهنمای نصب از دکمه‌های زیر استفاده کنید."
+                : "\n\n🔗 <b>کد اتصال اختصاصی</b>\n".TelegramUi::code($url)
+                    .(mb_strlen($url) > 256 ? "\nبرای کپی، متن کد بالا را نگه دارید." : '');
+            $this->text($bot, $chat, $message, $keyboard, 'HTML');
 
             return;
         }

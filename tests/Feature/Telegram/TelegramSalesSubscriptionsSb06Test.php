@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
+use App\Interfaces\Telegram\Notifications\PaymentNotificationOutbox;
+use App\Interfaces\Telegram\Notifications\TelegramNotificationSender;
 use App\Interfaces\Telegram\Support\SubscriptionPageLink;
 use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
@@ -17,6 +20,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Properties\UpdateType;
@@ -1066,4 +1070,136 @@ it('preserves official subscription page access and selectable URL in the long f
                 && ! str_contains($buttons, 'copy_text');
         }, index: 2);
     Http::assertSentCount(1);
+});
+
+
+/**
+ * Activation notices reuse the existing owner-checked credential Action and
+ * old QR callback; test fixtures do not simulate real Provider deployment.
+ */
+function sb06ActivationNotice(User $buyer, int $orderId): int
+{
+    config()->set('telegram_notifications.enabled', true);
+    config()->set('telegram.sales.enabled', true);
+    config()->set('telegram.sales.token', '54321:sales_test');
+    config()->set('nutgram.token', '12345:admin_test');
+    Queue::fake();
+
+    DB::table('telegram_bot_contacts')->insert([
+        'user_id' => $buyer->id, 'bot_key' => 'sales', 'chat_id' => 976901,
+        'delivery_status' => 'reachable', 'last_seen_at' => now(),
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+    DB::table('sales_fulfillment_outbox')->insert([
+        'sales_order_id' => $orderId, 'event_key' => 'sb06-activation:'.$orderId,
+        'state' => 'completed', 'attempts' => 1, 'created_at' => now(), 'updated_at' => now(),
+    ]);
+    app(PaymentNotificationOutbox::class)->activated($orderId, $buyer->id);
+
+    return (int) DB::table('telegram_notification_deliveries')
+        ->where('event_type', 'SubscriptionActivated')->where('order_id', $orderId)
+        ->value('id');
+}
+
+it('sends the owned connection URL inline with green native copy and the existing QR route', function (): void {
+    $buyer = User::factory()->create();
+    TelegramAccount::query()->create(['user_id' => $buyer->id, 'telegram_user_id' => 976901]);
+    $orderId = sb06Order($buyer);
+    sb06Activated($orderId);
+    $deliveryId = sb06ActivationNotice($buyer, $orderId);
+    $url = 'https://test.example.test/private-subscription?key=abc&mode=auto';
+    config()->set('sales.subscription_page_host', 'test.example.test');
+    Http::fake([
+        'https://remna.test/api/users/42' => Http::response(['response' => sb06Provider($orderId, ['subscriptionUrl' => $url])]),
+        'https://api.telegram.org/*' => Http::response(['ok' => true]),
+    ]);
+
+    app(DispatchTelegramNotification::class, ['deliveryId' => $deliveryId])
+        ->handle(app(TelegramNotificationSender::class));
+
+    expect(DB::table('telegram_notification_deliveries')->where('id', $deliveryId)->value('state'))->toBe('sent');
+    Http::assertSentCount(2);
+    Http::assertSent(static fn (Request $r): bool => $r->method() === 'GET'
+        && $r->url() === 'https://remna.test/api/users/42');
+    Http::assertSent(static function (Request $r) use ($orderId, $url): bool {
+        if (! str_contains($r->url(), '54321:sales_test/sendMessage')) {
+            return false;
+        }
+        $buttons = json_decode((string) $r['reply_markup'], true, 512, JSON_THROW_ON_ERROR)['inline_keyboard'];
+        $copy = $buttons[0][0] ?? [];
+        $qr = $buttons[1][0] ?? [];
+        $serialized = json_encode($buttons, JSON_THROW_ON_ERROR);
+
+        return $r['chat_id'] === '976901'
+            && $r['protect_content'] === 'true'
+            && $r['parse_mode'] === 'HTML'
+            && str_contains((string) $r['text'], 'سرویس شما فعال شد')
+            && str_contains((string) $r['text'], 'کد اتصال اختصاصی')
+            && str_contains((string) $r['text'], 'key=abc&amp;mode=auto')
+            && ($copy['text'] ?? null) === '📋 کپی کد اتصال'
+            && ($copy['style'] ?? null) === 'success'
+            && ($copy['copy_text']['text'] ?? null) === $url
+            && ($qr['text'] ?? null) === '▦ نمایش QR کد'
+            && ($qr['callback_data'] ?? null) === 'sales:subs:link:'.$orderId.':0'
+            && str_contains($serialized, 'sales:subs:page:'.$orderId.':0')
+            && str_contains($serialized, 'sales:help:apps')
+            && ! str_contains($serialized, $url);
+    });
+    expect(DB::table('telegram_notification_deliveries')->where('id', $deliveryId)->value('event_key'))
+        ->not->toContain($url);
+});
+
+it('keeps the full long URL selectable but never sends an invalid 256-character copy button', function (): void {
+    $buyer = User::factory()->create();
+    TelegramAccount::query()->create(['user_id' => $buyer->id, 'telegram_user_id' => 976901]);
+    $orderId = sb06Order($buyer);
+    sb06Activated($orderId);
+    $id = sb06ActivationNotice($buyer, $orderId);
+    $url = 'https://test.example.test/'.str_repeat('x', 275);
+    Http::fake([
+        'https://remna.test/api/users/42' => Http::response(['response' => sb06Provider($orderId, ['subscriptionUrl' => $url])]),
+        'https://api.telegram.org/*' => Http::response(['ok' => true]),
+    ]);
+
+    app(DispatchTelegramNotification::class, ['deliveryId' => $id])->handle(app(TelegramNotificationSender::class));
+    expect(DB::table('telegram_notification_deliveries')->where('id', $id)->value('state'))->toBe('sent');
+    Http::assertSent(static function (Request $r) use ($url, $orderId): bool {
+        if (! str_contains($r->url(), '/sendMessage')) {
+            return false;
+        }
+        $markup = (string) $r['reply_markup'];
+
+        return str_contains((string) $r['text'], $url)
+            && str_contains((string) $r['text'], 'متن کد بالا را نگه دارید')
+            && ! str_contains($markup, 'copy_text')
+            && str_contains($markup, 'sales:subs:link:'.$orderId.':0');
+    });
+});
+
+it('sends activation and safe QR guidance when the Provider credential read fails', function (): void {
+    $buyer = User::factory()->create();
+    TelegramAccount::query()->create(['user_id' => $buyer->id, 'telegram_user_id' => 976901]);
+    $orderId = sb06Order($buyer);
+    sb06Activated($orderId);
+    $id = sb06ActivationNotice($buyer, $orderId);
+    Http::fake([
+        'https://remna.test/api/users/42' => Http::response([], 503),
+        'https://api.telegram.org/*' => Http::response(['ok' => true]),
+    ]);
+    app(DispatchTelegramNotification::class, ['deliveryId' => $id])->handle(app(TelegramNotificationSender::class));
+
+    expect(DB::table('telegram_notification_deliveries')->where('id', $id)->value('state'))->toBe('sent');
+    Http::assertSent(static function (Request $r) use ($orderId): bool {
+        if (! str_contains($r->url(), '54321:sales_test/sendMessage')) {
+            return false;
+        }
+        $markup = (string) $r['reply_markup'];
+
+        return str_contains((string) $r['text'], 'سرویس شما فعال شد')
+            && str_contains((string) $r['text'], 'راهنمای نصب')
+            && ! str_contains((string) $r['text'], 'private-sb06-credential')
+            && ! str_contains($markup, 'copy_text')
+            && str_contains($markup, 'sales:subs:link:'.$orderId.':0');
+    });
+    Http::assertSentCount(2);
 });
