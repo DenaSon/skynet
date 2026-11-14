@@ -94,12 +94,12 @@
                     wire:click="showSection('{{ $key }}')" wire:target="showSection" wire:loading.attr="disabled"
                 @endif
                 @if ($demo)
-                    x-bind:class="demoSection === '{{ $key }}' ? 'bg-[#EAF8F4] text-[#087F73]' : 'text-[#84939D]'"
+                    x-bind:class="demoSection === '{{ $key }}' ? 'bg-[#EAF8F4] text-[#087F73]' : 'text-[#536C76]'"
                 @endif
                 @class([
                     'mx-1 flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl px-1 text-[11px] font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-[#14B8A6]',
                     'bg-[#EAF8F4] text-[#087F73]' => ! $demo && $section === $key,
-                    'text-[#84939D]' => ! $demo && $section !== $key,
+                    'text-[#536C76]' => ! $demo && $section !== $key,
                 ])
                 @if (! $demo && $section === $key) aria-current="page" @endif>
                 @if ($key === 'overview')

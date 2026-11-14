@@ -1,5 +1,15 @@
 # DenaGate Live — UI/UX Polish Roadmap (P0–P4)
 
+## Reseller UI/UX refinement — 2026-11-14 (operator-approved)
+
+Three separate small PRs were approved: (1) existing MiniApp service-detail action priority, customer-label clarity and text contrast; (2) existing MiniApp ready/custom plan presentation plus top-up handoff feedback; (3) reseller-only Sales Bot Home/education polish preserving persistent keyboard and old callbacks. No architecture, provider reads/writes, charges, quotes, DB, migrations, RBAC or new dependencies. Do not create an all-service health scanner or aggregated needs-attention view; these remain outside scope. For each phase validate real authorization and original callbacks, both navigation variants, HTML/Rich fallback where applicable, accessibility, CI and device behavior separately. Real Telegram acceptance and production deploy are not evidenced by source CI.
+
+### Step 1 — service detail and contrast
+The customer-identifying service header remains first; after it prioritize the existing on-demand status/usage and renewal controls, then the explicitly gated connection reveal/QR, optional status management and editable customer label. No automatic Provider GET or reveal. In the existing MiniApp, normalize the editable customer label as «نام مشتری» (it is a private display label, not a required Telegram username), correct low-contrast small text and make the order-submit CTA use the existing accessible dark-teal button primitive. Preserve existing actions, back/cancel flow and safeguards.
+
+
+---
+
 > **Decision: 2026-10-31.** This is the normative handoff/checklist for the **new Polish sequence**, not the historical LIVE-0/1 phases documented in [033](033-DENAGATE-LIVE-MINIAPP.md) or the original product Epics in [034](034-DENAGATE-LIVE-EPICS-ROADMAP.md).
 >
 > **Approval state (2026-10-31):** P0 merged as [#320](https://github.com/DenaSon/skynet/pull/320) (`7e8efcdf`), P1 merged as [#321](https://github.com/DenaSon/skynet/pull/321) (`65e786ce`), and the operator separately authorized **P2A, P2B, P3 and P4** in sequence. P4 has a separate, limited code/QA PR; physical Telegram-client sign-off is not implied. No Polish PR authorizes production financial/Provider operations.
