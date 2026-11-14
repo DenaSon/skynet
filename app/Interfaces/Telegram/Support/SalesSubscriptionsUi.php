@@ -102,6 +102,17 @@ final readonly class SalesSubscriptionsUi
         }
         $lines[] = '';
         $keyboard = InlineKeyboardMarkup::make();
+        // The reseller's customer list is unchanged. Read-only member Rich
+        // summaries use the same bounded local page, never a Provider GET.
+        $memberRich = $resellerId === null
+            && $this->actors->handle((int) $this->privateUser->id($bot))?->roles === ['member']
+            && $page->items !== []
+            ? '<h4>📋 سرویس‌های من</h4>'
+                .'<p>سرویس‌های ثبت‌شده: <b>'.$counts['total'].'</b>'
+                .'<br>فعال در سوابق داخلی: <b>'.$counts['activeRecorded'].'</b>'
+                .($counts['needsReview'] > 0
+                    ? '<br>در انتظار بررسی: <b>'.$counts['needsReview'].'</b>' : '').'</p>'
+            : null;
 
         if ($page->items === []) {
             $lines[] = $before === 0 ? 'هنوز سرویس فعالی برای این حساب ثبت نشده است.'
@@ -126,6 +137,11 @@ final readonly class SalesSubscriptionsUi
                         $lines[] = 'پلن: '.TelegramUi::escape($planName);
                     }
                     $lines[] = $summary.' · '.$item->durationDays.' روز · '.$this->status($item->status);
+                    if ($memberRich !== null) {
+                        $memberRich .= '<p>📦 <b>'.$position.'. '.TelegramUi::escape($planName).'</b>'
+                            .'<br>'.$summary.' · '.$item->durationDays.' روز'
+                            .'<br>وضعیت ثبت‌شده: '.$this->status($item->status).'</p>';
+                    }
                 }
                 $lines[] = '';
                 // One entry per service: the detail view retains link, renewal
@@ -143,6 +159,11 @@ final readonly class SalesSubscriptionsUi
             $lines[] = $resellerId !== null
                 ? '<blockquote>ℹ️ وضعیت‌های این فهرست از سوابق داخلی‌اند. وضعیت لحظه‌ای، حجم باقی‌مانده و انقضا در جزئیات هر سرویس بررسی می‌شوند.</blockquote>'
                 : '<blockquote>وضعیت لحظه‌ای و تاریخ انقضا در جزئیات هر سرویس بررسی می‌شود.</blockquote>';
+            if ($memberRich !== null) {
+                $memberRich .= '<p>ℹ️ این فهرست فقط سوابق داخلی را نشان می‌دهد. '
+                    .'برای بررسی وضعیت لحظه‌ای، حجم باقی‌مانده، تاریخ انقضا و اتصال، '
+                    .'سرویس موردنظر را از دکمه‌های پایین باز کنید.</p>';
+            }
             if ($page->nextBeforeOrderId !== null) {
                 $keyboard->addRow(InlineKeyboardButton::make('موارد بیشتر ◀️',
                     callback_data: 'sales:subs:list:'.$page->nextBeforeOrderId));
@@ -158,7 +179,20 @@ final readonly class SalesSubscriptionsUi
             ->addRow(InlineKeyboardButton::make('🧾 سوابق خرید', callback_data: 'sales:checkout:orders'))
             ->addRow(InlineKeyboardButton::make('🏠 خانه', callback_data: 'sales:home'));
 
-        $this->render($bot, trim(implode("\n", $lines)), $keyboard);
+        $plain = trim(implode("\n", $lines));
+        if ($memberRich !== null) {
+            try {
+                TelegramUi::answerCallback($bot);
+                TelegramUi::editRichText($bot, new InputRichMessage(html: $memberRich, is_rtl: true), $keyboard);
+            } catch (TelegramException $exception) {
+                report($exception);
+                $this->render($bot, $plain, $keyboard, false);
+            }
+
+            return;
+        }
+
+        $this->render($bot, $plain, $keyboard);
     }
 
     public function detail(Nutgram $bot, string $id, string $cursor = '0', bool $rich = true): void

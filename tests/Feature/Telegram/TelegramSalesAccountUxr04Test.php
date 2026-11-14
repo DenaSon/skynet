@@ -163,7 +163,7 @@ it('counts all linked owned services regardless of pagination and never calls th
                 }
             }
 
-            return str_contains($payload['text'], 'سرویس‌های ثبت‌شده: <b>8</b>')
+            return str_contains(uxr04RichHtml($request), 'سرویس‌های ثبت‌شده: <b>8</b>')
                 && ! str_contains($encoded, 'sales:subs:link:')
                 && ! str_contains($encoded, 'subscriptionUrl')
                 && ! str_contains($encoded, 'remote_user_id')
