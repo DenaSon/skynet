@@ -126,6 +126,12 @@ final readonly class SalesHomeUi
                 InlineKeyboardButton::make(ReplyMenuLabels::SALES_ACCOUNT, callback_data: 'sales:account'),
                 InlineKeyboardButton::make(ReplyMenuLabels::SALES_SUPPORT, callback_data: 'sales:support'),
             );
+            // Match the reseller's persistent Reply menu: both learning and reports
+            // remain one-tap actions in a shared, compact row.
+            $keyboard->addRow(
+                InlineKeyboardButton::make(ReplyMenuLabels::SALES_TUTORIAL, callback_data: 'sales:help:apps'),
+                InlineKeyboardButton::make(ReplyMenuLabels::SALES_REPORTS, callback_data: 'sales:report:30'),
+            );
         } elseif ($hasWallet) {
             $keyboard->addRow(
                 InlineKeyboardButton::make(ReplyMenuLabels::SALES_WALLET, callback_data: 'sales:wallet'),
@@ -149,9 +155,6 @@ final readonly class SalesHomeUi
             $keyboard->addRow(InlineKeyboardButton::make('💬 پشتیبانی', callback_data: 'sales:support'));
         }
         $keyboard->addRow(InlineKeyboardButton::make('📋 همه پلن‌ها و قیمت‌ها', callback_data: 'menu:plan-catalog'));
-        if ($isReseller) {
-            $keyboard->addRow(InlineKeyboardButton::make(ReplyMenuLabels::SALES_REPORTS, callback_data: 'sales:report:30'));
-        }
         if (app(ReadPublishedAnnouncements::class)->hasPublished()) {
             $keyboard->addRow(InlineKeyboardButton::make(ReplyMenuLabels::SALES_ANNOUNCEMENTS, callback_data: 'sales:ann:list'));
         }
