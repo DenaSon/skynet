@@ -399,7 +399,7 @@
                             <a href="{{ $topupBotUrl }}" target="_blank" rel="noopener noreferrer"
                                 x-on:click="const tg = window.Telegram?.WebApp; if (tg && tg.platform !== 'unknown' && typeof tg.openTelegramLink === 'function') { $event.preventDefault(); tg.openTelegramLink($el.href); }"
                                 class="dg-btn-primary mt-5 min-h-12 w-full">
-                                ➕ رفتن به بات برای افزایش اعتبار
+                                ➕ افزایش اعتبار در بات
                             </a>
                         @else
                             <p class="mt-4 rounded-xl bg-[#F6F8FA] p-4 text-sm leading-7 text-[#536C76]">امکان انتقال مستقیم به بات فعلاً فراهم نیست. از داخل بات فروش، «اعتبار من» را انتخاب کنید.</p>
