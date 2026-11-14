@@ -94,13 +94,13 @@ it('keeps radar Denaban in both private root Admin menus and excludes ordinary a
     denabanRoot();
     $actor = app(ResolveTelegramActor::class)->handle(991201);
     $keyboard = app(ReplyMenuRenderer::class)->adminKeyboard($actor);
-    expect($keyboard->keyboard[2][0]->text)->toBe(ReplyMenuLabels::DENABAN_RADAR);
+    expect($keyboard->keyboard[0][0]->text)->toBe(ReplyMenuLabels::DENABAN_RADAR);
 
     $bot = denabanBot(991201);
     $bot->hearCallbackQueryData('menu:admin')->reply()->assertRaw(static function (NutgramRequest $r): bool {
         $payload = denabanPayload($r);
 
-        return ($payload['reply_markup']['inline_keyboard'][2][0]['callback_data'] ?? null) === 'denaban:show';
+        return ($payload['reply_markup']['inline_keyboard'][0][0]['callback_data'] ?? null) === 'denaban:show';
     }, index: 1);
 
     $ordinary = User::factory()->admin()->create();
