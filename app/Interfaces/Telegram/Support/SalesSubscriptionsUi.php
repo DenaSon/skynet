@@ -79,7 +79,10 @@ final readonly class SalesSubscriptionsUi
             return;
         }
 
-        $resellerId = $this->resellerId($bot);
+        // Resolve the actor once for both the existing reseller-owner label
+        // check and the ordinary-member-only Rich presentation.
+        $actor = $this->actors->handle((int) $this->privateUser->id($bot));
+        $resellerId = $actor !== null && in_array('reseller', $actor->roles, true) ? $actor->userId : null;
         $labels = $resellerId === null ? [] : $this->customerLabels->forOrders(
             $resellerId, array_map(static fn ($item): int => $item->orderId, $page->items),
         );
@@ -105,7 +108,7 @@ final readonly class SalesSubscriptionsUi
         // The reseller's customer list is unchanged. Read-only member Rich
         // summaries use the same bounded local page, never a Provider GET.
         $memberRich = $resellerId === null
-            && $this->actors->handle((int) $this->privateUser->id($bot))?->roles === ['member']
+            && $actor?->roles === ['member']
             && $page->items !== []
             ? '<h4>📋 سرویس‌های من</h4>'
                 .'<p>سرویس‌های ثبت‌شده: <b>'.$counts['total'].'</b>'
