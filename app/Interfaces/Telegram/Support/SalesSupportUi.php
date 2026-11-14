@@ -81,7 +81,9 @@ final readonly class SalesSupportUi
 
             case 'apps':
                 $text = '<b>📚 آموزش‌های DenaGate</b>'."\n\n"
-                    ."دستگاه خود را انتخاب کنید تا راهنمای نصب و اتصال را ببینید.\n\n"
+                    .(in_array('reseller', $actor->roles, true)
+                        ? "راهنمای پلن‌ساز یا نصب و اتصال را انتخاب کنید.\n\n"
+                        : "دستگاه خود را انتخاب کنید تا راهنمای نصب و اتصال را ببینید.\n\n")
                     ."🤖 اندروید: V2Box · 🍎 آیفون / آیپد: V2Box\n"
                     .'🪟 ویندوز: v2rayN · 💻 مک: V2Box';
                 if (in_array('reseller', $actor->roles, true)) {
