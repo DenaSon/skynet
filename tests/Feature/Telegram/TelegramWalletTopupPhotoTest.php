@@ -73,6 +73,55 @@ it('offers private step-by-step wallet recharge and records photo without any cr
     Http::assertNothingSent();
 });
 
+it('keeps a single green copy-card button and bold SQL amount on the reseller receipt step', function (): void {
+    Role::findOrCreate('reseller', 'web');
+    $reseller = User::factory()->create();
+    $reseller->syncRoles(['reseller']);
+    $bot = wallet02Bot(985120, $reseller);
+
+    $bot->hearCallbackQueryData('sales:wallet:topup')->reply();
+    $bot->hearCallbackQueryData('sales:wallet:topup:custom')->reply();
+    $bot->hearText('۵۰۰۰۰')->reply();
+    $topup = DB::table('billing_topups')->sole();
+    $id = (int) $topup->id;
+
+    $checkReceipt = static function (Request $request) use ($id): bool {
+        $payload = FakeNutgram::getActualData($request);
+        $keyboard = is_string($payload['reply_markup'] ?? null)
+            ? json_decode($payload['reply_markup'], true, 512, JSON_THROW_ON_ERROR)
+            : ($payload['reply_markup'] ?? []);
+        $buttons = $keyboard['inline_keyboard'] ?? [];
+        $copy = $buttons[0][0] ?? [];
+
+        return str_contains((string) ($payload['text'] ?? ''), 'مبلغ: <b>50,000 تومان</b>')
+            && ($payload['parse_mode'] ?? null) === 'HTML'
+            && count($buttons) === 3
+            && ($copy['text'] ?? null) === '📋 کپی شماره کارت'
+            && ($copy['style'] ?? null) === 'success'
+            && ($copy['copy_text']['text'] ?? null) === '6037991234567890'
+            && ! isset($copy['callback_data'])
+            && ($buttons[1][0]['callback_data'] ?? null) === 'sales:wallet:topup:back:'.$id
+            && ($buttons[2][0]['callback_data'] ?? null) === 'sales:wallet:topup:cancel'
+            && ! str_contains(json_encode($buttons, JSON_THROW_ON_ERROR), '📋 کپی مبلغ');
+    };
+
+    $bot->hearCallbackQueryData('sales:wallet:topup:receipt:'.$id)->reply()
+        ->assertCalled('editMessageText')
+        ->assertRaw($checkReceipt, index: 1);
+    $bot->hearCallbackQueryData('sales:wallet:topup:back:'.$id)->reply()
+        ->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('sales:wallet:topup:receipt:'.$id)->reply()
+        ->assertRaw($checkReceipt, index: 1);
+
+    expect(DB::table('billing_topups')->count())->toBe(1)
+        ->and(DB::table('billing_topups')->value('status'))->toBe('pending')
+        ->and(DB::table('billing_topups')->value('amount_rials'))->toBe(500000)
+        ->and(DB::table('billing_topup_photos')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe(0)
+        ->and(DB::table('billing_postings')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
 it('keeps top-up input distinct from purchase payment and does not accept foreign or expired photo', function (): void {
     $buyer = User::factory()->create();
     $stranger = User::factory()->create();
