@@ -149,9 +149,14 @@ it('prioritizes service status ahead of connection details without changing cont
     $html = $page->html();
     $statusPosition = strpos($html, 'aria-label="وضعیت و مصرف سرویس"');
     $connectionPosition = strpos($html, 'aria-label="اطلاعات اتصال"');
+    $namePosition = strpos($html, 'aria-label="نام مشتری"');
+    $managementPosition = strpos($html, 'aria-label="مدیریت سرویس"');
     expect($statusPosition)->not->toBeFalse()
         ->and($connectionPosition)->not->toBeFalse()
-        ->and($statusPosition)->toBeLessThan($connectionPosition);
+        ->and($namePosition)->not->toBeFalse()
+        ->and($statusPosition)->toBeLessThan($connectionPosition)
+        ->and($connectionPosition)->toBeLessThan($namePosition)
+        ->and($managementPosition === false || $managementPosition < $namePosition)->toBeTrue();
     Http::assertNothingSent();
 
     $page->call('refreshServiceUsage')
