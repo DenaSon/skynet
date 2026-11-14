@@ -86,7 +86,7 @@
                                 <div class="flex flex-wrap justify-between gap-3"><span class="text-[#536C76]">شماره سفارش</span><span dir="ltr" class="font-bold text-[#1B2935]">#{{ $createdOrder->id }}</span></div>
                                 <div class="flex flex-wrap justify-between gap-3"><span class="text-[#536C76]">پلن</span><span class="font-bold text-[#1B2935]">{{ $createdOrder->productName }}</span></div>
                                 @if ($createdCustomerName !== null)
-                                    <div class="flex flex-wrap justify-between gap-3"><span class="text-[#536C76]">نام کاربری مشتری</span><span class="break-all font-bold text-[#1B2935]" dir="auto">{{ $createdCustomerName }}</span></div>
+                                    <div class="flex flex-wrap justify-between gap-3"><span class="text-[#536C76]">نام مشتری</span><span class="break-all font-bold text-[#1B2935]" dir="auto">{{ $createdCustomerName }}</span></div>
                                 @endif
                                 <div class="flex flex-wrap justify-between gap-3 border-t border-[#E7ECEF] pt-3"><span class="text-[#536C76]">مبلغ سفارش</span><span class="font-extrabold text-[#087F73]" dir="ltr">{{ number_format(intdiv($createdOrder->totalPriceRials, 10)) }}{{ $createdOrder->totalPriceRials % 10 === 0 ? '' : '.'.($createdOrder->totalPriceRials % 10) }} تومان</span></div>
                             </div>
