@@ -279,7 +279,7 @@ it('registers exactly one pending reseller order with immutable price and custom
         ->call('selectPlan', $plan)
         ->call('previewQuote')
         ->assertSee('65,000.2')
-        ->assertSee('نام کاربری مشتری')
+        ->assertSee('نام مشتری')
         ->set('customerUsername', 'customer_01')
         ->call('confirmOrder')
         ->assertSee('سفارش شما ثبت شد')
