@@ -139,16 +139,16 @@
                                         <p class="mt-1 mb-4 text-xs leading-6 text-[#536C76]">حجم، مدت و قیمت مشخص؛ مناسب خرید سریع.</p>
                                         <div class="grid grid-cols-1 justify-items-center gap-3 sm:grid-cols-2 sm:gap-4">
                                             @foreach ($catalogPresets as $item)
-                                    <article wire:key="live-plan-{{ $item->plan->id }}" data-tone="{{ ['teal', 'blue', 'sand'][$loop->index % 3] }}" class="dg-card dg-plan-card flex flex-col p-4 sm:p-5">
-                                        <h2 class="break-words text-base font-extrabold text-[#1B2935]">{{ $item->plan->name }}</h2>
-                                        <p class="mt-2 text-sm font-extrabold leading-7 text-[#354C58]">
-                                            {{ $item->plan->durationDays }} روز · {{ $item->plan->trafficGb === null ? 'حجم نامحدود' : number_format($item->plan->trafficGb).' گیگابایت' }}
-                                        </p>
-                                        <p class="dg-stat mt-4 text-[#087F73]" dir="ltr">{{ number_format(intdiv($item->quote->totalPriceRials, 10)) }}{{ $item->quote->totalPriceRials % 10 === 0 ? '' : '.'.($item->quote->totalPriceRials % 10) }} <span class="text-xs font-medium text-[#536C76]">تومان</span></p>
-                                        <p class="mt-1 text-xs text-[#536C76]">با تخفیف نمایندگی {{ $item->quote->discountPercent }}٪</p>
-                                        <button type="button" wire:click="selectPlan({{ $item->plan->id }})" wire:target="selectPlan" wire:loading.attr="disabled" class="dg-btn-secondary mt-4 w-full">انتخاب پلن<span wire:loading.delay wire:target="selectPlan" role="status" class="text-xs font-semibold">در حال انتخاب…</span></button>
-                                    </article>
-                                @endforeach
+                                            <article wire:key="live-plan-{{ $item->plan->id }}" data-tone="{{ ['teal', 'blue', 'sand'][$loop->index % 3] }}" class="dg-card dg-plan-card flex flex-col p-4 sm:p-5">
+                                                <h2 class="break-words text-base font-extrabold text-[#1B2935]">{{ $item->plan->name }}</h2>
+                                                <p class="mt-2 text-sm font-extrabold leading-7 text-[#354C58]">
+                                                    {{ $item->plan->durationDays }} روز · {{ $item->plan->trafficGb === null ? 'حجم نامحدود' : number_format($item->plan->trafficGb).' گیگابایت' }}
+                                                </p>
+                                                <p class="dg-stat mt-4 text-[#087F73]" dir="ltr">{{ number_format(intdiv($item->quote->totalPriceRials, 10)) }}{{ $item->quote->totalPriceRials % 10 === 0 ? '' : '.'.($item->quote->totalPriceRials % 10) }} <span class="text-xs font-medium text-[#536C76]">تومان</span></p>
+                                                <p class="mt-1 text-xs text-[#536C76]">با تخفیف نمایندگی {{ $item->quote->discountPercent }}٪</p>
+                                                <button type="button" wire:click="selectPlan({{ $item->plan->id }})" wire:target="selectPlan" wire:loading.attr="disabled" class="dg-btn-secondary mt-4 w-full">انتخاب پلن<span wire:loading.delay wire:target="selectPlan" role="status" class="text-xs font-semibold">در حال انتخاب…</span></button>
+                                            </article>
+                                            @endforeach
                                         </div>
                                     </section>
                                 @endif
@@ -158,14 +158,14 @@
                                         <p class="mt-1 mb-4 text-xs leading-6 text-[#536C76]">حجم و مدت را متناسب با نیاز مشتری تنظیم کنید.</p>
                                         <div class="grid grid-cols-1 justify-items-center gap-3 sm:grid-cols-2 sm:gap-4">
                                             @foreach ($catalogBuilders as $builder)
-                                    <article wire:key="live-builder-{{ $builder->id }}" data-tone="builder" class="dg-card dg-plan-card flex flex-col p-4 sm:p-5">
-                                        <h2 class="break-words text-base font-extrabold text-[#1B2935]">{{ $builder->name }}</h2>
-                                        <p class="mt-2 text-sm font-extrabold leading-7 text-[#354C58]">مدت دلخواه: {{ $builder->minDays }} تا {{ $builder->maxDays }} روز</p>
-                                        <p class="mt-1 text-sm font-bold leading-7 text-[#354C58]">{{ $builder->kind === 'time' ? 'حجم نامحدود' : 'حجم دلخواه: '.number_format($builder->minGb).' تا '.number_format($builder->maxGb).' گیگابایت' }}</p>
-                                        <p class="mt-5 text-sm font-semibold text-[#087F73]">قیمت بر اساس انتخاب شما</p>
-                                        <button type="button" wire:click="selectPlan({{ $builder->id }})" wire:target="selectPlan" wire:loading.attr="disabled" class="dg-btn-secondary mt-auto w-full">تنظیم پلن<span wire:loading.delay wire:target="selectPlan" role="status" class="text-xs font-semibold">در حال انتخاب…</span></button>
-                                    </article>
-                                @endforeach
+                                            <article wire:key="live-builder-{{ $builder->id }}" data-tone="builder" class="dg-card dg-plan-card flex flex-col p-4 sm:p-5">
+                                                <h2 class="break-words text-base font-extrabold text-[#1B2935]">{{ $builder->name }}</h2>
+                                                <p class="mt-2 text-sm font-extrabold leading-7 text-[#354C58]">مدت دلخواه: {{ $builder->minDays }} تا {{ $builder->maxDays }} روز</p>
+                                                <p class="mt-1 text-sm font-bold leading-7 text-[#354C58]">{{ $builder->kind === 'time' ? 'حجم نامحدود' : 'حجم دلخواه: '.number_format($builder->minGb).' تا '.number_format($builder->maxGb).' گیگابایت' }}</p>
+                                                <p class="mt-5 text-sm font-semibold text-[#087F73]">قیمت بر اساس انتخاب شما</p>
+                                                <button type="button" wire:click="selectPlan({{ $builder->id }})" wire:target="selectPlan" wire:loading.attr="disabled" class="dg-btn-secondary mt-auto w-full">تنظیم پلن<span wire:loading.delay wire:target="selectPlan" role="status" class="text-xs font-semibold">در حال انتخاب…</span></button>
+                                            </article>
+                                            @endforeach
                                         </div>
                                     </section>
                                 @endif
