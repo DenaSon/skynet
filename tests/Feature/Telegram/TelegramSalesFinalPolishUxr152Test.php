@@ -122,10 +122,15 @@ it('gives active Sales Panel holders their unique home builder action without an
         $body = polish152Payload($request);
         $markup = json_encode($body['reply_markup'], JSON_THROW_ON_ERROR);
 
+        $buttons = $body['reply_markup']['inline_keyboard'] ?? [];
+
         return str_contains($body['text'], 'نوع حساب: <b>🧩 پنل فروش</b>')
             && str_contains($body['text'], 'اعتبار من: <b>0 تومان</b>')
             && str_contains($markup, 'menu:builder')
-            && str_contains($markup, 'sales:wallet');
+            && str_contains($markup, 'sales:wallet')
+            && ($buttons[3][0]['callback_data'] ?? null) === 'sales:help:apps'
+            && ($buttons[3][1]['callback_data'] ?? null) === 'sales:report:30'
+            && ($buttons[4][0]['callback_data'] ?? null) === 'menu:plan-catalog';
     }, index: 1);
     $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(static function (Request $request): bool {
         $body = polish152Payload($request);
