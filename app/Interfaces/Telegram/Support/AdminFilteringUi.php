@@ -78,7 +78,7 @@ final readonly class AdminFilteringUi
             ->addRow(InlineKeyboardButton::make('🚨 هشدارها و تاریخچه', callback_data: 'flt:history:1'))
             ->addRow(
                 InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'flt:home'),
-                InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'),
+                InlineKeyboardButton::make('◀️ کنترل پنل', callback_data: 'menu:admin:control'),
             );
         $this->render($bot, $rich, $text, $keyboard);
     }
