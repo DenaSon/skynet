@@ -32,22 +32,22 @@
             <h2 class="dg-heading mb-5 mt-8">نمای کلی</h2>
             <div class="grid grid-cols-1 gap-3 sm:grid-cols-3 md:gap-5">
                 <section class="dg-card p-5 md:p-7">
-                    <p class="text-xs font-semibold text-[#71818B]">اعتبار قابل استفاده</p>
+                    <p class="text-xs font-semibold text-[#536C76]">اعتبار قابل استفاده</p>
                     <p class="dg-stat mt-3" dir="ltr">۲٬۵۰۰٬۰۰۰ <span class="text-xs font-normal text-[#687987]">تومان</span></p>
                     <button type="button" class="dg-btn-secondary mt-4 w-full"
                         x-on:click="demoSection = 'credit'">جزئیات اعتبار ←</button>
                 </section>
                 <section class="dg-card p-5 md:p-7">
-                    <p class="text-xs font-semibold text-[#71818B]">سرویس‌های ثبت‌شده</p>
+                    <p class="text-xs font-semibold text-[#536C76]">سرویس‌های ثبت‌شده</p>
                     <p class="dg-stat mt-3">۱۸</p>
-                    <p class="mt-1 text-xs text-[#71818B]">فعال در سوابق: ۱۵</p>
+                    <p class="mt-1 text-xs text-[#536C76]">فعال در سوابق: ۱۵</p>
                     <button type="button" class="dg-btn-secondary mt-4 w-full"
                         x-on:click="demoSection = 'services'">فهرست سرویس‌ها ←</button>
                 </section>
                 <section class="dg-card p-5 md:p-7">
-                    <p class="text-xs font-semibold text-[#71818B]">فروش تسویه‌شده · ۳۰ روز اخیر</p>
+                    <p class="text-xs font-semibold text-[#536C76]">فروش تسویه‌شده · ۳۰ روز اخیر</p>
                     <p class="dg-stat mt-3" dir="ltr">۹٬۲۵۰٬۰۰۰ <span class="text-xs font-normal text-[#687987]">تومان</span></p>
-                    <p class="mt-1 text-xs text-[#71818B]">۳۶ تراکنش تسویه‌شده</p>
+                    <p class="mt-1 text-xs text-[#536C76]">۳۶ تراکنش تسویه‌شده</p>
                     <button type="button" class="dg-btn-secondary mt-4 w-full"
                         x-on:click="demoSection = 'reports'">گزارش فروش ←</button>
                 </section>
@@ -57,7 +57,7 @@
         <section x-cloak x-show="demoSection === 'services'" aria-label="سرویس‌های نمونه">
             <div class="mb-6">
                 <h1 class="dg-heading">سرویس‌های من</h1>
-                <p class="mt-2 text-sm text-[#71818B]">فهرست سرویس‌ها</p>
+                <p class="mt-2 text-sm text-[#536C76]">فهرست سرویس‌ها</p>
             </div>
             <div class="mb-5 grid grid-cols-2 gap-3">
                 <section class="dg-card flex min-h-32 flex-col items-center justify-between gap-3 p-4 text-center">
@@ -79,7 +79,7 @@
                         <div class="flex flex-wrap items-start justify-between gap-3">
                             <div class="min-w-0">
                                 <h2 class="break-words text-base font-extrabold text-[#1B2935]">{{ $customer }}</h2>
-                                <p class="mt-1 break-words text-xs leading-6 text-[#71818B]">سرویس اشتراک · {{ $duration }} · {{ $traffic }}</p>
+                                <p class="mt-1 break-words text-xs leading-6 text-[#536C76]">سرویس اشتراک · {{ $duration }} · {{ $traffic }}</p>
                             </div>
                             <span class="dg-status" data-tone="{{ $tone }}">{{ $status }}</span>
                         </div>
@@ -91,7 +91,7 @@
         <section x-cloak x-show="demoSection === 'credit'" aria-label="اعتبار نمونه">
             <div class="mb-6">
                 <h1 class="dg-heading">اعتبار من</h1>
-                <p class="mt-2 text-sm text-[#71818B]">موجودی و آخرین درخواست‌های شارژ</p>
+                <p class="mt-2 text-sm text-[#536C76]">موجودی و آخرین درخواست‌های شارژ</p>
             </div>
             <section class="dg-card-accent bg-gradient-to-bl from-[#E7F8F3] to-white p-7 md:p-9">
                 <p class="text-sm font-semibold text-[#087F73]">اعتبار قابل استفاده</p>
@@ -153,7 +153,7 @@
             <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <h1 class="dg-heading">پلن‌های نمایندگی</h1>
-                    <p class="mt-2 text-sm leading-7 text-[#71818B]">تعرفه‌های به‌روز نمایندگی</p>
+                    <p class="mt-2 text-sm leading-7 text-[#536C76]">تعرفه‌های به‌روز نمایندگی</p>
                 </div>
                 <a href="{{ route('denagate-live.demo.preview', ['section' => 'shop']) }}"
                     class="dg-btn-secondary inline-flex min-h-11 items-center justify-center px-4 py-2 text-xs">به‌روزرسانی قیمت‌ها</a>
@@ -162,14 +162,16 @@
             @if (count($plans) === 0)
                 <section class="dg-empty">در حال حاضر پلنی برای نمایش موجود نیست.</section>
             @else
+                <h2 class="text-lg font-extrabold text-[#1B2935]">📦 پلن‌های آماده</h2>
+                <p class="mt-1 mb-4 text-xs leading-6 text-[#536C76]">تعرفه‌های منتشرشده نمایندگی</p>
                 <div class="grid grid-cols-1 justify-items-center gap-3 sm:grid-cols-2 sm:gap-4">
                     @foreach ($plans as $plan)
                         <article class="dg-card dg-plan-card flex flex-col p-4 sm:p-5" data-tone="{{ ['teal', 'blue', 'sand'][$loop->index % 3] }}">
                             <h2 class="break-words text-base font-extrabold text-[#1B2935]">{{ $plan['name'] }}</h2>
                             <p class="mt-2 text-sm font-extrabold leading-7 text-[#354C58]">{{ number_format($plan['durationDays']) }} روز · {{ $plan['trafficGb'] === null ? 'حجم نامحدود' : number_format($plan['trafficGb']).' گیگابایت' }}</p>
-                            <p class="dg-stat mt-4 text-[#087F73]" dir="ltr">{{ $toman($plan['resellerRials']) }} <span class="text-xs font-medium text-[#71818B]">تومان</span></p>
-                            <p class="mt-1 text-xs text-[#71818B]">با تخفیف نمایندگی {{ $plan['discountPercent'] }}٪</p>
-                            <div class="mt-4 flex items-center justify-between gap-3 border-t border-[#E7ECEF] pt-3 text-xs text-[#71818B]">
+                            <p class="dg-stat mt-4 text-[#087F73]" dir="ltr">{{ $toman($plan['resellerRials']) }} <span class="text-xs font-medium text-[#536C76]">تومان</span></p>
+                            <p class="mt-1 text-xs text-[#536C76]">با تخفیف نمایندگی {{ $plan['discountPercent'] }}٪</p>
+                            <div class="mt-4 flex items-center justify-between gap-3 border-t border-[#E7ECEF] pt-3 text-xs text-[#536C76]">
                                 <span>قیمت عمومی</span>
                                 <span dir="ltr" class="font-semibold text-[#1B2935]">{{ $toman($plan['publicRials']) }} تومان</span>
                             </div>
@@ -198,7 +200,7 @@
                         x-model.number="demoGb" x-bind:aria-valuetext="demoGb + ' گیگابایت'"
                         aria-describedby="demo-builder-gb-hint"
                         class="mt-4 h-11 w-full cursor-pointer accent-[#14B8A6] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]" />
-                    <p id="demo-builder-gb-hint" class="mt-1 flex justify-between gap-3 text-xs text-[#71818B]">
+                    <p id="demo-builder-gb-hint" class="mt-1 flex justify-between gap-3 text-xs text-[#536C76]">
                         <span>۱ گیگ</span><span>۵۰۰ گیگ</span>
                     </p>
                     <div class="mt-5 flex flex-wrap gap-2" role="group" aria-label="حجم‌های آماده نمونه">
@@ -213,7 +215,7 @@
                         <button type="button" x-on:click="demoGb = Math.max(1, demoGb - 1)"
                             x-bind:disabled="demoGb <= 1" aria-label="کاهش یک گیگابایت"
                             class="min-h-11 rounded-xl border border-[#E7ECEF] bg-white px-5 text-xl font-bold text-[#087F73] disabled:opacity-40">−</button>
-                        <span class="text-xs font-medium text-[#71818B]">تنظیم دقیق حجم</span>
+                        <span class="text-xs font-medium text-[#536C76]">تنظیم دقیق حجم</span>
                         <button type="button" x-on:click="demoGb = Math.min(500, demoGb + 1)"
                             x-bind:disabled="demoGb >= 500" aria-label="افزایش یک گیگابایت"
                             class="min-h-11 rounded-xl border border-[#E7ECEF] bg-white px-5 text-xl font-bold text-[#087F73] disabled:opacity-40">+</button>
@@ -234,7 +236,7 @@
                         x-model.number="demoDays" x-bind:aria-valuetext="demoDays + ' روز'"
                         aria-describedby="demo-builder-days-hint"
                         class="mt-4 h-11 w-full cursor-pointer accent-[#14B8A6] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]" />
-                    <p id="demo-builder-days-hint" class="mt-1 flex justify-between gap-3 text-xs text-[#71818B]">
+                    <p id="demo-builder-days-hint" class="mt-1 flex justify-between gap-3 text-xs text-[#536C76]">
                         <span>۷ روز</span><span>۱۸۰ روز</span>
                     </p>
                     <div class="mt-5 flex flex-wrap gap-2" role="group" aria-label="مدت‌های آماده نمونه">
@@ -249,7 +251,7 @@
                         <button type="button" x-on:click="demoDays = Math.max(7, demoDays - 1)"
                             x-bind:disabled="demoDays <= 7" aria-label="کاهش یک روز"
                             class="min-h-11 rounded-xl border border-[#E7ECEF] bg-white px-5 text-xl font-bold text-[#087F73] disabled:opacity-40">−</button>
-                        <span class="text-xs font-medium text-[#71818B]">تنظیم دقیق مدت</span>
+                        <span class="text-xs font-medium text-[#536C76]">تنظیم دقیق مدت</span>
                         <button type="button" x-on:click="demoDays = Math.min(180, demoDays + 1)"
                             x-bind:disabled="demoDays >= 180" aria-label="افزایش یک روز"
                             class="min-h-11 rounded-xl border border-[#E7ECEF] bg-white px-5 text-xl font-bold text-[#087F73] disabled:opacity-40">+</button>
@@ -264,7 +266,7 @@
 
                 <div x-cloak x-show="demoBuilderStep === 'review'">
                     <div class="mt-6 rounded-2xl bg-[#F6F8FA] p-4">
-                        <p class="text-xs font-semibold text-[#71818B]">مشخصات انتخاب‌شده · نمونه</p>
+                        <p class="text-xs font-semibold text-[#536C76]">مشخصات انتخاب‌شده · نمونه</p>
                         <p class="mt-2 text-base font-extrabold text-[#1B2935]">
                             <span x-text="demoGb + ' گیگابایت'"></span> · <span x-text="demoDays + ' روز'"></span>
                         </p>
@@ -277,7 +279,7 @@
                         </div>
                     </div>
                 </div>
-                <p class="mt-5 text-xs leading-7 text-[#71818B]">محدوده‌های این نمونه فقط برای آشنایی با پلن‌ساز هستند؛ محدوده و قیمت واقعی به پلن منتشرشده بستگی دارد.</p>
+                <p class="mt-5 text-xs leading-7 text-[#536C76]">محدوده‌های این نمونه فقط برای آشنایی با پلن‌ساز هستند؛ محدوده و قیمت واقعی به پلن منتشرشده بستگی دارد.</p>
             </section>
         </section>
 
