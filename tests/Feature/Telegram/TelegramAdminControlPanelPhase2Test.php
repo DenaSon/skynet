@@ -51,6 +51,25 @@ function adminNav2Bot(User $user, int $telegramId): Nutgram
     return $bot;
 }
 
+it('shows green Denaban first in the root Inline home while retaining reports and control panel', function (): void {
+    $root = User::factory()->create();
+    $root->syncRoles(['super-admin']);
+    $bot = adminNav2Bot($root, 994801);
+
+    $bot->hearCallbackQueryData('menu:admin')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $buttons = adminNav2Payload($request)['reply_markup']['inline_keyboard'] ?? [];
+
+            return ($buttons[0][0]['callback_data'] ?? null) === 'denaban:show'
+                && ($buttons[0][0]['style'] ?? null) === 'success'
+                && ($buttons[0][1]['callback_data'] ?? null) === 'stats:overview'
+                && ($buttons[1][0]['callback_data'] ?? null) === 'menu:admin:users'
+                && ($buttons[1][1]['callback_data'] ?? null) === 'menu:admin:finance'
+                && ($buttons[2][0]['callback_data'] ?? null) === 'menu:admin:control';
+        }, index: 1);
+    Http::assertNothingSent();
+});
+
 it('returns from root catalog, roles and servers to the control panel without removing existing actions', function (): void {
     $root = User::factory()->create();
     $root->syncRoles(['super-admin']);
