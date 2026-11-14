@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
+use SergiX44\Nutgram\Telegram\Types\Keyboard\CopyTextButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 
@@ -209,8 +210,8 @@ final readonly class WalletTopupUi
         $pending = DB::table('billing_topups as topups')
             ->join('billing_wallets as wallets', 'wallets.id', '=', 'topups.wallet_id')
             ->where('topups.id', (int) $topupId)->where('wallets.user_id', $userId)
-            ->where('topups.status', 'pending')->exists();
-        if (! $pending) {
+            ->where('topups.status', 'pending')->first(['topups.amount_rials']);
+        if ($pending === null) {
             Cache::forget($this->key($userId));
             $this->notice($bot, 'این درخواست دیگر منتظر رسید نیست. وضعیت آن را در اعتبار من بررسی کنید.');
 
@@ -219,11 +220,18 @@ final readonly class WalletTopupUi
         Cache::put($this->key($userId), [
             'step' => 'photo', 'topup_id' => (int) $topupId, 'amount_toman' => (int) $state['amount_toman'],
         ], now()->addMinutes(10));
+        $keyboard = InlineKeyboardMarkup::make();
+        $card = app(ManualPaymentUi::class)->cardNumber();
+        if ($card !== null) {
+            $keyboard->addRow(InlineKeyboardButton::make(
+                '📋 کپی شماره کارت', copy_text: CopyTextButton::make($card), style: ButtonStyle::SUCCESS,
+            ));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('◀️ بازگشت به پرداخت', callback_data: 'sales:wallet:topup:back:'.$topupId))
+            ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'sales:wallet:topup:cancel'));
         $this->render($bot,
-            "<b>📷 ارسال رسید شارژ #{$topupId}</b>\n\nلطفاً یک عکس معمولی از رسید واریز را همین‌جا بفرستید.\n<blockquote>رسید برای بررسی مدیر ارسال می‌شود؛ تا زمان تأیید، اعتبار تغییری نمی‌کند.</blockquote>",
-            InlineKeyboardMarkup::make()
-                ->addRow(InlineKeyboardButton::make('◀️ بازگشت به پرداخت', callback_data: 'sales:wallet:topup:back:'.$topupId))
-                ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'sales:wallet:topup:cancel')),
+            "<b>📷 ارسال رسید شارژ #{$topupId}</b>\n\nمبلغ: <b>".TelegramUi::toman((int) $pending->amount_rials)." تومان</b>\n\nلطفاً یک عکس معمولی از رسید واریز را همین‌جا بفرستید.\n<blockquote>رسید برای بررسی مدیر ارسال می‌شود؛ تا زمان تأیید، اعتبار تغییری نمی‌کند.</blockquote>",
+            $keyboard,
         );
     }
 
