@@ -173,11 +173,28 @@ it('shows reseller-only builder guidance under Sales support without exposing it
 
             return str_contains(json_encode($body['reply_markup'], JSON_THROW_ON_ERROR), 'sales:help:builder');
         }, index: 1);
+    $bot->hearCallbackQueryData('sales:help:apps')->reply()
+        ->assertRaw(static function (Request $request): bool {
+            $buttons = polish152Payload($request)['reply_markup']['inline_keyboard'] ?? [];
+
+            return ($buttons[0][0]['callback_data'] ?? null) === 'sales:help:builder';
+        }, index: 1);
     $bot->hearCallbackQueryData('sales:help:builder')->reply()
         ->assertRaw(static function (Request $request): bool {
             $body = polish152Payload($request);
+            $html = polish152RichHtml($request);
 
-            return str_contains(polish152RichHtml($request), 'آموزش پلن سفارشی')
+            return str_contains($html, 'آموزش پلن‌ساز')
+                && str_contains($html, 'ابتدا حجم')
+                && str_contains($html, 'ادامه خرید')
+                && str_contains($html, 'برای پلن زمانی فقط مدت')
+                && str_contains(json_encode($body['reply_markup'], JSON_THROW_ON_ERROR), 'menu:builder');
+        }, index: 1);
+    $bot->hearCallbackQueryData('sales:help:simple:builder')->reply()
+        ->assertRaw(static function (Request $request): bool {
+            $body = polish152Payload($request);
+
+            return str_contains((string) ($body['text'] ?? ''), 'آموزش پلن‌ساز')
                 && str_contains(json_encode($body['reply_markup'], JSON_THROW_ON_ERROR), 'menu:builder');
         }, index: 1);
     $reseller->syncRoles(['member']);
