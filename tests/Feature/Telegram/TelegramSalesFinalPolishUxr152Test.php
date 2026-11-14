@@ -132,6 +132,13 @@ it('gives active Sales Panel holders their unique home builder action without an
             && ($buttons[3][1]['callback_data'] ?? null) === 'sales:report:30'
             && ($buttons[4][0]['callback_data'] ?? null) === 'menu:plan-catalog';
     }, index: 1);
+    $bot->hearCallbackQueryData('sales:help:simple:apps')->reply()
+        ->assertRaw(static function (Request $request): bool {
+            $data = polish152Payload($request);
+
+            return str_contains((string) ($data['text'] ?? ''), 'راهنمای پلن‌ساز یا نصب و اتصال')
+                && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:help:builder');
+        }, index: 1);
     $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(static function (Request $request): bool {
         $body = polish152Payload($request);
         $markup = json_encode($body['reply_markup'], JSON_THROW_ON_ERROR);
