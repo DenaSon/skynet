@@ -102,6 +102,10 @@ final readonly class SalesHomeUi
         $customWelcome = app(SalesWelcomeMessage::class)->customizedForActor($actor);
 
         $hasWallet = $isReseller || in_array('member', $actor->roles, true);
+        // Use the existing eligibility/status policy for both Home Rich and Reply keyboard.
+        // No new trial admission path or separate eligibility cache.
+        $trialVisible = $actor->roles === ['member']
+            && app(SalesTrialUi::class)->visible($actor, (int) $telegramId);
         $walletLine = '';
         if ($hasWallet) {
             try {
@@ -145,6 +149,12 @@ final readonly class SalesHomeUi
                 InlineKeyboardButton::make(ReplyMenuLabels::SALES_REWARD, callback_data: 'sales:invite', style: ButtonStyle::PRIMARY),
                 InlineKeyboardButton::make('💬 پشتیبانی', callback_data: 'sales:support'),
             );
+            if ($trialVisible) {
+                $keyboard->addRow(
+                    InlineKeyboardButton::make(ReplyMenuLabels::SALES_TRIAL, callback_data: 'sales:trial', style: ButtonStyle::SUCCESS),
+                    InlineKeyboardButton::make(ReplyMenuLabels::SALES_TUTORIAL, callback_data: 'sales:help:apps'),
+                );
+            }
         }
         if ($panelRequestLabel !== null) {
             $keyboard->addRow(InlineKeyboardButton::make(
@@ -208,7 +218,7 @@ final readonly class SalesHomeUi
                     rich_message: new InputRichMessage(html: $richHtml, is_rtl: true),
                     reply_markup: app(ReplyMenuRenderer::class)->salesKeyboard(
                         $actor,
-                        app(SalesTrialUi::class)->visible($actor, (int) $telegramId),
+                        $trialVisible,
                         $panelRequestLabel === ReplyMenuLabels::SALES_PANEL_STATUS,
                     ),
                 );
@@ -223,7 +233,7 @@ final readonly class SalesHomeUi
                     parse_mode: 'HTML',
                     reply_markup: app(ReplyMenuRenderer::class)->salesKeyboard(
                         $actor,
-                        app(SalesTrialUi::class)->visible($actor, (int) $telegramId),
+                        $trialVisible,
                         $panelRequestLabel === ReplyMenuLabels::SALES_PANEL_STATUS,
                     ),
                 );

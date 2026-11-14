@@ -399,7 +399,7 @@ function trialUiPayload(Request $request): array
     return $data;
 }
 
-it('puts trial and tutorial in the persistent keyboard and removes their home and account inline entries', function (): void {
+it('shows eligible trial and learning shortcuts in member Home Rich and persistent keyboard without changing account actions', function (): void {
     $this->trialMember();
     $bot = trialUiBot();
     $bot->hearText('/start')->reply()->assertRaw(function (Request $request): bool {
@@ -409,10 +409,18 @@ it('puts trial and tutorial in the persistent keyboard and removes their home an
         return $markup['is_persistent'] === true && in_array('🧪 تست رایگان', $labels, true)
             && in_array('📚 آموزش', $labels, true);
     }, index: 0)->assertRaw(function (Request $request): bool {
-        $markup = json_encode(trialUiPayload($request)['reply_markup']);
+        $html = trialUiRichHtml($request);
 
-        return ! str_contains($markup, 'sales:trial') && ! str_contains($markup, 'sales:help:apps');
+        return str_contains($html, 'data="sales:trial"')
+            && str_contains($html, 'data="sales:help:apps"')
+            && str_contains($html, 'data="sales:invite"');
     }, index: 0);
+    $bot->hearCallbackQueryData('sales:home')->reply()->assertRaw(function (Request $request): bool {
+        $keyboard = json_encode(trialUiPayload($request)['reply_markup'], JSON_THROW_ON_ERROR);
+
+        return str_contains($keyboard, 'sales:trial')
+            && str_contains($keyboard, 'sales:help:apps');
+    }, index: 1);
     $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(function (Request $request): bool {
         return ! str_contains(json_encode(trialUiPayload($request)['reply_markup']), 'sales:trial');
     }, index: 1);
@@ -429,6 +437,8 @@ it('keeps tutorial available to resellers without granting a trial through forge
         $labels = array_column(array_merge(...trialUiPayload($request)['reply_markup']['keyboard']), 'text');
 
         return in_array('📚 آموزش', $labels, true) && ! in_array('🧪 تست رایگان', $labels, true);
+    }, index: 0)->assertRaw(static function (Request $request): bool {
+        return ! str_contains(trialUiRichHtml($request), 'data="sales:trial"');
     }, index: 0);
     $bot->hearText('📚 آموزش')->reply()->assertRaw(function (Request $request): bool {
         $data = trialUiPayload($request);
