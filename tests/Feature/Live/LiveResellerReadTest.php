@@ -100,6 +100,7 @@ it('shows the real owned wallet, settled revenue, counts and customer labels wit
         ->assertDontSee((string) $foreignOrder.' · تاریخ ثبت')
         ->call('showSection', 'credit')
         ->assertSee($expectedBalance)
+        ->assertSee('پس از تأیید رسید، به همین صفحه برگردید')
         ->call('showSection', 'reports')
         ->assertSee($expectedSale)
         ->assertSee('تراکنش‌های تأییدشده')
