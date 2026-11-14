@@ -192,12 +192,12 @@ it('retains existing Sales invite copy and share controls while showing live rew
             && str_contains($html, '<table bordered striped compact>')
             && str_contains($html, '<td>دوستان دعوت‌شده</td><td><b>۱ نفر</b>')
             && str_contains($html, '<td>دعوت‌های پاداش‌دار</td><td><b>۱ نفر</b>')
-            && str_contains($html, '<td>مجموع پاداش</td><td><b>۳۰۰٬۰۰۰ ریال</b>')
+            && str_contains($html, '<td>مجموع پاداش</td><td><b>۳۰٬۰۰۰ تومان</b>')
             && str_contains($html, '<td>ظرفیت باقی‌مانده</td><td><b>۶ نفر</b>')
-            && str_contains($html, '<td>هدیه هر دعوت موفق</td><td><b>۳۰۰٬۰۰۰ ریال</b>')
+            && str_contains($html, '<td>هدیه هر دعوت موفق</td><td><b>۳۰٬۰۰۰ تومان</b>')
             && str_contains($html, '<summary>📋 چطور جایزه بگیرم؟</summary>')
             && str_contains($html, 'با معرفی موفق ۷ دوست')
-            && str_contains($html, '۲٬۱۰۰٬۰۰۰ ریال جایزه بگیری!')
+            && str_contains($html, '۲۱۰٬۰۰۰ تومان جایزه بگیری!')
             && ! str_contains($html, 'تست رایگان و خریدهای نمایندگی')
             && ($markup['inline_keyboard'][0][0]['text'] ?? null) === '📤 اشتراک‌گذاری در تلگرام'
             && str_starts_with((string) ($markup['inline_keyboard'][0][0]['url'] ?? ''), 'https://t.me/share/url?')
@@ -231,7 +231,7 @@ it('never promises a prize when referral rewards are disabled while keeping the 
         return str_contains($html, 'طرح جایزه فعلاً فعال نیست')
             && str_contains($html, '<td>مجموع پاداش</td>')
             && ! str_contains($html, 'هدیه هر دعوت موفق')
-            && ! str_contains($html, '۲٬۱۰۰٬۰۰۰ ریال')
+            && ! str_contains($html, '۲۱۰٬۰۰۰ تومان')
             && str_starts_with((string) ($keyboard['inline_keyboard'][0][0]['url'] ?? ''), 'https://t.me/share/url?')
             && isset($keyboard['inline_keyboard'][1][0]['copy_text'])
             && ($keyboard['inline_keyboard'][2][0]['callback_data'] ?? null) === 'sales:home';
@@ -257,10 +257,10 @@ it('updates the full invite prize wording from valid reward policy without chang
             : ($data['rich_message'] ?? []);
         $html = (string) ($rich['html'] ?? '');
 
-        return str_contains($html, '<td>هدیه هر دعوت موفق</td><td><b>۴۵۰٬۰۰۰ ریال</b>')
+        return str_contains($html, '<td>هدیه هر دعوت موفق</td><td><b>۴۵٬۰۰۰ تومان</b>')
             && str_contains($html, 'با معرفی موفق ۳ دوست')
-            && str_contains($html, '۱٬۳۵۰٬۰۰۰ ریال جایزه بگیری!')
-            && ! str_contains($html, '۲٬۱۰۰٬۰۰۰ ریال');
+            && str_contains($html, '۱۳۵٬۰۰۰ تومان جایزه بگیری!')
+            && ! str_contains($html, '۲۱۰٬۰۰۰ تومان');
     }, index: 1);
     Http::assertNothingSent();
 });

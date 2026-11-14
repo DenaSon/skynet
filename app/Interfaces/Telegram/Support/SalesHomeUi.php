@@ -733,18 +733,18 @@ final readonly class SalesHomeUi
         $rows = [
             ['دوستان دعوت‌شده', self::inviteNumber($invite->joinedCount).' نفر'],
             ['دعوت‌های پاداش‌دار', self::inviteNumber($invite->rewardedCount).' نفر'],
-            ['مجموع پاداش', self::inviteNumber($invite->earnedRials).' ریال'],
+            ['مجموع پاداش', TelegramUi::tomanPersian($invite->earnedRials).' تومان'],
         ];
 
         if ($rewardActive) {
             $rows[] = ['ظرفیت باقی‌مانده', self::inviteNumber($invite->remainingRewards).' نفر'];
-            $rows[] = ['هدیه هر دعوت موفق', self::inviteNumber($invite->rewardAmountRials).' ریال'];
+            $rows[] = ['هدیه هر دعوت موفق', TelegramUi::tomanPersian($invite->rewardAmountRials).' تومان'];
             $totalPrize = $invite->rewardAmountRials * $invite->rewardLimit;
             $terms = 'لینک دعوتت رو برای دوستات بفرست! 💚'
                 ."\n\n".'وقتی دوست جدیدت با لینک تو ثبت‌نام کنه و اولین خریدش با موفقیت فعال بشه، '
-                .self::inviteNumber($invite->rewardAmountRials).' ریال هدیه به اعتبارت اضافه می‌شه.'
+                .TelegramUi::tomanPersian($invite->rewardAmountRials).' تومان هدیه به اعتبارت اضافه می‌شه.'
                 ."\n\n".'🎉 با معرفی موفق '.self::inviteNumber($invite->rewardLimit)
-                .' دوست، می‌تونی تا '.self::inviteNumber($totalPrize).' ریال جایزه بگیری!';
+                .' دوست، می‌تونی تا '.TelegramUi::tomanPersian($totalPrize).' تومان جایزه بگیری!';
         } elseif ($ordinary) {
             $terms = 'لینک دعوتت رو برای دوستات بفرست! 💚'
                 ."\n\n".'طرح جایزه فعلاً فعال نیست؛ وقتی فعال بشه، شرایط دریافت هدیه همین‌جا نمایش داده می‌شه.';

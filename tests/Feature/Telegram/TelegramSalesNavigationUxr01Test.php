@@ -284,6 +284,62 @@ it('opens reward directly from the member home keyboard and old invite labels wi
     Http::assertNothingSent();
 });
 
+it('renders customer referral prizes in toman without changing configured rial rewards', function (): void {
+    config()->set('referral.rewards_enabled', true);
+    config()->set('referral.reward_tomans', 30000);
+    config()->set('referral.max_rewards_per_referrer', 7);
+    config()->set('referral.rewards_start_at', '2026-01-01T00:00:00Z');
+    $user = User::factory()->create();
+    $user->syncRoles(['member']);
+    $bot = uxr01Bot($user);
+
+    $bot->hearCallbackQueryData('sales:invite')->reply()->assertRaw(static function (Request $request): bool {
+        $html = uxr01RichHtml($request);
+
+        return str_contains($html, 'هدیه هر دعوت موفق')
+            && str_contains($html, '۳۰٬۰۰۰ تومان')
+            && str_contains($html, '۲۱۰٬۰۰۰ تومان')
+            && str_contains($html, 'مجموع پاداش')
+            && ! str_contains($html, '۳۰٬۰۰۰ ریال')
+            && ! str_contains($html, '۲۱۰٬۰۰۰ ریال');
+    }, index: 1);
+    $bot->hearCallbackQueryData('sales:invite:simple')->reply()->assertRaw(static function (Request $request): bool {
+        $message = (string) (uxr01Payload($request)['text'] ?? '');
+
+        return str_contains($message, '۳۰٬۰۰۰ تومان')
+            && str_contains($message, '۲۱۰٬۰۰۰ تومان');
+    }, index: 1);
+    expect(config('referral.reward_tomans'))->toBe(30000);
+    Http::assertNothingSent();
+});
+
+it('describes existing wallet and bank checkout options in Rich and plain help without payment side effects', function (): void {
+    $member = User::factory()->create();
+    $member->syncRoles(['member']);
+    $bot = uxr01Bot($member);
+
+    $bot->hearCallbackQueryData('sales:help:apps')->reply()->assertRaw(static function (Request $request): bool {
+        return str_contains(uxr01RichHtml($request), 'در صورت موجودی کافی با اعتبار حساب پرداخت کنید');
+    }, index: 1);
+    $bot->hearCallbackQueryData('sales:help:purchase')->reply()->assertRaw(static function (Request $request): bool {
+        $html = uxr01RichHtml($request);
+
+        return str_contains($html, 'پرداخت از اعتبار')
+            && str_contains($html, 'ارسال رسید پرداخت')
+            && str_contains($html, 'سوابق خرید');
+    }, index: 1);
+    $bot->hearCallbackQueryData('sales:help:simple:purchase')->reply()->assertRaw(static function (Request $request): bool {
+        $body = uxr01Payload($request);
+
+        return ! isset($body['rich_message'])
+            && str_contains((string) ($body['text'] ?? ''), 'پرداخت از اعتبار')
+            && str_contains((string) ($body['text'] ?? ''), 'ارسال رسید پرداخت');
+    }, index: 1);
+    expect(DB::table('sales_orders')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
 it('does not invent a referral share destination when Sales username is not valid', function (): void {
     $bot = uxr01Bot(User::factory()->create());
     foreach (['', '@bad-bot', 'https://t.me/fake', '12345', '<script>'] as $username) {
