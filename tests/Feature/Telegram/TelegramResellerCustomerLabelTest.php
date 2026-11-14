@@ -625,7 +625,7 @@ it('keeps reseller list bounded to six owned entries with stable detail callback
     Http::assertNothingSent();
 });
 
-it('leaves ordinary member service list layout and native actions unchanged', function (): void {
+it('renders ordinary member services as Rich while retaining every native detail action', function (): void {
     $member = rslUser(false);
     $order = rslOrder($member);
     $bot = rslBot($member, 977946);
@@ -634,12 +634,12 @@ it('leaves ordinary member service list layout and native actions unchanged', fu
         ->assertRaw(static function (Request $request) use ($order): bool {
             $data = FakeNutgram::getActualData($request);
             $keyboard = json_decode($data['reply_markup'], true, 512, JSON_THROW_ON_ERROR);
-            $text = (string) ($data['text'] ?? '');
+            $html = rslRichHtml($request);
 
-            return str_contains($text, '<b>📋 سرویس‌های من</b>')
-                && str_contains($text, '🔹 <b>1. پلن نمایندگی</b>')
-                && ! str_contains($text, '👥 سرویس‌های مشتریان')
-                && ! str_contains($text, '📋 وضعیت ثبت‌شده:')
+            return str_contains($html, '<h4>📋 سرویس‌های من</h4>')
+                && str_contains($html, '<b>1. پلن نمایندگی</b>')
+                && str_contains($html, 'وضعیت ثبت‌شده:')
+                && ! str_contains($html, '👥 سرویس‌های مشتریان')
                 && ($keyboard['inline_keyboard'][0][0]['callback_data'] ?? null) === "sales:subs:view:{$order}:0"
                 && ! str_contains(json_encode($keyboard, JSON_THROW_ON_ERROR), 'sales:subs:search:start');
         }, index: 1);

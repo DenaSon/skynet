@@ -124,6 +124,7 @@ it('adds owner-only Sales subscription navigation with an empty state and no pro
     $orderId = sb06Order($buyer);
     sb06Order(User::factory()->create());
 
+    // An unpaid order is not a registered service; the empty state stays plain.
     $bot->hearText('/subscriptions')->reply()->assertCalled('sendMessage');
     $bot->hearCallbackQueryData('sales:subs:list:0')->reply()->assertCalled('editMessageText');
     $bot->hearCallbackQueryData('sales:subs:view:'.$orderId.':0')->reply()
@@ -229,11 +230,21 @@ it('shows one plan-named member entry while retaining private link access inside
             $data = FakeNutgram::getActualData($request);
             $keyboard = json_decode($data['reply_markup'], true, 512, JSON_THROW_ON_ERROR);
 
+            $html = sb06RichHtml($request);
+
             return ($keyboard['inline_keyboard'][0][0]['text'] ?? null) === '📦 اشتراک آزمایشی · 1'
                 && ($keyboard['inline_keyboard'][0][0]['callback_data'] ?? null) === "sales:subs:view:{$order}:0"
                 && count($keyboard['inline_keyboard'][0]) === 1
+                && str_contains($html, '<h4>📋 سرویس‌های من</h4>')
+                && str_contains($html, 'فعال در سوابق داخلی')
+                && str_contains($html, 'وضعیت ثبت‌شده')
+                && str_contains($html, 'وضعیت لحظه‌ای')
+                && str_contains($html, 'اشتراک آزمایشی')
+                && ! str_contains($html, 'private-sb06-credential')
                 && ! str_contains(json_encode($keyboard, JSON_THROW_ON_ERROR), 'sales:subs:link:');
         }, index: 1);
+    // Listing must never request live provider usage or private link credentials.
+    Http::assertNothingSent();
 
     $bot->hearCallbackQueryData("sales:subs:view:{$order}:0")->reply()
         ->assertRaw(static function (NutgramRequest $request) use ($order): bool {
