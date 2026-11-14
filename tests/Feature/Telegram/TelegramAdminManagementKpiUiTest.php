@@ -117,7 +117,7 @@ function kpiUiSettlement(User $buyer, string $method, string $localTime, int $am
     }
 }
 
-it('adds a root-only KPI entry under Denaban without replacing existing stats or actions', function (): void {
+it('keeps root KPI accessible from Control Panel without replacing stats or other actions', function (): void {
     kpiUiRoot();
     $ordinary = User::factory()->admin()->create();
     TelegramAccount::query()->create(['user_id' => $ordinary->id, 'telegram_user_id' => 991903]);
@@ -127,13 +127,18 @@ it('adds a root-only KPI entry under Denaban without replacing existing stats or
         ->assertRaw(static function (NutgramRequest $request): bool {
             $buttons = kpiUiPayload($request)['reply_markup']['inline_keyboard'];
 
-            return ($buttons[0][0]['callback_data'] ?? null) === 'kpi:period:day'
-                && ($buttons[0][0]['text'] ?? null) === '🧭 داشبورد'
+            return ($buttons[0][0]['callback_data'] ?? null) === 'denaban:show'
                 && ($buttons[0][1]['callback_data'] ?? null) === 'stats:overview'
-                && ($buttons[2][0]['callback_data'] ?? null) === 'denaban:show'
-                && ($buttons[2][1]['callback_data'] ?? null) === 'menu:admin:control'
-                && str_contains(json_encode($buttons, JSON_THROW_ON_ERROR), 'stats:overview')
+                && ($buttons[2][0]['callback_data'] ?? null) === 'menu:admin:control'
+                && ! str_contains(json_encode($buttons, JSON_THROW_ON_ERROR), 'kpi:period:day')
                 && str_contains(json_encode($buttons, JSON_THROW_ON_ERROR), 'menu:admin:finance');
+        }, index: 1);
+
+    kpiUiBot()->hearCallbackQueryData('menu:admin:control')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $buttons = kpiUiPayload($request)['reply_markup']['inline_keyboard'] ?? [];
+
+            return ($buttons[0][0]['callback_data'] ?? null) === 'kpi:period:day';
         }, index: 1);
 
     kpiUiBot(991903)->hearCallbackQueryData('menu:admin')->reply()
