@@ -387,7 +387,7 @@ final readonly class SalesCheckoutUi
             );
         } catch (AuthorizationException|ValidationException $error) {
             $message = match (true) {
-                $error instanceof ValidationException && isset($error->errors()['customer']) => 'ابتدا نام کاربری مشتری را تکمیل کنید؛ مبلغی برداشت نشد.',
+                $error instanceof ValidationException && isset($error->errors()['customer']) => 'ابتدا نام مشتری را تکمیل کنید؛ مبلغی برداشت نشد.',
                 $error instanceof ValidationException && isset($error->errors()['activation']) => 'پرداخت فعلاً آماده نیست؛ مبلغی از اعتبار شما برداشت نشد. کمی بعد دوباره اقدام کنید.',
                 $error instanceof ValidationException && isset($error->errors()['plan']) => 'مشخصات این پلن تغییر کرده یا خرید آن متوقف شده است؛ مبلغی برداشت نشد. از بخش خرید، پلن را دوباره انتخاب کنید.',
                 default => 'مبلغ، اعتبار یا وضعیت سفارش تغییر کرده است؛ برداشت انجام نشد. از صفحه سفارش دوباره اقدام کنید.',
@@ -459,9 +459,9 @@ final readonly class SalesCheckoutUi
         app(SalesSubscriptionsUi::class)->clearCustomerSearch($buyer);
         Cache::put($this->customerNameKey($buyer), ['order_id' => $orderId], now()->addMinutes(10));
         $this->render($bot,
-            '<b>👤 نام کاربری مشتری</b>'
-            ."\n\nنام کاربری دلخواه مشتری را وارد کنید."
-            ."\n\n<blockquote>این نام برای شناسایی سرویس در پنل فروش شما استفاده می‌شود.</blockquote>",
+            '<b>👤 نام مشتری</b>'
+            ."\n\nبرای شناسایی سرویس، نام دلخواه مشتری را وارد کنید."
+            ."\n\n<blockquote>این نام فقط برای مدیریت سرویس شماست؛ نام کاربری تلگرام لازم نیست.</blockquote>",
             InlineKeyboardMarkup::make()
                 ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'sales:checkout:name:cancel'))
                 ->addRow(InlineKeyboardButton::make('📋 سفارش‌های من', callback_data: 'sales:checkout:orders')),
@@ -495,7 +495,7 @@ final readonly class SalesCheckoutUi
             $order = $this->orders->findPlan($actor->userId, $orderId);
         } catch (ValidationException $error) {
             if (isset($error->errors()['label'])) {
-                $this->notice($bot, 'نام کاربری باید بین ۱ تا ۶۰ کاراکتر و در یک خط باشد.');
+                $this->notice($bot, 'نام مشتری باید بین ۱ تا ۶۰ کاراکتر و در یک خط باشد.');
 
                 return true;
             }

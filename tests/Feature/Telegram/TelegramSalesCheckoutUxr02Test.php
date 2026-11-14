@@ -703,9 +703,9 @@ it('collects a single-word username with minimal copy and shows payment without 
         ->assertRaw(static function (Request $request): bool {
             $body = uxr02Payload($request);
 
-            return str_contains($body['text'], '<b>👤 نام کاربری مشتری</b>')
-                && str_contains($body['text'], 'نام کاربری دلخواه مشتری را وارد کنید.')
-                && str_contains($body['text'], '<blockquote>این نام برای شناسایی سرویس در پنل فروش شما استفاده می‌شود.</blockquote>')
+            return str_contains($body['text'], '<b>👤 نام مشتری</b>')
+                && str_contains($body['text'], 'برای شناسایی سرویس، نام دلخواه مشتری را وارد کنید.')
+                && str_contains($body['text'], '<blockquote>این نام فقط برای مدیریت سرویس شماست؛ نام کاربری تلگرام لازم نیست.</blockquote>')
                 && ! str_contains($body['text'], 'مرحله ۱ از ۲')
                 && ! str_contains($body['text'], 'مثال')
                 && ! str_contains(json_encode($body['reply_markup'], JSON_THROW_ON_ERROR), 'sales:payment:start:');
@@ -869,7 +869,7 @@ it('resumes an old pending order with phone-only metadata by requesting a userna
 
     // The old persisted phone is never overwritten; a new purchase needs only the label.
     $bot->hearCallbackQueryData('sales:checkout:view:'.$id)->reply()
-        ->assertRaw(static fn (Request $request): bool => str_contains(uxr02Payload($request)['text'], 'نام کاربری مشتری'), index: 1);
+        ->assertRaw(static fn (Request $request): bool => str_contains(uxr02Payload($request)['text'], 'نام مشتری'), index: 1);
     $bot->hearText('single_username')->reply()
         ->assertRaw(static fn (Request $request): bool => str_contains(uxr02Payload($request)['text'], 'اعتبار'));
     $labels->assertPendingDetails($buyer->id, $id);
@@ -963,7 +963,7 @@ it('creates a fresh reseller order per purchase tap and remains idempotent for t
 
     // Tapping the same plan anew must start a NEW username prompt.
     $tap('purchase-2', $buy)->assertRaw(static function (Request $request): bool {
-        return str_contains(uxr02Payload($request)['text'], 'نام کاربری مشتری');
+        return str_contains(uxr02Payload($request)['text'], 'نام مشتری');
     }, index: 1);
     $second = (int) DB::table('sales_orders')->orderByDesc('id')->value('id');
     expect($second)->not->toBe($first)
@@ -972,7 +972,7 @@ it('creates a fresh reseller order per purchase tap and remains idempotent for t
 
     // The explicit "buy new with same plan" shortcut is another fresh intent.
     $tap('purchase-3', 'sales:checkout:new:'.$first)->assertRaw(static function (Request $request): bool {
-        return str_contains(uxr02Payload($request)['text'], 'نام کاربری مشتری');
+        return str_contains(uxr02Payload($request)['text'], 'نام مشتری');
     }, index: 1);
     expect(DB::table('sales_orders')->count())->toBe(3)
         ->and(DB::table('billing_journals')->count())->toBe(0)
