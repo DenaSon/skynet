@@ -184,6 +184,7 @@ it('keeps Demo UI close to the real dashboard while exposing no operational call
         ->toContain('grid grid-cols-3 gap-2.5 sm:gap-3')
         ->toContain('<x-live.report-metric :label="$label" :value="$value" :historical="$historical" />')
         ->toContain('dg-card dg-plan-card flex flex-col p-4 sm:p-5')
+        ->toContain('📦 پلن‌های آماده')
         ->toContain('data-tone="{{ [\'teal\', \'blue\', \'sand\'][$loop->index % 3] }}"')
         ->toContain('grid grid-cols-1 justify-items-center gap-3 sm:grid-cols-2 sm:gap-4')
         ->toContain('text-sm font-extrabold leading-7 text-[#354C58]')
