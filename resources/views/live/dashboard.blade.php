@@ -132,8 +132,13 @@
                                 در حال حاضر پلنی برای خرید موجود نیست.
                             </section>
                         @else
-                            <div class="grid grid-cols-1 justify-items-center gap-3 sm:grid-cols-2 sm:gap-4">
-                                @foreach ($catalogPresets as $item)
+                            <div class="space-y-7">
+                                @if (count($catalogPresets) > 0)
+                                    <section aria-labelledby="reseller-ready-plans">
+                                        <h2 id="reseller-ready-plans" class="text-lg font-extrabold text-[#1B2935]">📦 پلن‌های آماده</h2>
+                                        <p class="mt-1 mb-4 text-xs leading-6 text-[#536C76]">حجم، مدت و قیمت مشخص؛ مناسب خرید سریع.</p>
+                                        <div class="grid grid-cols-1 justify-items-center gap-3 sm:grid-cols-2 sm:gap-4">
+                                            @foreach ($catalogPresets as $item)
                                     <article wire:key="live-plan-{{ $item->plan->id }}" data-tone="{{ ['teal', 'blue', 'sand'][$loop->index % 3] }}" class="dg-card dg-plan-card flex flex-col p-4 sm:p-5">
                                         <h2 class="break-words text-base font-extrabold text-[#1B2935]">{{ $item->plan->name }}</h2>
                                         <p class="mt-2 text-sm font-extrabold leading-7 text-[#354C58]">
@@ -144,7 +149,15 @@
                                         <button type="button" wire:click="selectPlan({{ $item->plan->id }})" wire:target="selectPlan" wire:loading.attr="disabled" class="dg-btn-secondary mt-4 w-full">انتخاب پلن<span wire:loading.delay wire:target="selectPlan" role="status" class="text-xs font-semibold">در حال انتخاب…</span></button>
                                     </article>
                                 @endforeach
-                                @foreach ($catalogBuilders as $builder)
+                                        </div>
+                                    </section>
+                                @endif
+                                @if (count($catalogBuilders) > 0)
+                                    <section aria-labelledby="reseller-custom-plans">
+                                        <h2 id="reseller-custom-plans" class="text-lg font-extrabold text-[#1B2935]">🧩 پلن سفارشی</h2>
+                                        <p class="mt-1 mb-4 text-xs leading-6 text-[#536C76]">حجم و مدت را متناسب با نیاز مشتری تنظیم کنید.</p>
+                                        <div class="grid grid-cols-1 justify-items-center gap-3 sm:grid-cols-2 sm:gap-4">
+                                            @foreach ($catalogBuilders as $builder)
                                     <article wire:key="live-builder-{{ $builder->id }}" data-tone="builder" class="dg-card dg-plan-card flex flex-col p-4 sm:p-5">
                                         <h2 class="break-words text-base font-extrabold text-[#1B2935]">{{ $builder->name }}</h2>
                                         <p class="mt-2 text-sm font-extrabold leading-7 text-[#354C58]">مدت دلخواه: {{ $builder->minDays }} تا {{ $builder->maxDays }} روز</p>
@@ -153,6 +166,9 @@
                                         <button type="button" wire:click="selectPlan({{ $builder->id }})" wire:target="selectPlan" wire:loading.attr="disabled" class="dg-btn-secondary mt-auto w-full">تنظیم پلن<span wire:loading.delay wire:target="selectPlan" role="status" class="text-xs font-semibold">در حال انتخاب…</span></button>
                                     </article>
                                 @endforeach
+                                        </div>
+                                    </section>
+                                @endif
                             </div>
                         @endif
                         @if (count($recentOrders) > 0 || $recentOrdersHasPrevious)
@@ -378,17 +394,17 @@
                     </section>
                     <section class="dg-card mt-5 p-5 md:p-7" aria-label="افزایش اعتبار">
                         <h2 class="dg-heading">افزایش اعتبار</h2>
-                        <p class="mt-2 text-sm leading-7 text-[#536C76]">برای افزایش اعتبار، مبلغ را در بات فروش انتخاب کنید و رسید را همان‌جا ارسال کنید.</p>
+                        <p class="mt-2 text-sm leading-7 text-[#536C76]">برای افزایش اعتبار، بات فروش باز می‌شود. مبلغ شارژ را انتخاب و رسید را همان‌جا ارسال کنید.</p>
                         @if ($topupBotUrl !== null)
                             <a href="{{ $topupBotUrl }}" target="_blank" rel="noopener noreferrer"
                                 x-on:click="const tg = window.Telegram?.WebApp; if (tg && tg.platform !== 'unknown' && typeof tg.openTelegramLink === 'function') { $event.preventDefault(); tg.openTelegramLink($el.href); }"
                                 class="dg-btn-primary mt-5 min-h-12 w-full">
-                                ➕ افزایش اعتبار در بات
+                                ➕ رفتن به بات برای افزایش اعتبار
                             </a>
                         @else
                             <p class="mt-4 rounded-xl bg-[#F6F8FA] p-4 text-sm leading-7 text-[#536C76]">امکان انتقال مستقیم به بات فعلاً فراهم نیست. از داخل بات فروش، «اعتبار من» را انتخاب کنید.</p>
                         @endif
-                        <p class="mt-4 text-xs leading-7 text-[#536C76]">اعتبار پس از تأیید واریز اضافه می‌شود. برای دیدن موجودی جدید، «تازه‌سازی اعتبار» را بزنید.</p>
+                        <p class="mt-4 text-xs leading-7 text-[#536C76]">پس از تأیید رسید، به همین صفحه برگردید و «تازه‌سازی اعتبار» را بزنید تا موجودی جدید نمایش داده شود.</p>
                         <button type="button" wire:click="$refresh" wire:loading.attr="disabled" wire:target="$refresh"
                             class="dg-btn-secondary mt-3">تازه‌سازی اعتبار<span wire:loading.delay wire:target="$refresh" role="status" class="text-xs font-semibold">در حال تازه‌سازی…</span></button>
                     </section>
