@@ -701,7 +701,7 @@ it('shows member panel setup and reseller builder Rich guides without role escal
         $data = uxr01Payload($request);
         $keyboard = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
 
-        return str_contains(uxr01RichHtml($request), 'آموزش پلن سفارشی')
+        return str_contains(uxr01RichHtml($request), 'آموزش پلن‌ساز')
             && str_contains($keyboard, 'sales:help:builder')
             && ! str_contains($keyboard, 'sales:help:panel-setup');
     }, index: 1);
@@ -710,7 +710,7 @@ it('shows member panel setup and reseller builder Rich guides without role escal
         $keyboard = json_encode(uxr01Payload($request)['reply_markup'], JSON_THROW_ON_ERROR);
 
         return str_contains($html, 'مراحل خرید سفارشی')
-            && str_contains($html, 'لازم نیست به بسته‌های آماده محدود باشید')
+            && str_contains($html, 'ابتدا حجم را انتخاب کنید')
             && str_contains($keyboard, 'menu:builder')
             && str_contains($keyboard, 'sales:help:apps');
     }, index: 1);
@@ -719,8 +719,8 @@ it('shows member panel setup and reseller builder Rich guides without role escal
         $buttons = json_encode($data['reply_markup']['inline_keyboard'] ?? [], JSON_THROW_ON_ERROR);
 
         return ! isset($data['rich_message'])
-            && str_contains((string) ($data['text'] ?? ''), 'آموزش پلن سفارشی')
-            && str_contains((string) ($data['text'] ?? ''), 'قیمت نمایندگی را ببینید')
+            && str_contains((string) ($data['text'] ?? ''), 'آموزش پلن‌ساز')
+            && str_contains((string) ($data['text'] ?? ''), 'قیمت نهایی با تخفیف نمایندگی')
             && str_contains($buttons, 'menu:builder');
     }, index: 1);
     Http::assertNothingSent();
