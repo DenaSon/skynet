@@ -104,25 +104,32 @@ function flt04Healthy(string $uuid, int $online = 4): void
     );
 }
 
-it('appends a root-only danger Reply button after all six existing items while preserving Sales and delegate menus', function (): void {
+it('keeps filtering under root control panel and green Denaban first without changing old button authorization', function (): void {
     flt04Root();
     $actor = app(ResolveTelegramActor::class)->handle(995001);
     expect($actor)->not->toBeNull();
     $keyboard = app(ReplyMenuRenderer::class)->adminKeyboard($actor);
     $labels = array_map(static fn ($button): string => $button->text, array_merge(...$keyboard->keyboard));
     expect($labels)->toBe([
-        ReplyMenuLabels::DASHBOARD, ReplyMenuLabels::REPORTS, ReplyMenuLabels::USERS,
-        ReplyMenuLabels::FINANCE_SECTION, ReplyMenuLabels::DENABAN_RADAR, ReplyMenuLabels::CONTROL_PANEL,
-        ReplyMenuLabels::FILTERING,
+        ReplyMenuLabels::DENABAN_RADAR, ReplyMenuLabels::REPORTS, ReplyMenuLabels::USERS,
+        ReplyMenuLabels::FINANCE_SECTION, ReplyMenuLabels::CONTROL_PANEL,
     ]);
-    expect($keyboard->keyboard[3][0]->style)->toBe(ButtonStyle::DANGER);
+    expect($keyboard->keyboard[0][0]->style)->toBe(ButtonStyle::SUCCESS);
+    expect(ReplyMenuLabels::all())->toContain(ReplyMenuLabels::FILTERING, ReplyMenuLabels::DASHBOARD);
+
+    $bot = flt04Bot();
+    $bot->hearCallbackQueryData('menu:admin:control')->reply()
+        ->assertRaw(static fn (NutgramRequest $r): bool => flt04Has($r, 'flt:home')
+            && flt04Has($r, 'kpi:period:day'), index: 1);
+    $bot->hearCallbackQueryData('flt:home')->reply()
+        ->assertRaw(static fn (NutgramRequest $r): bool => flt04Has($r, 'menu:admin:control'), index: 1);
 
     $delegate = User::factory()->admin()->create();
     TelegramAccount::query()->create(['user_id' => $delegate->id, 'telegram_user_id' => 995002]);
     $otherActor = app(ResolveTelegramActor::class)->handle(995002);
     $delegateMarkup = app(ReplyMenuRenderer::class)->adminKeyboard($otherActor);
     $delegateLabels = array_map(static fn ($button): string => $button->text, array_merge(...$delegateMarkup->keyboard));
-    expect($delegateLabels)->not->toContain(ReplyMenuLabels::FILTERING);
+    expect($delegateLabels)->not->toContain(ReplyMenuLabels::FILTERING, ReplyMenuLabels::DENABAN_RADAR);
     expect(ReplyMenuLabels::all())->toContain(ReplyMenuLabels::FILTERING);
 
     $sales = app(ReplyMenuRenderer::class)->salesKeyboard();

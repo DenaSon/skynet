@@ -139,8 +139,8 @@ it('gates privileged reply buttons by trusted root and finance feature switches'
     $actor = app(ResolveTelegramActor::class)->handle(931006);
 
     $labels = hybridLabels(app(ReplyMenuRenderer::class)->adminKeyboard($actor));
-    expect($labels)->toContain(ReplyMenuLabels::DASHBOARD, ReplyMenuLabels::REPORTS, ReplyMenuLabels::CONTROL_PANEL, ReplyMenuLabels::DENABAN_RADAR)
-        ->not->toContain(ReplyMenuLabels::ROLES, ReplyMenuLabels::SALES_SECTION, ReplyMenuLabels::SETTINGS, ReplyMenuLabels::TOPUPS, ReplyMenuLabels::RECEIPTS);
+    expect($labels)->toContain(ReplyMenuLabels::REPORTS, ReplyMenuLabels::CONTROL_PANEL, ReplyMenuLabels::DENABAN_RADAR)
+        ->not->toContain(ReplyMenuLabels::DASHBOARD, ReplyMenuLabels::FILTERING, ReplyMenuLabels::ROLES, ReplyMenuLabels::SALES_SECTION, ReplyMenuLabels::SETTINGS, ReplyMenuLabels::TOPUPS, ReplyMenuLabels::RECEIPTS);
 
     $bot->hearText(ReplyMenuLabels::TOPUPS)->reply()
         ->assertReplyText('دسترسی مجاز نیست. منوی شما به‌روز شد.');

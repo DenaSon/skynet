@@ -11,6 +11,7 @@ use App\Modules\Identity\Application\UserDirectoryPage;
 use App\Modules\Referral\Application\ReferralInvite;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
+use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\CopyTextButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
@@ -122,17 +123,14 @@ final class MenuRenderer
 
         if ($actor->canManageRoles()) {
             $keyboard->addRow(
-                InlineKeyboardButton::make('🧭 داشبورد', callback_data: 'kpi:period:day'),
+                InlineKeyboardButton::make('📡 دنابان', callback_data: 'denaban:show', style: ButtonStyle::SUCCESS),
                 InlineKeyboardButton::make('📈 گزارش‌ها', callback_data: 'stats:overview'),
             );
             $keyboard->addRow(
                 InlineKeyboardButton::make('👥 کاربران', callback_data: 'menu:admin:users'),
                 InlineKeyboardButton::make('💳 امور مالی', callback_data: 'menu:admin:finance'),
             );
-            $keyboard->addRow(
-                InlineKeyboardButton::make('📡 دنابان', callback_data: 'denaban:show'),
-                InlineKeyboardButton::make('⚙️ کنترل پنل', callback_data: 'menu:admin:control'),
-            );
+            $keyboard->addRow(InlineKeyboardButton::make('⚙️ کنترل پنل', callback_data: 'menu:admin:control'));
         } else {
             if ($actor->allows('users.view') || $actor->allows('support.view')) {
                 $keyboard->addRow(InlineKeyboardButton::make('👥 کاربران', callback_data: 'menu:admin:users'));
@@ -172,6 +170,10 @@ final class MenuRenderer
         }
 
         $keyboard = InlineKeyboardMarkup::make()
+            ->addRow(
+                InlineKeyboardButton::make('🧭 داشبورد', callback_data: 'kpi:period:day'),
+                InlineKeyboardButton::make('🚦 فیلترینگ', callback_data: 'flt:home', style: ButtonStyle::DANGER),
+            )
             ->addRow(
                 InlineKeyboardButton::make('📦 کاتالوگ', callback_data: 'menu:admin:sales'),
                 InlineKeyboardButton::make('🖥️ سرورها', callback_data: 'menu:admin:servers'),

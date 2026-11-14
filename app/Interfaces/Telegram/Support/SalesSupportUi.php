@@ -75,7 +75,7 @@ final readonly class SalesSupportUi
                 $keyboard->addRow(InlineKeyboardButton::make('📚 آموزش اتصال و خرید', callback_data: 'sales:help:apps'))
                     ->addRow(InlineKeyboardButton::make('🔧 رفع مشکل اتصال', callback_data: 'sales:help:troubleshoot'));
                 if (in_array('reseller', $actor->roles, true)) {
-                    $keyboard->addRow(InlineKeyboardButton::make('🧩 آموزش پلن سفارشی', callback_data: 'sales:help:builder'));
+                    $keyboard->addRow(InlineKeyboardButton::make('🧩 آموزش پلن‌ساز', callback_data: 'sales:help:builder'));
                 }
                 break;
 
@@ -84,6 +84,9 @@ final readonly class SalesSupportUi
                     ."دستگاه خود را انتخاب کنید تا راهنمای نصب و اتصال را ببینید.\n\n"
                     ."🤖 اندروید: V2Box · 🍎 آیفون / آیپد: V2Box\n"
                     .'🪟 ویندوز: v2rayN · 💻 مک: V2Box';
+                if (in_array('reseller', $actor->roles, true)) {
+                    $keyboard->addRow(InlineKeyboardButton::make('🧩 آموزش پلن‌ساز', callback_data: 'sales:help:builder', style: ButtonStyle::PRIMARY));
+                }
                 $keyboard->addRow(
                     InlineKeyboardButton::make('🤖 اندروید', callback_data: 'sales:help:android'),
                     InlineKeyboardButton::make('🍎 آیفون / آیپد', callback_data: 'sales:help:ios'),
@@ -95,9 +98,6 @@ final readonly class SalesSupportUi
                     $keyboard->addRow(InlineKeyboardButton::make('🧩 راه‌اندازی پنل فروش', callback_data: 'sales:help:panel-setup', style: ButtonStyle::PRIMARY));
                 }
                 $keyboard->addRow(InlineKeyboardButton::make('🔧 رفع مشکل اتصال', callback_data: 'sales:help:troubleshoot'));
-                if (in_array('reseller', $actor->roles, true)) {
-                    $keyboard->addRow(InlineKeyboardButton::make('🧩 آموزش پلن سفارشی', callback_data: 'sales:help:builder'));
-                }
                 break;
 
             case 'panel-setup':
@@ -115,13 +115,13 @@ final readonly class SalesSupportUi
                 break;
 
             case 'builder':
-                $text = '<b>🧩 آموزش پلن سفارشی</b>'."\n\n"
-                    ."برای هر مشتری، حجم و مدت دلخواه را انتخاب کنید؛ لازم نیست به بسته‌های آماده محدود باشید.\n\n"
-                    ."۱. از منوی نماینده «پلن سفارشی» را باز کنید.\n\n"
-                    ."۲. ابتدا حجم را انتخاب یا به‌صورت عدد وارد کنید؛ سپس مدت را به روز مشخص کنید.\n\n"
-                    ."۳. قیمت نمایندگی را ببینید و خرید را ادامه دهید.\n\n"
-                    .'پس از پرداخت و فعال‌سازی، سرویس در «سرویس‌های من» نمایش داده می‌شود.'
-                    ."\n\n<blockquote>مبلغ و امکان خرید قبل از ثبت سفارش دوباره بررسی می‌شوند.</blockquote>";
+                $text = '<b>🧩 آموزش پلن‌ساز</b>'."\n\n"
+                    ."با «پلن سفارشی» برای هر مشتری سرویس متناسب بسازید.\n\n"
+                    ."۱. از منوی نماینده، «پلن سفارشی» را باز کنید.\n\n"
+                    ."۲. ابتدا حجم را انتخاب کنید یا عدد بفرستید؛ سپس مدت را به روز مشخص کنید.\n\n"
+                    ."۳. قیمت نهایی با تخفیف نمایندگی را بررسی و «ادامه خرید» را بزنید.\n\n"
+                    .'۴. پس از تکمیل خرید و فعال‌سازی، سرویس در «سرویس‌های من» نمایش داده می‌شود.'
+                    ."\n\n<blockquote>برای پلن زمانی فقط مدت را انتخاب کنید. محدوده حجم و مدت هر پلن در خود پلن‌ساز مشخص است.</blockquote>";
                 $keyboard->addRow(InlineKeyboardButton::make('🧩 ساخت سرویس سفارشی', callback_data: 'menu:builder'));
                 break;
 
@@ -275,7 +275,7 @@ final readonly class SalesSupportUi
             $minimum = TelegramUi::tomanPersian(SalesPanelRequests::minimumWalletBalanceRials());
             $html .= '<details><summary>🧩 راه‌اندازی پنل فروش</summary><p>با اعتبار اولیه '.$minimum.' تومان درخواست دهید؛ پس از تأیید، تخفیف نمایندگی ۳۵٪ اعمال می‌شود.</p></details>';
         } elseif ($reseller) {
-            $html .= '<details><summary>🧩 آموزش پلن سفارشی</summary><p>برای مشتری حجم و مدت دلخواه را مشخص کنید و پیش از خرید قیمت نمایندگی را ببینید.</p></details>';
+            $html .= '<details><summary>🧩 آموزش پلن‌ساز</summary><p>حجم و مدت را به ترتیب انتخاب کنید، قیمت نمایندگی را ببینید و خرید را ادامه دهید. برای پلن زمانی فقط مدت لازم است.</p></details>';
         }
 
         return $html;

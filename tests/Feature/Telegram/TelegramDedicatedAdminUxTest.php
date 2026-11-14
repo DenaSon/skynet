@@ -11,6 +11,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\ReplyKeyboardMarkup;
@@ -95,11 +96,12 @@ it('shows only authorized real Admin operations for trusted roots and gates fina
 
     $keyboard = app(ReplyMenuRenderer::class)->homeKeyboard($actor);
     $labels = mb04Labels($keyboard);
-    expect($labels)->toContain(ReplyMenuLabels::USERS, ReplyMenuLabels::DASHBOARD, ReplyMenuLabels::REPORTS)
+    expect($labels)->toContain(ReplyMenuLabels::USERS, ReplyMenuLabels::DENABAN_RADAR, ReplyMenuLabels::REPORTS)
         ->toContain(ReplyMenuLabels::FINANCE_SECTION, ReplyMenuLabels::DENABAN_RADAR, ReplyMenuLabels::CONTROL_PANEL)
         ->not->toContain(ReplyMenuLabels::TOPUPS, ReplyMenuLabels::RECEIPTS,
             ReplyMenuLabels::BUY, ReplyMenuLabels::SUBSCRIPTIONS, ReplyMenuLabels::HOME,
             ReplyMenuLabels::ROLES, ReplyMenuLabels::SALES_SECTION, ReplyMenuLabels::SERVERS, ReplyMenuLabels::SETTINGS)
+        ->and($labels)->not->toContain(ReplyMenuLabels::DASHBOARD, ReplyMenuLabels::FILTERING)
         ->and(count($keyboard->keyboard[0]))->toBe(2);
 
     $bot->hearText('/start')->reply()->assertCalled('sendMessage');
@@ -236,11 +238,12 @@ it('opens the KPI Rich report from the persistent root menu and rejects stale or
 
     $keyboard = app(ReplyMenuRenderer::class)->adminKeyboard($actor);
     $labels = mb04Labels($keyboard);
-    expect($keyboard->keyboard[0][0]->text)->toBe(ReplyMenuLabels::DASHBOARD)
+    expect($keyboard->keyboard[0][0]->text)->toBe(ReplyMenuLabels::DENABAN_RADAR)
+        ->and($keyboard->keyboard[0][0]->style)->toBe(ButtonStyle::SUCCESS)
         ->and($keyboard->keyboard[0][1]->text)->toBe(ReplyMenuLabels::REPORTS)
-        ->and($keyboard->keyboard[2][0]->text)->toBe(ReplyMenuLabels::DENABAN_RADAR)
-        ->and($keyboard->keyboard[2][1]->text)->toBe(ReplyMenuLabels::CONTROL_PANEL)
+        ->and($keyboard->keyboard[2][0]->text)->toBe(ReplyMenuLabels::CONTROL_PANEL)
         ->and($labels)->toContain(ReplyMenuLabels::REPORTS, ReplyMenuLabels::USERS, ReplyMenuLabels::FINANCE_SECTION)
+        ->and($labels)->not->toContain(ReplyMenuLabels::DASHBOARD, ReplyMenuLabels::FILTERING)
         ->and(ReplyMenuLabels::all())->toContain(ReplyMenuLabels::MANAGEMENT_KPIS);
 
     $rootBot->hearText('/start')->reply()
@@ -279,10 +282,9 @@ it('shows root-only control panel routes in Inline and persistent menus without 
     $actor = app(ResolveTelegramActor::class)->handle(984311);
     expect($actor)->not->toBeNull();
     expect(mb04Labels(app(ReplyMenuRenderer::class)->adminKeyboard($actor)))->toBe([
-        ReplyMenuLabels::DASHBOARD, ReplyMenuLabels::REPORTS,
+        ReplyMenuLabels::DENABAN_RADAR, ReplyMenuLabels::REPORTS,
         ReplyMenuLabels::USERS, ReplyMenuLabels::FINANCE_SECTION,
-        ReplyMenuLabels::DENABAN_RADAR, ReplyMenuLabels::CONTROL_PANEL,
-        ReplyMenuLabels::FILTERING,
+        ReplyMenuLabels::CONTROL_PANEL,
     ]);
 
     $bot->hearCallbackQueryData('menu:admin:control')->reply()
@@ -293,13 +295,15 @@ it('shows root-only control panel routes in Inline and persistent menus without 
                 : ($data['reply_markup'] ?? []);
             $buttons = $markup['inline_keyboard'] ?? [];
 
-            return ($buttons[0][0]['callback_data'] ?? null) === 'menu:admin:sales'
-                && ($buttons[0][1]['callback_data'] ?? null) === 'menu:admin:servers'
-                && ($buttons[1][0]['callback_data'] ?? null) === 'admin:rwbackup:list:1'
-                && ($buttons[1][1]['callback_data'] ?? null) === 'menu:admin:roles'
-                && ($buttons[2][0]['callback_data'] ?? null) === 'admin:ann:list:1'
-                && ($buttons[3][0]['callback_data'] ?? null) === 'admin:welcome:show'
-                && ($buttons[4][0]['callback_data'] ?? null) === 'menu:admin';
+            return ($buttons[0][0]['callback_data'] ?? null) === 'kpi:period:day'
+                && ($buttons[0][1]['callback_data'] ?? null) === 'flt:home'
+                && ($buttons[1][0]['callback_data'] ?? null) === 'menu:admin:sales'
+                && ($buttons[1][1]['callback_data'] ?? null) === 'menu:admin:servers'
+                && ($buttons[2][0]['callback_data'] ?? null) === 'admin:rwbackup:list:1'
+                && ($buttons[2][1]['callback_data'] ?? null) === 'menu:admin:roles'
+                && ($buttons[3][0]['callback_data'] ?? null) === 'admin:ann:list:1'
+                && ($buttons[4][0]['callback_data'] ?? null) === 'admin:welcome:show'
+                && ($buttons[5][0]['callback_data'] ?? null) === 'menu:admin';
         }, index: 1);
     $bot->hearText(ReplyMenuLabels::CONTROL_PANEL)->reply()
         ->assertReplyText("⚙️ کنترل پنل\n\nبخش موردنظر را انتخاب کنید.");

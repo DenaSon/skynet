@@ -1,3 +1,9 @@
+## Admin navigation and reseller tutorial polish — 2026-11-14
+
+**Scoped UI contract:** Trusted-root Admin persistent Reply keyboard and Inline home place green «📡 دنابان» first, followed by «📈 گزارش‌ها», «👥 کاربران», «💳 امور مالی», and «⚙️ کنترل پنل»; remove «🧭 داشبورد» and red «فیلترینگ» from these *home* surfaces. The root-only Control Panel gains the existing «🧭 داشبورد» KPI callback and red «🚦 فیلترینگ» center callback, retaining every pre-existing control action. Filtering home returns to Control Panel. Preserve all previously sent Reply labels and callbacks (`DASHBOARD`, `FILTERING`, `flt:home`, `/filtering`) and their root/private guards; delegated admins and Sales users do not gain access. Do not alter KPI/filtering data scans, settings, finance/provider, bot isolation or schema. Telegram client colors may differ on older versions.
+
+**Reseller education:** Reuse the existing reseller-only `sales:help:builder` guide inside Sales tutorials, show its shortcut first for resellers, and write concise volume → days → price/continue → service tracking steps. Mention time-only plans and published bounds. Keep old support shortcut, `menu:builder` CTA, Rich/plain fallback, and fresh role checks. No new education feature, purchase flow, quote or data access. Test root home/Control Panel order and styling, callback compatibility, filtering RBAC, reseller/member visibility, Rich/fallback and zero unintended provider/financial writes. PHP CI/PHPStan/Pint and real Telegram device smoke are distinct release gates.
+
 ## Reseller custom-plan and Sales navigation polish — 2026-11-13
 
 **Operator-approved small UX correction:** In Admin Bot, a `builder` has **selectable** finite traffic and duration, not "unlimited" when its fixed `traffic_gb` is null; actual `time` plans remain unlimited. Present builder range in the draft preview and selectable values in details without changing plan/price/order data.

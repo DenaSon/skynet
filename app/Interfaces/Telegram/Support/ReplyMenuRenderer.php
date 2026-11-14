@@ -78,15 +78,16 @@ final class ReplyMenuRenderer
     public function adminKeyboard(TelegramActor $actor): ReplyKeyboardMarkup
     {
         if ($actor->canManageRoles()) {
-            return $this->keyboard([
-                ReplyMenuLabels::DASHBOARD,
+            $keyboard = $this->keyboard([
+                ReplyMenuLabels::DENABAN_RADAR,
                 ReplyMenuLabels::REPORTS,
                 ReplyMenuLabels::USERS,
                 ReplyMenuLabels::FINANCE_SECTION,
-                ReplyMenuLabels::DENABAN_RADAR,
                 ReplyMenuLabels::CONTROL_PANEL,
-                ReplyMenuLabels::FILTERING,
-            ], filteringDanger: true);
+            ]);
+            $keyboard->keyboard[0][0]->style = ButtonStyle::SUCCESS;
+
+            return $keyboard;
         }
 
         // Delegated administrators retain all existing permission-scoped shortcuts.
@@ -194,7 +195,7 @@ final class ReplyMenuRenderer
     /**
      * @param  list<string>  $labels
      */
-    private function keyboard(array $labels, bool $filteringDanger = false): ReplyKeyboardMarkup
+    private function keyboard(array $labels): ReplyKeyboardMarkup
     {
         $keyboard = ReplyKeyboardMarkup::make(
             resize_keyboard: true,
@@ -208,12 +209,6 @@ final class ReplyMenuRenderer
                 static fn (string $label): KeyboardButton => KeyboardButton::make($label),
                 $row,
             ));
-        }
-
-        // Older Telegram clients can ignore the optional danger style.
-        if ($filteringDanger) {
-            $lastRow = count($keyboard->keyboard) - 1;
-            $keyboard->keyboard[$lastRow][0]->style = ButtonStyle::DANGER;
         }
 
         return $keyboard;
