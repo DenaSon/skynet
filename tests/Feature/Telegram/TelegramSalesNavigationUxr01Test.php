@@ -6,6 +6,7 @@ use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Interfaces\Telegram\Support\PendingBuilderSelection;
 use App\Interfaces\Telegram\Support\ReplyMenuLabels;
 use App\Interfaces\Telegram\Support\ReplyMenuRenderer;
+use App\Interfaces\Telegram\Support\SalesNativeMenu;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Referral\Application\GetReferralInvite;
@@ -82,14 +83,12 @@ it('shows persistent Sales keyboard on start while accepting old button labels',
         ->and(array_map(static fn (array $row): array => array_column($row, 'text'), $keyboard->keyboard))
         ->toBe([
             [ReplyMenuLabels::SALES_BUY, ReplyMenuLabels::SALES_SUBSCRIPTIONS],
-            [ReplyMenuLabels::SALES_ACCOUNT, ReplyMenuLabels::SALES_SUPPORT],
-            [ReplyMenuLabels::SALES_TUTORIAL],
+            [ReplyMenuLabels::SALES_SUPPORT],
         ]);
 
     expect($keyboard->keyboard[0][0]->style)->toBe(ButtonStyle::SUCCESS)
         ->and($keyboard->keyboard[0][1]->style)->toBe(ButtonStyle::PRIMARY)
-        ->and($keyboard->keyboard[1][0]->style)->toBeNull()
-        ->and($keyboard->keyboard[1][1]->style)->toBeNull();
+        ->and($keyboard->keyboard[1][0]->style)->toBeNull();
 
     $encoded = json_decode(json_encode($keyboard, JSON_THROW_ON_ERROR), true, flags: JSON_THROW_ON_ERROR);
     expect($encoded['keyboard'][0][0]['style'])->toBe('success')
@@ -250,7 +249,7 @@ it('opens reward directly from the member home keyboard and old invite labels wi
         $rows = $payload['reply_markup']['keyboard'] ?? [];
         $html = uxr01RichHtml($request);
 
-        return ($rows[2][0]['text'] ?? null) === ReplyMenuLabels::SALES_REWARD
+        return ($rows[1][1]['text'] ?? null) === ReplyMenuLabels::SALES_REWARD
             && str_contains($html, 'data="sales:invite"')
             && str_contains($html, '🎁 دریافت جایزه');
     }, index: 0);
@@ -372,11 +371,11 @@ it('places My Credit on the second row for ordinary Sales members and accepts st
             && ($rows[0][0]['text'] ?? null) === ReplyMenuLabels::SALES_BUY
             && ($rows[0][1]['text'] ?? null) === ReplyMenuLabels::SALES_SUBSCRIPTIONS
             && ($rows[1][0]['text'] ?? null) === ReplyMenuLabels::SALES_WALLET
-            && ($rows[1][1]['text'] ?? null) === ReplyMenuLabels::SALES_ACCOUNT
-            && ($rows[2][0]['text'] ?? null) === ReplyMenuLabels::SALES_REWARD
-            && ($rows[2][1]['text'] ?? null) === ReplyMenuLabels::SALES_SUPPORT
-            && ($rows[3][0]['text'] ?? null) === ReplyMenuLabels::SALES_TUTORIAL
-            && ($rows[3][1]['text'] ?? null) === ReplyMenuLabels::SALES_PANEL_REQUEST;
+            && ($rows[1][1]['text'] ?? null) === ReplyMenuLabels::SALES_REWARD
+            && ($rows[2][0]['text'] ?? null) === ReplyMenuLabels::SALES_SUPPORT
+            && ($rows[2][1]['text'] ?? null) === ReplyMenuLabels::SALES_PANEL_REQUEST
+            && ! str_contains(json_encode($rows, JSON_THROW_ON_ERROR), ReplyMenuLabels::SALES_ACCOUNT)
+            && ! str_contains(json_encode($rows, JSON_THROW_ON_ERROR), ReplyMenuLabels::SALES_TUTORIAL);
     }, index: 0)->assertRaw(static function (Request $request): bool {
         $html = uxr01RichHtml($request);
 
@@ -640,7 +639,8 @@ it('keeps Home separate from purchase offers for all Sales home entry callbacks'
                     && ! str_contains($data['text'], '🛒 پلن‌های آماده خرید')
                     && str_contains($buttons, 'sales:buy')
                     && str_contains($buttons, 'sales:subs:list:0')
-                    && str_contains($buttons, 'sales:account')
+                    && ! str_contains($buttons, 'sales:account')
+                    && ! str_contains($buttons, 'sales:help:apps')
                     && str_contains($buttons, 'sales:support');
             }, index: 1);
     }
@@ -695,10 +695,10 @@ it('pairs reseller custom plans with credit and moves renamed reports below prim
             && ($keyboard[0][1]['text'] ?? null) === ReplyMenuLabels::SALES_SUBSCRIPTIONS
             && ($keyboard[1][0]['text'] ?? null) === ReplyMenuLabels::SALES_WALLET
             && ($keyboard[1][1]['text'] ?? null) === ReplyMenuLabels::BUILDER
-            && ($keyboard[2][0]['text'] ?? null) === ReplyMenuLabels::SALES_ACCOUNT
-            && ($keyboard[2][1]['text'] ?? null) === ReplyMenuLabels::SALES_SUPPORT
-            && ($keyboard[3][0]['text'] ?? null) === ReplyMenuLabels::SALES_TUTORIAL
-            && ($keyboard[3][1]['text'] ?? null) === ReplyMenuLabels::SALES_REPORTS;
+            && ($keyboard[2][0]['text'] ?? null) === ReplyMenuLabels::SALES_SUPPORT
+            && ($keyboard[2][1]['text'] ?? null) === ReplyMenuLabels::SALES_REPORTS
+            && ! str_contains(json_encode($keyboard, JSON_THROW_ON_ERROR), ReplyMenuLabels::SALES_ACCOUNT)
+            && ! str_contains(json_encode($keyboard, JSON_THROW_ON_ERROR), ReplyMenuLabels::SALES_TUTORIAL);
     }, index: 0);
     $bot->hearText(ReplyMenuLabels::SALES_WALLET)->reply()->assertCalled('sendRichMessage');
     $bot->hearText(ReplyMenuLabels::WALLET)->reply()->assertCalled('sendRichMessage');
@@ -711,9 +711,10 @@ it('pairs reseller custom plans with credit and moves renamed reports below prim
 
         return ($rows[1][0]['callback_data'] ?? null) === 'sales:wallet'
             && ($rows[1][1]['callback_data'] ?? null) === 'menu:builder'
-            && ($rows[2][0]['callback_data'] ?? null) === 'sales:account'
-            && ($rows[2][1]['callback_data'] ?? null) === 'sales:support'
-            && str_contains(json_encode($rows, JSON_THROW_ON_ERROR), 'sales:report:30');
+            && ($rows[2][0]['callback_data'] ?? null) === 'sales:support'
+            && ($rows[2][1]['callback_data'] ?? null) === 'sales:report:30'
+            && ! str_contains(json_encode($rows, JSON_THROW_ON_ERROR), 'sales:account')
+            && ! str_contains(json_encode($rows, JSON_THROW_ON_ERROR), 'sales:help:apps');
     }, index: 1);
 });
 
@@ -884,5 +885,31 @@ it('denies app launch after role revocation, when disabled, and in group chats',
     config()->set('denagate_live.enabled', true);
     $bot->setCommonChat(Chat::make(-975001, ChatType::GROUP));
     $bot->hearText(ReplyMenuLabels::SALES_APP)->reply()->assertNoReply();
+    Http::assertNothingSent();
+});
+
+it('keeps training in Support with a green shortcut and removes only visible obsolete entries', function (): void {
+    $user = User::factory()->create();
+    $user->assignRole('member');
+    $bot = uxr01Bot($user);
+
+    $bot->hearCallbackQueryData('sales:support')->reply()->assertRaw(static function (Request $request): bool {
+        $rows = uxr01Payload($request)['reply_markup']['inline_keyboard'] ?? [];
+
+        return ($rows[0][0]['callback_data'] ?? null) === 'sales:help:apps'
+            && ($rows[0][0]['style'] ?? null) === 'success'
+            && ($rows[0][1]['callback_data'] ?? null) !== 'sales:account';
+    }, index: 1);
+
+    // Old messages and keyboards still resolve to the original handlers.
+    $bot->hearText(ReplyMenuLabels::SALES_ACCOUNT)->reply()->assertCalled('sendRichMessage');
+    $bot->hearText(ReplyMenuLabels::SALES_TUTORIAL)->reply()->assertCalled('sendRichMessage');
+    $bot->hearCallbackQueryData('sales:help:apps')->reply()->assertCalled('editMessageText');
+    $bot->hearText('/account')->reply()->assertCalled('sendRichMessage');
+
+    expect(array_map(static fn ($command): string => $command->command, SalesNativeMenu::commands()))
+        ->toBe(['buy', 'subscriptions', 'help']);
+    expect(DB::table('sales_orders')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe(0);
     Http::assertNothingSent();
 });

@@ -407,19 +407,22 @@ it('shows eligible trial and learning shortcuts in member Home Rich and persiste
         $labels = array_column(array_merge(...$markup['keyboard']), 'text');
 
         return $markup['is_persistent'] === true && in_array('🧪 تست رایگان', $labels, true)
-            && in_array('📚 آموزش', $labels, true);
+            && ! in_array('📚 آموزش', $labels, true)
+            && in_array('💬 پشتیبانی', $labels, true);
     }, index: 0)->assertRaw(function (Request $request): bool {
         $html = trialUiRichHtml($request);
 
         return str_contains($html, 'data="sales:trial"')
-            && str_contains($html, 'data="sales:help:apps"')
+            && ! str_contains($html, 'data="sales:help:apps"')
+            && str_contains($html, 'data="sales:support"')
             && str_contains($html, 'data="sales:invite"');
     }, index: 0);
     $bot->hearCallbackQueryData('sales:home')->reply()->assertRaw(function (Request $request): bool {
         $keyboard = json_encode(trialUiPayload($request)['reply_markup'], JSON_THROW_ON_ERROR);
 
         return str_contains($keyboard, 'sales:trial')
-            && str_contains($keyboard, 'sales:help:apps');
+            && ! str_contains($keyboard, 'sales:help:apps')
+            && str_contains($keyboard, 'sales:support');
     }, index: 1);
     $bot->hearCallbackQueryData('sales:account')->reply()->assertRaw(function (Request $request): bool {
         return ! str_contains(json_encode(trialUiPayload($request)['reply_markup']), 'sales:trial');
@@ -436,7 +439,9 @@ it('keeps tutorial available to resellers without granting a trial through forge
     $bot->hearText('/start')->reply()->assertRaw(function (Request $request): bool {
         $labels = array_column(array_merge(...trialUiPayload($request)['reply_markup']['keyboard']), 'text');
 
-        return in_array('📚 آموزش', $labels, true) && ! in_array('🧪 تست رایگان', $labels, true);
+        return in_array('💬 پشتیبانی', $labels, true)
+            && ! in_array('📚 آموزش', $labels, true)
+            && ! in_array('🧪 تست رایگان', $labels, true);
     }, index: 0)->assertRaw(static function (Request $request): bool {
         return ! str_contains(trialUiRichHtml($request), 'data="sales:trial"');
     }, index: 0);
@@ -466,7 +471,9 @@ it('hides a used trial immediately on menu refresh for both terminal conditions 
     $bot->hearText('/start')->reply()->assertRaw(function (Request $request): bool {
         $labels = array_column(array_merge(...trialUiPayload($request)['reply_markup']['keyboard']), 'text');
 
-        return in_array('📚 آموزش', $labels, true) && ! in_array('🧪 تست رایگان', $labels, true);
+        return in_array('💬 پشتیبانی', $labels, true)
+            && ! in_array('📚 آموزش', $labels, true)
+            && ! in_array('🧪 تست رایگان', $labels, true);
     }, index: 0);
     $bot->hearText('🧪 تست رایگان')->reply()->assertRaw(function (Request $request): bool {
         $data = trialUiPayload($request);

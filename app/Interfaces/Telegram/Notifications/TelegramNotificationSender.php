@@ -211,7 +211,7 @@ final readonly class TelegramNotificationSender
             if ($status->id !== $trialId || $status->ended() || $status->providerStatus !== 'ACTIVE') {
                 throw new NotificationUnavailable('trial_not_active');
             }
-            $this->text($bot, $chat, "<b>✅ تست رایگان شما فعال شد</b>\n\nحجم: <b>۲۵۰ مگابایت</b> · اعتبار: <b>۲ ساعت</b>\nاز بخش تست رایگان، لینک اتصال را دریافت کنید. برای نصب برنامه، دکمه «📚 آموزش» را از منوی بات بزنید.",
+            $this->text($bot, $chat, "<b>✅ تست رایگان شما فعال شد</b>\n\nحجم: <b>۲۵۰ مگابایت</b> · اعتبار: <b>۲ ساعت</b>\nاز بخش تست رایگان، لینک اتصال را دریافت کنید. برای نصب برنامه، از بخش «💬 پشتیبانی» گزینه «📚 آموزش اتصال و خرید» را انتخاب کنید.",
                 $this->trialMenu($userId, $chat), 'HTML');
 
             return;

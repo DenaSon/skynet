@@ -75,7 +75,7 @@ it('displays an ordinary member role and real wallet balance after returning hom
         return str_contains($body['text'], 'نوع حساب: <b>👤 کاربر عادی</b>')
             && str_contains($body['text'], 'اعتبار من: <b>0 تومان</b>')
             && str_contains($markup, 'sales:wallet')
-            && str_contains($markup, 'sales:account')
+            && ! str_contains($markup, 'sales:account')
             && ! str_contains($markup, 'menu:builder')
             && ($body['parse_mode'] ?? null) === 'HTML';
     }, index: 1);
@@ -128,9 +128,11 @@ it('gives active Sales Panel holders their unique home builder action without an
             && str_contains($body['text'], 'اعتبار من: <b>0 تومان</b>')
             && str_contains($markup, 'menu:builder')
             && str_contains($markup, 'sales:wallet')
-            && ($buttons[3][0]['callback_data'] ?? null) === 'sales:help:apps'
-            && ($buttons[3][1]['callback_data'] ?? null) === 'sales:report:30'
-            && ($buttons[4][0]['callback_data'] ?? null) === 'menu:plan-catalog';
+            && ($buttons[2][0]['callback_data'] ?? null) === 'sales:support'
+            && ($buttons[2][1]['callback_data'] ?? null) === 'sales:report:30'
+            && ($buttons[3][0]['callback_data'] ?? null) === 'menu:plan-catalog'
+            && ! str_contains($markup, 'sales:account')
+            && ! str_contains($markup, 'sales:help:apps');
     }, index: 1);
     $bot->hearCallbackQueryData('sales:help:simple:apps')->reply()
         ->assertRaw(static function (Request $request): bool {

@@ -135,17 +135,13 @@ final class ReplyMenuRenderer
         }
         if ($isReseller) {
             $labels[] = ReplyMenuLabels::BUILDER;
-            $labels[] = ReplyMenuLabels::SALES_ACCOUNT;
             $labels[] = ReplyMenuLabels::SALES_SUPPORT;
-            $labels[] = ReplyMenuLabels::SALES_TUTORIAL;
             $labels[] = ReplyMenuLabels::SALES_REPORTS;
         } else {
-            $labels[] = ReplyMenuLabels::SALES_ACCOUNT;
             if ($actor !== null && $actor->roles === ['member']) {
                 $labels[] = ReplyMenuLabels::SALES_REWARD;
             }
             $labels[] = ReplyMenuLabels::SALES_SUPPORT;
-            $labels[] = ReplyMenuLabels::SALES_TUTORIAL;
         }
         if ($actor !== null
             && in_array('member', $actor->roles, true)
