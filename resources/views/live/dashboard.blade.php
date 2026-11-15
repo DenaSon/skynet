@@ -837,6 +837,98 @@
                             </div>
                         </section>
                         <p class="mt-5 text-xs leading-7 text-[#536C76]">آمار فروش مربوط به بازه انتخابی است؛ سفارش‌های در انتظار پرداخت و تعداد سرویس‌ها، وضعیت فعلی حساب را نشان می‌دهند.</p>
+
+                        {{-- Independent, lazy Radar projection: sales reporting stays primary and never waits for an upstream API. --}}
+                        <section class="mt-9" aria-labelledby="iran-network-title">
+                            <div class="mb-4">
+                                <p class="mb-1 text-xs font-semibold text-[#087F73]">پایش عمومی اینترنت</p>
+                                <h2 id="iran-network-title" class="dg-heading">وضعیت اینترنت ایران</h2>
+                                <p class="mt-1 text-xs leading-6 text-[#617380]">گزارش‌های احتمالی اختلال در ۲۴ ساعت اخیر</p>
+                            </div>
+
+                            @if (! $networkStatusLoaded)
+                                <div wire:init="loadNetworkStatus" role="status" class="sr-only">در حال دریافت اطلاعات شبکه</div>
+                            @endif
+
+                            @php
+                                $countryNetwork = $networkStatus['country'] ?? [
+                                    'code' => 'unknown', 'label' => 'اطلاعات کافی نیست',
+                                    'detail' => 'اطلاعات کافی برای ارزیابی وضعیت در دسترس نیست.',
+                                ];
+                                $networkOperators = $networkStatus['operators'] ?? [
+                                    ['name' => 'همراه اول', 'code' => 'unknown', 'label' => 'اطلاعات کافی نیست'],
+                                    ['name' => 'ایرانسل', 'code' => 'unknown', 'label' => 'اطلاعات کافی نیست'],
+                                    ['name' => 'رایتل', 'code' => 'unknown', 'label' => 'اطلاعات کافی نیست'],
+                                ];
+                            @endphp
+
+                            <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                <article class="dg-card p-5 sm:p-6" aria-labelledby="network-country-heading">
+                                    <div class="flex items-center gap-2">
+                                        <span aria-hidden="true" class="flex h-9 w-9 items-center justify-center rounded-xl bg-[#EAF8F4] text-[#087F73]">
+                                            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+                                                <path d="M2 12h4l3-7 5 14 3-7h5" />
+                                            </svg>
+                                        </span>
+                                        <h3 id="network-country-heading" class="text-sm font-extrabold text-[#1B2935]">وضعیت عمومی اینترنت</h3>
+                                    </div>
+                                    @if (! $networkStatusLoaded)
+                                        <p class="mt-5 text-sm font-semibold text-[#617380]">در حال بررسی وضعیت شبکه…</p>
+                                        <p class="mt-2 text-xs text-[#687987]">گزارش فروش همچنان در دسترس است.</p>
+                                    @else
+                                        @php
+                                            $countryDot = match ($countryNetwork['code']) {
+                                                'confirmed' => 'bg-[#E34E5B]',
+                                                'suspected' => 'bg-[#E7A04A]',
+                                                default => 'bg-[#9DAEB8]',
+                                            };
+                                        @endphp
+                                        <div class="mt-5 flex items-center gap-2">
+                                            <span aria-hidden="true" class="h-2.5 w-2.5 shrink-0 rounded-full {{ $countryDot }}"></span>
+                                            <p class="text-base font-extrabold text-[#1B2935]">{{ $countryNetwork['label'] }}</p>
+                                        </div>
+                                        <p class="mt-3 text-xs leading-7 text-[#536C76]">{{ $countryNetwork['detail'] }}</p>
+                                    @endif
+                                </article>
+
+                                <article class="dg-card p-5 sm:p-6" aria-labelledby="network-operators-heading">
+                                    <div class="flex items-center gap-2">
+                                        <span aria-hidden="true" class="flex h-9 w-9 items-center justify-center rounded-xl bg-[#F1F5F7] text-[#536C76]">
+                                            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+                                                <rect x="7" y="2" width="10" height="20" rx="2" />
+                                                <path d="M11 18h2" />
+                                            </svg>
+                                        </span>
+                                        <h3 id="network-operators-heading" class="text-sm font-extrabold text-[#1B2935]">اپراتورهای اینترنت</h3>
+                                    </div>
+                                    <div class="mt-3 divide-y divide-[#E7ECEF]">
+                                        @foreach ($networkOperators as $operator)
+                                            @php
+                                                $operatorDot = match ($operator['code']) {
+                                                    'confirmed' => 'bg-[#E34E5B]',
+                                                    'suspected' => 'bg-[#E7A04A]',
+                                                    default => 'bg-[#9DAEB8]',
+                                                };
+                                            @endphp
+                                            <div class="flex min-h-12 items-center justify-between gap-2 py-2">
+                                                <span class="text-sm font-semibold text-[#1B2935]">{{ $operator['name'] }}</span>
+                                                <span class="inline-flex items-center gap-1.5 text-left text-xs font-medium text-[#536C76]">
+                                                    <span aria-hidden="true" class="h-2 w-2 shrink-0 rounded-full {{ $networkStatusLoaded ? $operatorDot : 'bg-[#C5D2D8]' }}"></span>
+                                                    {{ $networkStatusLoaded ? $operator['label'] : 'در حال بررسی…' }}
+                                                </span>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </article>
+                            </div>
+                            <p class="mt-3 text-xs leading-7 text-[#617380]">
+                                منبع: Cloudflare Radar
+                                @if ($networkStatusLoaded && isset($networkStatus['checkedAt']))
+                                    · آخرین دریافت: {{ $networkStatus['checkedAt'] }} (تهران)
+                                @endif
+                                <span class="block">نبود گزارش اختلال به معنی سالم‌بودن قطعی اینترنت یا اتصال سرویس‌ها نیست.</span>
+                            </p>
+                        </section>
                     </section>
                 @endif
                 @if ($salesBotUrl !== null && $section !== 'overview' && ! $readError)
