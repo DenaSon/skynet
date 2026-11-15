@@ -142,13 +142,13 @@ it('refreshes the actual ledger-backed balance after an approved payment without
     $buyer = live5aReseller(996105);
     $this->actingAs($buyer)->withSession(['denagate_live.user_id' => $buyer->id]);
     $page = Livewire::test(Dashboard::class)->call('showSection', 'credit')
-        ->assertSee('0')
+        ->assertSee('۰')
         ->assertSee('تازه‌سازی اعتبار');
 
     PanelWalletFunding::credit($buyer->id, 750_000);
     $journalCount = DB::table('billing_journals')->count();
 
-    $page->call('$refresh')->assertSee('75,000')
+    $page->call('$refresh')->assertSee('۷۵٬۰۰۰')
         ->assertSee('اعتبار قابل استفاده');
 
     expect(DB::table('billing_journals')->count())->toBe($journalCount)
