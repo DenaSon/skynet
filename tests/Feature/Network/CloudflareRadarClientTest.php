@@ -38,7 +38,7 @@ function radarQuery(Request $request): array
 it('reads and caches country traffic with Radar token and preserves metadata', function (): void {
     config()->set('services.cloudflare.token', 'dns-write-token');
     Http::fake([
-        'api.cloudflare.com/client/v4/radar/netflows/timeseries*' => Http::response([
+        'https://api.cloudflare.com/client/v4/radar/netflows/timeseries*' => Http::response([
             'success' => true, 'result' => radarSeries(),
         ]),
     ]);
@@ -62,7 +62,7 @@ it('reads and caches country traffic with Radar token and preserves metadata', f
 
 it('supports only the three named Iranian mobile ASNs and allowed time windows', function (): void {
     Http::fake([
-        'api.cloudflare.com/*' => Http::response(['success' => true, 'result' => radarSeries()]),
+        'https://api.cloudflare.com/*' => Http::response(['success' => true, 'result' => radarSeries()]),
     ]);
 
     $client = app(CloudflareRadarClient::class);
@@ -109,7 +109,7 @@ it('reads bounded outage and anomaly events without inventing statuses', functio
 
 it('reads IQI percentiles by metric and retains their units and freshness', function (): void {
     Http::fake([
-        'api.cloudflare.com/*' => Http::response([
+        'https://api.cloudflare.com/*' => Http::response([
             'success' => true,
             'result' => [
                 'meta' => ['units' => [['name' => 'LATENCY', 'value' => 'ms']], 'lastUpdated' => '2026-11-15T08:00:00Z'],
@@ -139,7 +139,7 @@ it('fails closed without a dedicated token even when DNS credentials exist', fun
 });
 
 it('applies a shared cooldown to rate limits and does not repeatedly call upstream', function (): void {
-    Http::fake(['api.cloudflare.com/*' => Http::response(['success' => false], 429)]);
+    Http::fake(['https://api.cloudflare.com/*' => Http::response(['success' => false], 429)]);
 
     $client = app(CloudflareRadarClient::class);
     expect(fn () => $client->trafficSeries())->toThrow(RuntimeException::class, 'rate-limited')
@@ -148,7 +148,7 @@ it('applies a shared cooldown to rate limits and does not repeatedly call upstre
 });
 
 it('rejects malformed, failed, oversized and redirected replies without caching them', function (array $body, int $status): void {
-    Http::fake(['api.cloudflare.com/*' => Http::response($body, $status)]);
+    Http::fake(['https://api.cloudflare.com/*' => Http::response($body, $status)]);
     $client = app(CloudflareRadarClient::class);
 
     expect(fn () => $client->trafficSeries())->toThrow(RuntimeException::class);
