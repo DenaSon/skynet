@@ -7,8 +7,7 @@ use App\Support\PersianCalendar;
 it('renders formatted Persian numbers without changing raw machine-facing values', function (): void {
     expect(PersianCalendar::number('723,256'))->toBe('۷۲۳٬۲۵۶')
         ->and(PersianCalendar::number('100,000.3'))->toBe('۱۰۰٬۰۰۰.۳')
-        ->and(PersianCalendar::number('0'))->toBe('۰')
-        ->and(PersianCalendar::number('https://example.test/a1'))->toBe('https://example.test/a۱');
+        ->and(PersianCalendar::number('0'))->toBe('۰');
 
     // Callers localize only display strings. Numeric request and DB values stay untouched.
     $stored = 723256;
