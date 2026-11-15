@@ -150,7 +150,7 @@ final readonly class ReadIranNetworkSummary
 
         if ($confirmed) {
             return [
-                'code' => 'confirmed', 'label' => 'اختلال ثبت‌شده',
+                'code' => 'confirmed', 'label' => 'اختلال شبکه',
                 'detail' => 'در ۲۴ ساعت اخیر، گزارش اختلال در داده‌های پایش ثبت شده است.',
             ];
         }
