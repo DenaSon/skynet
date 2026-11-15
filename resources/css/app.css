@@ -85,6 +85,12 @@
         text-align: start;
     }
 
+    /* Only the settled revenue headline gets extra visual prominence. */
+    .denagate-live .dg-stat.dg-report-revenue {
+        font-size: clamp(2.25rem, 8vw, 2.75rem);
+        line-height: 1.25;
+    }
+
     /* The base dg-stat rule is more specific than Tailwind text utilities.
        Respect the opt-in centered KPI typography in both Live and Demo. */
     .denagate-live .dg-stat.text-center {

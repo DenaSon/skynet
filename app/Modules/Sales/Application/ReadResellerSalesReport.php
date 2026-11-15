@@ -23,12 +23,12 @@ final readonly class ReadResellerSalesReport
         if (! $this->buyers->isReseller($buyerId)) {
             throw new AuthorizationException;
         }
-        if (! in_array($days, [7, 30], true)) {
+        if (! in_array($days, [0, 7, 30], true)) {
             throw ValidationException::withMessages(['days' => 'Unsupported report window.']);
         }
 
         $today = Carbon::now('Asia/Tehran')->startOfDay();
-        $from = $today->copy()->subDays($days - 1)->utc();
+        $from = $days === 0 ? null : $today->copy()->subDays($days - 1)->utc();
         $until = $today->copy()->addDay()->utc();
 
         // Match the trusted Admin report's settled bank/wallet sources, not
@@ -37,24 +37,31 @@ final readonly class ReadResellerSalesReport
             ->join('sales_orders as orders', 'orders.id', '=', 'payment.sales_order_id')
             ->leftJoin('sales_renewal_orders as renewal', 'renewal.sales_order_id', '=', 'orders.id')
             ->where('orders.buyer_user_id', $buyerId)
-            ->where('payment.settled_at', '>=', $from)
             ->where('payment.settled_at', '<', $until)
-            ->selectRaw('payment.amount_rials as amount_rials, CASE WHEN renewal.sales_order_id IS NULL THEN 0 ELSE 1 END as renewed');
+            ->selectRaw('payment.amount_rials as amount_rials, payment.settled_at as settled_at, CASE WHEN renewal.sales_order_id IS NULL THEN 0 ELSE 1 END as renewed');
 
         $wallet = DB::table('sales_order_settlements as payment')
             ->join('sales_orders as orders', 'orders.id', '=', 'payment.sales_order_id')
             ->leftJoin('sales_renewal_orders as renewal', 'renewal.sales_order_id', '=', 'orders.id')
             ->where('orders.buyer_user_id', $buyerId)
             ->where('orders.status', '!=', 'refunded')
-            ->where('payment.settled_at', '>=', $from)
             ->where('payment.settled_at', '<', $until)
-            ->selectRaw('payment.amount_rials as amount_rials, CASE WHEN renewal.sales_order_id IS NULL THEN 0 ELSE 1 END as renewed');
+            ->selectRaw('payment.amount_rials as amount_rials, payment.settled_at as settled_at, CASE WHEN renewal.sales_order_id IS NULL THEN 0 ELSE 1 END as renewed');
+
+        if ($from !== null) {
+            $bank->where('payment.settled_at', '>=', $from);
+            $wallet->where('payment.settled_at', '>=', $from);
+        }
 
         $totals = DB::query()->fromSub($bank->unionAll($wallet), 'settled')
-            ->selectRaw('COUNT(*) as transactions, COALESCE(SUM(amount_rials), 0) as revenue_rials, COALESCE(SUM(renewed), 0) as renewals')
+            ->selectRaw('COUNT(*) as transactions, COALESCE(SUM(amount_rials), 0) as revenue_rials, COALESCE(SUM(renewed), 0) as renewals, MIN(settled_at) as first_settled_at')
             ->first();
         $transactions = (int) ($totals->transactions ?? 0);
         $renewals = (int) ($totals->renewals ?? 0);
+        $firstSettledAt = $totals->first_settled_at ?? null;
+        $reportFrom = $from === null && is_string($firstSettledAt)
+            ? Carbon::parse($firstSettledAt, 'UTC')->timezone('Asia/Tehran')->format('Y-m-d')
+            : ($from ?? $today)->copy()->timezone('Asia/Tehran')->format('Y-m-d');
 
         $services = DB::table('sales_orders as orders')
             ->join('provisioning_order_links as links', 'links.sales_order_id', '=', 'orders.id')
@@ -66,7 +73,7 @@ final readonly class ReadResellerSalesReport
 
         return [
             'days' => $days,
-            'from' => $from->copy()->timezone('Asia/Tehran')->format('Y-m-d'),
+            'from' => $reportFrom,
             'to' => $today->format('Y-m-d'),
             'services' => (int) ($services->services ?? 0),
             'namedServices' => (int) ($services->named ?? 0),

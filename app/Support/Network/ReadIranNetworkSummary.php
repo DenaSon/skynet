@@ -32,6 +32,7 @@ final readonly class ReadIranNetworkSummary
         $country = $this->assess(
             $this->attempt(fn (): array => $this->radar->anomalies(null, '1d')),
             $outages,
+            $this->attempt(fn (): array => $this->radar->trafficSeries(null, '1d')),
             null,
             $now,
         );
@@ -41,6 +42,7 @@ final readonly class ReadIranNetworkSummary
             $assessment = $this->assess(
                 $this->attempt(fn (): array => $this->radar->anomalies($operator['asn'], '1d')),
                 $outages,
+                $this->attempt(fn (): array => $this->radar->trafficSeries($operator['asn'], '1d')),
                 $operator['asn'],
                 $now,
             );
@@ -76,9 +78,10 @@ final readonly class ReadIranNetworkSummary
      *
      * @param  array<string,mixed>|null  $anomalies
      * @param  array<string,mixed>|null  $outages
+     * @param  array<string,mixed>|null  $traffic
      * @return array{code:string,label:string,detail:string}
      */
-    private function assess(?array $anomalies, ?array $outages, ?int $asn, CarbonImmutable $now): array
+    private function assess(?array $anomalies, ?array $outages, ?array $traffic, ?int $asn, CarbonImmutable $now): array
     {
         $confirmed = false;
         $suspected = false;
@@ -157,7 +160,7 @@ final readonly class ReadIranNetworkSummary
                 'detail' => 'نشانه‌ای از اختلال احتمالی در ۲۴ ساعت اخیر دیده شده است.',
             ];
         }
-        if ($unreadable || $anomalies === null || ($asn === null && $outages === null)) {
+        if ($unreadable || $anomalies === null || $outages === null || ! self::freshTraffic($traffic, $now)) {
             return [
                 'code' => 'unknown', 'label' => 'اطلاعات کافی نیست',
                 'detail' => 'اطلاعات کافی برای ارزیابی وضعیت در دسترس نیست.',
@@ -165,9 +168,48 @@ final readonly class ReadIranNetworkSummary
         }
 
         return [
-            'code' => 'no-report', 'label' => 'گزارش اختلالی یافت نشد',
-            'detail' => 'در داده‌های بررسی‌شده، گزارشی از اختلال در ۲۴ ساعت اخیر یافت نشد.',
+            'code' => 'healthy', 'label' => 'سالم',
+            'detail' => 'در داده‌های به‌روز بررسی‌شده، نشانه‌ای از اختلال ثبت نشده است.',
         ];
+    }
+
+    /**
+     * A fresh traffic sample is only a prerequisite for the short "سالم"
+     * summary, NOT evidence of ISP or protocol reachability.
+     *
+     * @param  array<string,mixed>|null  $traffic
+     */
+    private static function freshTraffic(?array $traffic, CarbonImmutable $now): bool
+    {
+        $meta = $traffic['meta'] ?? null;
+        $series = $traffic['serie_0'] ?? null;
+        if (! is_array($meta) || ! is_array($series)
+            || ! is_string($meta['lastUpdated'] ?? null)
+            || ! is_array($series['timestamps'] ?? null)
+            || ! is_array($series['values'] ?? null)
+            || $series['values'] === []) {
+            return false;
+        }
+
+        $lastTimestamp = end($series['timestamps']);
+        $lastValue = end($series['values']);
+        if (! is_string($lastTimestamp) || ! (is_string($lastValue) || is_int($lastValue) || is_float($lastValue))
+            || ! is_numeric($lastValue)) {
+            return false;
+        }
+
+        try {
+            $sourceUpdate = CarbonImmutable::parse($meta['lastUpdated']);
+            $lastSample = CarbonImmutable::parse($lastTimestamp);
+        } catch (Throwable) {
+            return false;
+        }
+
+        $earliest = $now->subHours(3);
+        $latest = $now->addMinutes(5);
+
+        return $sourceUpdate->betweenIncluded($earliest, $latest)
+            && $lastSample->betweenIncluded($earliest, $latest);
     }
 
     /** Null means malformed evidence; false means a valid event outside the window. */
