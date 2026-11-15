@@ -226,7 +226,7 @@
                                         </div>
                                         <input id="quote-gb" type="range" name="volume_gb"
                                             min="{{ $selectedPlan->minGb }}" max="{{ $selectedPlan->maxGb }}" step="1"
-                                            x-model.number="value" x-bind:aria-valuetext="value + ' گیگابایت'"
+                                            x-model.number="value" x-bind:aria-valuetext="new Intl.NumberFormat('fa-IR', { useGrouping: false }).format(Number(value)) + ' گیگابایت'"
                                             aria-describedby="quote-gb-hint"
                                             class="mt-4 h-11 w-full cursor-pointer accent-[#14B8A6] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]" />
                                         <p id="quote-gb-hint" class="mt-1 flex justify-between gap-3 text-xs text-[#536C76]">
@@ -272,7 +272,7 @@
                                         </div>
                                         <input id="quote-days" type="range" name="duration_days"
                                             min="{{ $selectedPlan->minDays }}" max="{{ $selectedPlan->maxDays }}" step="1"
-                                            x-model.number="value" x-bind:aria-valuetext="value + ' روز'"
+                                            x-model.number="value" x-bind:aria-valuetext="new Intl.NumberFormat('fa-IR', { useGrouping: false }).format(Number(value)) + ' روز'"
                                             aria-describedby="quote-days-hint"
                                             class="mt-4 h-11 w-full cursor-pointer accent-[#14B8A6] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]" />
                                         <p id="quote-days-hint" class="mt-1 flex justify-between gap-3 text-xs text-[#536C76]">
