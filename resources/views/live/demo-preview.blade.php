@@ -197,7 +197,7 @@
                             x-text="new Intl.NumberFormat('fa-IR', { useGrouping: false }).format(Number(demoGb)) + ' گیگابایت'">۷۵ گیگابایت</span>
                     </div>
                     <input id="demo-builder-gb" type="range" name="demo_volume_gb" min="1" max="500" step="1"
-                        x-model.number="demoGb" x-bind:aria-valuetext="demoGb + ' گیگابایت'"
+                        x-model.number="demoGb" x-bind:aria-valuetext="new Intl.NumberFormat('fa-IR', { useGrouping: false }).format(Number(demoGb)) + ' گیگابایت'"
                         aria-describedby="demo-builder-gb-hint"
                         class="mt-4 h-11 w-full cursor-pointer accent-[#14B8A6] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]" />
                     <p id="demo-builder-gb-hint" class="mt-1 flex justify-between gap-3 text-xs text-[#536C76]">
@@ -233,7 +233,7 @@
                             x-text="new Intl.NumberFormat('fa-IR', { useGrouping: false }).format(Number(demoDays)) + ' روز'">۳۰ روز</span>
                     </div>
                     <input id="demo-builder-days" type="range" name="demo_duration_days" min="7" max="180" step="1"
-                        x-model.number="demoDays" x-bind:aria-valuetext="demoDays + ' روز'"
+                        x-model.number="demoDays" x-bind:aria-valuetext="new Intl.NumberFormat('fa-IR', { useGrouping: false }).format(Number(demoDays)) + ' روز'"
                         aria-describedby="demo-builder-days-hint"
                         class="mt-4 h-11 w-full cursor-pointer accent-[#14B8A6] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]" />
                     <p id="demo-builder-days-hint" class="mt-1 flex justify-between gap-3 text-xs text-[#536C76]">
