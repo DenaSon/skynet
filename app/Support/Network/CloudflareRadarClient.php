@@ -127,6 +127,7 @@ final class CloudflareRadarClient
         $key = 'cloudflare:radar:v1:'.hash('sha256', $path.'?'.http_build_query($query));
         $seconds = max(60, min(3600, (int) config('services.cloudflare_radar.cache_seconds', 600)));
 
+        /** @var mixed $result */
         $result = Cache::remember($key, $seconds, fn (): array => $this->fetch($path, $query, $shape));
         if (! is_array($result) || array_is_list($result)) {
             throw new RuntimeException('Invalid cached Radar response.');
