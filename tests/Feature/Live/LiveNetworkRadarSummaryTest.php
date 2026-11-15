@@ -202,7 +202,6 @@ it('does not reveal any Radar data when not on reports and rechecks on later rep
     Http::assertNothingSent();
 });
 
-
 it('never paints a green status when Cloudflare traffic timestamps are stale or malformed', function (): void {
     Http::fake(function (Request $request) {
         if (str_contains($request->url(), '/annotations/outages')) {
