@@ -151,7 +151,7 @@ it('previews exact price without creating an order and settles exactly one exist
         ->assertSee('بررسی قیمت تمدید')
         ->call('previewServiceRenewal')
         ->assertSee('پیشنهاد تمدید')
-        ->assertSee('65,000');
+        ->assertSee('۶۵٬۰۰۰');
 
     expect(DB::table('sales_orders')->count())->toBe(1);
     live4cNoDebit();
@@ -171,8 +171,8 @@ it('previews exact price without creating an order and settles exactly one exist
     $page->call('confirmRenewalPayment')->assertSee('ابتدا مبلغ و اعتبار')
         ->call('prepareRenewalPayment')
         ->assertSee('تأیید پرداخت تمدید')
-        ->assertSee('100,000')
-        ->assertSee('35,000')
+        ->assertSee('۱۰۰٬۰۰۰')
+        ->assertSee('۳۵٬۰۰۰')
         ->call('confirmRenewalPayment')
         ->assertSee('پرداخت ثبت‌شده؛ تمدید در انتظار اعمال')
         ->assertDontSee('تأیید و پرداخت تمدید');
@@ -229,7 +229,7 @@ it('refuses a changed price without creating an order or debit', function (): vo
     live4cProvider($d['source']);
     $this->actingAs($d['buyer'])->withSession(['denagate_live.user_id' => $d['buyer']->id]);
     $page = Livewire::test(Dashboard::class)->call('showSection', 'services')->call('openService', $d['source'])
-        ->call('previewServiceRenewal')->assertSee('65,000');
+        ->call('previewServiceRenewal')->assertSee('۶۵٬۰۰۰');
 
     DB::table('sales_plan_prices')->where('plan_id', $d['plan'])
         ->update(['fixed_price_rials' => 1_500_000]);
