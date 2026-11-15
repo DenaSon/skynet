@@ -170,7 +170,7 @@
                             <h2 class="break-words text-base font-extrabold text-[#1B2935]">{{ $plan['name'] }}</h2>
                             <p class="mt-2 text-sm font-extrabold leading-7 text-[#354C58]">{{ \App\Support\PersianCalendar::number((string) ( number_format($plan['durationDays']) )) }} روز · {{ \App\Support\PersianCalendar::number((string) ( $plan['trafficGb'] === null ? 'حجم نامحدود' : number_format($plan['trafficGb']).' گیگابایت' )) }}</p>
                             <p class="dg-stat mt-4 text-[#087F73]" dir="ltr">{{ $toman($plan['resellerRials']) }} <span class="text-xs font-medium text-[#536C76]">تومان</span></p>
-                            <p class="mt-1 text-xs text-[#536C76]">با تخفیف نمایندگی {{ $plan['discountPercent'] }}٪</p>
+                            <p class="mt-1 text-xs text-[#536C76]">با تخفیف نمایندگی {{ \App\Support\PersianCalendar::number((string) ( $plan['discountPercent'] )) }}٪</p>
                             <div class="mt-4 flex items-center justify-between gap-3 border-t border-[#E7ECEF] pt-3 text-xs text-[#536C76]">
                                 <span>قیمت عمومی</span>
                                 <span dir="ltr" class="font-semibold text-[#1B2935]">{{ $toman($plan['publicRials']) }} تومان</span>
@@ -208,7 +208,7 @@
                             <button type="button" x-on:click="demoGb = {{ $gb }}"
                                 x-bind:aria-pressed="demoGb === {{ $gb }} ? 'true' : 'false'"
                                 x-bind:class="demoGb === {{ $gb }} ? 'border-[#14B8A6] bg-[#E7F8F3] text-[#087F73]' : 'border-[#E7ECEF] bg-white text-[#354C58]'"
-                                class="min-h-11 rounded-xl border px-3 py-2 text-sm font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]">{{ $gb }} گیگ</button>
+                                class="min-h-11 rounded-xl border px-3 py-2 text-sm font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]">{{ \App\Support\PersianCalendar::number((string) ( $gb )) }} گیگ</button>
                         @endforeach
                     </div>
                     <div class="mt-5 flex items-center justify-between gap-3">
@@ -244,7 +244,7 @@
                             <button type="button" x-on:click="demoDays = {{ $days }}"
                                 x-bind:aria-pressed="demoDays === {{ $days }} ? 'true' : 'false'"
                                 x-bind:class="demoDays === {{ $days }} ? 'border-[#14B8A6] bg-[#E7F8F3] text-[#087F73]' : 'border-[#E7ECEF] bg-white text-[#354C58]'"
-                                class="min-h-11 rounded-xl border px-3 py-2 text-sm font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]">{{ $days }} روز</button>
+                                class="min-h-11 rounded-xl border px-3 py-2 text-sm font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]">{{ \App\Support\PersianCalendar::number((string) ( $days )) }} روز</button>
                         @endforeach
                     </div>
                     <div class="mt-5 flex items-center justify-between gap-3">
