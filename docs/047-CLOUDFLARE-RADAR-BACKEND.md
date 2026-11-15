@@ -24,3 +24,14 @@ Use \`meta.normalization\`, \`meta.lastUpdated\`, confidence information and the
 ## Validation
 
 Pest feature tests use \`Http::fake\` for success, exact filters/token/GET, shared cache, input guards, missing credentials, 429 cooldown, provider failures and malformed replies. Such tests are **not** a live Radar API or Production acceptance test; a valid Radar token and separately approved live smoke will be required.
+
+
+## DenaGate Live UI-01 — two reseller report cards (2026-11-15)
+
+**Operator-approved narrow scope:** Only existing authenticated reseller Livewire reports (/dashboard, section reports), with two quiet cards **below** the original six sales metrics: (1) Iran public network notices; (2) MCI, Irancell, Rightel notices. No new page/domain, public route, chart, miniapp navigation, demo, bot, provider operation, DB migration, scheduler, dependency or sales/payment change. The existing 7/30-day selector remains for **sales only**; Radar cards always summarize the preceding 24 hours.
+
+The read-only ReadIranNetworkSummary projects the already merged CloudflareRadarClient results from one country outage read and four anomaly reads (Iran plus the three allowlisted ASNs). Transport-level success responses are cached by the existing shared Redis/Laravel cache. The country/ISP projections distinguish: verified outage (eventType=OUTAGE) or TP/VERIFIED anomaly → **اختلال ثبت‌شده**; current UNVERIFIED anomaly → **احتمال اختلال**; empty valid results → **گزارش اختلالی یافت نشد**; failed/malformed/incomplete data → **اطلاعات کافی نیست**. Malformed, future and expired event timestamps do not prove an incident. Country outages are attributed to an ISP only when it is explicitly named in asns. No status ever means guaranteed internet, VLESS, REALITY or XHTTP access.
+
+Radar work runs through a separate, reseller-authorized lazy Livewire action only after entering the reports section; it never blocks the initial sales-report render, never grants access to nonresellers, and never makes customer-facing provider writes. No direct browser calls or token exposure. Loading and unavailable states are explicit; last read time is **fetch time**, not Cloudflare's source measurement timestamp. Errors do not change readError or the established sales reporting. Opening other Mini App sections does not fetch Radar data. Reopening reports resets the summary; repeat calls in one view are idempotent.
+
+**Verification:** PHP/Livewire fake-HTTP coverage exercises load-only-on-reports, three ISP projections, confirmed/suspected/empty/unavailable results, old/malformed event timestamps, role denial, sales period and no writes/secret leakage. This is source verification; mobile Telegram WebView UI and real post-deploy Radar+Report smoke are separate gates. UI-01 does not modify the original Radar backend client.

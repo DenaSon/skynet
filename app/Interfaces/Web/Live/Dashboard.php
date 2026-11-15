@@ -28,6 +28,7 @@ use App\Modules\Sales\Application\PrepareRenewalDraft;
 use App\Modules\Sales\Application\ReadResellerSalesReport;
 use App\Modules\Sales\Application\RegisterPendingResellerOrder;
 use App\Modules\Sales\Application\SettleWalletOrder;
+use App\Support\Network\ReadIranNetworkSummary;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -46,6 +47,13 @@ final class Dashboard extends Component
     public string $section = 'overview';
 
     public int $reportDays = 30;
+
+    /** @var array<string,mixed>|null */
+    #[Locked]
+    public ?array $networkStatus = null;
+
+    #[Locked]
+    public bool $networkStatusLoaded = false;
 
     public ?int $serviceCursor = null;
 
@@ -174,12 +182,37 @@ final class Dashboard extends Component
                 $this->resetPlanSelection();
                 $this->resetRecentOrdersPagination();
             }
+            if ($section === 'reports' && $this->section !== 'reports') {
+                $this->networkStatus = null;
+                $this->networkStatusLoaded = false;
+            }
             $this->section = $section;
             $this->serviceCursor = null;
             $this->serviceExpiry = null;
             $this->serviceExpiryError = null;
             $this->resetServiceDetail();
         }
+    }
+
+    /**
+     * Separate lazy read: Radar outages must never block or fail sales reporting.
+     * The existing reseller authorization is rechecked for this Livewire action.
+     */
+    public function loadNetworkStatus(): void
+    {
+        $this->resellerId();
+        if ($this->section !== 'reports' || $this->networkStatusLoaded) {
+            return;
+        }
+
+        try {
+            $this->networkStatus = app(ReadIranNetworkSummary::class)->handle();
+        } catch (Throwable $exception) {
+            self::logSafeFailure('radar_summary_read', $exception);
+            $this->networkStatus = null;
+        }
+
+        $this->networkStatusLoaded = true;
     }
 
     public function selectReportDays(int $days): void
