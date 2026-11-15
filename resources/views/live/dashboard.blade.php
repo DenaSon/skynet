@@ -862,8 +862,8 @@
                                 ];
                             @endphp
 
-                            <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                                <article class="dg-card p-5 sm:p-6" aria-labelledby="network-country-heading">
+                            <div class="flex flex-col gap-3 md:flex-row">
+                                <article class="dg-card min-w-0 flex-1 p-5 sm:p-6" aria-labelledby="network-country-heading">
                                     <div class="flex items-center gap-2">
                                         <span aria-hidden="true" class="flex h-9 w-9 items-center justify-center rounded-xl bg-[#EAF8F4] text-[#087F73]">
                                             <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
@@ -891,7 +891,7 @@
                                     @endif
                                 </article>
 
-                                <article class="dg-card p-5 sm:p-6" aria-labelledby="network-operators-heading">
+                                <article class="dg-card min-w-0 flex-1 p-5 sm:p-6" aria-labelledby="network-operators-heading">
                                     <div class="flex items-center gap-2">
                                         <span aria-hidden="true" class="flex h-9 w-9 items-center justify-center rounded-xl bg-[#F1F5F7] text-[#536C76]">
                                             <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
