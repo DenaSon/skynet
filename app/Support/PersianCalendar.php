@@ -80,6 +80,12 @@ final class PersianCalendar
         return [$jy, 7 + intdiv($days - 186, 30), 1 + ($days - 186) % 30];
     }
 
+    /** Presentation-only numbers: Persian digits and the Persian grouping separator. */
+    public static function number(string $formatted): string
+    {
+        return str_replace(',', '٬', self::digits($formatted));
+    }
+
     public static function digits(string $value): string
     {
         return strtr($value, [

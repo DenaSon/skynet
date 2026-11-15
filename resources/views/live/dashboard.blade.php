@@ -35,19 +35,19 @@
                     <div class="grid grid-cols-1 gap-3 sm:grid-cols-3 md:gap-5">
                         <section class="dg-card p-5 md:p-7">
                             <p class="text-xs font-semibold text-[#536C76]">اعتبار قابل استفاده</p>
-                            <p class="dg-stat mt-3" dir="ltr">{{ number_format(intdiv($wallet->balanceRials, 10)) }} <span class="text-xs font-normal text-[#687987]">تومان</span></p>
+                            <p class="dg-stat mt-3" dir="ltr">{{ \App\Support\PersianCalendar::number((string) ( number_format(intdiv($wallet->balanceRials, 10)) )) }} <span class="text-xs font-normal text-[#687987]">تومان</span></p>
                             <button type="button" wire:click="showSection('credit')" wire:target="showSection" wire:loading.attr="disabled" class="dg-btn-secondary mt-4 w-full">جزئیات اعتبار ←</button>
                         </section>
                         <section class="dg-card p-5 md:p-7">
                             <p class="text-xs font-semibold text-[#536C76]">سرویس‌های ثبت‌شده</p>
-                            <p class="dg-stat mt-3">{{ number_format($counts['total']) }}</p>
-                            <p class="mt-1 text-xs text-[#536C76]">فعال در سوابق: {{ number_format($counts['activeRecorded']) }}</p>
+                            <p class="dg-stat mt-3">{{ \App\Support\PersianCalendar::number((string) ( number_format($counts['total']) )) }}</p>
+                            <p class="mt-1 text-xs text-[#536C76]">فعال در سوابق: {{ \App\Support\PersianCalendar::number((string) ( number_format($counts['activeRecorded']) )) }}</p>
                             <button type="button" wire:click="showSection('services')" wire:target="showSection" wire:loading.attr="disabled" class="dg-btn-secondary mt-4 w-full">فهرست سرویس‌ها ←</button>
                         </section>
                         <section class="dg-card p-5 md:p-7">
                             <p class="text-xs font-semibold text-[#536C76]">فروش تسویه‌شده · ۳۰ روز اخیر</p>
-                            <p class="dg-stat mt-3" dir="ltr">{{ number_format(intdiv($report['revenueRials'], 10)) }} <span class="text-xs font-normal text-[#687987]">تومان</span></p>
-                            <p class="mt-1 text-xs text-[#536C76]">{{ number_format($report['transactions']) }} تراکنش تسویه‌شده</p>
+                            <p class="dg-stat mt-3" dir="ltr">{{ \App\Support\PersianCalendar::number((string) ( number_format(intdiv($report['revenueRials'], 10)) )) }} <span class="text-xs font-normal text-[#687987]">تومان</span></p>
+                            <p class="mt-1 text-xs text-[#536C76]">{{ \App\Support\PersianCalendar::number((string) ( number_format($report['transactions']) )) }} تراکنش تسویه‌شده</p>
                             <button type="button" wire:click="showSection('reports')" wire:target="showSection" wire:loading.attr="disabled" class="dg-btn-secondary mt-4 w-full">گزارش فروش ←</button>
                         </section>
                     </div>
@@ -88,7 +88,7 @@
                                 @if ($createdCustomerName !== null)
                                     <div class="flex flex-wrap justify-between gap-3"><span class="text-[#536C76]">نام مشتری</span><span class="break-all font-bold text-[#1B2935]" dir="auto">{{ $createdCustomerName }}</span></div>
                                 @endif
-                                <div class="flex flex-wrap justify-between gap-3 border-t border-[#E7ECEF] pt-3"><span class="text-[#536C76]">مبلغ سفارش</span><span class="font-extrabold text-[#087F73]" dir="ltr">{{ number_format(intdiv($createdOrder->totalPriceRials, 10)) }}{{ $createdOrder->totalPriceRials % 10 === 0 ? '' : '.'.($createdOrder->totalPriceRials % 10) }} تومان</span></div>
+                                <div class="flex flex-wrap justify-between gap-3 border-t border-[#E7ECEF] pt-3"><span class="text-[#536C76]">مبلغ سفارش</span><span class="font-extrabold text-[#087F73]" dir="ltr">{{ \App\Support\PersianCalendar::number((string) ( number_format(intdiv($createdOrder->totalPriceRials, 10)) )) }}{{ $createdOrder->totalPriceRials % 10 === 0 ? '' : '.'.($createdOrder->totalPriceRials % 10) }} تومان</span></div>
                             </div>
                             @if ($walletError)
                                 <p role="alert" class="mt-5 rounded-2xl border border-[#F0E0C9] bg-[#FFF9F1] p-4 text-sm leading-7 text-[#845C23]">{{ $walletError }}</p>
@@ -98,9 +98,9 @@
                                     <div class="dg-card-accent mt-5 p-5">
                                         <h3 class="text-base font-extrabold text-[#1B2935]">تأیید پرداخت از اعتبار</h3>
                                         <p class="mt-2 break-words text-xs leading-6 text-[#536C76]">برای سفارش #{{ $createdOrder->id }} · {{ $createdOrder->productName }}</p>
-                                        <div class="mt-4 flex flex-wrap justify-between gap-2 text-sm text-[#536C76]"><span>مبلغ برداشت</span><span dir="ltr" class="font-bold">{{ number_format(intdiv($walletConfirmAmountRials, 10)) }}{{ $walletConfirmAmountRials % 10 === 0 ? '' : '.'.($walletConfirmAmountRials % 10) }} تومان</span></div>
-                                        <div class="mt-3 flex flex-wrap justify-between gap-2 text-sm text-[#536C76]"><span>اعتبار فعلی</span><span dir="ltr">{{ number_format(intdiv($walletConfirmBalanceRials, 10)) }}{{ $walletConfirmBalanceRials % 10 === 0 ? '' : '.'.($walletConfirmBalanceRials % 10) }} تومان</span></div>
-                                        <div class="mt-3 flex flex-wrap justify-between gap-2 border-t border-[#CCEDE4] pt-3 text-sm font-bold text-[#1B2935]"><span>اعتبار پس از پرداخت</span><span dir="ltr">{{ number_format(intdiv($walletConfirmBalanceRials - $walletConfirmAmountRials, 10)) }}{{ ($walletConfirmBalanceRials - $walletConfirmAmountRials) % 10 === 0 ? '' : '.'.(($walletConfirmBalanceRials - $walletConfirmAmountRials) % 10) }} تومان</span></div>
+                                        <div class="mt-4 flex flex-wrap justify-between gap-2 text-sm text-[#536C76]"><span>مبلغ برداشت</span><span dir="ltr" class="font-bold">{{ \App\Support\PersianCalendar::number((string) ( number_format(intdiv($walletConfirmAmountRials, 10)) )) }}{{ $walletConfirmAmountRials % 10 === 0 ? '' : '.'.($walletConfirmAmountRials % 10) }} تومان</span></div>
+                                        <div class="mt-3 flex flex-wrap justify-between gap-2 text-sm text-[#536C76]"><span>اعتبار فعلی</span><span dir="ltr">{{ \App\Support\PersianCalendar::number((string) ( number_format(intdiv($walletConfirmBalanceRials, 10)) )) }}{{ $walletConfirmBalanceRials % 10 === 0 ? '' : '.'.($walletConfirmBalanceRials % 10) }} تومان</span></div>
+                                        <div class="mt-3 flex flex-wrap justify-between gap-2 border-t border-[#CCEDE4] pt-3 text-sm font-bold text-[#1B2935]"><span>اعتبار پس از پرداخت</span><span dir="ltr">{{ \App\Support\PersianCalendar::number((string) ( number_format(intdiv($walletConfirmBalanceRials - $walletConfirmAmountRials, 10)) )) }}{{ ($walletConfirmBalanceRials - $walletConfirmAmountRials) % 10 === 0 ? '' : '.'.(($walletConfirmBalanceRials - $walletConfirmAmountRials) % 10) }} تومان</span></div>
                                         <p class="mt-4 text-xs leading-7 text-[#536C76]">با تأیید، مبلغ بالا یک بار از اعتبار شما کسر می‌شود.</p>
                                         <button type="button" wire:click="confirmWalletPayment" wire:loading.attr="disabled" wire:target="confirmWalletPayment"
                                             class="dg-btn-primary mt-5 min-h-12 w-full">تأیید و پرداخت<span wire:loading.delay wire:target="confirmWalletPayment" role="status" class="text-xs font-semibold">در حال ثبت پرداخت…</span></button>
@@ -142,9 +142,9 @@
                                             <article wire:key="live-plan-{{ $item->plan->id }}" data-tone="{{ ['teal', 'blue', 'sand'][$loop->index % 3] }}" class="dg-card dg-plan-card flex flex-col p-4 sm:p-5">
                                                 <h2 class="break-words text-base font-extrabold text-[#1B2935]">{{ $item->plan->name }}</h2>
                                                 <p class="mt-2 text-sm font-extrabold leading-7 text-[#354C58]">
-                                                    {{ $item->plan->durationDays }} روز · {{ $item->plan->trafficGb === null ? 'حجم نامحدود' : number_format($item->plan->trafficGb).' گیگابایت' }}
+                                                    {{ $item->plan->durationDays }} روز · {{ \App\Support\PersianCalendar::number((string) ( $item->plan->trafficGb === null ? 'حجم نامحدود' : number_format($item->plan->trafficGb).' گیگابایت' )) }}
                                                 </p>
-                                                <p class="dg-stat mt-4 text-[#087F73]" dir="ltr">{{ number_format(intdiv($item->quote->totalPriceRials, 10)) }}{{ $item->quote->totalPriceRials % 10 === 0 ? '' : '.'.($item->quote->totalPriceRials % 10) }} <span class="text-xs font-medium text-[#536C76]">تومان</span></p>
+                                                <p class="dg-stat mt-4 text-[#087F73]" dir="ltr">{{ \App\Support\PersianCalendar::number((string) ( number_format(intdiv($item->quote->totalPriceRials, 10)) )) }}{{ $item->quote->totalPriceRials % 10 === 0 ? '' : '.'.($item->quote->totalPriceRials % 10) }} <span class="text-xs font-medium text-[#536C76]">تومان</span></p>
                                                 <p class="mt-1 text-xs text-[#536C76]">با تخفیف نمایندگی {{ $item->quote->discountPercent }}٪</p>
                                                 <button type="button" wire:click="selectPlan({{ $item->plan->id }})" wire:target="selectPlan" wire:loading.attr="disabled" class="dg-btn-secondary mt-4 w-full">انتخاب پلن<span wire:loading.delay wire:target="selectPlan" role="status" class="text-xs font-semibold">در حال انتخاب…</span></button>
                                             </article>
@@ -161,7 +161,7 @@
                                             <article wire:key="live-builder-{{ $builder->id }}" data-tone="builder" class="dg-card dg-plan-card flex flex-col p-4 sm:p-5">
                                                 <h2 class="break-words text-base font-extrabold text-[#1B2935]">{{ $builder->name }}</h2>
                                                 <p class="mt-2 text-sm font-extrabold leading-7 text-[#354C58]">مدت دلخواه: {{ $builder->minDays }} تا {{ $builder->maxDays }} روز</p>
-                                                <p class="mt-1 text-sm font-bold leading-7 text-[#354C58]">{{ $builder->kind === 'time' ? 'حجم نامحدود' : 'حجم دلخواه: '.number_format($builder->minGb).' تا '.number_format($builder->maxGb).' گیگابایت' }}</p>
+                                                <p class="mt-1 text-sm font-bold leading-7 text-[#354C58]">{{ \App\Support\PersianCalendar::number((string) ( $builder->kind === 'time' ? 'حجم نامحدود' : 'حجم دلخواه: '.number_format($builder->minGb).' تا '.number_format($builder->maxGb).' گیگابایت' )) }}</p>
                                                 <p class="mt-5 text-sm font-semibold text-[#087F73]">قیمت بر اساس انتخاب شما</p>
                                                 <button type="button" wire:click="selectPlan({{ $builder->id }})" wire:target="selectPlan" wire:loading.attr="disabled" class="dg-btn-secondary mt-auto w-full">تنظیم پلن<span wire:loading.delay wire:target="selectPlan" role="status" class="text-xs font-semibold">در حال انتخاب…</span></button>
                                             </article>
@@ -222,7 +222,7 @@
                                         <p class="text-xs font-bold text-[#087F73]">مرحله ۱ از ۲ · حجم سرویس</p>
                                         <div class="mt-4 flex items-center justify-between gap-3">
                                             <label for="quote-gb" class="text-sm font-bold text-[#1B2935]">حجم موردنیاز را انتخاب کنید</label>
-                                            <span class="shrink-0 text-lg font-extrabold tabular-nums text-[#087F73]" aria-live="off" x-text="value + ' گیگابایت'">{{ $gbInput }} گیگابایت</span>
+                                            <span class="shrink-0 text-lg font-extrabold tabular-nums text-[#087F73]" aria-live="off" x-text="new Intl.NumberFormat('fa-IR', { useGrouping: false }).format(Number(value)) + ' گیگابایت'">{{ $gbInput }} گیگابایت</span>
                                         </div>
                                         <input id="quote-gb" type="range" name="volume_gb"
                                             min="{{ $selectedPlan->minGb }}" max="{{ $selectedPlan->maxGb }}" step="1"
@@ -230,8 +230,8 @@
                                             aria-describedby="quote-gb-hint"
                                             class="mt-4 h-11 w-full cursor-pointer accent-[#14B8A6] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]" />
                                         <p id="quote-gb-hint" class="mt-1 flex justify-between gap-3 text-xs text-[#536C76]">
-                                            <span>{{ number_format($selectedPlan->minGb) }} گیگ</span>
-                                            <span>{{ number_format($selectedPlan->maxGb) }} گیگ</span>
+                                            <span>{{ \App\Support\PersianCalendar::number((string) ( number_format($selectedPlan->minGb) )) }} گیگ</span>
+                                            <span>{{ \App\Support\PersianCalendar::number((string) ( number_format($selectedPlan->maxGb) )) }} گیگ</span>
                                         </p>
                                         <div class="mt-5 flex flex-wrap gap-2" role="group" aria-label="حجم‌های آماده">
                                             @foreach (array_unique([(int) $selectedPlan->minGb, 10, 20, 30, 50, 75, 100, 150, 250, (int) $selectedPlan->maxGb]) as $choice)
@@ -264,11 +264,11 @@
                                         class="mt-6">
                                         <p class="text-xs font-bold text-[#087F73]">{{ $selectedPlan->kind === 'time' ? 'انتخاب مدت سرویس' : 'مرحله ۲ از ۲ · مدت سرویس' }}</p>
                                         <p class="mt-2 text-sm font-semibold text-[#536C76]">
-                                            حجم: {{ $selectedPlan->kind === 'time' ? 'نامحدود' : number_format((int) $gbInput).' گیگابایت' }}
+                                            حجم: {{ \App\Support\PersianCalendar::number((string) ( $selectedPlan->kind === 'time' ? 'نامحدود' : number_format((int) $gbInput).' گیگابایت' )) }}
                                         </p>
                                         <div class="mt-4 flex items-center justify-between gap-3">
                                             <label for="quote-days" class="text-sm font-bold text-[#1B2935]">مدت سرویس را به روز مشخص کنید</label>
-                                            <span class="shrink-0 text-lg font-extrabold tabular-nums text-[#087F73]" aria-live="off" x-text="value + ' روز'">{{ $daysInput }} روز</span>
+                                            <span class="shrink-0 text-lg font-extrabold tabular-nums text-[#087F73]" aria-live="off" x-text="new Intl.NumberFormat('fa-IR', { useGrouping: false }).format(Number(value)) + ' روز'">{{ $daysInput }} روز</span>
                                         </div>
                                         <input id="quote-days" type="range" name="duration_days"
                                             min="{{ $selectedPlan->minDays }}" max="{{ $selectedPlan->maxDays }}" step="1"
@@ -314,7 +314,7 @@
                                     <div class="mt-6 rounded-2xl bg-[#F6F8FA] p-4">
                                         <p class="text-xs font-semibold text-[#536C76]">مشخصات انتخاب‌شده</p>
                                         <p class="mt-2 text-base font-extrabold text-[#1B2935]">
-                                            {{ $selectedPlan->kind === 'time' ? 'حجم نامحدود' : number_format((int) $gbInput).' گیگابایت' }} · {{ $daysInput }} روز
+                                            {{ \App\Support\PersianCalendar::number((string) ( $selectedPlan->kind === 'time' ? 'حجم نامحدود' : number_format((int) $gbInput).' گیگابایت' )) }} · {{ $daysInput }} روز
                                         </p>
                                         <div class="mt-4 flex flex-wrap gap-3">
                                             @if ($selectedPlan->kind !== 'time')
@@ -332,7 +332,7 @@
                                     <p role="alert" class="mt-4 rounded-2xl border border-[#F0E0C9] bg-[#FFF9F1] p-4 text-sm leading-7 text-[#845C23]">{{ $builderError }}</p>
                                 @endif
                             @else
-                                <p class="mt-5 text-sm font-semibold text-[#536C76]">{{ $selectedPlan->durationDays }} روز · {{ $selectedPlan->trafficGb === null ? 'حجم نامحدود' : number_format($selectedPlan->trafficGb).' گیگابایت' }}</p>
+                                <p class="mt-5 text-sm font-semibold text-[#536C76]">{{ $selectedPlan->durationDays }} روز · {{ \App\Support\PersianCalendar::number((string) ( $selectedPlan->trafficGb === null ? 'حجم نامحدود' : number_format($selectedPlan->trafficGb).' گیگابایت' )) }}</p>
                             @endif
 
                             @if ($selectedPlan->mode !== 'builder' && $planQuote === null)
@@ -351,16 +351,16 @@
                             @elseif ($planQuote !== null)
                                 <div class="dg-card-accent mt-6 p-5" aria-label="پیش‌فاکتور نمایندگی">
                                     <h3 class="text-base font-extrabold text-[#1B2935]">پیش‌فاکتور شما</h3>
-                                    <p class="mt-2 text-xs leading-7 text-[#617380]">{{ $planQuote->durationDays }} روز · {{ $planQuote->trafficGb === null ? 'حجم نامحدود' : number_format($planQuote->trafficGb).' گیگابایت' }}</p>
+                                    <p class="mt-2 text-xs leading-7 text-[#617380]">{{ $planQuote->durationDays }} روز · {{ \App\Support\PersianCalendar::number((string) ( $planQuote->trafficGb === null ? 'حجم نامحدود' : number_format($planQuote->trafficGb).' گیگابایت' )) }}</p>
                                     <div class="mt-5 flex items-center justify-between gap-3 text-sm text-[#536C76]">
-                                        <span>قیمت اصلی</span><span dir="ltr">{{ number_format(intdiv($planQuote->publicPriceRials, 10)) }}{{ $planQuote->publicPriceRials % 10 === 0 ? '' : '.'.($planQuote->publicPriceRials % 10) }} تومان</span>
+                                        <span>قیمت اصلی</span><span dir="ltr">{{ \App\Support\PersianCalendar::number((string) ( number_format(intdiv($planQuote->publicPriceRials, 10)) )) }}{{ $planQuote->publicPriceRials % 10 === 0 ? '' : '.'.($planQuote->publicPriceRials % 10) }} تومان</span>
                                     </div>
                                     <div class="mt-3 flex items-center justify-between gap-3 text-sm text-[#087F73]">
-                                        <span>تخفیف نمایندگی ({{ $planQuote->discountPercent }}٪)</span><span dir="ltr">− {{ number_format(intdiv($planQuote->discountRials, 10)) }}{{ $planQuote->discountRials % 10 === 0 ? '' : '.'.($planQuote->discountRials % 10) }} تومان</span>
+                                        <span>تخفیف نمایندگی ({{ $planQuote->discountPercent }}٪)</span><span dir="ltr">− {{ \App\Support\PersianCalendar::number((string) ( number_format(intdiv($planQuote->discountRials, 10)) )) }}{{ $planQuote->discountRials % 10 === 0 ? '' : '.'.($planQuote->discountRials % 10) }} تومان</span>
                                     </div>
                                     <div class="mt-5 flex items-center justify-between gap-3 border-t border-[#CCEDE4] pt-4">
                                         <span class="text-sm font-extrabold text-[#1B2935]">مبلغ نهایی</span>
-                                        <span class="dg-stat text-[#087F73]" dir="ltr">{{ number_format(intdiv($planQuote->totalPriceRials, 10)) }}{{ $planQuote->totalPriceRials % 10 === 0 ? '' : '.'.($planQuote->totalPriceRials % 10) }} <span class="text-xs font-medium">تومان</span></span>
+                                        <span class="dg-stat text-[#087F73]" dir="ltr">{{ \App\Support\PersianCalendar::number((string) ( number_format(intdiv($planQuote->totalPriceRials, 10)) )) }}{{ $planQuote->totalPriceRials % 10 === 0 ? '' : '.'.($planQuote->totalPriceRials % 10) }} <span class="text-xs font-medium">تومان</span></span>
                                     </div>
                                 </div>
                                 <p class="mt-4 text-xs leading-7 text-[#536C76]">مبلغ هنگام ثبت سفارش دوباره بررسی می‌شود. ثبت سفارش به‌معنای پرداخت نیست.</p>
@@ -389,7 +389,7 @@
                     </div>
                     <section class="dg-card-accent bg-gradient-to-bl from-[#E7F8F3] to-white p-7 md:p-9">
                         <p class="text-sm font-semibold text-[#087F73]">اعتبار قابل استفاده</p>
-                        <p class="dg-stat mt-4 text-3xl" dir="ltr">{{ number_format(intdiv($wallet->balanceRials, 10)) }} <span class="text-sm font-medium text-[#687987]">تومان</span></p>
+                        <p class="dg-stat mt-4 text-3xl" dir="ltr">{{ \App\Support\PersianCalendar::number((string) ( number_format(intdiv($wallet->balanceRials, 10)) )) }} <span class="text-sm font-medium text-[#687987]">تومان</span></p>
                         <p class="mt-3 text-xs leading-7 text-[#617380]">مبلغ بر اساس تراکنش‌های ثبت‌شده حساب شما محاسبه شده است.</p>
                     </section>
                     <section class="dg-card mt-5 p-5 md:p-7" aria-label="افزایش اعتبار">
@@ -422,7 +422,7 @@
                             @endphp
                             <div class="flex min-h-12 flex-wrap items-center justify-between gap-2 border-b border-[#F0F2F4] py-2.5 last:border-b-0">
                                 <div class="min-w-0">
-                                    <p class="text-sm font-bold text-[#1B2935]">{{ number_format(intdiv($topup['amount_rials'], 10)) }} تومان</p>
+                                    <p class="text-sm font-bold text-[#1B2935]">{{ \App\Support\PersianCalendar::number((string) ( number_format(intdiv($topup['amount_rials'], 10)) )) }} تومان</p>
                                     <p class="mt-1 text-xs text-[#536C76]">{{ \App\Support\PersianCalendar::utcDateTime($topup['created_at']) }}</p>
                                 </div>
                                 <span class="dg-status" data-tone="{{ match ($topup['status']) { 'approved' => 'success', 'rejected' => 'danger', 'pending', 'submitted' => 'warning', default => 'neutral' } }}">{{ $topupStatus }}</span>
@@ -460,11 +460,11 @@
                             <div class="mt-6 grid grid-cols-2 gap-3">
                                 <div class="rounded-2xl bg-[#F6F8FA] p-4">
                                     <p class="text-xs text-[#536C76]">مدت خریداری‌شده</p>
-                                    <p class="mt-2 text-lg font-extrabold text-[#1B2935]">{{ number_format($item->durationDays) }} روز</p>
+                                    <p class="mt-2 text-lg font-extrabold text-[#1B2935]">{{ \App\Support\PersianCalendar::number((string) ( number_format($item->durationDays) )) }} روز</p>
                                 </div>
                                 <div class="rounded-2xl bg-[#F6F8FA] p-4">
                                     <p class="text-xs text-[#536C76]">حجم خریداری‌شده</p>
-                                    <p class="mt-2 text-lg font-extrabold text-[#1B2935]">{{ $item->trafficGb === null ? 'نامحدود' : number_format($item->trafficGb).' گیگابایت' }}</p>
+                                    <p class="mt-2 text-lg font-extrabold text-[#1B2935]">{{ \App\Support\PersianCalendar::number((string) ( $item->trafficGb === null ? 'نامحدود' : number_format($item->trafficGb).' گیگابایت' )) }}</p>
                                 </div>
                             </div>
                             <dl class="mt-5 space-y-3 border-t border-[#EFF2F4] pt-5 text-sm">
@@ -503,11 +503,11 @@
                                     <div class="mt-5 grid grid-cols-2 gap-3">
                                         <div class="rounded-2xl bg-[#F6F8FA] p-4">
                                             <p class="text-xs text-[#536C76]">حجم مصرف‌شده</p>
-                                            <p class="mt-2 break-words text-lg font-extrabold text-[#1B2935]"><bdi class="dg-stat text-lg">{{ number_format($serviceLiveUsage['usedBytes'] / 1073741824, 2) }}</bdi> گیگابایت</p>
+                                            <p class="mt-2 break-words text-lg font-extrabold text-[#1B2935]"><bdi class="dg-stat text-lg">{{ \App\Support\PersianCalendar::number((string) ( number_format($serviceLiveUsage['usedBytes'] / 1073741824, 2) )) }}</bdi> گیگابایت</p>
                                         </div>
                                         <div class="rounded-2xl bg-[#F6F8FA] p-4">
                                             <p class="text-xs text-[#536C76]">حجم باقی‌مانده</p>
-                                            <p class="mt-2 break-words text-lg font-extrabold text-[#1B2935]">{{ $serviceLiveUsage['limitBytes'] === 0 ? 'بدون سقف' : number_format(max(0, $serviceLiveUsage['limitBytes'] - $serviceLiveUsage['usedBytes']) / 1073741824, 2).' گیگابایت' }}</p>
+                                            <p class="mt-2 break-words text-lg font-extrabold text-[#1B2935]">{{ \App\Support\PersianCalendar::number((string) ( $serviceLiveUsage['limitBytes'] === 0 ? 'بدون سقف' : number_format(max(0, $serviceLiveUsage['limitBytes'] - $serviceLiveUsage['usedBytes']) / 1073741824, 2).' گیگابایت' )) }}</p>
                                         </div>
                                     </div>
                                     <div class="mt-5 flex flex-wrap justify-between gap-2 text-sm"><span class="text-[#536C76]">تاریخ انقضا</span><span class="font-bold text-[#1B2935]">{{ \App\Support\PersianCalendar::utcDateTime($serviceLiveUsage['expireAt']) }}</span></div>
@@ -545,7 +545,7 @@
                                         <p class="dg-status mt-2" data-tone="{{ match ($renewalOrder->status) { 'needs_review', 'pending_payment', 'paid' => 'warning', 'failed' => 'danger', default => 'neutral' } }}">{{ $renewalStatus }}</p>
                                         <div class="mt-3 flex flex-wrap justify-between gap-2 border-t border-[#E7ECEF] pt-3">
                                             <span class="text-[#536C76]">مبلغ سفارش</span>
-                                            <span class="font-bold text-[#087F73]">{{ number_format(intdiv($renewalOrder->totalPriceRials, 10)) }}{{ $renewalOrder->totalPriceRials % 10 === 0 ? '' : '.'.($renewalOrder->totalPriceRials % 10) }} تومان</span>
+                                            <span class="font-bold text-[#087F73]">{{ \App\Support\PersianCalendar::number((string) ( number_format(intdiv($renewalOrder->totalPriceRials, 10)) )) }}{{ $renewalOrder->totalPriceRials % 10 === 0 ? '' : '.'.($renewalOrder->totalPriceRials % 10) }} تومان</span>
                                         </div>
                                     </div>
                                     @if ($renewalOrder->status === 'paid')
@@ -556,9 +556,9 @@
                                             <div class="dg-card-accent mt-5 p-4 text-sm">
                                                 <h4 class="font-extrabold text-[#1B2935]">تأیید پرداخت تمدید</h4>
                                                  <p class="mt-2 break-words text-xs leading-6 text-[#536C76]">تمدید سرویس «{{ $labels[$item->orderId] ?? $item->productName }}» · سفارش #{{ $renewalOrder->id }}</p>
-                                                <div class="mt-4 flex justify-between gap-2"><span>مبلغ برداشت</span><span class="font-bold">{{ number_format(intdiv($renewalConfirmAmountRials, 10)) }} تومان</span></div>
-                                                <div class="mt-3 flex justify-between gap-2"><span>اعتبار فعلی</span><span class="font-bold">{{ number_format(intdiv($renewalConfirmBalanceRials, 10)) }} تومان</span></div>
-                                                <div class="mt-3 flex justify-between gap-2 border-t border-[#CCEDE4] pt-3"><span>اعتبار پس از پرداخت</span><span class="font-bold">{{ number_format(intdiv($renewalConfirmBalanceRials - $renewalConfirmAmountRials, 10)) }} تومان</span></div>
+                                                <div class="mt-4 flex justify-between gap-2"><span>مبلغ برداشت</span><span class="font-bold">{{ \App\Support\PersianCalendar::number((string) ( number_format(intdiv($renewalConfirmAmountRials, 10)) )) }} تومان</span></div>
+                                                <div class="mt-3 flex justify-between gap-2"><span>اعتبار فعلی</span><span class="font-bold">{{ \App\Support\PersianCalendar::number((string) ( number_format(intdiv($renewalConfirmBalanceRials, 10)) )) }} تومان</span></div>
+                                                <div class="mt-3 flex justify-between gap-2 border-t border-[#CCEDE4] pt-3"><span>اعتبار پس از پرداخت</span><span class="font-bold">{{ \App\Support\PersianCalendar::number((string) ( number_format(intdiv($renewalConfirmBalanceRials - $renewalConfirmAmountRials, 10)) )) }} تومان</span></div>
                                                 <p class="mt-3 text-xs leading-6 text-[#536C76]">با تأیید، مبلغ فقط یک بار برداشت می‌شود. تمدید سرویس پس از پردازش جداگانه تکمیل خواهد شد.</p>
                                                 <button type="button" wire:click="confirmRenewalPayment" wire:loading.attr="disabled" wire:target="confirmRenewalPayment" class="dg-btn-primary mt-5 min-h-12 w-full">تأیید و پرداخت تمدید<span wire:loading.delay wire:target="confirmRenewalPayment" role="status" class="text-xs font-semibold">در حال ثبت پرداخت…</span></button>
                                                 <button type="button" wire:click="cancelRenewal" wire:target="cancelRenewal,confirmRenewalPayment,createServiceRenewal" wire:loading.attr="disabled" class="dg-btn-secondary mt-3 w-full">انصراف</button>
@@ -574,8 +574,8 @@
                                 @if ($renewalPreview !== null)
                                     <div class="dg-card-accent mt-5 p-5">
                                         <h4 class="text-sm font-extrabold text-[#1B2935]">پیشنهاد تمدید</h4>
-                                        <p class="mt-3 text-sm text-[#536C76]">{{ $renewalPreview['name'] }} · {{ number_format($renewalPreview['days']) }} روز{{ $renewalPreview['gb'] === null ? ' · حجم نامحدود' : ' · '.number_format($renewalPreview['gb']).' گیگابایت' }}</p>
-                                        <p class="dg-stat mt-4">{{ number_format(intdiv($renewalPreview['amount'], 10)) }}{{ $renewalPreview['amount'] % 10 === 0 ? '' : '.'.($renewalPreview['amount'] % 10) }} <span class="text-xs font-medium">تومان</span></p>
+                                        <p class="mt-3 text-sm text-[#536C76]">{{ $renewalPreview['name'] }} · {{ \App\Support\PersianCalendar::number((string) ( number_format($renewalPreview['days']) )) }} روز{{ \App\Support\PersianCalendar::number((string) ( $renewalPreview['gb'] === null ? ' · حجم نامحدود' : ' · '.number_format($renewalPreview['gb']).' گیگابایت' )) }}</p>
+                                        <p class="dg-stat mt-4">{{ \App\Support\PersianCalendar::number((string) ( number_format(intdiv($renewalPreview['amount'], 10)) )) }}{{ $renewalPreview['amount'] % 10 === 0 ? '' : '.'.($renewalPreview['amount'] % 10) }} <span class="text-xs font-medium">تومان</span></p>
                                         <p class="mt-3 text-xs leading-7 text-[#536C76]">مبلغ با نرخ فعلی محاسبه شده است. ثبت سفارش به‌معنای پرداخت نیست.</p>
                                         @if (config('sales.renewal_enabled', false) === true)
                                             <button type="button" wire:click="createServiceRenewal" wire:loading.attr="disabled" wire:target="createServiceRenewal" class="dg-btn-primary mt-5 min-h-12 w-full">ثبت سفارش تمدید بدون پرداخت<span wire:loading.delay wire:target="createServiceRenewal" role="status" class="text-xs font-semibold">در حال ثبت سفارش…</span></button>
@@ -720,19 +720,19 @@
                     <div class="mb-5 grid grid-cols-2 gap-3">
                         <section class="dg-card flex min-h-32 flex-col items-center justify-between gap-3 p-4 text-center">
                             <p class="text-xs font-semibold leading-5 text-[#536C76]">کل سرویس‌ها</p>
-                            <p class="dg-stat block w-full text-center text-2xl sm:text-3xl">{{ number_format($counts['total']) }}</p>
+                            <p class="dg-stat block w-full text-center text-2xl sm:text-3xl">{{ \App\Support\PersianCalendar::number((string) ( number_format($counts['total']) )) }}</p>
                         </section>
                         <section class="dg-card flex min-h-32 flex-col items-center justify-between gap-3 p-4 text-center">
                             <p class="text-xs font-semibold leading-5 text-[#536C76]">فعال در سوابق داخلی</p>
-                            <p class="dg-stat block w-full text-center text-2xl sm:text-3xl">{{ number_format($counts['activeRecorded']) }}</p>
+                            <p class="dg-stat block w-full text-center text-2xl sm:text-3xl">{{ \App\Support\PersianCalendar::number((string) ( number_format($counts['activeRecorded']) )) }}</p>
                         </section>
                     </div>
                     <div class="mb-4 flex flex-wrap items-center gap-3">
                         <button type="button" wire:click="checkServiceExpiries" wire:target="checkServiceExpiries" wire:loading.attr="disabled" class="dg-btn-secondary">⏳ بررسی انقضا</button>
                         @if ($checkedExpiry !== null)
-                            <span class="text-sm font-semibold text-[#1B2935]">⏳ انقضا تا ۳ روز: {{ number_format($checkedExpiry['count']) }}</span>
+                            <span class="text-sm font-semibold text-[#1B2935]">⏳ انقضا تا ۳ روز: {{ \App\Support\PersianCalendar::number((string) ( number_format($checkedExpiry['count']) )) }}</span>
                             @if ($checkedExpiry['unknown'] > 0)
-                                <span class="text-xs text-[#536C76]">⚪ نامشخص: {{ number_format($checkedExpiry['unknown']) }}</span>
+                                <span class="text-xs text-[#536C76]">⚪ نامشخص: {{ \App\Support\PersianCalendar::number((string) ( number_format($checkedExpiry['unknown']) )) }}</span>
                             @endif
                         @endif
                         <span wire:loading.delay wire:target="checkServiceExpiries" role="status" class="text-xs text-[#536C76]">در حال بررسی…</span>
@@ -755,7 +755,7 @@
                                 <div class="flex flex-wrap items-start justify-between gap-3">
                                     <div class="min-w-0">
                                         <h2 class="break-words text-base font-extrabold text-[#1B2935]">{{ $labels[$service->orderId] ?? 'نام مشتری ثبت نشده' }}</h2>
-                                        <p class="mt-1 break-words text-xs leading-6 text-[#536C76]">{{ $service->productName }} · {{ $service->durationDays }} روز{{ $service->trafficGb === null ? '' : ' · '.number_format($service->trafficGb).' گیگابایت' }}</p>
+                                        <p class="mt-1 break-words text-xs leading-6 text-[#536C76]">{{ $service->productName }} · {{ $service->durationDays }} روز{{ \App\Support\PersianCalendar::number((string) ( $service->trafficGb === null ? '' : ' · '.number_format($service->trafficGb).' گیگابایت' )) }}</p>
                                     </div>
                                     <span class="dg-status" data-tone="{{ match ($service->status) { 'failed' => 'danger', 'needs_review', 'provisioning' => 'warning', default => 'neutral' } }}">{{ $serviceStatus }}</span>
                                 </div>
@@ -809,7 +809,7 @@
                                 <div class="min-w-0">
                                     <p class="text-xs font-bold text-[#087F73]">خلاصه عملکرد فروش</p>
                                     <h2 id="report-revenue-title" class="mt-2 text-base font-extrabold text-[#1B2935]">مجموع فروش تسویه‌شده</h2>
-                                    <p class="dg-stat dg-report-revenue mt-3 block" dir="ltr">{{ number_format(intdiv($report['revenueRials'], 10)) }}</p>
+                                    <p class="dg-stat dg-report-revenue mt-3 block" dir="ltr">{{ \App\Support\PersianCalendar::number((string) ( number_format(intdiv($report['revenueRials'], 10)) )) }}</p>
                                     <p class="mt-1 text-sm font-semibold text-[#536C76]">تومان</p>
                                 </div>
                                 <div class="min-w-0 sm:max-w-56 sm:text-left">
