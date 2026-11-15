@@ -6,6 +6,7 @@ use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Interfaces\Telegram\Support\PendingBuilderSelection;
 use App\Interfaces\Telegram\Support\ReplyMenuLabels;
 use App\Interfaces\Telegram\Support\ReplyMenuRenderer;
+use App\Interfaces\Telegram\Support\SalesNativeMenu;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Referral\Application\GetReferralInvite;
@@ -884,5 +885,31 @@ it('denies app launch after role revocation, when disabled, and in group chats',
     config()->set('denagate_live.enabled', true);
     $bot->setCommonChat(Chat::make(-975001, ChatType::GROUP));
     $bot->hearText(ReplyMenuLabels::SALES_APP)->reply()->assertNoReply();
+    Http::assertNothingSent();
+});
+
+it('keeps training in Support with a green shortcut and removes only visible obsolete entries', function (): void {
+    $user = User::factory()->create();
+    $user->assignRole('member');
+    $bot = uxr01Bot($user);
+
+    $bot->hearCallbackQueryData('sales:support')->reply()->assertRaw(static function (Request $request): bool {
+        $rows = uxr01Payload($request)['reply_markup']['inline_keyboard'] ?? [];
+
+        return ($rows[0][0]['callback_data'] ?? null) === 'sales:help:apps'
+            && ($rows[0][0]['style'] ?? null) === 'success'
+            && ($rows[0][1]['callback_data'] ?? null) !== 'sales:account';
+    }, index: 1);
+
+    // Old messages and keyboards still resolve to the original handlers.
+    $bot->hearText(ReplyMenuLabels::SALES_ACCOUNT)->reply()->assertCalled('sendRichMessage');
+    $bot->hearText(ReplyMenuLabels::SALES_TUTORIAL)->reply()->assertCalled('sendRichMessage');
+    $bot->hearCallbackQueryData('sales:help:apps')->reply()->assertCalled('editMessageText');
+    $bot->hearText('/account')->reply()->assertCalled('sendRichMessage');
+
+    expect(array_map(static fn ($command): string => $command->command, SalesNativeMenu::commands()))
+        ->toBe(['buy', 'subscriptions', 'help']);
+    expect(DB::table('sales_orders')->count())->toBe(0)
+        ->and(DB::table('billing_journals')->count())->toBe(0);
     Http::assertNothingSent();
 });
