@@ -122,15 +122,15 @@ it('offers published presets with the exact buyer-specific discount and no comme
         ->assertSet('quoteRequested', true)
         ->assertDontSee('wire:click="previewQuote"', false)
         ->assertSee('پیش‌فاکتور شما')
-        ->assertSee('100,000.3')
-        ->assertSee('35,000.1')
-        ->assertSee('65,000.2')
-        ->assertSee('35٪')
+        ->assertSee('۱۰۰٬۰۰۰.۳')
+        ->assertSee('۳۵٬۰۰۰.۱')
+        ->assertSee('۶۵٬۰۰۰.۲')
+        ->assertSee('۳۵٪')
         ->call('backToPlans')
         ->assertSet('selectedPlanId', null)
         ->call('selectPlan', $otherPlan)
         ->call('previewQuote')
-        ->assertSee('17٪')
+        ->assertSee('۱۷٪')
         ->call('showSection', 'reports')
         ->assertSee('گزارش فروش')
         ->call('showSection', 'credit')
@@ -172,7 +172,7 @@ it('prices custom reseller builders only for valid integer days and GB', functio
         ->set('gbInput', '70')
         ->call('previewQuote')
         ->assertSee('پیش‌فاکتور شما')
-        ->assertSee('21,150')
+        ->assertSee('۲۱٬۱۵۰')
         ->set('daysInput', '0')
         ->call('previewQuote')
         ->assertSee('مقدار روز یا حجم معتبر نیست')
@@ -209,7 +209,7 @@ it('supports a 500-GB reseller builder preview in Live while rejecting 501 witho
         ->set('gbInput', '500')
         ->call('previewQuote')
         ->assertSee('پیش‌فاکتور شما')
-        ->assertSee('71,175')
+        ->assertSee('۷۱٬۱۷۵')
         ->set('gbInput', '501')
         ->call('previewQuote')
         ->assertSee('برای این انتخاب قیمت قابل ارائه نیست');
@@ -240,7 +240,7 @@ it('rejects unpublished, inactive and stale quotes and never displays old prices
         ->assertSee('این پلن در دسترس نیست')
         ->call('selectPlan', $active)
         ->call('previewQuote')
-        ->assertSee('65,000.2');
+        ->assertSee('۶۵٬۰۰۰.۲');
 
     DB::table('sales_plan_prices')->where('plan_id', $active)->update(['status' => 'draft']);
     $page->call('previewQuote')
@@ -292,8 +292,8 @@ it('renders two local Alpine slider stages with valid shortcuts and safe quote t
         ->assertSee('type="range" name="volume_gb"', false)
         ->assertSee('x-model.number="value"', false)
         ->assertSee('x-on:click="$wire.chooseBuilderVolume(value)"', false)
-        ->assertSee('20 گیگ')
-        ->assertSee('75 گیگ')
+        ->assertSee('۲۰ گیگ')
+        ->assertSee('۷۵ گیگ')
         ->assertDontSee('150 گیگ')
         ->assertDontSee('name="duration_days"', false)
         ->assertDontSee('پیش‌فاکتور شما');
@@ -306,8 +306,8 @@ it('renders two local Alpine slider stages with valid shortcuts and safe quote t
         ->assertSee('مرحله ۲ از ۲')
         ->assertSee('name="duration_days"', false)
         ->assertSee('x-on:click="$wire.chooseBuilderDays(value)"', false)
-        ->assertSee('15 روز')
-        ->assertSee('90 روز')
+        ->assertSee('۱۵ روز')
+        ->assertSee('۹۰ روز')
         ->assertDontSee('name="volume_gb"', false)
         ->assertDontSee('پیش‌فاکتور شما');
 
@@ -315,7 +315,7 @@ it('renders two local Alpine slider stages with valid shortcuts and safe quote t
         ->assertSet('daysInput', '45')
         ->assertSet('builderStep', 'review')
         ->assertSee('پیش‌فاکتور شما')
-        ->assertSee('22,050')
+        ->assertSee('۲۲٬۰۵۰')
         ->assertDontSee('name="volume_gb"', false)
         ->assertDontSee('name="duration_days"', false);
 
@@ -343,8 +343,8 @@ it('validates every slider boundary server-side and keeps pricing untouched at 5
     $page = Livewire::test(Dashboard::class)
         ->call('showSection', 'shop')
         ->call('selectPlan', $planId)
-        ->assertSee('250 گیگ')
-        ->assertSee('500 گیگ')
+        ->assertSee('۲۵۰ گیگ')
+        ->assertSee('۵۰۰ گیگ')
         ->call('chooseBuilderVolume', 501)
         ->assertSet('builderStep', 'volume')
         ->assertSee('حجم انتخابی خارج از محدوده')
@@ -359,7 +359,7 @@ it('validates every slider boundary server-side and keeps pricing untouched at 5
         ->assertSet('quoteRequested', false)
         ->call('chooseBuilderDays', 45)
         ->assertSet('builderStep', 'review')
-        ->assertSee('71,175');
+        ->assertSee('۷۱٬۱۷۵');
 
     // Changing the published plan after quote does not authorize old-price purchase.
     DB::table('sales_plan_prices')->where('plan_id', $planId)->update(['status' => 'draft']);
