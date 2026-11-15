@@ -156,14 +156,13 @@ it('uses actual recent outage data for ISP status and ignores old or malformed a
 });
 
 it('denies a non-reseller even if the network action is invoked directly', function (): void {
-    $user = User::factory()->create();
-    $user->assignRole('member');
-    $this->actingAs($user);
+    $owner = radarLiveOwner();
+    $this->actingAs($owner);
     Http::fake();
 
-    Livewire::test(Dashboard::class)
-        ->call('loadNetworkStatus')
-        ->assertForbidden();
+    $session = Livewire::test(Dashboard::class)->call('showSection', 'reports');
+    $owner->syncRoles(['member']);
+    $session->call('loadNetworkStatus')->assertForbidden();
     Http::assertNothingSent();
 });
 
