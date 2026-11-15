@@ -161,7 +161,7 @@ it('prioritizes service status ahead of connection details without changing cont
 
     $page->call('refreshServiceUsage')
         ->assertSee('وضعیت بررسی‌شده')
-        ->assertSee('7.00')
+        ->assertSee('۷.۰۰')
         ->assertSee('wire:click="revealServiceConnection"', false);
 
     $updated = $page->html();
@@ -189,8 +189,8 @@ it('reads one exact owner-verified provider usage on explicit tap and displays s
         ->assertSee('وضعیت بررسی‌شده')
         ->assertSee('data-tone="success"', false)
         ->assertSee('حجم مصرف‌شده')
-        ->assertSee('3.00')
-        ->assertSee('7.00')
+        ->assertSee('۳.۰۰')
+        ->assertSee('۷.۰۰')
         ->assertSee('تاریخ انقضا')
         ->assertSee('آخرین بررسی')
         ->assertDontSee('secret-4a-private')
@@ -232,7 +232,7 @@ it('shows unknown provider data on outage and clears previously verified usage o
 
     $page = Livewire::test(Dashboard::class)->call('showSection', 'services')
         ->call('openService', $order)->call('refreshServiceUsage')
-        ->assertSee('7.00');
+        ->assertSee('۷.۰۰');
     $page->call('refreshServiceUsage')->assertSee('اطلاعات به‌روز سرویس در دسترس نیست')
         ->assertDontSee('7.00')
         ->assertDontSee('provider token secret');

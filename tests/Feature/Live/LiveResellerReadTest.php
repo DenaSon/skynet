@@ -13,6 +13,7 @@ use App\Modules\Sales\Application\CreatePendingOrder;
 use App\Modules\Sales\Application\ManageResellerServiceLabels;
 use App\Modules\Sales\Application\ReadResellerSalesReport;
 use App\Modules\Sales\Application\SettleWalletOrder;
+use App\Support\PersianCalendar;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -82,8 +83,8 @@ it('shows the real owned wallet, settled revenue, counts and customer labels wit
     app(ManageResellerServiceLabels::class)->save($foreign->id, $foreignOrder, 'نام نماینده دیگر');
     $this->actingAs($owner)->withSession(['denagate_live.user_id' => $owner->id]);
     $cost = (int) DB::table('sales_orders')->where('id', $ownedOrder)->value('total_price_rials');
-    $expectedBalance = number_format(intdiv(2_000_000 - $cost, 10));
-    $expectedSale = number_format(intdiv($cost, 10));
+    $expectedBalance = PersianCalendar::number(number_format(intdiv(2_000_000 - $cost, 10)));
+    $expectedSale = PersianCalendar::number(number_format(intdiv($cost, 10)));
     $journalCount = DB::table('billing_journals')->count();
 
     Livewire::test(Dashboard::class)
@@ -273,7 +274,7 @@ it('aggregates all settled payments since inception without counting pending ord
     Livewire::test(Dashboard::class)->call('showSection', 'reports')
         ->call('selectReportDays', 0)
         ->assertSet('reportDays', 0)
-        ->assertSee(number_format(intdiv($oldAmount + $currentAmount, 10)))
+        ->assertSee(PersianCalendar::number(number_format(intdiv($oldAmount + $currentAmount, 10))))
         ->assertSee('از ابتدا');
     Http::assertNothingSent();
 });

@@ -291,7 +291,7 @@ it('checks only the visible owned page on request and renders a compact 72-hour 
 
     $page->call('checkServiceExpiries')
         ->assertSee('⏳ انقضا تا ۳ روز:')
-        ->assertSee('⏳ 2 روز و 1 ساعت تا انقضا')
+        ->assertSee('⏳ ۲ روز و ۱ ساعت تا انقضا')
         ->assertSee('⚪ نامشخص:')
         ->assertDontSee('protected-token-4b')
         ->assertDontSee('secret-4b-short')

@@ -14,6 +14,7 @@ use App\Modules\Sales\Application\OrderReader;
 use App\Modules\Sales\Application\PlanDefinition;
 use App\Modules\Sales\Application\PlanPricingDefinition;
 use App\Modules\Sales\Application\RegisterPendingResellerOrder;
+use App\Support\PersianCalendar;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -139,7 +140,7 @@ it('shows plans before nine owned named orders per page and restores the same pa
         ->call('showSection', 'shop')
         ->assertSee('۹ سفارش در هر صفحه')
         ->assertSee('مشتری &lt;ویژه&gt; &amp; تست', false)
-        ->assertSee('پلن تست فروش · سفارش #'.$ids[19])
+        ->assertSee('پلن تست فروش · سفارش #'.PersianCalendar::number((string) $ids[19]))
         ->assertDontSee('نام خصوصی نماینده دیگر')
         ->assertDontSee('مشتری 0')
         ->assertSee('صفحه بعد');
@@ -278,7 +279,7 @@ it('registers exactly one pending reseller order with immutable price and custom
         ->call('showSection', 'shop')
         ->call('selectPlan', $plan)
         ->call('previewQuote')
-        ->assertSee('65,000.2')
+        ->assertSee('۶۵٬۰۰۰.۲')
         ->assertSee('نام مشتری')
         ->set('customerUsername', 'customer_01')
         ->call('confirmOrder')
@@ -314,7 +315,7 @@ it('registers an explicitly priced custom builder using the published reseller t
         ->set('daysInput', '45')
         ->set('gbInput', '70')
         ->call('previewQuote')
-        ->assertSee('15,275')
+        ->assertSee('۱۵٬۲۷۵')
         ->set('customerUsername', 'builder-customer')
         ->call('confirmOrder')
         ->assertSee('سفارش شما ثبت شد');
@@ -363,7 +364,7 @@ it('rejects changed published prices until the buyer explicitly previews again',
         ->assertDontSee('65,000.2');
     expect(DB::table('sales_orders')->count())->toBe(0);
 
-    $page->call('previewQuote')->assertSee('97,500.2')
+    $page->call('previewQuote')->assertSee('۹۷٬۵۰۰.۲')
         ->call('confirmOrder')->assertSee('سفارش شما ثبت شد');
     expect(DB::table('sales_orders')->value('total_price_rials'))->toBe(975_002);
     live3bNoMoneyOrProvider();

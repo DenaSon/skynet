@@ -1,6 +1,6 @@
 {{-- Operational numbers and service records are fixed Demo fixtures; only published plan prices are live. --}}
 @php
-    $toman = static fn (int $rials): string => number_format(intdiv($rials, 10)).($rials % 10 === 0 ? '' : '.'.($rials % 10));
+    $toman = static fn (int $rials): string => \App\Support\PersianCalendar::number(number_format(intdiv($rials, 10)).($rials % 10 === 0 ? '' : '.'.($rials % 10)));
 @endphp
 @component('live.layout')
     <x-live.shell section="overview" :demo="true">
@@ -168,9 +168,9 @@
                     @foreach ($plans as $plan)
                         <article class="dg-card dg-plan-card flex flex-col p-4 sm:p-5" data-tone="{{ ['teal', 'blue', 'sand'][$loop->index % 3] }}">
                             <h2 class="break-words text-base font-extrabold text-[#1B2935]">{{ $plan['name'] }}</h2>
-                            <p class="mt-2 text-sm font-extrabold leading-7 text-[#354C58]">{{ number_format($plan['durationDays']) }} روز · {{ $plan['trafficGb'] === null ? 'حجم نامحدود' : number_format($plan['trafficGb']).' گیگابایت' }}</p>
+                            <p class="mt-2 text-sm font-extrabold leading-7 text-[#354C58]">{{ \App\Support\PersianCalendar::number((string) ( number_format($plan['durationDays']) )) }} روز · {{ \App\Support\PersianCalendar::number((string) ( $plan['trafficGb'] === null ? 'حجم نامحدود' : number_format($plan['trafficGb']).' گیگابایت' )) }}</p>
                             <p class="dg-stat mt-4 text-[#087F73]" dir="ltr">{{ $toman($plan['resellerRials']) }} <span class="text-xs font-medium text-[#536C76]">تومان</span></p>
-                            <p class="mt-1 text-xs text-[#536C76]">با تخفیف نمایندگی {{ $plan['discountPercent'] }}٪</p>
+                            <p class="mt-1 text-xs text-[#536C76]">با تخفیف نمایندگی {{ \App\Support\PersianCalendar::number((string) ( $plan['discountPercent'] )) }}٪</p>
                             <div class="mt-4 flex items-center justify-between gap-3 border-t border-[#E7ECEF] pt-3 text-xs text-[#536C76]">
                                 <span>قیمت عمومی</span>
                                 <span dir="ltr" class="font-semibold text-[#1B2935]">{{ $toman($plan['publicRials']) }} تومان</span>
@@ -194,10 +194,10 @@
                     <div class="mt-4 flex items-center justify-between gap-3">
                         <label for="demo-builder-gb" class="text-sm font-bold text-[#1B2935]">حجم موردنیاز را انتخاب کنید</label>
                         <span class="shrink-0 text-lg font-extrabold tabular-nums text-[#087F73]"
-                            x-text="demoGb + ' گیگابایت'">۷۵ گیگابایت</span>
+                            x-text="new Intl.NumberFormat('fa-IR', { useGrouping: false }).format(Number(demoGb)) + ' گیگابایت'">۷۵ گیگابایت</span>
                     </div>
                     <input id="demo-builder-gb" type="range" name="demo_volume_gb" min="1" max="500" step="1"
-                        x-model.number="demoGb" x-bind:aria-valuetext="demoGb + ' گیگابایت'"
+                        x-model.number="demoGb" x-bind:aria-valuetext="new Intl.NumberFormat('fa-IR', { useGrouping: false }).format(Number(demoGb)) + ' گیگابایت'"
                         aria-describedby="demo-builder-gb-hint"
                         class="mt-4 h-11 w-full cursor-pointer accent-[#14B8A6] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]" />
                     <p id="demo-builder-gb-hint" class="mt-1 flex justify-between gap-3 text-xs text-[#536C76]">
@@ -208,7 +208,7 @@
                             <button type="button" x-on:click="demoGb = {{ $gb }}"
                                 x-bind:aria-pressed="demoGb === {{ $gb }} ? 'true' : 'false'"
                                 x-bind:class="demoGb === {{ $gb }} ? 'border-[#14B8A6] bg-[#E7F8F3] text-[#087F73]' : 'border-[#E7ECEF] bg-white text-[#354C58]'"
-                                class="min-h-11 rounded-xl border px-3 py-2 text-sm font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]">{{ $gb }} گیگ</button>
+                                class="min-h-11 rounded-xl border px-3 py-2 text-sm font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]">{{ \App\Support\PersianCalendar::number((string) ( $gb )) }} گیگ</button>
                         @endforeach
                     </div>
                     <div class="mt-5 flex items-center justify-between gap-3">
@@ -226,14 +226,14 @@
 
                 <div x-cloak x-show="demoBuilderStep === 'days'">
                     <p class="mt-6 text-xs font-bold text-[#087F73]">مرحله ۲ از ۲ · مدت سرویس</p>
-                    <p class="mt-2 text-sm font-semibold text-[#536C76]">حجم: <span x-text="demoGb + ' گیگابایت'"></span></p>
+                    <p class="mt-2 text-sm font-semibold text-[#536C76]">حجم: <span x-text="new Intl.NumberFormat('fa-IR', { useGrouping: false }).format(Number(demoGb)) + ' گیگابایت'"></span></p>
                     <div class="mt-4 flex items-center justify-between gap-3">
                         <label for="demo-builder-days" class="text-sm font-bold text-[#1B2935]">مدت سرویس را به روز مشخص کنید</label>
                         <span class="shrink-0 text-lg font-extrabold tabular-nums text-[#087F73]"
-                            x-text="demoDays + ' روز'">۳۰ روز</span>
+                            x-text="new Intl.NumberFormat('fa-IR', { useGrouping: false }).format(Number(demoDays)) + ' روز'">۳۰ روز</span>
                     </div>
                     <input id="demo-builder-days" type="range" name="demo_duration_days" min="7" max="180" step="1"
-                        x-model.number="demoDays" x-bind:aria-valuetext="demoDays + ' روز'"
+                        x-model.number="demoDays" x-bind:aria-valuetext="new Intl.NumberFormat('fa-IR', { useGrouping: false }).format(Number(demoDays)) + ' روز'"
                         aria-describedby="demo-builder-days-hint"
                         class="mt-4 h-11 w-full cursor-pointer accent-[#14B8A6] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]" />
                     <p id="demo-builder-days-hint" class="mt-1 flex justify-between gap-3 text-xs text-[#536C76]">
@@ -244,7 +244,7 @@
                             <button type="button" x-on:click="demoDays = {{ $days }}"
                                 x-bind:aria-pressed="demoDays === {{ $days }} ? 'true' : 'false'"
                                 x-bind:class="demoDays === {{ $days }} ? 'border-[#14B8A6] bg-[#E7F8F3] text-[#087F73]' : 'border-[#E7ECEF] bg-white text-[#354C58]'"
-                                class="min-h-11 rounded-xl border px-3 py-2 text-sm font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]">{{ $days }} روز</button>
+                                class="min-h-11 rounded-xl border px-3 py-2 text-sm font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]">{{ \App\Support\PersianCalendar::number((string) ( $days )) }} روز</button>
                         @endforeach
                     </div>
                     <div class="mt-5 flex items-center justify-between gap-3">
@@ -268,7 +268,7 @@
                     <div class="mt-6 rounded-2xl bg-[#F6F8FA] p-4">
                         <p class="text-xs font-semibold text-[#536C76]">مشخصات انتخاب‌شده · نمونه</p>
                         <p class="mt-2 text-base font-extrabold text-[#1B2935]">
-                            <span x-text="demoGb + ' گیگابایت'"></span> · <span x-text="demoDays + ' روز'"></span>
+                            <span x-text="new Intl.NumberFormat('fa-IR', { useGrouping: false }).format(Number(demoGb)) + ' گیگابایت'"></span> · <span x-text="new Intl.NumberFormat('fa-IR', { useGrouping: false }).format(Number(demoDays)) + ' روز'"></span>
                         </p>
                         <p class="mt-3 text-xs leading-7 text-[#617380]">در این پیش‌نمایش قیمت محاسبه نمی‌شود و سفارشی ثبت نخواهد شد.</p>
                         <div class="mt-4 flex flex-wrap gap-3">
