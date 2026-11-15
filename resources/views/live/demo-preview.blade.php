@@ -111,15 +111,37 @@
             </section>
         </section>
 
-        <section x-cloak x-show="demoSection === 'reports'" aria-label="گزارش‌های نمونه">
+        {{-- Sample-only presentation: no Radar request, financial query or reseller API action. --}}
+        <section x-cloak x-show="demoSection === 'reports'" aria-label="گزارش‌های نمونه"
+            x-data="{
+                demoReportDays: 30,
+                demoReportSamples: {
+                    7: { total: '۲٬۲۵۰٬۰۰۰', sales: '۶', renewals: '۳', transactions: '۹' },
+                    30: { total: '۹٬۲۵۰٬۰۰۰', sales: '۲۴', renewals: '۱۲', transactions: '۳۶' },
+                    0: { total: '۲۹٬۶۰۰٬۰۰۰', sales: '۸۱', renewals: '۳۵', transactions: '۱۱۶' }
+                }
+            }">
             <section aria-labelledby="demo-report-title">
                 <div class="mb-6 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
                     <div class="min-w-0">
-                        <p class="mb-1 text-xs font-semibold text-[#087F73]">عملکرد نمایندگی</p>
+                        <p class="mb-1 text-xs font-semibold text-[#087F73]">عملکرد نمایندگی · نمونه</p>
                         <h1 id="demo-report-title" class="dg-heading">گزارش فروش</h1>
-                        <p class="mt-2 text-sm leading-7 text-[#617380]">مرور فروش و وضعیت سرویس‌ها</p>
+                        <p class="mt-2 text-sm leading-7 text-[#617380]">مرور فروش تسویه‌شده و وضعیت فعلی حساب نمونه</p>
                     </div>
-                    <span class="dg-status self-start" data-tone="success">بازه ۳۰ روزه</span>
+                    <div class="shrink-0">
+                        <p class="mb-2 text-xs font-semibold text-[#617380]">بازه گزارش</p>
+                        <div class="inline-flex gap-1 rounded-2xl border border-[#E7ECEF] bg-white p-1" role="group" aria-label="بازه گزارش نمونه">
+                            @foreach ([7, 30, 0] as $days)
+                                <button type="button"
+                                    x-on:click="demoReportDays = {{ $days }}"
+                                    x-bind:aria-pressed="demoReportDays === {{ $days }} ? 'true' : 'false'"
+                                    x-bind:class="demoReportDays === {{ $days }} ? 'dg-btn-primary' : 'dg-btn-secondary'"
+                                    class="min-w-0 px-3 transition-colors sm:min-w-24 sm:px-4">
+                                    {{ \App\Support\PersianCalendar::number((string) ($days === 0 ? 'از ابتدا' : $days.' روز')) }}
+                                </button>
+                            @endforeach
+                        </div>
+                    </div>
                 </div>
                 <section class="dg-card-accent relative overflow-hidden bg-gradient-to-bl from-[#E4F8F1] via-[#F4FBF8] to-white p-6 sm:p-8" aria-labelledby="demo-revenue-title">
                     <div class="pointer-events-none absolute -left-14 -top-20 h-52 w-52 rounded-full border-[24px] border-[#C9ECE2]/60" aria-hidden="true"></div>
@@ -127,24 +149,88 @@
                         <div class="min-w-0">
                             <p class="text-xs font-bold text-[#087F73]">خلاصه عملکرد فروش</p>
                             <h2 id="demo-revenue-title" class="mt-2 text-base font-extrabold text-[#1B2935]">مجموع فروش تسویه‌شده</h2>
-                            <p class="dg-stat mt-3 block" dir="ltr">۹٬۲۵۰٬۰۰۰</p>
+                            <p class="dg-stat dg-report-revenue mt-3 block" dir="ltr" x-text="demoReportSamples[demoReportDays].total">۹٬۲۵۰٬۰۰۰</p>
                             <p class="mt-1 text-sm font-semibold text-[#536C76]">تومان</p>
+                        </div>
+                        <div class="min-w-0 sm:max-w-56 sm:text-left">
+                            <span class="dg-status" data-tone="success"
+                                x-text="demoReportDays === 0 ? 'از ابتدا' : 'بازه ' + new Intl.NumberFormat('fa-IR', { useGrouping: false }).format(demoReportDays) + ' روزه'">بازه ۳۰ روزه</span>
+                            <p class="mt-3 text-xs leading-7 text-[#536C76]">ارقام نمایشی‌اند و از تراکنش واقعی محاسبه نشده‌اند.</p>
                         </div>
                     </div>
                 </section>
-                <section class="mt-5" aria-label="شاخص‌های فروش و حساب">
+                <section class="mt-5" aria-label="شاخص‌های فروش و حساب نمونه">
                     <div class="grid grid-cols-3 gap-2.5 sm:gap-3">
                         @foreach ([
-                            ['خریدهای جدید', 24, true],
-                            ['تمدیدها', 12, true],
-                            ['تراکنش‌های تأییدشده', 36, true],
-                            ['سفارش‌های در انتظار پرداخت', 3, false],
-                            ['کل سرویس‌های ثبت‌شده', 18, false],
-                            ['سرویس‌های دارای نام', 10, false],
-                        ] as [$label, $value, $historical])
-                            <x-live.report-metric :label="$label" :value="$value" :historical="$historical" />
+                            ['خریدهای جدید', 'sales', '۲۴'],
+                            ['تمدیدها', 'renewals', '۱۲'],
+                            ['تراکنش‌های تأییدشده', 'transactions', '۳۶'],
+                        ] as [$label, $key, $fallback])
+                            <section class="dg-card flex min-h-28 min-w-0 flex-col justify-between gap-2 rounded-[18px] p-2.5 sm:min-h-32 sm:p-4">
+                                <div class="flex min-w-0 items-start gap-1.5">
+                                    <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#14B8A6]" aria-hidden="true"></span>
+                                    <p class="min-w-0 break-words text-[11px] leading-4 font-semibold text-[#536C76] sm:text-xs">{{ $label }}</p>
+                                </div>
+                                <p class="w-full text-center text-2xl font-extrabold tabular-nums leading-tight text-[#172A36] sm:text-3xl"
+                                    dir="ltr" x-text="demoReportSamples[demoReportDays].{{ $key }}">{{ $fallback }}</p>
+                            </section>
+                        @endforeach
+                        @foreach ([
+                            ['سفارش‌های در انتظار پرداخت', 3],
+                            ['کل سرویس‌های ثبت‌شده', 18],
+                            ['سرویس‌های دارای نام', 10],
+                        ] as [$label, $value])
+                            <x-live.report-metric :label="$label" :value="$value" :historical="false" />
                         @endforeach
                     </div>
+                </section>
+                <p class="mt-5 text-xs leading-7 text-[#536C76]">آمار فروش با انتخاب بازه، به‌صورت نمونه تغییر می‌کند؛ تعداد سرویس‌ها و سفارش‌های در انتظار پرداخت نمونه‌ای ثابت از وضعیت فعلی‌اند.</p>
+
+                <section class="mt-9" aria-labelledby="demo-iran-network-title">
+                    <div class="mb-4">
+                        <p class="mb-1 text-xs font-semibold text-[#087F73]">پایش عمومی اینترنت · نمونه</p>
+                        <h2 id="demo-iran-network-title" class="dg-heading">وضعیت اینترنت ایران</h2>
+                        <p class="mt-1 text-xs leading-6 text-[#617380]">این وضعیت‌ها ساختگی‌اند؛ وضعیت واقعی شبکه را نشان نمی‌دهند.</p>
+                    </div>
+                    <div class="flex flex-col gap-3 md:flex-row">
+                        <article class="dg-card min-w-0 flex-1 p-4 sm:p-5" aria-labelledby="demo-network-country-heading">
+                            <div class="flex items-center gap-2">
+                                <span aria-hidden="true" class="flex h-9 w-9 items-center justify-center rounded-xl bg-[#EAF8F4] text-[#087F73]">
+                                    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+                                        <path d="M2 12h4l3-7 5 14 3-7h5" />
+                                    </svg>
+                                </span>
+                                <h3 id="demo-network-country-heading" class="text-sm font-extrabold text-[#1B2935]">وضعیت عمومی اینترنت</h3>
+                            </div>
+                            <div class="mt-4">
+                                <x-live.network-indicator code="healthy" label="سالم" large />
+                            </div>
+                            <p class="mt-2 text-xs leading-6 text-[#536C76]">نمونه نمایشی وضعیت عادی؛ هیچ پایش زنده‌ای انجام نمی‌شود.</p>
+                        </article>
+                        <article class="dg-card min-w-0 flex-1 p-4 sm:p-5" aria-labelledby="demo-network-operators-heading">
+                            <div class="flex items-center gap-2">
+                                <span aria-hidden="true" class="flex h-9 w-9 items-center justify-center rounded-xl bg-[#F1F5F7] text-[#536C76]">
+                                    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+                                        <rect x="7" y="2" width="10" height="20" rx="2" /><path d="M11 18h2" />
+                                    </svg>
+                                </span>
+                                <h3 id="demo-network-operators-heading" class="text-sm font-extrabold text-[#1B2935]">اپراتورهای اینترنت</h3>
+                            </div>
+                            <div class="mt-3 divide-y divide-[#E7ECEF]">
+                                @foreach ([
+                                    ['همراه اول', 'healthy', 'سالم'],
+                                    ['ایرانسل', 'suspected', 'احتمال اختلال'],
+                                    ['رایتل', 'confirmed', 'اختلال شبکه'],
+                                ] as [$operator, $code, $label])
+                                    <div class="flex min-h-11 items-center justify-between gap-2 py-2">
+                                        <span class="text-sm font-semibold text-[#1B2935]">{{ $operator }}</span>
+                                        <x-live.network-indicator :code="$code" :label="$label" />
+                                    </div>
+                                @endforeach
+                            </div>
+                        </article>
+                    </div>
+                    <p class="mt-3 text-xs leading-7 text-[#617380]">حالت دمو: این اطلاعات نمونه هستند و به شبکه واقعی یا سرویس‌های دناگیت مربوط نیستند.</p>
                 </section>
             </section>
         </section>
