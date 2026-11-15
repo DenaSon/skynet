@@ -180,7 +180,7 @@
                                         <button type="button" wire:key="live-order-{{ $order->id }}" wire:click="openOrder({{ $order->id }})" wire:target="openOrder" wire:loading.attr="disabled"
                                             class="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg py-2.5 text-right focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]">
                                             <span class="min-w-0">
-                                                <span class="block break-words text-sm font-bold text-[#1B2935]">👤 {{ \App\Support\PersianCalendar::number((string) ( $recentOrderLabels[$order->id] ?? 'نام مشتری ثبت نشده' )) }}</span>
+                                                <span class="block break-words text-sm font-bold text-[#1B2935]">👤 {{ $recentOrderLabels[$order->id] ?? 'نام مشتری ثبت نشده' }}</span>
                                                 <span class="mt-1 block break-words text-xs leading-5 text-[#536C76]">{{ $order->productName }} · سفارش #{{ \App\Support\PersianCalendar::number((string) ( $order->id )) }}</span>
                                                 <span class="mt-1 block text-xs leading-5 text-[#536C76]">{{ match ($order->status) {
                                                     'pending_payment' => 'در انتظار پرداخت',
@@ -452,7 +452,7 @@
                             <div class="flex flex-wrap items-start justify-between gap-4">
                                 <div class="min-w-0">
                                     <p class="text-xs font-semibold text-[#087F73]">جزئیات سرویس</p>
-                                    <h2 class="dg-heading mt-2 break-words">{{ \App\Support\PersianCalendar::number((string) ( $labels[$item->orderId] ?? $item->productName )) }}</h2>
+                                    <h2 class="dg-heading mt-2 break-words">{{ $labels[$item->orderId] ?? $item->productName }}</h2>
                                     <p class="mt-2 text-sm text-[#536C76]">{{ $item->productName }}</p>
                                 </div>
                                 <span class="dg-status" data-tone="{{ match ($item->status) { 'failed' => 'danger', 'needs_review', 'provisioning' => 'warning', default => 'neutral' } }}">{{ $localStatus }}</span>
@@ -555,7 +555,7 @@
                                         @if ($renewalConfirmToken !== null && $renewalConfirmAmountRials !== null && $renewalConfirmBalanceRials !== null)
                                             <div class="dg-card-accent mt-5 p-4 text-sm">
                                                 <h4 class="font-extrabold text-[#1B2935]">تأیید پرداخت تمدید</h4>
-                                                 <p class="mt-2 break-words text-xs leading-6 text-[#536C76]">تمدید سرویس «{{ \App\Support\PersianCalendar::number((string) ( $labels[$item->orderId] ?? $item->productName )) }}» · سفارش #{{ \App\Support\PersianCalendar::number((string) ( $renewalOrder->id )) }}</p>
+                                                 <p class="mt-2 break-words text-xs leading-6 text-[#536C76]">تمدید سرویس «{{ $labels[$item->orderId] ?? $item->productName }}» · سفارش #{{ \App\Support\PersianCalendar::number((string) ( $renewalOrder->id )) }}</p>
                                                 <div class="mt-4 flex justify-between gap-2"><span>مبلغ برداشت</span><span class="font-bold">{{ \App\Support\PersianCalendar::number((string) ( number_format(intdiv($renewalConfirmAmountRials, 10)) )) }} تومان</span></div>
                                                 <div class="mt-3 flex justify-between gap-2"><span>اعتبار فعلی</span><span class="font-bold">{{ \App\Support\PersianCalendar::number((string) ( number_format(intdiv($renewalConfirmBalanceRials, 10)) )) }} تومان</span></div>
                                                 <div class="mt-3 flex justify-between gap-2 border-t border-[#CCEDE4] pt-3"><span>اعتبار پس از پرداخت</span><span class="font-bold">{{ \App\Support\PersianCalendar::number((string) ( number_format(intdiv($renewalConfirmBalanceRials - $renewalConfirmAmountRials, 10)) )) }} تومان</span></div>
@@ -639,7 +639,7 @@
                                 @if ($serviceStatusConfirmToken !== null)
                                     <div class="mt-5 rounded-2xl border border-[#E7ECEF] bg-[#F6F8FA] p-4">
                                         <p class="text-sm font-bold text-[#1B2935]">تأیید {{ $serviceStatusConfirmMode === 'disable' ? 'غیرفعال‌سازی' : 'فعال‌سازی مجدد' }}</p>
-                                        <p class="mt-2 break-words text-xs leading-7 text-[#536C76]">{{ $serviceStatusConfirmMode === 'disable' ? 'غیرفعال‌سازی' : 'فعال‌سازی مجدد' }} فقط برای سرویس «{{ \App\Support\PersianCalendar::number((string) ( $labels[$item->orderId] ?? $item->productName )) }}» (سفارش #{{ \App\Support\PersianCalendar::number((string) ( $item->orderId )) }}) درخواست می‌شود. نتیجه را با «بررسی وضعیت» دنبال کنید.</p>
+                                        <p class="mt-2 break-words text-xs leading-7 text-[#536C76]">{{ $serviceStatusConfirmMode === 'disable' ? 'غیرفعال‌سازی' : 'فعال‌سازی مجدد' }} فقط برای سرویس «{{ $labels[$item->orderId] ?? $item->productName }}» (سفارش #{{ \App\Support\PersianCalendar::number((string) ( $item->orderId )) }}) درخواست می‌شود. نتیجه را با «بررسی وضعیت» دنبال کنید.</p>
                                         <div class="mt-4 flex flex-wrap gap-3">
                                             <button type="button" wire:click="confirmServiceStatus" wire:loading.attr="disabled" wire:target="confirmServiceStatus"
                                                 class="dg-btn-primary">تأیید درخواست<span wire:loading.delay wire:target="confirmServiceStatus" role="status" class="text-xs font-semibold">در حال ثبت درخواست…</span></button>
@@ -754,7 +754,7 @@
                             <article wire:key="live-service-{{ $service->orderId }}" class="dg-card p-4 sm:p-5">
                                 <div class="flex flex-wrap items-start justify-between gap-3">
                                     <div class="min-w-0">
-                                        <h2 class="break-words text-base font-extrabold text-[#1B2935]">{{ \App\Support\PersianCalendar::number((string) ( $labels[$service->orderId] ?? 'نام مشتری ثبت نشده' )) }}</h2>
+                                        <h2 class="break-words text-base font-extrabold text-[#1B2935]">{{ $labels[$service->orderId] ?? 'نام مشتری ثبت نشده' }}</h2>
                                         <p class="mt-1 break-words text-xs leading-6 text-[#536C76]">{{ $service->productName }} · {{ \App\Support\PersianCalendar::number((string) ( $service->durationDays )) }} روز{{ \App\Support\PersianCalendar::number((string) ( $service->trafficGb === null ? '' : ' · '.number_format($service->trafficGb).' گیگابایت' )) }}</p>
                                     </div>
                                     <span class="dg-status" data-tone="{{ match ($service->status) { 'failed' => 'danger', 'needs_review', 'provisioning' => 'warning', default => 'neutral' } }}">{{ $serviceStatus }}</span>
