@@ -127,33 +127,27 @@ final readonly class SalesHomeUi
                 InlineKeyboardButton::make(ReplyMenuLabels::BUILDER, callback_data: 'menu:builder'),
             );
             $keyboard->addRow(
-                InlineKeyboardButton::make(ReplyMenuLabels::SALES_ACCOUNT, callback_data: 'sales:account'),
                 InlineKeyboardButton::make(ReplyMenuLabels::SALES_SUPPORT, callback_data: 'sales:support'),
-            );
-            // Match the reseller's persistent Reply menu: both learning and reports
-            // remain one-tap actions in a shared, compact row.
-            $keyboard->addRow(
-                InlineKeyboardButton::make(ReplyMenuLabels::SALES_TUTORIAL, callback_data: 'sales:help:apps'),
                 InlineKeyboardButton::make(ReplyMenuLabels::SALES_REPORTS, callback_data: 'sales:report:30'),
             );
         } elseif ($hasWallet) {
-            $keyboard->addRow(
-                InlineKeyboardButton::make(ReplyMenuLabels::SALES_WALLET, callback_data: 'sales:wallet'),
-                InlineKeyboardButton::make('👤 حساب کاربری', callback_data: 'sales:account'),
-            );
-        } else {
-            $keyboard->addRow(InlineKeyboardButton::make('👤 حساب کاربری', callback_data: 'sales:account'));
+            if ($actor->roles === ['member']) {
+                $keyboard->addRow(
+                    InlineKeyboardButton::make(ReplyMenuLabels::SALES_WALLET, callback_data: 'sales:wallet'),
+                    InlineKeyboardButton::make(ReplyMenuLabels::SALES_REWARD, callback_data: 'sales:invite', style: ButtonStyle::PRIMARY),
+                );
+            } else {
+                $keyboard->addRow(InlineKeyboardButton::make(ReplyMenuLabels::SALES_WALLET, callback_data: 'sales:wallet'));
+            }
         }
         if ($actor->roles === ['member']) {
-            $keyboard->addRow(
-                InlineKeyboardButton::make(ReplyMenuLabels::SALES_REWARD, callback_data: 'sales:invite', style: ButtonStyle::PRIMARY),
-                InlineKeyboardButton::make('💬 پشتیبانی', callback_data: 'sales:support'),
-            );
             if ($trialVisible) {
                 $keyboard->addRow(
+                    InlineKeyboardButton::make(ReplyMenuLabels::SALES_SUPPORT, callback_data: 'sales:support'),
                     InlineKeyboardButton::make(ReplyMenuLabels::SALES_TRIAL, callback_data: 'sales:trial', style: ButtonStyle::SUCCESS),
-                    InlineKeyboardButton::make(ReplyMenuLabels::SALES_TUTORIAL, callback_data: 'sales:help:apps'),
                 );
+            } else {
+                $keyboard->addRow(InlineKeyboardButton::make(ReplyMenuLabels::SALES_SUPPORT, callback_data: 'sales:support'));
             }
         }
         if ($panelRequestLabel !== null) {

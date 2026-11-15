@@ -72,7 +72,7 @@ final readonly class SalesSupportUi
                 $text = '<b>💬 پشتیبانی</b>'."\n\n".($operator === null
                     ? 'ارتباط مستقیم فعلاً در دسترس نیست. راهنمای اتصال و خرید را ببینید.'
                     : 'برای گفتگو با اپراتور، دکمه «ارتباط با پشتیبان» را بزنید. گفتگوی خصوصی تلگرام باز می‌شود.');
-                $keyboard->addRow(InlineKeyboardButton::make('📚 آموزش اتصال و خرید', callback_data: 'sales:help:apps'))
+                $keyboard->addRow(InlineKeyboardButton::make('📚 آموزش اتصال و خرید', callback_data: 'sales:help:apps', style: ButtonStyle::SUCCESS))
                     ->addRow(InlineKeyboardButton::make('🔧 رفع مشکل اتصال', callback_data: 'sales:help:troubleshoot'));
                 if (in_array('reseller', $actor->roles, true)) {
                     $keyboard->addRow(InlineKeyboardButton::make('🧩 آموزش پلن‌ساز', callback_data: 'sales:help:builder'));
