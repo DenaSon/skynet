@@ -58,7 +58,7 @@ final readonly class ReadIranNetworkSummary
     /**
      * A failure to access Radar never becomes a clean/green status.
      *
-     * @param Closure():array<string,mixed> $request
+     * @param  Closure():array<string,mixed>  $request
      * @return array<string,mixed>|null
      */
     private function attempt(Closure $request): ?array
@@ -74,8 +74,8 @@ final readonly class ReadIranNetworkSummary
      * Only the presence of an explicitly relevant outage or anomaly is asserted.
      * No anomaly does not establish that the ISP, Xray or VLESS is healthy.
      *
-     * @param array<string,mixed>|null $anomalies
-     * @param array<string,mixed>|null $outages
+     * @param  array<string,mixed>|null  $anomalies
+     * @param  array<string,mixed>|null  $outages
      * @return array{code:string,label:string,detail:string}
      */
     private function assess(?array $anomalies, ?array $outages, ?int $asn, CarbonImmutable $now): array
@@ -121,11 +121,13 @@ final readonly class ReadIranNetworkSummary
                 foreach ($rows as $row) {
                     if (! is_array($row)) {
                         $unreadable = true;
+
                         continue;
                     }
                     $recent = self::overlapsLastDay($row['startDate'] ?? null, $row['endDate'] ?? null, $now);
                     if ($recent === null) {
                         $unreadable = true;
+
                         continue;
                     }
                     if ($recent === false) {
