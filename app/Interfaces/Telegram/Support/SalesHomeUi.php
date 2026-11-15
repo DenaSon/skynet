@@ -146,11 +146,16 @@ final readonly class SalesHomeUi
                     InlineKeyboardButton::make(ReplyMenuLabels::SALES_SUPPORT, callback_data: 'sales:support'),
                     InlineKeyboardButton::make(ReplyMenuLabels::SALES_TRIAL, callback_data: 'sales:trial', style: ButtonStyle::SUCCESS),
                 );
+            } elseif ($panelRequestLabel !== null) {
+                $keyboard->addRow(
+                    InlineKeyboardButton::make(ReplyMenuLabels::SALES_SUPPORT, callback_data: 'sales:support'),
+                    InlineKeyboardButton::make($panelRequestLabel, callback_data: 'sales:panel:hub'),
+                );
             } else {
                 $keyboard->addRow(InlineKeyboardButton::make(ReplyMenuLabels::SALES_SUPPORT, callback_data: 'sales:support'));
             }
         }
-        if ($panelRequestLabel !== null) {
+        if ($panelRequestLabel !== null && ($actor->roles !== ['member'] || $trialVisible)) {
             $keyboard->addRow(InlineKeyboardButton::make(
                 $panelRequestLabel, callback_data: 'sales:panel:hub',
             ));
