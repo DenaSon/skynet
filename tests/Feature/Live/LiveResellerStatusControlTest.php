@@ -15,6 +15,7 @@ use App\Modules\Sales\Application\ManagePlans;
 use App\Modules\Sales\Application\PlanDefinition;
 use App\Modules\Sales\Application\PlanPricingDefinition;
 use App\Settings\ResellerServiceStatusSettings;
+use App\Support\PersianCalendar;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
@@ -161,7 +162,7 @@ it('requires live status and one-use confirmation before queuing the only provid
         ->assertSee('غیرفعال‌سازی سرویس')
         ->call('prepareServiceStatus', 'disable')
         ->assertSee('تأیید غیرفعال‌سازی')
-        ->assertSee('سفارش #'.$d['order'])
+        ->assertSee('سفارش #'.PersianCalendar::number((string) $d['order']))
         ->assertSee('نتیجه را با «بررسی وضعیت» دنبال کنید.')
         ->call('confirmServiceStatus')
         ->assertSee('درخواست ثبت شد');
