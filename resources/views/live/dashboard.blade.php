@@ -795,7 +795,7 @@
                                         <button type="button" wire:click="selectReportDays({{ $days }})" wire:target="selectReportDays" wire:loading.attr="disabled"
                                             class="{{ $report['days'] === $days ? 'dg-btn-primary' : 'dg-btn-secondary' }} min-w-0 px-3 transition-colors sm:min-w-24 sm:px-4"
                                             aria-pressed="{{ $report['days'] === $days ? 'true' : 'false' }}">
-                                            {{ $days === 0 ? 'از ابتدا' : $days.' روز' }}
+                                            {{ \App\Support\PersianCalendar::number((string) ( $days === 0 ? 'از ابتدا' : $days.' روز' )) }}
                                         </button>
                                     @endforeach
                                 </div>
