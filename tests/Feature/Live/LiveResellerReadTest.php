@@ -11,6 +11,7 @@ use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\ConfigureRate;
 use App\Modules\Sales\Application\CreatePendingOrder;
 use App\Modules\Sales\Application\ManageResellerServiceLabels;
+use App\Modules\Sales\Application\ReadResellerSalesReport;
 use App\Modules\Sales\Application\SettleWalletOrder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -236,7 +237,6 @@ it('searches owned customer names across pages and preserves the filter after de
     $page->call('searchServices')->assertForbidden();
 });
 
-
 it('aggregates all settled payments since inception without counting pending orders or another reseller', function (): void {
     $owner = liveReadUser(879090);
     $foreign = liveReadUser(879091);
@@ -257,7 +257,7 @@ it('aggregates all settled payments since inception without counting pending ord
     liveReadOrder($foreign);
     $this->actingAs($owner)->withSession(['denagate_live.user_id' => $owner->id]);
 
-    $reader = app(\App\Modules\Sales\Application\ReadResellerSalesReport::class);
+    $reader = app(ReadResellerSalesReport::class);
     $week = $reader->handle($owner->id, 7);
     $month = $reader->handle($owner->id, 30);
     $lifetime = $reader->handle($owner->id, 0);
