@@ -40,6 +40,18 @@ function radarLiveTraffic(string $status): array
 }
 
 /** @return array<string,mixed> */
+function radarLiveSeries(string $lastUpdated = '2026-11-15T09:00:00Z'): array
+{
+    return ['success' => true, 'result' => [
+        'meta' => ['lastUpdated' => $lastUpdated, 'normalization' => 'MIN0_MAX'],
+        'serie_0' => [
+            'timestamps' => ['2026-11-15T09:00:00Z'],
+            'values' => ['73'],
+        ],
+    ]];
+}
+
+/** @return array<string,mixed> */
 function radarLiveOutages(bool $withOutage = false): array
 {
     return ['success' => true, 'result' => ['annotations' => $withOutage ? [[
@@ -66,6 +78,9 @@ it('shows two network cards after sales reporting, fetching Radar only from the 
         if (str_contains($url, '/annotations/outages')) {
             return Http::response(radarLiveOutages());
         }
+        if (str_contains($url, '/netflows/timeseries')) {
+            return Http::response(radarLiveSeries());
+        }
         parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
         $status = match ((string) ($query['asn'] ?? 'IR')) {
             '197207' => 'UNVERIFIED',
@@ -88,10 +103,10 @@ it('shows two network cards after sales reporting, fetching Radar only from the 
     Http::assertNothingSent();
 
     $component->call('loadNetworkStatus')
-        ->assertSee('گزارش اختلالی یافت نشد')
+        ->assertSee('سالم')
         ->assertSee('احتمال اختلال')
-        ->assertSee('اختلال ثبت‌شده')
-        ->assertSee('Cloudflare Radar')
+        ->assertSee('اختلال شبکه')
+        ->assertDontSee('Cloudflare Radar')
         ->assertDontSee('AS197207')
         ->assertDontSee('MIN0_MAX')
         ->assertDontSee('safe-radar-test-token')
@@ -99,7 +114,7 @@ it('shows two network cards after sales reporting, fetching Radar only from the 
         ->assertSet('reportDays', 7)
         ->assertSee('گزارش فروش');
 
-    Http::assertSentCount(5);
+    Http::assertSentCount(9);
     Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '/traffic_anomalies')
         && str_contains($request->url(), 'asn=197207')
         && str_contains($request->url(), 'dateRange=1d'));
@@ -114,7 +129,9 @@ it('keeps incomplete provider failures neutral without breaking the sales report
             return Http::response(['success' => false], 503);
         }
 
-        return Http::response(radarLiveTraffic('NONE'));
+        return Http::response(str_contains($request->url(), '/netflows/timeseries')
+            ? radarLiveSeries()
+            : radarLiveTraffic('NONE'));
     });
 
     Livewire::test(Dashboard::class)
@@ -122,14 +139,17 @@ it('keeps incomplete provider failures neutral without breaking the sales report
         ->call('loadNetworkStatus')
         ->assertSee('اطلاعات کافی نیست')
         ->assertSee('گزارش فروش')
-        ->assertSee('گزارش اختلالی یافت نشد');
-    Http::assertSentCount(5);
+        ->assertSee('اطلاعات کافی نیست');
+    Http::assertSentCount(9);
 });
 
 it('uses actual recent outage data for ISP status and ignores old or malformed anomaly timestamps', function (): void {
     Http::fake(function (Request $request) {
         if (str_contains($request->url(), '/annotations/outages')) {
             return Http::response(radarLiveOutages(true));
+        }
+        if (str_contains($request->url(), '/netflows/timeseries')) {
+            return Http::response(radarLiveSeries());
         }
         if (str_contains($request->url(), 'asn=197207')) {
             return Http::response(['success' => true, 'result' => ['trafficAnomalies' => [[
@@ -150,7 +170,7 @@ it('uses actual recent outage data for ISP status and ignores old or malformed a
 
     $snapshot = app(ReadIranNetworkSummary::class)->handle();
     expect($snapshot['country']['code'])->toBe('confirmed')
-        ->and($snapshot['operators'][0]['code'])->toBe('no-report')
+        ->and($snapshot['operators'][0]['code'])->toBe('healthy')
         ->and($snapshot['operators'][1]['code'])->toBe('confirmed')
         ->and($snapshot['operators'][2]['code'])->toBe('unknown');
 });
@@ -180,4 +200,40 @@ it('does not reveal any Radar data when not on reports and rechecks on later rep
         ->call('showSection', 'services')
         ->assertDontSee('وضعیت اینترنت ایران');
     Http::assertNothingSent();
+});
+
+it('never paints a green status when Cloudflare traffic timestamps are stale or malformed', function (): void {
+    Http::fake(function (Request $request) {
+        if (str_contains($request->url(), '/annotations/outages')) {
+            return Http::response(radarLiveOutages());
+        }
+        if (str_contains($request->url(), '/netflows/timeseries')) {
+            return Http::response(radarLiveSeries('2026-11-14T01:00:00Z'));
+        }
+
+        return Http::response(radarLiveTraffic('NONE'));
+    });
+
+    $snapshot = app(ReadIranNetworkSummary::class)->handle();
+    expect($snapshot['country']['code'])->toBe('unknown')
+        ->and($snapshot['operators'][0]['code'])->toBe('unknown')
+        ->and($snapshot['operators'][1]['code'])->toBe('unknown')
+        ->and($snapshot['operators'][2]['code'])->toBe('unknown');
+});
+
+it('keeps suspect anomalies orange even when the traffic freshness signal is unavailable', function (): void {
+    Http::fake(function (Request $request) {
+        if (str_contains($request->url(), '/annotations/outages')) {
+            return Http::response(radarLiveOutages());
+        }
+        if (str_contains($request->url(), '/netflows/timeseries')) {
+            return Http::response(['success' => false], 503);
+        }
+
+        return Http::response(radarLiveTraffic('UNVERIFIED'));
+    });
+
+    $snapshot = app(ReadIranNetworkSummary::class)->handle();
+    expect($snapshot['operators'][0]['code'])->toBe('suspected')
+        ->and($snapshot['country']['code'])->toBe('suspected');
 });

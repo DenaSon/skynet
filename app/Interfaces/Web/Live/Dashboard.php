@@ -217,7 +217,7 @@ final class Dashboard extends Component
 
     public function selectReportDays(int $days): void
     {
-        if (in_array($days, [7, 30], true)) {
+        if (in_array($days, [0, 7, 30], true)) {
             $this->reportDays = $days;
         }
     }
@@ -1514,7 +1514,7 @@ final class Dashboard extends Component
             }
 
             if ($this->section === 'overview' || $this->section === 'reports') {
-                $days = in_array($this->reportDays, [7, 30], true) ? $this->reportDays : 30;
+                $days = in_array($this->reportDays, [0, 7, 30], true) ? $this->reportDays : 30;
                 $data['report'] = app(ReadResellerSalesReport::class)->handle(
                     $userId, $this->section === 'overview' ? 30 : $days,
                 );
