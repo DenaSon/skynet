@@ -235,3 +235,45 @@ it('searches owned customer names across pages and preserves the filter after de
     $owner->syncRoles(['member']);
     $page->call('searchServices')->assertForbidden();
 });
+
+
+it('aggregates all settled payments since inception without counting pending orders or another reseller', function (): void {
+    $owner = liveReadUser(879090);
+    $foreign = liveReadUser(879091);
+    PanelWalletFunding::credit($owner->id, 5_000_000);
+    PanelWalletFunding::credit($foreign->id, 2_000_000);
+    $this->actingAs($owner)->withSession(['denagate_live.user_id' => $owner->id]);
+
+    $oldOrder = liveReadOrder($owner);
+    $oldAmount = (int) DB::table('sales_order_settlements')->where('sales_order_id', $oldOrder)->value('amount_rials');
+    $oldDate = now()->subDays(90);
+    DB::table('sales_order_settlements')->where('sales_order_id', $oldOrder)->update(['settled_at' => $oldDate]);
+
+    $currentOrder = liveReadOrder($owner);
+    $currentAmount = (int) DB::table('sales_order_settlements')->where('sales_order_id', $currentOrder)->value('amount_rials');
+    liveReadOrder($owner, false);
+
+    $this->actingAs($foreign)->withSession(['denagate_live.user_id' => $foreign->id]);
+    liveReadOrder($foreign);
+    $this->actingAs($owner)->withSession(['denagate_live.user_id' => $owner->id]);
+
+    $reader = app(\App\Modules\Sales\Application\ReadResellerSalesReport::class);
+    $week = $reader->handle($owner->id, 7);
+    $month = $reader->handle($owner->id, 30);
+    $lifetime = $reader->handle($owner->id, 0);
+
+    expect($week['revenueRials'])->toBe($currentAmount)
+        ->and($month['revenueRials'])->toBe($currentAmount)
+        ->and($lifetime['revenueRials'])->toBe($oldAmount + $currentAmount)
+        ->and($lifetime['transactions'])->toBe(2)
+        ->and($lifetime['sales'])->toBe(2)
+        ->and($lifetime['pending'])->toBe(1)
+        ->and($lifetime['from'])->toBe($oldDate->timezone('Asia/Tehran')->format('Y-m-d'));
+
+    Livewire::test(Dashboard::class)->call('showSection', 'reports')
+        ->call('selectReportDays', 0)
+        ->assertSet('reportDays', 0)
+        ->assertSee(number_format(intdiv($oldAmount + $currentAmount, 10)))
+        ->assertSee('از ابتدا');
+    Http::assertNothingSent();
+});
