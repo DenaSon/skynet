@@ -249,7 +249,7 @@ it('opens reward directly from the member home keyboard and old invite labels wi
         $rows = $payload['reply_markup']['keyboard'] ?? [];
         $html = uxr01RichHtml($request);
 
-        return ($rows[2][0]['text'] ?? null) === ReplyMenuLabels::SALES_REWARD
+        return ($rows[1][1]['text'] ?? null) === ReplyMenuLabels::SALES_REWARD
             && str_contains($html, 'data="sales:invite"')
             && str_contains($html, '🎁 دریافت جایزه');
     }, index: 0);
