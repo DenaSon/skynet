@@ -42,6 +42,7 @@ it('renders six compact report cards in one grid and updates the selected report
         ->assertSee('بازه گزارش')
         ->assertSee('7 روز')
         ->assertSee('30 روز')
+        ->assertSee('از ابتدا')
         ->assertSee('aria-labelledby="report-revenue-title"', false)
         ->assertSee('aria-label="شاخص‌های فروش و حساب"', false)
         ->assertSee('grid grid-cols-3', false)
@@ -57,7 +58,12 @@ it('renders six compact report cards in one grid and updates the selected report
         ->assertSee('بازه 7 روزه')
         ->call('selectReportDays', 30)
         ->assertSet('reportDays', 30)
-        ->assertSee('بازه 30 روزه');
+        ->assertSee('بازه 30 روزه')
+        ->call('selectReportDays', 0)
+        ->assertSet('reportDays', 0)
+        ->assertSee('از ابتدا')
+        ->call('selectReportDays', 30)
+        ->assertSet('reportDays', 30);
 
     expect(DB::table('billing_journals')->count())->toBe(0)
         ->and(DB::table('sales_orders')->count())->toBe(0);
@@ -87,6 +93,7 @@ it('keeps all original report fields, price conversion and a single loading anno
         ->toContain("aria-pressed=\"{{ \$report['days'] === \$days ? 'true' : 'false' }}\"")
         ->toContain('dg-card-accent')
         ->toContain('dg-stat')
+        ->toContain('dg-report-revenue')
         ->toContain('grid grid-cols-3')
         ->toContain('<x-live.report-metric :label="$label" :value="$value" :historical="$isHistorical" />')
         ->not->toContain('grid-cols-2')
