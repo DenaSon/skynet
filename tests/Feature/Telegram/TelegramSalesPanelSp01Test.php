@@ -803,11 +803,14 @@ it('renders a safe member-only hub with no demo button when Live is disabled', f
     $member->syncRoles(['reseller']);
     $bot->hearCallbackQueryData('sales:panel:hub')->reply()->assertRaw(static function (Request $request): bool {
         $data = panel01Payload($request);
-        $keyboard = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+        $keyboard = $data['reply_markup'];
+        $labels = collect($keyboard['keyboard'] ?? [])->flatten(1)->pluck('text')->all();
 
-        return str_contains((string) ($data['text'] ?? ''), 'در دسترس نیست')
-            && ! str_contains($keyboard, 'sales:panel:request')
-            && ! str_contains($keyboard, 'live.denagate.ir/demo');
+        return str_contains((string) ($data['text'] ?? ''), 'پنل نمایندگی شما فعال است')
+            && ($keyboard['is_persistent'] ?? false) === true
+            && in_array('🧩 پلن سفارشی', $labels, true)
+            && ! in_array('🧩 درخواست نمایندگی', $labels, true)
+            && ! str_contains(json_encode($keyboard, JSON_THROW_ON_ERROR), 'live.denagate.ir/demo');
     }, index: 1);
 
     expect(DB::table('sales_panel_requests')->count())->toBe(0);
