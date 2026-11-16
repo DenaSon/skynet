@@ -447,6 +447,18 @@ final readonly class SalesHomeUi
         if ($actor === null) {
             return;
         }
+        if (in_array('reseller', $actor->roles, true)) {
+            TelegramUi::answerCallback($bot);
+            $bot->sendMessage(
+                text: '<b>🧩 پنل نمایندگی شما فعال است.</b>'
+                    ."\n\nمنوی نمایندگی شما به‌روزرسانی شد.",
+                parse_mode: 'HTML',
+                reply_markup: app(ReplyMenuRenderer::class)->salesKeyboard($actor),
+            );
+
+            return;
+        }
+
         if ($this->panelRequestLabel($actor) === null) {
             $this->render($bot, 'این بخش برای حساب شما در دسترس نیست.', $this->back());
 
