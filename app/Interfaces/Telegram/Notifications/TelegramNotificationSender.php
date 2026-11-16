@@ -267,18 +267,21 @@ final readonly class TelegramNotificationSender
                     || ! in_array('reseller', $actor->roles, true)) {
                     throw new NotificationUnavailable('role_revoked');
                 }
+                $keyboard = json_encode(app(ReplyMenuRenderer::class)->salesKeyboard($actor), JSON_THROW_ON_ERROR);
+            } else {
+                $keyboard = json_encode(['inline_keyboard' => [[
+                    ['text' => '👤 حساب کاربری', 'callback_data' => 'sales:account'],
+                ]]], JSON_THROW_ON_ERROR);
             }
 
             $message = $expected === 'approved'
                 ? "<b>✅ پنل فروش شما فعال شد</b>\n\nدرخواست #{$requestId} تأیید شد."
                     ."\nاکنون می‌توانید پلن‌ها را با قیمت ویژه پنل فروش تهیه کنید."
+                    ."\nاز منوی پایین برای مدیریت سرویس‌ها و مشتریان استفاده کنید."
                 : '<b>❌ درخواست پنل فروش تأیید نشد</b>'
                     ."\n\nدرخواست #{$requestId}"
                     ."\nحساب فعلی شما بدون تغییر باقی مانده است."
                     ."\nبرای راهنمایی بیشتر با پشتیبانی گفتگو کنید.";
-            $keyboard = json_encode(['inline_keyboard' => [[
-                ['text' => '👤 حساب کاربری', 'callback_data' => 'sales:account'],
-            ]]], JSON_THROW_ON_ERROR);
             $this->text($bot, $chat, $message, $keyboard, 'HTML');
 
             return;
