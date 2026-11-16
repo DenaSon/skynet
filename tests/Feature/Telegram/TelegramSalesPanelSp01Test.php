@@ -244,6 +244,46 @@ it('leaving to sales home cancels panel draft without disturbing existing wallet
         ->and(DB::table('sales_panel_requests')->count())->toBe(0);
 });
 
+it('refreshes a stale reseller request reply button to the active reseller menu', function (): void {
+    Role::findOrCreate('reseller', 'web');
+    $reseller = User::factory()->create();
+    $reseller->syncRoles(['reseller']);
+    $bot = panel01Bot(986121, $reseller);
+
+    $bot->hearText('🧩 درخواست نمایندگی')->reply()
+        ->assertCalled('sendMessage')
+        ->assertRaw(static function (Request $request): bool {
+            $data = panel01Payload($request);
+            $labels = collect($data['reply_markup']['keyboard'] ?? [])
+                ->flatten(1)->pluck('text')->all();
+
+            return str_contains((string) ($data['text'] ?? ''), 'پنل نمایندگی شما فعال است')
+                && ($data['reply_markup']['is_persistent'] ?? false) === true
+                && in_array('🧩 پلن سفارشی', $labels, true)
+                && in_array('📊 گزارش‌ها', $labels, true)
+                && ! in_array('🧩 درخواست نمایندگی', $labels, true)
+                && ! in_array('👤 حساب کاربری', $labels, true)
+                && ! in_array('📚 آموزش', $labels, true);
+        });
+
+    expect(DB::table('sales_panel_requests')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('acknowledges a stale inline reseller panel shortcut and refreshes the menu', function (): void {
+    Role::findOrCreate('reseller', 'web');
+    $reseller = User::factory()->create();
+    $reseller->syncRoles(['reseller']);
+    $bot = panel01Bot(986122, $reseller);
+
+    $bot->hearCallbackQueryData('sales:panel:hub')->reply()
+        ->assertCalled('answerCallbackQuery')
+        ->assertCalled('sendMessage');
+
+    expect(DB::table('sales_panel_requests')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
 it('makes Sales Panel application discoverable via persistent menu and Account for an ordinary member', function (): void {
     config()->set('denagate_live.enabled', true);
     $member = User::factory()->create();
