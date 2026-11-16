@@ -267,6 +267,11 @@ final readonly class TelegramNotificationSender
                     || ! in_array('reseller', $actor->roles, true)) {
                     throw new NotificationUnavailable('role_revoked');
                 }
+                $keyboard = json_encode(app(ReplyMenuRenderer::class)->salesKeyboard($actor), JSON_THROW_ON_ERROR);
+            } else {
+                $keyboard = json_encode(['inline_keyboard' => [[
+                    ['text' => '👤 حساب کاربری', 'callback_data' => 'sales:account'],
+                ]]], JSON_THROW_ON_ERROR);
             }
 
             $message = $expected === 'approved'
@@ -277,11 +282,6 @@ final readonly class TelegramNotificationSender
                     ."\n\nدرخواست #{$requestId}"
                     ."\nحساب فعلی شما بدون تغییر باقی مانده است."
                     ."\nبرای راهنمایی بیشتر با پشتیبانی گفتگو کنید.";
-            $keyboard = $expected === 'approved'
-                ? json_encode(app(ReplyMenuRenderer::class)->salesKeyboard($actor), JSON_THROW_ON_ERROR)
-                : json_encode(['inline_keyboard' => [[
-                    ['text' => '👤 حساب کاربری', 'callback_data' => 'sales:account'],
-                ]]], JSON_THROW_ON_ERROR);
             $this->text($bot, $chat, $message, $keyboard, 'HTML');
 
             return;
