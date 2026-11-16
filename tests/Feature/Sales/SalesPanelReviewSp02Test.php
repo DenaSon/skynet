@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
 use App\Interfaces\Telegram\Notifications\SalesPanelNotificationOutbox;
 use App\Interfaces\Telegram\Notifications\TelegramNotificationSender;
+use App\Interfaces\Telegram\Support\ReplyMenuLabels;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Sales\Application\ReviewSalesPanelRequest;
@@ -148,9 +149,30 @@ it('atomically approves once, assigns only reseller through Identity and notifie
     expect(DB::table('telegram_notification_deliveries')->count())->toBe(2);
     $id = (int) DB::table('telegram_notification_deliveries')->where('event_type', 'SalesPanelApproved')->value('id');
     app(DispatchTelegramNotification::class, ['deliveryId' => $id])->handle(app(TelegramNotificationSender::class));
-    Http::assertSent(static fn (Request $request): bool => str_contains($request->url(), '2345:sp_sales_test/sendMessage')
-        && str_contains((string) $request['text'], 'پنل فروش شما فعال شد')
-        && str_contains((string) $request['reply_markup'], 'sales:account'));
+    Http::assertSent(static function (Request $request): bool {
+        if (! str_contains($request->url(), '2345:sp_sales_test/sendMessage')
+            || ! str_contains((string) $request['text'], 'پنل فروش شما فعال شد')) {
+            return false;
+        }
+
+        $markup = json_decode((string) $request['reply_markup'], true, flags: JSON_THROW_ON_ERROR);
+        $labels = [];
+        foreach ($markup['keyboard'] ?? [] as $row) {
+            foreach ($row as $button) {
+                if (is_string($button['text'] ?? null)) {
+                    $labels[] = $button['text'];
+                }
+            }
+        }
+
+        return ($markup['is_persistent'] ?? false) === true
+            && ! isset($markup['inline_keyboard'])
+            && in_array(ReplyMenuLabels::BUILDER, $labels, true)
+            && in_array(ReplyMenuLabels::SALES_REPORTS, $labels, true)
+            && ! in_array(ReplyMenuLabels::SALES_PANEL_REQUEST, $labels, true)
+            && ! in_array(ReplyMenuLabels::SALES_ACCOUNT, $labels, true);
+    });
+    Http::assertSentCount(1);
 });
 
 it('rejects a request without assigning any privileged role, sends buyer notice once', function (): void {
