@@ -957,6 +957,12 @@ final readonly class AdminNodeSetupUi
                 .$this->replacementRichRow('آدرس Node', $review['nodeAddressMode'] === 'domain' ? 'حفظ دامنه فعلی' : 'IP مستقیم')
                 .$this->replacementRichRow('Hostهای حفظ‌شده', (string) count($review['hosts']));
 
+            foreach ($review['hosts'] as $host) {
+                $endpoint = $host['address'].':'.$host['port'];
+                $message .= "\n• ".TelegramUi::escape($host['remark']).' — '.TelegramUi::code($endpoint);
+                $rows .= $this->replacementRichRow($host['remark'], $endpoint);
+            }
+
             foreach ($review['dnsRecords'] as $record) {
                 $proxy = $record['record']['proxied'] ? 'Proxied' : 'DNS Only';
                 $message .= "\n• ".TelegramUi::code($record['hostname']).' — '.$proxy;

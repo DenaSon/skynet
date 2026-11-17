@@ -385,6 +385,11 @@ it('moves direct-IP Hosts and the Node address last while preserving the Node an
         ->and($api->records[NW05_RECORD_XHTTP]['content'])->toBe(NW05_NEW_IP)
         ->and($api->records[NW05_RECORD_XHTTP]['proxied'])->toBeTrue()
         ->and(nw05MutationCount())->toBe(3);
+
+    $writes = collect(Http::recorded())->filter(
+        static fn (array $pair): bool => $pair[0]->method() !== 'GET',
+    )->values();
+    expect($writes->last()[0]->url())->toBe('https://rw.nw05.test/api/nodes');
 });
 
 it('does not accept the client test while Remnawave reports the Node disconnected', function (): void {
@@ -419,7 +424,7 @@ it('renders the replacement confirmation Rich-first and keeps an equivalent esca
             if ($argument instanceof InputRichMessage) {
                 expect($argument->is_rtl)->toBeTrue()
                     ->and($argument->html)->toContain('<table bordered striped compact>')
-                    ->toContain('fr.coreflare.ir', 'DNS Only', 'Hostهای حفظ‌شده');
+                    ->toContain('fr.coreflare.ir', 'DNS Only', 'Hostهای حفظ‌شده', 'Germany-REALITY', 'fr.coreflare.ir:443', 'Germany-XHTTP', 'xhttp.coreflare.ir:8443');
             }
             if ($argument instanceof InlineKeyboardMarkup) {
                 $keyboard = $argument;
