@@ -226,8 +226,8 @@ it('NW-02 never adopts another installation identifier remote status', function 
         ->andReturn('unknown');
     app()->instance(NodeSshInstaller::class, $fake);
 
-    expect(app(ManageNodeInstallation::class)->status($fixture['actor']->id, $identifier)['state'])->toBe('uncertain')
-        ->and(fn () => app(ManageNodeInstallation::class)->context($fixture['actor']->id, $identifier))
+    expect(app(ManageNodeInstallation::class)->status($fixture['actor']->id, $identifier)['state'])->toBe('uncertain');
+    expect(fn () => app(ManageNodeInstallation::class)->context($fixture['actor']->id, $identifier))
         ->toThrow(RuntimeException::class);
 });
 
