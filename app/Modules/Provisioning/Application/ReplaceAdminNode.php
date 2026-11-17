@@ -106,7 +106,7 @@ final readonly class ReplaceAdminNode
             }
 
             if ($resolved['record']['content'] === $oldIp) {
-                $inferredDns[$host['address']] = $resolved;
+                $inferredDns[strtolower($host['address'])] = $resolved;
                 $assignedHosts[] = [...$host, 'association' => 'inbound_address'];
             }
         }
@@ -127,11 +127,11 @@ final readonly class ReplaceAdminNode
 
                 continue;
             }
-            $hostnames[$host['address']] = true;
+            $hostnames[strtolower($host['address'])] = true;
         }
 
         if ($nodeDns !== null) {
-            $hostnames[$current['address']] = true;
+            $hostnames[strtolower($current['address'])] = true;
         }
 
         if (count($hostnames) > 10 || count($directHosts) > 10) {
@@ -160,7 +160,7 @@ final readonly class ReplaceAdminNode
         $names = array_keys($hostnames);
         sort($names, SORT_STRING);
         foreach ($names as $hostname) {
-            $resolved = $hostname === $current['address'] && $nodeDns !== null
+            $resolved = $hostname === strtolower($current['address']) && $nodeDns !== null
                 ? $nodeDns
                 : ($inferredDns[$hostname] ?? $this->dns->replacementRecord($actorId, $hostname));
             $record = $resolved['record'];

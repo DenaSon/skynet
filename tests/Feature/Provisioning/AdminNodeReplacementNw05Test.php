@@ -548,3 +548,27 @@ it('renders the pre-install replacement review Rich-first with preserved fallbac
     expect($keyboard)->toBeInstanceOf(InlineKeyboardMarkup::class)
         ->and(json_encode($keyboard, JSON_THROW_ON_ERROR))->toContain('nw1:scan:aabbccdd');
 });
+
+
+it('canonicalizes DNS checkpoint hostnames while preserving the original Node address', function (): void {
+    $ready = nw05ReplacementReady();
+    $status = Cache::get('nw02:status:'.$ready['id']);
+    $status['replacement']['address'] = 'FR.coreflare.ir';
+    Cache::put('nw02:status:'.$ready['id'], $status, now()->addHours(3));
+
+    $api = nw05ReplacementApi();
+    $api->node['address'] = 'FR.coreflare.ir';
+    $api->hosts[0]['address'] = 'FR.coreflare.ir';
+    $action = app(ReplaceAdminNode::class);
+    $review = $action->preview($ready['actor']->id, $ready['id']);
+
+    expect($review['node']['address'])->toBe('FR.coreflare.ir')
+        ->and(array_column($review['dnsRecords'], 'hostname'))->toBe(['fr.coreflare.ir', 'xhttp.coreflare.ir']);
+
+    $action->apply($ready['actor']->id, $ready['id'], $review);
+
+    expect($api->node['address'])->toBe('FR.coreflare.ir')
+        ->and($api->records[NW05_RECORD_NODE]['name'])->toBe('fr.coreflare.ir')
+        ->and($api->records[NW05_RECORD_NODE]['content'])->toBe(NW05_NEW_IP)
+        ->and($api->records[NW05_RECORD_XHTTP]['content'])->toBe(NW05_NEW_IP);
+});
