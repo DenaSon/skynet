@@ -420,7 +420,10 @@ final readonly class ReplaceAdminNode
 
             // The recent-setup button is no longer needed after operator acceptance.
             // Preserve the installation and replacement checkpoints for recovery.
-            $this->installations->closeRecent($actorId, $identifier);
+            // A long-running replacement may complete after the bookmark expires.
+            if (Cache::get('nw02:last:'.$actorId) === $identifier) {
+                $this->installations->closeRecent($actorId, $identifier);
+            }
         });
     }
 
