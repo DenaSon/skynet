@@ -98,6 +98,52 @@ final readonly class ManageNodeInstallation
             throw new RuntimeException('A DNS record cannot be selected without its zone and hostname.');
         }
 
+        $replacementMetadata = [];
+        if (array_key_exists('replacementNode', $ready)) {
+            $replacement = $ready['replacementNode'];
+            $inboundUuids = is_array($replacement) ? ($replacement['inboundUuids'] ?? null) : null;
+            if (! is_array($replacement)
+                || ! is_string($replacement['uuid'] ?? null)
+                || preg_match('/\A[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}\z/D', $replacement['uuid']) !== 1
+                || ! is_string($replacement['name'] ?? null)
+                || $replacement['name'] !== $ready['name']
+                || ! is_string($replacement['address'] ?? null)
+                || $replacement['address'] === $ip
+                || ($replacement['port'] ?? null) !== 2222
+                || ($replacement['connected'] ?? null) !== true
+                || ($replacement['disabled'] ?? null) !== false
+                || ! is_string($replacement['profileUuid'] ?? null)
+                || preg_match('/\A[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}\z/D', $replacement['profileUuid']) !== 1
+                || ! is_array($inboundUuids) || ! array_is_list($inboundUuids)
+                || $inboundUuids === [] || count($inboundUuids) > 30
+                || ($ready['profile']['uuid'] ?? null) !== strtolower($replacement['profileUuid'])
+                || ! in_array($ready['inbound']['uuid'] ?? null, array_map('strtolower', $inboundUuids), true)) {
+                throw new RuntimeException('Invalid existing Node replacement snapshot.');
+            }
+            foreach ($inboundUuids as $inboundUuid) {
+                if (! is_string($inboundUuid)
+                    || preg_match('/\A[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}\z/D', $inboundUuid) !== 1) {
+                    throw new RuntimeException('Invalid existing Node inbound snapshot.');
+                }
+            }
+            if (count(array_unique(array_map('strtolower', $inboundUuids))) !== count($inboundUuids)) {
+                throw new RuntimeException('Duplicate existing Node inbound snapshot.');
+            }
+            $replacementMetadata = [
+                'replacementNode' => [
+                    'uuid' => strtolower($replacement['uuid']),
+                    'name' => $replacement['name'],
+                    'address' => $replacement['address'],
+                    'port' => 2222,
+                    'connected' => true,
+                    'disabled' => false,
+                    'profileUuid' => strtolower($replacement['profileUuid']),
+                    'inboundUuids' => array_map('strtolower', $inboundUuids),
+                ],
+                'replacementNodeStage' => 'ready',
+            ];
+        }
+
         $identifier = bin2hex(random_bytes(16));
         $reservation = 'nw02:host:'.$ip;
         if (! Cache::add($reservation, $identifier, now()->addHours(3))) {
@@ -121,6 +167,7 @@ final readonly class ManageNodeInstallation
                 'inboundUuid' => $ready['inbound']['uuid'],
                 'state' => 'queued',
                 ...$dnsMetadata,
+                ...$replacementMetadata,
             ], now()->addHours(3));
             InstallRemnawaveNode::dispatch($identifier);
             // Non-secret pointer for returning to the latest setup from Node management.
@@ -198,6 +245,7 @@ final readonly class ManageNodeInstallation
             'id' => $identifier,
             'name' => $state['name'],
             'state' => $state['state'],
+            'replacement' => is_array($state['replacementNode'] ?? null),
         ];
     }
 
@@ -270,7 +318,8 @@ final readonly class ManageNodeInstallation
     /** @param array<string,mixed> $state */
     private function matchesConnectedReadyNode(array $state): bool
     {
-        if (($state['state'] ?? null) !== 'running'
+        if (isset($state['replacementNode'])
+            || ($state['state'] ?? null) !== 'running'
             || isset($state['nodeStage'])
             || ! is_string($state['name'] ?? null)
             || ! is_string($state['ip'] ?? null)) {
@@ -321,9 +370,20 @@ final readonly class ManageNodeInstallation
     {
         $state = $this->context($actorId, $identifier);
         foreach ($changes as $key => $value) {
-            if (! in_array($key, ['nodeStage', 'nodeUuid', 'hostStage', 'hostUuid', 'dnsStage', 'dnsRecordExpected'], true)
-                || ($key === 'dnsStage' && ! in_array($value, ['uncertain', 'verified'], true))) {
+            if (! in_array($key, [
+                'nodeStage', 'nodeUuid', 'hostStage', 'hostUuid', 'dnsStage', 'dnsRecordExpected',
+                'replacementNodeStage', 'replacementHosts',
+            ], true)
+                || ($key === 'dnsStage' && ! in_array($value, ['uncertain', 'verified'], true))
+                || ($key === 'replacementNodeStage' && ! in_array($value, ['ready', 'uncertain', 'updated'], true))) {
                 throw new RuntimeException('Unsupported setup checkpoint field.');
+            }
+            if ($key === 'replacementHosts'
+                && (! is_array($value)
+                    || ! is_array($value['hosts'] ?? null) || count($value['hosts']) > 20
+                    || ! is_array($value['hostUpdates'] ?? null) || count($value['hostUpdates']) > 20
+                    || ! is_array($value['dnsUpdates'] ?? null) || count($value['dnsUpdates']) > 20)) {
+                throw new RuntimeException('Invalid Node replacement Host checkpoint.');
             }
             if ($key === 'dnsRecordExpected') {
                 $record = $value;
