@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Interfaces\Telegram\Support\AdminNodeSetupUi;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
+use App\Modules\Provisioning\Application\ManageNodeInstallation;
 use App\Modules\Provisioning\Application\ReplaceAdminNode;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
@@ -73,6 +74,7 @@ function nw05ReplacementReady(bool $directIpNode = false): array
         'state' => 'running',
         'replacement' => $target,
     ], now()->addHours(3));
+    Cache::put('nw02:last:'.$actor->id, $id, now()->addHours(3));
 
     return compact('actor', 'id');
 }
@@ -320,12 +322,16 @@ it('moves all associated A records and preserves Node identity, Host identity an
     $progress = $action->progress($ready['actor']->id, $ready['id']);
 
     expect($progress['stage'])->toBe('awaiting_client_test')
-        ->and($progress['connected'])->toBeTrue();
+        ->and($progress['connected'])->toBeTrue()
+        ->and(Cache::get('nw02:last:'.$ready['actor']->id))->toBe($ready['id']);
 
     $action->acceptClientTest($ready['actor']->id, $ready['id']);
     $progress = $action->progress($ready['actor']->id, $ready['id']);
 
     expect($progress['stage'])->toBe('completed')
+        ->and(Cache::get('nw02:last:'.$ready['actor']->id))->toBeNull()
+        ->and(Cache::get('nw02:status:'.$ready['id'])['state'])->toBe('running')
+        ->and(Cache::get('nw05:state:'.$ready['id'])['stage'])->toBe('completed')
         ->and($api->node['uuid'])->toBe(NW05_NODE)
         ->and($api->node['address'])->toBe('fr.coreflare.ir')
         ->and($api->records[NW05_RECORD_NODE]['content'])->toBe(NW05_NEW_IP)
@@ -355,7 +361,42 @@ it('does not accept the client test if a transferred DNS record no longer points
 
     expect(fn () => $action->acceptClientTest($ready['actor']->id, $ready['id']))
         ->toThrow(RuntimeException::class);
-    expect($action->progress($ready['actor']->id, $ready['id'])['stage'])->toBe('awaiting_client_test');
+    expect($action->progress($ready['actor']->id, $ready['id'])['stage'])->toBe('awaiting_client_test')
+        ->and(Cache::get('nw02:last:'.$ready['actor']->id))->toBe($ready['id']);
+});
+
+it('preserves a newer recent setup when an older NW-05 replacement is completed', function (): void {
+    $ready = nw05ReplacementReady();
+    nw05ReplacementApi();
+    $action = app(ReplaceAdminNode::class);
+    $review = $action->preview($ready['actor']->id, $ready['id']);
+    $action->apply($ready['actor']->id, $ready['id'], $review);
+
+    $newerId = str_repeat('e', 32);
+    Cache::put('nw02:last:'.$ready['actor']->id, $newerId, now()->addHours(3));
+    $action->acceptClientTest($ready['actor']->id, $ready['id']);
+
+    expect(Cache::get('nw02:last:'.$ready['actor']->id))->toBe($newerId)
+        ->and(Cache::get('nw05:state:'.$ready['id'])['stage'])->toBe('completed');
+});
+
+it('hides a legacy completed NW-05 bookmark only when completion belongs to its operator', function (): void {
+    $ready = nw05ReplacementReady();
+    $key = 'nw05:state:'.$ready['id'];
+    $bookmark = 'nw02:last:'.$ready['actor']->id;
+    $manager = app(ManageNodeInstallation::class);
+
+    Cache::put($key, ['owner' => $ready['actor']->id + 1, 'stage' => 'completed'], now()->addHours(3));
+    expect($manager->recent($ready['actor']->id))->toBe($ready['id']);
+
+    Cache::put($key, ['owner' => $ready['actor']->id, 'stage' => 'awaiting_client_test'], now()->addHours(3));
+    expect($manager->recent($ready['actor']->id))->toBe($ready['id']);
+
+    Cache::put($key, ['owner' => $ready['actor']->id, 'stage' => 'completed'], now()->addHours(3));
+    expect($manager->recent($ready['actor']->id))->toBeNull()
+        ->and(Cache::get($bookmark))->toBeNull()
+        ->and(Cache::get('nw02:status:'.$ready['id'])['state'])->toBe('running')
+        ->and(Cache::get($key)['stage'])->toBe('completed');
 });
 
 it('refuses shared Hosts before any provider write', function (): void {
