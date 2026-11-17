@@ -431,6 +431,9 @@ it('moves direct-IP Hosts and the Node address last while preserving the Node an
         ->and($api->records[NW05_RECORD_XHTTP]['proxied'])->toBeTrue()
         ->and(nw05MutationCount())->toBe(3);
 
+    $action->acceptClientTest($ready['actor']->id, $ready['id']);
+    expect($action->progress($ready['actor']->id, $ready['id'])['stage'])->toBe('completed');
+
     $writes = collect(Http::recorded())->filter(
         static fn (array $pair): bool => $pair[0]->method() !== 'GET',
     )->values();
