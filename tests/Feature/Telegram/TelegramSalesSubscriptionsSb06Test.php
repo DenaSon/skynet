@@ -1230,7 +1230,7 @@ it('keeps the full long URL below the shareable QR photo for members and reselle
     Http::assertNotSent(static fn (Request $r): bool => str_contains($r->url(), '/sendMessage'));
 })->with(['member', 'reseller']);
 
-it('sends unprotected activation guidance when the Provider credential read fails', function (string $role): void {
+it('keeps activation guidance protected when the Provider credential read fails', function (string $role): void {
     $buyer = sb06ActivationBuyer($role);
     $orderId = sb06Order($buyer);
     sb06Activated($orderId);
@@ -1253,7 +1253,7 @@ it('sends unprotected activation guidance when the Provider credential read fail
             && ! str_contains((string) $r['text'], 'private-sb06-credential')
             && ! str_contains($markup, 'copy_text')
             && str_contains($markup, 'sales:subs:link:'.$orderId.':0')
-            && sb06PhotoField($r, 'protect_content') === null;
+            && sb06PhotoField($r, 'protect_content') === 'true';
     });
     Http::assertSentCount(2);
 })->with(['member', 'reseller']);
