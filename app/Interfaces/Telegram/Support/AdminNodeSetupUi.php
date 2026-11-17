@@ -11,6 +11,7 @@ use App\Modules\Provisioning\Application\ManageAdminNodes;
 use App\Modules\Provisioning\Application\ManageCloudflareDns;
 use App\Modules\Provisioning\Application\ManageNodeInstallation;
 use App\Modules\Provisioning\Application\NodeSetupReadiness;
+use App\Modules\Provisioning\Application\ReplaceAdminNode;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use SergiX44\Nutgram\Nutgram;
@@ -31,6 +32,7 @@ final readonly class AdminNodeSetupUi
         private NodeSetupReadiness $ssh,
         private ManageNodeInstallation $installer,
         private CompleteNodeSetup $completion,
+        private ReplaceAdminNode $replacement,
         private ManageCloudflareDns $dns,
         private MenuRenderer $menus,
     ) {}
@@ -55,6 +57,46 @@ final readonly class AdminNodeSetupUi
         Cache::forget('nw03:confirm:'.$id);
         $this->save($id, ['stage' => 'name']);
         $this->render($bot, "🖥️ راه‌اندازی سرور — گام ۱\n\n<b>نام سرور</b> را ارسال کنید.\nمثال: Germany-02", $this->cancelButton(false), true);
+    }
+
+
+    /** Begin an existing-Node replacement without creating or deleting a Node. */
+    public function beginReplacement(Nutgram $bot, string $uuid): void
+    {
+        $id = $this->root($bot);
+        if ($id === null) return;
+        if (! $this->enabled() || config('services.remnawave.node_ssh_install_enabled') !== true
+            || config('services.remnawave.writes_enabled') !== true) {
+            $this->render($bot, 'جایگزینی سرور فعلاً غیرفعال است.', $this->back());
+            return;
+        }
+        try {
+            $target = $this->nodes->replacementSnapshot($id, $uuid);
+            if ($target['disabled']) throw new \RuntimeException('Disabled Node cannot be replaced.');
+            $profile = collect($this->nodes->profiles($id))->firstWhere('uuid', $target['profileUuid']);
+            if (! is_array($profile)) throw new \RuntimeException('Current profile is unavailable.');
+            $inbounds = $this->nodes->inbounds($id, $target['profileUuid']);
+            $active = array_values(array_filter($inbounds,
+                static fn (array $inbound): bool => in_array($inbound['uuid'], $target['inboundUuids'], true)));
+            if (count($active) !== count($target['inboundUuids']) || $active === []) {
+                throw new \RuntimeException('Current active inbounds are unavailable.');
+            }
+        } catch (Throwable) {
+            $this->render($bot, 'مشخصات نود یا پروفایل‌های فعلی قابل بررسی نیستند. ابتدا وضعیت نود را بررسی کنید.', $this->back());
+            return;
+        }
+        foreach (['node01:draft:', 'node02:draft:', 'node03:draft:', 'host01:draft:', 'host02:draft:', 'cfg02:draft:'] as $prefix) {
+            Cache::forget(TelegramBotContext::current()->cacheKey($prefix.$id));
+        }
+        Cache::forget('nw02:ready:'.$id);
+        Cache::forget('nw03:hostDraft:'.$id);
+        Cache::forget('nw03:confirm:'.$id);
+        Cache::forget('nw05:confirm:'.$id);
+        $this->save($id, ['stage' => 'ip', 'name' => $target['name'], 'replacement' => $target,
+            'profile' => $profile, 'inbounds' => $inbounds, 'activeInbounds' => $active]);
+        $this->render($bot, "🔁 جایگزینی سرور — گام ۱\n\n<b>IP عمومی سرور جدید</b> را ارسال کنید.\n"
+            .'نود فعلی: '.$target['name']."\nآدرس فعلی نود: ".$target['address']
+            ."\n\nشناسه نود، پروفایل و ورودی‌های فعلی حفظ می‌شوند.", $this->cancelButton(false), true);
     }
 
     public function text(Nutgram $bot, string $value): bool
@@ -98,18 +140,27 @@ final readonly class AdminNodeSetupUi
                 return true;
             }
             try {
-                $draft['profiles'] = $this->nodes->profiles($id);
                 $draft['secret'] = Crypt::encryptString($value);
+                if (is_array($draft['replacement'] ?? null)) {
+                    $current = $this->nodes->replacementSnapshot($id, $draft['replacement']['uuid']);
+                    if (! $this->sameReplacementSnapshot($draft['replacement'], $current)) {
+                        throw new \RuntimeException('Node changed during replacement setup.');
+                    }
+                    $draft['token'] = bin2hex(random_bytes(16));
+                    $draft['stage'] = 'preview';
+                    $this->save($id, $draft);
+                    $this->previewPrompt($bot, $draft);
+                    return true;
+                }
+                $draft['profiles'] = $this->nodes->profiles($id);
             } catch (Throwable) {
                 Cache::forget($this->key($id));
-                $this->render($bot, 'دریافت پروفایل‌ها ممکن نشد.', $this->back());
-
+                $this->render($bot, 'بررسی مشخصات نود یا دریافت پروفایل‌ها ممکن نشد.', $this->back());
                 return true;
             }
             $draft['stage'] = 'profile';
             $this->save($id, $draft);
             $this->choices($bot, '<b>پروفایل اتصال</b> را انتخاب کنید.', $draft['profiles'], 'nw1:profile:');
-
             return true;
         }
 
@@ -145,7 +196,9 @@ final readonly class AdminNodeSetupUi
                 $this->nodes->validateIdentity($id, $name, $ip);
                 $this->ssh->validateTarget($id, $ip, 22);
                 foreach ($this->nodes->all($id) as $node) {
-                    if (mb_strtolower($node['name']) === mb_strtolower($name)) {
+                    if (mb_strtolower($node['name']) === mb_strtolower($name)
+                        && (! is_array($draft['replacement'] ?? null)
+                            || strtolower($node['uuid']) !== strtolower($draft['replacement']['uuid']))) {
                         throw new \RuntimeException('Duplicate name.');
                     }
                 }
@@ -156,11 +209,10 @@ final readonly class AdminNodeSetupUi
             }
             $draft['name'] = $name;
             $draft['ip'] = $ip;
-            if ($this->dns->wizardEnabled()) {
+            if (! is_array($draft['replacement'] ?? null) && $this->dns->wizardEnabled()) {
                 $draft['stage'] = 'dns_choice';
                 $this->save($id, $draft);
                 $this->dnsChoicePrompt($bot);
-
                 return true;
             }
             $draft['stage'] = 'port';
@@ -574,7 +626,16 @@ final readonly class AdminNodeSetupUi
         }
         try {
             $this->nodes->validateIdentity($id, $draft['name'], $draft['ip']);
-            if (! in_array($draft['profile']['uuid'], array_column($this->nodes->profiles($id), 'uuid'), true)
+            if (is_array($draft['replacement'] ?? null)) {
+                $current = $this->nodes->replacementSnapshot($id, $draft['replacement']['uuid']);
+                if (! $this->sameReplacementSnapshot($draft['replacement'], $current)) throw new \RuntimeException('Existing Node changed.');
+                $profiles = $this->nodes->profiles($id);
+                if (! in_array($draft['replacement']['profileUuid'], array_column($profiles, 'uuid'), true)) throw new \RuntimeException('Existing Node profile changed.');
+                $available = array_column($this->nodes->inbounds($id, $draft['replacement']['profileUuid']), 'uuid');
+                foreach ($draft['replacement']['inboundUuids'] as $inboundUuid) {
+                    if (! in_array($inboundUuid, $available, true)) throw new \RuntimeException('Existing Node inbound changed.');
+                }
+            } elseif (! in_array($draft['profile']['uuid'], array_column($this->nodes->profiles($id), 'uuid'), true)
                 || ! in_array($draft['inbound']['uuid'], array_column($this->nodes->inbounds($id, $draft['profile']['uuid']), 'uuid'), true)) {
                 throw new \RuntimeException('Profile changed.');
             }
@@ -675,6 +736,15 @@ final readonly class AdminNodeSetupUi
 
             return;
         }
+        $replacementTarget = $this->installer->replacementTarget($root, $identifier);
+        if ($status['state'] === 'running' && $replacementTarget !== null) {
+            $this->render($bot, "🖥️ آماده‌سازی سرور جایگزین\n\nنصب روی سرور جدید کامل شده است. برای حفظ نود فعلی و انتقال دامنه‌ها ادامه دهید.",
+                InlineKeyboardMarkup::make()
+                    ->addRow(InlineKeyboardButton::make('➡️ ادامه جایگزینی سرور', callback_data: 'nw5:resume:'.$identifier, style: ButtonStyle::SUCCESS))
+                    ->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی وضعیت نصب', callback_data: 'nw2:status:'.$identifier))
+                    ->addRow(InlineKeyboardButton::make('◀️ مدیریت نودها', callback_data: 'node1:list:1')));
+            return;
+        }
         if ($status['state'] === 'running' && $this->installer->matchingConnectedNode($root, $identifier)) {
             $this->installer->closeRecent($root, $identifier);
             $this->render($bot, '✅ سرور «'.$status['name']."» در پنل ثبت و متصل است.\n\nپیگیری راه‌اندازی قبلی بسته شد؛ هیچ تغییری روی سرور انجام نشد.", $this->back());
@@ -730,6 +800,10 @@ final readonly class AdminNodeSetupUi
         }
         Cache::forget('nw03:hostDraft:'.$root);
         Cache::forget('nw03:confirm:'.$root);
+        if ($this->installer->replacementTarget($root, $identifier) !== null) {
+            $this->replacementOverview($bot, $identifier);
+            return;
+        }
         try {
             if ($this->installer->matchingConnectedNode($root, $identifier)) {
                 $this->installer->closeRecent($root, $identifier);
@@ -778,6 +852,117 @@ final readonly class AdminNodeSetupUi
         } catch (Throwable) {
             $this->render($bot, 'بررسی وضعیت اتصال ممکن نشد. تنظیمات و وضعیت پنل را بررسی کنید.', $this->back());
         }
+    }
+
+
+    public function replacementOverview(Nutgram $bot, string $identifier): void
+    {
+        $root = $this->root($bot);
+        if ($root === null) return;
+        try {
+            $target = $this->installer->replacementTarget($root, $identifier);
+            if ($target === null) throw new \RuntimeException('Not a replacement installation.');
+            $progress = $this->replacement->progress($root, $identifier);
+            if ($progress['stage'] === 'ready') {
+                $this->prepareReplacement($bot, $identifier);
+                return;
+            }
+            $keyboard = InlineKeyboardMarkup::make();
+            $message = "🔁 جایگزینی سرور «".$target['name']."»\n\n"
+                .'IP قبلی: '.$progress['oldIp']."\nIP جدید: ".$progress['newIp']."\n";
+            foreach ($progress['dnsRecords'] as $record) {
+                $message .= "\n🌐 ".$record['hostname'].' — '.($record['stage'] === 'verified' ? 'منتقل شد' : 'در انتظار بررسی');
+            }
+            if ($progress['stage'] === 'applying') {
+                $message .= "\n\n⚠️ نتیجه بعضی عملیات مشخص نیست. فقط وضعیت فعلی بررسی می‌شود و هیچ تغییری تکرار نخواهد شد.";
+                $keyboard->addRow(InlineKeyboardButton::make('🔎 بررسی وضعیت عملیات', callback_data: 'nw5:reconcile:'.$identifier, style: ButtonStyle::PRIMARY));
+            } elseif ($progress['stage'] === 'awaiting_connection') {
+                $message .= $progress['connected'] && ! $progress['disabled']
+                    ? "\n\n✅ اتصال نود تأیید شد."
+                    : "\n\n⏳ DNS منتقل شده است؛ منتظر اتصال همان نود از سرور جدید هستیم. VPS قدیمی را حذف نکنید.";
+                $keyboard->addRow(InlineKeyboardButton::make('🔄 بررسی اتصال', callback_data: 'nw5:resume:'.$identifier, style: ButtonStyle::PRIMARY));
+            } elseif ($progress['stage'] === 'completed') {
+                $message .= "\n\n✅ جایگزینی تکمیل شد. همان UUID و تنظیمات قبلی حفظ شده‌اند. اتصال کلاینت‌ها را بررسی کنید؛ سپس درباره خاموش‌کردن VPS قدیمی تصمیم بگیرید.";
+            }
+            $keyboard->addRow(InlineKeyboardButton::make('◀️ مدیریت نودها', callback_data: 'node1:list:1'));
+            $this->render($bot, $message, $keyboard);
+        } catch (Throwable) {
+            $this->render($bot, 'بررسی جایگزینی ممکن نشد. وضعیت نود و رکوردهای DNS را دستی بررسی کنید؛ عملیات را دوباره اجرا نکنید.', $this->back());
+        }
+    }
+
+    public function prepareReplacement(Nutgram $bot, string $identifier): void
+    {
+        $root = $this->root($bot);
+        if ($root === null) return;
+        try {
+            $review = $this->replacement->preview($root, $identifier);
+            $token = bin2hex(random_bytes(16));
+            Cache::put('nw05:confirm:'.$root, ['id' => $identifier, 'token' => $token, 'expected' => $review], now()->addMinutes(10));
+            $message = "⚠️ تأیید نهایی جایگزینی\n\n"
+                .'نود: '.$review['node']['name']."\nUUID: ".$review['node']['uuid']."\n"
+                .'IP فعلی: '.$review['oldIp']."\nIP جدید: ".$review['newIp']."\n"
+                .'حالت آدرس Node: '.($review['nodeAddressMode'] === 'domain' ? 'حفظ دامنه فعلی' : 'تغییر IP مستقیم')."\n\n"
+                .'دامنه‌های قابل انتقال: '.count($review['dnsRecords'])."\n";
+            foreach ($review['dnsRecords'] as $record) {
+                $message .= "\n• ".$record['hostname'].' — '.($record['record']['proxied'] ? 'Proxied' : 'DNS Only');
+            }
+            $message .= "\n\nUUID، پروفایل، Inboundها و Hostها حذف نمی‌شوند. فقط رکوردهای A موجود به IP جدید منتقل می‌شوند و وضعیت Proxy حفظ خواهد شد. پس از تأیید، درخواست‌ها تکرارپذیر نیستند.";
+            $this->render($bot, $message,
+                InlineKeyboardMarkup::make()
+                    ->addRow(InlineKeyboardButton::make('✅ تأیید انتقال سرور و دامنه‌ها', callback_data: 'nw5:apply:'.$token, style: ButtonStyle::SUCCESS))
+                    ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'nw5:resume:'.$identifier)));
+        } catch (Throwable) {
+            $this->render($bot, 'اطلاعات Node یا Hostها کامل نیست، دامنه‌ای خارج از Cloudflare وجود دارد یا رکورد DNS با IP فعلی تطبیق ندارد. هیچ تغییری انجام نشد.', $this->back());
+        }
+    }
+
+    public function applyReplacement(Nutgram $bot, string $token): void
+    {
+        $root = $this->root($bot);
+        if ($root === null) return;
+        if (preg_match('/\A[a-f0-9]{32}\z/D', $token) !== 1) {
+            $this->expired($bot);
+            return;
+        }
+        $key = 'nw05:confirm:'.$root;
+        try {
+            $confirmation = Cache::lock($key.':lock', 15)->block(1, static function () use ($key, $token): mixed {
+                $data = Cache::get($key);
+                if (! is_array($data) || ! is_string($data['token'] ?? null) || ! hash_equals($data['token'], $token)) return null;
+                Cache::forget($key);
+                return $data;
+            });
+            if (! is_array($confirmation) || ! is_string($confirmation['id'] ?? null) || ! is_array($confirmation['expected'] ?? null)) {
+                $this->expired($bot);
+                return;
+            }
+            $this->replacement->apply($root, $confirmation['id'], $confirmation['expected']);
+            $this->replacementOverview($bot, $confirmation['id']);
+        } catch (Throwable) {
+            $this->render($bot, 'نتیجه انتقال مشخص نیست. از گزینه بررسی وضعیت استفاده کنید و عملیات را دوباره تأیید نکنید.', $this->back());
+        }
+    }
+
+    public function reconcileReplacement(Nutgram $bot, string $identifier): void
+    {
+        $root = $this->root($bot);
+        if ($root === null) return;
+        try {
+            $this->replacement->reconcile($root, $identifier);
+            $this->replacementOverview($bot, $identifier);
+        } catch (Throwable) {
+            $this->render($bot, 'همه تغییرات قابل تأیید نیستند. بدون تکرار عملیات، وضعیت Node و رکوردهای Cloudflare را دستی بررسی کنید.', $this->back());
+        }
+    }
+
+    /** @param array<string,mixed> $expected @param array<string,mixed> $actual */
+    private function sameReplacementSnapshot(array $expected, array $actual): bool
+    {
+        foreach (['uuid', 'name', 'address', 'port', 'disabled', 'profileUuid', 'inboundUuids'] as $field) {
+            if (($expected[$field] ?? null) !== ($actual[$field] ?? null)) return false;
+        }
+        return true;
     }
 
     public function prepareNodeRegistration(Nutgram $bot, string $identifier): void
@@ -994,6 +1179,7 @@ final readonly class AdminNodeSetupUi
         Cache::forget('nw02:ready:'.$id);
         Cache::forget('nw03:hostDraft:'.$id);
         Cache::forget('nw03:confirm:'.$id);
+        Cache::forget('nw05:confirm:'.$id);
         $this->render($bot, 'راه‌اندازی لغو شد.', InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('◀️ کنترل پنل', callback_data: 'menu:admin:control')));
     }
@@ -1029,6 +1215,11 @@ final readonly class AdminNodeSetupUi
         }
         switch ($draft['stage'] ?? null) {
             case 'ip':
+                if (is_array($draft['replacement'] ?? null)) {
+                    Cache::forget($this->key($id));
+                    $this->render($bot, 'ورود به فرایند جایگزینی لغو شد.', $this->back());
+                    return;
+                }
                 $draft['stage'] = 'name';
                 unset($draft['ip']);
                 $this->save($id, $draft);
@@ -1065,6 +1256,13 @@ final readonly class AdminNodeSetupUi
 
                 return;
             case 'port':
+                if (is_array($draft['replacement'] ?? null)) {
+                    $draft['stage'] = 'ip';
+                    unset($draft['ip']);
+                    $this->save($id, $draft);
+                    $this->render($bot, "🔁 جایگزینی سرور\n\n<b>IP عمومی سرور جدید</b> را ارسال کنید.", $this->cancelButton(), true);
+                    return;
+                }
                 if (isset($draft['dnsRecordExpected'], $draft['dnsZone'])) {
                     unset($draft['dnsRecordExpected'], $draft['dnsName']);
                     $draft['stage'] = 'dns_records';
@@ -1114,6 +1312,13 @@ final readonly class AdminNodeSetupUi
 
                 return;
             case 'preview':
+                if (is_array($draft['replacement'] ?? null)) {
+                    $draft['stage'] = 'ip';
+                    unset($draft['ip'], $draft['host'], $draft['token'], $draft['secret']);
+                    $this->save($id, $draft);
+                    $this->render($bot, "🔁 جایگزینی سرور\n\n<b>IP عمومی سرور جدید</b> را ارسال کنید.", $this->cancelButton(), true);
+                    return;
+                }
                 $draft['stage'] = 'inbound';
                 unset($draft['token'], $draft['inbound'], $draft['host']);
                 $this->save($id, $draft);
@@ -1160,17 +1365,29 @@ final readonly class AdminNodeSetupUi
     /** @param array<string,mixed> $draft */
     private function previewPrompt(Nutgram $bot, array $draft): void
     {
-        $this->render($bot, "🖥️ بازبینی مشخصات سرور\n\n"
-            .'نام: '.$draft['name']."\nIP: ".$draft['ip']."\nپورت SSH: ".$draft['port']."\nپورت ارتباط نود: 2222\n"
-            .'کاربر: '.$draft['username']."\nپروفایل: ".$draft['profile']['name']."\nورودی: ".$draft['inbound']['name']
-            .(isset($draft['dnsName']) ? "\nدامنه: ".$draft['dnsName'] : '')
-            .(is_array($draft['dnsRecordExpected'] ?? null)
-                ? "\nIP فعلی دامنه: ".(is_string($draft['dnsRecordExpected']['content'] ?? null)
-                    ? $draft['dnsRecordExpected']['content'] : '—')
-                    ."\nوضعیت Proxy: ".(($draft['dnsRecordExpected']['proxied'] ?? null) === true ? 'Proxied' : 'DNS Only')
-                    ."\nIP هدف پس از ثبت نود: ".$draft['ip']
-                : (isset($draft['dnsName']) ? "\nنوع دامنه: زیردامنه جدید · رکورد A" : ''))
-            ."\n\nدر این مرحله هیچ تغییری روی سرور یا Cloudflare انجام نمی‌شود.",
+        if (is_array($draft['replacement'] ?? null)) {
+            $target = $draft['replacement'];
+            $message = "🔁 بازبینی جایگزینی سرور\n\n"
+                .'نود: '.$draft['name']."\n"
+                .'آدرس فعلی نود: '.$target['address']."\n"
+                .'IP سرور جدید: '.$draft['ip']."\n"
+                .'پورت SSH: '.$draft['port']."\n"
+                .'پروفایل فعلی: '.$draft['profile']['name']."\n"
+                .'ورودی‌های فعال حفظ‌شده: '.count($target['inboundUuids'])
+                ."\n\nUUID نود، پروفایل، ورودی‌ها و Hostهای فعلی حذف یا بازسازی نمی‌شوند. پس از نصب، رکوردهای DNS مرتبط به IP جدید منتقل خواهند شد.";
+        } else {
+            $message = "🖥️ بازبینی مشخصات سرور\n\n"
+                .'نام: '.$draft['name']."\nIP: ".$draft['ip']."\nپورت SSH: ".$draft['port']."\nپورت ارتباط نود: 2222\n"
+                .'کاربر: '.$draft['username']."\nپروفایل: ".$draft['profile']['name']."\nورودی: ".$draft['inbound']['name']
+                .(isset($draft['dnsName']) ? "\nدامنه: ".$draft['dnsName'] : '')
+                .(is_array($draft['dnsRecordExpected'] ?? null)
+                    ? "\nIP فعلی دامنه: ".(is_string($draft['dnsRecordExpected']['content'] ?? null) ? $draft['dnsRecordExpected']['content'] : '—')
+                        ."\nوضعیت Proxy: ".(($draft['dnsRecordExpected']['proxied'] ?? null) === true ? 'Proxied' : 'DNS Only')
+                        ."\nIP هدف پس از ثبت نود: ".$draft['ip']
+                    : (isset($draft['dnsName']) ? "\nنوع دامنه: زیردامنه جدید · رکورد A" : ''))
+                ."\n\nدر این مرحله هیچ تغییری روی سرور یا Cloudflare انجام نمی‌شود.";
+        }
+        $this->render($bot, $message,
             InlineKeyboardMarkup::make()
                 ->addRow(InlineKeyboardButton::make('🔎 بررسی هویت سرور', callback_data: 'nw1:scan:'.$draft['token']))
                 ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'nw1:step:back'))

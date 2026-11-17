@@ -353,6 +353,22 @@ $bot->onCallbackQueryData('nw1:scan:{token}', function (Nutgram $bot, string $to
 $bot->onCallbackQueryData('nw1:trust:{token}', function (Nutgram $bot, string $token): void {
     app(AdminNodeSetupUi::class)->trust($bot, $token);
 });
+$bot->onCallbackQueryData('nw5:begin:{uuid}', function (Nutgram $bot, string $uuid): void {
+    app(AdminNodeSetupUi::class)->beginReplacement($bot, $uuid);
+});
+$bot->onCallbackQueryData('nw5:resume:{identifier}', function (Nutgram $bot, string $identifier): void {
+    app(AdminNodeSetupUi::class)->replacementOverview($bot, $identifier);
+});
+$bot->onCallbackQueryData('nw5:prepare:{identifier}', function (Nutgram $bot, string $identifier): void {
+    app(AdminNodeSetupUi::class)->prepareReplacement($bot, $identifier);
+});
+$bot->onCallbackQueryData('nw5:apply:{token}', function (Nutgram $bot, string $token): void {
+    app(AdminNodeSetupUi::class)->applyReplacement($bot, $token);
+});
+$bot->onCallbackQueryData('nw5:reconcile:{identifier}', function (Nutgram $bot, string $identifier): void {
+    app(AdminNodeSetupUi::class)->reconcileReplacement($bot, $identifier);
+});
+
 $bot->onCallbackQueryData('nw4:recent', function (Nutgram $bot): void {
     app(AdminNodeSetupUi::class)->resumeRecent($bot);
 });

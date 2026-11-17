@@ -206,6 +206,8 @@ final readonly class ReplaceAdminNode
     /** @return array<string,mixed> */
     public function progress(int $actorId, string $identifier): array
     {
+        $stored = Cache::get($this->key($identifier));
+        if ($stored === null) return ['stage' => 'ready'];
         $state = $this->state($actorId, $identifier);
         $node = $this->nodes->replacementSnapshot($actorId, $state['node']['uuid']);
         $expectedAddress = $state['nodeAddressMode'] === 'ip' ? $state['newIp'] : $state['node']['address'];
