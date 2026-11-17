@@ -365,6 +365,7 @@ it('preserves old server inventory when optional P1 statistics fail', function (
 it('renders a safe Rich inventory with the original server-management callbacks and native fallback', function (): void {
     [$root, $bot] = mb05bRoot();
     mb05bFakeRead();
+    config()->set('services.remnawave.node_ssh_setup_enabled', false);
 
     $bot->hearText('/servers')->reply()
         ->assertCalled('sendRichMessage', 1)
