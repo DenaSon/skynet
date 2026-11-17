@@ -255,6 +255,18 @@ final readonly class ManageNodeInstallation
         try {
             $state = $this->meta($identifier);
             if ($state['owner'] === $actorId) {
+                // Hide stale bookmarks from replacements completed before cleanup
+                // was deployed, without hiding an unfinished or uncertain transfer.
+                if (isset($state['replacement'])) {
+                    $replacement = Cache::get('nw05:state:'.$identifier);
+                    if (is_array($replacement) && ($replacement['owner'] ?? null) === $actorId
+                        && ($replacement['stage'] ?? null) === 'completed') {
+                        $this->closeRecent($actorId, $identifier);
+
+                        return null;
+                    }
+                }
+
                 // A ready Node may have been registered by the separate manual wizard.
                 if ($this->matchesConnectedReadyNode($state)) {
                     $this->closeRecent($actorId, $identifier);
