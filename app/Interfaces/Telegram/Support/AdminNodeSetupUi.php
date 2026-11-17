@@ -910,7 +910,7 @@ final readonly class AdminNodeSetupUi
                 $keyboard->addRow(InlineKeyboardButton::make('🔎 بررسی وضعیت عملیات', callback_data: 'nw5:reconcile:'.$identifier, style: ButtonStyle::PRIMARY));
             } elseif ($progress['stage'] === 'awaiting_client_test') {
                 if ($progress['connected'] && ! $progress['disabled']) {
-                    $message .= "\n\nپنل Node را متصل گزارش می‌کند؛ این وضعیت به‌تنهایی دسترسی کاربران را ثابت نمی‌کند. ابتدا با یک کلاینت واقعی از اینترنت کاربران اتصال را آزمایش کنید. تا ثبت نتیجه، VPS قدیمی را نگه دارید.";
+                    $message .= "\n\nپنل Node را متصل گزارش می‌کند؛ این وضعیت به‌تنهایی دسترسی کاربران به سرور جدید را ثابت نمی‌کند. ابتدا مطمئن شوید دامنه‌ها به IP جدید resolve می‌شوند و سپس با یک کلاینت واقعی از اینترنت کاربران اتصال را آزمایش کنید. تا ثبت نتیجه، VPS قدیمی را نگه دارید.";
                     $rows .= $this->replacementRichRow('وضعیت پنل', 'متصل · تست کاربران لازم است');
                     $keyboard->addRow(InlineKeyboardButton::make('✅ تأیید تست واقعی کلاینت', callback_data: 'nw5:accept:'.$identifier, style: ButtonStyle::SUCCESS));
                 } else {
