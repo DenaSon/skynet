@@ -318,7 +318,7 @@ $bot->onCallbackQueryData('nw1:begin', function (Nutgram $bot): void {
     app(AdminNodeSetupUi::class)->begin($bot);
 });
 
-// NW-05: replace an existing Node in place; preserve its UUID, profile and all active inbounds.
+// NW-06: replace an existing Node in place; preserve its UUID, profile and all active inbounds.
 $bot->onCallbackQueryData('nwr:begin:{uuid}', function (Nutgram $bot, string $uuid): void {
     app(AdminNodeSetupUi::class)->beginReplacement($bot, $uuid);
 });
