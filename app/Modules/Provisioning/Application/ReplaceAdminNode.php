@@ -245,6 +245,7 @@ final readonly class ReplaceAdminNode
             $this->save($identifier, $state);
 
             foreach ($state['dnsRecords'] as $index => $entry) {
+                $this->assertNodeSnapshot($actorId, $state['node'] ?? null);
                 $this->assertHostInventory($actorId, $state['hostInventory'] ?? null);
                 $state['dnsRecords'][$index]['stage'] = 'uncertain';
                 $this->save($identifier, $state);
@@ -268,6 +269,7 @@ final readonly class ReplaceAdminNode
             }
 
             foreach ($state['directHosts'] as $index => $host) {
+                $this->assertNodeSnapshot($actorId, $state['node'] ?? null);
                 $this->assertHostInventory($actorId, $state['hostInventory'] ?? null);
                 $state['directHosts'][$index]['stage'] = 'uncertain';
                 $this->save($identifier, $state);
@@ -278,6 +280,7 @@ final readonly class ReplaceAdminNode
             }
 
             if ($state['nodeAddressMode'] === 'ip') {
+                $this->assertNodeSnapshot($actorId, $state['node'] ?? null);
                 $this->assertHostInventory($actorId, $state['hostInventory'] ?? null);
                 $this->assertDnsRecordsAtNewIp($actorId, $state['dnsRecords'] ?? null, $state['newIp'] ?? null);
                 $state['nodeAddressStage'] = 'uncertain';
@@ -368,6 +371,9 @@ final readonly class ReplaceAdminNode
 
             if ($state['nodeAddressStage'] === 'uncertain') {
                 $node = $this->nodes->replacementSnapshot($actorId, $state['node']['uuid']);
+                if ($this->nodeIdentity($node, includeAddress: false) !== $this->nodeIdentity($state['node'], includeAddress: false)) {
+                    throw new RuntimeException('Node identity changed during uncertain replacement; manual review required.');
+                }
                 if ($node['address'] === $state['newIp']) {
                     $state['nodeAddressStage'] = 'verified';
                 } elseif ($node['address'] !== $state['node']['address']) {
@@ -397,7 +403,9 @@ final readonly class ReplaceAdminNode
                     continue;
                 }
                 $current = $this->hosts->one($actorId, $host['uuid']);
-                if ($current['address'] === $state['newIp']) {
+                $expectedHost = array_intersect_key($host, array_flip(['uuid', 'remark', 'address', 'port', 'disabled', 'profileUuid', 'inboundUuid']));
+                $expectedHost['address'] = $state['newIp'];
+                if ($current === $expectedHost) {
                     $this->markHostAddress($state, $host['uuid'], $state['newIp']);
                     $state['directHosts'][$index]['stage'] = 'verified';
                     $this->save($identifier, $state);
@@ -406,6 +414,8 @@ final readonly class ReplaceAdminNode
                 }
                 throw new RuntimeException('An uncertain Host update is not verified. Inspect Remnawave manually.');
             }
+
+            $this->assertHostInventory($actorId, $state['hostInventory'] ?? null);
 
             if (($state['nodeAddressMode'] === 'ip' && $state['nodeAddressStage'] !== 'verified')
                 || $state['nodeAddressStage'] === 'uncertain'
@@ -452,6 +462,23 @@ final readonly class ReplaceAdminNode
                 || $record['proxied'] !== $entry['record']['proxied']) {
                 throw new RuntimeException('A transferred DNS record changed before the Node address update.');
             }
+        }
+    }
+
+    /**
+     * Re-read the Node identity immediately before each replacement write.
+     *
+     * @param mixed $expected
+     */
+    private function assertNodeSnapshot(int $actorId, mixed $expected): void
+    {
+        if (! is_array($expected) || ! is_string($expected['uuid'] ?? null)) {
+            throw new RuntimeException('Replacement Node checkpoint is unavailable.');
+        }
+
+        $current = $this->nodes->replacementSnapshot($actorId, $expected['uuid']);
+        if ($this->nodeIdentity($current) !== $this->nodeIdentity($expected)) {
+            throw new RuntimeException('Node identity changed during replacement; stop and review before continuing.');
         }
     }
 
