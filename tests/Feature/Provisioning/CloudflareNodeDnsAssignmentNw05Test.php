@@ -157,7 +157,7 @@ it('CF-03 previews and updates exactly one selected A record while preserving Pr
         'proxied' => true,
     ]);
 
-    $action->ensureDns($fixture['actor']->id, CF03_INSTALL_ID);
+    $action->ensureDns($fixture['actor']->id, CF03_INSTALL_ID, $preview['record']);
     expect(Cache::get('nw02:status:'.CF03_INSTALL_ID)['dnsStage'])->toBe('verified')
         ->and($fixture['state']->records[0]['content'])->toBe('194.5.192.133')
         ->and($fixture['state']->records[0]['proxied'])->toBeTrue()
@@ -172,12 +172,14 @@ it('CF-03 previews and updates exactly one selected A record while preserving Pr
         && $request->data()['proxied'] === true);
 });
 
-it('CF-03 rejects a stale selected snapshot and hostnames with multiple DNS records before PATCH', function (): void {
-    $stale = cf03NodeSetup(recordIp: '185.194.188.192');
+it('CF-03 refreshes a selected record after installation and rejects hostnames with multiple DNS records', function (): void {
+    $changedDuringInstall = cf03NodeSetup(recordIp: '185.194.188.192');
     $action = app(CompleteNodeSetup::class);
-    expect(fn () => $action->previewDns($stale['actor']->id, CF03_INSTALL_ID))
-        ->toThrow(RuntimeException::class);
-    expect($stale['state']->patches)->toBe(0);
+    $preview = $action->previewDns($changedDuringInstall['actor']->id, CF03_INSTALL_ID);
+    expect($preview['previousIp'])->toBe('185.194.188.192');
+    $action->ensureDns($changedDuringInstall['actor']->id, CF03_INSTALL_ID, $preview['record']);
+    expect($changedDuringInstall['state']->records[0]['content'])->toBe('194.5.192.133')
+        ->and($changedDuringInstall['state']->patches)->toBe(1);
 
     $duplicate = cf03NodeSetup(telegramId: 980302);
     $duplicate['state']->records[] = [
@@ -197,13 +199,14 @@ it('CF-03 rejects a stale selected snapshot and hostnames with multiple DNS reco
 it('CF-03 marks an existing-record PATCH uncertain before writing and only reconciles with GET', function (): void {
     $fixture = cf03NodeSetup(failPatch: true);
     $action = app(CompleteNodeSetup::class);
+    $preview = $action->previewDns($fixture['actor']->id, CF03_INSTALL_ID);
 
-    expect(fn () => $action->ensureDns($fixture['actor']->id, CF03_INSTALL_ID))
+    expect(fn () => $action->ensureDns($fixture['actor']->id, CF03_INSTALL_ID, $preview['record']))
         ->toThrow(RuntimeException::class);
     expect(Cache::get('nw02:status:'.CF03_INSTALL_ID)['dnsStage'])->toBe('uncertain')
         ->and($fixture['state']->patches)->toBe(1);
 
-    expect(fn () => $action->ensureDns($fixture['actor']->id, CF03_INSTALL_ID))
+    expect(fn () => $action->ensureDns($fixture['actor']->id, CF03_INSTALL_ID, $preview['record']))
         ->toThrow(RuntimeException::class);
     expect($fixture['state']->patches)->toBe(1);
 
@@ -217,6 +220,14 @@ it('CF-03 marks an existing-record PATCH uncertain before writing and only recon
         ->and($fixture['state']->patches)->toBe(1);
 });
 
+it('CF-03 verifies an already matching selected A record without an unnecessary PATCH', function (): void {
+    $fixture = cf03NodeSetup(recordIp: '194.5.192.133');
+    $preview = app(CompleteNodeSetup::class)->previewDns($fixture['actor']->id, CF03_INSTALL_ID);
+
+    app(CompleteNodeSetup::class)->ensureDns($fixture['actor']->id, CF03_INSTALL_ID, $preview['record']);
+    expect(Cache::get('nw02:status:'.CF03_INSTALL_ID)['dnsStage'])->toBe('verified')
+        ->and($fixture['state']->patches)->toBe(0);
+});
 it('CF-03 verifies an already matching selected A record without an unnecessary PATCH', function (): void {
     $fixture = cf03NodeSetup(recordIp: '194.5.192.133');
     $fixture['expected'] = cf03SelectedA('194.5.192.133');
