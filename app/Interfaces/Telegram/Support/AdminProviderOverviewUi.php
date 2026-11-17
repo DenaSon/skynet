@@ -133,7 +133,7 @@ final readonly class AdminProviderOverviewUi
                 .$nodes.'</table>';
 
         if (count($result->nodeSummaries ?? []) > 10) {
-            $nodesTable .= '<p>سایر نودها در بخش «🖥️ نودها» قابل مشاهده‌اند.</p>';
+            $nodesTable .= '<p>برای مشاهده سایر نودها، از گزینه «🖥️ نودها» در کنترل پنل استفاده کنید.</p>';
         }
 
         $stats = '';
