@@ -45,7 +45,7 @@
                             <button type="button" wire:click="showSection('services')" wire:target="showSection" wire:loading.attr="disabled" class="dg-btn-secondary mt-4 w-full">فهرست سرویس‌ها ←</button>
                         </section>
                         <section class="dg-card p-5 md:p-7">
-                            <p class="text-xs font-semibold text-[#536C76]">فروش تسویه‌شده · ۳۰ روز اخیر</p>
+                            <p class="text-xs font-semibold text-[#536C76]">خرید و تمدید · ۳۰ روز اخیر</p>
                             <p class="dg-stat mt-3" dir="ltr">{{ \App\Support\PersianCalendar::number((string) ( number_format(intdiv($report['revenueRials'], 10)) )) }} <span class="text-xs font-normal text-[#687987]">تومان</span></p>
                             <p class="mt-1 text-xs text-[#536C76]">{{ \App\Support\PersianCalendar::number((string) ( number_format($report['transactions']) )) }} تراکنش تسویه‌شده</p>
                             <button type="button" wire:click="showSection('reports')" wire:target="showSection" wire:loading.attr="disabled" class="dg-btn-secondary mt-4 w-full">گزارش فروش ←</button>
@@ -90,6 +90,9 @@
                                 @endif
                                 <div class="flex flex-wrap justify-between gap-3 border-t border-[#E7ECEF] pt-3"><span class="text-[#536C76]">مبلغ سفارش</span><span class="font-extrabold text-[#087F73]" dir="ltr">{{ \App\Support\PersianCalendar::number((string) ( number_format(intdiv($createdOrder->totalPriceRials, 10)) )) }}{{ \App\Support\PersianCalendar::number((string) ( $createdOrder->totalPriceRials % 10 === 0 ? '' : '.'.($createdOrder->totalPriceRials % 10) )) }} تومان</span></div>
                             </div>
+                            @if ($walletShortfallRials !== null && $createdOrder->status === 'pending_payment')
+                                <x-live.credit-shortfall :amount="$walletShortfallRials" :url="$topupBotUrl" />
+                            @endif
                             @if ($walletError)
                                 <p role="alert" class="mt-5 rounded-2xl border border-[#F0E0C9] bg-[#FFF9F1] p-4 text-sm leading-7 text-[#845C23]">{{ $walletError }}</p>
                             @endif
@@ -525,6 +528,9 @@
                                 <h3 class="dg-heading">تمدید سرویس</h3>
                                 <p class="mt-2 text-xs leading-7 text-[#536C76]">تمدید روی همین اشتراک انجام می‌شود؛ لینک و تنظیمات اتصال مشتری تغییر نمی‌کند.</p>
 
+                                @if ($renewalShortfallRials !== null && $renewalOrder?->status === 'pending_payment')
+                                    <x-live.credit-shortfall :amount="$renewalShortfallRials" :url="$topupBotUrl" />
+                                @endif
                                 @if ($renewalError)
                                     <p role="alert" class="mt-5 rounded-xl bg-[#FFF9F1] p-4 text-sm leading-7 text-[#845C23]">{{ $renewalError }}</p>
                                 @endif
@@ -728,8 +734,10 @@
                         </section>
                     </div>
                     <div class="mb-4 flex flex-wrap items-center gap-3">
-                        <button type="button" wire:click="checkServiceExpiries" wire:target="checkServiceExpiries" wire:loading.attr="disabled" class="dg-btn-secondary">⏳ بررسی انقضا</button>
+                        <button type="button" wire:click="checkServiceExpiries" wire:target="checkServiceExpiries" wire:loading.attr="disabled" class="dg-btn-secondary">📡 بررسی وضعیت</button>
+                        <span class="text-xs text-[#536C76]">فقط سرویس‌های همین صفحه بررسی می‌شوند.</span>
                         @if ($checkedExpiry !== null)
+                            <span class="text-xs text-[#536C76]">آخرین بررسی: {{ \App\Support\PersianCalendar::utcDateTime($checkedExpiry['checkedAt']) }}</span>
                             <span class="text-sm font-semibold text-[#1B2935]">⏳ انقضا تا ۳ روز: {{ \App\Support\PersianCalendar::number((string) ( number_format($checkedExpiry['count']) )) }}</span>
                             @if ($checkedExpiry['unknown'] > 0)
                                 <span class="text-xs text-[#536C76]">⚪ نامشخص: {{ \App\Support\PersianCalendar::number((string) ( number_format($checkedExpiry['unknown']) )) }}</span>
@@ -760,7 +768,10 @@
                                     <span class="dg-status" data-tone="{{ match ($service->status) { 'failed' => 'danger', 'needs_review', 'provisioning' => 'warning', default => 'neutral' } }}">{{ $serviceStatus }}</span>
                                 </div>
                                 <p class="mt-2 break-words text-xs leading-6 text-[#536C76]">شماره سفارش: <span dir="ltr">{{ \App\Support\PersianCalendar::number((string) ( $service->orderId )) }}</span> · تاریخ ثبت: {{ \App\Support\PersianCalendar::utcDateTime($service->orderedAt) }}</p>
-                                @if (($checkedExpiry['remaining'][$service->orderId] ?? null) !== null)
+                                @if (isset($checkedExpiry['statuses'][$service->orderId]))
+                                <p class="mt-2 text-sm font-semibold text-[#1B2935]">{{ $checkedExpiry['statuses'][$service->orderId] }}</p>
+                            @endif
+                            @if (($checkedExpiry['remaining'][$service->orderId] ?? null) !== null)
                                     <p class="mt-2 text-xs font-semibold text-[#845C23]">⏳ {{ \App\Support\PersianCalendar::number((string) ( $checkedExpiry['remaining'][$service->orderId] )) }} تا انقضا</p>
                                 @endif
                                 <button type="button" wire:click="openService({{ $service->orderId }})" wire:target="openService" wire:loading.attr="disabled"
@@ -786,7 +797,7 @@
                             <div class="min-w-0">
                                 <p class="mb-1 text-xs font-semibold text-[#087F73]">عملکرد نمایندگی</p>
                                 <h1 id="report-page-title" class="dg-heading">گزارش فروش</h1>
-                                <p class="mt-2 text-sm leading-7 text-[#617380]">مرور فروش تسویه‌شده و وضعیت فعلی حساب شما</p>
+                                <p class="mt-2 text-sm leading-7 text-[#617380]">مرور خریدها و تمدیدهای پرداخت‌شده به دناگیت</p>
                             </div>
                             <div class="shrink-0">
                                 <p class="mb-2 text-xs font-semibold text-[#617380]">بازه گزارش</p>
@@ -808,7 +819,7 @@
                             <div class="relative z-10 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
                                 <div class="min-w-0">
                                     <p class="text-xs font-bold text-[#087F73]">خلاصه عملکرد فروش</p>
-                                    <h2 id="report-revenue-title" class="mt-2 text-base font-extrabold text-[#1B2935]">مجموع فروش تسویه‌شده</h2>
+                                    <h2 id="report-revenue-title" class="mt-2 text-base font-extrabold text-[#1B2935]">مجموع خرید و تمدید از دناگیت</h2>
                                     <p class="dg-stat dg-report-revenue mt-3 block" dir="ltr">{{ \App\Support\PersianCalendar::number((string) ( number_format(intdiv($report['revenueRials'], 10)) )) }}</p>
                                     <p class="mt-1 text-sm font-semibold text-[#536C76]">تومان</p>
                                 </div>
@@ -836,7 +847,7 @@
                                 @endforeach
                             </div>
                         </section>
-                        <p class="mt-5 text-xs leading-7 text-[#536C76]">آمار فروش مربوط به بازه انتخابی است؛ سفارش‌های در انتظار پرداخت و تعداد سرویس‌ها، وضعیت فعلی حساب را نشان می‌دهند.</p>
+                        <p class="mt-5 text-xs leading-7 text-[#536C76]">مبالغ، پرداخت شما به دناگیت هستند؛ فروش به مشتری یا سود شما را نشان نمی‌دهند. آمار خرید مربوط به بازه انتخابی است؛ سفارش‌های در انتظار پرداخت و تعداد سرویس‌ها، وضعیت فعلی حساب را نشان می‌دهند.</p>
 
                         {{-- Independent, lazy Radar projection: sales reporting stays primary and never waits for an upstream API. --}}
                         <section class="mt-9" aria-labelledby="iran-network-title">

@@ -39,7 +39,7 @@ final readonly class ResellerSalesReportUi
             return;
         }
 
-        if (! in_array($days, ['7', '30'], true)) {
+        if (! in_array($days, ['0', '7', '30'], true)) {
             $this->render($bot, 'بازه انتخاب‌شده معتبر نیست.', $this->keyboard('30'));
 
             return;
@@ -48,26 +48,27 @@ final readonly class ResellerSalesReportUi
         if ($bot->isCallbackQuery()) {
             TelegramUi::answerCallback($bot);
         }
+        $window = $days === '0' ? 'از ابتدا' : $days.' روز اخیر';
         $html = null;
         try {
             $r = $this->reports->handle($actor->userId, (int) $days);
-            $text = '<b>📊 گزارش‌های من · '.$days.' روز اخیر</b>'
+            $text = '<b>📊 گزارش‌های من · '.$window.'</b>'
                 ."\n📅 ".PersianCalendar::date($r['from']).' تا '.PersianCalendar::date($r['to']).' (شمسی، تهران)'
                 ."\n\n<b>👥 مشتریان و سرویس‌ها</b>"
                 ."\n📦 کل سرویس‌های ثبت‌شده: ".number_format($r['services'])
                 ."\n👤 سرویس‌های دارای نام: ".number_format($r['namedServices'])
-                ."\n\n<b>💳 فروش تأییدشده</b>"
+                ."\n\n<b>💳 خرید و تمدید از دناگیت</b>"
                 ."\n🛒 خریدهای جدید: ".number_format($r['sales'])
                 ."\n🔄 تمدیدها: ".number_format($r['renewals'])
                 ."\n🧾 تراکنش‌ها: ".number_format($r['transactions'])
-                ."\n💰 مجموع فروش: <b>".number_format(intdiv($r['revenueRials'], 10)).' تومان</b>'
+                ."\n💰 مجموع خرید و تمدید: <b>".number_format(intdiv($r['revenueRials'], 10)).' تومان</b>'
                 ."\n⏳ سفارش‌های در انتظار پرداخت: ".number_format($r['pending'])
-                ."\n\n<blockquote>آمار سرویس‌ها وضعیت فعلی را نشان می‌دهد؛ فروش مربوط به بازه انتخاب‌شده و فقط پرداخت‌های تأییدشده است.</blockquote>"
+                ."\n\n<blockquote>آمار سرویس‌ها وضعیت فعلی را نشان می‌دهد؛ مبالغ فقط پرداخت شما به دناگیت هستند، نه فروش به مشتری یا سود شما.</blockquote>"
                 ."\n🕒 ".PersianCalendar::localDateTime($r['generatedAt']);
-            $html = '<h4>📊 گزارش فروش · '.$days.' روز اخیر</h4>'
+            $html = '<h4>📊 گزارش فروش · '.$window.'</h4>'
                 .'<p>📅 '.TelegramUi::escape(PersianCalendar::date($r['from']))
                 .' تا '.TelegramUi::escape(PersianCalendar::date($r['to'])).' (شمسی، تهران)</p>'
-                .'<p>💰 مجموع فروش تأییدشده: <b>'.TelegramUi::toman($r['revenueRials']).' تومان</b>'
+                .'<p>💰 مجموع خرید و تمدید از دناگیت: <b>'.TelegramUi::toman($r['revenueRials']).' تومان</b>'
                 .'<br>🧾 تراکنش‌های تأییدشده: <b>'.number_format($r['transactions']).'</b>'
                 .'<br>⏳ سفارش‌های در انتظار پرداخت: <b>'.number_format($r['pending']).'</b></p>'
                 .'<details><summary>🛒 جزئیات فروش</summary><p>خریدهای جدید: '.number_format($r['sales'])
@@ -75,7 +76,7 @@ final readonly class ResellerSalesReportUi
                 .'<details><summary>👥 مشتریان و سرویس‌ها</summary><p>کل سرویس‌های ثبت‌شده: '
                 .number_format($r['services']).'<br>سرویس‌های دارای نام: '
                 .number_format($r['namedServices']).'</p></details>'
-                .'<p>آمار سرویس‌ها وضعیت فعلی سوابق داخلی است؛ فروش فقط مربوط به بازه انتخاب‌شده و پرداخت‌های تأییدشده است.</p>'
+                .'<p>آمار سرویس‌ها وضعیت فعلی سوابق داخلی است؛ مبالغ فقط پرداخت شما به دناگیت در بازه انتخاب‌شده هستند، نه فروش به مشتری یا سود شما.</p>'
                 .'<p>🕒 '.TelegramUi::escape(PersianCalendar::localDateTime($r['generatedAt'])).'</p>';
         } catch (Throwable) {
             $text = '<b>📊 گزارش‌های من</b>'."\n\nاطلاعات فعلاً در دسترس نیست؛ کمی بعد دوباره تلاش کنید.";
@@ -102,6 +103,7 @@ final readonly class ResellerSalesReportUi
             ->addRow(
                 InlineKeyboardButton::make('۷ روز', callback_data: 'sales:report:7'),
                 InlineKeyboardButton::make('۳۰ روز', callback_data: 'sales:report:30'),
+                InlineKeyboardButton::make('از ابتدا', callback_data: 'sales:report:0'),
             )
             ->addRow(InlineKeyboardButton::make('📡 وضعیت سرویس‌ها', callback_data: 'sales:health:0'))
             ->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'sales:report:'.$days))

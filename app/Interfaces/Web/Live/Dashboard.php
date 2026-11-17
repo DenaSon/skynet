@@ -64,7 +64,7 @@ final class Dashboard extends Component
 
     public ?string $serviceSearchError = null;
 
-    /** @var array{cursor:?int,term:string,orderIds:list<int>,count:int,unknown:int,remaining:array<int,string>}|null */
+    /** @var array{cursor:?int,term:string,orderIds:list<int>,count:int,unknown:int,remaining:array<int,string>,statuses:array<int,string>,checkedAt:string}|null */
     #[Locked]
     public ?array $serviceExpiry = null;
 
@@ -172,6 +172,12 @@ final class Dashboard extends Component
     public ?int $walletConfirmBalanceRials = null;
 
     public ?string $walletError = null;
+
+    #[Locked]
+    public ?int $walletShortfallRials = null;
+
+    #[Locked]
+    public ?int $renewalShortfallRials = null;
 
     private const SECTIONS = ['overview', 'services', 'credit', 'reports', 'shop'];
 
@@ -311,7 +317,9 @@ final class Dashboard extends Component
                 SubscriptionViewer::web(), $this->serviceCursor, $page,
             );
             $remaining = [];
+            $statuses = [];
             foreach ($result['rows'] as $row) {
+                $statuses[$row['orderId']] = $row['status'].($row['action'] === '' ? '' : ' · '.$row['action']);
                 if ($row['remainingSeconds'] !== null) {
                     $remaining[$row['orderId']] = self::expiryRemainingLabel($row['remainingSeconds']);
                 }
@@ -323,6 +331,8 @@ final class Dashboard extends Component
                 'count' => $result['expiringSoon'],
                 'unknown' => $result['unknown'],
                 'remaining' => $remaining,
+                'statuses' => $statuses,
+                'checkedAt' => now()->toIso8601String(),
             ];
         } catch (AuthorizationException $exception) {
             throw $exception;
@@ -655,6 +665,7 @@ final class Dashboard extends Component
     {
         $buyerId = $this->resellerId();
         $this->renewalError = null;
+        $this->renewalShortfallRials = null;
         $this->renewalPreview = null;
         $this->forgetRenewalConfirmation($buyerId);
 
@@ -694,6 +705,7 @@ final class Dashboard extends Component
     {
         $buyerId = $this->resellerId();
         $this->renewalError = null;
+        $this->renewalShortfallRials = null;
         $this->forgetRenewalConfirmation($buyerId);
         $source = $this->selectedServiceOrderId;
         $previous = $this->renewalPreview;
@@ -738,6 +750,7 @@ final class Dashboard extends Component
         $buyerId = $this->resellerId();
         $this->forgetRenewalConfirmation($buyerId);
         $this->renewalError = null;
+        $this->renewalShortfallRials = null;
 
         if ($this->section !== 'services' || $this->selectedServiceOrderId === null
             || config('sales.renewal_enabled', false) !== true
@@ -756,6 +769,7 @@ final class Dashboard extends Component
 
         $balance = app(ViewWallet::class)->handle($buyerId)->balanceRials;
         if ($balance < $order->totalPriceRials) {
+            $this->renewalShortfallRials = $order->totalPriceRials - $balance;
             $this->renewalError = 'اعتبار شما کافی نیست. ابتدا اعتبار خود را افزایش دهید.';
 
             return;
@@ -775,6 +789,7 @@ final class Dashboard extends Component
     {
         $buyerId = $this->resellerId();
         $this->renewalError = null;
+        $this->renewalShortfallRials = null;
         $source = $this->selectedServiceOrderId;
         $token = $this->renewalConfirmToken;
 
@@ -831,6 +846,7 @@ final class Dashboard extends Component
         $this->serviceStatusNotice = null;
         $this->renewalPreview = null;
         $this->renewalError = null;
+        $this->renewalShortfallRials = null;
     }
 
     private function forgetRenewalConfirmation(int $buyerId): void
@@ -854,6 +870,7 @@ final class Dashboard extends Component
         $this->serviceStatusNotice = null;
         $this->renewalPreview = null;
         $this->renewalError = null;
+        $this->renewalShortfallRials = null;
         $this->selectedServiceOrderId = null;
         $this->serviceDetailError = null;
         $this->serviceLiveUsage = null;
@@ -1154,6 +1171,7 @@ final class Dashboard extends Component
         $buyerId = $this->resellerId();
         $this->forgetWalletConfirmation($buyerId);
         $this->walletError = null;
+        $this->walletShortfallRials = null;
 
         if ($this->section !== 'shop' || $this->createdOrderId === null
             || config('sales.wallet_settlement_enabled') !== true) {
@@ -1173,6 +1191,7 @@ final class Dashboard extends Component
             app(ManageResellerServiceLabels::class)->assertPendingDetails($buyerId, $order->id);
             $balance = app(ViewWallet::class)->handle($buyerId)->balanceRials;
             if ($balance < $order->totalPriceRials) {
+                $this->walletShortfallRials = $order->totalPriceRials - $balance;
                 $this->walletError = 'اعتبار شما کافی نیست. ابتدا اعتبار خود را افزایش دهید.';
 
                 return;
@@ -1200,6 +1219,7 @@ final class Dashboard extends Component
         $orderId = $this->createdOrderId;
         $token = $this->walletConfirmToken;
         $this->walletError = null;
+        $this->walletShortfallRials = null;
 
         if ($this->section !== 'shop' || $orderId === null || $token === null) {
             $this->walletError = 'ابتدا مبلغ و اعتبار خود را برای پرداخت بررسی کنید.';
@@ -1267,6 +1287,7 @@ final class Dashboard extends Component
         $this->walletConfirmAmountRials = null;
         $this->walletConfirmBalanceRials = null;
         $this->walletError = null;
+        $this->walletShortfallRials = null;
     }
 
     public function backToPlans(): void

@@ -45,7 +45,7 @@
                         x-on:click="demoSection = 'services'">فهرست سرویس‌ها ←</button>
                 </section>
                 <section class="dg-card p-5 md:p-7">
-                    <p class="text-xs font-semibold text-[#536C76]">فروش تسویه‌شده · ۳۰ روز اخیر</p>
+                    <p class="text-xs font-semibold text-[#536C76]">خرید و تمدید · ۳۰ روز اخیر</p>
                     <p class="dg-stat mt-3" dir="ltr">۹٬۲۵۰٬۰۰۰ <span class="text-xs font-normal text-[#687987]">تومان</span></p>
                     <p class="mt-1 text-xs text-[#536C76]">۳۶ تراکنش تسویه‌شده</p>
                     <button type="button" class="dg-btn-secondary mt-4 w-full"
@@ -148,7 +148,7 @@
                     <div class="relative z-10 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
                         <div class="min-w-0">
                             <p class="text-xs font-bold text-[#087F73]">خلاصه عملکرد فروش</p>
-                            <h2 id="demo-revenue-title" class="mt-2 text-base font-extrabold text-[#1B2935]">مجموع فروش تسویه‌شده</h2>
+                            <h2 id="demo-revenue-title" class="mt-2 text-base font-extrabold text-[#1B2935]">مجموع خرید و تمدید از دناگیت</h2>
                             <p class="dg-stat dg-report-revenue mt-3 block" dir="ltr" x-text="demoReportSamples[demoReportDays].total">۹٬۲۵۰٬۰۰۰</p>
                             <p class="mt-1 text-sm font-semibold text-[#536C76]">تومان</p>
                         </div>

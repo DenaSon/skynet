@@ -338,3 +338,20 @@ it('refreshes paid order state without repeating settlement or provider calls', 
     $data['buyer']->syncRoles(['member']);
     $page->call('refreshOrderStatus')->assertForbidden();
 });
+
+it('shows the exact shortfall and resumes the same order after funding without an automatic debit', function (): void {
+    $data = live3cFixture();
+    config()->set('telegram.sales.bot_username', 'DenaGateBot');
+    $this->actingAs($data['buyer'])->withSession(['denagate_live.user_id' => $data['buyer']->id]);
+    $page = Livewire::test(Dashboard::class)->call('showSection', 'shop')
+        ->call('openOrder', $data['order'])->call('prepareWalletPayment')
+        ->assertSet('walletShortfallRials', 650_000)
+        ->assertSee('کسری اعتبار')->assertSee('https://t.me/DenaGateBot?start=live_topup');
+    live3cAssertNoPurchase();
+    live3cCredit($data['root'], $data['buyer']);
+    $page->call('prepareWalletPayment')->assertSet('walletShortfallRials', null)
+        ->assertSet('createdOrderId', $data['order'])->assertSee('تأیید و پرداخت');
+    live3cAssertNoPurchase();
+    config()->set('billing.topups_enabled', false);
+    $page->assertDontSee('https://t.me/DenaGateBot?start=live_topup');
+});

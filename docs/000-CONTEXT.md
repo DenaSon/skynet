@@ -1,3 +1,7 @@
+## Reseller daily UX — status, credit recovery and report meaning (2026-11-18)
+
+Operator approved five small reseller improvements and merge after green CI. This first PR exposes the existing six-service on-demand health result in Live (including unknown and timestamp), shows credit shortfall with the existing bot top-up handoff for purchase/renewal, and clarifies that report amounts are the reseller’s purchases from DenaGate, not retail revenue/profit. Telegram adds the already-supported all-time report. Demo amount wording follows the real app. No new provider sweep, payment behavior, schema, dependency or production setting. Source tests and CI do not prove real Telegram or production acceptance. Local PHP 8.4: 185 focused tests / 2,351 assertions and PHPStan passed. PR CI now runs both PHP 8.4 and 8.5 (previously 8.5 was scheduled-only), as required by the project delivery contract. Similar purchases and copyable renewal reminders follow independently.
+
 ## Cloudflare A-record selection in the supervised Node setup — approved, source implementation in progress (2026-11-17)
 
 The operator approved CF-03: during the existing Admin SSH/install/Node setup, choose an existing Cloudflare A subdomain or define a new subordinate hostname under an already allowlisted Zone. SSH and Remnawave Node continue to use the new server's original public IP. DNS mutation happens only after the Node is registered and independently confirmed connected+enabled.

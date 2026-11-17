@@ -289,7 +289,7 @@ it('mirrors the reseller report UI with only local sample values and no live Rad
         ->assertSee('۷ روز')
         ->assertSee('۳۰ روز')
         ->assertSee('از ابتدا')
-        ->assertSee('مجموع فروش تسویه‌شده')
+        ->assertSee('مجموع خرید و تمدید از دناگیت')
         ->assertSee('dg-stat dg-report-revenue', false)
         ->assertSee('۲۹٬۶۰۰٬۰۰۰')
         ->assertSee('۹٬۲۵۰٬۰۰۰')

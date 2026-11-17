@@ -30,7 +30,7 @@ it('renders six compact report cards in one grid and updates the selected report
     Livewire::test(Dashboard::class)
         ->call('showSection', 'reports')
         ->assertSee('گزارش فروش')
-        ->assertSee('مجموع فروش تسویه‌شده')
+        ->assertSee('مجموع خرید و تمدید از دناگیت')
         ->assertSee('شاخص‌های فروش و حساب')
         ->assertSee('وضعیت فعلی حساب')
         ->assertSee('خریدهای جدید')

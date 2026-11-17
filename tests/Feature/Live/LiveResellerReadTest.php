@@ -106,7 +106,7 @@ it('shows the real owned wallet, settled revenue, counts and customer labels wit
         ->call('showSection', 'reports')
         ->assertSee($expectedSale)
         ->assertSee('تراکنش‌های تأییدشده')
-        ->assertSee('مجموع فروش تسویه‌شده')
+        ->assertSee('مجموع خرید و تمدید از دناگیت')
         ->assertSee('dg-card-accent')
         ->assertSee('dg-stat')
         ->call('selectReportDays', 7)
