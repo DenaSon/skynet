@@ -3,13 +3,16 @@
 declare(strict_types=1);
 
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
+use App\Interfaces\Telegram\Support\AdminNodeSetupUi;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
+use GuzzleHttp\Psr7\Request as NutgramRequest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Testing\FakeNutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
@@ -34,13 +37,37 @@ function cf03UiActors(): User
     return $root;
 }
 
-function cf03UiBot(): Nutgram
+function cf03UiBot(): FakeNutgram
 {
-    $bot = app(Nutgram::class);
+    $bot = Nutgram::fake();
+    require base_path('app/Interfaces/Telegram/routes/admin.php');
     $bot->setCommonUser(TelegramUser::make(980401, false, 'Root'));
     $bot->setCommonChat(Chat::make(980401, ChatType::PRIVATE));
 
     return $bot;
+}
+
+/** @return array<string,mixed> */
+function cf03UiPayload(NutgramRequest $request): array
+{
+    $payload = FakeNutgram::getActualData($request);
+    foreach (['reply_markup', 'rich_message'] as $key) {
+        if (is_string($payload[$key] ?? null)) {
+            $payload[$key] = json_decode($payload[$key], true, flags: JSON_THROW_ON_ERROR);
+        }
+    }
+
+    return $payload;
+}
+
+/** @param array<string,mixed> $payload */
+function cf03UiRichHtml(array $payload): string
+{
+    $rich = $payload['rich_message'] ?? [];
+
+    return is_array($rich) && ($rich['is_rtl'] ?? null) === true
+        ? (string) ($rich['html'] ?? '')
+        : '';
 }
 
 /** @param list<array<string,mixed>> $records */
@@ -145,7 +172,23 @@ it('CF-03 lists paginated editable A records, hides other record data and reject
     $bot = cf03UiBot();
 
     $bot->hearCallbackQueryData('nw1:dns:zones')->reply()->assertCalled('editMessageText');
-    $bot->hearCallbackQueryData('nw1:dns:zone:0')->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('nw1:dns:zone:0')->reply()->assertRaw(
+        static function (NutgramRequest $request): bool {
+            $payload = cf03UiPayload($request);
+            $html = cf03UiRichHtml($payload);
+            $keyboard = json_encode($payload['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
+
+            return str_contains($html, '<h2>🌐 زیردامنه‌های موجود</h2>')
+                && str_contains($html, '<table bordered striped compact>')
+                && str_contains($html, '<tr><td>uae.denagate.ir</td><td>185.194.188.100</td><td>Proxied</td></tr>')
+                && str_contains($html, '<tr><td>usa.denagate.ir</td><td>185.194.188.101</td><td>DNS Only</td></tr>')
+                && ! str_contains($html, 'must-not-be-displayed')
+                && str_contains($html, '<footer>صفحه 1 از 2')
+                && str_contains($keyboard, 'nw1:dns:record:0:')
+                && ! isset($payload['parse_mode']);
+        },
+        index: 1,
+    );
 
     $state = Cache::get($draft['key']);
     expect($state['stage'])->toBe('dns_records')
@@ -174,6 +217,57 @@ it('CF-03 lists paginated editable A records, hides other record data and reject
     expect(collect(Http::recorded())->filter(
         static fn (array $pair): bool => $pair[0]->method() !== 'GET',
     ))->toBeEmpty();
+});
+
+it('CF-03 sends the Rich DNS catalog when opened without a callback', function (): void {
+    $root = cf03UiActors();
+    cf03UiFakeCloudflare(cf03UiRecords());
+    $draft = cf03UiDraft($root, 'dns_records');
+    $state = Cache::get($draft['key']);
+    $state['dnsZone'] = 'denagate.ir';
+    $state['dnsZoneId'] = CF03_UI_ZONE_ID;
+    Cache::put($draft['key'], $state, now()->addMinutes(10));
+    $bot = cf03UiBot();
+
+    app(AdminNodeSetupUi::class)->dnsRecords($bot, '1');
+
+    $bot->assertCalled('sendRichMessage');
+    $bot->assertRaw(static function (NutgramRequest $request): bool {
+        $payload = cf03UiPayload($request);
+        $html = cf03UiRichHtml($payload);
+
+        return str_contains($html, '<table bordered striped compact>')
+            && str_contains($html, 'uae.denagate.ir')
+            && str_contains($html, 'DNS Only')
+            && str_contains($html, '<footer>صفحه 1 از 2')
+            && ! isset($payload['parse_mode']);
+    });
+});
+
+it('CF-03 falls back to the same native HTML catalog and keyboard when Rich delivery fails', function (): void {
+    $root = cf03UiActors();
+    cf03UiFakeCloudflare(cf03UiRecords());
+    cf03UiDraft($root);
+    $bot = cf03UiBot();
+
+    $bot->hearCallbackQueryData('nw1:dns:zones')->reply();
+    $bot->willReceive(true); // Acknowledge the callback.
+    $bot->willReceive([], false); // Simulate Telegram rejecting the Rich edit.
+    $bot->hearCallbackQueryData('nw1:dns:zone:0')->reply()->assertRaw(
+        static function (NutgramRequest $request): bool {
+            $payload = cf03UiPayload($request);
+            $keyboard = json_encode($payload['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
+
+            return ($payload['parse_mode'] ?? null) === 'HTML'
+                && str_contains($payload['text'] ?? '', 'زیردامنه‌های موجود')
+                && str_contains($payload['text'] ?? '', 'وضعیت Proxy')
+                && str_contains($keyboard, 'uae.denagate.ir')
+                && str_contains($keyboard, '185.194.188.100')
+                && str_contains($keyboard, 'nw1:dns:record:0:')
+                && ! str_contains($keyboard, 'must-not-be-displayed');
+        },
+        index: 2,
+    );
 });
 
 it('CF-03 rejects a selected hostname with multiple records before it enters the SSH flow', function (): void {

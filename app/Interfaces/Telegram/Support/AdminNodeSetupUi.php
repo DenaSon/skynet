@@ -14,9 +14,11 @@ use App\Modules\Provisioning\Application\NodeSetupReadiness;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 use Throwable;
 
 /** NW-01: private, default-off preparation; NO provisioning or host writes. */
@@ -331,12 +333,33 @@ final readonly class AdminNodeSetupUi
             $keyboard->addRow(InlineKeyboardButton::make('❌ انصراف',
                 callback_data: 'nw1:cancel'));
 
-            $message = '🌐 زیردامنه‌های موجود — '.$draft['dnsZone']."\n\n"
-                .'رکورد A موردنظر را انتخاب کنید. IP و وضعیت Proxy فعلی نمایش داده می‌شود و وضعیت Proxy هنگام تخصیص حفظ خواهد شد.'
+            $message = '🌐 زیردامنه‌های موجود — '.TelegramUi::escape($draft['dnsZone'])."\n\n"
+                .'رکورد A موردنظر را انتخاب کنید. IP و وضعیت Proxy فعلی در دکمه‌ها نمایش داده می‌شود و وضعیت Proxy هنگام تخصیص حفظ خواهد شد.'
                 .($records === [] ? "\n\nدر این صفحه زیردامنه A قابل استفاده‌ای وجود ندارد." : '')
                 ."\n\nصفحه {$page} از ".$result['pages']
                 ."\nرکوردهای چندگانه یا تغییرکرده پیش از تخصیص دوباره بررسی می‌شوند.";
-            $this->render($bot, $message, $keyboard);
+
+            $richRows = '';
+            foreach ($records as $record) {
+                $richRows .= '<tr><td>'.TelegramUi::escape($record['name']).'</td>'
+                    .'<td>'.TelegramUi::escape($record['content']).'</td>'
+                    .'<td>'.($record['proxied'] ? 'Proxied' : 'DNS Only').'</td></tr>';
+            }
+
+            $richMessage = '<h2>🌐 زیردامنه‌های موجود</h2>'
+                .'<p><b>دامنه اصلی:</b> '.TelegramUi::escape($draft['dnsZone']).'</p>'
+                .'<p>رکورد A موردنظر را انتخاب کنید. IP فعلی و وضعیت Proxy نمایش داده می‌شود و وضعیت Proxy هنگام تخصیص حفظ خواهد شد.</p>';
+            if ($records !== []) {
+                $richMessage .= '<table bordered striped compact>'
+                    .'<tr><td><b>زیردامنه</b></td><td><b>IP فعلی</b></td><td><b>Proxy</b></td></tr>'
+                    .$richRows.'</table>';
+            } else {
+                $richMessage .= '<p>در این صفحه زیردامنه A قابل استفاده‌ای وجود ندارد.</p>';
+            }
+            $richMessage .= '<footer>صفحه '.$page.' از '.$result['pages']
+                .' · رکوردهای چندگانه یا تغییرکرده پیش از تخصیص دوباره بررسی می‌شوند.</footer>';
+
+            $this->renderRich($bot, $richMessage, $message, $keyboard);
         } catch (Throwable) {
             $this->render($bot, 'دریافت زیردامنه‌ها ممکن نشد. دوباره تلاش کنید یا بدون دامنه ادامه دهید.',
                 InlineKeyboardMarkup::make()
@@ -1273,6 +1296,37 @@ final readonly class AdminNodeSetupUi
     private function expired(Nutgram $bot): void
     {
         $this->render($bot, 'این مرحله منقضی شده یا تمام شده است.', $this->back());
+    }
+
+    private function renderRich(
+        Nutgram $bot,
+        string $richHtml,
+        string $fallback,
+        InlineKeyboardMarkup $keyboard,
+    ): void {
+        if ($bot->isCallbackQuery()) {
+            TelegramUi::answerCallback($bot);
+        }
+
+        try {
+            TelegramUi::editRichText(
+                $bot,
+                new InputRichMessage(html: $richHtml, is_rtl: true),
+                $keyboard,
+            );
+
+            return;
+        } catch (TelegramException $exception) {
+            report($exception);
+        }
+
+        if ($bot->isCallbackQuery()) {
+            TelegramUi::editText($bot, $fallback, $keyboard, 'HTML');
+
+            return;
+        }
+
+        $bot->sendMessage(text: $fallback, reply_markup: $keyboard, parse_mode: 'HTML');
     }
 
     private function render(Nutgram $bot, string $message, InlineKeyboardMarkup $keyboard, bool $html = false): void
