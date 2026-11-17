@@ -76,25 +76,38 @@ final readonly class ReplaceAdminNode
                 continue;
             }
 
-            // Older Remnawave Host responses can legitimately have nodes: [].
-            // Infer only when both the active profile/inbound and current public
-            // endpoint match. Anything ambiguous stops the replacement.
-            if ($host['nodes'] !== []
-                || $host['profileUuid'] !== $current['profileUuid']
-                || ! in_array($host['inboundUuid'], $current['inboundUuids'], true)) {
+            // Legacy Hosts may have an empty nodes[] relation. Infer only when
+            // both profile and inbound positively match; contradictory evidence
+            // means the Host is unrelated, while missing evidence is ambiguous.
+            if ($host['nodes'] !== []) {
                 continue;
             }
 
+            $profileMatches = $host['profileUuid'] === $current['profileUuid'];
+            $inboundMatches = in_array($host['inboundUuid'], $current['inboundUuids'], true);
+            $profileConflicts = is_string($host['profileUuid']) && ! $profileMatches;
+            $inboundConflicts = is_string($host['inboundUuid']) && ! $inboundMatches;
+
+            if ($profileConflicts || $inboundConflicts) {
+                continue;
+            }
+
+            if (! $profileMatches || ! $inboundMatches) {
+                throw new RuntimeException('A Host with empty Node membership has incomplete association evidence; manual review required.');
+            }
+
             if (filter_var($host['address'], FILTER_VALIDATE_IP) !== false) {
-                if ($host['address'] === $oldIp) {
-                    $assignedHosts[] = [...$host, 'association' => 'inbound_address'];
+                if ($host['address'] !== $oldIp) {
+                    throw new RuntimeException('A Host with empty Node membership does not match the current server IP; manual review required.');
                 }
+
+                $assignedHosts[] = [...$host, 'association' => 'inbound_address'];
 
                 continue;
             }
 
             try {
-                $resolved = $host['address'] === $current['address'] && $nodeDns !== null
+                $resolved = strtolower($host['address']) === strtolower($current['address']) && $nodeDns !== null
                     ? $nodeDns
                     : $this->dns->replacementRecord($actorId, $host['address']);
             } catch (\Throwable $exception) {
@@ -105,10 +118,12 @@ final readonly class ReplaceAdminNode
                 );
             }
 
-            if ($resolved['record']['content'] === $oldIp) {
-                $inferredDns[strtolower($host['address'])] = $resolved;
-                $assignedHosts[] = [...$host, 'association' => 'inbound_address'];
+            if ($resolved['record']['content'] !== $oldIp) {
+                throw new RuntimeException('A Host with empty Node membership does not resolve to the current server IP; manual review required.');
             }
+
+            $inferredDns[strtolower($host['address'])] = $resolved;
+            $assignedHosts[] = [...$host, 'association' => 'inbound_address'];
         }
 
         usort($assignedHosts, static fn (array $a, array $b): int => strcmp($a['uuid'], $b['uuid']));
