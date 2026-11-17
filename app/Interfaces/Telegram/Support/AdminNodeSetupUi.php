@@ -171,7 +171,8 @@ final readonly class AdminNodeSetupUi
 
                 return true;
             }
-            unset($draft['dnsZones']);
+            unset($draft['dnsZones'], $draft['dnsRecordExpected'], $draft['dnsRecords'],
+                $draft['dnsRecordToken'], $draft['dnsRecordPage'], $draft['dnsRecordPages']);
             $draft['stage'] = 'port';
             $next = "🖥️ اتصال به سرور\n\n<b>پورت SSH</b> را ارسال کنید (معمولاً 22).";
         } elseif ($stage === 'port') {
@@ -257,6 +258,170 @@ final readonly class AdminNodeSetupUi
         }
         $draft['dnsZone'] = $zone['name'];
         $draft['dnsZoneId'] = $zone['id'];
+        $draft['stage'] = 'dns_records';
+        unset($draft['dnsName'], $draft['dnsRecordExpected']);
+        $this->save($id, $draft);
+        $this->dnsRecords($bot, '1');
+    }
+
+    /** Show existing editable A records for the selected allowlisted Zone. */
+    public function dnsRecords(Nutgram $bot, string $requested = '1'): void
+    {
+        $id = $this->root($bot);
+        if ($id === null) {
+            return;
+        }
+        $draft = $this->draft($id);
+        $page = ctype_digit($requested) && strlen($requested) <= 3 ? (int) $requested : 0;
+        if (($draft['stage'] ?? null) !== 'dns_records' || $page < 1 || $page > 100
+            || ! is_string($draft['dnsZone'] ?? null) || ! is_string($draft['dnsZoneId'] ?? null)
+            || ! $this->dns->wizardEnabled()) {
+            $this->expired($bot);
+
+            return;
+        }
+
+        try {
+            $result = $this->dns->page($id, $draft['dnsZoneId'], $draft['dnsZone'], $page);
+            if ($page > $result['pages']) {
+                throw new \RuntimeException('Invalid DNS page.');
+            }
+            $records = array_values(array_filter(
+                $result['items'],
+                static fn (array $record): bool => ($record['type'] ?? null) === 'A'
+                    && ($record['editable'] ?? null) === true
+                    && is_string($record['id'] ?? null)
+                    && is_string($record['name'] ?? null)
+                    && is_string($record['content'] ?? null)
+                    && is_bool($record['proxied'] ?? null),
+            ));
+            $token = bin2hex(random_bytes(16));
+            $draft['dnsRecords'] = $records;
+            $draft['dnsRecordToken'] = $token;
+            $draft['dnsRecordPage'] = $page;
+            $draft['dnsRecordPages'] = $result['pages'];
+            $this->save($id, $draft);
+
+            $keyboard = InlineKeyboardMarkup::make();
+            foreach ($records as $index => $record) {
+                $proxy = $record['proxied'] ? 'Proxy' : 'DNS Only';
+                $keyboard->addRow(InlineKeyboardButton::make(
+                    '🌐 '.$record['name'].' · '.$record['content'].' · '.$proxy,
+                    callback_data: 'nw1:dns:record:'.$index.':'.$token,
+                ));
+            }
+            $navigation = [];
+            if ($page > 1) {
+                $navigation[] = InlineKeyboardButton::make('◀️ قبلی',
+                    callback_data: 'nw1:dns:records:'.($page - 1));
+            }
+            if ($page < $result['pages']) {
+                $navigation[] = InlineKeyboardButton::make('بعدی ▶️',
+                    callback_data: 'nw1:dns:records:'.($page + 1));
+            }
+            if ($navigation !== []) {
+                $keyboard->addRow(...$navigation);
+            }
+            $keyboard->addRow(InlineKeyboardButton::make('➕ ایجاد زیردامنه جدید',
+                callback_data: 'nw1:dns:new', style: ButtonStyle::PRIMARY));
+            $keyboard->addRow(InlineKeyboardButton::make('➡️ ادامه بدون دامنه',
+                callback_data: 'nw1:dns:skip'));
+            $keyboard->addRow(InlineKeyboardButton::make('◀️ بازگشت',
+                callback_data: 'nw1:step:back'));
+            $keyboard->addRow(InlineKeyboardButton::make('❌ انصراف',
+                callback_data: 'nw1:cancel'));
+
+            $message = '🌐 زیردامنه‌های موجود — '.$draft['dnsZone']."\n\n"
+                .'رکورد A موردنظر را انتخاب کنید. IP و وضعیت Proxy فعلی نمایش داده می‌شود و وضعیت Proxy هنگام تخصیص حفظ خواهد شد.'
+                .($records === [] ? "\n\nدر این صفحه زیردامنه A قابل استفاده‌ای وجود ندارد." : '')
+                ."\n\nصفحه {$page} از ".$result['pages']
+                ."\nرکوردهای چندگانه یا تغییرکرده پیش از تخصیص دوباره بررسی می‌شوند.";
+            $this->render($bot, $message, $keyboard);
+        } catch (Throwable) {
+            $this->render($bot, 'دریافت زیردامنه‌ها ممکن نشد. دوباره تلاش کنید یا بدون دامنه ادامه دهید.',
+                InlineKeyboardMarkup::make()
+                    ->addRow(InlineKeyboardButton::make('🔄 تلاش دوباره',
+                        callback_data: 'nw1:dns:records:'.$page, style: ButtonStyle::PRIMARY))
+                    ->addRow(InlineKeyboardButton::make('➡️ ادامه بدون دامنه', callback_data: 'nw1:dns:skip'))
+                    ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'nw1:step:back'))
+                    ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'nw1:cancel')));
+        }
+    }
+
+    public function dnsRecord(Nutgram $bot, string $index, string $token): void
+    {
+        $id = $this->root($bot);
+        if ($id === null) {
+            return;
+        }
+        $draft = $this->draft($id);
+        $i = ctype_digit($index) && strlen($index) <= 2 ? (int) $index : -1;
+        $currentToken = is_array($draft) ? ($draft['dnsRecordToken'] ?? null) : null;
+        $selected = is_array($draft) ? ($draft['dnsRecords'][$i] ?? null) : null;
+        if (($draft['stage'] ?? null) !== 'dns_records'
+            || ! is_string($currentToken) || ! hash_equals($currentToken, $token)
+            || ! is_array($selected) || ($selected['type'] ?? null) !== 'A'
+            || ($selected['editable'] ?? null) !== true
+            || ! is_string($selected['id'] ?? null)
+            || ! is_string($selected['name'] ?? null)
+            || ! is_string($selected['content'] ?? null)
+            || ! is_bool($selected['proxied'] ?? null)
+            || ! is_string($draft['dnsZone'] ?? null) || ! is_string($draft['dnsZoneId'] ?? null)) {
+            $this->expired($bot);
+
+            return;
+        }
+
+        try {
+            $selectedName = $selected['name'];
+            if ($this->dns->hostname($id, $draft['dnsZone'], $selectedName) !== $selectedName) {
+                throw new \RuntimeException('Invalid selected hostname.');
+            }
+            $record = $this->dns->oneUniqueA($id, $draft['dnsZoneId'], $draft['dnsZone'], $selected['id']);
+            $recordName = $record['name'] ?? null;
+            $recordIp = $record['content'] ?? null;
+            $proxied = $record['proxied'] ?? null;
+            if ($record !== $selected || ! is_string($recordName) || ! is_string($recordIp) || ! is_bool($proxied)) {
+                throw new \RuntimeException('Selected DNS record changed.');
+            }
+
+            $draft['dnsName'] = $recordName;
+            $draft['dnsRecordExpected'] = $record;
+            unset($draft['dnsRecords'], $draft['dnsRecordToken'], $draft['dnsRecordPage'], $draft['dnsRecordPages']);
+            $draft['stage'] = 'port';
+            $this->save($id, $draft);
+            $this->render($bot, "🌐 دامنه انتخاب شد\n\n"
+                .'نام: '.TelegramUi::code($recordName)."\n"
+                .'IP فعلی: '.TelegramUi::code($recordIp)."\n"
+                .'وضعیت فعلی: '.($proxied ? 'Proxied' : 'DNS Only')."\n"
+                .'IP سرور جدید: '.TelegramUi::code($draft['ip'])
+                ."\n\nپس از راه‌اندازی و ثبت نود، فقط IP تغییر می‌کند و وضعیت Proxy حفظ خواهد شد."
+                ."\n\nاکنون پورت SSH را ارسال کنید (معمولاً 22).",
+                $this->portButtons(), true);
+        } catch (Throwable) {
+            $this->render($bot, 'این رکورد تغییر کرده یا چند رکورد با این نام وجود دارد. فهرست را تازه‌سازی کنید.',
+                InlineKeyboardMarkup::make()
+                    ->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی',
+                        callback_data: 'nw1:dns:records:'.($draft['dnsRecordPage'] ?? 1)))
+                    ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'nw1:step:back')));
+        }
+    }
+
+    public function dnsNew(Nutgram $bot): void
+    {
+        $id = $this->root($bot);
+        if ($id === null) {
+            return;
+        }
+        $draft = $this->draft($id);
+        if (($draft['stage'] ?? null) !== 'dns_records'
+            || ! is_string($draft['dnsZone'] ?? null) || ! is_string($draft['dnsZoneId'] ?? null)) {
+            $this->expired($bot);
+
+            return;
+        }
+        unset($draft['dnsName'], $draft['dnsRecordExpected'], $draft['dnsRecords'],
+            $draft['dnsRecordToken'], $draft['dnsRecordPage'], $draft['dnsRecordPages']);
         $draft['stage'] = 'dns_name';
         $this->save($id, $draft);
         $this->dnsNamePrompt($bot, $draft);
@@ -269,12 +434,14 @@ final readonly class AdminNodeSetupUi
             return;
         }
         $draft = $this->draft($id);
-        if (! in_array($draft['stage'] ?? null, ['dns_choice', 'dns_zone', 'dns_name'], true)) {
+        if (! in_array($draft['stage'] ?? null, ['dns_choice', 'dns_zone', 'dns_records', 'dns_name'], true)) {
             $this->expired($bot);
 
             return;
         }
-        unset($draft['dnsZones'], $draft['dnsZone'], $draft['dnsZoneId'], $draft['dnsName']);
+        unset($draft['dnsZones'], $draft['dnsZone'], $draft['dnsZoneId'], $draft['dnsName'],
+            $draft['dnsRecordExpected'], $draft['dnsRecords'], $draft['dnsRecordToken'],
+            $draft['dnsRecordPage'], $draft['dnsRecordPages']);
         $draft['stage'] = 'port';
         $this->save($id, $draft);
         $this->render($bot, "🖥️ اتصال به سرور\n\n<b>پورت SSH</b> را ارسال کنید (معمولاً 22).", $this->portButtons(), true);
@@ -631,12 +798,21 @@ final readonly class AdminNodeSetupUi
             $token = bin2hex(random_bytes(16));
             Cache::put('nw03:confirm:'.$root, [
                 'kind' => 'dns', 'id' => $identifier, 'token' => $token,
+                'expected' => $review['record'],
             ], now()->addMinutes(10));
-            $this->render($bot, "🌐 تأیید دامنه سرور\n\nآدرس: ".$review['name']."\nIP: ".$review['ip']
-                ."\nحالت: DNS Only\n\n"
-                .($review['state'] === 'existing'
-                    ? 'این رکورد از قبل با مشخصات درست وجود دارد و تغییر نمی‌کند.'
-                    : 'پس از تأیید، یک رکورد A جدید ایجاد خواهد شد.'),
+            $detail = match ($review['mode']) {
+                'update' => $review['previousIp'] === $review['ip']
+                    ? 'IP فعلی: '.$review['previousIp']."\nIP هدف: بدون تغییر\nوضعیت Proxy: ".($review['proxied'] ? 'Proxied' : 'DNS Only')."\n\nاین رکورد از قبل به IP سرور اشاره می‌کند؛ تغییری لازم نیست."
+                    : 'IP فعلی: '.$review['previousIp']."\nIP جدید: ".$review['ip']."\nوضعیت Proxy: ".($review['proxied'] ? 'Proxied' : 'DNS Only')."\n\nفقط IP تغییر می‌کند و وضعیت Proxy حفظ می‌شود.",
+                default => $review['state'] === 'existing'
+                    ? 'IP: '.$review['ip']."\n\nرکورد A با همین IP و DNS Only از قبل وجود دارد و دوباره استفاده می‌شود."
+                    : 'IP جدید: '.$review['ip']."\nنوع رکورد: A · DNS Only\n\nپس از تأیید، یک رکورد جدید ساخته می‌شود.",
+            };
+            $impact = $review['mode'] === 'update' && $review['previousIp'] !== $review['ip']
+                ? "\n\n⚠️ با تأیید، ترافیک این دامنه به سرور جدید منتقل می‌شود و ممکن است کاربران فعلی تحت تأثیر قرار بگیرند."
+                : '';
+            $this->render($bot, "🌐 تأیید تخصیص دامنه\n\nآدرس: ".$review['name']."\n\n".$detail.$impact
+                ."\n\nاین عملیات فقط پس از تأیید نهایی اجرا می‌شود.",
                 InlineKeyboardMarkup::make()
                     ->addRow(InlineKeyboardButton::make('✅ تأیید تنظیم دامنه', callback_data: 'nw3:dns:apply:'.$token, style: ButtonStyle::SUCCESS))
                     ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'nw3:resume:'.$identifier)));
@@ -767,7 +943,8 @@ final readonly class AdminNodeSetupUi
             if ($kind === 'node') {
                 $this->completion->registerNode($root, $state['id']);
             } elseif ($kind === 'dns') {
-                $this->completion->ensureDns($root, $state['id']);
+                $expected = is_array($state['expected'] ?? null) ? $state['expected'] : null;
+                $this->completion->ensureDns($root, $state['id'], $expected);
             } else {
                 $this->completion->createHost($root, $state['id'], $state['port']);
             }
@@ -848,15 +1025,29 @@ final readonly class AdminNodeSetupUi
                 $this->dnsChoicePrompt($bot);
 
                 return;
-            case 'dns_name':
-                unset($draft['dnsZone'], $draft['dnsZoneId'], $draft['dnsName'], $draft['dnsZones']);
+            case 'dns_records':
+                unset($draft['dnsZone'], $draft['dnsZoneId'], $draft['dnsName'], $draft['dnsZones'],
+                    $draft['dnsRecordExpected'], $draft['dnsRecords'], $draft['dnsRecordToken'],
+                    $draft['dnsRecordPage'], $draft['dnsRecordPages']);
                 $draft['stage'] = 'dns_choice';
                 $this->save($id, $draft);
-                $this->dnsZones($bot);
+                $this->dnsChoicePrompt($bot);
+
+                return;
+            case 'dns_name':
+                unset($draft['dnsName'], $draft['dnsRecordExpected']);
+                $draft['stage'] = 'dns_records';
+                $this->save($id, $draft);
+                $this->dnsRecords($bot, '1');
 
                 return;
             case 'port':
-                if (isset($draft['dnsName'], $draft['dnsZone'])) {
+                if (isset($draft['dnsRecordExpected'], $draft['dnsZone'])) {
+                    unset($draft['dnsRecordExpected'], $draft['dnsName']);
+                    $draft['stage'] = 'dns_records';
+                    $this->save($id, $draft);
+                    $this->dnsRecords($bot, '1');
+                } elseif (isset($draft['dnsName'], $draft['dnsZone'])) {
                     $draft['stage'] = 'dns_name';
                     unset($draft['dnsName']);
                     $this->save($id, $draft);
@@ -950,7 +1141,13 @@ final readonly class AdminNodeSetupUi
             .'نام: '.$draft['name']."\nIP: ".$draft['ip']."\nپورت SSH: ".$draft['port']."\nپورت ارتباط نود: 2222\n"
             .'کاربر: '.$draft['username']."\nپروفایل: ".$draft['profile']['name']."\nورودی: ".$draft['inbound']['name']
             .(isset($draft['dnsName']) ? "\nدامنه: ".$draft['dnsName'] : '')
-            ."\n\nدر این مرحله هیچ تغییری روی سرور انجام نمی‌شود.",
+            .(is_array($draft['dnsRecordExpected'] ?? null)
+                ? "\nIP فعلی دامنه: ".(is_string($draft['dnsRecordExpected']['content'] ?? null)
+                    ? $draft['dnsRecordExpected']['content'] : '—')
+                    ."\nوضعیت Proxy: ".(($draft['dnsRecordExpected']['proxied'] ?? null) === true ? 'Proxied' : 'DNS Only')
+                    ."\nIP هدف پس از ثبت نود: ".$draft['ip']
+                : (isset($draft['dnsName']) ? "\nنوع دامنه: زیردامنه جدید · رکورد A" : ''))
+            ."\n\nدر این مرحله هیچ تغییری روی سرور یا Cloudflare انجام نمی‌شود.",
             InlineKeyboardMarkup::make()
                 ->addRow(InlineKeyboardButton::make('🔎 بررسی هویت سرور', callback_data: 'nw1:scan:'.$draft['token']))
                 ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'nw1:step:back'))
