@@ -10,6 +10,7 @@ use App\Modules\Provisioning\Infrastructure\NodeSetup\NodeSshInstaller;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
@@ -77,6 +78,29 @@ it('NW-02 defaults off, queues opaque identifier only, and reserves a VPS once',
     Http::assertNothingSent();
 });
 
+it('NW-02 expires only the per-IP admission reservation after five minutes', function (): void {
+    $fixture = nw02Fixture();
+    Queue::fake();
+
+    $identifier = app(ManageNodeInstallation::class)->enqueue($fixture['actor']->id, $fixture['ready']);
+    $reservation = 'nw02:host:'.$fixture['ready']['ip'];
+    $now = Carbon::now();
+
+    expect(Cache::get($reservation))->toBe($identifier);
+
+    Carbon::setTestNow($now->copy()->addMinutes(4)->addSeconds(59));
+    try {
+        expect(Cache::get($reservation))->toBe($identifier);
+
+        Carbon::setTestNow($now->copy()->addMinutes(5)->addSecond());
+        expect(Cache::get($reservation))->toBeNull()
+            ->and(Cache::get('nw02:status:'.$identifier)['state'])->toBe('queued')
+            ->and(Cache::get('nw02:last:'.$fixture['actor']->id))->toBe($identifier);
+    } finally {
+        Carbon::setTestNow();
+    }
+});
+
 it('NW-02 persists only a validated selected Cloudflare A-record snapshot', function (): void {
     $fixture = nw02Fixture();
     Queue::fake();
@@ -136,7 +160,8 @@ it('NW-02 launches once using GET keygen and never performs Provider POST', func
     $fake = Mockery::mock(NodeSshInstaller::class);
     $fake->shouldReceive('start')->once()->withArgs(static fn (...$args): bool => $args[0] === '194.5.192.133'
         && $args[3] === 'not-a-real-password'
-        && $args[5] === str_repeat('A', 64));
+        && $args[5] === str_repeat('A', 64)
+        && $args[6] === $identifier);
     app()->instance(NodeSshInstaller::class, $fake);
     $manager = app(ManageNodeInstallation::class);
 
@@ -174,7 +199,9 @@ it('NW-02 status rechecks root identity and destroys credentials when Node runs'
     Cache::put('nw02:status:'.$identifier, $state, now()->addHour());
 
     $fake = Mockery::mock(NodeSshInstaller::class);
-    $fake->shouldReceive('status')->once()->andReturn('running');
+    $fake->shouldReceive('status')->once()
+        ->withArgs(static fn (...$args): bool => $args[5] === $identifier)
+        ->andReturn('running');
     app()->instance(NodeSshInstaller::class, $fake);
     $manager = app(ManageNodeInstallation::class);
     expect($manager->status($fixture['actor']->id, $identifier)['state'])->toBe('running')
@@ -182,6 +209,60 @@ it('NW-02 status rechecks root identity and destroys credentials when Node runs'
 
     $fixture['actor']->syncRoles(['member']);
     expect(fn () => $manager->status($fixture['actor']->id, $identifier))->toThrow(AuthorizationException::class);
+});
+
+it('NW-02 never adopts another installation identifier remote status', function (): void {
+    $fixture = nw02Fixture();
+    Queue::fake();
+    $manager = app(ManageNodeInstallation::class);
+    $identifier = $manager->enqueue($fixture['actor']->id, $fixture['ready']);
+    $state = Cache::get('nw02:status:'.$identifier);
+    $state['state'] = 'uncertain';
+    Cache::put('nw02:status:'.$identifier, $state, now()->addHour());
+
+    $fake = Mockery::mock(NodeSshInstaller::class);
+    $fake->shouldReceive('status')->once()
+        ->withArgs(static fn (...$args): bool => $args[5] === $identifier)
+        ->andReturn('unknown');
+    app()->instance(NodeSshInstaller::class, $fake);
+
+    expect(app(ManageNodeInstallation::class)->status($fixture['actor']->id, $identifier)['state'])->toBe('uncertain');
+    expect(fn () => app(ManageNodeInstallation::class)->context($fixture['actor']->id, $identifier))
+        ->toThrow(RuntimeException::class);
+});
+
+it('NW-02 keeps pre-deploy installation checkpoints compatible with unbound remote status', function (): void {
+    $fixture = nw02Fixture();
+    Queue::fake();
+    $manager = app(ManageNodeInstallation::class);
+    $identifier = $manager->enqueue($fixture['actor']->id, $fixture['ready']);
+    $state = Cache::get('nw02:status:'.$identifier);
+    unset($state['remoteStatusBound']);
+    $state['state'] = 'started';
+    Cache::put('nw02:status:'.$identifier, $state, now()->addHour());
+
+    $fake = Mockery::mock(NodeSshInstaller::class);
+    $fake->shouldReceive('status')->once()
+        ->withArgs(static fn (...$args): bool => $args[5] === null)
+        ->andReturn('running');
+    app()->instance(NodeSshInstaller::class, $fake);
+
+    expect(app(ManageNodeInstallation::class)->status($fixture['actor']->id, $identifier)['state'])->toBe('running');
+});
+
+it('NW-02 serializes remote bootstrap and binds remote status to the installation identifier', function (): void {
+    $source = file_get_contents(base_path('app/Modules/Provisioning/Infrastructure/NodeSetup/NodeSshInstaller.php'));
+    $manager = file_get_contents(base_path('app/Modules/Provisioning/Application/ManageNodeInstallation.php'));
+    $lockPosition = strpos($source, 'flock -n 9');
+    $markerPosition = strpos($source, 'test ! -e /opt/parsa-node-install/status');
+    $identifierWritePosition = strpos($source, '/opt/parsa-node-install/installation-id');
+    $identifierReadPosition = strpos($source, 'test \"$(cat /opt/parsa-node-install/installation-id)\"');
+
+    expect($source)->toContain('command -v flock')
+        ->toContain('/run/lock/parsa-node-bootstrap.lock');
+    expect($manager)->toContain("'remoteStatusBound' => true");
+    expect(is_int($lockPosition) && is_int($markerPosition) && $lockPosition < $markerPosition)->toBeTrue();
+    expect(is_int($identifierWritePosition) && is_int($identifierReadPosition))->toBeTrue();
 });
 
 it('NW-02 fixed remote installer parses as POSIX shell and has no dynamic command template', function (): void {

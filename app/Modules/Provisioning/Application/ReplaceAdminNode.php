@@ -63,6 +63,14 @@ final readonly class ReplaceAdminNode
             throw new RuntimeException('The new server IP is the same as the current server IP.');
         }
 
+        $nodeAddresses = $this->nodes->replacementAddresses($actorId);
+        $peerManagementAddresses = [];
+        foreach ($nodeAddresses as $peerNode) {
+            if ($peerNode['uuid'] !== $current['uuid']) {
+                $peerManagementAddresses[strtolower($peerNode['address'])] = true;
+            }
+        }
+
         $hostInventory = $this->hosts->replacementInventory($actorId);
         /** @var list<array<string,mixed>> $assignedHosts */
         $assignedHosts = [];
@@ -76,10 +84,13 @@ final readonly class ReplaceAdminNode
                 continue;
             }
 
-            // Legacy Hosts may have an empty nodes[] relation. Infer only when
-            // both profile and inbound positively match; contradictory evidence
-            // means the Host is unrelated, while missing evidence is ambiguous.
+            // Legacy Hosts may have an empty nodes[] relation. A Host whose exact
+            // address is another Node's management endpoint belongs to that peer,
+            // even when shared Profile/Inbound values make it look like a candidate.
             if ($host['nodes'] !== []) {
+                continue;
+            }
+            if (isset($peerManagementAddresses[strtolower($host['address'])])) {
                 continue;
             }
 
@@ -157,7 +168,7 @@ final readonly class ReplaceAdminNode
         // provider's nodes[] membership is incomplete. Never redirect it silently.
         $targetHostIds = array_fill_keys(array_column($assignedHosts, 'uuid'), true);
         $targetHostnames = array_fill_keys(array_map('strtolower', array_keys($hostnames)), true);
-        foreach ($this->nodes->replacementAddresses($actorId) as $peerNode) {
+        foreach ($nodeAddresses as $peerNode) {
             if ($peerNode['uuid'] === $current['uuid']) {
                 continue;
             }
