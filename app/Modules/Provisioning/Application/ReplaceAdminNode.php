@@ -372,6 +372,26 @@ final readonly class ReplaceAdminNode
             if (! $node['connected'] || $node['disabled'] || $node['address'] !== $expectedAddress) {
                 throw new RuntimeException('Node connection changed before client-test acceptance.');
             }
+
+            // The panel's connected flag can still reflect the old VPS. Before
+            // accepting the operator's real-client test, re-check every new
+            // endpoint and the complete Host inventory against the new IP.
+            $this->assertHostInventory($actorId, $state['hostInventory'] ?? null);
+            $this->assertDnsRecordsAtNewIp($actorId, $state['dnsRecords'] ?? null, $state['newIp'] ?? null);
+            foreach ($state['directHosts'] as $host) {
+                if (($host['stage'] ?? null) !== 'verified') {
+                    throw new RuntimeException('A direct Host transfer is not verified.');
+                }
+                $currentHost = $this->hosts->one($actorId, $host['uuid']);
+                $expectedHost = array_intersect_key($host, array_flip([
+                    'uuid', 'remark', 'address', 'port', 'disabled', 'profileUuid', 'inboundUuid',
+                ]));
+                $expectedHost['address'] = $state['newIp'];
+                if ($currentHost !== $expectedHost) {
+                    throw new RuntimeException('A direct Host no longer points to the replacement server.');
+                }
+            }
+
             $state['stage'] = 'completed';
             $state['clientTestAcceptedAt'] = now()->toIso8601String();
             $state['clientTestAcceptedBy'] = $actorId;
