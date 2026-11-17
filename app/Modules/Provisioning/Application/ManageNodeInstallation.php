@@ -20,6 +20,8 @@ use Throwable;
  */
 final readonly class ManageNodeInstallation
 {
+    private const HOST_RESERVATION_TTL_MINUTES = 5;
+
     public function __construct(
         private AssertCatalogManagementAccess $access,
         private RemnawaveApiClientFactory $factory,
@@ -126,7 +128,9 @@ final readonly class ManageNodeInstallation
 
         $identifier = bin2hex(random_bytes(16));
         $reservation = 'nw02:host:'.$ip;
-        if (! Cache::add($reservation, $identifier, now()->addHours(3))) {
+        // Short admission lease only; the detached remote installer independently
+        // rejects existing installation markers before writing to the VPS.
+        if (! Cache::add($reservation, $identifier, now()->addMinutes(self::HOST_RESERVATION_TTL_MINUTES))) {
             throw new RuntimeException('VPS installation already reserved.');
         }
         try {
