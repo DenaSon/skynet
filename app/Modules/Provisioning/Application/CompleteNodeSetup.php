@@ -528,6 +528,7 @@ final readonly class CompleteNodeSetup
                     'stage' => $stage,
                 ];
                 $displayHosts[] = [
+                    'uuid' => $host['uuid'],
                     'remark' => $host['remark'], 'address' => $host['address'],
                     'port' => $host['port'], 'kind' => 'ip',
                     'currentIp' => $host['address'], 'proxied' => null, 'stage' => $stage,
@@ -554,6 +555,7 @@ final readonly class CompleteNodeSetup
                 throw new RuntimeException('A shared Host DNS record changed during preview.');
             }
             $displayHosts[] = [
+                'uuid' => $host['uuid'],
                 'remark' => $host['remark'], 'address' => $host['address'],
                 'port' => $host['port'], 'kind' => 'dns',
                 'currentIp' => $record['content'], 'proxied' => $record['proxied'], 'stage' => $stage,
@@ -562,6 +564,7 @@ final readonly class CompleteNodeSetup
 
         return [
             'hosts' => $displayHosts,
+            'hostSnapshots' => $linkedHosts,
             'hostUpdates' => $hostUpdates,
             'dnsUpdates' => array_values($dnsUpdates),
         ];
