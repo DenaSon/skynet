@@ -146,7 +146,11 @@ final readonly class ManageAdminHosts
             || filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
             throw ValidationException::withMessages(['host' => 'Only a direct-IP Host can be moved by address.']);
         }
-        $this->validateIdentity($actorId, $expected['remark'], $address, $expected['port']);
+        // This is an address-only update: the existing remark is not being
+        // renamed, so do not apply the 40-character new-Host remark limit here.
+        if (! is_int($expected['port'] ?? null) || $expected['port'] < 1 || $expected['port'] > 65535) {
+            throw ValidationException::withMessages(['host' => 'Invalid Host port.']);
+        }
 
         Cache::lock('hosts:mutation', 60)->block(1, function () use ($actorId, $uuid, $expected, $address): void {
             $current = $this->one($actorId, $uuid);
