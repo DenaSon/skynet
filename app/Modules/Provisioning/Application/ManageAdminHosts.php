@@ -65,7 +65,6 @@ final readonly class ManageAdminHosts
         return $safe;
     }
 
-
     /**
      * Return only Hosts explicitly associated with the selected Node UUID.
      * Shared Hosts are returned with their complete node membership so the
@@ -118,12 +117,11 @@ final readonly class ManageAdminHosts
         return $assigned;
     }
 
-
     /**
      * Change only a direct-IP Host address while preserving its UUID and every
      * other provider field. Domain Hosts are moved through their A records.
      *
-     * @param array<string,mixed> $expected
+     * @param  array<string,mixed>  $expected
      */
     public function updateReplacementAddress(int $actorId, array $expected, string $address): void
     {

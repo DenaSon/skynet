@@ -328,7 +328,6 @@ final readonly class ManageNodeInstallation
         return false;
     }
 
-
     /** @return array<string,mixed>|null */
     public function replacementTarget(int $actorId, string $identifier): ?array
     {

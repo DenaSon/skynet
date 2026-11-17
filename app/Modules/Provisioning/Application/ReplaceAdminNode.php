@@ -6,7 +6,6 @@ namespace App\Modules\Provisioning\Application;
 
 use Illuminate\Support\Facades\Cache;
 use RuntimeException;
-use Throwable;
 
 /**
  * NW-05: replace the VPS behind an existing Remnawave Node.
@@ -76,6 +75,7 @@ final readonly class ReplaceAdminNode
                     throw new RuntimeException('A direct-IP Host does not match the current Node IP; manual review required.');
                 }
                 $directHosts[] = $host;
+
                 continue;
             }
             $hostnames[$host['address']] = true;
@@ -133,7 +133,7 @@ final readonly class ReplaceAdminNode
      * One confirmed, non-retryable transfer. Each external write is checkpointed
      * as uncertain before dispatch and verified with a fresh GET afterwards.
      *
-     * @param array<string,mixed> $expected
+     * @param  array<string,mixed>  $expected
      */
     public function apply(int $actorId, string $identifier, array $expected): void
     {
@@ -216,7 +216,9 @@ final readonly class ReplaceAdminNode
     public function progress(int $actorId, string $identifier): array
     {
         $stored = Cache::get($this->key($identifier));
-        if ($stored === null) return ['stage' => 'ready'];
+        if ($stored === null) {
+            return ['stage' => 'ready'];
+        }
         $state = $this->state($actorId, $identifier);
         $node = $this->nodes->replacementSnapshot($actorId, $state['node']['uuid']);
         $expectedAddress = $state['nodeAddressMode'] === 'ip' ? $state['newIp'] : $state['node']['address'];
@@ -247,7 +249,6 @@ final readonly class ReplaceAdminNode
             ], $state['directHosts']),
         ];
     }
-
 
     public function acceptClientTest(int $actorId, string $identifier): void
     {

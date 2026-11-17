@@ -48,7 +48,6 @@ final readonly class ManageAdminNodes
         return $safe;
     }
 
-
     /**
      * Read-only replacement snapshot. The complete active profile and inbound
      * set are captured so a replacement never silently narrows configuration.
@@ -102,7 +101,7 @@ final readonly class ManageAdminNodes
      * Update only a direct-IP Node address. Domain addresses are intentionally
      * preserved and moved through their Cloudflare A records instead.
      *
-     * @param array{uuid:string,name:string,address:string,port:int,connected:bool,disabled:bool,profileUuid:string,inboundUuids:list<string>} $expected
+     * @param  array{uuid:string,name:string,address:string,port:int,connected:bool,disabled:bool,profileUuid:string,inboundUuids:list<string>}  $expected
      * @return array{uuid:string,name:string,address:string,port:int,connected:bool,disabled:bool,profileUuid:string,inboundUuids:list<string>}
      */
     public function updateReplacementAddress(int $actorId, array $expected, string $address): array

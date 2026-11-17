@@ -59,22 +59,28 @@ final readonly class AdminNodeSetupUi
         $this->render($bot, "🖥️ راه‌اندازی سرور — گام ۱\n\n<b>نام سرور</b> را ارسال کنید.\nمثال: Germany-02", $this->cancelButton(false), true);
     }
 
-
     /** Begin an existing-Node replacement without creating or deleting a Node. */
     public function beginReplacement(Nutgram $bot, string $uuid): void
     {
         $id = $this->root($bot);
-        if ($id === null) return;
+        if ($id === null) {
+            return;
+        }
         if (! $this->enabled() || config('services.remnawave.node_ssh_install_enabled') !== true
             || config('services.remnawave.writes_enabled') !== true) {
             $this->render($bot, 'جایگزینی سرور فعلاً غیرفعال است.', $this->back());
+
             return;
         }
         try {
             $target = $this->nodes->replacementSnapshot($id, $uuid);
-            if ($target['disabled']) throw new \RuntimeException('Disabled Node cannot be replaced.');
+            if ($target['disabled']) {
+                throw new \RuntimeException('Disabled Node cannot be replaced.');
+            }
             $profile = collect($this->nodes->profiles($id))->firstWhere('uuid', $target['profileUuid']);
-            if (! is_array($profile)) throw new \RuntimeException('Current profile is unavailable.');
+            if (! is_array($profile)) {
+                throw new \RuntimeException('Current profile is unavailable.');
+            }
             $inbounds = $this->nodes->inbounds($id, $target['profileUuid']);
             $active = array_values(array_filter($inbounds,
                 static fn (array $inbound): bool => in_array($inbound['uuid'], $target['inboundUuids'], true)));
@@ -83,6 +89,7 @@ final readonly class AdminNodeSetupUi
             }
         } catch (Throwable) {
             $this->render($bot, 'مشخصات نود یا پروفایل‌های فعلی قابل بررسی نیستند. ابتدا وضعیت نود را بررسی کنید.', $this->back());
+
             return;
         }
         foreach (['node01:draft:', 'node02:draft:', 'node03:draft:', 'host01:draft:', 'host02:draft:', 'cfg02:draft:'] as $prefix) {
@@ -150,17 +157,20 @@ final readonly class AdminNodeSetupUi
                     $draft['stage'] = 'preview';
                     $this->save($id, $draft);
                     $this->previewPrompt($bot, $draft);
+
                     return true;
                 }
                 $draft['profiles'] = $this->nodes->profiles($id);
             } catch (Throwable) {
                 Cache::forget($this->key($id));
                 $this->render($bot, 'بررسی مشخصات نود یا دریافت پروفایل‌ها ممکن نشد.', $this->back());
+
                 return true;
             }
             $draft['stage'] = 'profile';
             $this->save($id, $draft);
             $this->choices($bot, '<b>پروفایل اتصال</b> را انتخاب کنید.', $draft['profiles'], 'nw1:profile:');
+
             return true;
         }
 
@@ -213,6 +223,7 @@ final readonly class AdminNodeSetupUi
                 $draft['stage'] = 'dns_choice';
                 $this->save($id, $draft);
                 $this->dnsChoicePrompt($bot);
+
                 return true;
             }
             $draft['stage'] = 'port';
@@ -749,6 +760,7 @@ final readonly class AdminNodeSetupUi
                     ->addRow(InlineKeyboardButton::make('➡️ ادامه جایگزینی سرور', callback_data: 'nw5:resume:'.$identifier, style: ButtonStyle::SUCCESS))
                     ->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی وضعیت نصب', callback_data: 'nw2:status:'.$identifier))
                     ->addRow(InlineKeyboardButton::make('◀️ مدیریت نودها', callback_data: 'node1:list:1')));
+
             return;
         }
         if ($status['state'] === 'running' && $this->installer->matchingConnectedNode($root, $identifier)) {
@@ -808,6 +820,7 @@ final readonly class AdminNodeSetupUi
         Cache::forget('nw03:confirm:'.$root);
         if ($this->installer->replacementTarget($root, $identifier) !== null) {
             $this->replacementOverview($bot, $identifier);
+
             return;
         }
         try {
@@ -860,17 +873,21 @@ final readonly class AdminNodeSetupUi
         }
     }
 
-
     public function replacementOverview(Nutgram $bot, string $identifier): void
     {
         $root = $this->root($bot);
-        if ($root === null) return;
+        if ($root === null) {
+            return;
+        }
         try {
             $target = $this->installer->replacementTarget($root, $identifier);
-            if ($target === null) throw new \RuntimeException('Not a replacement installation.');
+            if ($target === null) {
+                throw new \RuntimeException('Not a replacement installation.');
+            }
             $progress = $this->replacement->progress($root, $identifier);
             if ($progress['stage'] === 'ready') {
                 $this->prepareReplacement($bot, $identifier);
+
                 return;
             }
             $keyboard = InlineKeyboardMarkup::make();
@@ -932,18 +949,23 @@ final readonly class AdminNodeSetupUi
         if ($root === null) return;
         if (preg_match('/\A[a-f0-9]{32}\z/D', $token) !== 1) {
             $this->expired($bot);
+
             return;
         }
         $key = 'nw05:confirm:'.$root;
         try {
             $confirmation = Cache::lock($key.':lock', 15)->block(1, static function () use ($key, $token): mixed {
                 $data = Cache::get($key);
-                if (! is_array($data) || ! is_string($data['token'] ?? null) || ! hash_equals($data['token'], $token)) return null;
+                if (! is_array($data) || ! is_string($data['token'] ?? null) || ! hash_equals($data['token'], $token)) {
+                    return null;
+                }
                 Cache::forget($key);
+
                 return $data;
             });
             if (! is_array($confirmation) || ! is_string($confirmation['id'] ?? null) || ! is_array($confirmation['expected'] ?? null)) {
                 $this->expired($bot);
+
                 return;
             }
             $this->replacement->apply($root, $confirmation['id'], $confirmation['expected']);
@@ -952,7 +974,6 @@ final readonly class AdminNodeSetupUi
             $this->render($bot, 'نتیجه انتقال مشخص نیست. از گزینه بررسی وضعیت استفاده کنید و عملیات را دوباره تأیید نکنید.', $this->back());
         }
     }
-
 
     public function acceptReplacement(Nutgram $bot, string $identifier): void
     {
@@ -982,7 +1003,9 @@ final readonly class AdminNodeSetupUi
     private function sameReplacementSnapshot(array $expected, array $actual): bool
     {
         foreach (['uuid', 'name', 'address', 'port', 'disabled', 'profileUuid', 'inboundUuids'] as $field) {
-            if (($expected[$field] ?? null) !== ($actual[$field] ?? null)) return false;
+            if (($expected[$field] ?? null) !== ($actual[$field] ?? null)) {
+                return false;
+            }
         }
         return true;
     }

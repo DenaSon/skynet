@@ -233,7 +233,6 @@ final readonly class ManageCloudflareDns
             });
     }
 
-
     /**
      * Resolve one existing Host/Node hostname to its single editable A record.
      * The returned snapshot is safe to keep in an operator confirmation.
