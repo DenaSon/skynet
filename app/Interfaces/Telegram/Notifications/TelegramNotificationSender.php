@@ -745,7 +745,7 @@ final readonly class TelegramNotificationSender
                 'callback_data' => 'sales:subs:link:'.$orderId.':0',
             ]];
             $keyboard = json_encode(['inline_keyboard' => $rows], JSON_THROW_ON_ERROR);
-            $this->text($bot, $chat, $message, $keyboard, 'HTML', protectContent: false);
+            $this->text($bot, $chat, $message, $keyboard, 'HTML', protectContent: $url === null);
 
             return;
         }
