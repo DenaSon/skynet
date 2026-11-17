@@ -2,10 +2,14 @@
 
 declare(strict_types=1);
 
+use App\Interfaces\Telegram\Support\AdminNodeSetupUi;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
-use App\Interfaces\Telegram\Support\AdminNodeSetupUi;
 use App\Modules\Provisioning\Application\ReplaceAdminNode;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
@@ -13,10 +17,6 @@ use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
-use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\Client\Request;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Http;
 
 uses(RefreshDatabase::class);
 
@@ -334,7 +334,6 @@ it('never repeats an uncertain Cloudflare write and only reconciles with GET', f
     );
     expect($writes)->toHaveCount(1);
 });
-
 
 it('uses inbound and current-address evidence for legacy Hosts with empty Node membership', function (): void {
     $ready = nw05ReplacementReady();
