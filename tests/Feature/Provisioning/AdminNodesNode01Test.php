@@ -517,6 +517,49 @@ it('supports split inputs, real back navigation, and stage-bound defaults withou
 });
 
 
+it('invalidates sensitive SSH state and stale confirmations when navigating back', function (): void {
+    $actors = node01Actors();
+    node01FakeProvider();
+    config()->set('services.remnawave.node_ssh_setup_enabled', true);
+    $key = TelegramBotContext::current()->cacheKey('nw01:draft:'.$actors['root']->id);
+    $bot = node01Bot();
+
+    Cache::put($key, [
+        'stage' => 'profile', 'secret' => Crypt::encryptString('example-password'),
+        'profiles' => [['uuid' => NODE01_PROFILE, 'name' => 'Main']],
+    ], now()->addMinutes(10));
+    $bot->hearCallbackQueryData('nw1:step:back')->reply();
+    expect(Cache::get($key)['stage'])->toBe('password')
+        ->and(Cache::get($key)['secret'] ?? null)->toBeNull();
+
+    $old = str_repeat('a', 32);
+    Cache::put($key, [
+        'stage' => 'trust', 'token' => $old, 'name' => 'Test02',
+        'ip' => '194.5.192.133', 'port' => 22, 'username' => 'root',
+        'profile' => ['uuid' => NODE01_PROFILE, 'name' => 'Main'],
+        'inbound' => ['uuid' => NODE01_INBOUND, 'name' => 'VLESS'],
+        'host' => ['fingerprint' => 'old', 'knownHost' => 'old'],
+    ], now()->addMinutes(10));
+    $bot->hearCallbackQueryData('nw1:step:back')->reply();
+    expect(Cache::get($key)['stage'])->toBe('preview')
+        ->and(Cache::get($key)['host'] ?? null)->toBeNull()
+        ->and(Cache::get($key)['token'])->not->toBe($old);
+    $bot->hearCallbackQueryData('nw1:trust:'.$old)->reply();
+    expect(Cache::get($key)['stage'])->toBe('preview');
+    Http::assertNothingSent();
+});
+
+it('still accepts an active legacy combined name/IP draft during rollout', function (): void {
+    $actors = node01Actors();
+    node01FakeProvider();
+    config()->set('services.remnawave.node_ssh_setup_enabled', true);
+    $key = TelegramBotContext::current()->cacheKey('nw01:draft:'.$actors['root']->id);
+    Cache::put($key, ['stage' => 'identity'], now()->addMinutes(10));
+    node01Bot()->hearText('Legacy-Test | 194.5.192.133')->reply();
+    expect(Cache::get($key)['stage'])->toBe('port');
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
+});
+
 it('rejects duplicate ready Nodes by name or exact management endpoint before POST', function (): void {
     $actors = node01Actors();
     node01FakeProvider();
