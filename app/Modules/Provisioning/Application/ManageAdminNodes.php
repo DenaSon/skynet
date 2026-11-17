@@ -109,15 +109,14 @@ final readonly class ManageAdminNodes
     {
         $this->access->handle($actorId);
         $this->authorizeWrite($actorId);
-        if (filter_var($expected['address'] ?? null, FILTER_VALIDATE_IP) === false
-            || filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false
-            || ($expected['uuid'] ?? null) === null) {
+        if (filter_var($expected['address'], FILTER_VALIDATE_IP) === false
+            || filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
             throw ValidationException::withMessages(['node' => 'Only a direct-IP Node can change its address in this operation.']);
         }
         $this->validateIdentity($actorId, $expected['name'], $address);
 
         return Cache::lock('nodes:mutation', 60)->block(1, function () use ($actorId, $expected, $address): array {
-            $current = $this->replacementSnapshot($actorId, $expected['uuid']);
+            $current = $this->replacementSnapshot($actorId, self::uuid($expected['uuid']));
             if (self::replacementIdentity($current) !== self::replacementIdentity($expected)) {
                 throw ValidationException::withMessages(['node' => 'Node changed since replacement preview.']);
             }
@@ -128,7 +127,7 @@ final readonly class ManageAdminNodes
             }
 
             $this->authorizeWrite($actorId);
-            $response = (new RemnawaveNodesApi($this->factory->make()))->update($expected['uuid'], ['address' => $address]);
+            $response = (new RemnawaveNodesApi($this->factory->make()))->update(self::uuid($expected['uuid']), ['address' => $address]);
             if (! self::uuidValid($response['uuid'] ?? null)
                 || strtolower($response['uuid']) !== strtolower($expected['uuid'])) {
                 throw new UnexpectedValueException('Node address update identity could not be verified.');
