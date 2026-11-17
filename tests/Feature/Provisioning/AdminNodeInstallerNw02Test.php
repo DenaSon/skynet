@@ -10,6 +10,7 @@ use App\Modules\Provisioning\Infrastructure\NodeSetup\NodeSshInstaller;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
@@ -75,6 +76,29 @@ it('NW-02 defaults off, queues opaque identifier only, and reserves a VPS once',
     expect(fn () => $manager->enqueue($fixture['actor']->id, $fixture['ready']))->toThrow(RuntimeException::class);
     expect(fn () => $manager->status($fixture['other']->id, $identifier))->toThrow(AuthorizationException::class);
     Http::assertNothingSent();
+});
+
+it('NW-02 expires only the per-IP admission reservation after five minutes', function (): void {
+    $fixture = nw02Fixture();
+    Queue::fake();
+
+    $identifier = app(ManageNodeInstallation::class)->enqueue($fixture['actor']->id, $fixture['ready']);
+    $reservation = 'nw02:host:'.$fixture['ready']['ip'];
+    $now = Carbon::now();
+
+    expect(Cache::get($reservation))->toBe($identifier);
+
+    Carbon::setTestNow($now->copy()->addMinutes(4)->addSeconds(59));
+    try {
+        expect(Cache::get($reservation))->toBe($identifier);
+
+        Carbon::setTestNow($now->copy()->addMinutes(5)->addSecond());
+        expect(Cache::get($reservation))->toBeNull()
+            ->and(Cache::get('nw02:status:'.$identifier)['state'])->toBe('queued')
+            ->and(Cache::get('nw02:last:'.$fixture['actor']->id))->toBe($identifier);
+    } finally {
+        Carbon::setTestNow();
+    }
 });
 
 it('NW-02 persists only a validated selected Cloudflare A-record snapshot', function (): void {
