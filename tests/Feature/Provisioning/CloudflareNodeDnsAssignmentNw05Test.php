@@ -228,14 +228,3 @@ it('CF-03 verifies an already matching selected A record without an unnecessary 
     expect(Cache::get('nw02:status:'.CF03_INSTALL_ID)['dnsStage'])->toBe('verified')
         ->and($fixture['state']->patches)->toBe(0);
 });
-it('CF-03 verifies an already matching selected A record without an unnecessary PATCH', function (): void {
-    $fixture = cf03NodeSetup(recordIp: '194.5.192.133');
-    $fixture['expected'] = cf03SelectedA('194.5.192.133');
-    $cached = Cache::get('nw02:status:'.CF03_INSTALL_ID);
-    $cached['dnsRecordExpected'] = $fixture['expected'];
-    Cache::put('nw02:status:'.CF03_INSTALL_ID, $cached, now()->addHours(3));
-
-    app(CompleteNodeSetup::class)->ensureDns($fixture['actor']->id, CF03_INSTALL_ID);
-    expect(Cache::get('nw02:status:'.CF03_INSTALL_ID)['dnsStage'])->toBe('verified')
-        ->and($fixture['state']->patches)->toBe(0);
-});
