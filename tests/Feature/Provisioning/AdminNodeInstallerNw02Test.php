@@ -160,7 +160,8 @@ it('NW-02 launches once using GET keygen and never performs Provider POST', func
     $fake = Mockery::mock(NodeSshInstaller::class);
     $fake->shouldReceive('start')->once()->withArgs(static fn (...$args): bool => $args[0] === '194.5.192.133'
         && $args[3] === 'not-a-real-password'
-        && $args[5] === str_repeat('A', 64));
+        && $args[5] === str_repeat('A', 64)
+        && $args[6] === $identifier);
     app()->instance(NodeSshInstaller::class, $fake);
     $manager = app(ManageNodeInstallation::class);
 
@@ -208,14 +209,17 @@ it('NW-02 status rechecks root identity and destroys credentials when Node runs'
     expect(fn () => $manager->status($fixture['actor']->id, $identifier))->toThrow(AuthorizationException::class);
 });
 
-it('NW-02 serializes remote bootstrap before checking and creating installation markers', function (): void {
+it('NW-02 serializes remote bootstrap and binds remote status to the installation identifier', function (): void {
     $source = file_get_contents(base_path('app/Modules/Provisioning/Infrastructure/NodeSetup/NodeSshInstaller.php'));
     $lockPosition = strpos($source, 'flock -n 9');
     $markerPosition = strpos($source, 'test ! -e /opt/parsa-node-install/status');
+    $identifierWritePosition = strpos($source, '/opt/parsa-node-install/installation-id');
+    $identifierReadPosition = strpos($source, 'test \"$(cat /opt/parsa-node-install/installation-id)\"');
 
     expect($source)->toContain('command -v flock')
         ->toContain('/run/lock/parsa-node-bootstrap.lock');
     expect(is_int($lockPosition) && is_int($markerPosition) && $lockPosition < $markerPosition)->toBeTrue();
+    expect(is_int($identifierWritePosition) && is_int($identifierReadPosition))->toBeTrue();
 });
 
 it('NW-02 fixed remote installer parses as POSIX shell and has no dynamic command template', function (): void {
