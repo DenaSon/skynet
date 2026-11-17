@@ -178,9 +178,9 @@ final class MenuRenderer
             $keyboard->addRow(InlineKeyboardButton::make('🛠️ افزودن سرور', callback_data: 'nw1:begin', style: ButtonStyle::SUCCESS));
         }
         $keyboard->addRow(
-                InlineKeyboardButton::make('📦 کاتالوگ', callback_data: 'menu:admin:sales'),
-                InlineKeyboardButton::make('🖥️ سرورها', callback_data: 'menu:admin:servers'),
-            )
+            InlineKeyboardButton::make('📦 کاتالوگ', callback_data: 'menu:admin:sales'),
+            InlineKeyboardButton::make('🖥️ سرورها', callback_data: 'menu:admin:servers'),
+        )
             ->addRow(
                 InlineKeyboardButton::make('💾 پشتیبان‌گیری', callback_data: 'admin:rwbackup:list:1'),
                 InlineKeyboardButton::make('🔐 نقش‌ها و دسترسی‌ها', callback_data: 'menu:admin:roles'),
