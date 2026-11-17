@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Cache;
 use RuntimeException;
 
 /**
- * NW-03: small coordinator over existing NODE-01 and HOST-01 Actions.
+ * NW-03/NW-06: coordinator over existing Node, Host and DNS Actions.
  * No new Remnawave client, privileged bypass, automatic retry or host enable.
  */
 final readonly class CompleteNodeSetup
