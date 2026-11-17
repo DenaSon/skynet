@@ -41,6 +41,32 @@ final readonly class ManageNodeInstallation
             || ! is_string($ready['host']['knownHost'] ?? null)) {
             throw new RuntimeException('Invalid verified root SSH session.');
         }
+        $replacement = $ready['replacement'] ?? null;
+        if ($replacement !== null) {
+            $uuid = is_array($replacement) ? ($replacement['uuid'] ?? null) : null;
+            $oldAddress = is_array($replacement) ? ($replacement['address'] ?? null) : null;
+            $replacementName = is_array($replacement) ? ($replacement['name'] ?? null) : null;
+            $profileUuid = is_array($replacement) ? ($replacement['profileUuid'] ?? null) : null;
+            $inbounds = is_array($replacement) ? ($replacement['inboundUuids'] ?? null) : null;
+            if (! is_string($uuid) || preg_match('/\\A[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\\z/D', $uuid) !== 1
+                || ! is_string($oldAddress) || ! is_string($replacementName)
+                || $replacementName !== ($ready['name'] ?? null)
+                || ! is_string($profileUuid) || preg_match('/\\A[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\\z/D', $profileUuid) !== 1
+                || ! is_array($inbounds) || ! array_is_list($inbounds) || $inbounds === [] || count($inbounds) > 30
+                || filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false
+                || $ip === $oldAddress) {
+                throw new RuntimeException('Invalid existing Node replacement target.');
+            }
+            foreach ($inbounds as $inboundUuid) {
+                if (! is_string($inboundUuid) || preg_match('/\\A[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\\z/D', $inboundUuid) !== 1) {
+                    throw new RuntimeException('Invalid existing Node inbound snapshot.');
+                }
+            }
+        } elseif (! is_array($ready['profile'] ?? null) || ! is_string($ready['profile']['uuid'] ?? null)
+            || ! is_array($ready['inbound'] ?? null) || ! is_string($ready['inbound']['uuid'] ?? null)) {
+            throw new RuntimeException('Node profile selection is required.');
+        }
+
         $dnsMetadata = [];
         $dnsKeys = ['dnsName', 'dnsZone', 'dnsZoneId'];
         $hasDnsMetadata = count(array_filter(
@@ -113,15 +139,22 @@ final readonly class ManageNodeInstallation
                 'knownHost' => $ready['host']['knownHost'],
             ];
             Cache::put('nw02:access:'.$identifier, Crypt::encryptString(json_encode($access, JSON_THROW_ON_ERROR)), now()->addHours(2));
-            Cache::put('nw02:status:'.$identifier, [
+            $status = [
                 'owner' => $actorId,
                 'ip' => $ip,
                 'name' => $ready['name'],
-                'profileUuid' => $ready['profile']['uuid'],
-                'inboundUuid' => $ready['inbound']['uuid'],
                 'state' => 'queued',
                 ...$dnsMetadata,
-            ], now()->addHours(3));
+            ];
+            if (is_array($replacement)) {
+                $status['replacement'] = $replacement;
+                $status['profileUuid'] = $replacement['profileUuid'];
+                $status['inboundUuid'] = $replacement['inboundUuids'][0];
+            } else {
+                $status['profileUuid'] = $ready['profile']['uuid'];
+                $status['inboundUuid'] = $ready['inbound']['uuid'];
+            }
+            Cache::put('nw02:status:'.$identifier, $status, now()->addHours(3));
             InstallRemnawaveNode::dispatch($identifier);
             // Non-secret pointer for returning to the latest setup from Node management.
             Cache::put('nw02:last:'.$actorId, $identifier, now()->addHours(3));
@@ -271,6 +304,7 @@ final readonly class ManageNodeInstallation
     private function matchesConnectedReadyNode(array $state): bool
     {
         if (($state['state'] ?? null) !== 'running'
+            || isset($state['replacement'])
             || isset($state['nodeStage'])
             || ! is_string($state['name'] ?? null)
             || ! is_string($state['ip'] ?? null)) {
@@ -292,6 +326,20 @@ final readonly class ManageNodeInstallation
         }
 
         return false;
+    }
+
+    /** @return array<string,mixed>|null */
+    public function replacementTarget(int $actorId, string $identifier): ?array
+    {
+        $this->access->handle($actorId);
+        $state = $this->meta($identifier);
+        if ($state['owner'] !== $actorId) {
+            throw new RuntimeException('Installation belongs to another operator.');
+        }
+
+        $target = $state['replacement'] ?? null;
+
+        return is_array($target) ? $target : null;
     }
 
     /**

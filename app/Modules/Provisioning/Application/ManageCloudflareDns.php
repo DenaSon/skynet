@@ -233,6 +233,49 @@ final readonly class ManageCloudflareDns
             });
     }
 
+    /**
+     * Resolve one existing Host/Node hostname to its single editable A record.
+     * The returned snapshot is safe to keep in an operator confirmation.
+     *
+     * @return array{zoneId:string,zone:string,record:array<string,mixed>}
+     */
+    public function replacementRecord(int $actorId, string $hostname): array
+    {
+        $this->access->handle($actorId);
+        $hostname = strtolower(trim($hostname));
+        if ($hostname === '' || strlen($hostname) > 253
+            || filter_var($hostname, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) === false) {
+            throw new RuntimeException('Invalid Node or Host hostname.');
+        }
+
+        $zones = array_values(array_filter(
+            $this->allowedZones(),
+            static fn (string $zone): bool => $hostname !== $zone && str_ends_with($hostname, '.'.$zone),
+        ));
+        usort($zones, static fn (string $a, string $b): int => strlen($b) <=> strlen($a));
+        $zone = $zones[0] ?? null;
+        if (! is_string($zone)) {
+            throw new RuntimeException('A Node or Host hostname is outside the Cloudflare allowlist.');
+        }
+        $remoteZones = $this->api->zonesByName($zone);
+        if (count($remoteZones) !== 1 || ($remoteZones[0]['name'] ?? null) !== $zone
+            || ! self::zoneId($remoteZones[0]['id'] ?? null)) {
+            throw new RuntimeException('Cloudflare zone identity is ambiguous.');
+        }
+        $zoneId = $remoteZones[0]['id'];
+        $records = $this->api->records($zoneId, $hostname);
+        if (count($records) !== 1 || ($records[0]['name'] ?? null) !== $hostname
+            || ($records[0]['type'] ?? null) !== 'A') {
+            throw new RuntimeException('Hostname must have exactly one A record and no competing DNS records.');
+        }
+        $record = $this->safeRecord($zone, $records[0]);
+        if ($record['editable'] !== true || ! is_bool($record['proxied'])) {
+            throw new RuntimeException('Node/Host A record is not eligible for managed replacement.');
+        }
+
+        return ['zoneId' => $zoneId, 'zone' => $zone, 'record' => $record];
+    }
+
     public function validatePublicIp(int $actorId, string $ip): string
     {
         $this->access->handle($actorId);
