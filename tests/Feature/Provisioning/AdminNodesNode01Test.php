@@ -516,7 +516,6 @@ it('supports split inputs, real back navigation, and stage-bound defaults withou
     expect(collect(Http::recorded())->filter(static fn (array $pair): bool => $pair[0]->method() !== 'GET'))->toBeEmpty();
 });
 
-
 it('invalidates sensitive SSH state and stale confirmations when navigating back', function (): void {
     $actors = node01Actors();
     node01FakeProvider();
