@@ -96,6 +96,54 @@ final readonly class ManageAdminNodeOperations
         });
     }
 
+    /**
+     * Change only the address of an existing Node. UUID, management port,
+     * Config Profile and every active inbound must remain unchanged.
+     *
+     * @param array{uuid:string,name:string,address:string,port:int,connected:bool,disabled:bool,profileUuid:string,inboundUuids:list<string>} $expected
+     */
+    public function replaceAddress(int $actorId, array $expected, string $address): void
+    {
+        if (! is_string($expected['uuid'] ?? null)
+            || ! is_string($expected['name'] ?? null)
+            || ! is_string($expected['address'] ?? null)
+            || ($expected['port'] ?? null) !== 2222
+            || ($expected['connected'] ?? null) !== true
+            || ($expected['disabled'] ?? null) !== false
+            || ! is_string($expected['profileUuid'] ?? null)
+            || ! is_array($expected['inboundUuids'] ?? null)
+            || $expected['inboundUuids'] === []) {
+            throw ValidationException::withMessages(['node' => 'The current Node is not eligible for replacement.']);
+        }
+
+        $this->authorizeWrite($actorId);
+        $this->nodes->validateReplacementAddress($actorId, $expected['uuid'], $address, $expected['port']);
+
+        Cache::lock('nodes:mutation', 60)->block(1, function () use ($actorId, $expected, $address): void {
+            $actual = $this->nodes->replacementSnapshot($actorId, $expected['uuid']);
+            if ($actual !== $expected || ! $actual['connected'] || $actual['disabled']) {
+                throw ValidationException::withMessages(['node' => 'Node changed since replacement confirmation.']);
+            }
+
+            $this->authorizeWrite($actorId);
+            $api = new RemnawaveNodesApi($this->factory->make());
+            $response = $api->update($actual['uuid'], ['address' => $address]);
+            $this->assertIdentity($response, $actual['uuid']);
+
+            $updated = $this->nodes->replacementSnapshot($actorId, $actual['uuid']);
+            if ($updated['uuid'] !== $actual['uuid']
+                || $updated['name'] !== $actual['name']
+                || $updated['address'] !== $address
+                || $updated['port'] !== $actual['port']
+                || $updated['profileUuid'] !== $actual['profileUuid']
+                || $updated['inboundUuids'] !== $actual['inboundUuids']) {
+                throw new UnexpectedValueException('Node address update could not be verified without configuration drift.');
+            }
+
+            Log::info('node05.replacement_address_updated', ['actor_id' => $actorId]);
+        });
+    }
+
     private function authorizeWrite(int $actorId): void
     {
         $this->access->handle($actorId);
