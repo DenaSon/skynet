@@ -19,6 +19,17 @@ Request shapes follow the pinned OpenAPI contract, including mandatory \`forceRe
 
 No HTTP/Telegram mutating endpoints or admin buttons are wired. Before enabling those, add an authorized Provisioning Application action, trusted Super Admin checks, one-use operator confirmation, audit, rate limiting, and after-timeout reconciliation. Do not implicitly retry any mutation; a response indicating HTTP 202 is only acknowledgement, not confirmation of a node restart.
 
+
+## NW-05 — existing Node server replacement
+
+The Telegram replacement flow reuses the NW-01/NW-02 SSH installer but does **not** call Node create or delete for an existing Node. It snapshots the existing Node UUID, management address/port, Config Profile and complete active Inbound UUID set before install.
+
+Production Node address values are currently FQDNs. For those Nodes, preserve address and move the Node management hostname's existing DNS A record to the new VPS IP. A direct-IP Node is the only case where the address field is patched, with a strict before/after identity comparison. The flow is fixed to management port 2222 because the existing installer sets NODE_PORT=2222.
+
+Host membership is derived only from the provider's Host.nodes UUID list. A shared Host blocks the transfer. All unique domain Host addresses are included alongside the Node management hostname; duplicate Host entries on multiple ports map to one DNS record. Require exactly one editable A record per hostname, in an allowlisted Cloudflare zone, pointing to the same old IP. Preserve each Host's settings and each DNS record's Proxy flag; Node management DNS must remain DNS Only.
+
+Writes are sequential and individually checkpointed as uncertain before dispatch. An ambiguous outcome is reconciled with GET only; never blindly retry. Keep the old VPS available until the same Node UUID is connected through the new server and real client traffic is verified. The implementation's HTTP-fake tests do not establish live provider behavior.
+
 ## Node metrics, read-only
 
 \`RemnawaveNodeTelemetry\` reads:

@@ -67,7 +67,7 @@ function nw05ReplacementReady(): array
 }
 
 /** @return object{node:array<string,mixed>,records:array<string,array<string,mixed>>} */
-function nw05ReplacementApi(bool $sharedHost = false, bool $mismatchedDns = false, bool $failDnsWrite = false): array
+function nw05ReplacementApi(bool $sharedHost = false, bool $mismatchedDns = false, bool $failDnsWrite = false): object
 {
     $node = [
         'uuid' => NW05_NODE,
