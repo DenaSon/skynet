@@ -886,9 +886,13 @@ final readonly class AdminNodeSetupUi
                 .'</table>';
 
             if ($progress['nodeStage'] === 'ready') {
-                $rich .= '<p>سرور جدید نصب و آماده است. نود فعلی هنوز تغییر نکرده است.</p>'
-                    .'<p>پیش از تغییر IP، ارتباط تمام Hostها و رکوردهای DNS بررسی شده است.</p>'
-                    .'<p><b>Hostهای مرتبط:</b> '.(string) ($progress['hosts'] ?? 0).'</p>';
+                $rich .= '<p>سرور جدید نصب و آماده است. نود فعلی هنوز تغییر نکرده است.</p>';
+                if ($progress['hasPlan']) {
+                    $rich .= '<p>بررسی اولیه Hostها و رکوردهای DNS انجام شده است.</p>'
+                        .'<p><b>Hostهای مرتبط:</b> '.(string) ($progress['hosts'] ?? 0).'</p>';
+                } else {
+                    $rich .= '<p>پیش از تغییر IP، تمام Hostها و رکوردهای DNS بررسی می‌شوند. تا آن زمان هیچ تغییری روی نود فعلی انجام نمی‌شود.</p>';
+                }
                 $keyboard->addRow(InlineKeyboardButton::make('✅ تأیید تغییر IP نود', callback_data: 'nwr:node:prepare:'.$identifier, style: ButtonStyle::PRIMARY));
             } elseif ($progress['nodeStage'] === 'uncertain') {
                 $rich .= '<p>⚠️ نتیجه تغییر IP نود قطعی نیست. فقط وضعیت فعلی خوانده می‌شود و هیچ درخواست تکراری ارسال نخواهد شد.</p>';
