@@ -321,9 +321,22 @@ final readonly class ManageNodeInstallation
     {
         $state = $this->context($actorId, $identifier);
         foreach ($changes as $key => $value) {
-            if (! in_array($key, ['nodeStage', 'nodeUuid', 'hostStage', 'hostUuid', 'dnsStage'], true)
+            if (! in_array($key, ['nodeStage', 'nodeUuid', 'hostStage', 'hostUuid', 'dnsStage', 'dnsRecordExpected'], true)
                 || ($key === 'dnsStage' && ! in_array($value, ['uncertain', 'verified'], true))) {
                 throw new RuntimeException('Unsupported setup checkpoint field.');
+            }
+            if ($key === 'dnsRecordExpected') {
+                $record = $value;
+                if (! is_array($record) || ($record['id'] ?? null) !== ($state['dnsRecordExpected']['id'] ?? null)
+                    || ($record['name'] ?? null) !== ($state['dnsName'] ?? null)
+                    || ($record['type'] ?? null) !== 'A'
+                    || ! is_string($record['content'] ?? null)
+                    || filter_var($record['content'], FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false
+                    || ! is_bool($record['proxied'] ?? null) || ! is_bool($record['proxiable'] ?? null)
+                    || ($record['editable'] ?? null) !== true
+                    || (($record['modified'] ?? null) !== null && ! is_string($record['modified']))) {
+                    throw new RuntimeException('Invalid DNS record checkpoint.');
+                }
             }
             $state[$key] = $value;
         }

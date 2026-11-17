@@ -83,7 +83,7 @@ final readonly class CompleteNodeSetup
         return $node;
     }
 
-    /** @return array{name:string,ip:string,state:string,mode:string,previousIp:string|null,proxied:bool} */
+    /** @return array{name:string,ip:string,state:string,mode:string,previousIp:string|null,proxied:bool,record:array<string,mixed>|null} */
     public function previewDns(int $actorId, string $id): array
     {
         $this->writes();
@@ -93,17 +93,17 @@ final readonly class CompleteNodeSetup
         }
         $this->connectedNode($actorId, $id);
 
-        $expected = $state['dnsRecordExpected'] ?? null;
-        if (is_array($expected)) {
-            $recordId = $expected['id'] ?? null;
+        $selected = $state['dnsRecordExpected'] ?? null;
+        if (is_array($selected)) {
+            $recordId = $selected['id'] ?? null;
             if (! is_string($recordId)) {
                 throw new RuntimeException('Selected DNS record is invalid.');
             }
             $record = $this->dns->oneUniqueA(
                 $actorId, $state['dnsZoneId'], $state['dnsZone'], $recordId,
             );
-            if ($record !== $expected || $record['name'] !== $state['dnsName']) {
-                throw new RuntimeException('Selected DNS record changed; select it again.');
+            if ($record['id'] !== $recordId || $record['name'] !== $state['dnsName']) {
+                throw new RuntimeException('Selected DNS record identity changed.');
             }
 
             return [
@@ -113,6 +113,7 @@ final readonly class CompleteNodeSetup
                 'mode' => 'update',
                 'previousIp' => $record['content'],
                 'proxied' => $record['proxied'],
+                'record' => $record,
             ];
         }
 
@@ -125,38 +126,54 @@ final readonly class CompleteNodeSetup
             'mode' => 'create',
             'previousIp' => null,
             'proxied' => false,
+            'record' => null,
         ];
     }
 
-    public function ensureDns(int $actorId, string $id): void
+    public function ensureDns(int $actorId, string $id, ?array $expectedRecord = null): void
     {
         $this->writes();
 
-        Cache::lock('nw03:flow:'.$id, 90)->block(1, function () use ($actorId, $id): void {
+        Cache::lock('nw03:flow:'.$id, 90)->block(1, function () use ($actorId, $id, $expectedRecord): void {
             $state = $this->installations->context($actorId, $id);
             if (! is_string($state['dnsName'] ?? null) || ($state['dnsStage'] ?? null) !== null) {
                 throw new RuntimeException('DNS setup already attempted or not selected.');
             }
             $this->connectedNode($actorId, $id);
 
-            $expected = $state['dnsRecordExpected'] ?? null;
-            if (is_array($expected)) {
-                $recordId = $expected['id'] ?? null;
-                $proxied = $expected['proxied'] ?? null;
-                if (! is_string($recordId) || ! is_bool($proxied)) {
-                    throw new RuntimeException('Selected DNS record is invalid.');
+            $selected = $state['dnsRecordExpected'] ?? null;
+            if (is_array($selected)) {
+                $recordId = $selected['id'] ?? null;
+                $proxied = $expectedRecord['proxied'] ?? null;
+                if (! is_string($recordId) || ! is_array($expectedRecord)
+                    || ($expectedRecord['id'] ?? null) !== $recordId
+                    || ($expectedRecord['name'] ?? null) !== $state['dnsName']
+                    || ! is_bool($proxied)) {
+                    throw new RuntimeException('Selected DNS confirmation is invalid.');
                 }
+                $current = $this->dns->oneUniqueA(
+                    $actorId, $state['dnsZoneId'], $state['dnsZone'], $recordId,
+                );
+                if ($current !== $expectedRecord) {
+                    throw new RuntimeException('DNS record changed after confirmation; review it again.');
+                }
+                $this->installations->checkpoint($actorId, $id, [
+                    'dnsRecordExpected' => $expectedRecord,
+                ]);
                 $this->dns->changeA(
                     $actorId,
                     $state['dnsZoneId'],
                     $state['dnsZone'],
-                    $expected,
+                    $expectedRecord,
                     $state['ip'],
                     $proxied,
                     fn () => $this->installations->checkpoint($actorId, $id, ['dnsStage' => 'uncertain']),
                     requireUniqueHostname: true,
                 );
             } else {
+                if ($expectedRecord !== null) {
+                    throw new RuntimeException('Unexpected DNS record confirmation.');
+                }
                 $this->dns->ensureA(
                     $actorId, $state['dnsZoneId'], $state['dnsZone'], $state['dnsName'], $state['ip'],
                     fn () => $this->installations->checkpoint($actorId, $id, ['dnsStage' => 'uncertain']),
