@@ -51,8 +51,8 @@ final readonly class AdminNodeSetupUi
         Cache::forget('nw02:ready:'.$id);
         Cache::forget('nw03:hostDraft:'.$id);
         Cache::forget('nw03:confirm:'.$id);
-        $this->save($id, ['stage' => 'identity']);
-        $this->render($bot, "🖥️ راه‌اندازی سرور\n\nنام دلخواه و IP عمومی سرور را با | جدا کنید:\nGermany-02 | IP عمومی VPS", $this->cancelButton());
+        $this->save($id, ['stage' => 'name']);
+        $this->render($bot, "🖥️ راه‌اندازی سرور — گام ۱\n\n<b>نام سرور</b> را ارسال کنید.\nمثال: Germany-02", $this->cancelButton(false), true);
     }
 
     public function text(Nutgram $bot, string $value): bool
@@ -69,7 +69,7 @@ final readonly class AdminNodeSetupUi
         }
         $draft = $this->draft($id);
         $stage = $draft['stage'] ?? null;
-        if (! in_array($stage, ['identity', 'dns_name', 'port', 'username', 'password'], true)) {
+        if (! in_array($stage, ['name', 'ip', 'identity', 'dns_name', 'port', 'username', 'password'], true)) {
             return false;
         }
 
@@ -106,12 +106,31 @@ final readonly class AdminNodeSetupUi
             }
             $draft['stage'] = 'profile';
             $this->save($id, $draft);
-            $this->choices($bot, 'پروفایل اتصال را انتخاب کنید.', $draft['profiles'], 'nw1:profile:');
+            $this->choices($bot, '<b>پروفایل اتصال</b> را انتخاب کنید.', $draft['profiles'], 'nw1:profile:');
 
             return true;
         }
 
-        if ($stage === 'identity') {
+        if ($stage === 'name') {
+            $name = trim($value);
+            if ($name === '' || mb_strlen($name) > 64 || preg_match('/[\x00-\x1F\x7F]/u', $name) !== 0) {
+                $this->render($bot, 'نام سرور معتبر نیست. یک نام کوتاه ارسال کنید.', $this->cancelButton(false));
+
+                return true;
+            }
+            $draft['name'] = $name;
+            $draft['stage'] = 'ip';
+            $this->save($id, $draft);
+            $this->ipPrompt($bot);
+
+            return true;
+        }
+
+        // Keep residual pre-deployment "name | IP" drafts compatible.
+        if ($stage === 'ip') {
+            $value = $draft['name'].' | '.$value;
+        }
+        if ($stage === 'identity' || $stage === 'ip') {
             $parts = explode('|', $value);
             if (count($parts) !== 2 || strlen($value) > 330) {
                 $this->render($bot, 'نام و IP را با علامت | جدا کنید.', $this->cancelButton());
@@ -147,7 +166,7 @@ final readonly class AdminNodeSetupUi
                 return true;
             }
             $draft['stage'] = 'port';
-            $next = "🖥️ اتصال به سرور\n\nپورت SSH را وارد کنید (معمولاً 22).";
+            $next = "🖥️ اتصال به سرور\n\n<b>پورت SSH</b> را ارسال کنید (معمولاً 22).";
         } elseif ($stage === 'dns_name') {
             try {
                 $draft['dnsName'] = $this->dns->hostname($id, $draft['dnsZone'], $value);
@@ -158,29 +177,33 @@ final readonly class AdminNodeSetupUi
             }
             unset($draft['dnsZones']);
             $draft['stage'] = 'port';
-            $next = "🖥️ اتصال به سرور\n\nپورت SSH را وارد کنید (معمولاً 22).";
+            $next = "🖥️ اتصال به سرور\n\n<b>پورت SSH</b> را ارسال کنید (معمولاً 22).";
         } elseif ($stage === 'port') {
             $port = ctype_digit($value) && strlen($value) <= 5 ? (int) $value : 0;
             if ($port < 1 || $port > 65535) {
-                $this->render($bot, 'پورت باید بین ۱ تا ۶۵۵۳۵ باشد.', $this->cancelButton());
+                $this->render($bot, 'پورت باید بین ۱ تا ۶۵۵۳۵ باشد.', $this->portButtons());
 
                 return true;
             }
             $draft['port'] = $port;
             $draft['stage'] = 'username';
-            $next = "🖥️ اتصال به سرور\n\nنام کاربری SSH را وارد کنید (برای نصب خودکار: root).";
+            $next = "🖥️ اتصال به سرور\n\n<b>نام کاربری SSH</b> را ارسال کنید (برای نصب خودکار: root).";
         } else {
             if (preg_match('/\A[a-z_][a-z0-9_-]{0,31}\z/iD', $value) !== 1) {
-                $this->render($bot, 'نام کاربری معتبر نیست.', $this->cancelButton());
+                $this->render($bot, 'نام کاربری معتبر نیست.', $this->usernameButtons());
 
                 return true;
             }
             $draft['username'] = $value;
             $draft['stage'] = 'password';
-            $next = "🔐 رمز سرور\n\nرمز SSH را فقط در همین گفتگوی خصوصی بفرستید. پیام پس از دریافت حذف می‌شود؛ بعد از راه‌اندازی رمز را تغییر دهید.";
+            $next = "🔐 رمز سرور\n\n<b>رمز SSH</b> را فقط در همین گفتگوی خصوصی بفرستید. پیام پس از دریافت حذف می‌شود؛ بعد از راه‌اندازی رمز را تغییر دهید.";
         }
         $this->save($id, $draft);
-        $this->render($bot, $next, $this->cancelButton());
+        $this->render($bot, $next, match ($draft['stage']) {
+            'port' => $this->portButtons(),
+            'username' => $this->usernameButtons(),
+            default => $this->cancelButton(),
+        }, true);
 
         return true;
     }
@@ -290,7 +313,7 @@ final readonly class AdminNodeSetupUi
         $draft['profile'] = $profile;
         $draft['stage'] = 'inbound';
         $this->save($id, $draft);
-        $this->choices($bot, 'ورودی اتصال را انتخاب کنید.', $draft['inbounds'], 'nw1:inbound:');
+        $this->choices($bot, '<b>ورودی اتصال</b> را انتخاب کنید.', $draft['inbounds'], 'nw1:inbound:');
     }
 
     public function inbound(Nutgram $bot, string $index): void
@@ -869,9 +892,35 @@ final readonly class AdminNodeSetupUi
         return TelegramBotContext::current()->cacheKey('nw01:draft:'.$id);
     }
 
-    private function cancelButton(): InlineKeyboardMarkup
+    private function ipPrompt(Nutgram $bot): void
     {
-        return InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'nw1:cancel'));
+        $this->render($bot, "🖥️ راه‌اندازی سرور — گام ۲\n\n<b>IP عمومی سرور</b> را ارسال کنید.\nمثال: 194.5.192.133", $this->cancelButton(), true);
+    }
+
+    private function portButtons(): InlineKeyboardMarkup
+    {
+        return InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('۲۲ · پورت پیش‌فرض', callback_data: 'nw1:default:port', style: ButtonStyle::PRIMARY))
+            ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'nw1:step:back'))
+            ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'nw1:cancel'));
+    }
+
+    private function usernameButtons(): InlineKeyboardMarkup
+    {
+        return InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('root · کاربر پیش‌فرض', callback_data: 'nw1:default:root', style: ButtonStyle::PRIMARY))
+            ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'nw1:step:back'))
+            ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'nw1:cancel'));
+    }
+
+    private function cancelButton(bool $canBack = true): InlineKeyboardMarkup
+    {
+        $keyboard = InlineKeyboardMarkup::make();
+        if ($canBack) {
+            $keyboard->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'nw1:step:back'));
+        }
+
+        return $keyboard->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'nw1:cancel'));
     }
 
     private function back(): InlineKeyboardMarkup
