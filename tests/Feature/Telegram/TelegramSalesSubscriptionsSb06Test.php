@@ -1087,6 +1087,20 @@ it('preserves official subscription page access and selectable URL in the long f
  * Activation notices reuse the existing owner-checked credential Action and
  * old QR callback; test fixtures do not simulate real Provider deployment.
  */
+/**
+ * Give activation-notification fixtures the exact Sales roles used in production.
+ * The same SubscriptionActivated delivery path must remain shareable for both.
+ */
+function sb06ActivationBuyer(string $role): User
+{
+    Role::findOrCreate($role, 'web');
+    $buyer = User::factory()->create();
+    $buyer->syncRoles([$role]);
+    TelegramAccount::query()->create(['user_id' => $buyer->id, 'telegram_user_id' => 976901]);
+
+    return $buyer;
+}
+
 function sb06ActivationNotice(User $buyer, int $orderId): int
 {
     config()->set('telegram_notifications.enabled', true);
@@ -1128,9 +1142,19 @@ function sb06PhotoField(Request $request, string $name): ?string
     return null;
 }
 
-it('sends one protected QR photo with the full caption link and green native copy button', function (): void {
-    $buyer = User::factory()->create();
-    TelegramAccount::query()->create(['user_id' => $buyer->id, 'telegram_user_id' => 976901]);
+it('keeps shared notification text protected unless a caller explicitly opts out', function (): void {
+    config()->set('telegram.sales.token', '54321:sales_test');
+    Http::fake(['https://api.telegram.org/*' => Http::response(['ok' => true])]);
+
+    $method = new \\ReflectionMethod(TelegramNotificationSender::class, 'text');
+    $method->invoke(app(TelegramNotificationSender::class), 'sales', 976901, 'پیام محافظت‌شده', null, 'HTML', false);
+
+    Http::assertSent(static fn (Request $request): bool => str_contains($request->url(), '/sendMessage')
+        && (string) $request['protect_content'] === 'true');
+});
+
+it('sends one shareable QR photo with the full caption link for members and resellers', function (string $role): void {
+    $buyer = sb06ActivationBuyer($role);
     $orderId = sb06Order($buyer);
     sb06Activated($orderId);
     $deliveryId = sb06ActivationNotice($buyer, $orderId);
@@ -1154,7 +1178,7 @@ it('sends one protected QR photo with the full caption link and green native cop
     $buttons = json_decode((string) sb06PhotoField($request, 'reply_markup'), true, 512, JSON_THROW_ON_ERROR)['inline_keyboard'];
 
     expect((string) sb06PhotoField($request, 'chat_id'))->toBe('976901')
-        ->and((string) sb06PhotoField($request, 'protect_content'))->toBe('true')
+        ->and(sb06PhotoField($request, 'protect_content'))->toBeNull()
         ->and((string) sb06PhotoField($request, 'parse_mode'))->toBe('HTML')
         ->and((string) sb06PhotoField($request, 'caption'))->toContain('سرویس شما فعال شد')
         ->and((string) sb06PhotoField($request, 'caption'))->toContain('لینک اتصال اختصاصی')
@@ -1175,11 +1199,10 @@ it('sends one protected QR photo with the full caption link and green native cop
     Http::assertNotSent(static fn (Request $r): bool => str_contains($r->url(), '54321:sales_test/sendMessage'));
     expect(DB::table('telegram_notification_deliveries')->where('id', $deliveryId)->value('event_key'))
         ->not->toContain($url);
-});
+})->with(['member', 'reseller']);
 
-it('keeps the full long URL below the QR photo but never sends an invalid copy button', function (): void {
-    $buyer = User::factory()->create();
-    TelegramAccount::query()->create(['user_id' => $buyer->id, 'telegram_user_id' => 976901]);
+it('keeps the full long URL below the shareable QR photo for members and resellers', function (string $role): void {
+    $buyer = sb06ActivationBuyer($role);
     $orderId = sb06Order($buyer);
     sb06Activated($orderId);
     $id = sb06ActivationNotice($buyer, $orderId);
@@ -1203,11 +1226,10 @@ it('keeps the full long URL below the QR photo but never sends an invalid copy b
             && ! str_contains($markup, 'sales:subs:link:');
     });
     Http::assertNotSent(static fn (Request $r): bool => str_contains($r->url(), '/sendMessage'));
-});
+})->with(['member', 'reseller']);
 
-it('sends activation and safe QR guidance when the Provider credential read fails', function (): void {
-    $buyer = User::factory()->create();
-    TelegramAccount::query()->create(['user_id' => $buyer->id, 'telegram_user_id' => 976901]);
+it('sends unprotected activation guidance when the Provider credential read fails', function (string $role): void {
+    $buyer = sb06ActivationBuyer($role);
     $orderId = sb06Order($buyer);
     sb06Activated($orderId);
     $id = sb06ActivationNotice($buyer, $orderId);
@@ -1228,14 +1250,14 @@ it('sends activation and safe QR guidance when the Provider credential read fail
             && str_contains((string) $r['text'], 'راهنمای نصب')
             && ! str_contains((string) $r['text'], 'private-sb06-credential')
             && ! str_contains($markup, 'copy_text')
-            && str_contains($markup, 'sales:subs:link:'.$orderId.':0');
+            && str_contains($markup, 'sales:subs:link:'.$orderId.':0')
+            && sb06PhotoField($r, 'protect_content') === null;
     });
     Http::assertSentCount(2);
-});
+})->with(['member', 'reseller']);
 
-it('keeps the full link and existing QR action when the caption is too long for one photo', function (): void {
-    $buyer = User::factory()->create();
-    TelegramAccount::query()->create(['user_id' => $buyer->id, 'telegram_user_id' => 976901]);
+it('keeps the full link and QR action shareable when the caption is too long for one photo', function (string $role): void {
+    $buyer = sb06ActivationBuyer($role);
     $orderId = sb06Order($buyer);
     sb06Activated($orderId);
     $id = sb06ActivationNotice($buyer, $orderId);
@@ -1255,14 +1277,14 @@ it('keeps the full link and existing QR action when the caption is too long for 
         }
 
         return str_contains((string) $r['text'], $url)
-            && str_contains((string) sb06PhotoField($r, 'reply_markup'), 'sales:subs:link:'.$orderId.':0');
+            && str_contains((string) sb06PhotoField($r, 'reply_markup'), 'sales:subs:link:'.$orderId.':0')
+            && sb06PhotoField($r, 'protect_content') === null;
     });
     Http::assertNotSent(static fn (Request $r): bool => str_contains($r->url(), '/sendPhoto'));
-});
+})->with(['member', 'reseller']);
 
-it('never sends a duplicate text if the QR photo upload outcome is unsuccessful', function (): void {
-    $buyer = User::factory()->create();
-    TelegramAccount::query()->create(['user_id' => $buyer->id, 'telegram_user_id' => 976901]);
+it('never sends a duplicate text if the QR photo upload outcome is unsuccessful', function (string $role): void {
+    $buyer = sb06ActivationBuyer($role);
     $orderId = sb06Order($buyer);
     sb06Activated($orderId);
     $id = sb06ActivationNotice($buyer, $orderId);
@@ -1277,4 +1299,4 @@ it('never sends a duplicate text if the QR photo upload outcome is unsuccessful'
     Http::assertSentCount(2);
     Http::assertSent(static fn (Request $r): bool => str_contains($r->url(), '/sendPhoto'));
     Http::assertNotSent(static fn (Request $r): bool => str_contains($r->url(), '/sendMessage'));
-});
+})->with(['member', 'reseller']);
