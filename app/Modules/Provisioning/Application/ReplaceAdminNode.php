@@ -63,11 +63,60 @@ final readonly class ReplaceAdminNode
             throw new RuntimeException('The new server IP is the same as the current server IP.');
         }
 
-        $assignedHosts = $this->hosts->assignedToNode($actorId, $current['uuid']);
+        $hostInventory = $this->hosts->replacementInventory($actorId);
+        /** @var list<array<string,mixed>> $assignedHosts */
+        $assignedHosts = [];
+        /** @var array<string,array{zoneId:string,zone:string,record:array<string,mixed>}> $inferredDns */
+        $inferredDns = [];
+
+        foreach ($hostInventory as $host) {
+            if (in_array($current['uuid'], $host['nodes'], true)) {
+                $assignedHosts[] = [...$host, 'association' => 'node_membership'];
+
+                continue;
+            }
+
+            // Older Remnawave Host responses can legitimately have nodes: [].
+            // Infer only when both the active profile/inbound and current public
+            // endpoint match. Anything ambiguous stops the replacement.
+            if ($host['nodes'] !== []
+                || $host['profileUuid'] !== $current['profileUuid']
+                || ! in_array($host['inboundUuid'], $current['inboundUuids'], true)) {
+                continue;
+            }
+
+            if (filter_var($host['address'], FILTER_VALIDATE_IP) !== false) {
+                if ($host['address'] === $oldIp) {
+                    $assignedHosts[] = [...$host, 'association' => 'inbound_address'];
+                }
+
+                continue;
+            }
+
+            try {
+                $resolved = $host['address'] === $current['address'] && $nodeDns !== null
+                    ? $nodeDns
+                    : $this->dns->replacementRecord($actorId, $host['address']);
+            } catch (\Throwable $exception) {
+                throw new RuntimeException(
+                    'A Host with empty Node membership has an ambiguous address; manual review required.',
+                    0,
+                    $exception,
+                );
+            }
+
+            if ($resolved['record']['content'] === $oldIp) {
+                $inferredDns[$host['address']] = $resolved;
+                $assignedHosts[] = [...$host, 'association' => 'inbound_address'];
+            }
+        }
+
+        usort($assignedHosts, static fn (array $a, array $b): int => strcmp($a['uuid'], $b['uuid']));
+
         $hostnames = [];
         $directHosts = [];
         foreach ($assignedHosts as $host) {
-            if ($host['nodes'] !== [$current['uuid']]) {
+            if ($host['nodes'] !== [] && $host['nodes'] !== [$current['uuid']]) {
                 throw new RuntimeException('A Host is shared with another Node. Resolve shared Host membership before replacement.');
             }
             if (filter_var($host['address'], FILTER_VALIDATE_IP) !== false) {
@@ -89,13 +138,26 @@ final readonly class ReplaceAdminNode
             throw new RuntimeException('The Node has too many Host addresses for a bounded replacement.');
         }
 
+        // A hostname used by a Host outside this Node is shared even when the
+        // provider's nodes[] membership is incomplete. Never redirect it silently.
+        $targetHostIds = array_fill_keys(array_column($assignedHosts, 'uuid'), true);
+        $targetHostnames = array_fill_keys(array_keys($hostnames), true);
+        foreach ($hostInventory as $host) {
+            if (isset($targetHostnames[$host['address']]) && ! isset($targetHostIds[$host['uuid']])) {
+                throw new RuntimeException('A Node/Host hostname is also used by another or unassigned Host; manual review required.');
+            }
+            if ($host['address'] === $oldIp && ! isset($targetHostIds[$host['uuid']])) {
+                throw new RuntimeException('Another Host uses the current server IP outside this Node; manual review required.');
+            }
+        }
+
         $dnsRecords = [];
         $names = array_keys($hostnames);
         sort($names, SORT_STRING);
         foreach ($names as $hostname) {
             $resolved = $hostname === $current['address'] && $nodeDns !== null
                 ? $nodeDns
-                : $this->dns->replacementRecord($actorId, $hostname);
+                : ($inferredDns[$hostname] ?? $this->dns->replacementRecord($actorId, $hostname));
             $record = $resolved['record'];
             if ($record['content'] !== $oldIp) {
                 throw new RuntimeException('A Node/Host DNS record does not point to the current server IP.');
@@ -108,6 +170,18 @@ final readonly class ReplaceAdminNode
             ];
         }
 
+        $hostRows = array_map(static fn (array $host): array => [
+            'uuid' => $host['uuid'],
+            'remark' => $host['remark'],
+            'address' => $host['address'],
+            'port' => $host['port'],
+            'disabled' => $host['disabled'],
+            'profileUuid' => $host['profileUuid'],
+            'inboundUuid' => $host['inboundUuid'],
+            'nodes' => $host['nodes'],
+            'association' => $host['association'],
+        ], $assignedHosts);
+
         $directHostRows = array_map(static fn (array $host): array => [
             'uuid' => $host['uuid'],
             'remark' => $host['remark'],
@@ -117,6 +191,7 @@ final readonly class ReplaceAdminNode
             'profileUuid' => $host['profileUuid'],
             'inboundUuid' => $host['inboundUuid'],
             'nodes' => $host['nodes'],
+            'association' => $host['association'],
         ], $directHosts);
 
         return [
@@ -125,6 +200,8 @@ final readonly class ReplaceAdminNode
             'newIp' => $newIp,
             'nodeAddressMode' => $nodeAddressIsIp ? 'ip' : 'domain',
             'dnsRecords' => $dnsRecords,
+            'hosts' => $hostRows,
+            'hostInventory' => $hostInventory,
             'directHosts' => $directHostRows,
         ];
     }
@@ -160,24 +237,15 @@ final readonly class ReplaceAdminNode
                 'nodeAddressMode' => $current['nodeAddressMode'],
                 'nodeAddressStage' => $current['nodeAddressMode'] === 'ip' ? 'ready' : 'skipped',
                 'dnsRecords' => array_map(static fn (array $record): array => [...$record, 'stage' => 'ready'], $current['dnsRecords']),
+                'hosts' => $current['hosts'],
+                'hostInventory' => $current['hostInventory'],
                 'directHosts' => array_map(static fn (array $host): array => [...$host, 'stage' => 'ready'], $current['directHosts']),
                 'stage' => 'applying',
             ];
             $this->save($identifier, $state);
 
-            if ($state['nodeAddressMode'] === 'ip') {
-                $state['nodeAddressStage'] = 'uncertain';
-                $this->save($identifier, $state);
-                $updated = $this->nodes->updateReplacementAddress($actorId, $state['node'], $state['newIp']);
-                if ($updated['address'] !== $state['newIp']
-                    || $this->nodeIdentity($updated, includeAddress: false) !== $this->nodeIdentity($state['node'], includeAddress: false)) {
-                    throw new RuntimeException('Node address update could not be verified.');
-                }
-                $state['nodeAddressStage'] = 'verified';
-                $this->save($identifier, $state);
-            }
-
             foreach ($state['dnsRecords'] as $index => $entry) {
+                $this->assertHostInventory($actorId, $state['hostInventory'] ?? null);
                 $state['dnsRecords'][$index]['stage'] = 'uncertain';
                 $this->save($identifier, $state);
                 $this->dns->changeA(
@@ -200,14 +268,29 @@ final readonly class ReplaceAdminNode
             }
 
             foreach ($state['directHosts'] as $index => $host) {
+                $this->assertHostInventory($actorId, $state['hostInventory'] ?? null);
                 $state['directHosts'][$index]['stage'] = 'uncertain';
                 $this->save($identifier, $state);
                 $this->hosts->updateReplacementAddress($actorId, $host, $state['newIp']);
+                $this->markHostAddress($state, $host['uuid'], $state['newIp']);
                 $state['directHosts'][$index]['stage'] = 'verified';
                 $this->save($identifier, $state);
             }
 
-            $state['stage'] = 'awaiting_connection';
+            if ($state['nodeAddressMode'] === 'ip') {
+                $this->assertHostInventory($actorId, $state['hostInventory'] ?? null);
+                $state['nodeAddressStage'] = 'uncertain';
+                $this->save($identifier, $state);
+                $updated = $this->nodes->updateReplacementAddress($actorId, $state['node'], $state['newIp']);
+                if ($updated['address'] !== $state['newIp']
+                    || $this->nodeIdentity($updated, includeAddress: false) !== $this->nodeIdentity($state['node'], includeAddress: false)) {
+                    throw new RuntimeException('Node address update could not be verified.');
+                }
+                $state['nodeAddressStage'] = 'verified';
+                $this->save($identifier, $state);
+            }
+
+            $state['stage'] = 'awaiting_client_test';
             $this->save($identifier, $state);
         });
     }
@@ -221,15 +304,17 @@ final readonly class ReplaceAdminNode
         }
         $state = $this->state($actorId, $identifier);
         $node = $this->nodes->replacementSnapshot($actorId, $state['node']['uuid']);
-        $expectedAddress = $state['nodeAddressMode'] === 'ip' ? $state['newIp'] : $state['node']['address'];
-        if ($node['address'] !== $expectedAddress
+        $expectedAddresses = [$state['nodeAddressMode'] === 'ip' ? $state['newIp'] : $state['node']['address']];
+        if ($state['stage'] === 'applying' && $state['nodeAddressMode'] === 'ip'
+            && $state['nodeAddressStage'] === 'ready') {
+            $expectedAddresses = [$state['node']['address']];
+        } elseif ($state['stage'] === 'applying' && $state['nodeAddressMode'] === 'ip'
+            && $state['nodeAddressStage'] === 'uncertain') {
+            $expectedAddresses[] = $state['node']['address'];
+        }
+        if (! in_array($node['address'], $expectedAddresses, true)
             || $this->nodeIdentity($node, includeAddress: false) !== $this->nodeIdentity($state['node'], includeAddress: false)) {
             throw new RuntimeException('Node identity or address changed during replacement.');
-        }
-
-        if ($state['stage'] === 'awaiting_connection' && $node['connected'] && ! $node['disabled']) {
-            $state['stage'] = 'connected';
-            $this->save($identifier, $state);
         }
 
         return [
@@ -255,8 +340,8 @@ final readonly class ReplaceAdminNode
         $this->key($identifier);
         Cache::lock('nw05:replace:'.$identifier, 300)->block(2, function () use ($actorId, $identifier): void {
             $state = $this->state($actorId, $identifier);
-            if ($state['stage'] !== 'connected') {
-                throw new RuntimeException('The Node must be connected before accepting the client test.');
+            if ($state['stage'] !== 'awaiting_client_test') {
+                throw new RuntimeException('The replacement is not awaiting a client test.');
             }
             $node = $this->nodes->replacementSnapshot($actorId, $state['node']['uuid']);
             $expectedAddress = $state['nodeAddressMode'] === 'ip' ? $state['newIp'] : $state['node']['address'];
@@ -265,6 +350,7 @@ final readonly class ReplaceAdminNode
             }
             $state['stage'] = 'completed';
             $state['clientTestAcceptedAt'] = now()->toIso8601String();
+            $state['clientTestAcceptedBy'] = $actorId;
             $this->save($identifier, $state);
         });
     }
@@ -311,6 +397,7 @@ final readonly class ReplaceAdminNode
                 }
                 $current = $this->hosts->one($actorId, $host['uuid']);
                 if ($current['address'] === $state['newIp']) {
+                    $this->markHostAddress($state, $host['uuid'], $state['newIp']);
                     $state['directHosts'][$index]['stage'] = 'verified';
                     $this->save($identifier, $state);
 
@@ -319,15 +406,42 @@ final readonly class ReplaceAdminNode
                 throw new RuntimeException('An uncertain Host update is not verified. Inspect Remnawave manually.');
             }
 
-            if ($state['nodeAddressStage'] === 'uncertain'
+            if (($state['nodeAddressMode'] === 'ip' && $state['nodeAddressStage'] !== 'verified')
+                || $state['nodeAddressStage'] === 'uncertain'
                 || collect($state['dnsRecords'])->contains(static fn (array $item): bool => $item['stage'] !== 'verified')
                 || collect($state['directHosts'])->contains(static fn (array $item): bool => $item['stage'] !== 'verified')) {
                 throw new RuntimeException('Some replacement operations remain unresolved.');
             }
 
-            $state['stage'] = 'awaiting_connection';
+            $state['stage'] = 'awaiting_client_test';
             $this->save($identifier, $state);
         });
+    }
+
+    /**
+     * Re-read the complete Host inventory immediately before each replacement write.
+     */
+    private function assertHostInventory(int $actorId, mixed $expected): void
+    {
+        if (! is_array($expected) || $this->hosts->replacementInventory($actorId) !== $expected) {
+            throw new RuntimeException('Host inventory changed during replacement; stop and review before continuing.');
+        }
+    }
+
+    /** @param array<string,mixed> $state */
+    private function markHostAddress(array &$state, string $uuid, string $address): void
+    {
+        foreach (['hostInventory', 'hosts', 'directHosts'] as $collection) {
+            $rows = $state[$collection] ?? null;
+            if (! is_array($rows)) {
+                continue;
+            }
+            foreach ($rows as $index => $host) {
+                if (is_array($host) && ($host['uuid'] ?? null) === $uuid) {
+                    $state[$collection][$index]['address'] = $address;
+                }
+            }
+        }
     }
 
     /** @return array<string,mixed> */

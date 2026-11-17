@@ -66,23 +66,22 @@ final readonly class ManageAdminHosts
     }
 
     /**
-     * Return only Hosts explicitly associated with the selected Node UUID.
-     * Shared Hosts are returned with their complete node membership so the
-     * replacement coordinator can reject cross-Node DNS changes.
+     * Return the complete bounded Host inventory with normalized Node membership.
+     * Empty membership is preserved so replacement can use inbound/address evidence
+     * or fail closed; it must never silently omit a potentially affected Host.
      *
      * @return list<array{uuid:string,remark:string,address:string,port:int,disabled:bool|null,profileUuid:string|null,inboundUuid:string|null,nodes:list<string>}>
      */
-    public function assignedToNode(int $actorId, string $nodeUuid): array
+    public function replacementInventory(int $actorId): array
     {
         $this->access->handle($actorId);
-        $nodeUuid = self::uuid($nodeUuid);
         $result = $this->factory->make()->call('HostsController_getHosts');
         $remoteHosts = is_array($result) ? ($result['response'] ?? null) : null;
         if (! is_array($remoteHosts) || ! array_is_list($remoteHosts) || count($remoteHosts) > 300) {
             throw new UnexpectedValueException('Invalid Hosts inventory for Node replacement.');
         }
 
-        $assigned = [];
+        $inventory = [];
         $seen = [];
         foreach ($remoteHosts as $remote) {
             if (! is_array($remote)) {
@@ -92,6 +91,7 @@ final readonly class ManageAdminHosts
             if (! is_array($members) || ! array_is_list($members) || count($members) > 500) {
                 throw new UnexpectedValueException('Host Node membership is unavailable; replacement stopped.');
             }
+
             $normalized = [];
             foreach ($members as $member) {
                 if (! self::uuidValid($member)) {
@@ -102,19 +102,34 @@ final readonly class ManageAdminHosts
             if (count(array_unique($normalized)) !== count($normalized)) {
                 throw new UnexpectedValueException('Duplicate Host Node membership.');
             }
-            if (! in_array($nodeUuid, $normalized, true)) {
-                continue;
-            }
+            sort($normalized, SORT_STRING);
 
             $host = self::safeHost($remote);
             if (isset($seen[$host['uuid']])) {
                 throw new UnexpectedValueException('Duplicate Host in Node replacement inventory.');
             }
             $seen[$host['uuid']] = true;
-            $assigned[] = [...$host, 'nodes' => $normalized];
+            $inventory[] = [...$host, 'nodes' => $normalized];
         }
 
-        return $assigned;
+        usort($inventory, static fn (array $a, array $b): int => strcmp($a['uuid'], $b['uuid']));
+
+        return $inventory;
+    }
+
+    /**
+     * Return Hosts explicitly associated with the selected Node UUID.
+     *
+     * @return list<array{uuid:string,remark:string,address:string,port:int,disabled:bool|null,profileUuid:string|null,inboundUuid:string|null,nodes:list<string>}>
+     */
+    public function assignedToNode(int $actorId, string $nodeUuid): array
+    {
+        $nodeUuid = self::uuid($nodeUuid);
+
+        return array_values(array_filter(
+            $this->replacementInventory($actorId),
+            static fn (array $host): bool => in_array($nodeUuid, $host['nodes'], true),
+        ));
     }
 
     /**
