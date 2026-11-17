@@ -1146,7 +1146,7 @@ it('keeps shared notification text protected unless a caller explicitly opts out
     config()->set('telegram.sales.token', '54321:sales_test');
     Http::fake(['https://api.telegram.org/*' => Http::response(['ok' => true])]);
 
-    $method = new \\ReflectionMethod(TelegramNotificationSender::class, 'text');
+    $method = new \ReflectionMethod(TelegramNotificationSender::class, 'text');
     $method->invoke(app(TelegramNotificationSender::class), 'sales', 976901, 'پیام محافظت‌شده', null, 'HTML', false);
 
     Http::assertSent(static fn (Request $request): bool => str_contains($request->url(), '/sendMessage')
