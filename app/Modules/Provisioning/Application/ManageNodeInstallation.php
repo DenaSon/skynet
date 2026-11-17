@@ -128,8 +128,8 @@ final readonly class ManageNodeInstallation
 
         $identifier = bin2hex(random_bytes(16));
         $reservation = 'nw02:host:'.$ip;
-        // Short admission lease only; the detached remote installer independently
-        // rejects existing installation markers before writing to the VPS.
+        // Short admission lease only; the remote bootstrap atomically serializes
+        // its preflight and rejects existing installation markers before writing.
         if (! Cache::add($reservation, $identifier, now()->addMinutes(self::HOST_RESERVATION_TTL_MINUTES))) {
             throw new RuntimeException('VPS installation already reserved.');
         }
