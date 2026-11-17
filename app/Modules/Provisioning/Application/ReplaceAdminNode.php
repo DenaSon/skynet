@@ -417,6 +417,13 @@ final readonly class ReplaceAdminNode
             $state['clientTestAcceptedAt'] = now()->toIso8601String();
             $state['clientTestAcceptedBy'] = $actorId;
             $this->save($identifier, $state);
+
+            // The recent-setup button is no longer needed after operator acceptance.
+            // Preserve the installation and replacement checkpoints for recovery.
+            // A long-running replacement may complete after the bookmark expires.
+            if (Cache::get('nw02:last:'.$actorId) === $identifier) {
+                $this->installations->closeRecent($actorId, $identifier);
+            }
         });
     }
 
