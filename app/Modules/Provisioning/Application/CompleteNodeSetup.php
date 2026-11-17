@@ -343,6 +343,9 @@ final readonly class CompleteNodeSetup
             throw new RuntimeException('The existing Node changed or the new server is not distinct.');
         }
         $this->nodes->validateReplacementAddress($actorId, $current['uuid'], $state['ip'], $current['port']);
+        // Resolve every linked Host and DNS record BEFORE changing the live Node address.
+        $hostPlan = $this->buildReplacementHostPlan($actorId, $state, $current, false);
+        $this->installations->checkpoint($actorId, $id, ['replacementHosts' => $hostPlan]);
 
         return [
             'name' => $current['name'],
@@ -352,6 +355,8 @@ final readonly class CompleteNodeSetup
             'port' => $current['port'],
             'profileUuid' => $current['profileUuid'],
             'inboundCount' => count($current['inboundUuids']),
+            'hostCount' => count($hostPlan['hosts']),
+            'dnsCount' => count($hostPlan['dnsUpdates']),
             'expected' => $current,
         ];
     }
@@ -478,11 +483,25 @@ final readonly class CompleteNodeSetup
             }
         }
 
+        $plan = $this->buildReplacementHostPlan($actorId, $state, $original, true);
+        $this->installations->checkpoint($actorId, $id, ['replacementHosts' => $plan]);
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $state
+     * @param array{uuid:string,name:string,address:string,port:int,connected:bool,disabled:bool,profileUuid:string,inboundUuids:list<string>} $original
+     * @return array{hosts:list<array<string,mixed>>,hostUpdates:list<array<string,mixed>>,dnsUpdates:list<array<string,mixed>>}
+     */
+    private function buildReplacementHostPlan(int $actorId, array $state, array $original, bool $nodeAtTarget): array
+    {
         $node = $this->nodes->replacementSnapshot($actorId, $original['uuid']);
-        if ($node['address'] !== $state['ip'] || ! $node['connected'] || $node['disabled']
+        $expectedAddress = $nodeAtTarget ? $state['ip'] : $original['address'];
+        if ($node['address'] !== $expectedAddress || ! $node['connected'] || $node['disabled']
             || $node['profileUuid'] !== $original['profileUuid']
             || $node['inboundUuids'] !== $original['inboundUuids']) {
-            throw new RuntimeException('New Node is not connected with the original bindings.');
+            throw new RuntimeException('Node is not connected with the expected original bindings and address.');
         }
 
         $linkedHosts = $this->hosts->forNode($actorId, $original['uuid']);
@@ -541,14 +560,11 @@ final readonly class CompleteNodeSetup
             ];
         }
 
-        $plan = [
+        return [
             'hosts' => $displayHosts,
             'hostUpdates' => $hostUpdates,
             'dnsUpdates' => array_values($dnsUpdates),
         ];
-        $this->installations->checkpoint($actorId, $id, ['replacementHosts' => $plan]);
-
-        return $plan;
     }
 
     /** One confirmation for the complete bounded transfer; every external write is still independently guarded and checkpointed. */
