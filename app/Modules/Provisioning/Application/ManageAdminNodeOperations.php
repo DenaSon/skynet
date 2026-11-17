@@ -141,7 +141,7 @@ final readonly class ManageAdminNodeOperations
                 throw new UnexpectedValueException('Node address update could not be verified without configuration drift.');
             }
 
-            Log::info('node05.replacement_address_updated', ['actor_id' => $actorId]);
+            Log::info('node06.replacement_address_updated', ['actor_id' => $actorId]);
         });
     }
 
