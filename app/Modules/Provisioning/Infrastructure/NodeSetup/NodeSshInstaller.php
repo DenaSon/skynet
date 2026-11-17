@@ -36,7 +36,7 @@ class NodeSshInstaller
             ."[ \"$(id -u)\" -eq 0 ]\n"
             ."command -v systemd-run >/dev/null\n"
             ."command -v flock >/dev/null\n"
-            ."exec 9>/run/lock/parsa-node-bootstrap.lock\n"
+            ."exec 9>>/run/lock/parsa-node-bootstrap.lock\n"
             ."flock -n 9\n"
             ."test ! -e /opt/parsa-node-install/status\n"
             ."test ! -e /opt/remnanode/docker-compose.yml\n"
