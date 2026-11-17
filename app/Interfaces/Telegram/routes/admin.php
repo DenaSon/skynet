@@ -329,6 +329,15 @@ $bot->onCallbackQueryData('nw1:dns:zones', function (Nutgram $bot): void {
 $bot->onCallbackQueryData('nw1:dns:zone:{index}', function (Nutgram $bot, string $index): void {
     app(AdminNodeSetupUi::class)->dnsZone($bot, $index);
 });
+$bot->onCallbackQueryData('nw1:dns:records:{page}', function (Nutgram $bot, string $page): void {
+    app(AdminNodeSetupUi::class)->dnsRecords($bot, $page);
+});
+$bot->onCallbackQueryData('nw1:dns:record:{index}:{token}', function (Nutgram $bot, string $index, string $token): void {
+    app(AdminNodeSetupUi::class)->dnsRecord($bot, $index, $token);
+});
+$bot->onCallbackQueryData('nw1:dns:new', function (Nutgram $bot): void {
+    app(AdminNodeSetupUi::class)->dnsNew($bot);
+});
 $bot->onCallbackQueryData('nw1:dns:skip', function (Nutgram $bot): void {
     app(AdminNodeSetupUi::class)->dnsSkip($bot);
 });
