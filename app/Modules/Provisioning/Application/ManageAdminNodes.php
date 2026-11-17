@@ -48,6 +48,91 @@ final readonly class ManageAdminNodes
         return $safe;
     }
 
+    /**
+     * A narrow, verified snapshot for replacing one installed Node in place.
+     *
+     * @return array{uuid:string,name:string,address:string,port:int,connected:bool,disabled:bool,profileUuid:string,inboundUuids:list<string>}
+     */
+    public function replacementSnapshot(int $actorId, string $uuid): array
+    {
+        $this->access->handle($actorId);
+        $uuid = self::uuid($uuid);
+        $node = (new RemnawaveNodesApi($this->factory->make()))->one($uuid);
+        $safe = $this->safeNode($node);
+        $address = $node['address'] ?? null;
+        $port = $node['port'] ?? null;
+        $profile = $node['configProfile'] ?? null;
+        $profileUuid = is_array($profile) ? ($profile['activeConfigProfileUuid'] ?? null) : null;
+        $activeInbounds = is_array($profile) ? ($profile['activeInbounds'] ?? null) : null;
+
+        if ($safe['uuid'] !== $uuid
+            || ! is_string($address)
+            || filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false
+            || ! is_int($port) || $port !== 2222
+            || ! self::uuidValid($profileUuid)
+            || ! is_array($activeInbounds) || ! array_is_list($activeInbounds)
+            || $activeInbounds === [] || count($activeInbounds) > 30) {
+            throw new UnexpectedValueException('Node is not eligible for the fixed-port replacement workflow.');
+        }
+
+        $inboundUuids = [];
+        foreach ($activeInbounds as $inbound) {
+            $inboundUuid = is_array($inbound) ? ($inbound['uuid'] ?? null) : null;
+            if (! self::uuidValid($inboundUuid)) {
+                throw new UnexpectedValueException('Node has an invalid active inbound binding.');
+            }
+            $inboundUuids[] = strtolower($inboundUuid);
+        }
+        if (count(array_unique($inboundUuids)) !== count($inboundUuids)) {
+            throw new UnexpectedValueException('Node has duplicate active inbound bindings.');
+        }
+
+        $profileUuid = strtolower($profileUuid);
+        $profiles = $this->profiles($actorId);
+        if (! in_array($profileUuid, array_column($profiles, 'uuid'), true)) {
+            throw new UnexpectedValueException('Node Config Profile is not available.');
+        }
+        $available = array_column($this->inbounds($actorId, $profileUuid), 'uuid');
+        foreach ($inboundUuids as $inboundUuid) {
+            if (! in_array($inboundUuid, $available, true)) {
+                throw new UnexpectedValueException('Node active inbound is no longer available.');
+            }
+        }
+
+        return [
+            'uuid' => $safe['uuid'],
+            'name' => $safe['name'],
+            'address' => $address,
+            'port' => $port,
+            'connected' => $safe['connected'],
+            'disabled' => $safe['disabled'],
+            'profileUuid' => $profileUuid,
+            'inboundUuids' => $inboundUuids,
+        ];
+    }
+
+    public function validateReplacementAddress(int $actorId, string $uuid, string $address, int $port = 2222): void
+    {
+        $this->access->handle($actorId);
+        $uuid = self::uuid($uuid);
+        if ($port !== 2222
+            || filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+            throw ValidationException::withMessages(['node' => 'A different public IPv4 address is required for the replacement.']);
+        }
+
+        $nodes = (new RemnawaveNodesApi($this->factory->make()))->all();
+        if (count($nodes) > 500) {
+            throw new UnexpectedValueException('Node inventory exceeds the bounded replacement check.');
+        }
+        foreach ($nodes as $node) {
+            if (strtolower((string) ($node['uuid'] ?? '')) !== $uuid
+                && ($node['address'] ?? null) === $address
+                && ($node['port'] ?? null) === $port) {
+                throw ValidationException::withMessages(['node' => 'The new IP is already assigned to another Node.']);
+            }
+        }
+    }
+
     /** @return list<string> */
     public function tags(int $actorId): array
     {
