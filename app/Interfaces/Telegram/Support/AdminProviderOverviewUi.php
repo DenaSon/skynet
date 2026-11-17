@@ -9,6 +9,7 @@ use App\Modules\Provisioning\Application\AdminProviderOverview;
 use App\Modules\Provisioning\Application\AdminSystemStats;
 use App\Modules\Provisioning\Application\ReadAdminProviderOverview;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
@@ -56,10 +57,12 @@ final readonly class AdminProviderOverviewUi
 
         $keyboard = InlineKeyboardMarkup::make();
 
-        $keyboard->addRow(
-            InlineKeyboardButton::make('📊 مانیتورینگ', callback_data: 'metrics:refresh'),
-            InlineKeyboardButton::make('🖥️ نودها', callback_data: 'node1:list:1'),
-        );
+        if (config('services.remnawave.node_ssh_setup_enabled') === true) {
+            $keyboard->addRow(InlineKeyboardButton::make(
+                '🛠️ افزودن سرور', callback_data: 'nw1:begin', style: ButtonStyle::SUCCESS,
+            ));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('📊 مانیتورینگ', callback_data: 'metrics:refresh'));
         $keyboard->addRow(
             InlineKeyboardButton::make('🌐 هاست‌ها', callback_data: 'host1:list:1'),
             InlineKeyboardButton::make('🧩 پروفایل‌ها', callback_data: 'cfg1:list:1'),
