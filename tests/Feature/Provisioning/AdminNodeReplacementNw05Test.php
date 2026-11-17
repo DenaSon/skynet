@@ -66,9 +66,7 @@ function nw05ReplacementReady(): array
     return compact('actor', 'id');
 }
 
-/**
- * @return array{node:array<string,mixed>,records:array<string,array<string,mixed>>}
- */
+/** @return object{node:array<string,mixed>,records:array<string,array<string,mixed>>} */
 function nw05ReplacementApi(bool $sharedHost = false, bool $mismatchedDns = false, bool $failDnsWrite = false): array
 {
     $node = [
@@ -129,13 +127,15 @@ function nw05ReplacementApi(bool $sharedHost = false, bool $mismatchedDns = fals
         ],
     ];
 
-    Http::fake(static function (Request $request) use (&$node, $hosts, &$records, $failDnsWrite) {
+    $shared = (object) ['node' => $node, 'records' => $records];
+
+    Http::fake(static function (Request $request) use ($shared, $hosts, $failDnsWrite) {
         $url = $request->url();
         $method = $request->method();
         $rw = 'https://rw.nw05.test/api/';
 
         if ($method === 'GET' && $url === $rw.'nodes/'.NW05_NODE) {
-            return Http::response(['response' => $node], 200);
+            return Http::response(['response' => $shared->node], 200);
         }
         if ($method === 'GET' && $url === $rw.'hosts') {
             return Http::response(['response' => $hosts], 200);
@@ -151,8 +151,8 @@ function nw05ReplacementApi(bool $sharedHost = false, bool $mismatchedDns = fals
         }
         if ($method === 'GET' && str_contains($url, '/dns_records?')) {
             $record = str_contains($url, 'xhttp.coreflare.ir')
-                ? $records[NW05_RECORD_XHTTP]
-                : $records[NW05_RECORD_NODE];
+                ? $shared->records[NW05_RECORD_XHTTP]
+                : $shared->records[NW05_RECORD_NODE];
 
             return Http::response([
                 'success' => true,
@@ -161,31 +161,31 @@ function nw05ReplacementApi(bool $sharedHost = false, bool $mismatchedDns = fals
             ], 200);
         }
         if ($method === 'GET' && str_ends_with($url, '/dns_records/'.NW05_RECORD_NODE)) {
-            return Http::response(['success' => true, 'result' => $records[NW05_RECORD_NODE]], 200);
+            return Http::response(['success' => true, 'result' => $shared->records[NW05_RECORD_NODE]], 200);
         }
         if ($method === 'GET' && str_ends_with($url, '/dns_records/'.NW05_RECORD_XHTTP)) {
-            return Http::response(['success' => true, 'result' => $records[NW05_RECORD_XHTTP]], 200);
+            return Http::response(['success' => true, 'result' => $shared->records[NW05_RECORD_XHTTP]], 200);
         }
         if ($method === 'PATCH' && str_ends_with($url, '/dns_records/'.NW05_RECORD_NODE)) {
             if ($failDnsWrite) {
                 return Http::response(['success' => false], 503);
             }
-            $records[NW05_RECORD_NODE]['content'] = $request['content'];
-            $records[NW05_RECORD_NODE]['proxied'] = $request['proxied'];
+            $shared->records[NW05_RECORD_NODE]['content'] = $request['content'];
+            $shared->records[NW05_RECORD_NODE]['proxied'] = $request['proxied'];
 
-            return Http::response(['success' => true, 'result' => $records[NW05_RECORD_NODE]], 200);
+            return Http::response(['success' => true, 'result' => $shared->records[NW05_RECORD_NODE]], 200);
         }
         if ($method === 'PATCH' && str_ends_with($url, '/dns_records/'.NW05_RECORD_XHTTP)) {
-            $records[NW05_RECORD_XHTTP]['content'] = $request['content'];
-            $records[NW05_RECORD_XHTTP]['proxied'] = $request['proxied'];
+            $shared->records[NW05_RECORD_XHTTP]['content'] = $request['content'];
+            $shared->records[NW05_RECORD_XHTTP]['proxied'] = $request['proxied'];
 
-            return Http::response(['success' => true, 'result' => $records[NW05_RECORD_XHTTP]], 200);
+            return Http::response(['success' => true, 'result' => $shared->records[NW05_RECORD_XHTTP]], 200);
         }
 
         return Http::response(['error' => 'unexpected NW-05 request'], 404);
     });
 
-    return compact('node', 'records');
+    return $shared;
 }
 
 function nw05MutationCount(): int
@@ -225,12 +225,12 @@ it('moves all associated A records and preserves Node identity, Host identity an
 
     expect($progress['stage'])->toBe('completed')
         ->and($progress['connected'])->toBeTrue()
-        ->and($api['node']['uuid'])->toBe(NW05_NODE)
-        ->and($api['node']['address'])->toBe('fr.coreflare.ir')
-        ->and($api['records'][NW05_RECORD_NODE]['content'])->toBe(NW05_NEW_IP)
-        ->and($api['records'][NW05_RECORD_NODE]['proxied'])->toBeFalse()
-        ->and($api['records'][NW05_RECORD_XHTTP]['content'])->toBe(NW05_NEW_IP)
-        ->and($api['records'][NW05_RECORD_XHTTP]['proxied'])->toBeTrue()
+        ->and($api->node['uuid'])->toBe(NW05_NODE)
+        ->and($api->node['address'])->toBe('fr.coreflare.ir')
+        ->and($api->records[NW05_RECORD_NODE]['content'])->toBe(NW05_NEW_IP)
+        ->and($api->records[NW05_RECORD_NODE]['proxied'])->toBeFalse()
+        ->and($api->records[NW05_RECORD_XHTTP]['content'])->toBe(NW05_NEW_IP)
+        ->and($api->records[NW05_RECORD_XHTTP]['proxied'])->toBeTrue()
         ->and(nw05MutationCount())->toBe(2);
 
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'PATCH'
