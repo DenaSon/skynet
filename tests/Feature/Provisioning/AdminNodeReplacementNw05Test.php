@@ -359,6 +359,25 @@ it('uses inbound and current-address evidence for legacy Hosts with empty Node m
         ->and(nw05MutationCount())->toBe(0);
 });
 
+it('fails closed when a legacy Host matches the active profile and inbound but its DNS target differs', function (): void {
+    $ready = nw05ReplacementReady();
+    nw05ReplacementApi(emptyMembership: true, mismatchedDns: true);
+
+    expect(fn () => app(ReplaceAdminNode::class)->preview($ready['actor']->id, $ready['id']))
+        ->toThrow(RuntimeException::class);
+    expect(nw05MutationCount())->toBe(0);
+});
+
+it('fails closed when a legacy Host has incomplete profile or inbound association evidence', function (): void {
+    $ready = nw05ReplacementReady();
+    $api = nw05ReplacementApi(emptyMembership: true);
+    $api->hosts[1]['inbound']['configProfileInboundUuid'] = null;
+
+    expect(fn () => app(ReplaceAdminNode::class)->preview($ready['actor']->id, $ready['id']))
+        ->toThrow(RuntimeException::class);
+    expect(nw05MutationCount())->toBe(0);
+});
+
 it('rejects a hostname consumed by a different Node before any provider write', function (): void {
     $ready = nw05ReplacementReady();
     nw05ReplacementApi(sharedHostname: true);
