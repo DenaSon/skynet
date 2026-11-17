@@ -158,7 +158,16 @@ final readonly class ReplaceAdminNode
         $targetHostIds = array_fill_keys(array_column($assignedHosts, 'uuid'), true);
         $targetHostnames = array_fill_keys(array_map('strtolower', array_keys($hostnames)), true);
         foreach ($this->nodes->replacementAddresses($actorId) as $peerNode) {
-            if ($peerNode['uuid'] !== $current['uuid'] && isset($targetHostnames[strtolower($peerNode['address'])])) {
+            if ($peerNode['uuid'] === $current['uuid']) {
+                continue;
+            }
+
+            if (filter_var($peerNode['address'], FILTER_VALIDATE_IP) !== false
+                && $peerNode['address'] === $newIp) {
+                throw new RuntimeException('The replacement IP is already assigned to another Node; choose an unused public IP.');
+            }
+
+            if (isset($targetHostnames[strtolower($peerNode['address'])])) {
                 throw new RuntimeException('A hostname being transferred is also used as another Node management address; manual review required.');
             }
         }
