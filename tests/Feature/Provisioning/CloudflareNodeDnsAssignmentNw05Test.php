@@ -34,7 +34,7 @@ function cf03SelectedA(string $ip = '185.194.188.191', bool $proxied = true): ar
 }
 
 /** @return array{actor:User,state:object,expected:array<string,mixed>} */
-function cf03NodeSetup(bool $failPatch = false, ?string $recordIp = null): array
+function cf03NodeSetup(bool $failPatch = false, ?string $recordIp = null, int $telegramId = 980301): array
 {
     config()->set('super_admin.telegram_ids', ['980301', '980302']);
     config()->set('services.remnawave.url', 'https://rw.cf03.test');
@@ -49,7 +49,7 @@ function cf03NodeSetup(bool $failPatch = false, ?string $recordIp = null): array
 
     $actor = User::factory()->create();
     $actor->syncRoles(['super-admin']);
-    TelegramAccount::query()->create(['user_id' => $actor->id, 'telegram_user_id' => 980301]);
+    TelegramAccount::query()->create(['user_id' => $actor->id, 'telegram_user_id' => $telegramId]);
 
     $expected = cf03SelectedA();
     $record = [
@@ -82,7 +82,7 @@ function cf03NodeSetup(bool $failPatch = false, ?string $recordIp = null): array
         $path = parse_url($url, PHP_URL_PATH);
         $method = $request->method();
         $rw = 'https://rw.cf03.test/api/';
-        $cf = 'https://api.cloudflare.com/client/v4';
+        $cfPath = '/client/v4';
 
         if ($method === 'GET' && $url === $rw.'nodes/'.CF03_NODE_UUID) {
             return Http::response(['response' => [
@@ -105,14 +105,14 @@ function cf03NodeSetup(bool $failPatch = false, ?string $recordIp = null): array
         if ($method === 'GET' && $url === $rw.'hosts') {
             return Http::response(['response' => []]);
         }
-        if ($method === 'GET' && $path === $cf.'/zones') {
+        if ($method === 'GET' && $path === $cfPath.'/zones') {
             $name = $request->data()['name'] ?? null;
 
             return Http::response(['success' => true, 'result' => $name === 'denagate.ir'
                 ? [['id' => CF03_ZONE_ID, 'name' => 'denagate.ir']]
                 : []]);
         }
-        $recordsPath = $cf.'/zones/'.CF03_ZONE_ID.'/dns_records';
+        $recordsPath = $cfPath.'/zones/'.CF03_ZONE_ID.'/dns_records';
         if ($method === 'GET' && $path === $recordsPath.'/'.CF03_RECORD_ID) {
             return Http::response(['success' => true, 'result' => $state->records[0]]);
         }
@@ -179,7 +179,7 @@ it('CF-03 rejects a stale selected snapshot and hostnames with multiple DNS reco
         ->toThrow(RuntimeException::class);
     expect($stale['state']->patches)->toBe(0);
 
-    $duplicate = cf03NodeSetup();
+    $duplicate = cf03NodeSetup(telegramId: 980302);
     $duplicate['state']->records[] = [
         'id' => 'ab020202020202020202020202020202',
         'name' => 'uae.denagate.ir',
