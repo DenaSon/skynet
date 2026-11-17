@@ -1143,6 +1143,7 @@ function sb06PhotoField(Request $request, string $name): ?string
 }
 
 it('keeps shared notification text protected unless a caller explicitly opts out', function (): void {
+    config()->set('telegram.sales.enabled', true);
     config()->set('telegram.sales.token', '54321:sales_test');
     Http::fake(['https://api.telegram.org/*' => Http::response(['ok' => true])]);
 
