@@ -1489,7 +1489,7 @@ final readonly class AdminNodeSetupUi
 
         $message = "🖥️ بازبینی مشخصات سرور\n\n"
             .'نام: '.$draft['name']."\nIP: ".$draft['ip']."\nپورت SSH: ".$draft['port']."\nپورت ارتباط نود: 2222\n"
-            .'کاربر: '.$draft['username']."\nپروفایل: '.$draft['profile']['name']."\nورودی: '.$draft['inbound']['name']
+            .'کاربر: '.$draft['username']."\nپروفایل: ".$draft['profile']['name']."\nورودی: ".$draft['inbound']['name']
             .(isset($draft['dnsName']) ? "\nدامنه: ".$draft['dnsName'] : '')
             .(is_array($draft['dnsRecordExpected'] ?? null)
                 ? "\nIP فعلی دامنه: ".(is_string($draft['dnsRecordExpected']['content'] ?? null) ? $draft['dnsRecordExpected']['content'] : '—')
