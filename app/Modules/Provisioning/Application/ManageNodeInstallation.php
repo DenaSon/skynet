@@ -381,6 +381,7 @@ final readonly class ManageNodeInstallation
             if ($key === 'replacementHosts'
                 && (! is_array($value)
                     || ! is_array($value['hosts'] ?? null) || count($value['hosts']) > 20
+                    || ! is_array($value['hostSnapshots'] ?? null) || count($value['hostSnapshots']) > 20
                     || ! is_array($value['hostUpdates'] ?? null) || count($value['hostUpdates']) > 20
                     || ! is_array($value['dnsUpdates'] ?? null) || count($value['dnsUpdates']) > 20)) {
                 throw new RuntimeException('Invalid Node replacement Host checkpoint.');
