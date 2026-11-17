@@ -925,7 +925,7 @@ final readonly class AdminNodeSetupUi
 
             $keyboard->addRow(InlineKeyboardButton::make('◀️ مدیریت نودها', callback_data: 'node1:list:1'));
             $rich = '<h2>🔁 وضعیت جایگزینی سرور</h2><table bordered striped compact>'.$rows.'</table>'
-                .'<footer>تا پیش از تست واقعی اتصال کاربران، سرور قبلی را نگه دارید.</footer>';
+                .'<footer>ابتدا تغییر DNS به IP جدید و اتصال واقعی کلاینت را بررسی کنید؛ تا پیش از تأیید، سرور قبلی را نگه دارید.</footer>';
             $this->renderRich($bot, $rich, $message, $keyboard);
         } catch (Throwable) {
             $this->render($bot, 'بررسی جایگزینی ممکن نشد. وضعیت نود و رکوردهای DNS را دستی بررسی کنید؛ عملیات را دوباره اجرا نکنید.', $this->back());
