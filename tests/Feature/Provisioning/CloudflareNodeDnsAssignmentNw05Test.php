@@ -34,7 +34,7 @@ function cf03SelectedA(string $ip = '185.194.188.191', bool $proxied = true): ar
 }
 
 /** @return array{actor:User,state:object,expected:array<string,mixed>} */
-function cf03NodeSetup(bool $failPatch = false, ?string $recordIp = null, int $telegramId = 980301): array
+function cf03NodeSetup(bool $failPatch = false, ?string $recordIp = null): array
 {
     config()->set('super_admin.telegram_ids', ['980301', '980302']);
     config()->set('services.remnawave.url', 'https://rw.cf03.test');
@@ -49,7 +49,7 @@ function cf03NodeSetup(bool $failPatch = false, ?string $recordIp = null, int $t
 
     $actor = User::factory()->create();
     $actor->syncRoles(['super-admin']);
-    TelegramAccount::query()->create(['user_id' => $actor->id, 'telegram_user_id' => $telegramId]);
+    TelegramAccount::query()->create(['user_id' => $actor->id, 'telegram_user_id' => 980301]);
 
     $expected = cf03SelectedA();
     $record = [
@@ -172,16 +172,19 @@ it('CF-03 previews and updates exactly one selected A record while preserving Pr
         && $request->data()['proxied'] === true);
 });
 
-it('CF-03 refreshes a selected record after installation and rejects hostnames with multiple DNS records', function (): void {
-    $changedDuringInstall = cf03NodeSetup(recordIp: '185.194.188.192');
+it('CF-03 refreshes a selected record after installation and shows the current IP before confirmation', function (): void {
+    $fixture = cf03NodeSetup(recordIp: '185.194.188.192');
     $action = app(CompleteNodeSetup::class);
-    $preview = $action->previewDns($changedDuringInstall['actor']->id, CF03_INSTALL_ID);
-    expect($preview['previousIp'])->toBe('185.194.188.192');
-    $action->ensureDns($changedDuringInstall['actor']->id, CF03_INSTALL_ID, $preview['record']);
-    expect($changedDuringInstall['state']->records[0]['content'])->toBe('194.5.192.133')
-        ->and($changedDuringInstall['state']->patches)->toBe(1);
+    $preview = $action->previewDns($fixture['actor']->id, CF03_INSTALL_ID);
 
-    $duplicate = cf03NodeSetup(telegramId: 980302);
+    expect($preview['previousIp'])->toBe('185.194.188.192');
+    $action->ensureDns($fixture['actor']->id, CF03_INSTALL_ID, $preview['record']);
+    expect($fixture['state']->records[0]['content'])->toBe('194.5.192.133')
+        ->and($fixture['state']->patches)->toBe(1);
+});
+
+it('CF-03 rejects hostnames with multiple DNS records before assignment', function (): void {
+    $duplicate = cf03NodeSetup();
     $duplicate['state']->records[] = [
         'id' => 'ab020202020202020202020202020202',
         'name' => 'uae.denagate.ir',
@@ -191,6 +194,7 @@ it('CF-03 refreshes a selected record after installation and rejects hostnames w
         'proxiable' => true,
         'modified_on' => '2026-11-17T08:00:00Z',
     ];
+
     expect(fn () => app(CompleteNodeSetup::class)->previewDns($duplicate['actor']->id, CF03_INSTALL_ID))
         ->toThrow(RuntimeException::class);
     expect($duplicate['state']->patches)->toBe(0);
