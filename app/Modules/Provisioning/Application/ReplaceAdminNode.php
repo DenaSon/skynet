@@ -467,8 +467,6 @@ final readonly class ReplaceAdminNode
 
     /**
      * Re-read the Node identity immediately before each replacement write.
-     *
-     * @param mixed $expected
      */
     private function assertNodeSnapshot(int $actorId, mixed $expected): void
     {
