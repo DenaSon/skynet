@@ -392,6 +392,23 @@ it('fails closed when a legacy Host has incomplete profile or inbound associatio
     expect(nw05MutationCount())->toBe(0);
 });
 
+it('rejects a replacement IP already assigned to another Node before any provider write', function (): void {
+    $ready = nw05ReplacementReady();
+    $api = nw05ReplacementApi();
+    $api->nodes[] = [
+        'uuid' => NW05_OTHER_NODE,
+        'name' => 'Other Node',
+        'address' => NW05_NEW_IP,
+        'port' => 2222,
+        'isConnected' => false,
+        'isDisabled' => true,
+    ];
+
+    expect(fn () => app(ReplaceAdminNode::class)->preview($ready['actor']->id, $ready['id']))
+        ->toThrow(RuntimeException::class);
+    expect(nw05MutationCount())->toBe(0);
+});
+
 it('rejects a hostname consumed by a different Node before any provider write', function (): void {
     $ready = nw05ReplacementReady();
     nw05ReplacementApi(sharedHostname: true);
