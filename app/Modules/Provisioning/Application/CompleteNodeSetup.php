@@ -570,7 +570,7 @@ final readonly class CompleteNodeSetup
         ];
     }
 
-    /** One confirmation for the complete bounded transfer; every external write is still independently guarded and checkpointed. */
+    /** One confirmation for the complete bounded transfer; each write is checkpointed and reverified. */
     public function transferReplacementHosts(int $actorId, string $id, array $expectedPlan): void
     {
         $this->writes();
@@ -586,21 +586,29 @@ final readonly class CompleteNodeSetup
             if ($node['address'] !== $state['ip'] || ! $node['connected'] || $node['disabled']) {
                 throw new RuntimeException('New Node is not connected and enabled.');
             }
+            foreach ([...$plan['hostUpdates'], ...$plan['dnsUpdates']] as $operation) {
+                if (($operation['stage'] ?? null) === 'uncertain') {
+                    throw new RuntimeException('Reconcile the previous uncertain Host/DNS operation first.');
+                }
+            }
+
+            $plan = $this->reconcileReplacementHostSnapshot($actorId, $original['uuid'], $plan);
+            $this->installations->checkpoint($actorId, $id, ['replacementHosts' => $plan]);
 
             foreach ($plan['hostUpdates'] as $index => $operation) {
                 if (($operation['stage'] ?? null) === 'verified') {
                     continue;
                 }
-                $expected = $operation['expected'];
-                $currentHosts = $this->hosts->forNode($actorId, $original['uuid']);
-                $current = collect($currentHosts)->firstWhere('uuid', $expected['uuid']);
-                $target = $operation['target'];
-                $expectedAfter = [...$expected, 'address' => $target];
-                if ($current === $expectedAfter) {
-                    $plan['hostUpdates'][$index]['stage'] = 'verified';
-                    $this->installations->checkpoint($actorId, $id, ['replacementHosts' => $plan]);
+                $plan = $this->reconcileReplacementHostSnapshot($actorId, $original['uuid'], $plan);
+                $this->installations->checkpoint($actorId, $id, ['replacementHosts' => $plan]);
+                if (($plan['hostUpdates'][$index]['stage'] ?? null) === 'verified') {
                     continue;
                 }
+
+                $expected = $plan['hostUpdates'][$index]['expected'];
+                $target = $plan['hostUpdates'][$index]['target'];
+                $currentHosts = $this->hosts->forNode($actorId, $original['uuid']);
+                $current = collect($currentHosts)->firstWhere('uuid', $expected['uuid']);
                 if ($current !== $expected || $expected['address'] === $target) {
                     throw new RuntimeException('A linked Host changed since confirmation.');
                 }
@@ -616,8 +624,15 @@ final readonly class CompleteNodeSetup
                 );
                 $updatedHosts = $this->hosts->forNode($actorId, $original['uuid']);
                 $updated = collect($updatedHosts)->firstWhere('uuid', $expected['uuid']);
+                $expectedAfter = [...$expected, 'address' => $target];
                 if ($updated !== $expectedAfter) {
                     throw new RuntimeException('Host address update could not be verified.');
+                }
+                foreach ($plan['hostSnapshots'] as $snapshotIndex => $snapshot) {
+                    if ($snapshot['uuid'] === $expected['uuid']) {
+                        $plan['hostSnapshots'][$snapshotIndex] = $updated;
+                        break;
+                    }
                 }
                 $plan['hostUpdates'][$index]['stage'] = 'verified';
                 $this->installations->checkpoint($actorId, $id, ['replacementHosts' => $plan]);
@@ -627,7 +642,13 @@ final readonly class CompleteNodeSetup
                 if (($operation['stage'] ?? null) === 'verified') {
                     continue;
                 }
-                $record = $operation['expected'];
+                $plan = $this->reconcileReplacementHostSnapshot($actorId, $original['uuid'], $plan);
+                $this->installations->checkpoint($actorId, $id, ['replacementHosts' => $plan]);
+                if (($plan['dnsUpdates'][$index]['stage'] ?? null) === 'verified') {
+                    continue;
+                }
+
+                $record = $plan['dnsUpdates'][$index]['expected'];
                 $current = $this->dns->oneUniqueA($actorId, $operation['zoneId'], $operation['zone'], $record['id']);
                 if ($current['content'] === $operation['target'] && $current['proxied'] === $record['proxied']) {
                     $plan['dnsUpdates'][$index]['stage'] = 'verified';
@@ -638,6 +659,8 @@ final readonly class CompleteNodeSetup
                     throw new RuntimeException('A linked DNS record changed since confirmation.');
                 }
 
+                $plan['dnsUpdates'][$index]['stage'] = 'uncertain';
+                $this->installations->checkpoint($actorId, $id, ['replacementHosts' => $plan]);
                 $this->dns->changeA(
                     $actorId,
                     $operation['zoneId'],
@@ -645,10 +668,6 @@ final readonly class CompleteNodeSetup
                     $record,
                     $operation['target'],
                     $record['proxied'],
-                    function () use ($actorId, $id, &$plan, $index): void {
-                        $plan['dnsUpdates'][$index]['stage'] = 'uncertain';
-                        $this->installations->checkpoint($actorId, $id, ['replacementHosts' => $plan]);
-                    },
                     requireUniqueHostname: true,
                 );
                 $plan['dnsUpdates'][$index]['stage'] = 'verified';
@@ -657,7 +676,7 @@ final readonly class CompleteNodeSetup
         });
     }
 
-    /** GET-only recovery. Unchanged old endpoints become pending for a new confirmation; changed endpoints are never replayed blindly. */
+    /** GET-only recovery. Unchanged old endpoints become pending for a new confirmation. */
     public function reconcileReplacementHosts(int $actorId, string $id): void
     {
         $this->writes();
@@ -677,6 +696,12 @@ final readonly class CompleteNodeSetup
                 $currentHosts = $this->hosts->forNode($actorId, $original['uuid']);
                 $current = collect($currentHosts)->firstWhere('uuid', $expected['uuid']);
                 if ($current === [...$expected, 'address' => $operation['target']]) {
+                    foreach ($plan['hostSnapshots'] as $snapshotIndex => $snapshot) {
+                        if ($snapshot['uuid'] === $expected['uuid']) {
+                            $plan['hostSnapshots'][$snapshotIndex] = $current;
+                            break;
+                        }
+                    }
                     $plan['hostUpdates'][$index]['stage'] = 'verified';
                 } elseif ($current === $expected) {
                     $plan['hostUpdates'][$index]['stage'] = 'pending';
@@ -701,7 +726,67 @@ final readonly class CompleteNodeSetup
                 }
                 $this->installations->checkpoint($actorId, $id, ['replacementHosts' => $plan]);
             }
+
+            $plan = $this->reconcileReplacementHostSnapshot($actorId, $original['uuid'], $plan);
+            $this->installations->checkpoint($actorId, $id, ['replacementHosts' => $plan]);
         });
+    }
+
+    /**
+     * A Host added, removed, shared or edited after preview blocks the transfer.
+     * The only accepted drift is a direct-IP Host already moved to the requested IP.
+     *
+     * @param array<string,mixed> $plan
+     * @return array<string,mixed>
+     */
+    private function reconcileReplacementHostSnapshot(int $actorId, string $nodeUuid, array $plan): array
+    {
+        $expectedHosts = $plan['hostSnapshots'] ?? null;
+        if (! is_array($expectedHosts) || count($expectedHosts) > 20) {
+            throw new RuntimeException('Replacement Host snapshot is unavailable.');
+        }
+        $currentHosts = $this->hosts->forNode($actorId, $nodeUuid);
+        $expectedByUuid = [];
+        $currentByUuid = [];
+        foreach ($expectedHosts as $index => $host) {
+            if (! is_array($host) || ! is_string($host['uuid'] ?? null) || isset($expectedByUuid[$host['uuid']])) {
+                throw new RuntimeException('Invalid expected Host inventory.');
+            }
+            $expectedByUuid[$host['uuid']] = ['index' => $index, 'host' => $host];
+        }
+        foreach ($currentHosts as $host) {
+            $currentByUuid[$host['uuid']] = $host;
+        }
+        if (count($currentByUuid) !== count($expectedByUuid)
+            || array_diff_key($currentByUuid, $expectedByUuid) !== []
+            || array_diff_key($expectedByUuid, $currentByUuid) !== []) {
+            throw new RuntimeException('Host inventory changed after preview; manual review required.');
+        }
+
+        foreach ($expectedByUuid as $uuid => $entry) {
+            $expected = $entry['host'];
+            $current = $currentByUuid[$uuid];
+            if ($current === $expected) {
+                continue;
+            }
+
+            $matchedOperation = null;
+            foreach ($plan['hostUpdates'] as $index => $operation) {
+                if (($operation['expected']['uuid'] ?? null) === $uuid) {
+                    $matchedOperation = $index;
+                    break;
+                }
+            }
+            if ($matchedOperation === null
+                || $current !== [...$expected, 'address' => $plan['hostUpdates'][$matchedOperation]['target']]) {
+                throw new RuntimeException('Host association or settings changed after preview; manual review required.');
+            }
+
+            $plan['hostSnapshots'][$entry['index']] = $current;
+            $plan['hostUpdates'][$matchedOperation]['stage'] = 'verified';
+        }
+
+        return $plan;
     }
 
     private function checkSelections(int $actorId, array $state): void
