@@ -549,7 +549,6 @@ it('renders the pre-install replacement review Rich-first with preserved fallbac
         ->and(json_encode($keyboard, JSON_THROW_ON_ERROR))->toContain('nw1:scan:aabbccdd');
 });
 
-
 it('canonicalizes DNS checkpoint hostnames while preserving the original Node address', function (): void {
     $ready = nw05ReplacementReady();
     $status = Cache::get('nw02:status:'.$ready['id']);
