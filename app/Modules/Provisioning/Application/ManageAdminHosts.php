@@ -49,6 +49,54 @@ final readonly class ManageAdminHosts
     }
 
     /**
+     * Read only Hosts explicitly associated with one Node UUID.
+     * The full nodes relation is retained so shared Hosts can fail closed.
+     *
+     * @return list<array{uuid:string,remark:string,address:string,port:int,disabled:bool|null,profileUuid:string|null,inboundUuid:string|null,nodes:list<string>}>
+     */
+    public function forNode(int $actorId, string $nodeUuid): array
+    {
+        $this->access->handle($actorId);
+        $nodeUuid = self::uuid($nodeUuid);
+        $result = $this->factory->make()->call('HostsController_getHosts');
+        $hosts = is_array($result) ? ($result['response'] ?? null) : null;
+        if (! is_array($hosts) || ! array_is_list($hosts) || count($hosts) > 300) {
+            throw new UnexpectedValueException('Invalid Hosts inventory for Node replacement.');
+        }
+
+        $safe = [];
+        $seen = [];
+        foreach ($hosts as $host) {
+            if (! is_array($host) || ! is_array($host['nodes'] ?? null)
+                || ! array_is_list($host['nodes']) || count($host['nodes']) > 100) {
+                throw new UnexpectedValueException('Host Node associations are unavailable.');
+            }
+            $nodeUuids = [];
+            foreach ($host['nodes'] as $linkedNode) {
+                if (! is_string($linkedNode)) {
+                    throw new UnexpectedValueException('Invalid Host Node association.');
+                }
+                $nodeUuids[] = self::uuid($linkedNode);
+            }
+            if (count(array_unique($nodeUuids)) !== count($nodeUuids)) {
+                throw new UnexpectedValueException('Host contains duplicate Node associations.');
+            }
+
+            $row = self::safeHost($host);
+            if (isset($seen[$row['uuid']])) {
+                throw new UnexpectedValueException('Duplicate Host identifier.');
+            }
+            $seen[$row['uuid']] = true;
+
+            if (in_array($nodeUuid, $nodeUuids, true)) {
+                $safe[] = [...$row, 'nodes' => $nodeUuids];
+            }
+        }
+
+        return $safe;
+    }
+
+    /**
      * @return array{uuid:string,remark:string,address:string,port:int,disabled:bool|null,profileUuid:string|null,inboundUuid:string|null}
      */
     public function one(int $actorId, string $uuid): array
