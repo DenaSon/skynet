@@ -369,8 +369,9 @@ final readonly class ReplaceAdminNode
             }
             $node = $this->nodes->replacementSnapshot($actorId, $state['node']['uuid']);
             $expectedAddress = $state['nodeAddressMode'] === 'ip' ? $state['newIp'] : $state['node']['address'];
-            if (! $node['connected'] || $node['disabled'] || $node['address'] !== $expectedAddress) {
-                throw new RuntimeException('Node connection changed before client-test acceptance.');
+            if (! $node['connected'] || $node['disabled'] || $node['address'] !== $expectedAddress
+                || $this->nodeIdentity($node, includeAddress: false) !== $this->nodeIdentity($state['node'], includeAddress: false)) {
+                throw new RuntimeException('Node connection or identity changed before client-test acceptance.');
             }
 
             // The panel's connected flag can still reflect the old VPS. Before
