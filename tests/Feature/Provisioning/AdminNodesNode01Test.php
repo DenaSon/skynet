@@ -439,12 +439,13 @@ it('NW-04 private Admin can resume a recent setup while ordinary users cannot', 
     Http::assertNothingSent();
 });
 
-it('keeps ready-node registration in Nodes while new setup opens from Control Panel', function (): void {
+it('places new server setup in Servers and exposes Nodes from the Control Panel', function (): void {
     node01Actors();
     node01FakeProvider();
     config()->set('services.remnawave.writes_enabled', true);
     config()->set('services.remnawave.node_ssh_setup_enabled', true);
     $bot = node01Bot();
+
     $bot->hearCallbackQueryData('node1:list:1')->reply()
         ->assertRaw(static function (TelegramRequest $request): bool {
             $body = FakeNutgram::getActualData($request);
@@ -455,10 +456,11 @@ it('keeps ready-node registration in Nodes while new setup opens from Control Pa
             $buttons = array_merge(...$markup['inline_keyboard']);
             $paths = array_column($buttons, 'callback_data');
 
-            return str_contains($body['text'], 'افزودن سرور جدید از «کنترل پنل»')
+            return str_contains($body['text'], 'افزودن سرور جدید از «وضعیت سرورها»')
                 && in_array('node1:begin', $paths, true)
                 && ! in_array('nw1:begin', $paths, true);
         }, index: 1);
+
     $bot->hearCallbackQueryData('menu:admin:control')->reply()
         ->assertRaw(static function (TelegramRequest $request): bool {
             $body = FakeNutgram::getActualData($request);
@@ -466,18 +468,46 @@ it('keeps ready-node registration in Nodes while new setup opens from Control Pa
             if (is_string($markup)) {
                 $markup = json_decode($markup, true, flags: JSON_THROW_ON_ERROR);
             }
-            foreach ($markup['inline_keyboard'] as $row) {
-                foreach ($row as $button) {
-                    if (($button['callback_data'] ?? null) === 'nw1:begin') {
-                        return ($button['style'] ?? null) === 'success';
-                    }
+            $buttons = array_merge(...$markup['inline_keyboard']);
+            $paths = array_column($buttons, 'callback_data');
+
+            return in_array('node1:list:1', $paths, true)
+                && ! in_array('nw1:begin', $paths, true);
+        }, index: 1);
+
+    $bot->hearCallbackQueryData('menu:admin:servers')->reply()
+        ->assertRaw(static function (TelegramRequest $request): bool {
+            $body = FakeNutgram::getActualData($request);
+            $markup = $body['reply_markup'];
+            if (is_string($markup)) {
+                $markup = json_decode($markup, true, flags: JSON_THROW_ON_ERROR);
+            }
+            $buttons = array_merge(...$markup['inline_keyboard']);
+            foreach ($buttons as $button) {
+                if (($button['callback_data'] ?? null) === 'nw1:begin') {
+                    return ($button['style'] ?? null) === 'success'
+                        && ! in_array('node1:list:1', array_column($buttons, 'callback_data'), true);
                 }
             }
 
             return false;
         }, index: 1);
-    Http::assertSentCount(1);
+
+    config()->set('services.remnawave.node_ssh_setup_enabled', false);
+    $bot->hearCallbackQueryData('menu:admin:servers')->reply()
+        ->assertRaw(static function (TelegramRequest $request): bool {
+            $body = FakeNutgram::getActualData($request);
+            $markup = $body['reply_markup'];
+            if (is_string($markup)) {
+                $markup = json_decode($markup, true, flags: JSON_THROW_ON_ERROR);
+            }
+            $buttons = array_merge(...$markup['inline_keyboard']);
+
+            return ! in_array('nw1:begin', array_column($buttons, 'callback_data'), true);
+        }, index: 1);
+
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
+    Http::assertNotSent(static fn (Request $request): bool => $request->method() !== 'GET');
 });
 
 it('supports split inputs, real back navigation, and stage-bound defaults without Provider writes', function (): void {

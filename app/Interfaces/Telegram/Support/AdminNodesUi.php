@@ -98,7 +98,7 @@ final readonly class AdminNodesUi
         if (config('services.remnawave.node_ssh_setup_enabled') === true
             && config('services.remnawave.writes_enabled') === true) {
             $lines[] = '';
-            $lines[] = 'افزودن سرور جدید از «کنترل پنل» انجام می‌شود.';
+            $lines[] = 'افزودن سرور جدید از «وضعیت سرورها» انجام می‌شود.';
             $lines[] = 'این بخش برای مدیریت نودها و ثبت نود از قبل نصب‌شده است.';
         }
         $keyboard->addRow(InlineKeyboardButton::make('🏷️ تگ‌ها', callback_data: 'node1:tags'));
