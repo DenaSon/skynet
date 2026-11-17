@@ -36,6 +36,9 @@ final readonly class ReplaceAdminNode
         if ($this->nodeIdentity($current) !== $this->nodeIdentity($target)) {
             throw new RuntimeException('The existing Node changed during installation; replacement stopped.');
         }
+        if ($current['port'] !== 2222) {
+            throw new RuntimeException('This replacement flow supports Nodes using the current fixed management port 2222 only.');
+        }
         if ($current['disabled']) {
             throw new RuntimeException('Enable the existing Node before replacing its server.');
         }

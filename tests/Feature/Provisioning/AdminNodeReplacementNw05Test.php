@@ -27,7 +27,7 @@ const NW05_NEW_IP = '1.1.1.1';
 /** @return array{actor:User,id:string} */
 function nw05ReplacementReady(): array
 {
-    config()->set('super_admin.telegram_ids', ['985501']);
+    config()->set('super_admin.telegram_ids', ['985501', '985502']);
     config()->set('services.remnawave.url', 'https://rw.nw05.test');
     config()->set('services.remnawave.token', 'nw05-test-token');
     config()->set('services.remnawave.timeout', 15);

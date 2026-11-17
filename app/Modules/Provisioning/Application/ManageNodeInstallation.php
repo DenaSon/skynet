@@ -51,14 +51,14 @@ final readonly class ManageNodeInstallation
             if (! is_string($uuid) || preg_match('/\\A[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\\z/D', $uuid) !== 1
                 || ! is_string($oldAddress) || ! is_string($replacementName)
                 || $replacementName !== ($ready['name'] ?? null)
-                || ! is_string($profileUuid) || preg_match('/\\A[0-9a-fA-F-]{36}\\z/D', $profileUuid) !== 1
+                || ! is_string($profileUuid) || preg_match('/\\A[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\\z/D', $profileUuid) !== 1
                 || ! is_array($inbounds) || ! array_is_list($inbounds) || $inbounds === [] || count($inbounds) > 30
                 || filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false
                 || $ip === $oldAddress) {
                 throw new RuntimeException('Invalid existing Node replacement target.');
             }
             foreach ($inbounds as $inboundUuid) {
-                if (! is_string($inboundUuid) || preg_match('/\\A[0-9a-fA-F-]{36}\\z/D', $inboundUuid) !== 1) {
+                if (! is_string($inboundUuid) || preg_match('/\\A[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\\z/D', $inboundUuid) !== 1) {
                     throw new RuntimeException('Invalid existing Node inbound snapshot.');
                 }
             }
