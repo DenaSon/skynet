@@ -380,6 +380,22 @@ it('preserves a newer recent setup when an older NW-05 replacement is completed'
         ->and(Cache::get('nw05:state:'.$ready['id'])['stage'])->toBe('completed');
 });
 
+it('completes NW-05 even after the recent bookmark and installation checkpoint expired', function (): void {
+    $ready = nw05ReplacementReady();
+    nw05ReplacementApi();
+    $action = app(ReplaceAdminNode::class);
+    $review = $action->preview($ready['actor']->id, $ready['id']);
+    $action->apply($ready['actor']->id, $ready['id'], $review);
+
+    Cache::forget('nw02:last:'.$ready['actor']->id);
+    Cache::forget('nw02:status:'.$ready['id']);
+
+    $action->acceptClientTest($ready['actor']->id, $ready['id']);
+
+    expect($action->progress($ready['actor']->id, $ready['id'])['stage'])->toBe('completed')
+        ->and(Cache::get('nw02:last:'.$ready['actor']->id))->toBeNull();
+});
+
 it('hides a legacy completed NW-05 bookmark only when completion belongs to its operator', function (): void {
     $ready = nw05ReplacementReady();
     $key = 'nw05:state:'.$ready['id'];
