@@ -285,7 +285,7 @@ it('checks only the visible owned page on request and renders a compact 72-hour 
         'https://remna.test/api/users/'.(500000 + $unknown) => Http::response([], 503),
     ]);
     $page = Livewire::test(Dashboard::class)->call('showSection', 'services')
-        ->assertSee('⏳ بررسی انقضا')
+        ->assertSee('📡 بررسی وضعیت')
         ->assertDontSee('⏳ انقضا تا ۳ روز:');
     Http::assertNothingSent();
 
@@ -299,6 +299,8 @@ it('checks only the visible owned page on request and renders a compact 72-hour 
     $snapshot = $page->get('serviceExpiry');
     expect($snapshot['count'])->toBe(1)
         ->and($snapshot['unknown'])->toBe(1)
+        ->and($snapshot['statuses'][$expired])->toContain('منقضی')
+        ->and($snapshot['statuses'][$unknown])->toContain('نامشخص')
         ->and(array_keys($snapshot['remaining']))->toBe([$soon]);
     Http::assertSentCount(4);
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');

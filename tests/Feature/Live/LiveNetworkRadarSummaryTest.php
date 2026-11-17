@@ -95,7 +95,7 @@ it('shows two network cards after sales reporting, fetching Radar only from the 
     $component = Livewire::test(Dashboard::class)
         ->assertDontSee('وضعیت اینترنت ایران')
         ->call('showSection', 'reports')
-        ->assertSee('مجموع فروش تسویه‌شده')
+        ->assertSee('مجموع خرید و تمدید از دناگیت')
         ->assertSee('وضعیت اینترنت ایران')
         ->assertSee('در حال دریافت اطلاعات شبکه')
         ->assertSee('گزارش فروش')
