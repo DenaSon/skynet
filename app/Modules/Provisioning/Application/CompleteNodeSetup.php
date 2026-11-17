@@ -18,6 +18,7 @@ final readonly class CompleteNodeSetup
         private ManageAdminNodes $nodes,
         private ManageAdminHosts $hosts,
         private ManageCloudflareDns $dns,
+        private ManageAdminNodeOperations $nodeOperations,
     ) {}
 
     /** @return array{name:string,address:string,port:int,profile:string,inbound:string} */
@@ -324,6 +325,364 @@ final readonly class CompleteNodeSetup
                 : (is_string($state['dnsStage'] ?? null) ? $state['dnsStage'] : 'ready'),
             'dnsName' => is_string($state['dnsName'] ?? null) ? $state['dnsName'] : null,
         ];
+    }
+
+    /** @return array<string,mixed> */
+    public function previewReplacementNode(int $actorId, string $id): array
+    {
+        $this->writes();
+        $state = $this->installations->context($actorId, $id);
+        $expected = $state['replacementNode'] ?? null;
+        if (! is_array($expected) || ($state['state'] ?? null) !== 'running'
+            || ($state['replacementNodeStage'] ?? 'ready') !== 'ready') {
+            throw new RuntimeException('Node replacement is not ready for confirmation.');
+        }
+        $current = $this->nodes->replacementSnapshot($actorId, $expected['uuid']);
+        if ($current !== $expected || ! $current['connected'] || $current['disabled']
+            || $state['ip'] === $current['address']) {
+            throw new RuntimeException('The existing Node changed or the new server is not distinct.');
+        }
+        $this->nodes->validateReplacementAddress($actorId, $current['uuid'], $state['ip'], $current['port']);
+
+        return [
+            'name' => $current['name'],
+            'uuid' => $current['uuid'],
+            'oldIp' => $current['address'],
+            'newIp' => $state['ip'],
+            'port' => $current['port'],
+            'profileUuid' => $current['profileUuid'],
+            'inboundCount' => count($current['inboundUuids']),
+            'expected' => $current,
+        ];
+    }
+
+    public function replaceNodeAddress(int $actorId, string $id, array $expected): void
+    {
+        $this->writes();
+        Cache::lock('nw03:replacement-flow:'.$id, 600)->block(2, function () use ($actorId, $id, $expected): void {
+            $state = $this->installations->context($actorId, $id);
+            $original = $state['replacementNode'] ?? null;
+            if (! is_array($original) || $expected !== $original
+                || ($state['replacementNodeStage'] ?? 'ready') !== 'ready') {
+                throw new RuntimeException('Replacement confirmation is stale or already used.');
+            }
+            $current = $this->nodes->replacementSnapshot($actorId, $original['uuid']);
+            if ($current !== $original || ! $current['connected'] || $current['disabled']) {
+                throw new RuntimeException('Existing Node changed before replacement.');
+            }
+            $this->nodes->validateReplacementAddress($actorId, $original['uuid'], $state['ip'], 2222);
+            $this->installations->checkpoint($actorId, $id, ['replacementNodeStage' => 'uncertain']);
+            $this->nodeOperations->replaceAddress($actorId, $original, $state['ip']);
+            $updated = $this->nodes->replacementSnapshot($actorId, $original['uuid']);
+            if ($updated['address'] !== $state['ip']
+                || $updated['uuid'] !== $original['uuid']
+                || $updated['name'] !== $original['name']
+                || $updated['port'] !== $original['port']
+                || $updated['profileUuid'] !== $original['profileUuid']
+                || $updated['inboundUuids'] !== $original['inboundUuids']) {
+                throw new RuntimeException('Updated Node identity or bindings could not be verified.');
+            }
+            $this->installations->checkpoint($actorId, $id, ['replacementNodeStage' => 'updated']);
+        });
+    }
+
+    /** GET-only recovery; an old address permits a fresh explicit confirmation, never an automatic retry. */
+    public function reconcileReplacementNode(int $actorId, string $id): void
+    {
+        $this->writes();
+        Cache::lock('nw03:replacement-flow:'.$id, 600)->block(2, function () use ($actorId, $id): void {
+            $state = $this->installations->context($actorId, $id);
+            $original = $state['replacementNode'] ?? null;
+            if (! is_array($original) || ($state['replacementNodeStage'] ?? null) !== 'uncertain') {
+                throw new RuntimeException('No uncertain Node replacement to reconcile.');
+            }
+            $current = $this->nodes->replacementSnapshot($actorId, $original['uuid']);
+            if ($current['uuid'] !== $original['uuid']
+                || $current['name'] !== $original['name']
+                || $current['port'] !== $original['port']
+                || $current['profileUuid'] !== $original['profileUuid']
+                || $current['inboundUuids'] !== $original['inboundUuids']) {
+                throw new RuntimeException('Node identity or bindings changed; manual review required.');
+            }
+            if ($current['address'] === $state['ip']) {
+                $this->installations->checkpoint($actorId, $id, ['replacementNodeStage' => 'updated']);
+
+                return;
+            }
+            if ($current['address'] === $original['address']) {
+                $this->installations->checkpoint($actorId, $id, ['replacementNodeStage' => 'ready']);
+
+                return;
+            }
+            throw new RuntimeException('Node address is neither the old nor the requested IP; manual review required.');
+        });
+    }
+
+    /** @return array<string,mixed> */
+    public function replacementProgress(int $actorId, string $id): array
+    {
+        $state = $this->installations->context($actorId, $id);
+        $original = $state['replacementNode'] ?? null;
+        if (! is_array($original)) {
+            throw new RuntimeException('This installation is not a Node replacement.');
+        }
+        $current = $this->nodes->replacementSnapshot($actorId, $original['uuid']);
+        $nodeAtTarget = $current['address'] === $state['ip']
+            && $current['uuid'] === $original['uuid']
+            && $current['name'] === $original['name']
+            && $current['port'] === $original['port']
+            && $current['profileUuid'] === $original['profileUuid']
+            && $current['inboundUuids'] === $original['inboundUuids'];
+        $plan = is_array($state['replacementHosts'] ?? null) ? $state['replacementHosts'] : null;
+        $operations = [
+            ...(is_array($plan['hostUpdates'] ?? null) ? $plan['hostUpdates'] : []),
+            ...(is_array($plan['dnsUpdates'] ?? null) ? $plan['dnsUpdates'] : []),
+        ];
+        $uncertain = count(array_filter($operations, static fn (mixed $item): bool => is_array($item) && ($item['stage'] ?? null) === 'uncertain'));
+        $pending = count(array_filter($operations, static fn (mixed $item): bool => is_array($item) && ($item['stage'] ?? null) === 'pending'));
+        $verified = count(array_filter($operations, static fn (mixed $item): bool => is_array($item) && ($item['stage'] ?? null) === 'verified'));
+
+        return [
+            'nodeStage' => $state['replacementNodeStage'] ?? 'ready',
+            'nodeAtTarget' => $nodeAtTarget,
+            'nodeConnected' => $nodeAtTarget && $current['connected'] && ! $current['disabled'],
+            'oldIp' => $original['address'],
+            'newIp' => $state['ip'],
+            'hosts' => is_array($plan['hosts'] ?? null) ? count($plan['hosts']) : null,
+            'operations' => count($operations),
+            'verified' => $verified,
+            'pending' => $pending,
+            'uncertain' => $uncertain,
+            'hasPlan' => $plan !== null,
+            'complete' => $plan !== null && $pending === 0 && $uncertain === 0 && $verified === count($operations),
+        ];
+    }
+
+    /** Build a fresh, bounded plan from the Node's explicit Host associations and Cloudflare records. */
+    public function previewReplacementHosts(int $actorId, string $id): array
+    {
+        $this->writes();
+        $state = $this->installations->context($actorId, $id);
+        $original = $state['replacementNode'] ?? null;
+        if (! is_array($original) || ($state['replacementNodeStage'] ?? null) !== 'updated') {
+            throw new RuntimeException('Node address replacement is not verified yet.');
+        }
+        $existingPlan = $state['replacementHosts'] ?? null;
+        if (is_array($existingPlan)) {
+            $operations = [
+                ...(is_array($existingPlan['hostUpdates'] ?? null) ? $existingPlan['hostUpdates'] : []),
+                ...(is_array($existingPlan['dnsUpdates'] ?? null) ? $existingPlan['dnsUpdates'] : []),
+            ];
+            if (count(array_filter($operations, static fn (mixed $item): bool => is_array($item) && ($item['stage'] ?? null) === 'uncertain')) > 0) {
+                throw new RuntimeException('Reconcile the previous Host/DNS operation before preparing another confirmation.');
+            }
+        }
+
+        $node = $this->nodes->replacementSnapshot($actorId, $original['uuid']);
+        if ($node['address'] !== $state['ip'] || ! $node['connected'] || $node['disabled']
+            || $node['profileUuid'] !== $original['profileUuid']
+            || $node['inboundUuids'] !== $original['inboundUuids']) {
+            throw new RuntimeException('New Node is not connected with the original bindings.');
+        }
+
+        $linkedHosts = $this->hosts->forNode($actorId, $original['uuid']);
+        if (count($linkedHosts) > 20) {
+            throw new RuntimeException('More than 20 Hosts are linked to this Node; manual review is required.');
+        }
+
+        $hostUpdates = [];
+        $dnsUpdates = [];
+        $displayHosts = [];
+        foreach ($linkedHosts as $host) {
+            if ($host['nodes'] !== [$original['uuid']]) {
+                throw new RuntimeException('A Host is shared with another Node; automatic replacement is blocked.');
+            }
+            $addressIsIp = filter_var($host['address'], FILTER_VALIDATE_IP) !== false;
+            if ($addressIsIp) {
+                if (! in_array($host['address'], [$original['address'], $state['ip']], true)) {
+                    throw new RuntimeException('A linked Host points to an unexpected IP; manual review is required.');
+                }
+                $stage = $host['address'] === $state['ip'] ? 'verified' : 'pending';
+                $hostUpdates[] = [
+                    'expected' => $host,
+                    'target' => $state['ip'],
+                    'stage' => $stage,
+                ];
+                $displayHosts[] = [
+                    'remark' => $host['remark'], 'address' => $host['address'],
+                    'port' => $host['port'], 'kind' => 'ip',
+                    'currentIp' => $host['address'], 'proxied' => null, 'stage' => $stage,
+                ];
+                continue;
+            }
+
+            $dns = $this->dns->uniqueAForHostname($actorId, $host['address']);
+            $record = $dns['record'];
+            if (! in_array($record['content'], [$original['address'], $state['ip']], true)) {
+                throw new RuntimeException('A linked Host DNS record points to an unexpected IP; manual review is required.');
+            }
+            $key = $dns['zoneId'].':'.$record['id'];
+            $stage = $record['content'] === $state['ip'] ? 'verified' : 'pending';
+            if (! isset($dnsUpdates[$key])) {
+                $dnsUpdates[$key] = [
+                    'zoneId' => $dns['zoneId'],
+                    'zone' => $dns['zone'],
+                    'expected' => $record,
+                    'target' => $state['ip'],
+                    'stage' => $stage,
+                ];
+            } elseif ($dnsUpdates[$key]['expected'] !== $record) {
+                throw new RuntimeException('A shared Host DNS record changed during preview.');
+            }
+            $displayHosts[] = [
+                'remark' => $host['remark'], 'address' => $host['address'],
+                'port' => $host['port'], 'kind' => 'dns',
+                'currentIp' => $record['content'], 'proxied' => $record['proxied'], 'stage' => $stage,
+            ];
+        }
+
+        $plan = [
+            'hosts' => $displayHosts,
+            'hostUpdates' => $hostUpdates,
+            'dnsUpdates' => array_values($dnsUpdates),
+        ];
+        $this->installations->checkpoint($actorId, $id, ['replacementHosts' => $plan]);
+
+        return $plan;
+    }
+
+    /** One confirmation for the complete bounded transfer; every external write is still independently guarded and checkpointed. */
+    public function transferReplacementHosts(int $actorId, string $id, array $expectedPlan): void
+    {
+        $this->writes();
+        Cache::lock('nw03:replacement-flow:'.$id, 600)->block(2, function () use ($actorId, $id, $expectedPlan): void {
+            $state = $this->installations->context($actorId, $id);
+            $original = $state['replacementNode'] ?? null;
+            $plan = $state['replacementHosts'] ?? null;
+            if (! is_array($original) || ! is_array($plan) || $plan !== $expectedPlan
+                || ($state['replacementNodeStage'] ?? null) !== 'updated') {
+                throw new RuntimeException('Host/DNS replacement confirmation is stale.');
+            }
+            $node = $this->nodes->replacementSnapshot($actorId, $original['uuid']);
+            if ($node['address'] !== $state['ip'] || ! $node['connected'] || $node['disabled']) {
+                throw new RuntimeException('New Node is not connected and enabled.');
+            }
+
+            foreach ($plan['hostUpdates'] as $index => $operation) {
+                if (($operation['stage'] ?? null) === 'verified') {
+                    continue;
+                }
+                $expected = $operation['expected'];
+                $currentHosts = $this->hosts->forNode($actorId, $original['uuid']);
+                $current = collect($currentHosts)->firstWhere('uuid', $expected['uuid']);
+                $target = $operation['target'];
+                $expectedAfter = [...$expected, 'address' => $target];
+                if ($current === $expectedAfter) {
+                    $plan['hostUpdates'][$index]['stage'] = 'verified';
+                    $this->installations->checkpoint($actorId, $id, ['replacementHosts' => $plan]);
+                    continue;
+                }
+                if ($current !== $expected || $expected['address'] === $target) {
+                    throw new RuntimeException('A linked Host changed since confirmation.');
+                }
+
+                $plan['hostUpdates'][$index]['stage'] = 'uncertain';
+                $this->installations->checkpoint($actorId, $id, ['replacementHosts' => $plan]);
+                $this->hosts->change(
+                    $actorId,
+                    $expected['uuid'],
+                    'edit',
+                    array_diff_key($expected, ['nodes' => true]),
+                    ['remark' => $expected['remark'], 'address' => $target, 'port' => $expected['port']],
+                );
+                $updatedHosts = $this->hosts->forNode($actorId, $original['uuid']);
+                $updated = collect($updatedHosts)->firstWhere('uuid', $expected['uuid']);
+                if ($updated !== $expectedAfter) {
+                    throw new RuntimeException('Host address update could not be verified.');
+                }
+                $plan['hostUpdates'][$index]['stage'] = 'verified';
+                $this->installations->checkpoint($actorId, $id, ['replacementHosts' => $plan]);
+            }
+
+            foreach ($plan['dnsUpdates'] as $index => $operation) {
+                if (($operation['stage'] ?? null) === 'verified') {
+                    continue;
+                }
+                $record = $operation['expected'];
+                $current = $this->dns->oneUniqueA($actorId, $operation['zoneId'], $operation['zone'], $record['id']);
+                if ($current['content'] === $operation['target'] && $current['proxied'] === $record['proxied']) {
+                    $plan['dnsUpdates'][$index]['stage'] = 'verified';
+                    $this->installations->checkpoint($actorId, $id, ['replacementHosts' => $plan]);
+                    continue;
+                }
+                if ($current !== $record) {
+                    throw new RuntimeException('A linked DNS record changed since confirmation.');
+                }
+
+                $this->dns->changeA(
+                    $actorId,
+                    $operation['zoneId'],
+                    $operation['zone'],
+                    $record,
+                    $operation['target'],
+                    $record['proxied'],
+                    function () use ($actorId, $id, &$plan, $index): void {
+                        $plan['dnsUpdates'][$index]['stage'] = 'uncertain';
+                        $this->installations->checkpoint($actorId, $id, ['replacementHosts' => $plan]);
+                    },
+                    requireUniqueHostname: true,
+                );
+                $plan['dnsUpdates'][$index]['stage'] = 'verified';
+                $this->installations->checkpoint($actorId, $id, ['replacementHosts' => $plan]);
+            }
+        });
+    }
+
+    /** GET-only recovery. Unchanged old endpoints become pending for a new confirmation; changed endpoints are never replayed blindly. */
+    public function reconcileReplacementHosts(int $actorId, string $id): void
+    {
+        $this->writes();
+        Cache::lock('nw03:replacement-flow:'.$id, 600)->block(2, function () use ($actorId, $id): void {
+            $state = $this->installations->context($actorId, $id);
+            $original = $state['replacementNode'] ?? null;
+            $plan = $state['replacementHosts'] ?? null;
+            if (! is_array($original) || ! is_array($plan)) {
+                throw new RuntimeException('No Host/DNS replacement checkpoint exists.');
+            }
+
+            foreach ($plan['hostUpdates'] as $index => $operation) {
+                if (($operation['stage'] ?? null) !== 'uncertain') {
+                    continue;
+                }
+                $expected = $operation['expected'];
+                $currentHosts = $this->hosts->forNode($actorId, $original['uuid']);
+                $current = collect($currentHosts)->firstWhere('uuid', $expected['uuid']);
+                if ($current === [...$expected, 'address' => $operation['target']]) {
+                    $plan['hostUpdates'][$index]['stage'] = 'verified';
+                } elseif ($current === $expected) {
+                    $plan['hostUpdates'][$index]['stage'] = 'pending';
+                } else {
+                    throw new RuntimeException('Host state is neither old nor target; manual review required.');
+                }
+                $this->installations->checkpoint($actorId, $id, ['replacementHosts' => $plan]);
+            }
+
+            foreach ($plan['dnsUpdates'] as $index => $operation) {
+                if (($operation['stage'] ?? null) !== 'uncertain') {
+                    continue;
+                }
+                $expected = $operation['expected'];
+                $current = $this->dns->oneUniqueA($actorId, $operation['zoneId'], $operation['zone'], $expected['id']);
+                if ($current['content'] === $operation['target'] && $current['proxied'] === $expected['proxied']) {
+                    $plan['dnsUpdates'][$index]['stage'] = 'verified';
+                } elseif ($current === $expected) {
+                    $plan['dnsUpdates'][$index]['stage'] = 'pending';
+                } else {
+                    throw new RuntimeException('DNS state is neither old nor target; manual review required.');
+                }
+                $this->installations->checkpoint($actorId, $id, ['replacementHosts' => $plan]);
+            }
+        });
     }
 
     private function checkSelections(int $actorId, array $state): void
