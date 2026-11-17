@@ -223,8 +223,13 @@ it('moves all associated A records and preserves Node identity, Host identity an
     $action->apply($ready['actor']->id, $ready['id'], $review);
     $progress = $action->progress($ready['actor']->id, $ready['id']);
 
+    expect($progress['stage'])->toBe('connected')
+        ->and($progress['connected'])->toBeTrue();
+
+    $action->acceptClientTest($ready['actor']->id, $ready['id']);
+    $progress = $action->progress($ready['actor']->id, $ready['id']);
+
     expect($progress['stage'])->toBe('completed')
-        ->and($progress['connected'])->toBeTrue()
         ->and($api->node['uuid'])->toBe(NW05_NODE)
         ->and($api->node['address'])->toBe('fr.coreflare.ir')
         ->and($api->records[NW05_RECORD_NODE]['content'])->toBe(NW05_NEW_IP)

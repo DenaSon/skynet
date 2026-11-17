@@ -359,11 +359,11 @@ $bot->onCallbackQueryData('nw5:begin:{uuid}', function (Nutgram $bot, string $uu
 $bot->onCallbackQueryData('nw5:resume:{identifier}', function (Nutgram $bot, string $identifier): void {
     app(AdminNodeSetupUi::class)->replacementOverview($bot, $identifier);
 });
-$bot->onCallbackQueryData('nw5:prepare:{identifier}', function (Nutgram $bot, string $identifier): void {
-    app(AdminNodeSetupUi::class)->prepareReplacement($bot, $identifier);
-});
 $bot->onCallbackQueryData('nw5:apply:{token}', function (Nutgram $bot, string $token): void {
     app(AdminNodeSetupUi::class)->applyReplacement($bot, $token);
+});
+$bot->onCallbackQueryData('nw5:accept:{identifier}', function (Nutgram $bot, string $identifier): void {
+    app(AdminNodeSetupUi::class)->acceptReplacement($bot, $identifier);
 });
 $bot->onCallbackQueryData('nw5:reconcile:{identifier}', function (Nutgram $bot, string $identifier): void {
     app(AdminNodeSetupUi::class)->reconcileReplacement($bot, $identifier);

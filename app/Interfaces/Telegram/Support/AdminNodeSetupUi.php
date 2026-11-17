@@ -628,12 +628,18 @@ final readonly class AdminNodeSetupUi
             $this->nodes->validateIdentity($id, $draft['name'], $draft['ip']);
             if (is_array($draft['replacement'] ?? null)) {
                 $current = $this->nodes->replacementSnapshot($id, $draft['replacement']['uuid']);
-                if (! $this->sameReplacementSnapshot($draft['replacement'], $current)) throw new \RuntimeException('Existing Node changed.');
+                if (! $this->sameReplacementSnapshot($draft['replacement'], $current)) {
+                    throw new \RuntimeException('Existing Node changed.');
+                }
                 $profiles = $this->nodes->profiles($id);
-                if (! in_array($draft['replacement']['profileUuid'], array_column($profiles, 'uuid'), true)) throw new \RuntimeException('Existing Node profile changed.');
+                if (! in_array($draft['replacement']['profileUuid'], array_column($profiles, 'uuid'), true)) {
+                    throw new \RuntimeException('Existing Node profile changed.');
+                }
                 $available = array_column($this->nodes->inbounds($id, $draft['replacement']['profileUuid']), 'uuid');
                 foreach ($draft['replacement']['inboundUuids'] as $inboundUuid) {
-                    if (! in_array($inboundUuid, $available, true)) throw new \RuntimeException('Existing Node inbound changed.');
+                    if (! in_array($inboundUuid, $available, true)) {
+                        throw new \RuntimeException('Existing Node inbound changed.');
+                    }
                 }
             } elseif (! in_array($draft['profile']['uuid'], array_column($this->nodes->profiles($id), 'uuid'), true)
                 || ! in_array($draft['inbound']['uuid'], array_column($this->nodes->inbounds($id, $draft['profile']['uuid']), 'uuid'), true)) {
@@ -881,8 +887,11 @@ final readonly class AdminNodeSetupUi
                     ? "\n\n✅ اتصال نود تأیید شد."
                     : "\n\n⏳ DNS منتقل شده است؛ منتظر اتصال همان نود از سرور جدید هستیم. VPS قدیمی را حذف نکنید.";
                 $keyboard->addRow(InlineKeyboardButton::make('🔄 بررسی اتصال', callback_data: 'nw5:resume:'.$identifier, style: ButtonStyle::PRIMARY));
+            } elseif ($progress['stage'] === 'connected') {
+                $message .= "\n\n✅ پنل همان Node را متصل گزارش می‌کند. ابتدا اتصال واقعی کلاینت را آزمایش کنید؛ تا قبل از تأیید این مرحله VPS قدیمی را نگه دارید.";
+                $keyboard->addRow(InlineKeyboardButton::make('✅ تأیید تست اتصال کلاینت', callback_data: 'nw5:accept:'.$identifier, style: ButtonStyle::SUCCESS));
             } elseif ($progress['stage'] === 'completed') {
-                $message .= "\n\n✅ جایگزینی تکمیل شد. همان UUID و تنظیمات قبلی حفظ شده‌اند. اتصال کلاینت‌ها را بررسی کنید؛ سپس درباره خاموش‌کردن VPS قدیمی تصمیم بگیرید.";
+                $message .= "\n\n✅ تست اتصال کلاینت تأیید شد. همان UUID و تنظیمات قبلی حفظ شده‌اند. حالا می‌توانید برای خاموش‌کردن VPS قدیمی برنامه‌ریزی کنید.";
             }
             $keyboard->addRow(InlineKeyboardButton::make('◀️ مدیریت نودها', callback_data: 'node1:list:1'));
             $this->render($bot, $message, $keyboard);
@@ -941,6 +950,19 @@ final readonly class AdminNodeSetupUi
             $this->replacementOverview($bot, $confirmation['id']);
         } catch (Throwable) {
             $this->render($bot, 'نتیجه انتقال مشخص نیست. از گزینه بررسی وضعیت استفاده کنید و عملیات را دوباره تأیید نکنید.', $this->back());
+        }
+    }
+
+
+    public function acceptReplacement(Nutgram $bot, string $identifier): void
+    {
+        $root = $this->root($bot);
+        if ($root === null) return;
+        try {
+            $this->replacement->acceptClientTest($root, $identifier);
+            $this->replacementOverview($bot, $identifier);
+        } catch (Throwable) {
+            $this->render($bot, 'تأیید انجام نشد. ابتدا اتصال واقعی کلاینت و وضعیت Node را بررسی کنید.', $this->back());
         }
     }
 

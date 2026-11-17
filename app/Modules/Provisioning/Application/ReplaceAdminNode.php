@@ -226,7 +226,7 @@ final readonly class ReplaceAdminNode
         }
 
         if ($state['stage'] === 'awaiting_connection' && $node['connected'] && ! $node['disabled']) {
-            $state['stage'] = 'completed';
+            $state['stage'] = 'connected';
             $this->save($identifier, $state);
         }
 
@@ -246,6 +246,26 @@ final readonly class ReplaceAdminNode
                 'stage' => $item['stage'],
             ], $state['directHosts']),
         ];
+    }
+
+
+    public function acceptClientTest(int $actorId, string $identifier): void
+    {
+        $this->key($identifier);
+        Cache::lock('nw05:replace:'.$identifier, 300)->block(2, function () use ($actorId, $identifier): void {
+            $state = $this->state($actorId, $identifier);
+            if ($state['stage'] !== 'connected') {
+                throw new RuntimeException('The Node must be connected before accepting the client test.');
+            }
+            $node = $this->nodes->replacementSnapshot($actorId, $state['node']['uuid']);
+            $expectedAddress = $state['nodeAddressMode'] === 'ip' ? $state['newIp'] : $state['node']['address'];
+            if (! $node['connected'] || $node['disabled'] || $node['address'] !== $expectedAddress) {
+                throw new RuntimeException('Node connection changed before client-test acceptance.');
+            }
+            $state['stage'] = 'completed';
+            $state['clientTestAcceptedAt'] = now()->toIso8601String();
+            $this->save($identifier, $state);
+        });
     }
 
     /** GET-only recovery; uncertain writes are never repeated automatically. */
