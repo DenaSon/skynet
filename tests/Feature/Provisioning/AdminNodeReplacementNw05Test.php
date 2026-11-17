@@ -502,7 +502,6 @@ it('renders replacement progress as an RTL Rich screen and labels the panel conn
     app(AdminNodeSetupUi::class)->replacementOverview($bot, $ready['id']);
 });
 
-
 it('rejects a management hostname already used by another Node even without a matching Host', function (): void {
     $ready = nw05ReplacementReady();
     nw05ReplacementApi(sharedNodeManagementHostname: true);
