@@ -174,6 +174,7 @@ final class MenuRenderer
                 InlineKeyboardButton::make('🧭 داشبورد', callback_data: 'kpi:period:day'),
                 InlineKeyboardButton::make('🚦 فیلترینگ', callback_data: 'flt:home', style: ButtonStyle::DANGER),
             )
+            ->addRow(InlineKeyboardButton::make('🛠️ افزودن سرور', callback_data: 'nw1:begin', style: ButtonStyle::SUCCESS))
             ->addRow(
                 InlineKeyboardButton::make('📦 کاتالوگ', callback_data: 'menu:admin:sales'),
                 InlineKeyboardButton::make('🖥️ سرورها', callback_data: 'menu:admin:servers'),
