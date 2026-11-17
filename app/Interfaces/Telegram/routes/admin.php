@@ -317,6 +317,32 @@ $bot->onCallbackQueryData('node1:tags', function (Nutgram $bot): void {
 $bot->onCallbackQueryData('nw1:begin', function (Nutgram $bot): void {
     app(AdminNodeSetupUi::class)->begin($bot);
 });
+
+// NW-05: replace an existing Node in place; preserve its UUID, profile and all active inbounds.
+$bot->onCallbackQueryData('nwr:begin:{uuid}', function (Nutgram $bot, string $uuid): void {
+    app(AdminNodeSetupUi::class)->beginReplacement($bot, $uuid);
+});
+$bot->onCallbackQueryData('nwr:resume:{identifier}', function (Nutgram $bot, string $identifier): void {
+    app(AdminNodeSetupUi::class)->replacementOverview($bot, $identifier);
+});
+$bot->onCallbackQueryData('nwr:node:prepare:{identifier}', function (Nutgram $bot, string $identifier): void {
+    app(AdminNodeSetupUi::class)->prepareReplacementNode($bot, $identifier);
+});
+$bot->onCallbackQueryData('nwr:node:apply:{token}', function (Nutgram $bot, string $token): void {
+    app(AdminNodeSetupUi::class)->applyReplacementNode($bot, $token);
+});
+$bot->onCallbackQueryData('nwr:node:reconcile:{identifier}', function (Nutgram $bot, string $identifier): void {
+    app(AdminNodeSetupUi::class)->reconcileReplacementNode($bot, $identifier);
+});
+$bot->onCallbackQueryData('nwr:hosts:prepare:{identifier}', function (Nutgram $bot, string $identifier): void {
+    app(AdminNodeSetupUi::class)->prepareReplacementHosts($bot, $identifier);
+});
+$bot->onCallbackQueryData('nwr:hosts:apply:{token}', function (Nutgram $bot, string $token): void {
+    app(AdminNodeSetupUi::class)->applyReplacementHosts($bot, $token);
+});
+$bot->onCallbackQueryData('nwr:hosts:reconcile:{identifier}', function (Nutgram $bot, string $identifier): void {
+    app(AdminNodeSetupUi::class)->reconcileReplacementHosts($bot, $identifier);
+});
 $bot->onCallbackQueryData('nw1:step:back', function (Nutgram $bot): void {
     app(AdminNodeSetupUi::class)->stepBack($bot);
 });
