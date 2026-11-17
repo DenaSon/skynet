@@ -317,6 +317,12 @@ $bot->onCallbackQueryData('node1:tags', function (Nutgram $bot): void {
 $bot->onCallbackQueryData('nw1:begin', function (Nutgram $bot): void {
     app(AdminNodeSetupUi::class)->begin($bot);
 });
+$bot->onCallbackQueryData('nw1:step:back', function (Nutgram $bot): void {
+    app(AdminNodeSetupUi::class)->stepBack($bot);
+});
+$bot->onCallbackQueryData('nw1:default:{field}', function (Nutgram $bot, string $field): void {
+    app(AdminNodeSetupUi::class)->defaultValue($bot, $field);
+});
 $bot->onCallbackQueryData('nw1:dns:zones', function (Nutgram $bot): void {
     app(AdminNodeSetupUi::class)->dnsZones($bot);
 });

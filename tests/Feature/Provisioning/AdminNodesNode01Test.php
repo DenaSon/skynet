@@ -329,18 +329,21 @@ it('NW-01 private root wizard validates a public VPS and uses existing GET-only 
     $bot = node01Bot();
 
     $bot->hearCallbackQueryData('nw1:begin')->reply()->assertCalled('editMessageText');
-    expect(Cache::get($key)['stage'])->toBe('identity');
+    expect(Cache::get($key)['stage'])->toBe('name');
 
-    $bot->hearText('Test02 | 127.0.0.1')->reply();
-    expect(Cache::get($key)['stage'])->toBe('identity');
+    $bot->hearText('Test02')->reply();
+    expect(Cache::get($key)['stage'])->toBe('ip');
 
-    $bot->hearText('Test02 | 194.5.192.133')->reply();
+    $bot->hearText('127.0.0.1')->reply();
+    expect(Cache::get($key)['stage'])->toBe('ip');
+
+    $bot->hearText('194.5.192.133')->reply();
     expect(Cache::get($key)['stage'])->toBe('port');
 
-    $bot->hearText('22')->reply();
+    $bot->hearCallbackQueryData('nw1:default:port')->reply();
     expect(Cache::get($key)['stage'])->toBe('username');
 
-    $bot->hearText('root')->reply();
+    $bot->hearCallbackQueryData('nw1:default:root')->reply();
     expect(Cache::get($key)['stage'])->toBe('password');
 
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
@@ -377,7 +380,8 @@ it('NW-01 attempts password deletion and never persists plaintext in either Tele
     $key = TelegramBotContext::current()->cacheKey('nw01:draft:'.$actors['root']->id);
 
     $bot->hearCallbackQueryData('nw1:begin')->reply();
-    $bot->hearText('Test02 | 194.5.192.133')->reply();
+    $bot->hearText('Test02')->reply();
+    $bot->hearText('194.5.192.133')->reply();
     $bot->hearText('22')->reply();
     $bot->hearText('root')->reply();
     expect(Cache::get($key)['stage'])->toBe('password');
@@ -407,7 +411,7 @@ it('NW-01 yields to a newer legacy Node wizard instead of intercepting its text'
     $bot = node01Bot();
 
     $bot->hearCallbackQueryData('nw1:begin')->reply();
-    expect(Cache::get($key)['stage'])->toBe('identity');
+    expect(Cache::get($key)['stage'])->toBe('name');
     $bot->hearCallbackQueryData('node1:begin')->reply();
     $bot->hearText('Legacy-01 | node.example.com')->reply();
     expect(Cache::get($key))->toBeNull();
@@ -435,7 +439,7 @@ it('NW-04 private Admin can resume a recent setup while ordinary users cannot', 
     Http::assertNothingSent();
 });
 
-it('distinguishes fresh server setup from existing node registration without changing their callbacks', function (): void {
+it('keeps ready-node registration in Nodes while new setup opens from Control Panel', function (): void {
     node01Actors();
     node01FakeProvider();
     config()->set('services.remnawave.writes_enabled', true);
@@ -449,14 +453,109 @@ it('distinguishes fresh server setup from existing node registration without cha
                 $markup = json_decode($markup, true, flags: JSON_THROW_ON_ERROR);
             }
             $buttons = array_merge(...$markup['inline_keyboard']);
-            $paths = array_values(array_filter($buttons, static fn (array $button): bool => in_array($button['callback_data'] ?? '', ['nw1:begin', 'node1:begin'], true)));
+            $paths = array_column($buttons, 'callback_data');
 
-            return str_contains($body['text'], 'این دو مسیر جایگزین‌اند') && $paths === [
-                ['text' => '🛠️ افزودن سرور جدید', 'callback_data' => 'nw1:begin'],
-                ['text' => '➕ ثبت نود آماده', 'callback_data' => 'node1:begin'],
-            ];
+            return str_contains($body['text'], 'افزودن سرور جدید از «کنترل پنل»')
+                && in_array('node1:begin', $paths, true)
+                && ! in_array('nw1:begin', $paths, true);
+        }, index: 1);
+    $bot->hearCallbackQueryData('menu:admin:control')->reply()
+        ->assertRaw(static function (TelegramRequest $request): bool {
+            $body = FakeNutgram::getActualData($request);
+            $markup = $body['reply_markup'];
+            if (is_string($markup)) {
+                $markup = json_decode($markup, true, flags: JSON_THROW_ON_ERROR);
+            }
+            foreach ($markup['inline_keyboard'] as $row) {
+                foreach ($row as $button) {
+                    if (($button['callback_data'] ?? null) === 'nw1:begin') {
+                        return ($button['style'] ?? null) === 'success';
+                    }
+                }
+            }
+
+            return false;
         }, index: 1);
     Http::assertSentCount(1);
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
+});
+
+it('supports split inputs, real back navigation, and stage-bound defaults without Provider writes', function (): void {
+    $actors = node01Actors();
+    node01FakeProvider();
+    config()->set('services.remnawave.node_ssh_setup_enabled', true);
+    $key = TelegramBotContext::current()->cacheKey('nw01:draft:'.$actors['root']->id);
+    $bot = node01Bot();
+    $bot->hearCallbackQueryData('nw1:begin')->reply()
+        ->assertRaw(static function (TelegramRequest $request): bool {
+            $body = FakeNutgram::getActualData($request);
+
+            return ($body['parse_mode'] ?? null) === 'HTML'
+                && str_contains($body['text'], '<b>نام سرور</b>');
+        }, index: 1);
+    $bot->hearText('Test03')->reply();
+    expect(Cache::get($key)['stage'])->toBe('ip');
+    $bot->hearCallbackQueryData('nw1:step:back')->reply();
+    expect(Cache::get($key)['stage'])->toBe('name');
+    $bot->hearText('Test03')->reply();
+    $bot->hearText('194.5.192.133')->reply();
+    expect(Cache::get($key)['stage'])->toBe('port');
+    $bot->hearCallbackQueryData('nw1:default:root')->reply();
+    expect(Cache::get($key)['stage'])->toBe('port');
+    $bot->hearCallbackQueryData('nw1:default:port')->reply();
+    expect(Cache::get($key)['stage'])->toBe('username');
+    $bot->hearCallbackQueryData('nw1:step:back')->reply();
+    expect(Cache::get($key)['stage'])->toBe('port');
+    $bot->hearCallbackQueryData('nw1:default:port')->reply();
+    $bot->hearCallbackQueryData('nw1:default:root')->reply();
+    expect(Cache::get($key)['stage'])->toBe('password');
+    $bot->hearCallbackQueryData('nw1:step:back')->reply();
+    expect(Cache::get($key)['stage'])->toBe('username');
+    expect(Cache::get($key)['secret'] ?? null)->toBeNull();
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
+    expect(collect(Http::recorded())->filter(static fn (array $pair): bool => $pair[0]->method() !== 'GET'))->toBeEmpty();
+});
+
+it('invalidates sensitive SSH state and stale confirmations when navigating back', function (): void {
+    $actors = node01Actors();
+    node01FakeProvider();
+    config()->set('services.remnawave.node_ssh_setup_enabled', true);
+    $key = TelegramBotContext::current()->cacheKey('nw01:draft:'.$actors['root']->id);
+    $bot = node01Bot();
+
+    Cache::put($key, [
+        'stage' => 'profile', 'secret' => Crypt::encryptString('example-password'),
+        'profiles' => [['uuid' => NODE01_PROFILE, 'name' => 'Main']],
+    ], now()->addMinutes(10));
+    $bot->hearCallbackQueryData('nw1:step:back')->reply();
+    expect(Cache::get($key)['stage'])->toBe('password')
+        ->and(Cache::get($key)['secret'] ?? null)->toBeNull();
+
+    $old = str_repeat('a', 32);
+    Cache::put($key, [
+        'stage' => 'trust', 'token' => $old, 'name' => 'Test02',
+        'ip' => '194.5.192.133', 'port' => 22, 'username' => 'root',
+        'profile' => ['uuid' => NODE01_PROFILE, 'name' => 'Main'],
+        'inbound' => ['uuid' => NODE01_INBOUND, 'name' => 'VLESS'],
+        'host' => ['fingerprint' => 'old', 'knownHost' => 'old'],
+    ], now()->addMinutes(10));
+    $bot->hearCallbackQueryData('nw1:step:back')->reply();
+    expect(Cache::get($key)['stage'])->toBe('preview')
+        ->and(Cache::get($key)['host'] ?? null)->toBeNull()
+        ->and(Cache::get($key)['token'])->not->toBe($old);
+    $bot->hearCallbackQueryData('nw1:trust:'.$old)->reply();
+    expect(Cache::get($key)['stage'])->toBe('preview');
+    Http::assertNothingSent();
+});
+
+it('still accepts an active legacy combined name/IP draft during rollout', function (): void {
+    $actors = node01Actors();
+    node01FakeProvider();
+    config()->set('services.remnawave.node_ssh_setup_enabled', true);
+    $key = TelegramBotContext::current()->cacheKey('nw01:draft:'.$actors['root']->id);
+    Cache::put($key, ['stage' => 'identity'], now()->addMinutes(10));
+    node01Bot()->hearText('Legacy-Test | 194.5.192.133')->reply();
+    expect(Cache::get($key)['stage'])->toBe('port');
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
 });
 
