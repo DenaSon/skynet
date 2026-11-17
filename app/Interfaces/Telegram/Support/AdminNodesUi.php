@@ -140,6 +140,12 @@ final readonly class AdminNodesUi
                 $keyboard->addRow(InlineKeyboardButton::make('🗑️ حذف سرور', callback_data: 'node2:prepare:'.$node['uuid'].':delete'));
             }
         }
+        if (! $node['disabled'] && $node['connected']
+            && config('services.remnawave.writes_enabled') === true
+            && config('services.remnawave.node_ssh_setup_enabled') === true
+            && config('services.remnawave.node_ssh_install_enabled') === true) {
+            $keyboard->addRow(InlineKeyboardButton::make('🔁 جایگزینی سرور', callback_data: 'nwr:begin:'.$node['uuid']));
+        }
         $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'node1:view:'.$node['uuid']));
         $keyboard->addRow(InlineKeyboardButton::make('◀️ فهرست نودها', callback_data: 'node1:list:1'));
         $this->render($bot,
