@@ -311,6 +311,20 @@ it('moves all associated A records and preserves Node identity, Host identity an
         && str_contains($request->url(), 'rw.nw05.test/api/hosts'));
 });
 
+it('does not accept the client test if a transferred DNS record no longer points to the new VPS', function (): void {
+    $ready = nw05ReplacementReady();
+    $api = nw05ReplacementApi();
+    $action = app(ReplaceAdminNode::class);
+    $review = $action->preview($ready['actor']->id, $ready['id']);
+
+    $action->apply($ready['actor']->id, $ready['id'], $review);
+    $api->records[NW05_RECORD_XHTTP]['content'] = NW05_OLD_IP;
+
+    expect(fn () => $action->acceptClientTest($ready['actor']->id, $ready['id']))
+        ->toThrow(RuntimeException::class);
+    expect($action->progress($ready['actor']->id, $ready['id'])['stage'])->toBe('awaiting_client_test');
+});
+
 it('refuses shared Hosts before any provider write', function (): void {
     $ready = nw05ReplacementReady();
     nw05ReplacementApi(sharedHost: true);
@@ -511,7 +525,8 @@ it('renders replacement progress as an RTL Rich screen and labels the panel conn
             if ($argument instanceof InputRichMessage) {
                 expect($argument->is_rtl)->toBeTrue()
                     ->and($argument->html)->toContain('وضعیت جایگزینی سرور')
-                    ->toContain('متصل · تست کاربران لازم است');
+                    ->toContain('متصل · تست کاربران لازم است')
+                    ->toContain('تغییر DNS به IP جدید');
             }
         }
 
