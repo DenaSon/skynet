@@ -36,7 +36,7 @@ function cf03SelectedA(string $ip = '185.194.188.191', bool $proxied = true): ar
 /** @return array{actor:User,state:object,expected:array<string,mixed>} */
 function cf03NodeSetup(bool $failPatch = false, ?string $recordIp = null): array
 {
-    config()->set('super_admin.telegram_ids', ['980301']);
+    config()->set('super_admin.telegram_ids', ['980301', '980302']);
     config()->set('services.remnawave.url', 'https://rw.cf03.test');
     config()->set('services.remnawave.token', 'rw-test-token');
     config()->set('services.remnawave.writes_enabled', true);
