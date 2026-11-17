@@ -84,6 +84,7 @@ function nw05ReplacementApi(
     bool $sharedHostname = false,
     bool $directIpNode = false,
     bool $nodeConnected = true,
+    bool $sharedNodeManagementHostname = false,
 ): object {
     $node = [
         'uuid' => NW05_NODE,
@@ -154,7 +155,18 @@ function nw05ReplacementApi(
         ],
     ];
 
-    $shared = (object) ['node' => $node, 'hosts' => $hosts, 'records' => $records];
+    $nodes = [$node];
+    if ($sharedNodeManagementHostname) {
+        $nodes[] = [
+            'uuid' => NW05_OTHER_NODE,
+            'name' => 'Other Node',
+            'address' => 'fr.coreflare.ir',
+            'port' => 2222,
+            'isConnected' => true,
+            'isDisabled' => false,
+        ];
+    }
+    $shared = (object) ['node' => $node, 'nodes' => $nodes, 'hosts' => $hosts, 'records' => $records];
 
     Http::fake(static function (Request $request) use ($shared, $failDnsWrite) {
         $url = $request->url();
@@ -162,7 +174,7 @@ function nw05ReplacementApi(
         $rw = 'https://rw.nw05.test/api/';
 
         if ($method === 'GET' && $url === $rw.'nodes') {
-            return Http::response(['response' => [$shared->node]], 200);
+            return Http::response(['response' => $shared->nodes], 200);
         }
         if ($method === 'GET' && $url === $rw.'nodes/'.NW05_NODE) {
             return Http::response(['response' => $shared->node], 200);
@@ -488,4 +500,52 @@ it('renders replacement progress as an RTL Rich screen and labels the panel conn
     });
 
     app(AdminNodeSetupUi::class)->replacementOverview($bot, $ready['id']);
+});
+
+
+it('rejects a management hostname already used by another Node even without a matching Host', function (): void {
+    $ready = nw05ReplacementReady();
+    nw05ReplacementApi(sharedNodeManagementHostname: true);
+
+    expect(fn () => app(ReplaceAdminNode::class)->preview($ready['actor']->id, $ready['id']))
+        ->toThrow(RuntimeException::class);
+    expect(nw05MutationCount())->toBe(0);
+});
+
+it('renders the pre-install replacement review Rich-first with preserved fallback actions', function (): void {
+    $keyboard = null;
+    $bot = Mockery::mock(Nutgram::class);
+    $bot->shouldReceive('isCallbackQuery')->andReturn(false);
+    $bot->shouldReceive('sendRichMessage')->once()->andReturnUsing(function (...$arguments) use (&$keyboard): null {
+        foreach ($arguments as $argument) {
+            if ($argument instanceof InputRichMessage) {
+                expect($argument->is_rtl)->toBeTrue()
+                    ->and($argument->html)->toContain('بازبینی جایگزینی سرور')
+                    ->toContain('fr.coreflare.ir', '1.1.1.1', 'Germany', 'VLESS');
+            }
+            if ($argument instanceof InlineKeyboardMarkup) {
+                $keyboard = $argument;
+            }
+        }
+
+        return null;
+    });
+    $draft = [
+        'replacement' => [
+            'uuid' => NW05_NODE,
+            'address' => 'fr.coreflare.ir',
+            'inboundUuids' => [NW05_INBOUND],
+        ],
+        'name' => 'Germany',
+        'ip' => NW05_NEW_IP,
+        'port' => 22,
+        'profile' => ['name' => 'VLESS'],
+        'token' => 'aabbccdd',
+    ];
+    $ui = app(AdminNodeSetupUi::class);
+    $method = new ReflectionMethod($ui, 'previewPrompt');
+    $method->invoke($ui, $bot, $draft);
+
+    expect($keyboard)->toBeInstanceOf(InlineKeyboardMarkup::class)
+        ->and(json_encode($keyboard, JSON_THROW_ON_ERROR))->toContain('nw1:scan:aabbccdd');
 });

@@ -1458,55 +1458,46 @@ final readonly class AdminNodeSetupUi
     /** @param array<string,mixed> $draft */
     private function previewPrompt(Nutgram $bot, array $draft): void
     {
+        $keyboard = InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('🔎 بررسی هویت سرور', callback_data: 'nw1:scan:'.$draft['token']))
+            ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'nw1:step:back'))
+            ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'nw1:cancel'));
+
         if (is_array($draft['replacement'] ?? null)) {
             $target = $draft['replacement'];
             $message = "🔁 بازبینی جایگزینی سرور\n\n"
-                .'نود: '.$draft['name']."\n"
-                .'آدرس فعلی نود: '.$target['address']."\n"
-                .'IP سرور جدید: '.$draft['ip']."\n"
-                .'پورت SSH: '.$draft['port']."\n"
-                .'پروفایل فعلی: '.$draft['profile']['name']."\n"
+                .'نود: '.TelegramUi::escape($draft['name'])."\n"
+                .'آدرس فعلی نود: '.TelegramUi::code($target['address'])."\n"
+                .'IP سرور جدید: '.TelegramUi::code($draft['ip'])."\n"
+                .'پورت SSH: '.TelegramUi::code((string) $draft['port'])."\n"
+                .'پروفایل فعلی: '.TelegramUi::escape($draft['profile']['name'])."\n"
                 .'ورودی‌های فعال حفظ‌شده: '.count($target['inboundUuids'])
                 ."\n\nUUID نود، پروفایل، ورودی‌ها و Hostهای فعلی حذف یا بازسازی نمی‌شوند. پس از نصب، رکوردهای DNS مرتبط به IP جدید منتقل خواهند شد.";
-        } else {
-            $message = "🖥️ بازبینی مشخصات سرور\n\n"
-                .'نام: '.$draft['name']."\nIP: ".$draft['ip']."\nپورت SSH: ".$draft['port']."\nپورت ارتباط نود: 2222\n"
-                .'کاربر: '.$draft['username']."\nپروفایل: ".$draft['profile']['name']."\nورودی: ".$draft['inbound']['name']
-                .(isset($draft['dnsName']) ? "\nدامنه: ".$draft['dnsName'] : '')
-                .(is_array($draft['dnsRecordExpected'] ?? null)
-                    ? "\nIP فعلی دامنه: ".(is_string($draft['dnsRecordExpected']['content'] ?? null) ? $draft['dnsRecordExpected']['content'] : '—')
-                        ."\nوضعیت Proxy: ".(($draft['dnsRecordExpected']['proxied'] ?? null) === true ? 'Proxied' : 'DNS Only')
-                        ."\nIP هدف پس از ثبت نود: ".$draft['ip']
-                    : (isset($draft['dnsName']) ? "\nنوع دامنه: زیردامنه جدید · رکورد A" : ''))
-                ."\n\nدر این مرحله هیچ تغییری روی سرور یا Cloudflare انجام نمی‌شود.";
+            $rows = $this->replacementRichRow('نود', $draft['name'])
+                .$this->replacementRichRow('UUID', $target['uuid'])
+                .$this->replacementRichRow('آدرس فعلی', $target['address'])
+                .$this->replacementRichRow('IP سرور جدید', $draft['ip'])
+                .$this->replacementRichRow('پورت SSH', (string) $draft['port'])
+                .$this->replacementRichRow('پروفایل فعلی', $draft['profile']['name'])
+                .$this->replacementRichRow('ورودی‌های حفظ‌شده', (string) count($target['inboundUuids']));
+            $rich = '<h2>🔁 بازبینی جایگزینی سرور</h2><table bordered striped compact>'.$rows.'</table>'
+                .'<footer>در این مرحله هیچ تغییری روی Node یا DNS انجام نمی‌شود.</footer>';
+            $this->renderRich($bot, $rich, $message, $keyboard);
+
+            return;
         }
-        $this->render($bot, $message,
-            InlineKeyboardMarkup::make()
-                ->addRow(InlineKeyboardButton::make('🔎 بررسی هویت سرور', callback_data: 'nw1:scan:'.$draft['token']))
-                ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'nw1:step:back'))
-                ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'nw1:cancel')));
-    }
 
-    /** @param array<string,mixed>|null $draft
-     * @return array<string,mixed>|null
-     */
-    private function select(?array $draft, string $stage, string $field, string $index): ?array
-    {
-        $i = ctype_digit($index) && strlen($index) <= 2 ? (int) $index : -1;
-
-        return ($draft['stage'] ?? null) === $stage ? ($draft[$field][$i] ?? null) : null;
-    }
-
-    /** @param list<array{uuid:string,name:string}> $options */
-    private function choices(Nutgram $bot, string $label, array $options, string $prefix): void
-    {
-        $keyboard = InlineKeyboardMarkup::make();
-        foreach ($options as $i => $option) {
-            $keyboard->addRow(InlineKeyboardButton::make($option['name'], callback_data: $prefix.$i));
-        }
-        $keyboard->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'nw1:step:back'));
-        $keyboard->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'nw1:cancel'));
-        $this->render($bot, $label.($options === [] ? "\n\nموردی موجود نیست." : ''), $keyboard, true);
+        $message = "🖥️ بازبینی مشخصات سرور\n\n"
+            .'نام: '.$draft['name']."\nIP: ".$draft['ip']."\nپورت SSH: ".$draft['port']."\nپورت ارتباط نود: 2222\n"
+            .'کاربر: '.$draft['username']."\nپروفایل: '.$draft['profile']['name']."\nورودی: '.$draft['inbound']['name']
+            .(isset($draft['dnsName']) ? "\nدامنه: ".$draft['dnsName'] : '')
+            .(is_array($draft['dnsRecordExpected'] ?? null)
+                ? "\nIP فعلی دامنه: ".(is_string($draft['dnsRecordExpected']['content'] ?? null) ? $draft['dnsRecordExpected']['content'] : '—')
+                    ."\nوضعیت Proxy: ".(($draft['dnsRecordExpected']['proxied'] ?? null) === true ? 'Proxied' : 'DNS Only')
+                    ."\nIP هدف پس از ثبت نود: ".$draft['ip']
+                : (isset($draft['dnsName']) ? "\nنوع دامنه: زیردامنه جدید · رکورد A" : ''))
+            ."\n\nدر این مرحله هیچ تغییری روی سرور یا Cloudflare انجام نمی‌شود.";
+        $this->render($bot, $message, $keyboard);
     }
 
     /** @param array<string,mixed>|null $draft */

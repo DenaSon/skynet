@@ -141,9 +141,14 @@ final readonly class ReplaceAdminNode
         // A hostname used by a Host outside this Node is shared even when the
         // provider's nodes[] membership is incomplete. Never redirect it silently.
         $targetHostIds = array_fill_keys(array_column($assignedHosts, 'uuid'), true);
-        $targetHostnames = array_fill_keys(array_keys($hostnames), true);
+        $targetHostnames = array_fill_keys(array_map('strtolower', array_keys($hostnames)), true);
+        foreach ($this->nodes->replacementAddresses($actorId) as $peerNode) {
+            if ($peerNode['uuid'] !== $current['uuid'] && isset($targetHostnames[strtolower($peerNode['address'])])) {
+                throw new RuntimeException('A hostname being transferred is also used as another Node management address; manual review required.');
+            }
+        }
         foreach ($hostInventory as $host) {
-            if (isset($targetHostnames[$host['address']]) && ! isset($targetHostIds[$host['uuid']])) {
+            if (isset($targetHostnames[strtolower($host['address'])]) && ! isset($targetHostIds[$host['uuid']])) {
                 throw new RuntimeException('A Node/Host hostname is also used by another or unassigned Host; manual review required.');
             }
             if ($host['address'] === $oldIp && ! isset($targetHostIds[$host['uuid']])) {

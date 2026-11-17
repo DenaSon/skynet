@@ -49,6 +49,40 @@ final readonly class ManageAdminNodes
     }
 
     /**
+     * Return every Node's management endpoint for replacement collision checks.
+     *
+     * @return list<array{uuid:string,address:string,port:int}>
+     */
+    public function replacementAddresses(int $actorId): array
+    {
+        $this->access->handle($actorId);
+        $nodes = (new RemnawaveNodesApi($this->factory->make()))->all();
+        if (count($nodes) > 500) {
+            throw new UnexpectedValueException('Node inventory is too large for replacement.');
+        }
+
+        $addresses = [];
+        foreach ($nodes as $node) {
+            if (! is_array($node)) {
+                throw new UnexpectedValueException('Malformed Node in replacement inventory.');
+            }
+            $safe = $this->safeNode($node);
+            $address = $node['address'] ?? null;
+            $port = $node['port'] ?? null;
+            if (! is_string($address) || trim($address) === '' || trim($address) !== $address
+                || strlen($address) > 253
+                || (filter_var($address, FILTER_VALIDATE_IP) === false
+                    && filter_var($address, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) === false)
+                || ! is_int($port) || $port < 1 || $port > 65535) {
+                throw new UnexpectedValueException('Invalid Node management endpoint in replacement inventory.');
+            }
+            $addresses[] = ['uuid' => $safe['uuid'], 'address' => $address, 'port' => $port];
+        }
+
+        return $addresses;
+    }
+
+    /**
      * Read-only replacement snapshot. The complete active profile and inbound
      * set are captured so a replacement never silently narrows configuration.
      *
