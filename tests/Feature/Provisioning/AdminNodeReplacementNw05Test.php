@@ -27,9 +27,11 @@ const NW05_INBOUND = '550e8400-e29b-41d4-a716-446655440054';
 const NW05_HOST_REALITY = '550e8400-e29b-41d4-a716-446655440055';
 const NW05_HOST_XHTTP = '550e8400-e29b-41d4-a716-446655440056';
 const NW05_HOST_OTHER = '550e8400-e29b-41d4-a716-446655440057';
+const NW05_HOST_PEER = '550e8400-e29b-41d4-a716-446655440058';
 const NW05_ZONE = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const NW05_RECORD_NODE = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 const NW05_RECORD_XHTTP = 'cccccccccccccccccccccccccccccccc';
+const NW05_RECORD_PEER = 'dddddddddddddddddddddddddddddddd';
 const NW05_OLD_IP = '8.8.4.4';
 const NW05_NEW_IP = '1.1.1.1';
 
@@ -85,6 +87,7 @@ function nw05ReplacementApi(
     bool $directIpNode = false,
     bool $nodeConnected = true,
     bool $sharedNodeManagementHostname = false,
+    bool $peerNodeLegacyHost = false,
 ): object {
     $node = [
         'uuid' => NW05_NODE,
@@ -126,7 +129,7 @@ function nw05ReplacementApi(
             'port' => 8443,
             'isDisabled' => false,
             'inbound' => ['configProfileUuid' => NW05_PROFILE, 'configProfileInboundUuid' => NW05_INBOUND],
-            'nodes' => [NW05_NODE],
+            'nodes' => $hostNodes,
         ],
     ];
     if ($sharedHostname) {
@@ -138,6 +141,17 @@ function nw05ReplacementApi(
             'isDisabled' => false,
             'inbound' => ['configProfileUuid' => NW05_PROFILE, 'configProfileInboundUuid' => NW05_INBOUND],
             'nodes' => [NW05_OTHER_NODE],
+        ];
+    }
+    if ($peerNodeLegacyHost) {
+        $hosts[] = [
+            'uuid' => NW05_HOST_PEER,
+            'remark' => 'AMTURK-SS',
+            'address' => 'nl01.coreflare.ir',
+            'port' => 1234,
+            'isDisabled' => false,
+            'inbound' => ['configProfileUuid' => NW05_PROFILE, 'configProfileInboundUuid' => NW05_INBOUND],
+            'nodes' => [],
         ];
     }
 
@@ -154,8 +168,25 @@ function nw05ReplacementApi(
             'modified_on' => '2026-11-17T08:00:00.000Z',
         ],
     ];
+    if ($peerNodeLegacyHost) {
+        $records[NW05_RECORD_PEER] = [
+            'id' => NW05_RECORD_PEER, 'name' => 'nl01.coreflare.ir', 'type' => 'A',
+            'content' => '130.94.2.7', 'proxied' => false, 'proxiable' => true,
+            'modified_on' => '2026-11-17T08:00:00.000Z',
+        ];
+    }
 
     $nodes = [$node];
+    if ($peerNodeLegacyHost) {
+        $nodes[] = [
+            'uuid' => NW05_OTHER_NODE,
+            'name' => 'AMTURK',
+            'address' => 'nl01.coreflare.ir',
+            'port' => 2222,
+            'isConnected' => true,
+            'isDisabled' => false,
+        ];
+    }
     if ($sharedNodeManagementHostname) {
         $nodes[] = [
             'uuid' => NW05_OTHER_NODE,
@@ -213,15 +244,17 @@ function nw05ReplacementApi(
             ], 200);
         }
         if ($method === 'GET' && str_contains($url, '/dns_records?')) {
-            $record = str_contains($url, 'xhttp.coreflare.ir')
-                ? $shared->records[NW05_RECORD_XHTTP]
-                : $shared->records[NW05_RECORD_NODE];
+            parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
+            $hostname = $query['name'] ?? null;
+            $record = collect($shared->records)->firstWhere('name', $hostname);
 
-            return Http::response([
-                'success' => true,
-                'result' => [$record],
-                'result_info' => ['total_count' => 1],
-            ], 200);
+            return is_array($record)
+                ? Http::response([
+                    'success' => true,
+                    'result' => [$record],
+                    'result_info' => ['total_count' => 1],
+                ], 200)
+                : Http::response(['success' => false, 'result' => []], 404);
         }
         if ($method === 'GET' && str_ends_with($url, '/dns_records/'.NW05_RECORD_NODE)) {
             return Http::response(['success' => true, 'result' => $shared->records[NW05_RECORD_NODE]], 200);
@@ -370,6 +403,21 @@ it('uses inbound and current-address evidence for legacy Hosts with empty Node m
     expect(array_column($review['hosts'], 'uuid'))->toBe([NW05_HOST_REALITY, NW05_HOST_XHTTP])
         ->and($review['hosts'][0]['nodes'])->toBe([])
         ->and($review['hosts'][0]['association'])->toBe('inbound_address')
+        ->and(nw05MutationCount())->toBe(0);
+});
+
+it('excludes a legacy Host whose hostname is another Node management endpoint', function (): void {
+    $ready = nw05ReplacementReady();
+    $api = nw05ReplacementApi(emptyMembership: true, peerNodeLegacyHost: true);
+
+    $review = app(ReplaceAdminNode::class)->preview($ready['actor']->id, $ready['id']);
+
+    expect(array_column($review['hosts'], 'uuid'))->toBe([NW05_HOST_REALITY, NW05_HOST_XHTTP])
+        ->and(array_column($review['dnsRecords'], 'hostname'))->toBe([
+            'fr.coreflare.ir',
+            'xhttp.coreflare.ir',
+        ])
+        ->and($api->records[NW05_RECORD_PEER]['content'])->toBe('130.94.2.7')
         ->and(nw05MutationCount())->toBe(0);
 });
 
