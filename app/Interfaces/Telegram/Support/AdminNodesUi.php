@@ -80,12 +80,10 @@ final readonly class AdminNodesUi
         if ($nav !== []) {
             $keyboard->addRow(...$nav);
         }
-        if (config('services.remnawave.node_ssh_setup_enabled') === true) {
-            $keyboard->addRow(InlineKeyboardButton::make('🛠️ افزودن سرور جدید', callback_data: 'nw1:begin'));
-            if (config('services.remnawave.node_ssh_install_enabled') === true
-                && $this->installations->recent($root) !== null) {
-                $keyboard->addRow(InlineKeyboardButton::make('↪️ ادامه راه‌اندازی اخیر', callback_data: 'nw4:recent'));
-            }
+        if (config('services.remnawave.node_ssh_setup_enabled') === true
+            && config('services.remnawave.node_ssh_install_enabled') === true
+            && $this->installations->recent($root) !== null) {
+            $keyboard->addRow(InlineKeyboardButton::make('↪️ ادامه راه‌اندازی اخیر', callback_data: 'nw4:recent'));
         }
         if (config('services.remnawave.writes_enabled') === true) {
             $keyboard->addRow(
@@ -99,8 +97,8 @@ final readonly class AdminNodesUi
         if (config('services.remnawave.node_ssh_setup_enabled') === true
             && config('services.remnawave.writes_enabled') === true) {
             $lines[] = '';
-            $lines[] = 'سرور تازه: «افزودن سرور جدید»؛ نود از قبل نصب‌شده: «ثبت نود آماده».';
-            $lines[] = 'این دو مسیر جایگزین‌اند؛ اجرای هر دو لازم نیست.';
+            $lines[] = 'افزودن سرور جدید از «کنترل پنل» انجام می‌شود.';
+            $lines[] = 'این بخش برای مدیریت نودها و ثبت نود از قبل نصب‌شده است.';
         }
         $keyboard->addRow(InlineKeyboardButton::make('🏷️ تگ‌ها', callback_data: 'node1:tags'));
         $keyboard->addRow(InlineKeyboardButton::make('🌐 مدیریت هاست‌ها', callback_data: 'host1:list:1'));
