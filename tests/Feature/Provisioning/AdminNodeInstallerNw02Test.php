@@ -214,10 +214,8 @@ it('NW-02 serializes remote bootstrap before checking and creating installation 
     $markerPosition = strpos($source, 'test ! -e /opt/parsa-node-install/status');
 
     expect($source)->toContain('command -v flock')
-        ->toContain('/run/lock/parsa-node-bootstrap.lock')
-        ->and($lockPosition)->toBeInt()
-        ->and($markerPosition)->toBeInt()
-        ->and($lockPosition)->toBeLessThan($markerPosition);
+        ->toContain('/run/lock/parsa-node-bootstrap.lock');
+    expect(is_int($lockPosition) && is_int($markerPosition) && $lockPosition < $markerPosition)->toBeTrue();
 });
 
 it('NW-02 fixed remote installer parses as POSIX shell and has no dynamic command template', function (): void {
