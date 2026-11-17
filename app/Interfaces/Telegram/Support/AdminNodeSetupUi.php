@@ -890,28 +890,43 @@ final readonly class AdminNodeSetupUi
 
                 return;
             }
+
             $keyboard = InlineKeyboardMarkup::make();
-            $message = '🔁 جایگزینی سرور «'.$target['name']."»\n\n"
-                .'IP قبلی: '.$progress['oldIp']."\nIP جدید: ".$progress['newIp']."\n";
+            $message = '🔁 جایگزینی سرور «'.TelegramUi::escape($target['name'])."\n\n"
+                .'IP قبلی: '.TelegramUi::code($progress['oldIp'])."\nIP جدید: ".TelegramUi::code($progress['newIp'])."\n";
+            $rows = $this->replacementRichRow('نود', $target['name'])
+                .$this->replacementRichRow('IP قبلی', $progress['oldIp'])
+                .$this->replacementRichRow('IP جدید', $progress['newIp']);
+
             foreach ($progress['dnsRecords'] as $record) {
-                $message .= "\n🌐 ".$record['hostname'].' — '.($record['stage'] === 'verified' ? 'منتقل شد' : 'در انتظار بررسی');
+                $status = $record['stage'] === 'verified' ? 'منتقل شد' : 'در انتظار بررسی';
+                $message .= "\n🌐 ".TelegramUi::code($record['hostname']).' — '.$status;
+                $rows .= $this->replacementRichRow($record['hostname'], $status);
             }
+
             if ($progress['stage'] === 'applying') {
                 $message .= "\n\n⚠️ نتیجه بعضی عملیات مشخص نیست. فقط وضعیت فعلی بررسی می‌شود و هیچ تغییری تکرار نخواهد شد.";
+                $rows .= $this->replacementRichRow('وضعیت عملیات', 'نیازمند بررسی');
                 $keyboard->addRow(InlineKeyboardButton::make('🔎 بررسی وضعیت عملیات', callback_data: 'nw5:reconcile:'.$identifier, style: ButtonStyle::PRIMARY));
-            } elseif ($progress['stage'] === 'awaiting_connection') {
-                $message .= $progress['connected'] && ! $progress['disabled']
-                    ? "\n\n✅ اتصال نود تأیید شد."
-                    : "\n\n⏳ DNS منتقل شده است؛ منتظر اتصال همان نود از سرور جدید هستیم. VPS قدیمی را حذف نکنید.";
-                $keyboard->addRow(InlineKeyboardButton::make('🔄 بررسی اتصال', callback_data: 'nw5:resume:'.$identifier, style: ButtonStyle::PRIMARY));
-            } elseif ($progress['stage'] === 'connected') {
-                $message .= "\n\n✅ پنل همان Node را متصل گزارش می‌کند. ابتدا اتصال واقعی کلاینت را آزمایش کنید؛ تا قبل از تأیید این مرحله VPS قدیمی را نگه دارید.";
-                $keyboard->addRow(InlineKeyboardButton::make('✅ تأیید تست اتصال کلاینت', callback_data: 'nw5:accept:'.$identifier, style: ButtonStyle::SUCCESS));
+            } elseif ($progress['stage'] === 'awaiting_client_test') {
+                if ($progress['connected'] && ! $progress['disabled']) {
+                    $message .= "\n\nپنل Node را متصل گزارش می‌کند؛ این وضعیت به‌تنهایی دسترسی کاربران را ثابت نمی‌کند. ابتدا با یک کلاینت واقعی از اینترنت کاربران اتصال را آزمایش کنید. تا ثبت نتیجه، VPS قدیمی را نگه دارید.";
+                    $rows .= $this->replacementRichRow('وضعیت پنل', 'متصل · تست کاربران لازم است');
+                    $keyboard->addRow(InlineKeyboardButton::make('✅ تأیید تست واقعی کلاینت', callback_data: 'nw5:accept:'.$identifier, style: ButtonStyle::SUCCESS));
+                } else {
+                    $message .= "\n\n⏳ هنوز اتصال Node در پنل تأیید نشده است. VPS قدیمی را نگه دارید و پس از بررسی دوباره تلاش کنید.";
+                    $rows .= $this->replacementRichRow('وضعیت پنل', 'در انتظار اتصال');
+                }
+                $keyboard->addRow(InlineKeyboardButton::make('🔄 بررسی وضعیت', callback_data: 'nw5:resume:'.$identifier, style: ButtonStyle::PRIMARY));
             } elseif ($progress['stage'] === 'completed') {
-                $message .= "\n\n✅ تست اتصال کلاینت تأیید شد. همان UUID و تنظیمات قبلی حفظ شده‌اند. حالا می‌توانید برای خاموش‌کردن VPS قدیمی برنامه‌ریزی کنید.";
+                $message .= "\n\n✅ تست واقعی اتصال کلاینت توسط اپراتور تأیید شد. همان UUID و تنظیمات قبلی حفظ شده‌اند. حالا می‌توانید برای خاموش‌کردن VPS قدیمی برنامه‌ریزی کنید.";
+                $rows .= $this->replacementRichRow('تست کلاینت', 'تأییدشده توسط اپراتور');
             }
+
             $keyboard->addRow(InlineKeyboardButton::make('◀️ مدیریت نودها', callback_data: 'node1:list:1'));
-            $this->render($bot, $message, $keyboard);
+            $rich = '<h2>🔁 وضعیت جایگزینی سرور</h2><table bordered striped compact>'.$rows.'</table>'
+                .'<footer>تا پیش از تست واقعی اتصال کاربران، سرور قبلی را نگه دارید.</footer>';
+            $this->renderRich($bot, $rich, $message, $keyboard);
         } catch (Throwable) {
             $this->render($bot, 'بررسی جایگزینی ممکن نشد. وضعیت نود و رکوردهای DNS را دستی بررسی کنید؛ عملیات را دوباره اجرا نکنید.', $this->back());
         }
@@ -927,16 +942,31 @@ final readonly class AdminNodeSetupUi
             $review = $this->replacement->preview($root, $identifier);
             $token = bin2hex(random_bytes(16));
             Cache::put('nw05:confirm:'.$root, ['id' => $identifier, 'token' => $token, 'expected' => $review], now()->addMinutes(10));
+
             $message = "⚠️ تأیید نهایی جایگزینی\n\n"
-                .'نود: '.$review['node']['name']."\nUUID: ".$review['node']['uuid']."\n"
-                .'IP فعلی: '.$review['oldIp']."\nIP جدید: ".$review['newIp']."\n"
+                .'نود: '.TelegramUi::escape($review['node']['name'])."\nUUID: ".TelegramUi::code($review['node']['uuid'])."\n"
+                .'IP فعلی: '.TelegramUi::code($review['oldIp'])."\nIP جدید: ".TelegramUi::code($review['newIp'])."\n"
                 .'حالت آدرس Node: '.($review['nodeAddressMode'] === 'domain' ? 'حفظ دامنه فعلی' : 'تغییر IP مستقیم')."\n\n"
+                .'Hostهای حفظ‌شده: '.count($review['hosts'])."\n"
                 .'دامنه‌های قابل انتقال: '.count($review['dnsRecords'])."\n";
+
+            $rows = $this->replacementRichRow('نود', $review['node']['name'])
+                .$this->replacementRichRow('UUID', $review['node']['uuid'])
+                .$this->replacementRichRow('IP فعلی', $review['oldIp'])
+                .$this->replacementRichRow('IP جدید', $review['newIp'])
+                .$this->replacementRichRow('آدرس Node', $review['nodeAddressMode'] === 'domain' ? 'حفظ دامنه فعلی' : 'IP مستقیم')
+                .$this->replacementRichRow('Hostهای حفظ‌شده', (string) count($review['hosts']));
+
             foreach ($review['dnsRecords'] as $record) {
-                $message .= "\n• ".$record['hostname'].' — '.($record['record']['proxied'] ? 'Proxied' : 'DNS Only');
+                $proxy = $record['record']['proxied'] ? 'Proxied' : 'DNS Only';
+                $message .= "\n• ".TelegramUi::code($record['hostname']).' — '.$proxy;
+                $rows .= $this->replacementRichRow($record['hostname'], $proxy);
             }
+
             $message .= "\n\nUUID، پروفایل، Inboundها و Hostها حذف نمی‌شوند. فقط رکوردهای A موجود به IP جدید منتقل می‌شوند و وضعیت Proxy حفظ خواهد شد. پس از تأیید، درخواست‌ها تکرارپذیر نیستند.";
-            $this->render($bot, $message,
+            $rich = '<h2>⚠️ بازبینی نهایی جایگزینی</h2><table bordered striped compact>'.$rows.'</table>'
+                .'<footer>هیچ Node یا Hostی حذف یا بازسازی نمی‌شود. پس از انتقال، تست واقعی اتصال کاربران الزامی است.</footer>';
+            $this->renderRich($bot, $rich, $message,
                 InlineKeyboardMarkup::make()
                     ->addRow(InlineKeyboardButton::make('✅ تأیید انتقال سرور و دامنه‌ها', callback_data: 'nw5:apply:'.$token, style: ButtonStyle::SUCCESS))
                     ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'nw5:resume:'.$identifier)));
@@ -1570,6 +1600,11 @@ final readonly class AdminNodeSetupUi
     private function expired(Nutgram $bot): void
     {
         $this->render($bot, 'این مرحله منقضی شده یا تمام شده است.', $this->back());
+    }
+
+    private function replacementRichRow(string $label, string $value): string
+    {
+        return '<tr><td>'.TelegramUi::escape($label).'</td><td><b>'.TelegramUi::escape($value).'</b></td></tr>';
     }
 
     private function renderRich(
