@@ -279,6 +279,7 @@ final readonly class ReplaceAdminNode
 
             if ($state['nodeAddressMode'] === 'ip') {
                 $this->assertHostInventory($actorId, $state['hostInventory'] ?? null);
+                $this->assertDnsRecordsAtNewIp($actorId, $state['dnsRecords'] ?? null, $state['newIp'] ?? null);
                 $state['nodeAddressStage'] = 'uncertain';
                 $this->save($identifier, $state);
                 $updated = $this->nodes->updateReplacementAddress($actorId, $state['node'], $state['newIp']);
@@ -416,6 +417,42 @@ final readonly class ReplaceAdminNode
             $state['stage'] = 'awaiting_client_test';
             $this->save($identifier, $state);
         });
+    }
+
+    /**
+     * Re-read every transferred DNS record before changing a direct-IP Node address.
+     * This keeps a stale/changed DNS target from being followed by a Node PATCH.
+     */
+    private function assertDnsRecordsAtNewIp(int $actorId, mixed $entries, mixed $newIp): void
+    {
+        if (! is_array($entries) || ! is_string($newIp)) {
+            throw new RuntimeException('Replacement DNS checkpoint is unavailable.');
+        }
+
+        foreach ($entries as $entry) {
+            if (! is_array($entry)
+                || ($entry['stage'] ?? null) !== 'verified'
+                || ! is_string($entry['hostname'] ?? null)
+                || ! is_string($entry['zoneId'] ?? null)
+                || ! is_string($entry['zone'] ?? null)
+                || ! is_array($entry['record'] ?? null)
+                || ! is_string($entry['record']['id'] ?? null)
+                || ! is_bool($entry['record']['proxied'] ?? null)) {
+                throw new RuntimeException('A DNS replacement checkpoint is incomplete.');
+            }
+
+            $record = $this->dns->oneUniqueA(
+                $actorId,
+                $entry['zoneId'],
+                $entry['zone'],
+                $entry['record']['id'],
+            );
+            if ($record['name'] !== $entry['hostname']
+                || $record['content'] !== $newIp
+                || $record['proxied'] !== $entry['record']['proxied']) {
+                throw new RuntimeException('A transferred DNS record changed before the Node address update.');
+            }
+        }
     }
 
     /**
