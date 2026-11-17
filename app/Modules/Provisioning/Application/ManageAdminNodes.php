@@ -78,7 +78,8 @@ final readonly class ManageAdminNodes
         }
 
         $inboundUuids = [];
-        foreach ($inbounds as $inboundUuid) {
+        foreach ($inbounds as $inbound) {
+            $inboundUuid = is_array($inbound) ? ($inbound['uuid'] ?? null) : null;
             if (! self::uuidValid($inboundUuid)) {
                 throw new UnexpectedValueException('Node replacement inbound snapshot is invalid.');
             }

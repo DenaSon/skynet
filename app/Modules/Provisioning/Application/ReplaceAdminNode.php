@@ -82,7 +82,7 @@ final readonly class ReplaceAdminNode
             $hostnames[$current['address']] = true;
         }
 
-        if (count($hostnames) > 30 || count($directHosts) > 30) {
+        if (count($hostnames) > 10 || count($directHosts) > 10) {
             throw new RuntimeException('The Node has too many Host addresses for a bounded replacement.');
         }
 
@@ -134,7 +134,13 @@ final readonly class ReplaceAdminNode
      */
     public function apply(int $actorId, string $identifier, array $expected): void
     {
-        Cache::lock('nw05:replace:'.$identifier, 120)->block(2, function () use ($actorId, $identifier, $expected): void {
+        $this->key($identifier);
+        if (config('services.remnawave.writes_enabled') !== true
+            || ($expected['dnsRecords'] !== [] && config('services.cloudflare.dns_writes_enabled') !== true)) {
+            throw new RuntimeException('Required provider write gates are disabled.');
+        }
+
+        Cache::lock('nw05:replace:'.$identifier, 300)->block(2, function () use ($actorId, $identifier, $expected): void {
             if (Cache::has($this->key($identifier))) {
                 throw new RuntimeException('Replacement already started; reconcile its status instead of applying again.');
             }
@@ -242,7 +248,8 @@ final readonly class ReplaceAdminNode
     /** GET-only recovery; uncertain writes are never repeated automatically. */
     public function reconcile(int $actorId, string $identifier): void
     {
-        Cache::lock('nw05:replace:'.$identifier, 120)->block(2, function () use ($actorId, $identifier): void {
+        $this->key($identifier);
+        Cache::lock('nw05:replace:'.$identifier, 300)->block(2, function () use ($actorId, $identifier): void {
             $state = $this->state($actorId, $identifier);
             if ($state['stage'] !== 'applying') {
                 throw new RuntimeException('There is no uncertain replacement write to reconcile.');

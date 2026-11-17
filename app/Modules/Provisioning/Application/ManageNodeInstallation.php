@@ -48,7 +48,7 @@ final readonly class ManageNodeInstallation
             $replacementName = is_array($replacement) ? ($replacement['name'] ?? null) : null;
             $profileUuid = is_array($replacement) ? ($replacement['profileUuid'] ?? null) : null;
             $inbounds = is_array($replacement) ? ($replacement['inboundUuids'] ?? null) : null;
-            if (! is_string($uuid) || preg_match('/\\A[0-9a-fA-F-]{36}\\z/D', $uuid) !== 1
+            if (! is_string($uuid) || preg_match('/\\A[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\\z/D', $uuid) !== 1
                 || ! is_string($oldAddress) || ! is_string($replacementName)
                 || $replacementName !== ($ready['name'] ?? null)
                 || ! is_string($profileUuid) || preg_match('/\\A[0-9a-fA-F-]{36}\\z/D', $profileUuid) !== 1
