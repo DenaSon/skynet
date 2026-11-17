@@ -118,6 +118,52 @@ final readonly class ManageAdminHosts
         return $assigned;
     }
 
+
+    /**
+     * Change only a direct-IP Host address while preserving its UUID and every
+     * other provider field. Domain Hosts are moved through their A records.
+     *
+     * @param array<string,mixed> $expected
+     */
+    public function updateReplacementAddress(int $actorId, array $expected, string $address): void
+    {
+        $this->authorizeWrite($actorId);
+        $uuid = self::uuid($expected['uuid'] ?? '');
+        if (filter_var($expected['address'] ?? null, FILTER_VALIDATE_IP) === false
+            || filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+            throw ValidationException::withMessages(['host' => 'Only a direct-IP Host can be moved by address.']);
+        }
+        $this->validateIdentity($actorId, $expected['remark'], $address, $expected['port']);
+
+        Cache::lock('hosts:mutation', 60)->block(1, function () use ($actorId, $uuid, $expected, $address): void {
+            $current = $this->one($actorId, $uuid);
+            $identity = array_intersect_key($expected, array_flip([
+                'uuid', 'remark', 'address', 'port', 'disabled', 'profileUuid', 'inboundUuid',
+            ]));
+            if ($current !== $identity) {
+                throw ValidationException::withMessages(['host' => 'Host changed since replacement preview.']);
+            }
+            $this->authorizeWrite($actorId);
+            $response = $this->factory->make()->call('HostsController_updateHost', body: [
+                'uuid' => $uuid,
+                'address' => $address,
+            ]);
+            $updatedUuid = is_array($response) ? ($response['response']['uuid'] ?? null) : null;
+            if (! is_string($updatedUuid) || strtolower($updatedUuid) !== $uuid) {
+                throw new UnexpectedValueException('Host address update identity could not be verified.');
+            }
+            $updated = $this->one($actorId, $uuid);
+            if ($updated['address'] !== $address
+                || $updated['remark'] !== $current['remark']
+                || $updated['port'] !== $current['port']
+                || $updated['disabled'] !== $current['disabled']
+                || $updated['profileUuid'] !== $current['profileUuid']
+                || $updated['inboundUuid'] !== $current['inboundUuid']) {
+                throw new UnexpectedValueException('Host address update changed protected configuration.');
+            }
+        });
+    }
+
     public function validateIdentity(int $actorId, string $remark, string $address, int $port): void
     {
         $this->access->handle($actorId);
