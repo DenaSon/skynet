@@ -39,8 +39,10 @@ function cf03UiActors(): User
 
 function cf03UiBot(): FakeNutgram
 {
-    $bot = Nutgram::fake();
-    require base_path('app/Interfaces/Telegram/routes/admin.php');
+    $bot = app(Nutgram::class);
+    if (! $bot instanceof FakeNutgram) {
+        throw new RuntimeException('Telegram feature tests require the fake Nutgram binding.');
+    }
     $bot->setCommonUser(TelegramUser::make(980401, false, 'Root'));
     $bot->setCommonChat(Chat::make(980401, ChatType::PRIVATE));
 
@@ -228,8 +230,11 @@ it('CF-03 sends the Rich DNS catalog when opened without a callback', function (
     $state['dnsZoneId'] = CF03_UI_ZONE_ID;
     Cache::put($draft['key'], $state, now()->addMinutes(10));
     $bot = cf03UiBot();
+    $bot->onText('/cf03catalog', function (Nutgram $bot): void {
+        app(AdminNodeSetupUi::class)->dnsRecords($bot, '1');
+    });
 
-    app(AdminNodeSetupUi::class)->dnsRecords($bot, '1');
+    $bot->hearText('/cf03catalog')->reply();
 
     $bot->assertCalled('sendRichMessage');
     $bot->assertRaw(static function (NutgramRequest $request): bool {
