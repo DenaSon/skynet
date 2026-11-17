@@ -104,14 +104,9 @@ final readonly class ManageAdminNodeOperations
      */
     public function replaceAddress(int $actorId, array $expected, string $address): void
     {
-        if (! is_string($expected['uuid'] ?? null)
-            || ! is_string($expected['name'] ?? null)
-            || ! is_string($expected['address'] ?? null)
-            || ($expected['port'] ?? null) !== 2222
-            || ($expected['connected'] ?? null) !== true
-            || ($expected['disabled'] ?? null) !== false
-            || ! is_string($expected['profileUuid'] ?? null)
-            || ! is_array($expected['inboundUuids'] ?? null)
+        if ($expected['port'] !== 2222
+            || ! $expected['connected']
+            || $expected['disabled']
             || $expected['inboundUuids'] === []) {
             throw ValidationException::withMessages(['node' => 'The current Node is not eligible for replacement.']);
         }
