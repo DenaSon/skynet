@@ -41,6 +41,63 @@ final readonly class ManageNodeInstallation
             || ! is_string($ready['host']['knownHost'] ?? null)) {
             throw new RuntimeException('Invalid verified root SSH session.');
         }
+        $dnsMetadata = [];
+        $dnsKeys = ['dnsName', 'dnsZone', 'dnsZoneId'];
+        $hasDnsMetadata = count(array_filter(
+            $dnsKeys,
+            static fn (string $key): bool => array_key_exists($key, $ready),
+        )) > 0;
+
+        if ($hasDnsMetadata) {
+            $dnsName = $ready['dnsName'] ?? null;
+            $dnsZone = $ready['dnsZone'] ?? null;
+            $dnsZoneId = $ready['dnsZoneId'] ?? null;
+            if (! is_string($dnsName) || ! is_string($dnsZone) || ! is_string($dnsZoneId)
+                || $dnsName !== strtolower($dnsName) || $dnsZone !== strtolower($dnsZone)
+                || $dnsName === $dnsZone || ! str_ends_with($dnsName, '.'.$dnsZone)
+                || filter_var($dnsZone, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) === false
+                || filter_var($dnsName, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) === false
+                || preg_match('/\A[a-f0-9]{32}\z/D', $dnsZoneId) !== 1) {
+                throw new RuntimeException('Invalid Cloudflare DNS selection.');
+            }
+            $dnsMetadata = [
+                'dnsName' => $dnsName,
+                'dnsZone' => $dnsZone,
+                'dnsZoneId' => $dnsZoneId,
+            ];
+
+            if (array_key_exists('dnsRecordExpected', $ready)) {
+                $record = $ready['dnsRecordExpected'];
+                $recordId = is_array($record) ? ($record['id'] ?? null) : null;
+                $recordName = is_array($record) ? ($record['name'] ?? null) : null;
+                $recordIp = is_array($record) ? ($record['content'] ?? null) : null;
+                $proxied = is_array($record) ? ($record['proxied'] ?? null) : null;
+                $proxiable = is_array($record) ? ($record['proxiable'] ?? null) : null;
+                $modified = is_array($record) ? ($record['modified'] ?? null) : null;
+                if (! is_string($recordId) || preg_match('/\A[a-f0-9]{32}\z/D', $recordId) !== 1
+                    || $recordName !== $dnsName || ($record['type'] ?? null) !== 'A'
+                    || ! is_string($recordIp)
+                    || filter_var($recordIp, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false
+                    || ! is_bool($proxied) || ! is_bool($proxiable)
+                    || ($record['editable'] ?? null) !== true
+                    || ($modified !== null && ! is_string($modified))) {
+                    throw new RuntimeException('Invalid selected Cloudflare A record snapshot.');
+                }
+                $dnsMetadata['dnsRecordExpected'] = [
+                    'id' => $recordId,
+                    'name' => $recordName,
+                    'type' => 'A',
+                    'content' => $recordIp,
+                    'proxied' => $proxied,
+                    'proxiable' => $proxiable,
+                    'editable' => true,
+                    'modified' => $modified,
+                ];
+            }
+        } elseif (array_key_exists('dnsRecordExpected', $ready)) {
+            throw new RuntimeException('A DNS record cannot be selected without its zone and hostname.');
+        }
+
         $identifier = bin2hex(random_bytes(16));
         $reservation = 'nw02:host:'.$ip;
         if (! Cache::add($reservation, $identifier, now()->addHours(3))) {
@@ -63,13 +120,7 @@ final readonly class ManageNodeInstallation
                 'profileUuid' => $ready['profile']['uuid'],
                 'inboundUuid' => $ready['inbound']['uuid'],
                 'state' => 'queued',
-                ...((isset($ready['dnsName'], $ready['dnsZone'], $ready['dnsZoneId']))
-                    ? [
-                        'dnsName' => $ready['dnsName'],
-                        'dnsZone' => $ready['dnsZone'],
-                        'dnsZoneId' => $ready['dnsZoneId'],
-                    ]
-                    : []),
+                ...$dnsMetadata,
             ], now()->addHours(3));
             InstallRemnawaveNode::dispatch($identifier);
             // Non-secret pointer for returning to the latest setup from Node management.
