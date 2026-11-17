@@ -125,6 +125,7 @@ final readonly class ManageAdminNodeOperations
                 throw ValidationException::withMessages(['node' => 'Node changed since replacement confirmation.']);
             }
 
+            $this->nodes->validateReplacementAddress($actorId, $actual['uuid'], $address, $actual['port']);
             $this->authorizeWrite($actorId);
             $api = new RemnawaveNodesApi($this->factory->make());
             $response = $api->update($actual['uuid'], ['address' => $address]);
