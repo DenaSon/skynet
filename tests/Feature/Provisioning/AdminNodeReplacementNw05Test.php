@@ -75,7 +75,7 @@ function nw05ReplacementReady(bool $directIpNode = false): array
     return compact('actor', 'id');
 }
 
-/** @return object{node:array<string,mixed>,hosts:list<array<string,mixed>>,records:array<string,array<string,mixed>>} */
+/** @return object{node:array<string,mixed>,nodes:list<array<string,mixed>>,hosts:list<array<string,mixed>>,records:array<string,array<string,mixed>>} */
 function nw05ReplacementApi(
     bool $sharedHost = false,
     bool $mismatchedDns = false,

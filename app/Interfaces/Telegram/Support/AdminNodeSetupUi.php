@@ -1500,6 +1500,28 @@ final readonly class AdminNodeSetupUi
         $this->render($bot, $message, $keyboard);
     }
 
+    /** @param array<string,mixed>|null $draft
+     * @return array<string,mixed>|null
+     */
+    private function select(?array $draft, string $stage, string $field, string $index): ?array
+    {
+        $i = ctype_digit($index) && strlen($index) <= 2 ? (int) $index : -1;
+
+        return ($draft['stage'] ?? null) === $stage ? ($draft[$field][$i] ?? null) : null;
+    }
+
+    /** @param list<array{uuid:string,name:string}> $options */
+    private function choices(Nutgram $bot, string $label, array $options, string $prefix): void
+    {
+        $keyboard = InlineKeyboardMarkup::make();
+        foreach ($options as $i => $option) {
+            $keyboard->addRow(InlineKeyboardButton::make($option['name'], callback_data: $prefix.$i));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'nw1:step:back'));
+        $keyboard->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'nw1:cancel'));
+        $this->render($bot, $label.($options === [] ? "\n\nموردی موجود نیست." : ''), $keyboard, true);
+    }
+
     /** @param array<string,mixed>|null $draft */
     private function valid(?array $draft, string $token, string $stage): bool
     {

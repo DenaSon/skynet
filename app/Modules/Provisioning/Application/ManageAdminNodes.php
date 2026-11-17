@@ -63,9 +63,6 @@ final readonly class ManageAdminNodes
 
         $addresses = [];
         foreach ($nodes as $node) {
-            if (! is_array($node)) {
-                throw new UnexpectedValueException('Malformed Node in replacement inventory.');
-            }
             $safe = $this->safeNode($node);
             $address = $node['address'] ?? null;
             $port = $node['port'] ?? null;
