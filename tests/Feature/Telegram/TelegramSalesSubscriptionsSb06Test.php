@@ -1084,10 +1084,6 @@ it('preserves official subscription page access and selectable URL in the long f
 });
 
 /**
- * Activation notices reuse the existing owner-checked credential Action and
- * old QR callback; test fixtures do not simulate real Provider deployment.
- */
-/**
  * Give activation-notification fixtures the exact Sales roles used in production.
  * The same SubscriptionActivated delivery path must remain shareable for both.
  */
@@ -1101,6 +1097,10 @@ function sb06ActivationBuyer(string $role): User
     return $buyer;
 }
 
+/**
+ * Activation notices reuse the existing owner-checked credential Action and
+ * old QR callback; test fixtures do not simulate real Provider deployment.
+ */
 function sb06ActivationNotice(User $buyer, int $orderId): int
 {
     config()->set('telegram_notifications.enabled', true);
@@ -1223,7 +1223,8 @@ it('keeps the full long URL below the shareable QR photo for members and reselle
         return str_contains((string) sb06PhotoField($r, 'caption'), $url)
             && str_contains((string) sb06PhotoField($r, 'caption'), 'برای دکمه کپی تلگرام')
             && ! str_contains($markup, 'copy_text')
-            && ! str_contains($markup, 'sales:subs:link:');
+            && ! str_contains($markup, 'sales:subs:link:')
+            && sb06PhotoField($r, 'protect_content') === null;
     });
     Http::assertNotSent(static fn (Request $r): bool => str_contains($r->url(), '/sendMessage'));
 })->with(['member', 'reseller']);
