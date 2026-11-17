@@ -152,6 +152,46 @@ final readonly class ManageCloudflareDns
         return $record;
     }
 
+    /**
+     * Resolve one exact Host hostname to a unique editable A record in an
+     * explicitly allowlisted Cloudflare Zone. No DNS guessing or CNAME writes.
+     *
+     * @return array{zoneId:string,zone:string,record:array<string,mixed>}
+     */
+    public function uniqueAForHostname(int $actorId, string $hostname): array
+    {
+        $this->access->handle($actorId);
+        if (config('services.cloudflare.dns_writes_enabled') !== true) {
+            throw new RuntimeException('Cloudflare DNS writes are disabled.');
+        }
+
+        $hostname = strtolower(trim($hostname));
+        $matchingZones = array_values(array_filter(
+            $this->zones($actorId),
+            static fn (array $zone): bool => str_ends_with($hostname, '.'.$zone['name']),
+        ));
+        if (count($matchingZones) !== 1) {
+            throw new RuntimeException('Host hostname is outside one unambiguous allowlisted Cloudflare Zone.');
+        }
+
+        $zone = $matchingZones[0];
+        if ($this->hostname($actorId, $zone['name'], $hostname) !== $hostname) {
+            throw new RuntimeException('Host hostname is invalid.');
+        }
+        $records = $this->api->records($zone['id'], $hostname);
+        if (count($records) !== 1) {
+            throw new RuntimeException('Host hostname does not have exactly one DNS record.');
+        }
+
+        $record = $this->safeRecord($zone['name'], $records[0]);
+        if ($record['name'] !== $hostname || $record['type'] !== 'A' || $record['editable'] !== true) {
+            throw new RuntimeException('Host hostname is not one editable public A record.');
+        }
+        $this->assertUniqueARecord($zone['id'], $record);
+
+        return ['zoneId' => $zone['id'], 'zone' => $zone['name'], 'record' => $record];
+    }
+
     /** @param array<string,mixed> $record */
     private function assertUniqueARecord(string $zoneId, array $record): void
     {
