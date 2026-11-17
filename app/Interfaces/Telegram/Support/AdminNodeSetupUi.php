@@ -891,7 +891,7 @@ final readonly class AdminNodeSetupUi
                 return;
             }
             $keyboard = InlineKeyboardMarkup::make();
-            $message = "🔁 جایگزینی سرور «".$target['name']."»\n\n"
+            $message = '🔁 جایگزینی سرور «'.$target['name']."»\n\n"
                 .'IP قبلی: '.$progress['oldIp']."\nIP جدید: ".$progress['newIp']."\n";
             foreach ($progress['dnsRecords'] as $record) {
                 $message .= "\n🌐 ".$record['hostname'].' — '.($record['stage'] === 'verified' ? 'منتقل شد' : 'در انتظار بررسی');
@@ -920,7 +920,9 @@ final readonly class AdminNodeSetupUi
     public function prepareReplacement(Nutgram $bot, string $identifier): void
     {
         $root = $this->root($bot);
-        if ($root === null) return;
+        if ($root === null) {
+            return;
+        }
         try {
             $review = $this->replacement->preview($root, $identifier);
             $token = bin2hex(random_bytes(16));
@@ -946,7 +948,9 @@ final readonly class AdminNodeSetupUi
     public function applyReplacement(Nutgram $bot, string $token): void
     {
         $root = $this->root($bot);
-        if ($root === null) return;
+        if ($root === null) {
+            return;
+        }
         if (preg_match('/\A[a-f0-9]{32}\z/D', $token) !== 1) {
             $this->expired($bot);
 
@@ -978,7 +982,9 @@ final readonly class AdminNodeSetupUi
     public function acceptReplacement(Nutgram $bot, string $identifier): void
     {
         $root = $this->root($bot);
-        if ($root === null) return;
+        if ($root === null) {
+            return;
+        }
         try {
             $this->replacement->acceptClientTest($root, $identifier);
             $this->replacementOverview($bot, $identifier);
@@ -990,7 +996,9 @@ final readonly class AdminNodeSetupUi
     public function reconcileReplacement(Nutgram $bot, string $identifier): void
     {
         $root = $this->root($bot);
-        if ($root === null) return;
+        if ($root === null) {
+            return;
+        }
         try {
             $this->replacement->reconcile($root, $identifier);
             $this->replacementOverview($bot, $identifier);
@@ -1007,6 +1015,7 @@ final readonly class AdminNodeSetupUi
                 return false;
             }
         }
+
         return true;
     }
 
@@ -1263,6 +1272,7 @@ final readonly class AdminNodeSetupUi
                 if (is_array($draft['replacement'] ?? null)) {
                     Cache::forget($this->key($id));
                     $this->render($bot, 'ورود به فرایند جایگزینی لغو شد.', $this->back());
+
                     return;
                 }
                 $draft['stage'] = 'name';
@@ -1306,6 +1316,7 @@ final readonly class AdminNodeSetupUi
                     unset($draft['ip']);
                     $this->save($id, $draft);
                     $this->render($bot, "🔁 جایگزینی سرور\n\n<b>IP عمومی سرور جدید</b> را ارسال کنید.", $this->cancelButton(), true);
+
                     return;
                 }
                 if (isset($draft['dnsRecordExpected'], $draft['dnsZone'])) {
@@ -1362,6 +1373,7 @@ final readonly class AdminNodeSetupUi
                     unset($draft['ip'], $draft['host'], $draft['token'], $draft['secret']);
                     $this->save($id, $draft);
                     $this->render($bot, "🔁 جایگزینی سرور\n\n<b>IP عمومی سرور جدید</b> را ارسال کنید.", $this->cancelButton(), true);
+
                     return;
                 }
                 $draft['stage'] = 'inbound';

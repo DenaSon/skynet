@@ -299,6 +299,7 @@ final readonly class ReplaceAdminNode
                     && $record['proxied'] === $entry['record']['proxied']) {
                     $state['dnsRecords'][$index]['stage'] = 'verified';
                     $this->save($identifier, $state);
+
                     continue;
                 }
                 throw new RuntimeException('An uncertain DNS write is not verified. Do not retry it; inspect Cloudflare manually.');
@@ -312,6 +313,7 @@ final readonly class ReplaceAdminNode
                 if ($current['address'] === $state['newIp']) {
                     $state['directHosts'][$index]['stage'] = 'verified';
                     $this->save($identifier, $state);
+
                     continue;
                 }
                 throw new RuntimeException('An uncertain Host update is not verified. Inspect Remnawave manually.');
