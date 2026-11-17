@@ -249,6 +249,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:nw2:status:{identifier}';
     // NW-01 adds root-only read-only SSH readiness callbacks, no Sales routes.
     $expected['ADMIN'][] = 'callback:nw1:begin';
+    $expected['ADMIN'][] = 'callback:nw1:step:back';
+    $expected['ADMIN'][] = 'callback:nw1:default:{field}';
     $expected['ADMIN'][] = 'callback:nw1:dns:zones';
     $expected['ADMIN'][] = 'callback:nw1:dns:zone:{index}';
     $expected['ADMIN'][] = 'callback:nw1:dns:skip';
