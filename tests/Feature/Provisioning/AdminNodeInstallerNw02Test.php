@@ -77,6 +77,53 @@ it('NW-02 defaults off, queues opaque identifier only, and reserves a VPS once',
     Http::assertNothingSent();
 });
 
+it('NW-02 persists only a validated selected Cloudflare A-record snapshot', function (): void {
+    $fixture = nw02Fixture();
+    Queue::fake();
+    $ready = $fixture['ready'];
+    $ready += [
+        'dnsName' => 'uae.denagate.ir',
+        'dnsZone' => 'denagate.ir',
+        'dnsZoneId' => str_repeat('a', 32),
+        'dnsRecordExpected' => [
+            'id' => str_repeat('b', 32),
+            'name' => 'uae.denagate.ir',
+            'type' => 'A',
+            'content' => '185.194.188.191',
+            'proxied' => true,
+            'proxiable' => true,
+            'editable' => true,
+            'modified' => '2026-11-17T08:00:00Z',
+        ],
+    ];
+
+    $identifier = app(ManageNodeInstallation::class)->enqueue($fixture['actor']->id, $ready);
+    $state = Cache::get('nw02:status:'.$identifier);
+    expect($state['dnsName'])->toBe('uae.denagate.ir')
+        ->and($state['dnsRecordExpected'])->toBe($ready['dnsRecordExpected']);
+
+    $invalid = $fixture['ready'];
+    $invalid['ip'] = '194.5.192.134';
+    $invalid += [
+        'dnsName' => 'uae.denagate.ir',
+        'dnsZone' => 'denagate.ir',
+        'dnsZoneId' => str_repeat('a', 32),
+        'dnsRecordExpected' => [
+            'id' => str_repeat('b', 32),
+            'name' => 'uae.denagate.ir',
+            'type' => 'A',
+            'content' => '10.0.0.8',
+            'proxied' => true,
+            'proxiable' => true,
+            'editable' => true,
+            'modified' => null,
+        ],
+    ];
+    expect(fn () => app(ManageNodeInstallation::class)->enqueue($fixture['actor']->id, $invalid))
+        ->toThrow(RuntimeException::class);
+    Queue::assertPushed(InstallRemnawaveNode::class, 1);
+});
+
 it('NW-02 launches once using GET keygen and never performs Provider POST', function (): void {
     $fixture = nw02Fixture();
     Queue::fake();
