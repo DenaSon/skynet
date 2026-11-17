@@ -208,6 +208,18 @@ it('NW-02 status rechecks root identity and destroys credentials when Node runs'
     expect(fn () => $manager->status($fixture['actor']->id, $identifier))->toThrow(AuthorizationException::class);
 });
 
+it('NW-02 serializes remote bootstrap before checking and creating installation markers', function (): void {
+    $source = file_get_contents(base_path('app/Modules/Provisioning/Infrastructure/NodeSetup/NodeSshInstaller.php'));
+    $lockPosition = strpos($source, 'flock -n 9');
+    $markerPosition = strpos($source, 'test ! -e /opt/parsa-node-install/status');
+
+    expect($source)->toContain('command -v flock')
+        ->toContain('/run/lock/parsa-node-bootstrap.lock')
+        ->and($lockPosition)->toBeInt()
+        ->and($markerPosition)->toBeInt()
+        ->and($lockPosition)->toBeLessThan($markerPosition);
+});
+
 it('NW-02 fixed remote installer parses as POSIX shell and has no dynamic command template', function (): void {
     $installer = base_path('resources/scripts/nw02-install-remote.sh');
     $process = new Process(['sh', '-n', $installer]);
