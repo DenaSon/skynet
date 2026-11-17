@@ -440,6 +440,21 @@ it('moves direct-IP Hosts and the Node address last while preserving the Node an
     expect($writes->last()[0]->url())->toBe('https://rw.nw05.test/api/nodes');
 });
 
+it('preserves existing Host remarks longer than the new-Host limit during address-only replacement', function (): void {
+    $ready = nw05ReplacementReady(directIpNode: true);
+    $api = nw05ReplacementApi(directIpNode: true);
+    $remark = str_repeat('R', 41);
+    $api->hosts[0]['remark'] = $remark;
+
+    $action = app(ReplaceAdminNode::class);
+    $review = $action->preview($ready['actor']->id, $ready['id']);
+    $action->apply($ready['actor']->id, $ready['id'], $review);
+
+    expect($api->hosts[0]['remark'])->toBe($remark)
+        ->and($api->hosts[0]['address'])->toBe(NW05_NEW_IP)
+        ->and($action->progress($ready['actor']->id, $ready['id'])['stage'])->toBe('awaiting_client_test');
+});
+
 it('does not accept the client test while Remnawave reports the Node disconnected', function (): void {
     $ready = nw05ReplacementReady();
     $api = nw05ReplacementApi(nodeConnected: false);
