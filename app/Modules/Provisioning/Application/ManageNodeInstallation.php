@@ -148,6 +148,7 @@ final readonly class ManageNodeInstallation
                 'ip' => $ip,
                 'name' => $ready['name'],
                 'state' => 'queued',
+                'remoteStatusBound' => true,
                 ...$dnsMetadata,
             ];
             if (is_array($replacement)) {
@@ -192,7 +193,7 @@ final readonly class ManageNodeInstallation
             }
             $this->installer->start(
                 $access['ip'], $access['port'], $access['username'],
-                Crypt::decryptString($access['secret']), $access['knownHost'], $secret,
+                Crypt::decryptString($access['secret']), $access['knownHost'], $secret, $identifier,
             );
             $state['state'] = 'started';
             $this->persist($identifier, $state);
@@ -218,6 +219,7 @@ final readonly class ManageNodeInstallation
                 $remote = $this->installer->status(
                     $access['ip'], $access['port'], $access['username'],
                     Crypt::decryptString($access['secret']), $access['knownHost'],
+                    ($state['remoteStatusBound'] ?? false) === true ? $identifier : null,
                 );
                 if ($remote !== 'unknown') {
                     $state['state'] = $remote;
