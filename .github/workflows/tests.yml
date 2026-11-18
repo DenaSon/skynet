@@ -76,7 +76,7 @@ jobs:
             esac
 
             case "${path}" in
-              docs/*|README.md|AGENTS.md|app/Interfaces/Telegram/Support/SalesHomeUi.php|app/Interfaces/Telegram/Support/SalesSupportUi.php|app/Interfaces/Telegram/Support/SalesSubscriptionsUi.php|app/Interfaces/Telegram/Support/PlanCatalogUi.php|app/Interfaces/Telegram/Support/ResellerSalesReportUi.php|app/Interfaces/Telegram/Support/ResellerServiceHealthUi.php|app/Interfaces/Telegram/Support/TelegramUi.php|app/Interfaces/Telegram/Support/SalesNativeMenu.php|app/Interfaces/Telegram/Support/ReplyMenuLabels.php|app/Interfaces/Telegram/Support/ReplyMenuRenderer.php)
+              docs/*|README.md|AGENTS.md|app/Interfaces/Telegram/Support/SalesSupportUi.php|app/Interfaces/Telegram/Support/TelegramUi.php|app/Interfaces/Telegram/Support/SalesNativeMenu.php|app/Interfaces/Telegram/Support/ReplyMenuLabels.php)
                 ;;
               *)
                 mysql=true
