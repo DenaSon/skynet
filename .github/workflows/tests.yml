@@ -6,6 +6,7 @@ on:
       - master
       - '*.x'
   pull_request:
+  workflow_dispatch:
   schedule:
     - cron: '0 0 * * *'
 
@@ -23,6 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       mysql: ${{ steps.detect.outputs.mysql }}
+      docs_only: ${{ steps.detect.outputs.docs_only }}
     steps:
       - name: Check changed paths (unknown changes require MySQL)
         id: detect
@@ -32,126 +34,119 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
-          if [[ "${GITHUB_EVENT_NAME}" != "pull_request" ]]; then
+
+          if [[ "${GITHUB_EVENT_NAME}" == "schedule" || "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
             echo "mysql=true" >> "${GITHUB_OUTPUT}"
-            echo "Full MySQL smoke required for push/scheduled run."
+            echo "docs_only=false" >> "${GITHUB_OUTPUT}"
+            echo "Full compatibility and MySQL/Redis smoke required."
+            exit 0
+          fi
+
+          if [[ "${GITHUB_EVENT_NAME}" != "pull_request" ]]; then
+            echo "mysql=false" >> "${GITHUB_OUTPUT}"
+            echo "docs_only=false" >> "${GITHUB_OUTPUT}"
+            echo "Fast PHP 8.4 checks only for push events."
+            exit 0
+          fi
+
+          if [[ -z "${PR_NUMBER}" ]]; then
+            echo "mysql=true" >> "${GITHUB_OUTPUT}"
+            echo "docs_only=false" >> "${GITHUB_OUTPUT}"
+            echo "PR number unavailable; fail closed to MySQL smoke."
             exit 0
           fi
 
           gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files?per_page=100" \
             --jq '.[].filename' > "${RUNNER_TEMP}/pr_changed_files.txt"
+
           mysql=false
+          docs_only=true
           if [[ ! -s "${RUNNER_TEMP}/pr_changed_files.txt" ]]; then
             mysql=true
+            docs_only=false
           fi
+
           while IFS= read -r path; do
             case "${path}" in
-              docs/*|README.md|AGENTS.md|app/Interfaces/Telegram/Support/SalesHomeUi.php|app/Interfaces/Telegram/Support/SalesSupportUi.php|app/Interfaces/Telegram/Support/SalesSubscriptionsUi.php|app/Interfaces/Telegram/Support/PlanCatalogUi.php|app/Interfaces/Telegram/Support/ResellerSalesReportUi.php|app/Interfaces/Telegram/Support/ResellerServiceHealthUi.php|app/Interfaces/Telegram/Support/TelegramUi.php|app/Interfaces/Telegram/Support/SalesNativeMenu.php|app/Interfaces/Telegram/Support/ReplyMenuLabels.php|app/Interfaces/Telegram/Support/ReplyMenuRenderer.php|tests/Feature/Telegram/*)
+              docs/*|README.md|AGENTS.md)
+                ;;
+              *)
+                docs_only=false
+                ;;
+            esac
+
+            case "${path}" in
+              docs/*|README.md|AGENTS.md|app/Interfaces/Telegram/Support/SalesSupportUi.php|app/Interfaces/Telegram/Support/TelegramUi.php|app/Interfaces/Telegram/Support/SalesNativeMenu.php|app/Interfaces/Telegram/Support/ReplyMenuLabels.php)
                 ;;
               *)
                 mysql=true
-                echo "Requires MySQL: ${path}"
+                echo "Requires MySQL/Redis smoke: ${path}"
                 break
                 ;;
             esac
           done < "${RUNNER_TEMP}/pr_changed_files.txt"
+
           echo "mysql=${mysql}" >> "${GITHUB_OUTPUT}"
-          echo "Run MySQL smoke: ${mysql}"
+          echo "docs_only=${docs_only}" >> "${GITHUB_OUTPUT}"
+          echo "Run MySQL/Redis smoke: ${mysql}"
+          echo "Documentation-only PR: ${docs_only}"
+
+  docs-validation:
+    needs: changes
+    if: ${{ github.event_name == 'pull_request' && needs.changes.outputs.docs_only == 'true' }}
+    name: Documentation-only validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR files
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check documentation diff
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: git diff --check "${BASE_SHA}...${HEAD_SHA}"
 
   tests:
+    needs: changes
+    if: ${{ needs.changes.outputs.docs_only != 'true' }}
+    name: PHP 8.4
     runs-on: ubuntu-latest
-    name: PHP ${{ matrix.php }}
-    strategy:
-      fail-fast: false
-      matrix:
-        php: ['8.4', '8.5']
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Setup PHP
-        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+      - name: Run PHP 8.4 and frontend validation
+        uses: ./.github/actions/php-validation
         with:
-          php-version: ${{ matrix.php }}
-          extensions: dom, curl, libxml, gd, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite
-          coverage: none
+          php-version: '8.4'
+          run-frontend: 'true'
 
-      - name: Cache Composer downloads
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+  php85:
+    needs: changes
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    name: PHP 8.5
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          path: ~/.cache/composer/files
-          key: ${{ runner.os }}-composer-php${{ matrix.php }}-${{ hashFiles('composer.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-composer-php${{ matrix.php }}-
+          persist-credentials: false
 
-      - name: Install Composer dependencies
-        run: composer install --prefer-dist --no-interaction --no-progress
-
-      - name: Copy environment file
-        run: cp .env.example .env
-
-      - name: Generate app key
-        run: php artisan key:generate
-
-      - name: Verify portable Composer lockfile
-        run: |
-          if grep -qi 'mirror-composer.runflare.com' composer.lock; then
-            echo 'ERROR: local Composer mirror URL found in composer.lock'
-            exit 1
-          fi
-
-      - name: Validate Composer metadata
-        run: composer validate --no-check-publish
-
-      - name: Validate RW backup shell scripts
-        run: |
-          bash -n resources/scripts/denagate-rw-backup-ssh.sh resources/scripts/denagate-rw-backup-worker.sh
-          sh -n resources/scripts/prepare-ssh-runtime.sh resources/scripts/prepare-rw-backup-ssh.sh
-
-      - name: Validate RW forced-command behavior
-        run: bash tests/Shell/rw-backup-ssh-regression.sh
-
-      - name: Validate Runflare RW backup SSH secret runtime
-        run: bash tests/Shell/rw-backup-runflare-runtime.sh
-
-      - name: Execute tests
-        run: php artisan test
-
-      - name: Verify Livewire production JavaScript bundle
-        if: matrix.php == '8.4'
-        run: |
-          npm install --ignore-scripts --no-fund --no-audit --package-lock=false
-          npm run build
-          node --test tests/JavaScript/live-recovery.test.mjs
-          node - <<'NODE'
-          const fs = require('node:fs');
-          const manifest = JSON.parse(fs.readFileSync('public/build/manifest.json', 'utf8'));
-          const live = manifest['resources/js/live.js'];
-          if (!live || !live.isEntry || !live.file || !live.file.endsWith('.js')) {
-            throw new Error('Livewire Vite entry missing from production manifest');
-          }
-          const filename = 'public/build/' + live.file;
-          if (!fs.existsSync(filename) || fs.statSync(filename).size < 30000) {
-            throw new Error('Livewire runtime JavaScript bundle missing or unexpectedly empty');
-          }
-          // P0 contract: the ten unused-yet component primitives must survive production CSS generation.
-          const style = manifest['resources/css/app.css'];
-          if (!style || !style.file || !style.file.endsWith('.css')) {
-            throw new Error('DenaGate Live stylesheet missing from production manifest');
-          }
-          const css = fs.readFileSync('public/build/' + style.file, 'utf8');
-          const primitives = ['dg-card', 'dg-card-accent', 'dg-stat', 'dg-btn-primary',
-            'dg-btn-secondary', 'dg-field', 'dg-status', 'dg-heading', 'dg-empty', 'dg-nav-item'];
-          for (const primitive of primitives) {
-            if (!css.includes('.denagate-live .'+ primitive)) {
-              throw new Error('Missing scoped P0 primitive in compiled CSS: ' + primitive);
-            }
-          }
-          NODE
+      - name: Run full PHP 8.5 compatibility suite
+        uses: ./.github/actions/php-validation
+        with:
+          php-version: '8.5'
+          run-frontend: 'false'
 
   static-analysis:
+    needs: changes
+    if: ${{ needs.changes.outputs.docs_only != 'true' }}
     name: Static analysis
     runs-on: ubuntu-latest
     steps:
@@ -188,6 +183,8 @@ jobs:
         run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
 
   formatting:
+    needs: changes
+    if: ${{ needs.changes.outputs.docs_only != 'true' }}
     name: Formatting verification
     runs-on: ubuntu-latest
     steps:
@@ -278,7 +275,7 @@ jobs:
           path: ~/.cache/composer/files
           key: ${{ runner.os }}-composer-php8.4-${{ hashFiles('composer.lock') }}
           restore-keys: |
-            ${{ runner.os }}-composer-php'8.4'-
+            ${{ runner.os }}-composer-php8.4-
 
       - name: Install Composer dependencies
         run: composer install --prefer-dist --no-interaction --no-progress

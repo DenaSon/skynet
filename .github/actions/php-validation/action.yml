@@ -1,0 +1,119 @@
+name: DenaGate PHP validation
+description: Shared PHP test and optional Livewire frontend validation for Fast and Nightly CI.
+
+inputs:
+  php-version:
+    description: PHP version used for the complete Pest suite.
+    required: true
+  run-frontend:
+    description: Whether to build and verify the Livewire production assets.
+    required: false
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    - name: Setup PHP
+      uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+      with:
+        php-version: ${{ inputs.php-version }}
+        extensions: dom, curl, libxml, gd, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite
+        coverage: none
+
+    - name: Cache Composer downloads
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.cache/composer/files
+        key: ${{ runner.os }}-composer-php${{ inputs.php-version }}-${{ hashFiles('composer.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-composer-php${{ inputs.php-version }}-
+
+    - name: Install Composer dependencies
+      run: composer install --prefer-dist --no-interaction --no-progress
+      shell: bash
+
+    - name: Copy environment file
+      run: cp .env.example .env
+      shell: bash
+
+    - name: Generate app key
+      run: php artisan key:generate
+      shell: bash
+
+    - name: Verify portable Composer lockfile
+      run: |
+        if grep -qi 'mirror-composer.runflare.com' composer.lock; then
+          echo 'ERROR: local Composer mirror URL found in composer.lock'
+          exit 1
+        fi
+      shell: bash
+
+    - name: Validate Composer metadata
+      run: composer validate --no-check-publish
+      shell: bash
+
+    - name: Validate RW backup shell scripts
+      run: |
+        bash -n resources/scripts/denagate-rw-backup-ssh.sh resources/scripts/denagate-rw-backup-worker.sh
+        sh -n resources/scripts/prepare-ssh-runtime.sh resources/scripts/prepare-rw-backup-ssh.sh
+      shell: bash
+
+    - name: Validate RW forced-command behavior
+      run: bash tests/Shell/rw-backup-ssh-regression.sh
+      shell: bash
+
+    - name: Validate Runflare RW backup SSH secret runtime
+      run: bash tests/Shell/rw-backup-runflare-runtime.sh
+      shell: bash
+
+    - name: Execute tests
+      run: php artisan test
+      shell: bash
+
+    - name: Setup Node
+      if: ${{ inputs.run-frontend == 'true' }}
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version: '22'
+
+    - name: Cache npm downloads
+      if: ${{ inputs.run-frontend == 'true' }}
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.npm
+        key: ${{ runner.os }}-npm-node22-${{ hashFiles('package.json') }}
+        restore-keys: |
+          ${{ runner.os }}-npm-node22-
+
+    - name: Verify Livewire production JavaScript bundle
+      if: ${{ inputs.run-frontend == 'true' }}
+      run: |
+        npm install --prefer-offline --ignore-scripts --no-fund --no-audit --package-lock=false
+        npm run build
+        node --test tests/JavaScript/live-recovery.test.mjs
+        node - <<'NODE'
+        const fs = require('node:fs');
+        const manifest = JSON.parse(fs.readFileSync('public/build/manifest.json', 'utf8'));
+        const live = manifest['resources/js/live.js'];
+        if (!live || !live.isEntry || !live.file || !live.file.endsWith('.js')) {
+          throw new Error('Livewire Vite entry missing from production manifest');
+        }
+        const filename = 'public/build/' + live.file;
+        if (!fs.existsSync(filename) || fs.statSync(filename).size < 30000) {
+          throw new Error('Livewire runtime JavaScript bundle missing or unexpectedly empty');
+        }
+        // P0 contract: the ten unused-yet component primitives must survive production CSS generation.
+        const style = manifest['resources/css/app.css'];
+        if (!style || !style.file || !style.file.endsWith('.css')) {
+          throw new Error('DenaGate Live stylesheet missing from production manifest');
+        }
+        const css = fs.readFileSync('public/build/' + style.file, 'utf8');
+        const primitives = ['dg-card', 'dg-card-accent', 'dg-stat', 'dg-btn-primary',
+          'dg-btn-secondary', 'dg-field', 'dg-status', 'dg-heading', 'dg-empty', 'dg-nav-item'];
+        for (const primitive of primitives) {
+          if (!css.includes('.denagate-live .' + primitive)) {
+            throw new Error('Missing scoped P0 primitive in compiled CSS: ' + primitive);
+          }
+        }
+        NODE
+      shell: bash

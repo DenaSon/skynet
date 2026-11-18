@@ -1,3 +1,16 @@
+## CI/CD fast and nightly split — operator-approved (2026-11-18; implementation pending review)
+
+The operator approved separating routine feedback from full compatibility validation while preserving critical pre-merge database checks:
+
+- **Fast CI:** Every code PR and push runs the full Pest suite on PHP 8.4, PHPStan, Pint, Composer/shell checks, and the Livewire/Vite production build plus JavaScript regression.
+- **Nightly/manual full CI:** PHP 8.5 full compatibility, plus disposable MySQL 8.4 / Redis 7 migration, concurrency, financial-idempotency, queue and rollback smoke tests. PHP 8.4 remains in the nightly run too. Manual `workflow_dispatch` runs the same full suite.
+- **Sensitive PRs:** MySQL/Redis smoke remains pre-merge mandatory for persistence, migration, financial/ledger, concurrency, queue, Provider-lifecycle and unknown/unclassified changes. Only a narrow allowlist of documentation and presentation-only paths skips it.
+- **Docs-only PRs:** If every changed path is under `docs/` or is `README.md` / `AGENTS.md`, run `git diff --check` only. Mixed or unknown paths run normal Fast CI.
+- **JavaScript:** Node 22, cache npm downloads (not `node_modules`) keyed by `package.json`, and use `npm install --prefer-offline`. There is currently no npm lockfile; caching does not claim deterministic transitive dependency resolution. No lockfile is hand-authored.
+- `master` remains auto-deploying. Database-sensitive checks must pass on the PR before merge; a post-merge MySQL run cannot protect an already-triggered Production deploy.
+
+Normative policy: [docs/004-STANDARDS.md — CI execution and release validation](004-STANDARDS.md#ci-execution-and-release-validation-policy-normative-2026-11-18). The implementation is in a separate, unmerged CI PR; completion requires its own green PR checks and review. No Production deploy behavior or application feature is changed.
+
 ## Reseller daily UX — similar purchases and manual renewal reminders (2026-11-18)
 
 Second operator-approved PR: both Sales Bot and Live expose a reseller/owner-verified similar-service quotation using purchased volume/duration and current published pricing. Live reuses its existing quote/name/order/payment form, clearing the old customer name; Telegram shows a read-only Rich preview and continues through the existing new-purchase callback and new-customer/payment flow. Retired/changed plans are rejected, and renewal mappings cannot become new-purchase sources. Original orders/services remain untouched; every payment retains existing confirmation and idempotency.
