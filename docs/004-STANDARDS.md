@@ -8,6 +8,20 @@
 5. Run `php artisan test`, `vendor/bin/phpstan analyse --no-progress`, and `vendor/bin/pint --test` (or `composer quality`) when possible; disclose what was not run.
 6. Open PR to `master`; document risks and deferred decisions.
 
+## CI execution and release validation policy (normative; 2026-11-18)
+
+Keep fast pre-merge feedback and complete compatibility validation separate without removing test coverage:
+
+- **Fast CI:** Every code Pull Request and push runs the complete Pest suite on PHP **8.4**, PHPStan, Pint, Composer/shell validation, and the Livewire/Vite production build plus JavaScript regression checks. These remain parallel jobs where practical.
+- **Nightly/full CI:** The scheduled run and an explicit `workflow_dispatch` run execute the complete suite on PHP **8.4 and 8.5**, plus the disposable MySQL 8.4 / Redis 7 migration, concurrency, financial-idempotency, queue and rollback smoke tests. PHP 8.5 is not a per-PR compatibility gate; it remains a full nightly/manual compatibility check.
+- **Sensitive Pull Requests:** The same MySQL/Redis smoke job is mandatory for PRs touching persistence, migrations, financial/ledger behavior, concurrency, queues, Provider lifecycle or any unclassified/unknown path. Keep the path classifier conservative: only explicitly enumerated documentation and presentation-only paths may bypass this smoke. Changes to tests themselves must not be broadly exempted.
+- **Documentation-only Pull Requests:** When every changed path is under `docs/` or is `README.md` / `AGENTS.md`, run `git diff --check` and skip PHP, static-analysis, formatting, frontend and database jobs. Any mixed or unknown path takes the normal code path.
+- **Master pushes:** Run Fast CI after a push. Do not treat post-merge MySQL/Redis smoke as a release gate: `master` auto-deploys, so sensitive database/financial changes must pass their relevant smoke on the PR before merge.
+- **JavaScript dependencies:** Use Node 22 and cache npm's download cache (not `node_modules`) with a key derived from `package.json`; use `npm install --prefer-offline`. The repository currently has no npm lockfile, so this improves repeat installs but does not claim fully locked/reproducible transitive versions. Do not invent or hand-author a lockfile; introduce one only after generating and validating it with the actual npm registry and build.
+- Pin third-party Actions to reviewed commit SHAs. Preserve the existing job/check names where practical. A skipped conditional job is not evidence that its underlying test suite ran.
+
+This policy supersedes historical roadmap statements that required PHP 8.5 on every PR or PHP 8.5 only as a separate ad-hoc check. It does not change Production deployment behavior, add dependencies, remove tests, or authorize a merge without the normal PR review and green applicable checks.
+
 ## Feedback-Driven, Evidence-Based, Incremental Development (normative)
 
 Treat real customer/operator feedback and observed Production defects as **inputs to prioritization**, not automatic implementation approval. Keep the approved Roadmap, phase acceptance criteria, security/RBAC, financial reconciliation, Provider-write gates, nonbreaking behavior and automatic-Production-deploy risk authoritative. Follow the smallest useful feedback loop:
