@@ -21,7 +21,7 @@ runs:
     - name: Setup PHP
       uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
       with:
-        php-version: \${{ inputs.php-version }}
+        php-version: ${{ inputs.php-version }}
         extensions: dom, curl, libxml, gd, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite
         coverage: none
 
@@ -29,9 +29,9 @@ runs:
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/.cache/composer/files
-        key: \${{ runner.os }}-composer-php\${{ inputs.php-version }}-\${{ hashFiles('composer.lock') }}
+        key: ${{ runner.os }}-composer-php${{ inputs.php-version }}-${{ hashFiles('composer.lock') }}
         restore-keys: |
-          \${{ runner.os }}-composer-php\${{ inputs.php-version }}-
+          ${{ runner.os }}-composer-php${{ inputs.php-version }}-
 
     - name: Install Composer dependencies
       run: composer install --prefer-dist --no-interaction --no-progress
@@ -76,7 +76,7 @@ runs:
       shell: bash
 
     - name: Setup Node and restore npm cache
-      if: \${{ inputs.run-frontend == 'true' }}
+      if: ${{ inputs.run-frontend == 'true' }}
       uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version: '22'
@@ -84,7 +84,7 @@ runs:
         cache-dependency-path: package.json
 
     - name: Verify Livewire production JavaScript bundle
-      if: \${{ inputs.run-frontend == 'true' }}
+      if: ${{ inputs.run-frontend == 'true' }}
       run: |
         npm install --prefer-offline --ignore-scripts --no-fund --no-audit --package-lock=false
         npm run build
