@@ -265,7 +265,7 @@ jobs:
           path: ~/.cache/composer/files
           key: ${{ runner.os }}-composer-php8.4-${{ hashFiles('composer.lock') }}
           restore-keys: |
-            ${{ runner.os }}-composer-php'8.4'-
+            ${{ runner.os }}-composer-php8.4-
 
       - name: Install Composer dependencies
         run: composer install --prefer-dist --no-interaction --no-progress
