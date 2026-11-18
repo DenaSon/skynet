@@ -411,11 +411,20 @@ it('prepares a named renewal reminder only after a successful owned read and cle
         ->push(['response' => live4bRemote($order, ['status' => 'DISABLED'])]),
     ]);
     $page->call('refreshServiceUsage')->assertSee('کپی متن یادآوری تمدید');
-    expect($page->get('serviceReminderText'))->toContain('علی <test>', 'به پایان می‌رسد', 'تهران')
-        ->not->toContain('protected-token', 'تومان', 'sk_');
+    expect($page->get('serviceReminderText'))
+        ->toContain(
+            'سلام، وقتتون بخیر 🌱',
+            'اعتبار سرویس علی <test> در تاریخ',
+            ' ساعت ',
+            'تموم می‌شه.',
+            'اگر قصد تمدید دارید، پیام بدید تا راهنمایی‌تون کنم.',
+        )
+        ->not->toContain('تهران', '«', '»', 'protected-token', 'تومان', 'sk_');
     $page->call('refreshServiceUsage')->assertSet('serviceReminderText', null);
     $page->call('refreshServiceUsage');
-    expect($page->get('serviceReminderText'))->toContain('به پایان رسیده');
+    expect($page->get('serviceReminderText'))
+        ->toContain('سلام، وقتتون بخیر 🌱', 'به پایان رسیده.', 'اگر قصد تمدید دارید، پیام بدید تا راهنمایی‌تون کنم.')
+        ->not->toContain('تهران', '«', '»');
     $page->call('refreshServiceUsage')->assertSet('serviceReminderText', null);
     expect(DB::table('provisioning_operations')->count())->toBe(0);
 });
