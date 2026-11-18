@@ -23,51 +23,51 @@ jobs:
     name: Detect MySQL-sensitive changes
     runs-on: ubuntu-latest
     outputs:
-      mysql: \${{ steps.detect.outputs.mysql }}
-      docs_only: \${{ steps.detect.outputs.docs_only }}
+      mysql: ${{ steps.detect.outputs.mysql }}
+      docs_only: ${{ steps.detect.outputs.docs_only }}
     steps:
       - name: Check changed paths (unknown changes require MySQL)
         id: detect
         shell: bash
         env:
-          GH_TOKEN: \${{ github.token }}
-          PR_NUMBER: \${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
 
-          if [[ "\${GITHUB_EVENT_NAME}" == "schedule" || "\${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
-            echo "mysql=true" >> "\${GITHUB_OUTPUT}"
-            echo "docs_only=false" >> "\${GITHUB_OUTPUT}"
+          if [[ "${GITHUB_EVENT_NAME}" == "schedule" || "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            echo "mysql=true" >> "${GITHUB_OUTPUT}"
+            echo "docs_only=false" >> "${GITHUB_OUTPUT}"
             echo "Full compatibility and MySQL/Redis smoke required."
             exit 0
           fi
 
-          if [[ "\${GITHUB_EVENT_NAME}" != "pull_request" ]]; then
-            echo "mysql=false" >> "\${GITHUB_OUTPUT}"
-            echo "docs_only=false" >> "\${GITHUB_OUTPUT}"
+          if [[ "${GITHUB_EVENT_NAME}" != "pull_request" ]]; then
+            echo "mysql=false" >> "${GITHUB_OUTPUT}"
+            echo "docs_only=false" >> "${GITHUB_OUTPUT}"
             echo "Fast PHP 8.4 checks only for push events."
             exit 0
           fi
 
-          if [[ -z "\${PR_NUMBER}" ]]; then
-            echo "mysql=true" >> "\${GITHUB_OUTPUT}"
-            echo "docs_only=false" >> "\${GITHUB_OUTPUT}"
+          if [[ -z "${PR_NUMBER}" ]]; then
+            echo "mysql=true" >> "${GITHUB_OUTPUT}"
+            echo "docs_only=false" >> "${GITHUB_OUTPUT}"
             echo "PR number unavailable; fail closed to MySQL smoke."
             exit 0
           fi
 
-          gh api --paginate "repos/\${GITHUB_REPOSITORY}/pulls/\${PR_NUMBER}/files?per_page=100" \
-            --jq '.[].filename' > "\${RUNNER_TEMP}/pr_changed_files.txt"
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files?per_page=100" \
+            --jq '.[].filename' > "${RUNNER_TEMP}/pr_changed_files.txt"
 
           mysql=false
           docs_only=true
-          if [[ ! -s "\${RUNNER_TEMP}/pr_changed_files.txt" ]]; then
+          if [[ ! -s "${RUNNER_TEMP}/pr_changed_files.txt" ]]; then
             mysql=true
             docs_only=false
           fi
 
           while IFS= read -r path; do
-            case "\${path}" in
+            case "${path}" in
               docs/*|README.md|AGENTS.md)
                 ;;
               *)
@@ -75,44 +75,44 @@ jobs:
                 ;;
             esac
 
-            case "\${path}" in
+            case "${path}" in
               docs/*|README.md|AGENTS.md|app/Interfaces/Telegram/Support/SalesHomeUi.php|app/Interfaces/Telegram/Support/SalesSupportUi.php|app/Interfaces/Telegram/Support/SalesSubscriptionsUi.php|app/Interfaces/Telegram/Support/PlanCatalogUi.php|app/Interfaces/Telegram/Support/ResellerSalesReportUi.php|app/Interfaces/Telegram/Support/ResellerServiceHealthUi.php|app/Interfaces/Telegram/Support/TelegramUi.php|app/Interfaces/Telegram/Support/SalesNativeMenu.php|app/Interfaces/Telegram/Support/ReplyMenuLabels.php|app/Interfaces/Telegram/Support/ReplyMenuRenderer.php)
                 ;;
               *)
                 mysql=true
-                echo "Requires MySQL/Redis smoke: \${path}"
+                echo "Requires MySQL/Redis smoke: ${path}"
                 break
                 ;;
             esac
-          done < "\${RUNNER_TEMP}/pr_changed_files.txt"
+          done < "${RUNNER_TEMP}/pr_changed_files.txt"
 
-          echo "mysql=\${mysql}" >> "\${GITHUB_OUTPUT}"
-          echo "docs_only=\${docs_only}" >> "\${GITHUB_OUTPUT}"
-          echo "Run MySQL/Redis smoke: \${mysql}"
-          echo "Documentation-only PR: \${docs_only}"
+          echo "mysql=${mysql}" >> "${GITHUB_OUTPUT}"
+          echo "docs_only=${docs_only}" >> "${GITHUB_OUTPUT}"
+          echo "Run MySQL/Redis smoke: ${mysql}"
+          echo "Documentation-only PR: ${docs_only}"
 
   docs-validation:
     needs: changes
-    if: \${{ github.event_name == 'pull_request' && needs.changes.outputs.docs_only == 'true' }}
+    if: ${{ github.event_name == 'pull_request' && needs.changes.outputs.docs_only == 'true' }}
     name: Documentation-only validation
     runs-on: ubuntu-latest
     steps:
       - name: Checkout PR files
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: \${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           persist-credentials: false
 
       - name: Check documentation diff
         env:
-          BASE_SHA: \${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: \${{ github.event.pull_request.head.sha }}
-        run: git diff --check "\${BASE_SHA}...\${HEAD_SHA}"
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: git diff --check "${BASE_SHA}...${HEAD_SHA}"
 
   tests:
     needs: changes
-    if: \${{ needs.changes.outputs.docs_only != 'true' }}
+    if: ${{ needs.changes.outputs.docs_only != 'true' }}
     name: PHP 8.4
     runs-on: ubuntu-latest
     steps:
@@ -124,7 +124,7 @@ jobs:
 
   php85:
     needs: changes
-    if: \${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
     name: PHP 8.5
     runs-on: ubuntu-latest
     steps:
