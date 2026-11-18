@@ -6,6 +6,7 @@ namespace App\Interfaces\Telegram\Support;
 
 use App\Interfaces\Telegram\Notifications\TelegramNotificationSender;
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
+use App\Modules\Billing\Application\ReverseDirectBankReceipt;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Identity\Application\SuperAdminTrust;
@@ -393,6 +394,7 @@ final readonly class ManualPaymentUi
             $keyboard->addRow(...$arrows);
         }
         if ($actor->canManageRoles()) {
+            $keyboard->addRow(InlineKeyboardButton::make('رسیدهای خرید تحویل‌شده', callback_data: 'bank:history:1'));
             $keyboard->addRow(InlineKeyboardButton::make(
                 '🕓 سفارش‌های بدون رسید', callback_data: 'receipt:followup:list:1',
             ));
@@ -400,6 +402,87 @@ final readonly class ManualPaymentUi
         $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'bank:list:'.$number))
             ->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
         $this->render($bot, $text, $keyboard, $acknowledged);
+    }
+
+    public function bankHistory(Nutgram $bot, string $page): void
+    {
+        $actor = $this->viewer($bot);
+        $number = $this->parseId($page);
+        if ($actor?->canManageRoles() !== true || $number === null || $number > 10000) {
+            return;
+        }
+        Cache::forget('bank-reversal:'.$actor->userId);
+        $rows = app(ReverseDirectBankReceipt::class)->receipts($actor->userId)
+            ->orderByDesc('c.id')->offset(($number - 1) * 8)->limit(9)->get();
+        $keyboard = InlineKeyboardMarkup::make();
+        foreach ($rows->take(8) as $row) {
+            $label = ($row->status === 'voided' ? '↩️ ' : '').'رسید #'.$row->receipt.' · سفارش #'.$row->order_id.' · '.TelegramUi::toman((int) $row->amount).' تومان';
+            $keyboard->addRow(InlineKeyboardButton::make($label, callback_data: 'bank:inspect:'.$row->receipt));
+        }
+        if ($number > 1) {
+            $keyboard->addRow(InlineKeyboardButton::make('قبلی', callback_data: 'bank:history:'.($number - 1)));
+        }
+        if ($rows->count() > 8) {
+            $keyboard->addRow(InlineKeyboardButton::make('بعدی', callback_data: 'bank:history:'.($number + 1)));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('بازگشت', callback_data: 'bank:list'));
+        $title = 'رسیدهای خرید تحویل‌شده';
+        $body = $rows->isEmpty() ? 'رسیدی پیدا نشد.' : 'برای مشاهدهٔ جزئیات، رسید را انتخاب کنید.';
+        $this->render($bot, $title."\n".$body, $keyboard, richHtml: '<h2>'.$title.'</h2><p>'.$body.'</p>');
+    }
+
+    public function inspectBankReceipt(Nutgram $bot, string $claim): void
+    {
+        $actor = $this->viewer($bot);
+        if ($actor?->canManageRoles() !== true || $this->parseId($claim) === null) {
+            return;
+        }
+        $row = app(ReverseDirectBankReceipt::class)->receipts($actor->userId)->where('c.id', (int) $claim)->first();
+        if ($row === null) {
+            $this->notice($bot, 'رسید در دسترس نیست.');
+
+            return;
+        }
+        $title = 'رسید #'.$row->receipt.' · سفارش #'.$row->order_id;
+        $body = 'کاربر #'.$row->buyer.' · سند #'.$row->journal.' · '.TelegramUi::toman((int) $row->amount).' تومان';
+        $keyboard = InlineKeyboardMarkup::make();
+        $notice = 'این رسید قبلاً برگشت خورده است.';
+        if ($row->status === 'approved') {
+            $token = bin2hex(random_bytes(16));
+            Cache::put('bank-reversal:'.$actor->userId, [
+                'token' => $token, 'claim' => (int) $row->receipt, 'order' => (int) $row->order_id,
+                'journal' => (int) $row->journal, 'amount' => (int) $row->amount,
+            ], now()->addMinutes(3));
+            $notice = 'فقط اگر گردش حساب بانکی را بررسی کرده‌اید و واریزی انجام نشده، برگشت را تأیید کنید. کل مبلغ از گزارش دریافت و فروش کسر می‌شود. وضعیت سرویس جداگانه مدیریت می‌شود.';
+            $keyboard->addRow(InlineKeyboardButton::make('واریز نشده؛ تأیید برگشت رسید', callback_data: 'bank:reverse:'.$token, style: ButtonStyle::DANGER));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make('بازگشت به رسیدها', callback_data: 'bank:history:1'));
+        $this->render($bot, $title."\n".$body."\n".$notice, $keyboard,
+            richHtml: '<h2>'.$title.'</h2><p>'.$body.'</p><p>'.$notice.'</p>');
+    }
+
+    public function reverseBankReceipt(Nutgram $bot, string $token): void
+    {
+        $actor = $this->viewer($bot);
+        if ($actor?->canManageRoles() !== true) {
+            return;
+        }
+        $key = 'bank-reversal:'.$actor->userId;
+        $draft = Cache::get($key);
+        if (! is_array($draft) || ($draft['token'] ?? null) !== $token) {
+            $this->notice($bot, 'تأیید منقضی شده است. رسید را دوباره باز کنید.');
+
+            return;
+        }
+        try {
+            $id = app(ReverseDirectBankReceipt::class)->handle($actor->userId, $draft['claim'], $draft['order'], $draft['journal'], $draft['amount']);
+        } catch (Throwable) {
+            $this->notice($bot, 'ثبت برگشت تأیید نشد. دوباره سوابق رسید را بررسی کنید.');
+
+            return;
+        }
+        Cache::forget($key);
+        $this->notice($bot, 'برگشت رسید #'.$draft['claim'].' ثبت شد. شماره سند اصلاحی: #'.$id);
     }
 
     public function show(Nutgram $bot, string $claim): void

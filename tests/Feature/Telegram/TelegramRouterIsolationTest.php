@@ -170,6 +170,9 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:full:prepare:{id}:{mode}';
     $expected['ADMIN'][] = 'callback:full:apply:{token}';
     $expected['ADMIN'][] = 'callback:bank:decide:{claim}:{decision}';
+    $expected['ADMIN'][] = 'callback:bank:history:{page}';
+    $expected['ADMIN'][] = 'callback:bank:inspect:{claim}';
+    $expected['ADMIN'][] = 'callback:bank:reverse:{token}';
     $expected['ADMIN'][] = 'callback:bank:list:{page}';
     $expected['ADMIN'][] = 'callback:full:service:view:{id}';
     $expected['ADMIN'][] = 'callback:full:service:prepare:{id}:{mode}';
@@ -373,8 +376,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(337)
-        ->and(count(array_unique($legacy)))->toBe(337);
+        ->and(count($legacy))->toBe(340)
+        ->and(count(array_unique($legacy)))->toBe(340);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {

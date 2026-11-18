@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Sales\Application;
 
+use App\Modules\Billing\Application\ValidBankSettlements;
 use App\Modules\Identity\Application\ResolveSalesBuyer;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Carbon;
@@ -33,7 +34,7 @@ final readonly class ReadResellerSalesReport
 
         // Match the trusted Admin report's settled bank/wallet sources, not
         // order prices, top-ups or incomplete checkout attempts.
-        $bank = DB::table('sales_bank_settlements as payment')
+        $bank = ValidBankSettlements::query()
             ->join('sales_orders as orders', 'orders.id', '=', 'payment.sales_order_id')
             ->leftJoin('sales_renewal_orders as renewal', 'renewal.sales_order_id', '=', 'orders.id')
             ->where('orders.buyer_user_id', $buyerId)

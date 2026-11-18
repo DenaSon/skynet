@@ -79,7 +79,7 @@ final readonly class ReadAdminCashReceipts
                 COALESCE(SUM(CASE WHEN topup.origin = 'admin_verified_bank' THEN 1 ELSE 0 END), 0) as admin_count")->first();
 
         // Direct bank settlements represent genuinely new recorded inflows.
-        $bank = DB::table('sales_bank_settlements')->where('settled_at', '<', $until);
+        $bank = ValidBankSettlements::query()->where('settled_at', '<', $until);
         if ($from !== null) {
             $bank->where('settled_at', '>=', $from);
         }
