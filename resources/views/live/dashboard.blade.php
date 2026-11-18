@@ -540,7 +540,9 @@
                             @else
                                 <p class="mt-2 text-xs text-[#536C76]">پس از بررسی موفق وضعیت سرویس، متن یادآوری برای سرویس فعال یا منقضی در دسترس است.</p>
                             @endif
-                            <button type="button" wire:click="refreshServiceUsage" wire:loading.attr="disabled" wire:target="refreshServiceUsage" class="dg-btn-secondary mt-3">بررسی و تازه‌سازی متن</button>
+                            @if ($selectedService->canRequestLink)
+                                <button type="button" wire:click="refreshServiceUsage" wire:loading.attr="disabled" wire:target="refreshServiceUsage" class="dg-btn-secondary mt-3">بررسی و تازه‌سازی متن</button>
+                            @endif
                         </details>
 
                         @if ($renewalAvailable || $renewalOrder !== null)
