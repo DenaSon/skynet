@@ -462,6 +462,14 @@ $bot->onCallbackQueryData('sales:subs:list:{cursor}', function (Nutgram $bot, st
     app(SalesSubscriptionsUi::class)->browse($bot, $cursor);
 });
 
+$bot->onCallbackQueryData('sales:subs:similar-buy:{id}:{cursor}', function (Nutgram $bot, string $id, string $cursor): void {
+    app(SalesSubscriptionsUi::class)->purchaseSimilar($bot, $id, $cursor);
+});
+
+$bot->onCallbackQueryData('sales:subs:similar:{id}:{cursor}', function (Nutgram $bot, string $id, string $cursor): void {
+    app(SalesSubscriptionsUi::class)->similar($bot, $id, $cursor);
+});
+
 $bot->onCallbackQueryData('sales:subs:view:{id}:{cursor}', function (Nutgram $bot, string $id, string $cursor): void {
     app(SalesSubscriptionsUi::class)->detail($bot, $id, $cursor);
 });

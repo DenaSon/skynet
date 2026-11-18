@@ -1302,3 +1302,41 @@ it('never sends a duplicate text if the QR photo upload outcome is unsuccessful'
     Http::assertSent(static fn (Request $r): bool => str_contains($r->url(), '/sendPhoto'));
     Http::assertNotSent(static fn (Request $r): bool => str_contains($r->url(), '/sendMessage'));
 })->with(['member', 'reseller']);
+
+it('offers a plain copyable reseller reminder only after a verified live read', function (): void {
+    Role::findOrCreate('reseller', 'web');
+    $buyer = User::factory()->create();
+    $buyer->assignRole('reseller');
+    $order = sb06Order($buyer);
+    sb06Activated($order);
+    app(ManageResellerServiceLabels::class)->save($buyer->id, $order, 'علی <مشتری>');
+    $bot = sb06Bot(976250, $buyer);
+    Http::fake(['https://remna.test/api/users/42' => Http::sequence()
+        ->push(['response' => sb06Provider($order)])
+        ->push([], 503),
+    ]);
+    $bot->hearCallbackQueryData('sales:subs:view:'.$order.':0')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $data = FakeNutgram::getActualData($request);
+            $keyboard = json_decode($data['reply_markup'], true, 512, JSON_THROW_ON_ERROR);
+            foreach ($keyboard['inline_keyboard'] as $row) {
+                foreach ($row as $button) {
+                    if (($button['text'] ?? '') === '📋 کپی یادآوری تمدید') {
+                        $text = $button['copy_text']['text'] ?? '';
+
+                        return str_contains($text, 'علی <مشتری>') && str_contains($text, 'تهران')
+                            && ! str_contains($text, 'private-sb06') && mb_strlen($text) <= 256;
+                    }
+                }
+            }
+
+            return false;
+        }, index: 2);
+    $bot->hearCallbackQueryData('sales:subs:view:'.$order.':0')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $data = FakeNutgram::getActualData($request);
+
+            return ! str_contains((string) ($data['reply_markup'] ?? ''), 'copy_text');
+        }, index: 2);
+    expect(DB::table('provisioning_operations')->count())->toBe(0);
+});

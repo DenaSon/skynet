@@ -14,7 +14,9 @@ use App\Modules\Provisioning\Application\ListMyServices;
 use App\Modules\Sales\Application\CreatePendingRenewalOrder;
 use App\Modules\Sales\Application\ManageResellerServiceLabels;
 use App\Modules\Sales\Application\PrepareRenewalDraft;
+use App\Modules\Sales\Application\QuoteSimilarResellerService;
 use App\Support\PersianCalendar;
+use App\Support\SubscriptionRenewalReminder;
 use DateTimeImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Cache;
@@ -249,6 +251,7 @@ final readonly class SalesSubscriptionsUi
         $memberGuidance = '';
         $resellerOverview = '';
         $resellerGuidance = '';
+        $reminder = null;
 
         if ($details->canRequestLink) {
             TelegramUi::answerCallback($bot);
@@ -314,6 +317,9 @@ final readonly class SalesSubscriptionsUi
                         default => '',
                     };
                 }
+                if ($resellerId !== null) {
+                    $reminder = SubscriptionRenewalReminder::text($customerLabel, $live);
+                }
                 $canRenew = in_array($live->status, ['ACTIVE', 'LIMITED', 'EXPIRED'], true)
                     && $this->renewals->available($viewer, $orderId);
                 // Connection is primary while usable; renewal comes first
@@ -350,6 +356,7 @@ final readonly class SalesSubscriptionsUi
                     ));
                 }
             } catch (Throwable) {
+                $reminder = null;
                 $lines[] = 'وضعیت سرویس: <b>⚪ فعلاً قابل بررسی نیست</b>';
                 $lines[] = '<blockquote>دریافت وضعیت لحظه‌ای ممکن نشد. کمی بعد «بررسی دوباره» را بزنید.</blockquote>';
                 $richStatus = 'وضعیت سرویس: <b>⚪ فعلاً قابل بررسی نیست</b>';
@@ -372,6 +379,11 @@ final readonly class SalesSubscriptionsUi
         }
 
         if ($resellerId !== null) {
+            if ($reminder !== null && mb_strlen($reminder) <= 256) {
+                $keyboard->addRow(TelegramUi::copy($reminder, '📋 کپی یادآوری تمدید'));
+            }
+            $keyboard->addRow(InlineKeyboardButton::make('خرید مشابه برای مشتری جدید',
+                callback_data: 'sales:subs:similar:'.$orderId.':'.$cursor));
             $keyboard->addRow(InlineKeyboardButton::make(
                 '✏️ ویرایش نام مشتری',
                 callback_data: 'sales:subs:label:edit:'.$orderId.':'.$cursor,
@@ -432,6 +444,53 @@ final readonly class SalesSubscriptionsUi
             report($exception);
             $this->render($bot, implode("\n", $lines), $simpleKeyboard, false);
         }
+    }
+
+    /** Reuse purchased quantities in a current-price, read-only preview. */
+    public function similar(Nutgram $bot, string $id, string $cursor): void
+    {
+        $viewer = $this->viewer($bot);
+        if ($viewer === null || $this->resellerId($bot) === null || $this->id($id) === null || $this->id($cursor, true) === null) {
+            return;
+        }
+        try {
+            $quote = app(QuoteSimilarResellerService::class)->handle($viewer, (int) $id);
+        } catch (AuthorizationException|ValidationException) {
+            $this->notice($bot, 'این ترکیب دیگر قابل خرید نیست. از بخش خرید، پلن دیگری انتخاب کنید.', $this->backButtons($cursor));
+
+            return;
+        }
+        $text = '<b>خرید مشابه برای مشتری جدید</b>'
+            ."\n".TelegramUi::escape($quote->planName)
+            ."\n".($quote->trafficGb === null ? 'حجم نامحدود' : $quote->trafficGb.' گیگابایت').' · '.$quote->durationDays.' روز'
+            ."\nقیمت فعلی: <b>".TelegramUi::toman($quote->totalPriceRials).' تومان</b>'
+            ."\nنام مشتری جدید را در مرحله بعد وارد کنید. پرداخت نیاز به تأیید جداگانه دارد.";
+        $keyboard = InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('ادامه خرید برای مشتری جدید', callback_data: 'sales:subs:similar-buy:'.$id.':'.$cursor, style: ButtonStyle::SUCCESS))
+            ->addRow(InlineKeyboardButton::make('بازگشت به سرویس', callback_data: 'sales:subs:view:'.$id.':'.$cursor));
+        try {
+            TelegramUi::answerCallback($bot);
+            TelegramUi::editRichText($bot, new InputRichMessage(html: '<p>'.str_replace("\n", '<br>', $text).'</p>', is_rtl: true), $keyboard);
+        } catch (TelegramException $exception) {
+            report($exception);
+            $this->render($bot, $text, $keyboard, false);
+        }
+    }
+
+    public function purchaseSimilar(Nutgram $bot, string $id, string $cursor): void
+    {
+        $viewer = $this->viewer($bot);
+        if ($viewer === null || $this->resellerId($bot) === null || $this->id($id) === null || $this->id($cursor, true) === null) {
+            return;
+        }
+        try {
+            app(QuoteSimilarResellerService::class)->handle($viewer, (int) $id);
+        } catch (AuthorizationException|ValidationException) {
+            $this->notice($bot, 'این ترکیب دیگر قابل خرید نیست. از بخش خرید، پلن دیگری انتخاب کنید.', $this->backButtons($cursor));
+
+            return;
+        }
+        app(SalesCheckoutUi::class)->newPurchase($bot, $id);
     }
 
     /** REN-01: quote a non-payable renewal draft; no bank, wallet or RW mutation. */

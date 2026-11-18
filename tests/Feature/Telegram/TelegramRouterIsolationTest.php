@@ -472,6 +472,8 @@ it('keeps Sales identity, navigation and buyer routes isolated from Admin callba
         'photo:*',
         'command:subscriptions',
         'callback:sales:subs:list:{cursor}',
+        'callback:sales:subs:similar-buy:{id}:{cursor}',
+        'callback:sales:subs:similar:{id}:{cursor}',
         'callback:sales:subs:view:{id}:{cursor}',
         'callback:sales:subs:rich:{id}:{cursor}',
         'callback:sales:subs:simple:{id}:{cursor}',

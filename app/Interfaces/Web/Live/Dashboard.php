@@ -25,10 +25,12 @@ use App\Modules\Sales\Application\OrderReader;
 use App\Modules\Sales\Application\PlanPriceQuote;
 use App\Modules\Sales\Application\PlanSummary;
 use App\Modules\Sales\Application\PrepareRenewalDraft;
+use App\Modules\Sales\Application\QuoteSimilarResellerService;
 use App\Modules\Sales\Application\ReadResellerSalesReport;
 use App\Modules\Sales\Application\RegisterPendingResellerOrder;
 use App\Modules\Sales\Application\SettleWalletOrder;
 use App\Support\Network\ReadIranNetworkSummary;
+use App\Support\SubscriptionRenewalReminder;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -83,6 +85,9 @@ final class Dashboard extends Component
     public ?string $serviceDetailError = null;
 
     public ?string $serviceUsageError = null;
+
+    #[Locked]
+    public ?string $serviceReminderText = null;
 
     #[Locked]
     public ?string $serviceStatusConfirmToken = null;
@@ -408,6 +413,7 @@ final class Dashboard extends Component
     {
         $this->resellerId();
         $this->serviceLiveUsage = null;
+        $this->serviceReminderText = null;
         $this->serviceUsageCheckedAt = null;
         $this->serviceUsageError = null;
         $this->forgetServiceStatusConfirmation($this->resellerId());
@@ -445,6 +451,9 @@ final class Dashboard extends Component
                 'limitBytes' => $usage->limitBytes,
             ];
             $this->serviceUsageCheckedAt = now()->toIso8601String();
+            $this->serviceReminderText = SubscriptionRenewalReminder::text(
+                app(ManageResellerServiceLabels::class)->get($this->resellerId(), $this->selectedServiceOrderId), $usage,
+            );
         } catch (AuthorizationException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
@@ -521,6 +530,7 @@ final class Dashboard extends Component
             );
             $this->serviceStatusNotice = 'درخواست ثبت شد. برای مشاهده نتیجه، کمی بعد «بررسی وضعیت» را بزنید.';
             $this->serviceLiveUsage = null;
+            $this->serviceReminderText = null;
             $this->serviceUsageCheckedAt = null;
         } catch (AuthorizationException $exception) {
             throw $exception;
@@ -625,6 +635,7 @@ final class Dashboard extends Component
     /** Saves through the existing transaction-locked owner-scoped Action. */
     public function saveServiceLabel(): void
     {
+        $this->serviceReminderText = null;
         $buyerId = $this->resellerId();
         $this->serviceLabelError = null;
         $this->serviceLabelNotice = null;
@@ -874,6 +885,7 @@ final class Dashboard extends Component
         $this->selectedServiceOrderId = null;
         $this->serviceDetailError = null;
         $this->serviceLiveUsage = null;
+        $this->serviceReminderText = null;
         $this->serviceUsageCheckedAt = null;
         $this->serviceUsageError = null;
         $this->serviceSubscriptionUrl = null;
@@ -917,6 +929,31 @@ final class Dashboard extends Component
     {
         $this->recentOrdersCursor = null;
         $this->recentOrdersHistory = [];
+    }
+
+    /** A read-only shortcut into the existing new-customer quote/checkout. */
+    public function buySimilarService(): void
+    {
+        $this->resellerId();
+        $this->serviceDetailError = null;
+        if ($this->section !== 'services' || $this->selectedServiceOrderId === null) {
+            return;
+        }
+        try {
+            $quote = app(QuoteSimilarResellerService::class)->handle(
+                SubscriptionViewer::web(), $this->selectedServiceOrderId,
+            );
+        } catch (ValidationException) {
+            $this->serviceDetailError = 'این ترکیب دیگر قابل خرید نیست. از بخش خرید، پلن دیگری انتخاب کنید.';
+
+            return;
+        }
+        $this->resetServiceDetail();
+        $this->selectPlan($quote->planId);
+        $this->daysInput = (string) $quote->durationDays;
+        $this->gbInput = $quote->trafficGb === null ? '' : (string) $quote->trafficGb;
+        $this->customerUsername = '';
+        $this->previewQuote();
     }
 
     /** Select only a currently quoted preset or a published reseller builder. */

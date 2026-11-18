@@ -523,6 +523,28 @@
                             @endif
                         </section>
 
+                        @if ($serviceDetailError)
+                            <p role="alert" class="mt-3 text-sm text-[#8e2929]">{{ $serviceDetailError }}</p>
+                        @endif
+                        <button type="button" wire:click="buySimilarService" wire:loading.attr="disabled" wire:target="buySimilarService" class="dg-btn-secondary mt-4 w-full">خرید مشابه برای مشتری جدید</button>
+                        <details class="dg-card mt-5 p-5" aria-label="یادآوری تمدید">
+                            <summary class="cursor-pointer text-sm font-bold">یادآوری تمدید</summary>
+                            <p class="mt-2 text-xs leading-7 text-[#536C76]">متن را کپی کنید و برای مشتری بفرستید.</p>
+                            @if ($serviceReminderText !== null)
+                                <div class="mt-3" x-data="{ copied: false, copyError: false }">
+                                    <textarea readonly x-ref="reminder" aria-label="متن یادآوری تمدید" class="dg-field w-full text-sm" rows="4">{{ $serviceReminderText }}</textarea>
+                                    <button type="button" class="dg-btn-primary mt-3" x-on:click="copied = false; copyError = false; const fallback = () => { try { $refs.reminder.select(); return document.execCommand('copy') } catch (error) { return false } }; if (navigator.clipboard?.writeText) { navigator.clipboard.writeText($refs.reminder.value).then(() => copied = true).catch(() => { copied = fallback(); copyError = !copied }) } else { copied = fallback(); copyError = !copied }">کپی متن یادآوری تمدید</button>
+                                    <p x-cloak x-show="copied" role="status" class="mt-2 text-xs">کپی شد.</p>
+                                    <p x-cloak x-show="copyError" role="status" class="mt-2 text-xs">کپی خودکار ممکن نشد؛ متن را انتخاب و دستی کپی کنید.</p>
+                                </div>
+                            @else
+                                <p class="mt-2 text-xs text-[#536C76]">پس از بررسی موفق وضعیت سرویس، متن یادآوری برای سرویس فعال یا منقضی در دسترس است.</p>
+                            @endif
+                            @if ($selectedService->canRequestLink)
+                                <button type="button" wire:click="refreshServiceUsage" wire:loading.attr="disabled" wire:target="refreshServiceUsage" class="dg-btn-secondary mt-3">بررسی و تازه‌سازی متن</button>
+                            @endif
+                        </details>
+
                         @if ($renewalAvailable || $renewalOrder !== null)
                             <section class="dg-card mt-5 p-5 sm:p-7" aria-label="تمدید سرویس">
                                 <h3 class="dg-heading">تمدید سرویس</h3>
