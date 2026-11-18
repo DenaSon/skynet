@@ -137,6 +137,38 @@ final readonly class ManageCloudflareDns
         return $this->safeRecord($zone, $this->api->record($zoneId, $recordId));
     }
 
+    /**
+     * Reads one selected public A record and rejects round-robin or mixed
+     * records sharing the same hostname. Node assignment must not leave an
+     * old IP answering alongside the new one.
+     *
+     * @return array<string,mixed>
+     */
+    public function oneUniqueA(int $actorId, string $zoneId, string $zone, string $recordId): array
+    {
+        $record = $this->one($actorId, $zoneId, $zone, $recordId);
+        $this->assertUniqueARecord($zoneId, $record);
+
+        return $record;
+    }
+
+    /** @param array<string,mixed> $record */
+    private function assertUniqueARecord(string $zoneId, array $record): void
+    {
+        $recordId = $record['id'] ?? null;
+        $hostname = $record['name'] ?? null;
+        if (! is_string($recordId) || ! is_string($hostname)
+            || ($record['type'] ?? null) !== 'A' || ($record['editable'] ?? null) !== true) {
+            throw new RuntimeException('Only an editable public A record can be assigned to a Node.');
+        }
+
+        $records = $this->api->records($zoneId, $hostname);
+        if (count($records) !== 1 || ($records[0]['id'] ?? null) !== $recordId
+            || ($records[0]['type'] ?? null) !== 'A' || ($records[0]['name'] ?? null) !== $hostname) {
+            throw new RuntimeException('The hostname has multiple DNS records; manual review required.');
+        }
+    }
+
     /** The same CF-01 create path is used by the DNS manager (DNS Only). */
     public function createManagedA(int $actorId, string $zoneId, string $zone, string $hostname, string $ip): string
     {
@@ -156,6 +188,8 @@ final readonly class ManageCloudflareDns
         array $expected,
         string $ip,
         bool $proxied,
+        ?Closure $beforeChange = null,
+        bool $requireUniqueHostname = false,
     ): void {
         $this->access->handle($actorId);
         if (config('services.cloudflare.dns_writes_enabled') !== true) {
@@ -169,16 +203,26 @@ final readonly class ManageCloudflareDns
         $this->validate($zoneId, $zone, $hostname, $ip);
 
         Cache::lock('cloudflare:dns:'.hash('sha256', $zoneId.':'.$hostname), 90)
-            ->block(2, function () use ($actorId, $zoneId, $zone, $recordId, $expected, $ip, $proxied): void {
+            ->block(2, function () use ($actorId, $zoneId, $zone, $recordId, $expected, $ip, $proxied, $beforeChange, $requireUniqueHostname): void {
                 $current = $this->one($actorId, $zoneId, $zone, $recordId);
                 if ($current !== $expected || $current['editable'] !== true) {
                     throw new RuntimeException('DNS record changed since preview.');
                 }
+                if ($requireUniqueHostname) {
+                    $this->assertUniqueARecord($zoneId, $current);
+                }
                 if ($current['content'] === $ip && $current['proxied'] === $proxied) {
-                    throw new RuntimeException('DNS record is unchanged.');
+                    if ($beforeChange === null) {
+                        throw new RuntimeException('DNS record is unchanged.');
+                    }
+
+                    return;
                 }
                 if ($proxied && $current['proxiable'] !== true) {
                     throw new RuntimeException('This record cannot be proxied.');
+                }
+                if ($beforeChange !== null) {
+                    $beforeChange();
                 }
                 $this->api->patchA($zoneId, $recordId, $ip, $proxied);
                 $updated = $this->one($actorId, $zoneId, $zone, $recordId);
@@ -187,6 +231,49 @@ final readonly class ManageCloudflareDns
                     throw new RuntimeException('DNS update outcome could not be verified.');
                 }
             });
+    }
+
+    /**
+     * Resolve one existing Host/Node hostname to its single editable A record.
+     * The returned snapshot is safe to keep in an operator confirmation.
+     *
+     * @return array{zoneId:string,zone:string,record:array<string,mixed>}
+     */
+    public function replacementRecord(int $actorId, string $hostname): array
+    {
+        $this->access->handle($actorId);
+        $hostname = strtolower(trim($hostname));
+        if ($hostname === '' || strlen($hostname) > 253
+            || filter_var($hostname, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) === false) {
+            throw new RuntimeException('Invalid Node or Host hostname.');
+        }
+
+        $zones = array_values(array_filter(
+            $this->allowedZones(),
+            static fn (string $zone): bool => $hostname !== $zone && str_ends_with($hostname, '.'.$zone),
+        ));
+        usort($zones, static fn (string $a, string $b): int => strlen($b) <=> strlen($a));
+        $zone = $zones[0] ?? null;
+        if (! is_string($zone)) {
+            throw new RuntimeException('A Node or Host hostname is outside the Cloudflare allowlist.');
+        }
+        $remoteZones = $this->api->zonesByName($zone);
+        if (count($remoteZones) !== 1 || ($remoteZones[0]['name'] ?? null) !== $zone
+            || ! self::zoneId($remoteZones[0]['id'] ?? null)) {
+            throw new RuntimeException('Cloudflare zone identity is ambiguous.');
+        }
+        $zoneId = $remoteZones[0]['id'];
+        $records = $this->api->records($zoneId, $hostname);
+        if (count($records) !== 1 || ($records[0]['name'] ?? null) !== $hostname
+            || ($records[0]['type'] ?? null) !== 'A') {
+            throw new RuntimeException('Hostname must have exactly one A record and no competing DNS records.');
+        }
+        $record = $this->safeRecord($zone, $records[0]);
+        if ($record['editable'] !== true || ! is_bool($record['proxied'])) {
+            throw new RuntimeException('Node/Host A record is not eligible for managed replacement.');
+        }
+
+        return ['zoneId' => $zoneId, 'zone' => $zone, 'record' => $record];
     }
 
     public function validatePublicIp(int $actorId, string $ip): string

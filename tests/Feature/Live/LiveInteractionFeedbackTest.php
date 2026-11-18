@@ -58,9 +58,9 @@ it('shows exact order and service context before risky confirmations and preserv
     $blade = file_get_contents(resource_path('views/live/dashboard.blade.php'));
 
     expect($blade)
-        ->toContain('برای سفارش #{{ $createdOrder->id }}')
-        ->toContain('سفارش #{{ $item->orderId }}')
-        ->toContain('سفارش #{{ $renewalOrder->id }}')
+        ->toContain('برای سفارش #{{ \\App\\Support\\PersianCalendar::number')
+        ->toContain('$item->orderId')
+        ->toContain('$renewalOrder->id')
         ->toContain('wire:click="confirmWalletPayment"')
         ->toContain('wire:click="confirmRenewalPayment"')
         ->toContain('wire:click="confirmServiceStatus"')

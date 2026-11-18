@@ -127,36 +127,35 @@ final readonly class SalesHomeUi
                 InlineKeyboardButton::make(ReplyMenuLabels::BUILDER, callback_data: 'menu:builder'),
             );
             $keyboard->addRow(
-                InlineKeyboardButton::make(ReplyMenuLabels::SALES_ACCOUNT, callback_data: 'sales:account'),
                 InlineKeyboardButton::make(ReplyMenuLabels::SALES_SUPPORT, callback_data: 'sales:support'),
-            );
-            // Match the reseller's persistent Reply menu: both learning and reports
-            // remain one-tap actions in a shared, compact row.
-            $keyboard->addRow(
-                InlineKeyboardButton::make(ReplyMenuLabels::SALES_TUTORIAL, callback_data: 'sales:help:apps'),
                 InlineKeyboardButton::make(ReplyMenuLabels::SALES_REPORTS, callback_data: 'sales:report:30'),
             );
         } elseif ($hasWallet) {
-            $keyboard->addRow(
-                InlineKeyboardButton::make(ReplyMenuLabels::SALES_WALLET, callback_data: 'sales:wallet'),
-                InlineKeyboardButton::make('👤 حساب کاربری', callback_data: 'sales:account'),
-            );
-        } else {
-            $keyboard->addRow(InlineKeyboardButton::make('👤 حساب کاربری', callback_data: 'sales:account'));
-        }
-        if ($actor->roles === ['member']) {
-            $keyboard->addRow(
-                InlineKeyboardButton::make(ReplyMenuLabels::SALES_REWARD, callback_data: 'sales:invite', style: ButtonStyle::PRIMARY),
-                InlineKeyboardButton::make('💬 پشتیبانی', callback_data: 'sales:support'),
-            );
-            if ($trialVisible) {
+            if ($actor->roles === ['member']) {
                 $keyboard->addRow(
-                    InlineKeyboardButton::make(ReplyMenuLabels::SALES_TRIAL, callback_data: 'sales:trial', style: ButtonStyle::SUCCESS),
-                    InlineKeyboardButton::make(ReplyMenuLabels::SALES_TUTORIAL, callback_data: 'sales:help:apps'),
+                    InlineKeyboardButton::make(ReplyMenuLabels::SALES_WALLET, callback_data: 'sales:wallet'),
+                    InlineKeyboardButton::make(ReplyMenuLabels::SALES_REWARD, callback_data: 'sales:invite', style: ButtonStyle::PRIMARY),
                 );
+            } else {
+                $keyboard->addRow(InlineKeyboardButton::make(ReplyMenuLabels::SALES_WALLET, callback_data: 'sales:wallet'));
             }
         }
-        if ($panelRequestLabel !== null) {
+        if ($actor->roles === ['member']) {
+            if ($trialVisible) {
+                $keyboard->addRow(
+                    InlineKeyboardButton::make(ReplyMenuLabels::SALES_SUPPORT, callback_data: 'sales:support'),
+                    InlineKeyboardButton::make(ReplyMenuLabels::SALES_TRIAL, callback_data: 'sales:trial', style: ButtonStyle::SUCCESS),
+                );
+            } elseif ($panelRequestLabel !== null) {
+                $keyboard->addRow(
+                    InlineKeyboardButton::make(ReplyMenuLabels::SALES_SUPPORT, callback_data: 'sales:support'),
+                    InlineKeyboardButton::make($panelRequestLabel, callback_data: 'sales:panel:hub'),
+                );
+            } else {
+                $keyboard->addRow(InlineKeyboardButton::make(ReplyMenuLabels::SALES_SUPPORT, callback_data: 'sales:support'));
+            }
+        }
+        if ($panelRequestLabel !== null && ($actor->roles !== ['member'] || $trialVisible)) {
             $keyboard->addRow(InlineKeyboardButton::make(
                 $panelRequestLabel, callback_data: 'sales:panel:hub',
             ));
@@ -448,6 +447,18 @@ final readonly class SalesHomeUi
         if ($actor === null) {
             return;
         }
+        if (in_array('reseller', $actor->roles, true)) {
+            TelegramUi::answerCallback($bot);
+            $bot->sendMessage(
+                text: '<b>🧩 پنل نمایندگی شما فعال است.</b>'
+                    ."\n\nمنوی نمایندگی شما به‌روزرسانی شد.",
+                parse_mode: 'HTML',
+                reply_markup: app(ReplyMenuRenderer::class)->salesKeyboard($actor),
+            );
+
+            return;
+        }
+
         if ($this->panelRequestLabel($actor) === null) {
             $this->render($bot, 'این بخش برای حساب شما در دسترس نیست.', $this->back());
 

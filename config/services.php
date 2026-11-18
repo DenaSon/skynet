@@ -34,6 +34,12 @@ return [
         'dns_writes_enabled' => (bool) env('CLOUDFLARE_DNS_WRITES_ENABLED', false),
     ],
 
+    'cloudflare_radar' => [
+        // Independent read-only Radar credentials; never reuse DNS write credentials.
+        'token' => env('CLOUDFLARE_RADAR_API_TOKEN'),
+        'cache_seconds' => (int) env('CLOUDFLARE_RADAR_CACHE_SECONDS', 600),
+    ],
+
     'remnawave' => [
         'url' => env('REMNAWAVE_PANEL_URL'),
         'token' => env('REMNAWAVE_API_TOKEN'),

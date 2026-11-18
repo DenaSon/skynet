@@ -20,6 +20,8 @@ use Throwable;
  */
 final readonly class ManageNodeInstallation
 {
+    private const HOST_RESERVATION_TTL_MINUTES = 5;
+
     public function __construct(
         private AssertCatalogManagementAccess $access,
         private RemnawaveApiClientFactory $factory,
@@ -41,9 +43,94 @@ final readonly class ManageNodeInstallation
             || ! is_string($ready['host']['knownHost'] ?? null)) {
             throw new RuntimeException('Invalid verified root SSH session.');
         }
+        $replacement = $ready['replacement'] ?? null;
+        if ($replacement !== null) {
+            $uuid = is_array($replacement) ? ($replacement['uuid'] ?? null) : null;
+            $oldAddress = is_array($replacement) ? ($replacement['address'] ?? null) : null;
+            $replacementName = is_array($replacement) ? ($replacement['name'] ?? null) : null;
+            $profileUuid = is_array($replacement) ? ($replacement['profileUuid'] ?? null) : null;
+            $inbounds = is_array($replacement) ? ($replacement['inboundUuids'] ?? null) : null;
+            if (! is_string($uuid) || preg_match('/\\A[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\\z/D', $uuid) !== 1
+                || ! is_string($oldAddress) || ! is_string($replacementName)
+                || $replacementName !== ($ready['name'] ?? null)
+                || ! is_string($profileUuid) || preg_match('/\\A[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\\z/D', $profileUuid) !== 1
+                || ! is_array($inbounds) || ! array_is_list($inbounds) || $inbounds === [] || count($inbounds) > 30
+                || filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false
+                || $ip === $oldAddress) {
+                throw new RuntimeException('Invalid existing Node replacement target.');
+            }
+            foreach ($inbounds as $inboundUuid) {
+                if (! is_string($inboundUuid) || preg_match('/\\A[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\\z/D', $inboundUuid) !== 1) {
+                    throw new RuntimeException('Invalid existing Node inbound snapshot.');
+                }
+            }
+        } elseif (! is_array($ready['profile'] ?? null) || ! is_string($ready['profile']['uuid'] ?? null)
+            || ! is_array($ready['inbound'] ?? null) || ! is_string($ready['inbound']['uuid'] ?? null)) {
+            throw new RuntimeException('Node profile selection is required.');
+        }
+
+        $dnsMetadata = [];
+        $dnsKeys = ['dnsName', 'dnsZone', 'dnsZoneId'];
+        $hasDnsMetadata = count(array_filter(
+            $dnsKeys,
+            static fn (string $key): bool => array_key_exists($key, $ready),
+        )) > 0;
+
+        if ($hasDnsMetadata) {
+            $dnsName = $ready['dnsName'] ?? null;
+            $dnsZone = $ready['dnsZone'] ?? null;
+            $dnsZoneId = $ready['dnsZoneId'] ?? null;
+            if (! is_string($dnsName) || ! is_string($dnsZone) || ! is_string($dnsZoneId)
+                || $dnsName !== strtolower($dnsName) || $dnsZone !== strtolower($dnsZone)
+                || $dnsName === $dnsZone || ! str_ends_with($dnsName, '.'.$dnsZone)
+                || filter_var($dnsZone, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) === false
+                || filter_var($dnsName, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) === false
+                || preg_match('/\A[a-f0-9]{32}\z/D', $dnsZoneId) !== 1) {
+                throw new RuntimeException('Invalid Cloudflare DNS selection.');
+            }
+            $dnsMetadata = [
+                'dnsName' => $dnsName,
+                'dnsZone' => $dnsZone,
+                'dnsZoneId' => $dnsZoneId,
+            ];
+
+            if (array_key_exists('dnsRecordExpected', $ready)) {
+                $record = $ready['dnsRecordExpected'];
+                $recordId = is_array($record) ? ($record['id'] ?? null) : null;
+                $recordName = is_array($record) ? ($record['name'] ?? null) : null;
+                $recordIp = is_array($record) ? ($record['content'] ?? null) : null;
+                $proxied = is_array($record) ? ($record['proxied'] ?? null) : null;
+                $proxiable = is_array($record) ? ($record['proxiable'] ?? null) : null;
+                $modified = is_array($record) ? ($record['modified'] ?? null) : null;
+                if (! is_string($recordId) || preg_match('/\A[a-f0-9]{32}\z/D', $recordId) !== 1
+                    || $recordName !== $dnsName || ($record['type'] ?? null) !== 'A'
+                    || ! is_string($recordIp)
+                    || filter_var($recordIp, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false
+                    || ! is_bool($proxied) || ! is_bool($proxiable)
+                    || ($record['editable'] ?? null) !== true
+                    || ($modified !== null && ! is_string($modified))) {
+                    throw new RuntimeException('Invalid selected Cloudflare A record snapshot.');
+                }
+                $dnsMetadata['dnsRecordExpected'] = [
+                    'id' => $recordId,
+                    'name' => $recordName,
+                    'type' => 'A',
+                    'content' => $recordIp,
+                    'proxied' => $proxied,
+                    'proxiable' => $proxiable,
+                    'editable' => true,
+                    'modified' => $modified,
+                ];
+            }
+        } elseif (array_key_exists('dnsRecordExpected', $ready)) {
+            throw new RuntimeException('A DNS record cannot be selected without its zone and hostname.');
+        }
+
         $identifier = bin2hex(random_bytes(16));
         $reservation = 'nw02:host:'.$ip;
-        if (! Cache::add($reservation, $identifier, now()->addHours(3))) {
+        // Short admission lease only; the remote bootstrap atomically serializes
+        // its preflight and rejects existing installation markers before writing.
+        if (! Cache::add($reservation, $identifier, now()->addMinutes(self::HOST_RESERVATION_TTL_MINUTES))) {
             throw new RuntimeException('VPS installation already reserved.');
         }
         try {
@@ -56,21 +143,23 @@ final readonly class ManageNodeInstallation
                 'knownHost' => $ready['host']['knownHost'],
             ];
             Cache::put('nw02:access:'.$identifier, Crypt::encryptString(json_encode($access, JSON_THROW_ON_ERROR)), now()->addHours(2));
-            Cache::put('nw02:status:'.$identifier, [
+            $status = [
                 'owner' => $actorId,
                 'ip' => $ip,
                 'name' => $ready['name'],
-                'profileUuid' => $ready['profile']['uuid'],
-                'inboundUuid' => $ready['inbound']['uuid'],
                 'state' => 'queued',
-                ...((isset($ready['dnsName'], $ready['dnsZone'], $ready['dnsZoneId']))
-                    ? [
-                        'dnsName' => $ready['dnsName'],
-                        'dnsZone' => $ready['dnsZone'],
-                        'dnsZoneId' => $ready['dnsZoneId'],
-                    ]
-                    : []),
-            ], now()->addHours(3));
+                'remoteStatusBound' => true,
+                ...$dnsMetadata,
+            ];
+            if (is_array($replacement)) {
+                $status['replacement'] = $replacement;
+                $status['profileUuid'] = $replacement['profileUuid'];
+                $status['inboundUuid'] = $replacement['inboundUuids'][0];
+            } else {
+                $status['profileUuid'] = $ready['profile']['uuid'];
+                $status['inboundUuid'] = $ready['inbound']['uuid'];
+            }
+            Cache::put('nw02:status:'.$identifier, $status, now()->addHours(3));
             InstallRemnawaveNode::dispatch($identifier);
             // Non-secret pointer for returning to the latest setup from Node management.
             Cache::put('nw02:last:'.$actorId, $identifier, now()->addHours(3));
@@ -104,7 +193,7 @@ final readonly class ManageNodeInstallation
             }
             $this->installer->start(
                 $access['ip'], $access['port'], $access['username'],
-                Crypt::decryptString($access['secret']), $access['knownHost'], $secret,
+                Crypt::decryptString($access['secret']), $access['knownHost'], $secret, $identifier,
             );
             $state['state'] = 'started';
             $this->persist($identifier, $state);
@@ -130,6 +219,7 @@ final readonly class ManageNodeInstallation
                 $remote = $this->installer->status(
                     $access['ip'], $access['port'], $access['username'],
                     Crypt::decryptString($access['secret']), $access['knownHost'],
+                    ($state['remoteStatusBound'] ?? false) === true ? $identifier : null,
                 );
                 if ($remote !== 'unknown') {
                     $state['state'] = $remote;
@@ -165,6 +255,18 @@ final readonly class ManageNodeInstallation
         try {
             $state = $this->meta($identifier);
             if ($state['owner'] === $actorId) {
+                // Hide stale bookmarks from replacements completed before cleanup
+                // was deployed, without hiding an unfinished or uncertain transfer.
+                if (isset($state['replacement'])) {
+                    $replacement = Cache::get('nw05:state:'.$identifier);
+                    if (is_array($replacement) && ($replacement['owner'] ?? null) === $actorId
+                        && ($replacement['stage'] ?? null) === 'completed') {
+                        $this->closeRecent($actorId, $identifier);
+
+                        return null;
+                    }
+                }
+
                 // A ready Node may have been registered by the separate manual wizard.
                 if ($this->matchesConnectedReadyNode($state)) {
                     $this->closeRecent($actorId, $identifier);
@@ -220,6 +322,7 @@ final readonly class ManageNodeInstallation
     private function matchesConnectedReadyNode(array $state): bool
     {
         if (($state['state'] ?? null) !== 'running'
+            || isset($state['replacement'])
             || isset($state['nodeStage'])
             || ! is_string($state['name'] ?? null)
             || ! is_string($state['ip'] ?? null)) {
@@ -241,6 +344,20 @@ final readonly class ManageNodeInstallation
         }
 
         return false;
+    }
+
+    /** @return array<string,mixed>|null */
+    public function replacementTarget(int $actorId, string $identifier): ?array
+    {
+        $this->access->handle($actorId);
+        $state = $this->meta($identifier);
+        if ($state['owner'] !== $actorId) {
+            throw new RuntimeException('Installation belongs to another operator.');
+        }
+
+        $target = $state['replacement'] ?? null;
+
+        return is_array($target) ? $target : null;
     }
 
     /**
@@ -270,9 +387,22 @@ final readonly class ManageNodeInstallation
     {
         $state = $this->context($actorId, $identifier);
         foreach ($changes as $key => $value) {
-            if (! in_array($key, ['nodeStage', 'nodeUuid', 'hostStage', 'hostUuid', 'dnsStage'], true)
+            if (! in_array($key, ['nodeStage', 'nodeUuid', 'hostStage', 'hostUuid', 'dnsStage', 'dnsRecordExpected'], true)
                 || ($key === 'dnsStage' && ! in_array($value, ['uncertain', 'verified'], true))) {
                 throw new RuntimeException('Unsupported setup checkpoint field.');
+            }
+            if ($key === 'dnsRecordExpected') {
+                $record = $value;
+                if (! is_array($record) || ($record['id'] ?? null) !== ($state['dnsRecordExpected']['id'] ?? null)
+                    || ($record['name'] ?? null) !== ($state['dnsName'] ?? null)
+                    || ($record['type'] ?? null) !== 'A'
+                    || ! is_string($record['content'] ?? null)
+                    || filter_var($record['content'], FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false
+                    || ! is_bool($record['proxied'] ?? null) || ! is_bool($record['proxiable'] ?? null)
+                    || ($record['editable'] ?? null) !== true
+                    || (($record['modified'] ?? null) !== null && ! is_string($record['modified']))) {
+                    throw new RuntimeException('Invalid DNS record checkpoint.');
+                }
             }
             $state[$key] = $value;
         }

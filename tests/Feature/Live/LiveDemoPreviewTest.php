@@ -182,7 +182,7 @@ it('keeps Demo UI close to the real dashboard while exposing no operational call
         ->toContain('dg-card-accent relative overflow-hidden bg-gradient-to-bl')
         ->toContain('grid grid-cols-1 gap-3 sm:grid-cols-3 md:gap-5')
         ->toContain('grid grid-cols-3 gap-2.5 sm:gap-3')
-        ->toContain('<x-live.report-metric :label="$label" :value="$value" :historical="$historical" />')
+        ->toContain('<x-live.report-metric :label="$label" :value="$value" :historical="false" />')
         ->toContain('dg-card dg-plan-card flex flex-col p-4 sm:p-5')
         ->toContain('📦 پلن‌های آماده')
         ->toContain('data-tone="{{ [\'teal\', \'blue\', \'sand\'][$loop->index % 3] }}"')
@@ -276,4 +276,60 @@ it('offers a local-only two-step slider preview without granting checkout or cal
         $this->assertDatabaseCount($table, 0);
     }
     Http::assertNothingSent();
+});
+
+it('mirrors the reseller report UI with only local sample values and no live Radar calls', function (): void {
+    $member = demoMember(661190);
+    $this->post('https://live.denagate.ir/demo/auth/telegram', [
+        'init_data' => demoSignedData(661190),
+    ])->assertRedirect('https://live.denagate.ir/demo/preview');
+
+    $this->get('https://live.denagate.ir/demo/preview')->assertOk()
+        ->assertSee('بازه گزارش')
+        ->assertSee('۷ روز')
+        ->assertSee('۳۰ روز')
+        ->assertSee('از ابتدا')
+        ->assertSee('مجموع خرید و تمدید از دناگیت')
+        ->assertSee('dg-stat dg-report-revenue', false)
+        ->assertSee('۲۹٬۶۰۰٬۰۰۰')
+        ->assertSee('۹٬۲۵۰٬۰۰۰')
+        ->assertSee('demoReportDays = 0', false)
+        ->assertSee('demoReportSamples[demoReportDays].total', false)
+        ->assertSee('وضعیت اینترنت ایران')
+        ->assertSee('وضعیت عمومی اینترنت')
+        ->assertSee('اپراتورهای اینترنت')
+        ->assertSee('احتمال اختلال')
+        ->assertSee('اختلال شبکه')
+        ->assertSee('وضعیت‌ها ساختگی‌اند')
+        ->assertDontSee('Cloudflare Radar')
+        ->assertDontSee('wire:init="loadNetworkStatus"', false)
+        ->assertDontSee('wire:click', false)
+        ->assertDontSee('wire:submit', false);
+
+    expect($member->fresh()->hasRole('member'))->toBeTrue()
+        ->and($member->fresh()->hasRole('reseller'))->toBeFalse();
+
+    foreach (['sales_orders', 'billing_journals', 'provisioning_operations', 'sales_panel_requests'] as $table) {
+        $this->assertDatabaseCount($table, 0);
+    }
+    Http::assertNothingSent();
+});
+
+it('keeps financial examples isolated to the demo template and reuses network icon styles', function (): void {
+    $demo = file_get_contents(resource_path('views/live/demo-preview.blade.php'));
+    $real = file_get_contents(resource_path('views/live/dashboard.blade.php'));
+    $indicator = file_get_contents(resource_path('views/components/live/network-indicator.blade.php'));
+
+    expect($demo)->toContain('demoReportSamples')
+        ->toContain('x-on:click="demoReportDays = {{ $days }}"')
+        ->toContain('x-bind:aria-pressed="demoReportDays === {{ $days }}')
+        ->toContain('<x-live.network-indicator code="healthy" label="سالم" large />')
+        ->toContain('<x-live.network-indicator :code="$code" :label="$label" />')
+        ->not->toContain('CloudflareRadarClient')
+        ->not->toContain('ReadIranNetworkSummary')
+        ->not->toContain('sales:report:30')
+        ->not->toContain('wire:init')
+        ->not->toContain('wire:click')
+        ->and($real)->toContain('wire:init="loadNetworkStatus"')
+        ->and($indicator)->toContain("'healthy' => 'text-[#087F73]'");
 });

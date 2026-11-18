@@ -211,7 +211,7 @@ final readonly class TelegramNotificationSender
             if ($status->id !== $trialId || $status->ended() || $status->providerStatus !== 'ACTIVE') {
                 throw new NotificationUnavailable('trial_not_active');
             }
-            $this->text($bot, $chat, "<b>✅ تست رایگان شما فعال شد</b>\n\nحجم: <b>۲۵۰ مگابایت</b> · اعتبار: <b>۲ ساعت</b>\nاز بخش تست رایگان، لینک اتصال را دریافت کنید. برای نصب برنامه، دکمه «📚 آموزش» را از منوی بات بزنید.",
+            $this->text($bot, $chat, "<b>✅ تست رایگان شما فعال شد</b>\n\nحجم: <b>۲۵۰ مگابایت</b> · اعتبار: <b>۲ ساعت</b>\nاز بخش تست رایگان، لینک اتصال را دریافت کنید. برای نصب برنامه، از بخش «💬 پشتیبانی» گزینه «📚 آموزش اتصال و خرید» را انتخاب کنید.",
                 $this->trialMenu($userId, $chat), 'HTML');
 
             return;
@@ -267,18 +267,21 @@ final readonly class TelegramNotificationSender
                     || ! in_array('reseller', $actor->roles, true)) {
                     throw new NotificationUnavailable('role_revoked');
                 }
+                $keyboard = json_encode(app(ReplyMenuRenderer::class)->salesKeyboard($actor), JSON_THROW_ON_ERROR);
+            } else {
+                $keyboard = json_encode(['inline_keyboard' => [[
+                    ['text' => '👤 حساب کاربری', 'callback_data' => 'sales:account'],
+                ]]], JSON_THROW_ON_ERROR);
             }
 
             $message = $expected === 'approved'
                 ? "<b>✅ پنل فروش شما فعال شد</b>\n\nدرخواست #{$requestId} تأیید شد."
                     ."\nاکنون می‌توانید پلن‌ها را با قیمت ویژه پنل فروش تهیه کنید."
+                    ."\nاز منوی پایین برای مدیریت سرویس‌ها و مشتریان استفاده کنید."
                 : '<b>❌ درخواست پنل فروش تأیید نشد</b>'
                     ."\n\nدرخواست #{$requestId}"
                     ."\nحساب فعلی شما بدون تغییر باقی مانده است."
                     ."\nبرای راهنمایی بیشتر با پشتیبانی گفتگو کنید.";
-            $keyboard = json_encode(['inline_keyboard' => [[
-                ['text' => '👤 حساب کاربری', 'callback_data' => 'sales:account'],
-            ]]], JSON_THROW_ON_ERROR);
             $this->text($bot, $chat, $message, $keyboard, 'HTML');
 
             return;
@@ -725,7 +728,7 @@ final readonly class TelegramNotificationSender
                     .($canCopy ? '' : "\nلینک برای دکمه کپی تلگرام بیش از حد طولانی است.");
 
             // Telegram's media-caption limit is 1,024 UTF-16 units. Keep a
-            // conservative ceiling; one protected photo holds both QR and URL.
+            // conservative ceiling; one shareable photo holds both QR and URL.
             // On local QR failures or oversized captions, preserve the
             // previous text/QR retrieval route without losing the full URL.
             if ($url !== null && mb_strlen($message) <= 800) {
@@ -742,7 +745,7 @@ final readonly class TelegramNotificationSender
                 'callback_data' => 'sales:subs:link:'.$orderId.':0',
             ]];
             $keyboard = json_encode(['inline_keyboard' => $rows], JSON_THROW_ON_ERROR);
-            $this->text($bot, $chat, $message, $keyboard, 'HTML');
+            $this->text($bot, $chat, $message, $keyboard, 'HTML', protectContent: $url === null);
 
             return;
         }
@@ -806,9 +809,12 @@ final readonly class TelegramNotificationSender
         return json_encode($keyboard, JSON_THROW_ON_ERROR);
     }
 
-    private function text(string $bot, int $chat, string $text, ?string $keyboard = null, ?string $parseMode = null, bool $notification = true): void
+    private function text(string $bot, int $chat, string $text, ?string $keyboard = null, ?string $parseMode = null, bool $notification = true, bool $protectContent = true): void
     {
-        $fields = ['chat_id' => $chat, 'text' => $text, 'protect_content' => 'true'];
+        $fields = ['chat_id' => $chat, 'text' => $text];
+        if ($protectContent) {
+            $fields['protect_content'] = 'true';
+        }
         if ($notification && ($threadId = $this->adminNotificationThreadId($bot, $chat)) !== null) {
             $fields['message_thread_id'] = $threadId;
         }
@@ -825,7 +831,7 @@ final readonly class TelegramNotificationSender
     }
 
     /**
-     * A single protected Telegram photo carries the QR, escaped full URL and
+     * A single shareable Telegram photo carries the QR, escaped full URL and
      * copy button. Rendering happens locally; credentials are never persisted.
      * Only local rendering failure may use the text fallback. A network error
      * after sendPhoto starts must propagate to the existing delivery state.
@@ -845,7 +851,6 @@ final readonly class TelegramNotificationSender
                 'caption' => $caption,
                 'parse_mode' => 'HTML',
                 'reply_markup' => $keyboard,
-                'protect_content' => 'true',
             ]);
         $this->check($result, 'sales', $chat);
 

@@ -1,6 +1,6 @@
 {{-- Operational numbers and service records are fixed Demo fixtures; only published plan prices are live. --}}
 @php
-    $toman = static fn (int $rials): string => number_format(intdiv($rials, 10)).($rials % 10 === 0 ? '' : '.'.($rials % 10));
+    $toman = static fn (int $rials): string => \App\Support\PersianCalendar::number(number_format(intdiv($rials, 10)).($rials % 10 === 0 ? '' : '.'.($rials % 10)));
 @endphp
 @component('live.layout')
     <x-live.shell section="overview" :demo="true">
@@ -45,7 +45,7 @@
                         x-on:click="demoSection = 'services'">فهرست سرویس‌ها ←</button>
                 </section>
                 <section class="dg-card p-5 md:p-7">
-                    <p class="text-xs font-semibold text-[#536C76]">فروش تسویه‌شده · ۳۰ روز اخیر</p>
+                    <p class="text-xs font-semibold text-[#536C76]">خرید و تمدید · ۳۰ روز اخیر</p>
                     <p class="dg-stat mt-3" dir="ltr">۹٬۲۵۰٬۰۰۰ <span class="text-xs font-normal text-[#687987]">تومان</span></p>
                     <p class="mt-1 text-xs text-[#536C76]">۳۶ تراکنش تسویه‌شده</p>
                     <button type="button" class="dg-btn-secondary mt-4 w-full"
@@ -111,40 +111,126 @@
             </section>
         </section>
 
-        <section x-cloak x-show="demoSection === 'reports'" aria-label="گزارش‌های نمونه">
+        {{-- Sample-only presentation: no Radar request, financial query or reseller API action. --}}
+        <section x-cloak x-show="demoSection === 'reports'" aria-label="گزارش‌های نمونه"
+            x-data="{
+                demoReportDays: 30,
+                demoReportSamples: {
+                    7: { total: '۲٬۲۵۰٬۰۰۰', sales: '۶', renewals: '۳', transactions: '۹' },
+                    30: { total: '۹٬۲۵۰٬۰۰۰', sales: '۲۴', renewals: '۱۲', transactions: '۳۶' },
+                    0: { total: '۲۹٬۶۰۰٬۰۰۰', sales: '۸۱', renewals: '۳۵', transactions: '۱۱۶' }
+                }
+            }">
             <section aria-labelledby="demo-report-title">
                 <div class="mb-6 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
                     <div class="min-w-0">
-                        <p class="mb-1 text-xs font-semibold text-[#087F73]">عملکرد نمایندگی</p>
+                        <p class="mb-1 text-xs font-semibold text-[#087F73]">عملکرد نمایندگی · نمونه</p>
                         <h1 id="demo-report-title" class="dg-heading">گزارش فروش</h1>
-                        <p class="mt-2 text-sm leading-7 text-[#617380]">مرور فروش و وضعیت سرویس‌ها</p>
+                        <p class="mt-2 text-sm leading-7 text-[#617380]">مرور فروش تسویه‌شده و وضعیت فعلی حساب نمونه</p>
                     </div>
-                    <span class="dg-status self-start" data-tone="success">بازه ۳۰ روزه</span>
+                    <div class="shrink-0">
+                        <p class="mb-2 text-xs font-semibold text-[#617380]">بازه گزارش</p>
+                        <div class="inline-flex gap-1 rounded-2xl border border-[#E7ECEF] bg-white p-1" role="group" aria-label="بازه گزارش نمونه">
+                            @foreach ([7, 30, 0] as $days)
+                                <button type="button"
+                                    x-on:click="demoReportDays = {{ $days }}"
+                                    x-bind:aria-pressed="demoReportDays === {{ $days }} ? 'true' : 'false'"
+                                    x-bind:class="demoReportDays === {{ $days }} ? 'dg-btn-primary' : 'dg-btn-secondary'"
+                                    class="min-w-0 px-3 transition-colors sm:min-w-24 sm:px-4">
+                                    {{ \App\Support\PersianCalendar::number((string) ($days === 0 ? 'از ابتدا' : $days.' روز')) }}
+                                </button>
+                            @endforeach
+                        </div>
+                    </div>
                 </div>
                 <section class="dg-card-accent relative overflow-hidden bg-gradient-to-bl from-[#E4F8F1] via-[#F4FBF8] to-white p-6 sm:p-8" aria-labelledby="demo-revenue-title">
                     <div class="pointer-events-none absolute -left-14 -top-20 h-52 w-52 rounded-full border-[24px] border-[#C9ECE2]/60" aria-hidden="true"></div>
                     <div class="relative z-10 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
                         <div class="min-w-0">
                             <p class="text-xs font-bold text-[#087F73]">خلاصه عملکرد فروش</p>
-                            <h2 id="demo-revenue-title" class="mt-2 text-base font-extrabold text-[#1B2935]">مجموع فروش تسویه‌شده</h2>
-                            <p class="dg-stat mt-3 block" dir="ltr">۹٬۲۵۰٬۰۰۰</p>
+                            <h2 id="demo-revenue-title" class="mt-2 text-base font-extrabold text-[#1B2935]">مجموع خرید و تمدید از دناگیت</h2>
+                            <p class="dg-stat dg-report-revenue mt-3 block" dir="ltr" x-text="demoReportSamples[demoReportDays].total">۹٬۲۵۰٬۰۰۰</p>
                             <p class="mt-1 text-sm font-semibold text-[#536C76]">تومان</p>
+                        </div>
+                        <div class="min-w-0 sm:max-w-56 sm:text-left">
+                            <span class="dg-status" data-tone="success"
+                                x-text="demoReportDays === 0 ? 'از ابتدا' : 'بازه ' + new Intl.NumberFormat('fa-IR', { useGrouping: false }).format(demoReportDays) + ' روزه'">بازه ۳۰ روزه</span>
+                            <p class="mt-3 text-xs leading-7 text-[#536C76]">ارقام نمایشی‌اند و از تراکنش واقعی محاسبه نشده‌اند.</p>
                         </div>
                     </div>
                 </section>
-                <section class="mt-5" aria-label="شاخص‌های فروش و حساب">
+                <section class="mt-5" aria-label="شاخص‌های فروش و حساب نمونه">
                     <div class="grid grid-cols-3 gap-2.5 sm:gap-3">
                         @foreach ([
-                            ['خریدهای جدید', 24, true],
-                            ['تمدیدها', 12, true],
-                            ['تراکنش‌های تأییدشده', 36, true],
-                            ['سفارش‌های در انتظار پرداخت', 3, false],
-                            ['کل سرویس‌های ثبت‌شده', 18, false],
-                            ['سرویس‌های دارای نام', 10, false],
-                        ] as [$label, $value, $historical])
-                            <x-live.report-metric :label="$label" :value="$value" :historical="$historical" />
+                            ['خریدهای جدید', 'sales', '۲۴'],
+                            ['تمدیدها', 'renewals', '۱۲'],
+                            ['تراکنش‌های تأییدشده', 'transactions', '۳۶'],
+                        ] as [$label, $key, $fallback])
+                            <section class="dg-card flex min-h-28 min-w-0 flex-col justify-between gap-2 rounded-[18px] p-2.5 sm:min-h-32 sm:p-4">
+                                <div class="flex min-w-0 items-start gap-1.5">
+                                    <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#14B8A6]" aria-hidden="true"></span>
+                                    <p class="min-w-0 break-words text-[11px] leading-4 font-semibold text-[#536C76] sm:text-xs">{{ $label }}</p>
+                                </div>
+                                <p class="w-full text-center text-2xl font-extrabold tabular-nums leading-tight text-[#172A36] sm:text-3xl"
+                                    dir="ltr" x-text="demoReportSamples[demoReportDays].{{ $key }}">{{ $fallback }}</p>
+                            </section>
+                        @endforeach
+                        @foreach ([
+                            ['سفارش‌های در انتظار پرداخت', 3],
+                            ['کل سرویس‌های ثبت‌شده', 18],
+                            ['سرویس‌های دارای نام', 10],
+                        ] as [$label, $value])
+                            <x-live.report-metric :label="$label" :value="$value" :historical="false" />
                         @endforeach
                     </div>
+                </section>
+                <p class="mt-5 text-xs leading-7 text-[#536C76]">آمار فروش با انتخاب بازه، به‌صورت نمونه تغییر می‌کند؛ تعداد سرویس‌ها و سفارش‌های در انتظار پرداخت نمونه‌ای ثابت از وضعیت فعلی‌اند.</p>
+
+                <section class="mt-9" aria-labelledby="demo-iran-network-title">
+                    <div class="mb-4">
+                        <p class="mb-1 text-xs font-semibold text-[#087F73]">پایش عمومی اینترنت · نمونه</p>
+                        <h2 id="demo-iran-network-title" class="dg-heading">وضعیت اینترنت ایران</h2>
+                        <p class="mt-1 text-xs leading-6 text-[#617380]">این وضعیت‌ها ساختگی‌اند؛ وضعیت واقعی شبکه را نشان نمی‌دهند.</p>
+                    </div>
+                    <div class="flex flex-col gap-3 md:flex-row">
+                        <article class="dg-card min-w-0 flex-1 p-4 sm:p-5" aria-labelledby="demo-network-country-heading">
+                            <div class="flex items-center gap-2">
+                                <span aria-hidden="true" class="flex h-9 w-9 items-center justify-center rounded-xl bg-[#EAF8F4] text-[#087F73]">
+                                    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+                                        <path d="M2 12h4l3-7 5 14 3-7h5" />
+                                    </svg>
+                                </span>
+                                <h3 id="demo-network-country-heading" class="text-sm font-extrabold text-[#1B2935]">وضعیت عمومی اینترنت</h3>
+                            </div>
+                            <div class="mt-4">
+                                <x-live.network-indicator code="healthy" label="سالم" large />
+                            </div>
+                            <p class="mt-2 text-xs leading-6 text-[#536C76]">نمونه نمایشی وضعیت عادی؛ هیچ پایش زنده‌ای انجام نمی‌شود.</p>
+                        </article>
+                        <article class="dg-card min-w-0 flex-1 p-4 sm:p-5" aria-labelledby="demo-network-operators-heading">
+                            <div class="flex items-center gap-2">
+                                <span aria-hidden="true" class="flex h-9 w-9 items-center justify-center rounded-xl bg-[#F1F5F7] text-[#536C76]">
+                                    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+                                        <rect x="7" y="2" width="10" height="20" rx="2" /><path d="M11 18h2" />
+                                    </svg>
+                                </span>
+                                <h3 id="demo-network-operators-heading" class="text-sm font-extrabold text-[#1B2935]">اپراتورهای اینترنت</h3>
+                            </div>
+                            <div class="mt-3 divide-y divide-[#E7ECEF]">
+                                @foreach ([
+                                    ['همراه اول', 'healthy', 'سالم'],
+                                    ['ایرانسل', 'suspected', 'احتمال اختلال'],
+                                    ['رایتل', 'confirmed', 'اختلال شبکه'],
+                                ] as [$operator, $code, $label])
+                                    <div class="flex min-h-11 items-center justify-between gap-2 py-2">
+                                        <span class="text-sm font-semibold text-[#1B2935]">{{ $operator }}</span>
+                                        <x-live.network-indicator :code="$code" :label="$label" />
+                                    </div>
+                                @endforeach
+                            </div>
+                        </article>
+                    </div>
+                    <p class="mt-3 text-xs leading-7 text-[#617380]">حالت دمو: این اطلاعات نمونه هستند و به شبکه واقعی یا سرویس‌های دناگیت مربوط نیستند.</p>
                 </section>
             </section>
         </section>
@@ -168,9 +254,9 @@
                     @foreach ($plans as $plan)
                         <article class="dg-card dg-plan-card flex flex-col p-4 sm:p-5" data-tone="{{ ['teal', 'blue', 'sand'][$loop->index % 3] }}">
                             <h2 class="break-words text-base font-extrabold text-[#1B2935]">{{ $plan['name'] }}</h2>
-                            <p class="mt-2 text-sm font-extrabold leading-7 text-[#354C58]">{{ number_format($plan['durationDays']) }} روز · {{ $plan['trafficGb'] === null ? 'حجم نامحدود' : number_format($plan['trafficGb']).' گیگابایت' }}</p>
+                            <p class="mt-2 text-sm font-extrabold leading-7 text-[#354C58]">{{ \App\Support\PersianCalendar::number((string) ( number_format($plan['durationDays']) )) }} روز · {{ \App\Support\PersianCalendar::number((string) ( $plan['trafficGb'] === null ? 'حجم نامحدود' : number_format($plan['trafficGb']).' گیگابایت' )) }}</p>
                             <p class="dg-stat mt-4 text-[#087F73]" dir="ltr">{{ $toman($plan['resellerRials']) }} <span class="text-xs font-medium text-[#536C76]">تومان</span></p>
-                            <p class="mt-1 text-xs text-[#536C76]">با تخفیف نمایندگی {{ $plan['discountPercent'] }}٪</p>
+                            <p class="mt-1 text-xs text-[#536C76]">با تخفیف نمایندگی {{ \App\Support\PersianCalendar::number((string) ( $plan['discountPercent'] )) }}٪</p>
                             <div class="mt-4 flex items-center justify-between gap-3 border-t border-[#E7ECEF] pt-3 text-xs text-[#536C76]">
                                 <span>قیمت عمومی</span>
                                 <span dir="ltr" class="font-semibold text-[#1B2935]">{{ $toman($plan['publicRials']) }} تومان</span>
@@ -194,10 +280,10 @@
                     <div class="mt-4 flex items-center justify-between gap-3">
                         <label for="demo-builder-gb" class="text-sm font-bold text-[#1B2935]">حجم موردنیاز را انتخاب کنید</label>
                         <span class="shrink-0 text-lg font-extrabold tabular-nums text-[#087F73]"
-                            x-text="demoGb + ' گیگابایت'">۷۵ گیگابایت</span>
+                            x-text="new Intl.NumberFormat('fa-IR', { useGrouping: false }).format(Number(demoGb)) + ' گیگابایت'">۷۵ گیگابایت</span>
                     </div>
                     <input id="demo-builder-gb" type="range" name="demo_volume_gb" min="1" max="500" step="1"
-                        x-model.number="demoGb" x-bind:aria-valuetext="demoGb + ' گیگابایت'"
+                        x-model.number="demoGb" x-bind:aria-valuetext="new Intl.NumberFormat('fa-IR', { useGrouping: false }).format(Number(demoGb)) + ' گیگابایت'"
                         aria-describedby="demo-builder-gb-hint"
                         class="mt-4 h-11 w-full cursor-pointer accent-[#14B8A6] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]" />
                     <p id="demo-builder-gb-hint" class="mt-1 flex justify-between gap-3 text-xs text-[#536C76]">
@@ -208,7 +294,7 @@
                             <button type="button" x-on:click="demoGb = {{ $gb }}"
                                 x-bind:aria-pressed="demoGb === {{ $gb }} ? 'true' : 'false'"
                                 x-bind:class="demoGb === {{ $gb }} ? 'border-[#14B8A6] bg-[#E7F8F3] text-[#087F73]' : 'border-[#E7ECEF] bg-white text-[#354C58]'"
-                                class="min-h-11 rounded-xl border px-3 py-2 text-sm font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]">{{ $gb }} گیگ</button>
+                                class="min-h-11 rounded-xl border px-3 py-2 text-sm font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]">{{ \App\Support\PersianCalendar::number((string) ( $gb )) }} گیگ</button>
                         @endforeach
                     </div>
                     <div class="mt-5 flex items-center justify-between gap-3">
@@ -226,14 +312,14 @@
 
                 <div x-cloak x-show="demoBuilderStep === 'days'">
                     <p class="mt-6 text-xs font-bold text-[#087F73]">مرحله ۲ از ۲ · مدت سرویس</p>
-                    <p class="mt-2 text-sm font-semibold text-[#536C76]">حجم: <span x-text="demoGb + ' گیگابایت'"></span></p>
+                    <p class="mt-2 text-sm font-semibold text-[#536C76]">حجم: <span x-text="new Intl.NumberFormat('fa-IR', { useGrouping: false }).format(Number(demoGb)) + ' گیگابایت'"></span></p>
                     <div class="mt-4 flex items-center justify-between gap-3">
                         <label for="demo-builder-days" class="text-sm font-bold text-[#1B2935]">مدت سرویس را به روز مشخص کنید</label>
                         <span class="shrink-0 text-lg font-extrabold tabular-nums text-[#087F73]"
-                            x-text="demoDays + ' روز'">۳۰ روز</span>
+                            x-text="new Intl.NumberFormat('fa-IR', { useGrouping: false }).format(Number(demoDays)) + ' روز'">۳۰ روز</span>
                     </div>
                     <input id="demo-builder-days" type="range" name="demo_duration_days" min="7" max="180" step="1"
-                        x-model.number="demoDays" x-bind:aria-valuetext="demoDays + ' روز'"
+                        x-model.number="demoDays" x-bind:aria-valuetext="new Intl.NumberFormat('fa-IR', { useGrouping: false }).format(Number(demoDays)) + ' روز'"
                         aria-describedby="demo-builder-days-hint"
                         class="mt-4 h-11 w-full cursor-pointer accent-[#14B8A6] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]" />
                     <p id="demo-builder-days-hint" class="mt-1 flex justify-between gap-3 text-xs text-[#536C76]">
@@ -244,7 +330,7 @@
                             <button type="button" x-on:click="demoDays = {{ $days }}"
                                 x-bind:aria-pressed="demoDays === {{ $days }} ? 'true' : 'false'"
                                 x-bind:class="demoDays === {{ $days }} ? 'border-[#14B8A6] bg-[#E7F8F3] text-[#087F73]' : 'border-[#E7ECEF] bg-white text-[#354C58]'"
-                                class="min-h-11 rounded-xl border px-3 py-2 text-sm font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]">{{ $days }} روز</button>
+                                class="min-h-11 rounded-xl border px-3 py-2 text-sm font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087F73]">{{ \App\Support\PersianCalendar::number((string) ( $days )) }} روز</button>
                         @endforeach
                     </div>
                     <div class="mt-5 flex items-center justify-between gap-3">
@@ -268,7 +354,7 @@
                     <div class="mt-6 rounded-2xl bg-[#F6F8FA] p-4">
                         <p class="text-xs font-semibold text-[#536C76]">مشخصات انتخاب‌شده · نمونه</p>
                         <p class="mt-2 text-base font-extrabold text-[#1B2935]">
-                            <span x-text="demoGb + ' گیگابایت'"></span> · <span x-text="demoDays + ' روز'"></span>
+                            <span x-text="new Intl.NumberFormat('fa-IR', { useGrouping: false }).format(Number(demoGb)) + ' گیگابایت'"></span> · <span x-text="new Intl.NumberFormat('fa-IR', { useGrouping: false }).format(Number(demoDays)) + ' روز'"></span>
                         </p>
                         <p class="mt-3 text-xs leading-7 text-[#617380]">در این پیش‌نمایش قیمت محاسبه نمی‌شود و سفارشی ثبت نخواهد شد.</p>
                         <div class="mt-4 flex flex-wrap gap-3">

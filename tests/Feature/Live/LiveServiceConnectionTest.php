@@ -285,13 +285,13 @@ it('checks only the visible owned page on request and renders a compact 72-hour 
         'https://remna.test/api/users/'.(500000 + $unknown) => Http::response([], 503),
     ]);
     $page = Livewire::test(Dashboard::class)->call('showSection', 'services')
-        ->assertSee('⏳ بررسی انقضا')
+        ->assertSee('📡 بررسی وضعیت')
         ->assertDontSee('⏳ انقضا تا ۳ روز:');
     Http::assertNothingSent();
 
     $page->call('checkServiceExpiries')
         ->assertSee('⏳ انقضا تا ۳ روز:')
-        ->assertSee('⏳ 2 روز و 1 ساعت تا انقضا')
+        ->assertSee('⏳ ۲ روز و ۱ ساعت تا انقضا')
         ->assertSee('⚪ نامشخص:')
         ->assertDontSee('protected-token-4b')
         ->assertDontSee('secret-4b-short')
@@ -299,6 +299,8 @@ it('checks only the visible owned page on request and renders a compact 72-hour 
     $snapshot = $page->get('serviceExpiry');
     expect($snapshot['count'])->toBe(1)
         ->and($snapshot['unknown'])->toBe(1)
+        ->and($snapshot['statuses'][$expired])->toContain('منقضی')
+        ->and($snapshot['statuses'][$unknown])->toContain('نامشخص')
         ->and(array_keys($snapshot['remaining']))->toBe([$soon]);
     Http::assertSentCount(4);
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
@@ -392,4 +394,28 @@ it('fails closed when reseller access is revoked before checking expiry', functi
     $buyer->syncRoles(['member']);
     $page->call('checkServiceExpiries')->assertForbidden();
     Http::assertNothingSent();
+});
+
+it('prepares a named renewal reminder only after a successful owned read and clears it after failures', function (): void {
+    $buyer = live4bUser(976160);
+    $this->actingAs($buyer)->withSession(['denagate_live.user_id' => $buyer->id]);
+    $order = live4bService($buyer);
+    app(ManageResellerServiceLabels::class)->save($buyer->id, $order, 'علی <test>');
+    $page = Livewire::test(Dashboard::class)->call('showSection', 'services')
+        ->call('openService', $order)->assertSet('serviceReminderText', null);
+    Http::assertNothingSent();
+    Http::fake(['https://remna.test/api/users/'.(500000 + $order) => Http::sequence()
+        ->push(['response' => live4bRemote($order)])
+        ->push([], 503)
+        ->push(['response' => live4bRemote($order, ['expireAt' => now()->subDay()->toIso8601String(), 'status' => 'EXPIRED'])])
+        ->push(['response' => live4bRemote($order, ['status' => 'DISABLED'])]),
+    ]);
+    $page->call('refreshServiceUsage')->assertSee('کپی متن یادآوری تمدید');
+    expect($page->get('serviceReminderText'))->toContain('علی <test>', 'به پایان می‌رسد', 'تهران')
+        ->not->toContain('protected-token', 'تومان', 'sk_');
+    $page->call('refreshServiceUsage')->assertSet('serviceReminderText', null);
+    $page->call('refreshServiceUsage');
+    expect($page->get('serviceReminderText'))->toContain('به پایان رسیده');
+    $page->call('refreshServiceUsage')->assertSet('serviceReminderText', null);
+    expect(DB::table('provisioning_operations')->count())->toBe(0);
 });

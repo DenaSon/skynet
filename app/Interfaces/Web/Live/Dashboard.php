@@ -25,9 +25,12 @@ use App\Modules\Sales\Application\OrderReader;
 use App\Modules\Sales\Application\PlanPriceQuote;
 use App\Modules\Sales\Application\PlanSummary;
 use App\Modules\Sales\Application\PrepareRenewalDraft;
+use App\Modules\Sales\Application\QuoteSimilarResellerService;
 use App\Modules\Sales\Application\ReadResellerSalesReport;
 use App\Modules\Sales\Application\RegisterPendingResellerOrder;
 use App\Modules\Sales\Application\SettleWalletOrder;
+use App\Support\Network\ReadIranNetworkSummary;
+use App\Support\SubscriptionRenewalReminder;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -47,6 +50,13 @@ final class Dashboard extends Component
 
     public int $reportDays = 30;
 
+    /** @var array<string,mixed>|null */
+    #[Locked]
+    public ?array $networkStatus = null;
+
+    #[Locked]
+    public bool $networkStatusLoaded = false;
+
     public ?int $serviceCursor = null;
 
     public string $serviceSearchInput = '';
@@ -56,7 +66,7 @@ final class Dashboard extends Component
 
     public ?string $serviceSearchError = null;
 
-    /** @var array{cursor:?int,term:string,orderIds:list<int>,count:int,unknown:int,remaining:array<int,string>}|null */
+    /** @var array{cursor:?int,term:string,orderIds:list<int>,count:int,unknown:int,remaining:array<int,string>,statuses:array<int,string>,checkedAt:string}|null */
     #[Locked]
     public ?array $serviceExpiry = null;
 
@@ -75,6 +85,9 @@ final class Dashboard extends Component
     public ?string $serviceDetailError = null;
 
     public ?string $serviceUsageError = null;
+
+    #[Locked]
+    public ?string $serviceReminderText = null;
 
     #[Locked]
     public ?string $serviceStatusConfirmToken = null;
@@ -165,6 +178,12 @@ final class Dashboard extends Component
 
     public ?string $walletError = null;
 
+    #[Locked]
+    public ?int $walletShortfallRials = null;
+
+    #[Locked]
+    public ?int $renewalShortfallRials = null;
+
     private const SECTIONS = ['overview', 'services', 'credit', 'reports', 'shop'];
 
     public function showSection(string $section): void
@@ -174,6 +193,10 @@ final class Dashboard extends Component
                 $this->resetPlanSelection();
                 $this->resetRecentOrdersPagination();
             }
+            if ($section === 'reports' && $this->section !== 'reports') {
+                $this->networkStatus = null;
+                $this->networkStatusLoaded = false;
+            }
             $this->section = $section;
             $this->serviceCursor = null;
             $this->serviceExpiry = null;
@@ -182,9 +205,30 @@ final class Dashboard extends Component
         }
     }
 
+    /**
+     * Separate lazy read: Radar outages must never block or fail sales reporting.
+     * The existing reseller authorization is rechecked for this Livewire action.
+     */
+    public function loadNetworkStatus(): void
+    {
+        $this->resellerId();
+        if ($this->section !== 'reports' || $this->networkStatusLoaded) {
+            return;
+        }
+
+        try {
+            $this->networkStatus = app(ReadIranNetworkSummary::class)->handle();
+        } catch (Throwable $exception) {
+            self::logSafeFailure('radar_summary_read', $exception);
+            $this->networkStatus = null;
+        }
+
+        $this->networkStatusLoaded = true;
+    }
+
     public function selectReportDays(int $days): void
     {
-        if (in_array($days, [7, 30], true)) {
+        if (in_array($days, [0, 7, 30], true)) {
             $this->reportDays = $days;
         }
     }
@@ -278,7 +322,9 @@ final class Dashboard extends Component
                 SubscriptionViewer::web(), $this->serviceCursor, $page,
             );
             $remaining = [];
+            $statuses = [];
             foreach ($result['rows'] as $row) {
+                $statuses[$row['orderId']] = $row['status'].($row['action'] === '' ? '' : ' · '.$row['action']);
                 if ($row['remainingSeconds'] !== null) {
                     $remaining[$row['orderId']] = self::expiryRemainingLabel($row['remainingSeconds']);
                 }
@@ -290,6 +336,8 @@ final class Dashboard extends Component
                 'count' => $result['expiringSoon'],
                 'unknown' => $result['unknown'],
                 'remaining' => $remaining,
+                'statuses' => $statuses,
+                'checkedAt' => now()->toIso8601String(),
             ];
         } catch (AuthorizationException $exception) {
             throw $exception;
@@ -365,6 +413,7 @@ final class Dashboard extends Component
     {
         $this->resellerId();
         $this->serviceLiveUsage = null;
+        $this->serviceReminderText = null;
         $this->serviceUsageCheckedAt = null;
         $this->serviceUsageError = null;
         $this->forgetServiceStatusConfirmation($this->resellerId());
@@ -402,6 +451,9 @@ final class Dashboard extends Component
                 'limitBytes' => $usage->limitBytes,
             ];
             $this->serviceUsageCheckedAt = now()->toIso8601String();
+            $this->serviceReminderText = SubscriptionRenewalReminder::text(
+                app(ManageResellerServiceLabels::class)->get($this->resellerId(), $this->selectedServiceOrderId), $usage,
+            );
         } catch (AuthorizationException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
@@ -478,6 +530,7 @@ final class Dashboard extends Component
             );
             $this->serviceStatusNotice = 'درخواست ثبت شد. برای مشاهده نتیجه، کمی بعد «بررسی وضعیت» را بزنید.';
             $this->serviceLiveUsage = null;
+            $this->serviceReminderText = null;
             $this->serviceUsageCheckedAt = null;
         } catch (AuthorizationException $exception) {
             throw $exception;
@@ -582,6 +635,7 @@ final class Dashboard extends Component
     /** Saves through the existing transaction-locked owner-scoped Action. */
     public function saveServiceLabel(): void
     {
+        $this->serviceReminderText = null;
         $buyerId = $this->resellerId();
         $this->serviceLabelError = null;
         $this->serviceLabelNotice = null;
@@ -622,6 +676,7 @@ final class Dashboard extends Component
     {
         $buyerId = $this->resellerId();
         $this->renewalError = null;
+        $this->renewalShortfallRials = null;
         $this->renewalPreview = null;
         $this->forgetRenewalConfirmation($buyerId);
 
@@ -661,6 +716,7 @@ final class Dashboard extends Component
     {
         $buyerId = $this->resellerId();
         $this->renewalError = null;
+        $this->renewalShortfallRials = null;
         $this->forgetRenewalConfirmation($buyerId);
         $source = $this->selectedServiceOrderId;
         $previous = $this->renewalPreview;
@@ -705,6 +761,7 @@ final class Dashboard extends Component
         $buyerId = $this->resellerId();
         $this->forgetRenewalConfirmation($buyerId);
         $this->renewalError = null;
+        $this->renewalShortfallRials = null;
 
         if ($this->section !== 'services' || $this->selectedServiceOrderId === null
             || config('sales.renewal_enabled', false) !== true
@@ -723,6 +780,7 @@ final class Dashboard extends Component
 
         $balance = app(ViewWallet::class)->handle($buyerId)->balanceRials;
         if ($balance < $order->totalPriceRials) {
+            $this->renewalShortfallRials = $order->totalPriceRials - $balance;
             $this->renewalError = 'اعتبار شما کافی نیست. ابتدا اعتبار خود را افزایش دهید.';
 
             return;
@@ -742,6 +800,7 @@ final class Dashboard extends Component
     {
         $buyerId = $this->resellerId();
         $this->renewalError = null;
+        $this->renewalShortfallRials = null;
         $source = $this->selectedServiceOrderId;
         $token = $this->renewalConfirmToken;
 
@@ -798,6 +857,7 @@ final class Dashboard extends Component
         $this->serviceStatusNotice = null;
         $this->renewalPreview = null;
         $this->renewalError = null;
+        $this->renewalShortfallRials = null;
     }
 
     private function forgetRenewalConfirmation(int $buyerId): void
@@ -821,9 +881,11 @@ final class Dashboard extends Component
         $this->serviceStatusNotice = null;
         $this->renewalPreview = null;
         $this->renewalError = null;
+        $this->renewalShortfallRials = null;
         $this->selectedServiceOrderId = null;
         $this->serviceDetailError = null;
         $this->serviceLiveUsage = null;
+        $this->serviceReminderText = null;
         $this->serviceUsageCheckedAt = null;
         $this->serviceUsageError = null;
         $this->serviceSubscriptionUrl = null;
@@ -867,6 +929,31 @@ final class Dashboard extends Component
     {
         $this->recentOrdersCursor = null;
         $this->recentOrdersHistory = [];
+    }
+
+    /** A read-only shortcut into the existing new-customer quote/checkout. */
+    public function buySimilarService(): void
+    {
+        $this->resellerId();
+        $this->serviceDetailError = null;
+        if ($this->section !== 'services' || $this->selectedServiceOrderId === null) {
+            return;
+        }
+        try {
+            $quote = app(QuoteSimilarResellerService::class)->handle(
+                SubscriptionViewer::web(), $this->selectedServiceOrderId,
+            );
+        } catch (ValidationException) {
+            $this->serviceDetailError = 'این ترکیب دیگر قابل خرید نیست. از بخش خرید، پلن دیگری انتخاب کنید.';
+
+            return;
+        }
+        $this->resetServiceDetail();
+        $this->selectPlan($quote->planId);
+        $this->daysInput = (string) $quote->durationDays;
+        $this->gbInput = $quote->trafficGb === null ? '' : (string) $quote->trafficGb;
+        $this->customerUsername = '';
+        $this->previewQuote();
     }
 
     /** Select only a currently quoted preset or a published reseller builder. */
@@ -1121,6 +1208,7 @@ final class Dashboard extends Component
         $buyerId = $this->resellerId();
         $this->forgetWalletConfirmation($buyerId);
         $this->walletError = null;
+        $this->walletShortfallRials = null;
 
         if ($this->section !== 'shop' || $this->createdOrderId === null
             || config('sales.wallet_settlement_enabled') !== true) {
@@ -1140,6 +1228,7 @@ final class Dashboard extends Component
             app(ManageResellerServiceLabels::class)->assertPendingDetails($buyerId, $order->id);
             $balance = app(ViewWallet::class)->handle($buyerId)->balanceRials;
             if ($balance < $order->totalPriceRials) {
+                $this->walletShortfallRials = $order->totalPriceRials - $balance;
                 $this->walletError = 'اعتبار شما کافی نیست. ابتدا اعتبار خود را افزایش دهید.';
 
                 return;
@@ -1167,6 +1256,7 @@ final class Dashboard extends Component
         $orderId = $this->createdOrderId;
         $token = $this->walletConfirmToken;
         $this->walletError = null;
+        $this->walletShortfallRials = null;
 
         if ($this->section !== 'shop' || $orderId === null || $token === null) {
             $this->walletError = 'ابتدا مبلغ و اعتبار خود را برای پرداخت بررسی کنید.';
@@ -1234,6 +1324,7 @@ final class Dashboard extends Component
         $this->walletConfirmAmountRials = null;
         $this->walletConfirmBalanceRials = null;
         $this->walletError = null;
+        $this->walletShortfallRials = null;
     }
 
     public function backToPlans(): void
@@ -1481,7 +1572,7 @@ final class Dashboard extends Component
             }
 
             if ($this->section === 'overview' || $this->section === 'reports') {
-                $days = in_array($this->reportDays, [7, 30], true) ? $this->reportDays : 30;
+                $days = in_array($this->reportDays, [0, 7, 30], true) ? $this->reportDays : 30;
                 $data['report'] = app(ReadResellerSalesReport::class)->handle(
                     $userId, $this->section === 'overview' ? 30 : $days,
                 );

@@ -365,6 +365,7 @@ it('preserves old server inventory when optional P1 statistics fail', function (
 it('renders a safe Rich inventory with the original server-management callbacks and native fallback', function (): void {
     [$root, $bot] = mb05bRoot();
     mb05bFakeRead();
+    config()->set('services.remnawave.node_ssh_setup_enabled', false);
 
     $bot->hearText('/servers')->reply()
         ->assertCalled('sendRichMessage', 1)
@@ -380,7 +381,8 @@ it('renders a safe Rich inventory with the original server-management callbacks 
                 && str_contains($html, 'سرورهای متصل')
                 && str_contains($html, '📊 جزئیات منابع پنل')
                 && str_contains($actions, 'metrics:refresh')
-                && str_contains($actions, 'node1:list:1')
+                && ! str_contains($actions, 'node1:list:1')
+                && ! str_contains($actions, 'nw1:begin')
                 && str_contains($actions, 'host1:list:1')
                 && str_contains($actions, 'cfg1:list:1')
                 && str_contains($actions, 'cf2:zones')

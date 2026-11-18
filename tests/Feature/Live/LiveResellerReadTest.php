@@ -11,7 +11,9 @@ use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\ConfigureRate;
 use App\Modules\Sales\Application\CreatePendingOrder;
 use App\Modules\Sales\Application\ManageResellerServiceLabels;
+use App\Modules\Sales\Application\ReadResellerSalesReport;
 use App\Modules\Sales\Application\SettleWalletOrder;
+use App\Support\PersianCalendar;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -81,8 +83,8 @@ it('shows the real owned wallet, settled revenue, counts and customer labels wit
     app(ManageResellerServiceLabels::class)->save($foreign->id, $foreignOrder, 'نام نماینده دیگر');
     $this->actingAs($owner)->withSession(['denagate_live.user_id' => $owner->id]);
     $cost = (int) DB::table('sales_orders')->where('id', $ownedOrder)->value('total_price_rials');
-    $expectedBalance = number_format(intdiv(2_000_000 - $cost, 10));
-    $expectedSale = number_format(intdiv($cost, 10));
+    $expectedBalance = PersianCalendar::number(number_format(intdiv(2_000_000 - $cost, 10)));
+    $expectedSale = PersianCalendar::number(number_format(intdiv($cost, 10)));
     $journalCount = DB::table('billing_journals')->count();
 
     Livewire::test(Dashboard::class)
@@ -104,7 +106,7 @@ it('shows the real owned wallet, settled revenue, counts and customer labels wit
         ->call('showSection', 'reports')
         ->assertSee($expectedSale)
         ->assertSee('تراکنش‌های تأییدشده')
-        ->assertSee('مجموع فروش تسویه‌شده')
+        ->assertSee('مجموع خرید و تمدید از دناگیت')
         ->assertSee('dg-card-accent')
         ->assertSee('dg-stat')
         ->call('selectReportDays', 7)
@@ -234,4 +236,45 @@ it('searches owned customer names across pages and preserves the filter after de
     Http::assertNothingSent();
     $owner->syncRoles(['member']);
     $page->call('searchServices')->assertForbidden();
+});
+
+it('aggregates all settled payments since inception without counting pending orders or another reseller', function (): void {
+    $owner = liveReadUser(879090);
+    $foreign = liveReadUser(879091);
+    PanelWalletFunding::credit($owner->id, 5_000_000);
+    PanelWalletFunding::credit($foreign->id, 2_000_000);
+    $this->actingAs($owner)->withSession(['denagate_live.user_id' => $owner->id]);
+
+    $oldOrder = liveReadOrder($owner);
+    $oldAmount = (int) DB::table('sales_order_settlements')->where('sales_order_id', $oldOrder)->value('amount_rials');
+    $oldDate = now()->subDays(90);
+    DB::table('sales_order_settlements')->where('sales_order_id', $oldOrder)->update(['settled_at' => $oldDate]);
+
+    $currentOrder = liveReadOrder($owner);
+    $currentAmount = (int) DB::table('sales_order_settlements')->where('sales_order_id', $currentOrder)->value('amount_rials');
+    liveReadOrder($owner, false);
+
+    $this->actingAs($foreign)->withSession(['denagate_live.user_id' => $foreign->id]);
+    liveReadOrder($foreign);
+    $this->actingAs($owner)->withSession(['denagate_live.user_id' => $owner->id]);
+
+    $reader = app(ReadResellerSalesReport::class);
+    $week = $reader->handle($owner->id, 7);
+    $month = $reader->handle($owner->id, 30);
+    $lifetime = $reader->handle($owner->id, 0);
+
+    expect($week['revenueRials'])->toBe($currentAmount)
+        ->and($month['revenueRials'])->toBe($currentAmount)
+        ->and($lifetime['revenueRials'])->toBe($oldAmount + $currentAmount)
+        ->and($lifetime['transactions'])->toBe(2)
+        ->and($lifetime['sales'])->toBe(2)
+        ->and($lifetime['pending'])->toBe(1)
+        ->and($lifetime['from'])->toBe($oldDate->timezone('Asia/Tehran')->format('Y-m-d'));
+
+    Livewire::test(Dashboard::class)->call('showSection', 'reports')
+        ->call('selectReportDays', 0)
+        ->assertSet('reportDays', 0)
+        ->assertSee(PersianCalendar::number(number_format(intdiv($oldAmount + $currentAmount, 10))))
+        ->assertSee('از ابتدا');
+    Http::assertNothingSent();
 });

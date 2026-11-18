@@ -48,6 +48,152 @@ final readonly class ManageAdminNodes
         return $safe;
     }
 
+    /**
+     * Return every Node's management endpoint for replacement collision checks.
+     *
+     * @return list<array{uuid:string,address:string,port:int}>
+     */
+    public function replacementAddresses(int $actorId): array
+    {
+        $this->access->handle($actorId);
+        $nodes = (new RemnawaveNodesApi($this->factory->make()))->all();
+        if (count($nodes) > 500) {
+            throw new UnexpectedValueException('Node inventory is too large for replacement.');
+        }
+
+        $addresses = [];
+        foreach ($nodes as $node) {
+            $safe = $this->safeNode($node);
+            $address = $node['address'] ?? null;
+            $port = $node['port'] ?? null;
+            if (! is_string($address) || trim($address) === '' || trim($address) !== $address
+                || strlen($address) > 253
+                || (filter_var($address, FILTER_VALIDATE_IP) === false
+                    && filter_var($address, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) === false)
+                || ! is_int($port) || $port < 1 || $port > 65535) {
+                throw new UnexpectedValueException('Invalid Node management endpoint in replacement inventory.');
+            }
+            $addresses[] = ['uuid' => $safe['uuid'], 'address' => $address, 'port' => $port];
+        }
+
+        return $addresses;
+    }
+
+    /**
+     * Read-only replacement snapshot. The complete active profile and inbound
+     * set are captured so a replacement never silently narrows configuration.
+     *
+     * @return array{uuid:string,name:string,address:string,port:int,connected:bool,disabled:bool,profileUuid:string,inboundUuids:list<string>}
+     */
+    public function replacementSnapshot(int $actorId, string $uuid): array
+    {
+        $this->access->handle($actorId);
+        self::uuid($uuid);
+        $node = (new RemnawaveNodesApi($this->factory->make()))->one($uuid);
+        $safe = $this->safeNode($node);
+        $address = $node['address'] ?? null;
+        $port = $node['port'] ?? null;
+        $profile = $node['configProfile'] ?? null;
+        $profileUuid = is_array($profile) ? ($profile['activeConfigProfileUuid'] ?? null) : null;
+        $inbounds = is_array($profile) ? ($profile['activeInbounds'] ?? null) : null;
+
+        if ($safe['uuid'] !== strtolower($uuid)
+            || ! is_string($address) || trim($address) !== $address || strlen($address) > 253
+            || (filter_var($address, FILTER_VALIDATE_IP) === false
+                && filter_var($address, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) === false)
+            || ! is_int($port) || $port < 1 || $port > 65535
+            || ! self::uuidValid($profileUuid)
+            || ! is_array($inbounds) || ! array_is_list($inbounds) || $inbounds === [] || count($inbounds) > 30) {
+            throw new UnexpectedValueException('Node replacement snapshot is incomplete.');
+        }
+
+        $inboundUuids = [];
+        foreach ($inbounds as $inbound) {
+            $inboundUuid = is_array($inbound) ? ($inbound['uuid'] ?? null) : null;
+            if (! self::uuidValid($inboundUuid)) {
+                throw new UnexpectedValueException('Node replacement inbound snapshot is invalid.');
+            }
+            $inboundUuids[] = strtolower($inboundUuid);
+        }
+        if (count(array_unique($inboundUuids)) !== count($inboundUuids)) {
+            throw new UnexpectedValueException('Node replacement inbound snapshot is duplicated.');
+        }
+
+        return [
+            ...$safe,
+            'address' => $address,
+            'port' => $port,
+            'profileUuid' => strtolower($profileUuid),
+            'inboundUuids' => $inboundUuids,
+        ];
+    }
+
+    /**
+     * Update only a direct-IP Node address. Domain addresses are intentionally
+     * preserved and moved through their Cloudflare A records instead.
+     *
+     * @param  array{uuid:string,name:string,address:string,port:int,connected:bool,disabled:bool,profileUuid:string,inboundUuids:list<string>}  $expected
+     * @return array{uuid:string,name:string,address:string,port:int,connected:bool,disabled:bool,profileUuid:string,inboundUuids:list<string>}
+     */
+    public function updateReplacementAddress(int $actorId, array $expected, string $address): array
+    {
+        $this->access->handle($actorId);
+        $this->authorizeWrite($actorId);
+        if (filter_var($expected['address'], FILTER_VALIDATE_IP) === false
+            || filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+            throw ValidationException::withMessages(['node' => 'Only a direct-IP Node can change its address in this operation.']);
+        }
+        $this->validateIdentity($actorId, $expected['name'], $address);
+
+        return Cache::lock('nodes:mutation', 60)->block(1, function () use ($actorId, $expected, $address): array {
+            $current = $this->replacementSnapshot($actorId, self::uuid($expected['uuid']));
+            if (self::replacementIdentity($current) !== self::replacementIdentity($expected)) {
+                throw ValidationException::withMessages(['node' => 'Node changed since replacement preview.']);
+            }
+            foreach ((new RemnawaveNodesApi($this->factory->make()))->all() as $node) {
+                if (($node['uuid'] ?? null) !== $expected['uuid'] && ($node['address'] ?? null) === $address) {
+                    throw ValidationException::withMessages(['node' => 'The new IP is already assigned to another Node.']);
+                }
+            }
+
+            $this->authorizeWrite($actorId);
+            $response = (new RemnawaveNodesApi($this->factory->make()))->update(self::uuid($expected['uuid']), ['address' => $address]);
+            if (! self::uuidValid($response['uuid'] ?? null)
+                || strtolower($response['uuid']) !== strtolower($expected['uuid'])) {
+                throw new UnexpectedValueException('Node address update identity could not be verified.');
+            }
+
+            $updated = $this->replacementSnapshot($actorId, $expected['uuid']);
+            if ($updated['address'] !== $address
+                || self::replacementIdentity($updated, includeAddress: false)
+                    !== self::replacementIdentity($expected, includeAddress: false)) {
+                throw new UnexpectedValueException('Node address update changed protected configuration.');
+            }
+
+            return $updated;
+        });
+    }
+
+    /** @param array<string,mixed> $node
+     * @return array<string,mixed>
+     */
+    private static function replacementIdentity(array $node, bool $includeAddress = true): array
+    {
+        $identity = [
+            'uuid' => $node['uuid'] ?? null,
+            'name' => $node['name'] ?? null,
+            'port' => $node['port'] ?? null,
+            'disabled' => $node['disabled'] ?? null,
+            'profileUuid' => $node['profileUuid'] ?? null,
+            'inboundUuids' => $node['inboundUuids'] ?? null,
+        ];
+        if ($includeAddress) {
+            $identity['address'] = $node['address'] ?? null;
+        }
+
+        return $identity;
+    }
+
     /** @return list<string> */
     public function tags(int $actorId): array
     {

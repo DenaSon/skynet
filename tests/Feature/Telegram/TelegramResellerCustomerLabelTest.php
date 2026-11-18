@@ -549,12 +549,16 @@ it('makes the Sales report visible only to resellers and provides 7/30 day navig
             $data = FakeNutgram::getActualData($request);
 
             return str_contains(rslRichHtml($request), 'گزارش فروش')
-                && str_contains(rslRichHtml($request), 'مجموع فروش تأییدشده')
+                && str_contains(rslRichHtml($request), 'مجموع خرید و تمدید از دناگیت')
                 && str_contains(rslRichHtml($request), '<summary>🛒 جزئیات فروش</summary>')
                 && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:report:7')
                 && ! str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'sales:report:simple:30')
                 && ! str_contains(rslRichHtml($request), 'شماره موبایل');
         }, index: 1);
+    $bot->hearCallbackQueryData('sales:report:simple:0')->reply()->assertRaw(static function (Request $request): bool {
+        return str_contains((string) (FakeNutgram::getActualData($request)['text'] ?? ''), 'از ابتدا');
+    }, index: 1);
+
     $bot->hearCallbackQueryData('sales:report:simple:7')->reply()->assertRaw(static function (Request $request): bool {
         $data = FakeNutgram::getActualData($request);
 

@@ -7,21 +7,31 @@ use App\Modules\Billing\Application\RequestTopup;
 use App\Modules\Billing\Application\ReviewTopup;
 use App\Modules\Billing\Application\SubmitTopupReference;
 use App\Modules\Billing\Application\ViewWallet;
+use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Sales\Application\CalculatePlanQuote;
 use App\Modules\Sales\Application\ConfigureProduct;
 use App\Modules\Sales\Application\ManagePlanPricing;
 use App\Modules\Sales\Application\ManagePlans;
+use App\Modules\Sales\Application\ManageResellerServiceLabels;
 use App\Modules\Sales\Application\OrderReader;
 use App\Modules\Sales\Application\PlanDefinition;
 use App\Modules\Sales\Application\PlanPricingDefinition;
+use App\Modules\Sales\Application\QuoteSimilarResellerService;
 use App\Modules\Sales\Application\RegisterPendingResellerOrder;
+use GuzzleHttp\Psr7\Request;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
+use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Properties\ChatType;
+use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
+use SergiX44\Nutgram\Testing\FakeNutgram;
 use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
@@ -135,9 +145,9 @@ it('shows owner-scoped order history and pays a confirmed snapshot exactly once'
         ->call('prepareWalletPayment')
         ->assertSee('تأیید پرداخت از اعتبار')
         ->assertSee('برای سفارش #')
-        ->assertSee('65,000')
-        ->assertSee('100,000')
-        ->assertSee('35,000')
+        ->assertSee('۶۵٬۰۰۰')
+        ->assertSee('۱۰۰٬۰۰۰')
+        ->assertSee('۳۵٬۰۰۰')
         ->call('confirmWalletPayment')
         ->assertSee('پرداخت ثبت‌شده؛ سرویس در انتظار آماده‌سازی')
         ->assertDontSee('تأیید و پرداخت')
@@ -337,4 +347,126 @@ it('refreshes paid order state without repeating settlement or provider calls', 
     Http::assertNothingSent();
     $data['buyer']->syncRoles(['member']);
     $page->call('refreshOrderStatus')->assertForbidden();
+});
+
+it('shows the exact shortfall and resumes the same order after funding without an automatic debit', function (): void {
+    $data = live3cFixture();
+    config()->set('telegram.sales.bot_username', 'DenaGateBot');
+    $this->actingAs($data['buyer'])->withSession(['denagate_live.user_id' => $data['buyer']->id]);
+    $page = Livewire::test(Dashboard::class)->call('showSection', 'shop')
+        ->call('openOrder', $data['order'])->call('prepareWalletPayment')
+        ->assertSet('walletShortfallRials', 650_000)
+        ->assertSee('کسری اعتبار')->assertSee('https://t.me/DenaGateBot?start=live_topup');
+    live3cAssertNoPurchase();
+    live3cCredit($data['root'], $data['buyer']);
+    $page->call('prepareWalletPayment')->assertSet('walletShortfallRials', null)
+        ->assertSet('createdOrderId', $data['order'])->assertSee('تأیید و پرداخت');
+    live3cAssertNoPurchase();
+    config()->set('billing.topups_enabled', false);
+    $page->assertDontSee('https://t.me/DenaGateBot?start=live_topup');
+});
+
+function liveSimilarFulfilled(array $data): void
+{
+    DB::table('sales_orders')->where('id', $data['order'])->update(['status' => 'fulfilled']);
+    $subscription = DB::table('provisioning_subscriptions')->insertGetId([
+        'reference' => 'sales-order:'.$data['order'],
+        'remote_username' => 'sk_'.substr(hash('sha256', (string) $data['order']), 0, 24),
+        'remote_user_id' => 600000 + $data['order'], 'state' => 'active',
+        'last_operation_key' => 'similar-fixture:'.$data['order'],
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+    DB::table('provisioning_order_links')->insert([
+        'sales_order_id' => $data['order'], 'provisioning_subscription_id' => $subscription,
+        'created_at' => now(),
+    ]);
+}
+
+it('copies only service quantities into a fresh current-price customer form without creating or charging', function (string $mode): void {
+    $data = live3cFixture();
+    liveSimilarFulfilled($data);
+    if ($mode === 'builder') {
+        DB::table('sales_plans')->where('id', $data['plan'])->update(['mode' => 'builder']);
+        DB::table('sales_orders')->where('id', $data['order'])->update(['traffic_gb' => 75, 'duration_days' => 45]);
+    }
+    DB::table('sales_plan_prices')->where('plan_id', $data['plan'])->update(['fixed_price_rials' => 2_000_000]);
+    $this->actingAs($data['buyer'])->withSession(['denagate_live.user_id' => $data['buyer']->id]);
+    $page = Livewire::test(Dashboard::class)->call('showSection', 'services')
+        ->call('openService', $data['order'])->call('buySimilarService')
+        ->assertSet('section', 'shop')->assertSet('customerUsername', '')
+        ->assertSet('createdOrderId', null)->assertSet('quoteRequested', true)
+        ->assertSet('gbInput', $mode === 'builder' ? '75' : '30')
+        ->assertSet('daysInput', $mode === 'builder' ? '45' : '30');
+    expect(app(QuoteSimilarResellerService::class)
+        ->handle(SubscriptionViewer::web(), $data['order'])->totalPriceRials)->toBe(1_300_000);
+    expect(DB::table('sales_orders')->count())->toBe(1);
+    live3cAssertNoPurchase();
+    // A changed price still requires a fresh review at the existing confirmation.
+    DB::table('sales_plan_prices')->where('plan_id', $data['plan'])->update(['fixed_price_rials' => 3_000_000]);
+    $page->set('customerUsername', 'new-customer')->call('confirmOrder')->assertSet('createdOrderId', null);
+    expect(DB::table('sales_orders')->count())->toBe(1);
+})->with(['preset', 'builder']);
+
+it('rejects foreign, revoked and unpublished similar service quotes', function (): void {
+    $data = live3cFixture();
+    liveSimilarFulfilled($data);
+    $this->actingAs($data['buyer'])->withSession(['denagate_live.user_id' => $data['buyer']->id]);
+    $action = app(QuoteSimilarResellerService::class);
+    $viewer = SubscriptionViewer::web();
+    DB::table('sales_plan_prices')->where('plan_id', $data['plan'])->update(['status' => 'draft']);
+    expect(fn () => $action->handle($viewer, $data['order']))->toThrow(ValidationException::class);
+    $other = User::factory()->create();
+    $other->assignRole('reseller');
+    $this->actingAs($other);
+    expect(fn () => $action->handle($viewer, $data['order']))->toThrow(ValidationException::class);
+    $this->actingAs($data['buyer']);
+    $data['buyer']->syncRoles(['member']);
+    expect(fn () => $action->handle($viewer, $data['order']))->toThrow(AuthorizationException::class);
+    expect(DB::table('sales_orders')->count())->toBe(1);
+    live3cAssertNoPurchase();
+});
+
+it('offers an owner-only read-only similar purchase preview through the Sales Bot', function (): void {
+    $data = live3cFixture();
+    liveSimilarFulfilled($data);
+    $bot = Nutgram::fake();
+    require base_path('app/Interfaces/Telegram/routes/sales.php');
+    $bot->setCommonUser(SergiX44\Nutgram\Telegram\Types\User\User::make(955510, false, 'Reseller'));
+    $bot->setCommonChat(Chat::make(955510, ChatType::PRIVATE));
+    $bot->hearCallbackQueryData('sales:subs:similar:'.$data['order'].':0')->reply()
+        ->assertRaw(static function (Request $request) use ($data): bool {
+            $payload = FakeNutgram::getActualData($request);
+            $rich = is_string($payload['rich_message'] ?? null)
+                ? json_decode($payload['rich_message'], true, 512, JSON_THROW_ON_ERROR) : ($payload['rich_message'] ?? []);
+            $json = ($rich['html'] ?? '').json_encode($payload['reply_markup'] ?? [], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+
+            return str_contains($json, 'خرید مشابه برای مشتری جدید')
+                && str_contains($json, 'sales:subs:similar-buy:'.$data['order'])
+                && ! str_contains($json, 'customer-test');
+        }, index: 1);
+    expect(DB::table('sales_orders')->count())->toBe(1);
+    live3cAssertNoPurchase();
+    $data['buyer']->syncRoles(['member']);
+    $bot->hearCallbackQueryData('sales:subs:similar-buy:'.$data['order'].':0')->reply()->assertNoReply();
+    expect(DB::table('sales_orders')->count())->toBe(1);
+    $bot->hearCallbackQueryData('sales:subs:similar:'.$data['order'].':0')->reply()->assertNoReply();
+});
+
+it('continues a similar purchase as a new pending order without reusing the customer or paying', function (): void {
+    $data = live3cFixture();
+    liveSimilarFulfilled($data);
+    $bot = Nutgram::fake();
+    require base_path('app/Interfaces/Telegram/routes/sales.php');
+    $bot->setCommonUser(SergiX44\Nutgram\Telegram\Types\User\User::make(955510, false, 'Reseller'));
+    $bot->setCommonChat(Chat::make(955510, ChatType::PRIVATE));
+    $bot->hearCallbackQueryData('sales:subs:similar-buy:'.$data['order'].':0')->reply();
+    $newOrder = DB::table('sales_orders')->where('id', '!=', $data['order'])->first();
+    expect($newOrder)->not->toBeNull()
+        ->and($newOrder->status)->toBe('pending_payment')
+        ->and((int) $newOrder->buyer_user_id)->toBe($data['buyer']->id)
+        ->and(app(ManageResellerServiceLabels::class)
+            ->pendingName($data['buyer']->id, (int) $newOrder->id))->toBeNull()
+        ->and(DB::table('sales_orders')->where('id', $data['order'])->value('status'))->toBe('fulfilled')
+        ->and(DB::table('sales_renewal_orders')->count())->toBe(0);
+    live3cAssertNoPurchase();
 });

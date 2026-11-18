@@ -18,7 +18,6 @@ final class SalesNativeMenu
         return [
             BotCommand::make('buy', '🛒 خرید سرویس'),
             BotCommand::make('subscriptions', '📋 سرویس‌های من'),
-            BotCommand::make('account', '👤 حساب کاربری'),
             BotCommand::make('help', '💬 پشتیبانی'),
         ];
     }

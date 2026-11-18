@@ -173,11 +173,12 @@ final class MenuRenderer
             ->addRow(
                 InlineKeyboardButton::make('🧭 داشبورد', callback_data: 'kpi:period:day'),
                 InlineKeyboardButton::make('🚦 فیلترینگ', callback_data: 'flt:home', style: ButtonStyle::DANGER),
-            )
-            ->addRow(
-                InlineKeyboardButton::make('📦 کاتالوگ', callback_data: 'menu:admin:sales'),
-                InlineKeyboardButton::make('🖥️ سرورها', callback_data: 'menu:admin:servers'),
-            )
+            );
+        $keyboard->addRow(
+            InlineKeyboardButton::make('📦 کاتالوگ', callback_data: 'menu:admin:sales'),
+            InlineKeyboardButton::make('🖥️ سرورها', callback_data: 'menu:admin:servers'),
+        )
+            ->addRow(InlineKeyboardButton::make('🖥️ نودها', callback_data: 'node1:list:1'))
             ->addRow(
                 InlineKeyboardButton::make('💾 پشتیبان‌گیری', callback_data: 'admin:rwbackup:list:1'),
                 InlineKeyboardButton::make('🔐 نقش‌ها و دسترسی‌ها', callback_data: 'menu:admin:roles'),

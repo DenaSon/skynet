@@ -16,9 +16,10 @@ class NodeSshInstaller
 {
     public function __construct(private NodeSshPreflight $preflight) {}
 
-    public function start(string $ip, int $port, string $user, string $password, string $knownHost, string $secret): void
+    public function start(string $ip, int $port, string $user, string $password, string $knownHost, string $secret, string $identifier): void
     {
-        if ($user !== 'root' || preg_match('/\A[A-Za-z0-9+\/=_-]{32,8192}\z/D', $secret) !== 1) {
+        if ($user !== 'root' || preg_match('/\A[A-Za-z0-9+\/=_-]{32,8192}\z/D', $secret) !== 1
+            || preg_match('/\A[a-f0-9]{32}\z/D', $identifier) !== 1) {
             throw new RuntimeException('Unsupported installer credentials or Node key.');
         }
         $installer = file_get_contents(base_path('resources/scripts/nw02-install-remote.sh'));
@@ -35,13 +36,19 @@ class NodeSshInstaller
         $payload = "set -eu\numask 077\n"
             ."[ \"$(id -u)\" -eq 0 ]\n"
             ."command -v systemd-run >/dev/null\n"
+            ."command -v flock >/dev/null\n"
+            ."exec 9>>/run/lock/parsa-node-bootstrap.lock\n"
+            ."flock -n 9\n"
             ."test ! -e /opt/parsa-node-install/status\n"
+            ."test ! -e /opt/parsa-node-install/installation-id\n"
             ."test ! -e /opt/remnanode/docker-compose.yml\n"
             ."test ! -e /opt/remnanode/.env\n"
             ."if command -v docker >/dev/null 2>&1; then ! docker container inspect remnanode >/dev/null 2>&1; fi\n"
             ."install -d -m 0700 /opt/parsa-node-install /opt/remnanode\n"
             ."cat > /opt/parsa-node-install/install.sh <<'NW02_INSTALL'\n".$installer."\nNW02_INSTALL\n"
             ."chmod 0700 /opt/parsa-node-install/install.sh\n"
+            ."printf '%s\n' '".$identifier."' > /opt/parsa-node-install/installation-id\n"
+            ."chmod 0600 /opt/parsa-node-install/installation-id\n"
             ."printf '%s' '".$secretEnv."' | base64 -d > /opt/remnanode/.env\n"
             ."chmod 0600 /opt/remnanode/.env\n"
             ."cat > /opt/remnanode/docker-compose.yml <<'NW02_COMPOSE'\n".$compose."NW02_COMPOSE\n"
@@ -56,10 +63,24 @@ class NodeSshInstaller
         }
     }
 
-    public function status(string $ip, int $port, string $user, string $password, string $knownHost): string
-    {
-        $shell = "set -eu\n"
-            ."test -f /opt/parsa-node-install/status\n"
+    public function status(
+        string $ip,
+        int $port,
+        string $user,
+        string $password,
+        string $knownHost,
+        ?string $expectedIdentifier = null,
+    ): string {
+        if ($expectedIdentifier !== null && preg_match('/\A[a-f0-9]{32}\z/D', $expectedIdentifier) !== 1) {
+            throw new RuntimeException('Invalid installation identifier.');
+        }
+
+        $shell = "set -eu\n";
+        if ($expectedIdentifier !== null) {
+            $shell .= "test -f /opt/parsa-node-install/installation-id\n"
+                ."test \"$(cat /opt/parsa-node-install/installation-id)\" = '".$expectedIdentifier."'\n";
+        }
+        $shell .= "test -f /opt/parsa-node-install/status\n"
             ."cat /opt/parsa-node-install/status\n";
         $result = trim($this->ssh($ip, $port, $user, $password, $knownHost, $shell, 15));
 

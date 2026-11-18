@@ -527,7 +527,7 @@ it('shows real Sales main navigation and keeps bounded buyer-quoted ready plans 
                 && ! str_contains($encoded, 'مبلغ:')
                 && str_contains($encoded, 'sales:buy')
                 && str_contains($encoded, 'sales:subs:list:0')
-                && str_contains($encoded, 'sales:account')
+                && ! str_contains($encoded, 'sales:account')
                 && str_contains($encoded, 'sales:support');
         }, index: 0);
 

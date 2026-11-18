@@ -65,6 +65,122 @@ final readonly class ManageAdminHosts
         return $safe;
     }
 
+    /**
+     * Return the complete bounded Host inventory with normalized Node membership.
+     * Empty membership is preserved so replacement can use inbound/address evidence
+     * or fail closed; it must never silently omit a potentially affected Host.
+     *
+     * @return list<array{uuid:string,remark:string,address:string,port:int,disabled:bool|null,profileUuid:string|null,inboundUuid:string|null,nodes:list<string>}>
+     */
+    public function replacementInventory(int $actorId): array
+    {
+        $this->access->handle($actorId);
+        $result = $this->factory->make()->call('HostsController_getHosts');
+        $remoteHosts = is_array($result) ? ($result['response'] ?? null) : null;
+        if (! is_array($remoteHosts) || ! array_is_list($remoteHosts) || count($remoteHosts) > 300) {
+            throw new UnexpectedValueException('Invalid Hosts inventory for Node replacement.');
+        }
+
+        $inventory = [];
+        $seen = [];
+        foreach ($remoteHosts as $remote) {
+            if (! is_array($remote)) {
+                throw new UnexpectedValueException('Malformed Host in Node replacement inventory.');
+            }
+            $members = $remote['nodes'] ?? null;
+            if (! is_array($members) || ! array_is_list($members) || count($members) > 500) {
+                throw new UnexpectedValueException('Host Node membership is unavailable; replacement stopped.');
+            }
+
+            $normalized = [];
+            foreach ($members as $member) {
+                if (! self::uuidValid($member)) {
+                    throw new UnexpectedValueException('Invalid Host Node membership.');
+                }
+                $normalized[] = strtolower($member);
+            }
+            if (count(array_unique($normalized)) !== count($normalized)) {
+                throw new UnexpectedValueException('Duplicate Host Node membership.');
+            }
+            sort($normalized, SORT_STRING);
+
+            $host = self::safeHost($remote);
+            if (isset($seen[$host['uuid']])) {
+                throw new UnexpectedValueException('Duplicate Host in Node replacement inventory.');
+            }
+            $seen[$host['uuid']] = true;
+            $inventory[] = [...$host, 'nodes' => $normalized];
+        }
+
+        usort($inventory, static fn (array $a, array $b): int => strcmp($a['uuid'], $b['uuid']));
+
+        return $inventory;
+    }
+
+    /**
+     * Return Hosts explicitly associated with the selected Node UUID.
+     *
+     * @return list<array{uuid:string,remark:string,address:string,port:int,disabled:bool|null,profileUuid:string|null,inboundUuid:string|null,nodes:list<string>}>
+     */
+    public function assignedToNode(int $actorId, string $nodeUuid): array
+    {
+        $nodeUuid = self::uuid($nodeUuid);
+
+        return array_values(array_filter(
+            $this->replacementInventory($actorId),
+            static fn (array $host): bool => in_array($nodeUuid, $host['nodes'], true),
+        ));
+    }
+
+    /**
+     * Change only a direct-IP Host address while preserving its UUID and every
+     * other provider field. Domain Hosts are moved through their A records.
+     *
+     * @param  array<string,mixed>  $expected
+     */
+    public function updateReplacementAddress(int $actorId, array $expected, string $address): void
+    {
+        $this->authorizeWrite($actorId);
+        $uuid = self::uuid($expected['uuid'] ?? '');
+        if (filter_var($expected['address'] ?? null, FILTER_VALIDATE_IP) === false
+            || filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+            throw ValidationException::withMessages(['host' => 'Only a direct-IP Host can be moved by address.']);
+        }
+        // This is an address-only update: the existing remark is not being
+        // renamed, so do not apply the 40-character new-Host remark limit here.
+        if (! is_int($expected['port'] ?? null) || $expected['port'] < 1 || $expected['port'] > 65535) {
+            throw ValidationException::withMessages(['host' => 'Invalid Host port.']);
+        }
+
+        Cache::lock('hosts:mutation', 60)->block(1, function () use ($actorId, $uuid, $expected, $address): void {
+            $current = $this->one($actorId, $uuid);
+            $identity = array_intersect_key($expected, array_flip([
+                'uuid', 'remark', 'address', 'port', 'disabled', 'profileUuid', 'inboundUuid',
+            ]));
+            if ($current !== $identity) {
+                throw ValidationException::withMessages(['host' => 'Host changed since replacement preview.']);
+            }
+            $this->authorizeWrite($actorId);
+            $response = $this->factory->make()->call('HostsController_updateHost', body: [
+                'uuid' => $uuid,
+                'address' => $address,
+            ]);
+            $updatedUuid = is_array($response) ? ($response['response']['uuid'] ?? null) : null;
+            if (! is_string($updatedUuid) || strtolower($updatedUuid) !== $uuid) {
+                throw new UnexpectedValueException('Host address update identity could not be verified.');
+            }
+            $updated = $this->one($actorId, $uuid);
+            if ($updated['address'] !== $address
+                || $updated['remark'] !== $current['remark']
+                || $updated['port'] !== $current['port']
+                || $updated['disabled'] !== $current['disabled']
+                || $updated['profileUuid'] !== $current['profileUuid']
+                || $updated['inboundUuid'] !== $current['inboundUuid']) {
+                throw new UnexpectedValueException('Host address update changed protected configuration.');
+            }
+        });
+    }
+
     public function validateIdentity(int $actorId, string $remark, string $address, int $port): void
     {
         $this->access->handle($actorId);
