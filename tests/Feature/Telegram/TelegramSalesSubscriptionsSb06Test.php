@@ -1324,8 +1324,16 @@ it('offers a plain copyable reseller reminder only after a verified live read', 
                     if (($button['text'] ?? '') === '📋 کپی یادآوری تمدید') {
                         $text = $button['copy_text']['text'] ?? '';
 
-                        return str_contains($text, 'علی <مشتری>') && str_contains($text, 'تهران')
-                            && ! str_contains($text, 'private-sb06') && mb_strlen($text) <= 256;
+                        return str_contains($text, 'سلام، وقتتون بخیر 🌱')
+                            && str_contains($text, 'اعتبار سرویس علی <مشتری> در تاریخ')
+                            && str_contains($text, ' ساعت ')
+                            && str_contains($text, 'تموم می‌شه.')
+                            && str_contains($text, 'اگر قصد تمدید دارید، پیام بدید تا راهنمایی‌تون کنم.')
+                            && ! str_contains($text, 'تهران')
+                            && ! str_contains($text, '«')
+                            && ! str_contains($text, '»')
+                            && ! str_contains($text, 'private-sb06')
+                            && mb_strlen($text) <= 256;
                     }
                 }
             }
