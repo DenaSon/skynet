@@ -75,13 +75,20 @@ runs:
       run: php artisan test
       shell: bash
 
-    - name: Setup Node and restore npm cache
+    - name: Setup Node
       if: ${{ inputs.run-frontend == 'true' }}
       uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version: '22'
-        cache: npm
-        cache-dependency-path: package.json
+
+    - name: Cache npm downloads
+      if: ${{ inputs.run-frontend == 'true' }}
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.npm
+        key: ${{ runner.os }}-npm-node22-${{ hashFiles('package.json') }}
+        restore-keys: |
+          ${{ runner.os }}-npm-node22-
 
     - name: Verify Livewire production JavaScript bundle
       if: ${{ inputs.run-frontend == 'true' }}
