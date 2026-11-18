@@ -116,6 +116,11 @@ jobs:
     name: PHP 8.4
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       - name: Run PHP 8.4 and frontend validation
         uses: ./.github/actions/php-validation
         with:
@@ -128,6 +133,11 @@ jobs:
     name: PHP 8.5
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       - name: Run full PHP 8.5 compatibility suite
         uses: ./.github/actions/php-validation
         with:
