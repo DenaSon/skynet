@@ -6,6 +6,7 @@ namespace App\Interfaces\Telegram\Support;
 
 use App\Interfaces\Telegram\Notifications\TelegramNotificationSender;
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
+use App\Modules\Billing\Application\ReverseDirectBankReceipt;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\SubscriptionViewer;
 use App\Modules\Identity\Application\SuperAdminTrust;
@@ -13,7 +14,6 @@ use App\Modules\Identity\Application\TelegramActor;
 use App\Modules\Sales\Application\ManageResellerServiceLabels;
 use App\Modules\Sales\Application\ManualBankPayments;
 use App\Modules\Sales\Application\OrderReader;
-use App\Modules\Sales\Application\ReverseDirectBankReceipt;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;

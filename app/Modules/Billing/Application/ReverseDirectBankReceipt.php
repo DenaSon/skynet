@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Modules\Sales\Application;
+namespace App\Modules\Billing\Application;
 
 use App\Modules\Identity\Application\AssertBillingAccess;
 use App\Modules\Provisioning\Application\FulfillPaidPlanOrder;
