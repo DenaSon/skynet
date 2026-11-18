@@ -3,6 +3,7 @@
 namespace App\Modules\Identity\Application;
 
 use App\Modules\Billing\Application\ReadAdminWalletSummary;
+use App\Modules\Billing\Application\ValidBankSettlements;
 use App\Modules\Identity\Infrastructure\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
@@ -55,7 +56,7 @@ final class BrowseUsers
         } elseif (str_contains($mode, 'p')) {
             // Match settled bank/wallet sources used by Admin sales reporting,
             // excluding unpaid, refunded and top-up records.
-            $bank = DB::table('sales_bank_settlements as payment')
+            $bank = ValidBankSettlements::query()
                 ->join('sales_orders as orders', 'orders.id', '=', 'payment.sales_order_id')
                 ->whereIn('orders.status', ['paid', 'fulfilled'])
                 ->selectRaw('orders.buyer_user_id as user_id, payment.amount_rials as amount_rials');

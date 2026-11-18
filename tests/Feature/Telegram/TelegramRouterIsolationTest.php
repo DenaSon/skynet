@@ -170,6 +170,9 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:full:prepare:{id}:{mode}';
     $expected['ADMIN'][] = 'callback:full:apply:{token}';
     $expected['ADMIN'][] = 'callback:bank:decide:{claim}:{decision}';
+    $expected['ADMIN'][] = 'callback:bank:history:{page}';
+    $expected['ADMIN'][] = 'callback:bank:inspect:{claim}';
+    $expected['ADMIN'][] = 'callback:bank:reverse:{token}';
     $expected['ADMIN'][] = 'callback:bank:list:{page}';
     $expected['ADMIN'][] = 'callback:full:service:view:{id}';
     $expected['ADMIN'][] = 'callback:full:service:prepare:{id}:{mode}';

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Provisioning\Application;
 
+use App\Modules\Billing\Application\ValidBankSettlements;
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveApiClientFactory;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveUsersApi;
@@ -53,7 +54,7 @@ final readonly class ReadAdminDashboard
         // Date range: today's settled purchase revenue in Tehran, not wallet topups.
         $from = Carbon::now('Asia/Tehran')->startOfDay()->utc();
         $until = Carbon::now('Asia/Tehran')->addDay()->startOfDay()->utc();
-        $bank = DB::table('sales_bank_settlements')->where('settled_at', '>=', $from)
+        $bank = ValidBankSettlements::query()->where('settled_at', '>=', $from)
             ->where('settled_at', '<', $until)->sum('amount_rials');
         $wallet = DB::table('sales_order_settlements')->where('settled_at', '>=', $from)
             ->where('settled_at', '<', $until)->sum('amount_rials');

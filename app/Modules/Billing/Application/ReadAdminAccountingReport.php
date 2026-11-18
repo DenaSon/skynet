@@ -45,7 +45,7 @@ final readonly class ReadAdminAccountingReport
 
         // Same immutable verified settlement sources as STAT-02, without
         // counting wallet topups, pending invoices or created-but-unpaid orders.
-        $bank = (int) DB::table('sales_bank_settlements')
+        $bank = (int) ValidBankSettlements::query()
             ->where('settled_at', '>=', $from)->where('settled_at', '<', $until)
             ->sum('amount_rials');
         $wallet = (int) DB::table('sales_order_settlements as payment')

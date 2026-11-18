@@ -24,3 +24,7 @@ Wallet top-up approvals now require an independently entered bank amount that ex
 - Do not delete historical journals/postings, original top-up/receipt records, the correction audit or its migration.
 - Do not create new financial postings or contact the provider as a deployment step.
 - Keep independent bank evidence private; after rollout, verify one matched and one mismatched amount in controlled Admin Bot acceptance without real bank postings unless separately authorized.
+
+## Direct service receipt entered without a bank deposit
+
+For a fulfilled bank-paid order, a trusted Super Admin can open the Admin Bot purchase receipt queue → رسیدهای خرید تحویل‌شده → receipt details. Confirm only after checking the bank statement. The full correction posts an opposing journal linked to the original journal, retains the settlement and original approval, and records the operator, time and no-deposit decision. Cash and settled-sales reports exclude the invalid receipt from its original period. Wallets, previously delivered service access, and prior referral postings are separate. This action does not transfer money. Reverting application code after a posted correction also requires retaining the voided-receipt reporting filter.

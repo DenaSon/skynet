@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Sales\Application;
 
+use App\Modules\Billing\Application\ValidBankSettlements;
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
@@ -162,7 +163,7 @@ final readonly class ReadAdminBusinessReport
     /** Shared bank/wallet purchase rows for both existing and channel aggregates. */
     private function settledRowsBetween(Carbon $from, Carbon $until): Builder
     {
-        $bank = DB::table('sales_bank_settlements as payment')
+        $bank = ValidBankSettlements::query()
             ->join('sales_orders as orders', 'orders.id', '=', 'payment.sales_order_id')
             ->leftJoin('sales_renewal_orders as renewal', 'renewal.sales_order_id', '=', 'orders.id')
             ->where('payment.settled_at', '>=', $from)

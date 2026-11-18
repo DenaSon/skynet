@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Identity\Application;
 
 use App\Modules\Billing\Application\BrowseCustomerWallets;
+use App\Modules\Billing\Application\ValidBankSettlements;
 use App\Modules\Identity\Infrastructure\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
@@ -68,7 +69,7 @@ final readonly class ReadCustomerSupportProfile
 
         // Verified payment timestamp from canonical settlement evidence only;
         // an unpaid order or a wallet topup is not a completed purchase.
-        $lastBank = DB::table('sales_bank_settlements as payment')
+        $lastBank = ValidBankSettlements::query()
             ->join('sales_orders as orders', 'orders.id', '=', 'payment.sales_order_id')
             ->where('orders.buyer_user_id', $subjectId)->max('payment.settled_at');
         $lastWallet = DB::table('sales_order_settlements as payment')

@@ -5,6 +5,8 @@ declare(strict_types=1);
 use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
 use App\Interfaces\Telegram\Notifications\NotificationUnavailable;
 use App\Interfaces\Telegram\Notifications\TelegramNotificationSender;
+use App\Modules\Billing\Application\ReadAdminAccountingReport;
+use App\Modules\Billing\Application\ReadAdminCashReceipts;
 use App\Modules\Billing\Application\RequestTopup;
 use App\Modules\Billing\Application\ReviewTopup;
 use App\Modules\Billing\Application\SubmitTopupPhoto;
@@ -31,6 +33,7 @@ use App\Modules\Sales\Application\ManualBankPayments;
 use App\Modules\Sales\Application\PlanDefinition;
 use App\Modules\Sales\Application\PlanPricingDefinition;
 use App\Modules\Sales\Application\ReferralRewardOutbox;
+use App\Modules\Sales\Application\ReverseDirectBankReceipt;
 use App\Modules\Sales\Application\SettleWalletOrder;
 use GuzzleHttp\Psr7\Request as NutgramRequest;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -39,6 +42,7 @@ use Illuminate\Database\Events\TransactionRolledBack;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
@@ -1760,4 +1764,45 @@ it('refuses a queued recovery if the operator loses authorization after confirma
     $job->handle(app(RecoverPaidPlanOrder::class));
     Http::assertNothingSent();
     expect(DB::table('provisioning_operations')->count())->toBe(1);
+});
+
+it('reverses a fulfilled direct bank receipt once through private admin UI and removes false cash and sales', function (): void {
+    $data = sb05Order();
+    $root = $data['root']->id;
+    $bank = DB::table('sales_bank_settlements')->first();
+    $receipt = (int) $bank->payment_claim_id;
+    $amount = (int) $bank->amount_rials;
+    $reverse = app(ReverseDirectBankReceipt::class);
+    $apply = fn (int $actor, int $expected) => $reverse->handle($actor, $receipt, $data['order'], (int) $bank->billing_journal_id, $expected);
+    expect(fn () => $apply($root, $amount))->toThrow(ValidationException::class);
+    DB::table('sales_orders')->where('id', $data['order'])->update(['status' => 'fulfilled']);
+    expect(fn () => $apply($data['buyer']->id, $amount))->toThrow(AuthorizationException::class)
+        ->and(fn () => $apply($root, $amount + 1))->toThrow(ValidationException::class);
+
+    $cash = app(ReadAdminCashReceipts::class);
+    $book = app(ReadAdminAccountingReport::class);
+    expect($cash->handle($root, 'all')['cashInRials'])->toBe($amount)
+        ->and($book->handle($root, '30')['salesRials'])->toBe($amount);
+
+    $bot = Nutgram::fake();
+    require base_path('app/Interfaces/Telegram/routes/admin.php');
+    $bot->setCommonUser(TelegramUser::make(975001, false, 'Root'));
+    $bot->setCommonChat(Chat::make(975001, ChatType::PRIVATE));
+    $bot->hearCallbackQueryData('bank:inspect:'.$receipt)->reply();
+    $token = Cache::get('bank-reversal:'.$root)['token'];
+    $bot->hearCallbackQueryData('bank:reverse:'.$token)->reply();
+    $bot->hearCallbackQueryData('bank:reverse:'.$token)->reply();
+
+    $id = DB::table('billing_journals')->where('kind', 'direct_bank_sale_reversal')->sole()->id;
+    $postings = DB::table('billing_postings')->where('journal_id', $id);
+    expect($postings->count())->toBe(2)
+        ->and((int) (clone $postings)->where('account_code', 'cash_clearing')->where('side', 'credit')->value('amount_rials'))->toBe($amount)
+        ->and((int) (clone $postings)->where('account_code', 'order_liability')->where('side', 'debit')->value('amount_rials'))->toBe($amount)
+        ->and(DB::table('sales_payment_review_audits')->where('decision', 'no_bank_deposit')->value('reviewer_user_id'))->toEqual($root)
+        ->and(DB::table('sales_bank_settlements')->first())->toEqual($bank)
+        ->and($cash->handle($root, 'all')['cashInRials'])->toBe(0)
+        ->and($cash->handle($root, 'all')['bankSalesCount'])->toBe(0)
+        ->and($book->handle($root, '30')['salesRials'])->toBe(0)
+        ->and(fn () => $apply($root, $amount))->toThrow(ValidationException::class);
+    Http::assertNothingSent();
 });

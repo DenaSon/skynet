@@ -713,6 +713,16 @@ $bot->onCallbackQueryData('receipt:followup:apply:{token}', function (Nutgram $b
     app(AdminPendingReceiptFollowupUi::class)->apply($bot, $token);
 });
 
+$bot->onCallbackQueryData('bank:history:{page}', function (Nutgram $bot, string $page): void {
+    app(ManualPaymentUi::class)->bankHistory($bot, $page);
+});
+$bot->onCallbackQueryData('bank:inspect:{claim}', function (Nutgram $bot, string $claim): void {
+    app(ManualPaymentUi::class)->inspectBankReceipt($bot, $claim);
+});
+$bot->onCallbackQueryData('bank:reverse:{token}', function (Nutgram $bot, string $token): void {
+    app(ManualPaymentUi::class)->reverseBankReceipt($bot, $token);
+});
+
 $bot->onCallbackQueryData('bank:list', function (Nutgram $bot): void {
     app(ManualPaymentUi::class)->list($bot);
 });
