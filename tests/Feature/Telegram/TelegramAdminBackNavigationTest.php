@@ -74,21 +74,18 @@ it('adds a catalog back action without removing existing root destinations', fun
 
     foreach (['menu:admin:products', 'menu:admin:plans', 'full:list', 'full:completed'] as $page) {
         $bot->hearCallbackQueryData($page)->reply()
-            ->assertRaw(static fn (NutgramRequest $r): bool =>
-                backNavContains($r, 'menu:admin:sales')
+            ->assertRaw(static fn (NutgramRequest $r): bool => backNavContains($r, 'menu:admin:sales')
                     && backNavContains($r, 'menu:admin'), index: 1);
     }
 
     $bot->hearCallbackQueryData('menu:admin:sales')->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool =>
-            backNavContains($r, 'menu:admin:control')
+        ->assertRaw(static fn (NutgramRequest $r): bool => backNavContains($r, 'menu:admin:control')
                 && backNavContains($r, 'menu:admin:products')
                 && backNavContains($r, 'menu:admin:plans'), index: 1);
 
     // Admin home is already the root destination; no self-referencing Home control.
     $bot->hearCallbackQueryData('menu:admin')->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool =>
-            backNavContains($r, 'menu:admin:finance')
+        ->assertRaw(static fn (NutgramRequest $r): bool => backNavContains($r, 'menu:admin:finance')
                 && ! backNavContains($r, 'menu:home'), index: 1);
 
     expect(DB::table('billing_journals')->count())->toBe(0);
@@ -102,19 +99,16 @@ it('returns wallet details to the exact source user-profile page and retains leg
     $bot = backNavBot($root);
 
     $bot->hearCallbackQueryData('users:profile:'.$buyer->id.':3:mw')->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool =>
-            backNavContains($r, 'finance:wallet:'.$buyer->id.':p:3:mw'), index: 1);
+        ->assertRaw(static fn (NutgramRequest $r): bool => backNavContains($r, 'finance:wallet:'.$buyer->id.':p:3:mw'), index: 1);
 
     $bot->hearCallbackQueryData('finance:wallet:'.$buyer->id.':p:3:mw')->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool =>
-            backNavContains($r, 'users:profile:'.$buyer->id.':3:mw')
+        ->assertRaw(static fn (NutgramRequest $r): bool => backNavContains($r, 'users:profile:'.$buyer->id.':3:mw')
                 && backNavContains($r, 'finance:wallets:1')
                 && backNavContains($r, 'finance:topups:1')
                 && backNavContains($r, 'menu:admin:finance'), index: 1);
 
     $bot->hearCallbackQueryData('finance:wallet:'.$buyer->id)->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool =>
-            backNavContains($r, 'finance:wallets:1')
+        ->assertRaw(static fn (NutgramRequest $r): bool => backNavContains($r, 'finance:wallets:1')
                 && backNavContains($r, 'users:profile:'.$buyer->id.':1:a'), index: 1);
 
     expect(DB::table('billing_journals')->count())->toBe(0);
@@ -133,13 +127,11 @@ it('preserves the source wallet-list page without trusting malformed callback na
     $chosen = $walletOwners[0];
 
     $bot->hearCallbackQueryData('finance:wallets:2')->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool =>
-            str_contains(json_encode(backNavPayload($r)['reply_markup'], JSON_THROW_ON_ERROR), ':l:2:a')
+        ->assertRaw(static fn (NutgramRequest $r): bool => str_contains(json_encode(backNavPayload($r)['reply_markup'], JSON_THROW_ON_ERROR), ':l:2:a')
                 && backNavContains($r, 'menu:admin:finance'), index: 1);
 
     $bot->hearCallbackQueryData('finance:wallet:'.$chosen.':l:2:a')->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool =>
-            backNavContains($r, 'finance:wallets:2')
+        ->assertRaw(static fn (NutgramRequest $r): bool => backNavContains($r, 'finance:wallets:2')
                 && backNavContains($r, 'users:profile:'.$chosen.':1:a'), index: 1);
 
     foreach ([
@@ -149,8 +141,7 @@ it('preserves the source wallet-list page without trusting malformed callback na
         'finance:wallet:'.$chosen.':redirect:2:a',
     ] as $forged) {
         $bot->hearCallbackQueryData($forged)->reply()
-            ->assertRaw(static fn (NutgramRequest $r): bool =>
-                backNavContains($r, 'finance:wallets:1')
+            ->assertRaw(static fn (NutgramRequest $r): bool => backNavContains($r, 'finance:wallets:1')
                     && ! backNavContains($r, 'finance:wallets:999999'), index: 1);
     }
 
