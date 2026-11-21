@@ -195,7 +195,7 @@ it('scopes local service/order summary and settled purchase evidence to the sele
                 && ! str_contains($html, '177733300')
                 && ! str_contains($html, 'Plan &lt;VIP&gt; 4')
                 && ! str_contains($html, '<private>')
-                && str_contains($buttons, "finance:wallet:{$target->id}")
+                && str_contains($buttons, "finance:wallet-detail:{$target->id}:p:1:a")
                 && str_contains($buttons, "c360:l:{$target->id}:1:a:1");
         }, index: 1);
 
