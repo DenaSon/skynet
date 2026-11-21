@@ -164,7 +164,12 @@ it('opens a private expense wizard with category, Persian amount, memo and a one
         return str_contains(json_encode($p['reply_markup'], JSON_THROW_ON_ERROR), '"style":"success"');
     }, index: 1);
     $reverse = Cache::get('admin:accounting:draft:'.$root->id);
-    $bot->hearCallbackQueryData('acc:reverse:apply:1:'.$reverse['token'])->reply()->assertCalled('editMessageText');
+    $bot->hearCallbackQueryData('acc:reverse:apply:1:'.$reverse['token'])->reply()
+        ->assertRaw(static function (Request $request): bool {
+            $markup = json_encode(acc01Payload($request)['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
+
+            return str_contains($markup, 'acc:history:1') && str_contains($markup, 'acc:home');
+        }, index: 1);
     expect(DB::table('accounting_entries')->count())->toBe(2);
     Http::assertNothingSent();
 });

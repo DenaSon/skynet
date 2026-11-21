@@ -68,7 +68,8 @@ final readonly class ProductAdminUi
 
         $keyboard->addRow(InlineKeyboardButton::make('➕ محصول پایه جدید', callback_data: 'product:form:create:0:0'));
         $keyboard->addRow(InlineKeyboardButton::make('📦 مدیریت پلن‌ها', callback_data: 'plan:list:1'));
-        $keyboard->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
+        $keyboard->addRow(InlineKeyboardButton::make('◀️ کاتالوگ', callback_data: 'menu:admin:sales'));
+        $keyboard->addRow(InlineKeyboardButton::make('🏠 مدیریت', callback_data: 'menu:admin'));
         $this->render($bot, implode("\n", $lines), $keyboard);
     }
 

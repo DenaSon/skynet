@@ -72,7 +72,8 @@ final readonly class AdminFulfillmentUi
             $completed ? '🕘 در انتظار فعال‌سازی' : '✅ فعال‌سازی‌های انجام‌شده',
             callback_data: $completed ? 'full:list' : 'full:completed',
         ));
-        $buttons->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
+        $buttons->addRow(InlineKeyboardButton::make('◀️ کاتالوگ', callback_data: 'menu:admin:sales'));
+        $buttons->addRow(InlineKeyboardButton::make('🏠 مدیریت', callback_data: 'menu:admin'));
 
         $rows = '';
         foreach ($orders as $order) {

@@ -87,7 +87,7 @@ final readonly class AdminFinanceWalletUi
             $name = TelegramUi::escape(mb_substr($row['name'], 0, 45));
             $lines[] = self::accountLabel($row['account_type']).' · #'.$row['id'].' · '.$name.' · <b>'.TelegramUi::toman($row['balance_rials']).' تومان</b>';
             $keyboard->addRow(InlineKeyboardButton::make(
-                'مشاهده #'.$row['id'], callback_data: 'finance:wallet:'.$row['id'],
+                'مشاهده #'.$row['id'], callback_data: 'finance:wallet:'.$row['id'].':l:'.$number.':a',
             ));
         }
         if ($rows === []) {
@@ -134,7 +134,7 @@ final readonly class AdminFinanceWalletUi
         $this->render($bot, trim(implode("\n", $lines)), $keyboard, $html);
     }
 
-    public function detail(Nutgram $bot, string $id): void
+    public function detail(Nutgram $bot, string $id, string $origin = '', string $page = '1', string $mode = 'a'): void
     {
         $actor = $this->root($bot);
         if ($actor === null) {
@@ -216,8 +216,29 @@ final readonly class AdminFinanceWalletUi
             $keyboard->addRow(InlineKeyboardButton::make('↩️ اصلاح تراکنش',
                 callback_data: 'finance:reverse:list:'.$row['id'].':1'));
         }
+        // Only explicit, validated return targets; never accept an arbitrary callback.
+        $validPage = ctype_digit($page) && strlen($page) <= 6
+            && (int) $page >= 1 && (int) $page <= 100000;
+        $fromProfile = $origin === 'p' && $validPage && UserDirectoryMode::valid($mode);
+        $fromList = $origin === 'l' && $this->page($page) !== null && $mode === 'a';
+
+        $back = $fromProfile
+            ? 'users:profile:'.$row['id'].':'.$page.':'.$mode
+            : 'finance:wallets:'.($fromList ? $page : '1');
+        $keyboard->addRow(InlineKeyboardButton::make(
+            $fromProfile ? '◀️ پرونده مشتری' : '◀️ کیف پول کاربران',
+            callback_data: $back,
+        ));
+        if ($fromProfile) {
+            $keyboard->addRow(InlineKeyboardButton::make(
+                '💼 کیف پول کاربران', callback_data: 'finance:wallets:1',
+            ));
+        } else {
+            $keyboard->addRow(InlineKeyboardButton::make(
+                '📋 پرونده مشتری', callback_data: 'users:profile:'.$row['id'].':1:a',
+            ));
+        }
         $keyboard
-            ->addRow(InlineKeyboardButton::make('◀️ کیف پول کاربران', callback_data: 'finance:wallets:1'))
             ->addRow(InlineKeyboardButton::make('🧾 رسیدهای شارژ', callback_data: 'finance:topups:1'))
             ->addRow(InlineKeyboardButton::make('🏠 امور مالی', callback_data: 'menu:admin:finance'));
         $t = static fn (string $key, string $value): string => '<tr><td>'.TelegramUi::escape($key)

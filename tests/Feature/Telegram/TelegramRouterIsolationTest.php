@@ -341,6 +341,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:admin:ops:edit:{kind}';
     $expected['ADMIN'][] = 'callback:admin:ops:trial:{state}';
     $expected['ADMIN'][] = 'callback:admin:ops:apply:{token}';
+    // Context-preserving wallet navigation is Admin-only; the legacy callback remains.
+    $expected['ADMIN'][] = 'callback:finance:wallet:{id}:{origin}:{page}:{mode}';
     // Trusted-root-only local order-number lookup belongs exclusively to Admin.
     $expected['ADMIN'][] = 'callback:admin:order:start';
     $expected['ADMIN'][] = 'callback:admin:order:view:{id}';
@@ -380,8 +382,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(343)
-        ->and(count(array_unique($legacy)))->toBe(343);
+        ->and(count($legacy))->toBe(344)
+        ->and(count(array_unique($legacy)))->toBe(344);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {
