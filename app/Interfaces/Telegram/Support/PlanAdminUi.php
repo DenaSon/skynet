@@ -77,7 +77,8 @@ final readonly class PlanAdminUi
         $keyboard->addRow(InlineKeyboardButton::make('📚 محصولات پایه', callback_data: 'plan:products'));
         $keyboard->addRow(InlineKeyboardButton::make('📋 نمونه پلن‌های قابل کپی', callback_data: 'plan:examples'));
 
-        $keyboard->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
+        $keyboard->addRow(InlineKeyboardButton::make('◀️ کاتالوگ', callback_data: 'menu:admin:sales'));
+        $keyboard->addRow(InlineKeyboardButton::make('🏠 مدیریت', callback_data: 'menu:admin'));
 
         $this->render($bot, implode("\n", $lines), $keyboard);
     }

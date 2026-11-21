@@ -479,7 +479,8 @@ final readonly class AdminAccountingUi
         Cache::forget($this->key($id));
         $this->render($bot, '✅ اصلاحیه #'.$newId.' ثبت شد. ثبت اصلی برای حسابرسی باقی ماند.',
             InlineKeyboardMarkup::make()
-                ->addRow(InlineKeyboardButton::make('📋 سوابق', callback_data: 'acc:history:1')));
+                ->addRow(InlineKeyboardButton::make('📋 سوابق', callback_data: 'acc:history:1'))
+                ->addRow(InlineKeyboardButton::make('◀️ دفتر مالی', callback_data: 'acc:home')));
     }
 
     public function cancel(Nutgram $bot): void
