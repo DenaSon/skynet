@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use App\Modules\Identity\Application\BrowseUsers;
-use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;

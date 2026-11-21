@@ -525,7 +525,7 @@ it('shows persisted representative registration only to authorized reviewers in 
     ]);
 
     $bot->hearCallbackQueryData("users:view:{$reseller->id}:1:r")->reply()->assertRaw(
-        static function (Request $request) use ($reseller): bool {
+        static function (Request $request): bool {
             $payload = FakeNutgram::getActualData($request);
             $html = userManagementRichHtml($payload);
 
