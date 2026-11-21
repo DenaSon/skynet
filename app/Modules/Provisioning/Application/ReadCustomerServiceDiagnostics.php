@@ -225,8 +225,11 @@ final readonly class ReadCustomerServiceDiagnostics
         ], 120);
         if (! $reserved) {
             $this->stillOwned($actorId, $subjectId, $orderId, $binding);
+            $existing = Cache::get($key);
 
-            return self::connectionState('pending');
+            return self::connectionState(
+                is_array($existing) && ($existing['status'] ?? null) === 'uncertain' ? 'unavailable' : 'pending',
+            );
         }
 
         try {
@@ -242,7 +245,12 @@ final readonly class ReadCustomerServiceDiagnostics
             ], 180);
             $state = 'pending';
         } catch (Throwable) {
-            // Leave the atomic reservation in place after an uncertain POST.
+            // Retain an uncertain checkpoint so neither a retry nor a misleading
+            // "still pending" message is produced before the cooldown expires.
+            Cache::put($key, [
+                'id' => $binding['id'], 'reference' => $binding['reference'],
+                'status' => 'uncertain',
+            ], 120);
             $state = 'unavailable';
         }
 
@@ -280,7 +288,7 @@ final readonly class ReadCustomerServiceDiagnostics
         }
         $jobId = $cache['jobId'] ?? null;
         if (! is_string($jobId) || preg_match('/\A[A-Za-z0-9_-]{1,100}\z/D', $jobId) !== 1) {
-            return self::connectionState('pending');
+            return self::connectionState(($cache['status'] ?? null) === 'uncertain' ? 'unavailable' : 'pending');
         }
 
         try {
