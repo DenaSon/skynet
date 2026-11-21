@@ -11,6 +11,7 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Validation\ValidationException;
 
 uses(RefreshDatabase::class);
 
@@ -95,8 +96,7 @@ it('reads only validated user-specific daily usage without leaking provider reco
         ->and($result['nodes'])->toBe([['name' => 'UAE-01', 'bytes' => 3072]])
         ->and(json_encode($result))->not->toContain('private-short-uuid', 'some-secret', 'diagnostic-private-token');
     Http::assertSentCount(2);
-    Http::assertSent(static fn (Request $request): bool =>
-        $request->method() === 'GET'
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET'
         && str_contains($request->url(), '/api/bandwidth-stats/users/42?')
         && str_contains($request->url(), 'topNodesLimit=5'));
 });
@@ -158,9 +158,9 @@ it('refuses ordinary support operators and cross-customer orders before any prov
     expect(fn () => app(ReadCustomerServiceDiagnostics::class)->usage($ordinary->id, $buyer->id, $order, 7))
         ->toThrow(AuthorizationException::class);
     expect(fn () => app(ReadCustomerServiceDiagnostics::class)->history($root->id, $other->id, $order))
-        ->toThrow(\Illuminate\Validation\ValidationException::class);
+        ->toThrow(ValidationException::class);
     expect(fn () => app(ReadCustomerServiceDiagnostics::class)->usage($root->id, $buyer->id, $order, 90))
-        ->toThrow(\InvalidArgumentException::class);
+        ->toThrow(InvalidArgumentException::class);
     Http::assertNothingSent();
 });
 
@@ -252,8 +252,7 @@ it('deduplicates explicitly started provider jobs and returns only anonymous nod
         ['name' => 'UAE-01', 'reports' => 1],
     ]])->and(json_encode($result))->not->toContain('203.0.113.42', 'job-unique-42', 'diagnostic-private-token');
     Http::assertSentCount(5);
-    expect(collect(Http::recorded())->filter(static fn (array $pair): bool =>
-        $pair[0]->method() === 'POST')->count())->toBe(1);
+    expect(collect(Http::recorded())->filter(static fn (array $pair): bool => $pair[0]->method() === 'POST')->count())->toBe(1);
 });
 
 it('does not replay an ambiguous provider job request', function (): void {
@@ -270,8 +269,7 @@ it('does not replay an ambiguous provider job request', function (): void {
     $action = app(ReadCustomerServiceDiagnostics::class);
     expect($action->startConnections($root->id, $buyer->id, $order)['state'])->toBe('unavailable')
         ->and($action->startConnections($root->id, $buyer->id, $order)['state'])->toBe('pending');
-    expect(collect(Http::recorded())->filter(static fn (array $pair): bool =>
-        $pair[0]->method() === 'POST')->count())->toBe(1);
+    expect(collect(Http::recorded())->filter(static fn (array $pair): bool => $pair[0]->method() === 'POST')->count())->toBe(1);
 });
 
 it('rejects a completed connection report belonging to a different remote user', function (): void {
@@ -295,6 +293,5 @@ it('rejects a completed connection report belonging to a different remote user',
     $action = app(ReadCustomerServiceDiagnostics::class);
     $action->startConnections($root->id, $buyer->id, $order);
     expect($action->connectionResult($root->id, $buyer->id, $order)['state'])->toBe('unavailable');
-    expect(collect(Http::recorded())->every(static fn (array $pair): bool =>
-        $pair[0]->method() === 'GET' || $pair[0]->url() === 'https://rw-diag.test/api/connections/by-user/42'))->toBeTrue();
+    expect(collect(Http::recorded())->every(static fn (array $pair): bool => $pair[0]->method() === 'GET' || $pair[0]->url() === 'https://rw-diag.test/api/connections/by-user/42'))->toBeTrue();
 });
