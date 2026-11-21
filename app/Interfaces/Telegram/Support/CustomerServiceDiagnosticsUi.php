@@ -53,8 +53,7 @@ final readonly class CustomerServiceDiagnosticsUi
             || ! self::number($userPage, 6) || (int) $userPage > 100000
             || ! UserDirectoryMode::valid($mode)
             || ! self::number($servicePage, 4) || (int) $servicePage > 1000
-            || ! in_array($days, ['1', '7', '30'], true)
-            || (UserDirectoryMode::rootOnly($mode) && ! $actor->canManageRoles())) {
+            || ! in_array($days, ['1', '7', '30'], true)) {
             $this->menus->showUserNotice($bot, 'درخواست معتبر نیست.');
 
             return;
@@ -172,6 +171,7 @@ final readonly class CustomerServiceDiagnosticsUi
         $data = $this->diagnostics->usage($actorId, $subjectId, $orderId, $days);
         $rows = [['دوره', match ($days) {
             1 => 'امروز', 7 => '۷ روز تقویمی', 30 => '۳۰ روز تقویمی',
+            default => 'نامشخص',
         }]];
         if ($data['state'] !== 'available') {
             $rows[] = ['گزارش', 'در حال حاضر در دسترس نیست'];
