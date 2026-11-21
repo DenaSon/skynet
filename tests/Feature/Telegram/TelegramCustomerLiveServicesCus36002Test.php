@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Interfaces\Telegram\Support\CustomerServiceDiagnosticsUi;
 use App\Interfaces\Telegram\Support\CustomerSupportProfileUi;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
@@ -652,4 +653,47 @@ it('keeps diagnostic connection observations off until the independent gate is e
                 && ! str_contains($data['text'], 'jobId');
         }, index: 1);
     Http::assertNothingSent();
+});
+
+
+it('preserves diagnostic fields and navigation in the native fallback when Rich is unsupported', function (): void {
+    $root = User::factory()->create();
+    $root->syncRoles(['super-admin']);
+    $buyer = User::factory()->create();
+    $order = c360LiveOrder($buyer, 204);
+    c360LiveBot(994201, $root);
+    Http::fake(['https://rw-live.test/api/users/42' => Http::response(['response' => c360LiveRemote($order)])]);
+
+    $bot = Mockery::mock(Nutgram::class);
+    $bot->shouldReceive('chat')->andReturn(Chat::make(994201, ChatType::PRIVATE));
+    $bot->shouldReceive('user')->andReturn(TelegramUser::make(994201, false, 'Operator'));
+    $bot->shouldReceive('isCallbackQuery')->andReturn(false);
+    $bot->shouldReceive('sendRichMessage')->once()->andReturnUsing(static function (...$args): void {
+        $rich = $args[0];
+        expect($rich->html)->toContain('عیب‌یابی سرویس', '<table bordered striped compact>');
+
+        throw new TelegramException('unsupported Rich message', 400);
+    });
+    $bot->shouldReceive('editMessageText')->once()->andReturnUsing(static function (...$args) use ($buyer, $order): void {
+        $text = $args['text'] ?? $args[0];
+        $keyboard = null;
+        foreach ($args as $arg) {
+            if ($arg instanceof InlineKeyboardMarkup) {
+                $keyboard = $arg;
+                break;
+            }
+        }
+        expect($text)->toContain('مصرف تجمعی', 'باقی‌مانده', 'عیب‌یابی سرویس')
+            ->not->toContain('private-short-id', 'credential');
+        expect(json_encode($keyboard, JSON_THROW_ON_ERROR))->toContain(
+            "sd:usage:{$buyer->id}:{$order}:1:a:1:7",
+            "c360:v:{$buyer->id}:{$order}:1:a:1",
+        );
+    });
+
+    app(CustomerServiceDiagnosticsUi::class)->show(
+        $bot, 'home', (string) $buyer->id, (string) $order, '1', 'a', '1', '7',
+    );
+
+    Http::assertSentCount(1);
 });
