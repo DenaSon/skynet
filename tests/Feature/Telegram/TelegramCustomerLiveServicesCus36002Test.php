@@ -655,7 +655,6 @@ it('keeps diagnostic connection observations off until the independent gate is e
     Http::assertNothingSent();
 });
 
-
 it('preserves diagnostic fields and navigation in the native fallback when Rich is unsupported', function (): void {
     $root = User::factory()->create();
     $root->syncRoles(['super-admin']);
