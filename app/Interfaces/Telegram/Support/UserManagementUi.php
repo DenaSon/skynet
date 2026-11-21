@@ -47,6 +47,7 @@ final class UserManagementUi
         }
 
         Cache::forget($this->searchPromptKey($actor->userId));
+        Cache::forget(TelegramBotContext::current()->cacheKey('admin:order-lookup:'.$actor->userId));
         $query = $search ? Cache::get($this->searchKey($actor->userId)) : null;
 
         if ($search && ! is_string($query)) {

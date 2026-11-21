@@ -37,7 +37,7 @@ final readonly class AdminOrderLookupUi
         }
 
         // Another pending directory search must not consume this numeric answer.
-        Cache::forget(TelegramBotContext::current()->cacheKey('tg:users:search-prompt:'.$root));
+        $this->clearCompetingDrafts($root, (int) $this->private->id($bot));
         Cache::put($this->key($root), true, now()->addMinutes(10));
 
         $this->render($bot, "🔎 جست‌وجوی سفارش\n\nشماره سفارش را وارد کنید؛ مثلاً #490.\nفقط اطلاعات ثبت‌شده نمایش داده می‌شوند.",
@@ -245,6 +245,26 @@ final readonly class AdminOrderLookupUi
         $clean = (string) preg_replace('/[\p{Cc}\p{Zl}\p{Zp}\x{202A}-\x{202E}\x{2066}-\x{2069}]/u', ' ', $value);
 
         return mb_substr(trim((string) preg_replace('/\s+/u', ' ', $clean)), 0, 80);
+    }
+
+    /** Only temporary Admin input drafts are retired; never cancel a persisted operation. */
+    private function clearCompetingDrafts(int $root, int $telegramId): void
+    {
+        foreach ([
+            'nw01:draft:', 'node01:draft:', 'node02:draft:', 'node03:draft:',
+            'host01:draft:', 'host02:draft:', 'host02:batch:', 'cfg02:draft:',
+            'telegram:finance:wallet:', 'telegram:bankreview:reference:',
+            'telegram:planadmin:draft:', 'telegram:productadmin:draft:',
+            'cf02:form:', 'admin:ops:draft:', 'tg:users:search-prompt:',
+        ] as $prefix) {
+            Cache::forget(TelegramBotContext::current()->cacheKey($prefix.$root));
+        }
+        Cache::forget('admin:accounting:draft:'.$root);
+        Cache::forget('admin:ann:draft:'.$root);
+        Cache::forget('admin:ann:transition:'.$root);
+        Cache::forget('admin:sales-welcome:draft:'.$telegramId);
+        Cache::forget('nw03:hostDraft:'.$root);
+        Cache::forget('nw03:confirm:'.$root);
     }
 
     private function key(int $actorId): string

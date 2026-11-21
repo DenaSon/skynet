@@ -376,7 +376,7 @@ final readonly class OperationalSettingsHandler
             'nw01:draft:', 'node01:draft:', 'node02:draft:', 'node03:draft:',
             'host01:draft:', 'host02:draft:', 'host02:batch:', 'cfg02:draft:',
             'telegram:finance:wallet:', 'telegram:bankreview:reference:',
-            'cf02:form:', 'tg:users:search-prompt:',
+            'cf02:form:', 'tg:users:search-prompt:', 'admin:order-lookup:',
         ] as $prefix) {
             Cache::forget(TelegramBotContext::current()->cacheKey($prefix.$root));
         }

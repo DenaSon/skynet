@@ -351,3 +351,52 @@ it('preserves the authorized native fallback with identical data and navigation 
     app(AdminOrderLookupUi::class)->detail($bot, (string) $orderId);
     Http::assertNothingSent();
 });
+
+it('retires lookup when returning to users, so later operational inputs are not stolen', function (): void {
+    $root = orderLookupRoot();
+    $bot = orderLookupBot(976001);
+
+    $bot->hearCallbackQueryData('admin:order:start')->reply();
+    expect(Cache::has('admin:order-lookup:'.$root->id))->toBeTrue();
+    $bot->hearCallbackQueryData('users:page:1')->reply();
+    expect(Cache::has('admin:order-lookup:'.$root->id))->toBeFalse();
+
+    $bot->hearCallbackQueryData('admin:ops:edit:limit')->reply();
+    $bot->hearText('17')->reply();
+    $draft = Cache::get('admin:ops:draft:'.$root->id);
+    expect($draft['step'])->toBe('confirm')
+        ->and($draft['new'])->toBe(17)
+        ->and(DB::table('billing_journals')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('retires competing Admin input when starting a lookup and clears lookup when settings replace it', function (): void {
+    $root = orderLookupRoot();
+    $buyer = User::factory()->create();
+    $id = orderLookupOrder($buyer);
+    $bot = orderLookupBot(976001);
+
+    $bot->hearCallbackQueryData('admin:ops:edit:limit')->reply();
+    expect(Cache::has('admin:ops:draft:'.$root->id))->toBeTrue();
+
+    $bot->hearCallbackQueryData('admin:order:start')->reply();
+    expect(Cache::has('admin:ops:draft:'.$root->id))->toBeFalse()
+        ->and(Cache::has('admin:order-lookup:'.$root->id))->toBeTrue();
+
+    $bot->hearCallbackQueryData('admin:ops:edit:limit')->reply();
+    expect(Cache::has('admin:order-lookup:'.$root->id))->toBeFalse();
+
+    $bot->hearText('17')->reply();
+    $draft = Cache::get('admin:ops:draft:'.$root->id);
+    expect($draft['step'])->toBe('confirm')
+        ->and($draft['new'])->toBe(17);
+
+    $bot->hearCallbackQueryData('admin:order:start')->reply();
+    $bot->hearText((string) $id)->reply()
+        ->assertRaw(static fn (NutgramRequest $r): bool => str_contains(
+            (string) orderLookupPayload($r)['text'], 'جزئیات سفارش #'.$id,
+        ));
+    expect(Cache::has('admin:order-lookup:'.$root->id))->toBeFalse();
+    Http::assertNothingSent();
+});
+

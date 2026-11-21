@@ -536,6 +536,7 @@ final readonly class AdminAnnouncementsUi
             'telegram:finance:wallet:', 'telegram:bankreview:reference:',
             'telegram:planadmin:draft:', 'telegram:productadmin:draft:',
             'cf02:form:', 'admin:ops:draft:', 'tg:users:search-prompt:',
+            'admin:order-lookup:',
         ];
         $keys = array_map(
             static fn (string $prefix): string => TelegramBotContext::current()->cacheKey($prefix.$root),
