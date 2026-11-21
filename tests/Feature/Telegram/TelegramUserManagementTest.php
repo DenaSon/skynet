@@ -1,6 +1,8 @@
 <?php
 
+use App\Interfaces\Telegram\Support\MenuRenderer;
 use App\Interfaces\Telegram\Support\UserStatusConfirmations;
+use App\Modules\Identity\Application\BrowseUsers;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use GuzzleHttp\Psr7\Request;
@@ -9,8 +11,11 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
+use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 use SergiX44\Nutgram\Testing\FakeNutgram;
 use Spatie\Permission\Models\Role;
@@ -609,4 +614,64 @@ it('keeps registered phone private from ordinary user viewers and omits it for m
         },
         index: 1,
     );
+});
+
+it('preserves reseller name, reviewer-only phone and navigation in actual native fallback after Rich error', function (): void {
+    config()->set('super_admin.telegram_ids', ['70980201', '70980202']);
+    $root = User::factory()->create();
+    $root->syncRoles(['super-admin']);
+    TelegramAccount::query()->create(['user_id' => $root->id, 'telegram_user_id' => 70980201]);
+
+    $viewer = User::factory()->create();
+    $viewer->givePermissionTo('users.view');
+
+    Role::findOrCreate('reseller', 'web');
+    $reseller = User::factory()->create();
+    $reseller->syncRoles(['reseller']);
+    DB::table('sales_panel_requests')->insert([
+        'user_id' => $reseller->id,
+        'first_name' => 'مهسا',
+        'last_name' => 'رضایی',
+        'mobile' => '09123456789',
+        'status' => 'approved',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    foreach ([$root->id => true, $viewer->id => false] as $actorId => $maySeePhone) {
+        $entry = app(BrowseUsers::class)->find($actorId, $reseller->id);
+        expect($entry)->not->toBeNull();
+
+        $keyboard = null;
+        $bot = Mockery::mock(Nutgram::class);
+        $bot->shouldReceive('isCallbackQuery')->andReturn(false);
+        $bot->shouldReceive('sendRichMessage')->once()->andReturnUsing(function (...$args) use (&$keyboard): void {
+            foreach ($args as $arg) {
+                if ($arg instanceof InputRichMessage) {
+                    expect($arg->html)->toContain('اطلاعات نمایندگی');
+                }
+                if ($arg instanceof InlineKeyboardMarkup) {
+                    $keyboard = $arg;
+                }
+            }
+
+            throw new TelegramException('Bad Request: unsupported RichMessage', 400);
+        });
+        $bot->shouldReceive('sendMessage')->once()->andReturnUsing(
+            function (...$args) use (&$keyboard, $maySeePhone, $reseller): null {
+                $text = $args[0];
+                expect($text)->toContain('اطلاعات نمایندگی', 'مهسا رضایی')
+                    ->not->toContain('<table', '<h2>');
+                expect(str_contains($text, '09123456789'))->toBe($maySeePhone);
+                expect(str_contains($text, 'شماره تماس'))->toBe($maySeePhone);
+                expect(in_array($keyboard, $args, true))->toBeTrue()
+                    ->and(json_encode($keyboard, JSON_THROW_ON_ERROR))
+                    ->toContain('users:resellers:1', 'users:profile:'.$reseller->id.':1:r', 'menu:admin');
+
+                return null;
+            },
+        );
+
+        app(MenuRenderer::class)->showUserDetails($bot, $entry, resellersOnly: true);
+    }
 });
