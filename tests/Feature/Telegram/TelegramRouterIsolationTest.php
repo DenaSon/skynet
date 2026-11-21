@@ -342,7 +342,7 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:admin:ops:trial:{state}';
     $expected['ADMIN'][] = 'callback:admin:ops:apply:{token}';
     // Context-preserving wallet navigation is Admin-only; the legacy callback remains.
-    $expected['ADMIN'][] = 'callback:finance:wallet:{id}:{origin}:{page}:{mode}';
+    $expected['ADMIN'][] = 'callback:finance:wallet-detail:{id}:{origin}:{page}:{mode}';
     // Trusted-root-only local order-number lookup belongs exclusively to Admin.
     $expected['ADMIN'][] = 'callback:admin:order:start';
     $expected['ADMIN'][] = 'callback:admin:order:view:{id}';

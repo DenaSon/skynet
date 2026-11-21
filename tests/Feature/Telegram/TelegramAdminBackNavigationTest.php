@@ -99,9 +99,9 @@ it('returns wallet details to the exact source user-profile page and retains leg
     $bot = backNavBot($root);
 
     $bot->hearCallbackQueryData('users:profile:'.$buyer->id.':3:mw')->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool => backNavContains($r, 'finance:wallet:'.$buyer->id.':p:3:mw'), index: 1);
+        ->assertRaw(static fn (NutgramRequest $r): bool => backNavContains($r, 'finance:wallet-detail:'.$buyer->id.':p:3:mw'), index: 1);
 
-    $bot->hearCallbackQueryData('finance:wallet:'.$buyer->id.':p:3:mw')->reply()
+    $bot->hearCallbackQueryData('finance:wallet-detail:'.$buyer->id.':p:3:mw')->reply()
         ->assertRaw(static fn (NutgramRequest $r): bool => backNavContains($r, 'users:profile:'.$buyer->id.':3:mw')
                 && backNavContains($r, 'finance:wallets:1')
                 && backNavContains($r, 'finance:topups:1')
@@ -130,20 +130,49 @@ it('preserves the source wallet-list page without trusting malformed callback na
         ->assertRaw(static fn (NutgramRequest $r): bool => str_contains(json_encode(backNavPayload($r)['reply_markup'], JSON_THROW_ON_ERROR), ':l:2:a')
                 && backNavContains($r, 'menu:admin:finance'), index: 1);
 
-    $bot->hearCallbackQueryData('finance:wallet:'.$chosen.':l:2:a')->reply()
+    $bot->hearCallbackQueryData('finance:wallet-detail:'.$chosen.':l:2:a')->reply()
         ->assertRaw(static fn (NutgramRequest $r): bool => backNavContains($r, 'finance:wallets:2')
                 && backNavContains($r, 'users:profile:'.$chosen.':1:a'), index: 1);
 
     foreach ([
-        'finance:wallet:'.$chosen.':l:0:a',
-        'finance:wallet:'.$chosen.':l:10000:a',
-        'finance:wallet:'.$chosen.':l:999999:a',
+        'finance:wallet-detail:'.$chosen.':l:0:a',
+        'finance:wallet-detail:'.$chosen.':l:10000:a',
+        'finance:wallet-detail:'.$chosen.':l:999999:a',
         'finance:wallet:'.$chosen.':p:1:invalid',
         'finance:wallet:'.$chosen.':redirect:2:a',
     ] as $forged) {
         $bot->hearCallbackQueryData($forged)->reply()
             ->assertRaw(static fn (NutgramRequest $r): bool => backNavContains($r, 'finance:wallets:1')
                     && ! backNavContains($r, 'finance:wallets:999999'), index: 1);
+    }
+
+    expect(DB::table('billing_journals')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('accepts legacy contextual wallet buttons even when the short matcher captures the whole suffix as an ID', function (): void {
+    $root = backNavRoot();
+    $buyer = User::factory()->create();
+    app(ViewWallet::class)->handle($buyer->id);
+    $bot = backNavBot($root);
+
+    // Old buttons already delivered to Telegram before this regression fix.
+    $bot->hearCallbackQueryData('finance:wallet:'.$buyer->id.':p:3:mw')->reply()
+        ->assertRaw(static fn (NutgramRequest $r): bool => backNavContains($r, 'users:profile:'.$buyer->id.':3:mw'), index: 1);
+
+    // Reproduce the original short-route capture directly.
+    app(AdminFinanceWalletUi::class)->detail($bot, $buyer->id.':l:2:a');
+
+    $bot->hearCallbackQueryData('finance:wallet:'.$buyer->id.':l:2:a')->reply()
+        ->assertRaw(static fn (NutgramRequest $r): bool => backNavContains($r, 'finance:wallets:2'), index: 1);
+
+    foreach ([
+        $buyer->id.':l:0:a',
+        $buyer->id.':l:10000:a',
+        $buyer->id.':p:1:invalid',
+        $buyer->id.':l:2:a:extra',
+    ] as $forged) {
+        app(AdminFinanceWalletUi::class)->detail($bot, $forged);
     }
 
     expect(DB::table('billing_journals')->count())->toBe(0);
@@ -157,11 +186,11 @@ it('keeps contextual wallet details root-only and private after authorization ch
     $bot = backNavBot($root);
 
     $bot->setCommonChat(Chat::make(-982101, ChatType::GROUP));
-    $bot->hearCallbackQueryData('finance:wallet:'.$buyer->id.':p:1:a')->reply()->assertNoReply();
+    $bot->hearCallbackQueryData('finance:wallet-detail:'.$buyer->id.':p:1:a')->reply()->assertNoReply();
 
     $bot->setCommonChat(Chat::make(982101, ChatType::PRIVATE));
     $root->syncRoles(['admin']);
-    $bot->hearCallbackQueryData('finance:wallet:'.$buyer->id.':p:1:a')->reply()
+    $bot->hearCallbackQueryData('finance:wallet-detail:'.$buyer->id.':p:1:a')->reply()
         ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.']);
 
     expect(DB::table('billing_journals')->count())->toBe(0);

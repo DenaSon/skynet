@@ -87,7 +87,7 @@ final readonly class AdminFinanceWalletUi
             $name = TelegramUi::escape(mb_substr($row['name'], 0, 45));
             $lines[] = self::accountLabel($row['account_type']).' · #'.$row['id'].' · '.$name.' · <b>'.TelegramUi::toman($row['balance_rials']).' تومان</b>';
             $keyboard->addRow(InlineKeyboardButton::make(
-                'مشاهده #'.$row['id'], callback_data: 'finance:wallet:'.$row['id'].':l:'.$number.':a',
+                'مشاهده #'.$row['id'], callback_data: 'finance:wallet-detail:'.$row['id'].':l:'.$number.':a',
             ));
         }
         if ($rows === []) {
@@ -141,7 +141,15 @@ final readonly class AdminFinanceWalletUi
             return;
         }
         $this->clear($actor->userId);
-        if (preg_match('/\A[1-9][0-9]{0,14}\z/D', $id) !== 1) {
+        // Old Telegram buttons can reach the short legacy matcher with all
+        // context segments captured in {id}. Decode only the known safe shape.
+        if ($origin === '' && preg_match('/\\A([1-9][0-9]{0,14}):(p|l):([1-9][0-9]{0,3}):([a-z]{1,4})\\z/D', $id, $legacy) === 1) {
+            $id = $legacy[1];
+            $origin = $legacy[2];
+            $page = $legacy[3];
+            $mode = $legacy[4];
+        }
+        if (preg_match('/\\A[1-9][0-9]{0,14}\\z/D', $id) !== 1) {
             $this->notice($bot, 'شناسه کاربر معتبر نیست.');
 
             return;
