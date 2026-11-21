@@ -78,6 +78,7 @@ final class ReplyMenuHandler
         Cache::forget('admin:accounting:draft:'.$actor->userId);
         Cache::forget('admin:ann:draft:'.$actor->userId);
         Cache::forget('admin:ann:transition:'.$actor->userId);
+        Cache::forget('admin:order-lookup:'.$actor->userId);
 
         switch ($text) {
             case ReplyMenuLabels::BUY:

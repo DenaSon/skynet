@@ -341,6 +341,10 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:admin:ops:edit:{kind}';
     $expected['ADMIN'][] = 'callback:admin:ops:trial:{state}';
     $expected['ADMIN'][] = 'callback:admin:ops:apply:{token}';
+    // Trusted-root-only local order-number lookup belongs exclusively to Admin.
+    $expected['ADMIN'][] = 'callback:admin:order:start';
+    $expected['ADMIN'][] = 'callback:admin:order:view:{id}';
+    $expected['ADMIN'][] = 'callback:admin:order:cancel';
     // Root-only database-backed reseller status management, Admin Bot only.
     $expected['ADMIN'][] = 'callback:admin:reseller-status:show';
     $expected['ADMIN'][] = 'callback:admin:reseller-status:prepare:{state}';
@@ -376,8 +380,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(340)
-        ->and(count(array_unique($legacy)))->toBe(340);
+        ->and(count($legacy))->toBe(343)
+        ->and(count(array_unique($legacy)))->toBe(343);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {

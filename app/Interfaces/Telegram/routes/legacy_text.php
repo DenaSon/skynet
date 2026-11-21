@@ -14,6 +14,7 @@ use App\Interfaces\Telegram\Support\AdminNodeBatchUi;
 use App\Interfaces\Telegram\Support\AdminNodeOperationsUi;
 use App\Interfaces\Telegram\Support\AdminNodeSetupUi;
 use App\Interfaces\Telegram\Support\AdminNodesUi;
+use App\Interfaces\Telegram\Support\AdminOrderLookupUi;
 use App\Interfaces\Telegram\Support\AdminWalletReversalUi;
 use App\Interfaces\Telegram\Support\BillingUi;
 use App\Interfaces\Telegram\Support\ManualPaymentUi;
@@ -104,6 +105,10 @@ $bot->onText('{volume}', function (Nutgram $bot, string $volume): void {
     }
 
     if (app(UserManagementUi::class)->text($bot, $volume)) {
+        return;
+    }
+
+    if (app(AdminOrderLookupUi::class)->text($bot, $volume)) {
         return;
     }
 

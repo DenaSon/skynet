@@ -29,6 +29,7 @@ use App\Interfaces\Telegram\Support\AdminNodeSetupUi;
 use App\Interfaces\Telegram\Support\AdminNodesUi;
 use App\Interfaces\Telegram\Support\AdminNotificationFailuresUi;
 use App\Interfaces\Telegram\Support\AdminNotificationTopicUi;
+use App\Interfaces\Telegram\Support\AdminOrderLookupUi;
 use App\Interfaces\Telegram\Support\AdminPanelUsersUi;
 use App\Interfaces\Telegram\Support\AdminPendingReceiptFollowupUi;
 use App\Interfaces\Telegram\Support\AdminProviderOverviewUi;
@@ -948,6 +949,19 @@ $bot->onCallbackQueryData('plan:back', function (Nutgram $bot): void {
 
 $bot->onCallbackQueryData('plan:cancel', function (Nutgram $bot): void {
     app(PlanAdminUi::class)->cancel($bot);
+});
+
+// Trusted Super Admin: global exact-ID order lookup, separate from fulfillment operations.
+$bot->onCallbackQueryData('admin:order:start', function (Nutgram $bot): void {
+    app(AdminOrderLookupUi::class)->start($bot);
+});
+
+$bot->onCallbackQueryData('admin:order:view:{id}', function (Nutgram $bot, string $id): void {
+    app(AdminOrderLookupUi::class)->detail($bot, $id);
+});
+
+$bot->onCallbackQueryData('admin:order:cancel', function (Nutgram $bot): void {
+    app(AdminOrderLookupUi::class)->cancel($bot);
 });
 
 $bot->onCallbackQueryData('users:page:{page}', function (Nutgram $bot, string $page): void {
