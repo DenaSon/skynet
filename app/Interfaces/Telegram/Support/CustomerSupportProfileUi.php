@@ -252,6 +252,10 @@ final readonly class CustomerSupportProfileUi
         $root = $this->private->id($bot);
         $rootActor = $root === null ? null : $this->actors->handle($root);
         if ($rootActor?->canManageRoles() === true) {
+            $keyboard->addRow(InlineKeyboardButton::make(
+                '🔎 عیب‌یابی سرویس',
+                callback_data: "sd:home:{$subjectId}:{$orderId}:{$userPage}:{$mode}:{$servicePage}:7",
+            ));
             try {
                 $this->statuses->authorizeView($rootActor->userId, (int) $orderId);
                 $keyboard->addRow(InlineKeyboardButton::make(
