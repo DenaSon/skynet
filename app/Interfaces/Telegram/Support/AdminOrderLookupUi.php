@@ -243,6 +243,7 @@ final readonly class AdminOrderLookupUi
     private static function clean(string $value): string
     {
         $clean = (string) preg_replace('/[\p{Cc}\p{Zl}\p{Zp}\x{202A}-\x{202E}\x{2066}-\x{2069}]/u', ' ', $value);
+
         return mb_substr(trim((string) preg_replace('/\s+/u', ' ', $clean)), 0, 80);
     }
 
