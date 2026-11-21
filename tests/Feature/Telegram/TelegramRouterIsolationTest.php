@@ -351,6 +351,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:admin:reseller-status:show';
     $expected['ADMIN'][] = 'callback:admin:reseller-status:prepare:{state}';
     $expected['ADMIN'][] = 'callback:admin:reseller-status:apply:{token}';
+    // SUP-DIAG-01: root-only, owner-verified customer diagnostics never register in Sales.
+    $expected['ADMIN'][] = 'callback:sd:{kind}:{id}:{orderId}:{userPage}:{mode}:{servicePage}:{days}';
     $expected['SALES'][] = 'photo:*';
     $files = [
         'ADMIN' => 'app/Interfaces/Telegram/routes/admin.php',
