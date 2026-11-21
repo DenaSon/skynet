@@ -94,7 +94,7 @@ final readonly class CustomerSupportProfileUi
         if ($profile['financeAllowed'] && $actor->canManageRoles()) {
             $keyboard->addRow(InlineKeyboardButton::make(
                 '💼 جزئیات کیف پول',
-                callback_data: "finance:wallet:{$subjectId}",
+                callback_data: "finance:wallet:{$subjectId}:p:{$page}:{$mode}",
             ));
         }
 

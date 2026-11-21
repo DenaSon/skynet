@@ -782,6 +782,11 @@ $bot->onCallbackQueryData('acc:cancel', function (Nutgram $bot): void {
 $bot->onCallbackQueryData('finance:wallets:{page}', function (Nutgram $bot, string $page): void {
     app(AdminFinanceWalletUi::class)->wallets($bot, $page);
 });
+$bot->onCallbackQueryData('finance:wallet:{id}:{origin}:{page}:{mode}', function (
+    Nutgram $bot, string $id, string $origin, string $page, string $mode,
+): void {
+    app(AdminFinanceWalletUi::class)->detail($bot, $id, $origin, $page, $mode);
+});
 $bot->onCallbackQueryData('finance:wallet:{id}', function (Nutgram $bot, string $id): void {
     app(AdminFinanceWalletUi::class)->detail($bot, $id);
 });
