@@ -84,8 +84,7 @@ final readonly class CustomerServiceDiagnosticsUi
             return;
         }
 
-        $back = fn (string $target, string $range = '7'): string =>
-            self::callback($target, $subjectId, $orderId, $userPage, $mode, $servicePage, $range);
+        $back = fn (string $target, string $range = '7'): string => self::callback($target, $subjectId, $orderId, $userPage, $mode, $servicePage, $range);
         $keyboard = InlineKeyboardMarkup::make();
         if ($kind === 'home') {
             $keyboard->addRow(
@@ -232,7 +231,7 @@ final readonly class CustomerServiceDiagnosticsUi
     }
 
     /**
-     * @param array{state:string,nodes:list<array{name:string,reports:int}>} $data
+     * @param  array{state:string,nodes:list<array{name:string,reports:int}>}  $data
      * @return array{title:string,rows:list<array{string,string}>,note:string}
      */
     private function connections(array $data): array
