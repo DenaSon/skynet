@@ -572,7 +572,6 @@ it('opens the existing confirmed subscription manager only for a root-owned fulf
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
 });
 
-
 it('opens a root-only diagnostic screen from the existing customer service detail', function (): void {
     config()->set('services.remnawave.connections_diagnostics_enabled', false);
     $root = User::factory()->create();
