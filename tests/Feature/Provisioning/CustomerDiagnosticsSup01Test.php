@@ -269,7 +269,8 @@ it('does not replay an ambiguous provider job request', function (): void {
 
     $action = app(ReadCustomerServiceDiagnostics::class);
     expect($action->startConnections($root->id, $buyer->id, $order)['state'])->toBe('unavailable')
-        ->and($action->startConnections($root->id, $buyer->id, $order)['state'])->toBe('pending');
+        ->and($action->startConnections($root->id, $buyer->id, $order)['state'])->toBe('unavailable')
+        ->and($action->connectionResult($root->id, $buyer->id, $order)['state'])->toBe('unavailable');
     expect(collect(Http::recorded())->filter(static fn (array $pair): bool => $pair[0]->method() === 'POST')->count())->toBe(1);
 });
 
