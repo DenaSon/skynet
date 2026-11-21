@@ -223,6 +223,7 @@ it('deduplicates explicitly started provider jobs and returns only anonymous nod
     [$buyer, $order, $remote] = supDiagOrder();
     Http::fake(static function (Request $request) use ($remote) {
         $path = parse_url($request->url(), PHP_URL_PATH);
+
         return match ($path) {
             '/api/users/42' => Http::response(['response' => $remote]),
             '/api/connections/by-user/42' => Http::response(['response' => ['jobId' => 'job-unique-42']], 201),
