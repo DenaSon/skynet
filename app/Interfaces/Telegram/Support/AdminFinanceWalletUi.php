@@ -220,7 +220,7 @@ final readonly class AdminFinanceWalletUi
         $validPage = ctype_digit($page) && strlen($page) <= 6
             && (int) $page >= 1 && (int) $page <= 100000;
         $fromProfile = $origin === 'p' && $validPage && UserDirectoryMode::valid($mode);
-        $fromList = $origin === 'l' && $validPage && $mode === 'a';
+        $fromList = $origin === 'l' && $this->page($page) !== null && $mode === 'a';
 
         $back = $fromProfile
             ? 'users:profile:'.$row['id'].':'.$page.':'.$mode

@@ -136,6 +136,7 @@ it('preserves the source wallet-list page without trusting malformed callback na
 
     foreach ([
         'finance:wallet:'.$chosen.':l:0:a',
+        'finance:wallet:'.$chosen.':l:10000:a',
         'finance:wallet:'.$chosen.':l:999999:a',
         'finance:wallet:'.$chosen.':p:1:invalid',
         'finance:wallet:'.$chosen.':redirect:2:a',
