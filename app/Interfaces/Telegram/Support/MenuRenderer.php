@@ -353,6 +353,9 @@ final class MenuRenderer
         }
 
         $keyboard->addRow(InlineKeyboardButton::make('🔎 جست‌وجو', callback_data: 'users:search'));
+        if ($trustedRoot) {
+            $keyboard->addRow(InlineKeyboardButton::make('🧾 جست‌وجوی سفارش', callback_data: 'admin:order:start'));
+        }
         $keyboard->addRow(InlineKeyboardButton::make('◀️ مدیریت', callback_data: 'menu:admin'));
 
         if ($sort !== 'recent') {
