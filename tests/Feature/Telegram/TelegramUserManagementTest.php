@@ -504,3 +504,109 @@ it('finds the local owner by sk_ username using the existing Admin search and pr
     // Preserve the legacy command entry point and the same owner result.
     $bot->hearText('/finduser '.$username)->reply()->assertCalled('sendMessage');
 });
+
+it('shows persisted representative registration only to authorized reviewers in RTL details', function (): void {
+    config()->set('super_admin.telegram_ids', ['70980101', '70980102']);
+    $root = User::factory()->create();
+    $root->syncRoles(['super-admin']);
+    $bot = configureUserManagementBot(70980101, $root);
+
+    Role::findOrCreate('reseller', 'web');
+    $reseller = User::factory()->create(['name' => 'Telegram display name', 'is_active' => false]);
+    $reseller->syncRoles(['reseller']);
+    DB::table('sales_panel_requests')->insert([
+        'user_id' => $reseller->id,
+        'first_name' => 'علی <script>',
+        'last_name' => 'محمدی',
+        'mobile' => '09123456789',
+        'status' => 'approved',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $bot->hearCallbackQueryData("users:view:{$reseller->id}:1:r")->reply()->assertRaw(
+        static function (Request $request) use ($reseller): bool {
+            $payload = FakeNutgram::getActualData($request);
+            $html = userManagementRichHtml($payload);
+
+            return str_contains($html, '<h2>🧩 اطلاعات نمایندگی</h2>')
+                && str_contains($html, 'علی &lt;script&gt; محمدی')
+                && ! str_contains($html, '<script>')
+                && str_contains($html, '<tr><td>شماره تماس</td><td>09123456789</td></tr>')
+                && str_contains($html, '🔴 غیرفعال')
+                && str_contains((string) ($payload['reply_markup'] ?? ''), 'users:resellers:1');
+        },
+        index: 1,
+    );
+
+    // Status updates return through the same detail projection, with no lost fields.
+    $token = app(UserStatusConfirmations::class)->issue($root->id, $reseller->id, false, 1, false, true);
+    $bot->hearCallbackQueryData('users:apply:'.$token)->reply()->assertRaw(
+        static function (Request $request): bool {
+            $html = userManagementRichHtml(FakeNutgram::getActualData($request));
+
+            return str_contains($html, '<h2>🧩 اطلاعات نمایندگی</h2>')
+                && str_contains($html, '09123456789')
+                && str_contains($html, '🟢 فعال');
+        },
+        index: 1,
+    );
+    expect($reseller->fresh()->is_active)->toBeTrue();
+});
+
+it('keeps registered phone private from ordinary user viewers and omits it for members', function (): void {
+    $viewer = User::factory()->create();
+    $viewer->givePermissionTo('users.view');
+    $bot = configureUserManagementBot(70980103, $viewer);
+    Role::findOrCreate('reseller', 'web');
+
+    $reseller = User::factory()->create();
+    $reseller->syncRoles(['reseller']);
+    $member = User::factory()->create();
+    foreach ([$reseller, $member] as $user) {
+        DB::table('sales_panel_requests')->insert([
+            'user_id' => $user->id,
+            'first_name' => 'مینا',
+            'last_name' => 'احمدی',
+            'mobile' => '09999999999',
+            'status' => 'approved',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    $bot->hearCallbackQueryData("users:view:{$reseller->id}:1:a")->reply()->assertRaw(
+        static function (Request $request): bool {
+            $html = userManagementRichHtml(FakeNutgram::getActualData($request));
+
+            return str_contains($html, 'مینا احمدی')
+                && str_contains($html, '<h2>🧩 اطلاعات نمایندگی</h2>')
+                && ! str_contains($html, '09999999999')
+                && ! str_contains($html, 'شماره تماس');
+        },
+        index: 1,
+    );
+
+    $bot->hearCallbackQueryData("users:view:{$member->id}:1:a")->reply()->assertRaw(
+        static function (Request $request): bool {
+            $html = userManagementRichHtml(FakeNutgram::getActualData($request));
+
+            return ! str_contains($html, 'مینا احمدی')
+                && ! str_contains($html, '09999999999')
+                && ! str_contains($html, 'اطلاعات نمایندگی');
+        },
+        index: 1,
+    );
+
+    $resellerWithoutRequest = User::factory()->create();
+    $resellerWithoutRequest->syncRoles(['reseller']);
+    $bot->hearCallbackQueryData("users:view:{$resellerWithoutRequest->id}:1:a")->reply()->assertRaw(
+        static function (Request $request): bool {
+            $html = userManagementRichHtml(FakeNutgram::getActualData($request));
+
+            return str_contains($html, 'اطلاعات ثبت‌نام موجود نیست')
+                && ! str_contains($html, 'شماره تماس');
+        },
+        index: 1,
+    );
+});

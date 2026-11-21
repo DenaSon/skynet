@@ -492,7 +492,6 @@ final class MenuRenderer
         $keyboard->addRow(InlineKeyboardButton::make('🏠 مدیریت', callback_data: 'menu:admin'));
 
         $footer = '💡 وضعیت حساب و اتصال تلگرام از اطلاعات ثبت‌شده خوانده می‌شود.';
-        $text = "👤 جزئیات کاربر\n\nشناسه: {$user->id}\nنام: {$name}\nایمیل: {$email}\nنقش‌ها: {$roles}\nوضعیت: {$status}\nتلگرام: {$linked}\nشناسه تلگرام: {$telegramId}\n\n{$footer}";
         $rows = [
             ['شناسه', (string) $user->id],
             ['نام', $name],
@@ -508,6 +507,29 @@ final class MenuRenderer
                 .TelegramUi::escape($value).'</td></tr>';
         }
 
+        $resellerText = '';
+        $resellerTable = '';
+        if (in_array('reseller', $user->roles, true)) {
+            $registrationRows = $user->resellerRegistrationName === null
+                ? [['ثبت‌نام', 'اطلاعات ثبت‌نام موجود نیست']]
+                : [['نام و نام خانوادگی', $user->resellerRegistrationName]];
+
+            if ($user->resellerRegistrationMobile !== null) {
+                $registrationRows[] = ['شماره تماس', $user->resellerRegistrationMobile];
+            }
+
+            $resellerText = "\n\n🧩 اطلاعات نمایندگی";
+            $resellerTable = '<h2>🧩 اطلاعات نمایندگی</h2><table bordered striped compact>';
+            foreach ($registrationRows as [$label, $value]) {
+                $resellerText .= "\n{$label}: {$value}";
+                $resellerTable .= '<tr><td>'.TelegramUi::escape($label).'</td><td>'
+                    .TelegramUi::escape($value).'</td></tr>';
+            }
+            $resellerTable .= '</table>';
+        }
+
+        $text = "👤 جزئیات کاربر\n\nشناسه: {$user->id}\nنام: {$name}\nایمیل: {$email}\nنقش‌ها: {$roles}\nوضعیت: {$status}\nتلگرام: {$linked}\nشناسه تلگرام: {$telegramId}{$resellerText}\n\n{$footer}";
+
         if ($bot->isCallbackQuery()) {
             TelegramUi::answerCallback($bot);
         }
@@ -515,7 +537,7 @@ final class MenuRenderer
         try {
             TelegramUi::editRichText($bot, new InputRichMessage(
                 html: '<h2>👤 جزئیات کاربر</h2><table bordered striped compact>'
-                    .$table.'</table><footer>'.$footer.'</footer>',
+                    .$table.'</table>'.$resellerTable.'<footer>'.$footer.'</footer>',
                 is_rtl: true,
             ), $keyboard);
 

@@ -192,7 +192,18 @@ final class BrowseUsers
         $actor = $this->authorize($actorId);
         $user = User::query()->with(['roles', 'telegramAccount'])->find($userId);
 
-        return $user === null ? null : $this->entry($actor, $user);
+        if ($user === null) {
+            return null;
+        }
+
+        // Details-only read: never expose application PII in the user directory.
+        // Role is checked on the current subject, including inactive resellers.
+        $registration = $user->hasRole('reseller')
+            ? DB::table('sales_panel_requests')->where('user_id', $userId)
+                ->first(['first_name', 'last_name', 'mobile'])
+            : null;
+
+        return $this->entry($actor, $user, resellerRegistration: $registration);
     }
 
     private function authorize(int $actorId): User
@@ -207,7 +218,7 @@ final class BrowseUsers
         return $actor;
     }
 
-    private function entry(User $actor, User $user, ?int $metricRials = null): UserDirectoryEntry
+    private function entry(User $actor, User $user, ?int $metricRials = null, ?object $resellerRegistration = null): UserDirectoryEntry
     {
         $trust = app(SuperAdminTrust::class);
         $canChange = ! $user->hasRole('super-admin')
@@ -225,6 +236,11 @@ final class BrowseUsers
             canChangeStatus: $canChange,
             telegramUserId: $user->telegramAccount === null ? null : (int) $user->telegramAccount->telegram_user_id,
             directoryMetricRials: $metricRials,
+            resellerRegistrationName: $resellerRegistration === null
+                ? null : trim((string) $resellerRegistration->first_name.' '.(string) $resellerRegistration->last_name),
+            resellerRegistrationMobile: $resellerRegistration !== null
+                && app(AdminCapabilityAccess::class)->allowed($actor, 'resellers.review')
+                    ? (string) $resellerRegistration->mobile : null,
         );
     }
 }
