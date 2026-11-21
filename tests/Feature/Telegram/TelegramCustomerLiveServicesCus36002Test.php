@@ -571,3 +571,86 @@ it('opens the existing confirmed subscription manager only for a root-owned fulf
 
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
 });
+
+
+it('opens a root-only diagnostic screen from the existing customer service detail', function (): void {
+    config()->set('services.remnawave.connections_diagnostics_enabled', false);
+    $root = User::factory()->create();
+    $root->syncRoles(['super-admin']);
+    $buyer = User::factory()->create();
+    $order = c360LiveOrder($buyer, 201);
+    c360LiveBot(994201, $root);
+    Http::fake(static function (Request $request) use ($order) {
+        return match (parse_url($request->url(), PHP_URL_PATH)) {
+            '/api/users/42' => Http::response(['response' => c360LiveRemote($order)]),
+            '/api/bandwidth-stats/users/42' => Http::response(['response' => [
+                'categories' => [now('UTC')->toDateString()],
+                'sparklineData' => [10485760], 'topNodes' => [], 'series' => [],
+            ]]),
+            default => Http::response(['message' => 'unknown'], 404),
+        };
+    });
+
+    $bot = c360LiveBot(994201, $root);
+    $bot->hearCallbackQueryData("c360:v:{$buyer->id}:{$order}:3:s:1")->reply()
+        ->assertRaw(static function (NutgramRequest $request) use ($buyer, $order): bool {
+            $data = c360LivePayload($request);
+            $buttons = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return str_contains($buttons, "sd:home:{$buyer->id}:{$order}:3:s:1:7");
+        }, index: 1);
+    $bot->hearCallbackQueryData("sd:home:{$buyer->id}:{$order}:3:s:1:7")->reply()
+        ->assertRaw(static function (NutgramRequest $request) use ($buyer, $order): bool {
+            $data = c360LivePayload($request);
+            $buttons = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return str_contains((string) ($data['rich_html'] ?? ''), '<table bordered striped compact>')
+                && str_contains($data['text'], 'عیب‌یابی سرویس')
+                && str_contains($buttons, "sd:usage:{$buyer->id}:{$order}:3:s:1:7")
+                && str_contains($buttons, "sd:history:{$buyer->id}:{$order}:3:s:1:7")
+                && str_contains($buttons, "c360:v:{$buyer->id}:{$order}:3:s:1");
+        }, index: 1);
+    $bot->hearCallbackQueryData("sd:usage:{$buyer->id}:{$order}:3:s:1:7")->reply()
+        ->assertRaw(static function (NutgramRequest $request) use ($buyer, $order): bool {
+            $data = c360LivePayload($request);
+            $buttons = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return str_contains($data['text'], 'گزارش مصرف سرویس')
+                && str_contains($data['text'], '0.01 گیگابایت')
+                && str_contains($buttons, "sd:home:{$buyer->id}:{$order}:3:s:1:7");
+        }, index: 1);
+
+    expect(collect(Http::recorded())->every(static fn (array $pair): bool => $pair[0]->method() === 'GET'))
+        ->toBeTrue();
+});
+
+it('does not expose diagnostics to ordinary support operators or forged callbacks', function (): void {
+    $admin = User::factory()->admin()->create();
+    $buyer = User::factory()->create();
+    $order = c360LiveOrder($buyer, 202);
+    Http::fake();
+    $bot = c360LiveBot(994203, $admin);
+    $bot->hearCallbackQueryData("sd:home:{$buyer->id}:{$order}:1:a:1:7")->reply()
+        ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.']);
+    $bot->hearCallbackQueryData("sd:usage:{$buyer->id}:{$order}:1:a:1:7")->reply()
+        ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.']);
+    Http::assertNothingSent();
+});
+
+it('keeps diagnostic connection observations off until the independent gate is enabled', function (): void {
+    $root = User::factory()->create();
+    $root->syncRoles(['super-admin']);
+    $buyer = User::factory()->create();
+    $order = c360LiveOrder($buyer, 203);
+    config()->set('services.remnawave.connections_diagnostics_enabled', false);
+    Http::fake();
+
+    c360LiveBot(994201, $root)->hearCallbackQueryData("sd:start:{$buyer->id}:{$order}:1:s:1:7")->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $data = c360LivePayload($request);
+
+            return str_contains($data['text'], 'هنوز فعال نشده')
+                && ! str_contains($data['text'], 'jobId');
+        }, index: 1);
+    Http::assertNothingSent();
+});
