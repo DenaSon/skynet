@@ -8,6 +8,7 @@ use App\Modules\Provisioning\Application\ReadCustomerServiceDiagnostics;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 
@@ -200,4 +201,100 @@ it('fails safely when a provider analytics response is malformed', function (): 
     expect($result['state'])->toBe('unavailable')
         ->and($result['totalBytes'])->toBeNull();
     Http::assertSentCount(2);
+});
+
+it('keeps connection diagnostics disabled without any provider call', function (): void {
+    Cache::flush();
+    $root = supDiagRoot();
+    [$buyer, $order] = supDiagOrder();
+    Http::fake();
+
+    expect(app(ReadCustomerServiceDiagnostics::class)->startConnections($root->id, $buyer->id, $order)['state'])
+        ->toBe('disabled');
+    expect(app(ReadCustomerServiceDiagnostics::class)->connectionResult($root->id, $buyer->id, $order)['state'])
+        ->toBe('disabled');
+    Http::assertNothingSent();
+});
+
+it('deduplicates explicitly started provider jobs and returns only anonymous node counts', function (): void {
+    Cache::flush();
+    config()->set('services.remnawave.connections_diagnostics_enabled', true);
+    $root = supDiagRoot();
+    [$buyer, $order, $remote] = supDiagOrder();
+    Http::fake(static function (Request $request) use ($remote) {
+        $path = parse_url($request->url(), PHP_URL_PATH);
+        return match ($path) {
+            '/api/users/42' => Http::response(['response' => $remote]),
+            '/api/connections/by-user/42' => Http::response(['response' => ['jobId' => 'job-unique-42']], 201),
+            '/api/connections/by-user/job-unique-42' => Http::response(['response' => [
+                'isCompleted' => true, 'isFailed' => false,
+                'progress' => ['total' => 1, 'completed' => 1, 'percent' => 100],
+                'result' => [
+                    'success' => true, 'userId' => 42,
+                    'nodes' => [[
+                        'nodeUuid' => '550e8400-e29b-41d4-a716-446655440000',
+                        'nodeName' => 'UAE-01', 'countryCode' => 'AE',
+                        'ips' => [
+                            ['ip' => '203.0.113.42', 'lastSeen' => '2026-11-22T11:00:00Z'],
+                        ],
+                    ]],
+                ],
+            ]]),
+            default => Http::response(['message' => 'invalid'], 404),
+        };
+    });
+
+    $action = app(ReadCustomerServiceDiagnostics::class);
+    expect($action->startConnections($root->id, $buyer->id, $order)['state'])->toBe('pending')
+        ->and($action->startConnections($root->id, $buyer->id, $order)['state'])->toBe('pending');
+    $result = $action->connectionResult($root->id, $buyer->id, $order);
+    expect($result)->toBe(['state' => 'completed', 'nodes' => [
+        ['name' => 'UAE-01', 'reports' => 1],
+    ]])->and(json_encode($result))->not->toContain('203.0.113.42', 'job-unique-42', 'diagnostic-private-token');
+    Http::assertSentCount(5);
+    expect(collect(Http::recorded())->filter(static fn (array $pair): bool =>
+        $pair[0]->method() === 'POST')->count())->toBe(1);
+});
+
+it('does not replay an ambiguous provider job request', function (): void {
+    Cache::flush();
+    config()->set('services.remnawave.connections_diagnostics_enabled', true);
+    $root = supDiagRoot();
+    [$buyer, $order, $remote] = supDiagOrder();
+    Http::fake(static function (Request $request) use ($remote) {
+        return parse_url($request->url(), PHP_URL_PATH) === '/api/users/42'
+            ? Http::response(['response' => $remote])
+            : Http::response(['message' => 'uncertain'], 503);
+    });
+
+    $action = app(ReadCustomerServiceDiagnostics::class);
+    expect($action->startConnections($root->id, $buyer->id, $order)['state'])->toBe('unavailable')
+        ->and($action->startConnections($root->id, $buyer->id, $order)['state'])->toBe('pending');
+    expect(collect(Http::recorded())->filter(static fn (array $pair): bool =>
+        $pair[0]->method() === 'POST')->count())->toBe(1);
+});
+
+it('rejects a completed connection report belonging to a different remote user', function (): void {
+    Cache::flush();
+    config()->set('services.remnawave.connections_diagnostics_enabled', true);
+    $root = supDiagRoot();
+    [$buyer, $order, $remote] = supDiagOrder();
+    Http::fake(static function (Request $request) use ($remote) {
+        return match (parse_url($request->url(), PHP_URL_PATH)) {
+            '/api/users/42' => Http::response(['response' => $remote]),
+            '/api/connections/by-user/42' => Http::response(['response' => ['jobId' => 'job-user-42']], 201),
+            '/api/connections/by-user/job-user-42' => Http::response(['response' => [
+                'isCompleted' => true, 'isFailed' => false, 'progress' => [
+                    'total' => 1, 'completed' => 1, 'percent' => 100,
+                ], 'result' => ['success' => true, 'userId' => 99, 'nodes' => []],
+            ]]),
+            default => Http::response([], 404),
+        };
+    });
+
+    $action = app(ReadCustomerServiceDiagnostics::class);
+    $action->startConnections($root->id, $buyer->id, $order);
+    expect($action->connectionResult($root->id, $buyer->id, $order)['state'])->toBe('unavailable');
+    expect(collect(Http::recorded())->every(static fn (array $pair): bool =>
+        $pair[0]->method() === 'GET' || $pair[0]->url() === 'https://rw-diag.test/api/connections/by-user/42'))->toBeTrue();
 });
