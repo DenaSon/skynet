@@ -138,8 +138,8 @@ it('preserves the source wallet-list page without trusting malformed callback na
         'finance:wallet-detail:'.$chosen.':l:0:a',
         'finance:wallet-detail:'.$chosen.':l:10000:a',
         'finance:wallet-detail:'.$chosen.':l:999999:a',
-        'finance:wallet:'.$chosen.':p:1:invalid',
-        'finance:wallet:'.$chosen.':redirect:2:a',
+        'finance:wallet-detail:'.$chosen.':p:1:invalid',
+        'finance:wallet-detail:'.$chosen.':redirect:2:a',
     ] as $forged) {
         $bot->hearCallbackQueryData($forged)->reply()
             ->assertRaw(static fn (NutgramRequest $r): bool => backNavContains($r, 'finance:wallets:1')
@@ -172,7 +172,11 @@ it('accepts legacy contextual wallet buttons even when the short matcher capture
         $buyer->id.':p:1:invalid',
         $buyer->id.':l:2:a:extra',
     ] as $forged) {
-        app(AdminFinanceWalletUi::class)->detail($bot, $forged);
+        // Legacy malformed callbacks must not turn into a request for another user.
+        $bot->hearCallbackQueryData('finance:wallet:'.$forged)->reply()
+            ->assertRaw(static fn (NutgramRequest $r): bool => str_contains(
+                (string) (backNavPayload($r)['text'] ?? ''), 'شناسه کاربر معتبر نیست.',
+            ), index: 1);
     }
 
     expect(DB::table('billing_journals')->count())->toBe(0);
