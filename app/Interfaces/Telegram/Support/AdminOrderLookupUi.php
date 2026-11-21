@@ -259,6 +259,7 @@ final readonly class AdminOrderLookupUi
         ] as $prefix) {
             Cache::forget(TelegramBotContext::current()->cacheKey($prefix.$root));
         }
+
         Cache::forget('admin:accounting:draft:'.$root);
         Cache::forget('admin:ann:draft:'.$root);
         Cache::forget('admin:ann:transition:'.$root);
