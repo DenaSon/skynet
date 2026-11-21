@@ -100,7 +100,7 @@ it('navigates the Admin Finance wallet, including the root-only manual credit en
 
         return str_contains(fin01Rich($data), '&lt;Buyer&gt;')
             && str_contains(fin01Rich($data), '0 تومان')
-            && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'finance:wallet:'.$customer->id);
+            && str_contains(json_encode($data['reply_markup'], JSON_THROW_ON_ERROR), 'finance:wallet-detail:'.$customer->id.':l:1:a');
     }, index: 1);
     $bot->hearCallbackQueryData('finance:wallet:'.$customer->id)->reply()->assertRaw(static function (Request $request): bool {
         $data = fin01Data($request);
