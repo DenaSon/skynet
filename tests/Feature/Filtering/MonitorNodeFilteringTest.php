@@ -93,6 +93,22 @@ function flt02Step(?int $online, ?int $rx, ?int $tx, int $minutes = 2): void
     app(MonitorNodeFiltering::class)->scan();
 }
 
+/** Open a traffic-only relative incident against a 1,000,000 B/s baseline. */
+function flt02OpenTrafficDrop(): int
+{
+    for ($i = 0; $i < 7; $i++) {
+        flt02Step(12, 1000000, 1000000, $i === 0 ? 0 : 2);
+    }
+    flt02Step(12, 300000, 300000);
+    flt02Step(12, 300000, 300000);
+
+    $state = app(FilteringFoundation::class)->read(FLT02_NODE);
+    expect($state['state'])->toBe('suspicious')
+        ->and($state['affected_modules']['node']['causes'])->toBe(['traffic_drop']);
+
+    return (int) $state['incident_id'];
+}
+
 function flt02EnableRootNotifications(): void
 {
     config()->set('filtering.notification_group_chat_id', '-1001234567890');
@@ -1077,4 +1093,116 @@ it('pins a delayed escalation notice to its original outbox event, not a newer N
     expect(app(FilteringIncidentNotice::class)->messageFor($escalation))
         ->toBe($original)
         ->not->toContain('👥 کاربران آنلاین: 18 نفر', '97.7 KiB/s');
+});
+
+it('recovers traffic with five of six valid samples above threshold and the latest two above', function (): void {
+    $id = flt02OpenTrafficDrop();
+
+    // 80% of 1,000,000 B/s is 800,000 B/s; tolerate one low sample.
+    foreach ([1000000, 800000, 500000, 1000000, 1000000] as $rate) {
+        flt02Step(12, $rate, $rate);
+    }
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBe($id);
+
+    flt02Step(12, 1000000, 1000000);
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBeNull()
+        ->and(DB::table('filtering_incidents')->where('id', $id)->value('state'))->toBe('resolved');
+});
+
+it('keeps traffic suspicious if only four of six samples are above threshold', function (): void {
+    $id = flt02OpenTrafficDrop();
+
+    foreach ([1000000, 500000, 1000000, 500000, 1000000, 1000000] as $rate) {
+        flt02Step(12, $rate, $rate);
+    }
+
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBe($id)
+        ->and(DB::table('filtering_incidents')->where('id', $id)->value('state'))->toBe('suspicious');
+});
+
+it('requires the latest two traffic samples to exceed the recovery threshold', function (): void {
+    $id = flt02OpenTrafficDrop();
+
+    foreach ([1000000, 1000000, 1000000, 1000000, 500000, 1000000] as $rate) {
+        flt02Step(12, $rate, $rate);
+    }
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBe($id);
+
+    flt02Step(12, 1000000, 1000000);
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBeNull();
+});
+
+it('does not count unknown traffic or gaps longer than three minutes toward recovery', function (): void {
+    $id = flt02OpenTrafficDrop();
+    flt02Step(12, 1000000, 1000000);
+    flt02Step(12, null, null);
+    foreach ([1000000, 1000000, 1000000, 1000000, 1000000] as $rate) {
+        flt02Step(12, $rate, $rate);
+    }
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBe($id);
+
+    flt02Step(12, 1000000, 1000000);
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBeNull();
+
+    // A new incident is independent of the previous one.
+    flt02Step(12, 300000, 300000);
+    flt02Step(12, 300000, 300000);
+    $next = app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'];
+    expect($next)->not->toBeNull()->not->toBe($id);
+
+    for ($i = 0; $i < 4; $i++) {
+        flt02Step(12, 1000000, 1000000);
+    }
+    flt02Step(12, 1000000, 1000000, 4);
+    flt02Step(12, 1000000, 1000000);
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBe($next);
+
+    for ($i = 0; $i < 4; $i++) {
+        flt02Step(12, 1000000, 1000000);
+    }
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBeNull();
+});
+
+it('keeps online-drop recovery strict when traffic alone has recovered', function (): void {
+    for ($i = 0; $i < 7; $i++) {
+        flt02Step(20, 1000000, 1000000, $i === 0 ? 0 : 2);
+    }
+    flt02Step(10, 300000, 300000);
+    flt02Step(10, 300000, 300000);
+    $id = app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'];
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['affected_modules']['node']['causes'])
+        ->toBe(['online_drop', 'traffic_drop']);
+
+    foreach ([1000000, 1000000, 500000, 1000000, 1000000, 1000000] as $rate) {
+        flt02Step(10, $rate, $rate);
+    }
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBe($id)
+        ->and(app(FilteringFoundation::class)->read(FLT02_NODE)['affected_modules']['node']['causes'])
+        ->toBe(['online_drop']);
+});
+
+it('opens another warning normally after a confirmed traffic recovery and fresh drop', function (): void {
+    flt02EnableRootNotifications();
+    $firstId = flt02OpenTrafficDrop();
+    $opening = DB::table('telegram_notification_deliveries')
+        ->where('event_type', 'FilteringOpened')->first();
+    expect($opening)->not->toBeNull();
+
+    app(DispatchTelegramNotification::class, ['deliveryId' => (int) $opening->id])
+        ->handle(app(TelegramNotificationSender::class));
+
+    foreach ([1000000, 800000, 500000, 1000000, 1000000, 1000000] as $rate) {
+        flt02Step(12, $rate, $rate);
+    }
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBeNull()
+        ->and(DB::table('telegram_notification_deliveries')
+            ->where('event_type', 'FilteringRecovered')->count())->toBe(1);
+
+    flt02Step(12, 300000, 300000);
+    flt02Step(12, 300000, 300000);
+    $second = app(FilteringFoundation::class)->read(FLT02_NODE);
+    expect($second['incident_id'])->not->toBeNull()->not->toBe($firstId)
+        ->and($second['affected_modules']['node']['causes'])->toBe(['traffic_drop'])
+        ->and(DB::table('telegram_notification_deliveries')
+            ->where('event_type', 'FilteringOpened')->count())->toBe(2);
 });
