@@ -8,6 +8,7 @@ use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Provisioning\Application\ReadCustomerLiveServices;
 use App\Modules\Provisioning\Application\ReadCustomerServiceDiagnostics;
 use App\Support\PersianCalendar;
+use DateTimeImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
@@ -48,7 +49,9 @@ final readonly class CustomerServiceDiagnosticsUi
 
             return;
         }
-        if (! in_array($kind, ['home', 'usage', 'history', 'nodes', 'start', 'result'], true)
+        $ipParams = [];
+        $ipPage = preg_match('/\Aip([0-7])p([1-2])\z/D', $kind, $ipParams) === 1;
+        if ((! in_array($kind, ['home', 'usage', 'history', 'nodes', 'start', 'result'], true) && ! $ipPage)
             || ! self::number($subjectId, 15) || ! self::number($orderId, 15)
             || ! self::number($userPage, 6) || (int) $userPage > 100000
             || ! UserDirectoryMode::valid($mode)
@@ -62,13 +65,18 @@ final readonly class CustomerServiceDiagnosticsUi
         try {
             $subject = (int) $subjectId;
             $order = (int) $orderId;
+            // Detail pages only read the already-authorized job result; they never create another job.
+            $connectionData = $kind === 'result' || $ipPage
+                ? $this->diagnostics->connectionResult($actor->userId, $subject, $order)
+                : ['state' => 'unavailable', 'nodes' => []];
             $data = match ($kind) {
                 'home' => $this->home($actor->userId, $subject, $order),
                 'usage' => $this->usage($actor->userId, $subject, $order, (int) $days),
                 'history' => $this->history($actor->userId, $subject, $order),
                 'nodes' => $this->nodes($actor->userId, $subject, $order),
                 'start' => $this->connections($this->diagnostics->startConnections($actor->userId, $subject, $order)),
-                'result' => $this->connections($this->diagnostics->connectionResult($actor->userId, $subject, $order)),
+                'result' => $this->connections($connectionData),
+                default => $this->connectionIps($connectionData, (int) $ipParams[1], (int) $ipParams[2]),
             };
         } catch (AuthorizationException) {
             $this->menus->denyAccess($bot);
@@ -102,6 +110,39 @@ final readonly class CustomerServiceDiagnosticsUi
         } elseif ($kind === 'start' || $kind === 'result') {
             $keyboard->addRow(InlineKeyboardButton::make(
                 '🔄 دریافت نتیجه', callback_data: $back('result'),
+            ));
+            if ($kind === 'result' && $connectionData['state'] === 'completed') {
+                foreach ($connectionData['nodes'] as $index => $node) {
+                    if ($node['ips'] !== []) {
+                        $keyboard->addRow(InlineKeyboardButton::make(
+                            '📋 IPهای '.$node['name'], callback_data: $back("ip{$index}p1"),
+                        ));
+                    }
+                }
+            }
+        } elseif ($ipPage) {
+            $nodeIndex = (int) $ipParams[1];
+            $page = (int) $ipParams[2];
+            $ips = $connectionData['nodes'][$nodeIndex]['ips'] ?? [];
+            foreach (array_slice($ips, ($page - 1) * 5, 5) as $ip) {
+                $keyboard->addRow(TelegramUi::copy($ip['ip'], '📋 کپی '.$ip['ip']));
+            }
+            $navigation = [];
+            if ($page > 1) {
+                $navigation[] = InlineKeyboardButton::make(
+                    '◀️ قبلی', callback_data: $back("ip{$nodeIndex}p".($page - 1)),
+                );
+            }
+            if ($page < 2 && count($ips) > $page * 5) {
+                $navigation[] = InlineKeyboardButton::make(
+                    'بعدی ▶️', callback_data: $back("ip{$nodeIndex}p".($page + 1)),
+                );
+            }
+            if ($navigation !== []) {
+                $keyboard->addRow(...$navigation);
+            }
+            $keyboard->addRow(InlineKeyboardButton::make(
+                '◀️ نتیجه اتصال‌ها', callback_data: $back('result'),
             ));
         } else {
             $keyboard->addRow(InlineKeyboardButton::make(
@@ -231,7 +272,7 @@ final readonly class CustomerServiceDiagnosticsUi
     }
 
     /**
-     * @param  array{state:string,nodes:list<array{name:string,reports:int,lastSeenAt:?string}>}  $data
+     * @param  array{state:string,nodes:list<array{name:string,reports:int,lastSeenAt:?string,country:?string,ips:list<array{ip:string,lastSeenAt:string}>}>}  $data
      * @return array{title:string,rows:list<array{string,string}>,note:string}
      */
     private function connections(array $data): array
@@ -244,7 +285,8 @@ final readonly class CustomerServiceDiagnosticsUi
         };
         $rows = [['وضعیت', $message]];
         foreach ($data['nodes'] as $node) {
-            $rows[] = [$node['name'], PersianCalendar::number(number_format($node['reports'])).' نشانی گزارش‌شده'];
+            $rows[] = [$node['name'].($node['country'] === null ? '' : ' ('.$node['country'].')'),
+                PersianCalendar::number(number_format($node['reports'])).' نشانی گزارش‌شده'];
             $rows[] = ['آخرین مشاهده', $node['lastSeenAt'] === null
                 ? 'نامشخص'
                 : PersianCalendar::utcDateTime($node['lastSeenAt'])];
@@ -252,6 +294,52 @@ final readonly class CustomerServiceDiagnosticsUi
 
         return ['title' => '🔌 بررسی اتصال‌های سرویس', 'rows' => $rows,
             'note' => 'این گزارش از نشانی‌های مشاهده‌شده توسط نودهاست؛ تعداد دستگاه یا اتصال فعال قطعی نیست.'];
+    }
+
+    /**
+     * @param  array{state:string,nodes:list<array{name:string,reports:int,lastSeenAt:?string,country:?string,ips:list<array{ip:string,lastSeenAt:string}>}>}  $data
+     * @return array{title:string,rows:list<array{string,string}>,note:string}
+     */
+    private function connectionIps(array $data, int $index, int $page): array
+    {
+        $node = $data['state'] === 'completed' ? ($data['nodes'][$index] ?? null) : null;
+        $ips = $node['ips'] ?? [];
+        $rows = [];
+        if ($node === null || $ips === [] || ($page - 1) * 5 >= count($ips)) {
+            $rows[] = ['اطلاعات', 'گزارشی برای این صفحه در دسترس نیست.'];
+        } else {
+            $rows[] = ['نود', $node['name']];
+            $rows[] = ['کشور نود', $node['country'] ?? 'نامشخص'];
+            $rows[] = ['تعداد گزارش‌شده', PersianCalendar::number(number_format($node['reports']))];
+            $rows[] = ['نمایش', PersianCalendar::number((string) (min(count($ips), 10))).' مورد جدیدتر'];
+            foreach (array_slice($ips, ($page - 1) * 5, 5) as $item) {
+                $rows[] = ['IP', $item['ip']];
+                $rows[] = ['آخرین مشاهده', PersianCalendar::utcDateTime($item['lastSeenAt'])
+                    .' ('.self::observationAge($item['lastSeenAt']).')'];
+            }
+        }
+
+        return ['title' => '📋 IPهای مشاهده‌شده', 'rows' => $rows,
+            'note' => 'آخرین مشاهده به معنی اتصال فعال همین لحظه یا تعداد دستگاه‌ها نیست.'];
+    }
+
+    private static function observationAge(string $observedAt): string
+    {
+        $age = now('UTC')->getTimestamp() - (new DateTimeImmutable($observedAt))->getTimestamp();
+        if ($age < -60) {
+            return 'نامشخص';
+        }
+        if ($age < 60) {
+            return 'همین حالا';
+        }
+        if ($age < 3600) {
+            return PersianCalendar::number((string) intdiv($age, 60)).' دقیقه پیش';
+        }
+        if ($age < 86400) {
+            return PersianCalendar::number((string) intdiv($age, 3600)).' ساعت پیش';
+        }
+
+        return PersianCalendar::number((string) intdiv($age, 86400)).' روز پیش';
     }
 
     private static function volume(?int $bytes): string

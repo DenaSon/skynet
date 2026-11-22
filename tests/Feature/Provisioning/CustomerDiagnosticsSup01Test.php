@@ -251,10 +251,13 @@ it('deduplicates explicitly started provider jobs and returns only anonymous nod
         ->and($action->startConnections($root->id, $buyer->id, $order)['state'])->toBe('pending');
     $result = $action->connectionResult($root->id, $buyer->id, $order);
     expect($result)->toBe(['state' => 'completed', 'nodes' => [
-        ['name' => 'UAE-01', 'reports' => 2, 'lastSeenAt' => '2026-11-22T11:15:00Z'],
-    ]])->and(json_encode($result))->not->toContain(
-        '203.0.113.42', '198.51.100.20', 'job-unique-42', 'diagnostic-private-token',
-    );
+        ['name' => 'UAE-01', 'reports' => 2, 'lastSeenAt' => '2026-11-22T11:15:00Z', 'country' => 'AE',
+            'ips' => [
+                ['ip' => '203.0.113.42', 'lastSeenAt' => '2026-11-22T11:15:00Z'],
+                ['ip' => '198.51.100.20', 'lastSeenAt' => '2026-11-22T10:45:00Z'],
+            ],
+        ],
+    ]])->and(json_encode($result))->not->toContain('job-unique-42', 'diagnostic-private-token');
     Http::assertSentCount(5);
     expect(collect(Http::recorded())->filter(static fn (array $pair): bool => $pair[0]->method() === 'POST')->count())->toBe(1);
 });
@@ -283,7 +286,7 @@ it('keeps empty connection observations unknown rather than inventing a last-see
     $result = $action->connectionResult($root->id, $buyer->id, $order);
 
     expect($result)->toBe(['state' => 'completed', 'nodes' => [
-        ['name' => 'German2', 'reports' => 0, 'lastSeenAt' => null],
+        ['name' => 'German2', 'reports' => 0, 'lastSeenAt' => null, 'country' => null, 'ips' => []],
     ]]);
     expect($action->connectionResult($root->id, $buyer->id, $order))->toBe($result);
     Http::assertSentCount(5);
@@ -317,6 +320,73 @@ it('rejects invalid provider observation timestamps instead of displaying a misl
     expect($result)->toBe(['state' => 'unavailable', 'nodes' => []])
         ->and(json_encode($result))->not->toContain('203.0.113.2', $lastSeen);
 })->with(['invalid', '2026-02-31T11:00:00Z', '2026-11-22T11:00:00']);
+
+it('exposes at most ten recent validated IPs per node without exposing raw job metadata', function (): void {
+    Cache::flush();
+    config()->set('services.remnawave.connections_diagnostics_enabled', true);
+    $root = supDiagRoot();
+    [$buyer, $order, $remote] = supDiagOrder();
+    $observations = [];
+    for ($i = 0; $i < 12; $i++) {
+        $observations[] = [
+            'ip' => $i === 0 ? '2001:db8::1' : '198.51.100.'.($i + 10),
+            'lastSeen' => now('UTC')->subMinutes($i)->toIso8601String(),
+        ];
+    }
+    Http::fake(static function (Request $request) use ($remote, $observations) {
+        return match (parse_url($request->url(), PHP_URL_PATH)) {
+            '/api/users/42' => Http::response(['response' => $remote]),
+            '/api/connections/by-user/42' => Http::response(['response' => ['jobId' => 'job-ip-list']], 201),
+            '/api/connections/by-user/job-ip-list' => Http::response(['response' => [
+                'isCompleted' => true, 'isFailed' => false,
+                'result' => ['success' => true, 'userId' => 42, 'nodes' => [
+                    ['nodeName' => 'German2', 'countryCode' => 'DE', 'ips' => array_reverse($observations)],
+                ]],
+            ]]),
+            default => Http::response([], 404),
+        };
+    });
+
+    $action = app(ReadCustomerServiceDiagnostics::class);
+    $action->startConnections($root->id, $buyer->id, $order);
+    $result = $action->connectionResult($root->id, $buyer->id, $order);
+
+    expect($result['state'])->toBe('completed')
+        ->and($result['nodes'][0]['country'])->toBe('DE')
+        ->and($result['nodes'][0]['reports'])->toBe(12)
+        ->and($result['nodes'][0]['ips'])->toHaveCount(10)
+        ->and($result['nodes'][0]['ips'][0]['ip'])->toBe('2001:db8::1')
+        ->and(json_encode($result))->not->toContain('job-ip-list', 'diagnostic-private-token');
+    expect($action->connectionResult($root->id, $buyer->id, $order))->toBe($result);
+    expect(collect(Http::recorded())->filter(static fn (array $pair): bool => $pair[0]->method() === 'POST')->count())
+        ->toBe(1);
+});
+
+it('rejects invalid IPs in a connection result instead of displaying untrusted provider values', function (string $ip): void {
+    Cache::flush();
+    config()->set('services.remnawave.connections_diagnostics_enabled', true);
+    $root = supDiagRoot();
+    [$buyer, $order, $remote] = supDiagOrder();
+    Http::fake(static function (Request $request) use ($remote, $ip) {
+        return match (parse_url($request->url(), PHP_URL_PATH)) {
+            '/api/users/42' => Http::response(['response' => $remote]),
+            '/api/connections/by-user/42' => Http::response(['response' => ['jobId' => 'job-invalid-ip']], 201),
+            '/api/connections/by-user/job-invalid-ip' => Http::response(['response' => [
+                'isCompleted' => true, 'isFailed' => false,
+                'result' => ['success' => true, 'userId' => 42, 'nodes' => [
+                    ['nodeName' => 'German2', 'countryCode' => 'DE', 'ips' => [
+                        ['ip' => $ip, 'lastSeen' => '2026-11-22T11:00:00Z'],
+                    ]],
+                ]],
+            ]]),
+            default => Http::response([], 404),
+        };
+    });
+    $action = app(ReadCustomerServiceDiagnostics::class);
+    $action->startConnections($root->id, $buyer->id, $order);
+    $result = $action->connectionResult($root->id, $buyer->id, $order);
+    expect($result)->toBe(['state' => 'unavailable', 'nodes' => []]);
+})->with(['999.999.999.999', '<script>alert(1)</script>', '127.0.0.1'.PHP_EOL.'bad']);
 
 it('does not replay an ambiguous provider job request', function (): void {
     Cache::flush();

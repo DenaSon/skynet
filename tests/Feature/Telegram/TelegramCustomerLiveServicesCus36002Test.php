@@ -737,6 +737,20 @@ it('shows the latest node observation in Tehran time with Rich and native fallba
                 && ! str_contains($rich, '198.51.100.42');
         }, index: 1);
 
+    $bot->hearCallbackQueryData("sd:ip0p1:{$buyer->id}:{$order}:1:a:1:7")->reply()
+        ->assertRaw(static function (NutgramRequest $request) use ($buyer, $order): bool {
+            $data = c360LivePayload($request);
+            $buttons = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return str_contains($data['text'], 'IPهای مشاهده‌شده')
+                && str_contains($data['text'], '198.51.100.42')
+                && str_contains($data['text'], 'کشور نود')
+                && str_contains($data['text'], '۱۴:۳۰')
+                && str_contains($buttons, '"copy_text"')
+                && str_contains($buttons, '198.51.100.42')
+                && str_contains($buttons, "sd:result:{$buyer->id}:{$order}:1:a:1:7");
+        }, index: 1);
+
     $native = Mockery::mock(Nutgram::class);
     $native->shouldReceive('chat')->andReturn(Chat::make(994201, ChatType::PRIVATE));
     $native->shouldReceive('user')->andReturn(TelegramUser::make(994201, false, 'Operator'));
@@ -753,6 +767,62 @@ it('shows the latest node observation in Tehran time with Rich and native fallba
     app(CustomerServiceDiagnosticsUi::class)->show(
         $native, 'result', (string) $buyer->id, (string) $order, '1', 'a', '1', '7',
     );
+    expect(collect(Http::recorded())->filter(static fn (array $pair): bool => $pair[0]->method() === 'POST')->count())
+        ->toBe(1);
+});
+
+it('paginates observed IPs five per node page without spawning additional Remnawave jobs', function (): void {
+    Cache::flush();
+    config()->set('services.remnawave.connections_diagnostics_enabled', true);
+    $root = User::factory()->create();
+    $root->syncRoles(['super-admin']);
+    $buyer = User::factory()->create();
+    $order = c360LiveOrder($buyer, 207);
+    $observations = [];
+    for ($i = 1; $i <= 6; $i++) {
+        $observations[] = [
+            'ip' => '198.51.100.'.$i,
+            'lastSeen' => now('UTC')->subMinutes($i)->toIso8601String(),
+        ];
+    }
+    Http::fake(static function (Request $request) use ($order, $observations) {
+        return match (parse_url($request->url(), PHP_URL_PATH)) {
+            '/api/users/42' => Http::response(['response' => c360LiveRemote($order)]),
+            '/api/connections/by-user/42' => Http::response(['response' => ['jobId' => 'job-ip-pages']], 201),
+            '/api/connections/by-user/job-ip-pages' => Http::response(['response' => [
+                'isCompleted' => true, 'isFailed' => false,
+                'result' => ['success' => true, 'userId' => 42, 'nodes' => [
+                    ['nodeName' => 'German2', 'countryCode' => 'DE', 'ips' => $observations],
+                ]],
+            ]]),
+            default => Http::response([], 404),
+        };
+    });
+    $bot = c360LiveBot(994201, $root);
+    $bot->hearCallbackQueryData("sd:start:{$buyer->id}:{$order}:1:a:1:7")->reply();
+    $bot->hearCallbackQueryData("sd:result:{$buyer->id}:{$order}:1:a:1:7")->reply();
+
+    $bot->hearCallbackQueryData("sd:ip0p1:{$buyer->id}:{$order}:1:a:1:7")->reply()
+        ->assertRaw(static function (NutgramRequest $request) use ($buyer, $order): bool {
+            $data = c360LivePayload($request);
+            $keyboard = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return str_contains($data['text'], '198.51.100.1')
+                && str_contains($data['text'], '198.51.100.5')
+                && ! str_contains($data['text'], '198.51.100.6')
+                && str_contains($keyboard, "sd:ip0p2:{$buyer->id}:{$order}:1:a:1:7");
+        }, index: 1);
+    $bot->hearCallbackQueryData("sd:ip0p2:{$buyer->id}:{$order}:1:a:1:7")->reply()
+        ->assertRaw(static function (NutgramRequest $request) use ($buyer, $order): bool {
+            $data = c360LivePayload($request);
+            $keyboard = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return str_contains($data['text'], '198.51.100.6')
+                && ! str_contains($data['text'], '198.51.100.1')
+                && str_contains($keyboard, "sd:ip0p1:{$buyer->id}:{$order}:1:a:1:7")
+                && str_contains($keyboard, '"copy_text"');
+        }, index: 1);
+
     expect(collect(Http::recorded())->filter(static fn (array $pair): bool => $pair[0]->method() === 'POST')->count())
         ->toBe(1);
 });
