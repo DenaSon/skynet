@@ -156,7 +156,7 @@ it('shows bounded 24-hour status changes, approximate recovery duration and nati
         ->and($history['rows'][0]['status'])->toBe('ok')
         ->and($history['rows'][0]['duration'])->toBe(5);
 
-    denabanHealthBot()->hearCallbackQueryData('denaban:health:history:1')->reply()
+    denabanHealthBot()->hearCallbackQueryData('denaban:health-log:1')->reply()
         ->assertRaw(static function (NutgramRequest $request): bool {
             $payload = denabanHealthPayload($request);
             $rich = is_string($payload['rich_message'] ?? null)
@@ -168,13 +168,13 @@ it('shows bounded 24-hour status changes, approximate recovery duration and nati
             return ($rich['is_rtl'] ?? null) === true
                 && str_contains($html, 'تاریخچه سلامت')
                 && str_contains($html, 'حدود 5 دقیقه')
-                && str_contains($buttons, 'denaban:health:history:simple:1')
+                && str_contains($buttons, 'denaban:health-log-simple:1')
                 && str_contains($buttons, 'denaban:health')
                 && ! str_contains($html, 'hidden-secret-token')
                 && ! str_contains($html, 'sensitive service message');
         }, index: 1);
 
-    denabanHealthBot()->hearCallbackQueryData('denaban:health:history:simple:1')->reply()
+    denabanHealthBot()->hearCallbackQueryData('denaban:health-log-simple:1')->reply()
         ->assertRaw(static function (NutgramRequest $request): bool {
             $payload = denabanHealthPayload($request);
 
@@ -194,16 +194,16 @@ it('denies private health history to ordinary and revoked Admin roles and groups
 
     expect(fn () => app(ReadAdminHealth::class)->history($ordinary->id))
         ->toThrow(AuthorizationException::class);
-    denabanHealthBot(993203)->hearCallbackQueryData('denaban:health:history:1')->reply()
+    denabanHealthBot(993203)->hearCallbackQueryData('denaban:health-log:1')->reply()
         ->assertCalled('answerCallbackQuery');
 
     $root->syncRoles(['member']);
-    denabanHealthBot()->hearCallbackQueryData('denaban:health:history:simple:1')->reply()
+    denabanHealthBot()->hearCallbackQueryData('denaban:health-log-simple:1')->reply()
         ->assertCalled('answerCallbackQuery');
 
     $group = denabanHealthBot();
     $group->setCommonChat(Chat::make(-993201, ChatType::GROUP));
-    $group->hearCallbackQueryData('denaban:health:history:1')->reply()->assertNoReply();
+    $group->hearCallbackQueryData('denaban:health-log:1')->reply()->assertNoReply();
 
     Http::assertNothingSent();
 });
