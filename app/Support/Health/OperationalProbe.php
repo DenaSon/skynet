@@ -203,6 +203,10 @@ final class OperationalProbe
         if (config('telegram.sales.enabled') === true) {
             $tokens['sales'] = config('telegram.sales.token');
         }
+        if (config('telegram.denix.enabled') === true
+            && config('denagate_ai.enabled') === true) {
+            $tokens['deniz'] = config('telegram.denix.token');
+        }
 
         $checked = 0;
         foreach ($tokens as $botName => $token) {
