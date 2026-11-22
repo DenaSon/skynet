@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Throwable;
+use UnexpectedValueException;
 
 /**
  * Bounded operational probes, never write to customer, billing, provider,
@@ -189,6 +190,8 @@ final class OperationalProbe
 
             return ['status' => $instances > 0 ? 'ok' : 'warning',
                 'summary' => $instances.' instances'];
+        } catch (UnexpectedValueException) {
+            return ['status' => 'warning', 'summary' => 'invalid response'];
         } catch (Throwable) {
             // Do not persist or log the exception; it can contain endpoint
             // URLs, authorization headers or upstream response bodies.
