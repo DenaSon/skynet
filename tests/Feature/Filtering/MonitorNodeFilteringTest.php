@@ -106,7 +106,7 @@ function flt02EnableRootNotifications(): void
     TelegramAccount::query()->create(['user_id' => $root->id, 'telegram_user_id' => 9980021]);
 }
 
-it('preserves all AMS-02-like low-activity incidents and measurements without sending online-only notices', function (): void {
+it('preserves low-activity incidents and sends early online-zero openings even at night', function (): void {
     flt02EnableRootNotifications();
 
     for ($cycle = 0; $cycle < 9; $cycle++) {
@@ -122,10 +122,10 @@ it('preserves all AMS-02-like low-activity incidents and measurements without se
 
     expect(DB::table('filtering_incidents')->count())->toBe(9)
         ->and(DB::table('filtering_checks')->where('module', 'node')->count())->toBe(81)
-        ->and(DB::table('telegram_notification_deliveries')->count())->toBe(0);
+        ->and(DB::table('telegram_notification_deliveries')->where('event_type', 'FilteringOpened')->count())->toBe(9);
 });
 
-it('does not notify on a solitary three-user spike in a low-activity window', function (): void {
+it('sends a warning after a low-user zero regardless of a brief earlier spike in a low-activity window', function (): void {
     flt02EnableRootNotifications();
     flt02Step(1, null, null, 0);
     flt02Step(3, null, null);
@@ -134,10 +134,10 @@ it('does not notify on a solitary three-user spike in a low-activity window', fu
     flt02Step(0, null, null);
 
     expect(DB::table('filtering_incidents')->count())->toBe(1)
-        ->and(DB::table('telegram_notification_deliveries')->count())->toBe(0);
+        ->and(DB::table('telegram_notification_deliveries')->where('event_type', 'FilteringOpened')->count())->toBe(1);
 });
 
-it('keeps the low-user alert guard when an unrelated regional incident has notifications disabled', function (): void {
+it('does not duplicate an online warning when traffic evidence joins when an unrelated regional incident has notifications disabled', function (): void {
     flt02EnableRootNotifications();
     config()->set('filtering.regional_monitor_enabled', true);
     config()->set('filtering.regional_alerts_enabled', false);
@@ -151,7 +151,7 @@ it('keeps the low-user alert guard when an unrelated regional incident has notif
     flt02Step(0, 100, 100);
 
     expect(DB::table('filtering_incidents')->count())->toBe(1)
-        ->and(DB::table('telegram_notification_deliveries')->count())->toBe(0);
+        ->and(DB::table('telegram_notification_deliveries')->where('event_type', 'FilteringOpened')->count())->toBe(1);
 
     flt02Step(0, 0, 0);
     flt02Step(0, 0, 0);
@@ -824,4 +824,95 @@ it('uses only one provider GET for Node snapshots and rejects malformed identiti
     flt02Feed([flt02Node(0, 0, 0, uuid: 'unexpected')]);
     expect(app(MonitorNodeFiltering::class)->scan())->toBe(0);
     expect(DB::table('filtering_incidents')->count())->toBe(0);
+});
+
+it('opens a suspicious relative-online incident after two drops without reaching zero', function (): void {
+    flt02EnableRootNotifications();
+    for ($i = 0; $i < 7; $i++) {
+        flt02Step(20, null, null, $i === 0 ? 0 : 2);
+    }
+    flt02Step(11, null, null);
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBeNull();
+    flt02Step(10, null, null);
+    $state = app(FilteringFoundation::class)->read(FLT02_NODE);
+    expect($state['state'])->toBe('suspicious')
+        ->and($state['affected_modules']['node']['causes'])->toBe(['online_drop'])
+        ->and(DB::table('telegram_notification_deliveries')->where('event_type', 'FilteringOpened')->count())->toBe(1);
+
+    for ($i = 0; $i < 5; $i++) {
+        flt02Step(19, null, null);
+    }
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->not->toBeNull();
+    flt02Step(19, null, null);
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBeNull();
+});
+
+it('detects a traffic drop with online users remaining stable', function (): void {
+    for ($i = 0; $i < 7; $i++) {
+        flt02Step(12, 1000000, 1000000, $i === 0 ? 0 : 2);
+    }
+    flt02Step(12, 400000, 420000);
+    flt02Step(12, 390000, 410000);
+
+    $state = app(FilteringFoundation::class)->read(FLT02_NODE);
+    expect($state['state'])->toBe('suspicious')
+        ->and($state['affected_modules']['node']['causes'])->toBe(['traffic_drop']);
+});
+
+it('detects the combined thirty-percent online and traffic decrease', function (): void {
+    for ($i = 0; $i < 7; $i++) {
+        flt02Step(20, 1000000, 1000000, $i === 0 ? 0 : 2);
+    }
+    flt02Step(13, 650000, 650000);
+    flt02Step(13, 640000, 640000);
+
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['state'])->toBe('suspicious')
+        ->and(app(FilteringFoundation::class)->read(FLT02_NODE)['affected_modules']['node']['causes'])
+        ->toBe(['online_drop', 'traffic_drop']);
+});
+
+it('ignores relative drops without six reliable baseline observations', function (): void {
+    flt02Step(20, 1000000, 1000000, 0);
+    flt02Step(7, 300000, 300000);
+    flt02Step(7, 300000, 300000);
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBeNull();
+});
+
+it('keeps a relative traffic incident through missing rates and does not fabricate recovery', function (): void {
+    for ($i = 0; $i < 7; $i++) {
+        flt02Step(12, 1000000, 1000000, $i === 0 ? 0 : 2);
+    }
+    flt02Step(12, 300000, 300000);
+    flt02Step(12, 300000, 300000);
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['state'])->toBe('suspicious');
+    flt02Step(12, null, null);
+    for ($i = 0; $i < 4; $i++) {
+        flt02Step(12, 1000000, 1000000);
+    }
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['state'])->toBe('suspicious');
+});
+
+it('labels night alerts by the Tehran event hour and daytime alerts separately', function (): void {
+    flt02EnableRootNotifications();
+    $cases = [
+        ['2026-11-21 21:29:00 UTC', '📡 هشدار فعالیت غیرعادی'],
+        ['2026-11-21 21:30:00 UTC', '🌙 هشدار شبانه'],
+        ['2026-11-22 03:29:00 UTC', '🌙 هشدار شبانه'],
+        ['2026-11-22 03:30:00 UTC', '📡 هشدار فعالیت غیرعادی'],
+    ];
+    foreach ($cases as [$instant, $expected]) {
+        $this->travelTo(Carbon::parse($instant));
+        $uuid = sprintf('550e8400-e29b-41d4-a716-%012d', (int) now()->timestamp);
+        app(FilteringFoundation::class)->record(
+            $uuid, 'node', 'suspicious', now()->utc()->startOfMinute(),
+            ['causes' => ['online_drop'], 'online_users' => 4],
+        );
+        app(FilteringIncidentAlerts::class)->sync(
+            (int) DB::table('filtering_incidents')->where('node_uuid', $uuid)->value('id'), 'node',
+        );
+        $opening = DB::table('telegram_notification_deliveries')
+            ->where('event_type', 'FilteringOpened')->orderByDesc('id')->first();
+        expect($opening)->not->toBeNull()
+            ->and(app(FilteringIncidentNotice::class)->messageFor($opening))->toContain($expected);
+    }
 });
