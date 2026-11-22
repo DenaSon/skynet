@@ -737,6 +737,20 @@ it('shows the latest node observation in Tehran time with Rich and native fallba
                 && ! str_contains($rich, '198.51.100.42');
         }, index: 1);
 
+    $bot->hearCallbackQueryData("sd:ip0p1:{$buyer->id}:{$order}:1:a:1:7")->reply()
+        ->assertRaw(static function (NutgramRequest $request) use ($buyer, $order): bool {
+            $data = c360LivePayload($request);
+            $buttons = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return str_contains($data['text'], 'IPهای مشاهده‌شده')
+                && str_contains($data['text'], '198.51.100.42')
+                && str_contains($data['text'], 'کشور نود')
+                && str_contains($data['text'], '۱۴:۳۰')
+                && str_contains($buttons, '"copy_text"')
+                && str_contains($buttons, '198.51.100.42')
+                && str_contains($buttons, "sd:result:{$buyer->id}:{$order}:1:a:1:7");
+        }, index: 1);
+
     $native = Mockery::mock(Nutgram::class);
     $native->shouldReceive('chat')->andReturn(Chat::make(994201, ChatType::PRIVATE));
     $native->shouldReceive('user')->andReturn(TelegramUser::make(994201, false, 'Operator'));
