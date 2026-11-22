@@ -59,7 +59,7 @@ final readonly class AdminHealthUi
 
         $keyboard = InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی گزارش', callback_data: 'denaban:health'))
-            ->addRow(InlineKeyboardButton::make('🕒 تاریخچه ۲۴ساعته', callback_data: 'denaban:health:history:1'))
+            ->addRow(InlineKeyboardButton::make('🕒 تاریخچه ۲۴ساعته', callback_data: 'denaban:health-log:1'))
             ->addRow(InlineKeyboardButton::make('◀️ دنابان', callback_data: 'denaban:show'))
             ->addRow(InlineKeyboardButton::make(
                 $simple ? '✨ نمای جدید' : '📝 نمای ساده',
@@ -127,23 +127,23 @@ final readonly class AdminHealthUi
         $keyboard = InlineKeyboardMarkup::make();
         if ($data['page'] > 1) {
             $keyboard->addRow(InlineKeyboardButton::make(
-                '◀️ جدیدتر', callback_data: 'denaban:health:history:'.($data['page'] - 1),
+                '◀️ جدیدتر', callback_data: 'denaban:health-log:'.($data['page'] - 1),
             ));
         }
         if ($data['page'] < $data['pages']) {
             $keyboard->addRow(InlineKeyboardButton::make(
-                'قدیمی‌تر ▶️', callback_data: 'denaban:health:history:'.($data['page'] + 1),
+                'قدیمی‌تر ▶️', callback_data: 'denaban:health-log:'.($data['page'] + 1),
             ));
         }
         $keyboard->addRow(InlineKeyboardButton::make(
-            '🔄 دریافت آخرین تاریخچه', callback_data: 'denaban:health:history:'.$data['page'],
+            '🔄 دریافت آخرین تاریخچه', callback_data: 'denaban:health-log:'.$data['page'],
         ))->addRow(InlineKeyboardButton::make(
             '◀️ سلامت سیستم', callback_data: 'denaban:health',
         ))->addRow(InlineKeyboardButton::make(
             $simple ? '✨ نمای جدید' : '📝 نمای ساده',
             callback_data: $simple
-                ? 'denaban:health:history:'.$data['page']
-                : 'denaban:health:history:simple:'.$data['page'],
+                ? 'denaban:health-log:'.$data['page']
+                : 'denaban:health-log-simple:'.$data['page'],
         ));
 
         if (! $simple) {
