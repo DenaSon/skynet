@@ -30,7 +30,7 @@ final readonly class ReadAdminCashReceipts
      *   salesRials:int,currentWalletBalanceRials:int,generatedAt:string
      * }
      */
-    public function handle(int $actorId, string $period, ?Carbon $asOf = null): array
+    public function handle(int $actorId, string $period, ?Carbon $asOf = null, ?int $knownWalletBalanceRials = null): array
     {
         $this->access->reviewer($actorId);
 
@@ -120,7 +120,7 @@ final readonly class ReadAdminCashReceipts
             'walletSalesCount' => (int) ($walletTotals->receipts_count ?? 0),
             'salesRials' => $bankRials + $walletRials,
             // Current snapshot; intentionally not restricted to the period.
-            'currentWalletBalanceRials' => $this->wallets->handle($actorId)['balanceRials'],
+            'currentWalletBalanceRials' => $knownWalletBalanceRials ?? $this->wallets->handle($actorId)['balanceRials'],
             'generatedAt' => Carbon::now('Asia/Tehran')->format('Y-m-d H:i'),
         ];
     }
