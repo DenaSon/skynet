@@ -52,8 +52,8 @@ it('rejects malformed Remnawave process metrics without a second or mutating HTT
     ], 200)]);
 
     $result = app(OperationalProbe::class)->inspect('network_api');
-    expect($result['status'])->toBe('failed')
-        ->and($result['summary'])->toBe('API unreachable');
+    expect($result['status'])->toBe('warning')
+        ->and($result['summary'])->toBe('invalid response');
     Http::assertSentCount(1);
     Http::assertSent(static fn ($request): bool => $request->method() === 'GET');
 });
