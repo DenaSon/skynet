@@ -214,6 +214,7 @@ final readonly class AdminHealthUi
     {
         return match ($data['state']) {
             'disabled' => 'پایش دوره‌ای غیرفعال است.',
+            'waiting' => 'در ۲۴ ساعت اخیر نتیجه‌ای از پایش سیستم ثبت نشده است.',
             'unavailable' => 'تاریخچه فعلاً در دسترس نیست یا حجم داده از حد مجاز بیشتر است.',
             default => $data['total'].' تغییر وضعیت ثبت‌شده · '
                 .$data['recurrences'].' بار ورود به هشدار یا اختلال',
