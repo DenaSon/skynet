@@ -770,3 +770,70 @@ it('shows the latest node observation in Tehran time with Rich and native fallba
     expect(collect(Http::recorded())->filter(static fn (array $pair): bool => $pair[0]->method() === 'POST')->count())
         ->toBe(1);
 });
+
+
+it('paginates detailed subscription history with safe IP and User-Agent in Rich and fallback', function (): void {
+    $root = User::factory()->create();
+    $root->syncRoles(['super-admin']);
+    $buyer = User::factory()->create();
+    $order = c360LiveOrder($buyer, 206);
+    $records = [];
+    for ($i = 1; $i <= 6; $i++) {
+        $records[] = [
+            'userId' => 42, 'requestAt' => '2026-11-22T09:20:00Z',
+            'srrResponseType' => 'XRAY_BASE64',
+            'requestIp' => '203.0.113.'.$i,
+            'userAgent' => $i === 5 ? 'Client <script>bad</script>' : 'v2rayNG',
+            'srrRuleName' => 'Default',
+        ];
+    }
+    Http::fake(static function (Request $request) use ($order, $records) {
+        return parse_url($request->url(), PHP_URL_PATH) === '/api/users/42'
+            ? Http::response(['response' => c360LiveRemote($order)])
+            : Http::response(['response' => ['total' => 6, 'records' => $records]]);
+    });
+
+    $bot = c360LiveBot(994201, $root);
+    $bot->hearCallbackQueryData("sd:history:{$buyer->id}:{$order}:1:a:1:7")->reply()
+        ->assertRaw(static function (NutgramRequest $request) use ($buyer, $order): bool {
+            $data = c360LivePayload($request);
+            $keyboard = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return str_contains($data['text'], '203.0.113.1')
+                && str_contains($data['text'], '203.0.113.4')
+                && ! str_contains($data['text'], '203.0.113.5')
+                && str_contains($keyboard, "sd:h2:{$buyer->id}:{$order}:1:a:1:7");
+        }, index: 1);
+
+    $bot->hearCallbackQueryData("sd:h2:{$buyer->id}:{$order}:1:a:1:7")->reply()
+        ->assertRaw(static function (NutgramRequest $request) use ($buyer, $order): bool {
+            $data = c360LivePayload($request);
+            $keyboard = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+            $rich = $data['rich_html'] ?? '';
+
+            return str_contains($rich, '203.0.113.5')
+                && str_contains($rich, '&lt;script&gt;')
+                && ! str_contains($rich, '<script>')
+                && str_contains($rich, 'قانون پاسخ')
+                && str_contains($keyboard, "sd:h1:{$buyer->id}:{$order}:1:a:1:7")
+                && str_contains($keyboard, "sd:home:{$buyer->id}:{$order}:1:a:1:7");
+        }, index: 1);
+
+    $native = Mockery::mock(Nutgram::class);
+    $native->shouldReceive('chat')->andReturn(Chat::make(994201, ChatType::PRIVATE));
+    $native->shouldReceive('user')->andReturn(TelegramUser::make(994201, false, 'Operator'));
+    $native->shouldReceive('isCallbackQuery')->andReturn(false);
+    $native->shouldReceive('sendRichMessage')->once()->andThrow(
+        new TelegramException('unsupported Rich message', 400),
+    );
+    $native->shouldReceive('editMessageText')->once()->andReturnUsing(static function (...$args): void {
+        $text = $args['text'] ?? $args[0];
+        expect($text)->toContain('203.0.113.5', '&lt;script&gt;', 'User-Agent')
+            ->not->toContain('<script>', 'secret-token-never-in-chat');
+    });
+    app(CustomerServiceDiagnosticsUi::class)->show(
+        $native, 'h2', (string) $buyer->id, (string) $order, '1', 'a', '1', '7',
+    );
+    expect(collect(Http::recorded())->every(static fn (array $pair): bool => $pair[0]->method() === 'GET'))
+        ->toBeTrue();
+});
