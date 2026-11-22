@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Support\Health\DenaGateOperationalCheck;
 use App\Support\Health\OperationalProbe;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -124,7 +125,7 @@ it('classifies safe Telegram API connection failures by the affected bot', funct
     config()->set('nutgram.token', '123:fixture');
     config()->set('telegram.sales.enabled', false);
     Http::fake(static function (): never {
-        throw new \Illuminate\Http\Client\ConnectionException('private url must not leak');
+        throw new ConnectionException('private url must not leak');
     });
 
     $check = app(OperationalProbe::class)->inspect('telegram_api');
