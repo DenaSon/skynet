@@ -82,7 +82,7 @@ final readonly class ReadAdminHealth
             $checkedAt = (string) $latest->ended_at;
             $instant = Carbon::parse($checkedAt);
             $current = now();
-            $fresh = $instant->betweenIncluded($current->copy()->subMinutes(3), $current->copy()->addMinute());
+            $fresh = $instant->betweenIncluded($current->copy()->subMinutes(5), $current->copy()->addMinute());
 
             // An incomplete basic or operational batch must never show green.
             // Redis is required only with the same runtime condition as registration.
@@ -99,7 +99,8 @@ final readonly class ReadAdminHealth
             );
             $incomplete = $total < 4 || $total > 24 || count($items) !== $total
                 || count(array_unique($observed)) !== $total
-                || count(array_intersect($expected, $observed)) !== count($expected);
+                || count($expected) !== $total
+                || count(array_diff($expected, $observed)) > 0;
             $state = 'healthy';
             if (! $fresh) {
                 $state = 'stale';
@@ -129,18 +130,18 @@ final readonly class ReadAdminHealth
         return match (strtolower($name)) {
             'databasecheck', 'database' => 'MySQL',
             'redischeck', 'redis' => 'Redis',
-            'queuecheck', 'queue' => 'Queue Worker',
-            'schedulecheck', 'schedule' => 'Scheduler',
+            'queuecheck', 'queue' => 'پردازش صف',
+            'schedulecheck', 'schedule' => 'زمان‌بندی سیستم',
             'useddiskspacecheck', 'disk', 'useddiskspace' => 'فضای دیسک',
             'ops_cpu' => 'مصرف CPU',
-            'ops_memory' => 'RAM',
-            'ops_network_api' => 'API شبکه',
-            'ops_telegram_api' => 'Telegram API',
-            'ops_queue_backlog' => 'صف در انتظار',
-            'ops_failed_jobs' => 'Jobهای ناموفق',
+            'ops_memory' => 'حافظه RAM برنامه',
+            'ops_network_api' => 'ارتباط با پنل',
+            'ops_telegram_api' => 'ارتباط بات‌های تلگرام',
+            'ops_queue_backlog' => 'وظایف در انتظار پردازش',
+            'ops_failed_jobs' => 'پردازش‌های ناموفق',
             'ops_notification_outbox' => 'اعلان‌های معوق',
             'ops_sales_fulfillment' => 'فعال‌سازی سفارش‌ها',
-            'ops_subscription_jobs' => 'زمان‌بندی اشتراک‌ها',
+            'ops_subscription_jobs' => 'بررسی خودکار اشتراک‌ها',
             default => 'سنجش دیگر',
         };
     }
