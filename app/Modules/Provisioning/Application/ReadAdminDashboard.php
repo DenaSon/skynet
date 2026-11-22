@@ -79,7 +79,7 @@ final readonly class ReadAdminDashboard
             'receivedAt' => now()->timezone('Asia/Tehran')->format('Y-m-d H:i'),
         ];
 
-        $provider = $this->overview->handle($actorId);
+        $provider = $this->overview->dashboard($actorId);
         if ($provider->state === 'available') {
             $report['nodes'] = $provider->nodes;
             $report['connected'] = $provider->connectedNodes;
