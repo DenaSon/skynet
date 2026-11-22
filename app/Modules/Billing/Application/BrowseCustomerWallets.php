@@ -55,7 +55,6 @@ final readonly class BrowseCustomerWallets
         $walletId = DB::table('billing_wallets')->where('user_id', $userId)->value('id');
         $entries = [];
         $topups = [];
-        $accountType = null;
         if ($walletId !== null) {
             $entries = DB::table('billing_postings as p')
                 ->join('billing_journals as j', 'j.id', '=', 'p.journal_id')
@@ -107,13 +106,11 @@ final readonly class BrowseCustomerWallets
                 ])->all();
         }
 
-        if ($accountType === null) {
-            // Details are also available for users without a wallet yet.
-            $roles = User::query()->find($userId);
-            $accountType = $roles?->hasAnyRole(['admin', 'super-admin']) ? 'other'
-                : ($roles?->hasRole('reseller') ? 'reseller'
-                    : ($roles?->hasRole('member') ? 'member' : 'other'));
-        }
+        // Role precedence matches the full wallet directory, even for users without a wallet.
+        $roles = User::query()->find($userId);
+        $accountType = $roles?->hasAnyRole(['admin', 'super-admin']) ? 'other'
+            : ($roles?->hasRole('reseller') ? 'reseller'
+                : ($roles?->hasRole('member') ? 'member' : 'other'));
 
         return [
             'id' => (int) $user->id, 'name' => (string) $user->name,
