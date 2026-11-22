@@ -136,6 +136,78 @@ it('shows only the latest complete batch, status summaries and RTL Rich markup',
     Http::assertNothingSent();
 });
 
+it('shows bounded 24-hour status changes, approximate recovery duration and native fallback', function (): void {
+    $root = denabanHealthRoot();
+    config()->set('denagate_health.enabled', true);
+
+    denabanHealthStore('11111111-1111-4111-8111-111111111111', 'QueueCheck', 'failed',
+        now()->subHours(26)->toDateTimeString());
+    denabanHealthStore('22222222-2222-4222-8222-222222222222', 'QueueCheck', 'ok',
+        now()->subMinutes(12)->toDateTimeString());
+    denabanHealthStore('33333333-3333-4333-8333-333333333333', 'QueueCheck', 'warning',
+        now()->subMinutes(8)->toDateTimeString());
+    denabanHealthStore('44444444-4444-4444-8444-444444444444', 'QueueCheck', 'ok',
+        now()->subMinutes(3)->toDateTimeString());
+
+    $history = app(ReadAdminHealth::class)->history($root->id, 1);
+    expect($history['state'])->toBe('available')
+        ->and($history['recurrences'])->toBe(1)
+        ->and($history['total'])->toBe(2)
+        ->and($history['rows'][0]['status'])->toBe('ok')
+        ->and($history['rows'][0]['duration'])->toBe(5);
+
+    denabanHealthBot()->hearCallbackQueryData('denaban:health:history:1')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $payload = denabanHealthPayload($request);
+            $rich = is_string($payload['rich_message'] ?? null)
+                ? json_decode($payload['rich_message'], true, 512, JSON_THROW_ON_ERROR)
+                : ($payload['rich_message'] ?? []);
+            $html = (string) ($rich['html'] ?? '');
+            $buttons = json_encode($payload['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return ($rich['is_rtl'] ?? null) === true
+                && str_contains($html, 'تاریخچه سلامت')
+                && str_contains($html, 'حدود 5 دقیقه')
+                && str_contains($buttons, 'denaban:health:history:simple:1')
+                && str_contains($buttons, 'denaban:health')
+                && ! str_contains($html, 'hidden-secret-token')
+                && ! str_contains($html, 'sensitive service message');
+        }, index: 1);
+
+    denabanHealthBot()->hearCallbackQueryData('denaban:health:history:simple:1')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $payload = denabanHealthPayload($request);
+
+            return str_contains($payload['text'], 'تاریخچه سلامت')
+                && str_contains($payload['text'], 'حدود 5 دقیقه')
+                && ! str_contains($payload['text'], 'private connection information');
+        }, index: 1);
+
+    Http::assertNothingSent();
+});
+
+it('denies private health history to ordinary and revoked Admin roles and groups', function (): void {
+    $root = denabanHealthRoot();
+    $ordinary = User::factory()->admin()->create();
+    TelegramAccount::query()->create(['user_id' => $ordinary->id, 'telegram_user_id' => 993203]);
+    config()->set('denagate_health.enabled', true);
+
+    expect(fn () => app(ReadAdminHealth::class)->history($ordinary->id))
+        ->toThrow(AuthorizationException::class);
+    denabanHealthBot(993203)->hearCallbackQueryData('denaban:health:history:1')->reply()
+        ->assertCalled('answerCallbackQuery');
+
+    $root->syncRoles(['member']);
+    denabanHealthBot()->hearCallbackQueryData('denaban:health:history:simple:1')->reply()
+        ->assertCalled('answerCallbackQuery');
+
+    $group = denabanHealthBot();
+    $group->setCommonChat(Chat::make(-993201, ChatType::GROUP));
+    $group->hearCallbackQueryData('denaban:health:history:1')->reply()->assertNoReply();
+
+    Http::assertNothingSent();
+});
+
 it('marks stale and partial batches unknown instead of healthy', function (): void {
     $root = denabanHealthRoot();
     config()->set('denagate_health.enabled', true);
