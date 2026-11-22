@@ -203,7 +203,7 @@ final readonly class ReadAdminHealth
                 if (in_array($status, ['failed', 'warning'], true)) {
                     $recurrences++;
                     $started[$name] = $at;
-                } elseif ($status === 'ok' || $status === 'unknown') {
+                } else {
                     $started[$name] = null;
                 }
 
