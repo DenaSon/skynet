@@ -211,9 +211,13 @@ final class OperationalProbe
             }
 
             // Never log the token-bearing URL, response body or exceptions.
-            $response = Http::acceptJson()->timeout(3)->connectTimeout(2)
-                ->withOptions(['allow_redirects' => false])
-                ->get('https://api.telegram.org/bot'.$token.'/getMe');
+            try {
+                $response = Http::acceptJson()->timeout(3)->connectTimeout(2)
+                    ->withOptions(['allow_redirects' => false])
+                    ->get('https://api.telegram.org/bot'.$token.'/getMe');
+            } catch (Throwable) {
+                return ['status' => 'failed', 'summary' => $botName.' unavailable'];
+            }
 
             if (! $response->successful() || $response->json('ok') !== true
                 || ! is_array($response->json('result'))) {
@@ -258,8 +262,15 @@ final class OperationalProbe
                 $database = config('queue.connections.'.$connection.'.connection');
                 $db = DB::connection(is_string($database) && $database !== '' ? $database : null);
                 $names = $aiEnabled ? [$queue, 'ai'] : [$queue];
+                $retryAfter = config('queue.connections.'.$connection.'.retry_after', 90);
+                $retryAfter = is_int($retryAfter) && $retryAfter >= 1 && $retryAfter <= 3600
+                    ? $retryAfter : 90;
                 $oldest = $db->table($table)->whereIn('queue', $names)
-                    ->where('available_at', '<=', now()->timestamp)->min('created_at');
+                    ->where('available_at', '<=', now()->timestamp)
+                    ->where(static function ($query) use ($retryAfter): void {
+                        $query->whereNull('reserved_at')
+                            ->orWhere('reserved_at', '<=', now()->timestamp - $retryAfter);
+                    })->min('created_at');
                 if (is_int($oldest) || (is_string($oldest) && ctype_digit($oldest))) {
                     $age = max(0, now()->timestamp - (int) $oldest);
                     if ($age >= 60) {
