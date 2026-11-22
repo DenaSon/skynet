@@ -286,7 +286,7 @@ it('keeps empty connection observations unknown rather than inventing a last-see
         ['name' => 'German2', 'reports' => 0, 'lastSeenAt' => null],
     ]]);
     expect($action->connectionResult($root->id, $buyer->id, $order))->toBe($result);
-    Http::assertSentCount(4);
+    Http::assertSentCount(5);
 });
 
 it('rejects invalid provider observation timestamps instead of displaying a misleading date', function (string $lastSeen): void {
