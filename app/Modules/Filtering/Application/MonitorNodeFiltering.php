@@ -383,6 +383,10 @@ final readonly class MonitorNodeFiltering
         CarbonImmutable $minute,
         int $reference,
     ): bool {
+        if ($signal === 'traffic') {
+            return $this->hasMostlyRecoveredTraffic($history, $minute, $reference);
+        }
+
         $cursor = $minute;
         $minimum = (int) ceil($reference * self::RECOVERY_PERCENT_OF_BASELINE / 100);
         foreach ($history as $check) {
@@ -395,6 +399,45 @@ final readonly class MonitorNodeFiltering
             if ($minute->timestamp - $observed->timestamp >= self::RECOVERY_SECONDS) {
                 return true;
             }
+            $cursor = $observed;
+        }
+
+        return false;
+    }
+
+    /**
+     * Traffic rates fluctuate even on usable Nodes: require six valid,
+     * contiguous samples spanning ten minutes, at least five at >=80% of
+     * the saved reference and the newest two above the threshold.
+     * The caller has already verified the current observation is above it.
+     * Missing, invalid or stale observations never count as recovery.
+     */
+    private function hasMostlyRecoveredTraffic(
+        Collection $history,
+        CarbonImmutable $minute,
+        int $reference,
+    ): bool {
+        $cursor = $minute;
+        $minimum = (int) ceil($reference * self::RECOVERY_PERCENT_OF_BASELINE / 100);
+        $samples = 1; // The current valid, above-threshold observation.
+        $above = 1;
+
+        foreach ($history as $check) {
+            $observed = CarbonImmutable::parse($check->observed_at);
+            $gap = $cursor->timestamp - $observed->timestamp;
+            $value = self::activityValue($this->parseEvidence($check->evidence), 'traffic');
+            if ($gap <= 0 || $gap > self::WINDOW_SECONDS || $value === null
+                || ($samples === 1 && $value < $minimum)) {
+                return false;
+            }
+
+            $samples++;
+            $above += (int) ($value >= $minimum);
+            if ($samples === 6) {
+                return $above >= 5
+                    && $minute->timestamp - $observed->timestamp >= self::RECOVERY_SECONDS;
+            }
+
             $cursor = $observed;
         }
 
