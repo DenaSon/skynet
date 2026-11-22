@@ -217,6 +217,8 @@ it('links accessible nodes to existing monitoring evidence without guessing heal
 it('reads the same filtering snapshot for multiple verified accessible nodes', function (): void {
     $root = supDiagRoot();
     [$buyer, $order, $remote] = supDiagOrder();
+    // Healthy outcomes are authoritative only while Node monitoring is enabled.
+    config()->set('filtering.node_monitor_enabled', true);
     $uuids = ['550e8400-e29b-41d4-a716-446655440000', '550e8400-e29b-41d4-a716-446655440001'];
     foreach ($uuids as $uuid) {
         DB::table('filtering_checks')->insert([
