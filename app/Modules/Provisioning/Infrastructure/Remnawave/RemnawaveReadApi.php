@@ -165,8 +165,26 @@ final readonly class RemnawaveReadApi
         $stats = is_array($system) ? ($system['stats'] ?? null) : null;
         $interface = is_array($stats) ? ($stats['interface'] ?? null) : null;
 
-        return is_array($interface)
-            ? RemnawaveNodeTelemetry::nonNegativeBytes($interface[$direction] ?? null)
+        if (! is_array($interface)) {
+            return null;
+        }
+
+        $value = $interface[$direction] ?? null;
+        if (is_int($value)) {
+            return $value >= 0 ? $value : null;
+        }
+        if (! is_float($value) && (! is_string($value)
+            || preg_match('/\\A(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?\\z/D', $value) !== 1)) {
+            return null;
+        }
+
+        // Remnawave reports interface rates as fractional bytes/second.
+        // Round positive fractions UP so a small non-zero rate never becomes
+        // a fabricated zero-traffic observation. Keep persisted DTOs integer.
+        $rate = (float) $value;
+
+        return is_finite($rate) && $rate >= 0 && $rate <= 9007199254740991
+            ? (int) ceil($rate)
             : null;
     }
 
