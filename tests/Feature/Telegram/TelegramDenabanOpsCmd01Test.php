@@ -177,6 +177,24 @@ it('shows canonical verified inflows and sales independently of unavailable RW',
     Http::assertNotSent(static fn (Request $r): bool => $r->method() !== 'GET');
 });
 
+it('reuses a single ledger-backed wallet balance for all three Denaban cash windows', function (): void {
+    $root = denabanRoot();
+    Http::fake(['https://denaban.test/*' => Http::response([], 503)]);
+
+    $postingReads = 0;
+    DB::listen(static function ($query) use (&$postingReads): void {
+        if (str_contains(strtolower($query->sql), 'billing_postings')) {
+            $postingReads++;
+        }
+    });
+
+    $snapshot = app(ReadAdminCommandCenter::class)->handle($root->id);
+    expect($snapshot['cash']['currentWalletBalanceRials'])->toBe(0)
+        ->and($snapshot['todayCash']['currentWalletBalanceRials'])->toBe(0)
+        ->and($snapshot['yesterdayCash']['currentWalletBalanceRials'])->toBe(0)
+        ->and($postingReads)->toBe(1);
+});
+
 it('counts only real reseller roles, today registrations and approved wallet receipts', function (): void {
     $this->travelTo(Carbon::parse('2026-11-11 15:00', 'Asia/Tehran')->utc());
     $root = denabanRoot();
@@ -360,8 +378,10 @@ it('shows only safe per-node RW telemetry using the existing inventory GET witho
         }, index: 1);
 
     // The command center does not duplicate the GET /api/nodes already made by STAT-01.
-    Http::assertSentCount(7);
+    Http::assertSentCount(5);
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
+    Http::assertNotSent(static fn (Request $request): bool => str_ends_with($request->url(), '/api/internal-squads')
+        || str_ends_with($request->url(), '/api/config-profiles'));
     expect(Http::recorded(static fn (Request $request): bool => str_ends_with($request->url(), '/api/nodes')))->toHaveCount(1);
 });
 
