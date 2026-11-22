@@ -113,7 +113,7 @@ final readonly class ReadCustomerSupportProfile
         $financeUnavailable = false;
         if ($financeAllowed) {
             try {
-                $walletBalance = $this->wallets->detail($actorId, $subjectId)['balance_rials'];
+                $walletBalance = $this->wallets->balanceForUser($actorId, $subjectId);
             } catch (Throwable) {
                 $financeUnavailable = true;
                 // Billing errors do not hide the already-authorized support view.
