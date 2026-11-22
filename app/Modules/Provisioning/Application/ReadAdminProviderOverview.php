@@ -39,9 +39,15 @@ final readonly class ReadAdminProviderOverview
         try {
             $read = new RemnawaveReadApi($this->factory->make());
             $instances = $read->healthInstanceCount();
-            $inventory = $dashboardOnly ? null : $read->inventory();
-            $nodes = $inventory?->nodes ?? $read->nodes();
-            $hosts = $inventory?->hosts ?? $read->hostCount();
+            if ($dashboardOnly) {
+                $inventory = null;
+                $nodes = $read->nodes();
+                $hosts = $read->hostCount();
+            } else {
+                $inventory = $read->inventory();
+                $nodes = $inventory->nodes;
+                $hosts = $inventory->hosts;
+            }
 
             // Optional P1 metrics must not break the verified P0 overview.
             try {
