@@ -546,7 +546,8 @@ it('sends exactly one group notice per incident and protects recovery after root
     $notice = app(FilteringIncidentNotice::class)->messageFor($opened);
     expect($notice)->toContain('⚠️ نیازمند بررسی —', 'نشانه: کاربران آنلاین صفر', '🕒', '(تهران)')
         ->not->toContain('شناسه:', 'UTC', 'گفتگوی خصوصی', 'اثبات', 'token', 'password');
-    expect(substr_count($notice, "\n"))->toBe(2);
+    expect($notice)->toContain('👥 کاربران آنلاین: 0 نفر');
+    expect(substr_count($notice, "\n"))->toBe(3);
 
     app(DispatchTelegramNotification::class, ['deliveryId' => (int) $opened->id])
         ->handle(app(TelegramNotificationSender::class));
@@ -566,7 +567,8 @@ it('sends exactly one group notice per incident and protects recovery after root
     $escalationNotice = app(FilteringIncidentNotice::class)->messageFor($escalation);
     expect($escalationNotice)->toContain('🚨 اختلال ثبت‌شده —', 'نشانه: کاربران آنلاین صفر', '🕒')
         ->not->toContain('شناسه:', 'UTC', 'اثبات');
-    expect(substr_count($escalationNotice, "\n"))->toBe(2);
+    expect($escalationNotice)->toContain('👥 کاربران آنلاین: 0 نفر');
+    expect(substr_count($escalationNotice, "\n"))->toBe(3);
 
     flt02Step(0, 100, 100);
     expect(DB::table('telegram_notification_deliveries')->where('event_type', 'FilteringOpened')->count())->toBe(1);
@@ -582,7 +584,8 @@ it('sends exactly one group notice per incident and protects recovery after root
     $recoveryNotice = app(FilteringIncidentNotice::class)->messageFor($recovered);
     expect($recoveryNotice)->toContain('✅ وضعیت عادی شد —', '🕒', '(تهران)')
         ->not->toContain('نشانه:', 'شناسه:', 'UTC', 'اثبات', 'گفتگوی خصوصی');
-    expect(substr_count($recoveryNotice, "\n"))->toBe(1);
+    expect($recoveryNotice)->toContain('👥 کاربران آنلاین: 4 نفر');
+    expect(substr_count($recoveryNotice, "\n"))->toBe(2);
 
     $root->forceFill(['is_active' => false])->save();
     app(DispatchTelegramNotification::class, ['deliveryId' => (int) $recovered->id])
@@ -947,4 +950,131 @@ it('retains the drop baseline across more than 30 minutes of unavailable Node ch
     expect(app(FilteringFoundation::class)->read(FLT02_NODE)['state'])->toBe('suspicious');
     flt02Step(12, 1000000, 1000000);
     expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBeNull();
+});
+
+it('shows the event-time traffic reference, decline and online users without using later telemetry', function (): void {
+    flt02EnableRootNotifications();
+    for ($i = 0; $i < 7; $i++) {
+        flt02Step(12, 1000000, 1000000, $i === 0 ? 0 : 2);
+    }
+    flt02Step(12, 300000, 300000);
+    flt02Step(12, 300000, 300000);
+
+    $opening = DB::table('telegram_notification_deliveries')
+        ->where('event_type', 'FilteringOpened')->first();
+    expect($opening)->not->toBeNull();
+    $notice = app(FilteringIncidentNotice::class)->messageFor($opening);
+
+    expect($notice)->toContain(
+        'افت غیرعادی ترافیک',
+        '📉 افت ترافیک: 70٪',
+        '📊 نرخ ترافیک: 976.6 KiB/s ← 293.0 KiB/s',
+        '👥 کاربران آنلاین: 12 نفر',
+    );
+
+    // An outbox retry must not replace the event sample with the new rate.
+    flt02Step(15, 850000, 850000);
+    expect(app(FilteringIncidentNotice::class)->messageFor($opening))
+        ->toContain('976.6 KiB/s ← 293.0 KiB/s', '👥 کاربران آنلاین: 12 نفر')
+        ->not->toContain('830.1 KiB/s', '👥 کاربران آنلاین: 15 نفر');
+});
+
+it('shows the online baseline and change when the online drop caused the warning', function (): void {
+    flt02EnableRootNotifications();
+    for ($i = 0; $i < 7; $i++) {
+        flt02Step(20, null, null, $i === 0 ? 0 : 2);
+    }
+    flt02Step(11, null, null);
+    flt02Step(10, null, null);
+
+    $opening = DB::table('telegram_notification_deliveries')
+        ->where('event_type', 'FilteringOpened')->first();
+    expect($opening)->not->toBeNull();
+    expect(app(FilteringIncidentNotice::class)->messageFor($opening))
+        ->toContain('افت غیرعادی کاربران', '👥 کاربران آنلاین: 20 ← 10 نفر (50٪ کاهش)')
+        ->not->toContain('افت ترافیک:');
+});
+
+it('shows online users from the recovery observation, not the triggering drop', function (): void {
+    flt02EnableRootNotifications();
+    for ($i = 0; $i < 7; $i++) {
+        flt02Step(20, null, null, $i === 0 ? 0 : 2);
+    }
+    flt02Step(11, null, null);
+    flt02Step(10, null, null);
+
+    $opening = DB::table('telegram_notification_deliveries')
+        ->where('event_type', 'FilteringOpened')->first();
+    app(DispatchTelegramNotification::class, ['deliveryId' => (int) $opening->id])
+        ->handle(app(TelegramNotificationSender::class));
+
+    for ($i = 0; $i < 6; $i++) {
+        flt02Step(20, null, null);
+    }
+    $recovery = DB::table('telegram_notification_deliveries')
+        ->where('event_type', 'FilteringRecovered')->first();
+    expect($recovery)->not->toBeNull();
+
+    $notice = app(FilteringIncidentNotice::class)->messageFor($recovery);
+    expect($notice)->toContain('✅ وضعیت عادی شد', '👥 کاربران آنلاین: 20 نفر')
+        ->not->toContain('20 ← 10', 'نشانه:', 'افت ترافیک:');
+});
+
+it('uses unknown instead of fabricated zero for absent historic Node samples', function (): void {
+    flt02EnableRootNotifications();
+    app(FilteringFoundation::class)->record(FLT02_NODE, 'node', 'suspicious', now()->startOfMinute(), [
+        'causes' => ['traffic_drop'],
+    ]);
+    $id = (int) DB::table('filtering_incidents')->value('id');
+    app(FilteringIncidentAlerts::class)->sync($id, 'node');
+    $opening = DB::table('telegram_notification_deliveries')
+        ->where('event_type', 'FilteringOpened')->first();
+
+    $notice = app(FilteringIncidentNotice::class)->messageFor($opening);
+    expect($notice)->toContain(
+        '📉 افت ترافیک: نامشخص',
+        '📊 نرخ ترافیک: نامشخص ← نامشخص',
+        '👥 کاربران آنلاین: نامشخص',
+    )->not->toContain('👥 کاربران آنلاین: 0 نفر', 'افت ترافیک: 100٪');
+
+    // Once the historical evidence is gone, never pick current/newer readings.
+    DB::table('filtering_checks')->where('module', 'node')->delete();
+    flt02Step(30, 2000000, 2000000);
+    expect(app(FilteringIncidentNotice::class)->messageFor($opening))
+        ->toContain('👥 کاربران آنلاین: نامشخص', '📉 افت ترافیک: نامشخص');
+});
+
+it('pins a delayed escalation notice to its original outbox event, not a newer Node sample', function (): void {
+    flt02EnableRootNotifications();
+    for ($i = 0; $i < 7; $i++) {
+        flt02Step(12, 1000000, 1000000, $i === 0 ? 0 : 2);
+    }
+    flt02Step(12, 300000, 300000);
+    flt02Step(12, 300000, 300000);
+
+    $opening = DB::table('telegram_notification_deliveries')
+        ->where('event_type', 'FilteringOpened')->first();
+    app(DispatchTelegramNotification::class, ['deliveryId' => (int) $opening->id])
+        ->handle(app(TelegramNotificationSender::class));
+
+    flt02Step(12, 0, 0);
+    flt02Step(12, 0, 0);
+    $escalation = DB::table('telegram_notification_deliveries')
+        ->where('event_type', 'FilteringEscalated')->first();
+    expect($escalation)->not->toBeNull();
+
+    $original = app(FilteringIncidentNotice::class)->messageFor($escalation);
+    expect($original)->toContain(
+        '🚨 اختلال ثبت‌شده',
+        '👥 کاربران آنلاین: 12 نفر',
+        '📉 افت ترافیک: 100٪',
+        '📊 نرخ ترافیک: 976.6 KiB/s ← 0 B/s',
+    );
+
+    // The incident's mutable last_observed_at now advances, but the outbox
+    // escalation timestamp and its historical Node snapshot must not move.
+    flt02Step(18, 100000, 100000);
+    expect(app(FilteringIncidentNotice::class)->messageFor($escalation))
+        ->toBe($original)
+        ->not->toContain('👥 کاربران آنلاین: 18 نفر', '97.7 KiB/s');
 });
