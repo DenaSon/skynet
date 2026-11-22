@@ -28,6 +28,20 @@ final readonly class MonitorNodeFiltering
 
     private const MAX_NODES = 100;
 
+    private const MIN_BASELINE_SAMPLES = 6;
+
+    private const MIN_ONLINE_BASELINE = 5;
+
+    private const MIN_TRAFFIC_BASELINE = 32768; // 32 KiB/s, measured on the Node interface.
+
+    private const ONLINE_DROP_PERCENT = 40;
+
+    private const TRAFFIC_DROP_PERCENT = 50;
+
+    private const COMBINED_DROP_PERCENT = 30;
+
+    private const RECOVERY_PERCENT_OF_BASELINE = 80;
+
     public function __construct(
         private RemnawaveApiClientFactory $clients,
         private FilteringFoundation $foundation,
@@ -162,14 +176,15 @@ final readonly class MonitorNodeFiltering
             }
         }
 
+        $causes = $this->activityDrops($evidence, $history, $previous, $contiguous, $causes, $minute);
         sort($causes);
         // Recover exactly the affected signals. An unrelated unavailable
         // counter must not strand an otherwise fully recovered incident.
         // Positive online users establish activity even when upstream RX/TX is missing.
         // Confirmed zero-traffic or zero-online incidents still take precedence.
-        $outcome = $causes !== [] ? 'disrupted' : (
-            $active !== [] || self::online($evidence) === 'positive' ? 'healthy' : 'unknown'
-        );
+        $outcome = $causes !== []
+            ? (array_intersect(['online_zero', 'traffic_zero'], $causes) !== [] ? 'disrupted' : 'suspicious')
+            : ($active !== [] || self::online($evidence) === 'positive' ? 'healthy' : 'unknown');
         if ($causes !== []) {
             $evidence['causes'] = $causes;
         }
@@ -220,6 +235,157 @@ final readonly class MonitorNodeFiltering
         $data = json_decode($evidence, true);
 
         return is_array($data) ? $data : [];
+    }
+
+    /**
+     * Compare against this Node's recent median, never against other Nodes or
+     * a fixed time-of-day profile. Retain the trigger baseline across later
+     * observations so a prolonged drop cannot normalize itself away.
+     *
+     * @param array<string, mixed> $evidence
+     * @param array<string, mixed> $previous
+     * @param list<string> $causes
+     * @return list<string>
+     */
+    private function activityDrops(
+        array &$evidence,
+        Collection $history,
+        array $previous,
+        bool $contiguous,
+        array $causes,
+        CarbonImmutable $minute,
+    ): array {
+        $onlineActive = in_array('online_drop', $causes, true);
+        $trafficActive = in_array('traffic_drop', $causes, true);
+        $onlineReference = $onlineActive
+            ? $this->savedReference($history, 'online_reference', self::MIN_ONLINE_BASELINE)
+            : $this->medianReference($history, 'online', self::MIN_ONLINE_BASELINE);
+        $trafficReference = $trafficActive
+            ? $this->savedReference($history, 'traffic_reference', self::MIN_TRAFFIC_BASELINE)
+            : $this->medianReference($history, 'traffic', self::MIN_TRAFFIC_BASELINE);
+
+        $onNow = self::activityValue($evidence, 'online');
+        $onBefore = self::activityValue($previous, 'online');
+        $rateNow = self::activityValue($evidence, 'traffic');
+        $rateBefore = self::activityValue($previous, 'traffic');
+        $onlinePct = self::decline($onlineReference, $onNow);
+        $priorOnlinePct = self::decline($onlineReference, $onBefore);
+        $trafficPct = self::decline($trafficReference, $rateNow);
+        $priorTrafficPct = self::decline($trafficReference, $rateBefore);
+        $joint = $contiguous && $onNow !== null && $onNow > 0 && $onBefore !== null && $onBefore > 0
+            && $rateNow !== null && $rateNow > 0 && $rateBefore !== null && $rateBefore > 0
+            && $onlinePct !== null && $priorOnlinePct !== null
+            && $trafficPct !== null && $priorTrafficPct !== null
+            && min($onlinePct, $priorOnlinePct, $trafficPct, $priorTrafficPct) >= self::COMBINED_DROP_PERCENT;
+
+        foreach ([
+            'online_drop' => ['online', $onlineReference, $onlinePct, $priorOnlinePct, self::ONLINE_DROP_PERCENT],
+            'traffic_drop' => ['traffic', $trafficReference, $trafficPct, $priorTrafficPct, self::TRAFFIC_DROP_PERCENT],
+        ] as $cause => [$signal, $reference, $currentPct, $previousPct, $threshold]) {
+            $active = in_array($cause, $causes, true);
+            if ($active) {
+                if ($reference !== null && $this->hasSustainedRecovery($history, $signal, $minute, $reference)) {
+                    $causes = array_values(array_diff($causes, [$cause]));
+                } elseif ($reference !== null) {
+                    $evidence[$signal === 'online' ? 'online_reference' : 'traffic_reference'] = $reference;
+                }
+
+                continue;
+            }
+
+            $currentValue = self::activityValue($evidence, $signal);
+            $previousValue = self::activityValue($previous, $signal);
+            // The independent existing zero signals own complete outages.
+            if ($reference !== null && $contiguous && $currentValue !== null && $currentValue > 0
+                && $previousValue !== null && $previousValue > 0
+                && $currentPct !== null && $previousPct !== null
+                && (($currentPct >= $threshold && $previousPct >= $threshold) || $joint)) {
+                $causes[] = $cause;
+                $evidence[$signal === 'online' ? 'online_reference' : 'traffic_reference'] = $reference;
+            }
+        }
+
+        return $causes;
+    }
+
+    /** @param array<string,mixed> $fields */
+    private static function activityValue(array $fields, string $signal): ?int
+    {
+        if ($signal === 'online') {
+            $value = $fields['online_users'] ?? null;
+
+            return is_int($value) && $value >= 0 ? $value : null;
+        }
+
+        $rx = $fields['rx_bytes_per_sec'] ?? null;
+        $tx = $fields['tx_bytes_per_sec'] ?? null;
+
+        return is_int($rx) && is_int($tx) && $rx >= 0 && $tx >= 0 ? max($rx, $tx) : null;
+    }
+
+    private static function decline(?int $reference, ?int $value): ?int
+    {
+        if ($reference === null || $reference <= 0 || $value === null) {
+            return null;
+        }
+
+        return max(0, (int) floor(100 * (1 - $value / $reference)));
+    }
+
+    private function medianReference(Collection $history, string $signal, int $minimum): ?int
+    {
+        $values = [];
+        foreach ($history as $check) {
+            $value = self::activityValue($this->parseEvidence($check->evidence), $signal);
+            if ($value !== null) {
+                $values[] = $value;
+            }
+        }
+        if (count($values) < self::MIN_BASELINE_SAMPLES) {
+            return null;
+        }
+
+        sort($values, SORT_NUMERIC);
+        $median = $values[intdiv(count($values), 2)];
+
+        return $median >= $minimum ? $median : null;
+    }
+
+    private function savedReference(Collection $history, string $name, int $minimum): ?int
+    {
+        foreach ($history as $check) {
+            $fields = $this->parseEvidence($check->evidence);
+            $value = $fields[$name] ?? null;
+            if (is_int($value) && $value >= $minimum) {
+                return $value;
+            }
+        }
+
+        return null; // UNKNOWN must never manufacture a recovered baseline.
+    }
+
+    private function hasSustainedRecovery(
+        Collection $history,
+        string $signal,
+        CarbonImmutable $minute,
+        int $reference,
+    ): bool {
+        $cursor = $minute;
+        $minimum = (int) ceil($reference * self::RECOVERY_PERCENT_OF_BASELINE / 100);
+        foreach ($history as $check) {
+            $observed = CarbonImmutable::parse($check->observed_at);
+            $gap = $cursor->timestamp - $observed->timestamp;
+            $value = self::activityValue($this->parseEvidence($check->evidence), $signal);
+            if ($gap <= 0 || $gap > self::WINDOW_SECONDS || $value === null || $value < $minimum) {
+                return false;
+            }
+            if ($minute->timestamp - $observed->timestamp >= self::RECOVERY_SECONDS) {
+                return true;
+            }
+            $cursor = $observed;
+        }
+
+        return false;
     }
 
     /**
