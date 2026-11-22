@@ -49,7 +49,7 @@ final class BrowseUsers
         if (str_contains($mode, 'w')) {
             // Reuse the ledger-backed one-row-per-wallet read model, including
             // zero for users who have never created a wallet.
-            $query->leftJoinSub(ReadAdminWalletSummary::walletBalancesQuery(), 'wallet_rank',
+            $query->leftJoinSub(ReadAdminWalletSummary::walletRankingsQuery(), 'wallet_rank',
                 static fn ($join) => $join->on('wallet_rank.user_id', '=', 'users.id'))
                 ->addSelect(DB::raw('COALESCE(wallet_rank.balance_rials, 0) as directory_metric'))
                 ->orderBy('directory_metric', $direction);
@@ -118,7 +118,7 @@ final class BrowseUsers
             });
         } elseif ($filter === 'c') {
             // Reuse the same ledger-backed wallet view as financial rankings.
-            $balances = DB::query()->fromSub(ReadAdminWalletSummary::walletBalancesQuery(), 'balances')
+            $balances = DB::query()->fromSub(ReadAdminWalletSummary::walletRankingsQuery(), 'balances')
                 ->select('user_id')->where('balance_rials', '>', 0);
             $query->whereIn('users.id', $balances);
         } elseif ($filter === 'i') {

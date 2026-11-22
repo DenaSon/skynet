@@ -55,10 +55,7 @@ final readonly class BrowseCustomerWallets
         $walletId = DB::table('billing_wallets')->where('user_id', $userId)->value('id');
         $entries = [];
         $topups = [];
-        $accountType = null;
         if ($walletId !== null) {
-            $accountType = ReadAdminWalletSummary::walletBalancesQuery()
-                ->where('w.user_id', $userId)->first()?->account_type;
             $entries = DB::table('billing_postings as p')
                 ->join('billing_journals as j', 'j.id', '=', 'p.journal_id')
                 ->where('p.wallet_id', $walletId)->where('p.account_code', 'wallet_liability')
@@ -109,13 +106,11 @@ final readonly class BrowseCustomerWallets
                 ])->all();
         }
 
-        if ($accountType === null) {
-            // Details are also available for users without a wallet yet.
-            $roles = User::query()->find($userId);
-            $accountType = $roles?->hasAnyRole(['admin', 'super-admin']) ? 'other'
-                : ($roles?->hasRole('reseller') ? 'reseller'
-                    : ($roles?->hasRole('member') ? 'member' : 'other'));
-        }
+        // Role precedence matches the full wallet directory, even for users without a wallet.
+        $roles = User::query()->find($userId);
+        $accountType = $roles?->hasAnyRole(['admin', 'super-admin']) ? 'other'
+            : ($roles?->hasRole('reseller') ? 'reseller'
+                : ($roles?->hasRole('member') ? 'member' : 'other'));
 
         return [
             'id' => (int) $user->id, 'name' => (string) $user->name,
@@ -155,15 +150,26 @@ final readonly class BrowseCustomerWallets
             ])->all();
     }
 
+    /** Finance-gated balance-only read; the support profile needs no receipt history. */
+    public function balanceForUser(int $rootId, int $userId): int
+    {
+        $this->access->financeViewer($rootId);
+        if ($userId < 1) {
+            throw ValidationException::withMessages(['wallet' => 'Invalid customer.']);
+        }
+        $walletId = DB::table('billing_wallets')->where('user_id', $userId)->value('id');
+
+        return $walletId === null ? 0 : $this->balance((int) $walletId);
+    }
+
     private function balance(int $walletId): int
     {
-        $credits = (int) DB::table('billing_postings')
+        $row = DB::table('billing_postings')
             ->where('wallet_id', $walletId)->where('account_code', 'wallet_liability')
-            ->where('side', 'credit')->sum('amount_rials');
-        $debits = (int) DB::table('billing_postings')
-            ->where('wallet_id', $walletId)->where('account_code', 'wallet_liability')
-            ->where('side', 'debit')->sum('amount_rials');
+            ->selectRaw("COALESCE(SUM(CASE WHEN side = 'credit' THEN amount_rials ELSE 0 END), 0) as credits,
+                COALESCE(SUM(CASE WHEN side = 'debit' THEN amount_rials ELSE 0 END), 0) as debits")
+            ->first();
 
-        return $credits - $debits;
+        return (int) $row->credits - (int) $row->debits;
     }
 }

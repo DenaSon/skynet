@@ -177,7 +177,7 @@ final readonly class ReadCustomerServiceDiagnostics
                 throw new UnexpectedValueException('Invalid accessible nodes response.');
             }
 
-            $items = [];
+            $selected = [];
             $seen = [];
             foreach (array_slice($data['activeNodes'], 0, 8) as $node) {
                 $uuid = $node['uuid'] ?? null;
@@ -187,9 +187,14 @@ final readonly class ReadCustomerServiceDiagnostics
                     throw new UnexpectedValueException('Invalid accessible node.');
                 }
                 $seen[$uuid] = true;
-                $observed = $this->filtering->node($actorId, $uuid);
+                $selected[] = ['uuid' => $uuid, 'name' => $node['nodeName']];
+            }
+            $observations = $this->filtering->nodeObservations($actorId, array_keys($seen));
+            $items = [];
+            foreach ($selected as $node) {
+                $observed = $observations[strtolower($node['uuid'])] ?? null;
                 $items[] = [
-                    'name' => $node['nodeName'],
+                    'name' => $node['name'],
                     'state' => $observed !== null && ($observed['node_fresh'] ?? false)
                         ? (string) $observed['state'] : 'unknown',
                     'regional' => $observed !== null && ($observed['regional_fresh'] ?? false)

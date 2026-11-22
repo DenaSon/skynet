@@ -22,12 +22,7 @@ final readonly class ReadAdminWalletSummary
      */
     public static function walletBalancesQuery(): Builder
     {
-        $postings = DB::table('billing_postings')
-            ->where('account_code', 'wallet_liability')
-            ->groupBy('wallet_id')
-            ->selectRaw("wallet_id,
-                SUM(CASE WHEN side = 'credit' THEN amount_rials ELSE 0 END)
-                - SUM(CASE WHEN side = 'debit' THEN amount_rials ELSE 0 END) as balance_rials");
+        $postings = self::postings();
 
         $roles = DB::table('model_has_roles as mr')
             ->join('roles as r', 'r.id', '=', 'mr.role_id')
@@ -53,6 +48,27 @@ final readonly class ReadAdminWalletSummary
                 WHEN COALESCE(ur.is_reseller, 0) = 1 THEN 'reseller'
                 WHEN COALESCE(ur.is_member, 0) = 1 THEN 'member'
                 ELSE 'other' END as account_type");
+    }
+
+    /** Ranking only: no per-user role summary or users table join. */
+    public static function walletRankingsQuery(): Builder
+    {
+        return DB::table('billing_wallets as w')
+            ->leftJoinSub(self::postings(), 'p', static function (JoinClause $join): void {
+                $join->on('p.wallet_id', '=', 'w.id');
+            })
+            ->select('w.user_id')
+            ->selectRaw('COALESCE(p.balance_rials, 0) as balance_rials');
+    }
+
+    private static function postings(): Builder
+    {
+        return DB::table('billing_postings')
+            ->where('account_code', 'wallet_liability')
+            ->groupBy('wallet_id')
+            ->selectRaw("wallet_id,
+                SUM(CASE WHEN side = 'credit' THEN amount_rials ELSE 0 END)
+                - SUM(CASE WHEN side = 'debit' THEN amount_rials ELSE 0 END) as balance_rials");
     }
 
     /**
