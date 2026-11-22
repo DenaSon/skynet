@@ -202,7 +202,7 @@ final readonly class ReadCustomerServiceDiagnostics
      * A diagnostic POST starts a server-side observation job, not a user mutation.
      * Feature-gated, root-only, one explicit start per service/actor/cooldown.
      *
-     * @return array{state:string,nodes:list<array{name:string,reports:int,lastSeenAt:?string}>}
+     * @return array{state:string,nodes:list<array{name:string,reports:int,lastSeenAt:?string,country:?string,ips:list<array{ip:string,lastSeenAt:string}>}>}
      */
     public function startConnections(int $actorId, int $subjectId, int $orderId): array
     {
@@ -260,9 +260,9 @@ final readonly class ReadCustomerServiceDiagnostics
     }
 
     /**
-     * Explicit on-demand GET polling only. Never auto-post, never publish IPs.
+     * Explicit on-demand GET polling only. IP details are root-only, bounded and ephemeral.
      *
-     * @return array{state:string,nodes:list<array{name:string,reports:int,lastSeenAt:?string}>}
+     * @return array{state:string,nodes:list<array{name:string,reports:int,lastSeenAt:?string,country:?string,ips:list<array{ip:string,lastSeenAt:string}>}>}
      */
     public function connectionResult(int $actorId, int $subjectId, int $orderId): array
     {
@@ -317,8 +317,10 @@ final readonly class ReadCustomerServiceDiagnostics
                         throw new UnexpectedValueException('Invalid connection node response.');
                     }
                     $latestTimestamp = null;
+                    $observations = [];
                     foreach ($node['ips'] as $seen) {
                         if (! is_array($seen) || ! is_string($seen['ip'] ?? null)
+                            || filter_var($seen['ip'], FILTER_VALIDATE_IP) === false
                             || ! is_string($seen['lastSeen'] ?? null)
                             || preg_match('/\A[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,9})?(?:Z|[+-][0-9]{2}:[0-9]{2})\z/D', $seen['lastSeen']) !== 1) {
                             throw new UnexpectedValueException('Invalid observed connection.');
@@ -329,11 +331,19 @@ final readonly class ReadCustomerServiceDiagnostics
                         }
                         $timestamp = $observed->getTimestamp();
                         $latestTimestamp = $latestTimestamp === null ? $timestamp : max($latestTimestamp, $timestamp);
+                        $observations[] = [
+                            'ip' => $seen['ip'],
+                            'lastSeenAt' => gmdate('Y-m-d\TH:i:s\Z', $timestamp),
+                        ];
                     }
+                    usort($observations, static fn (array $a, array $b): int => strcmp($b['lastSeenAt'], $a['lastSeenAt']));
+                    $country = $node['countryCode'] ?? null;
                     $nodes[] = [
                         'name' => $node['nodeName'],
                         'reports' => count($node['ips']),
                         'lastSeenAt' => $latestTimestamp === null ? null : gmdate('Y-m-d\TH:i:s\Z', $latestTimestamp),
+                        'country' => is_string($country) && preg_match('/\A[A-Z]{2}\z/D', $country) === 1 ? $country : null,
+                        'ips' => array_slice($observations, 0, 10),
                     ];
                 }
                 $result = ['state' => 'completed', 'nodes' => $nodes];
@@ -352,7 +362,7 @@ final readonly class ReadCustomerServiceDiagnostics
         return $result;
     }
 
-    /** @return array{state:string,nodes:list<array{name:string,reports:int,lastSeenAt:?string}>} */
+    /** @return array{state:string,nodes:list<array{name:string,reports:int,lastSeenAt:?string,country:?string,ips:list<array{ip:string,lastSeenAt:string}>}>} */
     private static function connectionState(string $state): array
     {
         return ['state' => $state, 'nodes' => []];
