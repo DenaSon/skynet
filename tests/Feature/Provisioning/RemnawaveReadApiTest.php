@@ -175,3 +175,55 @@ it('rejects malformed or negative panel resource stats without accepting fabrica
     expect(fn () => remnawaveReadApi()->systemStats())->toThrow(UnexpectedValueException::class);
     Http::assertSentCount(1);
 });
+
+it('preserves valid fractional interface rates without creating false zero signals', function (): void {
+    Http::preventStrayRequests();
+    Http::fake([
+        'https://rw.example.test/api/nodes' => Http::response([
+            'response' => [
+                [
+                    'uuid' => '550e8400-e29b-41d4-a716-446655440001',
+                    'name' => 'fractional',
+                    'isConnected' => true,
+                    'isDisabled' => false,
+                    'usersOnline' => 7,
+                    'system' => ['stats' => ['interface' => [
+                        'rxBytesPerSec' => 34109.89010989,
+                        'txBytesPerSec' => 0.01,
+                    ]]],
+                ],
+                [
+                    'uuid' => '550e8400-e29b-41d4-a716-446655440002',
+                    'name' => 'zero',
+                    'isConnected' => true,
+                    'isDisabled' => false,
+                    'system' => ['stats' => ['interface' => [
+                        'rxBytesPerSec' => 0.0,
+                        'txBytesPerSec' => '0.000',
+                    ]]],
+                ],
+                [
+                    'uuid' => '550e8400-e29b-41d4-a716-446655440003',
+                    'name' => 'malformed',
+                    'isConnected' => true,
+                    'isDisabled' => false,
+                    'system' => ['stats' => ['interface' => [
+                        'rxBytesPerSec' => -1.2,
+                        'txBytesPerSec' => '1e3',
+                    ]]],
+                ],
+            ],
+        ]),
+    ]);
+
+    $nodes = remnawaveReadApi()->nodes();
+
+    expect($nodes[0]->rxBytesPerSec)->toBe(34110)
+        ->and($nodes[0]->txBytesPerSec)->toBe(1)
+        ->and($nodes[1]->rxBytesPerSec)->toBe(0)
+        ->and($nodes[1]->txBytesPerSec)->toBe(0)
+        ->and($nodes[2]->rxBytesPerSec)->toBeNull()
+        ->and($nodes[2]->txBytesPerSec)->toBeNull();
+
+    Http::assertSentCount(1);
+});
