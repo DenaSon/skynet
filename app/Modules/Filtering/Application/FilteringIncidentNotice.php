@@ -7,6 +7,7 @@ namespace App\Modules\Filtering\Application;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveApiClientFactory;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveReadApi;
 use App\Support\PersianCalendar;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -88,6 +89,8 @@ final readonly class FilteringIncidentNotice
                 $label = match ($cause) {
                     'online_zero' => 'کاربران آنلاین صفر',
                     'traffic_zero' => 'ترافیک صفر',
+                    'online_drop' => 'افت غیرعادی کاربران',
+                    'traffic_drop' => 'افت غیرعادی ترافیک',
                     'regional_possible' => 'دسترسی نامطمئن از ایران',
                     'regional_likely' => 'اختلال گسترده دسترسی از ایران',
                     default => null,
@@ -109,10 +112,15 @@ final readonly class FilteringIncidentNotice
             default => $row->last_observed_at,
         };
         $time = PersianCalendar::utcDateTime((string) $eventTime);
+        $localHour = CarbonImmutable::parse((string) $eventTime, 'UTC')->setTimezone('Asia/Tehran')->hour;
+        $period = $localHour >= 1 && $localHour < 7
+            ? '🌙 هشدار شبانه'
+            : '📡 هشدار فعالیت غیرعادی';
 
         return '<b>'.$heading.' — '.$escaped.'</b>'
             .($kind === 'recover' || $causes === [] ? ''
-                : "\n".(count($causes) === 1 ? 'نشانه: ' : 'نشانه‌ها: ').implode('، ', array_keys($causes)))
+                : "\n".$period.' | '.(count($causes) === 1 ? 'نشانه: ' : 'نشانه‌ها: ')
+                    .implode('، ', array_keys($causes)))
             ."\n🕒 ".$time.' (تهران)';
     }
 }

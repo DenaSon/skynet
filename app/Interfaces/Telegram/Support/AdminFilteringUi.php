@@ -493,6 +493,8 @@ final readonly class AdminFilteringUi
         $map = [
             'online_zero' => 'کاربران آنلاین صفر',
             'traffic_zero' => 'ترافیک صفر',
+            'online_drop' => 'افت غیرعادی کاربران',
+            'traffic_drop' => 'افت غیرعادی ترافیک',
             'regional_possible' => 'دسترسی نامطمئن از ایران',
             'regional_likely' => 'اختلال گسترده در دسترسی',
         ];

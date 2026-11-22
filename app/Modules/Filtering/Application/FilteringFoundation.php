@@ -27,12 +27,13 @@ final class FilteringFoundation
 
     private const COUNTERS = [
         'online_users', 'rx_bytes_per_sec', 'tx_bytes_per_sec',
+        'online_reference', 'traffic_reference',
         'completed_probes', 'failed_probes', 'asn_count', 'city_count',
         'failed_asn_count', 'failed_city_count', 'pending_probes',
     ];
 
     private const CAUSES = [
-        'node' => ['online_zero', 'traffic_zero'],
+        'node' => ['online_zero', 'traffic_zero', 'online_drop', 'traffic_drop'],
         'regional' => ['regional_possible', 'regional_likely'],
     ];
 
@@ -112,7 +113,7 @@ final class FilteringFoundation
                     'active_node_uuid' => $nodeUuid,
                     'state' => $outcome,
                     'affected_modules' => json_encode([
-                        $module => ['state' => $outcome, 'causes' => $evidence['causes'], 'observed_at' => $observed->toDateTimeString()],
+                        $module => $this->incidentModule($module, $outcome, $evidence, $observed),
                     ], JSON_THROW_ON_ERROR),
                     'opened_at' => $now,
                     'last_observed_at' => $observed,
@@ -134,11 +135,10 @@ final class FilteringFoundation
             if ($outcome === 'healthy') {
                 unset($modules[$module]);
             } else {
-                $modules[$module] = [
-                    'state' => $outcome,
-                    'causes' => $evidence['causes'],
-                    'observed_at' => $observed->toDateTimeString(),
-                ];
+                $modules[$module] = $this->incidentModule(
+                    $module, $outcome, $evidence, $observed,
+                    is_array($modules[$module] ?? null) ? $modules[$module] : [],
+                );
             }
 
             $updated = [
@@ -204,6 +204,43 @@ final class FilteringFoundation
         ];
     }
 
+    /**
+     * Retain the original relative-drop trigger reference for the lifetime
+     * of the active incident, including prolonged provider/Node outages.
+     * The incident map already persists the module's state and causes.
+     *
+     * @param  array<string, mixed>  $evidence
+     * @param  array<string, mixed>  $previous
+     * @return array<string, mixed>
+     */
+    private function incidentModule(
+        string $module,
+        string $outcome,
+        array $evidence,
+        CarbonImmutable $observed,
+        array $previous = [],
+    ): array {
+        $data = [
+            'state' => $outcome,
+            'causes' => $evidence['causes'],
+            'observed_at' => $observed->toDateTimeString(),
+        ];
+
+        if ($module === 'node') {
+            foreach (['online_drop' => 'online_reference', 'traffic_drop' => 'traffic_reference'] as $cause => $key) {
+                if (! in_array($cause, $evidence['causes'], true)) {
+                    continue;
+                }
+                $reference = $evidence[$key] ?? $previous[$key] ?? null;
+                if (is_int($reference) && $reference >= 0) {
+                    $data[$key] = $reference;
+                }
+            }
+        }
+
+        return $data;
+    }
+
     private function validatedNode(string $nodeUuid): string
     {
         if (! preg_match('/\A[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\z/i', $nodeUuid)) {
@@ -227,7 +264,7 @@ final class FilteringFoundation
         }
         $causes = $evidence['causes'] ?? [];
         if (! is_array($causes) || ! array_is_list($causes)
-            || count($causes) > 2) {
+            || count($causes) > ($module === 'node' ? 4 : 2)) {
             throw new InvalidArgumentException('Filtering causes are invalid.');
         }
         foreach ($causes as $cause) {
