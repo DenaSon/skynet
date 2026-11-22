@@ -101,7 +101,7 @@ it('reads only validated user-specific daily usage without leaking provider reco
         && str_contains($request->url(), 'topNodesLimit=5'));
 });
 
-it('returns only safe history fields, never IP addresses or user agents', function (): void {
+it('returns bounded root-only subscription history with validated request IP and User-Agent', function (): void {
     $root = supDiagRoot();
     [$buyer, $order, $remote] = supDiagOrder();
     Http::fake(static function (Request $request) use ($remote) {
@@ -120,9 +120,60 @@ it('returns only safe history fields, never IP addresses or user agents', functi
 
     $result = app(ReadCustomerServiceDiagnostics::class)->history($root->id, $buyer->id, $order);
     expect($result['state'])->toBe('available')
-        ->and($result['records'])->toBe([['at' => '2026-11-22T09:20:00+00:00', 'type' => 'XRAY_BASE64']])
-        ->and(json_encode($result))->not->toContain('203.0.113.3', 'secret-device');
+        ->and($result['records'])->toBe([[
+            'at' => '2026-11-22T09:20:00+00:00',
+            'type' => 'XRAY_BASE64', 'ip' => '203.0.113.3',
+            'agent' => 'secret-device', 'rule' => null,
+        ]])->and(json_encode($result))->not->toContain('diagnostic-private-token', 'private-short-uuid');
     Http::assertSentCount(2);
+});
+
+it('bounds 24 subscription history records and normalizes optional sensitive metadata', function (): void {
+    $root = supDiagRoot();
+    [$buyer, $order, $remote] = supDiagOrder();
+    $records = [];
+    for ($i = 0; $i < 24; $i++) {
+        $records[] = [
+            'userId' => 42, 'requestAt' => '2026-11-22T09:20:00Z',
+            'srrResponseType' => 'XRAY_BASE64',
+            'requestIp' => $i === 0 ? '2001:db8::20' : '999.999.999.999',
+            'userAgent' => $i === 0 ? 'v2rayNG <script>' : "unsafe\nuser agent",
+            'srrRuleName' => $i === 0 ? 'Default' : null,
+        ];
+    }
+    Http::fake(static function (Request $request) use ($remote, $records) {
+        return parse_url($request->url(), PHP_URL_PATH) === '/api/users/42'
+            ? Http::response(['response' => $remote])
+            : Http::response(['response' => ['total' => 42, 'records' => $records]]);
+    });
+
+    $result = app(ReadCustomerServiceDiagnostics::class)->history($root->id, $buyer->id, $order);
+    expect($result['state'])->toBe('available')
+        ->and($result['total'])->toBe(42)
+        ->and($result['records'])->toHaveCount(24)
+        ->and($result['records'][0]['ip'])->toBe('2001:db8::20')
+        ->and($result['records'][0]['agent'])->toBe('v2rayNG <script>')
+        ->and($result['records'][0]['rule'])->toBe('Default')
+        ->and($result['records'][1]['ip'])->toBeNull()
+        ->and($result['records'][1]['agent'])->toBeNull()
+        ->and(json_encode($result))->not->toContain('diagnostic-private-token', 'subscriptionUrl');
+    Http::assertSentCount(2);
+});
+
+it('refuses cross-user history records rather than returning another customer request metadata', function (): void {
+    $root = supDiagRoot();
+    [$buyer, $order, $remote] = supDiagOrder();
+    Http::fake(static function (Request $request) use ($remote) {
+        return parse_url($request->url(), PHP_URL_PATH) === '/api/users/42'
+            ? Http::response(['response' => $remote])
+            : Http::response(['response' => ['total' => 1, 'records' => [[
+                'userId' => 99, 'requestAt' => '2026-11-22T09:20:00Z',
+                'srrResponseType' => 'XRAY_BASE64', 'requestIp' => '203.0.113.31',
+                'userAgent' => 'private-other-customer',
+            ]]]]);
+    });
+    $result = app(ReadCustomerServiceDiagnostics::class)->history($root->id, $buyer->id, $order);
+    expect($result)->toBe(['state' => 'unavailable', 'total' => null, 'records' => []]);
 });
 
 it('links accessible nodes to existing monitoring evidence without guessing health', function (): void {
