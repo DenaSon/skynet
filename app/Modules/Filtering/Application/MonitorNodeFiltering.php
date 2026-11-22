@@ -242,9 +242,9 @@ final readonly class MonitorNodeFiltering
      * a fixed time-of-day profile. Retain the trigger baseline across later
      * observations so a prolonged drop cannot normalize itself away.
      *
-     * @param array<string, mixed> $evidence
-     * @param array<string, mixed> $previous
-     * @param list<string> $causes
+     * @param  array<string, mixed>  $evidence
+     * @param  array<string, mixed>  $previous
+     * @param  list<string>  $causes
      * @return list<string>
      */
     private function activityDrops(
