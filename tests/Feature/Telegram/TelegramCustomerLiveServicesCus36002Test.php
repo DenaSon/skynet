@@ -771,7 +771,6 @@ it('shows the latest node observation in Tehran time with Rich and native fallba
         ->toBe(1);
 });
 
-
 it('paginates detailed subscription history with safe IP and User-Agent in Rich and fallback', function (): void {
     $root = User::factory()->create();
     $root->syncRoles(['super-admin']);
@@ -837,7 +836,6 @@ it('paginates detailed subscription history with safe IP and User-Agent in Rich 
     expect(collect(Http::recorded())->every(static fn (array $pair): bool => $pair[0]->method() === 'GET'))
         ->toBeTrue();
 });
-
 
 it('paginates observed IPs five per node page without spawning additional Remnawave jobs', function (): void {
     Cache::flush();
