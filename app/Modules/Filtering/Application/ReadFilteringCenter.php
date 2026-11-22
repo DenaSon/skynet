@@ -335,7 +335,7 @@ final readonly class ReadFilteringCenter
      */
     private static function causes(array $modules): array
     {
-        $allowed = ['online_zero', 'traffic_zero', 'regional_possible', 'regional_likely'];
+        $allowed = ['online_zero', 'traffic_zero', 'online_drop', 'traffic_drop', 'regional_possible', 'regional_likely'];
         $causes = [];
         foreach ($modules as $module) {
             if (! is_array($module) || ! is_array($module['causes'] ?? null)) {
