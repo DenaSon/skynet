@@ -61,6 +61,23 @@ it('probes both enabled Telegram bots but never saves their tokens or response b
     Http::assertSent(static fn ($request): bool => $request->method() === 'GET');
 });
 
+it('checks Deniz Telegram connectivity when its own bot is enabled', function (): void {
+    config()->set('nutgram.token', '123:admin');
+    config()->set('telegram.sales.enabled', true);
+    config()->set('telegram.sales.token', '456:sales');
+    config()->set('telegram.denix.enabled', true);
+    config()->set('denagate_ai.enabled', true);
+    config()->set('telegram.denix.token', '789:deniz');
+    Http::fake(['https://api.telegram.org/*' => Http::response([
+        'ok' => true, 'result' => ['id' => 123],
+    ], 200)]);
+
+    $check = app(OperationalProbe::class)->inspect('telegram_api');
+    expect($check)->toBe(['status' => 'ok', 'summary' => '3 bots']);
+    Http::assertSentCount(3);
+    Http::assertSent(static fn ($request): bool => $request->method() === 'GET');
+});
+
 it('measures queue backlog and recent failed jobs without modifying jobs', function (): void {
     config()->set('queue.default', 'database');
     DB::table('jobs')->insert([
