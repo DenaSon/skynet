@@ -1043,3 +1043,38 @@ it('uses unknown instead of fabricated zero for absent historic Node samples', f
     expect(app(FilteringIncidentNotice::class)->messageFor($opening))
         ->toContain('👥 کاربران آنلاین: نامشخص', '📉 افت ترافیک: نامشخص');
 });
+
+it('pins a delayed escalation notice to its original outbox event, not a newer Node sample', function (): void {
+    flt02EnableRootNotifications();
+    for ($i = 0; $i < 7; $i++) {
+        flt02Step(12, 1000000, 1000000, $i === 0 ? 0 : 2);
+    }
+    flt02Step(12, 300000, 300000);
+    flt02Step(12, 300000, 300000);
+
+    $opening = DB::table('telegram_notification_deliveries')
+        ->where('event_type', 'FilteringOpened')->first();
+    app(DispatchTelegramNotification::class, ['deliveryId' => (int) $opening->id])
+        ->handle(app(TelegramNotificationSender::class));
+
+    flt02Step(12, 0, 0);
+    flt02Step(12, 0, 0);
+    $escalation = DB::table('telegram_notification_deliveries')
+        ->where('event_type', 'FilteringEscalated')->first();
+    expect($escalation)->not->toBeNull();
+
+    $original = app(FilteringIncidentNotice::class)->messageFor($escalation);
+    expect($original)->toContain(
+        '🚨 اختلال ثبت‌شده',
+        '👥 کاربران آنلاین: 12 نفر',
+        '📉 افت ترافیک: 100٪',
+        '📊 نرخ ترافیک: 976.6 KiB/s ← 0 B/s',
+    );
+
+    // The incident's mutable last_observed_at now advances, but the outbox
+    // escalation timestamp and its historical Node snapshot must not move.
+    flt02Step(18, 100000, 100000);
+    expect(app(FilteringIncidentNotice::class)->messageFor($escalation))
+        ->toBe($original)
+        ->not->toContain('👥 کاربران آنلاین: 18 نفر', '97.7 KiB/s');
+});
