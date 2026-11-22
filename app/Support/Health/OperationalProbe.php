@@ -206,21 +206,29 @@ final class OperationalProbe
         if (config('telegram.sales.enabled') === true) {
             $tokens['sales'] = config('telegram.sales.token');
         }
+        if (config('telegram.denix.enabled') === true
+            && config('denagate_ai.enabled') === true) {
+            $tokens['deniz'] = config('telegram.denix.token');
+        }
 
         $checked = 0;
-        foreach ($tokens as $token) {
+        foreach ($tokens as $botName => $token) {
             if (! is_string($token) || trim($token) === '') {
                 return ['status' => 'warning', 'summary' => 'not configured'];
             }
 
             // Never log the token-bearing URL, response body or exceptions.
-            $response = Http::acceptJson()->timeout(3)->connectTimeout(2)
-                ->withOptions(['allow_redirects' => false])
-                ->get('https://api.telegram.org/bot'.$token.'/getMe');
+            try {
+                $response = Http::acceptJson()->timeout(3)->connectTimeout(2)
+                    ->withOptions(['allow_redirects' => false])
+                    ->get('https://api.telegram.org/bot'.$token.'/getMe');
+            } catch (Throwable) {
+                return ['status' => 'failed', 'summary' => $botName.' unavailable'];
+            }
 
             if (! $response->successful() || $response->json('ok') !== true
                 || ! is_array($response->json('result'))) {
-                return ['status' => 'failed', 'summary' => 'API unreachable'];
+                return ['status' => 'failed', 'summary' => $botName.' unavailable'];
             }
             $checked++;
         }
@@ -243,8 +251,47 @@ final class OperationalProbe
             return $this->unknown();
         }
 
-        return ['status' => $count >= 100 ? 'failed' : ($count >= 20 ? 'warning' : 'ok'),
-            'summary' => $count.' pending'];
+        $aiEnabled = config('denagate_ai.enabled') === true && $queue !== 'ai';
+        $ai = $aiEnabled ? Queue::connection($connection)->size('ai') : 0;
+        if ($ai < 0) {
+            return $this->unknown();
+        }
+
+        $total = $count + $ai;
+        $summary = $aiEnabled ? $count.' default / '.$ai.' ai' : $count.' pending';
+
+        // The standard database queue exposes ready-job timestamps. Redis
+        // drivers have no safe equivalent here; never fabricate their age.
+        $age = null;
+        if ($driver === 'database' && $total > 0) {
+            $table = config('queue.connections.'.$connection.'.table', 'jobs');
+            if (is_string($table) && preg_match('/\A[a-zA-Z_][a-zA-Z_0-9]*\z/D', $table) === 1) {
+                $database = config('queue.connections.'.$connection.'.connection');
+                $db = DB::connection(is_string($database) && $database !== '' ? $database : null);
+                $names = $aiEnabled ? [$queue, 'ai'] : [$queue];
+                $retryAfter = config('queue.connections.'.$connection.'.retry_after', 90);
+                $retryAfter = is_int($retryAfter) && $retryAfter >= 1 && $retryAfter <= 3600
+                    ? $retryAfter : 90;
+                $oldest = $db->table($table)->whereIn('queue', $names)
+                    ->where('available_at', '<=', now()->timestamp)
+                    ->where(static function ($query) use ($retryAfter): void {
+                        $query->whereNull('reserved_at')
+                            ->orWhere('reserved_at', '<=', now()->timestamp - $retryAfter);
+                    })->min('created_at');
+                if (is_int($oldest) || (is_string($oldest) && ctype_digit($oldest))) {
+                    $age = max(0, now()->timestamp - (int) $oldest);
+                    if ($age >= 60) {
+                        $summary .= ' / '.intdiv($age, 60).' min';
+                    }
+                }
+            }
+        }
+
+        $failed = $total >= 100 || ($age !== null && $age >= 3600);
+        $warning = $total >= 20 || ($age !== null && $age >= 900);
+
+        return ['status' => $failed ? 'failed' : ($warning ? 'warning' : 'ok'),
+            'summary' => $summary];
     }
 
     /** @return array{status:string,summary:string} */

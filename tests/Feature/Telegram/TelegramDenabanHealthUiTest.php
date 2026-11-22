@@ -192,6 +192,23 @@ it('blocks ordinary, revoked and group users and does not execute checks or prov
     Http::assertNothingSent();
 });
 
+it('offers only existing authorized diagnostic routes from the Health screen', function (): void {
+    denabanHealthRoot();
+
+    denabanHealthBot()->hearCallbackQueryData('denaban:health:simple')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $buttons = json_encode(denabanHealthPayload($request)['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return str_contains($buttons, 'denaban:notifications:1')
+                && str_contains($buttons, 'full:attention:1')
+                && str_contains($buttons, 'menu:admin:servers')
+                && str_contains($buttons, 'flt:home')
+                && str_contains($buttons, 'denaban:show');
+        }, index: 1);
+
+    Http::assertNothingSent();
+});
+
 it('adds the Health button to the existing Denaban keyboard without changing its metrics', function (): void {
     denabanHealthRoot();
     config()->set('services.remnawave.url', 'https://health-ui.test');

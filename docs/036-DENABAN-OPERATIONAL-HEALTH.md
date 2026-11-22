@@ -7,8 +7,8 @@
 | ops_cpu | مصرف CPU | cgroup v2 `cpu.stat` usage delta over a one-second sample, divided by elapsed monotonic time and fractional `cpu.max` quota; optional `cpu.pressure` 10s wait shown as context only | Warning >=80% quota; failed >=95%; missing/invalid cgroup data: warning/unavailable |
 | ops_memory | RAM | cgroup v2 current/max (includes filesystem cache), falling back to Linux MemAvailable | Warning >=80%; failed >=95% |
 | ops_network_api | API شبکه | Existing authenticated **read-only** health operation, no writes | No runtime instance: warning; missing config: warning; unreachable / invalid: failed |
-| ops_telegram_api | Telegram API | getMe for Admin + separately enabled Sales bot, 3s/2s timeouts, redirects disabled | HTTP/JSON failure: failed; missing token: warning |
-| ops_queue_backlog | صف در انتظار | Laravel default queue size; no job payload inspection | >=20 warning; >=100 failed |
+| ops_telegram_api | Telegram API | getMe for Admin, enabled Sales, and independently enabled Deniz when AI is on; 3s/2s timeouts, redirects disabled | HTTP/JSON or connection failure: failed with safe bot label; missing token: warning |
+| ops_queue_backlog | صف در انتظار | Laravel default queue and (when AI enabled) dedicated `ai` queue; database-backed ready jobs only for oldest age; no payload inspection | combined >=20 warning, >=100 failed; oldest ready >=15m warning, >=60m failed |
 | ops_failed_jobs | Jobهای ناموفق | failed_jobs since last 24h | >0 warning; >=10 failed |
 | ops_notification_outbox | اعلان‌های معوق | pending >10m or expired processing lease, plus 24h terminal failures (exclude superseded notifications) | >0 warning; >=10 stale failed |
 | ops_sales_fulfillment | فعال‌سازی سفارش‌ها | needs_review outbox; paid pending >15m | >0 warning; >=5 review or >=10 stale failed |
@@ -41,6 +41,15 @@ Only known check names and a strictly bounded numeric/ASCII metric summary
 are read from Spatie's latest persisted batch. A partial/missing check can
 never be reported as green. One batch is capped to 24 rows.
 
+
+The dashboard links directly to the pre-existing trusted-root notification
+failures, paid-order follow-up, server overview and filtering center callbacks.
+No new callback permission, public route or automatic action is introduced.
+AI queue counts share the configured Laravel queue connection. Database-backed
+queue age excludes future-scheduled and currently leased jobs; Redis queue
+age is unknown and is never guessed. Queue counts do not prove worker liveness
+when no jobs are pending. No job payloads, Telegram tokens or messages are stored.
+
 ## Operations and rollout
 
 No Composer or migration change. Existing `DENAGATE_HEALTH_ENABLED` still
@@ -55,7 +64,7 @@ rely solely on existing configured bot tokens and the read-only provider
 client. Check the production environment can reach the two API hosts.
 No additional public routes or notifications are created.
 
-The checks add 1 network API GET and 1-2 Telegram getMe GETs per **two-minute Health check** when
+The checks add 1 network API GET and 1-3 Telegram getMe GETs per **two-minute Health check** when
 enabled; a network failure results in a warning/failed health observation,
 never a service deactivation.
 

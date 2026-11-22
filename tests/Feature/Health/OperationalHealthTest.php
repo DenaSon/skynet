@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Support\Health\DenaGateOperationalCheck;
 use App\Support\Health\OperationalProbe;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -74,6 +75,23 @@ it('probes both enabled Telegram bots but never saves their tokens or response b
     Http::assertSent(static fn ($request): bool => $request->method() === 'GET');
 });
 
+it('checks Deniz Telegram connectivity when its own bot is enabled', function (): void {
+    config()->set('nutgram.token', '123:admin');
+    config()->set('telegram.sales.enabled', true);
+    config()->set('telegram.sales.token', '456:sales');
+    config()->set('telegram.denix.enabled', true);
+    config()->set('denagate_ai.enabled', true);
+    config()->set('telegram.denix.token', '789:deniz');
+    Http::fake(['https://api.telegram.org/*' => Http::response([
+        'ok' => true, 'result' => ['id' => 123],
+    ], 200)]);
+
+    $check = app(OperationalProbe::class)->inspect('telegram_api');
+    expect($check)->toBe(['status' => 'ok', 'summary' => '3 bots']);
+    Http::assertSentCount(3);
+    Http::assertSent(static fn ($request): bool => $request->method() === 'GET');
+});
+
 it('measures queue backlog and recent failed jobs without modifying jobs', function (): void {
     config()->set('queue.default', 'database');
     DB::table('jobs')->insert([
@@ -95,6 +113,54 @@ it('measures queue backlog and recent failed jobs without modifying jobs', funct
     $failed = app(OperationalProbe::class)->inspect('failed_jobs');
     expect($failed['status'])->toBe('warning')
         ->and($failed['summary'])->toBe('1 / 24h');
+});
+
+it('checks the dedicated AI queue and ages only ready database jobs without touching payloads', function (): void {
+    config()->set('queue.default', 'database');
+    config()->set('denagate_ai.enabled', true);
+    DB::table('jobs')->insert([
+        'queue' => 'ai', 'payload' => '{}', 'attempts' => 0,
+        'reserved_at' => null,
+        'available_at' => now()->subMinutes(25)->timestamp,
+        'created_at' => now()->subMinutes(25)->timestamp,
+    ]);
+    $check = app(OperationalProbe::class)->inspect('queue_backlog');
+    expect($check)->toBe(['status' => 'warning', 'summary' => '0 default / 1 ai / 25 min']);
+
+    // A future-scheduled job is not an overdue ready job.
+    DB::table('jobs')->delete();
+    DB::table('jobs')->insert([
+        'queue' => 'ai', 'payload' => '{}', 'attempts' => 0,
+        'reserved_at' => null,
+        'available_at' => now()->addHour()->timestamp,
+        'created_at' => now()->subMinutes(90)->timestamp,
+    ]);
+    $check = app(OperationalProbe::class)->inspect('queue_backlog');
+    expect($check['status'])->toBe('ok')
+        ->and($check['summary'])->toBe('0 default / 1 ai');
+
+    // A currently reserved worker job is not counted as overdue ready work.
+    DB::table('jobs')->delete();
+    DB::table('jobs')->insert([
+        'queue' => 'ai', 'payload' => '{}', 'attempts' => 1,
+        'reserved_at' => now()->timestamp,
+        'available_at' => now()->subHour()->timestamp,
+        'created_at' => now()->subHours(2)->timestamp,
+    ]);
+    $reserved = app(OperationalProbe::class)->inspect('queue_backlog');
+    expect($reserved['status'])->toBe('ok')
+        ->and($reserved['summary'])->toBe('0 default / 1 ai');
+});
+
+it('classifies safe Telegram API connection failures by the affected bot', function (): void {
+    config()->set('nutgram.token', '123:fixture');
+    config()->set('telegram.sales.enabled', false);
+    Http::fake(static function (): never {
+        throw new ConnectionException('private url must not leak');
+    });
+
+    $check = app(OperationalProbe::class)->inspect('telegram_api');
+    expect($check)->toBe(['status' => 'failed', 'summary' => 'admin unavailable']);
 });
 
 it('distinguishes missing, valid Redis string, stale and invalid subscription heartbeats', function (): void {
