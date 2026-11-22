@@ -106,6 +106,29 @@ it('checks the dedicated AI queue and ages only ready database jobs without touc
     $check = app(OperationalProbe::class)->inspect('queue_backlog');
     expect($check['status'])->toBe('ok')
         ->and($check['summary'])->toBe('0 default / 1 ai');
+
+    // A currently reserved worker job is not counted as overdue ready work.
+    DB::table('jobs')->delete();
+    DB::table('jobs')->insert([
+        'queue' => 'ai', 'payload' => '{}', 'attempts' => 1,
+        'reserved_at' => now()->timestamp,
+        'available_at' => now()->subHour()->timestamp,
+        'created_at' => now()->subHours(2)->timestamp,
+    ]);
+    $reserved = app(OperationalProbe::class)->inspect('queue_backlog');
+    expect($reserved['status'])->toBe('ok')
+        ->and($reserved['summary'])->toBe('0 default / 1 ai');
+});
+
+it('classifies safe Telegram API connection failures by the affected bot', function (): void {
+    config()->set('nutgram.token', '123:fixture');
+    config()->set('telegram.sales.enabled', false);
+    Http::fake(static function (): never {
+        throw new \Illuminate\Http\Client\ConnectionException('private url must not leak');
+    });
+
+    $check = app(OperationalProbe::class)->inspect('telegram_api');
+    expect($check)->toBe(['status' => 'failed', 'summary' => 'admin unavailable']);
 });
 
 it('distinguishes missing, valid Redis string, stale and invalid subscription heartbeats', function (): void {
