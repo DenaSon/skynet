@@ -83,6 +83,31 @@ it('measures queue backlog and recent failed jobs without modifying jobs', funct
         ->and($failed['summary'])->toBe('1 / 24h');
 });
 
+it('checks the dedicated AI queue and ages only ready database jobs without touching payloads', function (): void {
+    config()->set('queue.default', 'database');
+    config()->set('denagate_ai.enabled', true);
+    DB::table('jobs')->insert([
+        'queue' => 'ai', 'payload' => '{}', 'attempts' => 0,
+        'reserved_at' => null,
+        'available_at' => now()->subMinutes(25)->timestamp,
+        'created_at' => now()->subMinutes(25)->timestamp,
+    ]);
+    $check = app(OperationalProbe::class)->inspect('queue_backlog');
+    expect($check)->toBe(['status' => 'warning', 'summary' => '0 default / 1 ai / 25 min']);
+
+    // A future-scheduled job is not an overdue ready job.
+    DB::table('jobs')->delete();
+    DB::table('jobs')->insert([
+        'queue' => 'ai', 'payload' => '{}', 'attempts' => 0,
+        'reserved_at' => null,
+        'available_at' => now()->addHour()->timestamp,
+        'created_at' => now()->subMinutes(90)->timestamp,
+    ]);
+    $check = app(OperationalProbe::class)->inspect('queue_backlog');
+    expect($check['status'])->toBe('ok')
+        ->and($check['summary'])->toBe('0 default / 1 ai');
+});
+
 it('distinguishes missing, valid Redis string, stale and invalid subscription heartbeats', function (): void {
     config()->set('telegram.sales.enabled', true);
     config()->set('telegram_notifications.enabled', true);
