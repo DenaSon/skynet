@@ -204,7 +204,9 @@ final readonly class AdminHealthUi
         }
 
         if ($failed + $warnings + $unknown === 0) {
-            return 'همه '.count($data['items']).' بررسی ثبت‌شده سالم‌اند.';
+            return $data['state'] === 'healthy'
+                ? 'همه '.count($data['items']).' بررسی ثبت‌شده سالم‌اند.'
+                : 'نتایج ثبت‌شده خطایی ندارند، اما گزارش کامل یا به‌روز نیست.';
         }
 
         return $failed.' اختلال · '.$warnings.' هشدار · '.$unknown.' نامشخص';
@@ -217,6 +219,7 @@ final readonly class AdminHealthUi
             'unavailable' => 'اطلاعات در دسترس نیست',
             'not configured' => 'تنظیم نشده',
             'API unreachable' => 'ارتباط برقرار نشد',
+            'invalid response' => 'پاسخ پنل معتبر نیست',
             'disabled' => 'غیرفعال',
             'no heartbeat' => 'زمان آخرین اجرا نامشخص',
             'no worker queue' => 'صف پردازش فعال نیست',
