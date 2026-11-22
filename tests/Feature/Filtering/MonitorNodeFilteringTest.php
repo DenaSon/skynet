@@ -205,14 +205,14 @@ it('retains independent traffic-zero alerts on low-user nodes', function (): voi
         ->toBe(1);
 });
 
-it('notifies when confirmed traffic-zero joins an unnotified online-only incident', function (): void {
+it('keeps one group opening when traffic-zero joins an already notified online-zero incident', function (): void {
     flt02EnableRootNotifications();
     flt02Step(1, 100, 100, 0);
     flt02Step(0, 100, 100);
     flt02Step(0, 100, 100);
 
     expect(DB::table('filtering_incidents')->count())->toBe(1)
-        ->and(DB::table('telegram_notification_deliveries')->count())->toBe(0);
+        ->and(DB::table('telegram_notification_deliveries')->where('event_type', 'FilteringOpened')->count())->toBe(1);
 
     flt02Step(0, 0, 0);
     flt02Step(0, 0, 0);
