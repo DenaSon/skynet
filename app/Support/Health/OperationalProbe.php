@@ -205,7 +205,7 @@ final class OperationalProbe
         }
 
         $checked = 0;
-        foreach ($tokens as $token) {
+        foreach ($tokens as $botName => $token) {
             if (! is_string($token) || trim($token) === '') {
                 return ['status' => 'warning', 'summary' => 'not configured'];
             }
@@ -217,7 +217,7 @@ final class OperationalProbe
 
             if (! $response->successful() || $response->json('ok') !== true
                 || ! is_array($response->json('result'))) {
-                return ['status' => 'failed', 'summary' => 'API unreachable'];
+                return ['status' => 'failed', 'summary' => $botName.' unavailable'];
             }
             $checked++;
         }
@@ -240,8 +240,40 @@ final class OperationalProbe
             return $this->unknown();
         }
 
-        return ['status' => $count >= 100 ? 'failed' : ($count >= 20 ? 'warning' : 'ok'),
-            'summary' => $count.' pending'];
+        $aiEnabled = config('denagate_ai.enabled') === true && $queue !== 'ai';
+        $ai = $aiEnabled ? Queue::connection($connection)->size('ai') : 0;
+        if ($ai < 0) {
+            return $this->unknown();
+        }
+
+        $total = $count + $ai;
+        $summary = $aiEnabled ? $count.' default / '.$ai.' ai' : $count.' pending';
+
+        // The standard database queue exposes ready-job timestamps. Redis
+        // drivers have no safe equivalent here; never fabricate their age.
+        $age = null;
+        if ($driver === 'database' && $total > 0) {
+            $table = config('queue.connections.'.$connection.'.table', 'jobs');
+            if (is_string($table) && preg_match('/\A[a-zA-Z_][a-zA-Z_0-9]*\z/D', $table) === 1) {
+                $database = config('queue.connections.'.$connection.'.connection');
+                $db = DB::connection(is_string($database) && $database !== '' ? $database : null);
+                $names = $aiEnabled ? [$queue, 'ai'] : [$queue];
+                $oldest = $db->table($table)->whereIn('queue', $names)
+                    ->where('available_at', '<=', now()->timestamp)->min('created_at');
+                if (is_int($oldest) || (is_string($oldest) && ctype_digit($oldest))) {
+                    $age = max(0, now()->timestamp - (int) $oldest);
+                    if ($age >= 60) {
+                        $summary .= ' / '.intdiv($age, 60).' min';
+                    }
+                }
+            }
+        }
+
+        $failed = $total >= 100 || ($age !== null && $age >= 3600);
+        $warning = $total >= 20 || ($age !== null && $age >= 900);
+
+        return ['status' => $failed ? 'failed' : ($warning ? 'warning' : 'ok'),
+            'summary' => $summary];
     }
 
     /** @return array{status:string,summary:string} */
