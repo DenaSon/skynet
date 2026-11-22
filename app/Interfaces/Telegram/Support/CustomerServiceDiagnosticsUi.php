@@ -121,7 +121,7 @@ final readonly class CustomerServiceDiagnosticsUi
             ));
             if ($kind === 'result' && $connectionData['state'] === 'completed') {
                 foreach ($connectionData['nodes'] as $index => $node) {
-                    if (($node['ips'] ?? []) !== []) {
+                    if ($node['ips'] !== []) {
                         $keyboard->addRow(InlineKeyboardButton::make(
                             '📋 IPهای '.$node['name'], callback_data: $back("ip{$index}p1"),
                         ));
