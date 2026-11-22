@@ -7,15 +7,10 @@ namespace App\Modules\Filtering\Application;
 use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Identity\Application\SuperAdminTrust;
-use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
 final readonly class FilteringIncidentAlerts
 {
-    private const STRONG_ONLINE_USERS = 3;
-
-    private const ONLINE_BASELINE_MINUTES = 30;
-
     private const ONLINE_REPEAT_COOLDOWN_MINUTES = 30;
 
     private const MAX_RECENT_INCIDENTS = 16;
@@ -95,9 +90,7 @@ final readonly class FilteringIncidentAlerts
             return;
         }
 
-        // Preserve every SQL incident and sample, but only notify on
-        // online-only zero incidents after meaningful prior user activity.
-        // Independent traffic/regional evidence must bypass this noise guard.
+        // Send low-activity warnings at any hour, subject only to repeat-alert cooldown.
         if ($kind === 'open' && $sourceModule === 'node' && $this->deferOnlineOnlyOpening($incident)) {
             return;
         }
@@ -142,8 +135,8 @@ final readonly class FilteringIncidentAlerts
     }
 
     /**
-     * Only low-priority online-only openings are gated. If an independent
-     * traffic/regional cause joins later, the same incident can still notify.
+     * Suppress only recently delivered repeat online-zero openings.
+     * Independent traffic/regional evidence can still notify this incident.
      */
     private function deferOnlineOnlyOpening(object $incident): bool
     {
@@ -156,49 +149,7 @@ final readonly class FilteringIncidentAlerts
             return false;
         }
 
-        return ! $this->hasStrongOnlineBaseline($incident)
-            || $this->recentOnlineOnlyOpeningExists($incident);
-    }
-
-    private function hasStrongOnlineBaseline(object $incident): bool
-    {
-        // A composite incident may have started hours before its first Node
-        // signal. Anchor the 30-minute user baseline to the current Node
-        // observation, not to an unrelated regional opening timestamp.
-        $modules = json_decode((string) $incident->affected_modules, true);
-        $observedAt = is_array($modules) ? ($modules['node']['observed_at'] ?? null) : null;
-        if (! is_string($observedAt)) {
-            return false;
-        }
-        $nodeAt = CarbonImmutable::parse($observedAt);
-        $rows = DB::table('filtering_checks')
-            ->where('node_uuid', $incident->node_uuid)
-            ->where('module', 'node')
-            ->where('observed_at', '>=', $nodeAt->subMinutes(self::ONLINE_BASELINE_MINUTES))
-            ->where('observed_at', '<=', $nodeAt)
-            ->orderByDesc('observed_at')->limit(32)
-            ->get(['observed_at', 'evidence']);
-
-        $previous = null;
-        foreach ($rows as $row) {
-            $evidence = json_decode((string) $row->evidence, true);
-            $online = is_array($evidence) ? ($evidence['online_users'] ?? null) : null;
-            if (! is_int($online) || $online < self::STRONG_ONLINE_USERS) {
-                $previous = null;
-
-                continue;
-            }
-            $observed = CarbonImmutable::parse($row->observed_at);
-            if ($previous !== null) {
-                $gap = $previous->timestamp - $observed->timestamp;
-                if ($gap > 0 && $gap <= 180) {
-                    return true;
-                }
-            }
-            $previous = $observed;
-        }
-
-        return false;
+        return $this->recentOnlineOnlyOpeningExists($incident);
     }
 
     private function recentOnlineOnlyOpeningExists(object $incident): bool
