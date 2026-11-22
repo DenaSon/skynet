@@ -226,7 +226,7 @@ it('avoids topup and journal history reads for an authorized support balance', f
             $historyReads++;
         }
     });
-    $result = app(\App\Modules\Identity\Application\ReadCustomerSupportProfile::class)->handle($root->id, $customer->id);
+    $result = app(ReadCustomerSupportProfile::class)->handle($root->id, $customer->id);
     expect($result['walletBalanceRials'])->toBe(450000)->and($historyReads)->toBe(0);
 });
 
