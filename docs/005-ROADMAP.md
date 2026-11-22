@@ -1,3 +1,7 @@
+## SUP-DIAG-01 — root-only service diagnostics (2026-11-22; source under review)
+
+The operator approved extending the existing customer 360 Admin service detail with three on-demand root-only read diagnostics (per-user 1/7/30 calendar-day traffic/top nodes, safe subscription request timestamps, accessible node state from existing Filtering Center), an overview and a separately gated connection-observation POST + GET job result. Stacked **Draft** PRs [#525](https://github.com/DenaSon/skynet/pull/525) → [#526](https://github.com/DenaSon/skynet/pull/526) → [#527](https://github.com/DenaSon/skynet/pull/527). No production merge, live connection test or provider mutation is authorized by this checkpoint. No migrations, new scheduler, customer-facing diagnostics, HWID, or Deniz integration. The connection job gate is OFF by default and requires separate live approval. Preserve current owner/RBAC protections and prior Admin/Sales behavior. Full safety, testing, staging and rollback contract: [docs/049](049-SUPPORT-DIAGNOSTICS-SUP01.md).
+
 ## CF-03 — selected Cloudflare A-record assignment in Node setup (2026-11-17; operator-approved)
 
 **Approved two-PR scope:** Extend the existing NW-01 → NW-02 → NW-03 flow so the trusted private Super Admin can choose either one existing Cloudflare A subdomain or create a new subdomain under an already allowlisted Zone. The original public IP remains the SSH and Remnawave Node address. Only after Node registration is confirmed and the Node is connected+enabled may the operator separately confirm the DNS assignment.

@@ -41,6 +41,7 @@ use App\Interfaces\Telegram\Support\AdminSubscriptionStatusUi;
 use App\Interfaces\Telegram\Support\AdminTrafficReportUi;
 use App\Interfaces\Telegram\Support\AdminWalletReversalUi;
 use App\Interfaces\Telegram\Support\BillingUi;
+use App\Interfaces\Telegram\Support\CustomerServiceDiagnosticsUi;
 use App\Interfaces\Telegram\Support\CustomerSupportProfileUi;
 use App\Interfaces\Telegram\Support\ManualPaymentUi;
 use App\Interfaces\Telegram\Support\PlanAdminUi;
@@ -1012,6 +1013,11 @@ $bot->onCallbackQueryData('c360:l:{id}:{userPage}:{mode}:{servicePage}', functio
 
 $bot->onCallbackQueryData('c360:v:{id}:{orderId}:{userPage}:{mode}:{servicePage}', function (Nutgram $bot, string $id, string $orderId, string $userPage, string $mode, string $servicePage): void {
     app(CustomerSupportProfileUi::class)->service($bot, $id, $orderId, $userPage, $mode, $servicePage);
+});
+
+// SUP-DIAG-01: one root-only, owner-verified diagnostic surface. No raw provider IDs in callbacks.
+$bot->onCallbackQueryData('sd:{kind}:{id}:{orderId}:{userPage}:{mode}:{servicePage}:{days}', function (Nutgram $bot, string $kind, string $id, string $orderId, string $userPage, string $mode, string $servicePage, string $days): void {
+    app(CustomerServiceDiagnosticsUi::class)->show($bot, $kind, $id, $orderId, $userPage, $mode, $servicePage, $days);
 });
 
 $bot->onCallbackQueryData('users:profile:{id}:{page}:{mode}', function (Nutgram $bot, string $id, string $page, string $mode): void {
