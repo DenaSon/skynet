@@ -197,8 +197,8 @@ final readonly class ReadAdminHealth
 
                 $duration = null;
                 if ($status === 'ok' && $started[$name] !== null) {
-                    $duration = max(0, Carbon::parse($at, 'UTC')
-                        ->diffInMinutes(Carbon::parse($started[$name], 'UTC')));
+                    $duration = max(0, (int) Carbon::parse($started[$name], 'UTC')
+                        ->diffInMinutes(Carbon::parse($at, 'UTC')));
                 }
                 if (in_array($status, ['failed', 'warning'], true)) {
                     $recurrences++;
