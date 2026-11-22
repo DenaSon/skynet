@@ -159,7 +159,9 @@ final readonly class MonitorNodeFiltering
             return self::online($fields) === 'positive' || self::traffic($fields) === 'positive';
         });
 
-        $active = $this->foundation->read($uuid)['affected_modules']['node']['causes'] ?? [];
+        $nodeIncident = $this->foundation->read($uuid)['affected_modules']['node'] ?? [];
+        $nodeIncident = is_array($nodeIncident) ? $nodeIncident : [];
+        $active = $nodeIncident['causes'] ?? [];
         $causes = is_array($active) ? $active : [];
         foreach (['online_zero' => 'online', 'traffic_zero' => 'traffic'] as $cause => $signal) {
             $currentState = self::$signal($evidence);
@@ -176,7 +178,7 @@ final readonly class MonitorNodeFiltering
             }
         }
 
-        $causes = $this->activityDrops($evidence, $history, $previous, $contiguous, $causes, $minute);
+        $causes = $this->activityDrops($evidence, $history, $previous, $contiguous, $causes, $minute, $nodeIncident);
         sort($causes);
         // Recover exactly the affected signals. An unrelated unavailable
         // counter must not strand an otherwise fully recovered incident.
@@ -245,6 +247,7 @@ final readonly class MonitorNodeFiltering
      * @param  array<string, mixed>  $evidence
      * @param  array<string, mixed>  $previous
      * @param  list<string>  $causes
+     * @param  array<string, mixed>  $nodeIncident
      * @return list<string>
      */
     private function activityDrops(
@@ -254,14 +257,15 @@ final readonly class MonitorNodeFiltering
         bool $contiguous,
         array $causes,
         CarbonImmutable $minute,
+        array $nodeIncident,
     ): array {
         $onlineActive = in_array('online_drop', $causes, true);
         $trafficActive = in_array('traffic_drop', $causes, true);
         $onlineReference = $onlineActive
-            ? $this->savedReference($history, 'online_reference', self::MIN_ONLINE_BASELINE)
+            ? $this->savedReference($history, $nodeIncident, 'online_reference', self::MIN_ONLINE_BASELINE)
             : $this->medianReference($history, 'online', self::MIN_ONLINE_BASELINE);
         $trafficReference = $trafficActive
-            ? $this->savedReference($history, 'traffic_reference', self::MIN_TRAFFIC_BASELINE)
+            ? $this->savedReference($history, $nodeIncident, 'traffic_reference', self::MIN_TRAFFIC_BASELINE)
             : $this->medianReference($history, 'traffic', self::MIN_TRAFFIC_BASELINE);
 
         $onNow = self::activityValue($evidence, 'online');
@@ -354,8 +358,14 @@ final readonly class MonitorNodeFiltering
         return $median >= $minimum ? $median : null;
     }
 
-    private function savedReference(Collection $history, string $name, int $minimum): ?int
+    /** @param  array<string, mixed>  $nodeIncident */
+    private function savedReference(Collection $history, array $nodeIncident, string $name, int $minimum): ?int
     {
+        $saved = $nodeIncident[$name] ?? null;
+        if (is_int($saved) && $saved >= $minimum) {
+            return $saved;
+        }
+
         foreach ($history as $check) {
             $fields = $this->parseEvidence($check->evidence);
             $value = $fields[$name] ?? null;
