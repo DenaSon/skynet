@@ -14,16 +14,22 @@ group chats, revoked accounts, and delegated admins are denied.
 
 ## Data and freshness
 
-- Read at most twelve records from the **latest persisted Spatie batch** only.
-- Display safe Persian service labels and whitelisted status categories.
+- Read at most 24 named records from the **latest persisted Spatie batch** only.
+- Display safe Persian service labels, a brief management summary and whitelisted status categories. No ENV names appear in the Telegram instructions.
 - Never display raw metadata, notification messages, DB connection strings,
   private addresses, file paths, credentials, or stack traces.
 - No record yet: **waiting**. Feature off: **disabled**.
-- More than 3 minutes old or future-dated: **stale**.
-- Incomplete (< 4 checks), unexpected status, or too many records: **unknown**.
+- More than 5 minutes old or future-dated: **stale** (the scheduled checks run every 2 minutes).
+- Missing, duplicate, unexpected or additional check names, unexpected statuses, or too many records: **unknown**.
 - Current batch with any failure/crash: **failed**; warnings: **warning**.
 - Only a fresh, complete and fully OK batch can show **healthy**.
 - Missing table / DB failure: **unavailable**, never `0` or a green check.
+
+
+The scheduled Remnawave Health API probe confirms only reachable, well-formed
+runtime/process metrics, not real customer VPN reachability or per-Node health.
+Malformed runtime metrics are reported as unknown/warning, not as a verified
+healthy service. The Telegram refresh itself performs no Remnawave call.
 
 The refresh button **re-reads stored results** and does not run a new health
 check inside the Telegram Webhook. Queue jobs and scheduled monitoring stay

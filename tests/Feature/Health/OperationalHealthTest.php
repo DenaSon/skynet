@@ -44,6 +44,20 @@ it('probes existing network API via a read-only mapped health endpoint', functio
         && str_ends_with($request->url(), '/api/system/health'));
 });
 
+it('rejects malformed Remnawave process metrics without a second or mutating HTTP request', function (): void {
+    config()->set('services.remnawave.url', 'https://malformed-health.example');
+    config()->set('services.remnawave.token', 'fixture');
+    Http::fake(['https://malformed-health.example/*' => Http::response([
+        'response' => ['runtimeMetrics' => ['unexpected-scalar']],
+    ], 200)]);
+
+    $result = app(OperationalProbe::class)->inspect('network_api');
+    expect($result['status'])->toBe('warning')
+        ->and($result['summary'])->toBe('invalid response');
+    Http::assertSentCount(1);
+    Http::assertSent(static fn ($request): bool => $request->method() === 'GET');
+});
+
 it('probes both enabled Telegram bots but never saves their tokens or response bodies', function (): void {
     config()->set('nutgram.token', 'admin-secret-fixture');
     config()->set('telegram.sales.enabled', true);

@@ -124,7 +124,7 @@ it('shows only the latest complete batch, status summaries and RTL Rich markup',
             return ($rich['is_rtl'] ?? null) === true
                 && str_contains($html, '🩺 دنابان | سلامت سیستم')
                 && str_contains($html, 'اختلال شناسایی شد')
-                && str_contains($html, 'Queue Worker')
+                && str_contains($html, 'پردازش صف')
                 && str_contains($html, '<table bordered striped compact>')
                 && str_contains($buttons, 'denaban:health:simple')
                 && str_contains($buttons, 'denaban:show')
@@ -134,6 +134,25 @@ it('shows only the latest complete batch, status summaries and RTL Rich markup',
         }, index: 1);
 
     Http::assertNothingSent();
+});
+
+it('allows a four-minute-old complete batch and refuses unexpected extra checks', function (): void {
+    $root = denabanHealthRoot();
+    config()->set('denagate_health.enabled', true);
+    config()->set('cache.default', 'array');
+    config()->set('queue.default', 'database');
+    $batch = '86868686-8686-4868-8868-868686868686';
+    $at = now()->subMinutes(4)->toDateTimeString();
+    foreach (['DatabaseCheck', 'QueueCheck', 'ScheduleCheck', 'UsedDiskSpaceCheck'] as $name) {
+        denabanHealthStore($batch, $name, 'ok', $at);
+    }
+    foreach (OperationalProbe::CHECKS as $name) {
+        denabanHealthStore($batch, 'ops_'.$name, 'ok', $at);
+    }
+
+    expect(app(ReadAdminHealth::class)->handle($root->id)['state'])->toBe('healthy');
+    denabanHealthStore($batch, 'UnrecognizedCheck', 'ok', $at);
+    expect(app(ReadAdminHealth::class)->handle($root->id)['state'])->toBe('unknown');
 });
 
 it('marks stale and partial batches unknown instead of healthy', function (): void {
@@ -233,8 +252,8 @@ it('renders resource and operational checks instead of the old about section and
             return str_contains($html, '📊 منابع و عملیات')
                 && str_contains($html, 'مصرف CPU')
                 && str_contains($html, '20.0% / 0.45 CPU / 0.0% wait')
-                && str_contains($html, 'RAM')
-                && str_contains($html, 'API شبکه')
+                && str_contains($html, 'حافظه RAM برنامه')
+                && str_contains($html, 'ارتباط با پنل')
                 && str_contains($html, '64.0% / 2048 MiB')
                 && str_contains($html, 'فعال‌سازی سفارش‌ها')
                 && ! str_contains($html, 'درباره این گزارش')
@@ -250,7 +269,7 @@ it('renders resource and operational checks instead of the old about section and
             return str_contains($payload['text'], '📊 منابع و عملیات')
                 && str_contains($payload['text'], 'مصرف CPU')
                 && str_contains($payload['text'], '20.0% / 0.45 CPU / 0.0% wait')
-                && str_contains($payload['text'], 'API شبکه')
+                && str_contains($payload['text'], 'ارتباط با پنل')
                 && ! str_contains($payload['text'], 'Remnawave');
         }, index: 1);
     Http::assertNothingSent();
