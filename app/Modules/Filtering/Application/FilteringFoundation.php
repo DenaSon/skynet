@@ -27,12 +27,13 @@ final class FilteringFoundation
 
     private const COUNTERS = [
         'online_users', 'rx_bytes_per_sec', 'tx_bytes_per_sec',
+        'online_reference', 'traffic_reference',
         'completed_probes', 'failed_probes', 'asn_count', 'city_count',
         'failed_asn_count', 'failed_city_count', 'pending_probes',
     ];
 
     private const CAUSES = [
-        'node' => ['online_zero', 'traffic_zero'],
+        'node' => ['online_zero', 'traffic_zero', 'online_drop', 'traffic_drop'],
         'regional' => ['regional_possible', 'regional_likely'],
     ];
 
@@ -227,7 +228,7 @@ final class FilteringFoundation
         }
         $causes = $evidence['causes'] ?? [];
         if (! is_array($causes) || ! array_is_list($causes)
-            || count($causes) > 2) {
+            || count($causes) > ($module === 'node' ? 4 : 2)) {
             throw new InvalidArgumentException('Filtering causes are invalid.');
         }
         foreach ($causes as $cause) {
