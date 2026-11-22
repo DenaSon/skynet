@@ -176,6 +176,21 @@ it('refuses cross-user history records rather than returning another customer re
     expect($result)->toBe(['state' => 'unavailable', 'total' => null, 'records' => []]);
 });
 
+it('fails closed on a malformed subscription request timestamp', function (): void {
+    $root = supDiagRoot();
+    [$buyer, $order, $remote] = supDiagOrder();
+    Http::fake(static function (Request $request) use ($remote) {
+        return parse_url($request->url(), PHP_URL_PATH) === '/api/users/42'
+            ? Http::response(['response' => $remote])
+            : Http::response(['response' => ['total' => 1, 'records' => [[
+                'userId' => 42, 'requestAt' => 'tomorrow',
+                'srrResponseType' => 'XRAY_BASE64', 'requestIp' => '203.0.113.12',
+            ]]]]);
+    });
+    $result = app(ReadCustomerServiceDiagnostics::class)->history($root->id, $buyer->id, $order);
+    expect($result)->toBe(['state' => 'unavailable', 'total' => null, 'records' => []]);
+});
+
 it('links accessible nodes to existing monitoring evidence without guessing health', function (): void {
     $root = supDiagRoot();
     [$buyer, $order, $remote] = supDiagOrder();
