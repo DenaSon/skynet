@@ -142,6 +142,27 @@ function stat02Payload(NutgramRequest $request): array
     return $p;
 }
 
+it('reads both bot contact segments in one grouped SQL query without changing their metrics', function (): void {
+    $data = stat02Fixture();
+    $contactReads = 0;
+    DB::listen(static function ($query) use (&$contactReads): void {
+        if (str_contains($query->sql, 'telegram_bot_contacts')) {
+            $contactReads++;
+        }
+    });
+
+    $report = app(ReadAdminBusinessReport::class)->handle($data['root']->id, 7);
+    expect($report['salesContacts'])->toBe(2)
+        ->and($report['adminContacts'])->toBe(1)
+        ->and($report['salesReachable'])->toBe(1)
+        ->and($report['adminReachable'])->toBe(1)
+        ->and($report['salesEngaged'])->toBe(1)
+        ->and($report['adminEngaged'])->toBe(1)
+        ->and($report['salesNewContacts'])->toBe(1)
+        ->and($report['adminNewContacts'])->toBe(1)
+        ->and($contactReads)->toBe(1);
+});
+
 it('aggregates verified bank and wallet settlements exactly once and separates new purchases from renewals', function (): void {
     $data = stat02Fixture();
     $read = app(ReadAdminBusinessReport::class);

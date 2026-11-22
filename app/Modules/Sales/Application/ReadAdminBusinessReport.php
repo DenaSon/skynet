@@ -38,9 +38,19 @@ final readonly class ReadAdminBusinessReport
         $until = $today->copy()->addDay()->utc();
         $totals = $this->settledTotalsBetween($actorId, $from, $until);
 
-        $contacts = static fn (string $botKey) => DB::table('telegram_bot_contacts')->where('bot_key', $botKey);
-        $sales = $contacts('sales');
-        $admin = $contacts('admin');
+        // Compute the same independent reachability/activity counters in one grouped read.
+        $contacts = DB::table('telegram_bot_contacts')
+            ->whereIn('bot_key', ['sales', 'admin'])
+            ->groupBy('bot_key')
+            ->select('bot_key')
+            ->selectRaw("COUNT(*) as contacts,
+                COALESCE(SUM(CASE WHEN delivery_status = 'reachable' THEN 1 ELSE 0 END), 0) as reachable,
+                COALESCE(SUM(CASE WHEN last_seen_at >= ? AND last_seen_at < ? THEN 1 ELSE 0 END), 0) as engaged,
+                COALESCE(SUM(CASE WHEN created_at >= ? AND created_at < ? THEN 1 ELSE 0 END), 0) as new_contacts",
+                [$from, $until, $from, $until])
+            ->get()->keyBy('bot_key');
+        $sales = (array) $contacts->get('sales');
+        $admin = (array) $contacts->get('admin');
 
         $settled = (int) ($totals['settled']);
         $renewals = (int) ($totals['renewals']);
@@ -59,18 +69,14 @@ final readonly class ReadAdminBusinessReport
             'newUsers' => (int) DB::table('users')->where('created_at', '>=', $from)
                 ->where('created_at', '<', $until)->count(),
             'linkedTelegram' => (int) DB::table('telegram_accounts')->count(),
-            'salesContacts' => (int) (clone $sales)->count(),
-            'adminContacts' => (int) (clone $admin)->count(),
-            'salesReachable' => (int) (clone $sales)->where('delivery_status', 'reachable')->count(),
-            'adminReachable' => (int) (clone $admin)->where('delivery_status', 'reachable')->count(),
-            'salesEngaged' => (int) (clone $sales)->where('last_seen_at', '>=', $from)
-                ->where('last_seen_at', '<', $until)->count(),
-            'adminEngaged' => (int) (clone $admin)->where('last_seen_at', '>=', $from)
-                ->where('last_seen_at', '<', $until)->count(),
-            'salesNewContacts' => (int) (clone $sales)->where('created_at', '>=', $from)
-                ->where('created_at', '<', $until)->count(),
-            'adminNewContacts' => (int) (clone $admin)->where('created_at', '>=', $from)
-                ->where('created_at', '<', $until)->count(),
+            'salesContacts' => (int) ($sales['contacts'] ?? 0),
+            'adminContacts' => (int) ($admin['contacts'] ?? 0),
+            'salesReachable' => (int) ($sales['reachable'] ?? 0),
+            'adminReachable' => (int) ($admin['reachable'] ?? 0),
+            'salesEngaged' => (int) ($sales['engaged'] ?? 0),
+            'adminEngaged' => (int) ($admin['engaged'] ?? 0),
+            'salesNewContacts' => (int) ($sales['new_contacts'] ?? 0),
+            'adminNewContacts' => (int) ($admin['new_contacts'] ?? 0),
             'generatedAt' => Carbon::now('Asia/Tehran')->format('Y-m-d H:i'),
         ];
     }
