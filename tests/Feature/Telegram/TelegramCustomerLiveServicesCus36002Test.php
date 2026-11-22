@@ -698,7 +698,6 @@ it('preserves diagnostic fields and navigation in the native fallback when Rich 
     Http::assertSentCount(1);
 });
 
-
 it('shows the latest node observation in Tehran time with Rich and native fallback parity', function (): void {
     Cache::flush();
     config()->set('services.remnawave.connections_diagnostics_enabled', true);
