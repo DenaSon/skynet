@@ -771,7 +771,6 @@ it('shows the latest node observation in Tehran time with Rich and native fallba
         ->toBe(1);
 });
 
-
 it('paginates observed IPs five per node page without spawning additional Remnawave jobs', function (): void {
     Cache::flush();
     config()->set('services.remnawave.connections_diagnostics_enabled', true);
