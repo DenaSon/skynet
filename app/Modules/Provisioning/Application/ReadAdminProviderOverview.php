@@ -23,12 +23,25 @@ final readonly class ReadAdminProviderOverview
 
     public function handle(int $actorUserId): AdminProviderOverview
     {
+        return $this->read($actorUserId, false);
+    }
+
+    /** The Denaban view needs live nodes, Hosts and online stats, not Squad/Profile inventory. */
+    public function dashboard(int $actorUserId): AdminProviderOverview
+    {
+        return $this->read($actorUserId, true);
+    }
+
+    private function read(int $actorUserId, bool $dashboardOnly): AdminProviderOverview
+    {
         $this->access->require($actorUserId, 'servers.view');
 
         try {
             $read = new RemnawaveReadApi($this->factory->make());
             $instances = $read->healthInstanceCount();
-            $inventory = $read->inventory();
+            $inventory = $dashboardOnly ? null : $read->inventory();
+            $nodes = $inventory?->nodes ?? $read->nodes();
+            $hosts = $inventory?->hosts ?? $read->hostCount();
 
             // Optional P1 metrics must not break the verified P0 overview.
             try {
@@ -40,12 +53,13 @@ final readonly class ReadAdminProviderOverview
             return new AdminProviderOverview(
                 state: 'available',
                 instances: $instances,
-                nodes: count($inventory->nodes),
-                connectedNodes: $inventory->connectedNodes(),
-                hosts: $inventory->hosts,
-                internalSquads: $inventory->internalSquads,
-                configProfiles: $inventory->configProfiles,
-                needsReview: DB::table('provisioning_operations')->where('state', 'needs_review')->count(),
+                nodes: count($nodes),
+                connectedNodes: count(array_filter($nodes,
+                    static fn (RemnawaveNodeSummary $node): bool => $node->connected && ! $node->disabled)),
+                hosts: $hosts,
+                internalSquads: $inventory?->internalSquads,
+                configProfiles: $inventory?->configProfiles,
+                needsReview: $dashboardOnly ? null : DB::table('provisioning_operations')->where('state', 'needs_review')->count(),
                 systemStats: $systemStats,
                 nodeSummaries: array_map(static fn (RemnawaveNodeSummary $node): array => [
                     'name' => $node->name,
@@ -59,7 +73,7 @@ final readonly class ReadAdminProviderOverview
                     'trafficLimitBytes' => $node->trafficLimitBytes,
                     'trafficUsedBytes' => $node->trafficUsedBytes,
                     'trafficTrackingActive' => $node->trafficTrackingActive,
-                ], $inventory->nodes),
+                ], $nodes),
             );
         } catch (Throwable) {
             // Do not leak token, endpoint, transport errors or private panel data.
