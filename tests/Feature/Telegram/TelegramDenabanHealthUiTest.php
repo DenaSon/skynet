@@ -186,6 +186,14 @@ it('shows bounded 24-hour status changes, approximate recovery duration and nati
     Http::assertNothingSent();
 });
 
+it('distinguishes empty history from a verified day without health changes', function (): void {
+    $root = denabanHealthRoot();
+    config()->set('denagate_health.enabled', true);
+    $history = app(ReadAdminHealth::class)->history($root->id);
+    expect($history['state'])->toBe('waiting')
+        ->and($history['total'])->toBe(0);
+});
+
 it('denies private health history to ordinary and revoked Admin roles and groups', function (): void {
     $root = denabanHealthRoot();
     $ordinary = User::factory()->admin()->create();
