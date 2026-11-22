@@ -202,7 +202,7 @@ final readonly class ReadCustomerServiceDiagnostics
      * A diagnostic POST starts a server-side observation job, not a user mutation.
      * Feature-gated, root-only, one explicit start per service/actor/cooldown.
      *
-     * @return array{state:string,nodes:list<array{name:string,reports:int}>}
+     * @return array{state:string,nodes:list<array{name:string,reports:int,lastSeenAt:?string}>}
      */
     public function startConnections(int $actorId, int $subjectId, int $orderId): array
     {
@@ -262,7 +262,7 @@ final readonly class ReadCustomerServiceDiagnostics
     /**
      * Explicit on-demand GET polling only. Never auto-post, never publish IPs.
      *
-     * @return array{state:string,nodes:list<array{name:string,reports:int}>}
+     * @return array{state:string,nodes:list<array{name:string,reports:int,lastSeenAt:?string}>}
      */
     public function connectionResult(int $actorId, int $subjectId, int $orderId): array
     {
@@ -316,13 +316,25 @@ final readonly class ReadCustomerServiceDiagnostics
                         || count($node['ips']) > 10000) {
                         throw new UnexpectedValueException('Invalid connection node response.');
                     }
+                    $latestTimestamp = null;
                     foreach ($node['ips'] as $seen) {
                         if (! is_array($seen) || ! is_string($seen['ip'] ?? null)
-                            || ! is_string($seen['lastSeen'] ?? null)) {
+                            || ! is_string($seen['lastSeen'] ?? null)
+                            || preg_match('/\A[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,9})?(?:Z|[+-][0-9]{2}:[0-9]{2})\z/D', $seen['lastSeen']) !== 1) {
                             throw new UnexpectedValueException('Invalid observed connection.');
                         }
+                        $observed = new DateTimeImmutable($seen['lastSeen']);
+                        if (DateTimeImmutable::getLastErrors() !== false) {
+                            throw new UnexpectedValueException('Invalid observed connection timestamp.');
+                        }
+                        $timestamp = $observed->getTimestamp();
+                        $latestTimestamp = $latestTimestamp === null ? $timestamp : max($latestTimestamp, $timestamp);
                     }
-                    $nodes[] = ['name' => $node['nodeName'], 'reports' => count($node['ips'])];
+                    $nodes[] = [
+                        'name' => $node['nodeName'],
+                        'reports' => count($node['ips']),
+                        'lastSeenAt' => $latestTimestamp === null ? null : gmdate('Y-m-d\TH:i:s\Z', $latestTimestamp),
+                    ];
                 }
                 $result = ['state' => 'completed', 'nodes' => $nodes];
             }
@@ -340,7 +352,7 @@ final readonly class ReadCustomerServiceDiagnostics
         return $result;
     }
 
-    /** @return array{state:string,nodes:list<array{name:string,reports:int}>} */
+    /** @return array{state:string,nodes:list<array{name:string,reports:int,lastSeenAt:?string}>} */
     private static function connectionState(string $state): array
     {
         return ['state' => $state, 'nodes' => []];
