@@ -916,3 +916,35 @@ it('labels night alerts by the Tehran event hour and daytime alerts separately',
             ->and(app(FilteringIncidentNotice::class)->messageFor($opening))->toContain($expected);
     }
 });
+
+it('retains the drop baseline across more than 30 minutes of unavailable Node checks', function (): void {
+    for ($i = 0; $i < 7; $i++) {
+        flt02Step(12, 1000000, 1000000, $i === 0 ? 0 : 2);
+    }
+    flt02Step(12, 300000, 300000);
+    flt02Step(12, 300000, 300000);
+
+    $incident = DB::table('filtering_incidents')->first();
+    $modules = json_decode((string) $incident->affected_modules, true);
+    expect($modules['node']['traffic_reference'])->toBe(1000000);
+
+    // A disabled Node produces UNKNOWN evidence without an interface-rate
+    // reference. The active SQL incident must retain the original baseline.
+    for ($i = 0; $i < 21; $i++) {
+        Carbon::setTestNow(now()->addMinutes(2));
+        flt02Feed([flt02Node(null, null, null, disabled: true)]);
+        app(MonitorNodeFiltering::class)->scan();
+    }
+
+    $incident = DB::table('filtering_incidents')->first();
+    $modules = json_decode((string) $incident->affected_modules, true);
+    expect($modules['node']['traffic_reference'])->toBe(1000000)
+        ->and(app(FilteringFoundation::class)->read(FLT02_NODE)['state'])->toBe('suspicious');
+
+    for ($i = 0; $i < 5; $i++) {
+        flt02Step(12, 1000000, 1000000);
+    }
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['state'])->toBe('suspicious');
+    flt02Step(12, 1000000, 1000000);
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBeNull();
+});
