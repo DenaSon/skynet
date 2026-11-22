@@ -231,7 +231,7 @@ final readonly class CustomerServiceDiagnosticsUi
     }
 
     /**
-     * @param  array{state:string,nodes:list<array{name:string,reports:int}>}  $data
+     * @param  array{state:string,nodes:list<array{name:string,reports:int,lastSeenAt:?string}>}  $data
      * @return array{title:string,rows:list<array{string,string}>,note:string}
      */
     private function connections(array $data): array
@@ -244,7 +244,10 @@ final readonly class CustomerServiceDiagnosticsUi
         };
         $rows = [['وضعیت', $message]];
         foreach ($data['nodes'] as $node) {
-            $rows[] = [$node['name'], number_format($node['reports']).' نشانی گزارش‌شده'];
+            $rows[] = [$node['name'], PersianCalendar::number(number_format($node['reports'])).' نشانی گزارش‌شده'];
+            $rows[] = ['آخرین مشاهده', $node['lastSeenAt'] === null
+                ? 'نامشخص'
+                : PersianCalendar::utcDateTime($node['lastSeenAt'])];
         }
 
         return ['title' => '🔌 بررسی اتصال‌های سرویس', 'rows' => $rows,

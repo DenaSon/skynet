@@ -236,7 +236,8 @@ it('deduplicates explicitly started provider jobs and returns only anonymous nod
                         'nodeUuid' => '550e8400-e29b-41d4-a716-446655440000',
                         'nodeName' => 'UAE-01', 'countryCode' => 'AE',
                         'ips' => [
-                            ['ip' => '203.0.113.42', 'lastSeen' => '2026-11-22T11:00:00Z'],
+                            ['ip' => '203.0.113.42', 'lastSeen' => '2026-11-22T14:45:00+03:30'],
+                            ['ip' => '198.51.100.20', 'lastSeen' => '2026-11-22T10:45:00Z'],
                         ],
                     ]],
                 ],
@@ -250,11 +251,72 @@ it('deduplicates explicitly started provider jobs and returns only anonymous nod
         ->and($action->startConnections($root->id, $buyer->id, $order)['state'])->toBe('pending');
     $result = $action->connectionResult($root->id, $buyer->id, $order);
     expect($result)->toBe(['state' => 'completed', 'nodes' => [
-        ['name' => 'UAE-01', 'reports' => 1],
-    ]])->and(json_encode($result))->not->toContain('203.0.113.42', 'job-unique-42', 'diagnostic-private-token');
+        ['name' => 'UAE-01', 'reports' => 2, 'lastSeenAt' => '2026-11-22T11:15:00Z'],
+    ]])->and(json_encode($result))->not->toContain(
+        '203.0.113.42', '198.51.100.20', 'job-unique-42', 'diagnostic-private-token',
+    );
     Http::assertSentCount(5);
     expect(collect(Http::recorded())->filter(static fn (array $pair): bool => $pair[0]->method() === 'POST')->count())->toBe(1);
 });
+
+it('keeps empty connection observations unknown rather than inventing a last-seen time', function (): void {
+    Cache::flush();
+    config()->set('services.remnawave.connections_diagnostics_enabled', true);
+    $root = supDiagRoot();
+    [$buyer, $order, $remote] = supDiagOrder();
+    Http::fake(static function (Request $request) use ($remote) {
+        return match (parse_url($request->url(), PHP_URL_PATH)) {
+            '/api/users/42' => Http::response(['response' => $remote]),
+            '/api/connections/by-user/42' => Http::response(['response' => ['jobId' => 'job-empty']], 201),
+            '/api/connections/by-user/job-empty' => Http::response(['response' => [
+                'isCompleted' => true, 'isFailed' => false,
+                'result' => ['success' => true, 'userId' => 42, 'nodes' => [
+                    ['nodeName' => 'German2', 'ips' => []],
+                ]],
+            ]]),
+            default => Http::response([], 404),
+        };
+    });
+
+    $action = app(ReadCustomerServiceDiagnostics::class);
+    $action->startConnections($root->id, $buyer->id, $order);
+    $result = $action->connectionResult($root->id, $buyer->id, $order);
+
+    expect($result)->toBe(['state' => 'completed', 'nodes' => [
+        ['name' => 'German2', 'reports' => 0, 'lastSeenAt' => null],
+    ]]);
+    expect($action->connectionResult($root->id, $buyer->id, $order))->toBe($result);
+    Http::assertSentCount(5);
+});
+
+it('rejects invalid provider observation timestamps instead of displaying a misleading date', function (string $lastSeen): void {
+    Cache::flush();
+    config()->set('services.remnawave.connections_diagnostics_enabled', true);
+    $root = supDiagRoot();
+    [$buyer, $order, $remote] = supDiagOrder();
+    Http::fake(static function (Request $request) use ($remote, $lastSeen) {
+        return match (parse_url($request->url(), PHP_URL_PATH)) {
+            '/api/users/42' => Http::response(['response' => $remote]),
+            '/api/connections/by-user/42' => Http::response(['response' => ['jobId' => 'job-malformed']], 201),
+            '/api/connections/by-user/job-malformed' => Http::response(['response' => [
+                'isCompleted' => true, 'isFailed' => false,
+                'result' => ['success' => true, 'userId' => 42, 'nodes' => [
+                    ['nodeName' => 'German2', 'ips' => [
+                        ['ip' => '203.0.113.2', 'lastSeen' => $lastSeen],
+                    ]],
+                ]],
+            ]]),
+            default => Http::response([], 404),
+        };
+    });
+
+    $action = app(ReadCustomerServiceDiagnostics::class);
+    $action->startConnections($root->id, $buyer->id, $order);
+    $result = $action->connectionResult($root->id, $buyer->id, $order);
+
+    expect($result)->toBe(['state' => 'unavailable', 'nodes' => []])
+        ->and(json_encode($result))->not->toContain('203.0.113.2', $lastSeen);
+})->with(['invalid', '2026-02-31T11:00:00Z', '2026-11-22T11:00:00']);
 
 it('does not replay an ambiguous provider job request', function (): void {
     Cache::flush();

@@ -12,6 +12,7 @@ use GuzzleHttp\Psr7\Request as NutgramRequest;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
@@ -695,4 +696,63 @@ it('preserves diagnostic fields and navigation in the native fallback when Rich 
     );
 
     Http::assertSentCount(1);
+});
+
+it('shows the latest node observation in Tehran time with Rich and native fallback parity', function (): void {
+    Cache::flush();
+    config()->set('services.remnawave.connections_diagnostics_enabled', true);
+    $root = User::factory()->create();
+    $root->syncRoles(['super-admin']);
+    $buyer = User::factory()->create();
+    $order = c360LiveOrder($buyer, 205);
+    Http::fake(static function (Request $request) use ($order) {
+        return match (parse_url($request->url(), PHP_URL_PATH)) {
+            '/api/users/42' => Http::response(['response' => c360LiveRemote($order)]),
+            '/api/connections/by-user/42' => Http::response(['response' => ['jobId' => 'job-ui-lastseen']], 201),
+            '/api/connections/by-user/job-ui-lastseen' => Http::response(['response' => [
+                'isCompleted' => true, 'isFailed' => false,
+                'result' => ['success' => true, 'userId' => 42, 'nodes' => [
+                    ['nodeName' => 'German2', 'ips' => [
+                        ['ip' => '198.51.100.42', 'lastSeen' => '2026-11-22T11:00:00Z'],
+                    ]],
+                ]],
+            ]]),
+            default => Http::response([], 404),
+        };
+    });
+
+    $bot = c360LiveBot(994201, $root);
+    $bot->hearCallbackQueryData("sd:start:{$buyer->id}:{$order}:1:a:1:7")->reply();
+    $bot->hearCallbackQueryData("sd:result:{$buyer->id}:{$order}:1:a:1:7")->reply()
+        ->assertRaw(static function (NutgramRequest $request) use ($buyer, $order): bool {
+            $data = c360LivePayload($request);
+            $buttons = json_encode($data['reply_markup'], JSON_THROW_ON_ERROR);
+            $rich = $data['rich_html'] ?? '';
+
+            return str_contains($rich, 'German2')
+                && str_contains($rich, 'آخرین مشاهده')
+                && str_contains($rich, '۱۴:۳۰')
+                && str_contains($data['text'], '۱ نشانی گزارش‌شده')
+                && str_contains($buttons, "sd:home:{$buyer->id}:{$order}:1:a:1:7")
+                && ! str_contains($rich, '198.51.100.42');
+        }, index: 1);
+
+    $native = Mockery::mock(Nutgram::class);
+    $native->shouldReceive('chat')->andReturn(Chat::make(994201, ChatType::PRIVATE));
+    $native->shouldReceive('user')->andReturn(TelegramUser::make(994201, false, 'Operator'));
+    $native->shouldReceive('isCallbackQuery')->andReturn(false);
+    $native->shouldReceive('sendRichMessage')->once()->andThrow(
+        new TelegramException('unsupported Rich message', 400),
+    );
+    $native->shouldReceive('editMessageText')->once()->andReturnUsing(static function (...$args): void {
+        $text = $args['text'] ?? $args[0];
+        expect($text)->toContain('German2', 'آخرین مشاهده', '۱۴:۳۰', '۱ نشانی گزارش‌شده')
+            ->not->toContain('198.51.100.42', 'job-ui-lastseen');
+    });
+
+    app(CustomerServiceDiagnosticsUi::class)->show(
+        $native, 'result', (string) $buyer->id, (string) $order, '1', 'a', '1', '7',
+    );
+    expect(collect(Http::recorded())->filter(static fn (array $pair): bool => $pair[0]->method() === 'POST')->count())
+        ->toBe(1);
 });
