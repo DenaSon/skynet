@@ -204,6 +204,32 @@ it('scopes local service/order summary and settled purchase evidence to the sele
     Http::assertNothingSent();
 });
 
+it('avoids topup and journal history reads for an authorized support balance', function (): void {
+    $root = User::factory()->create();
+    $root->syncRoles(['super-admin']);
+    c360Bot(993601, $root);
+    $customer = User::factory()->create();
+    $wallet = DB::table('billing_wallets')->insertGetId([
+        'user_id' => $customer->id, 'created_at' => now(), 'updated_at' => now(),
+    ]);
+    $journal = DB::table('billing_journals')->insertGetId([
+        'wallet_id' => $wallet, 'kind' => 'topup',
+        'idempotency_key' => 'c360-fast-wallet', 'created_at' => now(),
+    ]);
+    DB::table('billing_postings')->insert([
+        ['wallet_id' => $wallet, 'journal_id' => $journal, 'account_code' => 'wallet_liability', 'side' => 'credit', 'amount_rials' => 600000],
+        ['wallet_id' => $wallet, 'journal_id' => $journal, 'account_code' => 'wallet_liability', 'side' => 'debit', 'amount_rials' => 150000],
+    ]);
+    $historyReads = 0;
+    DB::listen(static function ($query) use (&$historyReads): void {
+        if (str_contains($query->sql, 'billing_topups') || str_contains($query->sql, 'billing_journals')) {
+            $historyReads++;
+        }
+    });
+    $result = app(\App\Modules\Identity\Application\ReadCustomerSupportProfile::class)->handle($root->id, $customer->id);
+    expect($result['walletBalanceRials'])->toBe(450000)->and($historyReads)->toBe(0);
+});
+
 it('keeps sensitive wallet details hidden from ordinary user managers even with a forged callback', function (): void {
     $admin = User::factory()->admin()->create();
     $target = User::factory()->create();
