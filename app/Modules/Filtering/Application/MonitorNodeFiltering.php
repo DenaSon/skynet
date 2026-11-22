@@ -284,7 +284,10 @@ final readonly class MonitorNodeFiltering
         ] as $cause => [$signal, $reference, $currentPct, $previousPct, $threshold]) {
             $active = in_array($cause, $causes, true);
             if ($active) {
-                if ($reference !== null && $this->hasSustainedRecovery($history, $signal, $minute, $reference)) {
+                $observed = self::activityValue($evidence, $signal);
+                if ($reference !== null && $observed !== null
+                    && $observed >= (int) ceil($reference * self::RECOVERY_PERCENT_OF_BASELINE / 100)
+                    && $this->hasSustainedRecovery($history, $signal, $minute, $reference)) {
                     $causes = array_values(array_diff($causes, [$cause]));
                 } elseif ($reference !== null) {
                     $evidence[$signal === 'online' ? 'online_reference' : 'traffic_reference'] = $reference;
