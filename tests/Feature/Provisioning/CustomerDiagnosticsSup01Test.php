@@ -214,6 +214,41 @@ it('links accessible nodes to existing monitoring evidence without guessing heal
     Http::assertSentCount(2);
 });
 
+it('reads the same filtering snapshot for multiple verified accessible nodes', function (): void {
+    $root = supDiagRoot();
+    [$buyer, $order, $remote] = supDiagOrder();
+    $uuids = ['550e8400-e29b-41d4-a716-446655440000', '550e8400-e29b-41d4-a716-446655440001'];
+    foreach ($uuids as $uuid) {
+        DB::table('filtering_checks')->insert([
+            'node_uuid' => $uuid, 'module' => 'node', 'outcome' => 'healthy',
+            'observed_at' => now(), 'created_at' => now(), 'evidence' => '{}',
+        ]);
+    }
+    Http::fake(static function (Request $request) use ($remote, $uuids) {
+        return parse_url($request->url(), PHP_URL_PATH) === '/api/users/42'
+            ? Http::response(['response' => $remote])
+            : Http::response(['response' => [
+                'userId' => 42,
+                'activeNodes' => array_map(static fn (string $uuid): array => [
+                    'uuid' => $uuid, 'nodeName' => 'Node '.$uuid,
+                ], $uuids),
+            ]]);
+    });
+    $reads = 0;
+    DB::listen(static function ($query) use (&$reads): void {
+        if (str_contains($query->sql, 'filtering_checks')) {
+            $reads++;
+        }
+    });
+    $result = app(ReadCustomerServiceDiagnostics::class)->nodes($root->id, $buyer->id, $order);
+    expect($result['state'])->toBe('available')
+        ->and($result['nodes'])->toHaveCount(2)
+        ->and($result['nodes'][0]['state'])->toBe('healthy')
+        ->and($result['nodes'][1]['state'])->toBe('healthy')
+        ->and($reads)->toBe(2);
+    Http::assertSentCount(2);
+});
+
 it('refuses ordinary support operators and cross-customer orders before any provider request', function (): void {
     $root = supDiagRoot();
     [$buyer, $order] = supDiagOrder();
