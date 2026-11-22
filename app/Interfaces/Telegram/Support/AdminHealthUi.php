@@ -59,6 +59,14 @@ final readonly class AdminHealthUi
 
         $keyboard = InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی گزارش', callback_data: 'denaban:health'))
+            ->addRow(
+                InlineKeyboardButton::make('🔔 اعلان‌ها', callback_data: 'denaban:notifications:1'),
+                InlineKeyboardButton::make('📦 فعال‌سازی‌ها', callback_data: 'full:attention:1'),
+            )
+            ->addRow(
+                InlineKeyboardButton::make('🖥️ سرورها', callback_data: 'menu:admin:servers'),
+                InlineKeyboardButton::make('🌐 فیلترینگ', callback_data: 'flt:home'),
+            )
             ->addRow(InlineKeyboardButton::make('◀️ دنابان', callback_data: 'denaban:show'))
             ->addRow(InlineKeyboardButton::make(
                 $simple ? '✨ نمای جدید' : '📝 نمای ساده',
