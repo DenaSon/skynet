@@ -77,6 +77,39 @@ final readonly class ReadFilteringCenter
         return null;
     }
 
+    /**
+     * One authorized local snapshot for a bounded list of verified service Nodes.
+     *
+     * @param list<string> $uuids
+     * @return array<string,array<string,mixed>>
+     */
+    public function nodeObservations(int $userId, array $uuids): array
+    {
+        $this->access->handle($userId);
+        if (count($uuids) > 8) {
+            return [];
+        }
+        $wanted = [];
+        foreach ($uuids as $uuid) {
+            if (! is_string($uuid) || ! self::validUuid($uuid)) {
+                return [];
+            }
+            $wanted[strtolower($uuid)] = true;
+        }
+        if ($wanted === []) {
+            return [];
+        }
+
+        $found = [];
+        foreach ($this->snapshots() as $node) {
+            if (isset($wanted[$node['uuid']])) {
+                $found[$node['uuid']] = $node;
+            }
+        }
+
+        return $found;
+    }
+
     /** @return array{rows:list<array<string,mixed>>,page:int,pages:int,total:int} */
     public function history(int $userId, int $page = 1): array
     {
