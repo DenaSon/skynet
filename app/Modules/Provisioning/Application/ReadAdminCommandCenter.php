@@ -44,7 +44,7 @@ final readonly class ReadAdminCommandCenter
         $comparisonAt = Carbon::now('Asia/Tehran');
         $todayCash = null;
         try {
-            $todayCash = $this->cash->handle($actorId, 'today', $comparisonAt);
+            $todayCash = $this->cash->handle($actorId, 'today', $comparisonAt, $cash['currentWalletBalanceRials'] ?? null);
         } catch (AuthorizationException $exception) {
             throw $exception;
         } catch (Throwable) {
@@ -53,7 +53,7 @@ final readonly class ReadAdminCommandCenter
 
         $yesterdayCash = null;
         try {
-            $yesterdayCash = $this->cash->handle($actorId, 'yesterday_same_time', $comparisonAt);
+            $yesterdayCash = $this->cash->handle($actorId, 'yesterday_same_time', $comparisonAt, $cash['currentWalletBalanceRials'] ?? null);
         } catch (AuthorizationException $exception) {
             throw $exception;
         } catch (Throwable) {
