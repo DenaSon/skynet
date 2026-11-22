@@ -96,6 +96,12 @@ final readonly class RemnawaveReadApi
         );
     }
 
+    /** Read just the Host count when a dashboard does not need Squad or Profile inventory. */
+    public function hostCount(): int
+    {
+        return count($this->list($this->response('HostsController_getHosts'), 'hosts'));
+    }
+
     /**
      * Bounded read-only Node list; unlike inventory() this does not fetch Hosts,
      * Squads or Profiles on every one-minute filtering observation.
