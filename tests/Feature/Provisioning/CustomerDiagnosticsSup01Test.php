@@ -236,7 +236,8 @@ it('deduplicates explicitly started provider jobs and returns only anonymous nod
                         'nodeUuid' => '550e8400-e29b-41d4-a716-446655440000',
                         'nodeName' => 'UAE-01', 'countryCode' => 'AE',
                         'ips' => [
-                            ['ip' => '203.0.113.42', 'lastSeen' => '2026-11-22T11:00:00Z'],
+                            ['ip' => '203.0.113.42', 'lastSeen' => '2026-11-22T14:45:00+03:30'],
+                            ['ip' => '198.51.100.20', 'lastSeen' => '2026-11-22T10:45:00Z'],
                         ],
                     ]],
                 ],
@@ -250,8 +251,10 @@ it('deduplicates explicitly started provider jobs and returns only anonymous nod
         ->and($action->startConnections($root->id, $buyer->id, $order)['state'])->toBe('pending');
     $result = $action->connectionResult($root->id, $buyer->id, $order);
     expect($result)->toBe(['state' => 'completed', 'nodes' => [
-        ['name' => 'UAE-01', 'reports' => 1],
-    ]])->and(json_encode($result))->not->toContain('203.0.113.42', 'job-unique-42', 'diagnostic-private-token');
+        ['name' => 'UAE-01', 'reports' => 2, 'lastSeenAt' => '2026-11-22T11:15:00Z'],
+    ]])->and(json_encode($result))->not->toContain(
+        '203.0.113.42', '198.51.100.20', 'job-unique-42', 'diagnostic-private-token',
+    );
     Http::assertSentCount(5);
     expect(collect(Http::recorded())->filter(static fn (array $pair): bool => $pair[0]->method() === 'POST')->count())->toBe(1);
 });
