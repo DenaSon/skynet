@@ -1206,3 +1206,13 @@ it('opens another warning normally after a confirmed traffic recovery and fresh 
         ->and(DB::table('telegram_notification_deliveries')
             ->where('event_type', 'FilteringOpened')->count())->toBe(2);
 });
+
+it('requires a full ten-minute span even if six valid high-rate scans arrive sooner', function (): void {
+    $id = flt02OpenTrafficDrop();
+
+    for ($i = 0; $i < 6; $i++) {
+        flt02Step(12, 1000000, 1000000, 1);
+    }
+
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBe($id);
+});
