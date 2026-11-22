@@ -59,6 +59,7 @@ final readonly class AdminHealthUi
 
         $keyboard = InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی گزارش', callback_data: 'denaban:health'))
+            ->addRow(InlineKeyboardButton::make('🕒 تاریخچه ۲۴ساعته', callback_data: 'denaban:health-log:1'))
             ->addRow(
                 InlineKeyboardButton::make('🔔 اعلان‌ها', callback_data: 'denaban:notifications:1'),
                 InlineKeyboardButton::make('📦 فعال‌سازی‌ها', callback_data: 'full:attention:1'),
@@ -96,6 +97,136 @@ final readonly class AdminHealthUi
         }
 
         $bot->sendMessage(text: $text, reply_markup: $keyboard, parse_mode: 'HTML');
+    }
+
+    /** Show bounded persisted status transitions; never dispatch probes. */
+    public function history(Nutgram $bot, string $requestedPage = '1', bool $simple = false): void
+    {
+        $telegramId = $this->private->id($bot);
+        if ($telegramId === null) {
+            return;
+        }
+
+        $actor = $this->actors->handle($telegramId);
+        if ($actor?->canManageRoles() !== true) {
+            $this->menus->denyAccess($bot);
+
+            return;
+        }
+
+        if ($bot->isCallbackQuery()) {
+            TelegramUi::answerCallback($bot);
+        }
+
+        $page = preg_match('/\A(?:[1-9]|1[0-9]|20)\z/D', $requestedPage) === 1
+            ? (int) $requestedPage : 1;
+
+        try {
+            $data = $this->health->history($actor->userId, $page);
+        } catch (AuthorizationException) {
+            $this->menus->denyAccess($bot);
+
+            return;
+        } catch (\Throwable) {
+            $data = ['state' => 'unavailable', 'rows' => [], 'page' => 1,
+                'pages' => 1, 'total' => 0, 'recurrences' => 0];
+        }
+
+        $keyboard = InlineKeyboardMarkup::make();
+        if ($data['page'] > 1) {
+            $keyboard->addRow(InlineKeyboardButton::make(
+                '◀️ جدیدتر', callback_data: 'denaban:health-log:'.($data['page'] - 1),
+            ));
+        }
+        if ($data['page'] < $data['pages']) {
+            $keyboard->addRow(InlineKeyboardButton::make(
+                'قدیمی‌تر ▶️', callback_data: 'denaban:health-log:'.($data['page'] + 1),
+            ));
+        }
+        $keyboard->addRow(InlineKeyboardButton::make(
+            '🔄 دریافت آخرین تاریخچه', callback_data: 'denaban:health-log:'.$data['page'],
+        ))->addRow(InlineKeyboardButton::make(
+            '◀️ سلامت سیستم', callback_data: 'denaban:health',
+        ))->addRow(InlineKeyboardButton::make(
+            $simple ? '✨ نمای جدید' : '📝 نمای ساده',
+            callback_data: $simple
+                ? 'denaban:health-log:'.$data['page']
+                : 'denaban:health-log-simple:'.$data['page'],
+        ));
+
+        if (! $simple) {
+            try {
+                TelegramUi::editRichText(
+                    $bot, new InputRichMessage(html: self::historyRich($data), is_rtl: true),
+                    $keyboard,
+                );
+
+                return;
+            } catch (TelegramException $exception) {
+                report($exception);
+            }
+        }
+
+        $text = self::historyText($data);
+        if ($bot->isCallbackQuery()) {
+            TelegramUi::editText($bot, $text, $keyboard, 'HTML');
+
+            return;
+        }
+        $bot->sendMessage(text: $text, reply_markup: $keyboard, parse_mode: 'HTML');
+    }
+
+    /** @param array{state:string,rows:list<array{label:string,status:string,when:string,duration:?int}>,page:int,pages:int,total:int,recurrences:int} $data */
+    private static function historyText(array $data): string
+    {
+        $lines = ['<b>🕒 تاریخچه سلامت · ۲۴ ساعت اخیر</b>',
+            '', self::historySummary($data)];
+        foreach ($data['rows'] as $row) {
+            $lines[] = self::symbol($row['status']).' '.TelegramUi::escape($row['label'])
+                .' · '.self::status($row['status'])
+                .' · '.TelegramUi::escape(PersianCalendar::utcDateTime($row['when']))
+                .($row['duration'] === null ? '' : ' · حدود '.$row['duration'].' دقیقه');
+        }
+        $lines[] = '';
+        $lines[] = 'صفحه '.$data['page'].' از '.$data['pages'];
+        $lines[] = '<blockquote>این تاریخچه از پایش‌های ثبت‌شده ساخته شده است؛ زمان‌ها تقریبی هستند و بررسی زنده‌ای اجرا نمی‌شود.</blockquote>';
+
+        return implode("\n", $lines);
+    }
+
+    /** @param array{state:string,rows:list<array{label:string,status:string,when:string,duration:?int}>,page:int,pages:int,total:int,recurrences:int} $data */
+    private static function historyRich(array $data): string
+    {
+        $html = '<h2>🕒 تاریخچه سلامت · ۲۴ ساعت اخیر</h2>'
+            .'<p>'.TelegramUi::escape(self::historySummary($data)).'</p>';
+        if ($data['rows'] === []) {
+            $html .= '<p>تغییر وضعیتی برای نمایش وجود ندارد.</p>';
+        } else {
+            $rows = '';
+            foreach ($data['rows'] as $row) {
+                $detail = self::symbol($row['status']).' '.self::status($row['status'])
+                    .($row['duration'] === null ? '' : ' · حدود '.$row['duration'].' دقیقه');
+                $rows .= '<tr><td>'.TelegramUi::escape($row['label']).'</td><td>'
+                    .TelegramUi::escape($detail).'</td><td>'
+                    .TelegramUi::escape(PersianCalendar::utcDateTime($row['when'])).'</td></tr>';
+            }
+            $html .= '<table bordered striped compact>'.$rows.'</table>';
+        }
+
+        return $html.'<footer>صفحه '.$data['page'].' از '.$data['pages']
+            .' · فقط پایش‌های ذخیره‌شده</footer>';
+    }
+
+    /** @param array{state:string,rows:list<array{label:string,status:string,when:string,duration:?int}>,page:int,pages:int,total:int,recurrences:int} $data */
+    private static function historySummary(array $data): string
+    {
+        return match ($data['state']) {
+            'disabled' => 'پایش دوره‌ای غیرفعال است.',
+            'waiting' => 'در ۲۴ ساعت اخیر نتیجه‌ای از پایش سیستم ثبت نشده است.',
+            'unavailable' => 'تاریخچه فعلاً در دسترس نیست یا حجم داده از حد مجاز بیشتر است.',
+            default => $data['total'].' تغییر وضعیت ثبت‌شده · '
+                .$data['recurrences'].' بار ورود به هشدار یا اختلال',
+        };
     }
 
     /** @param array{state:string,enabled:bool,checkedAt:string|null,items:list<array{label:string,status:string,summary:string,group:string}>,total:int} $data */

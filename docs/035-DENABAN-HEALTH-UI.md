@@ -53,3 +53,28 @@ test a private trusted root on an RTL-capable client and a fallback client.
 The production feature remains **disabled by default** until a separate
 operator-approved activation after confirming migrations, Scheduler, Queue
 worker, and fresh persisted health batches.
+
+## HEALTH-HISTORY-01 — 24-hour persisted transition view (2026-11-22)
+
+The private trusted Super Admin opens **«🕒 تاریخچه ۲۴ساعته»** from
+«سلامت سیستم». Disjoint Admin-only callbacks provide RTL Rich and a native
+HTML fallback, retaining refresh and back controls. Both the Telegram UI and
+Application Action recheck root access. No live probes are executed on click.
+
+Only stored named Spatie checks in the last 24 hours are used. Reads are
+bounded to 12,000 rows, displaying six status transitions per page and at most
+20 pages (120 recent transitions). An unavailable or empty history is explicitly
+distinguished from a day with observations but no changes.
+
+The timeline reports observed changes and entries into a degraded state.
+A warning-to-failed or failed-to-warning transition is **the same incident**,
+not a new incident or a new start. Recovery duration is approximate and shown
+only when the transition into degraded health was observed from OK inside the
+available window; it is not an exact outage duration or uptime claim.
+The first observed sample in a degraded state has an unknown onset.
+
+No migration, table, new queue, scheduled job, public endpoint, notification,
+provider/financial write or new package is introduced. Acceptance requires
+RBAC/revocation/group tests, Rich/native behavior, router isolation, observed
+duration regression, formatting, PHPStan, PHP 8.4 and MySQL CI.
+Actual Telegram rendering and deployment are separate operational checks.

@@ -125,6 +125,115 @@ final readonly class ReadAdminHealth
         }
     }
 
+    /**
+     * Bounded 24h timeline from persisted named Spatie checks, never an on-demand probe.
+     *
+     * @return array{state:string,rows:list<array{label:string,status:string,when:string,duration:?int}>,page:int,pages:int,total:int,recurrences:int}
+     */
+    public function history(int $actorUserId, int $page = 1): array
+    {
+        $this->access->handle($actorUserId);
+
+        $empty = ['state' => 'available', 'rows' => [], 'page' => 1,
+            'pages' => 1, 'total' => 0, 'recurrences' => 0];
+        if (config('denagate_health.enabled') !== true) {
+            return [...$empty, 'state' => 'disabled'];
+        }
+
+        try {
+            if (! Schema::hasTable(self::TABLE)) {
+                return [...$empty, 'state' => 'unavailable'];
+            }
+
+            // Use the indexed created_at retention boundary in addition to
+            // the observation timestamp. The cap prevents an unbounded
+            // Telegram read if the schedule unexpectedly ran too often.
+            $expected = ['DatabaseCheck', 'QueueCheck', 'ScheduleCheck', 'UsedDiskSpaceCheck'];
+            if (config('cache.default') === 'redis' || config('queue.default') === 'redis') {
+                $expected[] = 'RedisCheck';
+            }
+            foreach (OperationalProbe::CHECKS as $name) {
+                $expected[] = 'ops_'.$name;
+            }
+
+            $rows = DB::table(self::TABLE)->where('created_at', '>=', now()->subDay()->subMinutes(5))
+                ->where('ended_at', '>=', now()->subDay())
+                ->whereIn('check_name', $expected)
+                ->orderBy('check_name')->orderBy('ended_at')->orderBy('id')
+                ->limit(12001)->get(['check_name', 'status', 'ended_at']);
+            if ($rows->count() > 12000) {
+                return [...$empty, 'state' => 'unavailable'];
+            }
+            if ($rows->isEmpty()) {
+                return [...$empty, 'state' => 'waiting'];
+            }
+
+            $last = [];
+            $started = [];
+            $events = [];
+            $recurrences = 0;
+
+            foreach ($rows as $row) {
+                $name = (string) $row->check_name;
+                $at = (string) $row->ended_at;
+                $status = match ((string) $row->status) {
+                    'ok' => 'ok',
+                    'warning' => 'warning',
+                    'failed', 'crashed' => 'failed',
+                    default => 'unknown',
+                };
+
+                if (! isset($last[$name])) {
+                    $last[$name] = $status;
+                    $started[$name] = null;
+                    // First observation of an already degraded state is not
+                    // proof that the incident started inside the 24h window.
+                    if (in_array($status, ['failed', 'warning'], true)) {
+                        $events[] = ['label' => self::label($name), 'status' => $status,
+                            'when' => $at, 'duration' => null];
+                    }
+
+                    continue;
+                }
+                if ($last[$name] === $status) {
+                    continue;
+                }
+
+                $duration = null;
+                if ($status === 'ok' && $started[$name] !== null) {
+                    $duration = max(0, (int) Carbon::parse($started[$name], 'UTC')
+                        ->diffInMinutes(Carbon::parse($at, 'UTC')));
+                }
+                if (in_array($status, ['failed', 'warning'], true)) {
+                    // A change between degraded severities is the same incident.
+                    if (! in_array($last[$name], ['failed', 'warning'], true)) {
+                        $recurrences++;
+                        // Only OK-to-degraded gives a known observed onset.
+                        $started[$name] = $last[$name] === 'ok' ? $at : null;
+                    }
+                } else {
+                    $started[$name] = null;
+                }
+
+                $last[$name] = $status;
+                $events[] = ['label' => self::label($name), 'status' => $status,
+                    'when' => $at, 'duration' => $duration];
+            }
+
+            usort($events, static fn (array $a, array $b): int => strcmp($b['when'], $a['when']));
+            $total = min(count($events), 120);
+            $pages = max(1, (int) ceil($total / 6));
+            $page = max(1, min($page, $pages));
+
+            return ['state' => 'available',
+                'rows' => array_slice($events, ($page - 1) * 6, 6),
+                'page' => $page, 'pages' => $pages,
+                'total' => $total, 'recurrences' => $recurrences];
+        } catch (Throwable) {
+            return [...$empty, 'state' => 'unavailable'];
+        }
+    }
+
     private static function label(string $name): string
     {
         return match (strtolower($name)) {

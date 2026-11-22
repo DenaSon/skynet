@@ -135,6 +135,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     // HEALTH-UI-01: root-only stored health reads, never Sales routes.
     $expected['ADMIN'][] = 'callback:denaban:health';
     $expected['ADMIN'][] = 'callback:denaban:health:simple';
+    $expected['ADMIN'][] = 'callback:denaban:health-log:{page}';
+    $expected['ADMIN'][] = 'callback:denaban:health-log-simple:{page}';
     // STAT-01: scoped Admin read-only statistics routes.
     $expected['ADMIN'][] = 'command:stats';
     // STAT-02: bounded Admin-only business reports.
@@ -384,8 +386,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(345)
-        ->and(count(array_unique($legacy)))->toBe(345);
+        ->and(count($legacy))->toBe(347)
+        ->and(count(array_unique($legacy)))->toBe(347);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {
