@@ -80,7 +80,7 @@ final readonly class ReadFilteringCenter
     /**
      * One authorized local snapshot for a bounded list of verified service Nodes.
      *
-     * @param list<string> $uuids
+     * @param  list<string>  $uuids
      * @return array<string,array<string,mixed>>
      */
     public function nodeObservations(int $userId, array $uuids): array
