@@ -108,10 +108,13 @@ final readonly class FilteringIncidentNotice
             return null;
         }
 
+        // Escalation's incident last_observed_at changes on later scans.
+        // The outbox intent's created_at is immutable across delivery retries.
         $eventTime = match ($kind) {
             'open' => $row->opened_at,
             'recover' => $row->resolved_at,
-            default => $row->last_observed_at,
+            default => is_string($delivery->created_at ?? null)
+                ? $delivery->created_at : $row->last_observed_at,
         };
         $time = PersianCalendar::utcDateTime((string) $eventTime);
         $localHour = CarbonImmutable::parse((string) $eventTime, 'UTC')->setTimezone('Asia/Tehran')->hour;
