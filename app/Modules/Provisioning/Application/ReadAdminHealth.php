@@ -163,6 +163,9 @@ final readonly class ReadAdminHealth
             if ($rows->count() > 12000) {
                 return [...$empty, 'state' => 'unavailable'];
             }
+            if ($rows->isEmpty()) {
+                return [...$empty, 'state' => 'waiting'];
+            }
 
             $last = [];
             $started = [];
