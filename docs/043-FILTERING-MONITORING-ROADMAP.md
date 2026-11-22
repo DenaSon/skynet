@@ -268,6 +268,11 @@ This section records only the FLT-01 implementation design for review; merge, Pr
 - Move **only** the scheduled `filtering:regional:scan` cron from `*/10 * * * *` to `3-59/10 * * * *`, i.e. at **:03/:13/:23/:33/:43/:53**, preserving six scans/hour and the existing `withoutOverlapping(5)` and `runInBackground()` behavior. This offsets the regional start from `*/2`, `*/5` and `*/15` tasks without modifying those tasks; every-minute tasks remain concurrent. Leave Node scans, regional classification/alerts, Check-Host 16-second/11-poll budget, retries, round-robin fleet limits and pruning unchanged.
 - Verify the precise due and non-due cron minutes in CI; after deployment compare **four full hours entirely on the new schedule** against the 41.3% immediate-prechange baseline, broken down by hourly slots and Node. Do not claim improved provider reliability or absence of filtering from CI/faked HTTP tests. If UNKNOWN remains high, investigate actual Check-Host probe completion behavior before further timing changes. No migration, ENV or dependency changes.
 
+## 2026-11-22 — Remnawave fractional interface-rate normalization (PR #537)
+
+- The production `GET /api/nodes` payload can contain **fractional** `system.stats.interface.rxBytesPerSec` and `txBytesPerSec` values; the prior integer-only byte parser treated such rates as UNKNOWN. Only the interface-rate projection now accepts finite nonnegative JSON numbers or plain decimal strings, rounds positive fractions **up to integer bytes/sec**, retains exact zero as zero and rejects negative, malformed or out-of-range values as UNKNOWN. Traffic-used byte counters and user counts keep their existing integer contracts.
+- No extra API requests, Node writes, job, migration or monitoring feature toggles. Source HTTP-fake tests cover fractional, small positive, zero and malformed samples. Operator-supplied live values justify the parser fix but source CI does **not** establish a post-deploy real-panel sampling rate or Telegram alert accuracy.
+
 ## 2026-11-22 — Early activity-drop warnings (implementation PR; production not yet verified)
 
 - Goal: **prompt Super Admin manual checks**, not diagnose censorship or a named carrier. One carrier may fail while others continue using the same Node; neither total traffic nor the Remnawave online count identifies an ISP.
