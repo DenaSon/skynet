@@ -124,7 +124,7 @@ it('shows only the latest complete batch, status summaries and RTL Rich markup',
             return ($rich['is_rtl'] ?? null) === true
                 && str_contains($html, '🩺 دنابان | سلامت سیستم')
                 && str_contains($html, 'اختلال شناسایی شد')
-                && str_contains($html, 'Queue Worker')
+                && str_contains($html, 'پردازش صف')
                 && str_contains($html, '<table bordered striped compact>')
                 && str_contains($buttons, 'denaban:health:simple')
                 && str_contains($buttons, 'denaban:show')
@@ -134,6 +134,25 @@ it('shows only the latest complete batch, status summaries and RTL Rich markup',
         }, index: 1);
 
     Http::assertNothingSent();
+});
+
+it('allows a four-minute-old complete batch and refuses unexpected extra checks', function (): void {
+    $root = denabanHealthRoot();
+    config()->set('denagate_health.enabled', true);
+    config()->set('cache.default', 'array');
+    config()->set('queue.default', 'database');
+    $batch = '86868686-8686-4868-8868-868686868686';
+    $at = now()->subMinutes(4)->toDateTimeString();
+    foreach (['DatabaseCheck', 'QueueCheck', 'ScheduleCheck', 'UsedDiskSpaceCheck'] as $name) {
+        denabanHealthStore($batch, $name, 'ok', $at);
+    }
+    foreach (OperationalProbe::CHECKS as $name) {
+        denabanHealthStore($batch, 'ops_'.$name, 'ok', $at);
+    }
+
+    expect(app(ReadAdminHealth::class)->handle($root->id)['state'])->toBe('healthy');
+    denabanHealthStore($batch, 'UnrecognizedCheck', 'ok', $at);
+    expect(app(ReadAdminHealth::class)->handle($root->id)['state'])->toBe('unknown');
 });
 
 it('shows bounded 24-hour status changes, approximate recovery duration and native fallback', function (): void {
@@ -216,6 +235,34 @@ it('denies private health history to ordinary and revoked Admin roles and groups
     Http::assertNothingSent();
 });
 
+it('preserves one incident start through warning-to-failed and failed-to-warning transitions', function (): void {
+    $root = denabanHealthRoot();
+    config()->set('denagate_health.enabled', true);
+
+    $base = now()->subMinutes(90);
+    $entries = [
+        ['QueueCheck', 'ok', 0],
+        ['QueueCheck', 'warning', 40],
+        ['QueueCheck', 'failed', 55],
+        ['QueueCheck', 'ok', 70],
+        ['ScheduleCheck', 'ok', 0],
+        ['ScheduleCheck', 'failed', 35],
+        ['ScheduleCheck', 'warning', 50],
+        ['ScheduleCheck', 'ok', 65],
+    ];
+    foreach ($entries as $i => [$name, $status, $offset]) {
+        denabanHealthStore(sprintf('b0000000-0000-4000-8000-%012d', $i + 1), $name, $status,
+            $base->copy()->addMinutes($offset)->toDateTimeString());
+    }
+
+    $result = app(ReadAdminHealth::class)->history($root->id);
+    $recoveries = array_values(array_filter($result['rows'],
+        static fn (array $row): bool => $row['status'] === 'ok'));
+    expect($result['recurrences'])->toBe(2)
+        ->and($result['total'])->toBe(6)
+        ->and(array_column($recoveries, 'duration'))->toEqualCanonicalizing([30, 30]);
+});
+
 it('marks stale and partial batches unknown instead of healthy', function (): void {
     $root = denabanHealthRoot();
     config()->set('denagate_health.enabled', true);
@@ -250,6 +297,23 @@ it('blocks ordinary, revoked and group users and does not execute checks or prov
     $groupBot = denabanHealthBot();
     $groupBot->setCommonChat(Chat::make(-993201, ChatType::GROUP));
     $groupBot->hearCallbackQueryData('denaban:health')->reply()->assertNoReply();
+    Http::assertNothingSent();
+});
+
+it('offers only existing authorized diagnostic routes from the Health screen', function (): void {
+    denabanHealthRoot();
+
+    denabanHealthBot()->hearCallbackQueryData('denaban:health:simple')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $buttons = json_encode(denabanHealthPayload($request)['reply_markup'], JSON_THROW_ON_ERROR);
+
+            return str_contains($buttons, 'denaban:notifications:1')
+                && str_contains($buttons, 'full:attention:1')
+                && str_contains($buttons, 'menu:admin:servers')
+                && str_contains($buttons, 'flt:home')
+                && str_contains($buttons, 'denaban:show');
+        }, index: 1);
+
     Http::assertNothingSent();
 });
 
@@ -313,8 +377,8 @@ it('renders resource and operational checks instead of the old about section and
             return str_contains($html, '📊 منابع و عملیات')
                 && str_contains($html, 'مصرف CPU')
                 && str_contains($html, '20.0% / 0.45 CPU / 0.0% wait')
-                && str_contains($html, 'RAM')
-                && str_contains($html, 'API شبکه')
+                && str_contains($html, 'حافظه RAM برنامه')
+                && str_contains($html, 'ارتباط با پنل')
                 && str_contains($html, '64.0% / 2048 MiB')
                 && str_contains($html, 'فعال‌سازی سفارش‌ها')
                 && ! str_contains($html, 'درباره این گزارش')
@@ -330,7 +394,7 @@ it('renders resource and operational checks instead of the old about section and
             return str_contains($payload['text'], '📊 منابع و عملیات')
                 && str_contains($payload['text'], 'مصرف CPU')
                 && str_contains($payload['text'], '20.0% / 0.45 CPU / 0.0% wait')
-                && str_contains($payload['text'], 'API شبکه')
+                && str_contains($payload['text'], 'ارتباط با پنل')
                 && ! str_contains($payload['text'], 'Remnawave');
         }, index: 1);
     Http::assertNothingSent();

@@ -60,6 +60,14 @@ final readonly class AdminHealthUi
         $keyboard = InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی گزارش', callback_data: 'denaban:health'))
             ->addRow(InlineKeyboardButton::make('🕒 تاریخچه ۲۴ساعته', callback_data: 'denaban:health-log:1'))
+            ->addRow(
+                InlineKeyboardButton::make('🔔 اعلان‌ها', callback_data: 'denaban:notifications:1'),
+                InlineKeyboardButton::make('📦 فعال‌سازی‌ها', callback_data: 'full:attention:1'),
+            )
+            ->addRow(
+                InlineKeyboardButton::make('🖥️ سرورها', callback_data: 'menu:admin:servers'),
+                InlineKeyboardButton::make('🌐 فیلترینگ', callback_data: 'flt:home'),
+            )
             ->addRow(InlineKeyboardButton::make('◀️ دنابان', callback_data: 'denaban:show'))
             ->addRow(InlineKeyboardButton::make(
                 $simple ? '✨ نمای جدید' : '📝 نمای ساده',
@@ -229,6 +237,7 @@ final readonly class AdminHealthUi
             '',
             '<b>'.self::state($data['state']).'</b>',
             self::description($data['state']),
+            self::attention($data),
         ];
 
         foreach (['basic' => '🔍 بررسی‌های پایه', 'operations' => '📊 منابع و عملیات'] as $group => $heading) {
@@ -243,13 +252,13 @@ final readonly class AdminHealthUi
             foreach ($groupItems as $item) {
                 $lines[] = self::symbol($item['status']).' '
                     .TelegramUi::escape($item['label']).': '.self::status($item['status'])
-                    .($item['summary'] === '' ? '' : ' · '.TelegramUi::escape($item['summary']));
+                    .($item['summary'] === '' ? '' : ' · '.TelegramUi::escape(self::metric($item['summary'])));
             }
         }
 
         $lines[] = '';
-        $lines[] = '🕒 آخرین ثبت: '.self::time($data['checkedAt']);
-        $lines[] = '<blockquote>تازه‌سازی فقط اطلاعات ذخیره‌شده را می‌خواند و بررسی جدیدی روی Queue یا سرورها اجرا نمی‌کند. اطلاعات قدیمی یا ناقص، سالم گزارش نمی‌شوند.</blockquote>';
+        $lines[] = '🕒 آخرین پایش: '.self::time($data['checkedAt']);
+        $lines[] = '<blockquote>آخرین نتیجه ذخیره‌شده نمایش داده می‌شود؛ تازه‌سازی، بررسی جدیدی اجرا نمی‌کند.</blockquote>';
 
         return implode("\n", $lines);
     }
@@ -261,7 +270,7 @@ final readonly class AdminHealthUi
         $operations = '';
         foreach ($data['items'] as $item) {
             $detail = self::symbol($item['status']).' '.self::status($item['status'])
-                .($item['summary'] === '' ? '' : ' · '.$item['summary']);
+                .($item['summary'] === '' ? '' : ' · '.self::metric($item['summary']));
             $row = '<tr><td>'.TelegramUi::escape($item['label']).'</td><td align="left"><b>'
                 .TelegramUi::escape($detail).'</b></td></tr>';
             if ($item['group'] === 'operations') {
@@ -279,11 +288,12 @@ final readonly class AdminHealthUi
         return '<h2>🩺 دنابان | سلامت سیستم</h2>'
             .'<p><b>'.TelegramUi::escape(self::state($data['state'])).'</b></p>'
             .'<p>'.TelegramUi::escape(self::description($data['state'])).'</p>'
+            .'<p><b>'.TelegramUi::escape(self::attention($data)).'</b></p>'
             .'<h3>🔍 بررسی‌های پایه</h3>'
             .$basic
             .'<h3>📊 منابع و عملیات</h3>'
             .$ops
-            .'<footer>🕒 آخرین ثبت: '.TelegramUi::escape(self::time($data['checkedAt'])).'</footer>';
+            .'<footer>🕒 آخرین پایش: '.TelegramUi::escape(self::time($data['checkedAt'])).'</footer>';
     }
 
     private static function state(string $state): string
@@ -302,13 +312,57 @@ final readonly class AdminHealthUi
     private static function description(string $state): string
     {
         return match ($state) {
-            'healthy' => 'آخرین نوبت بررسی کامل و به‌روز است.',
-            'warning' => 'حداقل یکی از بررسی‌ها هشدار داده است.',
-            'failed' => 'حداقل یکی از بررسی‌ها خطا ثبت کرده است.',
-            'stale' => 'نتیجه تازه در سه دقیقه اخیر ثبت نشده؛ سلامت فعلی نامشخص است.',
-            'disabled' => 'برای فعال‌سازی، پس از آماده‌بودن Migration و Worker، تنظیم DENAGATE_HEALTH_ENABLED را بررسی کنید.',
+            'healthy' => 'تمام بررسی‌های فعال در آخرین نوبت موفق بوده‌اند.',
+            'warning' => 'بعضی بخش‌ها نیازمند بررسی هستند. جزئیات را ببینید.',
+            'failed' => 'یک یا چند اختلال ثبت شده است. بخش مربوط را بررسی کنید.',
+            'stale' => 'بیش از پنج دقیقه از آخرین پایش گذشته است؛ وضعیت فعلی تأیید نشده است.',
+            'disabled' => 'پایش دوره‌ای فعال نیست. تنظیمات پایش را در بخش مدیریت زیرساخت بررسی کنید.',
             'waiting' => 'پایش فعال است، اما هنوز تاریخچه‌ای ثبت نشده است.',
-            default => 'دریافت اطلاعات سلامت کامل نیست؛ دیتابیس و Migration را بررسی کنید.',
+            default => 'اطلاعات سلامت کامل نیست یا دریافت نشده است. وضعیت پایش و دیتابیس را بررسی کنید.',
+        };
+    }
+
+    /** A short summary ahead of the full existing check tables. */
+    private static function attention(array $data): string
+    {
+        if ($data['items'] === []) {
+            return 'هنوز نتیجه‌ای برای نمایش وجود ندارد.';
+        }
+
+        $failed = 0;
+        $warnings = 0;
+        $unknown = 0;
+        foreach ($data['items'] as $item) {
+            if (in_array($item['status'], ['failed', 'crashed'], true)) {
+                $failed++;
+            } elseif ($item['status'] === 'warning') {
+                $warnings++;
+            } elseif (in_array($item['status'], ['skipped', 'unknown'], true)) {
+                $unknown++;
+            }
+        }
+
+        if ($failed + $warnings + $unknown === 0) {
+            return $data['state'] === 'healthy'
+                ? 'همه '.count($data['items']).' بررسی ثبت‌شده سالم‌اند.'
+                : 'نتایج ثبت‌شده خطایی ندارند، اما گزارش کامل یا به‌روز نیست.';
+        }
+
+        return $failed.' اختلال · '.$warnings.' هشدار · '.$unknown.' نامشخص';
+    }
+
+    /** Translate only known fixed probe phrases, not arbitrary persisted metadata. */
+    private static function metric(string $summary): string
+    {
+        return match ($summary) {
+            'unavailable' => 'اطلاعات در دسترس نیست',
+            'not configured' => 'تنظیم نشده',
+            'API unreachable' => 'ارتباط برقرار نشد',
+            'invalid response' => 'پاسخ پنل معتبر نیست',
+            'disabled' => 'غیرفعال',
+            'no heartbeat' => 'زمان آخرین اجرا نامشخص',
+            'no worker queue' => 'صف پردازش فعال نیست',
+            default => $summary,
         };
     }
 

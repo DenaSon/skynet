@@ -19,7 +19,19 @@ final readonly class RemnawaveReadApi
     {
         $health = $this->objectResponse('SystemController_getRemnawaveHealth');
 
-        return count($this->list($health['runtimeMetrics'] ?? null, 'runtimeMetrics'));
+        $metrics = $this->list($health['runtimeMetrics'] ?? null, 'runtimeMetrics');
+        // The API exposes process runtime metrics, not a reliable verdict for
+        // customer connectivity. Check shape and bound; never claim all nodes healthy.
+        if (count($metrics) > 32) {
+            throw new UnexpectedValueException('Unbounded Remnawave runtime metrics.');
+        }
+        foreach ($metrics as $metric) {
+            if (! is_array($metric) || array_is_list($metric)) {
+                throw new UnexpectedValueException('Malformed Remnawave runtime metric.');
+            }
+        }
+
+        return count($metrics);
     }
 
     /**

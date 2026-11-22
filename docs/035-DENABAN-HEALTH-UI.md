@@ -14,16 +14,22 @@ group chats, revoked accounts, and delegated admins are denied.
 
 ## Data and freshness
 
-- Read at most twelve records from the **latest persisted Spatie batch** only.
-- Display safe Persian service labels and whitelisted status categories.
+- Read at most 24 named records from the **latest persisted Spatie batch** only.
+- Display safe Persian service labels, a brief management summary and whitelisted status categories. No ENV names appear in the Telegram instructions.
 - Never display raw metadata, notification messages, DB connection strings,
   private addresses, file paths, credentials, or stack traces.
 - No record yet: **waiting**. Feature off: **disabled**.
-- More than 3 minutes old or future-dated: **stale**.
-- Incomplete (< 4 checks), unexpected status, or too many records: **unknown**.
+- More than 5 minutes old or future-dated: **stale** (the scheduled checks run every 2 minutes).
+- Missing, duplicate, unexpected or additional check names, unexpected statuses, or too many records: **unknown**.
 - Current batch with any failure/crash: **failed**; warnings: **warning**.
 - Only a fresh, complete and fully OK batch can show **healthy**.
 - Missing table / DB failure: **unavailable**, never `0` or a green check.
+
+
+The scheduled Remnawave Health API probe confirms only reachable, well-formed
+runtime/process metrics, not real customer VPN reachability or per-Node health.
+Malformed runtime metrics are reported as unknown/warning, not as a verified
+healthy service. The Telegram refresh itself performs no Remnawave call.
 
 The refresh button **re-reads stored results** and does not run a new health
 check inside the Telegram Webhook. Queue jobs and scheduled monitoring stay
@@ -47,3 +53,28 @@ test a private trusted root on an RTL-capable client and a fallback client.
 The production feature remains **disabled by default** until a separate
 operator-approved activation after confirming migrations, Scheduler, Queue
 worker, and fresh persisted health batches.
+
+## HEALTH-HISTORY-01 — 24-hour persisted transition view (2026-11-22)
+
+The private trusted Super Admin opens **«🕒 تاریخچه ۲۴ساعته»** from
+«سلامت سیستم». Disjoint Admin-only callbacks provide RTL Rich and a native
+HTML fallback, retaining refresh and back controls. Both the Telegram UI and
+Application Action recheck root access. No live probes are executed on click.
+
+Only stored named Spatie checks in the last 24 hours are used. Reads are
+bounded to 12,000 rows, displaying six status transitions per page and at most
+20 pages (120 recent transitions). An unavailable or empty history is explicitly
+distinguished from a day with observations but no changes.
+
+The timeline reports observed changes and entries into a degraded state.
+A warning-to-failed or failed-to-warning transition is **the same incident**,
+not a new incident or a new start. Recovery duration is approximate and shown
+only when the transition into degraded health was observed from OK inside the
+available window; it is not an exact outage duration or uptime claim.
+The first observed sample in a degraded state has an unknown onset.
+
+No migration, table, new queue, scheduled job, public endpoint, notification,
+provider/financial write or new package is introduced. Acceptance requires
+RBAC/revocation/group tests, Rich/native behavior, router isolation, observed
+duration regression, formatting, PHPStan, PHP 8.4 and MySQL CI.
+Actual Telegram rendering and deployment are separate operational checks.
