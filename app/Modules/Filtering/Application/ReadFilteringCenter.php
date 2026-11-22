@@ -91,7 +91,7 @@ final readonly class ReadFilteringCenter
         }
         $wanted = [];
         foreach ($uuids as $uuid) {
-            if (! is_string($uuid) || ! self::validUuid($uuid)) {
+            if (! self::validUuid($uuid)) {
                 return [];
             }
             $wanted[strtolower($uuid)] = true;
