@@ -107,7 +107,7 @@ final readonly class ReadCustomerServiceDiagnostics
     }
 
     /**
-     * @return array{state:string,total:?int,records:list<array{at:string,type:string}>}
+     * @return array{state:string,total:?int,records:list<array{at:string,type:string,ip:?string,agent:?string,rule:?string}>}
      */
     public function history(int $actorId, int $subjectId, int $orderId): array
     {
@@ -127,14 +127,25 @@ final readonly class ReadCustomerServiceDiagnostics
             }
 
             $items = [];
-            foreach (array_slice($records, 0, 8) as $record) {
+            foreach ($records as $record) {
                 if (! is_array($record) || ($record['userId'] ?? null) !== $binding['id']
                     || ! is_string($record['requestAt'] ?? null)
+                    || preg_match('/\A[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,9})?(?:Z|[+-][0-9]{2}:[0-9]{2})\z/D', $record['requestAt']) !== 1
                     || ! self::responseType($record['srrResponseType'] ?? null)) {
                     throw new UnexpectedValueException('Invalid request history record.');
                 }
                 $at = (new DateTimeImmutable($record['requestAt']))->format('Y-m-d\TH:i:sP');
-                $items[] = ['at' => $at, 'type' => $record['srrResponseType']];
+                if (DateTimeImmutable::getLastErrors() !== false) {
+                    throw new UnexpectedValueException('Invalid request history timestamp.');
+                }
+                $ip = $record['requestIp'] ?? null;
+                $items[] = [
+                    'at' => $at,
+                    'type' => $record['srrResponseType'],
+                    'ip' => is_string($ip) && filter_var($ip, FILTER_VALIDATE_IP) !== false ? $ip : null,
+                    'agent' => self::diagnosticText($record['userAgent'] ?? null, 120),
+                    'rule' => self::diagnosticText($record['srrRuleName'] ?? null, 80),
+                ];
             }
             $result = ['state' => 'available', 'total' => $total, 'records' => $items];
         } catch (Throwable) {
@@ -433,6 +444,21 @@ final readonly class ReadCustomerServiceDiagnostics
     {
         return is_string($value) && trim($value) !== ''
             && mb_strlen($value) <= 80 && preg_match('/[\x00-\x1F\x7F]/u', $value) !== 1;
+    }
+
+    private static function diagnosticText(mixed $value, int $maxLength): ?string
+    {
+        if (! is_string($value)) {
+            return null;
+        }
+        $value = trim($value);
+        if ($value === '' || preg_match('/[\x00-\x1F\x7F\x{202A}-\x{202E}\x{2066}-\x{2069}]/u', $value) !== 0) {
+            return null;
+        }
+
+        return mb_strlen($value) > $maxLength
+            ? mb_substr($value, 0, $maxLength - 1).'…'
+            : $value;
     }
 
     private static function responseType(mixed $value): bool

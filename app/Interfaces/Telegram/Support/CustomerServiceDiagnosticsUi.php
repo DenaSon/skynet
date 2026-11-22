@@ -50,8 +50,11 @@ final readonly class CustomerServiceDiagnosticsUi
             return;
         }
         $ipParams = [];
+        $historyParams = [];
         $ipPage = preg_match('/\Aip([0-7])p([1-2])\z/D', $kind, $ipParams) === 1;
-        if ((! in_array($kind, ['home', 'usage', 'history', 'nodes', 'start', 'result'], true) && ! $ipPage)
+        $historyPage = preg_match('/\Ah([1-6])\z/D', $kind, $historyParams) === 1;
+        if ((! in_array($kind, ['home', 'usage', 'history', 'nodes', 'start', 'result'], true)
+                && ! $ipPage && ! $historyPage)
             || ! self::number($subjectId, 15) || ! self::number($orderId, 15)
             || ! self::number($userPage, 6) || (int) $userPage > 100000
             || ! UserDirectoryMode::valid($mode)
@@ -69,14 +72,19 @@ final readonly class CustomerServiceDiagnosticsUi
             $connectionData = $kind === 'result' || $ipPage
                 ? $this->diagnostics->connectionResult($actor->userId, $subject, $order)
                 : ['state' => 'unavailable', 'nodes' => []];
+            $historyData = $kind === 'history' || $historyPage
+                ? $this->diagnostics->history($actor->userId, $subject, $order)
+                : ['state' => 'unavailable', 'total' => null, 'records' => []];
             $data = match ($kind) {
                 'home' => $this->home($actor->userId, $subject, $order),
                 'usage' => $this->usage($actor->userId, $subject, $order, (int) $days),
-                'history' => $this->history($actor->userId, $subject, $order),
+                'history' => $this->history($historyData, 1),
                 'nodes' => $this->nodes($actor->userId, $subject, $order),
                 'start' => $this->connections($this->diagnostics->startConnections($actor->userId, $subject, $order)),
                 'result' => $this->connections($connectionData),
-                default => $this->connectionIps($connectionData, (int) $ipParams[1], (int) $ipParams[2]),
+                default => $historyPage
+                    ? $this->history($historyData, (int) $historyParams[1])
+                    : $this->connectionIps($connectionData, (int) $ipParams[1], (int) $ipParams[2]),
             };
         } catch (AuthorizationException) {
             $this->menus->denyAccess($bot);
@@ -120,6 +128,26 @@ final readonly class CustomerServiceDiagnosticsUi
                     }
                 }
             }
+        } elseif ($kind === 'history' || $historyPage) {
+            $page = $historyPage ? (int) $historyParams[1] : 1;
+            $pages = max(1, (int) ceil(count($historyData['records']) / 4));
+            $navigation = [];
+            if ($page > 1) {
+                $navigation[] = InlineKeyboardButton::make(
+                    '◀️ قبلی', callback_data: $back('h'.($page - 1)),
+                );
+            }
+            if ($page < $pages) {
+                $navigation[] = InlineKeyboardButton::make(
+                    'بعدی ▶️', callback_data: $back('h'.($page + 1)),
+                );
+            }
+            if ($navigation !== []) {
+                $keyboard->addRow(...$navigation);
+            }
+            $keyboard->addRow(InlineKeyboardButton::make(
+                '🔄 تازه‌سازی', callback_data: $back($kind),
+            ));
         } elseif ($ipPage) {
             $nodeIndex = (int) $ipParams[1];
             $page = (int) $ipParams[2];
@@ -229,23 +257,35 @@ final readonly class CustomerServiceDiagnosticsUi
             'note' => 'آمار روزانه پنل است؛ مصرف دوره‌ای با مصرف تجمعی اشتراک یکسان نیست.'];
     }
 
-    /** @return array{title:string,rows:list<array{string,string}>,note:string} */
-    private function history(int $actorId, int $subjectId, int $orderId): array
+    /**
+     * @param  array{state:string,total:?int,records:list<array{at:string,type:string,ip:?string,agent:?string,rule:?string}>}  $data
+     * @return array{title:string,rows:list<array{string,string}>,note:string}
+     */
+    private function history(array $data, int $page): array
     {
-        $data = $this->diagnostics->history($actorId, $subjectId, $orderId);
         $rows = [];
         if ($data['state'] !== 'available') {
             $rows[] = ['تاریخچه', 'در دسترس نیست'];
         } elseif ($data['records'] === []) {
             $rows[] = ['درخواست', 'موردی ثبت نشده'];
         } else {
-            foreach ($data['records'] as $record) {
-                $rows[] = ['درخواست اشتراک', PersianCalendar::utcDateTime($record['at'])];
+            $count = count($data['records']);
+            $rows[] = ['رکوردهای اخیر', PersianCalendar::number((string) $count).' از '
+                .PersianCalendar::number((string) $data['total'])];
+            foreach (array_slice($data['records'], ($page - 1) * 4, 4) as $index => $record) {
+                $rows[] = ['درخواست '.PersianCalendar::number((string) (($page - 1) * 4 + $index + 1)),
+                    PersianCalendar::utcDateTime($record['at'])];
+                $rows[] = ['IP دریافت اشتراک', $record['ip'] ?? 'نامشخص'];
+                $rows[] = ['کلاینت / User-Agent', $record['agent'] ?? 'نامشخص'];
+                $rows[] = ['نوع پاسخ', match ($record['type']) {
+                    'XRAY_BASE64' => 'اشتراک Base64', default => $record['type'],
+                }];
+                $rows[] = ['قانون پاسخ', $record['rule'] ?? 'نامشخص'];
             }
         }
 
         return ['title' => '📋 تاریخچه دریافت اشتراک', 'rows' => $rows,
-            'note' => 'این تاریخچه نشان‌دهنده دریافت یا تلاش برای دریافت اشتراک است، نه اثبات اتصال VPN.'];
+            'note' => 'این اطلاعات مربوط به درخواست دریافت اشتراک است، نه اثبات اتصال VPN.'];
     }
 
     /** @return array{title:string,rows:list<array{string,string}>,note:string} */
