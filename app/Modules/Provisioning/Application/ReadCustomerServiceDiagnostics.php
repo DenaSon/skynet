@@ -130,6 +130,7 @@ final readonly class ReadCustomerServiceDiagnostics
             foreach ($records as $record) {
                 if (! is_array($record) || ($record['userId'] ?? null) !== $binding['id']
                     || ! is_string($record['requestAt'] ?? null)
+                    || preg_match('/\A[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,9})?(?:Z|[+-][0-9]{2}:[0-9]{2})\z/D', $record['requestAt']) !== 1
                     || ! self::responseType($record['srrResponseType'] ?? null)) {
                     throw new UnexpectedValueException('Invalid request history record.');
                 }
