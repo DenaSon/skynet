@@ -12,6 +12,7 @@ use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveNodeTelemetry;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveUsersApi;
 use DateTimeImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use Throwable;
@@ -195,6 +196,159 @@ final readonly class ReadCustomerServiceDiagnostics
         $this->stillOwned($actorId, $subjectId, $orderId, $binding);
 
         return $result;
+    }
+
+    /**
+     * A diagnostic POST starts a server-side observation job, not a user mutation.
+     * Feature-gated, root-only, one explicit start per service/actor/cooldown.
+     *
+     * @return array{state:string,nodes:list<array{name:string,reports:int}>}
+     */
+    public function startConnections(int $actorId, int $subjectId, int $orderId): array
+    {
+        $this->root($actorId);
+        if (config('services.remnawave.connections_diagnostics_enabled') !== true) {
+            return self::connectionState('disabled');
+        }
+
+        $binding = $this->verified($actorId, $subjectId, $orderId);
+        if ($binding === null) {
+            return self::connectionState('unavailable');
+        }
+
+        $key = self::connectionKey($actorId, $orderId);
+        // Cache::add is atomic on the project's Redis cache store. Reserve BEFORE POST;
+        // an ambiguous timeout must not cause a duplicate diagnostic job.
+        $reserved = Cache::add($key, [
+            'id' => $binding['id'], 'reference' => $binding['reference'],
+            'status' => 'requested',
+        ], 120);
+        if (! $reserved) {
+            $this->stillOwned($actorId, $subjectId, $orderId, $binding);
+            $existing = Cache::get($key);
+
+            return self::connectionState(
+                is_array($existing) && ($existing['status'] ?? null) === 'uncertain' ? 'unavailable' : 'pending',
+            );
+        }
+
+        try {
+            $data = self::payload($this->factory->make()->call('ConnectionsController_connectionsByUser',
+                ['userId' => $binding['id']]));
+            $jobId = $data['jobId'] ?? null;
+            if (! is_string($jobId) || preg_match('/\A[A-Za-z0-9_-]{1,100}\z/D', $jobId) !== 1) {
+                throw new UnexpectedValueException('Invalid connection job.');
+            }
+            Cache::put($key, [
+                'id' => $binding['id'], 'reference' => $binding['reference'],
+                'status' => 'requested', 'jobId' => $jobId,
+            ], 180);
+            $state = 'pending';
+        } catch (Throwable) {
+            // Retain an uncertain checkpoint so neither a retry nor a misleading
+            // "still pending" message is produced before the cooldown expires.
+            Cache::put($key, [
+                'id' => $binding['id'], 'reference' => $binding['reference'],
+                'status' => 'uncertain',
+            ], 120);
+            $state = 'unavailable';
+        }
+
+        $this->stillOwned($actorId, $subjectId, $orderId, $binding);
+
+        return self::connectionState($state);
+    }
+
+    /**
+     * Explicit on-demand GET polling only. Never auto-post, never publish IPs.
+     *
+     * @return array{state:string,nodes:list<array{name:string,reports:int}>}
+     */
+    public function connectionResult(int $actorId, int $subjectId, int $orderId): array
+    {
+        $this->root($actorId);
+        if (config('services.remnawave.connections_diagnostics_enabled') !== true) {
+            return self::connectionState('disabled');
+        }
+        $binding = $this->verified($actorId, $subjectId, $orderId);
+        if ($binding === null) {
+            return self::connectionState('unavailable');
+        }
+        $key = self::connectionKey($actorId, $orderId);
+        $cache = Cache::get($key);
+        if (! is_array($cache) || ($cache['id'] ?? null) !== $binding['id']
+            || ($cache['reference'] ?? null) !== $binding['reference']) {
+            return self::connectionState('unavailable');
+        }
+        if (($cache['status'] ?? null) === 'completed'
+            && is_array($cache['nodes'] ?? null)) {
+            $this->stillOwned($actorId, $subjectId, $orderId, $binding);
+
+            return ['state' => 'completed', 'nodes' => $cache['nodes']];
+        }
+        $jobId = $cache['jobId'] ?? null;
+        if (! is_string($jobId) || preg_match('/\A[A-Za-z0-9_-]{1,100}\z/D', $jobId) !== 1) {
+            return self::connectionState(($cache['status'] ?? null) === 'uncertain' ? 'unavailable' : 'pending');
+        }
+
+        try {
+            $data = self::payload($this->factory->make()->call('ConnectionsController_connectionsByUserResult',
+                ['jobId' => $jobId]));
+            if (! is_bool($data['isCompleted'] ?? null) || ! is_bool($data['isFailed'] ?? null)) {
+                throw new UnexpectedValueException('Invalid connection job status.');
+            }
+            if ($data['isFailed']) {
+                $result = self::connectionState('unavailable');
+            } elseif (! $data['isCompleted']) {
+                $result = self::connectionState('pending');
+            } else {
+                $job = $data['result'] ?? null;
+                if (! is_array($job) || ($job['success'] ?? null) !== true
+                    || ($job['userId'] ?? null) !== $binding['id']
+                    || ! is_array($job['nodes'] ?? null) || ! array_is_list($job['nodes'])
+                    || count($job['nodes']) > 100) {
+                    throw new UnexpectedValueException('Invalid completed connections job.');
+                }
+                $nodes = [];
+                foreach (array_slice($job['nodes'], 0, 8) as $node) {
+                    if (! is_array($node) || ! self::label($node['nodeName'] ?? null)
+                        || ! is_array($node['ips'] ?? null) || ! array_is_list($node['ips'])
+                        || count($node['ips']) > 10000) {
+                        throw new UnexpectedValueException('Invalid connection node response.');
+                    }
+                    foreach ($node['ips'] as $seen) {
+                        if (! is_array($seen) || ! is_string($seen['ip'] ?? null)
+                            || ! is_string($seen['lastSeen'] ?? null)) {
+                            throw new UnexpectedValueException('Invalid observed connection.');
+                        }
+                    }
+                    $nodes[] = ['name' => $node['nodeName'], 'reports' => count($node['ips'])];
+                }
+                $result = ['state' => 'completed', 'nodes' => $nodes];
+            }
+        } catch (Throwable) {
+            $result = self::connectionState('unavailable');
+        }
+        $this->stillOwned($actorId, $subjectId, $orderId, $binding);
+        if ($result['state'] === 'completed') {
+            Cache::put($key, [
+                'id' => $binding['id'], 'reference' => $binding['reference'],
+                'status' => 'completed', 'nodes' => $result['nodes'],
+            ], 180);
+        }
+
+        return $result;
+    }
+
+    /** @return array{state:string,nodes:list<array{name:string,reports:int}>} */
+    private static function connectionState(string $state): array
+    {
+        return ['state' => $state, 'nodes' => []];
+    }
+
+    private static function connectionKey(int $actorId, int $orderId): string
+    {
+        return 'sup-diag:connections:'.$actorId.':'.$orderId;
     }
 
     /** @return array{id:int,reference:string}|null */
