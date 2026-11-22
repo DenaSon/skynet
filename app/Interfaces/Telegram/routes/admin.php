@@ -542,10 +542,10 @@ $bot->onCallbackQueryData('denaban:health', function (Nutgram $bot): void {
 $bot->onCallbackQueryData('denaban:health:simple', function (Nutgram $bot): void {
     app(AdminHealthUi::class)->show($bot, simple: true);
 });
-$bot->onCallbackQueryData('denaban:health:history:{page}', function (Nutgram $bot, string $page): void {
+$bot->onCallbackQueryData('denaban:health-log:{page}', function (Nutgram $bot, string $page): void {
     app(AdminHealthUi::class)->history($bot, $page);
 });
-$bot->onCallbackQueryData('denaban:health:history:simple:{page}', function (Nutgram $bot, string $page): void {
+$bot->onCallbackQueryData('denaban:health-log-simple:{page}', function (Nutgram $bot, string $page): void {
     app(AdminHealthUi::class)->history($bot, $page, simple: true);
 });
 
