@@ -395,8 +395,7 @@ it('renders live data-only action history and paginates returned records locally
     }
 
     Http::fake([
-        'https://api.ariaservice.net/cloud/v1/servers/'.ARI2_SERVER_ID.'/actions*' =>
-            Http::response(['data' => $actions]),
+        'https://api.ariaservice.net/cloud/v1/servers/'.ARI2_SERVER_ID.'/actions*' => Http::response(['data' => $actions]),
     ]);
 
     $bot = ari2Bot();
@@ -430,8 +429,7 @@ it('renders live data-only action history and paginates returned records locally
 it('fails closed on malformed Cloud history pagination instead of inventing pages', function (): void {
     ari2Root();
     Http::fake([
-        'https://api.ariaservice.net/cloud/v1/servers/'.ARI2_SERVER_ID.'/actions*' =>
-            Http::response(['data' => [['id' => 42]], 'meta' => ['unexpected' => 1]]),
+        'https://api.ariaservice.net/cloud/v1/servers/'.ARI2_SERVER_ID.'/actions*' => Http::response(['data' => [['id' => 42]], 'meta' => ['unexpected' => 1]]),
     ]);
 
     ari2Bot()->hearCallbackQueryData('ari2:history:'.ARI2_SERVER_ID.':1:1')->reply()
