@@ -27,7 +27,6 @@ const ARI5_RECORD = 'abcdefab010101010101010101010101';
 beforeEach(function (): void {
     config()->set('super_admin.telegram_ids', ['991901', '991902']);
     config()->set('services.arianet_cloud.read_token', 'ari5-read-token');
-    config()->set('services.arianet_cloud.write_token', 'ari5-write-token');
     config()->set('services.arianet_cloud.writes_enabled', true);
     config()->set('services.remnawave.url', 'https://rw.ari5.test');
     config()->set('services.remnawave.token', 'ari5-rw-token');
@@ -179,11 +178,11 @@ function ari5OnlyCloudPost(int $expected): void
     foreach ($posts as [$request]) {
         expect($request->method())->toBe('POST')
             ->and($request->url())->toBe('https://api.ariaservice.net/cloud/v1/servers/'.ARI5_SERVER.'/actions/change_ipv4')
-            ->and($request->hasHeader('Authorization', 'Bearer ari5-write-token'))->toBeTrue();
+            ->and($request->hasHeader('Authorization', 'Bearer ari5-read-token'))->toBeTrue();
     }
 }
 
-it('cannot execute on production even if all write credentials and transport flags are enabled', function (): void {
+it('cannot execute on production even if the single token and transport flag are enabled', function (): void {
     $user = ari5Root();
     ari5Link($user);
     $state = ari5State();
