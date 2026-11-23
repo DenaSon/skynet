@@ -61,3 +61,45 @@ datacenter: the API can add others. VPS `/api/v1` is a separate product and
   NW-01/02 and NW-05 supervised installation/replacement workflows.
 - Automatic filtering-triggered provider operations remain out of scope until
   a separate approved Filtering Center improvement.
+
+
+## ARI-01B — Narrow Cloud write transports (2026-11-23; source PR)
+
+**Scope:** Offline-tested client methods only for:
+1. Single Cloud server creation (POST `/servers`, 201). Requires an existing
+   **public SSH key ID**, fixed `count=1`, hostname/datacenter/plan/system-image
+   validation. No cloud-init, arbitrary JSON, password delivery, multi-create,
+   snapshot/restore, delete or other server actions.
+2. IPv4 replacement (POST `/servers/{id}/actions/change_ipv4`, 202); optional
+   `confirm_paid: true` is sent **only when the future authorizing Application
+   Action has independently confirmed the latest fee**.
+3. Result projection limited to `server_id` and `action_id`; raw provider
+   responses, especially the one-time `root_password`, are never returned,
+   persisted or logged.
+
+**Transport safety:** fixed HTTPS base URL, exact operation paths, independent
+`ARIANET_CLOUD_WRITE_TOKEN`, `ARIANET_CLOUD_WRITES_ENABLED=false` by default,
+refuse missing/shared read/write token, bounded timeout/body and redirect denial.
+Known 4xx rejections fail closed; connection failures, 429, 5xx, redirects, wrong
+successful status and malformed receipts raise `ArianetCloudWriteUncertain`.
+No automatic retries, no external write in PR tests.
+
+**Critical follow-up before enabling writes:** This phase is deliberately NOT
+an authorization/workflow layer. No UI, route, command or scheduler invokes the
+write client. The later Application Action must enforce **trusted Super Admin
+private-chat authorization at execution time, fresh read-only snapshot and fee
+(in IRR), exact old IPv4 check, explicit one-use confirmation, per-server/provider
+operation locks, durable create intent/idempotency and GET-only reconciliation**
+against inventory/actions. A successful HTTP 201/202 means *accepted*, never
+*completed*. Do not automatically reissue create or IP-change on ambiguous
+outcomes. It must also coordinate Cloudflare/Remnawave changes and real client
+testing under separately approved ARI-03/04 phases.
+
+**Ops:** Do not configure the production write token or enable the new flag in
+ARI-01B. Existing ARI-01A reads, credentials and live behavior are unchanged.
+No new migration, dependency, Bot feature, cron, data model, Cloud purchase or
+IP change is part of this PR. Real Cloud write acceptance requires separate
+operator approval with a disposable staging server; fake HTTP is not live proof.
+
+**Source of API contract:** OpenAPI 3.1 at
+https://api.ariaservice.net/cloud/v1/openapi.json (createServer / serverAction).
