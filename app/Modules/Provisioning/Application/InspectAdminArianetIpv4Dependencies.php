@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace App\Modules\Provisioning\Application;
 
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
+use Illuminate\Support\Facades\DB;
 use RuntimeException;
 use Throwable;
 
 /**
- * ARI-03C: bounded GET-only impact audit before any coordinated DNS/Node work.
+ * ARI-03D: bounded GET-only ownership/DNS audit before a Production IP change.
  * A clean inventory is not a write authorization or proof of client connectivity.
  */
 final readonly class InspectAdminArianetIpv4Dependencies
@@ -17,7 +18,6 @@ final readonly class InspectAdminArianetIpv4Dependencies
     public function __construct(
         private AssertCatalogManagementAccess $access,
         private PreviewAdminArianetIpv4Change $cloud,
-        private ChangeAdminArianetIpv4 $changes,
         private ManageAdminNodes $nodes,
         private ManageAdminHosts $hosts,
         private ManageCloudflareDns $dns,
@@ -31,7 +31,15 @@ final readonly class InspectAdminArianetIpv4Dependencies
             throw new RuntimeException('Invalid Cloud server identity.');
         }
         $cloud = $this->cloud->handle($actorId, $serverId);
-        $change = $this->changes->status($actorId, $serverId);
+        // Read the existing journal directly to avoid coupling the read-only
+        // dependency audit to the action that uses it as its preflight.
+        $operation = DB::table('arianet_cloud_ipv4_changes')
+            ->where('cloud_server_id', $serverId)->latest('id')->first();
+        $change = $operation === null ? null : [
+            'status' => $operation->status,
+            'oldIpv4' => $operation->old_ipv4,
+            'newIpv4' => $operation->new_ipv4,
+        ];
         $oldIp = $cloud['ipv4'];
         $newIp = null;
         $issues = [];
@@ -80,9 +88,7 @@ final readonly class InspectAdminArianetIpv4Dependencies
         $dns = [];
         $addresses = [];
         if (filter_var($nodeAddress, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false) {
-            if ($nodeAddress !== $oldIp) {
-                $issues[] = 'آدرس مستقیم نود با IPv4 قبلی سرور یکسان نیست.';
-            }
+            $issues[] = 'آدرس نود باید دامنه مدیریت‌شده در Cloudflare باشد.';
         } else {
             $this->addDns($actorId, $nodeAddress, $oldIp, $dns, $issues, management: true);
         }
@@ -109,14 +115,8 @@ final readonly class InspectAdminArianetIpv4Dependencies
             if (! $assigned && ! $possibleLegacy) {
                 if ($members === []) {
                     $unassignedUnrelated++;
-                    // Different endpoints are not Cloud Node write targets.
-                    // But if an unassigned Host shares the selected Profile
-                    // and Inbound, its real ownership is still unknown;
-                    // never turn an incomplete list into a "ready" decision.
-                    if ($host['profileUuid'] === $node['profileUuid']
-                        && in_array($host['inboundUuid'], $node['inboundUuids'], true)) {
-                        $issues[] = 'اتصال‌های بدون انتساب با تنظیمات مشترک وجود دارند؛ مالکیت آن‌ها بررسی شود.';
-                    }
+                    // An unrelated endpoint is not an ownership claim even
+                    // when a reusable Profile/Inbound is shared.
                 } else {
                     $explicitOther++;
                 }
@@ -139,9 +139,7 @@ final readonly class InspectAdminArianetIpv4Dependencies
                 ? 'direct_ip' : 'hostname';
             if ($type === 'direct_ip') {
                 $direct++;
-                if ($address !== $oldIp) {
-                    $issues[] = 'یک آدرس مستقیم اتصال با IPv4 قبلی سرور متفاوت است.';
-                }
+                $issues[] = 'اتصال مستقیم IP در محدوده نود شناسایی شد؛ تغییر خودکار DNS کافی نیست.';
             } else {
                 $this->addDns($actorId, $address, $oldIp, $dns, $issues);
             }
