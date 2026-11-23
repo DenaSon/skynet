@@ -51,6 +51,29 @@ it('uses the official OpenAI-compatible chat-completions contract and the chosen
         && ! isset($request['tools']));
 });
 
+it('permits the announced GapGPT web-service endpoint without changing model or credentials', function (): void {
+    config()->set('ai.providers.gapgpt.url', 'https://api.gapgpt.ir/v1');
+    Http::fake(['https://api.gapgpt.ir/*' => Http::response(gapgptChatResponse())]);
+
+    $answer = app(AskAssistant::class)->handle('سلام', 'gpt-6-luna');
+
+    expect($answer->text)->toBe('پاسخ آزمایشی')
+        ->and($answer->model)->toBe('gpt-6-luna');
+    Http::assertSentCount(1);
+    Http::assertSent(fn ($request): bool => $request->url() === 'https://api.gapgpt.ir/v1/chat/completions'
+        && $request->hasHeader('Authorization', 'Bearer test-only-ai-key')
+        && $request['model'] === 'gpt-6-luna');
+});
+
+it('rejects host lookalikes before any AI HTTP request', function (): void {
+    config()->set('ai.providers.gapgpt.url', 'https://api.gapgpt.ir.evil.example/v1');
+    Http::fake();
+
+    expect(fn () => app(AskAssistant::class)->handle('سلام'))
+        ->toThrow(RuntimeException::class, 'AI provider is not configured.');
+    Http::assertNothingSent();
+});
+
 it('keeps the Admin group instructions unchanged and limits customer support guidance to Business conversations', function (): void {
     $knowledge = app(DenizKnowledge::class);
     $group = $knowledge->instructions();
