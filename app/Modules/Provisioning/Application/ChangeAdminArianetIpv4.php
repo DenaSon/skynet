@@ -263,7 +263,7 @@ final readonly class ChangeAdminArianetIpv4
             || $preview['nodeState'] !== 'hostname'
             || $preview['dns']['state'] !== 'match'
             || $preview['dns']['proxied'] !== false
-            || ! $this->dns->enabled()) {
+            || ! $this->dns->wizardEnabled()) {
             throw new RuntimeException('Cloud/Node/DNS or price readiness could not be verified.');
         }
 
