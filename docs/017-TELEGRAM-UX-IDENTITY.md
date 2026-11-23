@@ -1,3 +1,28 @@
+## Admin Cloud server UI/UX polish — 2026-11-24
+
+Operator-approved, presentation-only: in the existing private Super Admin server overview, place
+the blue/PRIMARY «☁️ سرورهای ابری» button immediately after the existing green
+«🛠️ افزودن سرور» button (or first when SSH setup is off), preserving all callbacks.
+In the existing Cloud inventory, show «🔎 پیش‌نمایش سفارش سرور» when
+`arianet_cloud.purchase_enabled` is off, and «🛒 سفارش سرور جدید» when on,
+without weakening the separate paid confirmation or purchase authorization.
+Remove redundant copy from the Cloud inventory, plan-selection, pre-purchase
+quote and purchase-status screens, but retain brief **essential** billing and
+no-double-purchase warnings. Distinguish «در حال ساخت» (accepted) from
+«ساخت تأیید شد؛ اتصال SSH بررسی نشده» (completed). Do not claim that a VPS is
+SSH-ready or a Node has been installed.
+
+Normalize technical plan specifications in BOTH Cloud catalog and purchase wizard
+to an isolated LTR English line, e.g. `2 vCPU · 4 GB RAM · 40 GB Disk`, with
+converted whole GiB from MB only for display and Persian labels/prices on
+separate lines. Use the same format in the final quote, preserving actual
+provider plan data, hourly IRR amounts and existing callbacks. Verify fake
+Telegram Rich and native fallback, selector labels, root permissions, plan
+pagination, read-only calls, safety notices and no provider writes; live
+Telegram visual smoke remains a separate acceptance gate. No new routes,
+migration, library, RBAC, purchase/SSH/Remnawave business logic or production ENV
+change.
+
 ## Admin Bot — parent and contextual Back navigation on ordinary screens (2026-11-21)
 
 **Approved narrow UX-only scope (PR #523):** On the root-only private Admin Bot, the wallet detail's disjoint finance:wallet-detail:{id}:{origin}:{page}:{mode} callback preserves its entry point: p returns to the **same** authorized customer-support profile (users:profile:{id}:{page}:{mode}), while l returns to the **same** wallets directory page (finance:wallets:{page}). Only p/l with bounded positive pages and an allowed UserDirectoryMode can affect return buttons; malformed and unknown return contexts use the original safe page-1 fallback. The old finance:wallet:{id} callback stays active; previously delivered context-suffixed finance:wallet:{id}:{origin}:{page}:{mode} buttons are parsed safely by the read-only detail action rather than being rejected as invalid numeric IDs. The wallet detail retains its existing review/credit actions and explicit links to the finance area, wallet directory, receipt queue and user profile. Root authorization and private Admin routing apply to every entry point; these callbacks grant no additional financial access.
