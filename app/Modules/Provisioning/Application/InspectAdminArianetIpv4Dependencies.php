@@ -106,10 +106,9 @@ final readonly class InspectAdminArianetIpv4Dependencies
         foreach ($allHosts as $host) {
             $members = $host['nodes'];
             $assigned = in_array($uuid, $members, true);
-            // A Profile/Inbound can be shared by multiple regions. It is NOT
-            // evidence that the Host belongs to this Cloud server. Only
-            // explicit Node membership proves assignment. An unassigned Host
-            // on the selected Node's exact endpoint remains ambiguous.
+            // Shared Profile/Inbound does not prove ownership. An empty
+            // Node membership is acceptable only on the selected Node's exact
+            // managed hostname, provided DNS and peer checks also pass.
             $sameEndpoint = $host['address'] === $oldIp
                 || strtolower($host['address']) === strtolower($nodeAddress);
             $possibleLegacy = $members === [] && $sameEndpoint;
