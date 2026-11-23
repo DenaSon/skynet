@@ -215,7 +215,7 @@ it('creates exactly one JSON-object GeoCheck job and safely reuses pending/ready
         && $request->url() === 'https://rw-geoc.test/api/connections/geocheck/'.GEOC_NODE
         && trim($request->body()) === '{}'
         && $request->hasHeader('Authorization', 'Bearer private-test-key'));
-    Http::assertSentCount(5); // Two Node GETs on start, one Node GET on read, one result GET, one Node GET on final read? 
+    Http::assertSentCount(7); // Five authorized Node GETs, one POST and one result GET.
     $posts = collect(Http::recorded())->filter(
         static fn ($pair): bool => $pair[0]->method() === 'POST');
     expect($posts)->toHaveCount(1);
