@@ -470,3 +470,60 @@ it('falls back to native HTML with identical data and buttons after a Rich trans
     Queue::assertNothingPushed();
     Http::assertNothingSent();
 });
+
+it('keeps retired Node alerts in history but excludes them from the live filtering center', function (): void {
+    $root = flt04Root();
+    $live = flt04Uuid(751);
+    $disabled = flt04Uuid(752);
+    $removed = flt04Uuid(753);
+
+    flt04Healthy($live, 8);
+    app(FilteringFoundation::class)->record($disabled, 'node', 'unknown', now()->subMinute()->startOfMinute());
+    app(FilteringFoundation::class)->record($removed, 'node', 'disrupted', now()->subMinute()->startOfMinute(), [
+        'online_users' => 0, 'causes' => ['online_zero'],
+    ]);
+    $incidentId = (int) DB::table('filtering_incidents')->where('node_uuid', $removed)->value('id');
+    Cache::put(FilteringFoundation::NODE_INVENTORY_CACHE_KEY, [$live, $disabled], now()->addDay());
+
+    $reader = app(ReadFilteringCenter::class);
+    $overview = $reader->overview($root->id);
+    expect($overview['total'])->toBe(2)
+        ->and($overview['counts']['healthy'])->toBe(1)
+        ->and($overview['counts']['unknown'])->toBe(1)
+        ->and($overview['counts']['disrupted'])->toBe(0)
+        ->and(array_column($reader->nodes($root->id)['rows'], 'uuid'))->toBe([$live, $disabled])
+        ->and($reader->node($root->id, $removed))->toBeNull()
+        ->and($reader->nodeObservations($root->id, [$live, $removed]))->toHaveKey($live)
+        ->not->toHaveKey($removed);
+
+    $historical = $reader->history($root->id)['rows'][0];
+    expect($historical['id'])->toBe($incidentId)
+        ->and($historical['state'])->toBe('disrupted')
+        ->and($historical['outside_inventory'])->toBeTrue()
+        ->and($reader->incident($root->id, $incidentId)['outside_inventory'])->toBeTrue()
+        ->and(DB::table('filtering_incidents')->where('id', $incidentId)->value('resolved_at'))->toBeNull();
+
+    $bot = flt04Bot();
+    $bot->hearCallbackQueryData('flt:history:1')->reply()->assertRaw(
+        static fn (NutgramRequest $request): bool => str_contains(
+            json_encode(flt04Payload($request), JSON_THROW_ON_ERROR), 'خارج از پنل',
+        ),
+        index: 1,
+    );
+    $bot->hearCallbackQueryData('flt:incident:'.$incidentId)->reply()->assertRaw(
+        static fn (NutgramRequest $request): bool => str_contains(
+            json_encode(flt04Payload($request), JSON_THROW_ON_ERROR), 'دیگر در پنل موجود نیست',
+        ),
+        index: 1,
+    );
+
+    // Missing or tampered inventory must not silently hide real incidents.
+    Cache::forget(FilteringFoundation::NODE_INVENTORY_CACHE_KEY);
+    expect($reader->overview($root->id)['total'])->toBe(3);
+    Cache::put(FilteringFoundation::NODE_INVENTORY_CACHE_KEY, ['invalid-uuid'], now()->addDay());
+    expect($reader->overview($root->id)['total'])->toBe(3)
+        ->and(DB::table('filtering_incidents')->where('id', $incidentId)->value('state'))->toBe('disrupted');
+
+    Http::assertNothingSent();
+    Queue::assertNothingPushed();
+});
