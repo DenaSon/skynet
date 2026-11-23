@@ -217,6 +217,7 @@ final class AnswerDenizBusinessMessage implements ShouldQueue
 
             $reply = $firstTurn
                 ? 'سلام، من دنیز، دستیار هوش مصنوعی دناگیت هستم. 🌿'
+                    ."\n\n".'هر زمان خواستید با پشتیبان انسانی صحبت کنید، کافیه عبارت «پشتیبان انسانی» رو همین‌جا بفرستید.'
                     .($replyText !== '' ? "\n\n".$replyText : '')
                 : $replyText;
 
