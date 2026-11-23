@@ -143,3 +143,53 @@ source tests do not prove either.
 Remnawave-node mapping; ARI-03 root-confirmed, price/IP-verified change and
 coordinated DNS/connection check; ARI-04 safe purchase and existing NW-01/02/05
 handoff. Never treat filtering alarms as automatic authority to write.
+
+
+## ARI-02B — Confirmed Cloud Server ID ↔ Remnawave Node UUID mapping (2026-11-23)
+
+**Approved scope:** a manual, root-only local mapping from the ARI-02A Cloud
+server details. Show existing mapping and verified Node name when available;
+select another existing Remnawave Node, see a Rich RTL preview with Cloud
+IPv4, Node address and a distinct exact-IP/domain/different-IP warning,
+then confirm once to save/reassign or explicitly detach. Never infer mapping
+from a matching hostname. For Node management hostnames the IP is *not*
+automatically verified; the operator must separately inspect its DNS target
+before accepting a mismatch or domain-only address.
+
+**Data:** One additive table `arianet_cloud_node_links` with
+`cloud_server_id` unsigned bigint PK and unique lowercase `node_uuid`.
+Store only that identity pair, created_by/updated_by and timestamps. Neither
+IP nor DNS hostname is used as the identity key. Unique constraints prevent
+two Cloud servers linking one Node or one Cloud server linking two Nodes.
+There is no external-provider FK: Cloud and RW identities are remote data.
+Rollback refuses to drop a table containing confirmed mappings.
+
+**Execution boundary:** Trusted, active Super Admin with a configured
+allowed private Telegram identity is checked in UI and independent
+Provisioning Application Action. Choose only from bounded live RW GET
+inventory (max 500 Nodes), excluding already assigned Nodes; up to eight
+candidates per page, exact IPv4 matches first. A one-use actor-scoped
+ten-minute preview is stored in the existing cache. On confirmation, consume
+the token before mutation, reauthorize, re-read Cloud/Node and reject changed
+Cloud IPv4 or Node address; serialize writes with a cache lock, transaction,
+current-mapping compare and database uniqueness. After any failure, the
+operator reopens the preview. Unlink validates the current saved relation
+without requiring live provider uptime. Expired/replayed/stale/forged and
+revoked/group requests must not write any local state.
+
+**Non-goals:** No Cloud IPv4 change/purchase, no provider writes, no Remnawave
+Node update, no Cloudflare DNS update, no automatic DNS resolution or filtering
+remediation, no installer changes or background tasks, and no new dependency
+or ENV flag. The ARI-01B write transport remains default OFF. The mapping
+records an operator-asserted relationship, **not** proof of IP reachability,
+connection quality or Cloudflare configuration.
+
+**Acceptance:** Fake Cloud/RW GET + fake Telegram and RefreshDatabase tests
+must validate exact mapping/replacement/unlink, one-use confirmation,
+role revocation, candidate ordering, IP/domain/mismatch warnings,
+same-Node cross-server rejection, stale reads, no provider POST, native RTL
+Rich and fallback, and the strict Admin-only route inventory. Run PHP 8.4
+suite, PHPStan, Pint and disposable MySQL migration/rollback before approved
+merge. Live Runflare migration, API reads and Telegram iPhone/desktop
+presentation remain separate post-deploy checks; no live mapping is
+created automatically by this PR.

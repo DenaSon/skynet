@@ -49,6 +49,61 @@ final readonly class ManageAdminNodes
     }
 
     /**
+     * ARI-02B: validated read-only Node identities and management addresses
+     * for Cloud-to-Node matching. No DNS inference and no Remnawave writes.
+     *
+     * @return list<array{uuid:string,name:string,address:string,connected:bool,disabled:bool}>
+     */
+    public function cloudLinkCandidates(int $actorId): array
+    {
+        $this->access->handle($actorId);
+        $nodes = (new RemnawaveNodesApi($this->factory->make()))->all();
+        if (count($nodes) > 500) {
+            throw new UnexpectedValueException('Node inventory exceeds the bounded Cloud link view.');
+        }
+
+        $result = [];
+        foreach ($nodes as $node) {
+            $result[] = $this->cloudLinkIdentity($node);
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return array{uuid:string,name:string,address:string,connected:bool,disabled:bool}
+     */
+    public function cloudLinkNode(int $actorId, string $uuid): array
+    {
+        $this->access->handle($actorId);
+        $node = (new RemnawaveNodesApi($this->factory->make()))->one(self::uuid($uuid));
+        $identity = $this->cloudLinkIdentity($node);
+        if ($identity['uuid'] !== strtolower($uuid)) {
+            throw new UnexpectedValueException('Cloud link Node identity mismatch.');
+        }
+
+        return $identity;
+    }
+
+    /**
+     * @param  array<string,mixed>  $node
+     * @return array{uuid:string,name:string,address:string,connected:bool,disabled:bool}
+     */
+    private function cloudLinkIdentity(array $node): array
+    {
+        $safe = $this->safeNode($node);
+        $address = $node['address'] ?? null;
+        if (! is_string($address) || trim($address) === '' || trim($address) !== $address
+            || strlen($address) > 253
+            || (filter_var($address, FILTER_VALIDATE_IP) === false
+                && filter_var($address, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) === false)) {
+            throw new UnexpectedValueException('Invalid Cloud link Node address.');
+        }
+
+        return $safe + ['address' => $address];
+    }
+
+    /**
      * Return every Node's management endpoint for replacement collision checks.
      *
      * @return list<array{uuid:string,address:string,port:int}>

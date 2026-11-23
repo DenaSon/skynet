@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Interfaces\Telegram\Support;
 
 use App\Modules\Identity\Application\ResolveTelegramActor;
+use App\Modules\Provisioning\Application\ManageAdminArianetCloudLinks;
+use App\Modules\Provisioning\Application\ManageAdminNodes;
 use App\Modules\Provisioning\Application\ReadAdminArianetCloud;
 use App\Support\PersianCalendar;
 use SergiX44\Nutgram\Nutgram;
@@ -24,6 +26,8 @@ final readonly class AdminArianetCloudUi
         private PrivateTelegramUser $private,
         private ResolveTelegramActor $actors,
         private ReadAdminArianetCloud $cloud,
+        private ManageAdminArianetCloudLinks $links,
+        private ManageAdminNodes $nodes,
         private MenuRenderer $menus,
     ) {}
 
@@ -140,6 +144,23 @@ final readonly class AdminArianetCloudUi
         } catch (Throwable) {
             // Cost failure must not hide the already-verified server identity.
         }
+        $link = null;
+        $linkUnavailable = false;
+        $nodeName = null;
+        try {
+            $link = $this->links->linked($root, $id);
+            if ($link !== null) {
+                try {
+                    $node = $this->nodes->cloudLinkNode($root, $link['nodeUuid']);
+                    $nodeName = $node['name'];
+                } catch (Throwable) {
+                    // The saved identity remains visible even during RW downtime.
+                }
+            }
+        } catch (Throwable) {
+            $linkUnavailable = true;
+        }
+
         $buttons = InlineKeyboardMarkup::make();
         if ($server['ipv4'] !== null) {
             $buttons->addRow(TelegramUi::copy($server['ipv4'], '📋 کپی IPv4'));
@@ -148,6 +169,21 @@ final readonly class AdminArianetCloudUi
             InlineKeyboardButton::make('💰 هزینه‌ها', callback_data: 'ari2:cost:'.$id.':'.$page),
             InlineKeyboardButton::make('🕒 سوابق عملیات', callback_data: 'ari2:history:'.$id.':'.$page.':1'),
         );
+        if (! $linkUnavailable) {
+            if ($link === null) {
+                $buttons->addRow(InlineKeyboardButton::make('🔗 اتصال به نود',
+                    callback_data: 'ari3:nodes:'.$id.':'.$page.':1'));
+            } else {
+                $buttons->addRow(InlineKeyboardButton::make('🖥️ مشاهده نود مرتبط',
+                    callback_data: 'node1:view:'.$link['nodeUuid']));
+                $buttons->addRow(
+                    InlineKeyboardButton::make('🔁 تغییر نود',
+                        callback_data: 'ari3:nodes:'.$id.':'.$page.':1'),
+                    InlineKeyboardButton::make('⛓️ قطع ارتباط',
+                        callback_data: 'ari3:unlink:'.$id.':'.$page),
+                );
+            }
+        }
         $buttons->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'ari2:view:'.$id.':'.$page));
         $buttons->addRow(InlineKeyboardButton::make('◀️ فهرست سرورها', callback_data: 'ari2:list:'.$page));
 
@@ -166,6 +202,8 @@ final readonly class AdminArianetCloudUi
             ['عملیات IP معلق', self::yesNo($server['pending'])],
             ['برآورد ماهانه', $cost === null || $cost['monthlyRials'] === null
                 ? 'نامشخص' : self::toman($cost['monthlyRials'])],
+            ['نود مرتبط', $linkUnavailable ? 'در دسترس نیست'
+                : ($link === null ? 'ثبت نشده' : ($nodeName ?? 'ثبت شده؛ اطلاعات نود در دسترس نیست'))],
         ];
 
         $richRows = '';
@@ -176,7 +214,7 @@ final readonly class AdminArianetCloudUi
         }
         $rich = '<h2>☁️ '.TelegramUi::escape($server['name']).'</h2>'
             .'<table bordered striped compact>'.$richRows.'</table>'
-            .'<footer>🔒 فقط مشاهده؛ هزینه و سهمیه IP از آخرین پاسخ آریاسرویس هستند. هیچ عملیات تغییری در این بخش انجام نمی‌شود.</footer>';
+            .'<footer>🔒 فقط ارتباط داخلی با نود قابل ثبت یا قطع است؛ IP، DNS و تنظیمات سرور تغییر نمی‌کنند.</footer>';
         $this->render($bot, $simple, $buttons, $rich);
     }
 
