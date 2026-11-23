@@ -308,3 +308,72 @@ it('rejects mismatched server identity and never invents monetary totals', funct
         ->toThrow(RuntimeException::class);
     ari2OnlyReads();
 });
+
+it('renders real Arianet Cloud /plans fields instead of unknown CPU, RAM and prices', function (): void {
+    ari2Root();
+    // Captured field names and amounts from a real Runflare GET /plans?datacenter=ovh.
+    Http::fake(['https://api.ariaservice.net/cloud/v1/plans?datacenter=ovh' => Http::response([
+        'data' => [[
+            'id' => 18,
+            'datacenter' => 'ovh',
+            'name' => 'S0',
+            'flavor' => 'arianet-s0',
+            'vcpu' => 1,
+            'ram_mb' => 1024,
+            'disk_gb' => 5,
+            'traffic_gb' => 50000,
+            'hourly_price' => 13973,
+            'monthly_price' => 10200290,
+            'currency' => 'IRR',
+            'is_active' => true,
+            'availability' => ['available' => true, 'known' => true],
+        ]],
+    ])]);
+
+    ari2Bot()->hearCallbackQueryData('ari2:plans:ovh:1')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $html = ari2Html($request);
+
+            return str_contains($html, 'S0 #18')
+                && str_contains($html, '۱ CPU')
+                && str_contains($html, '۱٬۰۲۴ MB RAM')
+                && str_contains($html, '۵ GB')
+                && str_contains($html, '۱٬۳۹۸ تومان')
+                && str_contains($html, '۱٬۰۲۰٬۰۲۹ تومان')
+                && ! str_contains($html, 'نامشخص')
+                && ari2Has($request, 'ari2:dc');
+        }, index: 1);
+
+    ari2OnlyReads();
+    Http::assertSentCount(1);
+});
+
+it('keeps unverified or non-IRR Cloud plan prices hidden while showing safe hardware specs', function (): void {
+    ari2Root();
+    Http::fake(['https://api.ariaservice.net/cloud/v1/plans?datacenter=ovh' => Http::response([
+        'data' => [[
+            'id' => 18,
+            'name' => 'S0',
+            'vcpu' => 1,
+            'ram_mb' => 1024,
+            'disk_gb' => 5,
+            'hourly_price' => 13973,
+            'monthly_price' => 10200290,
+            'currency' => 'USD',
+        ]],
+    ])]);
+
+    ari2Bot()->hearCallbackQueryData('ari2:plans:ovh:1')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $html = ari2Html($request);
+
+            return str_contains($html, '۱ CPU')
+                && str_contains($html, '۱٬۰۲۴ MB RAM')
+                && str_contains($html, 'ساعتی: نامشخص')
+                && str_contains($html, 'ماهانه: نامشخص')
+                && ! str_contains($html, '۱٬۰۲۰٬۰۲۹ تومان');
+        }, index: 1);
+
+    ari2OnlyReads();
+    Http::assertSentCount(1);
+});
