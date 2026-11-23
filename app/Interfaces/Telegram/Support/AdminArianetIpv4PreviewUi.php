@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Interfaces\Telegram\Support;
 
 use App\Modules\Identity\Application\ResolveTelegramActor;
+use App\Modules\Provisioning\Application\InspectAdminArianetIpv4Dependencies;
+use App\Modules\Provisioning\Application\ManageCloudflareDns;
 use App\Modules\Provisioning\Application\ChangeAdminArianetIpv4;
 use App\Modules\Provisioning\Application\PreviewAdminArianetIpv4Change;
 use App\Support\PersianCalendar;
@@ -68,7 +70,7 @@ final readonly class AdminArianetIpv4PreviewUi
         $impact = null;
         try {
             $impact = $this->dependencies->handle($root, $id);
-            if ($this->changes->enabled() && $this->dns->enabled()
+            if ($this->changes->enabled() && $this->dns->wizardEnabled()
                 && $impact['ready'] === true && $impact['dns'] !== []) {
                 $buttons->addRow(InlineKeyboardButton::make('🔴 تعویض واقعی IP',
                     callback_data: 'ari5:begin:'.$id.':'.$page));
@@ -113,7 +115,7 @@ final readonly class AdminArianetIpv4PreviewUi
         if ($impact === null || ! $impact['ready']) {
             $warnings[] = 'دامنه‌ها یا انتساب اتصال‌ها نیازمند بررسی‌اند؛ تغییر IP فعلاً مجاز نیست.';
         }
-        if (! $this->dns->enabled()) {
+        if (! $this->dns->wizardEnabled()) {
             $warnings[] = 'مجوز تغییر DNS غیرفعال است؛ ابتدا آن را در تنظیمات سرویس فعال کنید.';
         }
         if ($result['ipv4'] === null || $result['changeAllowed'] !== true || $result['pending'] !== false) {
