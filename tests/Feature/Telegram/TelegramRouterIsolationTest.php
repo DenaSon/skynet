@@ -360,6 +360,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     ] as $name) {
         $expected['ADMIN'][] = 'callback:geoc:'.$name;
     }
+    // ARI-03A: private GET-only IPv4 change preview (no provider writes).
+    $expected['ADMIN'][] = 'callback:ari4:preview:{id}:{page}';
     // ARI-02B: local Cloud-to-Node mapping confirmation is root-only.
     foreach ([
         'nodes:{id}:{parent}:{page}', 'pick:{id}:{parent}:{index}:{token}',
@@ -407,8 +409,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(364)
-        ->and(count(array_unique($legacy)))->toBe(364);
+        ->and(count($legacy))->toBe(365)
+        ->and(count(array_unique($legacy)))->toBe(365);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {
