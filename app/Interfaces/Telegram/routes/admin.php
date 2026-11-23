@@ -9,6 +9,7 @@ use App\Interfaces\Telegram\Handlers\SettingsHandler;
 use App\Interfaces\Telegram\Support\AdminAccountingUi;
 use App\Interfaces\Telegram\Support\AdminAnnouncementsUi;
 use App\Interfaces\Telegram\Support\AdminArianetCloudUi;
+use App\Interfaces\Telegram\Support\AdminArianetCloudLinksUi;
 use App\Interfaces\Telegram\Support\AdminBusinessReportUi;
 use App\Interfaces\Telegram\Support\AdminCloudflareDnsUi;
 use App\Interfaces\Telegram\Support\AdminCommandCenterUi;
@@ -624,6 +625,24 @@ $bot->onCallbackQueryData('metrics:page:{days}:{page}', function (Nutgram $bot, 
 
 $bot->onCommand('servers', function (Nutgram $bot): void {
     app(AdminProviderOverviewUi::class)->show($bot);
+});
+
+// ARI-02B: local Cloud/Node identity mapping with one-use root confirmation.
+// No Arianet, Remnawave or Cloudflare writes.
+$bot->onCallbackQueryData('ari3:nodes:{id}:{parent}:{page}', function (Nutgram $bot, string $id, string $parent, string $page): void {
+    app(AdminArianetCloudLinksUi::class)->candidates($bot, $id, $parent, $page);
+});
+$bot->onCallbackQueryData('ari3:pick:{id}:{parent}:{index}:{token}', function (Nutgram $bot, string $id, string $parent, string $index, string $token): void {
+    app(AdminArianetCloudLinksUi::class)->pick($bot, $id, $parent, $index, $token);
+});
+$bot->onCallbackQueryData('ari3:unlink:{id}:{parent}', function (Nutgram $bot, string $id, string $parent): void {
+    app(AdminArianetCloudLinksUi::class)->unlink($bot, $id, $parent);
+});
+$bot->onCallbackQueryData('ari3:apply:{token}', function (Nutgram $bot, string $token): void {
+    app(AdminArianetCloudLinksUi::class)->apply($bot, $token);
+});
+$bot->onCallbackQueryData('ari3:cancel:{token}:{id}:{parent}', function (Nutgram $bot, string $token, string $id, string $parent): void {
+    app(AdminArianetCloudLinksUi::class)->cancel($bot, $token, $id, $parent);
 });
 
 // ARI-02A: private trusted-root Cloud inventory and costs; GET-only.
