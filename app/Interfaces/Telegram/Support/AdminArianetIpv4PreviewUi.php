@@ -6,6 +6,8 @@ namespace App\Interfaces\Telegram\Support;
 
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Provisioning\Application\ChangeAdminArianetIpv4;
+use App\Modules\Provisioning\Application\InspectAdminArianetIpv4Dependencies;
+use App\Modules\Provisioning\Application\ManageCloudflareDns;
 use App\Modules\Provisioning\Application\PreviewAdminArianetIpv4Change;
 use App\Support\PersianCalendar;
 use SergiX44\Nutgram\Nutgram;
@@ -23,6 +25,8 @@ final readonly class AdminArianetIpv4PreviewUi
         private ResolveTelegramActor $actors,
         private PreviewAdminArianetIpv4Change $preview,
         private ChangeAdminArianetIpv4 $changes,
+        private InspectAdminArianetIpv4Dependencies $dependencies,
+        private ManageCloudflareDns $dns,
         private MenuRenderer $menus,
     ) {}
 
@@ -62,11 +66,13 @@ final readonly class AdminArianetIpv4PreviewUi
         $buttons->addRow(InlineKeyboardButton::make('🔎 بررسی دامنه‌ها و اتصال‌ها',
             callback_data: 'ari6:impact:'.$id.':'.$page));
 
-        // ARI-03B write controls are absent on Production regardless of ENV.
-        // A saved operation status remains inspectable without any provider write.
+        // A confirmed target list is required before offering a real write.
+        $impact = null;
         try {
-            if ($this->changes->enabled()) {
-                $buttons->addRow(InlineKeyboardButton::make('⚠️ آماده‌سازی تعویض IP (آزمایشی)',
+            $impact = $this->dependencies->handle($root, $id);
+            if ($this->changes->enabled() && $this->dns->wizardEnabled()
+                && $impact['ready'] === true && $impact['dns'] !== []) {
+                $buttons->addRow(InlineKeyboardButton::make('🔴 تعویض واقعی IP',
                     callback_data: 'ari5:begin:'.$id.':'.$page));
             }
             if ($this->changes->status($root, $id) !== null) {
@@ -95,6 +101,8 @@ final readonly class AdminArianetIpv4PreviewUi
             ['آدرس مدیریت نود', $node['address'] ?? 'نامشخص'],
             ['تطبیق آدرس نود', self::nodeStatus($result['nodeState'])],
             ['DNS مدیریت نود', self::dnsStatus($dns['state'])],
+            ['دامنه‌های قابل تغییر', $impact !== null && $impact['ready'] && $impact['dns'] !== []
+                ? implode('، ', array_column($impact['dns'], 'hostname')) : 'نیازمند بررسی'],
         ];
 
         if ($dns['name'] !== null) {
@@ -104,6 +112,12 @@ final readonly class AdminArianetIpv4PreviewUi
         }
 
         $warnings = [];
+        if ($impact === null || ! $impact['ready']) {
+            $warnings[] = 'دامنه‌ها یا انتساب اتصال‌ها نیازمند بررسی‌اند؛ تغییر IP فعلاً مجاز نیست.';
+        }
+        if (! $this->dns->wizardEnabled()) {
+            $warnings[] = 'مجوز تغییر DNS غیرفعال است؛ ابتدا آن را در تنظیمات سرویس فعال کنید.';
+        }
         if ($result['ipv4'] === null || $result['changeAllowed'] !== true || $result['pending'] !== false) {
             $warnings[] = 'امکان اجرای تعویض IP در این لحظه تأیید نشده است.';
         }
@@ -135,9 +149,9 @@ final readonly class AdminArianetIpv4PreviewUi
             $plain .= "\n⚠️ ".TelegramUi::escape($warning);
         }
 
-        $notice = 'فقط آدرس مدیریت نود بررسی شده است؛ سایر دامنه‌های اتصال کاربران، '
-            .'رکوردهای Host و کیفیت اتصال نیازمند بررسی جداگانه‌اند. '
-            .'این پیش‌نمایش مجوز انجام عملیات نیست و هیچ تغییری اعمال نمی‌کند.';
+        $notice = 'پس از تأیید، IP واقعی سرور تغییر می‌کند و دامنه‌های شناسایی‌شده در Cloudflare '
+            .'هماهنگ می‌شوند؛ اتصال کاربران ممکن است موقتاً قطع شود. '
+            .'این صفحه فقط پیش‌نمایش است.';
         $rich = '<h2>🔎 پیش‌نمایش تعویض IPv4</h2>'
             .'<p>آریاسرویس · اطلاعات زمان درخواست</p>'
             .'<table bordered striped compact>'.$rows.'</table>'

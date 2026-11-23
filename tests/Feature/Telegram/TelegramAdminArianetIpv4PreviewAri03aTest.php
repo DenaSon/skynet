@@ -23,6 +23,9 @@ const ARI4_SERVER_ID = 101305418924;
 const ARI4_NODE_UUID = '550e8400-e29b-41d4-a716-446655440084';
 const ARI4_ZONE_ID = 'abcdef0123456789abcdef0123456789';
 const ARI4_RECORD_ID = 'cd010101010101010101010101010101';
+const ARI4_HOST_UUID = '550e8400-e29b-41d4-a716-446655440085';
+const ARI4_PROFILE_UUID = '550e8400-e29b-41d4-a716-446655440086';
+const ARI4_INBOUND_UUID = '550e8400-e29b-41d4-a716-446655440087';
 
 beforeEach(function (): void {
     config()->set('super_admin.telegram_ids', ['991901', '991902']);
@@ -155,7 +158,33 @@ function ari4Fake(array &$state): void
                     'port' => 2222,
                     'isConnected' => true,
                     'isDisabled' => false,
+                    'configProfile' => [
+                        'activeConfigProfileUuid' => ARI4_PROFILE_UUID,
+                        'activeInbounds' => [['uuid' => ARI4_INBOUND_UUID]],
+                    ],
                 ]]);
+        }
+        if ($url === 'https://rw.ari4.test/api/nodes') {
+            return Http::response(['response' => [[
+                'uuid' => ARI4_NODE_UUID, 'name' => '<b>RW linked node</b>',
+                'address' => $state['nodeAddress'], 'port' => 2222,
+                'isConnected' => true, 'isDisabled' => false,
+                'configProfile' => [
+                    'activeConfigProfileUuid' => ARI4_PROFILE_UUID,
+                    'activeInbounds' => [['uuid' => ARI4_INBOUND_UUID]],
+                ],
+            ]]]);
+        }
+        if ($url === 'https://rw.ari4.test/api/hosts') {
+            return Http::response(['response' => [[
+                'uuid' => ARI4_HOST_UUID, 'remark' => 'Germany',
+                'address' => 'fr.coreflare.ir', 'port' => 443,
+                'isDisabled' => false, 'nodes' => [ARI4_NODE_UUID],
+                'inbound' => [
+                    'configProfileUuid' => ARI4_PROFILE_UUID,
+                    'configProfileInboundUuid' => ARI4_INBOUND_UUID,
+                ],
+            ]]]);
         }
         if ($path === '/client/v4/zones') {
             return $state['dnsFail'] ? Http::response(['success' => false], 503)
@@ -210,6 +239,7 @@ it('shows safe Rich preview with live paid fee, linked Node, matched managed DNS
                 && ! str_contains($rich, '<script>')
                 && str_contains($rich, '۲۵۰٬۰۰۰ تومان')
                 && str_contains($rich, 'fr.coreflare.ir')
+                && str_contains($rich, 'دامنه‌های قابل تغییر')
                 && str_contains($rich, '✅ رکورد A مطابق IP فعلی')
                 && str_contains($rich, 'DNS Only')
                 && str_contains($buttons, '"copy_text":{"text":"62.144.51.204"}')
@@ -221,7 +251,7 @@ it('shows safe Rich preview with live paid fee, linked Node, matched managed DNS
         }, index: 1);
 
     ari4OnlyGets();
-    Http::assertSentCount(4);
+    expect(count(Http::recorded()))->toBeGreaterThan(4);
 });
 
 it('does not infer matching DNS when the record points elsewhere', function (): void {

@@ -14,7 +14,7 @@ use RuntimeException;
  * Telegram route, command or scheduler. Default-OFF independent kill switch.
  *
  * The one configured Bearer token is shared with reads; a default-OFF write
- * gate AND a hard Production ban remain independent of token scopes.
+ * gate remain independent of token scopes; Production purchases stay blocked.
  * Future callers must independently check trusted Super Admin authorization,
  * fresh price/IP snapshot, one-time confirmation and durable idempotency before
  * invoking either method. There is deliberately no retry or reconciliation write.
@@ -42,6 +42,10 @@ final class ArianetCloudWriteClient
         string $image,
         int $sshKeyId,
     ): array {
+        // Server purchases require their own reviewed Production authorization.
+        if (app()->environment('production')) {
+            throw new RuntimeException('Cloud server creation is disabled in production.');
+        }
         if (! preg_match('/^[a-zA-Z0-9](?:[a-zA-Z0-9.-]{0,61}[a-zA-Z0-9])?$/D', $name)
             || ! preg_match('/^[a-z][a-z0-9-]{0,31}$/D', $datacenter)
             || ! preg_match('/^[a-z0-9][a-z0-9._-]{0,63}$/D', $image)
@@ -115,10 +119,8 @@ final class ArianetCloudWriteClient
 
         // One provider Bearer token may carry both read and write scopes.
         // Never infer authorization from its presence; require the write gate.
-        // ARI-03B/03C remain staging-only until a separate Production approval.
-        if (app()->environment('production')) {
-            throw new RuntimeException('Arianet Cloud writes are disabled in production.');
-        }
+        // Production permits only the explicitly confirmed IPv4 action;
+        // createServer retains its separate hard ban above.
 
         $token = config('services.arianet_cloud.read_token');
         $timeout = config('services.arianet_cloud.timeout', 10);

@@ -14,7 +14,7 @@ use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 use Throwable;
 
-/** Root-only staging coordination UI; never exposes provider mutation in Production. */
+/** Root-only real DNS coordination, continuing the original IPv4 confirmation. */
 final readonly class AdminArianetIpv4CoordinationUi
 {
     public function __construct(
@@ -43,15 +43,15 @@ final readonly class AdminArianetIpv4CoordinationUi
         }
 
         if ($state === null) {
-            $message = 'برنامه هماهنگی برای این سرور ثبت نشده است.';
+            $message = 'هنوز هماهنگی DNS برای این سرور ثبت نشده است.';
             if ($this->coordination->enabled() && ($operation['status'] ?? null) === 'awaiting_coordination') {
                 $buttons = InlineKeyboardMarkup::make()
-                    ->addRow(InlineKeyboardButton::make('⚙️ آماده‌سازی هماهنگی (آزمایشی)',
+                    ->addRow(InlineKeyboardButton::make('🌐 تکمیل DNS',
                         callback_data: 'ari7:prepare:'.$id.':'.$page))
                     ->addRow(InlineKeyboardButton::make('◀️ بررسی اتصال‌ها',
                         callback_data: 'ari6:impact:'.$id.':'.$page));
             } elseif (($operation['status'] ?? null) !== 'awaiting_coordination') {
-                $message .= "\nابتدا تغییر IP باید در محیط آزمایشی به نتیجه قطعی برسد.";
+                $message .= "\nابتدا نتیجه تغییر IP باید در آریاسرویس تأیید شود.";
             }
             $this->render($bot, $message, $buttons);
 
@@ -59,8 +59,8 @@ final readonly class AdminArianetIpv4CoordinationUi
         }
 
         $stages = [
-            'ready' => 'در انتظار تأیید مرحله اول',
-            'applying' => 'در حال هماهنگی مرحله‌ای',
+            'ready' => 'آماده هماهنگی DNS',
+            'applying' => 'در حال هماهنگی DNS',
             'awaiting_client_test' => 'در انتظار تست اتصال واقعی کاربران',
             'completed' => '✅ تأییدشده توسط مدیر پس از تست اتصال',
         ];
@@ -74,12 +74,7 @@ final readonly class AdminArianetIpv4CoordinationUi
             ."\nIP قبلی: ".TelegramUi::escape($state['oldIp'])
             ."\nIP جدید: ".TelegramUi::escape($state['newIp']);
         foreach ($state['steps'] as $index => $step) {
-            $kind = match ($step['kind']) {
-                'dns' => '🌐 DNS',
-                'host' => '🔗 اتصال مستقیم',
-                'node' => '🖥️ آدرس نود',
-                default => 'مرحله',
-            };
+            $kind = '🌐 DNS';
             $status = match ($step['state']) {
                 'verified' => '✅ تأییدشده',
                 'uncertain' => '⚠️ نیازمند بررسی نتیجه',
@@ -93,8 +88,8 @@ final readonly class AdminArianetIpv4CoordinationUi
         if ($this->coordination->enabled() && $state['owner']) {
             $index = $state['next'];
             if ($index !== null && $state['steps'][$index]['state'] === 'ready') {
-                $buttons->addRow(InlineKeyboardButton::make('⚠️ تأیید اجرای همین مرحله (آزمایشی)',
-                    callback_data: 'ari7:step:'.$id.':'.$page.':'.$index));
+                $buttons->addRow(InlineKeyboardButton::make('🔄 ادامه هماهنگی DNS',
+                    callback_data: 'ari7:prepare:'.$id.':'.$page));
             } elseif ($index !== null && $state['steps'][$index]['state'] === 'uncertain') {
                 $buttons->addRow(InlineKeyboardButton::make('🔎 بررسی نتیجه با GET (بدون تکرار)',
                     callback_data: 'ari7:reconcile:'.$id.':'.$page));
@@ -108,9 +103,9 @@ final readonly class AdminArianetIpv4CoordinationUi
             ->addRow(InlineKeyboardButton::make('◀️ بررسی اتصال‌ها',
                 callback_data: 'ari6:impact:'.$id.':'.$page));
 
-        $notice = 'فقط یک مرحله در هر بار قابل اجراست. پاسخ نامشخص تکرار نمی‌شود. '
-            .'برای پایان کار باید اتصال واقعی یک کاربر بررسی شده باشد؛ '
-            .'تأیید اتصال نود به‌تنهایی کافی نیست.';
+        $notice = 'رکوردهای DNS مرتبط پس از تأیید اولیه IP هماهنگ می‌شوند؛ '
+            .'در نتیجه نامشخص، تغییر تکرار نمی‌شود. '
+            .'تأیید نهایی فقط پس از تست واقعی اتصال کاربران است.';
         $rich = '<h2>⚙️ هماهنگی اتصال‌ها</h2>'
             .'<table bordered striped compact>'.$rows.'</table>'
             .'<footer>🔒 '.TelegramUi::escape($notice).'</footer>';
@@ -126,7 +121,7 @@ final readonly class AdminArianetIpv4CoordinationUi
         [$actor, $id, $page] = $resolved;
         try {
             match ($action) {
-                'prepare' => $this->coordination->prepare($actor, $id),
+                'prepare' => $this->coordination->continueDns($actor, $id),
                 'step' => $this->coordination->executeNext($actor, $id,
                     self::step($rawStep) ?? throw new \RuntimeException('Invalid step index.')),
                 'reconcile' => $this->coordination->reconcile($actor, $id),

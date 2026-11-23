@@ -185,19 +185,20 @@ it('keeps GET reads available while the Cloud write switch is disabled', functio
     Http::assertSentCount(1);
 });
 
-it('hard-blocks direct Cloud write transport in production even with a dual-scope token', function (): void {
+it('permits only the confirmed IPv4 transport in Production and keeps purchases blocked', function (): void {
     config()->set('services.arianet_cloud.writes_enabled', true);
-    Http::fake();
+    Http::fake(['https://api.ariaservice.net/cloud/v1/servers/42/actions/change_ipv4' => Http::response(['action_id' => 87], 202)]);
     app()->detectEnvironment(static fn (): string => 'production');
-
     try {
-        expect(fn () => app(ArianetCloudWriteClient::class)->changeIpv4(42))
-            ->toThrow(RuntimeException::class, 'disabled in production');
+        expect(app(ArianetCloudWriteClient::class)->changeIpv4(42, true))
+            ->toBe(['action_id' => 87]);
         expect(fn () => app(ArianetCloudWriteClient::class)->createServer('dena-test', 'ovh', 8, 'ubuntu-24.04', 7))
             ->toThrow(RuntimeException::class, 'disabled in production');
     } finally {
         app()->detectEnvironment(static fn (): string => 'testing');
     }
-
-    Http::assertNothingSent();
+    Http::assertSentCount(1);
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'POST'
+        && $request->url() === 'https://api.ariaservice.net/cloud/v1/servers/42/actions/change_ipv4'
+        && $request->data()['confirm_paid'] === true);
 });

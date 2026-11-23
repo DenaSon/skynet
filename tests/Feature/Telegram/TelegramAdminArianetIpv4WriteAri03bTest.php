@@ -23,6 +23,9 @@ const ARI5_SERVER = 101305418924;
 const ARI5_NODE = '550e8400-e29b-41d4-a716-446655440087';
 const ARI5_ZONE = 'abcdef0123456789abcdef0123456789';
 const ARI5_RECORD = 'abcdefab010101010101010101010101';
+const ARI5_HOST = '550e8400-e29b-41d4-a716-446655440088';
+const ARI5_PROFILE = '550e8400-e29b-41d4-a716-446655440089';
+const ARI5_INBOUND = '550e8400-e29b-41d4-a716-446655440090';
 
 beforeEach(function (): void {
     config()->set('super_admin.telegram_ids', ['991901', '991902']);
@@ -33,7 +36,7 @@ beforeEach(function (): void {
     config()->set('services.remnawave.writes_enabled', false);
     config()->set('services.cloudflare.token', 'ari5-dns-token');
     config()->set('services.cloudflare.allowed_zones', 'coreflare.ir');
-    config()->set('services.cloudflare.dns_writes_enabled', false);
+    config()->set('services.cloudflare.dns_writes_enabled', true);
     Http::preventStrayRequests();
 });
 
@@ -152,7 +155,33 @@ function ari5Fake(array &$state): void
                 'uuid' => ARI5_NODE, 'name' => '<b>linked-node</b>',
                 'address' => $state['nodeAddress'], 'port' => 2222,
                 'isConnected' => true, 'isDisabled' => false,
+                'configProfile' => [
+                    'activeConfigProfileUuid' => ARI5_PROFILE,
+                    'activeInbounds' => [['uuid' => ARI5_INBOUND]],
+                ],
             ]]);
+        }
+        if ($url === 'https://rw.ari5.test/api/nodes') {
+            return Http::response(['response' => [[
+                'uuid' => ARI5_NODE, 'name' => '<b>linked-node</b>',
+                'address' => $state['nodeAddress'], 'port' => 2222,
+                'isConnected' => true, 'isDisabled' => false,
+                'configProfile' => [
+                    'activeConfigProfileUuid' => ARI5_PROFILE,
+                    'activeInbounds' => [['uuid' => ARI5_INBOUND]],
+                ],
+            ]]]);
+        }
+        if ($url === 'https://rw.ari5.test/api/hosts') {
+            return Http::response(['response' => [[
+                'uuid' => ARI5_HOST, 'remark' => 'Germany REALITY',
+                'address' => 'fr.coreflare.ir', 'port' => 443, 'isDisabled' => false,
+                'nodes' => [ARI5_NODE],
+                'inbound' => [
+                    'configProfileUuid' => ARI5_PROFILE,
+                    'configProfileInboundUuid' => ARI5_INBOUND,
+                ],
+            ]]]);
         }
         if ($path === '/client/v4/zones') {
             return Http::response(['success' => true, 'result' => [
@@ -182,7 +211,7 @@ function ari5OnlyCloudPost(int $expected): void
     }
 }
 
-it('cannot execute on production even if the single token and transport flag are enabled', function (): void {
+it('supports a single confirmed Production IPv4 request without enabling VPS purchases', function (): void {
     $user = ari5Root();
     ari5Link($user);
     $state = ari5State();
@@ -191,14 +220,17 @@ it('cannot execute on production even if the single token and transport flag are
     app()->detectEnvironment(static fn (): string => 'production');
     try {
         $changes = app(ChangeAdminArianetIpv4::class);
-        expect($changes->enabled())->toBeFalse();
-        expect(fn () => $changes->prepare($user->id, ARI5_SERVER))->toThrow(RuntimeException::class, 'disabled');
+        expect($changes->enabled())->toBeTrue();
+        $prepared = $changes->prepare($user->id, ARI5_SERVER);
+        expect($prepared['preview']['dnsTargets'])->toHaveCount(1);
+        expect($changes->apply($user->id, ARI5_SERVER, $prepared['token']))
+            ->toBe(['status' => 'accepted', 'actionId' => 87]);
     } finally {
         app()->detectEnvironment(static fn (): string => 'testing');
     }
 
-    Http::assertNothingSent();
-    expect(DB::table('arianet_cloud_ipv4_changes')->count())->toBe(0);
+    expect($state['posts'])->toBe(1);
+    ari5OnlyCloudPost(1);
 });
 
 it('reserves exactly one actor-bound intent and can cancel only before dispatch', function (): void {
