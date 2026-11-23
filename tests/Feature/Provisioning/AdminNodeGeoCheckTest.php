@@ -220,6 +220,27 @@ it('creates exactly one JSON-object GeoCheck job and safely reuses pending/ready
     expect($posts)->toHaveCount(1);
 });
 
+it('allows another GeoCheck after ten minutes without a new button', function (): void {
+    $root = geocRoot();
+    config()->set('services.remnawave.node_geocheck_enabled', true);
+    geocFake();
+
+    $action = app(NodeGeoCheck::class);
+    expect($action->start($root->id, GEOC_NODE))->toBe('pending')
+        ->and($action->result($root->id, GEOC_NODE, true)['state'])->toBe('ready');
+
+    $this->travel(9)->minutes();
+    expect($action->start($root->id, GEOC_NODE))->toBe('existing');
+
+    $this->travel(2)->minutes();
+    expect($action->result($root->id, GEOC_NODE)['state'])->toBe('missing')
+        ->and($action->start($root->id, GEOC_NODE))->toBe('pending');
+
+    $posts = collect(Http::recorded())->filter(
+        static fn ($pair): bool => $pair[0]->method() === 'POST');
+    expect($posts)->toHaveCount(2);
+});
+
 it('preserves a pending check without sending a second POST', function (): void {
     $root = geocRoot();
     config()->set('services.remnawave.node_geocheck_enabled', true);
