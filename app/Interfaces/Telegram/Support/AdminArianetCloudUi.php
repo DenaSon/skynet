@@ -413,8 +413,8 @@ final readonly class AdminArianetCloudUi
                 : ($plan['memoryMb'] % 1024 === 0
                     ? number_format(intdiv($plan['memoryMb'], 1024)).' GB RAM'
                     : number_format($plan['memoryMb']).' MB RAM');
-            $specs = ($plan['cores'] === null ? 'N/A' : number_format($plan['cores'])).' vCPU · '
-                .$ram.' · '.($plan['diskGb'] === null ? 'N/A' : number_format($plan['diskGb'])).' GB Disk';
+            $specs = "\u{2066}".($plan['cores'] === null ? 'N/A' : number_format($plan['cores'])).' vCPU · '
+                .$ram.' · '.($plan['diskGb'] === null ? 'N/A' : number_format($plan['diskGb'])).' GB Disk'."\u{2069}";
             $price = 'ساعتی: '.self::money($plan['hourlyRials'])
                 .' · ماهانه: '.self::money($plan['monthlyRials']);
             $rows .= self::row($name, $specs).self::row('هزینه پایه', $price);
