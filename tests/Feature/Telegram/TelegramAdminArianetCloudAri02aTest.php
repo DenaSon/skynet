@@ -204,14 +204,12 @@ it('keeps Cloud inventory order entry readable according to the purchase gate', 
     ari2Fake();
     config()->set('services.arianet_cloud.purchase_enabled', false);
     ari2Bot()->hearCallbackQueryData('ari2:list:1')->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool =>
-            str_contains(json_encode(ari2Payload($r)['reply_markup'], JSON_THROW_ON_ERROR), 'پیش‌نمایش سفارش سرور')
+        ->assertRaw(static fn (NutgramRequest $r): bool => str_contains(json_encode(ari2Payload($r)['reply_markup'], JSON_THROW_ON_ERROR), 'پیش‌نمایش سفارش سرور')
             && ari2Has($r, 'ari8:begin'), index: 1);
 
     config()->set('services.arianet_cloud.purchase_enabled', true);
     ari2Bot()->hearCallbackQueryData('ari2:list:1')->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool =>
-            str_contains(json_encode(ari2Payload($r)['reply_markup'], JSON_THROW_ON_ERROR), 'سفارش سرور جدید')
+        ->assertRaw(static fn (NutgramRequest $r): bool => str_contains(json_encode(ari2Payload($r)['reply_markup'], JSON_THROW_ON_ERROR), 'سفارش سرور جدید')
             && ari2Has($r, 'ari8:begin'), index: 1);
     ari2OnlyReads();
 });
