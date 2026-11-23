@@ -583,6 +583,23 @@ No SSH key creation, extra secrets, Cloud purchase/POST, Node change or new
 schema/dependency is introduced. Fake HTTP and Admin Telegram tests are separate
 from a live provider-key-list acceptance.
 
+**NW-SSH-KEY-01 preparatory phase (2026-11-24):** The operator reports
+registering a dedicated Arianet Ed25519 public key and a protected Runflare
+`NODE_SSH_PRIVATE_KEY_B64` Secret. The proposed implementation reuses the
+existing `postStart` SSH runtime with an optional, fingerprint-pinned
+(`SHA256:y/drdp9P+7FscuHjq1ckcCjUjZhnuS+Chl9HJfYehZQ`) decode
+for two permission-isolated runtime paths: PHP-FPM `www-data` at
+`/run/secrets/denagate-node-ssh` and queue `www` at
+`/run/denagate-node-worker/identity`, both root-owned 0640. Separate
+paths are necessary because these existing processes are not assumed to
+share a supplementary group. Missing/malformed/unexpected keys fail closed
+without breaking password SSH or the application. No SSH-key login behavior
+or new Cloud/Remnawave/DNS write is introduced in this first phase; the
+actual secret injection, process access and fingerprint still require a
+separate Production check after deploy. SSH-key authentication of the
+existing preflight/installer is NW-SSH-KEY-02 and needs its own PR/CI/live
+acceptance; stage 1 does not license real VPS purchase.
+
 **Important integration gap:** NW-01/NW-02's current installer supports SSH **password authentication**,
 whereas this Cloud create transport takes exactly one **existing public SSH key**. Neither a
 password-based Cloud purchase nor an SSH-key installer is implemented here. Before ARI-04B
