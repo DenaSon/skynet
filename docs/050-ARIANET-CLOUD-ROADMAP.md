@@ -506,3 +506,49 @@ ARI-03C2 continues to fail closed when Host assignment is unresolved, and
 revalidates membership before each write. No Provider writes, ENV, schema,
 dependencies or payment changes. Verify the actual Frankfurt Host assignment
 in Remnawave before any live node replacement or production operation.
+
+
+---
+
+## ARI-04 — planned real Cloud VPS purchase and existing Node replacement (NOT IMPLEMENTED)
+
+**User goal recorded on 2026-11-23:** exercise an actual Arianet Cloud Write by purchasing **one** Cloud VPS **inside the private Admin Bot**, then using it to replace one existing Remnawave Node while retaining the Node's identity and client configurations. This expresses the future product goal, **not approval to charge the Arianet account, enable Production writes, modify real DNS/Remnawave data or retire a server now**.
+
+**Decision still open:** which exact Node will be replaced (NL vs UAE or another approved Node), exact Cloud datacenter/plan, image, hostname, SSH public key ID, expected charge, billing limit, maintenance window, user-network test and rollback destination. No Node has been selected for real replacement in the current request. Do not default to the existing `GermanyOVH` or modify its current live Cloud server.
+
+### ARI-04A — private read-only purchase preflight and quote
+
+**Scope:** extend the existing `☁️ سرورهای ابری` Admin Bot screen with a selectable single-server quote workflow. Reuse `ReadAdminArianetCloud` and existing plan/datacenter browse rather than building a duplicate catalog. Validate fresh datacenter availability, active plan ID, CPU/RAM/disk, plan availability, hourly/monthly amounts and `currency === IRR`. Show `unknown` if any required price is missing; never use 0 as a fallback.
+
+**Creation prerequisites:** the existing write client accepts a restricted tuple of validated (`name`, `datacenter`, `plan_id`, `image`, one existing `ssh_key_id`) with `count=1`. The current read client does **not** expose SSH-key or OS-image discovery, so first verify the actual provider API contract and supply a *validated existing public SSH key ID* and an officially supported image. Do not invent image slugs or key IDs, transmit private SSH keys, present a fabricated cash balance, or infer that a purchase can be made from the existing read-only plan page. Display the intended replacement Node only as an optional read-only target; no link or Node mutation.
+
+**Acceptance:** trusted private root, Rich RTL + authorized fallback, live provider GET validation, missing data and stale quote blocking, pricing/IRR tests, exact single-server preview, no POST; independent PR/CI and real bot visual check.
+
+### ARI-04B — durable, one-use, explicitly paid single-Cloud-create action
+
+**Scope:** a separate PR and deployment safety review. Reserve a durable purchase intent with an immutable (server name, exact plan/datacenter/image/key, cost snapshot, actor, expiration), strict one-active-intent limit, and one-use actor-bound paid-confirmation under a lock **before** any HTTP POST. Revalidate fresh plan availability and IRR quote at confirmation. Require explicit confirmation of real financial exposure; refuse changed price or unavailable resources. The UI must be clear about ongoing billing, not just creation success.
+
+**Production gate change is required:** current `ArianetCloudWriteClient` rejects **every** POST in Production, including `createServer`; setting `ARIANET_CLOUD_WRITES_ENABLED=true` is insufficient. For this phase, implement a separate default-OFF *purchase-only* authorization path with independent kill switch and exact create method authorization, reviewed before rollout. Keep `changeIpv4` and every unrelated Cloud POST blocked in Production. Reuse the single Bearer token; do not reintroduce `ARIANET_CLOUD_WRITE_TOKEN`. New purchase-only ENV names are **proposals, not existing configuration**; do not add/enable them before their scoped implementation is reviewed.
+
+**One POST only:** use the existing restricted `createServer` transport (`POST /servers`, expected 201 and matching server/action receipts, one public SSH key, `count=1`). An HTTP success means *accepted for creation*, not ready/paid reconciliation. Discard any one-time root password; never show, store or log it. Persist trusted server/action identifiers and separate accepted, uncertain, needs_review and completed states. Timeout/429/5xx/malformed result remains **uncertain and non-retryable**; only operator-triggered, bounded GET inventory/actions may reconcile the same request. In uncertain cases, do not create another VPS to "fix" the first one. Do not add an unreviewed billing-wallet journal or second financial ledger for provider purchase.
+
+**Acceptance:** fake HTTP (one POST, one price-confirmed actor, replay/timeout/ambiguous and wrong receipt, Production purchase-only gate, IPv4 still prohibited, lock/database uniqueness), migration/rollback, PHP 8.4/8.5 as CI requires, PHPStan, Pint, Admin Bot Rich/fallback and denied Sales/group access. A green PR **is not permission for a live purchase**: obtain a **separate explicit final user approval** with current plan, hourly/monthly estimate, possible ongoing charges and account resource availability.
+
+### ARI-04C — creation readiness and supervised replacement handoff
+
+**Scope:** after one authorized live create, poll only the matching action/server with bounded GET and independently verify a new public IPv4 and eligible server state. Do not infer readiness from POST 201. For the same newly created VPS, reuse existing supervised `NW-01/NW-02/NW-03` SSH install and `NW-05` replacement UX/actions; avoid parallel SSH installers, Host APIs, DNS update logic or direct DB mutation of the Remnawave identity mapping.
+
+**Pre-replacement gates:** select and confirm the exact existing Node UUID/name and **entire** live Host/Inbound/Config Profile inventory. Run ownership audit again; only Node UUID membership with verified endpoints is a write target. Resolve any shared/unassigned Host ambiguity and DNS mismatch with the normal operator-reviewed Remnawave flow, not a bypass. Ensure new IP is not assigned to any peer Node, including disabled/disconnected ones. Preview affected domain A records, their Proxy state, DNS-only management endpoint, direct-IP Hosts, routing, fallback/rollback plan, risk of client interruption and accepted maintenance window.
+
+**Execution and acceptance:** require a *separate* one-use operator confirmation for replacing the selected live Node. Wait for new VPS installer connectivity; use NW-05's reviewed DNS/Host/Node update flow, stable Node UUID and identity-preserving checks. Persist one-shot uncertain checkpoints before each remote PATCH; reconcile by GET, never automatically replay partial operations. Keep the old VPS online and intact. Test at least one real client through the affected Node from an actual user network (including relevant Iranian operator where practical), check connectivity/traffic, then accept. Never call a green RW node flag alone a successful client test. Retirement/cleanup of the old VPS is a future explicit operational decision, **not** this automatic flow.
+
+### Required real Write test / operator go-no-go
+
+1. First verify the PR #559 **read-only** audit in live Admin Bot and resolve target ownership evidence, without changing anything automatically.
+2. Select **one** replacement Node and confirm which existing production customer connections are affected. Do **not** select by matching Profile alone.
+3. On a deliberately scoped single-VM test, display a fresh official datacenter/plan/OS/key quote with monetary exposure. Secure user approval for the *exact live purchase*, not a blanket permission for all future creates.
+4. Enable only the reviewed purchase-specific gate for this operation; observe exactly one POST and action ID, verify through GET and disable the gate after the batch. If ambiguous, stop and reconcile before any new purchase.
+5. Install and verify new VPS independently, with old production Node preserved. Require a new approval before any production Node/Host/DNS replacement, then record genuine user-client connectivity.
+6. Report outcomes separately: code/CI, deployed bot, real provider purchase, verified VPS provisioning, Node cutover, client acceptance, rollback/old-VPS retention and any ongoing cost. Record no secrets/PII in the evidence.
+
+**Do not begin** real purchase, IP replacement, direct Cloud Write, DNS/Host mutation, auto-filtering remediation, multi-VPS creation or decommission under this *documentation-only* update. ARI-04A → ARI-04B → ARI-04C are **proposed, independently reviewed implementation phases**, not merged features. A Production write-path design approval and a separate per-transaction operator approval are mandatory.
