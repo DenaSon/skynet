@@ -5,6 +5,12 @@ declare(strict_types=1);
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Application\CoordinateAdminArianetIpv4;
+use GuzzleHttp\Psr7\Request as NutgramRequest;
+use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Properties\ChatType;
+use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
+use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
+use SergiX44\Nutgram\Testing\FakeNutgram;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
@@ -313,4 +319,80 @@ it('denies non-root and altered actor access to coordination records', function 
     TelegramAccount::query()->create(['user_id' => $anotherRoot->id, 'telegram_user_id' => 998802]);
     config()->set('super_admin.telegram_ids', ['998801', '998802']);
     expect(fn () => $service->executeNext($anotherRoot->id, ARI8_SERVER, 0))->toThrow(RuntimeException::class);
+});
+
+
+function ari8Bot(bool $private = true): Nutgram
+{
+    $bot = Nutgram::fake();
+    require base_path('app/Interfaces/Telegram/routes/admin.php');
+    $bot->setCommonUser(TelegramUser::make(998801, false, 'Root'));
+    $bot->setCommonChat(Chat::make($private ? 998801 : -998877,
+        $private ? ChatType::PRIVATE : ChatType::GROUP));
+
+    return $bot;
+}
+
+/** @return array<string,mixed> */
+function ari8Payload(NutgramRequest $request): array
+{
+    $data = FakeNutgram::getActualData($request);
+    if (is_string($data['reply_markup'] ?? null)) {
+        $data['reply_markup'] = json_decode($data['reply_markup'], true, flags: JSON_THROW_ON_ERROR);
+    }
+
+    return $data;
+}
+
+it('shows ordered Rich RTL staging controls only after the operator prepares a plan', function (): void {
+    $root = ari8Ready();
+    ari8Provider();
+    $service = app(CoordinateAdminArianetIpv4::class);
+    $service->prepare($root['user']->id, ARI8_SERVER);
+
+    ari8Bot()->hearCallbackQueryData('ari7:status:'.ARI8_SERVER.':1')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $data = ari8Payload($request);
+            $rich = is_string($data['rich_message'] ?? null)
+                ? json_decode($data['rich_message'], true, flags: JSON_THROW_ON_ERROR)
+                : ($data['rich_message'] ?? []);
+            $buttons = json_encode($data['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
+
+            return ($rich['is_rtl'] ?? false) === true
+                && str_contains((string) ($rich['html'] ?? ''), 'هماهنگی اتصال‌ها')
+                && str_contains((string) ($rich['html'] ?? ''), 'fr.coreflare.ir')
+                && str_contains($buttons, 'ari7:step:'.ARI8_SERVER.':1:0')
+                && str_contains($buttons, 'ari6:impact:'.ARI8_SERVER.':1')
+                && ! str_contains($buttons, 'ari7:step:'.ARI8_SERVER.':1:1');
+        }, index: 1);
+
+    Http::assertNotSent(static fn (Request $req): bool => $req->method() !== 'GET');
+});
+
+it('denies root-only staged operations in group chats and to non-trusted users', function (): void {
+    ari8Ready(false);
+    Http::fake();
+    ari8Bot()->hearCallbackQueryData('ari7:prepare:'.ARI8_SERVER.':1')->reply()
+        ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.']);
+    ari8Bot(private: false)->hearCallbackQueryData('ari7:prepare:'.ARI8_SERVER.':1')->reply();
+    Http::assertNothingSent();
+});
+
+it('keeps coordination execution buttons invisible on Production even when provider flags are enabled', function (): void {
+    ari8Ready();
+    Http::fake();
+    app()->detectEnvironment(static fn (): string => 'production');
+    try {
+        ari8Bot()->hearCallbackQueryData('ari7:status:'.ARI8_SERVER.':1')->reply()
+            ->assertRaw(static function (NutgramRequest $request): bool {
+                $buttons = json_encode(ari8Payload($request)['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
+
+                return ! str_contains($buttons, 'ari7:prepare:')
+                    && ! str_contains($buttons, 'ari7:step:')
+                    && str_contains($buttons, 'ari6:impact:'.ARI8_SERVER.':1');
+            }, index: 1);
+    } finally {
+        app()->detectEnvironment(static fn (): string => 'testing');
+    }
+    Http::assertNothingSent();
 });
