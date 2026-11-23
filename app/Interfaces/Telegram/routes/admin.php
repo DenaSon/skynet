@@ -11,6 +11,7 @@ use App\Interfaces\Telegram\Support\AdminAnnouncementsUi;
 use App\Interfaces\Telegram\Support\AdminArianetCloudLinksUi;
 use App\Interfaces\Telegram\Support\AdminArianetCloudUi;
 use App\Interfaces\Telegram\Support\AdminArianetIpv4PreviewUi;
+use App\Interfaces\Telegram\Support\AdminArianetIpv4WriteUi;
 use App\Interfaces\Telegram\Support\AdminBusinessReportUi;
 use App\Interfaces\Telegram\Support\AdminCloudflareDnsUi;
 use App\Interfaces\Telegram\Support\AdminCommandCenterUi;
@@ -626,6 +627,24 @@ $bot->onCallbackQueryData('metrics:page:{days}:{page}', function (Nutgram $bot, 
 
 $bot->onCommand('servers', function (Nutgram $bot): void {
     app(AdminProviderOverviewUi::class)->show($bot);
+});
+
+// ARI-03B: private, staging-only IPv4 write confirmation and GET status.
+// Application and transport independently fail closed in Production.
+$bot->onCallbackQueryData('ari5:begin:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
+    app(AdminArianetIpv4WriteUi::class)->prepare($bot, $id, $page);
+});
+$bot->onCallbackQueryData('ari5:apply:{id}:{page}:{token}', function (Nutgram $bot, string $id, string $page, string $token): void {
+    app(AdminArianetIpv4WriteUi::class)->apply($bot, $id, $page, $token);
+});
+$bot->onCallbackQueryData('ari5:cancel:{id}:{page}:{token}', function (Nutgram $bot, string $id, string $page, string $token): void {
+    app(AdminArianetIpv4WriteUi::class)->cancel($bot, $id, $page, $token);
+});
+$bot->onCallbackQueryData('ari5:status:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
+    app(AdminArianetIpv4WriteUi::class)->status($bot, $id, $page);
+});
+$bot->onCallbackQueryData('ari5:reconcile:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
+    app(AdminArianetIpv4WriteUi::class)->status($bot, $id, $page, true);
 });
 
 // ARI-03A: root-only read-only IPv4 change preview (no confirmation or writes).
