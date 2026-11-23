@@ -797,6 +797,15 @@ it('accepts an IP-only replacement for an existing Node name containing a pipe',
     $ui->stepBack($bot);
     expect(Cache::get($key)['stage'])->toBe('ip')
         ->and(Cache::get($key)['name'])->toBe('Netherlands | AMSTERDAM');
+
+    // Damaged or expired name state must fail closed, not substitute input text.
+    $damaged = Cache::get($key);
+    unset($damaged['name']);
+    Cache::put($key, $damaged, now()->addMinutes(10));
+    expect($ui->text($bot, NW05_NEW_IP))->toBeTrue();
+    expect(Cache::get($key)['stage'])->toBe('ip');
+
+    Cache::put($key, $initial, now()->addMinutes(10));
     expect($ui->text($bot, NW05_NEW_IP))->toBeTrue();
     expect(Cache::get($key)['stage'])->toBe('port');
 
