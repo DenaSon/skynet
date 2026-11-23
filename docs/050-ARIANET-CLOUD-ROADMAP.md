@@ -362,3 +362,68 @@ Host/DNS/Node fixtures, shared and ambiguous Host detection, Cloud
 post-change target read, missing mapping, denied/groups and native Rich
 rendering. Real Telegram and DNS inventory QA after release remains
 operator evidence separate from CI.
+
+## ARI-03C2 — staging-only durable DNS/Host/Node coordination (2026-11-23)
+
+**Approved incremental implementation:** The operator verified the ARI-03C1
+real Telegram impact audit: seven Host entries, including endpoints associated
+with other providers/regions, one direct-IP Host on a different IPv4, and
+A records for UAE and Netherlands that do not point to the Arianet server.
+This is **NOT** sufficient evidence to mutate those Hosts or DNS records.
+The current audit correctly reports "نیازمند رسیدگی" and must fail closed
+for a staged coordination preparation. No ownership inference from shared
+Profile/Inbound or an apparently similar hostname may override conflicting
+Remote Node/Host membership.
+
+**Execution boundary:** ARI-03C2 is available only outside Production,
+and only with the *existing* Remnawave and Cloudflare independently gated
+write transports deliberately enabled. The Arianet Cloud API write switch
+remains default OFF; the Cloud write transport and this coordination action
+are both hard-blocked in Production. No new secrets, API connectors, queue
+jobs or schedulers. No live Provider requests occur as part of CI/deployment.
+
+**Plan preparation:** Only after ARI-03B has a durable active status
+`awaiting_coordination` with a verified *new* Cloud IPv4 may the trusted
+private root prepare this plan. Reuse the ARI-03C1 GET impact audit and
+current `ManageAdminNodes`, `ManageAdminHosts`, `ManageCloudflareDns`
+snapshots. Reject *all* reported issues, ambiguous legacy/shared Host
+membership, DNS content different from the immutable old IPv4, wrong Node
+mapping, unavailable records and non-public IPv4. Save the bounded, exact
+expected provider identities and ordered DNS → direct-IP Host → direct-IP
+Node steps in an additive JSON column of the existing durable
+`arianet_cloud_ipv4_changes` row. Do not create a parallel lifecycle.
+
+**One-step execution:** A root must explicitly press the next individual
+step button. Re-check the Cloud and complete Node/Host inventory plus
+current step identity under the existing Cloud operation lock. Mark that
+step `uncertain` durably **before** the first provider mutation. Reuse
+`ManageCloudflareDns::changeA` with strict A-record uniqueness and
+preserved Proxy, `ManageAdminHosts::updateReplacementAddress` for
+direct-IP Hosts, and `ManageAdminNodes::updateReplacementAddress` for
+direct-IP Nodes. The existing Actions revalidate protected identities.
+After every mutation independently GET-confirm the desired new IPv4 and
+protected fields, marking the step verified; never replay a consumed step
+callback. If the HTTP response or PHP process fails, leave it uncertain,
+and let the operator reconcile **only with GET**, never automatic retry.
+Do not automatically roll back partially applied provider settings.
+
+**Operator acceptance:** After all steps verify, mark
+`awaiting_client_test`. The operator must independently test a real
+client through an affected connection before explicitly accepting. Recheck
+Node connection and all DNS/Host/Node endpoints before completing the
+journal and releasing its active Cloud server reservation. Do not equate
+Remnawave connected status with proof of actual client traffic.
+
+**Safety gaps and release:** The production VPS may not be used as a
+disposable test target; authorization of any live Cloud/CF/RW mutation
+requires separate explicit operator approval. The app implements only
+staging execution for this milestone. Real client, CDN/external DNS,
+filtering and transport quality must be tested independently.
+The current seven-Host ambiguous production audit blocks any attempt
+to prepare/execute a coordination plan. Fix membership/assignment
+evidence through the normal reviewed operations, not by forcing the
+write flow. Testing uses fake HTTP/Telegram/MySQL (not real Provider)
+plus CI PHP 8.4, PHPStan, Pint and MySQL/rollback. Production must
+keep `ARIANET_CLOUD_WRITES_ENABLED=false` and all other provider
+write gates at their existing approved values. No ENV changes required
+for read-only Prod UI.
