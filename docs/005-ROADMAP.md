@@ -1,3 +1,15 @@
+## ARI — Arianet Cloud integration (authoritative delivery checkpoint, 2026-11-23)
+
+**Current master:** PRs [#548–#559](https://github.com/DenaSon/skynet/pulls?q=is%3Apr+is%3Amerged+ARI) are merged (latest ownership fix [#559](https://github.com/DenaSon/skynet/pull/559), `56ca4576b24969f7f246ea68f3456e7b779ed48b`). **Normative detailed matrix, source-of-truth boundaries, live observations and next gates: [docs/050 — Arianet Cloud status / ARI-04 roadmap](050-ARIANET-CLOUD-ROADMAP.md).** Older ARI-01A/01B paragraphs below are retained for historical scope and are not current merge/config status.
+
+- **Source complete:** ARI-01A GET API, ARI-01B narrow guarded POST transport, ARI-02A Admin Rich screens with live payload fixes, ARI-02B one-to-one Cloud→Node mapping, ARI-03A live GET IPv4 preview, ARI-03B durable staging-only single IP change, ARI-03C1 read-only Host/Node/DNS impact audit, ARI-03C2 staged coordination checkpoints, and PR #559 explicit Node-membership Host ownership correction. One Bearer token (`ARIANET_CLOUD_READ_TOKEN`); no `ARIANET_CLOUD_WRITE_TOKEN`. Production Cloud POST remains **hard-blocked** even if its default-OFF flag is misconfigured.
+- **Operator read-only acceptance:** real Cloud/Telegram screens and first impact audit tested. The old 7-Host report included UAE/NL/other-IP Host associations from shared Profile/Inbound; PR #559 corrects target classification, but **its post-deploy real Telegram retest remains pending**. Production "no coordination plan" and absent Write buttons are expected, not proof of end-to-end connectivity.
+- **Not completed/accepted:** no verified live Cloud create or IPv4 Write, no real coordinated Cloudflare/RW write, no real client handoff, and no Arianet-purchased replacement VPS. Fake-HTTP CI does **not** prove Provider live behavior.
+- **Next scoped product direction — ARI-04, not yet implemented:** (A) read-only fresh IRR quote/datacenter/plan/image/existing public SSH key check and target Node preview; (B) separately reviewed, durable **single paid VPS create** with one-use root confirmation and a **purchase-only** Production gate, while all unrelated IP/Cloud POSTs remain blocked; (C) action GET readiness and reuse of supervised NW-01/02/03 plus NW-05 identity-preserving Node replacement, manual real-client acceptance and old-VPS retention.
+- **Approval boundary:** the user intends to buy **one** Cloud VPS from the Admin Bot and replace a Node, but the exact NL/UAE target, plan, price, OS, SSH key and financial/time/rollback acceptance are not selected. No live charge, provider write, Production ENV activation or Node replacement is authorized by the documentation change. Require separate PR/green CI and transaction-specific approval before real spend, then separate cutover approval.
+
+---
+
 ## ARI-01B — guarded Arianet Cloud write transport (2026-11-23; offline-only PR)
 
 Add a narrowly scoped, default-OFF, separately credentialed Cloud API transport
