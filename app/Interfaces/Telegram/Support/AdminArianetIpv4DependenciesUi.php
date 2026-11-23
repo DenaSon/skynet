@@ -63,7 +63,12 @@ final readonly class AdminArianetIpv4DependenciesUi
             ['IPv4 جدید', $report['newIp'] ?? 'هنوز تعیین نشده'],
             ['نود مرتبط', $report['nodeName']],
             ['آدرس مدیریت نود', $report['nodeAddress'] ?? 'نامشخص'],
-            ['تعداد اتصال‌های مرتبط', self::digits($report['affectedHostCount'])],
+            ['اتصال‌های متعلق/مبهم', self::digits($report['affectedHostCount'])],
+            ['انتساب قطعی به نود', self::digits($report['affectedHostCount'] - $report['ambiguousHostCount'])],
+            ['اتصال‌های مشترک بین نودها', self::digits($report['sharedHostCount'])],
+            ['بدون انتساب، نیازمند بررسی', self::digits($report['ambiguousHostCount'])],
+            ['متعلق به سایر نودها', self::digits($report['otherNodeHostCount'])],
+            ['بدون انتساب، نشانی متفاوت', self::digits($report['unassignedOtherCount'])],
             ['اتصال‌های دارای IP مستقیم', self::digits($report['directHostCount'])],
             ['رکوردهای DNS شناسایی‌شده', self::digits(count($report['dns']))],
             ['نتیجه بررسی', $report['ready'] ? '✅ بدون تعارض شناخته‌شده' : '⚠️ نیازمند رسیدگی'],
@@ -97,7 +102,10 @@ final readonly class AdminArianetIpv4DependenciesUi
             $plain .= "\n⚠️ ".TelegramUi::escape($issue);
         }
 
-        $notice = 'این گزارش فقط وابستگی‌های قابل شناسایی را نشان می‌دهد. '
+        $notice = 'Hostهای سایر نودها هدف تغییر نیستند. Hostهای بدون انتساب با نشانی متفاوت نیز '
+            .'به‌صورت خودکار تغییر نمی‌کنند، اما اگر تنظیمات مشترک داشته باشند مالکیتشان باید بررسی شود. '
+            .'Host بدون انتساب روی نشانی همین نود نیازمند بررسی دستی است. '
+            .'این گزارش فقط وابستگی‌های قابل شناسایی را نشان می‌دهد. '
             .'تطبیق رکوردها، سلامت واقعی اتصال کاربران یا آمادگی قطعی برای تعویض IP را تضمین نمی‌کند. '
             .'هیچ تنظیمی در آریاسرویس، Cloudflare یا Remnawave تغییر نکرده است.';
         $rich = '<h2>🔎 بررسی دامنه‌ها و اتصال‌ها</h2><p>اطلاعات زمان درخواست</p>'

@@ -427,3 +427,28 @@ plus CI PHP 8.4, PHPStan, Pint and MySQL/rollback. Production must
 keep `ARIANET_CLOUD_WRITES_ENABLED=false` and all other provider
 write gates at their existing approved values. No ENV changes required
 for read-only Prod UI.
+
+## ARI-03C ownership correction — shared Profiles are not Host ownership
+
+The production audit showed UAE, NL and a direct-IP Host belonging to
+other servers among seven Cloud Node dependencies because empty Host
+membership was treated as a match when a Config Profile/Inbound was shared.
+Profiles and Inbounds are reusable across Nodes, NOT ownership evidence.
+
+- Host explicitly assigned to selected Node UUID: included. Multiple Node
+  membership stays shared/blocked until resolved.
+- Host with empty Node membership and exact old IP or Node hostname:
+  included as legacy/ambiguous and blocked pending manual verification.
+- Host explicitly assigned only to another Node: excluded and counted
+  separately, though exact address collisions still block.
+- Host with empty membership and another endpoint: excluded and counted
+  separately, even if its Profile/Inbound matches the selected Node.
+  Any such matching Profile/Inbound leaves the overall audit BLOCKED until
+  actual Host ownership is verified, rather than incorrectly declaring ready.
+- UI separates explicitly assigned, shared, ambiguous and unrelated counts;
+  unrelated Host domains do not trigger any DNS checks.
+
+ARI-03C2 continues to fail closed when Host assignment is unresolved, and
+revalidates membership before each write. No Provider writes, ENV, schema,
+dependencies or payment changes. Verify the actual Frankfurt Host assignment
+in Remnawave before any live node replacement or production operation.
