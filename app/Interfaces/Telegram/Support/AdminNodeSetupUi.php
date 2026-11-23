@@ -282,7 +282,7 @@ final readonly class AdminNodeSetupUi
         if ($mode === 'key') {
             try {
                 if (($draft['username'] ?? null) !== 'root' || ! $this->ssh->keyAvailable($id)) {
-                    throw new \\RuntimeException('Dedicated Node SSH key unavailable.');
+                    throw new \RuntimeException('Dedicated Node SSH key unavailable.');
                 }
             } catch (Throwable) {
                 $this->render($bot, 'کلید SSH دناگیت آماده نیست. تنظیمات سرور را بررسی کنید یا ورود با رمز را انتخاب کنید.', $this->authButtons());
@@ -299,7 +299,7 @@ final readonly class AdminNodeSetupUi
         unset($draft['secret']);
         $draft['stage'] = 'password';
         $this->save($id, $draft);
-        $this->render($bot, "🔐 رمز سرور\\n\\n<b>رمز SSH</b> را فقط در همین گفتگوی خصوصی بفرستید. پیام پس از دریافت حذف می‌شود؛ بعد از راه‌اندازی رمز را تغییر دهید.", $this->cancelButton(), true);
+        $this->render($bot, "🔐 رمز سرور\n\n<b>رمز SSH</b> را فقط در همین گفتگوی خصوصی بفرستید. پیام پس از دریافت حذف می‌شود؛ بعد از راه‌اندازی رمز را تغییر دهید.", $this->cancelButton(), true);
     }
 
     /** Continue the existing setup after either verified authentication choice. */
@@ -309,7 +309,7 @@ final readonly class AdminNodeSetupUi
             if (is_array($draft['replacement'] ?? null)) {
                 $current = $this->nodes->replacementSnapshot($id, $draft['replacement']['uuid']);
                 if (! $this->sameReplacementSnapshot($draft['replacement'], $current)) {
-                    throw new \\RuntimeException('Node changed during replacement setup.');
+                    throw new \RuntimeException('Node changed during replacement setup.');
                 }
                 $draft['token'] = bin2hex(random_bytes(16));
                 $draft['stage'] = 'preview';
@@ -718,7 +718,7 @@ final readonly class AdminNodeSetupUi
             }
             $authMode = $draft['authMode'] ?? 'password';
             if (! in_array($authMode, ['password', 'key'], true)) {
-                throw new \\RuntimeException('Unsupported SSH authentication.');
+                throw new \RuntimeException('Unsupported SSH authentication.');
             }
             $password = $authMode === 'key' ? '' : Crypt::decryptString($draft['secret']);
             $os = $this->ssh->check($id, $draft['ip'], $draft['port'], $draft['username'], $password, $draft['host']['knownHost'], $authMode);
@@ -1451,7 +1451,7 @@ final readonly class AdminNodeSetupUi
                 $draft['stage'] = 'username';
                 unset($draft['authMode'], $draft['secret']);
                 $this->save($id, $draft);
-                $this->render($bot, "🖥️ اتصال به سرور\\n\\n<b>نام کاربری SSH</b> را ارسال کنید (برای نصب خودکار: root).", $this->usernameButtons(), true);
+                $this->render($bot, "🖥️ اتصال به سرور\n\n<b>نام کاربری SSH</b> را ارسال کنید (برای نصب خودکار: root).", $this->usernameButtons(), true);
 
                 return;
             case 'password':
@@ -1469,7 +1469,7 @@ final readonly class AdminNodeSetupUi
                 if ($keyMode) {
                     $this->render($bot, '🔐 روش ورود به سرور را انتخاب کنید.', $this->authButtons());
                 } else {
-                    $this->render($bot, "🔐 رمز سرور\\n\\n<b>رمز SSH</b> را فقط در همین گفتگوی خصوصی بفرستید. پیام پس از دریافت حذف می‌شود؛ بعد از راه‌اندازی رمز را تغییر دهید.", $this->cancelButton(), true);
+                    $this->render($bot, "🔐 رمز سرور\n\n<b>رمز SSH</b> را فقط در همین گفتگوی خصوصی بفرستید. پیام پس از دریافت حذف می‌شود؛ بعد از راه‌اندازی رمز را تغییر دهید.", $this->cancelButton(), true);
                 }
 
                 return;
@@ -1546,8 +1546,8 @@ final readonly class AdminNodeSetupUi
                 .'نود: '.TelegramUi::escape($draft['name'])."\n"
                 .'آدرس فعلی نود: '.TelegramUi::code($target['address'])."\n"
                 .'IP سرور جدید: '.TelegramUi::code($draft['ip'])."\n"
-                .'پورت SSH: '.TelegramUi::code((string) $draft['port'])."\\n"
-                .'روش ورود: '.(($draft['authMode'] ?? 'password') === 'key' ? 'کلید SSH' : 'رمز عبور')."\\n"
+                .'پورت SSH: '.TelegramUi::code((string) $draft['port'])."\n"
+                .'روش ورود: '.(($draft['authMode'] ?? 'password') === 'key' ? 'کلید SSH' : 'رمز عبور')."\n"
                 .'پروفایل فعلی: '.TelegramUi::escape($draft['profile']['name'])."\n"
                 .'ورودی‌های فعال حفظ‌شده: '.count($target['inboundUuids'])
                 ."\n\nUUID نود، پروفایل، ورودی‌ها و Hostهای فعلی حذف یا بازسازی نمی‌شوند. پس از نصب، رکوردهای DNS مرتبط به IP جدید منتقل خواهند شد.";
@@ -1568,7 +1568,7 @@ final readonly class AdminNodeSetupUi
 
         $message = "🖥️ بازبینی مشخصات سرور\n\n"
             .'نام: '.$draft['name']."\nIP: ".$draft['ip']."\nپورت SSH: ".$draft['port']."\nپورت ارتباط نود: 2222\n"
-            .'کاربر: '.$draft['username']."\\nروش ورود: ".(($draft['authMode'] ?? 'password') === 'key' ? 'کلید SSH' : 'رمز عبور')."\\nپروفایل: ".$draft['profile']['name']."\nورودی: ".$draft['inbound']['name']
+            .'کاربر: '.$draft['username']."\nروش ورود: ".(($draft['authMode'] ?? 'password') === 'key' ? 'کلید SSH' : 'رمز عبور')."\nپروفایل: ".$draft['profile']['name']."\nورودی: ".$draft['inbound']['name']
             .(isset($draft['dnsName']) ? "\nدامنه: ".$draft['dnsName'] : '')
             .(is_array($draft['dnsRecordExpected'] ?? null)
                 ? "\nIP فعلی دامنه: ".(is_string($draft['dnsRecordExpected']['content'] ?? null) ? $draft['dnsRecordExpected']['content'] : '—')
