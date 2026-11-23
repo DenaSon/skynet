@@ -31,14 +31,11 @@ final readonly class ChangeAdminArianetIpv4
 
     public function enabled(): bool
     {
-        $read = config('services.arianet_cloud.read_token');
-        $write = config('services.arianet_cloud.write_token');
+        $token = config('services.arianet_cloud.read_token');
 
         return ! app()->environment('production')
             && config('services.arianet_cloud.writes_enabled') === true
-            && is_string($read) && trim($read) !== ''
-            && is_string($write) && trim($write) !== ''
-            && ! hash_equals(trim($read), trim($write));
+            && is_string($token) && trim($token) !== '';
     }
 
     /**
