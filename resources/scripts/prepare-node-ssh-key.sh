@@ -13,7 +13,7 @@ EXPECTED_KEY_FP='SHA256:y/drdp9P+7FscuHjq1ckcCjUjZhnuS+Chl9HJfYehZQ'
 fail() { echo "Node SSH key preparation failed: $1" >&2; exit 1; }
 
 # When unconfigured, this optional integration must leave existing SSH alone.
-if [ -z "\${NODE_SSH_PRIVATE_KEY_B64:-}" ]; then
+if [ -z "${NODE_SSH_PRIVATE_KEY_B64:-}" ]; then
     echo "Node SSH key not configured (password SSH unchanged)."
     exit 0
 fi
@@ -24,7 +24,7 @@ id -u www-data >/dev/null 2>&1 || fail "PHP worker user missing"
 getent group www-data >/dev/null 2>&1 || fail "PHP worker group missing"
 WORKER_GROUP="$(id -gn www)"
 [ -n "$WORKER_GROUP" ] || fail "queue worker group missing"
-[ "\${#NODE_SSH_PRIVATE_KEY_B64}" -le 16384 ] || fail "encoded key too large"
+[ "${#NODE_SSH_PRIVATE_KEY_B64}" -le 16384 ] || fail "encoded key too large"
 for cmd in base64 ssh-keygen install mktemp awk; do
     command -v "$cmd" >/dev/null 2>&1 || fail "required SSH utility missing"
 done
