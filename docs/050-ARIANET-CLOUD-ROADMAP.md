@@ -571,6 +571,18 @@ up-front hours. It explicitly labels these as **base plan estimates**, not a val
 all-in invoice, account balance or authorized charge. The draft is private, TTL-bounded in
 the existing cache; no new DB schema, secret store, queue, write action or buying button is created.
 
+**ARI-04A SSH-key picker UX patch (2026-11-23):** replace the manual numeric SSH-key ID
+entry after the server name with an eight-item paginated button list read from the
+same account's `GET /api/v1/ssh-keys?page=N&limit=8`, guarded by the existing
+`ssh-keys:read` permission. Display only escaped key names and numeric IDs, never
+public-key bytes or private keys. Each button is revalidated against a fresh
+account-key list for that page, and the existing quote still revalidates the
+selected key through `GET /ssh-keys/{id}`. Empty catalog, inaccessible scope,
+stale/forged callbacks and expired draft fail closed with refresh/return controls.
+No SSH key creation, extra secrets, Cloud purchase/POST, Node change or new
+schema/dependency is introduced. Fake HTTP and Admin Telegram tests are separate
+from a live provider-key-list acceptance.
+
 **Important integration gap:** NW-01/NW-02's current installer supports SSH **password authentication**,
 whereas this Cloud create transport takes exactly one **existing public SSH key**. Neither a
 password-based Cloud purchase nor an SSH-key installer is implemented here. Before ARI-04B
