@@ -308,6 +308,7 @@ it('rejects mismatched server identity and never invents monetary totals', funct
         ->toThrow(RuntimeException::class);
     ari2OnlyReads();
 });
+
 it('renders real Arianet Cloud /plans fields instead of unknown CPU, RAM and prices', function (): void {
     ari2Root();
     // Captured field names and amounts from a real Runflare GET /plans?datacenter=ovh.
