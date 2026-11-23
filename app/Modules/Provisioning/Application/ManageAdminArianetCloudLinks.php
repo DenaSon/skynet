@@ -58,7 +58,8 @@ final readonly class ManageAdminArianetCloudLinks
         foreach ($nodes as $node) {
             // A Node linked to another server must never be selectable.
             $otherServer = $linked[$node['uuid']] ?? null;
-            if ($otherServer !== null && (int) $otherServer !== $serverId) {
+            if ($otherServer !== null) {
+                // Already linked (even to this server); no duplicate choice.
                 continue;
             }
             $items[] = [
@@ -69,8 +70,7 @@ final readonly class ManageAdminArianetCloudLinks
             ];
         }
 
-        usort($items, static fn (array $a, array $b): int =>
-            (self::rank($a['match']) <=> self::rank($b['match']))
+        usort($items, static fn (array $a, array $b): int => (self::rank($a['match']) <=> self::rank($b['match']))
             ?: strcmp($a['name'], $b['name']));
 
         $pages = max(1, (int) ceil(count($items) / 8));
