@@ -181,6 +181,15 @@ final readonly class PurchaseAdminArianetCloud
         ];
     }
 
+    /** Return the most recent actor-owned purchase without exposing a token. */
+    public function recent(int $actorId): ?int
+    {
+        $this->access->handle($actorId);
+        $id = DB::table(self::TABLE)->where('actor_user_id', $actorId)->latest('id')->value('id');
+
+        return is_int($id) ? $id : null;
+    }
+
     /** GET-only reconciliation. An unknown/ambiguous purchase never causes another POST.
      * @return array<string,mixed>
      */
