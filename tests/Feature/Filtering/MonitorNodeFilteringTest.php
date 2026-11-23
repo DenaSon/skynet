@@ -1216,3 +1216,53 @@ it('requires a full ten-minute span even if six valid high-rate scans arrive soo
 
     expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBe($id);
 });
+
+it('stops refreshing removed Node unknown observations after the last real sample ages out', function (): void {
+    flt02Step(5, 1000, 1000, 0);
+    expect(Cache::get(FilteringFoundation::NODE_INVENTORY_CACHE_KEY))->toBe([FLT02_NODE]);
+
+    flt02Feed([]);
+    for ($i = 0; $i < 20; $i++) {
+        $this->travel(2)->minutes();
+        expect(app(MonitorNodeFiltering::class)->scan())->toBe(0);
+    }
+
+    $checks = DB::table('filtering_checks')->where('node_uuid', FLT02_NODE)->where('module', 'node');
+    expect((clone $checks)->where('outcome', 'unknown')->count())->toBe(15)
+        ->and((clone $checks)->count())->toBe(16)
+        ->and(Cache::get(FilteringFoundation::NODE_INVENTORY_CACHE_KEY))->toBe([])
+        ->and(DB::table('filtering_incidents')->count())->toBe(0);
+
+    // A future legitimate provider return reintroduces the Node immediately.
+    flt02Feed([flt02Node(5, 1000, 1000)]);
+    $this->travel(2)->minutes();
+    expect(app(MonitorNodeFiltering::class)->scan())->toBe(1)
+        ->and(Cache::get(FilteringFoundation::NODE_INVENTORY_CACHE_KEY))->toBe([FLT02_NODE]);
+});
+
+it('preserves a real incident and the last successful inventory through provider failure and removal', function (): void {
+    flt02Step(3, 100, 100, 0);
+    flt02Step(0, 100, 100);
+    flt02Step(0, 100, 100);
+    $id = app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'];
+    expect($id)->not->toBeNull();
+
+    $GLOBALS['flt02_provider_error'] = true;
+    $this->travel(2)->minutes();
+    expect(app(MonitorNodeFiltering::class)->scan())->toBe(0)
+        ->and(Cache::get(FilteringFoundation::NODE_INVENTORY_CACHE_KEY))->toBe([FLT02_NODE])
+        ->and(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBe($id);
+
+    flt02Feed([]);
+    $this->travel(2)->minutes();
+    app(MonitorNodeFiltering::class)->scan();
+    expect(Cache::get(FilteringFoundation::NODE_INVENTORY_CACHE_KEY))->toBe([])
+        ->and(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBe($id)
+        ->and(DB::table('filtering_incidents')->where('id', $id)->value('resolved_at'))->toBeNull();
+
+    $count = DB::table('filtering_checks')->where('node_uuid', FLT02_NODE)->count();
+    $this->travel(35)->minutes();
+    app(MonitorNodeFiltering::class)->scan();
+    expect(DB::table('filtering_checks')->where('node_uuid', FLT02_NODE)->count())->toBe($count)
+        ->and(DB::table('filtering_incidents')->where('id', $id)->value('resolved_at'))->toBeNull();
+});
