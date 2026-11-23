@@ -43,6 +43,7 @@ final readonly class AdminArianetIpv4DependenciesUi
         }
 
         $buttons = InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('⚙️ هماهنگی اتصال‌ها', callback_data: 'ari7:status:'.$serverId.':'.$page))
             ->addRow(InlineKeyboardButton::make('🔄 بررسی مجدد', callback_data: 'ari6:impact:'.$serverId.':'.$page))
             ->addRow(InlineKeyboardButton::make('◀️ پیش‌نمایش IPv4', callback_data: 'ari4:preview:'.$serverId.':'.$page));
 
