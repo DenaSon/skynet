@@ -47,7 +47,7 @@ cmp -s "$TMP/queue-pub" <(ssh-keygen -y -P '' -f "$TMP/test-id")
 
 # An invalid credential or different valid key must not replace either file.
 before="$(sudo sha256sum "$WEB_KEY" "$QUEUE_KEY" | awk '{print $1}')"
-NODE_SSH_PRIVATE_KEY_B64='not-base64!' 
+NODE_SSH_PRIVATE_KEY_B64='not-base64!'
 export NODE_SSH_PRIVATE_KEY_B64
 if sudo --preserve-env=NODE_SSH_PRIVATE_KEY_B64 /bin/sh "$TMP/runtime.sh" > "$TMP/bad.log" 2>&1; then
     echo 'FAIL: malformed private key accepted' >&2
