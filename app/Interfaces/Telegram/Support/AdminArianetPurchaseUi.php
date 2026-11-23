@@ -186,33 +186,123 @@ final readonly class AdminArianetPurchaseUi
         if (! is_array($state) || ! in_array($state['stage'] ?? null, ['name', 'key'], true)) {
             return false;
         }
-        if ($state['stage'] === 'name') {
-            if (preg_match('/^[a-zA-Z0-9](?:[a-zA-Z0-9.-]{0,61}[a-zA-Z0-9])?$/D', trim($text)) !== 1) {
-                $this->render($bot, 'نام معتبر نیست؛ حروف انگلیسی، عدد و خط تیره استفاده کنید.', self::cancelButton());
+        if ($state['stage'] === 'key') {
+            // Do not accept manually typed key IDs, including in an old draft.
+            $this->showKeys($bot, $actor, 1);
 
-                return true;
+            return true;
+        }
+        if (preg_match('/^[a-zA-Z0-9](?:[a-zA-Z0-9.-]{0,61}[a-zA-Z0-9])?$/D', trim($text)) !== 1) {
+            $this->render($bot, 'نام معتبر نیست؛ حروف انگلیسی، عدد و خط تیره استفاده کنید.', self::cancelButton());
+
+            return true;
+        }
+        $state['name'] = trim($text);
+        $state['stage'] = 'key';
+        Cache::put(self::key($actor), $state, now()->addMinutes(15));
+        $this->showKeys($bot, $actor, 1);
+
+        return true;
+    }
+
+    public function keys(Nutgram $bot, string $rawPage): void
+    {
+        $actor = $this->root($bot);
+        if ($actor === null) {
+            return;
+        }
+        $page = self::number($rawPage);
+        if ($page === null) {
+            $this->render($bot, 'صفحه معتبر نیست.', self::home());
+
+            return;
+        }
+        $this->showKeys($bot, $actor, $page);
+    }
+
+    public function selectKey(Nutgram $bot, string $rawId, string $rawPage): void
+    {
+        $actor = $this->root($bot);
+        if ($actor === null) {
+            return;
+        }
+        $state = Cache::get(self::key($actor));
+        $id = self::number($rawId, PHP_INT_MAX);
+        $page = self::number($rawPage);
+        if (! is_array($state) || ($state['stage'] ?? null) !== 'key'
+            || $id === null || $page === null) {
+            $this->render($bot, 'این انتخاب منقضی شده است؛ دوباره شروع کنید.', self::home());
+
+            return;
+        }
+        try {
+            $list = $this->preview->sshKeys($actor, $page);
+            if (! in_array($id, array_column($list['items'], 'id'), true)) {
+                throw new \RuntimeException('SSH key is not listed on this page.');
             }
-            $state['name'] = trim($text);
-            $state['stage'] = 'key';
-            Cache::put(self::key($actor), $state, now()->addMinutes(15));
-            $this->render($bot, '<b>🔑 کلید SSH موجود</b>'."\n\n"
-                .'شناسه عددی یک کلید عمومی که قبلاً در حساب آریاسرویس ثبت کرده‌اید را ارسال کنید.'
-                ."\n\nکلید خصوصی یا رمز عبور نفرستید. این مرحله فقط خواندنی است.", self::cancelButton());
+        } catch (Throwable) {
+            $this->render($bot, 'این کلید دیگر قابل انتخاب نیست؛ فهرست را تازه‌سازی کنید.',
+                InlineKeyboardMarkup::make()
+                    ->addRow(InlineKeyboardButton::make('🔄 فهرست کلیدها', callback_data: 'ari8:keys:1'))
+                    ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'ari8:cancel')));
 
-            return true;
+            return;
         }
-        $keyId = self::number(trim($text), PHP_INT_MAX);
-        if ($keyId === null) {
-            $this->render($bot, 'شناسه کلید SSH باید یک عدد مثبت باشد.', self::cancelButton());
 
-            return true;
-        }
-        $state['keyId'] = $keyId;
+        $state['keyId'] = $id;
         $state['stage'] = 'quote';
         Cache::put(self::key($actor), $state, now()->addMinutes(15));
         $this->showQuote($bot, $actor, $state);
+    }
 
-        return true;
+    private function showKeys(Nutgram $bot, int $actor, int $page): void
+    {
+        $state = Cache::get(self::key($actor));
+        if (! is_array($state) || ($state['stage'] ?? null) !== 'key') {
+            $this->render($bot, 'این مرحله منقضی شده است؛ دوباره شروع کنید.', self::home());
+
+            return;
+        }
+        $retry = InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('🔄 تلاش مجدد', callback_data: 'ari8:keys:'.$page))
+            ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'ari8:cancel'));
+        try {
+            $list = $this->preview->sshKeys($actor, $page);
+        } catch (Throwable) {
+            $this->render($bot, '⚠️ دریافت کلیدهای SSH ممکن نیست؛ مجوز ssh-keys:read توکن آریاسرویس را بررسی کنید.'
+                ."\nهیچ خریدی انجام نشده است.", $retry);
+
+            return;
+        }
+
+        $buttons = InlineKeyboardMarkup::make();
+        $rows = '';
+        foreach ($list['items'] as $key) {
+            $buttons->addRow(InlineKeyboardButton::make('🔑 '.$key['name'].' #'.$key['id'],
+                callback_data: 'ari8:key:'.$key['id'].':'.$page));
+            $rows .= self::row('کلید عمومی', $key['name'].' #'.$key['id']);
+        }
+        $nav = [];
+        if ($page > 1) {
+            $nav[] = InlineKeyboardButton::make('◀️ قبلی', callback_data: 'ari8:keys:'.($page - 1));
+        }
+        if ($page < $list['pages']) {
+            $nav[] = InlineKeyboardButton::make('بعدی ▶️', callback_data: 'ari8:keys:'.($page + 1));
+        }
+        if ($nav !== []) {
+            $buttons->addRow(...$nav);
+        }
+        $buttons->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'ari8:keys:'.$page));
+        $buttons->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'ari8:cancel'));
+
+        $message = $list['items'] === []
+            ? 'کلید SSH ثبت‌شده‌ای در این صفحه پیدا نشد؛ از پنل آریاسرویس یک کلید عمومی ثبت کنید.'
+            : 'کلید SSH موجود را از دکمه‌های زیر انتخاب کنید.';
+        $notice = 'فقط نام و شناسه کلید عمومی نمایش داده می‌شود؛ کلید خصوصی یا رمز عبور ارسال نکنید. هیچ خریدی انجام نمی‌شود.';
+        $this->render($bot, '<b>🔑 انتخاب کلید SSH</b>'."\n\n".$message."\n\n".$notice, $buttons,
+            '<h2>🔑 انتخاب کلید SSH</h2><p>'.TelegramUi::escape($message).'</p>'
+            .($rows === '' ? '' : '<table bordered striped compact>'.$rows.'</table>')
+            .'<footer>'.TelegramUi::escape($notice).'</footer>');
     }
 
     public function review(Nutgram $bot): void
