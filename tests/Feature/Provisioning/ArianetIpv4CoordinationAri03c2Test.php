@@ -33,7 +33,7 @@ const ARI8_OLD = '62.144.51.204';
 const ARI8_NEW = '62.144.51.206';
 
 beforeEach(function (): void {
-    config()->set('super_admin.telegram_ids', ['998801']);
+    config()->set('super_admin.telegram_ids', ['998801', '998802']);
     config()->set('services.arianet_cloud.read_token', 'ari8-cloud');
     config()->set('services.arianet_cloud.writes_enabled', false);
     config()->set('services.remnawave.url', 'https://rw.ari8.test');
