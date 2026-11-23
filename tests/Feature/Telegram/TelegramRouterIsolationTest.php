@@ -262,6 +262,7 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:nw1:begin';
     $expected['ADMIN'][] = 'callback:nw1:step:back';
     $expected['ADMIN'][] = 'callback:nw1:default:{field}';
+    $expected['ADMIN'][] = 'callback:nw1:auth:{mode}';
     $expected['ADMIN'][] = 'callback:nw1:dns:zones';
     $expected['ADMIN'][] = 'callback:nw1:dns:zone:{index}';
     $expected['ADMIN'][] = 'callback:nw1:dns:records:{page}';
@@ -432,8 +433,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(384)
-        ->and(count(array_unique($legacy)))->toBe(384);
+        ->and(count($legacy))->toBe(385)
+        ->and(count(array_unique($legacy)))->toBe(385);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {
