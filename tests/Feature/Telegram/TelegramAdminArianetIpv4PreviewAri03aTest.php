@@ -318,8 +318,7 @@ it('never interprets forbidden, pending or non-IRR Cloud changes as approved pai
     ari4Fake($state);
 
     ari4Bot()->hearCallbackQueryData('ari4:preview:'.ARI4_SERVER_ID.':1')->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool =>
-            str_contains(ari4Rich($r), 'امکان اجرای تعویض IP در این لحظه تأیید نشده است.')
+        ->assertRaw(static fn (NutgramRequest $r): bool => str_contains(ari4Rich($r), 'امکان اجرای تعویض IP در این لحظه تأیید نشده است.')
             && str_contains(ari4Rich($r), 'سهمیه یا هزینه نیازمند بررسی مجدد است.')
             && str_contains(ari4Rich($r), 'هزینه تعویض بعدی')
             && str_contains(ari4Rich($r), 'نامشخص'), index: 1);
@@ -333,8 +332,7 @@ it('treats free change entitlement as informational without ever creating a conf
     ari4Fake($state);
 
     ari4Bot()->hearCallbackQueryData('ari4:preview:'.ARI4_SERVER_ID.':1')->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool =>
-            str_contains(ari4Rich($r), 'هزینه تعویض بعدی')
+        ->assertRaw(static fn (NutgramRequest $r): bool => str_contains(ari4Rich($r), 'هزینه تعویض بعدی')
             && str_contains(ari4Rich($r), 'رایگان')
             && ! str_contains(json_encode(ari4Payload($r)['reply_markup'], JSON_THROW_ON_ERROR),
                 'ari4:apply:'), index: 1);
@@ -359,8 +357,7 @@ it('rejects forged invalid preview callback IDs and keeps a way back', function 
     Http::fake();
 
     ari4Bot()->hearCallbackQueryData('ari4:preview:0:1')->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool =>
-            str_contains((string) (ari4Payload($r)['text'] ?? ''), 'انتخاب سرور معتبر نیست.')
+        ->assertRaw(static fn (NutgramRequest $r): bool => str_contains((string) (ari4Payload($r)['text'] ?? ''), 'انتخاب سرور معتبر نیست.')
             && ari4Has($r, 'ari2:list:1'), index: 1);
     Http::assertNothingSent();
 });
@@ -372,8 +369,7 @@ it('adds a preview entry to Cloud detail without changing existing cost, history
     ari4Fake($state);
 
     ari4Bot()->hearCallbackQueryData('ari2:view:'.ARI4_SERVER_ID.':1')->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool =>
-            ari4Has($r, 'ari4:preview:'.ARI4_SERVER_ID.':1')
+        ->assertRaw(static fn (NutgramRequest $r): bool => ari4Has($r, 'ari4:preview:'.ARI4_SERVER_ID.':1')
             && ari4Has($r, 'ari2:cost:'.ARI4_SERVER_ID.':1')
             && ari4Has($r, 'ari2:history:'.ARI4_SERVER_ID.':1:1')
             && ari4Has($r, 'ari3:unlink:'.ARI4_SERVER_ID.':1')
