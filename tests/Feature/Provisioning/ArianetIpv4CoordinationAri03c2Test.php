@@ -161,6 +161,12 @@ function ari8Provider(bool $shared = false, bool $legacy = false, bool $peerColl
                 : Http::response(['error' => 'not found'], 404);
         }
 
+        if ($method === 'PATCH' && $url === $rw.'nodes') {
+            $shared->mutations[] = 'node:'.ARI8_NODE;
+            $shared->node['address'] = $req['address'];
+
+            return Http::response(['response' => ['uuid' => ARI8_NODE]]);
+        }
         if ($method === 'PATCH' && $url === $rw.'hosts') {
             $shared->mutations[] = 'host:'.$req['uuid'];
             foreach ($shared->hosts as $i => $host) {
@@ -247,6 +253,31 @@ it('coordinates DNS and the direct-IP Host exactly once in order, then awaits a 
         ->and(DB::table('arianet_cloud_ipv4_changes')->value('active_server_id'))->toBeNull()
         ->and($api->mutations)->toHaveCount(2);
     expect(fn () => $service->executeNext($root['user']->id, ARI8_SERVER, 1))->toThrow(RuntimeException::class);
+});
+
+
+it('updates a direct-IP Node only after Host and DNS steps and preserves peer Nodes', function (): void {
+    $root = ari8Ready();
+    $api = ari8Provider();
+    $api->node['address'] = ARI8_OLD;
+    $service = app(CoordinateAdminArianetIpv4::class);
+
+    $plan = $service->prepare($root['user']->id, ARI8_SERVER);
+    expect(array_column($plan['steps'], 'kind'))->toBe(['dns', 'host', 'node']);
+
+    $service->executeNext($root['user']->id, ARI8_SERVER, 0);
+    $service->executeNext($root['user']->id, ARI8_SERVER, 1);
+    $service->executeNext($root['user']->id, ARI8_SERVER, 2);
+
+    expect($api->node['address'])->toBe(ARI8_NEW)
+        ->and($api->hosts[1]['address'])->toBe(ARI8_NEW)
+        ->and($api->hosts[2]['address'])->toBe('nl01.coreflare.ir')
+        ->and($api->mutations)->toBe([
+            'dns:fr.coreflare.ir', 'host:'.ARI8_DIRECT_HOST, 'node:'.ARI8_NODE,
+        ])
+        ->and($service->status($root['user']->id, ARI8_SERVER)['stage'])->toBe('awaiting_client_test');
+    $service->acceptClientTest($root['user']->id, ARI8_SERVER);
+    expect($service->status($root['user']->id, ARI8_SERVER)['stage'])->toBe('completed');
 });
 
 it('marks provider timeout uncertain before any replay and only reconciles via GET', function (): void {
