@@ -168,6 +168,7 @@ class NodeSshInstaller
             @unlink($knownHosts);
         }
     }
+
     /** Keep the queue credential isolated from the PHP-FPM key copy. */
     private function keyAvailable(): bool
     {
