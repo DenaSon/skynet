@@ -84,16 +84,25 @@ final readonly class AdminArianetPurchaseUi
 
         $buttons = InlineKeyboardMarkup::make();
         $rows = '';
+        $simple = '<b>📦 انتخاب پلن</b>'."\n".TelegramUi::escape($datacenter);
         foreach ($result['items'] as $plan) {
-            $price = $plan['hourlyRials'] === null
-                ? 'قیمت نامشخص' : TelegramUi::tomanPersian($plan['hourlyRials']).' تومان/ساعت';
+            $name = $plan['name'].' #'.$plan['id'];
+            $ram = $plan['memoryMb'] === null ? 'N/A RAM'
+                : ($plan['memoryMb'] % 1024 === 0
+                    ? number_format(intdiv($plan['memoryMb'], 1024)).' GB RAM'
+                    : number_format($plan['memoryMb']).' MB RAM');
+            $specs = ($plan['cores'] === null ? 'N/A' : number_format($plan['cores'])).' vCPU · '
+                .$ram.' · '.($plan['diskGb'] === null ? 'N/A' : number_format($plan['diskGb'])).' GB Disk';
+            $price = $plan['hourlyRials'] === null ? 'قیمت نامشخص'
+                : 'ساعتی '.TelegramUi::tomanPersian($plan['hourlyRials']).' تومان';
             $buttons->addRow(InlineKeyboardButton::make(
-                '📦 '.$plan['name'].' · '.$price,
-                callback_data: 'ari8:images:'.$datacenter.':'.$plan['id'],
+                '📦 انتخاب '.$name, callback_data: 'ari8:images:'.$datacenter.':'.$plan['id'],
             ));
-            $rows .= self::row($plan['name'].' #'.$plan['id'],
-                ($plan['cores'] ?? '؟').' CPU · '.($plan['memoryMb'] ?? '؟').' MB RAM · '
-                .($plan['diskGb'] ?? '؟').' GB · '.$price);
+            $rows .= self::row($name, $specs)
+                .self::row('هزینه پایه', $price);
+            $simple .= "\n\n<b>".TelegramUi::escape($name).'</b>'
+                ."\n".TelegramUi::escape($specs)
+                ."\n".TelegramUi::escape($price);
         }
         $nav = [];
         if ($page > 1) {
@@ -107,10 +116,8 @@ final readonly class AdminArianetPurchaseUi
         }
         $buttons->addRow(InlineKeyboardButton::make('◀️ دیتاسنترها', callback_data: 'ari8:begin'));
         $rich = '<h2>📦 انتخاب پلن</h2><p>دیتاسنتر: '.TelegramUi::escape($datacenter).'</p>'
-            .'<table bordered striped compact>'.$rows.'</table>'
-            .'<footer>قیمت و موجودی پیش از پیش‌نمایش نهایی دوباره بررسی می‌شوند. خرید غیرفعال است.</footer>';
-        $this->render($bot, '<b>📦 انتخاب پلن</b>'."\n".TelegramUi::escape($datacenter)
-            ."\n\nپلن را از دکمه‌های زیر انتخاب کنید. هیچ خریدی انجام نمی‌شود.", $buttons, $rich);
+            .'<table bordered striped compact>'.$rows.'</table>';
+        $this->render($bot, $simple, $buttons, $rich);
     }
 
     public function images(Nutgram $bot, string $datacenter, string $rawPlan): void
@@ -571,8 +578,13 @@ final readonly class AdminArianetPurchaseUi
             ['نام سرور', $q['name']],
             ['دیتاسنتر', $plan['datacenter']],
             ['پلن', $plan['name'].' #'.$plan['id']],
-            ['پردازنده / RAM / دیسک', $plan['cores'].' CPU · '.$plan['memoryMb'].' MB · '.$plan['diskGb'].' GB'],
-            ['ترافیک پلن', $plan['trafficGb'] === null ? 'نامشخص یا بدون محدودیت' : $plan['trafficGb'].' GB'],
+            ['مشخصات', $plan['cores'].' vCPU · '
+                .($plan['memoryMb'] % 1024 === 0
+                    ? intdiv($plan['memoryMb'], 1024).' GB RAM'
+                    : $plan['memoryMb'].' MB RAM')
+                .' · '.$plan['diskGb'].' GB Disk'],
+            ['ترافیک', $plan['trafficGb'] === null ? 'نامشخص یا بدون محدودیت'
+                : number_format($plan['trafficGb']).' GB Traffic'],
             ['سیستم‌عامل', $q['image']],
             ['کلید عمومی SSH', $q['sshKeyName'].' #'.$q['sshKeyId']],
             ['نرخ ساعتی پلن', TelegramUi::tomanPersian($plan['hourlyRials']).' تومان'],
