@@ -408,3 +408,35 @@ it('revocation, forged callbacks and group chats cannot authorize local linking'
     expect(DB::table('arianet_cloud_node_links')->count())->toBe(0);
     ari3OnlyGets();
 });
+
+
+it('warns clearly before domain or mismatched-IP confirmation without auto-linking', function (): void {
+    ari3Root();
+    $state = ari3State();
+    ari3Fake($state);
+    $bot = ari3Bot();
+
+    foreach ([
+        1 => 'آدرس نود دامنه است',
+        2 => 'IP نود با IP سرور متفاوت است',
+    ] as $index => $warning) {
+        $chosen = null;
+        $bot->hearCallbackQueryData('ari3:nodes:'.ARI3_SERVER.':1:1')->reply()
+            ->assertRaw(static function (NutgramRequest $r) use (&$chosen, $index): bool {
+                $chosen = ari3Callback($r, 'ari3:pick:'.ARI3_SERVER.':1:'.$index.':');
+
+                return $chosen !== null;
+            }, index: 1);
+
+        $bot->hearCallbackQueryData($chosen)->reply()
+            ->assertRaw(static function (NutgramRequest $r) use ($warning): bool {
+                $markup = json_encode(ari3Payload($r)['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
+
+                return str_contains(ari3Rich($r), $warning)
+                    && str_contains($markup, '"style":"danger"');
+            }, index: 1);
+    }
+
+    expect(DB::table('arianet_cloud_node_links')->count())->toBe(0);
+    ari3OnlyGets();
+});
