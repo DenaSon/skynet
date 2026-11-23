@@ -38,6 +38,34 @@ final class ArianetCloudReadClient
         return $this->read('/plans', ['datacenter' => $datacenter]);
     }
 
+    /** Cloud system-image catalog. No snapshot, backup or app image is offered. */
+    public function systemImages(string $datacenter): array
+    {
+        if (! preg_match('/^[a-z][a-z0-9-]{0,31}$/D', $datacenter)) {
+            throw new InvalidArgumentException('Invalid Cloud datacenter code.');
+        }
+
+        return $this->read('/images', [
+            'type' => 'system', 'datacenter' => $datacenter,
+            'page' => 1, 'per_page' => 100,
+        ]);
+    }
+
+    /** Read the existing account SSH public key by ID; never expose key bytes to UI. */
+    public function sshKey(int $id): array
+    {
+        if ($id < 1) {
+            throw new InvalidArgumentException('Invalid SSH key ID.');
+        }
+
+        $result = $this->read('/ssh-keys/'.$id, [], account: true);
+        if (($result['success'] ?? null) !== true) {
+            throw new RuntimeException('Existing SSH key cannot be verified.');
+        }
+
+        return $result;
+    }
+
     /** @return array<string, mixed> */
     public function pricing(): array
     {
@@ -129,7 +157,7 @@ final class ArianetCloudReadClient
      * @param  array<string, int|string>  $query
      * @return array<string, mixed>
      */
-    private function read(string $path, array $query = []): array
+    private function read(string $path, array $query = [], bool $account = false): array
     {
         $token = config('services.arianet_cloud.read_token');
         $timeout = config('services.arianet_cloud.timeout', 10);
@@ -148,7 +176,7 @@ final class ArianetCloudReadClient
                 ->connectTimeout(min(3, $timeout))
                 ->timeout($timeout)
                 ->withOptions(['allow_redirects' => false])
-                ->get(self::ORIGIN.$path, $query);
+                ->get(($account ? 'https://api.ariaservice.net/api/v1' : self::ORIGIN).$path, $query);
         } catch (ConnectionException) {
             // No sensitive upstream exception, response body or credential in diagnostics.
             throw new RuntimeException('Arianet Cloud connection failed.');
