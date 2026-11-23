@@ -55,7 +55,7 @@ runs:
     - name: Validate RW backup shell scripts
       run: |
         bash -n resources/scripts/denagate-rw-backup-ssh.sh resources/scripts/denagate-rw-backup-worker.sh
-        sh -n resources/scripts/prepare-ssh-runtime.sh resources/scripts/prepare-rw-backup-ssh.sh
+        sh -n resources/scripts/prepare-ssh-runtime.sh resources/scripts/prepare-rw-backup-ssh.sh resources/scripts/prepare-node-ssh-key.sh
       shell: bash
 
     - name: Validate RW forced-command behavior
@@ -64,6 +64,10 @@ runs:
 
     - name: Validate Runflare RW backup SSH secret runtime
       run: bash tests/Shell/rw-backup-runflare-runtime.sh
+      shell: bash
+
+    - name: Validate isolated Node SSH key secret runtime
+      run: bash tests/Shell/node-ssh-runflare-runtime.sh
       shell: bash
 
     - name: Execute tests

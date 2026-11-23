@@ -19,6 +19,7 @@ it('keeps the Runflare SSH bootstrap POSIX-shell valid and narrowly scoped', fun
         ->toContain('apt-get install -y -qq --no-install-recommends openssh-client')
         ->toContain('chmod 755 "$ASKPASS"')
         ->toContain('test -x "$ASKPASS"')
+        ->toContain('prepare-node-ssh-key.sh')
         ->not->toContain('sshpass')
         ->not->toContain('REMNAWAVE_WRITES_ENABLED')
         ->not->toContain('systemctl')

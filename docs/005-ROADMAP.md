@@ -1,3 +1,25 @@
+## NW-SSH-KEY-01 — protected Node SSH key runtime (2026-11-24)
+
+Operator reports that the dedicated public Ed25519 key `denagate-node-setup`
+has been registered in Arianet and the corresponding
+`NODE_SSH_PRIVATE_KEY_B64` has been entered as a protected Runflare Secret;
+deployment/process visibility must still be verified independently.
+The first of two approved SSH-auth phases is runtime-only:
+`prepare-ssh-runtime.sh` calls the optional, fail-closed key preparation
+script. Verify the public fingerprint
+`SHA256:y/drdp9P+7FscuHjq1ckcCjUjZhnuS+Chl9HJfYehZQ` before installing
+restricted root-owned copies for PHP-FPM (`www-data`) and queue (`www`)
+without group privilege widening. Missing/invalid secrets must not disrupt
+the current password SSH path or application startup. No private key is
+committed, entered in Telegram, stored in DB/Cache or sent to provider.
+
+NW-SSH-KEY-02 (separate, **not in this PR**) adds a choice between password
+and public-key authentication to the existing NW-01/02 UI, preflight and
+installer, while preserving the current password path. No real SSH attempt,
+Cloud purchase, installer write, Node/Host/DNS change, or Provider mutation
+is authorized by the phase-1 runtime patch. Shell CI cannot verify actual
+Runflare Secret delivery or a live VPS login.
+
 ## ARI-04A UX patch — choose existing SSH keys from Admin Bot (2026-11-23)
 
 Scoped improvement to the merged ARI-04A GET-only quote: after typing the server

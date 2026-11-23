@@ -52,4 +52,10 @@ test -x "$ASKPASS"
 # Optional RW backup identity: isolated from Node SSH setup and default-off.
 /bin/sh /var/www/resources/scripts/prepare-rw-backup-ssh.sh
 
+# Optional dedicated Node SSH identity. A missing/malformed Secret must never
+# prevent the existing password-based SSH wizard or normal app startup.
+if ! /bin/sh /var/www/resources/scripts/prepare-node-ssh-key.sh; then
+    echo "Node SSH key unavailable; password SSH and app startup are unchanged." >&2
+fi
+
 echo "SSH runtime ready."
