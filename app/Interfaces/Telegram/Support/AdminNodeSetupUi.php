@@ -120,8 +120,14 @@ final readonly class AdminNodeSetupUi
         }
         $draft = $this->draft($id);
         $stage = $draft['stage'] ?? null;
-        if (! in_array($stage, ['name', 'ip', 'identity', 'dns_name', 'port', 'username', 'password'], true)) {
+        if (! in_array($stage, ['name', 'ip', 'identity', 'dns_name', 'port', 'username', 'auth', 'password'], true)) {
             return false;
+        }
+
+        if ($stage === 'auth') {
+            $this->render($bot, '🔐 روش ورود به سرور را با دکمه انتخاب کنید.', $this->authButtons());
+
+            return true;
         }
 
         if ($stage === 'password') {
@@ -146,30 +152,9 @@ final readonly class AdminNodeSetupUi
 
                 return true;
             }
-            try {
-                $draft['secret'] = Crypt::encryptString($value);
-                if (is_array($draft['replacement'] ?? null)) {
-                    $current = $this->nodes->replacementSnapshot($id, $draft['replacement']['uuid']);
-                    if (! $this->sameReplacementSnapshot($draft['replacement'], $current)) {
-                        throw new \RuntimeException('Node changed during replacement setup.');
-                    }
-                    $draft['token'] = bin2hex(random_bytes(16));
-                    $draft['stage'] = 'preview';
-                    $this->save($id, $draft);
-                    $this->previewPrompt($bot, $draft);
-
-                    return true;
-                }
-                $draft['profiles'] = $this->nodes->profiles($id);
-            } catch (Throwable) {
-                Cache::forget($this->key($id));
-                $this->render($bot, 'بررسی مشخصات نود یا دریافت پروفایل‌ها ممکن نشد.', $this->back());
-
-                return true;
-            }
-            $draft['stage'] = 'profile';
-            $this->save($id, $draft);
-            $this->choices($bot, '<b>پروفایل اتصال</b> را انتخاب کنید.', $draft['profiles'], 'nw1:profile:');
+            $draft['secret'] = Crypt::encryptString($value);
+            $draft['authMode'] = 'password';
+            $this->credentialsReady($bot, $id, $draft);
 
             return true;
         }
@@ -266,17 +251,83 @@ final readonly class AdminNodeSetupUi
                 return true;
             }
             $draft['username'] = $value;
-            $draft['stage'] = 'password';
-            $next = "🔐 رمز سرور\n\n<b>رمز SSH</b> را فقط در همین گفتگوی خصوصی بفرستید. پیام پس از دریافت حذف می‌شود؛ بعد از راه‌اندازی رمز را تغییر دهید.";
+            $draft['stage'] = 'auth';
+            $next = "🔐 روش اتصال به سرور\n\n<b>روش ورود SSH</b> را انتخاب کنید.";
         }
         $this->save($id, $draft);
         $this->render($bot, $next, match ($draft['stage']) {
             'port' => $this->portButtons(),
             'username' => $this->usernameButtons(),
+            'auth' => $this->authButtons(),
             default => $this->cancelButton(),
         }, true);
 
         return true;
+    }
+
+    /** A verified private Super Admin chooses exactly one SSH auth method. */
+    public function chooseAuth(Nutgram $bot, string $mode): void
+    {
+        $id = $this->root($bot);
+        if ($id === null) {
+            return;
+        }
+        $draft = $this->draft($id);
+        if (! $this->enabled() || ! is_array($draft) || ($draft['stage'] ?? null) !== 'auth'
+            || ! in_array($mode, ['password', 'key'], true)) {
+            $this->expired($bot);
+
+            return;
+        }
+        if ($mode === 'key') {
+            try {
+                if (($draft['username'] ?? null) !== 'root' || ! $this->ssh->keyAvailable($id)) {
+                    throw new \\RuntimeException('Dedicated Node SSH key unavailable.');
+                }
+            } catch (Throwable) {
+                $this->render($bot, 'کلید SSH دناگیت آماده نیست. تنظیمات سرور را بررسی کنید یا ورود با رمز را انتخاب کنید.', $this->authButtons());
+
+                return;
+            }
+            unset($draft['secret']);
+            $draft['authMode'] = 'key';
+            $this->credentialsReady($bot, $id, $draft);
+
+            return;
+        }
+        $draft['authMode'] = 'password';
+        unset($draft['secret']);
+        $draft['stage'] = 'password';
+        $this->save($id, $draft);
+        $this->render($bot, "🔐 رمز سرور\\n\\n<b>رمز SSH</b> را فقط در همین گفتگوی خصوصی بفرستید. پیام پس از دریافت حذف می‌شود؛ بعد از راه‌اندازی رمز را تغییر دهید.", $this->cancelButton(), true);
+    }
+
+    /** Continue the existing setup after either verified authentication choice. */
+    private function credentialsReady(Nutgram $bot, int $id, array $draft): void
+    {
+        try {
+            if (is_array($draft['replacement'] ?? null)) {
+                $current = $this->nodes->replacementSnapshot($id, $draft['replacement']['uuid']);
+                if (! $this->sameReplacementSnapshot($draft['replacement'], $current)) {
+                    throw new \\RuntimeException('Node changed during replacement setup.');
+                }
+                $draft['token'] = bin2hex(random_bytes(16));
+                $draft['stage'] = 'preview';
+                $this->save($id, $draft);
+                $this->previewPrompt($bot, $draft);
+
+                return;
+            }
+            $draft['profiles'] = $this->nodes->profiles($id);
+        } catch (Throwable) {
+            Cache::forget($this->key($id));
+            $this->render($bot, 'بررسی مشخصات نود یا دریافت پروفایل‌ها ممکن نشد.', $this->back());
+
+            return;
+        }
+        $draft['stage'] = 'profile';
+        $this->save($id, $draft);
+        $this->choices($bot, '<b>پروفایل اتصال</b> را انتخاب کنید.', $draft['profiles'], 'nw1:profile:');
     }
 
     public function dnsZones(Nutgram $bot): void
@@ -665,8 +716,12 @@ final readonly class AdminNodeSetupUi
                 || ! in_array($draft['inbound']['uuid'], array_column($this->nodes->inbounds($id, $draft['profile']['uuid']), 'uuid'), true)) {
                 throw new \RuntimeException('Profile changed.');
             }
-            $password = Crypt::decryptString($draft['secret']);
-            $os = $this->ssh->check($id, $draft['ip'], $draft['port'], $draft['username'], $password, $draft['host']['knownHost']);
+            $authMode = $draft['authMode'] ?? 'password';
+            if (! in_array($authMode, ['password', 'key'], true)) {
+                throw new \\RuntimeException('Unsupported SSH authentication.');
+            }
+            $password = $authMode === 'key' ? '' : Crypt::decryptString($draft['secret']);
+            $os = $this->ssh->check($id, $draft['ip'], $draft['port'], $draft['username'], $password, $draft['host']['knownHost'], $authMode);
             unset($password);
             if (config('services.remnawave.node_ssh_install_enabled') === true) {
                 $setupToken = bin2hex(random_bytes(16));
@@ -1392,17 +1447,30 @@ final readonly class AdminNodeSetupUi
                 $this->render($bot, "🖥️ اتصال به سرور\n\n<b>پورت SSH</b> را ارسال کنید (معمولاً 22).", $this->portButtons(), true);
 
                 return;
-            case 'password':
+            case 'auth':
                 $draft['stage'] = 'username';
+                unset($draft['authMode'], $draft['secret']);
                 $this->save($id, $draft);
-                $this->render($bot, "🖥️ اتصال به سرور\n\n<b>نام کاربری SSH</b> را ارسال کنید (برای نصب خودکار: root).", $this->usernameButtons(), true);
+                $this->render($bot, "🖥️ اتصال به سرور\\n\\n<b>نام کاربری SSH</b> را ارسال کنید (برای نصب خودکار: root).", $this->usernameButtons(), true);
+
+                return;
+            case 'password':
+                $draft['stage'] = 'auth';
+                unset($draft['authMode'], $draft['secret']);
+                $this->save($id, $draft);
+                $this->render($bot, '🔐 روش ورود به سرور را انتخاب کنید.', $this->authButtons());
 
                 return;
             case 'profile':
-                $draft['stage'] = 'password';
-                unset($draft['secret'], $draft['profiles'], $draft['profile'], $draft['inbounds'], $draft['inbound']);
+                $keyMode = ($draft['authMode'] ?? 'password') === 'key';
+                $draft['stage'] = $keyMode ? 'auth' : 'password';
+                unset($draft['secret'], $draft['authMode'], $draft['profiles'], $draft['profile'], $draft['inbounds'], $draft['inbound']);
                 $this->save($id, $draft);
-                $this->render($bot, "🔐 رمز سرور\n\n<b>رمز SSH</b> را فقط در همین گفتگوی خصوصی بفرستید. پیام پس از دریافت حذف می‌شود؛ بعد از راه‌اندازی رمز را تغییر دهید.", $this->cancelButton(), true);
+                if ($keyMode) {
+                    $this->render($bot, '🔐 روش ورود به سرور را انتخاب کنید.', $this->authButtons());
+                } else {
+                    $this->render($bot, "🔐 رمز سرور\\n\\n<b>رمز SSH</b> را فقط در همین گفتگوی خصوصی بفرستید. پیام پس از دریافت حذف می‌شود؛ بعد از راه‌اندازی رمز را تغییر دهید.", $this->cancelButton(), true);
+                }
 
                 return;
             case 'inbound':
@@ -1478,7 +1546,8 @@ final readonly class AdminNodeSetupUi
                 .'نود: '.TelegramUi::escape($draft['name'])."\n"
                 .'آدرس فعلی نود: '.TelegramUi::code($target['address'])."\n"
                 .'IP سرور جدید: '.TelegramUi::code($draft['ip'])."\n"
-                .'پورت SSH: '.TelegramUi::code((string) $draft['port'])."\n"
+                .'پورت SSH: '.TelegramUi::code((string) $draft['port'])."\\n"
+                .'روش ورود: '.(($draft['authMode'] ?? 'password') === 'key' ? 'کلید SSH' : 'رمز عبور')."\\n"
                 .'پروفایل فعلی: '.TelegramUi::escape($draft['profile']['name'])."\n"
                 .'ورودی‌های فعال حفظ‌شده: '.count($target['inboundUuids'])
                 ."\n\nUUID نود، پروفایل، ورودی‌ها و Hostهای فعلی حذف یا بازسازی نمی‌شوند. پس از نصب، رکوردهای DNS مرتبط به IP جدید منتقل خواهند شد.";
@@ -1487,6 +1556,7 @@ final readonly class AdminNodeSetupUi
                 .$this->replacementRichRow('آدرس فعلی', $target['address'])
                 .$this->replacementRichRow('IP سرور جدید', $draft['ip'])
                 .$this->replacementRichRow('پورت SSH', (string) $draft['port'])
+                .$this->replacementRichRow('روش ورود', ($draft['authMode'] ?? 'password') === 'key' ? 'کلید SSH' : 'رمز عبور')
                 .$this->replacementRichRow('پروفایل فعلی', $draft['profile']['name'])
                 .$this->replacementRichRow('ورودی‌های حفظ‌شده', (string) count($target['inboundUuids']));
             $rich = '<h2>🔁 بازبینی جایگزینی سرور</h2><table bordered striped compact>'.$rows.'</table>'
@@ -1498,7 +1568,7 @@ final readonly class AdminNodeSetupUi
 
         $message = "🖥️ بازبینی مشخصات سرور\n\n"
             .'نام: '.$draft['name']."\nIP: ".$draft['ip']."\nپورت SSH: ".$draft['port']."\nپورت ارتباط نود: 2222\n"
-            .'کاربر: '.$draft['username']."\nپروفایل: ".$draft['profile']['name']."\nورودی: ".$draft['inbound']['name']
+            .'کاربر: '.$draft['username']."\\nروش ورود: ".(($draft['authMode'] ?? 'password') === 'key' ? 'کلید SSH' : 'رمز عبور')."\\nپروفایل: ".$draft['profile']['name']."\nورودی: ".$draft['inbound']['name']
             .(isset($draft['dnsName']) ? "\nدامنه: ".$draft['dnsName'] : '')
             .(is_array($draft['dnsRecordExpected'] ?? null)
                 ? "\nIP فعلی دامنه: ".(is_string($draft['dnsRecordExpected']['content'] ?? null) ? $draft['dnsRecordExpected']['content'] : '—')
@@ -1598,6 +1668,15 @@ final readonly class AdminNodeSetupUi
     {
         return InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('۲۲ · پورت پیش‌فرض', callback_data: 'nw1:default:port', style: ButtonStyle::PRIMARY))
+            ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'nw1:step:back'))
+            ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'nw1:cancel'));
+    }
+
+    private function authButtons(): InlineKeyboardMarkup
+    {
+        return InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('🔑 ورود با کلید SSH', callback_data: 'nw1:auth:key', style: ButtonStyle::PRIMARY))
+            ->addRow(InlineKeyboardButton::make('🔐 ورود با رمز عبور', callback_data: 'nw1:auth:password'))
             ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'nw1:step:back'))
             ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'nw1:cancel'));
     }
