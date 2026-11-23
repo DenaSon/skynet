@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Interfaces\Telegram\Support\AdminNodeSetupUi;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
@@ -211,6 +212,16 @@ function nw05ReplacementApi(
         }
         if ($method === 'GET' && $url === $rw.'nodes/'.NW05_NODE) {
             return Http::response(['response' => $shared->node], 200);
+        }
+        if ($method === 'GET' && $url === $rw.'config-profiles') {
+            return Http::response(['response' => [
+                'configProfiles' => [['uuid' => NW05_PROFILE, 'name' => 'Main']],
+            ]], 200);
+        }
+        if ($method === 'GET' && $url === $rw.'config-profiles/'.NW05_PROFILE.'/inbounds') {
+            return Http::response(['response' => [
+                'inbounds' => [['uuid' => NW05_INBOUND, 'tag' => 'VLESS REALITY']],
+            ]], 200);
         }
         if ($method === 'PATCH' && $url === $rw.'nodes') {
             $shared->node['address'] = $request['address'];
@@ -744,4 +755,50 @@ it('canonicalizes DNS checkpoint hostnames while preserving the original Node ad
         ->and($api->records[NW05_RECORD_NODE]['name'])->toBe('fr.coreflare.ir')
         ->and($api->records[NW05_RECORD_NODE]['content'])->toBe(NW05_NEW_IP)
         ->and($api->records[NW05_RECORD_XHTTP]['content'])->toBe(NW05_NEW_IP);
+});
+
+it('accepts an IP-only replacement for an existing Node name containing a pipe', function (): void {
+    $ready = nw05ReplacementReady();
+    $api = nw05ReplacementApi();
+    $api->node['name'] = 'Netherlands | AMSTERDAM';
+    $api->nodes[0]['name'] = 'Netherlands | AMSTERDAM';
+    $bot = Mockery::mock(Nutgram::class);
+    $bot->shouldReceive('chat')->andReturn(Chat::make(985501, ChatType::PRIVATE));
+    $bot->shouldReceive('user')->andReturn(TelegramUser::make(985501, false, 'Operator'));
+    $bot->shouldReceive('isCallbackQuery')->andReturn(false);
+    $bot->shouldReceive('sendMessage')->andReturnNull();
+
+    $ui = app(AdminNodeSetupUi::class);
+    $key = TelegramBotContext::current()->cacheKey('nw01:draft:'.$ready['actor']->id);
+    $ui->beginReplacement($bot, NW05_NODE);
+
+    $initial = Cache::get($key);
+    expect($initial)->toBeArray()
+        ->and($initial['stage'])->toBe('ip')
+        ->and($initial['name'])->toBe('Netherlands | AMSTERDAM')
+        ->and($initial['replacement']['uuid'])->toBe(NW05_NODE);
+
+    // Invalid and composite values cannot advance the IP-only stage.
+    expect($ui->text($bot, '127.0.0.1'))->toBeTrue();
+    expect(Cache::get($key)['stage'])->toBe('ip');
+    expect($ui->text($bot, 'Other | '.NW05_NEW_IP))->toBeTrue();
+    expect(Cache::get($key)['stage'])->toBe('ip');
+
+    expect($ui->text($bot, NW05_NEW_IP))->toBeTrue();
+    $draft = Cache::get($key);
+    expect($draft['stage'])->toBe('port')
+        ->and($draft['ip'])->toBe(NW05_NEW_IP)
+        ->and($draft['name'])->toBe('Netherlands | AMSTERDAM')
+        ->and($draft['replacement'])->toBe($initial['replacement'])
+        ->and($draft['profile'])->toBe($initial['profile'])
+        ->and($draft['activeInbounds'])->toBe($initial['activeInbounds']);
+
+    // Rewinding to the IP stage must preserve the original name too.
+    $ui->stepBack($bot);
+    expect(Cache::get($key)['stage'])->toBe('ip')
+        ->and(Cache::get($key)['name'])->toBe('Netherlands | AMSTERDAM');
+    expect($ui->text($bot, NW05_NEW_IP))->toBeTrue();
+    expect(Cache::get($key)['stage'])->toBe('port');
+
+    expect(nw05MutationCount())->toBe(0);
 });
