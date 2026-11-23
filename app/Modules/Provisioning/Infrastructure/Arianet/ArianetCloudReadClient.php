@@ -51,6 +51,21 @@ final class ArianetCloudReadClient
         ]);
     }
 
+    /** Paginated account SSH keys; read-only, without storing key material. */
+    public function sshKeys(int $page = 1, int $limit = 8): array
+    {
+        if ($page < 1 || $page > 100 || $limit < 1 || $limit > 20) {
+            throw new InvalidArgumentException('Invalid SSH key pagination.');
+        }
+
+        $result = $this->read('/ssh-keys', ['page' => $page, 'limit' => $limit], account: true);
+        if (($result['success'] ?? null) !== true) {
+            throw new RuntimeException('SSH key catalog cannot be verified.');
+        }
+
+        return $result;
+    }
+
     /** Read the existing account SSH public key by ID; never expose key bytes to UI. */
     public function sshKey(int $id): array
     {
