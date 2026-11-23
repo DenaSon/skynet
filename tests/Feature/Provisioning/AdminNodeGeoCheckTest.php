@@ -10,6 +10,7 @@ use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
@@ -184,7 +185,7 @@ it('requires a trusted active root for every operation and private Telegram cont
     $privateBot = geocBot(987001, false);
     $privateBot->hearCallbackQueryData('geoc:list:1')->reply();
 
-    \Illuminate\Support\Facades\DB::table('users')->where('id', $root->id)->update(['is_active' => false]);
+    DB::table('users')->where('id', $root->id)->update(['is_active' => false]);
     expect(fn () => app(NodeGeoCheck::class)->start($root->id, GEOC_NODE))
         ->toThrow(AuthorizationException::class);
     Http::assertNothingSent();
