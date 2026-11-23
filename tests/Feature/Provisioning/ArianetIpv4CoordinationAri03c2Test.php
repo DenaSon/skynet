@@ -257,6 +257,37 @@ it('rejects a direct-IP Node or Host instead of modifying Remnawave', function (
     expect($api->mutations)->toBe([])
         ->and(DB::table('arianet_cloud_ipv4_changes')->value('coordination_state'))->toBeNull();
 });
+it('ignores an unrelated unassigned Host despite its shared Profile and Inbound', function (): void {
+    $root = ari8Ready();
+    $api = ari8Provider();
+    $api->hosts[2]['nodes'] = [];
+    $service = app(CoordinateAdminArianetIpv4::class);
+
+    $plan = $service->prepare($root['user']->id, ARI8_SERVER);
+    expect($plan['steps'])->toHaveCount(1)
+        ->and($plan['steps'][0]['kind'])->toBe('dns')
+        ->and($api->mutations)->toBe([]);
+});
+
+it('rejects a historic direct-IP step without consuming a DNS write checkpoint', function (): void {
+    $root = ari8Ready();
+    $api = ari8Provider();
+    $service = app(CoordinateAdminArianetIpv4::class);
+    $service->prepare($root['user']->id, ARI8_SERVER);
+
+    $saved = DB::table('arianet_cloud_ipv4_changes')->value('coordination_state');
+    $state = json_decode((string) $saved, true, flags: JSON_THROW_ON_ERROR);
+    $state['steps'][0]['kind'] = 'host';
+    DB::table('arianet_cloud_ipv4_changes')->update([
+        'coordination_state' => json_encode($state, JSON_THROW_ON_ERROR),
+    ]);
+
+    expect(fn () => $service->executeNext($root['user']->id, ARI8_SERVER, 0))
+        ->toThrow(RuntimeException::class, 'manual review');
+    expect($service->status($root['user']->id, ARI8_SERVER)['steps'][0]['state'])->toBe('ready')
+        ->and($api->mutations)->toBe([]);
+});
+
 it('marks provider timeout uncertain before any replay and only reconciles via GET', function (): void {
     $root = ari8Ready();
     $api = ari8Provider();
