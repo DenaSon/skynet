@@ -557,7 +557,7 @@ in Remnawave before any live node replacement or production operation.
 
 **Acceptance:** trusted private root, Rich RTL + authorized fallback, live provider GET validation, missing data and stale quote blocking, pricing/IRR tests, exact single-server preview, no POST; independent PR/CI and real bot visual check.
 
-**ARI-04A implementation checkpoint (2026-11-23; review [PR #pending]):**
+**ARI-04A implementation checkpoint (2026-11-23; review [PR #563](https://github.com/DenaSon/skynet/pull/563)):**
 A private root-only purchase-quote wizard is scoped to `سرورهای ابری → پیش‌نمایش خرید VPS`.
 The workflow selects an orderable datacenter, an active/available plan, a nondeprecated Ubuntu/Debian
 system image available in that datacenter and fitting the plan disk, then accepts a safe server name
