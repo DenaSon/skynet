@@ -360,6 +360,13 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     ] as $name) {
         $expected['ADMIN'][] = 'callback:geoc:'.$name;
     }
+    // ARI-02A: GET-only private trusted-root Cloud inventory/UI, Admin Bot only.
+    foreach ([
+        'list:{page}', 'view:{id}:{page}', 'cost:{id}:{page}',
+        'history:{id}:{listPage}:{page}', 'dc', 'plans:{datacenter}:{page}',
+    ] as $name) {
+        $expected['ADMIN'][] = 'callback:ari2:'.$name;
+    }
     // SUP-DIAG-01: root-only, owner-verified customer diagnostics never register in Sales.
     $expected['ADMIN'][] = 'callback:sd:{kind}:{id}:{orderId}:{userPage}:{mode}:{servicePage}:{days}';
     $expected['SALES'][] = 'photo:*';
