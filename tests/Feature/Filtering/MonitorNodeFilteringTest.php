@@ -1272,3 +1272,91 @@ it('preserves a real incident and the last successful inventory through provider
     expect(DB::table('filtering_checks')->where('node_uuid', FLT02_NODE)->count())->toBe($count)
         ->and(DB::table('filtering_incidents')->where('id', $id)->value('resolved_at'))->toBeNull();
 });
+
+it('declassifies a preexisting traffic-only incident only after valid positive checks', function (): void {
+    flt02EnableRootNotifications();
+    app(FilteringFoundation::class)->record(
+        FLT02_NODE, 'node', 'suspicious', now()->utc()->startOfMinute(), [
+            'causes' => ['traffic_drop'],
+            'online_users' => 12,
+            'rx_bytes_per_sec' => 300000,
+            'tx_bytes_per_sec' => 300000,
+            'traffic_reference' => 1000000,
+        ],
+    );
+    $id = (int) DB::table('filtering_incidents')->value('id');
+    app(FilteringIncidentAlerts::class)->sync($id, 'node');
+
+    flt02Step(12, null, null);
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBe($id);
+    flt02Step(12, 300000, 300000);
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBe($id);
+    flt02Step(12, 300000, 300000);
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBeNull()
+        ->and(DB::table('filtering_incidents')->where('id', $id)->value('state'))->toBe('resolved')
+        ->and(DB::table('filtering_checks')->where('node_uuid', FLT02_NODE)->count())->toBe(4);
+});
+
+it('replays the observed 2120 pattern: traffic falls first, online corroborates later', function (): void {
+    flt02EnableRootNotifications();
+    for ($i = 0; $i < 7; $i++) {
+        flt02Step(20, 1000000, 1000000, $i === 0 ? 0 : 2);
+    }
+    flt02Step(20, 300000, 300000);
+    flt02Step(20, 300000, 300000);
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBeNull()
+        ->and(DB::table('telegram_notification_deliveries')->count())->toBe(0);
+
+    flt02Step(10, 300000, 300000);
+    flt02Step(10, 300000, 300000);
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['affected_modules']['node']['causes'])
+        ->toContain('online_drop')
+        ->and(DB::table('telegram_notification_deliveries')
+            ->where('event_type', 'FilteringOpened')->count())->toBe(1);
+});
+
+it('replays representative 1653 samples: extreme online collapse still escalates at 03:42 Tehran', function (): void {
+    flt02EnableRootNotifications();
+    $this->travelTo(Carbon::parse('2026-11-23 03:04:00', 'Asia/Tehran'));
+    for ($i = 0; $i < 7; $i++) {
+        flt02Step(16, 6526054, 6526054, $i === 0 ? 0 : 2);
+    }
+    // Field-derived representative samples: online user counts and maximum
+    // RX/TX rates observed 03:20–03:44 Tehran; not a full raw 24h replay.
+    $samples = [
+        [4, 157.5], [4, 473.2], [3, 315.6], [3, 460.3],
+        [2, 815.7], [1, 271.7], [1, 10.0], [1, 8.4],
+        [4, 9.6], [2, 134.2], [0, 6.9], [0, 7.0],
+        [1, 11.6],
+    ];
+    foreach ($samples as $index => [$online, $kib]) {
+        flt02Step($online, (int) round($kib * 1024), (int) round($kib * 1024), $index === 0 ? 4 : 2);
+        $at = now()->setTimezone('Asia/Tehran')->format('H:i');
+        if ($at === '03:22') {
+            expect(app(FilteringFoundation::class)->read(FLT02_NODE)['state'])->toBe('suspicious')
+                ->and(app(FilteringFoundation::class)->read(FLT02_NODE)['affected_modules']['node']['causes'])
+                ->toContain('online_drop');
+        }
+        if ($at === '03:42') {
+            expect(app(FilteringFoundation::class)->read(FLT02_NODE)['state'])->toBe('disrupted')
+                ->and(app(FilteringFoundation::class)->read(FLT02_NODE)['affected_modules']['node']['causes'])
+                ->toContain('online_zero');
+        }
+    }
+    expect(DB::table('telegram_notification_deliveries')
+        ->where('event_type', 'FilteringOpened')->count())->toBe(1)
+        ->and(DB::table('telegram_notification_deliveries')
+            ->where('event_type', 'FilteringEscalated')->count())->toBe(1);
+});
+
+it('keeps the observed 1594-type online-zero warning independent of traffic load', function (): void {
+    flt02EnableRootNotifications();
+    flt02Step(5, 150000, 180000, 0);
+    flt02Step(0, 150000, 180000);
+    flt02Step(0, 150000, 180000);
+
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['affected_modules']['node']['causes'])
+        ->toBe(['online_zero'])
+        ->and(DB::table('telegram_notification_deliveries')
+            ->where('event_type', 'FilteringOpened')->count())->toBe(1);
+});
