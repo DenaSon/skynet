@@ -19,7 +19,7 @@ use SergiX44\Nutgram\Testing\FakeNutgram;
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
-    config()->set('super_admin.telegram_ids', ['992501']);
+    config()->set('super_admin.telegram_ids', ['992501', '992502']);
     config()->set('services.arianet_cloud.read_token', 'ari04a-readonly');
     config()->set('services.arianet_cloud.writes_enabled', false);
     Http::preventStrayRequests();
@@ -172,7 +172,7 @@ it('blocks sold-out, non-IRR, closed and invalid-image or key quotes without any
         );
         expect(fn () => app(PreviewAdminArianetPurchase::class)->quote(
             $root->id, 'ovh', 8, $issue === 'image' ? 'centos-9' : 'ubuntu-24.04',
-            'denagate-test', 7))->toThrow(Throwable::class);
+            'denagate-test', 7))->toThrow(\Exception::class);
     }
     ari04aOnlyReads();
 });
