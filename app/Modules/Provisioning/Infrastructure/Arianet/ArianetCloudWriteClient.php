@@ -101,7 +101,7 @@ final class ArianetCloudWriteClient
     }
 
     /**
-     * @param array<string, bool|int|string|list<int>>|null $body
+     * @param  array<string, bool|int|string|list<int>>|null  $body
      * @return array<string, mixed>
      */
     private function post(string $path, ?array $body, int $expectedStatus): array
