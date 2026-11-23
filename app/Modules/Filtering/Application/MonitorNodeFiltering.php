@@ -295,6 +295,27 @@ final readonly class MonitorNodeFiltering
         ] as $cause => [$signal, $reference, $currentPct, $previousPct, $threshold]) {
             $active = in_array($cause, $causes, true);
             if ($active) {
+                // A relative traffic decline alone is not evidence that a
+                // connection has failed. Retire previously opened traffic-only
+                // signals after two valid, positive observations, or when a
+                // stronger zero signal is already present. Never use missing
+                // telemetry to claim recovery.
+                if ($cause === 'traffic_drop' && ! in_array('online_drop', $causes, true)) {
+                    $stronger = in_array('online_zero', $causes, true)
+                        || in_array('traffic_zero', $causes, true);
+                    $positive = $contiguous && $onNow !== null && $onNow > 0
+                        && $onBefore !== null && $onBefore > 0
+                        && $rateNow !== null && $rateNow > 0
+                        && $rateBefore !== null && $rateBefore > 0;
+                    if ($stronger || $positive) {
+                        $causes = array_values(array_diff($causes, ['traffic_drop']));
+                    } elseif ($reference !== null) {
+                        $evidence['traffic_reference'] = $reference;
+                    }
+
+                    continue;
+                }
+
                 $observed = self::activityValue($evidence, $signal);
                 if ($reference !== null && $observed !== null
                     && $observed >= (int) ceil($reference * self::RECOVERY_PERCENT_OF_BASELINE / 100)
@@ -314,8 +335,16 @@ final readonly class MonitorNodeFiltering
                 && $previousValue !== null && $previousValue > 0
                 && $currentPct !== null && $previousPct !== null
                 && (($currentPct >= $threshold && $previousPct >= $threshold) || $joint)) {
-                $causes[] = $cause;
                 $evidence[$signal === 'online' ? 'online_reference' : 'traffic_reference'] = $reference;
+                if ($cause === 'traffic_drop') {
+                    // Keep a measurable signal in the 24-hour check history,
+                    // without opening a noisy traffic-only incident.
+                    $evidence['traffic_drop_percent'] = $currentPct;
+                    if (! in_array('online_drop', $causes, true)) {
+                        continue;
+                    }
+                }
+                $causes[] = $cause;
             }
         }
 
