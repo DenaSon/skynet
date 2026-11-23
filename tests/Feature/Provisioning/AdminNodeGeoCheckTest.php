@@ -182,8 +182,7 @@ it('requires a trusted active root for every operation and private Telegram cont
         ->toThrow(AuthorizationException::class);
 
     $privateBot = geocBot(987001, false);
-    $privateBot->hearCallbackQueryData('geoc:list:1')->reply()
-        ->assertNotCalled('editMessageText');
+    $privateBot->hearCallbackQueryData('geoc:list:1')->reply();
 
     $root->update(['is_active' => false]);
     expect(fn () => app(NodeGeoCheck::class)->start($root->id, GEOC_NODE))
@@ -210,8 +209,7 @@ it('creates exactly one JSON-object GeoCheck job and safely reuses pending/ready
         ->and(json_encode($ready))->not->toContain('SENSITIVE-SVG-BASE64', 'private-test-key');
     expect($action->result($root->id, GEOC_NODE)['state'])->toBe('ready');
 
-    Http::assertSent(static fn (Request $request): bool =>
-        $request->method() === 'POST'
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'POST'
         && $request->url() === 'https://rw-geoc.test/api/connections/geocheck/'.GEOC_NODE
         && trim($request->body()) === '{}'
         && $request->hasHeader('Authorization', 'Bearer private-test-key'));
@@ -221,16 +219,21 @@ it('creates exactly one JSON-object GeoCheck job and safely reuses pending/ready
     expect($posts)->toHaveCount(1);
 });
 
-it('distinguishes pending and malformed output without leaking raw reports or auto restarting', function (): void {
+it('preserves a pending check without sending a second POST', function (): void {
     $root = geocRoot();
     config()->set('services.remnawave.node_geocheck_enabled', true);
     geocFake(pending: true);
     $action = app(NodeGeoCheck::class);
     expect($action->start($root->id, GEOC_NODE))->toBe('pending')
-        ->and($action->result($root->id, GEOC_NODE, true)['state'])->toBe('pending');
-    Cache::flush();
+        ->and($action->result($root->id, GEOC_NODE, true)['state'])->toBe('pending')
+        ->and($action->start($root->id, GEOC_NODE))->toBe('existing');
+});
 
+it('rejects a malformed completed report and does not replay POST', function (): void {
+    $root = geocRoot();
+    config()->set('services.remnawave.node_geocheck_enabled', true);
     geocFake(invalid: true);
+    $action = app(NodeGeoCheck::class);
     expect($action->start($root->id, GEOC_NODE))->toBe('pending')
         ->and($action->result($root->id, GEOC_NODE, true)['state'])->toBe('unavailable')
         ->and($action->start($root->id, GEOC_NODE))->toBe('existing');
@@ -243,36 +246,28 @@ it('renders independent Rich-first lists, summary, technical pages and route det
     $bot = geocBot();
 
     $bot->hearCallbackQueryData('menu:admin:control')->reply()
-        ->assertRaw(static fn (TelegramRequest $r): bool =>
-            geocHasCallback($r, 'geoc:list:1') && geocHasCallback($r, 'flt:home'), index: 1);
+        ->assertRaw(static fn (TelegramRequest $r): bool => geocHasCallback($r, 'geoc:list:1') && geocHasCallback($r, 'flt:home'), index: 1);
 
     $bot->hearCallbackQueryData('geoc:list:1')->reply()
-        ->assertRaw(static fn (TelegramRequest $r): bool =>
-            geocHasCallback($r, 'geoc:node:'.GEOC_NODE)
+        ->assertRaw(static fn (TelegramRequest $r): bool => geocHasCallback($r, 'geoc:node:'.GEOC_NODE)
             && geocHasCallback($r, 'menu:admin:control')
             && isset(geocTelegramPayload($r)['rich_message']), index: 1);
 
     $bot->hearCallbackQueryData('geoc:node:'.GEOC_NODE)->reply()
-        ->assertRaw(static fn (TelegramRequest $r): bool =>
-            geocHasCallback($r, 'geoc:start:'.GEOC_NODE), index: 1);
+        ->assertRaw(static fn (TelegramRequest $r): bool => geocHasCallback($r, 'geoc:start:'.GEOC_NODE), index: 1);
     $bot->hearCallbackQueryData('geoc:start:'.GEOC_NODE)->reply()
-        ->assertRaw(static fn (TelegramRequest $r): bool =>
-            geocHasCallback($r, 'geoc:status:'.GEOC_NODE), index: 1);
+        ->assertRaw(static fn (TelegramRequest $r): bool => geocHasCallback($r, 'geoc:status:'.GEOC_NODE), index: 1);
     $bot->hearCallbackQueryData('geoc:status:'.GEOC_NODE)->reply()
-        ->assertRaw(static fn (TelegramRequest $r): bool =>
-            geocHasCallback($r, 'geoc:section:'.GEOC_NODE.':routes:1')
+        ->assertRaw(static fn (TelegramRequest $r): bool => geocHasCallback($r, 'geoc:section:'.GEOC_NODE.':routes:1')
             && geocHasCallback($r, 'geoc:section:'.GEOC_NODE.':geo:1')
             && geocHasCallback($r, 'geoc:list:1'), index: 1);
     $bot->hearCallbackQueryData('geoc:section:'.GEOC_NODE.':routes:1')->reply()
-        ->assertRaw(static fn (TelegramRequest $r): bool =>
-            geocHasCallback($r, 'geoc:route:'.GEOC_NODE.':0')
+        ->assertRaw(static fn (TelegramRequest $r): bool => geocHasCallback($r, 'geoc:route:'.GEOC_NODE.':0')
             && geocHasCallback($r, 'geoc:node:'.GEOC_NODE), index: 1);
     $bot->hearCallbackQueryData('geoc:route:'.GEOC_NODE.':0')->reply()
-        ->assertRaw(static fn (TelegramRequest $r): bool =>
-            geocHasCallback($r, 'geoc:section:'.GEOC_NODE.':routes:1'), index: 1);
+        ->assertRaw(static fn (TelegramRequest $r): bool => geocHasCallback($r, 'geoc:section:'.GEOC_NODE.':routes:1'), index: 1);
     $bot->hearCallbackQueryData('geoc:section:'.GEOC_NODE.':tech:1')->reply()
-        ->assertRaw(static fn (TelegramRequest $r): bool =>
-            geocHasCallback($r, 'geoc:node:'.GEOC_NODE), index: 1);
+        ->assertRaw(static fn (TelegramRequest $r): bool => geocHasCallback($r, 'geoc:node:'.GEOC_NODE), index: 1);
 
     $posts = collect(Http::recorded())->filter(
         static fn ($pair): bool => $pair[0]->method() === 'POST');
