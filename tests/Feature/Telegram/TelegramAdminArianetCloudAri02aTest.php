@@ -377,6 +377,7 @@ it('keeps unverified or non-IRR Cloud plan prices hidden while showing safe hard
     ari2OnlyReads();
     Http::assertSentCount(1);
 });
+
 it('renders live data-only action history and paginates returned records locally', function (): void {
     ari2Root();
     $actions = [];
