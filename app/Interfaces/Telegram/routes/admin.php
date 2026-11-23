@@ -631,6 +631,23 @@ $bot->onCommand('servers', function (Nutgram $bot): void {
     app(AdminProviderOverviewUi::class)->show($bot);
 });
 
+// ARI-03C2: staging-only, one explicit step at a time; never writes in Production.
+$bot->onCallbackQueryData('ari7:status:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
+    app(AdminArianetIpv4CoordinationUi::class)->show($bot, $id, $page);
+});
+$bot->onCallbackQueryData('ari7:prepare:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
+    app(AdminArianetIpv4CoordinationUi::class)->act($bot, 'prepare', $id, $page);
+});
+$bot->onCallbackQueryData('ari7:step:{id}:{page}:{index}', function (Nutgram $bot, string $id, string $page, string $index): void {
+    app(AdminArianetIpv4CoordinationUi::class)->act($bot, 'step', $id, $page, $index);
+});
+$bot->onCallbackQueryData('ari7:reconcile:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
+    app(AdminArianetIpv4CoordinationUi::class)->act($bot, 'reconcile', $id, $page);
+});
+$bot->onCallbackQueryData('ari7:accept:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
+    app(AdminArianetIpv4CoordinationUi::class)->act($bot, 'accept', $id, $page);
+});
+
 // ARI-03C: root-only GET impact audit of related Nodes, Hosts and DNS.
 $bot->onCallbackQueryData('ari6:impact:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
     app(AdminArianetIpv4DependenciesUi::class)->show($bot, $id, $page);
