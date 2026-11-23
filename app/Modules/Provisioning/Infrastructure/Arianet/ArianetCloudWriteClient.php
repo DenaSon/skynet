@@ -14,7 +14,8 @@ use RuntimeException;
  * Telegram route, command or scheduler. Default-OFF independent kill switch.
  *
  * The one configured Bearer token is shared with reads; a default-OFF write
- * gate remain independent of token scopes; Production purchases stay blocked.
+ * gate remains independent of token scopes; Production purchases require
+ * their own default-OFF, exclusively purchase-scoped authorization.
  * Future callers must independently check trusted Super Admin authorization,
  * fresh price/IP snapshot, one-time confirmation and durable idempotency before
  * invoking either method. There is deliberately no retry or reconciliation write.
@@ -128,8 +129,8 @@ final class ArianetCloudWriteClient
 
         // One provider Bearer token may carry both read and write scopes.
         // Never infer authorization from its presence; require the write gate.
-        // Production permits only the explicitly confirmed IPv4 action;
-        // createServer retains its separate hard ban above.
+        // The old write gate remains independent of the purchase-only gate;
+        // activating paid create does not enable IPv4 or another endpoint.
 
         $token = config('services.arianet_cloud.read_token');
         $timeout = config('services.arianet_cloud.timeout', 10);
