@@ -353,6 +353,13 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:admin:reseller-status:show';
     $expected['ADMIN'][] = 'callback:admin:reseller-status:prepare:{state}';
     $expected['ADMIN'][] = 'callback:admin:reseller-status:apply:{token}';
+    // Standalone GeoCheck root-only callbacks are restricted to the Admin registry.
+    foreach ([
+        'list:{page}', 'node:{uuid}', 'start:{uuid}', 'status:{uuid}',
+        'section:{uuid}:{section}:{page}', 'route:{uuid}:{index}',
+    ] as $name) {
+        $expected['ADMIN'][] = 'callback:geoc:'.$name;
+    }
     // SUP-DIAG-01: root-only, owner-verified customer diagnostics never register in Sales.
     $expected['ADMIN'][] = 'callback:sd:{kind}:{id}:{orderId}:{userPage}:{mode}:{servicePage}:{days}';
     $expected['SALES'][] = 'photo:*';
@@ -386,8 +393,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(347)
-        ->and(count(array_unique($legacy)))->toBe(347);
+        ->and(count($legacy))->toBe(353)
+        ->and(count(array_unique($legacy)))->toBe(353);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {

@@ -132,7 +132,10 @@ final readonly class RemnawaveApiClient
         $options = ['query' => $query];
 
         if ($body !== null) {
-            $options['json'] = $body;
+            // GeoCheck requires a JSON object even with no optional fields.
+            // Keep the existing encoding of every other operation unchanged.
+            $options['json'] = $operationId === 'ConnectionsController_geocheckByNode' && $body === []
+                ? (object) [] : $body;
         }
 
         $request = Http::acceptJson()

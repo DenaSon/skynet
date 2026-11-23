@@ -178,7 +178,10 @@ final class MenuRenderer
             InlineKeyboardButton::make('📦 کاتالوگ', callback_data: 'menu:admin:sales'),
             InlineKeyboardButton::make('🖥️ سرورها', callback_data: 'menu:admin:servers'),
         )
-            ->addRow(InlineKeyboardButton::make('🖥️ نودها', callback_data: 'node1:list:1'))
+            ->addRow(
+                InlineKeyboardButton::make('🖥️ نودها', callback_data: 'node1:list:1'),
+                InlineKeyboardButton::make('🌐 مسیرسنج', callback_data: 'geoc:list:1'),
+            )
             ->addRow(
                 InlineKeyboardButton::make('💾 پشتیبان‌گیری', callback_data: 'admin:rwbackup:list:1'),
                 InlineKeyboardButton::make('🔐 نقش‌ها و دسترسی‌ها', callback_data: 'menu:admin:roles'),

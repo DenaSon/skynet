@@ -23,6 +23,7 @@ use App\Interfaces\Telegram\Support\AdminHostOperationsUi;
 use App\Interfaces\Telegram\Support\AdminHostsUi;
 use App\Interfaces\Telegram\Support\AdminManagementKpiUi;
 use App\Interfaces\Telegram\Support\AdminNodeBatchUi;
+use App\Interfaces\Telegram\Support\AdminNodeGeoCheckUi;
 use App\Interfaces\Telegram\Support\AdminNodeMetricsUi;
 use App\Interfaces\Telegram\Support\AdminNodeOperationsUi;
 use App\Interfaces\Telegram\Support\AdminNodeSetupUi;
@@ -302,6 +303,26 @@ $bot->onCallbackQueryData('host2:batch:cancel', function (Nutgram $bot): void {
 
 $bot->onCommand('nodes', function (Nutgram $bot): void {
     app(AdminNodesUi::class)->browse($bot);
+});
+
+// Standalone, root-only on-demand GeoCheck. Never a filtering incident.
+$bot->onCallbackQueryData('geoc:list:{page}', function (Nutgram $bot, string $page): void {
+    app(AdminNodeGeoCheckUi::class)->listing($bot, $page);
+});
+$bot->onCallbackQueryData('geoc:node:{uuid}', function (Nutgram $bot, string $uuid): void {
+    app(AdminNodeGeoCheckUi::class)->node($bot, $uuid);
+});
+$bot->onCallbackQueryData('geoc:start:{uuid}', function (Nutgram $bot, string $uuid): void {
+    app(AdminNodeGeoCheckUi::class)->start($bot, $uuid);
+});
+$bot->onCallbackQueryData('geoc:status:{uuid}', function (Nutgram $bot, string $uuid): void {
+    app(AdminNodeGeoCheckUi::class)->status($bot, $uuid);
+});
+$bot->onCallbackQueryData('geoc:section:{uuid}:{section}:{page}', function (Nutgram $bot, string $uuid, string $section, string $page): void {
+    app(AdminNodeGeoCheckUi::class)->section($bot, $uuid, $section, $page);
+});
+$bot->onCallbackQueryData('geoc:route:{uuid}:{index}', function (Nutgram $bot, string $uuid, string $index): void {
+    app(AdminNodeGeoCheckUi::class)->route($bot, $uuid, $index);
 });
 
 $bot->onCallbackQueryData('node1:list:{page}', function (Nutgram $bot, string $page): void {
