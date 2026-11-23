@@ -234,3 +234,66 @@ Remnawave Node/Host address changes, purchase, root confirmation, automatic
 reconciliation/probes, persistent events, settings, ENV, database migrations,
 additional packages or new scheduler jobs. Keep `ARIANET_CLOUD_WRITES_ENABLED`
 false; ARI-03B and ARI-03C require independent operator approvals and PRs.
+
+
+## ARI-03B — Staging-only one-shot Cloud IPv4 write (2026-11-23)
+
+**Approved handoff:** ARI-03A has been confirmed visually on a real
+production Cloud server; Node `GermanyOVH` / `fr.coreflare.ir` currently
+points to its original IP. Changing this server's IP without coordinating DNS
+and Remnawave would disrupt active clients. ARI-03B therefore implements an
+**independently staged, non-production-only** write path, not production
+authorization. No Production write is permitted even if
+`ARIANET_CLOUD_WRITES_ENABLED` is accidentally enabled.
+
+**Application:** The trusted-root Admin Bot can (only in staging where the
+existing Cloud write transport is deliberately enabled) prepare one ten-minute,
+actor-bound Cloud IP-change confirmation. Before preparation and immediately
+before apply the Action reads a fresh Cloud/Node/managed-DNS snapshot,
+requiring a running Cloud server, public old IPv4, `ip_change.allowed=true`,
+`pending=false`, verified free quota, and an explicit valid IRR fee when
+quota is exhausted. The linked RW Node must have a matching direct IPv4 or an
+allowed, unique, unproxied Cloudflare A record matching the old IPv4. It also
+rejects stale price, quota, IP, Node or DNS changes. Confirmation must be
+one-time and cannot be shared between operators.
+
+**Durability:** A small additive `arianet_cloud_ipv4_changes` journal stores
+immutable old IP, baseline fee, fingerprint and a single active slot per Cloud
+server. Before any outgoing provider POST it durably marks a confirmation
+`reserved`. The ARI-01B transport then sends precisely one POST
+`/servers/{id}/actions/change_ipv4`, including `confirm_paid: true` only
+for a currently verified paid change. A 202 is `accepted`, not success.
+An uncertain timeout, 429, 5xx or malformed receipt remains blocked
+`uncertain`. A rejected/ambiguous result never triggers automatic retry.
+The only supported cancellation releases a **prepared, never-sent** token;
+accepted/uncertain operations stay reserved.
+
+**Reconciliation:** An operator requests a bounded GET of the exact
+`action_id`; require id, command and server resource identity to match.
+For action `success`, read the server's new public IPv4 and verify it differs
+from the old one. Mark `awaiting_coordination` and keep the active slot
+reserved; do not call this completed client connectivity. Missing identity,
+unverified IP, failed or uncertain actions require manual review, with no
+automatic write retry or DNS/Remnawave changes.
+
+**UI:** Rich RTL and authorized HTML fallback, with trusted Super Admin
+authorization on both callback and application. The prepare button is
+**absent on Production**. Native buttons for confirm/cancel, and operator
+status/reconcile are Admin-only; no Sales/Business bot routes added.
+
+**Safety & acceptance:** CI uses fake provider HTTP with exact single POST,
+staging-only gate, changed price/IP/Node/DNS, role revocation, replay,
+one-active-server DB constraint, definite/uncertain outcomes and GET
+reconciliation. MySQL migration/rollback, PHP 8.4, PHPStan and Pint required.
+Runflare Production must retain `ARIANET_CLOUD_WRITES_ENABLED=false` and
+`ARIANET_CLOUD_WRITE_TOKEN` unset. A controlled **disposable staging Cloud
+server** with verified independent DNS/Node setup and explicit operator
+approval is still required before any live API write; do not use the currently
+mapped Production server for a test.
+
+**Next ARI-03C (not authorized by this phase):** coordinate all assigned
+Remnawave Host endpoints, Node DNS, Cloudflare records and real client
+connectivity before permitting production IP replacement. Production
+execution remains hard-disabled in this phase. No new settings or ENV,
+background jobs, billing transactions or provider mutations are performed
+during deployment.
