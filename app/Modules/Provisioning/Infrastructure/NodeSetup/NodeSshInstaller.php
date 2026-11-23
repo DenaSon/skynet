@@ -14,9 +14,11 @@ use Throwable;
  */
 class NodeSshInstaller
 {
+    private const NODE_KEY = '/run/denagate-node-worker/identity';
+
     public function __construct(private NodeSshPreflight $preflight) {}
 
-    public function start(string $ip, int $port, string $user, string $password, string $knownHost, string $secret, string $identifier): void
+    public function start(string $ip, int $port, string $user, string $password, string $knownHost, string $secret, string $identifier, string $authMode = 'password'): void
     {
         if ($user !== 'root' || preg_match('/\A[A-Za-z0-9+\/=_-]{32,8192}\z/D', $secret) !== 1
             || preg_match('/\A[a-f0-9]{32}\z/D', $identifier) !== 1) {
@@ -57,7 +59,7 @@ class NodeSshInstaller
             .'systemd-run --no-block --collect --unit=parsa-node-bootstrap '
             ."/bin/sh /opt/parsa-node-install/install.sh >/dev/null\n"
             ."printf 'STARTED\\n'\n";
-        $reply = trim($this->ssh($ip, $port, $user, $password, $knownHost, $payload, 35));
+        $reply = trim($this->ssh($ip, $port, $user, $password, $knownHost, $payload, 35, $authMode));
         if ($reply !== 'STARTED') {
             throw new RuntimeException('Remote install launch not confirmed.');
         }
@@ -70,6 +72,7 @@ class NodeSshInstaller
         string $password,
         string $knownHost,
         ?string $expectedIdentifier = null,
+        string $authMode = 'password',
     ): string {
         if ($expectedIdentifier !== null && preg_match('/\A[a-f0-9]{32}\z/D', $expectedIdentifier) !== 1) {
             throw new RuntimeException('Invalid installation identifier.');
@@ -82,7 +85,7 @@ class NodeSshInstaller
         }
         $shell .= "test -f /opt/parsa-node-install/status\n"
             ."cat /opt/parsa-node-install/status\n";
-        $result = trim($this->ssh($ip, $port, $user, $password, $knownHost, $shell, 15));
+        $result = trim($this->ssh($ip, $port, $user, $password, $knownHost, $shell, 15, $authMode));
 
         return in_array($result, ['pending', 'installing', 'starting', 'running', 'failed'], true)
             ? $result
@@ -97,9 +100,12 @@ class NodeSshInstaller
         string $knownHost,
         string $stdin,
         int $timeout,
+        string $authMode,
     ): string {
         $this->preflight->validateTarget($ip, $port);
-        if ($user !== 'root' || $password === '' || strlen($password) > 256
+        if ($user !== 'root' || ! in_array($authMode, ['password', 'key'], true)
+            || ($authMode === 'password' && ($password === '' || strlen($password) > 256))
+            || ($authMode === 'key' && ($password !== '' || ! $this->keyAvailable()))
             || ! str_starts_with($knownHost, ($port === 22 ? $ip : '['.$ip.']:'.$port).' ssh-ed25519 ')) {
             throw new RuntimeException('Untrusted SSH installation target.');
         }
@@ -113,26 +119,40 @@ class NodeSshInstaller
             if (file_put_contents($knownHosts, $knownHost."\n") === false) {
                 throw new RuntimeException('Could not pin SSH identity.');
             }
+            $method = $authMode === 'key'
+                ? [
+                    '-o', 'PreferredAuthentications=publickey',
+                    '-o', 'PubkeyAuthentication=yes',
+                    '-o', 'PasswordAuthentication=no',
+                    '-o', 'BatchMode=yes',
+                    '-o', 'IdentitiesOnly=yes',
+                    '-o', 'IdentityAgent=none',
+                    '-i', self::NODE_KEY,
+                ]
+                : [
+                    '-o', 'PreferredAuthentications=password',
+                    '-o', 'PubkeyAuthentication=no',
+                    '-o', 'NumberOfPasswordPrompts=1',
+                ];
+            $environment = $authMode === 'key' ? [] : [
+                'SSH_ASKPASS' => base_path('resources/scripts/nw01-askpass.sh'),
+                'SSH_ASKPASS_REQUIRE' => 'force',
+                'DISPLAY' => 'nw02:0',
+                'PARSAGATE_SSH_PASSWORD' => $password,
+            ];
             $process = new Process([
                 'ssh', '-T', '-F', '/dev/null',
                 '-o', 'StrictHostKeyChecking=yes',
                 '-o', 'UserKnownHostsFile='.$knownHosts,
                 '-o', 'GlobalKnownHostsFile=/dev/null',
-                '-o', 'PreferredAuthentications=password',
-                '-o', 'PubkeyAuthentication=no',
+                ...$method,
                 '-o', 'KbdInteractiveAuthentication=no',
-                '-o', 'NumberOfPasswordPrompts=1',
                 '-o', 'ConnectTimeout=5',
                 '-o', 'ConnectionAttempts=1',
                 '-o', 'LogLevel=ERROR',
                 '-p', (string) $port, $user.'@'.$ip,
                 'sh -s',
-            ], base_path(), [
-                'SSH_ASKPASS' => base_path('resources/scripts/nw01-askpass.sh'),
-                'SSH_ASKPASS_REQUIRE' => 'force',
-                'DISPLAY' => 'nw02:0',
-                'PARSAGATE_SSH_PASSWORD' => $password,
-            ]);
+            ], base_path(), $environment);
             $process->setInput($stdin);
             $process->setTimeout($timeout);
             $process->run();
@@ -147,5 +167,16 @@ class NodeSshInstaller
         } finally {
             @unlink($knownHosts);
         }
+    }
+
+    /** Keep the queue credential isolated from the PHP-FPM key copy. */
+    private function keyAvailable(): bool
+    {
+        $path = self::NODE_KEY;
+        $mode = @fileperms($path);
+
+        return is_file($path) && ! is_link($path) && is_readable($path)
+            && @fileowner($path) === 0 && is_int($mode)
+            && ($mode & 0077) === 0040;
     }
 }

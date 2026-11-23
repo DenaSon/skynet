@@ -2,11 +2,14 @@
 
 declare(strict_types=1);
 
+use App\Interfaces\Telegram\Processing\TelegramBotContext;
+use App\Interfaces\Telegram\Support\AdminNodeSetupUi;
 use App\Jobs\InstallRemnawaveNode;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Application\ManageNodeInstallation;
 use App\Modules\Provisioning\Infrastructure\NodeSetup\NodeSshInstaller;
+use App\Modules\Provisioning\Infrastructure\NodeSetup\NodeSshPreflight;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
@@ -15,6 +18,10 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Properties\ChatType;
+use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
+use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 use Symfony\Component\Process\Process;
 
 uses(RefreshDatabase::class);
@@ -411,4 +418,130 @@ it('NW-04 manually closes only the exact operator bookmark without clearing inst
         ->and(Cache::get('nw02:status:'.$id)['state'])->toBe('queued')
         ->and($manager->closeRecent($fixture['actor']->id, $id))->toBeFalse();
     Http::assertNothingSent();
+});
+
+it('NW-SSH-KEY-02 queues the key mode without any private key or password payload', function (): void {
+    $fixture = nw02Fixture();
+    Queue::fake();
+    $ready = $fixture['ready'];
+    unset($ready['secret']);
+    $ready['authMode'] = 'key';
+
+    $manager = app(ManageNodeInstallation::class);
+    $identifier = $manager->enqueue($fixture['actor']->id, $ready);
+    $ciphertext = Cache::get('nw02:access:'.$identifier);
+    expect($ciphertext)->toBeString()
+        ->not->toContain('BEGIN OPENSSH PRIVATE KEY', 'not-a-real-password');
+    $credentials = json_decode(Crypt::decryptString($ciphertext), true, 512, JSON_THROW_ON_ERROR);
+    expect($credentials['authMode'])->toBe('key')
+        ->and($credentials['secret'])->toBeNull()
+        ->and($credentials['username'])->toBe('root');
+    Queue::assertPushed(InstallRemnawaveNode::class, 1);
+});
+
+it('NW-SSH-KEY-02 rejects ambiguous authentication and keeps password checkpoints compatible', function (): void {
+    $fixture = nw02Fixture();
+    Queue::fake();
+    $ready = $fixture['ready'];
+    foreach ([
+        ['authMode' => 'key'],
+        ['authMode' => 'anything'],
+        ['authMode' => 'password', 'secret' => null],
+    ] as $override) {
+        $invalid = array_replace($ready, $override);
+        expect(fn () => app(ManageNodeInstallation::class)->enqueue($fixture['actor']->id, $invalid))
+            ->toThrow(RuntimeException::class);
+    }
+    $invalid = $ready;
+    unset($invalid['secret']);
+    $invalid['authMode'] = 'anything';
+    expect(fn () => app(ManageNodeInstallation::class)->enqueue($fixture['actor']->id, $invalid))
+        ->toThrow(RuntimeException::class);
+    Queue::assertNothingPushed();
+
+    $legacy = app(ManageNodeInstallation::class)->enqueue($fixture['actor']->id, $ready);
+    $access = json_decode(Crypt::decryptString(Cache::get('nw02:access:'.$legacy)), true, 512, JSON_THROW_ON_ERROR);
+    unset($access['authMode']);
+    Cache::put('nw02:access:'.$legacy, Crypt::encryptString(json_encode($access, JSON_THROW_ON_ERROR)), now()->addHour());
+    $status = Cache::get('nw02:status:'.$legacy);
+    $status['state'] = 'started';
+    Cache::put('nw02:status:'.$legacy, $status, now()->addHour());
+    $fake = Mockery::mock(NodeSshInstaller::class);
+    $fake->shouldReceive('status')->once()
+        ->withArgs(static fn (...$args): bool => $args[3] === 'not-a-real-password'
+            && $args[6] === 'password')
+        ->andReturn('pending');
+    app()->instance(NodeSshInstaller::class, $fake);
+    expect(app(ManageNodeInstallation::class)->status($fixture['actor']->id, $legacy)['state'])->toBe('pending');
+});
+
+it('NW-SSH-KEY-02 launches only one key-mode job and keeps the remote identifier bound', function (): void {
+    $fixture = nw02Fixture();
+    Queue::fake();
+    $ready = $fixture['ready'];
+    unset($ready['secret']);
+    $ready['authMode'] = 'key';
+    $identifier = app(ManageNodeInstallation::class)->enqueue($fixture['actor']->id, $ready);
+    Http::fake(['https://rw.nw02.test/api/keygen' => Http::response([
+        'response' => ['secretKey' => str_repeat('A', 64)],
+    ], 200)]);
+    $fake = Mockery::mock(NodeSshInstaller::class);
+    $fake->shouldReceive('start')->once()->withArgs(static fn (...$args): bool => $args[3] === '' && $args[6] === $identifier && $args[7] === 'key');
+    app()->instance(NodeSshInstaller::class, $fake);
+    $manager = app(ManageNodeInstallation::class);
+    $manager->launch($identifier);
+    $manager->launch($identifier);
+    expect(Cache::get('nw02:status:'.$identifier)['state'])->toBe('started');
+    Http::assertSentCount(1);
+
+    $status = Cache::get('nw02:status:'.$identifier);
+    $status['state'] = 'started';
+    Cache::put('nw02:status:'.$identifier, $status, now()->addHour());
+    $statusFake = Mockery::mock(NodeSshInstaller::class);
+    $statusFake->shouldReceive('status')->once()->withArgs(static fn (...$args): bool => $args[3] === '' && $args[5] === $identifier && $args[6] === 'key')
+        ->andReturn('running');
+    app()->instance(NodeSshInstaller::class, $statusFake);
+    expect(app(ManageNodeInstallation::class)->status($fixture['actor']->id, $identifier)['state'])->toBe('running')
+        ->and(Cache::get('nw02:access:'.$identifier))->toBeNull();
+});
+
+it('NW-SSH-KEY-02 fails closed on unavailable key and unsupported authentication', function (): void {
+    $preflight = app(NodeSshPreflight::class);
+    $ip = '194.5.192.133';
+    $host = $ip.' ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGFAKE';
+    expect(fn () => $preflight->check($ip, 22, 'root', '', $host, 'invalid'))
+        ->toThrow(RuntimeException::class);
+    expect(fn () => $preflight->check($ip, 22, 'notroot', '', $host, 'key'))
+        ->toThrow(RuntimeException::class);
+    expect(fn () => $preflight->check($ip, 22, 'root', 'unexpected-password', $host, 'key'))
+        ->toThrow(RuntimeException::class);
+    if (! $preflight->keyAvailable()) {
+        expect(fn () => $preflight->check($ip, 22, 'root', '', $host, 'key'))
+            ->toThrow(RuntimeException::class);
+    }
+});
+
+it('NW-SSH-KEY-02 preserves the private Admin wizard password route and rejects forged choices', function (): void {
+    $fixture = nw02Fixture();
+    $bot = Mockery::mock(Nutgram::class);
+    $bot->shouldReceive('chat')->andReturn(Chat::make(981101, ChatType::PRIVATE));
+    $bot->shouldReceive('user')->andReturn(TelegramUser::make(981101, false, 'Operator'));
+    $bot->shouldReceive('isCallbackQuery')->andReturn(false);
+    $bot->shouldReceive('sendMessage')->andReturnNull();
+
+    $key = TelegramBotContext::current()->cacheKey('nw01:draft:'.$fixture['actor']->id);
+    Cache::put($key, [
+        'stage' => 'username', 'name' => 'Test', 'ip' => '194.5.192.133', 'port' => 22,
+    ], now()->addMinutes(10));
+    $ui = app(AdminNodeSetupUi::class);
+    expect($ui->text($bot, 'root'))->toBeTrue()
+        ->and(Cache::get($key)['stage'])->toBe('auth');
+    $ui->chooseAuth($bot, 'forged');
+    expect(Cache::get($key)['stage'])->toBe('auth');
+    $ui->chooseAuth($bot, 'password');
+    expect(Cache::get($key)['stage'])->toBe('password');
+    $ui->stepBack($bot);
+    expect(Cache::get($key)['stage'])->toBe('auth');
+    $ui->stepBack($bot);
+    expect(Cache::get($key)['stage'])->toBe('username');
 });

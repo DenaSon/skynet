@@ -38,8 +38,11 @@ final readonly class ManageNodeInstallation
         }
 
         $ip = $ready['ip'] ?? null;
+        $authMode = $ready['authMode'] ?? 'password';
         if (! is_string($ip) || ($ready['username'] ?? null) !== 'root'
-            || ! is_string($ready['secret'] ?? null)
+            || ! in_array($authMode, ['password', 'key'], true)
+            || ($authMode === 'password' && ! is_string($ready['secret'] ?? null))
+            || ($authMode === 'key' && array_key_exists('secret', $ready))
             || ! is_string($ready['host']['knownHost'] ?? null)) {
             throw new RuntimeException('Invalid verified root SSH session.');
         }
@@ -139,7 +142,8 @@ final readonly class ManageNodeInstallation
                 'ip' => $ip,
                 'port' => $ready['port'],
                 'username' => $ready['username'],
-                'secret' => $ready['secret'],
+                'authMode' => $authMode,
+                'secret' => $authMode === 'password' ? $ready['secret'] : null,
                 'knownHost' => $ready['host']['knownHost'],
             ];
             Cache::put('nw02:access:'.$identifier, Crypt::encryptString(json_encode($access, JSON_THROW_ON_ERROR)), now()->addHours(2));
@@ -193,7 +197,8 @@ final readonly class ManageNodeInstallation
             }
             $this->installer->start(
                 $access['ip'], $access['port'], $access['username'],
-                Crypt::decryptString($access['secret']), $access['knownHost'], $secret, $identifier,
+                $this->credential($access), $access['knownHost'], $secret, $identifier,
+                $access['authMode'] ?? 'password',
             );
             $state['state'] = 'started';
             $this->persist($identifier, $state);
@@ -218,8 +223,9 @@ final readonly class ManageNodeInstallation
                 $access = $this->credentials($identifier);
                 $remote = $this->installer->status(
                     $access['ip'], $access['port'], $access['username'],
-                    Crypt::decryptString($access['secret']), $access['knownHost'],
+                    $this->credential($access), $access['knownHost'],
                     ($state['remoteStatusBound'] ?? false) === true ? $identifier : null,
+                    $access['authMode'] ?? 'password',
                 );
                 if ($remote !== 'unknown') {
                     $state['state'] = $remote;
@@ -436,6 +442,24 @@ final readonly class ManageNodeInstallation
         }
 
         return $credentials;
+    }
+
+    /** Legacy queued jobs without authMode keep their original password behavior. */
+    private function credential(array $access): string
+    {
+        $mode = $access['authMode'] ?? 'password';
+        if ($mode === 'key') {
+            if (($access['secret'] ?? null) !== null) {
+                throw new RuntimeException('Key-based installation has unexpected credentials.');
+            }
+
+            return '';
+        }
+        if ($mode !== 'password' || ! is_string($access['secret'] ?? null)) {
+            throw new RuntimeException('Invalid installation credentials.');
+        }
+
+        return Crypt::decryptString($access['secret']);
     }
 
     /** @param array<string,mixed> $state */

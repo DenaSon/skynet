@@ -1,3 +1,33 @@
+## NW-SSH-KEY-02 — dual-mode Node SSH installation (2026-11-24)
+
+Implementation scope: reuse existing NW-01/02 and NW-05 UI, authorized
+Application Actions, and pinned OpenSSH transport. After the SSH username,
+the private Super Admin wizard selects `Password` (existing Telegram
+message deletion/short-lived encrypted credential) or `SSH Key` (dedicated
+Runflare runtime identity). Key mode only permits `root`; no private key
+bytes, path, or passphrase are sent through Telegram, cached, persisted, logged
+or transferred to the VPS. The prepared public-key identity is selected from
+the existing operator-controlled Runflare Secret, **not** uploaded by a user.
+
+For key mode, the PHP-FPM preflight uses the root-owned readable key at
+`/run/secrets/denagate-node-ssh`; the queue installer/status uses
+`/run/denagate-node-worker/identity`. Require the proper owner/mode,
+explicit `publickey` authentication, `IdentitiesOnly`, disabled agent and
+password fallback, and the existing strictly pinned SSH host key. Legacy
+NW-02 jobs without `authMode` still use Password. Reuse one-use installation
+confirmation and ambiguous-outcome no-retry handling. No new Composer package,
+schema, Secret, application flag, alternate installer, or RW/Cloudflare write
+flow. Key setup prerequisites were independently verified by the operator
+in a real Runflare container on 2026-11-24. Shell/unit/fake-HTTP CI is not a
+real VPS SSH/auth/install acceptance.
+
+**Post-deploy acceptance still required:** private Admin wizard → new setup or
+existing Node replacement → IP/port/`root` → choose `SSH Key` → profile/inbound
+(or existing replacement identity) → inspect review → fingerprint pin → safe
+SSH preflight. A real VPS installation requires separate explicit confirmation;
+do not infer successful live SSH login from this PR or authorize paid VPS purchase
+or Node cutover as part of this source release.
+
 ## NW-SSH-KEY-01 — protected Node SSH key runtime (2026-11-24)
 
 Operator reports that the dedicated public Ed25519 key `denagate-node-setup`

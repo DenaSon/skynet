@@ -12,6 +12,19 @@ use Symfony\Component\Process\Process;
  */
 final class NodeSshPreflight
 {
+    private const NODE_KEY = '/run/secrets/denagate-node-ssh';
+
+    /** Only the prepared, root-owned PHP-FPM runtime credential is eligible. */
+    public function keyAvailable(): bool
+    {
+        $path = self::NODE_KEY;
+        $mode = @fileperms($path);
+
+        return is_file($path) && ! is_link($path) && is_readable($path)
+            && @fileowner($path) === 0 && is_int($mode)
+            && ($mode & 0077) === 0040;
+    }
+
     public function validateTarget(string $ip, int $port): void
     {
         if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false
@@ -46,15 +59,23 @@ final class NodeSshPreflight
     }
 
     /**
-     * Uses OpenSSH strict host-key checking and the child-only askpass environment.
-     * Password is never supplied as a process argument or written to a file.
+     * Uses OpenSSH strict host-key checking and exactly one authentication
+     * method. A private key is never placed in Telegram, cache or argv.
      */
-    public function check(string $ip, int $port, string $username, string $password, string $knownHost): string
-    {
+    public function check(
+        string $ip,
+        int $port,
+        string $username,
+        string $password,
+        string $knownHost,
+        string $authMode = 'password',
+    ): string {
         $this->validateTarget($ip, $port);
         if (preg_match('/\A[a-z_][a-z0-9_-]{0,31}\z/iD', $username) !== 1
-            || $password === '' || strlen($password) > 256
-            || ! str_starts_with($knownHost, ($port === 22 ? $ip : '['.$ip.']:'.$port).' ssh-ed25519 ')) {
+            || ! str_starts_with($knownHost, ($port === 22 ? $ip : '['.$ip.']:'.$port).' ssh-ed25519 ')
+            || ! in_array($authMode, ['password', 'key'], true)
+            || ($authMode === 'password' && ($password === '' || strlen($password) > 256))
+            || ($authMode === 'key' && ($username !== 'root' || $password !== '' || ! $this->keyAvailable()))) {
             throw new RuntimeException('Invalid SSH configuration.');
         }
         $knownHostsPath = tempnam(sys_get_temp_dir(), 'nw01-');
@@ -66,27 +87,42 @@ final class NodeSshPreflight
             if (file_put_contents($knownHostsPath, $knownHost."\n") === false) {
                 throw new RuntimeException('Host verification unavailable.');
             }
+            $method = $authMode === 'key'
+                ? [
+                    '-o', 'PreferredAuthentications=publickey',
+                    '-o', 'PubkeyAuthentication=yes',
+                    '-o', 'PasswordAuthentication=no',
+                    '-o', 'BatchMode=yes',
+                    '-o', 'IdentitiesOnly=yes',
+                    '-o', 'IdentityAgent=none',
+                    '-i', self::NODE_KEY,
+                ]
+                : [
+                    '-o', 'PreferredAuthentications=password',
+                    '-o', 'PubkeyAuthentication=no',
+                    '-o', 'KbdInteractiveAuthentication=no',
+                    '-o', 'NumberOfPasswordPrompts=1',
+                ];
+            $environment = $authMode === 'key' ? [] : [
+                'SSH_ASKPASS' => base_path('resources/scripts/nw01-askpass.sh'),
+                'SSH_ASKPASS_REQUIRE' => 'force',
+                'DISPLAY' => 'nw01:0',
+                'PARSAGATE_SSH_PASSWORD' => $password,
+            ];
             $process = new Process([
                 'ssh', '-F', '/dev/null',
                 '-o', 'StrictHostKeyChecking=yes',
                 '-o', 'UserKnownHostsFile='.$knownHostsPath,
                 '-o', 'GlobalKnownHostsFile=/dev/null',
-                '-o', 'PreferredAuthentications=password',
-                '-o', 'PubkeyAuthentication=no',
+                ...$method,
                 '-o', 'KbdInteractiveAuthentication=no',
-                '-o', 'NumberOfPasswordPrompts=1',
                 '-o', 'ConnectTimeout=5',
                 '-o', 'ConnectionAttempts=1',
                 '-o', 'LogLevel=ERROR',
                 '-p', (string) $port,
                 $username.'@'.$ip,
                 'uname -s; . /etc/os-release; printf "ID=%s\n" "$ID"',
-            ], base_path(), [
-                'SSH_ASKPASS' => base_path('resources/scripts/nw01-askpass.sh'),
-                'SSH_ASKPASS_REQUIRE' => 'force',
-                'DISPLAY' => 'nw01:0',
-                'PARSAGATE_SSH_PASSWORD' => $password,
-            ]);
+            ], base_path(), $environment);
             $process->setTimeout(12);
             $process->run();
             if (! $process->isSuccessful()) {
