@@ -315,6 +315,7 @@ it('introduces Deniz once when the first model answer also starts with سلام'
     denizP2Run(denizP2Job(215));
 
     $expected = "سلام، من دنیز، دستیار هوش مصنوعی دناگیت هستم. 🌿\n\n"
+        ."هر زمان خواستید با پشتیبان انسانی صحبت کنید، کافیه عبارت «پشتیبان انسانی» رو همین‌جا بفرستید.\n\n"
         .'بفرمایید چطور می‌توانم کمکتون کنم؟';
 
     Http::assertSent(fn (Request $req): bool => str_ends_with($req->url(), '/sendMessage')
@@ -324,6 +325,25 @@ it('introduces Deniz once when the first model answer also starts with سلام'
     $history = app(DenixConversationState::class)->history(190011, null, 190011);
     expect($history)->toHaveCount(2)
         ->and($history[1]['content'])->toBe($expected);
+});
+
+it('shows the existing human-support command only on the first successful Business reply', function (): void {
+    denizP2FakeHttp();
+
+    denizP2Run(denizP2Job(250));
+    denizP2Run(denizP2Job(251));
+
+    Http::assertSentCount(8); // Each reply: two connection checks, one AI call and one send.
+    Http::assertSent(fn (Request $req): bool => str_ends_with($req->url(), '/sendMessage')
+        && json_decode($req['reply_parameters'], true)['message_id'] === 250
+        && str_contains($req['text'], 'هر زمان خواستید با پشتیبان انسانی صحبت کنید')
+        && str_contains($req['text'], '«پشتیبان انسانی»'));
+    Http::assertSent(fn (Request $req): bool => str_ends_with($req->url(), '/sendMessage')
+        && json_decode($req['reply_parameters'], true)['message_id'] === 251
+        && ! str_contains($req['text'], 'هر زمان خواستید با پشتیبان انسانی صحبت کنید')
+        && ! str_contains($req['text'], 'سلام، من دنیز، دستیار هوش مصنوعی دناگیت هستم'));
+
+    expect(app(DenixConversationState::class)->history(190011, null, 190011))->toHaveCount(4);
 });
 
 it('preserves an answer with no initial greeting and does not mistake سلامتی for سلام', function (): void {
