@@ -71,7 +71,7 @@ final class NodeSshPreflight
         string $authMode = 'password',
     ): string {
         $this->validateTarget($ip, $port);
-        if (preg_match('/\\A[a-z_][a-z0-9_-]{0,31}\\z/iD', $username) !== 1
+        if (preg_match('/\A[a-z_][a-z0-9_-]{0,31}\z/iD', $username) !== 1
             || ! str_starts_with($knownHost, ($port === 22 ? $ip : '['.$ip.']:'.$port).' ssh-ed25519 ')
             || ! in_array($authMode, ['password', 'key'], true)
             || ($authMode === 'password' && ($password === '' || strlen($password) > 256))
@@ -84,7 +84,7 @@ final class NodeSshPreflight
         }
         try {
             chmod($knownHostsPath, 0600);
-            if (file_put_contents($knownHostsPath, $knownHost."\\n") === false) {
+            if (file_put_contents($knownHostsPath, $knownHost."\n") === false) {
                 throw new RuntimeException('Host verification unavailable.');
             }
             $method = $authMode === 'key'
@@ -121,7 +121,7 @@ final class NodeSshPreflight
                 '-o', 'LogLevel=ERROR',
                 '-p', (string) $port,
                 $username.'@'.$ip,
-                'uname -s; . /etc/os-release; printf "ID=%s\\n" "$ID"',
+                'uname -s; . /etc/os-release; printf "ID=%s\n" "$ID"',
             ], base_path(), $environment);
             $process->setTimeout(12);
             $process->run();
@@ -129,7 +129,7 @@ final class NodeSshPreflight
                 throw new RuntimeException('SSH preflight failed.');
             }
             $output = $process->getOutput();
-            if (! str_contains($output, 'Linux') || ! preg_match('/\\bID=(ubuntu|debian)\\b/', $output)) {
+            if (! str_contains($output, 'Linux') || ! preg_match('/\bID=(ubuntu|debian)\b/', $output)) {
                 throw new RuntimeException('Unsupported VPS OS.');
             }
 
