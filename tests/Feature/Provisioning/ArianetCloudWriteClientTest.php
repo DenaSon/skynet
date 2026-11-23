@@ -184,3 +184,20 @@ it('keeps GET reads available while the Cloud write switch is disabled', functio
         && $request->hasHeader('Authorization', 'Bearer read-only-secret'));
     Http::assertSentCount(1);
 });
+
+it('hard-blocks direct Cloud write transport in production even with a dual-scope token', function (): void {
+    config()->set('services.arianet_cloud.writes_enabled', true);
+    Http::fake();
+    app()->detectEnvironment(static fn (): string => 'production');
+
+    try {
+        expect(fn () => app(ArianetCloudWriteClient::class)->changeIpv4(42))
+            ->toThrow(RuntimeException::class, 'disabled in production');
+        expect(fn () => app(ArianetCloudWriteClient::class)->createServer('dena-test', 'ovh', 8, 'ubuntu-24.04', 7))
+            ->toThrow(RuntimeException::class, 'disabled in production');
+    } finally {
+        app()->detectEnvironment(static fn (): string => 'testing');
+    }
+
+    Http::assertNothingSent();
+});
