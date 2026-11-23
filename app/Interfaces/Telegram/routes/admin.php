@@ -10,6 +10,7 @@ use App\Interfaces\Telegram\Support\AdminAccountingUi;
 use App\Interfaces\Telegram\Support\AdminAnnouncementsUi;
 use App\Interfaces\Telegram\Support\AdminArianetCloudLinksUi;
 use App\Interfaces\Telegram\Support\AdminArianetCloudUi;
+use App\Interfaces\Telegram\Support\AdminArianetIpv4CoordinationUi;
 use App\Interfaces\Telegram\Support\AdminArianetIpv4DependenciesUi;
 use App\Interfaces\Telegram\Support\AdminArianetIpv4PreviewUi;
 use App\Interfaces\Telegram\Support\AdminArianetIpv4WriteUi;
