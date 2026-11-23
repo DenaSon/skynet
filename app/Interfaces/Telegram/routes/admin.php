@@ -12,6 +12,7 @@ use App\Interfaces\Telegram\Support\AdminArianetCloudLinksUi;
 use App\Interfaces\Telegram\Support\AdminArianetCloudUi;
 use App\Interfaces\Telegram\Support\AdminArianetIpv4PreviewUi;
 use App\Interfaces\Telegram\Support\AdminArianetIpv4WriteUi;
+use App\Interfaces\Telegram\Support\AdminArianetIpv4DependenciesUi;
 use App\Interfaces\Telegram\Support\AdminBusinessReportUi;
 use App\Interfaces\Telegram\Support\AdminCloudflareDnsUi;
 use App\Interfaces\Telegram\Support\AdminCommandCenterUi;
@@ -627,6 +628,11 @@ $bot->onCallbackQueryData('metrics:page:{days}:{page}', function (Nutgram $bot, 
 
 $bot->onCommand('servers', function (Nutgram $bot): void {
     app(AdminProviderOverviewUi::class)->show($bot);
+});
+
+// ARI-03C: root-only GET impact audit of related Nodes, Hosts and DNS.
+$bot->onCallbackQueryData('ari6:impact:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
+    app(AdminArianetIpv4DependenciesUi::class)->show($bot, $id, $page);
 });
 
 // ARI-03B: private, staging-only IPv4 write confirmation and GET status.
