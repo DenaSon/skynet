@@ -103,3 +103,43 @@ operator approval with a disposable staging server; fake HTTP is not live proof.
 
 **Source of API contract:** OpenAPI 3.1 at
 https://api.ariaservice.net/cloud/v1/openapi.json (createServer / serverAction).
+
+
+## ARI-02A — Private Cloud read screens (2026-11-23)
+
+**Approved scope:** A single «☁️ سرورهای ابری» entry from the existing
+Admin Bot «وضعیت سرورها» screen. Trusted private Super Admins can browse
+a bounded/paginated Arianet Cloud inventory, inspect server name/state,
+IPv4/IPv6 and provider-reported IP change allowance/free quota/current fee,
+copy IPv4, inspect per-server hourly/monthly estimated costs and action
+history, and browse available datacenters/plans. Rich RTL first, existing
+native HTML fallback, refresh and contextual back navigation on every page.
+
+**Architecture:** Use the existing ARI-01A GET-only client behind a new
+authorized Provisioning Application read projection. Every callback and
+Application call checks the existing linked, active trusted-root authorization.
+Untrusted Cloud strings are bounded/sanitized, then escaped before Rich/native
+markup; no raw provider envelope, exception body or credentials reach Telegram.
+Bound list sizes (8 servers/page, 5 actions/page, 5 plans/page); no N+1 costs
+for an account with multiple servers. When exactly one server exists, a
+second GET may supply its complete monthly-rate estimate. Missing cost or
+ambiguous money/currency is shown as unavailable, never as zero.
+
+**Non-goals:** No new database table/identity mapping (ARI-02B is separate),
+Cloud write token, Cloud purchase, IP replacement, confirmed fee/payment,
+Remnawave or Cloudflare mutation, filtering automation, scheduler, queue,
+settings or package. Existing server/Node/Host/DNS actions and navigation
+must remain unchanged. This PR does not enable ARI-01B write transport.
+
+**Acceptance:** Fake-HTTP and fake-Telegram tests cover trusted/private
+root, denied delegated and revoked users, GET-only reads, response bounds,
+provider errors/partial failures, real IP copy button, Persian currency
+display, Rich escaping/fallback semantics and navigation. PHP 8.4 full Pest
+CI, PHPStan, Pint, MySQL smoke where required. Real Telegram iOS/desktop
+rendering and live Cloud GET smoke are operator checks after deployment;
+source tests do not prove either.
+
+**Follow-up:** ARI-02B separate Super Admin-confirmed Cloud-server-ID to
+Remnawave-node mapping; ARI-03 root-confirmed, price/IP-verified change and
+coordinated DNS/connection check; ARI-04 safe purchase and existing NW-01/02/05
+handoff. Never treat filtering alarms as automatic authority to write.
