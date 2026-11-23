@@ -111,7 +111,12 @@ final readonly class AdminNodeGeoCheckUi
         try {
             $state = $this->geoCheck->start($actor, $uuid);
             if ($state === 'existing') {
-                $this->node($bot, $uuid);
+                $this->show($bot, '🌐 مسیرسنج | بررسی پیشین', [
+                    ['وضعیت', 'درخواست قبلی ثبت شده است'],
+                ], 'برای مشاهده نتیجه، به صفحه نود بازگردید.',
+                    InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make(
+                        '◀️ بازگشت به نود', callback_data: 'geoc:node:'.$uuid,
+                    )));
 
                 return;
             }
@@ -176,7 +181,7 @@ final readonly class AdminNodeGeoCheckUi
         try {
             $result = $this->geoCheck->result($actor, $uuid);
             if ($result['state'] !== 'ready') {
-                $this->node($bot, $uuid);
+                $this->unavailable($bot, 'گزارش این نود آماده نیست.');
 
                 return;
             }
@@ -249,7 +254,7 @@ final readonly class AdminNodeGeoCheckUi
         try {
             $result = $this->geoCheck->result($actor, $uuid);
             if ($result['state'] !== 'ready' || ! ctype_digit($index) || strlen($index) > 2) {
-                $this->node($bot, $uuid);
+                $this->unavailable($bot, 'این مسیر در گزارش فعلی در دسترس نیست.');
 
                 return;
             }
