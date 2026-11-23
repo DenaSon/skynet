@@ -87,6 +87,11 @@ function ari04aFake(
         }
         $url = $r->url();
         $cloud = 'https://api.ariaservice.net/cloud/v1';
+        if (str_starts_with($url, $cloud.'/servers?')) {
+            return Http::response(['data' => [], 'meta' => ['pagination' => [
+                'page' => 1, 'per_page' => 8, 'last_page' => 1, 'total' => 0,
+            ]]]);
+        }
         if ($url === $cloud.'/datacenters') {
             return Http::response(['data' => [
                 ['code' => 'ovh', 'name' => 'Frankfurt', 'orderable' => ! $closed],
