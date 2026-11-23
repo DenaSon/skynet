@@ -42,8 +42,8 @@ final class ArianetCloudWriteClient
         string $image,
         int $sshKeyId,
     ): array {
-        // Server purchases require their own reviewed Production authorization.
-        if (app()->environment('production')) {
+        // The old global write gate never authorizes a Production purchase.
+        if (app()->environment('production') && config('services.arianet_cloud.purchase_enabled') !== true) {
             throw new RuntimeException('Cloud server creation is disabled in production.');
         }
         if (! preg_match('/^[a-zA-Z0-9](?:[a-zA-Z0-9.-]{0,61}[a-zA-Z0-9])?$/D', $name)
@@ -113,7 +113,16 @@ final class ArianetCloudWriteClient
     private function post(string $path, ?array $body, int $expectedStatus): array
     {
         // This is an infrastructure-level safety gate, not the future RBAC gate.
-        if (config('services.arianet_cloud.writes_enabled') !== true) {
+        if ($path === '/servers') {
+            // In Production, ONLY the independent purchase flag permits create.
+            // This flag must not enable changeIpv4 or other provider writes.
+            if ((app()->environment('production') && config('services.arianet_cloud.purchase_enabled') !== true)
+                || (! app()->environment('production')
+                    && config('services.arianet_cloud.purchase_enabled') !== true
+                    && config('services.arianet_cloud.writes_enabled') !== true)) {
+                throw new RuntimeException('Arianet Cloud purchase is disabled.');
+            }
+        } elseif (config('services.arianet_cloud.writes_enabled') !== true) {
             throw new RuntimeException('Arianet Cloud writes are disabled.');
         }
 
