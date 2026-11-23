@@ -360,6 +360,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     ] as $name) {
         $expected['ADMIN'][] = 'callback:geoc:'.$name;
     }
+    // ARI-03C: read-only Cloud/Node/Host/DNS impact audit, Admin Bot only.
+    $expected['ADMIN'][] = 'callback:ari6:impact:{id}:{page}';
     // ARI-03B: staged, root-confirmed one-shot Cloud IPv4 change, never Sales.
     foreach ([
         'begin:{id}:{page}', 'apply:{id}:{page}:{token}',
@@ -417,8 +419,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(370)
-        ->and(count(array_unique($legacy)))->toBe(370);
+        ->and(count($legacy))->toBe(371)
+        ->and(count(array_unique($legacy)))->toBe(371);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {

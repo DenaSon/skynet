@@ -314,3 +314,51 @@ non-production operation. Enabling write scopes on the existing token does not
 enable any server mutation. Do not alter live Production credentials or flags
 in this PR. A staging-only disposable server and separately authorized real
 test are still needed. Every existing GET remains available with the same token.
+## ARI-03C1 — Host/Node/DNS coordination impact audit (2026-11-23)
+
+**Operator-approved ARI-03C scope, first safe increment.** A private,
+trusted-root read-only report is linked from the existing Cloud IPv4 preview
+and summarizes all known Remnawave Host/Node and Cloudflare dependencies.
+The report reuses the current `PreviewAdminArianetIpv4Change`,
+`ChangeAdminArianetIpv4::status`, `ManageAdminNodes`,
+`ManageAdminHosts::replacementInventory` and the existing allowlisted
+`ManageCloudflareDns::replacementRecord` GET checks. No alternative
+provider adapter, no extra API credentials, no new dependency or scheduler.
+
+**Evidence and bounded behavior:** For the linked Node, inspect its live
+profile, inbounds, management address/port and its complete bounded Host
+inventory (up to 300 hosts). Include explicitly assigned Hosts, direct-IP
+endpoints, managed unique A records and management DNS. Host membership
+shared with peers, legacy Hosts without confirmed Node membership,
+unverified DNS, mismatched IP, unsafe Proxy on management DNS,
+peer-Node endpoint overlap and unsafe/unavailable provider data all block a
+clean report. Incomplete Host/DNS ownership is **not** interpreted as an
+empty/nonexistent dependency. Limit summarized Host and DNS details to ten;
+do not N+1 query every unrelated Host hostname. An existing
+`awaiting_coordination` IPv4 change is read by ID and its old/new IPs
+are shown separately, requiring the live Cloud IPv4 to match the new IP.
+Missing or ambiguous data is displayed as requiring manual review.
+
+**User experience:** Native Rich RTL summary and escaped Host/DNS tables,
+same authorized HTML fallback and refresh/back controls. No technical phase
+names, raw tokens/provider envelopes, or implicit success promise in the UI.
+The report makes clear that a clean match does **not** attest actual client
+reachability, CDN targets, out-of-zone/external DNS or comprehensive packet
+routing. A non-root/group request never reads provider data.
+
+**No writes in ARI-03C1:** This phase only analyzes dependencies and does
+not mutate Cloudflare A records, Remnawave Node/Host state, the Cloud IPv4
+or billing. `ARIANET_CLOUD_WRITES_ENABLED=false` in Production remains
+mandatory; the write transport remains hard-blocked there. A subsequent
+**ARI-03C2** needs a separately reviewed staged, durable step-by-step
+DNS/Host/Node coordination and operator-verified client connection test
+before any permission for Production IPv4 operations. The existing
+NW-05 replacement write checkpoints should be reused rather than
+duplicating their logic. Never auto-retry ambiguous DNS or Provider writes.
+
+**Acceptance:** PHP 8.4 full suite, PHPStan, Pint, disposable MySQL
+smoke, Admin-only route inventory, provider GET-only assertions, live-shape
+Host/DNS/Node fixtures, shared and ambiguous Host detection, Cloud
+post-change target read, missing mapping, denied/groups and native Rich
+rendering. Real Telegram and DNS inventory QA after release remains
+operator evidence separate from CI.
