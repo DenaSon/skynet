@@ -21,6 +21,22 @@
 
 **Read this section first.** The per-phase sections below are historical design and acceptance contracts. Early language about a mandatory `ARIANET_CLOUD_WRITE_TOKEN`, absent implementations, or "ready for PR" is superseded by this snapshot and current `master` source. Future phases listed here are **not implemented** and cannot authorize provider writes.
 
+**ARI-03D domain-matched Host compatibility patch (2026-11-23):**
+An operator-observed Production report for GermanyOVH had two Frankfurt Hosts
+with empty `Host.nodes` membership, both using exactly the Node management
+hostname `fr.coreflare.ir`, with one valid matching Cloudflare DNS A record.
+This is a supported domain-only case: do not require a Remnawave Host
+membership mutation just to change the Cloud server IPv4. The read-only
+impact audit now distinguishes explicitly assigned Hosts from empty-membership
+Hosts on the exact Node hostname, with a dedicated count in Admin Rich UI.
+Such Hosts remain subject to verified managed A records, peer-Node/Host
+collision exclusion and existing 10-record bounds; direct IP, shared
+memberships, mismatched DNS and unrelated hosts are still blocked or excluded
+as before. The Cloudflare-only coordination verifies both exact hostname
+and unchanged empty membership, never PATCHes Remnawave, and retains one
+journaled DNS operation and GET recovery. Code and fake-HTTP tests are not
+live Cloudflare updates or proof of restored client connectivity.
+
 ## Delivery matrix — what is actually merged
 
 | Phase | PR | Implemented | Verification boundary |

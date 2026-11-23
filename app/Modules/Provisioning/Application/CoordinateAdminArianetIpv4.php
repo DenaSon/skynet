@@ -121,7 +121,11 @@ final readonly class CoordinateAdminArianetIpv4
 
             foreach ($report['hosts'] as $host) {
                 $current = $hostIndex[$host['uuid']] ?? null;
-                if ($current === null || $current['nodes'] !== [$node['uuid']]
+                $explicit = $current !== null && $current['nodes'] === [$node['uuid']];
+                $sameNodeDomain = $current !== null && $current['nodes'] === []
+                    && ($host['domainMatched'] ?? false) === true
+                    && strtolower($current['address']) === strtolower($node['address']);
+                if ((! $explicit && ! $sameNodeDomain)
                     || $host['shared'] || $host['unverified'] || $host['type'] !== 'hostname'
                     || $current['address'] !== $host['address']) {
                     throw new RuntimeException('Host ownership changed after dependency review.');

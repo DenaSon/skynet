@@ -70,6 +70,7 @@ final readonly class InspectAdminArianetIpv4Dependencies
                 'affectedHostCount' => 0, 'directHostCount' => 0,
                 'otherNodeHostCount' => 0, 'unassignedOtherCount' => 0,
                 'ambiguousHostCount' => 0, 'sharedHostCount' => 0,
+                'domainMatchedHostCount' => 0,
             ];
         }
 
@@ -101,16 +102,22 @@ final readonly class InspectAdminArianetIpv4Dependencies
         $unassignedUnrelated = 0;
         $ambiguous = 0;
         $shared = 0;
+        $domainMatched = 0;
         foreach ($allHosts as $host) {
             $members = $host['nodes'];
             $assigned = in_array($uuid, $members, true);
-            // A Profile/Inbound can be shared by multiple regions. It is NOT
-            // evidence that the Host belongs to this Cloud server. Only
-            // explicit Node membership proves assignment. An unassigned Host
-            // on the selected Node's exact endpoint remains ambiguous.
+            // Shared Profile/Inbound does not prove ownership. An empty
+            // Node membership is acceptable only on the selected Node's exact
+            // managed hostname, provided DNS and peer checks also pass.
             $sameEndpoint = $host['address'] === $oldIp
                 || strtolower($host['address']) === strtolower($nodeAddress);
             $possibleLegacy = $members === [] && $sameEndpoint;
+            // A Host without explicit Node membership may still use the
+            // exact, managed Node hostname. It needs no Remnawave mutation.
+            // Peer-Node/Host collisions and DNS mismatches are checked below.
+            $sameNodeDomain = $members === []
+                && strtolower($host['address']) === strtolower($nodeAddress)
+                && filter_var($nodeAddress, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false;
 
             if (! $assigned && ! $possibleLegacy) {
                 if ($members === []) {
@@ -125,7 +132,9 @@ final readonly class InspectAdminArianetIpv4Dependencies
             }
 
             $targetIds[$host['uuid']] = true;
-            if ($possibleLegacy) {
+            if ($sameNodeDomain) {
+                $domainMatched++;
+            } elseif ($possibleLegacy) {
                 $ambiguous++;
                 $issues[] = 'وابستگی یکی از دامنه‌های اتصال به نود قطعی نیست؛ بررسی دستی لازم است.';
             }
@@ -150,7 +159,8 @@ final readonly class InspectAdminArianetIpv4Dependencies
                 'address' => $address,
                 'type' => $type,
                 'shared' => count($members) > 1,
-                'unverified' => $possibleLegacy,
+                'unverified' => $possibleLegacy && ! $sameNodeDomain,
+                'domainMatched' => $sameNodeDomain,
             ];
         }
 
@@ -199,6 +209,7 @@ final readonly class InspectAdminArianetIpv4Dependencies
             'unassignedOtherCount' => $unassignedUnrelated,
             'ambiguousHostCount' => $ambiguous,
             'sharedHostCount' => $shared,
+            'domainMatchedHostCount' => $domainMatched,
         ];
     }
 
