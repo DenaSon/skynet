@@ -398,10 +398,8 @@ final readonly class CoordinateAdminArianetIpv4
         return null;
     }
 
-    /** @param array<string,mixed> $state
-     * @return array<string,mixed>
-     */
-    /** @param array<string,mixed> $state
+    /**
+     * @param  array<string,mixed>  $state
      * @return array<string,mixed>
      */
     private static function nodeIdentity(array $state): array
@@ -413,6 +411,10 @@ final readonly class CoordinateAdminArianetIpv4
         ]));
     }
 
+    /**
+     * @param  array<string,mixed>  $state
+     * @return array<string,mixed>
+     */
     private static function hostIdentity(array $state): array
     {
         return array_intersect_key($state, array_flip([
