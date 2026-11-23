@@ -80,8 +80,10 @@ function ari04aFake(
     bool $wrongCurrency = false,
     bool $closed = false,
     bool $invalidKey = false,
+    bool $keysForbidden = false,
+    bool $noKeys = false,
 ): void {
-    Http::fake(static function (Request $r) use ($soldOut, $wrongCurrency, $closed, $invalidKey) {
+    Http::fake(static function (Request $r) use ($soldOut, $wrongCurrency, $closed, $invalidKey, $keysForbidden, $noKeys) {
         if ($r->method() !== 'GET') {
             return Http::response(['error' => 'No write allowed'], 405);
         }
@@ -123,6 +125,24 @@ function ari04aFake(
                     'deprecated' => false, 'status' => 'available',
                 ],
             ], 'meta' => ['pagination' => ['last_page' => 1]]]);
+        }
+        if (str_starts_with($url, 'https://api.ariaservice.net/api/v1/ssh-keys?')) {
+            if ($keysForbidden) {
+                return Http::response(['success' => false,
+                    'error' => ['code' => 'INSUFFICIENT_SCOPE']], 403);
+            }
+            $page = (int) ($r->data()['page'] ?? 1);
+            if ($page === 2) {
+                return Http::response(['success' => true, 'data' => [
+                    ['id' => 8, 'name' => '<b>other-key</b>', 'datacenter_id' => 9],
+                ], 'pagination' => ['current_page' => 2, 'per_page' => 8,
+                    'total' => 2, 'last_page' => 2]]);
+            }
+            return Http::response(['success' => true,
+                'data' => $noKeys ? [] : [
+                    ['id' => 7, 'name' => '<b>deployment</b>', 'datacenter_id' => 9],
+                ], 'pagination' => ['current_page' => 1, 'per_page' => 8,
+                    'total' => $noKeys ? 0 : 2, 'last_page' => $noKeys ? 1 : 2]]);
         }
         if ($url === 'https://api.ariaservice.net/api/v1/ssh-keys/7') {
             return $invalidKey
@@ -198,7 +218,17 @@ it('shows the private RTL quote path and never offers a create or purchase callb
 
     $bot->hearCallbackQueryData('ari8:image:ovh:8:ubuntu-24.04')->reply();
     $bot->hearText('denagate-test-01')->reply();
-    $bot->hearText('7')->reply();
+    $bot->hearText('7')->reply()
+        ->assertRaw(static fn (NutgramRequest $r): bool => ari04aHas($r, 'ari8:key:7:1')
+            && ! ari04aHas($r, 'ari8:apply'), index: 0);
+
+    $bot->hearCallbackQueryData('ari8:keys:2')->reply()
+        ->assertRaw(static fn (NutgramRequest $r): bool => ari04aHas($r, 'ari8:key:8:2')
+            && str_contains(ari04aRich($r), '&lt;b&gt;other-key&lt;/b&gt;'), index: 1);
+    $bot->hearCallbackQueryData('ari8:keys:1')->reply()
+        ->assertRaw(static fn (NutgramRequest $r): bool => ari04aHas($r, 'ari8:key:7:1')
+            && ari04aHas($r, 'ari8:keys:2'), index: 1);
+    $bot->hearCallbackQueryData('ari8:key:7:1')->reply();
 
     $bot->hearCallbackQueryData('ari8:review')->reply()
         ->assertRaw(static function (NutgramRequest $r): bool {
@@ -216,6 +246,42 @@ it('shows the private RTL quote path and never offers a create or purchase callb
                 && ! str_contains($buttons, 'ari8:apply')
                 && ! str_contains($buttons, 'createServer');
         }, index: 1);
+    ari04aOnlyReads();
+});
+
+it('shows friendly empty-list and permission errors without exposing key material or writes', function (): void {
+    ari04aRoot();
+    $bot = ari04aBot();
+    ari04aFake(noKeys: true);
+    $bot->hearCallbackQueryData('ari8:image:ovh:8:ubuntu-24.04')->reply();
+    $bot->hearText('denagate-test')->reply()
+        ->assertRaw(static fn (NutgramRequest $r): bool =>
+            str_contains(ari04aRich($r), 'کلید SSH ثبت‌شده‌ای')
+            && ! ari04aHas($r, 'ari8:key:7:1'), index: 0);
+
+    ari04aFake(keysForbidden: true);
+    $bot->hearCallbackQueryData('ari8:keys:1')->reply()
+        ->assertRaw(static fn (NutgramRequest $r): bool =>
+            str_contains((string) (ari04aPayload($r)['text'] ?? ''), 'ssh-keys:read')
+            && ari04aHas($r, 'ari8:keys:1'), index: 1);
+    ari04aOnlyReads();
+});
+
+it('rejects a forged SSH key ID and expired draft without leaving the list step', function (): void {
+    $user = ari04aRoot();
+    ari04aFake();
+    $bot = ari04aBot();
+    $bot->hearCallbackQueryData('ari8:image:ovh:8:ubuntu-24.04')->reply();
+    $bot->hearText('denagate-test')->reply();
+
+    $bot->hearCallbackQueryData('ari8:key:999:1')->reply()
+        ->assertRaw(static fn (NutgramRequest $r): bool =>
+            str_contains((string) (ari04aPayload($r)['text'] ?? ''), 'قابل انتخاب نیست'), index: 1);
+    expect(\Illuminate\Support\Facades\Cache::get('ari8:quote:'.$user->id)['stage'])->toBe('key');
+    $bot->hearCallbackQueryData('ari8:cancel')->reply();
+    $bot->hearCallbackQueryData('ari8:key:7:1')->reply()
+        ->assertRaw(static fn (NutgramRequest $r): bool =>
+            str_contains((string) (ari04aPayload($r)['text'] ?? ''), 'منقضی شده'), index: 1);
     ari04aOnlyReads();
 });
 
