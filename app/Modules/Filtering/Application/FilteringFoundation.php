@@ -21,6 +21,9 @@ final class FilteringFoundation
     // Optional presentation metadata; SQL observations remain strictly numeric.
     public const NODE_NAME_CACHE_KEY = 'filtering:node:names';
 
+    // Last successfully validated provider inventory; never populated on failed GET.
+    public const NODE_INVENTORY_CACHE_KEY = 'filtering:node:inventory';
+
     private const MODULES = ['node', 'regional'];
 
     private const OUTCOMES = ['healthy', 'suspicious', 'disrupted', 'unknown'];

@@ -176,7 +176,9 @@ final readonly class AdminFilteringUi
             $label = $incident['label'];
             $rows[] = [
                 $label,
-                self::status($incident['state']).' · '.self::time($incident['opened_at']),
+                self::status($incident['state'])
+                    .($incident['outside_inventory'] ? ' · خارج از پنل' : '')
+                    .' · '.self::time($incident['opened_at']),
             ];
             $keyboard->addRow(InlineKeyboardButton::make(
                 self::symbol($incident['state']).' نود '.$label,
@@ -231,6 +233,9 @@ final readonly class AdminFilteringUi
             ['شروع', self::time($incident['opened_at'])],
             ['آخرین مشاهده', self::time($incident['last_at'])],
         ];
+        if ($incident['outside_inventory']) {
+            $rows[] = ['وضعیت نود', 'دیگر در پنل موجود نیست'];
+        }
         if ($incident['resolved_at'] !== null) {
             $rows[] = ['رفع اختلال', self::time($incident['resolved_at'])];
         }

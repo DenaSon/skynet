@@ -88,6 +88,9 @@ final readonly class MonitorNodeFiltering
                     $names[strtolower($node->uuid)] = $name;
                 }
             }
+            // Cache only a fully validated, successful RW inventory. The Admin UI
+            // uses this snapshot to exclude retired Nodes without Provider calls.
+            Cache::put(FilteringFoundation::NODE_INVENTORY_CACHE_KEY, array_keys($seen), now()->addDay());
             Cache::put(FilteringFoundation::NODE_NAME_CACHE_KEY, $names, now()->addDay());
         } catch (Throwable) {
             // Numeric health observations remain authoritative.
@@ -218,7 +221,11 @@ final readonly class MonitorNodeFiltering
     /** @param list<string> $present */
     private function unknownForKnownNodes(CarbonImmutable $minute, array $present = []): void
     {
+        // UNKNOWN must not refresh a removed Node's eligibility forever.
+        // Only an actual non-UNKNOWN Node observation from the last 30 minutes
+        // can justify recording the absence of a formerly known Node.
         $known = DB::table('filtering_checks')->where('module', 'node')
+            ->where('outcome', '!=', 'unknown')
             ->where('observed_at', '>=', $minute->subMinutes(self::BASELINE_MINUTES))
             ->distinct()->limit(self::MAX_NODES + 1)->pluck('node_uuid');
         foreach ($known->take(self::MAX_NODES) as $uuid) {
