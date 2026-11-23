@@ -443,6 +443,8 @@ Profiles and Inbounds are reusable across Nodes, NOT ownership evidence.
   separately, though exact address collisions still block.
 - Host with empty membership and another endpoint: excluded and counted
   separately, even if its Profile/Inbound matches the selected Node.
+  Any such matching Profile/Inbound leaves the overall audit BLOCKED until
+  actual Host ownership is verified, rather than incorrectly declaring ready.
 - UI separates explicitly assigned, shared, ambiguous and unrelated counts;
   unrelated Host domains do not trigger any DNS checks.
 
