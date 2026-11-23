@@ -188,6 +188,7 @@ it('ARI-04B never retries ambiguous 429 or mismatched create receipts', function
     $actor = ari04bUser();
     foreach (['rate_limit', 'bad_receipt'] as $scenario) {
         DB::table('arianet_cloud_purchases')->delete();
+        Http::fake();
         ari04bFake(post: $scenario);
         $purchase = app(PurchaseAdminArianetCloud::class);
         $intent = $purchase->prepare($actor->id, ari04bSelection());
