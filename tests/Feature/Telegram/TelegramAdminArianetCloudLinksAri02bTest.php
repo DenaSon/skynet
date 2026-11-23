@@ -409,7 +409,6 @@ it('revocation, forged callbacks and group chats cannot authorize local linking'
     ari3OnlyGets();
 });
 
-
 it('warns clearly before domain or mismatched-IP confirmation without auto-linking', function (): void {
     ari3Root();
     $state = ari3State();
