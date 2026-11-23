@@ -15,7 +15,7 @@ use UnexpectedValueException;
  */
 final readonly class NodeGeoCheck
 {
-    private const TTL_MINUTES = 30;
+    private const TTL_MINUTES = 10;
 
     public function __construct(
         private ManageAdminNodes $nodes,
