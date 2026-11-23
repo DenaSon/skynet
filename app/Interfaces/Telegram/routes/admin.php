@@ -353,6 +353,9 @@ $bot->onCallbackQueryData('nw1:step:back', function (Nutgram $bot): void {
 $bot->onCallbackQueryData('nw1:default:{field}', function (Nutgram $bot, string $field): void {
     app(AdminNodeSetupUi::class)->defaultValue($bot, $field);
 });
+$bot->onCallbackQueryData('nw1:auth:{mode}', function (Nutgram $bot, string $mode): void {
+    app(AdminNodeSetupUi::class)->chooseAuth($bot, $mode);
+});
 $bot->onCallbackQueryData('nw1:dns:zones', function (Nutgram $bot): void {
     app(AdminNodeSetupUi::class)->dnsZones($bot);
 });
