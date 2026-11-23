@@ -1,3 +1,30 @@
+## ARI-04B — paid single Cloud create, source implementation (2026-11-24)
+
+An operator-approved independent code phase adds one durable, one-use, Super
+Admin-only Cloud VPS purchase path to the existing ARI-04A quote. Dedicated
+`ARIANET_CLOUD_PURCHASE_ENABLED=false` is the **only** Production create
+authorization; enabling the old `ARIANET_CLOUD_WRITES_ENABLED` alone cannot
+enable purchase. The purchase switch must not authorize IPv4 or any other Cloud
+POST. The existing Bearer `ARIANET_CLOUD_READ_TOKEN` is reused. A unique
+account-wide pending purchase slot is reserved in `arianet_cloud_purchases`
+with exact plan, image, key, actor, quote hash, expiry and IRR costs; a confirmed
+token is consumed and persisted as `reserved` before the single POST. Receipt
+checks return only matched action/server IDs; provider root passwords are
+discarded. Accepted is NOT ready; POST ambiguity (including connection loss,
+429, 5xx, malformed receipt) permanently blocks automatic retries. A GET-only
+owner-scoped status/reconciliation screen is always reachable even after the
+purchase ENV is switched off. No billing-wallet journal, provider-node/DNS
+mutation, server deletion or speculative scheduler has been added.
+
+Official billing rules: hourly costs may continue even when powered off;
+24-hour wallet coverage may be required for an hourly purchase; previews reflect
+plan-only IRR rates and exclude unverified primary IPv4/VAT/add-ons. Never label
+them as a guaranteed total. Successful PR tests are source evidence only; the
+Production switch must stay OFF until a separate **specific** one-server charge
+authorization, live provider purchase and subsequent VPS SSH readiness tests.
+Further Node installation and replacement remain ARI-04C and separate NW-05
+confirmation, respectively.
+
 ## NW-SSH-KEY-02 — dual-mode Node SSH installation (2026-11-24)
 
 Implementation scope: reuse existing NW-01/02 and NW-05 UI, authorized

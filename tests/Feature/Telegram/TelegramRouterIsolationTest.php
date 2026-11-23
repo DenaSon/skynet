@@ -366,6 +366,13 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
         'image:{dc}:{plan}:{image}', 'keys:{page}', 'key:{id}:{page}', 'review', 'cancel'] as $name) {
         $expected['ADMIN'][] = 'callback:ari8:'.$name;
     }
+    // ARI-04B: private Super Admin one-use paid purchase and GET-only status.
+    foreach ([
+        'prepare', 'apply:{id}:{token}', 'cancel:{id}:{token}',
+        'status:{id}', 'reconcile:{id}', 'recent',
+    ] as $name) {
+        $expected['ADMIN'][] = 'callback:ari8:purchase:'.$name;
+    }
     // ARI-03C2: Admin-only staged coordination, one step per confirmation.
     foreach ([
         'status:{id}:{page}', 'prepare:{id}:{page}',
@@ -433,8 +440,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(385)
-        ->and(count(array_unique($legacy)))->toBe(385);
+        ->and(count($legacy))->toBe(391)
+        ->and(count(array_unique($legacy)))->toBe(391);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {

@@ -14,7 +14,8 @@ use RuntimeException;
  * Telegram route, command or scheduler. Default-OFF independent kill switch.
  *
  * The one configured Bearer token is shared with reads; a default-OFF write
- * gate remain independent of token scopes; Production purchases stay blocked.
+ * gate remains independent of token scopes; Production purchases require
+ * their own default-OFF, exclusively purchase-scoped authorization.
  * Future callers must independently check trusted Super Admin authorization,
  * fresh price/IP snapshot, one-time confirmation and durable idempotency before
  * invoking either method. There is deliberately no retry or reconciliation write.
@@ -42,8 +43,8 @@ final class ArianetCloudWriteClient
         string $image,
         int $sshKeyId,
     ): array {
-        // Server purchases require their own reviewed Production authorization.
-        if (app()->environment('production')) {
+        // The old global write gate never authorizes a Production purchase.
+        if (app()->environment('production') && config('services.arianet_cloud.purchase_enabled') !== true) {
             throw new RuntimeException('Cloud server creation is disabled in production.');
         }
         if (! preg_match('/^[a-zA-Z0-9](?:[a-zA-Z0-9.-]{0,61}[a-zA-Z0-9])?$/D', $name)
@@ -113,14 +114,23 @@ final class ArianetCloudWriteClient
     private function post(string $path, ?array $body, int $expectedStatus): array
     {
         // This is an infrastructure-level safety gate, not the future RBAC gate.
-        if (config('services.arianet_cloud.writes_enabled') !== true) {
+        if ($path === '/servers') {
+            // In Production, ONLY the independent purchase flag permits create.
+            // This flag must not enable changeIpv4 or other provider writes.
+            if ((app()->environment('production') && config('services.arianet_cloud.purchase_enabled') !== true)
+                || (! app()->environment('production')
+                    && config('services.arianet_cloud.purchase_enabled') !== true
+                    && config('services.arianet_cloud.writes_enabled') !== true)) {
+                throw new RuntimeException('Arianet Cloud purchase is disabled.');
+            }
+        } elseif (config('services.arianet_cloud.writes_enabled') !== true) {
             throw new RuntimeException('Arianet Cloud writes are disabled.');
         }
 
         // One provider Bearer token may carry both read and write scopes.
         // Never infer authorization from its presence; require the write gate.
-        // Production permits only the explicitly confirmed IPv4 action;
-        // createServer retains its separate hard ban above.
+        // The old write gate remains independent of the purchase-only gate;
+        // activating paid create does not enable IPv4 or another endpoint.
 
         $token = config('services.arianet_cloud.read_token');
         $timeout = config('services.arianet_cloud.timeout', 10);

@@ -619,6 +619,23 @@ live purchases and ARI-04C handoff, choose and separately approve the simplest s
 bridge this mismatch; do not buy a server and assume the old installer will work.
 No real purchase or Node/DNS mutation is authorized by ARI-04A.
 
+**ARI-04B source implementation (2026-11-24; subject to PR CI/live acceptance):**
+one dedicated `ARIANET_CLOUD_PURCHASE_ENABLED=false` Production create gate
+is added to the existing restricted `POST /servers` transport. The previous
+generic Cloud write flag alone never permits a Production purchase; the purchase
+switch does not turn on unrelated IPv4 writes. Private root-only Admin callbacks
+prepare a single durable account-wide intent in `arianet_cloud_purchases`,
+freeze exact server identity and IRR plan-only quote, and show a separate Rich
+RTL financial confirmation. Confirm atomically consumes the token/reserves the
+operation in DB before **at most one** Cloud POST. Invalid/mismatched responses,
+transport failures and ambiguous errors must not be replayed. Persist only
+matched server/action IDs. GET-only reconciliation accepts verified matching
+create action and server identity; unknown outcomes remain blocked for manual
+review. No actual VPS purchase, Runflare flag update, Remnawave or DNS operation
+is executed by this source PR. Hourly/24-hour wallet requirement, possible
+additional primary IPv4 and tax costs, and powered-off billing are explicitly
+disclosed. The operator must issue a separate final real purchase approval.
+
 ### ARI-04B — durable, one-use, explicitly paid single-Cloud-create action
 
 **Scope:** a separate PR and deployment safety review. Reserve a durable purchase intent with an immutable (server name, exact plan/datacenter/image/key, cost snapshot, actor, expiration), strict one-active-intent limit, and one-use actor-bound paid-confirmation under a lock **before** any HTTP POST. Revalidate fresh plan availability and IRR quote at confirmation. Require explicit confirmation of real financial exposure; refuse changed price or unavailable resources. The UI must be clear about ongoing billing, not just creation success.

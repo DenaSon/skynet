@@ -718,6 +718,24 @@ $bot->onCallbackQueryData('ari8:keys:{page}', function (Nutgram $bot, string $pa
 $bot->onCallbackQueryData('ari8:key:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
     app(AdminArianetPurchaseUi::class)->selectKey($bot, $id, $page);
 });
+$bot->onCallbackQueryData('ari8:purchase:prepare', function (Nutgram $bot): void {
+    app(AdminArianetPurchaseUi::class)->preparePurchase($bot);
+});
+$bot->onCallbackQueryData('ari8:purchase:apply:{id}:{token}', function (Nutgram $bot, string $id, string $token): void {
+    app(AdminArianetPurchaseUi::class)->applyPurchase($bot, $id, $token);
+});
+$bot->onCallbackQueryData('ari8:purchase:cancel:{id}:{token}', function (Nutgram $bot, string $id, string $token): void {
+    app(AdminArianetPurchaseUi::class)->cancelPurchase($bot, $id, $token);
+});
+$bot->onCallbackQueryData('ari8:purchase:status:{id}', function (Nutgram $bot, string $id): void {
+    app(AdminArianetPurchaseUi::class)->statusPurchase($bot, $id);
+});
+$bot->onCallbackQueryData('ari8:purchase:reconcile:{id}', function (Nutgram $bot, string $id): void {
+    app(AdminArianetPurchaseUi::class)->reconcilePurchase($bot, $id);
+});
+$bot->onCallbackQueryData('ari8:purchase:recent', function (Nutgram $bot): void {
+    app(AdminArianetPurchaseUi::class)->recentPurchase($bot);
+});
 $bot->onCallbackQueryData('ari8:review', function (Nutgram $bot): void {
     app(AdminArianetPurchaseUi::class)->review($bot);
 });
