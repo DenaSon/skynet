@@ -187,8 +187,7 @@ it('keeps GET reads available while the Cloud write switch is disabled', functio
 
 it('permits only the confirmed IPv4 transport in Production and keeps purchases blocked', function (): void {
     config()->set('services.arianet_cloud.writes_enabled', true);
-    Http::fake(['https://api.ariaservice.net/cloud/v1/servers/42/actions/change_ipv4'
-        => Http::response(['action_id' => 87], 202)]);
+    Http::fake(['https://api.ariaservice.net/cloud/v1/servers/42/actions/change_ipv4' => Http::response(['action_id' => 87], 202)]);
     app()->detectEnvironment(static fn (): string => 'production');
     try {
         expect(app(ArianetCloudWriteClient::class)->changeIpv4(42, true))
