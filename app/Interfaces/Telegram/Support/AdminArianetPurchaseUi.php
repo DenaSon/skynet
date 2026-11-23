@@ -173,7 +173,7 @@ final readonly class AdminArianetPurchaseUi
         ], now()->addMinutes(15));
         $this->render($bot, '<b>📝 نام سرور</b>'."\n\n"
             .'نام انگلیسی سرور را ارسال کنید. نمونه: <code>denagate-nl-01</code>'
-            ."\n\nنام فقط برای پیش‌نمایش است.", self::cancel());
+            ."\n\nنام فقط برای پیش‌نمایش است.", self::cancelButton());
     }
 
     public function text(Nutgram $bot, string $text): bool
@@ -188,7 +188,7 @@ final readonly class AdminArianetPurchaseUi
         }
         if ($state['stage'] === 'name') {
             if (preg_match('/^[a-zA-Z0-9](?:[a-zA-Z0-9.-]{0,61}[a-zA-Z0-9])?$/D', trim($text)) !== 1) {
-                $this->render($bot, 'نام معتبر نیست؛ حروف انگلیسی، عدد و خط تیره استفاده کنید.', self::cancel());
+                $this->render($bot, 'نام معتبر نیست؛ حروف انگلیسی، عدد و خط تیره استفاده کنید.', self::cancelButton());
 
                 return true;
             }
@@ -197,13 +197,13 @@ final readonly class AdminArianetPurchaseUi
             Cache::put(self::key($actor), $state, now()->addMinutes(15));
             $this->render($bot, '<b>🔑 کلید SSH موجود</b>'."\n\n"
                 .'شناسه عددی یک کلید عمومی که قبلاً در حساب آریاسرویس ثبت کرده‌اید را ارسال کنید.'
-                ."\n\nکلید خصوصی یا رمز عبور نفرستید. این مرحله فقط خواندنی است.", self::cancel());
+                ."\n\nکلید خصوصی یا رمز عبور نفرستید. این مرحله فقط خواندنی است.", self::cancelButton());
 
             return true;
         }
         $keyId = self::number(trim($text), PHP_INT_MAX);
         if ($keyId === null) {
-            $this->render($bot, 'شناسه کلید SSH باید یک عدد مثبت باشد.', self::cancel());
+            $this->render($bot, 'شناسه کلید SSH باید یک عدد مثبت باشد.', self::cancelButton());
 
             return true;
         }
@@ -324,7 +324,7 @@ final readonly class AdminArianetPurchaseUi
             ->addRow(InlineKeyboardButton::make('◀️ سرورهای ابری', callback_data: 'ari2:list:1'));
     }
 
-    private static function cancel(): InlineKeyboardMarkup
+    private static function cancelButton(): InlineKeyboardMarkup
     {
         return InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'ari8:cancel'));
