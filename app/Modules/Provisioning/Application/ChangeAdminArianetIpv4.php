@@ -129,6 +129,7 @@ final readonly class ChangeAdminArianetIpv4
                 throw new RuntimeException('Cloud or related records changed; review a new preview.');
             }
 
+            $this->access->handle($actorId);
             $reserved = DB::table(self::TABLE)->where('id', $row->id)
                 ->where('status', 'prepared')->where('active_server_id', $serverId)
                 ->update(['status' => 'reserved', 'confirmed_at' => now(), 'updated_at' => now()]);
@@ -151,6 +152,31 @@ final readonly class ChangeAdminArianetIpv4
                 $this->updateStatus((int) $row->id, 'needs_review');
 
                 return ['status' => 'needs_review', 'actionId' => null];
+            }
+        });
+    }
+
+    /**
+     * A deliberate cancellation may release only a never-dispatched preview.
+     * Any reserved/accepted/uncertain operation remains blocked for review.
+     */
+    public function cancel(int $actorId, int $serverId, string $token): void
+    {
+        $this->access->handle($actorId);
+        if (! preg_match('/\A[a-f0-9]{32}\z/D', $token) || $serverId < 1) {
+            throw new RuntimeException('Invalid IPv4 confirmation.');
+        }
+
+        Cache::lock('arianet:ipv4:'.$serverId, 90)->block(2, function () use ($actorId, $serverId, $token): void {
+            $updated = DB::table(self::TABLE)->where('cloud_server_id', $serverId)
+                ->where('active_server_id', $serverId)
+                ->where('actor_user_id', $actorId)
+                ->where('token_hash', hash('sha256', $token))
+                ->where('status', 'prepared')->update([
+                    'status' => 'cancelled', 'active_server_id' => null, 'updated_at' => now(),
+                ]);
+            if ($updated !== 1) {
+                throw new RuntimeException('The confirmation was already consumed or cannot be cancelled.');
             }
         });
     }
