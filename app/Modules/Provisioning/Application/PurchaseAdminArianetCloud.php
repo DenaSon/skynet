@@ -271,6 +271,7 @@ final readonly class PurchaseAdminArianetCloud
     {
         return hash('sha256', json_encode([
             $quote['name'], $quote['image'], $quote['sshKeyId'], $quote['sshKeyName'],
+            $quote['sshPublicKeyHash'],
             $quote['plan']['id'], $quote['plan']['datacenter'], $quote['plan']['name'],
             $quote['plan']['cores'], $quote['plan']['memoryMb'], $quote['plan']['diskGb'],
             $quote['plan']['trafficGb'], $quote['plan']['minimumHours'],
