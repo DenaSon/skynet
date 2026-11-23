@@ -220,12 +220,12 @@ it('audits a linked Node, one direct-IP Host and two unique DNS records without 
     ari6Fake($state);
 
     $result = app(InspectAdminArianetIpv4Dependencies::class)->handle($user->id, ARI6_SERVER);
-    expect($result['ready'])->toBeTrue()
+    expect($result['ready'])->toBeFalse()
         ->and($result['oldIp'])->toBe('62.144.51.204')
         ->and($result['affectedHostCount'])->toBe(2)
         ->and($result['directHostCount'])->toBe(1)
         ->and($result['dns'])->toHaveCount(2)
-        ->and($result['issues'])->toBe([]);
+        ->and(implode(' ', $result['issues']))->toContain('مستقیم IP');
     ari6OnlyReads();
 });
 
@@ -345,7 +345,8 @@ it('does not claim UAE, Netherlands or unrelated direct-IP Hosts via a shared Pr
         )
         ->and($result['dns'])->toHaveCount(2)
         ->and($result['ready'])->toBeFalse()
-        ->and(implode(' ', $result['issues']))->toContain('قطعی نیست', 'تنظیمات مشترک');
+        ->and(implode(' ', $result['issues']))->toContain('قطعی نیست')
+        ->and(implode(' ', $result['issues']))->not->toContain('تنظیمات مشترک');
 
     ari6Bot()->hearCallbackQueryData('ari6:impact:'.ARI6_SERVER.':1')->reply()
         ->assertRaw(static function (NutgramRequest $req): bool {
@@ -381,7 +382,7 @@ it('uses the immutable old IP and verified new IP when Cloud is awaiting coordin
     $result = app(InspectAdminArianetIpv4Dependencies::class)->handle($user->id, ARI6_SERVER);
     expect($result['oldIp'])->toBe('62.144.51.204')
         ->and($result['newIp'])->toBe('62.144.51.206')
-        ->and($result['ready'])->toBeTrue();
+        ->and($result['ready'])->toBeFalse();
     ari6OnlyReads();
 });
 
