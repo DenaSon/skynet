@@ -59,6 +59,9 @@ final readonly class AdminArianetIpv4PreviewUi
                 ->addRow(InlineKeyboardButton::make('◀️ جزئیات سرور', callback_data: 'ari2:view:'.$id.':'.$page));
         }
 
+        $buttons->addRow(InlineKeyboardButton::make('🔎 بررسی دامنه‌ها و اتصال‌ها',
+            callback_data: 'ari6:impact:'.$id.':'.$page));
+
         // ARI-03B write controls are absent on Production regardless of ENV.
         // A saved operation status remains inspectable without any provider write.
         try {
