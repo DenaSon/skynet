@@ -17,6 +17,7 @@ use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 
 uses(RefreshDatabase::class);
@@ -296,4 +297,38 @@ it('ARI-04B denies a group or delegated Admin UI paid callback without any provi
     app(AdminArianetPurchaseUi::class)->preparePurchase($bot);
     expect(DB::table('arianet_cloud_purchases')->count())->toBe(0);
     Http::assertNothingSent();
+});
+
+it('ARI-04B uses concise distinct operator states without implying SSH readiness or retrying purchases', function (): void {
+    $actor = ari04bUser();
+    ari04bFake();
+    $intent = app(PurchaseAdminArianetCloud::class)->prepare($actor->id, ari04bSelection());
+    $bot = Mockery::mock(Nutgram::class);
+    $bot->shouldReceive('chat')->andReturn(Chat::make(993301, ChatType::PRIVATE));
+    $bot->shouldReceive('user')->andReturn(TelegramUser::make(993301, false, 'Operator'));
+    $bot->shouldReceive('isCallbackQuery')->andReturn(false);
+    $html = '';
+    $bot->shouldReceive('sendRichMessage')->andReturnUsing(function (...$args) use (&$html): null {
+        foreach ($args as $argument) {
+            if ($argument instanceof InputRichMessage) {
+                $html = $argument->html;
+            }
+        }
+
+        return null;
+    });
+
+    foreach ([
+        'accepted' => 'در حال ساخت',
+        'completed' => 'ساخت تأیید شد؛ اتصال SSH بررسی نشده',
+        'uncertain' => 'نتیجه خرید نامشخص',
+    ] as $status => $expected) {
+        DB::table('arianet_cloud_purchases')->where('id', $intent['id'])->update(['status' => $status]);
+        app(AdminArianetPurchaseUi::class)->statusPurchase($bot, (string) $intent['id']);
+        expect($html)->toContain($expected);
+        if ($status === 'uncertain') {
+            expect($html)->toContain('سفارش جدید ثبت نکنید');
+        }
+    }
+    Http::assertNotSent(static fn (Request $r): bool => $r->method() === 'POST');
 });
