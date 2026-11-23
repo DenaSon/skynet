@@ -57,8 +57,7 @@ final readonly class PreviewAdminArianetPurchase
         if (! is_array($rows) || ! array_is_list($rows) || count($rows) > 200) {
             throw new RuntimeException('Cloud plan catalog cannot be verified.');
         }
-        $matches = array_values(array_filter($rows, static fn (mixed $row): bool =>
-            is_array($row) && ($row['id'] ?? null) === $planId
+        $matches = array_values(array_filter($rows, static fn (mixed $row): bool => is_array($row) && ($row['id'] ?? null) === $planId
                 && ($row['datacenter'] ?? null) === $datacenter));
         if (count($matches) !== 1) {
             throw new RuntimeException('Selected plan is not available.');
