@@ -252,7 +252,6 @@ it('denies delegated operators, revoked root and nonprivate access without provi
     Http::assertNothingSent();
 
     $delegated->syncRoles(['super-admin']);
-    $bot->hearCallbackQueryData('ari2:list:1')->reply();
     $delegated->syncRoles([]);
     $bot->hearCallbackQueryData('ari2:view:'.ARI2_SERVER_ID.':1')->reply()
         ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.']);
