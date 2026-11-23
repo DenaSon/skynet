@@ -297,3 +297,20 @@ connectivity before permitting production IP replacement. Production
 execution remains hard-disabled in this phase. No new settings or ENV,
 background jobs, billing transactions or provider mutations are performed
 during deployment.
+## ARI-01C — one Arianet API token, strict write gates (2026-11-23)
+
+The operator has one Arianet Cloud Bearer API token. Arianet documentation
+allows issuing one token with both `cloud:servers:read` and
+`cloud:servers:write` scopes. A separate `ARIANET_CLOUD_WRITE_TOKEN` is
+**not** required or consumed. All GET requests and gated write transport now
+read `ARIANET_CLOUD_READ_TOKEN`, the existing deployed setting. No token
+value or permission is modified by the source change.
+
+**Security:** `ARIANET_CLOUD_WRITES_ENABLED=false` stays the independent
+default-OFF kill switch. The write transport now also rejects all POSTs in
+`production` even if the flag is misconfigured. ARI-03B continues to require
+trusted private root, one-use confirmation, fresh fee/Node/DNS snapshot and
+non-production operation. Enabling write scopes on the existing token does not
+enable any server mutation. Do not alter live Production credentials or flags
+in this PR. A staging-only disposable server and separately authorized real
+test are still needed. Every existing GET remains available with the same token.

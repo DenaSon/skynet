@@ -10,7 +10,6 @@ use Illuminate\Support\Facades\Http;
 beforeEach(function (): void {
     config()->set('services.arianet_cloud.writes_enabled', false);
     config()->set('services.arianet_cloud.read_token', 'read-only-secret');
-    config()->set('services.arianet_cloud.write_token', 'write-only-secret');
     config()->set('services.arianet_cloud.timeout', 10);
     Http::preventStrayRequests();
 });
@@ -26,18 +25,15 @@ it('never calls the provider while the independent Cloud write switch is off', f
     Http::assertNothingSent();
 });
 
-it('refuses absent, shared or invalid write configuration before any request', function (): void {
+it('refuses absent or invalid one-token write configuration before any request', function (): void {
     Http::fake();
     config()->set('services.arianet_cloud.writes_enabled', true);
     $cloud = app(ArianetCloudWriteClient::class);
 
-    config()->set('services.arianet_cloud.write_token', null);
+    config()->set('services.arianet_cloud.read_token', null);
     expect(fn () => $cloud->changeIpv4(42))->toThrow(RuntimeException::class, 'not configured');
 
-    config()->set('services.arianet_cloud.write_token', 'read-only-secret');
-    expect(fn () => $cloud->changeIpv4(42))->toThrow(RuntimeException::class, 'must be independent');
-
-    config()->set('services.arianet_cloud.write_token', 'write-only-secret');
+    config()->set('services.arianet_cloud.read_token', 'read-only-secret');
     config()->set('services.arianet_cloud.timeout', 0);
     expect(fn () => $cloud->changeIpv4(42))->toThrow(RuntimeException::class, 'timeout');
 
@@ -82,7 +78,7 @@ it('posts exactly one single-server create and never exposes root password', fun
 
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'POST'
         && $request->url() === 'https://api.ariaservice.net/cloud/v1/servers'
-        && $request->hasHeader('Authorization', 'Bearer write-only-secret')
+        && $request->hasHeader('Authorization', 'Bearer read-only-secret')
         && $request['count'] === 1
         && $request['name'] === 'denagate-01'
         && $request['datacenter'] === 'ovh'
@@ -169,7 +165,7 @@ it('treats connection failures as ambiguous and never automatically retries', fu
     $attempts = 0;
     Http::fake(static function () use (&$attempts): never {
         $attempts++;
-        throw new ConnectionException('Authorization: Bearer write-only-secret');
+        throw new ConnectionException('Authorization: Bearer read-only-secret');
     });
 
     expect(fn () => app(ArianetCloudWriteClient::class)->createServer('node', 'ovh', 8, 'ubuntu-24.04', 9))
@@ -179,13 +175,29 @@ it('treats connection failures as ambiguous and never automatically retries', fu
     Http::assertNothingSent();
 });
 
-it('keeps the existing read-only client independent of write settings', function (): void {
+it('keeps GET reads available while the Cloud write switch is disabled', function (): void {
     Http::fake(['https://api.ariaservice.net/cloud/v1/*' => Http::response(['data' => []])]);
-    config()->set('services.arianet_cloud.write_token', null);
     config()->set('services.arianet_cloud.writes_enabled', false);
 
     expect(app(ArianetCloudReadClient::class)->servers()['data'])->toBe([]);
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET'
         && $request->hasHeader('Authorization', 'Bearer read-only-secret'));
     Http::assertSentCount(1);
+});
+
+it('hard-blocks direct Cloud write transport in production even with a dual-scope token', function (): void {
+    config()->set('services.arianet_cloud.writes_enabled', true);
+    Http::fake();
+    app()->detectEnvironment(static fn (): string => 'production');
+
+    try {
+        expect(fn () => app(ArianetCloudWriteClient::class)->changeIpv4(42))
+            ->toThrow(RuntimeException::class, 'disabled in production');
+        expect(fn () => app(ArianetCloudWriteClient::class)->createServer('dena-test', 'ovh', 8, 'ubuntu-24.04', 7))
+            ->toThrow(RuntimeException::class, 'disabled in production');
+    } finally {
+        app()->detectEnvironment(static fn (): string => 'testing');
+    }
+
+    Http::assertNothingSent();
 });

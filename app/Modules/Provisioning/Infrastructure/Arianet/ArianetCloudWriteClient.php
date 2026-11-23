@@ -13,6 +13,8 @@ use RuntimeException;
  * ARI-01B: transport-only Cloud writes. NOT wired to any Application Action,
  * Telegram route, command or scheduler. Default-OFF independent kill switch.
  *
+ * The one configured Bearer token is shared with reads; a default-OFF write
+ * gate AND a hard Production ban remain independent of token scopes.
  * Future callers must independently check trusted Super Admin authorization,
  * fresh price/IP snapshot, one-time confirmation and durable idempotency before
  * invoking either method. There is deliberately no retry or reconciliation write.
@@ -111,17 +113,18 @@ final class ArianetCloudWriteClient
             throw new RuntimeException('Arianet Cloud writes are disabled.');
         }
 
-        $token = config('services.arianet_cloud.write_token');
-        $readToken = config('services.arianet_cloud.read_token');
+        // One provider Bearer token may carry both read and write scopes.
+        // Never infer authorization from its presence; require the write gate.
+        // ARI-03B/03C remain staging-only until a separate Production approval.
+        if (app()->environment('production')) {
+            throw new RuntimeException('Arianet Cloud writes are disabled in production.');
+        }
+
+        $token = config('services.arianet_cloud.read_token');
         $timeout = config('services.arianet_cloud.timeout', 10);
 
         if (! is_string($token) || trim($token) === '') {
-            throw new RuntimeException('Arianet Cloud write token is not configured.');
-        }
-
-        if (is_string($readToken) && trim($readToken) !== ''
-            && hash_equals(trim($token), trim($readToken))) {
-            throw new RuntimeException('Arianet Cloud read and write tokens must be independent.');
+            throw new RuntimeException('Arianet Cloud API token is not configured.');
         }
 
         if (! is_int($timeout) || $timeout < 1 || $timeout > 30) {
