@@ -189,6 +189,9 @@ final readonly class PreviewAdminArianetPurchase
             'image' => $image,
             'sshKeyId' => $sshKeyId,
             'sshKeyName' => self::label($key['name'] ?? null),
+            // Bind a paid confirmation to the exact public key bytes, not only
+            // an account key ID/name that may be changed after the preview.
+            'sshPublicKeyHash' => hash('sha256', trim($key['key'])),
             'minimumRials' => $plan['hourlyRials'] * $plan['minimumHours'],
         ];
     }
