@@ -127,6 +127,37 @@ final readonly class PreviewAdminArianetPurchase
         return array_values($images);
     }
 
+    /**
+     * @return array{items:list<array{id:int,name:string}>,page:int,pages:int}
+     */
+    public function sshKeys(int $actorId, int $page = 1): array
+    {
+        $this->access->handle($actorId);
+        $result = $this->cloud->sshKeys($page);
+        $rows = $result['data'] ?? null;
+        $pagination = $result['pagination'] ?? null;
+        if (! is_array($rows) || ! array_is_list($rows) || count($rows) > 8
+            || ! is_array($pagination)
+            || ($pagination['current_page'] ?? null) !== $page
+            || ! is_int($pagination['last_page'] ?? null)
+            || $pagination['last_page'] < $page || $pagination['last_page'] > 100) {
+            throw new RuntimeException('SSH key list cannot be verified.');
+        }
+
+        $items = [];
+        foreach ($rows as $row) {
+            if (! is_array($row) || ! self::positive($row['id'] ?? null)) {
+                throw new RuntimeException('Invalid SSH key list entry.');
+            }
+            $items[] = [
+                'id' => $row['id'],
+                'name' => self::label($row['name'] ?? null),
+            ];
+        }
+
+        return ['items' => $items, 'page' => $page, 'pages' => $pagination['last_page']];
+    }
+
     /** @return array<string,mixed> */
     public function quote(
         int $actorId,

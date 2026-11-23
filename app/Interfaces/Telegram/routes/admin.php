@@ -709,6 +709,12 @@ $bot->onCallbackQueryData('ari8:images:{dc}:{plan}', function (Nutgram $bot, str
 $bot->onCallbackQueryData('ari8:image:{dc}:{plan}:{image}', function (Nutgram $bot, string $dc, string $plan, string $image): void {
     app(AdminArianetPurchaseUi::class)->image($bot, $dc, $plan, $image);
 });
+$bot->onCallbackQueryData('ari8:keys:{page}', function (Nutgram $bot, string $page): void {
+    app(AdminArianetPurchaseUi::class)->keys($bot, $page);
+});
+$bot->onCallbackQueryData('ari8:key:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
+    app(AdminArianetPurchaseUi::class)->selectKey($bot, $id, $page);
+});
 $bot->onCallbackQueryData('ari8:review', function (Nutgram $bot): void {
     app(AdminArianetPurchaseUi::class)->review($bot);
 });
