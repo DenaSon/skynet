@@ -96,8 +96,8 @@ function ari8Provider(bool $shared = false, bool $legacy = false, bool $peerColl
             ],
         ],
         [
-            'uuid' => ARI8_DIRECT_HOST, 'remark' => 'Germany direct',
-            'address' => ARI8_OLD, 'port' => 8443, 'isDisabled' => false,
+            'uuid' => ARI8_DIRECT_HOST, 'remark' => 'Germany other Host',
+            'address' => 'fr.coreflare.ir', 'port' => 8443, 'isDisabled' => false,
             'nodes' => $legacy ? [] : [ARI8_NODE],
             'inbound' => [
                 'configProfileUuid' => ARI8_PROFILE, 'configProfileInboundUuid' => ARI8_INBOUND,
@@ -208,77 +208,55 @@ function ari8Provider(bool $shared = false, bool $legacy = false, bool $peerColl
     return $shared;
 }
 
-it('builds a durable staged plan exclusively for the associated Node and excludes unrelated Hosts', function (): void {
+it('prepares only one unique managed DNS record for a domain-based Node', function (): void {
     $root = ari8Ready();
     $api = ari8Provider();
     $service = app(CoordinateAdminArianetIpv4::class);
     $plan = $service->prepare($root['user']->id, ARI8_SERVER);
-
     expect($plan['stage'])->toBe('ready')
-        ->and($plan['steps'])->toHaveCount(2)
-        ->and($plan['steps'][0])->toMatchArray(['kind' => 'dns', 'name' => 'fr.coreflare.ir', 'state' => 'ready'])
-        ->and($plan['steps'][1])->toMatchArray(['kind' => 'host', 'name' => 'Germany direct', 'state' => 'ready'])
+        ->and($plan['steps'])->toHaveCount(1)
+        ->and($plan['steps'][0])->toMatchArray(['kind' => 'dns', 'name' => 'fr.coreflare.ir'])
         ->and($plan['next'])->toBe(0)
         ->and($api->mutations)->toBe([])
         ->and(DB::table('arianet_cloud_ipv4_changes')->value('coordination_state'))->not->toBeNull();
-
     expect(fn () => $service->prepare($root['user']->id, ARI8_SERVER))->toThrow(RuntimeException::class);
     Http::assertNotSent(static fn (Request $r): bool => $r->method() !== 'GET');
 });
-
-it('coordinates DNS and the direct-IP Host exactly once in order, then awaits a human client test', function (): void {
+it('continues DNS with no Remnawave mutation and requires real client acceptance', function (): void {
     $root = ari8Ready();
     $api = ari8Provider();
     $service = app(CoordinateAdminArianetIpv4::class);
-    $service->prepare($root['user']->id, ARI8_SERVER);
 
-    $service->executeNext($root['user']->id, ARI8_SERVER, 0);
-    expect($service->status($root['user']->id, ARI8_SERVER)['next'])->toBe(1)
-        ->and($api->record['content'])->toBe(ARI8_NEW)
-        ->and($api->record['proxied'])->toBeFalse();
-    expect(fn () => $service->executeNext($root['user']->id, ARI8_SERVER, 0))->toThrow(RuntimeException::class);
-
-    $service->executeNext($root['user']->id, ARI8_SERVER, 1);
+    $service->continueDns($root['user']->id, ARI8_SERVER);
     $status = $service->status($root['user']->id, ARI8_SERVER);
     expect($status['stage'])->toBe('awaiting_client_test')
-        ->and($api->hosts[1]['address'])->toBe(ARI8_NEW)
+        ->and($api->record['content'])->toBe(ARI8_NEW)
+        ->and($api->record['proxied'])->toBeFalse()
+        ->and($api->node['address'])->toBe('fr.coreflare.ir')
+        ->and($api->hosts[1]['address'])->toBe('fr.coreflare.ir')
         ->and($api->hosts[2]['address'])->toBe('nl01.coreflare.ir')
-        ->and($api->mutations)->toBe([
-            'dns:fr.coreflare.ir', 'host:'.ARI8_DIRECT_HOST,
-        ]);
-
+        ->and($api->mutations)->toBe(['dns:fr.coreflare.ir']);
+    $service->continueDns($root['user']->id, ARI8_SERVER);
+    expect($api->mutations)->toHaveCount(1);
     $service->acceptClientTest($root['user']->id, ARI8_SERVER);
     expect($service->status($root['user']->id, ARI8_SERVER)['stage'])->toBe('completed')
-        ->and(DB::table('arianet_cloud_ipv4_changes')->value('status'))->toBe('completed')
-        ->and(DB::table('arianet_cloud_ipv4_changes')->value('active_server_id'))->toBeNull()
-        ->and($api->mutations)->toHaveCount(2);
-    expect(fn () => $service->executeNext($root['user']->id, ARI8_SERVER, 1))->toThrow(RuntimeException::class);
+        ->and(DB::table('arianet_cloud_ipv4_changes')->value('active_server_id'))->toBeNull();
+    Http::assertNotSent(static fn (Request $r): bool => $r->method() === 'PATCH'
+        && str_contains($r->url(), 'rw.ari8.test'));
 });
-
-it('updates a direct-IP Node only after Host and DNS steps and preserves peer Nodes', function (): void {
+it('rejects a direct-IP Node or Host instead of modifying Remnawave', function (): void {
     $root = ari8Ready();
     $api = ari8Provider();
-    $api->node['address'] = ARI8_OLD;
     $service = app(CoordinateAdminArianetIpv4::class);
 
-    $plan = $service->prepare($root['user']->id, ARI8_SERVER);
-    expect(array_column($plan['steps'], 'kind'))->toBe(['dns', 'host', 'node']);
-
-    $service->executeNext($root['user']->id, ARI8_SERVER, 0);
-    $service->executeNext($root['user']->id, ARI8_SERVER, 1);
-    $service->executeNext($root['user']->id, ARI8_SERVER, 2);
-
-    expect($api->node['address'])->toBe(ARI8_NEW)
-        ->and($api->hosts[1]['address'])->toBe(ARI8_NEW)
-        ->and($api->hosts[2]['address'])->toBe('nl01.coreflare.ir')
-        ->and($api->mutations)->toBe([
-            'dns:fr.coreflare.ir', 'host:'.ARI8_DIRECT_HOST, 'node:'.ARI8_NODE,
-        ])
-        ->and($service->status($root['user']->id, ARI8_SERVER)['stage'])->toBe('awaiting_client_test');
-    $service->acceptClientTest($root['user']->id, ARI8_SERVER);
-    expect($service->status($root['user']->id, ARI8_SERVER)['stage'])->toBe('completed');
+    $api->node['address'] = ARI8_OLD;
+    expect(fn () => $service->prepare($root['user']->id, ARI8_SERVER))->toThrow(RuntimeException::class);
+    $api->node['address'] = 'fr.coreflare.ir';
+    $api->hosts[1]['address'] = ARI8_OLD;
+    expect(fn () => $service->prepare($root['user']->id, ARI8_SERVER))->toThrow(RuntimeException::class);
+    expect($api->mutations)->toBe([])
+        ->and(DB::table('arianet_cloud_ipv4_changes')->value('coordination_state'))->toBeNull();
 });
-
 it('marks provider timeout uncertain before any replay and only reconciles via GET', function (): void {
     $root = ari8Ready();
     $api = ari8Provider();
@@ -320,21 +298,20 @@ it('blocks any staging coordination when shared or legacy Host ownership is unre
     }
 });
 
-it('hard-blocks provider and journal writes in Production even when all Provider flags are enabled', function (): void {
+it('permits DNS-only continuation in Production with existing Cloudflare write gate', function (): void {
     $root = ari8Ready();
-    ari8Provider();
+    $api = ari8Provider();
     app()->detectEnvironment(static fn (): string => 'production');
     try {
         $service = app(CoordinateAdminArianetIpv4::class);
-        expect($service->enabled())->toBeFalse();
-        expect(fn () => $service->prepare($root['user']->id, ARI8_SERVER))->toThrow(RuntimeException::class, 'disabled');
+        expect($service->enabled())->toBeTrue();
+        $service->continueDns($root['user']->id, ARI8_SERVER);
+        expect($service->status($root['user']->id, ARI8_SERVER)['stage'])->toBe('awaiting_client_test');
     } finally {
         app()->detectEnvironment(static fn (): string => 'testing');
     }
-    Http::assertNothingSent();
-    expect(DB::table('arianet_cloud_ipv4_changes')->value('coordination_state'))->toBeNull();
+    expect($api->mutations)->toBe(['dns:fr.coreflare.ir']);
 });
-
 it('denies non-root and altered actor access to coordination records', function (): void {
     $root = ari8Ready();
     ari8Provider();
@@ -373,7 +350,7 @@ function ari8Payload(NutgramRequest $request): array
     return $data;
 }
 
-it('shows ordered Rich RTL staging controls only after the operator prepares a plan', function (): void {
+it('shows a single DNS continuation action in private Rich RTL status', function (): void {
     $root = ari8Ready();
     ari8Provider();
     $service = app(CoordinateAdminArianetIpv4::class);
@@ -390,7 +367,7 @@ it('shows ordered Rich RTL staging controls only after the operator prepares a p
             return ($rich['is_rtl'] ?? false) === true
                 && str_contains((string) ($rich['html'] ?? ''), 'هماهنگی اتصال‌ها')
                 && str_contains((string) ($rich['html'] ?? ''), 'fr.coreflare.ir')
-                && str_contains($buttons, 'ari7:step:'.ARI8_SERVER.':1:0')
+                && str_contains($buttons, 'ari7:prepare:'.ARI8_SERVER.':1')
                 && str_contains($buttons, 'ari6:impact:'.ARI8_SERVER.':1')
                 && ! str_contains($buttons, 'ari7:step:'.ARI8_SERVER.':1:1');
         }, index: 1);
@@ -407,7 +384,7 @@ it('denies root-only staged operations in group chats and to non-trusted users',
     Http::assertNothingSent();
 });
 
-it('keeps coordination execution buttons invisible on Production even when provider flags are enabled', function (): void {
+it('keeps DNS continuation visible on Production only for an active changed IP', function (): void {
     ari8Ready();
     Http::fake();
     app()->detectEnvironment(static fn (): string => 'production');
@@ -416,7 +393,7 @@ it('keeps coordination execution buttons invisible on Production even when provi
             ->assertRaw(static function (NutgramRequest $request): bool {
                 $buttons = json_encode(ari8Payload($request)['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
 
-                return ! str_contains($buttons, 'ari7:prepare:')
+                return str_contains($buttons, 'ari7:prepare:'.ARI8_SERVER.':1')
                     && ! str_contains($buttons, 'ari7:step:')
                     && str_contains($buttons, 'ari6:impact:'.ARI8_SERVER.':1');
             }, index: 1);
