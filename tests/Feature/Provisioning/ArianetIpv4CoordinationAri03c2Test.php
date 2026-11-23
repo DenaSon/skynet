@@ -288,6 +288,23 @@ it('rejects a historic direct-IP step without consuming a DNS write checkpoint',
         ->and($api->mutations)->toBe([]);
 });
 
+it('updates only one Cloudflare A record for a domain-matched unassigned Host', function (): void {
+    $root = ari8Ready();
+    $api = ari8Provider(legacy: true);
+    $service = app(CoordinateAdminArianetIpv4::class);
+
+    $service->continueDns($root['user']->id, ARI8_SERVER);
+    $status = $service->status($root['user']->id, ARI8_SERVER);
+    expect($status['stage'])->toBe('awaiting_client_test')
+        ->and($status['steps'])->toHaveCount(1)
+        ->and($api->mutations)->toBe(['dns:fr.coreflare.ir'])
+        ->and($api->hosts[1]['nodes'])->toBe([])
+        ->and($api->hosts[1]['address'])->toBe('fr.coreflare.ir')
+        ->and($api->node['address'])->toBe('fr.coreflare.ir');
+    Http::assertNotSent(static fn (Request $req): bool => $req->method() === 'PATCH'
+        && str_contains($req->url(), 'rw.ari8.test'));
+});
+
 it('marks provider timeout uncertain before any replay and only reconciles via GET', function (): void {
     $root = ari8Ready();
     $api = ari8Provider();
@@ -309,8 +326,8 @@ it('marks provider timeout uncertain before any replay and only reconciles via G
         ->and($api->mutations)->toHaveCount(1);
 });
 
-it('blocks any staging coordination when shared or legacy Host ownership is unresolved', function (): void {
-    foreach (['shared', 'legacy', 'peerCollision'] as $issue) {
+it('blocks shared Host ownership and peer collisions before DNS coordination', function (): void {
+    foreach (['shared', 'peerCollision'] as $issue) {
         $root = ari8Ready();
         $api = ari8Provider(
             shared: $issue === 'shared',
