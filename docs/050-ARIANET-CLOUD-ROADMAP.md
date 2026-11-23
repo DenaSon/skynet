@@ -1,8 +1,8 @@
 # Arianet Cloud integration — authoritative delivery status (2026-11-23)
 
-## ARI-03D — Domain-first Production IPv4 change (operator-approved, PR #561 under CI)
+## ARI-03D — Domain-first Production IPv4 change (2026-11-23)
 
-**Current development status:** [PR #561](https://github.com/DenaSon/skynet/pull/561) proposes simplifying the existing ARI-03B/03C2 implementation. The baseline sections below describe the prior staged implementation and are retained for history. This section is the latest scope contract once the PR passes CI and is reviewed/merged. **This PR is not evidence of a live IP change, Cloudflare propagation or client connectivity.**
+**Implementation reference:** [PR #561](https://github.com/DenaSon/skynet/pull/561) simplifies the existing ARI-03B/03C2 implementation. Check the linked PR and CI for current merge status; historical staged sections remain below for context. **A merged PR or green CI alone is not evidence of a live IP change, Cloudflare propagation or client connectivity.**
 
 **Fixed DenaGate operational rule:** Remnawave Nodes and their user-facing Hosts use predefined Cloudflare-managed **domain names**, not direct IPv4 endpoints. A Node or associated Host configured with a direct IPv4 fails the normal change preflight; do not silently invent a direct-IP recovery path. Remnawave Node UUID, address and Host entries remain unchanged during a normal Cloud IP replacement.
 
