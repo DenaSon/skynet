@@ -10,6 +10,7 @@ use App\Interfaces\Telegram\Support\AdminAccountingUi;
 use App\Interfaces\Telegram\Support\AdminAnnouncementsUi;
 use App\Interfaces\Telegram\Support\AdminArianetCloudLinksUi;
 use App\Interfaces\Telegram\Support\AdminArianetCloudUi;
+use App\Interfaces\Telegram\Support\AdminArianetPurchaseUi;
 use App\Interfaces\Telegram\Support\AdminArianetIpv4CoordinationUi;
 use App\Interfaces\Telegram\Support\AdminArianetIpv4DependenciesUi;
 use App\Interfaces\Telegram\Support\AdminArianetIpv4PreviewUi;
@@ -695,6 +696,26 @@ $bot->onCallbackQueryData('ari3:cancel:{token}:{id}:{parent}', function (Nutgram
 });
 
 // ARI-02A: private trusted-root Cloud inventory and costs; GET-only.
+// ARI-04A: private, GET-only quote. No Cloud POST or Node handoff.
+$bot->onCallbackQueryData('ari8:begin', function (Nutgram $bot): void {
+    app(AdminArianetPurchaseUi::class)->begin($bot);
+});
+$bot->onCallbackQueryData('ari8:plans:{dc}:{page}', function (Nutgram $bot, string $dc, string $page): void {
+    app(AdminArianetPurchaseUi::class)->plans($bot, $dc, $page);
+});
+$bot->onCallbackQueryData('ari8:images:{dc}:{plan}', function (Nutgram $bot, string $dc, string $plan): void {
+    app(AdminArianetPurchaseUi::class)->images($bot, $dc, $plan);
+});
+$bot->onCallbackQueryData('ari8:image:{dc}:{plan}:{image}', function (Nutgram $bot, string $dc, string $plan, string $image): void {
+    app(AdminArianetPurchaseUi::class)->image($bot, $dc, $plan, $image);
+});
+$bot->onCallbackQueryData('ari8:review', function (Nutgram $bot): void {
+    app(AdminArianetPurchaseUi::class)->review($bot);
+});
+$bot->onCallbackQueryData('ari8:cancel', function (Nutgram $bot): void {
+    app(AdminArianetPurchaseUi::class)->cancel($bot);
+});
+
 $bot->onCallbackQueryData('ari2:list:{page}', function (Nutgram $bot, string $page): void {
     app(AdminArianetCloudUi::class)->browse($bot, $page);
 });
