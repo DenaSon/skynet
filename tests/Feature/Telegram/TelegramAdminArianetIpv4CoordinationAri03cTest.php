@@ -104,6 +104,7 @@ function ari6State(): array
         'legacy' => false,
         'collision' => false,
         'brokenHosts' => false,
+        'domainOnlyHosts' => false,
         'extraHosts' => [],
     ];
 }
@@ -155,8 +156,10 @@ function ari6Fake(array &$state): void
                 : Http::response(['response' => [
                     [
                         'uuid' => ARI6_HOST_DOMAIN, 'remark' => '<b>main host</b>',
-                        'address' => 'sub.coreflare.ir', 'port' => 443, 'isDisabled' => false,
-                        'nodes' => $state['shared'] ? [ARI6_NODE, ARI6_PEER] : [ARI6_NODE],
+                        'address' => $state['domainOnlyHosts'] ? 'fr.coreflare.ir' : 'sub.coreflare.ir',
+                        'port' => 443, 'isDisabled' => false,
+                        'nodes' => $state['domainOnlyHosts'] ? []
+                            : ($state['shared'] ? [ARI6_NODE, ARI6_PEER] : [ARI6_NODE]),
                         'inbound' => [
                             'configProfileUuid' => ARI6_PROFILE,
                             'configProfileInboundUuid' => ARI6_INBOUND,
@@ -164,8 +167,9 @@ function ari6Fake(array &$state): void
                     ],
                     [
                         'uuid' => ARI6_HOST_IP, 'remark' => 'direct host',
-                        'address' => '62.144.51.204', 'port' => 8443, 'isDisabled' => false,
-                        'nodes' => $state['legacy'] ? [] : [ARI6_NODE],
+                        'address' => $state['domainOnlyHosts'] ? 'fr.coreflare.ir' : '62.144.51.204',
+                        'port' => 8443, 'isDisabled' => false,
+                        'nodes' => $state['domainOnlyHosts'] || $state['legacy'] ? [] : [ARI6_NODE],
                         'inbound' => [
                             'configProfileUuid' => ARI6_PROFILE,
                             'configProfileInboundUuid' => ARI6_INBOUND,
@@ -307,8 +311,8 @@ it('does not claim UAE, Netherlands or unrelated direct-IP Hosts via a shared Pr
             'inbound' => $commonInbound,
         ];
     }
-    // Two legacy Host records directly reference the selected Node's
-    // hostname. Keep them visible, but block writes until ownership is fixed.
+    // Two unassigned Hosts share the Node's exact managed domain.
+    // The separate direct-IP Host still blocks normal replacement.
     foreach ([120, 121] as $suffix) {
         $state['extraHosts'][] = [
             'uuid' => sprintf('550e8400-e29b-41d4-a716-44665544%04d', $suffix),
@@ -337,7 +341,8 @@ it('does not claim UAE, Netherlands or unrelated direct-IP Hosts via a shared Pr
 
     expect($result['affectedHostCount'])->toBe(4)
         ->and($result['directHostCount'])->toBe(1)
-        ->and($result['ambiguousHostCount'])->toBe(2)
+        ->and($result['ambiguousHostCount'])->toBe(0)
+        ->and($result['domainMatchedHostCount'])->toBe(2)
         ->and($result['otherNodeHostCount'])->toBe(1)
         ->and($result['unassignedOtherCount'])->toBe(3)
         ->and(array_column($result['hosts'], 'name'))->not->toContain(
@@ -360,6 +365,71 @@ it('does not claim UAE, Netherlands or unrelated direct-IP Hosts via a shared Pr
                 && str_contains($rich, 'Frankfurt ambiguous');
         }, index: 1);
 
+    ari6OnlyReads();
+});
+
+it('accepts two unassigned Frankfurt Hosts on the exact Node domain and excludes six unrelated Hosts', function (): void {
+    $user = ari6Root();
+    ari6Link($user);
+    $state = ari6State();
+    $state['domainOnlyHosts'] = true;
+    foreach (['ae1.coreflare.ir', 'nl01.coreflare.ir', '62.144.51.150',
+        'other1.coreflare.ir', 'other2.coreflare.ir', 'other3.coreflare.ir'] as $index => $address) {
+        $state['extraHosts'][] = [
+            'uuid' => sprintf('550e8400-e29b-41d4-a716-44665544%04d', $index + 130),
+            'remark' => 'unrelated '.$index, 'address' => $address,
+            'port' => 443, 'isDisabled' => false, 'nodes' => [],
+            'inbound' => [
+                'configProfileUuid' => ARI6_PROFILE,
+                'configProfileInboundUuid' => ARI6_INBOUND,
+            ],
+        ];
+    }
+    ari6Fake($state);
+
+    $report = app(InspectAdminArianetIpv4Dependencies::class)->handle($user->id, ARI6_SERVER);
+    expect($report['ready'])->toBeTrue()
+        ->and($report['affectedHostCount'])->toBe(2)
+        ->and($report['domainMatchedHostCount'])->toBe(2)
+        ->and($report['ambiguousHostCount'])->toBe(0)
+        ->and($report['directHostCount'])->toBe(0)
+        ->and($report['unassignedOtherCount'])->toBe(6)
+        ->and($report['dns'])->toHaveCount(1)
+        ->and($report['dns'][0]['hostname'])->toBe('fr.coreflare.ir')
+        ->and(array_column($report['hosts'], 'domainMatched'))->toBe([true, true]);
+
+    config()->set('services.arianet_cloud.writes_enabled', true);
+    config()->set('services.cloudflare.dns_writes_enabled', true);
+    ari6Bot()->hearCallbackQueryData('ari4:preview:'.ARI6_SERVER.':1')->reply()
+        ->assertRaw(static function (NutgramRequest $req): bool {
+            $buttons = json_encode(ari6Payload($req)['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
+
+            return str_contains(ari6Rich($req), 'fr.coreflare.ir')
+                && str_contains($buttons, 'ari5:begin:'.ARI6_SERVER.':1');
+        }, index: 1);
+
+    ari6Bot()->hearCallbackQueryData('ari6:impact:'.ARI6_SERVER.':1')->reply()
+        ->assertRaw(static function (NutgramRequest $req): bool {
+            $rich = ari6Rich($req);
+
+            return str_contains($rich, 'بدون انتساب، هم‌دامنه با نود')
+                && str_contains($rich, 'بدون تعارض شناخته‌شده');
+        }, index: 1);
+    ari6OnlyReads();
+});
+
+it('rejects an unassigned matched-domain Host when another Node uses the same domain', function (): void {
+    $user = ari6Root();
+    ari6Link($user);
+    $state = ari6State();
+    $state['domainOnlyHosts'] = true;
+    $state['collision'] = true;
+    ari6Fake($state);
+
+    $report = app(InspectAdminArianetIpv4Dependencies::class)->handle($user->id, ARI6_SERVER);
+    expect($report['ready'])->toBeFalse()
+        ->and($report['domainMatchedHostCount'])->toBe(2)
+        ->and(implode(' ', $report['issues']))->toContain('نود دیگر');
     ari6OnlyReads();
 });
 
