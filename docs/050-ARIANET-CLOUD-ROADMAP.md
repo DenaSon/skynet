@@ -193,3 +193,44 @@ suite, PHPStan, Pint and disposable MySQL migration/rollback before approved
 merge. Live Runflare migration, API reads and Telegram iPhone/desktop
 presentation remain separate post-deploy checks; no live mapping is
 created automatically by this PR.
+
+
+## ARI-03A — Read-only IPv4 change preview (2026-11-23; PR)
+
+**Operator-approved scope:** Add one native Rich RTL «🔎 پیش‌نمایش تعویض IPv4»
+button to existing Cloud server details. For a private trusted Super Admin,
+read a fresh Cloud server snapshot and show its old IPv4, live
+`ip_change.allowed`, `pending`, `free_left`, number of previous changes and
+verified IRR fee. Read the existing Cloud Server ID ↔ Remnawave Node UUID
+mapping; show the Node management address and distinguish matching direct
+IPv4 from mismatched IPv4 and domain-based addresses. If a Node management
+hostname belongs to an existing allowed Cloudflare zone, reuse the existing
+`ManageCloudflareDns::replacementRecord` **GET-only** validation to show one
+unique editable A record's current IPv4 and proxy state. Any unavailable,
+ambiguous, out-of-zone or unsupported DNS remains **unverified**.
+
+**Safety boundary:** This is not execution readiness/authorization. The
+preview is not stored, creates no operation intent and contains **no**
+confirmation, submit, POST, PATCH or mutation route. No Cloud write Client,
+Remnawave update or Cloudflare write call is reached; all provider calls are
+GET. Display errors as unavailable, not absent; missing or non-IRR fees as
+unknown, not free. Show a warning about IP-change impact, direct IP Node
+address changes, and the incomplete scope of DNS discovery. Specifically,
+**subscription Host domains, external DNS, CDN/protocol targets, other
+Cloudflare records and actual connectivity are not exhaustively inspected**
+by ARI-03A, and therefore may require manual planning in ARI-03B/C.
+Never claim a positive match guarantees safe change or client reachability.
+
+**Acceptance:** Private root-only route isolation, safe Rich RTL and HTML
+fallback, exact source IP and fee display, native copy/current-IP button,
+refresh/back controls, tested Cloud/RW/Cloudflare GET-only integration,
+same/different/unavailable DNS, direct-IP and hostname cases, missing mapping,
+missing fee, denied and group requests; CI PHP 8.4, PHPStan, Pint and
+applicable MySQL smoke. Live Telegram/Runflare GET preview requires
+separate operator acceptance after deployment.
+
+**Explicitly out of scope:** Cloud IP replacement, Cloudflare DNS updates,
+Remnawave Node/Host address changes, purchase, root confirmation, automatic
+reconciliation/probes, persistent events, settings, ENV, database migrations,
+additional packages or new scheduler jobs. Keep `ARIANET_CLOUD_WRITES_ENABLED`
+false; ARI-03B and ARI-03C require independent operator approvals and PRs.

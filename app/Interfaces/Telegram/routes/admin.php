@@ -10,6 +10,7 @@ use App\Interfaces\Telegram\Support\AdminAccountingUi;
 use App\Interfaces\Telegram\Support\AdminAnnouncementsUi;
 use App\Interfaces\Telegram\Support\AdminArianetCloudLinksUi;
 use App\Interfaces\Telegram\Support\AdminArianetCloudUi;
+use App\Interfaces\Telegram\Support\AdminArianetIpv4PreviewUi;
 use App\Interfaces\Telegram\Support\AdminBusinessReportUi;
 use App\Interfaces\Telegram\Support\AdminCloudflareDnsUi;
 use App\Interfaces\Telegram\Support\AdminCommandCenterUi;
@@ -625,6 +626,11 @@ $bot->onCallbackQueryData('metrics:page:{days}:{page}', function (Nutgram $bot, 
 
 $bot->onCommand('servers', function (Nutgram $bot): void {
     app(AdminProviderOverviewUi::class)->show($bot);
+});
+
+// ARI-03A: root-only read-only IPv4 change preview (no confirmation or writes).
+$bot->onCallbackQueryData('ari4:preview:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
+    app(AdminArianetIpv4PreviewUi::class)->show($bot, $id, $page);
 });
 
 // ARI-02B: local Cloud/Node identity mapping with one-use root confirmation.
