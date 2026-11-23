@@ -18,7 +18,6 @@ final readonly class PreviewAdminArianetPurchase
     public function __construct(
         private AssertCatalogManagementAccess $access,
         private ArianetCloudReadClient $cloud,
-        private ReadAdminArianetCloud $catalog,
     ) {}
 
     /** @return list<array{code:string,name:string}> */
