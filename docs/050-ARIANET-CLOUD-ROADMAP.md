@@ -1,3 +1,57 @@
+# Arianet Cloud integration — authoritative delivery status (2026-11-23)
+
+**Reference:** latest `master` after [PR #559](https://github.com/DenaSon/skynet/pull/559), commit `56ca4576b24969f7f246ea68f3456e7b779ed48b`.
+
+**Read this section first.** The per-phase sections below are historical design and acceptance contracts. Early language about a mandatory `ARIANET_CLOUD_WRITE_TOKEN`, absent implementations, or "ready for PR" is superseded by this snapshot and current `master` source. Future phases listed here are **not implemented** and cannot authorize provider writes.
+
+## Delivery matrix — what is actually merged
+
+| Phase | PR | Implemented | Verification boundary |
+| --- | --- | --- | --- |
+| ARI-01A | [#548](https://github.com/DenaSon/skynet/pull/548) | Bounded, fixed-origin Cloud GET client for plans, servers, networking, costs and actions | Live Runflare GET responses observed; no real writes |
+| ARI-01B | [#549](https://github.com/DenaSon/skynet/pull/549) | Restricted, default-off single-server create / IPv4-change POST transport | Fake-HTTP tests only, not a purchase UI |
+| ARI-02A | [#550](https://github.com/DenaSon/skynet/pull/550) | Private Super Admin Rich RTL Cloud inventory, detail, plans, costs and history | Operator tested real Telegram UI |
+| ARI-02A fixes | [#552](https://github.com/DenaSon/skynet/pull/552), [#553](https://github.com/DenaSon/skynet/pull/553) | Live `vcpu`/`ram_mb` and IRR-rate fields, action-history response without pagination meta | API data shape inspected; regression CI |
+| ARI-02B | [#551](https://github.com/DenaSon/skynet/pull/551) | Durable one-to-one Cloud server ID ↔ Remnawave Node UUID mapping/relink/unlink | Linked Node observed via private UI; no external mutation |
+| ARI-03A | [#554](https://github.com/DenaSon/skynet/pull/554) | Read-only IPv4-change eligibility, exact fee, Node and management A-record preview | Real Telegram preview screenshot accepted |
+| ARI-03B | [#555](https://github.com/DenaSon/skynet/pull/555) | Non-production one-shot IPv4 action, durable intent, single POST, GET reconciliation | CI fake HTTP only; **no live IP change** |
+| ARI-01C | [#556](https://github.com/DenaSon/skynet/pull/556) | One Arianet Bearer token for reads and gated writes; hard Production POST ban | Code/tests verified, no live POST |
+| ARI-03C1 | [#557](https://github.com/DenaSon/skynet/pull/557) | Read-only Host/Node/Cloudflare dependency audit | Real Telegram audit screenshots accepted |
+| ARI-03C2 | [#558](https://github.com/DenaSon/skynet/pull/558) | Non-production staged DNS → direct-IP Host → direct-IP Node changes with durable checkpoints, GET-only recovery and client-test acceptance | Production **status screen only** tested; no live cross-provider Write |
+| ARI-03C Host ownership | [#559](https://github.com/DenaSon/skynet/pull/559) | Fix shared-Profile/Inbound false ownership and distinguish other/unassigned/shared Hosts | CI 2,155 tests / 15,837 assertions, PHPStan, Pint, MySQL; **real post-deploy audit retest pending** |
+| ARI-04 | Not started | Single Cloud VPS purchase via Admin Bot, real provisioning and handoff to NW-05 | **Not implemented / no live purchase** |
+
+All listed PRs #548–#559 are merged on `master`. Source test success, Production deployment, live UI observation, provider write acceptance and actual client-connectivity verification are **five different evidence levels**. Do not call ARI-03 end-to-end accepted based on CI or the current read-only screens.
+
+## Actual application/configuration contract
+
+- Provider API: `https://api.ariaservice.net/cloud/v1` (Cloud, **not** the separate VPS `/api/v1`).
+- One existing token, `ARIANET_CLOUD_READ_TOKEN`, is used for both Cloud GET and the guarded POST transport. Its scopes may include `cloud:servers:read` / `cloud:servers:write`, but token possession is **not** application authorization. `ARIANET_CLOUD_WRITE_TOKEN` is **obsolete** and no longer consumed.
+- Current config defaults: `ARIANET_CLOUD_TIMEOUT=10`, `ARIANET_CLOUD_WRITES_ENABLED=false`, `CLOUDFLARE_DNS_WRITES_ENABLED=false`. `REMNAWAVE_WRITES_ENABLED` is a pre-existing independent flag (example default `true`); do not change it globally simply to disable Arianet. The actual Runflare ENV must be verified separately.
+- `ArianetCloudWriteClient` always rejects a Cloud POST in `production` **even if its flag is enabled**. ARI-03B and ARI-03C2 also independently require a non-production application. Production Admin Bot shows authorized GET previews/status but must have **no execution controls** for these stages.
+- Private trusted Super Admin only; not the Sales Bot, Deniz or a filtering-triggered automation. No token or raw provider response in bot messages/logs. One-use confirmations and actor-bound authorization remain required.
+- Existing tables: `arianet_cloud_node_links` (local one-to-one mapping), `arianet_cloud_ipv4_changes` (durable one-active-operation journal, plus `coordination_state` JSON checkpoint). Never drop populated journals or blindly retry uncertain writes.
+- Reuse existing NW-01/NW-02/NW-03 supervised installation/Host assignment and NW-05 identity-preserving Node replacement. No parallel installer or billing system.
+
+## Operator-verified live read-only observations
+
+- Real Cloud server `ubuntu-2404-ovh-6eym` was shown running on IPv4 `62.144.51.204`, locally mapped to Remnawave Node `GermanyOVH` with management hostname `fr.coreflare.ir`.
+- The management A record resolved to the same IPv4 and was DNS Only. The then-current provider preview reported zero free changes and a next fee of **2,500,000 IRR = 250,000 toman**; this is a dated observation, not a standing quote or cost authorization.
+- The original impact report displayed seven apparent related Host entries and three A records, including UAE/NL addresses and a direct-IP Host on a different IPv4. It correctly reported **نیازمند رسیدگی**. Such entries must not be modified on behalf of the Arianet Node.
+- PR #559 now requires explicit `Host.nodes` membership for **confirmed** ownership. Shared membership blocks execution. Empty membership on the exact old IP or selected Node hostname remains **ambiguous**. Unassigned Hosts on another endpoint are excluded from the target list, even with a shared Profile/Inbound, but **shared configuration and unresolved ownership remain a blocking audit issue**. A Host explicitly belonging only to other Node UUIDs is excluded; address collisions still block. **Revised Production counts have not yet been visually retested after the patch**.
+- The operator confirmed ARI-03C2 Production status UI: "no coordination plan" is expected without a completed IP-change action; execute buttons correctly remain absent. This does **not** constitute a real write or client connection test.
+- **No real Cloud create, IPv4-change POST, Remnawave/Cloudflare coordination PATCH, or successful replacement of a live Node has been recorded in this Arianet sequence.**
+
+## Safe Production smoke after PR #559 deployment
+
+1. Verify deployed commit and applicable migration status; in private Admin Bot open: **کنترل پنل → سرورها → سرورهای ابری → انتخاب سرور → پیش‌نمایش تعویض IPv4 → بررسی دامنه‌ها و اتصال‌ها**.
+2. Confirm the report now separates "انتساب قطعی به نود", shared/ambiguous, other-Node and unassigned-other Host counts. UAE/NL/other-IP Hosts must not appear as **proven Cloud Node targets** solely because they share a Config Profile/Inbound.
+3. Any unassigned Host with shared settings remains a **manual review blocker**. Review actual Host UUID/membership in Remnawave instead of forcing readiness.
+4. Open **هماهنگی اتصال‌ها**: without a new completed IP change, see "no plan"; no Production write/confirmation button should exist. Confirm list/detail/history/fee/DNS read screens are unaffected.
+5. Record redacted real Telegram/Provider GET evidence. Do not change any Production write ENV or DNS/Host/IP while doing the read-only smoke.
+
+---
+
 # ARI-01A — Arianet Cloud read-only client
 
 **Status:** Source implementation prepared for PR review. No Production or live API acceptance is claimed.
