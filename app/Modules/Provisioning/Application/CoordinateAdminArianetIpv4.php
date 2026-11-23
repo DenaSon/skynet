@@ -164,6 +164,10 @@ final readonly class CoordinateAdminArianetIpv4
                 || $this->next($state) !== $index || ($state['steps'][$index]['state'] ?? null) !== 'ready') {
                 throw new RuntimeException('This coordination confirmation was already used or is not next.');
             }
+            // Reject historical direct-IP steps before reserving a write.
+            if ($state['steps'][$index]['kind'] !== 'dns') {
+                throw new RuntimeException('This operation requires manual review; only DNS steps are supported.');
+            }
             $this->assertCloudAndInventory($actorId, $serverId, $state);
             $this->assertCurrentStep($actorId, $state, $index);
             // Checkpoint BEFORE sending any external write. Even if PHP exits
@@ -174,9 +178,6 @@ final readonly class CoordinateAdminArianetIpv4
 
             try {
                 $step = $state['steps'][$index];
-                if ($step['kind'] !== 'dns') {
-                    throw new RuntimeException('Only DNS A records may be modified.');
-                }
                 $this->dns->changeA($actorId, $step['zoneId'], $step['zone'],
                     $step['record'], $state['newIp'], $step['record']['proxied'],
                     requireUniqueHostname: true);
