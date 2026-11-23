@@ -174,7 +174,7 @@ final readonly class AdminArianetCloudLinksUi
         if ($root === null) {
             return;
         }
-        if (preg_match('/\A[0-9a-f]{32}\z/D', $token) !== 1) {
+        if (preg_match('/\A[0-9a-f]{24}\z/D', $token) !== 1) {
             $this->render($bot, 'تأیید معتبر نیست؛ از ابتدا شروع کنید.', self::backToList());
 
             return;
@@ -224,20 +224,42 @@ final readonly class AdminArianetCloudLinksUi
         }
         $id = self::int($rawId, PHP_INT_MAX);
         $parent = self::int($rawParent, 100);
-        if ($id === null || $parent === null || preg_match('/\A[0-9a-f]{32}\z/D', $token) !== 1) {
+        if ($id === null || $parent === null || preg_match('/\A[0-9a-f]{24}\z/D', $token) !== 1) {
             $this->render($bot, 'درخواست معتبر نیست.', self::backToList());
 
             return;
         }
-        Cache::forget(self::pendingKey($root, $token));
-        $this->render($bot, 'عملیات لغو شد؛ ارتباط ثبت‌شده تغییری نکرد.',
+        try {
+            // The same actor lock as apply() prevents cancellation from claiming
+            // success while a confirmation has already been redeemed.
+            $cancelled = Cache::lock('arianet:link:redeem:'.$root, 30)->block(2,
+                function () use ($root, $token, $id, $parent): bool {
+                    $pending = Cache::get(self::pendingKey($root, $token));
+                    if (! is_array($pending) || ($pending['parent'] ?? null) !== $parent
+                        || ($pending['preview']['serverId'] ?? null) !== $id) {
+                        return false;
+                    }
+                    Cache::forget(self::pendingKey($root, $token));
+
+                    return true;
+                });
+        } catch (Throwable) {
+            $this->render($bot, 'لغو تأیید ممکن نشد؛ وضعیت ارتباط را بررسی کنید.',
+                self::backToDetail($id, $parent));
+
+            return;
+        }
+        $this->render($bot, $cancelled
+            ? 'عملیات لغو شد؛ ارتباط ثبت‌شده تغییری نکرد.'
+            : 'این تأیید قبلاً استفاده شده یا منقضی شده است.',
             self::backToDetail($id, $parent));
     }
 
     /** @param array<string,mixed> $preview */
     private function confirmScreen(Nutgram $bot, int $root, array $preview, int $parent): void
     {
-        $token = bin2hex(random_bytes(16));
+        // 96-bit one-time nonce keeps cancellation callbacks below Telegram's 64-byte limit.
+        $token = bin2hex(random_bytes(12));
         Cache::put(self::pendingKey($root, $token),
             ['preview' => $preview, 'parent' => $parent], now()->addMinutes(10));
         $id = $preview['serverId'];
