@@ -255,7 +255,6 @@ it('coordinates DNS and the direct-IP Host exactly once in order, then awaits a 
     expect(fn () => $service->executeNext($root['user']->id, ARI8_SERVER, 1))->toThrow(RuntimeException::class);
 });
 
-
 it('updates a direct-IP Node only after Host and DNS steps and preserves peer Nodes', function (): void {
     $root = ari8Ready();
     $api = ari8Provider();
