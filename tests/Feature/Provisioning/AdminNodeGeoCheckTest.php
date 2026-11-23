@@ -184,7 +184,7 @@ it('requires a trusted active root for every operation and private Telegram cont
     $privateBot = geocBot(987001, false);
     $privateBot->hearCallbackQueryData('geoc:list:1')->reply();
 
-    $root->update(['is_active' => false]);
+    \Illuminate\Support\Facades\DB::table('users')->where('id', $root->id)->update(['is_active' => false]);
     expect(fn () => app(NodeGeoCheck::class)->start($root->id, GEOC_NODE))
         ->toThrow(AuthorizationException::class);
     Http::assertNothingSent();
