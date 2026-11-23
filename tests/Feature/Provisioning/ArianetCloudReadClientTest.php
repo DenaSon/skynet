@@ -148,12 +148,16 @@ it('rejects missing, malformed and oversized JSON envelopes', function (): void 
 });
 
 it('sanitizes connection failures and never retries them', function (): void {
-    Http::fake(static function (): never {
+    $attempts = 0;
+    Http::fake(static function () use (&$attempts): never {
+        $attempts++;
         throw new ConnectionException('Authorization: Bearer test-read-token');
     });
 
     expect(fn () => app(ArianetCloudReadClient::class)->servers())
         ->toThrow(RuntimeException::class, 'Arianet Cloud connection failed.');
 
-    Http::assertSentCount(1);
+    expect($attempts)->toBe(1);
+    // Laravel records only requests for which the fake returns a response.
+    Http::assertNothingSent();
 });
