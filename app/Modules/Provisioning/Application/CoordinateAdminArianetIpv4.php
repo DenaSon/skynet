@@ -396,7 +396,7 @@ final readonly class CoordinateAdminArianetIpv4
     }
 
     /** @param array<string,mixed> $state
-     *  @return array<string,mixed>
+     * @return array<string,mixed>
      */
     private static function hostIdentity(array $state): array
     {
@@ -412,7 +412,6 @@ final readonly class CoordinateAdminArianetIpv4
         }
     }
 
-    /** @return object|null */
     private function operation(int $serverId): ?object
     {
         if ($serverId < 1) {
@@ -422,7 +421,6 @@ final readonly class CoordinateAdminArianetIpv4
         return DB::table(self::TABLE)->where('cloud_server_id', $serverId)->latest('id')->first();
     }
 
-    /** @return object */
     private function active(int $serverId): object
     {
         $row = DB::table(self::TABLE)->where('active_server_id', $serverId)->first();
@@ -485,8 +483,8 @@ final readonly class CoordinateAdminArianetIpv4
     }
 
     /** @template T
-     *  @param callable():T $callback
-     *  @return T
+     * @param  callable():T  $callback
+     * @return T
      */
     private function lock(int $serverId, callable $callback): mixed
     {
