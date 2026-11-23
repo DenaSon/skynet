@@ -600,9 +600,21 @@ separate Production check after deploy. SSH-key authentication of the
 existing preflight/installer is NW-SSH-KEY-02 and needs its own PR/CI/live
 acceptance; stage 1 does not license real VPS purchase.
 
-**Important integration gap:** NW-01/NW-02's current installer supports SSH **password authentication**,
-whereas this Cloud create transport takes exactly one **existing public SSH key**. Neither a
-password-based Cloud purchase nor an SSH-key installer is implemented here. Before ARI-04B
+**NW-SSH-KEY-02 dual-auth source scope (2026-11-24):** Existing NW-01/NW-02
+preflight and installer now accept an explicit `password|key` auth mode,
+with missing mode still treated as legacy Password for enqueued jobs. For key
+mode the Admin wizard selects a non-exportable dedicated server-managed
+Ed25519 identity after `root`; OpenSSH is restricted to exactly that identity
+and the existing pinned host fingerprint. UI revisits auth choice on Back,
+preserves password message deletion, retains RBAC and the separate install
+confirmation. The queue never receives private key bytes, only the mode.
+No Cloud purchases, new VPS, RW Node replacement or DNS writes are initiated
+by source changes. Green CI is **not** a live provider login or live purchase
+approval; test the actual provider-created VPS only after a separately approved
+transaction, then independently authorize cutover.
+
+**Historical integration gap (resolved in source by NW-SSH-KEY-02, pending live acceptance):** NW-01/NW-02's previous installer supported SSH **password authentication**,
+whereas this Cloud create transport takes exactly one **existing public SSH key**. The original ARI-04A work did not include password-based Cloud purchases or the later NW-SSH-KEY-02 key installer. Before ARI-04B
 live purchases and ARI-04C handoff, choose and separately approve the simplest safe way to
 bridge this mismatch; do not buy a server and assume the old installer will work.
 No real purchase or Node/DNS mutation is authorized by ARI-04A.
