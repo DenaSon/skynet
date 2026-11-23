@@ -134,8 +134,24 @@ final readonly class ReadAdminArianetCloud
         $this->access->handle($actorId);
         $this->positiveId($serverId);
         $this->pageNumber($page);
-        $result = $this->page($this->cloud->serverActions($serverId, $page, self::ACTION_PAGE_SIZE),
-            $page, self::ACTION_PAGE_SIZE);
+        $response = $this->cloud->serverActions($serverId, $page, self::ACTION_PAGE_SIZE);
+        if (array_key_exists('meta', $response)) {
+            // Preserve strict provider pagination validation when metadata exists.
+            $result = $this->page($response, $page, self::ACTION_PAGE_SIZE);
+        } else {
+            // Live Cloud server action history returns a flat data list without
+            // meta.pagination, despite page/per_page query parameters.
+            // Paginate only the received list locally; never invent totals.
+            $all = $this->listData($response, 'items');
+            $pages = max(1, (int) ceil(count($all) / self::ACTION_PAGE_SIZE));
+            if ($pages > 100 || $page > $pages) {
+                throw new RuntimeException('Cloud action history page is not available.');
+            }
+            $result = [
+                'items' => array_slice($all, ($page - 1) * self::ACTION_PAGE_SIZE, self::ACTION_PAGE_SIZE),
+                'pages' => $pages,
+            ];
+        }
         $items = [];
         foreach ($result['items'] as $row) {
             $id = self::positive($row['id'] ?? null);
