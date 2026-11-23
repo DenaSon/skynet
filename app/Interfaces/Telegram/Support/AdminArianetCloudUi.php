@@ -153,7 +153,7 @@ final readonly class AdminArianetCloudUi
 
         $fee = self::changeFee($server);
         $fields = [
-            ['وضعیت', self::statusLabel($server['status'])],
+            ['وضعیت', self::statusLabel($server['status'], false)],
             ['شناسه', (string) $id],
             ['دیتاسنتر', $server['datacenter']],
             ['پلن', $server['planId'] === null ? 'نامشخص' : '#'.$server['planId']],
@@ -282,7 +282,7 @@ final readonly class AdminArianetCloudUi
         $simple = '<b>🕒 سوابق عملیات سرور</b>'."\nصفحه ".self::digits($page).' از '.self::digits($history['pages']);
         foreach ($history['items'] as $action) {
             $label = self::operation($action['command']).' #'.$action['id'];
-            $value = self::statusLabel($action['status']).' · '.self::date($action['startedAt']);
+            $value = self::statusLabel($action['status'], true).' · '.self::date($action['startedAt']);
             $rows .= self::row($label, $value);
             $simple .= "\n".TelegramUi::escape($label).' — '.TelegramUi::escape($value);
         }
@@ -485,10 +485,14 @@ final readonly class AdminArianetCloudUi
         };
     }
 
-    private static function statusLabel(string $status): string
+    private static function statusLabel(string $status, bool $action): string
     {
+        if ($status === 'running') {
+            return $action ? '🟡 در حال انجام' : '🟢 روشن';
+        }
+
         return match ($status) {
-            'running', 'success', 'completed' => '🟢 موفق / روشن',
+            'success', 'completed' => '🟢 موفق',
             'stopped', 'powered_off', 'poweredoff' => '⏸️ خاموش',
             'building', 'starting', 'pending', 'running_action', 'in_progress' => '🟡 در حال انجام',
             'error', 'failed' => '🔴 ناموفق',
