@@ -104,6 +104,7 @@ function ari6State(): array
         'legacy' => false,
         'collision' => false,
         'brokenHosts' => false,
+        'extraHosts' => [],
     ];
 }
 
@@ -170,6 +171,7 @@ function ari6Fake(array &$state): void
                             'configProfileInboundUuid' => ARI6_INBOUND,
                         ],
                     ],
+                    ...$state['extraHosts'],
                 ]]);
         }
 
@@ -276,6 +278,88 @@ it('flags ambiguous legacy Host membership and conflicting peer Node endpoints',
     $result = app(InspectAdminArianetIpv4Dependencies::class)->handle($user->id, ARI6_SERVER);
     expect($result['ready'])->toBeFalse()
         ->and(implode(' ', $result['issues']))->toContain('قطعی نیست', 'نود دیگر');
+    ari6OnlyReads();
+});
+
+
+it('does not claim UAE, Netherlands or unrelated direct-IP Hosts via a shared Profile and Inbound', function (): void {
+    $user = ari6Root();
+    ari6Link($user);
+    $state = ari6State();
+    $commonInbound = [
+        'configProfileUuid' => ARI6_PROFILE,
+        'configProfileInboundUuid' => ARI6_INBOUND,
+    ];
+    // The same config profile/inbound is used for multiple regions. Without
+    // explicit membership or exact management endpoint, ownership is unknown.
+    $unassigned = [
+        ['remark' => 'UAE-01-SS', 'address' => 'ae1.coreflare.ir'],
+        ['remark' => 'NL-01-Reality', 'address' => 'nl01.coreflare.ir'],
+        ['remark' => 'TEST-NL-01-REALITY', 'address' => '62.144.51.150'],
+    ];
+    foreach ($unassigned as $index => $entry) {
+        $state['extraHosts'][] = [
+            'uuid' => sprintf('550e8400-e29b-41d4-a716-44665544%04d', $index + 100),
+            'remark' => $entry['remark'],
+            'address' => $entry['address'],
+            'port' => 443,
+            'isDisabled' => false,
+            'nodes' => [],
+            'inbound' => $commonInbound,
+        ];
+    }
+    // Two legacy Host records directly reference the selected Node's
+    // hostname. Keep them visible, but block writes until ownership is fixed.
+    foreach ([120, 121] as $suffix) {
+        $state['extraHosts'][] = [
+            'uuid' => sprintf('550e8400-e29b-41d4-a716-44665544%04d', $suffix),
+            'remark' => 'Frankfurt ambiguous '.$suffix,
+            'address' => 'fr.coreflare.ir',
+            'port' => 443,
+            'isDisabled' => false,
+            'nodes' => [],
+            'inbound' => $commonInbound,
+        ];
+    }
+    // This Host is explicitly assigned to a different Node, even though it
+    // also shares the profile/inbound with our Cloud Node.
+    $state['extraHosts'][] = [
+        'uuid' => '550e8400-e29b-41d4-a716-446655440199',
+        'remark' => 'peer-only',
+        'address' => 'other.coreflare.ir',
+        'port' => 443,
+        'isDisabled' => false,
+        'nodes' => [ARI6_PEER],
+        'inbound' => $commonInbound,
+    ];
+    ari6Fake($state);
+
+    $result = app(InspectAdminArianetIpv4Dependencies::class)->handle($user->id, ARI6_SERVER);
+
+    expect($result['affectedHostCount'])->toBe(4)
+        ->and($result['directHostCount'])->toBe(1)
+        ->and($result['ambiguousHostCount'])->toBe(2)
+        ->and($result['otherNodeHostCount'])->toBe(1)
+        ->and($result['unassignedOtherCount'])->toBe(3)
+        ->and(array_column($result['hosts'], 'name'))->not->toContain(
+            'UAE-01-SS', 'NL-01-Reality', 'TEST-NL-01-REALITY', 'peer-only',
+        )
+        ->and($result['dns'])->toHaveCount(2)
+        ->and($result['ready'])->toBeFalse()
+        ->and(implode(' ', $result['issues']))->toContain('قطعی نیست');
+
+    ari6Bot()->hearCallbackQueryData('ari6:impact:'.ARI6_SERVER.':1')->reply()
+        ->assertRaw(static function (NutgramRequest $req): bool {
+            $rich = ari6Rich($req);
+
+            return str_contains($rich, 'متعلق به سایر نودها')
+                && str_contains($rich, 'بدون انتساب، نشانی متفاوت')
+                && ! str_contains($rich, 'UAE-01-SS')
+                && ! str_contains($rich, 'NL-01-Reality')
+                && ! str_contains($rich, '62.144.51.150')
+                && str_contains($rich, 'Frankfurt ambiguous');
+        }, index: 1);
+
     ari6OnlyReads();
 });
 
