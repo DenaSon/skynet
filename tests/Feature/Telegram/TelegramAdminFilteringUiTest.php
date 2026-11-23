@@ -472,6 +472,7 @@ it('falls back to native HTML with identical data and buttons after a Rich trans
 });
 
 it('keeps retired Node alerts in history but excludes them from the live filtering center', function (): void {
+    config()->set('filtering.node_monitor_enabled', true);
     $root = flt04Root();
     $live = flt04Uuid(751);
     $disabled = flt04Uuid(752);
