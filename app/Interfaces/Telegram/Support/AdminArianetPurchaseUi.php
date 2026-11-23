@@ -6,6 +6,7 @@ namespace App\Interfaces\Telegram\Support;
 
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Provisioning\Application\PreviewAdminArianetPurchase;
+use App\Modules\Provisioning\Application\PurchaseAdminArianetCloud;
 use App\Modules\Provisioning\Application\ReadAdminArianetCloud;
 use Illuminate\Support\Facades\Cache;
 use SergiX44\Nutgram\Nutgram;
@@ -22,6 +23,7 @@ final readonly class AdminArianetPurchaseUi
         private PrivateTelegramUser $private,
         private ResolveTelegramActor $actors,
         private PreviewAdminArianetPurchase $preview,
+        private PurchaseAdminArianetCloud $purchase,
         private ReadAdminArianetCloud $catalog,
         private MenuRenderer $menus,
     ) {}
@@ -320,6 +322,219 @@ final readonly class AdminArianetPurchaseUi
         $this->showQuote($bot, $actor, $state);
     }
 
+    /** Prepare one immutable, actor-scoped financial confirmation. No POST. */
+    public function preparePurchase(Nutgram $bot): void
+    {
+        $actor = $this->root($bot);
+        if ($actor === null) {
+            return;
+        }
+        $draft = Cache::get(self::key($actor));
+        if (! is_array($draft) || ($draft['stage'] ?? null) !== 'quote') {
+            $this->render($bot, 'پیش‌نمایش منقضی شده است؛ دوباره شروع کنید.', self::home());
+
+            return;
+        }
+        try {
+            $prepared = $this->purchase->prepare($actor, $draft);
+        } catch (Throwable) {
+            $this->render($bot, 'آماده‌سازی خرید ممکن نیست؛ فعال‌بودن مجوز خرید، موجودی پلن و درخواست‌های قبلی را بررسی کنید. هیچ خرید جدیدی انجام نشد.',
+                self::purchaseBack());
+
+            return;
+        }
+        $id = $prepared['id'];
+        $q = $prepared['quote'];
+        $p = $q['plan'];
+        $fields = [
+            ['نام سرور', $q['name']],
+            ['دیتاسنتر', $p['datacenter']],
+            ['پلن', $p['name'].' #'.$p['id']],
+            ['سیستم‌عامل', $q['image']],
+            ['کلید SSH', $q['sshKeyName'].' #'.$q['sshKeyId']],
+            ['هزینه پایه هر ساعت', TelegramUi::tomanPersian($p['hourlyRials']).' تومان'],
+            ['برآورد ماهانه پایه', TelegramUi::tomanPersian($p['monthlyRials']).' تومان'],
+            ['حداقل هزینه پایه', TelegramUi::tomanPersian($q['minimumRials']).' تومان'],
+        ];
+        $rows = '';
+        $fallback = '<b>🔴 تأیید خرید واقعی یک VPS</b>';
+        foreach ($fields as [$label, $value]) {
+            $rows .= self::row($label, $value);
+            $fallback .= "\n".TelegramUi::escape($label).': '.TelegramUi::escape($value);
+        }
+        $warning = 'با تأیید، ساخت واقعی VPS آغاز می‌شود و هزینه ساعتی ادامه دارد؛ خاموش‌کردن سرور هزینه را متوقف نمی‌کند. '
+            .'برآوردها فقط قیمت پایه پلن و بدون مالیات هستند؛ هزینه IPv4 و موارد جانبی ممکن است اضافه شوند. '
+            .'موجودی لازم برای سفارش ممکن است حداقل معادل ۲۴ ساعت باشد. '
+            .'تأیید یک‌بارمصرف است؛ پاسخ نامشخص هرگز باعث سفارش دوم نمی‌شود. نصب یا جایگزینی نود در این مرحله انجام نمی‌شود.';
+        $buttons = InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('🔴 تأیید خرید و هزینه ساعتی',
+                callback_data: 'ari8:purchase:apply:'.$id.':'.$prepared['token']))
+            ->addRow(InlineKeyboardButton::make('❌ لغو درخواست', callback_data: 'ari8:purchase:cancel:'.$id.':'.$prepared['token']))
+            ->addRow(InlineKeyboardButton::make('◀️ پیش‌نمایش', callback_data: 'ari8:review'));
+        $this->render($bot, $fallback."\n\n".TelegramUi::escape($warning), $buttons,
+            '<h2>🔴 تأیید خرید واقعی یک VPS</h2><table bordered striped compact>'.$rows.'</table>'
+            .'<footer>'.TelegramUi::escape($warning).'</footer>');
+    }
+
+    public function applyPurchase(Nutgram $bot, string $rawId, string $token): void
+    {
+        $actor = $this->root($bot);
+        if ($actor === null) {
+            return;
+        }
+        $id = self::number($rawId, PHP_INT_MAX);
+        if ($id === null) {
+            $this->render($bot, 'درخواست معتبر نیست.', self::purchaseBack());
+
+            return;
+        }
+        try {
+            $result = $this->purchase->confirm($actor, $id, $token);
+        } catch (Throwable) {
+            $this->render($bot, 'تأیید خرید انجام نشد یا قبلاً مصرف شده است. فقط وضعیت همان سفارش را بررسی کنید؛ درخواست جدید نسازید.',
+                self::purchaseStatusButtons($id));
+
+            return;
+        }
+
+        $this->purchaseStatusMessage($bot, $result);
+    }
+
+    public function cancelPurchase(Nutgram $bot, string $rawId, string $token): void
+    {
+        $actor = $this->root($bot);
+        if ($actor === null) {
+            return;
+        }
+        $id = self::number($rawId, PHP_INT_MAX);
+        if ($id === null) {
+            $this->render($bot, 'درخواست معتبر نیست.', self::purchaseBack());
+
+            return;
+        }
+        try {
+            $this->purchase->cancel($actor, $id, $token);
+            $this->render($bot, 'درخواست خرید لغو شد؛ هیچ سفارش جدیدی ارسال نشده است.', self::purchaseBack());
+        } catch (Throwable) {
+            $this->render($bot, 'لغو این درخواست ممکن نیست؛ ممکن است قبلاً تأیید شده باشد. وضعیت را بررسی کنید.',
+                self::purchaseStatusButtons($id));
+        }
+    }
+
+    public function recentPurchase(Nutgram $bot): void
+    {
+        $actor = $this->root($bot);
+        if ($actor === null) {
+            return;
+        }
+        try {
+            $id = $this->purchase->recent($actor);
+        } catch (Throwable) {
+            $id = null;
+        }
+        if ($id === null) {
+            $this->render($bot, 'سفارش قبلی برای نمایش پیدا نشد.', self::purchaseBack());
+
+            return;
+        }
+        $this->statusPurchase($bot, (string) $id);
+    }
+
+    public function statusPurchase(Nutgram $bot, string $rawId): void
+    {
+        $actor = $this->root($bot);
+        if ($actor === null) {
+            return;
+        }
+        $id = self::number($rawId, PHP_INT_MAX);
+        if ($id === null) {
+            $this->render($bot, 'شماره سفارش معتبر نیست.', self::purchaseBack());
+
+            return;
+        }
+        try {
+            $result = $this->purchase->status($actor, $id);
+        } catch (Throwable) {
+            $this->render($bot, 'دریافت وضعیت سفارش ممکن نیست.', self::purchaseBack());
+
+            return;
+        }
+        $this->purchaseStatusMessage($bot, $result);
+    }
+
+    public function reconcilePurchase(Nutgram $bot, string $rawId): void
+    {
+        $actor = $this->root($bot);
+        if ($actor === null) {
+            return;
+        }
+        $id = self::number($rawId, PHP_INT_MAX);
+        if ($id === null) {
+            $this->render($bot, 'شماره سفارش معتبر نیست.', self::purchaseBack());
+
+            return;
+        }
+        try {
+            $result = $this->purchase->reconcile($actor, $id);
+        } catch (Throwable) {
+            $this->render($bot, 'بررسی نتیجه در آریاسرویس ممکن نیست؛ درخواست خرید را تکرار نکنید.',
+                self::purchaseStatusButtons($id));
+
+            return;
+        }
+        $this->purchaseStatusMessage($bot, $result);
+    }
+
+    /** @param array<string,mixed> $result */
+    private function purchaseStatusMessage(Nutgram $bot, array $result): void
+    {
+        $state = match ($result['status']) {
+            'prepared' => 'منتظر تأیید',
+            'accepted' => 'ساخت توسط آریاسرویس پذیرفته شد؛ هنوز آماده بودن تأیید نشده',
+            'completed' => 'عملیات ساخت طبق پاسخ API موفق شد؛ اتصال SSH هنوز تست نشده',
+            'uncertain', 'reserved' => 'نتیجه نامشخص؛ خرید را دوباره انجام ندهید',
+            'needs_review' => 'نیازمند بررسی دستی؛ از خرید دوباره خودداری کنید',
+            'cancelled' => 'لغوشده، بدون ارسال سفارش',
+            'expired' => 'منقضی‌شده، بدون ارسال سفارش',
+            default => 'نامشخص؛ بررسی دستی لازم است',
+        };
+        $fields = [
+            ['شماره درخواست', (string) $result['id']],
+            ['نام سرور', $result['name']],
+            ['وضعیت', $state],
+            ['هزینه پایه ساعتی', TelegramUi::tomanPersian($result['hourlyRials']).' تومان'],
+            ['شناسه سرور ابری', $result['serverId'] === null ? 'هنوز تأیید نشده' : (string) $result['serverId']],
+            ['شناسه عملیات', $result['actionId'] === null ? 'هنوز تأیید نشده' : (string) $result['actionId']],
+        ];
+        $rows = '';
+        $fallback = '<b>☁️ وضعیت درخواست VPS</b>';
+        foreach ($fields as [$label, $value]) {
+            $rows .= self::row($label, $value);
+            $fallback .= "\n".TelegramUi::escape($label).': '.TelegramUi::escape($value);
+        }
+        $warning = 'تأیید دریافت سفارش با آماده‌شدن VPS متفاوت است. برای نتیجه نامشخص هیچ خرید دومی ثبت نکنید. '
+            .'نصب یا جایگزینی نود نیازمند مرحله و تأیید مستقل است.';
+        $this->render($bot, $fallback."\n\n".TelegramUi::escape($warning),
+            self::purchaseStatusButtons($result['id']),
+            '<h2>☁️ وضعیت درخواست VPS</h2><table bordered striped compact>'.$rows.'</table>'
+            .'<footer>'.TelegramUi::escape($warning).'</footer>');
+    }
+
+    private static function purchaseStatusButtons(int $id): InlineKeyboardMarkup
+    {
+        return InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('🔄 بررسی وضعیت در آریاسرویس', callback_data: 'ari8:purchase:reconcile:'.$id))
+            ->addRow(InlineKeyboardButton::make('◀️ سرورهای ابری', callback_data: 'ari2:list:1'));
+    }
+
+    private static function purchaseBack(): InlineKeyboardMarkup
+    {
+        return InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('📋 آخرین درخواست', callback_data: 'ari8:purchase:recent'))
+            ->addRow(InlineKeyboardButton::make('◀️ پیش‌نمایش خرید', callback_data: 'ari8:review'))
+            ->addRow(InlineKeyboardButton::make('◀️ سرورهای ابری', callback_data: 'ari2:list:1'));
+    }
+
     public function cancel(Nutgram $bot): void
     {
         $actor = $this->root($bot);
@@ -346,6 +561,10 @@ final readonly class AdminArianetPurchaseUi
 
             return;
         }
+        if ($this->purchase->enabled()) {
+            $back->addRow(InlineKeyboardButton::make('💳 بررسی و تأیید خرید واقعی', callback_data: 'ari8:purchase:prepare'));
+        }
+        $back->addRow(InlineKeyboardButton::make('📋 آخرین سفارش', callback_data: 'ari8:purchase:recent'));
         $plan = $q['plan'];
         $data = [
             ['نام سرور', $q['name']],
@@ -366,7 +585,9 @@ final readonly class AdminArianetPurchaseUi
             $fallback .= "\n".TelegramUi::escape($label).': '.TelegramUi::escape($value);
         }
         $notice = 'این فقط نرخ پایه پلن است؛ هزینه IPv4، مالیات یا موارد جانبی در صورت شمول باید هنگام خرید واقعی بررسی شوند. '
-            .'استقرار و اتصال خودکار نود هنوز فعال نیست. هیچ سفارش یا هزینه‌ای ایجاد نشده است.';
+            .'موجودی لازم برای سفارش ممکن است حداقل معادل ۲۴ ساعت باشد. مبلغ‌های پایه بدون مالیات هستند. '
+            .'خاموش‌کردن سرور هزینه را متوقف نمی‌کند؛ حذف سرور ممکن است هزینه‌های جداگانه را باقی بگذارد. '
+            .'هیچ سفارشی تا تأیید صریح نهایی ثبت نمی‌شود.';
         $this->render($bot, $fallback."\n\n".TelegramUi::escape($notice), $back,
             '<h2>☁️ پیش‌نمایش خرید یک سرور</h2><table bordered striped compact>'.$rows.'</table>'
             .'<footer>🔒 '.TelegramUi::escape($notice).'</footer>');
