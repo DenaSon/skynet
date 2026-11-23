@@ -281,7 +281,6 @@ it('flags ambiguous legacy Host membership and conflicting peer Node endpoints',
     ari6OnlyReads();
 });
 
-
 it('does not claim UAE, Netherlands or unrelated direct-IP Hosts via a shared Profile and Inbound', function (): void {
     $user = ari6Root();
     ari6Link($user);
