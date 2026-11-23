@@ -28,6 +28,12 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'arianet_cloud' => [
+        // Independent Cloud inventory token: cloud:servers:read only.
+        'read_token' => env('ARIANET_CLOUD_READ_TOKEN'),
+        'timeout' => (int) env('ARIANET_CLOUD_TIMEOUT', 10),
+    ],
+
     'cloudflare' => [
         'token' => env('CLOUDFLARE_API_TOKEN'),
         'allowed_zones' => env('CLOUDFLARE_ALLOWED_ZONES', ''),

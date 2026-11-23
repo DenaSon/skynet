@@ -1,3 +1,13 @@
+## ARI-01A — Arianet Cloud read-only transport (2026-11-23; source PR)
+
+Operator-approved incremental integration starts with a fixed-origin, GET-only Cloud
+API client for catalog, bounded server inventory/details, networking/IP-change
+status, cost and async-action history. No write-capable token, purchase, IP swap,
+Cloudflare/Remnawave mutations, Telegram UI, migration, scheduler or new dependency.
+The VPS `/api/v1` product is separate. Offline fake-HTTP tests and PR CI are
+required; real read-only API acceptance with an independently scoped secret is
+separate and pending. See [ARI-01A contract](050-ARIANET-CLOUD-ROADMAP.md).
+
 ## SUP-DIAG-02 — root-only private support IP and subscription history (2026-11-22; code under review)
 
 Operator-approved **two-PR** completion, preserving the earlier exact service ownership, trusted root check and read-only diagnostics: [#529](https://github.com/DenaSon/skynet/pull/529) adds on-demand per-node IPv4/IPv6 details, country code, last-seen (Tehran/relative), bounded 10 newest IPs/node in 5-item pages and native copy; the original result overview stays IP-free. [#530](https://github.com/DenaSon/skynet/pull/530) completes the existing 24-record subscription history with request IP, sanitized User-Agent, response type/rule and four records/page. **No new Provider operation, automatic job, persistent PII, migration, dependency, Deniz permission, or Sales Bot exposure.** Neither observation proves live VPN connectivity. Preserve owner/RBAC checks, existing connection gate/TTL/idempotency and short-lived Cache. CI, separate live private Telegram/API testing, reviewed merge and Production rollout evidence are required before closing. Full scoped safety/acceptance: [docs/049](049-SUPPORT-DIAGNOSTICS-SUP01.md).
