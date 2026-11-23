@@ -360,6 +360,13 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     ] as $name) {
         $expected['ADMIN'][] = 'callback:geoc:'.$name;
     }
+    // ARI-02B: local Cloud-to-Node mapping confirmation is root-only.
+    foreach ([
+        'nodes:{id}:{parent}:{page}', 'pick:{id}:{parent}:{index}:{token}',
+        'unlink:{id}:{parent}', 'apply:{token}', 'cancel:{token}:{id}:{parent}',
+    ] as $name) {
+        $expected['ADMIN'][] = 'callback:ari3:'.$name;
+    }
     // ARI-02A: GET-only private trusted-root Cloud inventory/UI, Admin Bot only.
     foreach ([
         'list:{page}', 'view:{id}:{page}', 'cost:{id}:{page}',
@@ -400,8 +407,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(359)
-        ->and(count(array_unique($legacy)))->toBe(359);
+        ->and(count($legacy))->toBe(364)
+        ->and(count(array_unique($legacy)))->toBe(364);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {
