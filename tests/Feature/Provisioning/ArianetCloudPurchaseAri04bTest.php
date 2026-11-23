@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Interfaces\Telegram\Support\AdminArianetPurchaseUi;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Application\PurchaseAdminArianetCloud;
@@ -11,6 +12,11 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Cache;
+use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Properties\ChatType;
+use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
+use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 
 uses(RefreshDatabase::class);
 
@@ -240,4 +246,49 @@ it('ARI-04B Production purchase gate is independent of the old IPv4 write permis
     } finally {
         app()->detectEnvironment(static fn (): string => 'testing');
     }
+});
+
+it('ARI-04B exposes the paid action only behind the independent off-by-default switch', function (): void {
+    $actor = ari04bUser();
+    ari04bFake();
+    $draft = ['stage' => 'quote', ...ari04bSelection()];
+    Cache::put('ari8:quote:'.$actor->id, $draft, now()->addMinutes(15));
+
+    $bot = Mockery::mock(Nutgram::class);
+    $bot->shouldReceive('chat')->andReturn(Chat::make(993301, ChatType::PRIVATE));
+    $bot->shouldReceive('user')->andReturn(TelegramUser::make(993301, false, 'Operator'));
+    $bot->shouldReceive('isCallbackQuery')->andReturn(false);
+    $buttons = null;
+    $bot->shouldReceive('sendRichMessage')->andReturnUsing(function (...$args) use (&$buttons): null {
+        foreach ($args as $argument) {
+            if ($argument instanceof \SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup) {
+                $buttons = json_encode($argument, JSON_THROW_ON_ERROR);
+            }
+        }
+
+        return null;
+    });
+
+    config()->set('services.arianet_cloud.purchase_enabled', false);
+    app(AdminArianetPurchaseUi::class)->review($bot);
+    expect($buttons)->not->toContain('ari8:purchase:prepare');
+
+    config()->set('services.arianet_cloud.purchase_enabled', true);
+    app(AdminArianetPurchaseUi::class)->review($bot);
+    expect($buttons)->toContain('ari8:purchase:prepare');
+    Http::assertNotSent(static fn (Request $r): bool => $r->method() === 'POST');
+});
+
+it('ARI-04B denies a group or delegated Admin UI paid callback without any provider POST', function (): void {
+    $member = ari04bUser(false);
+    ari04bFake();
+    Cache::put('ari8:quote:'.$member->id, ['stage' => 'quote', ...ari04bSelection()], now()->addMinutes(15));
+    $bot = Mockery::mock(Nutgram::class);
+    $bot->shouldReceive('chat')->andReturn(Chat::make(993302, ChatType::PRIVATE));
+    $bot->shouldReceive('user')->andReturn(TelegramUser::make(993302, false, 'Member'));
+    $bot->shouldReceive('isCallbackQuery')->andReturn(false);
+    $bot->shouldReceive('sendMessage')->andReturnNull();
+    app(AdminArianetPurchaseUi::class)->preparePurchase($bot);
+    expect(DB::table('arianet_cloud_purchases')->count())->toBe(0);
+    Http::assertNothingSent();
 });
