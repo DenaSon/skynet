@@ -131,7 +131,7 @@ function ari04aFake(
                 return Http::response(['success' => false,
                     'error' => ['code' => 'INSUFFICIENT_SCOPE']], 403);
             }
-            $page = (int) ($r->data()['page'] ?? 1);
+            $page = str_contains($url, 'page=2') ? 2 : 1;
             if ($page === 2) {
                 return Http::response(['success' => true, 'data' => [
                     ['id' => 8, 'name' => '<b>other-key</b>', 'datacenter_id' => 9],
@@ -259,6 +259,7 @@ it('shows friendly empty-list and permission errors without exposing key materia
             str_contains(ari04aRich($r), 'کلید SSH ثبت‌شده‌ای')
             && ! ari04aHas($r, 'ari8:key:7:1'), index: 0);
 
+    Http::fake();
     ari04aFake(keysForbidden: true);
     $bot->hearCallbackQueryData('ari8:keys:1')->reply()
         ->assertRaw(static fn (NutgramRequest $r): bool =>
