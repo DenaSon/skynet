@@ -10,12 +10,13 @@ use App\Modules\Provisioning\Infrastructure\Arianet\ArianetCloudWriteClient;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Cache;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
+use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 
 uses(RefreshDatabase::class);
@@ -261,7 +262,7 @@ it('ARI-04B exposes the paid action only behind the independent off-by-default s
     $buttons = null;
     $bot->shouldReceive('sendRichMessage')->andReturnUsing(function (...$args) use (&$buttons): null {
         foreach ($args as $argument) {
-            if ($argument instanceof \SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup) {
+            if ($argument instanceof InlineKeyboardMarkup) {
                 $buttons = json_encode($argument, JSON_THROW_ON_ERROR);
             }
         }
