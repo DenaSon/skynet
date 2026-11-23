@@ -362,10 +362,9 @@ final readonly class AdminArianetPurchaseUi
             $rows .= self::row($label, $value);
             $fallback .= "\n".TelegramUi::escape($label).': '.TelegramUi::escape($value);
         }
-        $warning = 'با تأیید، ساخت واقعی VPS آغاز می‌شود و هزینه ساعتی ادامه دارد؛ خاموش‌کردن سرور هزینه را متوقف نمی‌کند. '
-            .'برآوردها فقط قیمت پایه پلن و بدون مالیات هستند؛ هزینه IPv4 و موارد جانبی ممکن است اضافه شوند. '
-            .'موجودی لازم برای سفارش ممکن است حداقل معادل ۲۴ ساعت باشد. '
-            .'تأیید یک‌بارمصرف است؛ پاسخ نامشخص هرگز باعث سفارش دوم نمی‌شود. نصب یا جایگزینی نود در این مرحله انجام نمی‌شود.';
+        $warning = 'تأیید، خرید واقعی و هزینه ساعتی حتی در حالت خاموش را آغاز می‌کند. '
+            .'قیمت پایه است؛ IPv4، مالیات و هزینه‌های جانبی ممکن است اضافه شوند و موجودی ۲۴ ساعت لازم باشد. '
+            .'تأیید یک‌بارمصرف است؛ نصب نود جداگانه انجام می‌شود.';
         $buttons = InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('🔴 تأیید خرید و هزینه ساعتی',
                 callback_data: 'ari8:purchase:apply:'.$id.':'.$prepared['token']))
@@ -489,14 +488,14 @@ final readonly class AdminArianetPurchaseUi
     private function purchaseStatusMessage(Nutgram $bot, array $result): void
     {
         $state = match ($result['status']) {
-            'prepared' => 'منتظر تأیید',
-            'accepted' => 'ساخت توسط آریاسرویس پذیرفته شد؛ هنوز آماده بودن تأیید نشده',
-            'completed' => 'عملیات ساخت طبق پاسخ API موفق شد؛ اتصال SSH هنوز تست نشده',
-            'uncertain', 'reserved' => 'نتیجه نامشخص؛ خرید را دوباره انجام ندهید',
-            'needs_review' => 'نیازمند بررسی دستی؛ از خرید دوباره خودداری کنید',
-            'cancelled' => 'لغوشده، بدون ارسال سفارش',
-            'expired' => 'منقضی‌شده، بدون ارسال سفارش',
-            default => 'نامشخص؛ بررسی دستی لازم است',
+            'prepared' => 'منتظر تأیید خرید',
+            'accepted' => 'در حال ساخت',
+            'completed' => 'ساخت تأیید شد؛ اتصال SSH بررسی نشده',
+            'reserved', 'uncertain' => 'نتیجه خرید نامشخص',
+            'needs_review' => 'نیازمند بررسی',
+            'cancelled' => 'لغوشده',
+            'expired' => 'منقضی‌شده',
+            default => 'وضعیت نامشخص',
         };
         $fields = [
             ['شماره درخواست', (string) $result['id']],
@@ -512,12 +511,13 @@ final readonly class AdminArianetPurchaseUi
             $rows .= self::row($label, $value);
             $fallback .= "\n".TelegramUi::escape($label).': '.TelegramUi::escape($value);
         }
-        $warning = 'تأیید دریافت سفارش با آماده‌شدن VPS متفاوت است. برای نتیجه نامشخص هیچ خرید دومی ثبت نکنید. '
-            .'نصب یا جایگزینی نود نیازمند مرحله و تأیید مستقل است.';
-        $this->render($bot, $fallback."\n\n".TelegramUi::escape($warning),
+        $warning = in_array($result['status'], ['reserved', 'uncertain', 'needs_review'], true)
+            ? '⚠️ وضعیت قطعی نیست؛ سفارش جدید ثبت نکنید.'
+            : '';
+        $this->render($bot, $fallback.($warning === '' ? '' : "\n\n".TelegramUi::escape($warning)),
             self::purchaseStatusButtons($result['id']),
             '<h2>☁️ وضعیت درخواست VPS</h2><table bordered striped compact>'.$rows.'</table>'
-            .'<footer>'.TelegramUi::escape($warning).'</footer>');
+            .($warning === '' ? '' : '<footer>'.TelegramUi::escape($warning).'</footer>'));
     }
 
     private static function purchaseStatusButtons(int $id): InlineKeyboardMarkup
@@ -561,8 +561,9 @@ final readonly class AdminArianetPurchaseUi
 
             return;
         }
-        if ($this->purchase->enabled()) {
-            $back->addRow(InlineKeyboardButton::make('💳 بررسی و تأیید خرید واقعی', callback_data: 'ari8:purchase:prepare'));
+        $purchaseEnabled = $this->purchase->enabled();
+        if ($purchaseEnabled) {
+            $back->addRow(InlineKeyboardButton::make('🛒 ادامه خرید', callback_data: 'ari8:purchase:prepare'));
         }
         $back->addRow(InlineKeyboardButton::make('📋 آخرین سفارش', callback_data: 'ari8:purchase:recent'));
         $plan = $q['plan'];
@@ -584,10 +585,8 @@ final readonly class AdminArianetPurchaseUi
             $rows .= self::row($label, $value);
             $fallback .= "\n".TelegramUi::escape($label).': '.TelegramUi::escape($value);
         }
-        $notice = 'این فقط نرخ پایه پلن است؛ هزینه IPv4، مالیات یا موارد جانبی در صورت شمول باید هنگام خرید واقعی بررسی شوند. '
-            .'موجودی لازم برای سفارش ممکن است حداقل معادل ۲۴ ساعت باشد. مبلغ‌های پایه بدون مالیات هستند. '
-            .'خاموش‌کردن سرور هزینه را متوقف نمی‌کند؛ حذف سرور ممکن است هزینه‌های جداگانه را باقی بگذارد. '
-            .'هیچ سفارش یا هزینه‌ای بدون تأیید صریح نهایی ایجاد نمی‌شود.';
+        $notice = 'مبلغ‌ها فقط نرخ پایه پلن هستند؛ IPv4، مالیات و هزینه‌های جانبی ممکن است اضافه شوند. '
+            .($purchaseEnabled ? 'خرید فقط پس از تأیید نهایی انجام می‌شود.' : 'خرید فعلاً غیرفعال است.');
         $this->render($bot, $fallback."\n\n".TelegramUi::escape($notice), $back,
             '<h2>☁️ پیش‌نمایش خرید یک سرور</h2><table bordered striped compact>'.$rows.'</table>'
             .'<footer>🔒 '.TelegramUi::escape($notice).'</footer>');
