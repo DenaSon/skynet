@@ -506,15 +506,21 @@ it('keeps retired Node alerts in history but excludes them from the live filteri
 
     $bot = flt04Bot();
     $bot->hearCallbackQueryData('flt:history:1')->reply()->assertRaw(
-        static fn (NutgramRequest $request): bool => str_contains(
-            json_encode(flt04Payload($request), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE), 'خارج از پنل',
-        ),
+        static function (NutgramRequest $request): bool {
+            $rich = flt04Payload($request)['rich_message'] ?? [];
+            $html = is_string($rich) ? (json_decode($rich, true)['html'] ?? '') : ($rich['html'] ?? '');
+
+            return str_contains($html, 'خارج از پنل');
+        },
         index: 1,
     );
     $bot->hearCallbackQueryData('flt:incident:'.$incidentId)->reply()->assertRaw(
-        static fn (NutgramRequest $request): bool => str_contains(
-            json_encode(flt04Payload($request), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE), 'دیگر در پنل موجود نیست',
-        ),
+        static function (NutgramRequest $request): bool {
+            $rich = flt04Payload($request)['rich_message'] ?? [];
+            $html = is_string($rich) ? (json_decode($rich, true)['html'] ?? '') : ($rich['html'] ?? '');
+
+            return str_contains($html, 'دیگر در پنل موجود نیست');
+        },
         index: 1,
     );
 
