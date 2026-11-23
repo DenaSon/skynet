@@ -14,9 +14,8 @@ use RuntimeException;
 use Throwable;
 
 /**
- * ARI-03B: durable, one-shot IPv4 change in an isolated NON-production environment.
- * Never attempts DNS or Remnawave writes. Completion means the Cloud IP changed,
- * not that clients work; the active server remains blocked pending ARI-03C.
+ * ARI-03D: one-shot confirmed IPv4 change. DNS coordination follows only after
+ * the Cloud action succeeds; no Remnawave writes or blind request retries.
  */
 final readonly class ChangeAdminArianetIpv4
 {
@@ -25,6 +24,8 @@ final readonly class ChangeAdminArianetIpv4
     public function __construct(
         private AssertCatalogManagementAccess $access,
         private PreviewAdminArianetIpv4Change $previews,
+        private InspectAdminArianetIpv4Dependencies $dependencies,
+        private ManageCloudflareDns $dns,
         private ArianetCloudWriteClient $write,
         private ArianetCloudReadClient $read,
     ) {}
@@ -33,8 +34,7 @@ final readonly class ChangeAdminArianetIpv4
     {
         $token = config('services.arianet_cloud.read_token');
 
-        return ! app()->environment('production')
-            && config('services.arianet_cloud.writes_enabled') === true
+        return config('services.arianet_cloud.writes_enabled') === true
             && is_string($token) && trim($token) !== '';
     }
 
@@ -260,11 +260,24 @@ final readonly class ChangeAdminArianetIpv4
             || ! is_int($preview['freeLeft']) || $preview['freeLeft'] < 0
             || ($preview['freeLeft'] === 0 && (! is_int($preview['feeRials']) || $preview['feeRials'] < 1))
             || ! is_string($preview['nodeUuid'])
-            || ! in_array($preview['nodeState'], ['ip_match', 'hostname'], true)
-            || ($preview['nodeState'] === 'hostname' && ($preview['dns']['state'] !== 'match'
-                || $preview['dns']['proxied'] !== false))) {
+            || $preview['nodeState'] !== 'hostname'
+            || $preview['dns']['state'] !== 'match'
+            || $preview['dns']['proxied'] !== false
+            || ! $this->dns->enabled()) {
             throw new RuntimeException('Cloud/Node/DNS or price readiness could not be verified.');
         }
+
+        // A reusable Profile/Inbound does not establish ownership. Include
+        // only verified Node memberships and their managed A records.
+        $impact = $this->dependencies->handle($actorId, $serverId);
+        if (! $impact['ready'] || $impact['issues'] !== []
+            || $impact['dns'] === [] || $impact['directHostCount'] !== 0
+            || $impact['oldIp'] !== $ip
+            || $impact['nodeAddress'] !== ($preview['node']['address'] ?? null)) {
+            throw new RuntimeException('Related DNS records or Host ownership require review.');
+        }
+        $preview['dnsTargets'] = $impact['dns'];
+        $preview['affectedHosts'] = $impact['hosts'];
 
         return $preview;
     }
@@ -290,6 +303,7 @@ final readonly class ChangeAdminArianetIpv4
             $preview['changeAllowed'], $preview['pending'], $preview['freeLeft'],
             $preview['changeUsed'], $preview['feeRials'], $preview['nodeUuid'],
             $preview['node']['address'] ?? null, $preview['nodeState'], $preview['dns'],
+            $preview['dnsTargets'] ?? [], $preview['affectedHosts'] ?? [],
         ];
 
         return hash('sha256', json_encode($snapshot, JSON_THROW_ON_ERROR));
