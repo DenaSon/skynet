@@ -15,6 +15,13 @@ final readonly class NodeSetupReadiness
         private NodeSshPreflight $ssh,
     ) {}
 
+    public function keyAvailable(int $actorId): bool
+    {
+        $this->access->handle($actorId);
+
+        return $this->ssh->keyAvailable();
+    }
+
     public function validateTarget(int $actorId, string $ip, int $port): void
     {
         $this->access->handle($actorId);
@@ -29,10 +36,10 @@ final readonly class NodeSetupReadiness
         return $this->ssh->scan($ip, $port);
     }
 
-    public function check(int $actorId, string $ip, int $port, string $username, string $password, string $knownHost): string
+    public function check(int $actorId, string $ip, int $port, string $username, string $password, string $knownHost, string $authMode = 'password'): string
     {
         $this->access->handle($actorId);
 
-        return $this->ssh->check($ip, $port, $username, $password, $knownHost);
+        return $this->ssh->check($ip, $port, $username, $password, $knownHost, $authMode);
     }
 }
