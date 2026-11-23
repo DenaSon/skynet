@@ -30,7 +30,7 @@ final class FilteringFoundation
 
     private const COUNTERS = [
         'online_users', 'rx_bytes_per_sec', 'tx_bytes_per_sec',
-        'online_reference', 'traffic_reference',
+        'online_reference', 'traffic_reference', 'traffic_drop_percent',
         'completed_probes', 'failed_probes', 'asn_count', 'city_count',
         'failed_asn_count', 'failed_city_count', 'pending_probes',
     ];
