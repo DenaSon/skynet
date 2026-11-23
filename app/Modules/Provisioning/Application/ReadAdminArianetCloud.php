@@ -204,8 +204,10 @@ final readonly class ReadAdminArianetCloud
             $items[] = [
                 'id' => $id,
                 'name' => self::short($row['name'] ?? null, 35),
-                'cores' => self::positive($row['cores'] ?? null),
-                'memoryMb' => self::nonnegative($row['memory_mb'] ?? null),
+                // Live Cloud /plans uses vcpu and ram_mb. Keep the older
+                // fixture keys as a harmless fallback for compatible payloads.
+                'cores' => self::positive($row['vcpu'] ?? $row['cores'] ?? null),
+                'memoryMb' => self::nonnegative($row['ram_mb'] ?? $row['memory_mb'] ?? null),
                 'diskGb' => self::nonnegative($row['disk_gb'] ?? null),
                 'hourlyRials' => self::planPrice($row, $datacenter, 'hourly'),
                 'monthlyRials' => self::planPrice($row, $datacenter, 'monthly'),
@@ -330,6 +332,13 @@ final readonly class ReadAdminArianetCloud
     private static function planPrice(array $plan, string $datacenter, string $period): ?int
     {
         $name = $period === 'hourly' ? 'price_hourly' : 'price_monthly';
+        // Verified live /plans returns flat hourly_price/monthly_price in IRR.
+        // Do not display a number as tomans unless the currency is explicit.
+        $liveKey = $period === 'hourly' ? 'hourly_price' : 'monthly_price';
+        $livePrice = $plan[$liveKey] ?? null;
+        if (is_int($livePrice) && $livePrice >= 0 && ($plan['currency'] ?? null) === 'IRR') {
+            return $livePrice;
+        }
         $plain = $plan[$name] ?? null;
         if (is_int($plain) && $plain >= 0 && ($plan['currency'] ?? null) === 'IRR') {
             return $plain;
