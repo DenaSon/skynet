@@ -172,7 +172,7 @@ it('blocks sold-out, non-IRR, closed and invalid-image or key quotes without any
         );
         expect(fn () => app(PreviewAdminArianetPurchase::class)->quote(
             $root->id, 'ovh', 8, $issue === 'image' ? 'centos-9' : 'ubuntu-24.04',
-            'denagate-test', 7))->toThrow(\Exception::class);
+            'denagate-test', 7))->toThrow(Exception::class);
     }
     ari04aOnlyReads();
 });
