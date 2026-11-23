@@ -1,3 +1,13 @@
+## ARI-04A UX patch — choose existing SSH keys from Admin Bot (2026-11-23)
+
+Scoped improvement to the merged ARI-04A GET-only quote: after typing the server
+name, list the existing account SSH public keys as paginated inline buttons
+instead of requiring manual numeric IDs. Use the existing Bearer token and
+`ssh-keys:read`, validate that the selected key is still listed in the
+actor-owned draft/page and refresh the pre-existing quote verification. Do
+not display key material, enable SSH-key creation, implement a purchase, touch
+Remnawave/Cloudflare or broaden ARI-04B/C. No new persistence or dependency.
+
 ## ARI-04A — Cloud VPS read-only purchase quote (2026-11-23)
 
 Approved work is implemented for review in a separate PR: private Admin Bot choices for actual Cloud datacenter,
