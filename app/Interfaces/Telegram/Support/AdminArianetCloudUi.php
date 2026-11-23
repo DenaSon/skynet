@@ -169,6 +169,8 @@ final readonly class AdminArianetCloudUi
             InlineKeyboardButton::make('💰 هزینه‌ها', callback_data: 'ari2:cost:'.$id.':'.$page),
             InlineKeyboardButton::make('🕒 سوابق عملیات', callback_data: 'ari2:history:'.$id.':'.$page.':1'),
         );
+        $buttons->addRow(InlineKeyboardButton::make('🔎 پیش‌نمایش تعویض IPv4',
+            callback_data: 'ari4:preview:'.$id.':'.$page));
         if (! $linkUnavailable) {
             if ($link === null) {
                 $buttons->addRow(InlineKeyboardButton::make('🔗 اتصال به نود',
