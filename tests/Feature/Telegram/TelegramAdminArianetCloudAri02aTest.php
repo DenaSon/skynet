@@ -377,3 +377,67 @@ it('keeps unverified or non-IRR Cloud plan prices hidden while showing safe hard
     ari2OnlyReads();
     Http::assertSentCount(1);
 });
+it('renders live data-only action history and paginates returned records locally', function (): void {
+    ari2Root();
+    $actions = [];
+    foreach (range(1, 7) as $id) {
+        $actions[] = [
+            'id' => $id,
+            'command' => $id === 7 ? 'reboot' : 'change_ipv4',
+            'status' => 'success',
+            'progress' => 100,
+            'resource' => ['type' => 'server', 'id' => ARI2_SERVER_ID],
+            'error' => null,
+            'started_at' => '2026-11-21T12:00:00Z',
+            'finished_at' => '2026-11-21T12:01:00Z',
+        ];
+    }
+
+    Http::fake([
+        'https://api.ariaservice.net/cloud/v1/servers/'.ARI2_SERVER_ID.'/actions*' =>
+            Http::response(['data' => $actions]),
+    ]);
+
+    $bot = ari2Bot();
+    $bot->hearCallbackQueryData('ari2:history:'.ARI2_SERVER_ID.':1:1')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $html = ari2Html($request);
+
+            return str_contains($html, 'سوابق عملیات سرور')
+                && str_contains($html, 'تعویض IPv4 #1')
+                && str_contains($html, 'تعویض IPv4 #5')
+                && ! str_contains($html, 'راه‌اندازی مجدد #7')
+                && ari2Has($request, 'ari2:history:'.ARI2_SERVER_ID.':1:2')
+                && ari2Has($request, 'ari2:view:'.ARI2_SERVER_ID.':1');
+        }, index: 1);
+
+    $bot->hearCallbackQueryData('ari2:history:'.ARI2_SERVER_ID.':1:2')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $html = ari2Html($request);
+
+            return str_contains($html, 'تعویض IPv4 #6')
+                && str_contains($html, 'راه‌اندازی مجدد #7')
+                && ! str_contains($html, 'تعویض IPv4 #1')
+                && ari2Has($request, 'ari2:history:'.ARI2_SERVER_ID.':1:1')
+                && ! ari2Has($request, 'ari2:history:'.ARI2_SERVER_ID.':1:3');
+        }, index: 1);
+
+    ari2OnlyReads();
+    Http::assertSentCount(2);
+});
+
+it('fails closed on malformed Cloud history pagination instead of inventing pages', function (): void {
+    ari2Root();
+    Http::fake([
+        'https://api.ariaservice.net/cloud/v1/servers/'.ARI2_SERVER_ID.'/actions*' =>
+            Http::response(['data' => [['id' => 42]], 'meta' => ['unexpected' => 1]]),
+    ]);
+
+    ari2Bot()->hearCallbackQueryData('ari2:history:'.ARI2_SERVER_ID.':1:1')->reply()
+        ->assertRaw(static fn (NutgramRequest $request): bool => str_contains(
+            (string) (ari2Payload($request)['text'] ?? ''), 'دریافت سوابق عملیات ممکن نیست',
+        ) && ari2Has($request, 'ari2:view:'.ARI2_SERVER_ID.':1'), index: 1);
+
+    ari2OnlyReads();
+    Http::assertSentCount(1);
+});
