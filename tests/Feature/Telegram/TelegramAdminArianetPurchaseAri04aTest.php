@@ -139,8 +139,7 @@ function ari04aFake(
 
 function ari04aOnlyReads(): void
 {
-    expect(collect(Http::recorded())->every(static fn (array $entry): bool =>
-        $entry[0]->method() === 'GET'
+    expect(collect(Http::recorded())->every(static fn (array $entry): bool => $entry[0]->method() === 'GET'
             && $entry[0]->hasHeader('Authorization', 'Bearer ari04a-readonly')
             && (str_starts_with($entry[0]->url(), 'https://api.ariaservice.net/cloud/v1/')
                 || str_starts_with($entry[0]->url(), 'https://api.ariaservice.net/api/v1/'))))->toBeTrue();
@@ -194,8 +193,7 @@ it('shows the private RTL quote path and never offers a create or purchase callb
         ->assertRaw(static fn (NutgramRequest $r): bool => ari04aHas($r, 'ari8:images:ovh:8'), index: 1);
 
     $bot->hearCallbackQueryData('ari8:images:ovh:8')->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool =>
-            ari04aHas($r, 'ari8:image:ovh:8:ubuntu-24.04')
+        ->assertRaw(static fn (NutgramRequest $r): bool => ari04aHas($r, 'ari8:image:ovh:8:ubuntu-24.04')
             && ! ari04aHas($r, 'ari8:image:ovh:8:centos-9'), index: 1);
 
     $bot->hearCallbackQueryData('ari8:image:ovh:8:ubuntu-24.04')->reply();
