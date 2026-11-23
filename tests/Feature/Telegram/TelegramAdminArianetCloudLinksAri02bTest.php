@@ -311,15 +311,13 @@ it('shows a safe Rich link candidate list and explicit one-use confirmation in A
         }, index: 1);
 
     $bot->hearCallbackQueryData($confirm)->reply()
-        ->assertRaw(static fn (NutgramRequest $request): bool =>
-            str_contains((string) (ari3Payload($request)['text'] ?? ''), 'ارتباط سرور ابری و نود'),
+        ->assertRaw(static fn (NutgramRequest $request): bool => str_contains((string) (ari3Payload($request)['text'] ?? ''), 'ارتباط سرور ابری و نود'),
             index: 1);
 
     expect(DB::table('arianet_cloud_node_links')->where('cloud_server_id', ARI3_SERVER)
         ->value('node_uuid'))->toBe(ARI3_NODE_MATCH);
     $bot->hearCallbackQueryData($confirm)->reply()
-        ->assertRaw(static fn (NutgramRequest $request): bool =>
-            str_contains((string) (ari3Payload($request)['text'] ?? ''), 'قبلاً استفاده شده'),
+        ->assertRaw(static fn (NutgramRequest $request): bool => str_contains((string) (ari3Payload($request)['text'] ?? ''), 'قبلاً استفاده شده'),
             index: 1);
     expect(DB::table('arianet_cloud_node_links')->count())->toBe(1);
     ari3OnlyGets();
@@ -333,8 +331,7 @@ it('shows linked node details, allows confirmable unlink and does not mutate pro
     $action->apply($root->id, $action->preview($root->id, ARI3_SERVER, ARI3_NODE_DOMAIN));
     $bot = ari3Bot();
     $bot->hearCallbackQueryData('ari2:view:'.ARI3_SERVER.':1')->reply()
-        ->assertRaw(static fn (NutgramRequest $request): bool =>
-            str_contains(ari3Rich($request), 'Domain node')
+        ->assertRaw(static fn (NutgramRequest $request): bool => str_contains(ari3Rich($request), 'Domain node')
             && ari3Callback($request, 'ari3:nodes:'.ARI3_SERVER.':1:1') !== null
             && ari3Callback($request, 'ari3:unlink:'.ARI3_SERVER.':1') !== null,
             index: 1);
