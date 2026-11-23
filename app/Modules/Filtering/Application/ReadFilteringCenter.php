@@ -116,6 +116,7 @@ final readonly class ReadFilteringCenter
         $this->access->handle($userId);
 
         $names = $this->nodeNames();
+        $inventory = $this->nodeInventory();
         $query = DB::table('filtering_incidents')->where(static function ($q): void {
             $q->whereNull('resolved_at')->orWhere('resolved_at', '>=', now()->subDay());
         });
@@ -125,6 +126,7 @@ final readonly class ReadFilteringCenter
             ->offset(($page - 1) * self::PAGE_SIZE)->limit(self::PAGE_SIZE)
             ->get(['id', 'node_uuid', 'state', 'opened_at', 'last_observed_at', 'resolved_at', 'affected_modules'])
             ->map(static fn (object $row): array => [
+                'outside_inventory' => $inventory !== null && ! in_array((string) $row->node_uuid, $inventory, true),
                 'id' => (int) $row->id,
                 'uuid' => (string) $row->node_uuid,
                 'label' => $names[(string) $row->node_uuid] ?? strtoupper(substr((string) $row->node_uuid, 0, 8)),
@@ -155,8 +157,10 @@ final readonly class ReadFilteringCenter
         }
 
         $names = $this->nodeNames();
+        $inventory = $this->nodeInventory();
 
         return [
+            'outside_inventory' => $inventory !== null && ! in_array((string) $row->node_uuid, $inventory, true),
             'id' => (int) $row->id,
             'uuid' => (string) $row->node_uuid,
             'label' => $names[(string) $row->node_uuid] ?? strtoupper(substr((string) $row->node_uuid, 0, 8)),
@@ -192,11 +196,20 @@ final readonly class ReadFilteringCenter
      */
     private function snapshots(): array
     {
-        $activeUuids = DB::table('filtering_incidents')->whereNull('resolved_at')
-            ->orderByDesc('last_observed_at')->limit(self::MAX_NODES)
+        $inventory = $this->nodeInventory();
+        if ($inventory === []) {
+            return [];
+        }
+        $active = DB::table('filtering_incidents')->whereNull('resolved_at');
+        $recent = DB::table('filtering_checks')->where('observed_at', '>=', now()->subDay());
+        if ($inventory !== null) {
+            // Keep historical incidents in SQL/history, not the current fleet.
+            $active->whereIn('node_uuid', $inventory);
+            $recent->whereIn('node_uuid', $inventory);
+        }
+        $activeUuids = $active->orderByDesc('last_observed_at')->limit(self::MAX_NODES)
             ->pluck('node_uuid')->all();
-        $recentUuids = DB::table('filtering_checks')->where('observed_at', '>=', now()->subDay())
-            ->distinct()->limit(self::MAX_NODES)->pluck('node_uuid')->all();
+        $recentUuids = $recent->distinct()->limit(self::MAX_NODES)->pluck('node_uuid')->all();
         $uuids = array_slice(array_values(array_unique([...$activeUuids, ...$recentUuids])), 0, self::MAX_NODES);
         if ($uuids === []) {
             return [];
@@ -290,6 +303,35 @@ final readonly class ReadFilteringCenter
     private static function newer(?string $old, ?string $new): ?string
     {
         return $new !== null && ($old === null || $new > $old) ? $new : $old;
+    }
+
+    /**
+     * Last successful, bounded RW inventory from the existing Node scanner.
+     * Missing or malformed cache must never hide active incidents.
+     *
+     * @return list<string>|null
+     */
+    private function nodeInventory(): ?array
+    {
+        try {
+            $uuids = Cache::get(FilteringFoundation::NODE_INVENTORY_CACHE_KEY);
+        } catch (Throwable) {
+            return null;
+        }
+
+        if (! is_array($uuids) || ! array_is_list($uuids) || count($uuids) > self::MAX_NODES) {
+            return null;
+        }
+        $seen = [];
+        foreach ($uuids as $uuid) {
+            if (! is_string($uuid) || ! self::validUuid($uuid)
+                || $uuid !== strtolower($uuid) || isset($seen[$uuid])) {
+                return null;
+            }
+            $seen[$uuid] = true;
+        }
+
+        return array_keys($seen);
     }
 
     /** @return array<string,string> */
