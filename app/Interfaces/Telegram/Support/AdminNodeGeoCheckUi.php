@@ -468,7 +468,7 @@ final readonly class AdminNodeGeoCheckUi
             'error' => 'خطا',
             'country' => 'شناسایی کشور',
             'availability' => 'بررسی دسترسی',
-            'blocked' => 'محدودیت گزارش‌شده',
+            'blocked' => 'بررسی محدودیت',
             default => 'نامشخص',
         };
     }
