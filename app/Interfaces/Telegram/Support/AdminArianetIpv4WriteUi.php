@@ -14,8 +14,7 @@ use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 use Throwable;
 
 /**
- * ARI-03B: reviewed staging-only Cloud IP change. No Production write route
- * can dispatch while application environment is production.
+ * ARI-03D: confirmed single real IPv4 change, followed by DNS-only coordination.
  */
 final readonly class AdminArianetIpv4WriteUi
 {
@@ -58,6 +57,7 @@ final readonly class AdminArianetIpv4WriteUi
             ['سهمیه رایگان', (string) $p['freeLeft']],
             ['نود مرتبط', $p['node']['name']],
             ['آدرس مدیریت نود', $p['node']['address']],
+            ['دامنه‌های قابل تغییر', implode('، ', array_column($p['dnsTargets'], 'hostname'))],
         ];
         $rows = '';
         $plain = '<b>⚠️ تأیید تعویض IPv4</b>';
@@ -66,11 +66,11 @@ final readonly class AdminArianetIpv4WriteUi
             $plain .= "\n".TelegramUi::escape($label).': '.TelegramUi::escape($value);
         }
 
-        $warning = 'این عملیات در محیط آزمایشی هم ممکن است IP و اتصال را تغییر دهد. '
-            .'DNS، Remnawave و اتصال کاربران خودکار اصلاح نمی‌شوند. '
-            .'تأیید یک‌بارمصرف است و درخواست نامعلوم مجدداً ارسال نمی‌شود.';
+        $warning = 'این تغییر واقعی است و ممکن است هزینه و قطع موقت اتصال داشته باشد. '
+            .'پس از تأیید IP جدید، رکوردهای DNS مرتبط در Cloudflare هماهنگ می‌شوند. '
+            .'درخواست نامشخص هرگز خودکار تکرار نمی‌شود.';
         $buttons = InlineKeyboardMarkup::make()
-            ->addRow(InlineKeyboardButton::make('⚠️ تأیید تغییر IP در محیط آزمایشی',
+            ->addRow(InlineKeyboardButton::make('🔴 تأیید تعویض IP و هزینه',
                 callback_data: 'ari5:apply:'.$id.':'.$page.':'.$prepared['token']))
             ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'ari5:cancel:'.$id.':'.$page.':'.$prepared['token']))
             ->addRow(InlineKeyboardButton::make('◀️ پیش‌نمایش', callback_data: 'ari4:preview:'.$id.':'.$page));
@@ -168,6 +168,11 @@ final readonly class AdminArianetIpv4WriteUi
                 ->addRow(InlineKeyboardButton::make('◀️ پیش‌نمایش',
                     callback_data: 'ari4:preview:'.$id.':'.$page));
         }
+        if ($row['status'] === 'awaiting_coordination') {
+            $buttons = InlineKeyboardMarkup::make()
+                ->addRow(InlineKeyboardButton::make('🌐 تکمیل DNS', callback_data: 'ari7:prepare:'.$id.':'.$page))
+                ->addRow(InlineKeyboardButton::make('◀️ پیش‌نمایش', callback_data: 'ari4:preview:'.$id.':'.$page));
+        }
         $state = match ($row['status']) {
             'prepared' => 'در انتظار تأیید',
             'reserved', 'uncertain' => '⚠️ نتیجه نامشخص؛ نیازمند بررسی دستی',
@@ -187,8 +192,8 @@ final readonly class AdminArianetIpv4WriteUi
             ."\nIPv4 قبلی: ".TelegramUi::escape($row['oldIpv4'])
             ."\nIPv4 جدید: ".TelegramUi::escape($row['newIpv4'] ?? 'هنوز تأیید نشده')
             ."\nهزینه مبنا: ".TelegramUi::tomanPersian($row['feeRials']).' تومان';
-        $footer = 'موفقیت تعویض در Cloud به معنای سالم‌بودن اتصال کاربران نیست. '
-            .'هیچ تغییر خودکاری در DNS یا نود انجام نشده است.';
+        $footer = 'پس از تأیید IP جدید، هماهنگی DNS را از همین صفحه ادامه دهید. '
+            .'Remnawave تغییر نمی‌کند؛ اتصال واقعی کاربران جداگانه تست می‌شود.';
         $rich = '<h2>📋 وضعیت تعویض IPv4</h2><table bordered striped compact>'.$rows.'</table>'
             .'<footer>'.TelegramUi::escape($footer).'</footer>';
         $this->render($bot, $simple."\n\n".TelegramUi::escape($footer), $buttons, $rich);
