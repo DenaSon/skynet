@@ -52,7 +52,7 @@ final readonly class ChangeAdminArianetIpv4
         $this->access->handle($actorId);
         $this->assertEnabled();
         $preview = $this->verifiedPreview($actorId, $serverId);
-        $token = bin2hex(random_bytes(16));
+        $token = bin2hex(random_bytes(12));
 
         Cache::lock('arianet:ipv4:'.$serverId, 90)->block(2, function () use ($actorId, $serverId, $preview, $token): void {
             DB::transaction(function () use ($actorId, $serverId, $preview, $token): void {
@@ -97,7 +97,7 @@ final readonly class ChangeAdminArianetIpv4
     {
         $this->access->handle($actorId);
         $this->assertEnabled();
-        if (! preg_match('/\A[a-f0-9]{32}\z/D', $token)) {
+        if (! preg_match('/\A[a-f0-9]{24}\z/D', $token)) {
             throw new RuntimeException('Invalid IPv4 confirmation.');
         }
 
@@ -163,7 +163,7 @@ final readonly class ChangeAdminArianetIpv4
     public function cancel(int $actorId, int $serverId, string $token): void
     {
         $this->access->handle($actorId);
-        if (! preg_match('/\A[a-f0-9]{32}\z/D', $token) || $serverId < 1) {
+        if (! preg_match('/\A[a-f0-9]{24}\z/D', $token) || $serverId < 1) {
             throw new RuntimeException('Invalid IPv4 confirmation.');
         }
 
