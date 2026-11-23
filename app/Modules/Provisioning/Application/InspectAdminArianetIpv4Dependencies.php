@@ -60,6 +60,8 @@ final readonly class InspectAdminArianetIpv4Dependencies
                 'hosts' => [], 'dns' => [], 'issues' => [...$issues, 'سرور هنوز به نود متصل نشده است.'],
                 'ready' => false,
                 'affectedHostCount' => 0, 'directHostCount' => 0,
+                'otherNodeHostCount' => 0, 'unassignedOtherCount' => 0,
+                'ambiguousHostCount' => 0, 'sharedHostCount' => 0,
             ];
         }
 
@@ -89,24 +91,38 @@ final readonly class InspectAdminArianetIpv4Dependencies
         $hosts = [];
         $direct = 0;
         $targetIds = [];
+        $explicitOther = 0;
+        $unassignedUnrelated = 0;
+        $ambiguous = 0;
+        $shared = 0;
         foreach ($allHosts as $host) {
             $members = $host['nodes'];
             $assigned = in_array($uuid, $members, true);
-            $possibleLegacy = $members === []
-                && ($host['address'] === $oldIp
-                    || strtolower($host['address']) === strtolower($nodeAddress)
-                    || ($host['profileUuid'] === $node['profileUuid']
-                        && in_array($host['inboundUuid'], $node['inboundUuids'], true)));
+            // A Profile/Inbound can be shared by multiple regions. It is NOT
+            // evidence that the Host belongs to this Cloud server. Only
+            // explicit Node membership proves assignment. An unassigned Host
+            // on the selected Node's exact endpoint remains ambiguous.
+            $sameEndpoint = $host['address'] === $oldIp
+                || strtolower($host['address']) === strtolower($nodeAddress);
+            $possibleLegacy = $members === [] && $sameEndpoint;
 
             if (! $assigned && ! $possibleLegacy) {
+                if ($members === []) {
+                    $unassignedUnrelated++;
+                } else {
+                    $explicitOther++;
+                }
+
                 continue;
             }
 
             $targetIds[$host['uuid']] = true;
             if ($possibleLegacy) {
+                $ambiguous++;
                 $issues[] = 'وابستگی یکی از دامنه‌های اتصال به نود قطعی نیست؛ بررسی دستی لازم است.';
             }
             if ($assigned && count($members) !== 1) {
+                $shared++;
                 $issues[] = 'یکی از دامنه‌های اتصال بین چند نود مشترک است.';
             }
 
@@ -173,6 +189,10 @@ final readonly class InspectAdminArianetIpv4Dependencies
             'ready' => $issues === [],
             'affectedHostCount' => count($hosts),
             'directHostCount' => $direct,
+            'otherNodeHostCount' => $explicitOther,
+            'unassignedOtherCount' => $unassignedUnrelated,
+            'ambiguousHostCount' => $ambiguous,
+            'sharedHostCount' => $shared,
         ];
     }
 
