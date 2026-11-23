@@ -53,11 +53,15 @@ function ari04bSelection(): array
 
 function ari04bFake(bool $newPrice = false, string $post = 'success'): void
 {
-    Http::fake(static function (Request $request) use ($newPrice, $post) {
+    // Laravel keeps the first registered fake callback. Let later GETs see
+    // updated fixture state without stacking responders or clearing requests.
+    config()->set('ari04b_fixture.price_changed', $newPrice);
+    config()->set('ari04b_fixture.post_result', $post);
+    Http::fake(static function (Request $request) {
         $url = $request->url();
         $base = 'https://api.ariaservice.net/cloud/v1';
         if ($request->method() === 'POST' && $url === $base.'/servers') {
-            return match ($post) {
+            return match (config('ari04b_fixture.post_result')) {
                 'success' => Http::response([
                     'data' => ['id' => 918, 'name' => 'DenaServer'],
                     'servers' => [['data' => ['id' => 918], 'action_id' => 702]],
@@ -83,8 +87,8 @@ function ari04bFake(bool $newPrice = false, string $post = 'success'): void
                 'traffic_gb' => 50000, 'minimum_usage_hours' => 1,
                 'is_active' => true, 'availability' => ['available' => true],
                 'currency' => 'IRR',
-                'hourly_price' => $newPrice ? 19400 : 18770,
-                'monthly_price' => $newPrice ? 14162000 : 13702100,
+                'hourly_price' => config('ari04b_fixture.price_changed') ? 19400 : 18770,
+                'monthly_price' => config('ari04b_fixture.price_changed') ? 14162000 : 13702100,
             ]]]);
         }
         if (str_starts_with($url, $base.'/images?')) {
@@ -184,26 +188,25 @@ it('ARI-04B rejects stale price, consumes no token, and permits a new fresh quot
         ->toThrow(RuntimeException::class);
 });
 
-it('ARI-04B never retries ambiguous 429 or mismatched create receipts', function (): void {
+it('ARI-04B never retries an ambiguous provider create', function (string $scenario): void {
     $actor = ari04bUser();
-    foreach (['rate_limit', 'bad_receipt'] as $scenario) {
-        DB::table('arianet_cloud_purchases')->delete();
-        Http::fake();
-        ari04bFake(post: $scenario);
-        $purchase = app(PurchaseAdminArianetCloud::class);
-        $intent = $purchase->prepare($actor->id, ari04bSelection());
-        $result = $purchase->confirm($actor->id, $intent['id'], $intent['token']);
-        expect($result['status'])->toBe('uncertain')
-            ->and($result['serverId'])->toBeNull()
-            ->and($result['actionId'])->toBeNull();
-        ari04bOnlyCreatePost();
-        $recheck = $purchase->reconcile($actor->id, $intent['id']);
-        expect($recheck['status'])->toBe('uncertain');
-        ari04bOnlyCreatePost();
-        expect(fn () => $purchase->prepare($actor->id, ari04bSelection()))
-            ->toThrow(RuntimeException::class);
-    }
-});
+    ari04bFake(post: $scenario);
+    $purchase = app(PurchaseAdminArianetCloud::class);
+    $intent = $purchase->prepare($actor->id, ari04bSelection());
+    $result = $purchase->confirm($actor->id, $intent['id'], $intent['token']);
+    expect($result['status'])->toBe('uncertain')
+        ->and($result['serverId'])->toBeNull()
+        ->and($result['actionId'])->toBeNull();
+    ari04bOnlyCreatePost();
+    $recheck = $purchase->reconcile($actor->id, $intent['id']);
+    expect($recheck['status'])->toBe('uncertain');
+    ari04bOnlyCreatePost();
+    expect(fn () => $purchase->prepare($actor->id, ari04bSelection()))
+        ->toThrow(RuntimeException::class);
+})->with([
+    'HTTP 429' => ['rate_limit'],
+    'mismatched success receipt' => ['bad_receipt'],
+]);
 
 it('ARI-04B denies other actors, revocation and the default-off purchase gate without POST', function (): void {
     ari04bFake();
