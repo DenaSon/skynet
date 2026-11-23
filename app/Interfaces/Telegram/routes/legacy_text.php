@@ -4,6 +4,7 @@ use App\Interfaces\Telegram\Handlers\OperationalSettingsHandler;
 use App\Interfaces\Telegram\Handlers\ReplyMenuHandler;
 use App\Interfaces\Telegram\Handlers\SettingsHandler;
 use App\Interfaces\Telegram\Support\AdminAccountingUi;
+use App\Interfaces\Telegram\Support\AdminArianetPurchaseUi;
 use App\Interfaces\Telegram\Support\AdminAnnouncementsUi;
 use App\Interfaces\Telegram\Support\AdminCloudflareDnsUi;
 use App\Interfaces\Telegram\Support\AdminConfigProfileOperationsUi;
@@ -39,6 +40,11 @@ $bot->onText('{volume}', function (Nutgram $bot, string $volume): void {
     }
 
     if (app(ReplyMenuHandler::class)->handle($bot, $volume)) {
+        return;
+    }
+
+    // ARI-04A: bounded private name/SSH-key-ID quote draft (never a secret).
+    if (app(AdminArianetPurchaseUi::class)->text($bot, $volume)) {
         return;
     }
 
