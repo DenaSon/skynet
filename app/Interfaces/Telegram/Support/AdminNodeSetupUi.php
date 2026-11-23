@@ -255,12 +255,14 @@ final readonly class AdminNodeSetupUi
             $next = "🔐 روش اتصال به سرور\n\n<b>روش ورود SSH</b> را انتخاب کنید.";
         }
         $this->save($id, $draft);
-        $this->render($bot, $next, match ($draft['stage']) {
-            'port' => $this->portButtons(),
-            'username' => $this->usernameButtons(),
-            'auth' => $this->authButtons(),
-            default => $this->cancelButton(),
-        }, true);
+        if ($draft['stage'] === 'port') {
+            $buttons = $this->portButtons();
+        } elseif ($draft['stage'] === 'username') {
+            $buttons = $this->usernameButtons();
+        } else {
+            $buttons = $this->authButtons();
+        }
+        $this->render($bot, $next, $buttons, true);
 
         return true;
     }
