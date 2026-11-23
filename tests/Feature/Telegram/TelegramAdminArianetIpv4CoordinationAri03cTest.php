@@ -345,7 +345,7 @@ it('does not claim UAE, Netherlands or unrelated direct-IP Hosts via a shared Pr
         )
         ->and($result['dns'])->toHaveCount(2)
         ->and($result['ready'])->toBeFalse()
-        ->and(implode(' ', $result['issues']))->toContain('قطعی نیست');
+        ->and(implode(' ', $result['issues']))->toContain('قطعی نیست', 'تنظیمات مشترک');
 
     ari6Bot()->hearCallbackQueryData('ari6:impact:'.ARI6_SERVER.':1')->reply()
         ->assertRaw(static function (NutgramRequest $req): bool {
