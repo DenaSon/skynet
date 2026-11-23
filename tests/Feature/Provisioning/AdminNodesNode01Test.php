@@ -344,6 +344,8 @@ it('NW-01 private root wizard validates a public VPS and uses existing GET-only 
     expect(Cache::get($key)['stage'])->toBe('username');
 
     $bot->hearCallbackQueryData('nw1:default:root')->reply();
+    expect(Cache::get($key)['stage'])->toBe('auth');
+    $bot->hearCallbackQueryData('nw1:auth:password')->reply();
     expect(Cache::get($key)['stage'])->toBe('password');
 
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
@@ -384,6 +386,8 @@ it('NW-01 attempts password deletion and never persists plaintext in either Tele
     $bot->hearText('194.5.192.133')->reply();
     $bot->hearText('22')->reply();
     $bot->hearText('root')->reply();
+    expect(Cache::get($key)['stage'])->toBe('auth');
+    $bot->hearCallbackQueryData('nw1:auth:password')->reply();
     expect(Cache::get($key)['stage'])->toBe('password');
 
     $bot->hearText('not-a-real-ssh-password')->reply()->assertCalled('deleteMessage');
@@ -538,7 +542,11 @@ it('supports split inputs, real back navigation, and stage-bound defaults withou
     expect(Cache::get($key)['stage'])->toBe('port');
     $bot->hearCallbackQueryData('nw1:default:port')->reply();
     $bot->hearCallbackQueryData('nw1:default:root')->reply();
+    expect(Cache::get($key)['stage'])->toBe('auth');
+    $bot->hearCallbackQueryData('nw1:auth:password')->reply();
     expect(Cache::get($key)['stage'])->toBe('password');
+    $bot->hearCallbackQueryData('nw1:step:back')->reply();
+    expect(Cache::get($key)['stage'])->toBe('auth');
     $bot->hearCallbackQueryData('nw1:step:back')->reply();
     expect(Cache::get($key)['stage'])->toBe('username');
     expect(Cache::get($key)['secret'] ?? null)->toBeNull();
