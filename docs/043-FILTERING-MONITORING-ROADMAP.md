@@ -4,6 +4,15 @@
 **Owner:** DenaGate Super Admin Bot; **Sales Bot:** unchanged.
 **Implementation gates:** Four independently scoped feature PRs, each requiring an explicit instruction/approval, verification and rollback plan.
 
+## FLT-RC-01 — retired Node inventory reconciliation (2026-11-23; scoped source patch)
+
+Operator-confirmed production evidence: RW lists **4 Nodes** (3 eligible, 1 disabled), but filtering_checks had **25 recently sampled UUIDs**, of which **21 were no longer in RW**. Old UNKNOWN checks had recursively refreshed their own 30-minute eligibility and five missing Node UUIDs still had active incidents. This is distinct from unrelated VPS/Caddy/Xray incidents.
+
+- Derive missing-Node UNKNOWN observations **only from non-UNKNOWN Node checks within the existing 30-minute window**. A provider API failure still records bounded UNKNOWN for recently seen real Nodes. Missing/disabled/disconnected checks never become fabricated healthy/recovery.
+- After a *successful, fully validated* RW Node list, refresh a bounded one-day cache of the current Node UUID roster; preserve the existing names cache. The Admin filtering read model uses the roster to show only current Nodes (including the disabled Node as unknown) in live counts and lists, without a new API call from Telegram.
+- When the roster cache is absent, invalid or unavailable, fail open to the existing SQL view rather than hide an incident on uncertain inventory. Old active incidents and historical checks remain in SQL/history, identified as **out of panel** when a validated roster excludes them. Do not silently resolve, archive, delete, send recovered notifications, or alter previous alerts.
+- No migration, Provider mutation, new dependency/schedule or change to online_drop, traffic_drop, zero-signal, regional detection and notification thresholds. Test removal, temporary RW failure, reappearance, stale-cache fallback, current disabled Nodes and history visibility. CI and live Runflare/Bot acceptance are separate gates.
+
 ## 1. Problem and objective
 
 On 2026-11-07, two DenaGate Nodes suffered user-access incidents, noticed late after their per-node online-user counts dropped to zero. The operator requests early alerts that are neither noisy nor excessively slow, plus a dedicated **«فیلترینگ»** Admin Bot center with independent Remnawave and Check-Host monitoring modules sharing a single incident, notification and history workflow.
