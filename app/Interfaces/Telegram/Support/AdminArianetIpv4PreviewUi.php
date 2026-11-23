@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Interfaces\Telegram\Support;
 
 use App\Modules\Identity\Application\ResolveTelegramActor;
+use App\Modules\Provisioning\Application\ChangeAdminArianetIpv4;
 use App\Modules\Provisioning\Application\PreviewAdminArianetIpv4Change;
 use App\Support\PersianCalendar;
 use SergiX44\Nutgram\Nutgram;
@@ -21,6 +22,7 @@ final readonly class AdminArianetIpv4PreviewUi
         private PrivateTelegramUser $private,
         private ResolveTelegramActor $actors,
         private PreviewAdminArianetIpv4Change $preview,
+        private ChangeAdminArianetIpv4 $changes,
         private MenuRenderer $menus,
     ) {}
 
@@ -55,6 +57,22 @@ final readonly class AdminArianetIpv4PreviewUi
                 ->addRow(TelegramUi::copy($result['ipv4'], '📋 کپی IPv4 فعلی'))
                 ->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'ari4:preview:'.$id.':'.$page))
                 ->addRow(InlineKeyboardButton::make('◀️ جزئیات سرور', callback_data: 'ari2:view:'.$id.':'.$page));
+        }
+
+        // ARI-03B write controls are absent on Production regardless of ENV.
+        // A saved operation status remains inspectable without any provider write.
+        try {
+            if ($this->changes->enabled()) {
+                $buttons->addRow(InlineKeyboardButton::make('⚠️ آماده‌سازی تعویض IP (آزمایشی)',
+                    callback_data: 'ari5:begin:'.$id.':'.$page));
+            }
+            if ($this->changes->status($root, $id) !== null) {
+                $buttons->addRow(InlineKeyboardButton::make('📋 وضعیت درخواست تعویض',
+                    callback_data: 'ari5:status:'.$id.':'.$page));
+            }
+        } catch (Throwable) {
+            // A missing operation journal during deployment does not hide
+            // the already-available ARI-03A read-only preview.
         }
 
         $node = $result['node'];
