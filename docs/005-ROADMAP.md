@@ -1,3 +1,14 @@
+## ARI-04A — Cloud VPS read-only purchase quote (2026-11-23)
+
+Approved work is implemented for review in a separate PR: private Admin Bot choices for actual Cloud datacenter,
+active/available plan and supported system image, safe name, existing public SSH key GET validation, and IRR
+base-plan hourly/monthly/minimum-hours preview. No purchase callback, API POST, Production purchase enablement,
+SSH installer changes or Node/DNS modifications. Exact target Node and live-cost approval remain ARI-04B/C.
+Read-only quote must fail closed if the token lacks `ssh-keys:read` or a price/image is unverifiable.
+**NW-01/02 currently require SSH password, while Cloud create uses public-key IDs;** this dependency
+needs an explicit minimal solution before the live purchase/install handoff.
+Canonical [ARI-04](050-ARIANET-CLOUD-ROADMAP.md#ari-04--planned-real-cloud-vps-purchase-and-existing-node-replacement-not-implemented).
+
 ## ARI-03D — Simple real IPv4 change and Cloudflare DNS-only coordination (2026-11-23)
 
 **User-approved implementation is tracked by [PR #561](https://github.com/DenaSon/skynet/pull/561)**; consult the PR/CI for current merge status, which is not proof of a live Production operation. Canonical contract: [docs/050 ARI-03D](050-ARIANET-CLOUD-ROADMAP.md#ari-03d--domain-first-production-ipv4-change-2026-11-23). Every DenaGate Node/Host uses a Cloudflare-managed domain; normal replacement changes only verified A records, never Remnawave addresses or UUID. Reuse the current one-use Cloud journal, Arianet provider GET/POST and Cloudflare DNS Action; no staging/demo flow, new services, jobs, migrations or new dependency. Only confirmed `changeIpv4` can be enabled in Production; `createServer` remains blocked until ARI-04B. Independent Cloud and Cloudflare default-OFF write flags remain necessary, and production ENV remains unchanged by the code PR. A real named-server/fee change and DNS cutover still require separate operator approval. Any uncertainty must stop without blind write retries; client acceptance remains manual.

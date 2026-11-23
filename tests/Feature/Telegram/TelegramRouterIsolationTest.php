@@ -360,6 +360,11 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     ] as $name) {
         $expected['ADMIN'][] = 'callback:geoc:'.$name;
     }
+    // ARI-04A: GET-only private quote; never a create or purchase callback.
+    foreach (['begin', 'plans:{dc}:{page}', 'images:{dc}:{plan}',
+        'image:{dc}:{plan}:{image}', 'review', 'cancel'] as $name) {
+        $expected['ADMIN'][] = 'callback:ari8:'.$name;
+    }
     // ARI-03C2: Admin-only staged coordination, one step per confirmation.
     foreach ([
         'status:{id}:{page}', 'prepare:{id}:{page}',
@@ -427,8 +432,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(376)
-        ->and(count(array_unique($legacy)))->toBe(376);
+        ->and(count($legacy))->toBe(382)
+        ->and(count(array_unique($legacy)))->toBe(382);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {

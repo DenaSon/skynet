@@ -72,6 +72,7 @@ final readonly class AdminArianetCloudUi
         if ($nav !== []) {
             $buttons->addRow(...$nav);
         }
+        $buttons->addRow(InlineKeyboardButton::make('🛒 پیش‌نمایش خرید VPS', callback_data: 'ari8:begin'));
         $buttons->addRow(InlineKeyboardButton::make('📦 پلن‌های ابری', callback_data: 'ari2:dc'));
         $buttons->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'ari2:list:'.$page));
         $buttons->addRow(InlineKeyboardButton::make('◀️ وضعیت سرورها', callback_data: 'menu:admin:servers'));
