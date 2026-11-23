@@ -1,3 +1,12 @@
+## ARI-01B — guarded Arianet Cloud write transport (2026-11-23; offline-only PR)
+
+Add a narrowly scoped, default-OFF, separately credentialed Cloud API transport
+for one-server creation and IPv4 replacement; accept only 201/202 action receipts.
+No Admin handler, root confirmation flow, provider operation, new migration, scheduler,
+Cloudflare change or live write. Ambiguous results remain uncertain with no retry;
+future Application Actions must own approval, durable intent/reconciliation, cost
+and IP freshness. See [ARI-01B scope](050-ARIANET-CLOUD-ROADMAP.md#ari-01b--narrow-cloud-write-transports-2026-11-23-source-pr).
+
 ## ARI-01A — Arianet Cloud read-only transport (2026-11-23; source PR)
 
 Operator-approved incremental integration starts with a fixed-origin, GET-only Cloud

@@ -31,6 +31,9 @@ return [
     'arianet_cloud' => [
         // Independent Cloud inventory token: cloud:servers:read only.
         'read_token' => env('ARIANET_CLOUD_READ_TOKEN'),
+        // ARI-01B offline-only transport; independently gated and default OFF.
+        'write_token' => env('ARIANET_CLOUD_WRITE_TOKEN'),
+        'writes_enabled' => (bool) env('ARIANET_CLOUD_WRITES_ENABLED', false),
         'timeout' => (int) env('ARIANET_CLOUD_TIMEOUT', 10),
     ],
 
