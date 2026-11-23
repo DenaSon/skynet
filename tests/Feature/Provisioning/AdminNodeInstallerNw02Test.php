@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-use App\Jobs\InstallRemnawaveNode;
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Interfaces\Telegram\Support\AdminNodeSetupUi;
-use App\Modules\Provisioning\Infrastructure\NodeSetup\NodeSshPreflight;
+use App\Jobs\InstallRemnawaveNode;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Application\ManageNodeInstallation;
 use App\Modules\Provisioning\Infrastructure\NodeSetup\NodeSshInstaller;
+use App\Modules\Provisioning\Infrastructure\NodeSetup\NodeSshPreflight;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
@@ -18,11 +18,11 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
-use Symfony\Component\Process\Process;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
+use Symfony\Component\Process\Process;
 
 uses(RefreshDatabase::class);
 
@@ -486,8 +486,7 @@ it('NW-SSH-KEY-02 launches only one key-mode job and keeps the remote identifier
         'response' => ['secretKey' => str_repeat('A', 64)],
     ], 200)]);
     $fake = Mockery::mock(NodeSshInstaller::class);
-    $fake->shouldReceive('start')->once()->withArgs(static fn (...$args): bool =>
-        $args[3] === '' && $args[6] === $identifier && $args[7] === 'key');
+    $fake->shouldReceive('start')->once()->withArgs(static fn (...$args): bool => $args[3] === '' && $args[6] === $identifier && $args[7] === 'key');
     app()->instance(NodeSshInstaller::class, $fake);
     $manager = app(ManageNodeInstallation::class);
     $manager->launch($identifier);
@@ -499,8 +498,7 @@ it('NW-SSH-KEY-02 launches only one key-mode job and keeps the remote identifier
     $status['state'] = 'started';
     Cache::put('nw02:status:'.$identifier, $status, now()->addHour());
     $statusFake = Mockery::mock(NodeSshInstaller::class);
-    $statusFake->shouldReceive('status')->once()->withArgs(static fn (...$args): bool =>
-        $args[3] === '' && $args[5] === $identifier && $args[6] === 'key')
+    $statusFake->shouldReceive('status')->once()->withArgs(static fn (...$args): bool => $args[3] === '' && $args[5] === $identifier && $args[6] === 'key')
         ->andReturn('running');
     app()->instance(NodeSshInstaller::class, $statusFake);
     expect(app(ManageNodeInstallation::class)->status($fixture['actor']->id, $identifier)['state'])->toBe('running')
