@@ -75,7 +75,8 @@ final readonly class CoordinateAdminArianetIpv4
         return $this->lock($serverId, function () use ($actorId, $serverId): array {
             $this->access->handle($actorId);
             $row = $this->active($serverId);
-            if ($row->status !== 'awaiting_coordination' || $row->coordination_state !== null) {
+            if ((int) $row->actor_user_id !== $actorId
+                || $row->status !== 'awaiting_coordination' || $row->coordination_state !== null) {
                 throw new RuntimeException('IPv4 coordination is unavailable or already registered.');
             }
 
@@ -249,7 +250,8 @@ final readonly class CoordinateAdminArianetIpv4
             }
             $this->assertCloudAndInventory($actorId, $serverId, $state);
             $node = $this->nodes->replacementSnapshot($actorId, $state['node']['uuid']);
-            if ($node['disabled'] || ! $node['connected'] || $node !== $state['node']) {
+            if ($node['disabled'] || ! $node['connected']
+                || self::nodeIdentity($node) !== self::nodeIdentity($state['node'])) {
                 throw new RuntimeException('Node is disconnected or changed; client test cannot be accepted.');
             }
             foreach (array_keys($state['steps']) as $index) {
@@ -318,7 +320,8 @@ final readonly class CoordinateAdminArianetIpv4
             return;
         }
         if ($step['kind'] === 'node'
-            && $this->nodes->replacementSnapshot($actorId, $state['node']['uuid']) !== $state['node']) {
+            && self::nodeIdentity($this->nodes->replacementSnapshot($actorId, $state['node']['uuid']))
+                !== self::nodeIdentity($state['node'])) {
             throw new RuntimeException('Node changed from its confirmed snapshot.');
         }
     }
@@ -351,7 +354,7 @@ final readonly class CoordinateAdminArianetIpv4
             $updated = $this->nodes->replacementSnapshot($actorId, $state['node']['uuid']);
             $expected = $state['node'];
             $expected['address'] = $state['newIp'];
-            if ($updated !== $expected) {
+            if (self::nodeIdentity($updated) !== self::nodeIdentity($expected)) {
                 throw new RuntimeException('Node address change has not been verified.');
             }
         }
@@ -398,6 +401,18 @@ final readonly class CoordinateAdminArianetIpv4
     /** @param array<string,mixed> $state
      * @return array<string,mixed>
      */
+    /** @param array<string,mixed> $state
+     * @return array<string,mixed>
+     */
+    private static function nodeIdentity(array $state): array
+    {
+        // Connection status is observational and can change after DNS
+        // propagation. Preserve UUID, address, profile, inbound and flags.
+        return array_intersect_key($state, array_flip([
+            'uuid', 'name', 'address', 'port', 'disabled', 'profileUuid', 'inboundUuids',
+        ]));
+    }
+
     private static function hostIdentity(array $state): array
     {
         return array_intersect_key($state, array_flip([
