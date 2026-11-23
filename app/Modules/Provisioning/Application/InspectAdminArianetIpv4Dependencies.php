@@ -113,8 +113,7 @@ final readonly class InspectAdminArianetIpv4Dependencies
                     // But if an unassigned Host shares the selected Profile
                     // and Inbound, its real ownership is still unknown;
                     // never turn an incomplete list into a "ready" decision.
-                    if (is_string($node['profileUuid'])
-                        && $host['profileUuid'] === $node['profileUuid']
+                    if ($host['profileUuid'] === $node['profileUuid']
                         && in_array($host['inboundUuid'], $node['inboundUuids'], true)) {
                         $issues[] = 'اتصال‌های بدون انتساب با تنظیمات مشترک وجود دارند؛ مالکیت آن‌ها بررسی شود.';
                     }
