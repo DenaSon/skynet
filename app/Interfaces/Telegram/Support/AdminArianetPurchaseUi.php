@@ -91,8 +91,8 @@ final readonly class AdminArianetPurchaseUi
                 : ($plan['memoryMb'] % 1024 === 0
                     ? number_format(intdiv($plan['memoryMb'], 1024)).' GB RAM'
                     : number_format($plan['memoryMb']).' MB RAM');
-            $specs = ($plan['cores'] === null ? 'N/A' : number_format($plan['cores'])).' vCPU · '
-                .$ram.' · '.($plan['diskGb'] === null ? 'N/A' : number_format($plan['diskGb'])).' GB Disk';
+            $specs = "\u{2066}".($plan['cores'] === null ? 'N/A' : number_format($plan['cores'])).' vCPU · '
+                .$ram.' · '.($plan['diskGb'] === null ? 'N/A' : number_format($plan['diskGb'])).' GB Disk'."\u{2069}";
             $price = $plan['hourlyRials'] === null ? 'قیمت نامشخص'
                 : 'ساعتی '.TelegramUi::tomanPersian($plan['hourlyRials']).' تومان';
             $buttons->addRow(InlineKeyboardButton::make(
@@ -578,11 +578,11 @@ final readonly class AdminArianetPurchaseUi
             ['نام سرور', $q['name']],
             ['دیتاسنتر', $plan['datacenter']],
             ['پلن', $plan['name'].' #'.$plan['id']],
-            ['مشخصات', $plan['cores'].' vCPU · '
+            ['مشخصات', "\u{2066}".$plan['cores'].' vCPU · '
                 .($plan['memoryMb'] % 1024 === 0
                     ? intdiv($plan['memoryMb'], 1024).' GB RAM'
                     : $plan['memoryMb'].' MB RAM')
-                .' · '.$plan['diskGb'].' GB Disk'],
+                .' · '.$plan['diskGb'].' GB Disk'."\u{2069}"],
             ['ترافیک', $plan['trafficGb'] === null ? 'نامشخص یا بدون محدودیت'
                 : number_format($plan['trafficGb']).' GB Traffic'],
             ['سیستم‌عامل', $q['image']],
@@ -598,7 +598,7 @@ final readonly class AdminArianetPurchaseUi
             $fallback .= "\n".TelegramUi::escape($label).': '.TelegramUi::escape($value);
         }
         $notice = 'مبلغ‌ها فقط نرخ پایه پلن هستند؛ IPv4، مالیات و هزینه‌های جانبی ممکن است اضافه شوند. '
-            .($purchaseEnabled ? 'خرید فقط پس از تأیید نهایی انجام می‌شود.' : 'خرید فعلاً غیرفعال است.');
+            .($purchaseEnabled ? 'هیچ سفارش یا هزینه‌ای تا تأیید نهایی ایجاد نمی‌شود.' : 'خرید فعلاً غیرفعال است؛ هیچ سفارش یا هزینه‌ای ایجاد نمی‌شود.');
         $this->render($bot, $fallback."\n\n".TelegramUi::escape($notice), $back,
             '<h2>☁️ پیش‌نمایش خرید یک سرور</h2><table bordered striped compact>'.$rows.'</table>'
             .'<footer>🔒 '.TelegramUi::escape($notice).'</footer>');
