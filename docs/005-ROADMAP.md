@@ -1,3 +1,9 @@
+## ARI-03D — Simple real IPv4 change and Cloudflare DNS-only coordination (2026-11-23)
+
+**User-approved bounded implementation is in [PR #561](https://github.com/DenaSon/skynet/pull/561), pending CI/review/merge**, not yet a verified Production operation. Canonical contract: [docs/050 ARI-03D](050-ARIANET-CLOUD-ROADMAP.md#ari-03d--domain-first-production-ipv4-change-operator-approved-pr-561-under-ci). Every DenaGate Node/Host uses a Cloudflare-managed domain; normal replacement changes only verified A records, never Remnawave addresses or UUID. Reuse the current one-use Cloud journal, Arianet provider GET/POST and Cloudflare DNS Action; no staging/demo flow, new services, jobs, migrations or new dependency. Only confirmed `changeIpv4` can be enabled in Production; `createServer` remains blocked until ARI-04B. Independent Cloud and Cloudflare default-OFF write flags remain necessary, and production ENV remains unchanged by the code PR. A real named-server/fee change and DNS cutover still require separate operator approval. Any uncertainty must stop without blind write retries; client acceptance remains manual.
+
+---
+
 ## ARI — Arianet Cloud integration (authoritative delivery checkpoint, 2026-11-23)
 
 **Current master:** PRs [#548–#559](https://github.com/DenaSon/skynet/pulls?q=is%3Apr+is%3Amerged+ARI) are merged (latest ownership fix [#559](https://github.com/DenaSon/skynet/pull/559), `56ca4576b24969f7f246ea68f3456e7b779ed48b`). **Normative detailed matrix, source-of-truth boundaries, live observations and next gates: [docs/050 — Arianet Cloud status / ARI-04 roadmap](050-ARIANET-CLOUD-ROADMAP.md).** Older ARI-01A/01B paragraphs below are retained for historical scope and are not current merge/config status.
