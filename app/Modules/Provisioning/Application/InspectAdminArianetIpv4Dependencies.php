@@ -180,8 +180,8 @@ final readonly class InspectAdminArianetIpv4Dependencies
      * Inspect only one unique editable A record in a trusted Cloudflare zone.
      * Do not silently assume missing/ambiguous records are safe to transfer.
      *
-     * @param array<string,array<string,mixed>> $dns
-     * @param list<string> $issues
+     * @param  array<string,array<string,mixed>>  $dns
+     * @param  list<string>  $issues
      */
     private function addDns(
         int $actorId,
