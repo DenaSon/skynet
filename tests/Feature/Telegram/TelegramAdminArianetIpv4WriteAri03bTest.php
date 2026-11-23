@@ -210,7 +210,7 @@ it('reserves exactly one actor-bound intent and can cancel only before dispatch'
     $changes = app(ChangeAdminArianetIpv4::class);
 
     $prepared = $changes->prepare($user->id, ARI5_SERVER);
-    expect($prepared['token'])->toMatch('/\A[a-f0-9]{32}\z/')
+    expect($prepared['token'])->toMatch('/\A[a-f0-9]{24}\z/')
         ->and($prepared['preview']['ipv4'])->toBe($state['ipv4']);
     expect(DB::table('arianet_cloud_ipv4_changes')->value('status'))->toBe('prepared');
 
