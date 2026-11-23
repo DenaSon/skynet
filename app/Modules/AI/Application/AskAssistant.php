@@ -16,6 +16,7 @@ final readonly class AskAssistant
     private const APPROVED_URLS = [
         'https://api.gapgpt.app/v1',
         'https://api.gapapi.com/v1',
+        'https://api.gapgpt.ir/v1',
     ];
 
     public function __construct(private ModelCatalog $models) {}
