@@ -557,6 +557,27 @@ in Remnawave before any live node replacement or production operation.
 
 **Acceptance:** trusted private root, Rich RTL + authorized fallback, live provider GET validation, missing data and stale quote blocking, pricing/IRR tests, exact single-server preview, no POST; independent PR/CI and real bot visual check.
 
+**ARI-04A implementation checkpoint (2026-11-23; review [PR #pending]):**
+A private root-only purchase-quote wizard is scoped to `سرورهای ابری → پیش‌نمایش خرید VPS`.
+The workflow selects an orderable datacenter, an active/available plan, a nondeprecated Ubuntu/Debian
+system image available in that datacenter and fitting the plan disk, then accepts a safe server name
+and an existing numeric public SSH-key ID. It validates the Cloud `GET /datacenters`,
+`GET /plans?datacenter=...`, `GET /images?type=system&datacenter=...` and
+the **existing** account SSH public key via `GET /api/v1/ssh-keys/{id}`.
+The latter read requires the token's `ssh-keys:read` scope; if unavailable, quote validation fails
+closed and the operator sees a short message, never a fabricated key. Only id/name are displayed,
+not the key material. The quote uses strict `IRR` hourly/monthly plan prices and its minimum
+up-front hours. It explicitly labels these as **base plan estimates**, not a validated
+all-in invoice, account balance or authorized charge. The draft is private, TTL-bounded in
+the existing cache; no new DB schema, secret store, queue, write action or buying button is created.
+
+**Important integration gap:** NW-01/NW-02's current installer supports SSH **password authentication**,
+whereas this Cloud create transport takes exactly one **existing public SSH key**. Neither a
+password-based Cloud purchase nor an SSH-key installer is implemented here. Before ARI-04B
+live purchases and ARI-04C handoff, choose and separately approve the simplest safe way to
+bridge this mismatch; do not buy a server and assume the old installer will work.
+No real purchase or Node/DNS mutation is authorized by ARI-04A.
+
 ### ARI-04B — durable, one-use, explicitly paid single-Cloud-create action
 
 **Scope:** a separate PR and deployment safety review. Reserve a durable purchase intent with an immutable (server name, exact plan/datacenter/image/key, cost snapshot, actor, expiration), strict one-active-intent limit, and one-use actor-bound paid-confirmation under a lock **before** any HTTP POST. Revalidate fresh plan availability and IRR quote at confirmation. Require explicit confirmation of real financial exposure; refuse changed price or unavailable resources. The UI must be clear about ongoing billing, not just creation success.
