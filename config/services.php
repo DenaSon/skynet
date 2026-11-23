@@ -33,6 +33,8 @@ return [
         'read_token' => env('ARIANET_CLOUD_READ_TOKEN'),
         // One provider token may carry both scopes; writes remain default OFF.
         'writes_enabled' => (bool) env('ARIANET_CLOUD_WRITES_ENABLED', false),
+        // Independent default-OFF Production permission for paid Cloud create.
+        'purchase_enabled' => (bool) env('ARIANET_CLOUD_PURCHASE_ENABLED', false),
         'timeout' => (int) env('ARIANET_CLOUD_TIMEOUT', 10),
     ],
 
