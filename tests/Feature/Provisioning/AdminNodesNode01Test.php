@@ -625,3 +625,47 @@ it('NW-04 allows private root to close a stale recent bookmark without a provide
     node01Bot()->hearCallbackQueryData('nw4:close:'.$id)->reply();
     Http::assertNothingSent();
 });
+
+it('accepts separator characters in a new server name without parsing them as part of its IP', function (): void {
+    $actors = node01Actors();
+    node01FakeProvider();
+    config()->set('services.remnawave.node_ssh_setup_enabled', true);
+    $key = TelegramBotContext::current()->cacheKey('nw01:draft:'.$actors['root']->id);
+    $bot = node01Bot();
+
+    $bot->hearCallbackQueryData('nw1:begin')->reply();
+    $bot->hearText('Europe | Test')->reply();
+    expect(Cache::get($key)['stage'])->toBe('ip');
+
+    $bot->hearText('194.5.192.133')->reply();
+    expect(Cache::get($key))->toMatchArray([
+        'stage' => 'port',
+        'name' => 'Europe | Test',
+        'ip' => '194.5.192.133',
+    ]);
+
+    expect(collect(Http::recorded())->filter(static fn (array $pair): bool => $pair[0]->method() !== 'GET'))
+        ->toBeEmpty();
+});
+
+it('preserves legacy identity input and rejects malformed separator counts', function (): void {
+    $actors = node01Actors();
+    node01FakeProvider();
+    config()->set('services.remnawave.node_ssh_setup_enabled', true);
+    $key = TelegramBotContext::current()->cacheKey('nw01:draft:'.$actors['root']->id);
+    $bot = node01Bot();
+
+    Cache::put($key, ['stage' => 'identity'], now()->addMinutes(10));
+    $bot->hearText('Europe | Test | 194.5.192.133')->reply();
+    expect(Cache::get($key)['stage'])->toBe('identity');
+
+    $bot->hearText('Legacy-01 | 194.5.192.133')->reply();
+    expect(Cache::get($key))->toMatchArray([
+        'stage' => 'port',
+        'name' => 'Legacy-01',
+        'ip' => '194.5.192.133',
+    ]);
+
+    expect(collect(Http::recorded())->filter(static fn (array $pair): bool => $pair[0]->method() !== 'GET'))
+        ->toBeEmpty();
+});
