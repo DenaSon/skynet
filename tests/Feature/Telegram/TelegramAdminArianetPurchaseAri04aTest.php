@@ -212,8 +212,7 @@ it('shows the private RTL quote path and never offers a create or purchase callb
             && ! ari04aHas($r, 'ari8:plans:closed:1'), index: 1);
 
     $bot->hearCallbackQueryData('ari8:plans:ovh:1')->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool =>
-            ari04aHas($r, 'ari8:images:ovh:8')
+        ->assertRaw(static fn (NutgramRequest $r): bool => ari04aHas($r, 'ari8:images:ovh:8')
             && str_contains(ari04aRich($r), '2 vCPU · 4 GB RAM · 40 GB Disk')
             && ! str_contains(ari04aRich($r), '4096 MB RAM')
             && str_contains(ari04aRich($r), 'هزینه پایه'), index: 1);
