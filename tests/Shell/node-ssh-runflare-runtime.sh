@@ -15,8 +15,8 @@ fi
 ssh-keygen -q -t ed25519 -N '' -f "$TMP/test-id" -C node-ssh-test-fixture
 ssh-keygen -q -t ed25519 -N '' -f "$TMP/other-id" -C node-ssh-mismatch
 FP="$(ssh-keygen -lf "$TMP/test-id.pub" | awk '{print $2}')"
-sed -e "s@^WEB_DIR=/run/secrets$@WEB_DIR=$TMP/web@" \
-    -e "s@^WORKER_DIR=/run/denagate-node-worker$@WORKER_DIR=$TMP/worker@" \
+sed -e "s@^WEB_DIR=/run/secrets\$@WEB_DIR=$TMP/web@" \
+    -e "s@^WORKER_DIR=/run/denagate-node-worker\$@WORKER_DIR=$TMP/worker@" \
     -e "s@^EXPECTED_KEY_FP=.*@EXPECTED_KEY_FP='$FP'@" \
     "$SOURCE" > "$TMP/runtime.sh"
 sh -n "$TMP/runtime.sh"
