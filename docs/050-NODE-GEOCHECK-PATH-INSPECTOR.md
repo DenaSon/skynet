@@ -10,7 +10,7 @@ An independent, trusted Super Admin-only, private Admin Bot tool under:
 - Read the existing Job by GET on a separate "دریافت نتیجه" button; no webhook polling loop.
 - Render short Persian RTL Rich-first summary, route list/limited hop detail, HTTP, stash, AI and geo source pages; keep native HTML fallback and return links.
 - Use one existing RemnawaveApiClient, Redis Cache and existing root/Telegram authorization.
-- Store only bounded validated projection for 30 minutes; **never cache raw full report/SVG**, addresses of arbitrary endpoints, user subscriptions or tokens.
+- Store only bounded validated projection for 10 minutes; **never cache raw full report/SVG**, addresses of arbitrary endpoints, user subscriptions or tokens.
 - Prevent duplicate POSTs with atomic per-Node admission reservation; an uncertain POST is not retried.
 - Independent default-OFF REMNAWAVE_NODE_GEOCHECK_ENABLED safety gate; does not depend on the provider mutation gate.
 
