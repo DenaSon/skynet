@@ -9,6 +9,7 @@ use GuzzleHttp\Psr7\Request as NutgramRequest;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
@@ -138,6 +139,7 @@ function ari04aFake(
                 ], 'pagination' => ['current_page' => 2, 'per_page' => 8,
                     'total' => 2, 'last_page' => 2]]);
             }
+
             return Http::response(['success' => true,
                 'data' => $noKeys ? [] : [
                     ['id' => 7, 'name' => '<b>deployment</b>', 'datacenter_id' => 9],
@@ -249,22 +251,26 @@ it('shows the private RTL quote path and never offers a create or purchase callb
     ari04aOnlyReads();
 });
 
-it('shows friendly empty-list and permission errors without exposing key material or writes', function (): void {
+it('renders a friendly empty SSH key list without exposing key material or writes', function (): void {
     ari04aRoot();
     $bot = ari04aBot();
     ari04aFake(noKeys: true);
     $bot->hearCallbackQueryData('ari8:image:ovh:8:ubuntu-24.04')->reply();
     $bot->hearText('denagate-test')->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool =>
-            str_contains(ari04aRich($r), 'کلید SSH ثبت‌شده‌ای')
+        ->assertRaw(static fn (NutgramRequest $r): bool => str_contains(ari04aRich($r), 'کلید SSH ثبت‌شده‌ای')
             && ! ari04aHas($r, 'ari8:key:7:1'), index: 0);
+    ari04aOnlyReads();
+});
 
-    Http::fake();
+it('shows SSH scope error and retry control without any provider write', function (): void {
+    ari04aRoot();
+    $bot = ari04aBot();
     ari04aFake(keysForbidden: true);
-    $bot->hearCallbackQueryData('ari8:keys:1')->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool =>
-            str_contains((string) (ari04aPayload($r)['text'] ?? ''), 'ssh-keys:read')
-            && ari04aHas($r, 'ari8:keys:1'), index: 1);
+    $bot->hearCallbackQueryData('ari8:image:ovh:8:ubuntu-24.04')->reply();
+    $bot->hearText('denagate-test')->reply()
+        ->assertRaw(static fn (NutgramRequest $r): bool => str_contains(
+            (string) (ari04aPayload($r)['text'] ?? ''), 'ssh-keys:read',
+        ) && ari04aHas($r, 'ari8:keys:1'), index: 0);
     ari04aOnlyReads();
 });
 
@@ -276,13 +282,11 @@ it('rejects a forged SSH key ID and expired draft without leaving the list step'
     $bot->hearText('denagate-test')->reply();
 
     $bot->hearCallbackQueryData('ari8:key:999:1')->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool =>
-            str_contains((string) (ari04aPayload($r)['text'] ?? ''), 'قابل انتخاب نیست'), index: 1);
-    expect(\Illuminate\Support\Facades\Cache::get('ari8:quote:'.$user->id)['stage'])->toBe('key');
+        ->assertRaw(static fn (NutgramRequest $r): bool => str_contains((string) (ari04aPayload($r)['text'] ?? ''), 'قابل انتخاب نیست'), index: 1);
+    expect(Cache::get('ari8:quote:'.$user->id)['stage'])->toBe('key');
     $bot->hearCallbackQueryData('ari8:cancel')->reply();
     $bot->hearCallbackQueryData('ari8:key:7:1')->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool =>
-            str_contains((string) (ari04aPayload($r)['text'] ?? ''), 'منقضی شده'), index: 1);
+        ->assertRaw(static fn (NutgramRequest $r): bool => str_contains((string) (ari04aPayload($r)['text'] ?? ''), 'منقضی شده'), index: 1);
     ari04aOnlyReads();
 });
 
