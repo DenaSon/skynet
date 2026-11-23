@@ -6,6 +6,7 @@ use App\Interfaces\Telegram\Handlers\AdminUsersHandler;
 use App\Interfaces\Telegram\Handlers\DenizBusinessSupportSettingsHandler;
 use App\Interfaces\Telegram\Handlers\OperationalSettingsHandler;
 use App\Interfaces\Telegram\Handlers\SettingsHandler;
+use App\Interfaces\Telegram\Support\AdminArianetCloudUi;
 use App\Interfaces\Telegram\Support\AdminAccountingUi;
 use App\Interfaces\Telegram\Support\AdminAnnouncementsUi;
 use App\Interfaces\Telegram\Support\AdminBusinessReportUi;
@@ -623,6 +624,26 @@ $bot->onCallbackQueryData('metrics:page:{days}:{page}', function (Nutgram $bot, 
 
 $bot->onCommand('servers', function (Nutgram $bot): void {
     app(AdminProviderOverviewUi::class)->show($bot);
+});
+
+// ARI-02A: private trusted-root Cloud inventory and costs; GET-only.
+$bot->onCallbackQueryData('ari2:list:{page}', function (Nutgram $bot, string $page): void {
+    app(AdminArianetCloudUi::class)->browse($bot, $page);
+});
+$bot->onCallbackQueryData('ari2:view:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
+    app(AdminArianetCloudUi::class)->detail($bot, $id, $page);
+});
+$bot->onCallbackQueryData('ari2:cost:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
+    app(AdminArianetCloudUi::class)->costs($bot, $id, $page);
+});
+$bot->onCallbackQueryData('ari2:history:{id}:{listPage}:{page}', function (Nutgram $bot, string $id, string $listPage, string $page): void {
+    app(AdminArianetCloudUi::class)->history($bot, $id, $listPage, $page);
+});
+$bot->onCallbackQueryData('ari2:dc', function (Nutgram $bot): void {
+    app(AdminArianetCloudUi::class)->datacenters($bot);
+});
+$bot->onCallbackQueryData('ari2:plans:{datacenter}:{page}', function (Nutgram $bot, string $datacenter, string $page): void {
+    app(AdminArianetCloudUi::class)->plans($bot, $datacenter, $page);
 });
 
 $bot->onCallbackQueryData('menu:admin:servers', function (Nutgram $bot): void {
