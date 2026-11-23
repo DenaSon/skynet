@@ -189,19 +189,28 @@ final readonly class AdminNodeSetupUi
             return true;
         }
 
-        // Keep residual pre-deployment "name | IP" drafts compatible.
-        if ($stage === 'ip') {
-            $value = $draft['name'].' | '.$value;
-        }
         if ($stage === 'identity' || $stage === 'ip') {
-            $parts = explode('|', $value);
-            if (count($parts) !== 2 || strlen($value) > 330) {
-                $this->render($bot, 'نام و IP را با علامت | جدا کنید.', $this->cancelButton());
+            if ($stage === 'identity') {
+                // Preserve the legacy one-message "name | IP" draft format.
+                $parts = explode('|', $value);
+                if (count($parts) !== 2 || strlen($value) > 330) {
+                    $this->render($bot, 'نام و IP را با علامت | جدا کنید.', $this->cancelButton());
 
-                return true;
+                    return true;
+                }
+                $name = trim($parts[0]);
+                $ip = trim($parts[1]);
+            } else {
+                // The current setup/replacement form asks for IP only. The
+                // stored Node name may itself contain the "|" separator.
+                $name = $draft['name'] ?? null;
+                $ip = trim($value);
+                if (! is_string($name) || strlen($ip) > 253) {
+                    $this->render($bot, 'IP عمومی سرور نامعتبر است.', $this->cancelButton());
+
+                    return true;
+                }
             }
-            $name = trim($parts[0]);
-            $ip = trim($parts[1]);
             try {
                 $this->nodes->validateIdentity($id, $name, $ip);
                 $this->ssh->validateTarget($id, $ip, 22);
