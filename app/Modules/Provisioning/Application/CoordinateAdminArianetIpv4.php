@@ -31,7 +31,7 @@ final readonly class CoordinateAdminArianetIpv4
 
     public function enabled(): bool
     {
-        return $this->dns->enabled();
+        return $this->dns->wizardEnabled();
     }
 
     /**
