@@ -300,6 +300,9 @@ final readonly class ManageAdminArianetOperations
             || ! is_string($server['ipv4'] ?? null)) {
             throw new RuntimeException('Cloud server state cannot be verified.');
         }
+        if (Cache::has('nw02:host:'.$server['ipv4'])) {
+            throw new RuntimeException('A Node installation is being admitted for this server.');
+        }
         $actions = $this->read->serverActions($serverId, 1, 25)['data'];
         if (! array_is_list($actions) || count($actions) > 25) {
             throw new RuntimeException('Cloud action list cannot be verified.');

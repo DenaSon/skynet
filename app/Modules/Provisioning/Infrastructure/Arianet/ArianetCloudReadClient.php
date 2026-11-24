@@ -203,7 +203,8 @@ final class ArianetCloudReadClient
             throw new RuntimeException('Arianet Cloud connection failed.');
         }
 
-        if ($allowNotFound && $response->status() === 404 && $response->json('code') === 'not_found') {
+        if ($allowNotFound && $response->status() === 404 && strlen($response->body()) <= self::MAX_RESPONSE_BYTES
+            && $response->json('code') === 'not_found') {
             return [];
         }
 

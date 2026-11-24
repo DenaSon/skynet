@@ -292,6 +292,8 @@ final readonly class AdminArianetCloudUi
         }
         if (! $this->operations->enabled()) {
             $message .= "\nعملیات سرور فعلاً غیرفعال است.";
+        } elseif (! $this->operations->maintenanceEnabled()) {
+            $message .= "\nنصب مجدد، تغییر پلن و حذف فعلاً غیرفعال‌اند.";
         }
         $this->render($bot, '<b>⚙️ عملیات سرور</b>'."\n\n".TelegramUi::escape($message), $buttons,
             '<h2>⚙️ عملیات سرور</h2><p>'.TelegramUi::escape($message).'</p>');
@@ -385,7 +387,7 @@ final readonly class AdminArianetCloudUi
             'poweron' => 'روشن شدن سرور به معنی سلامت اتصال کاربران نیست.',
             'delete' => 'حذف دائمی است؛ دیسک اصلی و پشتیبان‌های وابسته پاک می‌شوند. اسنپ‌شات‌ها و منابع مستقل باقی می‌مانند و ممکن است هزینه داشته باشند.',
             'rebuild' => 'تمام داده‌های دیسک اصلی پاک می‌شوند. بعد از نصب، دسترسی و Fingerprint جدید SSH را بررسی کنید.',
-            'change_plan' => 'نرخ پایه جدید پلن اعمال می‌شود. بازگشت به پلن کوچک‌تر ممکن نیست؛ سرور خودکار روشن نمی‌شود.',
+            'change_plan' => 'نرخ پایه جدید پلن اعمال می‌شود. بازگشت به پلن کوچک‌تر ممکن نیست؛ روشن کردن سرور تأیید جداگانه دارد.',
             default => 'این عملیات ممکن است اتصال کاربران را قطع کند. هزینه سرور با خاموش شدن متوقف نمی‌شود.',
         };
         $extra = match ($operation) {
@@ -399,7 +401,7 @@ final readonly class AdminArianetCloudUi
         $message = self::operation($operation)."\n".$snapshot['name']."\n".$snapshot['ipv4'].$extra."\n\n".$warning;
         $this->render($bot, TelegramUi::escape($message), $buttons,
             '<h2>'.TelegramUi::escape(self::operation($operation)).'</h2><p>'.TelegramUi::escape($snapshot['name'])
-             .'</p><p>'.TelegramUi::escape($snapshot['ipv4'].$extra).'</p><footer>'.TelegramUi::escape($warning).'</footer>');
+            .'</p><p>'.TelegramUi::escape($snapshot['ipv4'].$extra).'</p><footer>'.TelegramUi::escape($warning).'</footer>');
     }
 
     public function finishOperation(Nutgram $bot, string $rawId, string $rawPage, string $token, bool $cancel = false): void
