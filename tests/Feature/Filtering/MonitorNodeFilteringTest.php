@@ -845,6 +845,90 @@ it('uses only one provider GET for Node snapshots and rejects malformed identiti
     expect(DB::table('filtering_incidents')->count())->toBe(0);
 });
 
+it('does not flag two-user online fluctuations at the independent 40-percent threshold', function (): void {
+    flt02EnableRootNotifications();
+    for ($i = 0; $i < 7; $i++) {
+        flt02Step(5, null, null, $i === 0 ? 0 : 2);
+    }
+    flt02Step(3, null, null);
+    flt02Step(3, null, null);
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBeNull()
+        ->and(DB::table('telegram_notification_deliveries')->count())->toBe(0);
+});
+
+it('does not let the 30-percent combined threshold bypass the four-user loss floor', function (): void {
+    flt02EnableRootNotifications();
+    for ($i = 0; $i < 7; $i++) {
+        flt02Step(10, 1000000, 1000000, $i === 0 ? 0 : 2);
+    }
+    flt02Step(7, 650000, 650000);
+    flt02Step(7, 650000, 650000);
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBeNull()
+        ->and(DB::table('telegram_notification_deliveries')->count())->toBe(0);
+});
+
+it('still detects exactly four lost users with a valid combined thirty-percent decline', function (): void {
+    for ($i = 0; $i < 7; $i++) {
+        flt02Step(13, 1000000, 1000000, $i === 0 ? 0 : 2);
+    }
+    flt02Step(9, 650000, 650000);
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBeNull();
+    flt02Step(9, 650000, 650000);
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['state'])->toBe('suspicious')
+        ->and(app(FilteringFoundation::class)->read(FLT02_NODE)['affected_modules']['node']['causes'])
+        ->toBe(['online_drop', 'traffic_drop']);
+});
+
+it('still detects exactly four lost users with independent forty-percent online decline', function (): void {
+    for ($i = 0; $i < 7; $i++) {
+        flt02Step(10, null, null, $i === 0 ? 0 : 2);
+    }
+    flt02Step(6, null, null);
+    flt02Step(6, null, null);
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['state'])->toBe('suspicious')
+        ->and(app(FilteringFoundation::class)->read(FLT02_NODE)['affected_modules']['node']['causes'])
+        ->toBe(['online_drop']);
+});
+
+it('requires the four-user loss in both triggering observations', function (): void {
+    for ($i = 0; $i < 7; $i++) {
+        flt02Step(10, 1000000, 1000000, $i === 0 ? 0 : 2);
+    }
+    flt02Step(7, 650000, 650000);
+    flt02Step(6, 650000, 650000);
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBeNull();
+    flt02Step(6, 650000, 650000);
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['affected_modules']['node']['causes'])
+        ->toBe(['online_drop', 'traffic_drop']);
+});
+
+it('keeps independent online-zero alerts even if only three users were online', function (): void {
+    flt02EnableRootNotifications();
+    flt02Step(3, 10000, 10000, 0);
+    flt02Step(0, 10000, 10000);
+    flt02Step(0, 10000, 10000);
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['state'])->toBe('disrupted')
+        ->and(app(FilteringFoundation::class)->read(FLT02_NODE)['affected_modules']['node']['causes'])
+        ->toBe(['online_zero'])
+        ->and(DB::table('telegram_notification_deliveries')
+            ->where('event_type', 'FilteringOpened')->count())->toBe(1);
+});
+
+it('keeps pre-patch online decline incidents until real sustained recovery', function (): void {
+    app(FilteringFoundation::class)->record(FLT02_NODE, 'node', 'suspicious', now()->utc()->startOfMinute(), [
+        'causes' => ['online_drop'], 'online_users' => 7, 'online_reference' => 10,
+    ]);
+    $id = app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'];
+    flt02Step(7, null, null);
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBe($id);
+    for ($i = 0; $i < 5; $i++) {
+        flt02Step(8, null, null);
+    }
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBe($id);
+    flt02Step(8, null, null);
+    expect(app(FilteringFoundation::class)->read(FLT02_NODE)['incident_id'])->toBeNull();
+});
+
 it('opens a suspicious relative-online incident after two drops without reaching zero', function (): void {
     flt02EnableRootNotifications();
     for ($i = 0; $i < 7; $i++) {

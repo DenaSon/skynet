@@ -36,6 +36,9 @@ final readonly class MonitorNodeFiltering
 
     private const ONLINE_DROP_PERCENT = 40;
 
+    // Exclude small absolute online fluctuations even when traffic also drops.
+    private const MIN_ONLINE_DROP_USERS = 4;
+
     private const TRAFFIC_DROP_PERCENT = 50;
 
     private const COMBINED_DROP_PERCENT = 30;
@@ -334,6 +337,11 @@ final readonly class MonitorNodeFiltering
             if ($reference !== null && $contiguous && $currentValue !== null && $currentValue > 0
                 && $previousValue !== null && $previousValue > 0
                 && $currentPct !== null && $previousPct !== null
+                // Both triggering samples must lose at least four users; the
+                // shared 30% online/traffic rule must not bypass this floor.
+                && ($cause !== 'online_drop'
+                    || ($reference - $currentValue >= self::MIN_ONLINE_DROP_USERS
+                        && $reference - $previousValue >= self::MIN_ONLINE_DROP_USERS))
                 && (($currentPct >= $threshold && $previousPct >= $threshold) || $joint)) {
                 $evidence[$signal === 'online' ? 'online_reference' : 'traffic_reference'] = $reference;
                 if ($cause === 'traffic_drop') {
