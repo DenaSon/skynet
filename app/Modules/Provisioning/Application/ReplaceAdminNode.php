@@ -302,7 +302,7 @@ final readonly class ReplaceAdminNode
                 'directHosts' => array_map(static fn (array $host): array => [...$host, 'stage' => 'ready'], $current['directHosts']),
                 'stage' => 'applying',
             ];
-            $this->save($identifier, $state);
+            $this->reserveReplacementHosts($identifier, $state);
 
             foreach ($state['dnsRecords'] as $index => $entry) {
                 $this->assertNodeSnapshot($actorId, $state['node'] ?? null);
@@ -609,9 +609,36 @@ final readonly class ReplaceAdminNode
     }
 
     /** @param array<string,mixed> $state */
+    private function reserveReplacementHosts(string $identifier, array $state): void
+    {
+        $ips = [$state['oldIp'], $state['newIp']];
+        sort($ips, SORT_STRING);
+        Cache::lock(ManageAdminArianetOperations::hostLock($ips[0]), 90)->block(2, function () use ($ips, $identifier, $state): void {
+            Cache::lock(ManageAdminArianetOperations::hostLock($ips[1]), 90)->block(2, function () use ($ips, $identifier, $state): void {
+                foreach ($ips as $ip) {
+                    ManageAdminArianetOperations::assertNoHostOperation($ip);
+                    ManageAdminArianetOperations::assertHostAvailable($ip);
+                }
+                $this->save($identifier, $state);
+            });
+        });
+    }
+
+    /** @param array<string,mixed> $state */
     private function save(string $identifier, array $state): void
     {
-        Cache::put($this->key($identifier), $state, now()->addHours(3));
+        $expires = now()->addHours(3);
+        Cache::put($this->key($identifier), $state, $expires);
+        foreach ([$state['oldIp'], $state['newIp']] as $ip) {
+            $key = 'nw05:host:'.$ip;
+            if ($state['stage'] === 'completed') {
+                if (Cache::get($key) === $identifier) {
+                    Cache::forget($key);
+                }
+            } else {
+                Cache::put($key, $identifier, $expires);
+            }
+        }
     }
 
     private function key(string $identifier): string

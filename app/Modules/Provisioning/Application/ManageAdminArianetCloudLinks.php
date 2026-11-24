@@ -161,6 +161,14 @@ final readonly class ManageAdminArianetCloudLinks
             throw new InvalidArgumentException('Invalid Cloud Node link intent.');
         }
 
+        Cache::lock('arianet:ipv4:'.$serverId, 90)->block(2, function () use ($actorId, $serverId, $mode, $preview): void {
+            $this->applyLocked($actorId, $serverId, $mode, $preview);
+        });
+    }
+
+    /** @param array<string,mixed> $preview */
+    private function applyLocked(int $actorId, int $serverId, string $mode, array $preview): void
+    {
         Cache::lock('arianet:cloud-node-links:mutation', 60)->block(2, function () use ($actorId, $serverId, $mode, $preview): void {
             $this->access->handle($actorId);
 

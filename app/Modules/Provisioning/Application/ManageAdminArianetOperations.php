@@ -103,6 +103,44 @@ final readonly class ManageAdminArianetOperations
         };
     }
 
+    /** A per-IP coordination lease, not a global operational lock. */
+    public static function hostLock(string $ip): string
+    {
+        return 'arianet:host-operation:'.$ip;
+    }
+
+    /** Reuse NW-02 and NW-05 checkpoints; no permanent lock after their expiry. */
+    public static function assertHostAvailable(string $ip): void
+    {
+        $install = Cache::get('nw02:host:'.$ip);
+        if (is_string($install)) {
+            $state = Cache::get('nw02:status:'.$install);
+            if (! is_array($state) || in_array($state['state'] ?? null, ['queued', 'launching', 'started', 'installing', 'starting', 'pending', 'uncertain'], true)) {
+                throw new RuntimeException('A Node installation is active for this address.');
+            }
+        }
+        $replacement = Cache::get('nw05:host:'.$ip);
+        if (is_string($replacement)) {
+            $state = Cache::get('nw05:state:'.$replacement);
+            if (is_array($state) && in_array($state['stage'] ?? null, ['applying', 'awaiting_client_test'], true)) {
+                throw new RuntimeException('A Node replacement is active for this address.');
+            }
+        }
+    }
+
+    /** Check the Cloud journal pointer when entering a Node workflow. */
+    public static function assertNoHostOperation(string $ip): void
+    {
+        $serverId = Cache::get('ari9:host:'.$ip);
+        if (is_int($serverId)) {
+            self::assertNoActive($serverId);
+        }
+        $ipv4Server = Cache::get('ari5:host:'.$ip);
+        if (is_int($ipv4Server) && DB::table('arianet_cloud_ipv4_changes')->where('active_server_id', $ipv4Server)->exists()) {
+            throw new RuntimeException('A Cloud IPv4 change is awaiting review.');
+        }
+    }
+
     /** Original purchase stays immutable; only a completed upgrade can supersede its plan. */
     public static function verifiedPlan(int $serverId, int $original): int
     {
@@ -176,43 +214,59 @@ final readonly class ManageAdminArianetOperations
         $this->access->handle($actor);
         $this->guard();
 
-        Cache::lock('arianet:cloud-node-links:mutation', 600)->block(2, function () use ($actor, $serverId, $token): void {
-            $this->confirmLocked($actor, $serverId, $token);
-        });
+        $this->confirmLocked($actor, $serverId, $token);
     }
 
     private function confirmLocked(int $actor, int $serverId, string $token): void
     {
         Cache::lock('arianet:ipv4:'.$serverId, 600)->block(2, function () use ($actor, $serverId, $token): void {
             $row = $this->prepared($actor, $serverId, $token);
-            if (now()->greaterThan($row->expires_at)
-                || $row->snapshot_hash !== self::fingerprint($this->snapshot($actor, $serverId, $row->operation, $row->target ?? ''))) {
+            if (now()->greaterThan($row->expires_at)) {
+                $this->finish((int) $row->id, 'expired');
+                throw new RuntimeException('Cloud operation confirmation expired.');
+            }
+            $snapshot = $this->snapshot($actor, $serverId, $row->operation, $row->target ?? '');
+            if ($row->snapshot_hash !== self::fingerprint($snapshot)) {
                 $this->finish((int) $row->id, 'expired');
                 throw new RuntimeException('Cloud operation confirmation expired or changed.');
             }
-            $this->access->handle($actor);
-            $this->guard();
-            if (DB::table(self::TABLE)->where('id', $row->id)->where('status', 'prepared')
-                ->update(['status' => 'reserved', 'updated_at' => now()]) !== 1) {
-                throw new RuntimeException('Confirmation already consumed.');
-            }
-
-            try {
-                $receipt = in_array($row->operation, ['rebuild', 'change_plan', 'delete'], true)
-                    ? $this->write->maintenanceAction($serverId, $row->operation, $row->target ?? '')
-                    : $this->write->powerAction($serverId, $row->operation);
-                DB::table(self::TABLE)->where('id', $row->id)->update([
-                    'status' => 'accepted', 'action_id' => $receipt['action_id'], 'updated_at' => now(),
-                ]);
-            } catch (ArianetCloudWriteRejected) {
-                $this->finish((int) $row->id, 'failed');
-            } catch (Throwable) {
-                // A consumed confirmation is never sent again after an ambiguous outcome.
-                DB::table(self::TABLE)->where('id', $row->id)->update([
-                    'status' => 'uncertain', 'updated_at' => now(),
-                ]);
-            }
+            Cache::lock(self::hostLock($snapshot['ipv4']), 90)->block(2, function () use ($actor, $serverId, $row, $snapshot): void {
+                self::assertHostAvailable($snapshot['ipv4']);
+                $this->dispatchConfirmed($actor, $serverId, $row, $snapshot['ipv4']);
+            });
         });
+    }
+
+    private function dispatchConfirmed(int $actor, int $serverId, object $row, string $ip): void
+    {
+        $this->access->handle($actor);
+        $this->guard();
+        if (now()->greaterThan($row->expires_at)) {
+            $this->finish((int) $row->id, 'expired');
+            throw new RuntimeException('Cloud operation confirmation expired.');
+        }
+        if (DB::table(self::TABLE)->where('id', $row->id)->where('status', 'prepared')
+            ->update(['status' => 'reserved', 'updated_at' => now()]) !== 1) {
+            throw new RuntimeException('Confirmation already consumed.');
+        }
+
+        // The pointer is a bounded bridge to the existing durable journal.
+        Cache::put('ari9:host:'.$ip, $serverId, now()->addHours(3));
+        try {
+            $receipt = in_array($row->operation, ['rebuild', 'change_plan', 'delete'], true)
+                ? $this->write->maintenanceAction($serverId, $row->operation, $row->target ?? '')
+                : $this->write->powerAction($serverId, $row->operation);
+            DB::table(self::TABLE)->where('id', $row->id)->update([
+                'status' => 'accepted', 'action_id' => $receipt['action_id'], 'updated_at' => now(),
+            ]);
+        } catch (ArianetCloudWriteRejected) {
+            $this->finish((int) $row->id, 'failed');
+        } catch (Throwable) {
+            // A consumed confirmation is never sent again after an ambiguous outcome.
+            DB::table(self::TABLE)->where('id', $row->id)->update([
+                'status' => 'uncertain', 'updated_at' => now(),
+            ]);
+        }
     }
 
     public function cancel(int $actor, int $serverId, string $token): void
@@ -451,9 +505,7 @@ final readonly class ManageAdminArianetOperations
             || ! is_string($server['ipv4'] ?? null)) {
             throw new RuntimeException('Cloud server state cannot be verified.');
         }
-        if (Cache::has('nw02:host:'.$server['ipv4'])) {
-            throw new RuntimeException('A Node installation is being admitted for this server.');
-        }
+        self::assertHostAvailable($server['ipv4']);
         $this->assertIdleActions($serverId);
 
         $link = $this->links->linked($actor, $serverId);
