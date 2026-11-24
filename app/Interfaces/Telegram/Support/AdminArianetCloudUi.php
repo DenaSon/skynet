@@ -350,7 +350,7 @@ final readonly class AdminArianetCloudUi
         }
         $draft = Cache::get('ari9:choices:'.$actor.':'.$token);
         $target = is_array($draft) ? ($draft['items'][(int) $rawIndex]['value'] ?? null) : null;
-        if (! is_string($target) || ! is_array($draft)) {
+        if (! is_string($target)) {
             $this->render($bot, 'انتخاب منقضی شده است.', self::listBack(1));
 
             return;
@@ -392,9 +392,9 @@ final readonly class AdminArianetCloudUi
         };
         $extra = match ($operation) {
             'rebuild' => "\nسیستم‌عامل: ".$snapshot['image'],
-            'change_plan' => "\nپلن فعلی: ".$snapshot['oldPlan']['name']." · ".self::toman($snapshot['oldPlan']['hourlyRials'])." / ساعت"
-                ."\nپلن جدید: ".$snapshot['newPlan']['name']." · ".self::toman($snapshot['newPlan']['hourlyRials'])." / ساعت"
-                ."\nبرآورد ماهانه جدید: ".self::toman($snapshot['newPlan']['monthlyRials'])." (نرخ پایه)",
+            'change_plan' => "\nپلن فعلی: ".$snapshot['oldPlan']['name'].' · '.self::toman($snapshot['oldPlan']['hourlyRials']).' / ساعت'
+                ."\nپلن جدید: ".$snapshot['newPlan']['name'].' · '.self::toman($snapshot['newPlan']['hourlyRials']).' / ساعت'
+                ."\nبرآورد ماهانه جدید: ".self::toman($snapshot['newPlan']['monthlyRials']).' (نرخ پایه)',
             'delete' => "\nبرآورد ماهانه فعلی: ".self::toman($snapshot['monthlyRials']),
             default => '',
         };

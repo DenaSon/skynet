@@ -375,13 +375,13 @@ final readonly class ManageAdminArianetOperations
      * Require no managed Node, Host or direct DNS dependency. External
      * resources outside the approved managed inventory remain operator responsibility.
      *
-     * @param array<string,mixed> $server
+     * @param  array<string,mixed>  $server
      */
     private function assertUnused(int $actor, array $server): void
     {
         $ip = $server['ipv4'] ?? null;
         $ipv6 = $server['ipv6'] ?? null;
-        if (! is_string($ip) || filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_GLOBAL_RANGE) === false
+        if (! is_string($ip) || filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_GLOBAL_RANGE) !== $ip
             || ! array_key_exists('ipv6', $server)
             || ($ipv6 !== null && (! is_string($ipv6) || filter_var($ipv6, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) === false))) {
             throw new RuntimeException('Cloud public addresses cannot be verified.');
