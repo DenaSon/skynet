@@ -442,3 +442,49 @@ it('never reports a fresh batch healthy when a named basic check is missing', fu
     denabanHealthStore($batch, 'RedisCheck', 'ok', now()->toDateTimeString());
     expect(app(ReadAdminHealth::class)->handle($root->id)['state'])->toBe('healthy');
 });
+
+it('recognizes real Spatie names in production and rejects duplicate aliases', function (): void {
+    $root = denabanHealthRoot();
+    config()->set('denagate_health.enabled', true);
+    config()->set('cache.default', 'redis');
+    $batch = '92929292-9292-4292-8292-929292929292';
+    $at = now()->toDateTimeString();
+
+    foreach (['Database', 'Queue', 'Schedule', 'UsedDiskSpace', 'Redis'] as $name) {
+        denabanHealthStore($batch, $name, 'ok', $at);
+    }
+    foreach (OperationalProbe::CHECKS as $name) {
+        denabanHealthStore($batch, 'ops_'.$name, $name === 'subscription_jobs' ? 'warning' : 'ok', $at);
+    }
+
+    $reader = app(ReadAdminHealth::class);
+    expect($reader->handle($root->id)['state'])->toBe('warning');
+    DB::table('health_check_result_history_items')->where('batch', $batch)
+        ->where('check_name', 'ops_subscription_jobs')->update(['status' => 'ok']);
+    expect($reader->handle($root->id)['state'])->toBe('healthy');
+
+    // Fourteen rows still cannot pass if an alias duplicates another check.
+    DB::table('health_check_result_history_items')->where('batch', $batch)
+        ->where('check_name', 'Redis')->update(['check_name' => 'DatabaseCheck']);
+    expect($reader->handle($root->id)['state'])->toBe('unknown');
+});
+
+it('reads short-name basic checks and historical aliases as one chronological check', function (): void {
+    $root = denabanHealthRoot();
+    config()->set('denagate_health.enabled', true);
+
+    denabanHealthStore('a0000000-0000-4000-8000-000000000001', 'DatabaseCheck', 'ok',
+        now()->subMinutes(18)->toDateTimeString());
+    denabanHealthStore('a0000000-0000-4000-8000-000000000002', 'Database', 'failed',
+        now()->subMinutes(12)->toDateTimeString());
+    denabanHealthStore('a0000000-0000-4000-8000-000000000003', 'DatabaseCheck', 'ok',
+        now()->subMinutes(2)->toDateTimeString());
+
+    $history = app(ReadAdminHealth::class)->history($root->id);
+    expect($history['state'])->toBe('available')
+        ->and($history['recurrences'])->toBe(1)
+        ->and($history['total'])->toBe(2)
+        ->and($history['rows'][0]['label'])->toBe('MySQL')
+        ->and($history['rows'][0]['duration'])->toBe(10)
+        ->and($history['rows'][1]['status'])->toBe('failed');
+});
