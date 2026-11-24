@@ -38,7 +38,7 @@ final readonly class ReadAdminProviderOverview
         $this->access->require($actorUserId, 'servers.view');
 
         try {
-            $nodes = (new RemnawaveReadApi($this->factory->make()))->nodes();
+            $nodes = (new RemnawaveReadApi($this->factory->make(2)))->nodes();
             if (count($nodes) > 500) {
                 return null;
             }

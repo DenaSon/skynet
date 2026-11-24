@@ -5,19 +5,23 @@ declare(strict_types=1);
 namespace App\Modules\Provisioning\Application;
 
 use App\Modules\Billing\Application\ValidBankSettlements;
+use App\Modules\Identity\Application\AdminCapabilityAccess;
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveApiClientFactory;
 use App\Modules\Provisioning\Infrastructure\Remnawave\RemnawaveUsersApi;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
 /**
- * STAT-01: live on-demand secret-free counts; no writes, cache or analytics store.
+ * STAT-01: live on-demand secret-free counts; only the compact Denaban projection caches provider totals.
  * Remote totals are displayed only when the full bounded result is consistent.
  */
 final readonly class ReadAdminDashboard
 {
+    private const DENABAN_PROVIDER_TTL = 30;
+
     public function __construct(
         private AssertCatalogManagementAccess $access,
         private ReadAdminProviderOverview $overview,
@@ -87,7 +91,7 @@ final readonly class ReadAdminDashboard
     /**
      * Compact Denaban projection; preserve the full STAT-01 report for other callers.
      *
-     * @return array{localUsers:int,salesTodayRials:int,subscriptionsActive:?int,nodesOnline:?int}
+     * @return array{localUsers:int,salesTodayRials:int,subscriptionsActive:?int,nodesOnline:?int,providerObservedAt:?int}
      */
     public function denaban(int $actorId): array
     {
@@ -95,15 +99,66 @@ final readonly class ReadAdminDashboard
 
         $users = (int) DB::table('users')->count();
         $sales = $this->salesTodayRials();
-        $online = $this->overview->denabanOnline($actorId);
-        $subscriptions = $this->subscriptionCounts();
-
         return [
             'localUsers' => $users,
             'salesTodayRials' => $sales,
-            'subscriptionsActive' => $subscriptions['subscriptionsActive'] ?? null,
-            'nodesOnline' => $online,
+            ...$this->denabanProvider($actorId),
         ];
+    }
+
+    /** @return array{subscriptionsActive:?int,nodesOnline:?int,providerObservedAt:?int} */
+    private function denabanProvider(int $actorId): array
+    {
+        // Recheck the existing server permission before exposing even cached counts.
+        app(AdminCapabilityAccess::class)->require($actorId, 'servers.view');
+
+        $url = config('services.remnawave.url');
+        $token = config('services.remnawave.token');
+        if (! is_string($url) || trim($url) === '' || ! is_string($token) || trim($token) === '') {
+            return ['subscriptionsActive' => null, 'nodesOnline' => null, 'providerObservedAt' => null];
+        }
+
+        // Store only two aggregates and a timestamp; never cache credentials,
+        // raw user lists, node metadata, financial values or authorization.
+        $key = 'denagate:denaban:provider:v1:'.hash('sha256', $url);
+        try {
+            $cached = Cache::get($key);
+            $now = now()->timestamp;
+            if (is_array($cached)
+                && is_int($cached['subscriptionsActive'] ?? null) && $cached['subscriptionsActive'] >= 0
+                && is_int($cached['nodesOnline'] ?? null) && $cached['nodesOnline'] >= 0
+                && is_int($cached['providerObservedAt'] ?? null)
+                && $cached['providerObservedAt'] <= $now
+                && $cached['providerObservedAt'] > $now - self::DENABAN_PROVIDER_TTL) {
+                return [
+                    'subscriptionsActive' => $cached['subscriptionsActive'],
+                    'nodesOnline' => $cached['nodesOnline'],
+                    'providerObservedAt' => $cached['providerObservedAt'],
+                ];
+            }
+        } catch (Throwable) {
+            // An unavailable cache must not prevent a bounded live read.
+        }
+
+        // Timestamp the start conservatively so the first observation is never
+        // presented as fresher than the two/three sequential provider reads.
+        $observedAt = now()->timestamp;
+        $online = $this->overview->denabanOnline($actorId);
+        $active = $this->subscriptionCounts(2)['subscriptionsActive'] ?? null;
+        $result = [
+            'subscriptionsActive' => $active,
+            'nodesOnline' => $online,
+            'providerObservedAt' => $active !== null || $online !== null ? $observedAt : null,
+        ];
+        if ($active !== null && $online !== null) {
+            try {
+                Cache::put($key, $result, self::DENABAN_PROVIDER_TTL);
+            } catch (Throwable) {
+                // Cache is an optimization, never a prerequisite for the report.
+            }
+        }
+
+        return $result;
     }
 
     private function salesTodayRials(): int
@@ -120,12 +175,12 @@ final readonly class ReadAdminDashboard
     }
 
     /** @return array{subscriptionsActive:int,subscriptionsExpired:int,subscriptionsLimited:int,panelUsers:int}|null */
-    private function subscriptionCounts(): ?array
+    private function subscriptionCounts(?int $timeoutCap = null): ?array
     {
         // A partial list is NOT a reliable count of all active subscriptions.
         // Maximum two reads/1000 users per on-demand refresh; no unbounded API scan.
         try {
-            $api = new RemnawaveUsersApi($this->factory->make());
+            $api = new RemnawaveUsersApi($this->factory->make($timeoutCap));
             $page = $api->list(0, 500);
             $total = $page['total'];
             if ($total > 1000 || count($page['users']) !== min(500, $total)) {

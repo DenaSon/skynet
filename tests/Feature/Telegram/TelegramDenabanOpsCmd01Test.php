@@ -561,3 +561,72 @@ it('keeps the compact node online total unknown on missing or duplicate observat
         ->and($snapshot['pendingTopups'])->toBeNull()
         ->and(array_key_exists('notificationIssues', $snapshot['stats']))->toBeFalse();
 })->with(['missing count' => false, 'duplicate node' => true]);
+
+it('reuses only verified provider totals for thirty seconds and keeps local totals fresh', function (): void {
+    $root = denabanRoot();
+    config()->set('cache.default', 'array');
+    $this->travelTo(Carbon::parse('2026-11-24 12:30:00', 'Asia/Tehran')->utc());
+    Http::fake([
+        'https://denaban.test/api/nodes' => Http::response(['response' => [[
+            'uuid' => '123e4567-e89b-12d3-a456-426614174001',
+            'name' => 'Node', 'isConnected' => true, 'isDisabled' => false, 'usersOnline' => 7,
+        ]]]),
+        'https://denaban.test/api/users*' => Http::response(['response' => ['users' => [], 'total' => 0]]),
+    ]);
+
+    $center = app(ReadAdminCommandCenter::class);
+    $first = $center->handle($root->id, compact: true);
+    expect($first['stats']['nodesOnline'])->toBe(7)
+        ->and($first['stats']['subscriptionsActive'])->toBe(0)
+        ->and($first['stats']['providerObservedAt'])->toBe(now()->timestamp);
+    Http::assertSentCount(2);
+
+    User::factory()->create();
+    $this->travel(10)->seconds();
+    $warm = $center->handle($root->id, compact: true);
+    expect($warm['stats']['nodesOnline'])->toBe(7)
+        ->and($warm['stats']['providerObservedAt'])->toBe($first['stats']['providerObservedAt'])
+        ->and($warm['stats']['localUsers'])->toBe($first['stats']['localUsers'] + 1);
+    Http::assertSentCount(2);
+
+    denabanBot(991201)->hearCallbackQueryData('denaban:simple')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $payload = denabanPayload($request);
+
+            return str_contains($payload['text'], 'مجموع آنلاین نودها: 7')
+                && str_contains($payload['text'], 'آخرین دریافت آمار پنل:');
+        }, index: 1);
+    Http::assertSentCount(2);
+
+    $this->travel(21)->seconds();
+    $refreshed = $center->handle($root->id, compact: true);
+    expect($refreshed['stats']['providerObservedAt'])->toBe(now()->timestamp);
+    Http::assertSentCount(4);
+
+    $root->syncRoles(['member']);
+    expect(fn () => $center->handle($root->id, compact: true))->toThrow(AuthorizationException::class);
+    Http::assertSentCount(4);
+});
+
+it('does not cache incomplete provider observations as verified totals', function (): void {
+    $root = denabanRoot();
+    config()->set('cache.default', 'array');
+    Http::fake([
+        'https://denaban.test/api/nodes' => Http::sequence()
+            ->push([], 503)
+            ->push(['response' => []]),
+        'https://denaban.test/api/users*' => Http::response(['response' => ['users' => [], 'total' => 0]]),
+    ]);
+
+    $center = app(ReadAdminCommandCenter::class);
+    $first = $center->handle($root->id, compact: true);
+    expect($first['stats']['nodesOnline'])->toBeNull()
+        ->and($first['stats']['subscriptionsActive'])->toBe(0);
+
+    $second = $center->handle($root->id, compact: true);
+    expect($second['stats']['nodesOnline'])->toBe(0);
+    Http::assertSentCount(4);
+
+    $center->handle($root->id, compact: true);
+    Http::assertSentCount(4);
+});

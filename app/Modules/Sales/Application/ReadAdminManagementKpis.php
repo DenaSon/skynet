@@ -94,6 +94,19 @@ final readonly class ReadAdminManagementKpis
     }
 
     /**
+     * The compact Denaban home needs only today's canonical KPI window.
+     *
+     * @return array{from:string,until:string,revenueRials:int,transactions:int,uniqueBuyers:int,newPurchases:int,renewals:int,newUsers:int}
+     */
+    public function currentDay(int $actorId): array
+    {
+        $this->access->handle($actorId);
+        $now = Carbon::now('Asia/Tehran');
+
+        return $this->totals($actorId, $now->copy()->startOfDay(), $now);
+    }
+
+    /**
      * Half-open local periods, converted to UTC exclusively at the SQL edge.
      *
      * @return array{from:string,until:string,revenueRials:int,transactions:int,uniqueBuyers:int,newPurchases:int,renewals:int,newUsers:int}

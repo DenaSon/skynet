@@ -45,13 +45,12 @@ final readonly class AdminCommandCenterUi
         $snapshot = null;
         try {
             $snapshot = $this->center->handle($actor->userId, compact: true);
-            $text = $this->report($snapshot);
         } catch (AuthorizationException) {
             $this->menus->denyAccess($bot);
 
             return;
         } catch (\Throwable) {
-            $text = "<b>📡 دنابان | وضعیت دنا</b>\n\nدریافت گزارش فعلاً ممکن نیست. دوباره بررسی کنید.";
+            // The native error screen remains available when the read fails.
         }
 
         // Financial navigation and system tools. Follow-up stays in Health.
@@ -96,6 +95,10 @@ final readonly class AdminCommandCenterUi
             }
         }
 
+        $text = $snapshot === null
+            ? "<b>📡 دنابان | وضعیت دنا</b>\n\nدریافت گزارش فعلاً ممکن نیست. دوباره بررسی کنید."
+            : $this->report($snapshot);
+
         if ($bot->isCallbackQuery()) {
             TelegramUi::editText($bot, $text, $keyboard, 'HTML');
 
@@ -136,6 +139,7 @@ final readonly class AdminCommandCenterUi
             '',
             '<b>🖥️ وضعیت سرورها</b>',
             'مجموع آنلاین نودها: '.self::format(self::number($stats, 'nodesOnline')),
+            'آخرین دریافت آمار پنل: '.self::providerTime($stats),
             '',
             '<blockquote>واریزی‌ها فقط پرداخت‌های ثبت و تأییدشده‌اند؛ نه موجودی بانک یا سود خالص. خرید با کیف پول، واریزی جدید نیست. مقایسه روزانه تا ساعت یکسان تهران است. مجموع آنلاین نودها، تعداد کاربران یکتا نیست. «نامشخص» به معنی صفر نیست.</blockquote>',
             '🔄 آخرین بررسی: '.PersianCalendar::localDateTime($snapshot['receivedAt']).' (تهران)',
@@ -182,6 +186,7 @@ final readonly class AdminCommandCenterUi
             .self::richTable([
                 ['مجموع آنلاین نودها', self::format(self::number($stats, 'nodesOnline'))],
             ])
+            .'<p>آخرین دریافت آمار پنل: '.TelegramUi::escape(self::providerTime($stats)).'</p>'
             .'<details><summary>توضیحات آمار</summary><p>'
             .'واریزی‌ها فقط پرداخت‌های ثبت و تأییدشده‌اند؛ نه موجودی بانک یا سود خالص. '
             .'خرید با اعتبار کیف پول، واریزی جدید نیست. مقایسه روزانه تا ساعت یکسان تهران است. مجموع آنلاین نودها، تعداد کاربران یکتا نیست. '
@@ -241,6 +246,14 @@ final readonly class AdminCommandCenterUi
     private static function number(?array $data, string $key): ?int
     {
         return is_int($data[$key] ?? null) ? $data[$key] : null;
+    }
+
+    /** @param array<string,mixed>|null $stats */
+    private static function providerTime(?array $stats): string
+    {
+        $timestamp = self::number($stats, 'providerObservedAt');
+
+        return $timestamp === null ? 'نامشخص' : PersianCalendar::utcDateTime(gmdate('Y-m-d H:i:s', $timestamp));
     }
 
     private static function format(?int $value): string
