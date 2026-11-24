@@ -108,6 +108,40 @@ final class ArianetCloudWriteClient
     }
 
     /** @return array{action_id:int} */
+    public function maintenanceAction(int $serverId, string $operation, string $target = ''): array
+    {
+        if ($serverId < 1 || ! in_array($operation, ['rebuild', 'change_plan', 'delete'], true)
+            || config('services.arianet_cloud.operations_enabled') !== true
+            || config('services.arianet_cloud.maintenance_enabled') !== true) {
+            throw new RuntimeException('Cloud maintenance is disabled or invalid.');
+        }
+        if ($operation === 'rebuild') {
+            if (preg_match('/\A(?:ubuntu|debian)-[a-z0-9][a-z0-9._-]{0,54}\z/D', $target) !== 1) {
+                throw new InvalidArgumentException('Invalid system image.');
+            }
+            $json = $this->post('/servers/'.$serverId.'/actions/rebuild', ['image' => $target], 202);
+        } elseif ($operation === 'change_plan') {
+            $plan = filter_var($target, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+            if ($plan === false || (string) $plan !== $target) {
+                throw new InvalidArgumentException('Invalid Cloud plan.');
+            }
+            $json = $this->post('/servers/'.$serverId.'/actions/change_plan', ['plan_id' => $plan], 202);
+        } else {
+            if ($target !== '') {
+                throw new InvalidArgumentException('Invalid delete target.');
+            }
+            // Keep snapshots; no cascade deletion of independent resources.
+            $json = $this->post('/servers/'.$serverId.'?keep_backups=false&delete_snapshots=false', null, 202, 'DELETE');
+        }
+        $action = $json['action_id'] ?? null;
+        if (! is_int($action) || $action < 1) {
+            throw new ArianetCloudWriteUncertain('Cloud maintenance action receipt could not be verified.');
+        }
+
+        return ['action_id' => $action];
+    }
+
+    /** @return array{action_id:int} */
     public function powerAction(int $serverId, string $operation): array
     {
         if ($serverId < 1 || ! in_array($operation, ['poweron', 'shutdown', 'reboot'], true)) {
@@ -127,7 +161,7 @@ final class ArianetCloudWriteClient
      * @param  array<string, bool|int|string|list<int>>|null  $body
      * @return array<string, mixed>
      */
-    private function post(string $path, ?array $body, int $expectedStatus): array
+    private function post(string $path, ?array $body, int $expectedStatus, string $method = 'POST'): array
     {
         // This is an infrastructure-level safety gate, not the future RBAC gate.
         if ($path === '/servers') {
@@ -138,6 +172,12 @@ final class ArianetCloudWriteClient
                     && config('services.arianet_cloud.purchase_enabled') !== true
                     && config('services.arianet_cloud.writes_enabled') !== true)) {
                 throw new RuntimeException('Arianet Cloud purchase is disabled.');
+            }
+        } elseif (preg_match('~^/servers/[1-9][0-9]*/actions/(rebuild|change_plan)$~D', $path) === 1
+            || ($method === 'DELETE' && preg_match('~^/servers/[1-9][0-9]*\?keep_backups=false&delete_snapshots=false$~D', $path) === 1)) {
+            if (config('services.arianet_cloud.operations_enabled') !== true
+                || config('services.arianet_cloud.maintenance_enabled') !== true) {
+                throw new RuntimeException('Cloud maintenance is disabled.');
             }
         } elseif (preg_match('~^/servers/[1-9][0-9]*/actions/(poweron|shutdown|reboot)$~D', $path) === 1) {
             if (config('services.arianet_cloud.operations_enabled') !== true) {
@@ -171,7 +211,7 @@ final class ArianetCloudWriteClient
                 ->timeout($timeout)
                 ->withOptions(['allow_redirects' => false]);
 
-            $response = $request->send('POST', self::ORIGIN.$path, $body === null ? [] : ['json' => $body]);
+            $response = $request->send($method, self::ORIGIN.$path, $body === null ? [] : ['json' => $body]);
         } catch (ConnectionException) {
             throw new ArianetCloudWriteUncertain('Arianet Cloud write outcome is unknown (connection failure).');
         }

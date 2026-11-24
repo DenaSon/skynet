@@ -105,6 +105,12 @@ final class ArianetCloudReadClient
         return $this->read('/servers/'.$this->positiveId($serverId));
     }
 
+    /** A confirmed delete is verified only by an exact provider not-found response. */
+    public function serverMissing(int $serverId): bool
+    {
+        return $this->read('/servers/'.$this->positiveId($serverId), allowNotFound: true) === [];
+    }
+
     /** @return array<string, mixed> */
     public function networking(int $serverId): array
     {
@@ -172,7 +178,7 @@ final class ArianetCloudReadClient
      * @param  array<string, int|string>  $query
      * @return array<string, mixed>
      */
-    private function read(string $path, array $query = [], bool $account = false): array
+    private function read(string $path, array $query = [], bool $account = false, bool $allowNotFound = false): array
     {
         $token = config('services.arianet_cloud.read_token');
         $timeout = config('services.arianet_cloud.timeout', 10);
@@ -195,6 +201,10 @@ final class ArianetCloudReadClient
         } catch (ConnectionException) {
             // No sensitive upstream exception, response body or credential in diagnostics.
             throw new RuntimeException('Arianet Cloud connection failed.');
+        }
+
+        if ($allowNotFound && $response->status() === 404 && $response->json('code') === 'not_found') {
+            return [];
         }
 
         if ($response->status() === 429) {

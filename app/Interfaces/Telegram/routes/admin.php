@@ -755,6 +755,12 @@ $bot->onCallbackQueryData('ari9:menu:{id}:{page}', function (Nutgram $bot, strin
 $bot->onCallbackQueryData('ari9:refresh:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
     app(AdminArianetCloudUi::class)->operations($bot, $id, $page, true);
 });
+$bot->onCallbackQueryData('ari9:choices:{id}:{page}:{operation}:{choicePage}', function (Nutgram $bot, string $id, string $page, string $operation, string $choicePage): void {
+    app(AdminArianetCloudUi::class)->maintenanceChoices($bot, $id, $page, $operation, $choicePage);
+});
+$bot->onCallbackQueryData('ari9:pick:{token}:{index}', function (Nutgram $bot, string $token, string $index): void {
+    app(AdminArianetCloudUi::class)->maintenancePick($bot, $token, $index);
+});
 $bot->onCallbackQueryData('ari9:p:{id}:{page}:{operation}', function (Nutgram $bot, string $id, string $page, string $operation): void {
     app(AdminArianetCloudUi::class)->prepareOperation($bot, $id, $page, $operation);
 });

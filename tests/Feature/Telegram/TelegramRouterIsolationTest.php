@@ -365,6 +365,7 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     foreach ([
         'menu:{id}:{page}', 'refresh:{id}:{page}', 'p:{id}:{page}:{operation}',
         'a:{id}:{page}:{token}', 'c:{id}:{page}:{token}',
+        'choices:{id}:{page}:{operation}:{choicePage}', 'pick:{token}:{index}',
     ] as $name) {
         $expected['ADMIN'][] = 'callback:ari9:'.$name;
     }

@@ -165,6 +165,7 @@ final readonly class ManageAdminArianetCloudLinks
             $this->access->handle($actorId);
 
             if ($mode === 'link') {
+                ManageAdminArianetOperations::assertNoActive($serverId);
                 $uuid = $preview['nodeUuid'] ?? null;
                 self::nodeUuid($uuid);
                 $cloud = $this->cloud->detail($actorId, $serverId);
