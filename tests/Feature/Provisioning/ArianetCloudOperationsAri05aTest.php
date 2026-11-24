@@ -158,7 +158,7 @@ it('ARI-06 permits explicitly reviewed unknown outcomes only after quiet provide
 it('ARI-06 isolates installation protection by IP and releases terminal checkpoints', function (): void {
     $ip = '194.5.192.133';
     $id = str_repeat('a', 32);
-    Cache::put('nw02:host:'.$ip, $id, now()->addHours(3));
+    Cache::put('nw02:active-host:'.$ip, $id, now()->addHours(3));
     Cache::put('nw02:status:'.$id, ['state' => 'installing'], now()->addHours(3));
     $this->travel(6)->minutes();
     expect(fn () => ManageAdminArianetOperations::assertHostAvailable($ip))->toThrow(RuntimeException::class);

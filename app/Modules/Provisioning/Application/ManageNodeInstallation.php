@@ -201,6 +201,7 @@ final readonly class ManageNodeInstallation
         } catch (Throwable) {
             Cache::forget('nw02:access:'.$identifier);
             Cache::forget('nw02:status:'.$identifier);
+            Cache::forget('nw02:active-host:'.$ip);
             Cache::forget($reservation);
             throw new RuntimeException('Could not enqueue Node setup.');
         }
@@ -502,13 +503,16 @@ final readonly class ManageNodeInstallation
     {
         $expires = now()->addHours(3);
         Cache::put('nw02:status:'.$id, $state, $expires);
-        $key = 'nw02:host:'.$state['ip'];
-        if (Cache::get($key) === $id) {
-            if (in_array($state['state'], ['queued', 'launching', 'started', 'installing', 'starting', 'pending', 'uncertain'], true)) {
+        // Preserve the original five-minute admission lease. This separate
+        // pointer protects Cloud operations while the existing setup is active.
+        $key = 'nw02:active-host:'.$state['ip'];
+        $owner = Cache::get($key);
+        if (in_array($state['state'], ['queued', 'launching', 'started', 'installing', 'starting', 'pending', 'uncertain'], true)) {
+            if ($owner === $id || ($owner === null && Cache::get('nw02:host:'.$state['ip']) === $id)) {
                 Cache::put($key, $id, $expires);
-            } else {
-                Cache::forget($key);
             }
+        } elseif ($owner === $id) {
+            Cache::forget($key);
         }
     }
 

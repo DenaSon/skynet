@@ -113,7 +113,7 @@ final readonly class ManageAdminArianetOperations
     /** Reuse NW-02 and NW-05 checkpoints; no permanent lock after their expiry. */
     public static function assertHostAvailable(string $ip): void
     {
-        $install = Cache::get('nw02:host:'.$ip);
+        $install = Cache::get('nw02:active-host:'.$ip) ?? Cache::get('nw02:host:'.$ip);
         if (is_string($install)) {
             $state = Cache::get('nw02:status:'.$install);
             if (! is_array($state) || in_array($state['state'] ?? null, ['queued', 'launching', 'started', 'installing', 'starting', 'pending', 'uncertain'], true)) {
