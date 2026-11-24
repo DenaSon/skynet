@@ -99,6 +99,7 @@ final readonly class ReadAdminDashboard
 
         $users = (int) DB::table('users')->count();
         $sales = $this->salesTodayRials();
+
         return [
             'localUsers' => $users,
             'salesTodayRials' => $sales,
