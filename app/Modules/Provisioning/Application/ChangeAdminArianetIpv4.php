@@ -52,6 +52,7 @@ final readonly class ChangeAdminArianetIpv4
         $token = bin2hex(random_bytes(12));
 
         Cache::lock('arianet:ipv4:'.$serverId, 90)->block(2, function () use ($actorId, $serverId, $preview, $token): void {
+            ManageAdminArianetOperations::assertNoActive($serverId);
             DB::transaction(function () use ($actorId, $serverId, $preview, $token): void {
                 $active = DB::table(self::TABLE)->where('active_server_id', $serverId)->lockForUpdate()->first();
                 if ($active !== null) {
@@ -99,6 +100,7 @@ final readonly class ChangeAdminArianetIpv4
         }
 
         return Cache::lock('arianet:ipv4:'.$serverId, 90)->block(2, function () use ($actorId, $serverId, $token): array {
+            ManageAdminArianetOperations::assertNoActive($serverId);
             $row = DB::table(self::TABLE)->where('cloud_server_id', $serverId)
                 ->where('actor_user_id', $actorId)
                 ->where('token_hash', hash('sha256', $token))

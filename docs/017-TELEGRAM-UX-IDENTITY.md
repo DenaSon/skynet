@@ -1,3 +1,7 @@
+## Cloud server operations submenu — 2026-11-24
+
+Keep Cloud detail concise with one «⚙️ عملیات سرور» entry. State-dependent power controls, contextual Back, concise interruption and billing warning, explicit confirmation, and status refresh. Future rebuild, resize and delete remain separate approved phases. No hard reset or forced poweroff.
+
 ## Admin Cloud server UI/UX polish — 2026-11-24
 
 Operator-approved, presentation-only: in the existing private Super Admin server overview, place

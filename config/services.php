@@ -35,6 +35,7 @@ return [
         'writes_enabled' => (bool) env('ARIANET_CLOUD_WRITES_ENABLED', false),
         // Independent default-OFF Production permission for paid Cloud create.
         'purchase_enabled' => (bool) env('ARIANET_CLOUD_PURCHASE_ENABLED', false),
+        'operations_enabled' => (bool) env('ARIANET_CLOUD_OPERATIONS_ENABLED', false),
         'timeout' => (int) env('ARIANET_CLOUD_TIMEOUT', 10),
     ],
 

@@ -6,6 +6,7 @@ namespace App\Interfaces\Telegram\Support;
 
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Provisioning\Application\ManageAdminArianetCloudLinks;
+use App\Modules\Provisioning\Application\ManageAdminArianetOperations;
 use App\Modules\Provisioning\Application\ManageAdminNodes;
 use App\Modules\Provisioning\Application\ReadAdminArianetCloud;
 use App\Support\PersianCalendar;
@@ -29,6 +30,7 @@ final readonly class AdminArianetCloudUi
         private ManageAdminArianetCloudLinks $links,
         private ManageAdminNodes $nodes,
         private MenuRenderer $menus,
+        private ManageAdminArianetOperations $operations,
     ) {}
 
     public function browse(Nutgram $bot, string $requested = '1'): void
@@ -174,6 +176,7 @@ final readonly class AdminArianetCloudUi
             InlineKeyboardButton::make('💰 هزینه‌ها', callback_data: 'ari2:cost:'.$id.':'.$page),
             InlineKeyboardButton::make('🕒 سوابق عملیات', callback_data: 'ari2:history:'.$id.':'.$page.':1'),
         );
+        $buttons->addRow(InlineKeyboardButton::make('⚙️ عملیات سرور', callback_data: 'ari9:menu:'.$id.':'.$page));
         $buttons->addRow(InlineKeyboardButton::make('🔎 پیش‌نمایش تعویض IPv4',
             callback_data: 'ari4:preview:'.$id.':'.$page));
         if (! $linkUnavailable) {
@@ -223,6 +226,121 @@ final readonly class AdminArianetCloudUi
             .'<table bordered striped compact>'.$richRows.'</table>'
             .'<footer>🔒 فقط ارتباط داخلی با نود قابل ثبت یا قطع است؛ IP، DNS و تنظیمات سرور تغییر نمی‌کنند.</footer>';
         $this->render($bot, $simple, $buttons, $rich);
+    }
+
+    public function operations(Nutgram $bot, string $rawId, string $rawPage, bool $refresh = false): void
+    {
+        $actor = $this->root($bot);
+        if ($actor === null) {
+            return;
+        }
+        $id = self::number($rawId, PHP_INT_MAX);
+        $page = self::number($rawPage, 100);
+        if ($id === null || $page === null) {
+            $this->render($bot, 'انتخاب معتبر نیست.', self::listBack(1));
+
+            return;
+        }
+        $buttons = InlineKeyboardMarkup::make();
+        $back = InlineKeyboardButton::make('◀️ جزئیات سرور', callback_data: 'ari2:view:'.$id.':'.$page);
+        try {
+            $server = $this->cloud->detail($actor, $id);
+            if ($refresh) {
+                $this->operations->reconcile($actor, $id);
+            }
+            $last = $this->operations->status($actor, $id);
+        } catch (Throwable) {
+            $this->render($bot, 'دریافت وضعیت عملیات ممکن نیست.', $buttons->addRow($back));
+
+            return;
+        }
+        $busy = $last !== null && in_array($last['status'], ['prepared', 'reserved', 'accepted', 'uncertain'], true);
+        if ($this->operations->enabled() && ! $busy) {
+            foreach (ManageAdminArianetOperations::available($server['status']) as $operation) {
+                $buttons->addRow(InlineKeyboardButton::make(self::operation($operation),
+                    callback_data: 'ari9:p:'.$id.':'.$page.':'.$operation));
+            }
+        }
+        $buttons->addRow(InlineKeyboardButton::make('🔄 بررسی وضعیت', callback_data: 'ari9:refresh:'.$id.':'.$page));
+        $buttons->addRow($back);
+        $message = '⚙️ عملیات سرور'."\n\n".$server['name']."\n".self::statusLabel($server['status'], false);
+        if ($last !== null) {
+            $message .= "\n".self::operation($last['operation']).': '.match ($last['status']) {
+                'prepared' => 'در انتظار تأیید',
+                'accepted' => 'در حال انجام',
+                'reserved', 'uncertain' => 'نامشخص؛ عملیات را تکرار نکنید',
+                'completed' => 'تأیید شد',
+                'failed' => 'ناموفق',
+                'expired' => 'منقضی شد',
+                'cancelled' => 'لغو شد',
+                default => 'نامشخص',
+            };
+        }
+        if (! $this->operations->enabled()) {
+            $message .= "\nعملیات سرور فعلاً غیرفعال است.";
+        }
+        $this->render($bot, TelegramUi::escape($message), $buttons,
+            '<h2>⚙️ عملیات سرور</h2><p>'.TelegramUi::escape($message).'</p>');
+    }
+
+    public function prepareOperation(Nutgram $bot, string $rawId, string $rawPage, string $operation): void
+    {
+        $actor = $this->root($bot);
+        if ($actor === null) {
+            return;
+        }
+        $id = self::number($rawId, PHP_INT_MAX);
+        $page = self::number($rawPage, 100);
+        if ($id === null || $page === null) {
+            return;
+        }
+        $back = InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('◀️ عملیات سرور', callback_data: 'ari9:menu:'.$id.':'.$page));
+        try {
+            $prepared = $this->operations->prepare($actor, $id, $operation);
+        } catch (Throwable) {
+            $this->render($bot, 'آماده‌سازی عملیات ممکن نیست؛ وضعیت سرور و درخواست قبلی را بررسی کنید.', $back);
+
+            return;
+        }
+        $snapshot = $prepared['snapshot'];
+        $suffix = $id.':'.$page.':'.$prepared['token'];
+        $buttons = InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('تأیید '.self::operation($operation), callback_data: 'ari9:a:'.$suffix))
+            ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'ari9:c:'.$suffix));
+        $warning = $operation === 'poweron' ? 'روشن شدن سرور به معنی سلامت اتصال کاربران نیست.'
+            : 'این عملیات ممکن است اتصال کاربران را قطع کند. هزینه سرور با خاموش شدن متوقف نمی‌شود.';
+        $message = self::operation($operation)."\n".$snapshot['name']."\n".$snapshot['ipv4']."\n\n".$warning;
+        $this->render($bot, TelegramUi::escape($message), $buttons,
+            '<h2>'.TelegramUi::escape(self::operation($operation)).'</h2><p>'.TelegramUi::escape($snapshot['name'])
+            .'</p><p>'.TelegramUi::escape($snapshot['ipv4']).'</p><footer>'.TelegramUi::escape($warning).'</footer>');
+    }
+
+    public function finishOperation(Nutgram $bot, string $rawId, string $rawPage, string $token, bool $cancel = false): void
+    {
+        $actor = $this->root($bot);
+        if ($actor === null) {
+            return;
+        }
+        $id = self::number($rawId, PHP_INT_MAX);
+        $page = self::number($rawPage, 100);
+        if ($id === null || $page === null) {
+            return;
+        }
+        try {
+            if ($cancel) {
+                $this->operations->cancel($actor, $id, $token);
+            } else {
+                $this->operations->confirm($actor, $id, $token);
+            }
+        } catch (Throwable) {
+            $this->render($bot, 'تأیید معتبر نیست یا وضعیت تغییر کرده است؛ نتیجه عملیات را بررسی کنید.',
+                InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make('◀️ عملیات سرور',
+                    callback_data: 'ari9:menu:'.$id.':'.$page)));
+
+            return;
+        }
+        $this->operations($bot, $rawId, $rawPage);
     }
 
     public function costs(Nutgram $bot, string $requestedId, string $requestedPage): void

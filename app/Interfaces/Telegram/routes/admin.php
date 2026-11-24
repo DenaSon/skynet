@@ -749,6 +749,21 @@ $bot->onCallbackQueryData('ari8:cancel', function (Nutgram $bot): void {
     app(AdminArianetPurchaseUi::class)->cancel($bot);
 });
 
+$bot->onCallbackQueryData('ari9:menu:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
+    app(AdminArianetCloudUi::class)->operations($bot, $id, $page);
+});
+$bot->onCallbackQueryData('ari9:refresh:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
+    app(AdminArianetCloudUi::class)->operations($bot, $id, $page, true);
+});
+$bot->onCallbackQueryData('ari9:p:{id}:{page}:{operation}', function (Nutgram $bot, string $id, string $page, string $operation): void {
+    app(AdminArianetCloudUi::class)->prepareOperation($bot, $id, $page, $operation);
+});
+$bot->onCallbackQueryData('ari9:a:{id}:{page}:{token}', function (Nutgram $bot, string $id, string $page, string $token): void {
+    app(AdminArianetCloudUi::class)->finishOperation($bot, $id, $page, $token);
+});
+$bot->onCallbackQueryData('ari9:c:{id}:{page}:{token}', function (Nutgram $bot, string $id, string $page, string $token): void {
+    app(AdminArianetCloudUi::class)->finishOperation($bot, $id, $page, $token, true);
+});
 $bot->onCallbackQueryData('ari2:list:{page}', function (Nutgram $bot, string $page): void {
     app(AdminArianetCloudUi::class)->browse($bot, $page);
 });
