@@ -78,3 +78,24 @@ provider/financial write or new package is introduced. Acceptance requires
 RBAC/revocation/group tests, Rich/native behavior, router isolation, observed
 duration regression, formatting, PHPStan, PHP 8.4 and MySQL CI.
 Actual Telegram rendering and deployment are separate operational checks.
+
+## DENABAN-FIX-01 — production check-name compatibility (2026-11-24)
+
+Production evidence: a fresh 14-record batch contains Database, Queue,
+Schedule, UsedDiskSpace and Redis, not the class names ending in Check.
+The snapshot and history share one exact canonical inventory; only the
+five documented legacy aliases are accepted. Canonical duplicates,
+missing required checks and unexpected rows still prevent a healthy
+snapshot. The history query includes both spellings and processes them
+chronologically as the same check, retaining the 24-hour and 12,000-row
+bounds. No new probes, writes, migrations or notification dispatch.
+
+The separate missing subscription heartbeat remains a production diagnostic:
+the existing scheduler invokes sales:subscriptions:alerts every five minutes
+and writes its heartbeat after scan returns. A missing cache key alone cannot
+prove a failed or stopped scan. Verify scheduler logs, completion duration
+and shared cache configuration before changing this operational contract.
+No synthetic heartbeat, manual customer alert run or timeout/lock change is
+part of this fix. Live acceptance requires a complete 14-row batch with the
+correct aggregate state and the five basic checks visible in history when
+their observed status changes.
