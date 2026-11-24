@@ -10,8 +10,8 @@ use InvalidArgumentException;
 use RuntimeException;
 
 /**
- * ARI-01B: transport-only Cloud writes. NOT wired to any Application Action,
- * Telegram route, command or scheduler. Default-OFF independent kill switch.
+ * Fixed-origin Cloud write transport. Application Actions own authorization,
+ * one-use confirmations and durable reservation.
  *
  * The one configured Bearer token is shared with reads; a default-OFF write
  * gate remains independent of token scopes; Production purchases require

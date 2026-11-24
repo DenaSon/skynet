@@ -18,8 +18,7 @@ use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 use Throwable;
 
 /**
- * ARI-02A: read-only Arianet Cloud in the private trusted-root Admin Bot.
- * This UI is never connected to Cloud writes or Remnawave/Cloudflare mutations.
+ * Private trusted-root Cloud inventory and explicitly confirmed server operations.
  */
 final readonly class AdminArianetCloudUi
 {
@@ -263,7 +262,7 @@ final readonly class AdminArianetCloudUi
         }
         $buttons->addRow(InlineKeyboardButton::make('🔄 بررسی وضعیت', callback_data: 'ari9:refresh:'.$id.':'.$page));
         $buttons->addRow($back);
-        $message = '⚙️ عملیات سرور'."\n\n".$server['name']."\n".self::statusLabel($server['status'], false);
+        $message = $server['name']."\n".self::statusLabel($server['status'], false);
         if ($last !== null) {
             $message .= "\n".self::operation($last['operation']).': '.match ($last['status']) {
                 'prepared' => 'در انتظار تأیید',
@@ -279,7 +278,7 @@ final readonly class AdminArianetCloudUi
         if (! $this->operations->enabled()) {
             $message .= "\nعملیات سرور فعلاً غیرفعال است.";
         }
-        $this->render($bot, TelegramUi::escape($message), $buttons,
+        $this->render($bot, '<b>⚙️ عملیات سرور</b>'."\n\n".TelegramUi::escape($message), $buttons,
             '<h2>⚙️ عملیات سرور</h2><p>'.TelegramUi::escape($message).'</p>');
     }
 

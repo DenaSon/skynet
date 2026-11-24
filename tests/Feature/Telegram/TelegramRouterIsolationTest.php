@@ -361,6 +361,13 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     ] as $name) {
         $expected['ADMIN'][] = 'callback:geoc:'.$name;
     }
+    // ARI-05A: server operations are private Admin-only callbacks.
+    foreach ([
+        'menu:{id}:{page}', 'refresh:{id}:{page}', 'p:{id}:{page}:{operation}',
+        'a:{id}:{page}:{token}', 'c:{id}:{page}:{token}',
+    ] as $name) {
+        $expected['ADMIN'][] = 'callback:ari9:'.$name;
+    }
     // ARI-04A: GET-only private quote; never a create or purchase callback.
     foreach (['begin', 'plans:{dc}:{page}', 'images:{dc}:{plan}',
         'image:{dc}:{plan}:{image}', 'keys:{page}', 'key:{id}:{page}', 'review', 'cancel'] as $name) {

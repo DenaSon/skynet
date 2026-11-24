@@ -7,6 +7,7 @@ namespace App\Modules\Provisioning\Application;
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
 use App\Modules\Provisioning\Infrastructure\Arianet\ArianetCloudReadClient;
 use App\Modules\Provisioning\Infrastructure\Arianet\ArianetCloudWriteClient;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -53,7 +54,7 @@ final readonly class ManageAdminArianetOperations
         }
 
         if (DB::table(self::TABLE)->where('active_server_id', $serverId)
-            ->where(function ($query): void {
+            ->where(function (Builder $query): void {
                 $query->where('status', '!=', 'prepared')->orWhere('expires_at', '>=', now());
             })->exists()) {
             throw new RuntimeException('A Cloud server operation is awaiting review.');
@@ -191,7 +192,10 @@ final readonly class ManageAdminArianetOperations
     /** @return array<string,mixed> */
     private function snapshot(int $actor, int $serverId, string $operation): array
     {
-        if ($serverId < 1 || DB::table('arianet_cloud_ipv4_changes')->where('active_server_id', $serverId)->exists()) {
+        if ($serverId < 1 || DB::table('arianet_cloud_ipv4_changes')->where('active_server_id', $serverId)
+            ->where(function (Builder $query): void {
+                $query->where('status', '!=', 'prepared')->orWhere('expires_at', '>=', now());
+            })->exists()) {
             throw new RuntimeException('Cloud IPv4 operation is pending.');
         }
         if (DB::table('arianet_cloud_purchases')->where('server_id', $serverId)->where('active_slot', 1)->exists()) {
