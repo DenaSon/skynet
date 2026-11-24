@@ -160,6 +160,60 @@ it('shows the Cloud entry within existing root server overview without changing 
     Http::assertNothingSent();
 });
 
+it('polishes only the root server navigation with blue Cloud entry immediately after green setup', function (): void {
+    ari2Root();
+    config()->set('services.remnawave.url', null);
+    config()->set('services.remnawave.node_ssh_setup_enabled', true);
+    Http::fake();
+    ari2Bot()->hearCallbackQueryData('menu:admin:servers')->reply()
+        ->assertRaw(static function (NutgramRequest $r): bool {
+            $rows = ari2Payload($r)['reply_markup']['inline_keyboard'] ?? [];
+            $buttons = array_merge(...$rows);
+            $callbacks = array_column($buttons, 'callback_data');
+            $setup = array_search('nw1:begin', $callbacks, true);
+            $cloud = array_search('ari2:list:1', $callbacks, true);
+
+            return $setup !== false && $cloud === $setup + 1
+                && ($buttons[$setup]['style'] ?? null) === 'success'
+                && ($buttons[$cloud]['style'] ?? null) === 'primary'
+                && ari2Has($r, 'servers:refresh')
+                && ari2Has($r, 'menu:admin:control');
+        }, index: 1);
+    Http::assertNothingSent();
+});
+
+it('shows the blue Cloud shortcut even when the separate SSH installer is disabled', function (): void {
+    ari2Root();
+    config()->set('services.remnawave.url', null);
+    config()->set('services.remnawave.node_ssh_setup_enabled', false);
+    Http::fake();
+    ari2Bot()->hearCallbackQueryData('menu:admin:servers')->reply()
+        ->assertRaw(static function (NutgramRequest $r): bool {
+            $rows = ari2Payload($r)['reply_markup']['inline_keyboard'] ?? [];
+            $buttons = array_merge(...$rows);
+
+            return ($buttons[0]['callback_data'] ?? null) === 'ari2:list:1'
+                && ($buttons[0]['style'] ?? null) === 'primary'
+                && ! ari2Has($r, 'nw1:begin');
+        }, index: 1);
+    Http::assertNothingSent();
+});
+
+it('keeps Cloud inventory order entry readable according to the purchase gate', function (): void {
+    ari2Root();
+    ari2Fake();
+    config()->set('services.arianet_cloud.purchase_enabled', false);
+    ari2Bot()->hearCallbackQueryData('ari2:list:1')->reply()
+        ->assertRaw(static fn (NutgramRequest $r): bool => str_contains(json_encode(ari2Payload($r)['reply_markup'], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE), 'پیش‌نمایش سفارش سرور')
+            && ari2Has($r, 'ari8:begin'), index: 1);
+
+    config()->set('services.arianet_cloud.purchase_enabled', true);
+    ari2Bot()->hearCallbackQueryData('ari2:list:1')->reply()
+        ->assertRaw(static fn (NutgramRequest $r): bool => str_contains(json_encode(ari2Payload($r)['reply_markup'], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE), 'سفارش سرور جدید')
+            && ari2Has($r, 'ari8:begin'), index: 1);
+    ari2OnlyReads();
+});
+
 it('renders the bounded Cloud inventory as native RTL Rich and preserves paging/back controls', function (): void {
     ari2Root();
     ari2Fake();
@@ -222,6 +276,8 @@ it('offers costs, action history and datacenter plans as GET-only Rich views', f
     $bot->hearCallbackQueryData('ari2:plans:ovh:1')->reply()
         ->assertRaw(static fn (NutgramRequest $r): bool => str_contains(ari2Html($r), '۱٬۴۸۵٬۰۳۹')
             && str_contains(ari2Html($r), 'S2')
+            && str_contains(ari2Html($r), '1 vCPU · 2 GB RAM · 30 GB Disk')
+            && ! str_contains(ari2Html($r), '2048 MB RAM')
             && ari2Has($r, 'ari2:dc'), index: 1);
 
     ari2OnlyReads();
@@ -335,9 +391,7 @@ it('renders real Arianet Cloud /plans fields instead of unknown CPU, RAM and pri
             $html = ari2Html($request);
 
             return str_contains($html, 'S0 #18')
-                && str_contains($html, '۱ CPU')
-                && str_contains($html, '۱٬۰۲۴ MB RAM')
-                && str_contains($html, '۵ GB')
+                && str_contains($html, '1 vCPU · 1 GB RAM · 5 GB Disk')
                 && str_contains($html, '۱٬۳۹۸ تومان')
                 && str_contains($html, '۱٬۰۲۰٬۰۲۹ تومان')
                 && ! str_contains($html, 'نامشخص')
@@ -367,8 +421,7 @@ it('keeps unverified or non-IRR Cloud plan prices hidden while showing safe hard
         ->assertRaw(static function (NutgramRequest $request): bool {
             $html = ari2Html($request);
 
-            return str_contains($html, '۱ CPU')
-                && str_contains($html, '۱٬۰۲۴ MB RAM')
+            return str_contains($html, '1 vCPU · 1 GB RAM · 5 GB Disk')
                 && str_contains($html, 'ساعتی: نامشخص')
                 && str_contains($html, 'ماهانه: نامشخص')
                 && ! str_contains($html, '۱٬۰۲۰٬۰۲۹ تومان');

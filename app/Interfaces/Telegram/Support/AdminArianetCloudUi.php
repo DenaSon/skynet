@@ -72,7 +72,12 @@ final readonly class AdminArianetCloudUi
         if ($nav !== []) {
             $buttons->addRow(...$nav);
         }
-        $buttons->addRow(InlineKeyboardButton::make('🛒 پیش‌نمایش خرید VPS', callback_data: 'ari8:begin'));
+        $purchaseEnabled = config('services.arianet_cloud.purchase_enabled') === true
+            && filled(config('services.arianet_cloud.read_token'));
+        $buttons->addRow(InlineKeyboardButton::make(
+            $purchaseEnabled ? '🛒 سفارش سرور جدید' : '🔎 پیش‌نمایش سفارش سرور',
+            callback_data: 'ari8:begin',
+        ));
         $buttons->addRow(InlineKeyboardButton::make('📦 پلن‌های ابری', callback_data: 'ari2:dc'));
         $buttons->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'ari2:list:'.$page));
         $buttons->addRow(InlineKeyboardButton::make('◀️ وضعیت سرورها', callback_data: 'menu:admin:servers'));
@@ -102,15 +107,13 @@ final readonly class AdminArianetCloudUi
         $rich = '<h2>☁️ سرورهای ابری</h2><p>آریاسرویس · وضعیت زمان درخواست</p>'
             .'<table bordered striped compact>'.$rows.'</table>'
             .($list === '' ? '<p>هنوز سرور ابری ثبت نشده است.</p>'
-                : '<table bordered striped compact>'.$list.'</table>')
-            .'<footer>💡 هزینه مجموع فقط در حساب تک‌سروری با دریافت هزینه واقعی نمایش داده می‌شود. این بخش صرفاً خواندنی است.</footer>';
+                : '<table bordered striped compact>'.$list.'</table>');
         $simple = '<b>☁️ سرورهای ابری</b>'."\n\n"
             .TelegramUi::escape($label).': '.self::digits($total)
             ."\nروشن در این صفحه: ".self::digits($running).' از '.self::digits($count)
             ."\nصفحه: ".self::digits($page).' از '.self::digits($result['pages'])
             .($result['monthlyRials'] === null ? '' : "\nبرآورد ماهانه: ".self::toman($result['monthlyRials']))
-            ."\n".($simpleList === '' ? "\nهنوز سرور ابری ثبت نشده است." : $simpleList)
-            ."\n\nبرای مشاهده جزئیات، یک سرور را انتخاب کنید.";
+            ."\n".($simpleList === '' ? "\nهنوز سرور ابری ثبت نشده است." : $simpleList);
         $this->render($bot, $simple, $buttons, $rich);
     }
 
@@ -406,20 +409,23 @@ final readonly class AdminArianetCloudUi
             ."\nصفحه ".self::digits($page).' از '.self::digits($plans['pages']);
         foreach ($plans['items'] as $plan) {
             $name = $plan['name'].' #'.$plan['id'];
-            $specs = self::amount($plan['cores']).' CPU · '
-                .($plan['memoryMb'] === null ? 'RAM نامشخص' : self::digits($plan['memoryMb']).' MB RAM')
-                .' · '.($plan['diskGb'] === null ? 'دیسک نامشخص' : self::digits($plan['diskGb']).' GB');
+            $ram = $plan['memoryMb'] === null ? 'N/A RAM'
+                : ($plan['memoryMb'] % 1024 === 0
+                    ? number_format(intdiv($plan['memoryMb'], 1024)).' GB RAM'
+                    : number_format($plan['memoryMb']).' MB RAM');
+            $specs = "\u{2066}".($plan['cores'] === null ? 'N/A' : number_format($plan['cores'])).' vCPU · '
+                .$ram.' · '.($plan['diskGb'] === null ? 'N/A' : number_format($plan['diskGb'])).' GB Disk'."\u{2069}";
             $price = 'ساعتی: '.self::money($plan['hourlyRials'])
-                .' | ماهانه: '.self::money($plan['monthlyRials']);
-            $rows .= self::row($name, $specs.' · '.$price);
-            $simple .= "\n".TelegramUi::escape($name).' · '.TelegramUi::escape($specs)
+                .' · ماهانه: '.self::money($plan['monthlyRials']);
+            $rows .= self::row($name, $specs).self::row('هزینه پایه', $price);
+            $simple .= "\n\n<b>".TelegramUi::escape($name).'</b>'
+                ."\n".TelegramUi::escape($specs)
                 ."\n".TelegramUi::escape($price);
         }
         $rich = '<h2>📦 پلن‌های '.TelegramUi::escape($datacenter).'</h2><p>صفحه '
             .self::digits($page).' از '.self::digits($plans['pages']).'</p>'
             .($rows === '' ? '<p>پلنی برای نمایش وجود ندارد.</p>'
-                : '<table bordered striped compact>'.$rows.'</table>')
-            .'<footer>قیمت‌ها تنها در صورت تأیید واحد IRR نمایش داده می‌شوند؛ امکان خرید در این مرحله وجود ندارد.</footer>';
+                : '<table bordered striped compact>'.$rows.'</table>');
         $this->render($bot, $simple.($rows === '' ? "\nپلنی یافت نشد." : ''), $buttons, $rich);
     }
 
