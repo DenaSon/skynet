@@ -1,3 +1,9 @@
+## ARI-05 — Cloud server operations (2026-11-24; operator-approved)
+
+One «⚙️ عملیات سرور» submenu in the existing private root Cloud detail. ARI-05A source: state-dependent poweron, graceful shutdown and reboot, fresh identity and one-use confirmation, per-server durable journal, independent default-OFF `ARIANET_CLOUD_OPERATIONS_ENABLED`, GET-only matching action and final server state, and no blind replay. Reuse the existing IPv4 lock and block competing pending IPv4 operations; retain all previous Cloud detail actions. One additive journal migration is required before enablement; never drop populated history. A linked/live server may be interrupted only with explicit operator confirmation. No actual provider writes in development. Hard reset/poweroff are excluded.
+
+Remaining independent ARI-05 scope: rebuild (select supported image, respect rebuild protection, main-disk loss, reverify SSH identity), change plan (stopped only, eligible upgrades, fresh IRR price and no shrinking), and delete (explicit irreversible confirmation, delete protection, prove no Node/Host/DNS dependencies, no automatic snapshot/resource deletion or protection removal). These are not implemented by ARI-05A. Use the same submenu and journal in subsequent reviewed PRs. See [official Cloud API](https://docs.ariaservice.net/en/cloud-api). Live operations require separate explicit confirmation and provider verification.
+
 ## ARI-04C — verified Cloud handoff to existing NW-05 (2026-11-24)
 
 Operator approved completing the source phase before all real operational tests.

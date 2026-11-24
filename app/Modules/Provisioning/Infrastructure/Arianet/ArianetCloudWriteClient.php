@@ -10,8 +10,8 @@ use InvalidArgumentException;
 use RuntimeException;
 
 /**
- * ARI-01B: transport-only Cloud writes. NOT wired to any Application Action,
- * Telegram route, command or scheduler. Default-OFF independent kill switch.
+ * Fixed-origin Cloud write transport. Application Actions own authorization,
+ * one-use confirmations and durable reservation.
  *
  * The one configured Bearer token is shared with reads; a default-OFF write
  * gate remains independent of token scopes; Production purchases require
@@ -107,6 +107,22 @@ final class ArianetCloudWriteClient
         return ['action_id' => $action];
     }
 
+    /** @return array{action_id:int} */
+    public function powerAction(int $serverId, string $operation): array
+    {
+        if ($serverId < 1 || ! in_array($operation, ['poweron', 'shutdown', 'reboot'], true)) {
+            throw new InvalidArgumentException('Invalid Cloud power action.');
+        }
+
+        $json = $this->post('/servers/'.$serverId.'/actions/'.$operation, null, 202);
+        $action = $json['action_id'] ?? null;
+        if (! is_int($action) || $action < 1) {
+            throw new ArianetCloudWriteUncertain('Cloud power action receipt could not be verified.');
+        }
+
+        return ['action_id' => $action];
+    }
+
     /**
      * @param  array<string, bool|int|string|list<int>>|null  $body
      * @return array<string, mixed>
@@ -122,6 +138,10 @@ final class ArianetCloudWriteClient
                     && config('services.arianet_cloud.purchase_enabled') !== true
                     && config('services.arianet_cloud.writes_enabled') !== true)) {
                 throw new RuntimeException('Arianet Cloud purchase is disabled.');
+            }
+        } elseif (preg_match('~^/servers/[1-9][0-9]*/actions/(poweron|shutdown|reboot)$~D', $path) === 1) {
+            if (config('services.arianet_cloud.operations_enabled') !== true) {
+                throw new RuntimeException('Cloud server operations are disabled.');
             }
         } elseif (config('services.arianet_cloud.writes_enabled') !== true) {
             throw new RuntimeException('Arianet Cloud writes are disabled.');
