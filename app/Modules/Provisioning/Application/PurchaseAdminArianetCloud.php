@@ -273,7 +273,7 @@ final readonly class PurchaseAdminArianetCloud
             || ($server['status'] ?? null) !== 'running'
             || ($server['ip_change']['pending'] ?? false) !== false
             || ! is_string($ip)
-            || filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_GLOBAL_RANGE) === false) {
+            || filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_GLOBAL_RANGE) !== $ip) {
             throw new RuntimeException('Cloud server identity, running state or public IPv4 is not verified.');
         }
 
