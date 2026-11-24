@@ -85,8 +85,8 @@ function ari05bInventory(): void
             }
 
             return Http::response(['data' => [
-                'id' => 918, 'name' => 'Unused fixture', 'status' => 'stopped',
-                'ipv4' => '194.5.192.133', 'ipv6' => null,
+                'id' => 918, 'name' => 'Unused fixture', 'status' => 'off',
+                'ipv4' => '194.5.192.133', 'ipv6' => '',
                 'locked' => false, 'rescue_enabled' => false,
                 'protection_delete' => config('ari05b.protected', false),
                 'protection_rebuild' => config('ari05b.protected', false),

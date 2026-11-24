@@ -59,7 +59,7 @@ final readonly class ManageAdminArianetOperations
 
             return array_map(static fn (array $image): array => ['value' => $image['image'], 'label' => $image['name']], $images);
         }
-        if (! in_array($server['status'] ?? null, ['stopped', 'powered_off', 'poweredoff'], true)) {
+        if (! in_array($server['status'] ?? null, ['off', 'stopped', 'powered_off', 'poweredoff'], true)) {
             throw new RuntimeException('Stop the server before changing its plan.');
         }
         $current = $this->catalog->plan($actor, $server['datacenter'], $server['plan_id']);
@@ -94,7 +94,7 @@ final readonly class ManageAdminArianetOperations
     {
         return match ($state) {
             'running' => ['shutdown', 'reboot'],
-            'stopped', 'powered_off', 'poweredoff' => ['poweron'],
+            'off', 'stopped', 'powered_off', 'poweredoff' => ['poweron'],
             default => [],
         };
     }
@@ -263,7 +263,7 @@ final readonly class ManageAdminArianetOperations
                 if ($row->operation === 'rebuild') {
                     if (($server['id'] ?? null) === $serverId
                         && ($server['image'] ?? null) === $row->target
-                        && in_array($server['status'] ?? null, ['running', 'stopped', 'powered_off', 'poweredoff'], true)) {
+                        && in_array($server['status'] ?? null, ['running', 'off', 'stopped', 'powered_off', 'poweredoff'], true)) {
                         $this->finish((int) $row->id, 'completed');
                     }
 
@@ -271,7 +271,7 @@ final readonly class ManageAdminArianetOperations
                 }
                 $status = $server['status'] ?? null;
                 $expected = $row->operation === 'shutdown'
-                    ? ['stopped', 'powered_off', 'poweredoff'] : ['running'];
+                    ? ['off', 'stopped', 'powered_off', 'poweredoff'] : ['running'];
                 if (($server['id'] ?? null) === $serverId && in_array($status, $expected, true)) {
                     $this->finish((int) $row->id, 'completed');
                 }
@@ -318,7 +318,7 @@ final readonly class ManageAdminArianetOperations
         if ($maintenance) {
             if (! $this->maintenanceEnabled() || ($server['locked'] ?? null) !== false
                 || ($server['rescue_enabled'] ?? null) !== false
-                || ! in_array($server['status'], ['running', 'stopped', 'powered_off', 'poweredoff'], true)) {
+                || ! in_array($server['status'], ['running', 'off', 'stopped', 'powered_off', 'poweredoff'], true)) {
                 throw new RuntimeException('Cloud server maintenance state cannot be verified.');
             }
             if ($operation === 'delete' || $operation === 'rebuild') {
@@ -329,7 +329,7 @@ final readonly class ManageAdminArianetOperations
                 $this->assertUnused($actor, $server);
             }
             if ($operation === 'change_plan') {
-                if (! in_array($server['status'], ['stopped', 'powered_off', 'poweredoff'], true)
+                if (! in_array($server['status'], ['off', 'stopped', 'powered_off', 'poweredoff'], true)
                     || ! in_array($target, array_column($this->choices($actor, $serverId, $operation), 'value'), true)
                     || ! is_string($server['datacenter'] ?? null) || ! is_int($server['plan_id'] ?? null)) {
                     throw new RuntimeException('Cloud upgrade cannot be verified.');
@@ -380,7 +380,7 @@ final readonly class ManageAdminArianetOperations
     private function assertUnused(int $actor, array $server): void
     {
         $ip = $server['ipv4'] ?? null;
-        $ipv6 = $server['ipv6'] ?? null;
+        $ipv6 = ($server['ipv6'] ?? null) === '' ? null : ($server['ipv6'] ?? null);
         if (! is_string($ip) || filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_GLOBAL_RANGE) !== $ip
             || ! array_key_exists('ipv6', $server)
             || ($ipv6 !== null && (! is_string($ipv6) || filter_var($ipv6, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) === false))) {

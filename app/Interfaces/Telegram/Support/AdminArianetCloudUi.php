@@ -386,7 +386,7 @@ final readonly class AdminArianetCloudUi
         $warning = match ($operation) {
             'poweron' => 'روشن شدن سرور به معنی سلامت اتصال کاربران نیست.',
             'delete' => 'حذف دائمی است؛ دیسک اصلی و پشتیبان‌های وابسته پاک می‌شوند. اسنپ‌شات‌ها و منابع مستقل باقی می‌مانند و ممکن است هزینه داشته باشند.',
-            'rebuild' => 'تمام داده‌های دیسک اصلی پاک می‌شوند. بعد از نصب، دسترسی و Fingerprint جدید SSH را بررسی کنید.',
+            'rebuild' => 'تمام داده‌های دیسک اصلی پاک می‌شوند. رمز جدید در بات نمایش داده نمی‌شود؛ در صورت نیاز از پنل آریاسرویس رمز را بازنشانی کنید و دسترسی و Fingerprint جدید SSH را بررسی کنید.',
             'change_plan' => 'نرخ پایه جدید پلن اعمال می‌شود. بازگشت به پلن کوچک‌تر ممکن نیست؛ روشن کردن سرور تأیید جداگانه دارد.',
             default => 'این عملیات ممکن است اتصال کاربران را قطع کند. هزینه سرور با خاموش شدن متوقف نمی‌شود.',
         };
@@ -732,7 +732,7 @@ final readonly class AdminArianetCloudUi
     {
         return match ($status) {
             'running' => '🟢',
-            'stopped', 'powered_off', 'poweredoff' => '⏸️',
+            'off', 'stopped', 'powered_off', 'poweredoff' => '⏸️',
             'building', 'starting', 'pending' => '🟡',
             'error', 'failed' => '🔴',
             default => '⚪',
@@ -747,7 +747,7 @@ final readonly class AdminArianetCloudUi
 
         return match ($status) {
             'success', 'completed' => '🟢 موفق',
-            'stopped', 'powered_off', 'poweredoff' => '⏸️ خاموش',
+            'off', 'stopped', 'powered_off', 'poweredoff' => '⏸️ خاموش',
             'building', 'starting', 'pending', 'running_action', 'in_progress' => '🟡 در حال انجام',
             'error', 'failed' => '🔴 ناموفق',
             default => $status === 'نامشخص' ? 'نامشخص' : '⚪ '.self::short($status, 24),
