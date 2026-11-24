@@ -1,3 +1,29 @@
+## ARI-04C — verified Cloud handoff to existing NW-05 (2026-11-24)
+
+Operator approved completing the source phase before all real operational tests.
+From the private Admin Cloud inventory, resume the actor-owned latest purchase.
+Only a journaled completed create with matching live successful create action
+and server ID, name, datacenter, plan, running status and global public IPv4
+may enter the readiness screen. No POST or purchase switch is required for
+this read. Show the ordered system image and public-key ID as order metadata,
+not proof of actual OS or SSH access. Disabled Nodes are omitted from the
+bounded selection. Reuse the exact existing NW-05 inventory audit before
+handing off to NW-01/02 with the purchased IPv4, root, port 22 and key mode
+prefilled. An already locally linked Cloud server is rejected at handoff.
+Keep explicit SSH fingerprint approval, SSH OS/auth preflight and separate
+one-use install and cutover confirmations. Back from the Cloud preview
+returns to the order rather than allowing a different IP to be silently
+substituted. Bind the purchase ID in existing installation checkpoints;
+freshly recheck the owned public VPS before scan, preflight, enqueue, launch
+and NW-05 cutover/acceptance. Preserve existing manual/password installs,
+Host/Node identity and DNS verification. Read-only installer polling uses
+the existing protected PHP-FPM key if available; launch keeps the separate
+queue key. No additional table, scheduler, flag, secret, parallel installer,
+automatic remapping, real purchase, install, DNS/Node mutation or VPS deletion.
+Once real replacement and client connectivity are accepted, use the existing
+explicit Cloud link/unlink flow to correct local inventory mapping where
+needed; retain the old VPS for rollback. CI is not live acceptance.
+
 ## ARI-04B — paid single Cloud create, source implementation (2026-11-24)
 
 An operator-approved independent code phase adds one durable, one-use, Super
