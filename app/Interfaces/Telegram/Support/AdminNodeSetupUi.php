@@ -141,7 +141,9 @@ final readonly class AdminNodeSetupUi
     {
         $id = filter_var($rawId, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         if ($id === false) {
-            $this->expired($bot);
+            if ($this->root($bot) !== null) {
+                $this->expired($bot);
+            }
 
             return;
         }
