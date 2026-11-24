@@ -130,6 +130,7 @@ final readonly class ChangeAdminArianetIpv4
 
             return Cache::lock(ManageAdminArianetOperations::hostLock($row->old_ipv4), 90)->block(2, function () use ($actorId, $serverId, $row): array {
                 ManageAdminArianetOperations::assertHostAvailable($row->old_ipv4);
+
                 return $this->dispatchConfirmed($actorId, $serverId, $row);
             });
         });

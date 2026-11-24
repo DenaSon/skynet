@@ -76,6 +76,19 @@ function ari05bInventory(): void
 
             return Http::response(['action_id' => 702], 202);
         }
+        if ($r->method() === 'POST' && str_starts_with($r->url(), $base.'/servers/918/actions/')) {
+            $command = basename($r->url());
+            if ($command === 'rebuild') {
+                config()->set('ari05b.image', $r['image']);
+            } elseif ($command === 'change_plan') {
+                config()->set('ari05b.plan', $r['plan_id']);
+            } else {
+                return Http::response([], 405);
+            }
+            config()->set('ari05b.command', $command);
+
+            return Http::response(['action_id' => 702], 202);
+        }
         if ($r->method() !== 'GET') {
             return Http::response([], 405);
         }
@@ -90,11 +103,35 @@ function ari05bInventory(): void
                 'locked' => false, 'rescue_enabled' => false,
                 'protection_delete' => config('ari05b.protected', false),
                 'protection_rebuild' => config('ari05b.protected', false),
-                'datacenter' => 'ovh', 'plan_id' => 7, 'disk_gb' => 15,
+                'datacenter' => 'ovh', 'plan_id' => config('ari05b.plan', 7), 'disk_gb' => 15,
+                'image' => config('ari05b.image', 'debian-12'),
             ]]);
         }
         if (str_starts_with($r->url(), $base.'/servers/918/actions?')) {
             return Http::response(['data' => []]);
+        }
+        if ($r->url() === $base.'/datacenters') {
+            return Http::response(['data' => [['code' => 'ovh', 'name' => 'OVH', 'orderable' => true]]]);
+        }
+        if (str_starts_with($r->url(), $base.'/plans?')) {
+            $plan = [
+                'datacenter' => 'ovh', 'is_active' => true, 'currency' => 'IRR',
+                'availability' => ['available' => true], 'minimum_usage_hours' => 24,
+                'vcpu' => 1, 'ram_mb' => 1024, 'disk_gb' => 15,
+                'hourly_price' => 1000, 'monthly_price' => 730000,
+            ];
+
+            return Http::response(['data' => [
+                array_replace($plan, ['id' => 7, 'name' => 'Old', 'is_active' => false, 'availability' => ['available' => false]]),
+                array_replace($plan, ['id' => 8, 'name' => 'New', 'vcpu' => 2, 'ram_mb' => 2048, 'disk_gb' => 30,
+                    'hourly_price' => config('ari05b.price', 2000), 'monthly_price' => 1460000]),
+            ]]);
+        }
+        if (str_contains($r->url(), '/images?')) {
+            return Http::response(['data' => [[
+                'image' => 'ubuntu-24.04', 'name' => 'Ubuntu', 'type' => 'system', 'status' => 'available',
+                'deprecated' => false, 'datacenters' => ['ovh'], 'min_disk_gb' => 10,
+            ]]]);
         }
         if ($r->url() === $base.'/servers/918/costs') {
             return Http::response(['data' => [
@@ -104,7 +141,7 @@ function ari05bInventory(): void
         }
         if ($r->url() === $base.'/actions/702') {
             return Http::response(['data' => [
-                'id' => 702, 'command' => 'delete', 'status' => 'success',
+                'id' => 702, 'command' => config('ari05b.command', 'delete'), 'status' => 'success',
                 'resource' => ['type' => 'server', 'id' => 918],
             ]]);
         }
@@ -158,5 +195,32 @@ it('ARI-05C verifies a confirmed delete with the exact action and server absence
     expect($ops->status($actor->id, 918)['status'])->toBe('accepted');
     $ops->reconcile($actor->id, 918);
     expect($ops->status($actor->id, 918)['status'])->toBe('completed');
+    expect(collect(Http::recorded())->filter(fn (array $entry): bool => $entry[0]->method() !== 'GET'))->toHaveCount(1);
+});
+
+it('ARI-06 rebuilds against actual disk size without requiring the old plan to be orderable', function (): void {
+    $actor = ari05bRoot();
+    ari05bInventory();
+    $ops = app(ManageAdminArianetOperations::class);
+    $draft = $ops->prepare($actor->id, 918, 'rebuild', 'ubuntu-24.04');
+    $ops->confirm($actor->id, 918, $draft['token']);
+    $ops->reconcile($actor->id, 918);
+    expect($ops->status($actor->id, 918)['status'])->toBe('completed');
+    expect(collect(Http::recorded())->filter(fn (array $entry): bool => $entry[0]->method() !== 'GET'))->toHaveCount(1);
+});
+
+it('ARI-06 verifies plan price again and accepts only the later freshly confirmed upgrade', function (): void {
+    $actor = ari05bRoot();
+    ari05bInventory();
+    $ops = app(ManageAdminArianetOperations::class);
+    $draft = $ops->prepare($actor->id, 918, 'change_plan', '8');
+    config()->set('ari05b.price', 2500);
+    expect(fn () => $ops->confirm($actor->id, 918, $draft['token']))->toThrow(RuntimeException::class);
+    Http::assertNotSent(fn (Request $r): bool => $r->method() !== 'GET');
+    $draft = $ops->prepare($actor->id, 918, 'change_plan', '8');
+    $ops->confirm($actor->id, 918, $draft['token']);
+    $ops->reconcile($actor->id, 918);
+    expect($ops->status($actor->id, 918)['status'])->toBe('completed')
+        ->and(ManageAdminArianetOperations::verifiedPlan(918, 7))->toBe(8);
     expect(collect(Http::recorded())->filter(fn (array $entry): bool => $entry[0]->method() !== 'GET'))->toHaveCount(1);
 });

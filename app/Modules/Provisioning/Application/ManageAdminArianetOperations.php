@@ -214,11 +214,7 @@ final readonly class ManageAdminArianetOperations
         $this->access->handle($actor);
         $this->guard();
 
-        $this->confirmLocked($actor, $serverId, $token);
-    }
 
-    private function confirmLocked(int $actor, int $serverId, string $token): void
-    {
         Cache::lock('arianet:ipv4:'.$serverId, 600)->block(2, function () use ($actor, $serverId, $token): void {
             $row = $this->prepared($actor, $serverId, $token);
             if (now()->greaterThan($row->expires_at)) {

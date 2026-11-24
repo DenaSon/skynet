@@ -36,15 +36,25 @@ function ari05aFake(): void
     Http::fake(static function (Request $request) {
         $base = 'https://api.ariaservice.net/cloud/v1';
         if ($request->method() === 'POST' && $request->url() === $base.'/servers/918/actions/reboot') {
-            return config('ari05a_fixture.uncertain')
-                ? Http::response([], 503)
-                : Http::response(['action_id' => 702], 202);
+            return match (true) {
+                config('ari05a_fixture.uncertain') === true => Http::response([], 503),
+                config('ari05a_fixture.rejected') === true => Http::response([], 422),
+                default => Http::response(['action_id' => 702], 202),
+            };
         }
         if ($request->method() === 'GET' && $request->url() === $base.'/servers/918') {
             return Http::response(['data' => ['id' => 918, 'name' => 'Fixture', 'status' => 'running', 'ipv4' => '194.5.192.133']]);
         }
         if ($request->method() === 'GET' && str_starts_with($request->url(), $base.'/servers/918/actions?')) {
-            return Http::response(['data' => []]);
+            $history = [];
+            for ($i = 1; $i <= (int) config('ari05a_fixture.history', 0); $i++) {
+                $history[] = ['id' => $i, 'status' => 'success'];
+            }
+            if (config('ari05a_fixture.pending') === true) {
+                $history[] = ['id' => 701, 'status' => 'running'];
+            }
+
+            return Http::response(['data' => $history]);
         }
         if ($request->method() === 'GET' && $request->url() === $base.'/actions/702') {
             return Http::response(['data' => ['id' => 702, 'status' => 'success', 'command' => 'reboot', 'resource' => ['type' => 'server', 'id' => 918]]]);
@@ -95,4 +105,63 @@ it('ARI-05A isolates the power switch from other Cloud write permissions', funct
 
 it('ARI-05A recognizes the official Cloud off status', function (): void {
     expect(ManageAdminArianetOperations::available('off'))->toBe(['poweron']);
+});
+
+it('ARI-06 accepts long flat action history but rejects unfinished actions', function (): void {
+    ari05aFake();
+    config()->set('ari05a_fixture.history', 45);
+    $actor = ari05aRoot();
+    $ops = app(ManageAdminArianetOperations::class);
+    $draft = $ops->prepare($actor->id, 918, 'reboot');
+    $ops->cancel($actor->id, 918, $draft['token']);
+    config()->set('ari05a_fixture.pending', true);
+    expect(fn () => $ops->prepare($actor->id, 918, 'reboot'))->toThrow(RuntimeException::class);
+    Http::assertNotSent(fn (Request $r): bool => $r->method() !== 'GET');
+});
+
+it('ARI-06 releases a definitely rejected operation without replaying it', function (): void {
+    ari05aFake();
+    config()->set('ari05a_fixture.rejected', true);
+    $actor = ari05aRoot();
+    $ops = app(ManageAdminArianetOperations::class);
+    $draft = $ops->prepare($actor->id, 918, 'reboot');
+    $ops->confirm($actor->id, 918, $draft['token']);
+    expect($ops->status($actor->id, 918)['status'])->toBe('failed')
+        ->and(DB::table('arianet_cloud_operations')->value('active_server_id'))->toBeNull();
+    expect(fn () => $ops->confirm($actor->id, 918, $draft['token']))->toThrow(RuntimeException::class);
+    $ops->prepare($actor->id, 918, 'reboot');
+    expect(collect(Http::recorded())->filter(fn (array $entry): bool => $entry[0]->method() === 'POST'))->toHaveCount(1);
+});
+
+it('ARI-06 permits explicitly reviewed unknown outcomes only after quiet provider evidence', function (): void {
+    ari05aFake();
+    config()->set('ari05a_fixture.uncertain', true);
+    $actor = ari05aRoot();
+    $ops = app(ManageAdminArianetOperations::class);
+    $draft = $ops->prepare($actor->id, 918, 'reboot');
+    $ops->confirm($actor->id, 918, $draft['token']);
+    expect(fn () => $ops->reviewUnknown($actor->id, 918))->toThrow(RuntimeException::class);
+    $this->travel(11)->minutes();
+    config()->set('ari05a_fixture.pending', true);
+    expect(fn () => $ops->reviewUnknown($actor->id, 918))->toThrow(RuntimeException::class);
+    config()->set('ari05a_fixture.pending', false);
+    $review = $ops->reviewUnknown($actor->id, 918);
+    $ops->closeUnknown($actor->id, 918, $review['token']);
+    expect($ops->status($actor->id, 918)['status'])->toBe('reviewed')
+        ->and(DB::table('arianet_cloud_operations')->value('active_server_id'))->toBeNull();
+    expect($ops->recent($actor->id))->toBe(918);
+    expect(fn () => $ops->closeUnknown($actor->id, 918, $review['token']))->toThrow(RuntimeException::class);
+    expect(collect(Http::recorded())->filter(fn (array $entry): bool => $entry[0]->method() === 'POST'))->toHaveCount(1);
+});
+
+it('ARI-06 isolates installation protection by IP and releases terminal checkpoints', function (): void {
+    $ip = '194.5.192.133';
+    $id = str_repeat('a', 32);
+    \Illuminate\Support\Facades\Cache::put('nw02:host:'.$ip, $id, now()->addHours(3));
+    \Illuminate\Support\Facades\Cache::put('nw02:status:'.$id, ['state' => 'installing'], now()->addHours(3));
+    $this->travel(6)->minutes();
+    expect(fn () => ManageAdminArianetOperations::assertHostAvailable($ip))->toThrow(RuntimeException::class);
+    ManageAdminArianetOperations::assertHostAvailable('194.5.192.134');
+    \Illuminate\Support\Facades\Cache::put('nw02:status:'.$id, ['state' => 'running'], now()->addHours(3));
+    ManageAdminArianetOperations::assertHostAvailable($ip);
 });

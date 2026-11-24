@@ -965,3 +965,17 @@ it('ARI-04C carries the verified purchase to NW-02 and refuses stale queued dest
     Http::assertNotSent(static fn (Request $r): bool => str_contains($r->url(), '/api/keygen'));
     expect(nw05MutationCount())->toBe(0);
 });
+
+it('ARI-06 protects both replacement VPS addresses until the real client test is accepted', function (): void {
+    $ready = nw05ReplacementReady();
+    nw05ReplacementApi();
+    $action = app(ReplaceAdminNode::class);
+    $review = $action->preview($ready['actor']->id, $ready['id']);
+    $action->apply($ready['actor']->id, $ready['id'], $review);
+    expect(fn () => \App\Modules\Provisioning\Application\ManageAdminArianetOperations::assertHostAvailable(NW05_OLD_IP))->toThrow(RuntimeException::class);
+    expect(fn () => \App\Modules\Provisioning\Application\ManageAdminArianetOperations::assertHostAvailable(NW05_NEW_IP))->toThrow(RuntimeException::class);
+    \App\Modules\Provisioning\Application\ManageAdminArianetOperations::assertHostAvailable('9.9.9.9');
+    $action->acceptClientTest($ready['actor']->id, $ready['id']);
+    \App\Modules\Provisioning\Application\ManageAdminArianetOperations::assertHostAvailable(NW05_OLD_IP);
+    \App\Modules\Provisioning\Application\ManageAdminArianetOperations::assertHostAvailable(NW05_NEW_IP);
+});
