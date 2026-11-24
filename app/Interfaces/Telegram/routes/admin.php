@@ -736,6 +736,12 @@ $bot->onCallbackQueryData('ari8:purchase:reconcile:{id}', function (Nutgram $bot
 $bot->onCallbackQueryData('ari8:purchase:recent', function (Nutgram $bot): void {
     app(AdminArianetPurchaseUi::class)->recentPurchase($bot);
 });
+$bot->onCallbackQueryData('ari8:ready:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
+    app(AdminArianetPurchaseUi::class)->readinessPurchase($bot, $id, $page);
+});
+$bot->onCallbackQueryData('ari8:r:{id}:{uuid}', function (Nutgram $bot, string $id, string $uuid): void {
+    app(AdminNodeSetupUi::class)->beginPurchasedReplacement($bot, $id, $uuid);
+});
 $bot->onCallbackQueryData('ari8:review', function (Nutgram $bot): void {
     app(AdminArianetPurchaseUi::class)->review($bot);
 });
