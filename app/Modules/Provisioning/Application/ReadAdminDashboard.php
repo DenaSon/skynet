@@ -147,6 +147,7 @@ final readonly class ReadAdminDashboard
             }
 
             $status = array_count_values(array_map(static fn ($user): string => $user->status, $all));
+
             return [
                 'subscriptionsActive' => $status['ACTIVE'] ?? 0,
                 'subscriptionsExpired' => $status['EXPIRED'] ?? 0,
