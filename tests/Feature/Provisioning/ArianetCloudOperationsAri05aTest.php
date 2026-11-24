@@ -92,3 +92,7 @@ it('ARI-05A isolates the power switch from other Cloud write permissions', funct
     expect(fn () => app(ArianetCloudWriteClient::class)->powerAction(918, 'reboot'))->toThrow(RuntimeException::class);
     Http::assertNothingSent();
 });
+
+it('ARI-05A recognizes the official Cloud off status', function (): void {
+    expect(ManageAdminArianetOperations::available('off'))->toBe(['poweron']);
+});

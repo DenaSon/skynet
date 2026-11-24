@@ -10,6 +10,7 @@ use App\Modules\Provisioning\Application\ManageAdminArianetOperations;
 use App\Modules\Provisioning\Application\ManageAdminNodes;
 use App\Modules\Provisioning\Application\ReadAdminArianetCloud;
 use App\Support\PersianCalendar;
+use Illuminate\Support\Facades\Cache;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
@@ -243,13 +244,20 @@ final readonly class AdminArianetCloudUi
         $buttons = InlineKeyboardMarkup::make();
         $back = InlineKeyboardButton::make('◀️ جزئیات سرور', callback_data: 'ari2:view:'.$id.':'.$page);
         try {
-            $server = $this->cloud->detail($actor, $id);
             if ($refresh) {
                 $this->operations->reconcile($actor, $id);
             }
             $last = $this->operations->status($actor, $id);
+            if ($last !== null && $last['operation'] === 'delete' && $last['status'] === 'completed') {
+                $this->render($bot, 'حذف سرور تأیید شد.', self::listBack($page));
+
+                return;
+            }
+            $server = $this->cloud->detail($actor, $id);
         } catch (Throwable) {
-            $this->render($bot, 'دریافت وضعیت عملیات ممکن نیست.', $buttons->addRow($back));
+            $buttons->addRow(InlineKeyboardButton::make('🔄 بررسی وضعیت', callback_data: 'ari9:refresh:'.$id.':'.$page));
+            $buttons->addRow(InlineKeyboardButton::make('◀️ فهرست سرورها', callback_data: 'ari2:list:'.$page));
+            $this->render($bot, 'دریافت وضعیت عملیات ممکن نیست؛ نتیجه را دوباره بررسی کنید.', $buttons->addRow($back));
 
             return;
         }
@@ -259,6 +267,13 @@ final readonly class AdminArianetCloudUi
                 $buttons->addRow(InlineKeyboardButton::make(self::operation($operation),
                     callback_data: 'ari9:p:'.$id.':'.$page.':'.$operation));
             }
+        }
+        if ($this->operations->maintenanceEnabled() && ! $busy && ManageAdminArianetOperations::available($server['status']) !== []) {
+            $buttons->addRow(InlineKeyboardButton::make('💿 نصب مجدد سیستم‌عامل', callback_data: 'ari9:choices:'.$id.':'.$page.':rebuild:1'));
+            if ($server['status'] !== 'running') {
+                $buttons->addRow(InlineKeyboardButton::make('📦 تغییر پلن', callback_data: 'ari9:choices:'.$id.':'.$page.':change_plan:1'));
+            }
+            $buttons->addRow(InlineKeyboardButton::make('🔴 حذف سرور', callback_data: 'ari9:p:'.$id.':'.$page.':delete'));
         }
         $buttons->addRow(InlineKeyboardButton::make('🔄 بررسی وضعیت', callback_data: 'ari9:refresh:'.$id.':'.$page));
         $buttons->addRow($back);
@@ -277,12 +292,73 @@ final readonly class AdminArianetCloudUi
         }
         if (! $this->operations->enabled()) {
             $message .= "\nعملیات سرور فعلاً غیرفعال است.";
+        } elseif (! $this->operations->maintenanceEnabled()) {
+            $message .= "\nنصب مجدد، تغییر پلن و حذف فعلاً غیرفعال‌اند.";
         }
         $this->render($bot, '<b>⚙️ عملیات سرور</b>'."\n\n".TelegramUi::escape($message), $buttons,
             '<h2>⚙️ عملیات سرور</h2><p>'.TelegramUi::escape($message).'</p>');
     }
 
-    public function prepareOperation(Nutgram $bot, string $rawId, string $rawPage, string $operation): void
+    public function maintenanceChoices(Nutgram $bot, string $rawId, string $rawPage, string $operation, string $rawChoicePage): void
+    {
+        $actor = $this->root($bot);
+        if ($actor === null) {
+            return;
+        }
+        $id = self::number($rawId, PHP_INT_MAX);
+        $page = self::number($rawPage, 100);
+        $choicePage = self::number($rawChoicePage, 100);
+        if ($id === null || $page === null || $choicePage === null) {
+            return;
+        }
+        $buttons = InlineKeyboardMarkup::make();
+        $back = InlineKeyboardButton::make('◀️ عملیات سرور', callback_data: 'ari9:menu:'.$id.':'.$page);
+        try {
+            $choices = $this->operations->choices($actor, $id, $operation);
+            $pages = max(1, (int) ceil(count($choices) / 6));
+            if ($choicePage > $pages) {
+                throw new \RuntimeException('Invalid selection page.');
+            }
+            $token = bin2hex(random_bytes(8));
+            $items = array_slice($choices, ($choicePage - 1) * 6, 6);
+            Cache::put('ari9:choices:'.$actor.':'.$token, [
+                'server' => $id, 'page' => $page, 'operation' => $operation, 'items' => $items,
+            ], now()->addMinutes(10));
+            foreach ($items as $index => $item) {
+                $buttons->addRow(InlineKeyboardButton::make($item['label'], callback_data: 'ari9:pick:'.$token.':'.$index));
+            }
+            if ($choicePage > 1) {
+                $buttons->addRow(InlineKeyboardButton::make('◀️ قبلی', callback_data: 'ari9:choices:'.$id.':'.$page.':'.$operation.':'.($choicePage - 1)));
+            }
+            if ($choicePage < $pages) {
+                $buttons->addRow(InlineKeyboardButton::make('بعدی ▶️', callback_data: 'ari9:choices:'.$id.':'.$page.':'.$operation.':'.($choicePage + 1)));
+            }
+            $message = $items === [] ? 'گزینه قابل انتخاب وجود ندارد.' : 'گزینه موردنظر را انتخاب کنید.';
+            $this->render($bot, '<b>'.TelegramUi::escape(self::operation($operation)).'</b>'."\n\n".$message,
+                $buttons->addRow($back));
+        } catch (Throwable) {
+            $this->render($bot, 'دریافت گزینه‌ها ممکن نیست؛ وضعیت سرور را بررسی کنید.', $buttons->addRow($back));
+        }
+    }
+
+    public function maintenancePick(Nutgram $bot, string $token, string $rawIndex): void
+    {
+        $actor = $this->root($bot);
+        if ($actor === null || preg_match('/\A[a-f0-9]{16}\z/D', $token) !== 1
+            || preg_match('/\A[0-5]\z/D', $rawIndex) !== 1) {
+            return;
+        }
+        $draft = Cache::get('ari9:choices:'.$actor.':'.$token);
+        $target = is_array($draft) ? ($draft['items'][(int) $rawIndex]['value'] ?? null) : null;
+        if (! is_string($target)) {
+            $this->render($bot, 'انتخاب منقضی شده است.', self::listBack(1));
+
+            return;
+        }
+        $this->prepareOperation($bot, (string) $draft['server'], (string) $draft['page'], $draft['operation'], $target);
+    }
+
+    public function prepareOperation(Nutgram $bot, string $rawId, string $rawPage, string $operation, string $target = ''): void
     {
         $actor = $this->root($bot);
         if ($actor === null) {
@@ -296,7 +372,7 @@ final readonly class AdminArianetCloudUi
         $back = InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('◀️ عملیات سرور', callback_data: 'ari9:menu:'.$id.':'.$page));
         try {
-            $prepared = $this->operations->prepare($actor, $id, $operation);
+            $prepared = $this->operations->prepare($actor, $id, $operation, $target);
         } catch (Throwable) {
             $this->render($bot, 'آماده‌سازی عملیات ممکن نیست؛ وضعیت سرور و درخواست قبلی را بررسی کنید.', $back);
 
@@ -307,12 +383,25 @@ final readonly class AdminArianetCloudUi
         $buttons = InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('تأیید '.self::operation($operation), callback_data: 'ari9:a:'.$suffix))
             ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'ari9:c:'.$suffix));
-        $warning = $operation === 'poweron' ? 'روشن شدن سرور به معنی سلامت اتصال کاربران نیست.'
-            : 'این عملیات ممکن است اتصال کاربران را قطع کند. هزینه سرور با خاموش شدن متوقف نمی‌شود.';
-        $message = self::operation($operation)."\n".$snapshot['name']."\n".$snapshot['ipv4']."\n\n".$warning;
+        $warning = match ($operation) {
+            'poweron' => 'روشن شدن سرور به معنی سلامت اتصال کاربران نیست.',
+            'delete' => 'حذف دائمی است؛ دیسک اصلی و پشتیبان‌های وابسته پاک می‌شوند. اسنپ‌شات‌ها و منابع مستقل باقی می‌مانند و ممکن است هزینه داشته باشند.',
+            'rebuild' => 'تمام داده‌های دیسک اصلی پاک می‌شوند. رمز جدید در بات نمایش داده نمی‌شود؛ در صورت نیاز از پنل آریاسرویس رمز را بازنشانی کنید و دسترسی و Fingerprint جدید SSH را بررسی کنید.',
+            'change_plan' => 'نرخ پایه جدید پلن اعمال می‌شود. بازگشت به پلن کوچک‌تر ممکن نیست؛ روشن کردن سرور تأیید جداگانه دارد.',
+            default => 'این عملیات ممکن است اتصال کاربران را قطع کند. هزینه سرور با خاموش شدن متوقف نمی‌شود.',
+        };
+        $extra = match ($operation) {
+            'rebuild' => "\nسیستم‌عامل: ".$snapshot['image'],
+            'change_plan' => "\nپلن فعلی: ".$snapshot['oldPlan']['name'].' · '.self::toman($snapshot['oldPlan']['hourlyRials']).' / ساعت'
+                ."\nپلن جدید: ".$snapshot['newPlan']['name'].' · '.self::toman($snapshot['newPlan']['hourlyRials']).' / ساعت'
+                ."\nبرآورد ماهانه جدید: ".self::toman($snapshot['newPlan']['monthlyRials']).' (نرخ پایه)',
+            'delete' => "\nبرآورد ماهانه فعلی: ".self::toman($snapshot['monthlyRials']),
+            default => '',
+        };
+        $message = self::operation($operation)."\n".$snapshot['name']."\n".$snapshot['ipv4'].$extra."\n\n".$warning;
         $this->render($bot, TelegramUi::escape($message), $buttons,
             '<h2>'.TelegramUi::escape(self::operation($operation)).'</h2><p>'.TelegramUi::escape($snapshot['name'])
-            .'</p><p>'.TelegramUi::escape($snapshot['ipv4']).'</p><footer>'.TelegramUi::escape($warning).'</footer>');
+            .'</p><p>'.TelegramUi::escape($snapshot['ipv4'].$extra).'</p><footer>'.TelegramUi::escape($warning).'</footer>');
     }
 
     public function finishOperation(Nutgram $bot, string $rawId, string $rawPage, string $token, bool $cancel = false): void
@@ -643,7 +732,7 @@ final readonly class AdminArianetCloudUi
     {
         return match ($status) {
             'running' => '🟢',
-            'stopped', 'powered_off', 'poweredoff' => '⏸️',
+            'off', 'stopped', 'powered_off', 'poweredoff' => '⏸️',
             'building', 'starting', 'pending' => '🟡',
             'error', 'failed' => '🔴',
             default => '⚪',
@@ -658,7 +747,7 @@ final readonly class AdminArianetCloudUi
 
         return match ($status) {
             'success', 'completed' => '🟢 موفق',
-            'stopped', 'powered_off', 'poweredoff' => '⏸️ خاموش',
+            'off', 'stopped', 'powered_off', 'poweredoff' => '⏸️ خاموش',
             'building', 'starting', 'pending', 'running_action', 'in_progress' => '🟡 در حال انجام',
             'error', 'failed' => '🔴 ناموفق',
             default => $status === 'نامشخص' ? 'نامشخص' : '⚪ '.self::short($status, 24),
@@ -700,7 +789,9 @@ final readonly class AdminArianetCloudUi
             'reboot', 'reset' => 'راه‌اندازی مجدد',
             'poweron' => 'روشن‌کردن',
             'poweroff', 'shutdown' => 'خاموش‌کردن',
-            'rebuild' => 'نصب مجدد',
+            'rebuild' => 'نصب مجدد سیستم‌عامل',
+            'change_plan' => 'تغییر پلن',
+            'delete' => 'حذف سرور',
             default => self::short($command, 30),
         };
     }

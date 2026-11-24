@@ -61,6 +61,16 @@ final readonly class CloudflareDnsService
         return ['items' => $items, 'page' => $page, 'pages' => max(1, $info['total_pages'])];
     }
 
+    /** @return list<array<string,mixed>> */
+    public function recordsByIp(string $zoneId, string $ip): array
+    {
+        $type = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false ? 'A' : 'AAAA';
+
+        return $this->getList('/zones/'.$zoneId.'/dns_records', [
+            'type' => $type, 'content.exact' => $ip, 'match' => 'all', 'per_page' => 100,
+        ]);
+    }
+
     /** @return array<string,mixed> */
     public function record(string $zoneId, string $recordId): array
     {

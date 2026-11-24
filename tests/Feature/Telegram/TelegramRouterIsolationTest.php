@@ -365,6 +365,7 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     foreach ([
         'menu:{id}:{page}', 'refresh:{id}:{page}', 'p:{id}:{page}:{operation}',
         'a:{id}:{page}:{token}', 'c:{id}:{page}:{token}',
+        'choices:{id}:{page}:{operation}:{choicePage}', 'pick:{token}:{index}',
     ] as $name) {
         $expected['ADMIN'][] = 'callback:ari9:'.$name;
     }
@@ -450,8 +451,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(398)
-        ->and(count(array_unique($legacy)))->toBe(398);
+        ->and(count($legacy))->toBe(400)
+        ->and(count(array_unique($legacy)))->toBe(400);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {

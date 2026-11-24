@@ -45,6 +45,24 @@ final readonly class ManageCloudflareDns
         return $zones;
     }
 
+    /** Reject any direct A/AAAA reference in every configured managed zone. */
+    public function assertNoIpReferences(int $actorId, string $ip): void
+    {
+        $this->access->handle($actorId);
+        if (filter_var($ip, FILTER_VALIDATE_IP) === false || $this->allowedZones() === []) {
+            throw new RuntimeException('Managed DNS scope or IP is unverified.');
+        }
+        foreach ($this->allowedZones() as $name) {
+            $remote = $this->api->zonesByName($name);
+            if (count($remote) !== 1 || ($remote[0]['name'] ?? null) !== $name || ! self::zoneId($remote[0]['id'] ?? null)) {
+                throw new RuntimeException('Managed DNS zone cannot be verified.');
+            }
+            if ($this->api->recordsByIp($remote[0]['id'], $ip) !== []) {
+                throw new RuntimeException('A managed DNS record still refers to the server.');
+            }
+        }
+    }
+
     public function hostname(int $actorId, string $zone, string $input): string
     {
         $this->access->handle($actorId);
