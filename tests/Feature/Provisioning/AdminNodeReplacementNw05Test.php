@@ -3,7 +3,9 @@
 declare(strict_types=1);
 
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
+use App\Interfaces\Telegram\Support\AdminArianetPurchaseUi;
 use App\Interfaces\Telegram\Support\AdminNodeSetupUi;
+use App\Jobs\InstallRemnawaveNode;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Application\ManageNodeInstallation;
@@ -11,7 +13,9 @@ use App\Modules\Provisioning\Application\ReplaceAdminNode;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
@@ -809,5 +813,155 @@ it('accepts an IP-only replacement for an existing Node name containing a pipe',
     expect($ui->text($bot, NW05_NEW_IP))->toBeTrue();
     expect(Cache::get($key)['stage'])->toBe('port');
 
+    expect(nw05MutationCount())->toBe(0);
+});
+
+/** @return array{purchase:int,server:object} */
+function nw05CloudPurchase(User $actor): array
+{
+    config()->set('services.arianet_cloud.read_token', 'ari04c-fixture-token');
+    config()->set('services.arianet_cloud.purchase_enabled', false);
+    $purchase = DB::table('arianet_cloud_purchases')->insertGetId([
+        'actor_user_id' => $actor->id,
+        'token_hash' => str_repeat('a', 64),
+        'name' => 'DenaServer',
+        'datacenter' => 'ovh',
+        'plan_id' => 7,
+        'image' => 'ubuntu-24.04',
+        'ssh_key_id' => 132,
+        'quote_hash' => str_repeat('b', 64),
+        'hourly_rials' => 18770,
+        'monthly_rials' => 13709910,
+        'minimum_rials' => 18770,
+        'status' => 'completed',
+        'server_id' => 918,
+        'action_id' => 702,
+        'expires_at' => now()->subHour(),
+        'confirmed_at' => now()->subHours(2),
+        'created_at' => now()->subHours(2),
+        'updated_at' => now()->subHour(),
+    ]);
+    $server = (object) ['ipv4' => NW05_NEW_IP, 'status' => 'running'];
+    Http::fake(static function (Request $request) use ($server) {
+        if ($request->method() !== 'GET') {
+            return null;
+        }
+
+        return match ($request->url()) {
+            'https://api.ariaservice.net/cloud/v1/actions/702' => Http::response(['data' => [
+                'id' => 702, 'command' => 'create', 'status' => 'success',
+                'resource' => ['id' => 918, 'type' => 'server'],
+            ]]),
+            'https://api.ariaservice.net/cloud/v1/servers/918' => Http::response(['data' => [
+                'id' => 918, 'name' => 'DenaServer', 'datacenter' => 'ovh', 'plan_id' => 7,
+                'ipv4' => $server->ipv4, 'status' => $server->status,
+            ]]),
+            default => null,
+        };
+    });
+
+    return ['purchase' => (int) $purchase, 'server' => $server];
+}
+
+it('ARI-04C selects an existing Node and prefills the normal NW-05 preview without SSH or provider mutations', function (): void {
+    $ready = nw05ReplacementReady();
+    $cloud = nw05CloudPurchase($ready['actor']);
+    nw05ReplacementApi();
+    Queue::fake();
+
+    $bot = Mockery::mock(Nutgram::class);
+    $bot->shouldReceive('chat')->andReturn(Chat::make(985501, ChatType::PRIVATE));
+    $bot->shouldReceive('user')->andReturn(TelegramUser::make(985501, false, 'Operator'));
+    $bot->shouldReceive('isCallbackQuery')->andReturn(false);
+    $html = '';
+    $keyboard = '';
+    $bot->shouldReceive('sendRichMessage')->andReturnUsing(function (...$arguments) use (&$html, &$keyboard): null {
+        foreach ($arguments as $argument) {
+            if ($argument instanceof InputRichMessage) {
+                $html = $argument->html;
+            }
+            if ($argument instanceof InlineKeyboardMarkup) {
+                $keyboard = json_encode($argument, JSON_THROW_ON_ERROR);
+            }
+        }
+
+        return null;
+    });
+    $bot->shouldReceive('sendMessage')->andReturnNull();
+
+    app(AdminArianetPurchaseUi::class)->readinessPurchase($bot, (string) $cloud['purchase'], '1');
+    expect($html)->toContain('DenaServer', NW05_NEW_IP, 'اتصال SSH بررسی نشده')
+        ->and($keyboard)->toContain('ari8:r:'.$cloud['purchase'].':'.NW05_NODE);
+
+    $ui = app(AdminNodeSetupUi::class);
+    $key = TelegramBotContext::current()->cacheKey('nw01:draft:'.$ready['actor']->id);
+    $ui->beginPurchasedReplacement($bot, (string) $cloud['purchase'], NW05_NODE);
+    $draft = Cache::get($key);
+    expect($draft['stage'])->toBe('preview')
+        ->and($draft['cloudPurchaseId'])->toBe($cloud['purchase'])
+        ->and($draft['ip'])->toBe(NW05_NEW_IP)
+        ->and($draft['port'])->toBe(22)
+        ->and($draft['username'])->toBe('root')
+        ->and($draft['authMode'])->toBe('key')
+        ->and($draft['replacement']['uuid'])->toBe(NW05_NODE)
+        ->and(array_key_exists('secret', $draft))->toBeFalse()
+        ->and($keyboard)->toContain('nw1:scan:')
+        ->not->toContain('nw2:start:');
+    $ui->stepBack($bot);
+    expect(Cache::get($key))->toBeNull();
+    Queue::assertNothingPushed();
+    expect(nw05MutationCount())->toBe(0);
+});
+
+it('ARI-04C blocks a shared Host or changed Cloud IP before handing off or transferring DNS', function (): void {
+    $ready = nw05ReplacementReady();
+    $cloud = nw05CloudPurchase($ready['actor']);
+    $api = nw05ReplacementApi(sharedHost: true);
+    $bot = Mockery::mock(Nutgram::class);
+    $bot->shouldReceive('chat')->andReturn(Chat::make(985501, ChatType::PRIVATE));
+    $bot->shouldReceive('user')->andReturn(TelegramUser::make(985501, false, 'Operator'));
+    $bot->shouldReceive('isCallbackQuery')->andReturn(false);
+    $bot->shouldReceive('sendMessage')->andReturnNull();
+    $ui = app(AdminNodeSetupUi::class);
+    $key = TelegramBotContext::current()->cacheKey('nw01:draft:'.$ready['actor']->id);
+    $ui->beginPurchasedReplacement($bot, (string) $cloud['purchase'], NW05_NODE);
+    expect(Cache::get($key))->toBeNull();
+
+    foreach ($api->hosts as $i => $host) {
+        $api->hosts[$i]['nodes'] = [NW05_NODE];
+    }
+    $status = Cache::get('nw02:status:'.$ready['id']);
+    $status['cloudPurchaseId'] = $cloud['purchase'];
+    Cache::put('nw02:status:'.$ready['id'], $status, now()->addHours(3));
+    $replacement = app(ReplaceAdminNode::class);
+    $review = $replacement->preview($ready['actor']->id, $ready['id']);
+    $cloud['server']->ipv4 = '194.5.192.133';
+    expect(fn () => $replacement->apply($ready['actor']->id, $ready['id'], $review))
+        ->toThrow(RuntimeException::class, 'IPv4 changed');
+    expect(nw05MutationCount())->toBe(0);
+});
+
+it('ARI-04C carries the verified purchase to NW-02 and refuses stale queued destinations before SSH', function (): void {
+    $ready = nw05ReplacementReady();
+    $cloud = nw05CloudPurchase($ready['actor']);
+    nw05ReplacementApi();
+    Queue::fake();
+    config()->set('queue.default', 'database');
+    $state = Cache::get('nw02:status:'.$ready['id']);
+    $draft = [
+        'cloudPurchaseId' => $cloud['purchase'],
+        'name' => $state['name'],
+        'replacement' => $state['replacement'],
+        'ip' => NW05_NEW_IP, 'port' => 22, 'username' => 'root', 'authMode' => 'key',
+        'host' => ['knownHost' => NW05_NEW_IP.' ssh-ed25519 fixture'],
+    ];
+    $installer = app(ManageNodeInstallation::class);
+    $id = $installer->enqueue($ready['actor']->id, $draft);
+    expect(Cache::get('nw02:status:'.$id)['cloudPurchaseId'])->toBe($cloud['purchase']);
+    Queue::assertPushed(InstallRemnawaveNode::class, 1);
+    $cloud['server']->ipv4 = '194.5.192.133';
+    $installer->launch($id);
+    expect(Cache::get('nw02:status:'.$id)['state'])->toBe('uncertain');
+    Http::assertNotSent(static fn (Request $r): bool => str_contains($r->url(), '/api/keygen'));
     expect(nw05MutationCount())->toBe(0);
 });

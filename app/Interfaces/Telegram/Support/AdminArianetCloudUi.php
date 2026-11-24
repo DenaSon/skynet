@@ -78,6 +78,7 @@ final readonly class AdminArianetCloudUi
             $purchaseEnabled ? '🛒 سفارش سرور جدید' : '🔎 پیش‌نمایش سفارش سرور',
             callback_data: 'ari8:begin',
         ));
+        $buttons->addRow(InlineKeyboardButton::make('📋 آخرین سفارش', callback_data: 'ari8:purchase:recent'));
         $buttons->addRow(InlineKeyboardButton::make('📦 پلن‌های ابری', callback_data: 'ari2:dc'));
         $buttons->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'ari2:list:'.$page));
         $buttons->addRow(InlineKeyboardButton::make('◀️ وضعیت سرورها', callback_data: 'menu:admin:servers'));

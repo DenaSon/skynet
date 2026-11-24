@@ -20,6 +20,7 @@ final readonly class ReplaceAdminNode
         private ManageAdminNodes $nodes,
         private ManageAdminHosts $hosts,
         private ManageCloudflareDns $dns,
+        private PurchaseAdminArianetCloud $purchases,
     ) {}
 
     /** @return array<string,mixed> */
@@ -31,6 +32,26 @@ final readonly class ReplaceAdminNode
             throw new RuntimeException('This installation is not a Node replacement.');
         }
 
+        $newIp = $setup['ip'] ?? null;
+        if (! is_string($newIp)) {
+            throw new RuntimeException('The new server IP is invalid.');
+        }
+        if (isset($setup['cloudPurchaseId'])) {
+            $this->purchases->assertReadyTarget($actorId, $setup['cloudPurchaseId'], $newIp);
+        }
+
+        return $this->previewTarget($actorId, $target, $newIp);
+    }
+
+    /**
+     * Reuse the same read-only full inventory audit before a Cloud handoff
+     * and after the existing installer reports running.
+     *
+     * @param  array<string,mixed>  $target
+     * @return array<string,mixed>
+     */
+    public function previewTarget(int $actorId, array $target, string $newIp): array
+    {
         $current = $this->nodes->replacementSnapshot($actorId, $target['uuid']);
         if ($this->nodeIdentity($current) !== $this->nodeIdentity($target)) {
             throw new RuntimeException('The existing Node changed during installation; replacement stopped.');
@@ -42,9 +63,7 @@ final readonly class ReplaceAdminNode
             throw new RuntimeException('Enable the existing Node before replacing its server.');
         }
 
-        $newIp = $setup['ip'] ?? null;
-        if (! is_string($newIp)
-            || filter_var($newIp, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+        if (filter_var($newIp, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
             throw new RuntimeException('The new server IP is invalid.');
         }
 
@@ -274,6 +293,7 @@ final readonly class ReplaceAdminNode
                 'node' => $current['node'],
                 'oldIp' => $current['oldIp'],
                 'newIp' => $current['newIp'],
+                'cloudPurchaseId' => $this->installations->context($actorId, $identifier)['cloudPurchaseId'] ?? null,
                 'nodeAddressMode' => $current['nodeAddressMode'],
                 'nodeAddressStage' => $current['nodeAddressMode'] === 'ip' ? 'ready' : 'skipped',
                 'dnsRecords' => array_map(static fn (array $record): array => [...$record, 'stage' => 'ready'], $current['dnsRecords']),
@@ -386,6 +406,9 @@ final readonly class ReplaceAdminNode
             $state = $this->state($actorId, $identifier);
             if ($state['stage'] !== 'awaiting_client_test') {
                 throw new RuntimeException('The replacement is not awaiting a client test.');
+            }
+            if (isset($state['cloudPurchaseId'])) {
+                $this->purchases->assertReadyTarget($actorId, $state['cloudPurchaseId'], $state['newIp']);
             }
             $node = $this->nodes->replacementSnapshot($actorId, $state['node']['uuid']);
             $expectedAddress = $state['nodeAddressMode'] === 'ip' ? $state['newIp'] : $state['node']['address'];

@@ -52,7 +52,9 @@ live Cloudflare updates or proof of restored client connectivity.
 | ARI-03C1 | [#557](https://github.com/DenaSon/skynet/pull/557) | Read-only Host/Node/Cloudflare dependency audit | Real Telegram audit screenshots accepted |
 | ARI-03C2 | [#558](https://github.com/DenaSon/skynet/pull/558) | Non-production staged DNS → direct-IP Host → direct-IP Node changes with durable checkpoints, GET-only recovery and client-test acceptance | Production **status screen only** tested; no live cross-provider Write |
 | ARI-03C Host ownership | [#559](https://github.com/DenaSon/skynet/pull/559) | Fix shared-Profile/Inbound false ownership and distinguish other/unassigned/shared Hosts | CI 2,155 tests / 15,837 assertions, PHPStan, Pint, MySQL; **real post-deploy audit retest pending** |
-| ARI-04 | Not started | Single Cloud VPS purchase via Admin Bot, real provisioning and handoff to NW-05 | **Not implemented / no live purchase** |
+| ARI-04A | [#563](https://github.com/DenaSon/skynet/pull/563), [#564](https://github.com/DenaSon/skynet/pull/564) | Fresh quote and existing public SSH-key selection | Operator observed real quote |
+| ARI-04B | [#567](https://github.com/DenaSon/skynet/pull/567) | Single paid create, durable one-use confirmation, purchase-only default-OFF flag | Merged with green CI; no live purchase |
+| ARI-04C | Current source PR | Verified VPS readiness and supervised handoff to existing NW-05 | Source review/CI; live acceptance pending |
 
 All listed PRs #548–#559 are merged on `master`. Source test success, Production deployment, live UI observation, provider write acceptance and actual client-connectivity verification are **five different evidence levels**. Do not call ARI-03 end-to-end accepted based on CI or the current read-only screens.
 
@@ -543,7 +545,7 @@ in Remnawave before any live node replacement or production operation.
 
 ---
 
-## ARI-04 — planned real Cloud VPS purchase and existing Node replacement (NOT IMPLEMENTED)
+## ARI-04 — Cloud VPS purchase and existing Node replacement (live acceptance pending)
 
 **User goal recorded on 2026-11-23:** exercise an actual Arianet Cloud Write by purchasing **one** Cloud VPS **inside the private Admin Bot**, then using it to replace one existing Remnawave Node while retaining the Node's identity and client configurations. This expresses the future product goal, **not approval to charge the Arianet account, enable Production writes, modify real DNS/Remnawave data or retire a server now**.
 
@@ -653,6 +655,32 @@ disclosed. The operator must issue a separate final real purchase approval.
 **Pre-replacement gates:** select and confirm the exact existing Node UUID/name and **entire** live Host/Inbound/Config Profile inventory. Run ownership audit again; only Node UUID membership with verified endpoints is a write target. Resolve any shared/unassigned Host ambiguity and DNS mismatch with the normal operator-reviewed Remnawave flow, not a bypass. Ensure new IP is not assigned to any peer Node, including disabled/disconnected ones. Preview affected domain A records, their Proxy state, DNS-only management endpoint, direct-IP Hosts, routing, fallback/rollback plan, risk of client interruption and accepted maintenance window.
 
 **Execution and acceptance:** require a *separate* one-use operator confirmation for replacing the selected live Node. Wait for new VPS installer connectivity; use NW-05's reviewed DNS/Host/Node update flow, stable Node UUID and identity-preserving checks. Persist one-shot uncertain checkpoints before each remote PATCH; reconcile by GET, never automatically replay partial operations. Keep the old VPS online and intact. Test at least one real client through the affected Node from an actual user network (including relevant Iranian operator where practical), check connectivity/traffic, then accept. Never call a green RW node flag alone a successful client test. Retirement/cleanup of the old VPS is a future explicit operational decision, **not** this automatic flow.
+
+## ARI-04C — verified Cloud handoff to existing NW-05 (2026-11-24)
+
+Operator approved completing the source phase before all real operational tests.
+From the private Admin Cloud inventory, resume the actor-owned latest purchase.
+Only a journaled completed create with matching live successful create action
+and server ID, name, datacenter, plan, running status and global public IPv4
+may enter the readiness screen. No POST or purchase switch is required for
+this read. Show the ordered system image and public-key ID as order metadata,
+not proof of actual OS or SSH access. Disabled Nodes are omitted from the
+bounded selection. Reuse the exact existing NW-05 inventory audit before
+handing off to NW-01/02 with the purchased IPv4, root, port 22 and key mode
+prefilled. An already locally linked Cloud server is rejected at handoff.
+Keep explicit SSH fingerprint approval, SSH OS/auth preflight and separate
+one-use install and cutover confirmations. Back from the Cloud preview
+returns to the order rather than allowing a different IP to be silently
+substituted. Bind the purchase ID in existing installation checkpoints;
+freshly recheck the owned public VPS before scan, preflight, enqueue, launch
+and NW-05 cutover/acceptance. Preserve existing manual/password installs,
+Host/Node identity and DNS verification. Read-only installer polling uses
+the existing protected PHP-FPM key if available; launch keeps the separate
+queue key. No additional table, scheduler, flag, secret, parallel installer,
+automatic remapping, real purchase, install, DNS/Node mutation or VPS deletion.
+Once real replacement and client connectivity are accepted, use the existing
+explicit Cloud link/unlink flow to correct local inventory mapping where
+needed; retain the old VPS for rollback. CI is not live acceptance.
 
 ### Required real Write test / operator go-no-go
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Interfaces\Telegram\Support;
 
 use App\Modules\Identity\Application\ResolveTelegramActor;
+use App\Modules\Provisioning\Application\ManageAdminNodes;
 use App\Modules\Provisioning\Application\PreviewAdminArianetPurchase;
 use App\Modules\Provisioning\Application\PurchaseAdminArianetCloud;
 use App\Modules\Provisioning\Application\ReadAdminArianetCloud;
@@ -26,6 +27,7 @@ final readonly class AdminArianetPurchaseUi
         private PurchaseAdminArianetCloud $purchase,
         private ReadAdminArianetCloud $catalog,
         private MenuRenderer $menus,
+        private ManageAdminNodes $nodes,
     ) {}
 
     public function begin(Nutgram $bot): void
@@ -491,6 +493,83 @@ final readonly class AdminArianetPurchaseUi
         $this->purchaseStatusMessage($bot, $result);
     }
 
+    /** Fresh GET-only VPS readiness, followed by an explicit Node selection. */
+    public function readinessPurchase(Nutgram $bot, string $rawId, string $rawPage): void
+    {
+        $actor = $this->root($bot);
+        if ($actor === null) {
+            return;
+        }
+        $id = self::number($rawId, PHP_INT_MAX);
+        $page = self::number($rawPage, 100);
+        if ($id === null || $page === null) {
+            $this->render($bot, 'انتخاب معتبر نیست.', self::purchaseBack());
+
+            return;
+        }
+        $back = InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('🔄 بررسی دوباره', callback_data: 'ari8:ready:'.$id.':'.$page))
+            ->addRow(InlineKeyboardButton::make('◀️ وضعیت سفارش', callback_data: 'ari8:purchase:status:'.$id));
+        try {
+            $cloud = $this->purchase->readiness($actor, $id);
+        } catch (Throwable) {
+            $this->render($bot, 'آمادگی VPS تأیید نشد؛ وضعیت ساخت و IP عمومی را بررسی کنید.', $back);
+
+            return;
+        }
+
+        $fields = [
+            ['سرور', $cloud['name']],
+            ['IPv4', $cloud['ipv4']],
+            ['سیستم‌عامل سفارش', $cloud['image']],
+            ['کلید عمومی سفارش', '#'.$cloud['sshKeyId']],
+            ['وضعیت', 'روشن؛ اتصال SSH بررسی نشده'],
+        ];
+        $rows = '';
+        $simple = '<b>☁️ آمادگی سرور جدید</b>';
+        foreach ($fields as [$label, $value]) {
+            $rows .= self::row($label, $value);
+            $simple .= "\n".TelegramUi::escape($label).': '.TelegramUi::escape($value);
+        }
+
+        $buttons = InlineKeyboardMarkup::make();
+        $message = 'جایگزینی سرور فعلاً غیرفعال است.';
+        if (config('services.remnawave.node_ssh_setup_enabled') === true
+            && config('services.remnawave.node_ssh_install_enabled') === true
+            && config('services.remnawave.writes_enabled') === true) {
+            try {
+                $nodes = array_values(array_filter($this->nodes->all($actor),
+                    static fn (array $node): bool => ! $node['disabled']));
+                $pages = max(1, (int) ceil(count($nodes) / 8));
+                if ($page > $pages) {
+                    throw new \RuntimeException('Invalid Node page.');
+                }
+                foreach (array_slice($nodes, ($page - 1) * 8, 8) as $node) {
+                    $buttons->addRow(InlineKeyboardButton::make('🔁 '.$node['name'],
+                        callback_data: 'ari8:r:'.$id.':'.$node['uuid']));
+                }
+                $nav = [];
+                if ($page > 1) {
+                    $nav[] = InlineKeyboardButton::make('◀️ قبلی', callback_data: 'ari8:ready:'.$id.':'.($page - 1));
+                }
+                if ($page < $pages) {
+                    $nav[] = InlineKeyboardButton::make('بعدی ▶️', callback_data: 'ari8:ready:'.$id.':'.($page + 1));
+                }
+                if ($nav !== []) {
+                    $buttons->addRow(...$nav);
+                }
+                $message = $nodes === [] ? 'نود قابل جایگزینی وجود ندارد.' : 'نود موردنظر برای جایگزینی را انتخاب کنید.';
+            } catch (Throwable) {
+                $message = 'دریافت نودها ممکن نیست؛ دوباره بررسی کنید.';
+            }
+        }
+        $buttons->addRow(InlineKeyboardButton::make('🔄 بررسی دوباره', callback_data: 'ari8:ready:'.$id.':'.$page));
+        $buttons->addRow(InlineKeyboardButton::make('◀️ وضعیت سفارش', callback_data: 'ari8:purchase:status:'.$id));
+        $this->render($bot, $simple."\n\n".$message, $buttons,
+            '<h2>☁️ آمادگی سرور جدید</h2><table bordered striped compact>'.$rows.'</table>'
+            .'<p>'.TelegramUi::escape($message).'</p>');
+    }
+
     /** @param array<string,mixed> $result */
     private function purchaseStatusMessage(Nutgram $bot, array $result): void
     {
@@ -521,15 +600,21 @@ final readonly class AdminArianetPurchaseUi
         $warning = in_array($result['status'], ['reserved', 'uncertain', 'needs_review'], true)
             ? '⚠️ وضعیت قطعی نیست؛ سفارش جدید ثبت نکنید.'
             : '';
+        $buttons = self::purchaseStatusButtons($result['id'], $result['status'] === 'completed');
         $this->render($bot, $fallback.($warning === '' ? '' : "\n\n".TelegramUi::escape($warning)),
-            self::purchaseStatusButtons($result['id']),
+            $buttons,
             '<h2>☁️ وضعیت درخواست VPS</h2><table bordered striped compact>'.$rows.'</table>'
             .($warning === '' ? '' : '<footer>'.TelegramUi::escape($warning).'</footer>'));
     }
 
-    private static function purchaseStatusButtons(int $id): InlineKeyboardMarkup
+    private static function purchaseStatusButtons(int $id, bool $completed = false): InlineKeyboardMarkup
     {
-        return InlineKeyboardMarkup::make()
+        $buttons = InlineKeyboardMarkup::make();
+        if ($completed) {
+            $buttons->addRow(InlineKeyboardButton::make('🖥️ بررسی آمادگی VPS', callback_data: 'ari8:ready:'.$id.':1'));
+        }
+
+        return $buttons
             ->addRow(InlineKeyboardButton::make('🔄 بررسی وضعیت در آریاسرویس', callback_data: 'ari8:purchase:reconcile:'.$id))
             ->addRow(InlineKeyboardButton::make('◀️ سرورهای ابری', callback_data: 'ari2:list:1'));
     }

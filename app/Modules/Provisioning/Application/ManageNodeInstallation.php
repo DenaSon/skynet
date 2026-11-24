@@ -26,6 +26,7 @@ final readonly class ManageNodeInstallation
         private AssertCatalogManagementAccess $access,
         private RemnawaveApiClientFactory $factory,
         private NodeSshInstaller $installer,
+        private PurchaseAdminArianetCloud $purchases,
     ) {}
 
     /** @param array<string, mixed> $ready */
@@ -70,6 +71,15 @@ final readonly class ManageNodeInstallation
         } elseif (! is_array($ready['profile'] ?? null) || ! is_string($ready['profile']['uuid'] ?? null)
             || ! is_array($ready['inbound'] ?? null) || ! is_string($ready['inbound']['uuid'] ?? null)) {
             throw new RuntimeException('Node profile selection is required.');
+        }
+
+        $cloudPurchaseId = $ready['cloudPurchaseId'] ?? null;
+        if ($cloudPurchaseId !== null) {
+            if (! is_int($cloudPurchaseId) || ! is_array($replacement) || $authMode !== 'key'
+                || ($ready['port'] ?? null) !== 22) {
+                throw new RuntimeException('Invalid Cloud replacement handoff.');
+            }
+            $this->purchases->assertReadyTarget($actorId, $cloudPurchaseId, $ip);
         }
 
         $dnsMetadata = [];
@@ -155,6 +165,9 @@ final readonly class ManageNodeInstallation
                 'remoteStatusBound' => true,
                 ...$dnsMetadata,
             ];
+            if ($cloudPurchaseId !== null) {
+                $status['cloudPurchaseId'] = $cloudPurchaseId;
+            }
             if (is_array($replacement)) {
                 $status['replacement'] = $replacement;
                 $status['profileUuid'] = $replacement['profileUuid'];
@@ -188,6 +201,9 @@ final readonly class ManageNodeInstallation
             $this->guard();
             $access = $this->credentials($identifier);
             $this->access->handle($state['owner']);
+            if (isset($state['cloudPurchaseId'])) {
+                $this->purchases->assertReadyTarget($state['owner'], $state['cloudPurchaseId'], $access['ip']);
+            }
             $state['state'] = 'launching';
             $this->persist($identifier, $state);
             $response = $this->factory->make()->call('KeygenController_generateKey');

@@ -237,6 +237,64 @@ final readonly class PurchaseAdminArianetCloud
         });
     }
 
+    /**
+     * ARI-04C: fresh, actor-owned creation evidence, independent of the
+     * purchase write switch. A successful create is not an SSH readiness test.
+     *
+     * @return array{purchaseId:int,serverId:int,name:string,ipv4:string,image:string,sshKeyId:int}
+     */
+    public function readiness(int $actorId, int $id): array
+    {
+        $this->access->handle($actorId);
+        $row = $this->row($actorId, $id);
+        if ($row->status !== 'completed' || $row->server_id === null || $row->action_id === null) {
+            throw new RuntimeException('Cloud creation is not verified.');
+        }
+
+        $serverId = (int) $row->server_id;
+        $actionId = (int) $row->action_id;
+        if ($serverId < 1 || $actionId < 1) {
+            throw new RuntimeException('Invalid Cloud creation identifiers.');
+        }
+        $action = $this->read->action($actionId)['data'] ?? null;
+        if (! is_array($action) || ($action['id'] ?? null) !== $actionId
+            || ($action['command'] ?? null) !== 'create' || ($action['status'] ?? null) !== 'success'
+            || ($action['resource']['id'] ?? null) !== $serverId
+            || ($action['resource']['type'] ?? null) !== 'server') {
+            throw new RuntimeException('Cloud creation action is not verified.');
+        }
+
+        $server = $this->read->server($serverId)['data'] ?? null;
+        $ip = is_array($server) ? ($server['ipv4'] ?? null) : null;
+        if (! is_array($server) || ($server['id'] ?? null) !== $serverId
+            || ($server['name'] ?? null) !== $row->name
+            || ($server['datacenter'] ?? null) !== $row->datacenter
+            || ($server['plan_id'] ?? null) !== (int) $row->plan_id
+            || ($server['status'] ?? null) !== 'running'
+            || ($server['ip_change']['pending'] ?? false) !== false
+            || ! is_string($ip)
+            || filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_GLOBAL_RANGE) !== $ip) {
+            throw new RuntimeException('Cloud server identity, running state or public IPv4 is not verified.');
+        }
+
+        return [
+            'purchaseId' => $id,
+            'serverId' => $serverId,
+            'name' => $row->name,
+            'ipv4' => $ip,
+            'image' => $row->image,
+            'sshKeyId' => (int) $row->ssh_key_id,
+        ];
+    }
+
+    /** A handed-off purchase must still identify the same public VPS. */
+    public function assertReadyTarget(int $actorId, int $id, string $ip): void
+    {
+        if ($this->readiness($actorId, $id)['ipv4'] !== $ip) {
+            throw new RuntimeException('Cloud server IPv4 changed since handoff.');
+        }
+    }
+
     /** @param array<string,mixed> $selection
      * @return array<string,mixed>
      */

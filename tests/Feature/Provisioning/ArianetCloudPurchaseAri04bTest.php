@@ -107,13 +107,16 @@ function ari04bFake(bool $newPrice = false, string $post = 'success'): void
             ]]);
         }
         if ($url === $base.'/actions/702') {
-            return Http::response(['data' => [
+            return Http::response(['data' => array_replace([
                 'id' => 702, 'command' => 'create', 'status' => 'success',
                 'resource' => ['id' => 918, 'type' => 'server'],
-            ]]);
+            ], config('ari04c_fixture.action', []))]);
         }
         if ($url === $base.'/servers/918') {
-            return Http::response(['data' => ['id' => 918, 'name' => 'DenaServer', 'status' => 'running']]);
+            return Http::response(['data' => array_replace([
+                'id' => 918, 'name' => 'DenaServer', 'status' => 'running',
+                'datacenter' => 'ovh', 'plan_id' => 7, 'ipv4' => '194.5.192.133',
+            ], config('ari04c_fixture.server', []))]);
         }
         if (str_starts_with($url, $base.'/actions?') || str_starts_with($url, $base.'/servers?')) {
             return Http::response(['data' => []]);
@@ -331,4 +334,65 @@ it('ARI-04B uses concise distinct operator states without implying SSH readiness
         }
     }
     Http::assertNotSent(static fn (Request $r): bool => $r->method() === 'POST');
+});
+
+it('ARI-04C requires a completed owned create and freshly verified public running server without a write gate', function (): void {
+    $actor = ari04bUser();
+    ari04bFake();
+    $purchase = app(PurchaseAdminArianetCloud::class);
+    $intent = $purchase->prepare($actor->id, ari04bSelection());
+    expect(fn () => $purchase->readiness($actor->id, $intent['id']))->toThrow(RuntimeException::class);
+    $purchase->confirm($actor->id, $intent['id'], $intent['token']);
+    expect(fn () => $purchase->readiness($actor->id, $intent['id']))->toThrow(RuntimeException::class);
+    $purchase->reconcile($actor->id, $intent['id']);
+    config()->set('services.arianet_cloud.purchase_enabled', false);
+    expect($purchase->readiness($actor->id, $intent['id']))->toBe([
+        'purchaseId' => $intent['id'],
+        'serverId' => 918,
+        'name' => 'DenaServer',
+        'ipv4' => '194.5.192.133',
+        'image' => 'ubuntu-24.04',
+        'sshKeyId' => 132,
+    ]);
+    $purchase->assertReadyTarget($actor->id, $intent['id'], '194.5.192.133');
+    expect(fn () => $purchase->assertReadyTarget($actor->id, $intent['id'], '194.5.192.134'))
+        ->toThrow(RuntimeException::class);
+    ari04bOnlyCreatePost();
+});
+
+it('ARI-04C fails closed on wrong action, wrong server, nonpublic or unavailable IPv4 and pending IP change', function (): void {
+    $actor = ari04bUser();
+    ari04bFake();
+    $purchase = app(PurchaseAdminArianetCloud::class);
+    $intent = $purchase->prepare($actor->id, ari04bSelection());
+    $purchase->confirm($actor->id, $intent['id'], $intent['token']);
+    $purchase->reconcile($actor->id, $intent['id']);
+    foreach ([
+        ['id' => 703],
+        ['command' => 'reboot'],
+        ['status' => 'running'],
+        ['resource' => ['id' => 919, 'type' => 'server']],
+        ['resource' => ['id' => 918, 'type' => 'other']],
+    ] as $invalid) {
+        config()->set('ari04c_fixture.action', $invalid);
+        expect(fn () => $purchase->readiness($actor->id, $intent['id']))->toThrow(RuntimeException::class);
+    }
+    config()->set('ari04c_fixture.action', []);
+    foreach ([
+        ['id' => 919], ['name' => 'Other'], ['datacenter' => 'other'],
+        ['plan_id' => 8], ['status' => 'stopped'], ['ipv4' => null],
+        ['ipv4' => '127.0.0.1'], ['ipv4' => '10.0.0.1'], ['ipv4' => '100.64.1.1'],
+        ['ipv4' => '192.0.2.1'], ['ip_change' => ['pending' => true]],
+    ] as $invalid) {
+        config()->set('ari04c_fixture.server', $invalid);
+        expect(fn () => $purchase->readiness($actor->id, $intent['id']))->toThrow(RuntimeException::class);
+    }
+    config()->set('ari04c_fixture.server', []);
+    $other = User::factory()->create();
+    $other->syncRoles(['super-admin']);
+    TelegramAccount::query()->create(['user_id' => $other->id, 'telegram_user_id' => 993302]);
+    expect(fn () => $purchase->readiness($other->id, $intent['id']))->toThrow(RuntimeException::class);
+    $actor->syncRoles(['member']);
+    expect(fn () => $purchase->readiness($actor->id, $intent['id']))->toThrow(AuthorizationException::class);
+    ari04bOnlyCreatePost();
 });
