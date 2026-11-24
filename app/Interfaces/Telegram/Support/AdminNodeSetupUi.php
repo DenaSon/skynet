@@ -7,10 +7,12 @@ namespace App\Interfaces\Telegram\Support;
 use App\Interfaces\Telegram\Processing\TelegramBotContext;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Provisioning\Application\CompleteNodeSetup;
+use App\Modules\Provisioning\Application\ManageAdminArianetCloudLinks;
 use App\Modules\Provisioning\Application\ManageAdminNodes;
 use App\Modules\Provisioning\Application\ManageCloudflareDns;
 use App\Modules\Provisioning\Application\ManageNodeInstallation;
 use App\Modules\Provisioning\Application\NodeSetupReadiness;
+use App\Modules\Provisioning\Application\PurchaseAdminArianetCloud;
 use App\Modules\Provisioning\Application\ReplaceAdminNode;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
@@ -35,6 +37,8 @@ final readonly class AdminNodeSetupUi
         private ReplaceAdminNode $replacement,
         private ManageCloudflareDns $dns,
         private MenuRenderer $menus,
+        private PurchaseAdminArianetCloud $purchases,
+        private ManageAdminArianetCloudLinks $cloudLinks,
     ) {}
 
     public function begin(Nutgram $bot): void
@@ -60,7 +64,7 @@ final readonly class AdminNodeSetupUi
     }
 
     /** Begin an existing-Node replacement without creating or deleting a Node. */
-    public function beginReplacement(Nutgram $bot, string $uuid): void
+    public function beginReplacement(Nutgram $bot, string $uuid, ?int $purchaseId = null): void
     {
         $id = $this->root($bot);
         if ($id === null) {
@@ -73,6 +77,10 @@ final readonly class AdminNodeSetupUi
             return;
         }
         try {
+            $cloud = $purchaseId === null ? null : $this->purchases->readiness($id, $purchaseId);
+            if ($cloud !== null && $this->cloudLinks->linked($id, $cloud['serverId']) !== null) {
+                throw new \RuntimeException('The Cloud server already belongs to a Node.');
+            }
             $target = $this->nodes->replacementSnapshot($id, $uuid);
             if ($target['disabled']) {
                 throw new \RuntimeException('Disabled Node cannot be replaced.');
@@ -87,8 +95,16 @@ final readonly class AdminNodeSetupUi
             if (count($active) !== count($target['inboundUuids']) || $active === []) {
                 throw new \RuntimeException('Current active inbounds are unavailable.');
             }
+            if ($cloud !== null) {
+                $this->nodes->validateIdentity($id, $target['name'], $cloud['ipv4']);
+                $this->ssh->validateTarget($id, $cloud['ipv4'], 22);
+                $this->replacement->previewTarget($id, $target, $cloud['ipv4']);
+            }
         } catch (Throwable) {
-            $this->render($bot, 'مشخصات نود یا پروفایل‌های فعلی قابل بررسی نیستند. ابتدا وضعیت نود را بررسی کنید.', $this->back());
+            $this->render($bot, $purchaseId === null
+                ? 'مشخصات نود یا پروفایل‌های فعلی قابل بررسی نیستند. ابتدا وضعیت نود را بررسی کنید.'
+                : 'آمادگی VPS یا وابستگی‌های نود و DNS تأیید نشد. ابتدا وضعیت را بررسی کنید.',
+                $purchaseId === null ? $this->back() : $this->purchaseBack($purchaseId));
 
             return;
         }
@@ -99,11 +115,37 @@ final readonly class AdminNodeSetupUi
         Cache::forget('nw03:hostDraft:'.$id);
         Cache::forget('nw03:confirm:'.$id);
         Cache::forget('nw05:confirm:'.$id);
-        $this->save($id, ['stage' => 'ip', 'name' => $target['name'], 'replacement' => $target,
-            'profile' => $profile, 'inbounds' => $inbounds, 'activeInbounds' => $active]);
+        $draft = ['stage' => 'ip', 'name' => $target['name'], 'replacement' => $target,
+            'profile' => $profile, 'inbounds' => $inbounds, 'activeInbounds' => $active];
+        if ($cloud !== null) {
+            $draft['cloudPurchaseId'] = $cloud['purchaseId'];
+            $draft['ip'] = $cloud['ipv4'];
+            $draft['port'] = 22;
+            $draft['username'] = 'root';
+            $draft['authMode'] = 'key';
+            $draft['stage'] = 'preview';
+            $draft['token'] = bin2hex(random_bytes(16));
+            $this->save($id, $draft);
+            $this->previewPrompt($bot, $draft);
+
+            return;
+        }
+        $this->save($id, $draft);
         $this->render($bot, "🔁 جایگزینی سرور — گام ۱\n\n<b>IP عمومی سرور جدید</b> را ارسال کنید.\n"
             .'نود فعلی: '.$target['name']."\nآدرس فعلی نود: ".$target['address']
             ."\n\nشناسه نود، پروفایل و ورودی‌های فعلی حفظ می‌شوند.", $this->cancelButton(false), true);
+    }
+
+    /** Explicit Cloud handoff; the operator still confirms the SSH host and installation. */
+    public function beginPurchasedReplacement(Nutgram $bot, string $rawId, string $uuid): void
+    {
+        $id = filter_var($rawId, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if ($id === false) {
+            $this->expired($bot);
+
+            return;
+        }
+        $this->beginReplacement($bot, $uuid, $id);
     }
 
     public function text(Nutgram $bot, string $value): bool
@@ -654,6 +696,9 @@ final readonly class AdminNodeSetupUi
             return;
         }
         try {
+            if (isset($draft['cloudPurchaseId'])) {
+                $this->purchases->assertReadyTarget($id, $draft['cloudPurchaseId'], $draft['ip']);
+            }
             $draft['host'] = $this->ssh->scan($id, $draft['ip'], $draft['port']);
         } catch (Throwable) {
             $this->render($bot, 'اتصال SSH برقرار نشد؛ IP و پورت را بررسی کنید.', $this->cancelButton());
@@ -698,6 +743,9 @@ final readonly class AdminNodeSetupUi
             return;
         }
         try {
+            if (isset($draft['cloudPurchaseId'])) {
+                $this->purchases->assertReadyTarget($id, $draft['cloudPurchaseId'], $draft['ip']);
+            }
             $this->nodes->validateIdentity($id, $draft['name'], $draft['ip']);
             if (is_array($draft['replacement'] ?? null)) {
                 $current = $this->nodes->replacementSnapshot($id, $draft['replacement']['uuid']);
@@ -1483,6 +1531,12 @@ final readonly class AdminNodeSetupUi
 
                 return;
             case 'preview':
+                if (isset($draft['cloudPurchaseId'])) {
+                    Cache::forget($this->key($id));
+                    $this->render($bot, 'انتخاب نود را دوباره بررسی کنید.', $this->purchaseBack($draft['cloudPurchaseId']));
+
+                    return;
+                }
                 if (is_array($draft['replacement'] ?? null)) {
                     $draft['stage'] = 'ip';
                     unset($draft['ip'], $draft['host'], $draft['token'], $draft['secret']);
@@ -1699,6 +1753,13 @@ final readonly class AdminNodeSetupUi
         }
 
         return $keyboard->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'nw1:cancel'));
+    }
+
+    private function purchaseBack(int $purchaseId): InlineKeyboardMarkup
+    {
+        return InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('◀️ وضعیت VPS و انتخاب نود', callback_data: 'ari8:ready:'.$purchaseId.':1'))
+            ->addRow(InlineKeyboardButton::make('◀️ سرورهای ابری', callback_data: 'ari2:list:1'));
     }
 
     private function back(): InlineKeyboardMarkup
