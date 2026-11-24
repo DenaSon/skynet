@@ -204,12 +204,12 @@ it('keeps Cloud inventory order entry readable according to the purchase gate', 
     ari2Fake();
     config()->set('services.arianet_cloud.purchase_enabled', false);
     ari2Bot()->hearCallbackQueryData('ari2:list:1')->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool => str_contains(json_encode(ari2Payload($r)['reply_markup'], JSON_THROW_ON_ERROR), 'پیش‌نمایش سفارش سرور')
+        ->assertRaw(static fn (NutgramRequest $r): bool => str_contains(json_encode(ari2Payload($r)['reply_markup'], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE), 'پیش‌نمایش سفارش سرور')
             && ari2Has($r, 'ari8:begin'), index: 1);
 
     config()->set('services.arianet_cloud.purchase_enabled', true);
     ari2Bot()->hearCallbackQueryData('ari2:list:1')->reply()
-        ->assertRaw(static fn (NutgramRequest $r): bool => str_contains(json_encode(ari2Payload($r)['reply_markup'], JSON_THROW_ON_ERROR), 'سفارش سرور جدید')
+        ->assertRaw(static fn (NutgramRequest $r): bool => str_contains(json_encode(ari2Payload($r)['reply_markup'], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE), 'سفارش سرور جدید')
             && ari2Has($r, 'ari8:begin'), index: 1);
     ari2OnlyReads();
 });
@@ -391,9 +391,7 @@ it('renders real Arianet Cloud /plans fields instead of unknown CPU, RAM and pri
             $html = ari2Html($request);
 
             return str_contains($html, 'S0 #18')
-                && str_contains($html, '۱ CPU')
-                && str_contains($html, '۱٬۰۲۴ MB RAM')
-                && str_contains($html, '۵ GB')
+                && str_contains($html, '1 vCPU · 1 GB RAM · 5 GB Disk')
                 && str_contains($html, '۱٬۳۹۸ تومان')
                 && str_contains($html, '۱٬۰۲۰٬۰۲۹ تومان')
                 && ! str_contains($html, 'نامشخص')
@@ -423,8 +421,7 @@ it('keeps unverified or non-IRR Cloud plan prices hidden while showing safe hard
         ->assertRaw(static function (NutgramRequest $request): bool {
             $html = ari2Html($request);
 
-            return str_contains($html, '۱ CPU')
-                && str_contains($html, '۱٬۰۲۴ MB RAM')
+            return str_contains($html, '1 vCPU · 1 GB RAM · 5 GB Disk')
                 && str_contains($html, 'ساعتی: نامشخص')
                 && str_contains($html, 'ماهانه: نامشخص')
                 && ! str_contains($html, '۱٬۰۲۰٬۰۲۹ تومان');
