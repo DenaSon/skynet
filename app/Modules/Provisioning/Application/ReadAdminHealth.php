@@ -19,6 +19,16 @@ final readonly class ReadAdminHealth
 {
     private const TABLE = 'health_check_result_history_items';
 
+    // Spatie persists the short names in production. Older fixtures and
+    // historical records may use the class names for the same five checks.
+    private const BASIC_ALIASES = [
+        'DatabaseCheck' => 'Database',
+        'QueueCheck' => 'Queue',
+        'ScheduleCheck' => 'Schedule',
+        'UsedDiskSpaceCheck' => 'UsedDiskSpace',
+        'RedisCheck' => 'Redis',
+    ];
+
     public function __construct(private AssertCatalogManagementAccess $access) {}
 
     /**
@@ -86,16 +96,9 @@ final readonly class ReadAdminHealth
 
             // An incomplete basic or operational batch must never show green.
             // Redis is required only with the same runtime condition as registration.
-            $expectedBasic = ['DatabaseCheck', 'QueueCheck', 'ScheduleCheck', 'UsedDiskSpaceCheck'];
-            if (config('cache.default') === 'redis' || config('queue.default') === 'redis') {
-                $expectedBasic[] = 'RedisCheck';
-            }
-            $expectedOps = array_map(
-                static fn (string $key): string => 'ops_'.$key, OperationalProbe::CHECKS,
-            );
-            $expected = [...$expectedBasic, ...$expectedOps];
+            $expected = self::expectedChecks();
             $observed = array_map(
-                static fn (object $row): string => (string) $row->check_name, $rows->all(),
+                static fn (object $row): string => self::canonicalName((string) $row->check_name), $rows->all(),
             );
             $incomplete = $total < 4 || $total > 24 || count($items) !== $total
                 || count(array_unique($observed)) !== $total
@@ -148,18 +151,16 @@ final readonly class ReadAdminHealth
             // Use the indexed created_at retention boundary in addition to
             // the observation timestamp. The cap prevents an unbounded
             // Telegram read if the schedule unexpectedly ran too often.
-            $expected = ['DatabaseCheck', 'QueueCheck', 'ScheduleCheck', 'UsedDiskSpaceCheck'];
-            if (config('cache.default') === 'redis' || config('queue.default') === 'redis') {
-                $expected[] = 'RedisCheck';
-            }
-            foreach (OperationalProbe::CHECKS as $name) {
-                $expected[] = 'ops_'.$name;
-            }
+            $expected = self::expectedChecks();
+            $aliases = array_keys(array_filter(
+                self::BASIC_ALIASES,
+                static fn (string $canonical): bool => in_array($canonical, $expected, true),
+            ));
 
             $rows = DB::table(self::TABLE)->where('created_at', '>=', now()->subDay()->subMinutes(5))
                 ->where('ended_at', '>=', now()->subDay())
-                ->whereIn('check_name', $expected)
-                ->orderBy('check_name')->orderBy('ended_at')->orderBy('id')
+                ->whereIn('check_name', [...$expected, ...$aliases])
+                ->orderBy('ended_at')->orderBy('id')
                 ->limit(12001)->get(['check_name', 'status', 'ended_at']);
             if ($rows->count() > 12000) {
                 return [...$empty, 'state' => 'unavailable'];
@@ -174,7 +175,12 @@ final readonly class ReadAdminHealth
             $recurrences = 0;
 
             foreach ($rows as $row) {
-                $name = (string) $row->check_name;
+                $name = self::canonicalName((string) $row->check_name);
+                // SQL collations may match case-insensitively. Keep the exact
+                // application allowlist consistent with the snapshot reader.
+                if (! in_array($name, $expected, true)) {
+                    continue;
+                }
                 $at = (string) $row->ended_at;
                 $status = match ((string) $row->status) {
                     'ok' => 'ok',
@@ -232,6 +238,24 @@ final readonly class ReadAdminHealth
         } catch (Throwable) {
             return [...$empty, 'state' => 'unavailable'];
         }
+    }
+
+    /** @return list<string> */
+    private static function expectedChecks(): array
+    {
+        $basic = ['Database', 'Queue', 'Schedule', 'UsedDiskSpace'];
+        if (config('cache.default') === 'redis' || config('queue.default') === 'redis') {
+            $basic[] = 'Redis';
+        }
+
+        return [...$basic, ...array_map(
+            static fn (string $key): string => 'ops_'.$key, OperationalProbe::CHECKS,
+        )];
+    }
+
+    private static function canonicalName(string $name): string
+    {
+        return self::BASIC_ALIASES[$name] ?? $name;
     }
 
     private static function label(string $name): string
