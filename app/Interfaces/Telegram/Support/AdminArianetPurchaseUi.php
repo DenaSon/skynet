@@ -600,19 +600,21 @@ final readonly class AdminArianetPurchaseUi
         $warning = in_array($result['status'], ['reserved', 'uncertain', 'needs_review'], true)
             ? '⚠️ وضعیت قطعی نیست؛ سفارش جدید ثبت نکنید.'
             : '';
-        $buttons = self::purchaseStatusButtons($result['id']);
-        if ($result['status'] === 'completed') {
-            $buttons->addRow(InlineKeyboardButton::make('🖥️ بررسی آمادگی VPS', callback_data: 'ari8:ready:'.$result['id'].':1'));
-        }
+        $buttons = self::purchaseStatusButtons($result['id'], $result['status'] === 'completed');
         $this->render($bot, $fallback.($warning === '' ? '' : "\n\n".TelegramUi::escape($warning)),
             $buttons,
             '<h2>☁️ وضعیت درخواست VPS</h2><table bordered striped compact>'.$rows.'</table>'
             .($warning === '' ? '' : '<footer>'.TelegramUi::escape($warning).'</footer>'));
     }
 
-    private static function purchaseStatusButtons(int $id): InlineKeyboardMarkup
+    private static function purchaseStatusButtons(int $id, bool $completed = false): InlineKeyboardMarkup
     {
-        return InlineKeyboardMarkup::make()
+        $buttons = InlineKeyboardMarkup::make();
+        if ($completed) {
+            $buttons->addRow(InlineKeyboardButton::make('🖥️ بررسی آمادگی VPS', callback_data: 'ari8:ready:'.$id.':1'));
+        }
+
+        return $buttons
             ->addRow(InlineKeyboardButton::make('🔄 بررسی وضعیت در آریاسرویس', callback_data: 'ari8:purchase:reconcile:'.$id))
             ->addRow(InlineKeyboardButton::make('◀️ سرورهای ابری', callback_data: 'ari2:list:1'));
     }
