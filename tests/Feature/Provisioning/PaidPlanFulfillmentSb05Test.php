@@ -1460,8 +1460,18 @@ it('keeps old paid review cases reachable across pages and flags only genuinely 
             $html = sb05TelegramRich($payload);
             $buttons = json_encode($payload['reply_markup'] ?? null, JSON_THROW_ON_ERROR);
 
-            return str_contains($html, 'فعال‌سازی‌های معوق')
-                && str_contains($buttons, 'full:attention:1');
+            return ! str_contains($html, 'فعال‌سازی‌های معوق')
+                && ! str_contains($buttons, 'full:attention:1')
+                && str_contains($buttons, 'denaban:health');
+        }, index: 1);
+
+    // The compact home moves follow-up to Health without removing the workflow.
+    $bot->hearCallbackQueryData('denaban:health')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $payload = sb05TelegramPayload($request);
+            $buttons = json_encode($payload['reply_markup'] ?? null, JSON_THROW_ON_ERROR);
+
+            return str_contains($buttons, 'full:attention:1');
         }, index: 1);
 
     expect(DB::table('sales_fulfillment_outbox')->count())->toBe(27);

@@ -51,14 +51,6 @@ final readonly class ReadAdminDashboard
         $recent = (int) DB::table('telegram_bot_contacts')->where('bot_key', 'sales')
             ->where('last_seen_at', '>=', now()->subDays(30))->count();
 
-        // Date range: today's settled purchase revenue in Tehran, not wallet topups.
-        $from = Carbon::now('Asia/Tehran')->startOfDay()->utc();
-        $until = Carbon::now('Asia/Tehran')->addDay()->startOfDay()->utc();
-        $bank = ValidBankSettlements::query()->where('settled_at', '>=', $from)
-            ->where('settled_at', '<', $until)->sum('amount_rials');
-        $wallet = DB::table('sales_order_settlements')->where('settled_at', '>=', $from)
-            ->where('settled_at', '<', $until)->sum('amount_rials');
-
         $report = [
             'nodes' => null, 'connected' => null, 'hosts' => null,
             'nodeSummaries' => null,
@@ -67,7 +59,7 @@ final readonly class ReadAdminDashboard
             'subscriptionsLimited' => null,
             'localUsers' => $users, 'localActive' => $active, 'telegramLinked' => $linked,
             'salesReachable' => $sales, 'adminReachable' => $admin, 'salesRecent' => $recent,
-            'salesTodayRials' => (int) $bank + (int) $wallet,
+            'salesTodayRials' => $this->salesTodayRials(),
             'provisioningReview' => (int) DB::table('provisioning_operations')->where('state', 'needs_review')->count(),
             'fulfillmentReview' => (int) DB::table('sales_fulfillment_outbox')->where('state', 'needs_review')->count(),
             'fulfillmentOverdue' => $this->fulfillment->attentionCounts($actorId)['overdue'],
@@ -89,6 +81,47 @@ final readonly class ReadAdminDashboard
             $report['online'] = $provider->systemStats?->onlineUsers;
         }
 
+        return [...$report, ...($this->subscriptionCounts() ?? [])];
+    }
+
+    /**
+     * Compact Denaban projection; preserve the full STAT-01 report for other callers.
+     *
+     * @return array{localUsers:int,salesTodayRials:int,subscriptionsActive:?int,nodesOnline:?int}
+     */
+    public function denaban(int $actorId): array
+    {
+        $this->access->handle($actorId);
+
+        $users = (int) DB::table('users')->count();
+        $sales = $this->salesTodayRials();
+        $online = $this->overview->denabanOnline($actorId);
+        $subscriptions = $this->subscriptionCounts();
+
+        return [
+            'localUsers' => $users,
+            'salesTodayRials' => $sales,
+            'subscriptionsActive' => $subscriptions['subscriptionsActive'] ?? null,
+            'nodesOnline' => $online,
+        ];
+    }
+
+    private function salesTodayRials(): int
+    {
+        // Date range: today's settled purchase revenue in Tehran, not wallet topups.
+        $from = Carbon::now('Asia/Tehran')->startOfDay()->utc();
+        $until = Carbon::now('Asia/Tehran')->addDay()->startOfDay()->utc();
+        $bank = ValidBankSettlements::query()->where('settled_at', '>=', $from)
+            ->where('settled_at', '<', $until)->sum('amount_rials');
+        $wallet = DB::table('sales_order_settlements')->where('settled_at', '>=', $from)
+            ->where('settled_at', '<', $until)->sum('amount_rials');
+
+        return (int) $bank + (int) $wallet;
+    }
+
+    /** @return array{subscriptionsActive:int,subscriptionsExpired:int,subscriptionsLimited:int,panelUsers:int}|null */
+    private function subscriptionCounts(): ?array
+    {
         // A partial list is NOT a reliable count of all active subscriptions.
         // Maximum two reads/1000 users per on-demand refresh; no unbounded API scan.
         try {
@@ -96,32 +129,35 @@ final readonly class ReadAdminDashboard
             $page = $api->list(0, 500);
             $total = $page['total'];
             if ($total > 1000 || count($page['users']) !== min(500, $total)) {
-                return $report;
+                return null;
             }
 
             $all = $page['users'];
             if ($total > 500) {
                 $next = $api->list(500, 500);
                 if ($next['total'] !== $total || count($next['users']) !== $total - 500) {
-                    return $report;
+                    return null;
                 }
                 $all = [...$all, ...$next['users']];
             }
 
             $ids = array_map(static fn ($user): int => $user->id, $all);
             if (count($all) !== $total || count(array_unique($ids)) !== $total) {
-                return $report;
+                return null;
             }
 
             $status = array_count_values(array_map(static fn ($user): string => $user->status, $all));
-            $report['subscriptionsActive'] = $status['ACTIVE'] ?? 0;
-            $report['subscriptionsExpired'] = $status['EXPIRED'] ?? 0;
-            $report['subscriptionsLimited'] = $status['LIMITED'] ?? 0;
-            $report['panelUsers'] = $total;
+
+            return [
+                'subscriptionsActive' => $status['ACTIVE'] ?? 0,
+                'subscriptionsExpired' => $status['EXPIRED'] ?? 0,
+                'subscriptionsLimited' => $status['LIMITED'] ?? 0,
+                'panelUsers' => $total,
+            ];
         } catch (Throwable) {
             // Never disguise stale, incomplete or unavailable provider counts as zero.
         }
 
-        return $report;
+        return null;
     }
 }

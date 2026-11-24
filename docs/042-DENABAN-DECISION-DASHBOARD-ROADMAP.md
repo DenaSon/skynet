@@ -182,3 +182,27 @@ The operator authorized both review fixes and merge after successful verificatio
 - Display yesterday's verified cash amount and signed one-decimal percent change: `(today - yesterday) / yesterday * 100`; positive `📈 +`, negative `📉 −`, unchanged `➖`. Use Persian numeric digits and decimal separator. When yesterday has zero verified cash, show `بدون مبنا` even when both periods are zero. On failed partial reads show `نامشخص`, never a fabricated zero; continue rendering independently available sections.
 - The comparison reflects **recorded and approved** bank inflows rather than live bank balance or net profit. A later receipt approval may change this historical comparison; no new reconciliation is implied.
 - Verify local-time boundary inclusion/exclusion, bank plus top-up parity, wallet exclusion, corrected and voided records, positive/negative/zero/flat percent, native RTL Rich/HTML parity, RBAC and no payment/provider writes. Source CI PHP 8.4, PHPStan, Pint and disposable MySQL/Redis gates must pass before merge; device/production acceptance is separate. Rollback is this source PR revert; no schema/settings changes.
+
+## DENABAN-UX-01 — compact home (operator-approved 2026-11-24)
+
+Both private root views retain all eight financial metrics, four people /
+subscription metrics, existing finance and gated receipt shortcuts, server /
+Health navigation, refresh, back and Rich/native switching. The home no
+longer renders the attention section or its conditional buttons, host counts,
+connected-node counts, panel online metric or per-node details. Notification
+investigation and fulfillment follow-up remain reachable in Health, including
+their original callbacks; other Admin reports and routes are unchanged.
+
+The compact Action uses only the local user/sales counts and two bounded
+provider read paths: nodes and subscription list (at most two pages).
+No health, host or system-stat GET and no attention counts are needed for
+this home. Node online is the sum of reported usersOnline across all
+returned nodes, not a count of unique people. Empty verified inventory is
+zero; duplicate nodes, missing/invalid counts, overflow, oversized lists or
+read errors are unknown. Financial rules and local authorization are preserved.
+The full STAT-01 report and existing full snapshot contract remain available
+to existing callers; no provider/financial writes, migration or dependency.
+
+PERF-01 remains independent: cache safe provider projections, bound the
+dashboard-only transport, eliminate unused KPI work, and benchmark.
+No measured latency or live deployment is claimed by source tests.

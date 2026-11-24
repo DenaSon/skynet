@@ -84,7 +84,7 @@ function denabanIssuesRich(array $payload): string
     return ($rich['is_rtl'] ?? null) === true ? (string) ($rich['html'] ?? '') : '';
 }
 
-it('shows the review button only with terminal notification issues and hides it when resolved', function (): void {
+it('keeps notification investigation in Health rather than the compact Denaban home', function (): void {
     $root = denabanIssuesRoot();
     Http::fake(['https://denaban-issues.test/*' => Http::response([], 503)]);
 
@@ -100,8 +100,9 @@ it('shows the review button only with terminal notification issues and hides it 
         ->assertRaw(static function (NutgramRequest $r): bool {
             $p = denabanIssuesPayload($r);
 
-            return str_contains($p['text'], 'اعلان‌های ناموفق: 1')
-                && str_contains(json_encode($p['reply_markup'], JSON_THROW_ON_ERROR), 'denaban:notifications:1');
+            return ! str_contains($p['text'], 'اعلان‌های ناموفق:')
+                && ! str_contains(json_encode($p['reply_markup'], JSON_THROW_ON_ERROR), 'denaban:notifications:1')
+                && str_contains(json_encode($p['reply_markup'], JSON_THROW_ON_ERROR), 'denaban:health');
         }, index: 1);
 
     // A status transition from the real dispatcher, not the read-only UI.
@@ -220,7 +221,7 @@ it('ignores only superseded activation notices while preserving the full deliver
         ->assertRaw(static function (NutgramRequest $request): bool {
             $payload = denabanIssuesPayload($request);
 
-            return str_contains($payload['text'], 'اعلان‌های ناموفق: 0')
+            return ! str_contains($payload['text'], 'اعلان‌های ناموفق:')
                 && ! str_contains(json_encode($payload['reply_markup'], JSON_THROW_ON_ERROR), 'denaban:notifications:1');
         }, index: 1);
 
@@ -236,8 +237,9 @@ it('ignores only superseded activation notices while preserving the full deliver
         ->assertRaw(static function (NutgramRequest $request): bool {
             $payload = denabanIssuesPayload($request);
 
-            return str_contains($payload['text'], 'اعلان‌های ناموفق: 1')
-                && str_contains(json_encode($payload['reply_markup'], JSON_THROW_ON_ERROR), 'denaban:notifications:1');
+            return ! str_contains($payload['text'], 'اعلان‌های ناموفق:')
+                && ! str_contains(json_encode($payload['reply_markup'], JSON_THROW_ON_ERROR), 'denaban:notifications:1')
+                && str_contains(json_encode($payload['reply_markup'], JSON_THROW_ON_ERROR), 'denaban:health');
         }, index: 1);
 
     denabanIssuesBot(992201)->hearCallbackQueryData('denaban:notifications:1')->reply()
