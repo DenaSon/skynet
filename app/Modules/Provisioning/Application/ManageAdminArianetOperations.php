@@ -9,6 +9,7 @@ use App\Modules\Provisioning\Infrastructure\Arianet\ArianetCloudReadClient;
 use App\Modules\Provisioning\Infrastructure\Arianet\ArianetCloudWriteClient;
 use App\Modules\Provisioning\Infrastructure\Arianet\ArianetCloudWriteRejected;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -213,7 +214,6 @@ final readonly class ManageAdminArianetOperations
     {
         $this->access->handle($actor);
         $this->guard();
-
 
         Cache::lock('arianet:ipv4:'.$serverId, 600)->block(2, function () use ($actor, $serverId, $token): void {
             $row = $this->prepared($actor, $serverId, $token);
@@ -421,7 +421,7 @@ final readonly class ManageAdminArianetOperations
     {
         $row = DB::table(self::TABLE)->where('active_server_id', $serverId)->first();
         if ($row === null || ! in_array($row->status, ['reserved', 'uncertain', 'accepted'], true)
-            || now()->lessThan(\Illuminate\Support\Carbon::parse($row->updated_at)->addMinutes(10))) {
+            || now()->lessThan(Carbon::parse($row->updated_at)->addMinutes(10))) {
             throw new RuntimeException('Operation is not ready for manual review.');
         }
 
