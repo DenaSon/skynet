@@ -749,6 +749,9 @@ $bot->onCallbackQueryData('ari8:cancel', function (Nutgram $bot): void {
     app(AdminArianetPurchaseUi::class)->cancel($bot);
 });
 
+$bot->onCallbackQueryData('ari9:discard:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
+    app(AdminArianetCloudUi::class)->discardOperation($bot, $id, $page);
+});
 $bot->onCallbackQueryData('ari9:review:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
     app(AdminArianetCloudUi::class)->reviewOperation($bot, $id, $page);
 });

@@ -290,6 +290,9 @@ final readonly class AdminArianetCloudUi
             $buttons->addRow(InlineKeyboardButton::make('🔴 حذف سرور', callback_data: 'ari9:p:'.$id.':'.$page.':delete'));
         }
         $buttons->addRow(InlineKeyboardButton::make('🔄 بررسی وضعیت', callback_data: 'ari9:refresh:'.$id.':'.$page));
+        if (($last['status'] ?? null) === 'prepared') {
+            $buttons->addRow(InlineKeyboardButton::make('❌ لغو پیش‌نمایش', callback_data: 'ari9:discard:'.$id.':'.$page));
+        }
         if ($last !== null && in_array($last['status'], ['reserved', 'uncertain', 'accepted'], true)) {
             $buttons->addRow(InlineKeyboardButton::make('بررسی دستی نتیجه', callback_data: 'ari9:review:'.$id.':'.$page));
         }
@@ -316,6 +319,26 @@ final readonly class AdminArianetCloudUi
         }
         $this->render($bot, '<b>⚙️ عملیات سرور</b>'."\n\n".TelegramUi::escape($message), $buttons,
             '<h2>⚙️ عملیات سرور</h2><p>'.TelegramUi::escape($message).'</p>');
+    }
+
+    public function discardOperation(Nutgram $bot, string $rawId, string $rawPage): void
+    {
+        $actor = $this->root($bot);
+        $id = self::number($rawId, PHP_INT_MAX);
+        $page = self::number($rawPage, 100);
+        if ($actor === null || $id === null || $page === null) {
+            return;
+        }
+        try {
+            $this->operations->discardPrepared($actor, $id);
+        } catch (Throwable) {
+            $this->render($bot, 'پیش‌نمایش قابل لغو نیست یا به مدیر دیگری تعلق دارد.',
+                InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make('◀️ عملیات سرور',
+                    callback_data: 'ari9:menu:'.$id.':'.$page)));
+
+            return;
+        }
+        $this->operations($bot, $rawId, $rawPage);
     }
 
     public function reviewOperation(Nutgram $bot, string $rawId, string $rawPage, ?string $token = null): void

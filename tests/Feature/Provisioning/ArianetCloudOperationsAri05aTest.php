@@ -165,3 +165,20 @@ it('ARI-06 isolates installation protection by IP and releases terminal checkpoi
     \Illuminate\Support\Facades\Cache::put('nw02:status:'.$id, ['state' => 'running'], now()->addHours(3));
     ManageAdminArianetOperations::assertHostAvailable($ip);
 });
+
+it('ARI-06 cancels only an owned undispatched preview and never a reserved operation', function (): void {
+    ari05aFake();
+    $actor = ari05aRoot();
+    $other = User::factory()->create();
+    $other->syncRoles(['super-admin']);
+    TelegramAccount::query()->create(['user_id' => $other->id, 'telegram_user_id' => 993402]);
+    $ops = app(ManageAdminArianetOperations::class);
+    $draft = $ops->prepare($actor->id, 918, 'reboot');
+    expect(fn () => $ops->discardPrepared($other->id, 918))->toThrow(RuntimeException::class);
+    $ops->discardPrepared($actor->id, 918);
+    expect(fn () => $ops->confirm($actor->id, 918, $draft['token']))->toThrow(RuntimeException::class);
+    Http::assertNotSent(fn (Request $r): bool => $r->method() !== 'GET');
+    $draft = $ops->prepare($actor->id, 918, 'reboot');
+    $ops->confirm($actor->id, 918, $draft['token']);
+    expect(fn () => $ops->discardPrepared($actor->id, 918))->toThrow(RuntimeException::class);
+});

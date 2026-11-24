@@ -221,7 +221,13 @@ final readonly class ManageAdminArianetOperations
                 $this->finish((int) $row->id, 'expired');
                 throw new RuntimeException('Cloud operation confirmation expired.');
             }
-            $snapshot = $this->snapshot($actor, $serverId, $row->operation, $row->target ?? '');
+            try {
+                $snapshot = $this->snapshot($actor, $serverId, $row->operation, $row->target ?? '');
+            } catch (Throwable) {
+                // No dispatch occurred. Consume the stale preview, not the server.
+                $this->finish((int) $row->id, 'expired');
+                throw new RuntimeException('Cloud preflight changed; review a fresh request.');
+            }
             if ($row->snapshot_hash !== self::fingerprint($snapshot)) {
                 $this->finish((int) $row->id, 'expired');
                 throw new RuntimeException('Cloud operation confirmation expired or changed.');
@@ -271,6 +277,20 @@ final readonly class ManageAdminArianetOperations
         Cache::lock('arianet:ipv4:'.$serverId, 600)->block(2, function () use ($actor, $serverId, $token): void {
             $row = $this->prepared($actor, $serverId, $token);
             $this->finish((int) $row->id, 'cancelled');
+        });
+    }
+
+    /** Cancel only the current actor's never-dispatched preview, without a provider write. */
+    public function discardPrepared(int $actor, int $serverId): void
+    {
+        $this->access->handle($actor);
+        Cache::lock('arianet:ipv4:'.$serverId, 90)->block(2, function () use ($actor, $serverId): void {
+            $this->access->handle($actor);
+            if (DB::table(self::TABLE)->where('active_server_id', $serverId)
+                ->where('actor_user_id', $actor)->where('status', 'prepared')
+                ->update(['status' => 'cancelled', 'active_server_id' => null, 'updated_at' => now()]) !== 1) {
+                throw new RuntimeException('No owned, undispatched preview to cancel.');
+            }
         });
     }
 

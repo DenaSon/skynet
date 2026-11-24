@@ -183,7 +183,8 @@ it('ARI-05C rechecks dependencies immediately before the one-shot delete', funct
     config()->set('ari05b.dns_reference', true);
     expect(fn () => $ops->confirm($actor->id, 918, $draft['token']))->toThrow(RuntimeException::class);
     Http::assertNotSent(fn (Request $r): bool => $r->method() !== 'GET');
-    expect(DB::table('arianet_cloud_operations')->value('status'))->toBe('prepared');
+    expect(DB::table('arianet_cloud_operations')->value('status'))->toBe('expired')
+        ->and(DB::table('arianet_cloud_operations')->value('active_server_id'))->toBeNull();
 });
 
 it('ARI-05C verifies a confirmed delete with the exact action and server absence', function (): void {
