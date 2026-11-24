@@ -223,7 +223,7 @@ final class ArianetCloudWriteClient
         }
 
         if (in_array($response->status(), [400, 401, 402, 403, 404, 409, 422, 423], true)) {
-            throw new RuntimeException('Arianet Cloud write was rejected (HTTP '.$response->status().').');
+            throw new ArianetCloudWriteRejected('Arianet Cloud write was rejected (HTTP '.$response->status().').');
         }
 
         if ($response->status() !== $expectedStatus || strlen($response->body()) > self::MAX_RESPONSE_BYTES) {

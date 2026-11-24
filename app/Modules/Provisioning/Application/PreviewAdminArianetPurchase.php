@@ -47,10 +47,11 @@ final readonly class PreviewAdminArianetPurchase
     }
 
     /** @return array<string,mixed> */
-    public function plan(int $actorId, string $datacenter, int $planId): array
+    public function plan(int $actorId, string $datacenter, int $planId, bool $orderable = true): array
     {
         $this->access->handle($actorId);
-        if ($planId < 1 || ! in_array($datacenter, array_column($this->datacenters($actorId), 'code'), true)) {
+        if ($planId < 1 || preg_match('/^[a-z][a-z0-9-]{0,31}$/D', $datacenter) !== 1
+            || ($orderable && ! in_array($datacenter, array_column($this->datacenters($actorId), 'code'), true))) {
             throw new InvalidArgumentException('Datacenter or plan is not orderable.');
         }
         $rows = $this->cloud->plans($datacenter)['data'] ?? null;
@@ -63,8 +64,8 @@ final readonly class PreviewAdminArianetPurchase
             throw new RuntimeException('Selected plan is not available.');
         }
         $row = $matches[0];
-        if (($row['is_active'] ?? null) !== true
-            || ($row['availability']['available'] ?? null) !== true
+        if (($orderable && (($row['is_active'] ?? null) !== true
+                || ($row['availability']['available'] ?? null) !== true))
             || ($row['currency'] ?? null) !== 'IRR'
             || ! self::positive($row['vcpu'] ?? null)
             || ! self::positive($row['ram_mb'] ?? null)
@@ -94,6 +95,17 @@ final readonly class PreviewAdminArianetPurchase
     public function images(int $actorId, string $datacenter, int $planId): array
     {
         $plan = $this->plan($actorId, $datacenter, $planId);
+
+        return $this->imagesForDisk($actorId, $datacenter, $plan['diskGb']);
+    }
+
+    /** @return list<array{image:string,name:string}> */
+    public function imagesForDisk(int $actorId, string $datacenter, int $diskGb): array
+    {
+        $this->access->handle($actorId);
+        if ($diskGb < 1) {
+            throw new RuntimeException('Existing disk size cannot be verified.');
+        }
         $result = $this->cloud->systemImages($datacenter);
         $rows = $result['data'] ?? null;
         $page = $result['meta']['pagination'] ?? null;
@@ -110,7 +122,7 @@ final readonly class PreviewAdminArianetPurchase
                 || ! is_array($row['datacenters'] ?? null)
                 || ! in_array($datacenter, $row['datacenters'], true)
                 || ! is_int($row['min_disk_gb'] ?? null)
-                || $row['min_disk_gb'] > $plan['diskGb']) {
+                || $row['min_disk_gb'] > $diskGb) {
                 continue;
             }
             $image = $row['image'] ?? null;

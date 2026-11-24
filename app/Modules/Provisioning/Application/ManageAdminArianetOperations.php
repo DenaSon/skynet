@@ -7,6 +7,7 @@ namespace App\Modules\Provisioning\Application;
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
 use App\Modules\Provisioning\Infrastructure\Arianet\ArianetCloudReadClient;
 use App\Modules\Provisioning\Infrastructure\Arianet\ArianetCloudWriteClient;
+use App\Modules\Provisioning\Infrastructure\Arianet\ArianetCloudWriteRejected;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -55,14 +56,17 @@ final readonly class ManageAdminArianetOperations
             throw new RuntimeException('Cloud server identity cannot be verified.');
         }
         if ($operation === 'rebuild') {
-            $images = $this->catalog->images($actor, $server['datacenter'], $server['plan_id']);
+            if (! is_int($server['disk_gb'] ?? null)) {
+                throw new RuntimeException('Existing disk size cannot be verified.');
+            }
+            $images = $this->catalog->imagesForDisk($actor, $server['datacenter'], $server['disk_gb']);
 
             return array_map(static fn (array $image): array => ['value' => $image['image'], 'label' => $image['name']], $images);
         }
         if (! in_array($server['status'] ?? null, ['off', 'stopped', 'powered_off', 'poweredoff'], true)) {
             throw new RuntimeException('Stop the server before changing its plan.');
         }
-        $current = $this->catalog->plan($actor, $server['datacenter'], $server['plan_id']);
+        $current = $this->catalog->plan($actor, $server['datacenter'], $server['plan_id'], orderable: false);
         $rows = $this->read->plans($server['datacenter'])['data'];
         if (! array_is_list($rows) || count($rows) > 200) {
             throw new RuntimeException('Cloud plan catalog is unverified.');
@@ -97,6 +101,18 @@ final readonly class ManageAdminArianetOperations
             'off', 'stopped', 'powered_off', 'poweredoff' => ['poweron'],
             default => [],
         };
+    }
+
+    /** Original purchase stays immutable; only a completed upgrade can supersede its plan. */
+    public static function verifiedPlan(int $serverId, int $original): int
+    {
+        if (! Schema::hasTable(self::TABLE)) {
+            return $original;
+        }
+        $target = DB::table(self::TABLE)->where('server_id', $serverId)->where('operation', 'change_plan')
+            ->where('status', 'completed')->latest('id')->value('target');
+
+        return is_string($target) && ctype_digit($target) && (int) $target > 0 ? (int) $target : $original;
     }
 
     /** Prevent IPv4 changes even when operations are switched off after a write. */
@@ -188,8 +204,10 @@ final readonly class ManageAdminArianetOperations
                 DB::table(self::TABLE)->where('id', $row->id)->update([
                     'status' => 'accepted', 'action_id' => $receipt['action_id'], 'updated_at' => now(),
                 ]);
+            } catch (ArianetCloudWriteRejected) {
+                $this->finish((int) $row->id, 'failed');
             } catch (Throwable) {
-                // A consumed confirmation is never sent again, even after an apparent rejection.
+                // A consumed confirmation is never sent again after an ambiguous outcome.
                 DB::table(self::TABLE)->where('id', $row->id)->update([
                     'status' => 'uncertain', 'updated_at' => now(),
                 ]);
@@ -204,6 +222,17 @@ final readonly class ManageAdminArianetOperations
             $row = $this->prepared($actor, $serverId, $token);
             $this->finish((int) $row->id, 'cancelled');
         });
+    }
+
+    public function recent(int $actor): ?int
+    {
+        $this->access->handle($actor);
+        if (! Schema::hasTable(self::TABLE)) {
+            return null;
+        }
+        $id = DB::table(self::TABLE)->where('actor_user_id', $actor)->latest('id')->value('server_id');
+
+        return $id === null ? null : (int) $id;
     }
 
     /** @return array{operation:string,status:string,actionId:int|null}|null */
@@ -279,6 +308,128 @@ final readonly class ManageAdminArianetOperations
         });
     }
 
+    /**
+     * An operator may close an unknown outcome only after reviewing the provider
+     * panel. Verify a quiet provider and bind confirmation to this journal row.
+     * This is not a success result and never retries the original request.
+     *
+     * @return array{token:string,actionId:int|null}
+     */
+    public function reviewUnknown(int $actor, int $serverId): array
+    {
+        $this->access->handle($actor);
+
+        return Cache::lock('arianet:ipv4:'.$serverId, 90)->block(2, function () use ($actor, $serverId): array {
+            $row = $this->unknownRow($serverId);
+            $this->assertReviewable($row);
+            $token = bin2hex(random_bytes(12));
+            Cache::put('ari9:review:'.$actor.':'.$token, ['id' => (int) $row->id, 'serverId' => $serverId], now()->addMinutes(5));
+
+            return ['token' => $token, 'actionId' => $row->action_id === null ? null : (int) $row->action_id];
+        });
+    }
+
+    public function closeUnknown(int $actor, int $serverId, string $token): void
+    {
+        $this->access->handle($actor);
+        if (preg_match('/\A[a-f0-9]{24}\z/D', $token) !== 1) {
+            throw new RuntimeException('Invalid review confirmation.');
+        }
+        Cache::lock('arianet:ipv4:'.$serverId, 90)->block(2, function () use ($actor, $serverId, $token): void {
+            $draft = Cache::pull('ari9:review:'.$actor.':'.$token);
+            $row = $this->unknownRow($serverId);
+            if ($draft !== ['id' => (int) $row->id, 'serverId' => $serverId]) {
+                throw new RuntimeException('Review confirmation expired.');
+            }
+            $this->assertReviewable($row);
+            $this->access->handle($actor);
+            $this->finish((int) $row->id, 'reviewed');
+        });
+    }
+
+    private function unknownRow(int $serverId): object
+    {
+        $row = DB::table(self::TABLE)->where('active_server_id', $serverId)->first();
+        if ($row === null || ! in_array($row->status, ['reserved', 'uncertain', 'accepted'], true)
+            || now()->lessThan(\Illuminate\Support\Carbon::parse($row->updated_at)->addMinutes(10))) {
+            throw new RuntimeException('Operation is not ready for manual review.');
+        }
+
+        return $row;
+    }
+
+    private function assertReviewable(object $row): void
+    {
+        $serverId = (int) $row->server_id;
+        if ($row->action_id !== null) {
+            $action = $this->read->action((int) $row->action_id)['data'] ?? null;
+            if (! is_array($action) || ($action['id'] ?? null) !== (int) $row->action_id
+                || ($action['resource']['id'] ?? null) !== $serverId || ($action['resource']['type'] ?? null) !== 'server'
+                || ($action['command'] ?? null) !== $row->operation
+                || ! in_array($action['status'] ?? null, ['success', 'error', 'completed', 'failed'], true)) {
+                throw new RuntimeException('The known provider action is not terminal.');
+            }
+        }
+        if ($row->operation === 'delete' && $this->read->serverMissing($serverId)) {
+            return;
+        }
+        $server = $this->read->server($serverId)['data'] ?? null;
+        if (! is_array($server) || ($server['id'] ?? null) !== $serverId
+            || ! in_array($server['status'] ?? null, ['running', 'off', 'stopped', 'powered_off', 'poweredoff'], true)
+            || ($server['ip_change']['pending'] ?? false) !== false
+            || ($server['locked'] ?? false) !== false) {
+            throw new RuntimeException('Server is not in a stable state.');
+        }
+        $this->assertIdleActions($serverId);
+    }
+
+    /** Complete flat history or bounded provider pagination, without a 25-action lifetime limit.
+     * @return list<array<string,mixed>>
+     */
+    private function actionInventory(int $serverId): array
+    {
+        $all = [];
+        $seen = [];
+        $pages = 1;
+        for ($page = 1; $page <= $pages; $page++) {
+            $response = $this->read->serverActions($serverId, $page, 25);
+            $rows = $response['data'] ?? null;
+            if (! is_array($rows) || ! array_is_list($rows)) {
+                throw new RuntimeException('Cloud action list cannot be verified.');
+            }
+            if (array_key_exists('meta', $response)) {
+                $meta = $response['meta']['pagination'] ?? null;
+                if (! is_array($meta) || ($meta['page'] ?? null) !== $page
+                    || ! is_int($meta['last_page'] ?? null) || $meta['last_page'] < 0
+                    || $meta['last_page'] > 100 || count($rows) > 25
+                    || ($page > 1 && max(1, $meta['last_page']) !== $pages)) {
+                    throw new RuntimeException('Cloud action pagination cannot be verified.');
+                }
+                $pages = max(1, $meta['last_page']);
+            } elseif ($page !== 1 || count($rows) > 2500) {
+                throw new RuntimeException('Cloud action history cannot be verified.');
+            }
+            foreach ($rows as $row) {
+                if (! is_array($row) || ! is_int($row['id'] ?? null) || $row['id'] < 1 || isset($seen[$row['id']])) {
+                    throw new RuntimeException('Cloud action identity cannot be verified.');
+                }
+                $seen[$row['id']] = true;
+                $all[] = $row;
+            }
+        }
+
+        return $all;
+    }
+
+    private function assertIdleActions(int $serverId): void
+    {
+        foreach ($this->actionInventory($serverId) as $action) {
+            if (! in_array($action['status'] ?? null, ['success', 'error', 'completed', 'failed'], true)) {
+                throw new RuntimeException('Cloud server has an unfinished action.');
+            }
+        }
+    }
+
     /** @return array<string,mixed> */
     private function snapshot(int $actor, int $serverId, string $operation, string $target): array
     {
@@ -303,15 +454,7 @@ final readonly class ManageAdminArianetOperations
         if (Cache::has('nw02:host:'.$server['ipv4'])) {
             throw new RuntimeException('A Node installation is being admitted for this server.');
         }
-        $actions = $this->read->serverActions($serverId, 1, 25)['data'];
-        if (! array_is_list($actions) || count($actions) > 25) {
-            throw new RuntimeException('Cloud action list cannot be verified.');
-        }
-        foreach ($actions as $action) {
-            if (! is_array($action) || ! in_array($action['status'] ?? null, ['success', 'error', 'completed', 'failed'], true)) {
-                throw new RuntimeException('Cloud server has an unfinished action.');
-            }
-        }
+        $this->assertIdleActions($serverId);
 
         $link = $this->links->linked($actor, $serverId);
         $extra = [];
@@ -334,7 +477,7 @@ final readonly class ManageAdminArianetOperations
                     || ! is_string($server['datacenter'] ?? null) || ! is_int($server['plan_id'] ?? null)) {
                     throw new RuntimeException('Cloud upgrade cannot be verified.');
                 }
-                $old = $this->catalog->plan($actor, $server['datacenter'], $server['plan_id']);
+                $old = $this->catalog->plan($actor, $server['datacenter'], $server['plan_id'], orderable: false);
                 $new = $this->catalog->plan($actor, $server['datacenter'], (int) $target);
                 if ($new['cores'] < $old['cores'] || $new['memoryMb'] < $old['memoryMb']
                     || $new['diskGb'] < $server['disk_gb'] || $new['diskGb'] < $old['diskGb']
@@ -390,9 +533,6 @@ final readonly class ManageAdminArianetOperations
             ...array_column($this->nodes->replacementAddresses($actor), 'address'),
             ...array_column($this->hosts->replacementInventory($actor), 'address'),
         ]);
-        if (count($addresses) > 20) {
-            throw new RuntimeException('Dependency inventory exceeds the safe synchronous audit.');
-        }
         foreach ($addresses as $address) {
             if (filter_var($address, FILTER_VALIDATE_IP) !== false) {
                 if (inet_pton($address) === inet_pton($ip) || ($ipv6 !== null && inet_pton($address) === inet_pton($ipv6))) {

@@ -81,6 +81,14 @@ final readonly class AdminArianetCloudUi
             callback_data: 'ari8:begin',
         ));
         $buttons->addRow(InlineKeyboardButton::make('📋 آخرین سفارش', callback_data: 'ari8:purchase:recent'));
+        try {
+            $recentOperation = $this->operations->recent($root);
+            if ($recentOperation !== null) {
+                $buttons->addRow(InlineKeyboardButton::make('📋 آخرین عملیات سرور', callback_data: 'ari9:menu:'.$recentOperation.':'.$page));
+            }
+        } catch (Throwable) {
+            // A missing journal must not hide the existing server inventory.
+        }
         $buttons->addRow(InlineKeyboardButton::make('📦 پلن‌های ابری', callback_data: 'ari2:dc'));
         $buttons->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی', callback_data: 'ari2:list:'.$page));
         $buttons->addRow(InlineKeyboardButton::make('◀️ وضعیت سرورها', callback_data: 'menu:admin:servers'));
@@ -223,8 +231,7 @@ final readonly class AdminArianetCloudUi
             $simple .= "\n".TelegramUi::escape($label).': '.TelegramUi::escape($value);
         }
         $rich = '<h2>☁️ '.TelegramUi::escape($server['name']).'</h2>'
-            .'<table bordered striped compact>'.$richRows.'</table>'
-            .'<footer>🔒 فقط ارتباط داخلی با نود قابل ثبت یا قطع است؛ IP، DNS و تنظیمات سرور تغییر نمی‌کنند.</footer>';
+            .'<table bordered striped compact>'.$richRows.'</table>';
         $this->render($bot, $simple, $buttons, $rich);
     }
 
@@ -253,7 +260,14 @@ final readonly class AdminArianetCloudUi
 
                 return;
             }
-            $server = $this->cloud->detail($actor, $id);
+            try {
+                $server = $this->cloud->detail($actor, $id);
+            } catch (Throwable) {
+                if ($last === null) {
+                    throw new \RuntimeException('Cloud status unavailable.');
+                }
+                $server = ['name' => 'سرور شماره '.self::digits($id), 'status' => 'نامشخص'];
+            }
         } catch (Throwable) {
             $buttons->addRow(InlineKeyboardButton::make('🔄 بررسی وضعیت', callback_data: 'ari9:refresh:'.$id.':'.$page));
             $buttons->addRow(InlineKeyboardButton::make('◀️ فهرست سرورها', callback_data: 'ari2:list:'.$page));
@@ -276,7 +290,11 @@ final readonly class AdminArianetCloudUi
             $buttons->addRow(InlineKeyboardButton::make('🔴 حذف سرور', callback_data: 'ari9:p:'.$id.':'.$page.':delete'));
         }
         $buttons->addRow(InlineKeyboardButton::make('🔄 بررسی وضعیت', callback_data: 'ari9:refresh:'.$id.':'.$page));
+        if ($last !== null && in_array($last['status'], ['reserved', 'uncertain', 'accepted'], true)) {
+            $buttons->addRow(InlineKeyboardButton::make('بررسی دستی نتیجه', callback_data: 'ari9:review:'.$id.':'.$page));
+        }
         $buttons->addRow($back);
+        $buttons->addRow(InlineKeyboardButton::make('◀️ فهرست سرورها', callback_data: 'ari2:list:'.$page));
         $message = $server['name']."\n".self::statusLabel($server['status'], false);
         if ($last !== null) {
             $message .= "\n".self::operation($last['operation']).': '.match ($last['status']) {
@@ -287,6 +305,7 @@ final readonly class AdminArianetCloudUi
                 'failed' => 'ناموفق',
                 'expired' => 'منقضی شد',
                 'cancelled' => 'لغو شد',
+                'reviewed' => 'بررسی دستی خاتمه یافت؛ موفقیت تأیید نشده',
                 default => 'نامشخص',
             };
         }
@@ -297,6 +316,32 @@ final readonly class AdminArianetCloudUi
         }
         $this->render($bot, '<b>⚙️ عملیات سرور</b>'."\n\n".TelegramUi::escape($message), $buttons,
             '<h2>⚙️ عملیات سرور</h2><p>'.TelegramUi::escape($message).'</p>');
+    }
+
+    public function reviewOperation(Nutgram $bot, string $rawId, string $rawPage, ?string $token = null): void
+    {
+        $actor = $this->root($bot);
+        $id = self::number($rawId, PHP_INT_MAX);
+        $page = self::number($rawPage, 100);
+        if ($actor === null || $id === null || $page === null) {
+            return;
+        }
+        $back = InlineKeyboardButton::make('◀️ عملیات سرور', callback_data: 'ari9:menu:'.$id.':'.$page);
+        try {
+            if ($token !== null) {
+                $this->operations->closeUnknown($actor, $id, $token);
+                $this->operations($bot, $rawId, $rawPage);
+
+                return;
+            }
+            $review = $this->operations->reviewUnknown($actor, $id);
+            $buttons = InlineKeyboardMarkup::make()
+                ->addRow(InlineKeyboardButton::make('نتیجه را در پنل بررسی کردم', callback_data: 'ari9:close:'.$id.':'.$page.':'.$review['token']))
+                ->addRow($back);
+            $this->render($bot, 'فقط اگر نتیجه درخواست قبلی را در پنل آریاسرویس بررسی کرده‌اید و مطمئن هستید عملیات معلق نیست، تأیید کنید. این کار درخواست قبلی را تکرار نمی‌کند و به معنی موفقیت آن نیست.', $buttons);
+        } catch (Throwable) {
+            $this->render($bot, 'بررسی دستی هنوز ممکن نیست. پس از گذشت ده دقیقه و پایان عملیات در پنل، دوباره بررسی کنید.', InlineKeyboardMarkup::make()->addRow($back));
+        }
     }
 
     public function maintenanceChoices(Nutgram $bot, string $rawId, string $rawPage, string $operation, string $rawChoicePage): void

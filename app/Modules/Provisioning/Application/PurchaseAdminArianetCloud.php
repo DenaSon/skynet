@@ -256,6 +256,8 @@ final readonly class PurchaseAdminArianetCloud
         if ($serverId < 1 || $actionId < 1) {
             throw new RuntimeException('Invalid Cloud creation identifiers.');
         }
+        ManageAdminArianetOperations::assertNoActive($serverId);
+        $expectedPlan = ManageAdminArianetOperations::verifiedPlan($serverId, (int) $row->plan_id);
         $action = $this->read->action($actionId)['data'] ?? null;
         if (! is_array($action) || ($action['id'] ?? null) !== $actionId
             || ($action['command'] ?? null) !== 'create' || ($action['status'] ?? null) !== 'success'
@@ -269,7 +271,7 @@ final readonly class PurchaseAdminArianetCloud
         if (! is_array($server) || ($server['id'] ?? null) !== $serverId
             || ($server['name'] ?? null) !== $row->name
             || ($server['datacenter'] ?? null) !== $row->datacenter
-            || ($server['plan_id'] ?? null) !== (int) $row->plan_id
+            || ($server['plan_id'] ?? null) !== $expectedPlan
             || ($server['status'] ?? null) !== 'running'
             || ($server['ip_change']['pending'] ?? false) !== false
             || ! is_string($ip)
