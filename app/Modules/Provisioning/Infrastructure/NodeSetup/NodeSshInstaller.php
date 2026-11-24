@@ -16,6 +16,8 @@ class NodeSshInstaller
 {
     private const NODE_KEY = '/run/denagate-node-worker/identity';
 
+    private const WEB_KEY = '/run/secrets/denagate-node-ssh';
+
     public function __construct(private NodeSshPreflight $preflight) {}
 
     public function start(string $ip, int $port, string $user, string $password, string $knownHost, string $secret, string $identifier, string $authMode = 'password'): void
@@ -59,7 +61,7 @@ class NodeSshInstaller
             .'systemd-run --no-block --collect --unit=parsa-node-bootstrap '
             ."/bin/sh /opt/parsa-node-install/install.sh >/dev/null\n"
             ."printf 'STARTED\\n'\n";
-        $reply = trim($this->ssh($ip, $port, $user, $password, $knownHost, $payload, 35, $authMode));
+        $reply = trim($this->ssh($ip, $port, $user, $password, $knownHost, $payload, 35, $authMode, self::NODE_KEY));
         if ($reply !== 'STARTED') {
             throw new RuntimeException('Remote install launch not confirmed.');
         }
@@ -85,7 +87,10 @@ class NodeSshInstaller
         }
         $shell .= "test -f /opt/parsa-node-install/status\n"
             ."cat /opt/parsa-node-install/status\n";
-        $result = trim($this->ssh($ip, $port, $user, $password, $knownHost, $shell, 15, $authMode));
+        // Status is normally polled by PHP-FPM; the launch is queue-only.
+        // Both protected files hold the same bootstrap-verified identity.
+        $keyPath = $authMode === 'key' && $this->keyAvailable(self::WEB_KEY) ? self::WEB_KEY : self::NODE_KEY;
+        $result = trim($this->ssh($ip, $port, $user, $password, $knownHost, $shell, 15, $authMode, $keyPath));
 
         return in_array($result, ['pending', 'installing', 'starting', 'running', 'failed'], true)
             ? $result
@@ -101,11 +106,12 @@ class NodeSshInstaller
         string $stdin,
         int $timeout,
         string $authMode,
+        string $keyPath,
     ): string {
         $this->preflight->validateTarget($ip, $port);
         if ($user !== 'root' || ! in_array($authMode, ['password', 'key'], true)
             || ($authMode === 'password' && ($password === '' || strlen($password) > 256))
-            || ($authMode === 'key' && ($password !== '' || ! $this->keyAvailable()))
+            || ($authMode === 'key' && ($password !== '' || ! $this->keyAvailable($keyPath)))
             || ! str_starts_with($knownHost, ($port === 22 ? $ip : '['.$ip.']:'.$port).' ssh-ed25519 ')) {
             throw new RuntimeException('Untrusted SSH installation target.');
         }
@@ -127,7 +133,7 @@ class NodeSshInstaller
                     '-o', 'BatchMode=yes',
                     '-o', 'IdentitiesOnly=yes',
                     '-o', 'IdentityAgent=none',
-                    '-i', self::NODE_KEY,
+                    '-i', $keyPath,
                 ]
                 : [
                     '-o', 'PreferredAuthentications=password',
@@ -169,10 +175,9 @@ class NodeSshInstaller
         }
     }
 
-    /** Keep the queue credential isolated from the PHP-FPM key copy. */
-    private function keyAvailable(): bool
+    /** Only fixed, prepared, root-owned runtime identities are eligible. */
+    private function keyAvailable(string $path): bool
     {
-        $path = self::NODE_KEY;
         $mode = @fileperms($path);
 
         return is_file($path) && ! is_link($path) && is_readable($path)
