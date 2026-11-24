@@ -206,3 +206,36 @@ to existing callers; no provider/financial writes, migration or dependency.
 PERF-01 remains independent: cache safe provider projections, bound the
 dashboard-only transport, eliminate unused KPI work, and benchmark.
 No measured latency or live deployment is claimed by source tests.
+
+## DENABAN-PERF-01 — bounded compact reads (operator-approved 2026-11-24)
+
+Only the compact home caches two verified provider counts and the original
+observation timestamp for 30 seconds in the configured existing cache
+(Redis in Production). Root and server authorization are rechecked on
+every access, including cache hits. No raw provider data, user identities,
+financial values, credentials or permissions are cached. Malformed, stale,
+future or incomplete cache records are not served as current values; partial
+provider results are not written into the cache. Cache failure falls back
+to a bounded live read. No locks, workers, scheduler or new dependency.
+
+The dedicated compact GETs cap the existing configured timeout at 2 seconds
+per request (two ordinary calls, three with subscription pagination), without
+changing other transport callers or write operations. The UI shows the
+provider observation time separately from the report generation time.
+The canonical three cash windows and verified ledger balance are unchanged;
+the compact KPI path reads today's totals only, and native HTML is built
+only for the simple or fallback view.
+
+Source performance regression: a verified cold compact read performs two
+GETs on a one-page fixture, the warm read performs zero, after 30 seconds
+it refreshes, local counts remain fresh and revoked roles cannot read
+cached data. Incomplete provider snapshots do not become healthy zeroes.
+This is a request-count test, not a real latency benchmark.
+
+Live acceptance: before/after deployment measure a representative series
+of private root opens, reporting cold and warm elapsed times separately
+and measuring database/provider time without logging tokens, URLs, financial
+values or customer data. Targets are <1s warm and 1–3s ordinary cold;
+actual end-to-end time includes Telegram transport and database time.
+A timeout may produce explicit unknown fields, never fabricated zeros.
+No real deployment or measured speedup is claimed until operator testing.

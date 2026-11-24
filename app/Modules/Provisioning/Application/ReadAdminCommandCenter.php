@@ -62,7 +62,9 @@ final readonly class ReadAdminCommandCenter
 
         $todayKpis = null;
         try {
-            $todayKpis = $this->management->handle($actorId, 'day')['current'];
+            $todayKpis = $compact
+                ? $this->management->currentDay($actorId)
+                : $this->management->handle($actorId, 'day')['current'];
         } catch (AuthorizationException $exception) {
             throw $exception;
         } catch (Throwable) {
