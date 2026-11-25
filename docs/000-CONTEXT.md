@@ -280,6 +280,8 @@ CI must pass PHP 8.4 / 8.5 Pest, PHPStan, Pint and disposable MySQL migration/ro
 
 ## RBAC-A1 — delegated Admin receipt review (2026-10-25; source PR pending CI/merge)
 
+Pending source PR: a lost initial fulfillment enqueue for a delegated bank approval follows the same bank review authority on the existing minute scheduler. The regression covers one activation, unchanged journal/postings and refusal after revocation. See [PATCH-02 recovery](005-ROADMAP.md#patch-02--async-provider-queue-and-lost-payment-enqueue-recovery-2026-10-21-merged-sourceci-complete-live-acceptance-pending).
+
 Operator authorized Phase 1 only of [docs/030](030-ADMIN-RBAC-THREE-PHASE-ROADMAP.md): additive users.view/purchases.view+review/topups.view+review role permissions; permission-aware Admin Bot entry and protected finance review Actions; root plus eligible delegated Admin Bot receipt alerts and category-filtered 15-minute/60-minute reminders; preserve immutable settlements, bank verification, root-only finance and provider controls, no empty report. Source fake Telegram/HTTP tests are NOT live delivery acceptance. Phase 2/3 unimplemented; no Production roles, ENV, bank transfers or provider writes changed by this source work.
 
 ## RBAC-ADMIN-01 — delegated Admin rights and receipt notices (PLAN ONLY, 2026-10-25)
