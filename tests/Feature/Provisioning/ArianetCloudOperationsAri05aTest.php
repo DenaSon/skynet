@@ -47,6 +47,9 @@ function ari05aFake(): void
             return Http::response(['data' => ['id' => 918, 'name' => 'Fixture', 'status' => 'running', 'ipv4' => '194.5.192.133']]);
         }
         if ($request->method() === 'GET' && str_starts_with($request->url(), $base.'/servers/918/actions?')) {
+            if (config('ari05a_fixture.expect_host_lock') === true) {
+                expect(Cache::lock(ManageAdminArianetOperations::hostLock('194.5.192.133'), 1)->get())->toBeFalse();
+            }
             $history = [];
             for ($i = 1; $i <= (int) config('ari05a_fixture.history', 0); $i++) {
                 $history[] = ['id' => $i, 'status' => 'success'];
@@ -182,4 +185,54 @@ it('ARI-06 cancels only an owned undispatched preview and never a reserved opera
     $draft = $ops->prepare($actor->id, 918, 'reboot');
     $ops->confirm($actor->id, 918, $draft['token']);
     expect(fn () => $ops->discardPrepared($actor->id, 918))->toThrow(RuntimeException::class);
+});
+
+it('ARI-06 rechecks action history inside the IP lease before dispatch', function (): void {
+    ari05aFake();
+    $actor = ari05aRoot();
+    $ops = app(ManageAdminArianetOperations::class);
+    $draft = $ops->prepare($actor->id, 918, 'reboot');
+    config()->set('ari05a_fixture.expect_host_lock', true);
+    $ops->confirm($actor->id, 918, $draft['token']);
+    expect($ops->status($actor->id, 918)['status'])->toBe('accepted');
+});
+
+it('ARI-06 retains exact active Cloud address protection after workflow cache expiry and releases terminal rows', function (): void {
+    ari05aFake();
+    config()->set('ari05a_fixture.uncertain', true);
+    $actor = ari05aRoot();
+    $ops = app(ManageAdminArianetOperations::class);
+    $draft = $ops->prepare($actor->id, 918, 'reboot');
+    $ops->confirm($actor->id, 918, $draft['token']);
+    $this->travel(4)->hours();
+
+    expect(fn () => ManageAdminArianetOperations::assertNoHostOperation('194.5.192.133'))->toThrow(RuntimeException::class);
+    ManageAdminArianetOperations::assertNoHostOperation('194.5.192.134');
+
+    $review = $ops->reviewUnknown($actor->id, 918);
+    $ops->closeUnknown($actor->id, 918, $review['token']);
+    ManageAdminArianetOperations::assertNoHostOperation('194.5.192.133');
+
+    $ops->prepare($actor->id, 918, 'reboot');
+    ManageAdminArianetOperations::assertNoHostOperation('194.5.192.133');
+    expect(collect(Http::recorded())->filter(fn (array $entry): bool => $entry[0]->method() === 'POST'))->toHaveCount(1);
+});
+
+it('ARI-06 protects both recorded IPv4 addresses only while the durable change is active', function (): void {
+    $actor = ari05aRoot();
+    $id = DB::table('arianet_cloud_ipv4_changes')->insertGetId([
+        'cloud_server_id' => 918, 'active_server_id' => 918, 'actor_user_id' => $actor->id,
+        'token_hash' => str_repeat('a', 64), 'snapshot_hash' => str_repeat('b', 64),
+        'old_ipv4' => '194.5.192.133', 'new_ipv4' => '194.5.192.134',
+        'fee_rials' => 0, 'free_left' => 1, 'status' => 'awaiting_coordination',
+        'expires_at' => now()->subHours(4), 'created_at' => now()->subHours(5), 'updated_at' => now()->subHours(4),
+    ]);
+
+    expect(fn () => ManageAdminArianetOperations::assertNoHostOperation('194.5.192.133'))->toThrow(RuntimeException::class)
+        ->and(fn () => ManageAdminArianetOperations::assertNoHostOperation('194.5.192.134'))->toThrow(RuntimeException::class);
+    ManageAdminArianetOperations::assertNoHostOperation('194.5.192.135');
+
+    DB::table('arianet_cloud_ipv4_changes')->where('id', $id)->update(['active_server_id' => null, 'status' => 'completed']);
+    ManageAdminArianetOperations::assertNoHostOperation('194.5.192.133');
+    ManageAdminArianetOperations::assertNoHostOperation('194.5.192.134');
 });

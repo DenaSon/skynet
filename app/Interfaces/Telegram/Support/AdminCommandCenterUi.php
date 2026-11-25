@@ -42,46 +42,23 @@ final readonly class AdminCommandCenterUi
             TelegramUi::answerCallback($bot);
         }
 
-        $failures = null;
-        $attention = null;
         $snapshot = null;
         try {
-            $snapshot = $this->center->handle($actor->userId);
-            $text = $this->report($snapshot);
-            $failures = self::number($snapshot['stats'], 'notificationIssues');
-            $review = self::number($snapshot['stats'], 'fulfillmentReview');
-            $overdue = self::number($snapshot['stats'], 'fulfillmentOverdue');
-            if ($review !== null && $overdue !== null) {
-                $attention = $review + $overdue;
-            }
+            $snapshot = $this->center->handle($actor->userId, compact: true);
         } catch (AuthorizationException) {
             $this->menus->denyAccess($bot);
 
             return;
         } catch (\Throwable) {
-            $text = "<b>📡 دنابان | وضعیت دنا</b>\n\nدریافت گزارش فعلاً ممکن نیست. دوباره بررسی کنید.";
+            // The native error screen remains available when the read fails.
         }
 
-        // Financial navigation first, then actionable follow-up, then system tools.
+        // Financial navigation and system tools. Follow-up stays in Health.
         // Every existing callback and permission/feature gate is retained.
         $keyboard = InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make(
                 '💳 امور مالی', callback_data: 'menu:admin:finance',
             ));
-
-        if ($attention !== null && $attention > 0) {
-            $keyboard->addRow(InlineKeyboardButton::make(
-                '⚠️ پیگیری فعال‌سازی‌ها ('.number_format($attention).')',
-                callback_data: 'full:attention:1',
-            ));
-        }
-
-        if ($failures !== null && $failures > 0) {
-            $keyboard->addRow(InlineKeyboardButton::make(
-                '🔔 بررسی اعلان‌های ناموفق ('.number_format($failures).')',
-                callback_data: 'denaban:notifications:1',
-            ));
-        }
 
         if (config('billing.topups_enabled', false)) {
             $keyboard->addRow(InlineKeyboardButton::make('💳 رسیدهای شارژ', callback_data: 'finance:topups:1'));
@@ -118,6 +95,10 @@ final readonly class AdminCommandCenterUi
             }
         }
 
+        $text = $snapshot === null
+            ? "<b>📡 دنابان | وضعیت دنا</b>\n\nدریافت گزارش فعلاً ممکن نیست. دوباره بررسی کنید."
+            : $this->report($snapshot);
+
         if ($bot->isCallbackQuery()) {
             TelegramUi::editText($bot, $text, $keyboard, 'HTML');
 
@@ -136,27 +117,6 @@ final readonly class AdminCommandCenterUi
         $todayKpis = $snapshot['todayKpis'];
         $resellers = $snapshot['resellers'];
         $stats = $snapshot['stats'];
-        $pendingTopups = $snapshot['pendingTopups'];
-
-        $items = [
-            $pendingTopups,
-            self::number($stats, 'receiptsPending'),
-            self::number($stats, 'provisioningReview'),
-            self::number($stats, 'fulfillmentReview'),
-            self::number($stats, 'fulfillmentOverdue'),
-            self::number($stats, 'failedJobs'),
-            self::number($stats, 'notificationIssues'),
-        ];
-        $known = array_filter($items, static fn (?int $n): bool => $n !== null);
-        $incomplete = count($known) !== count($items)
-            || $cash === null || $todayCash === null || $yesterdayCash === null || $todayKpis === null
-            || $resellers === null || self::number($stats, 'nodes') === null;
-        $todo = array_sum($known);
-        $summary = $todo > 0
-            ? number_format($todo).' مورد برای پیگیری ثبت شده؛ جزئیات را بررسی کنید.'
-            : ($incomplete
-                ? 'وضعیت بخش‌های در دسترس بررسی شد؛ بعضی اطلاعات کامل نیست.'
-                : 'در بخش‌های بررسی‌شده موردی برای پیگیری ثبت نشده.');
 
         $lines = [
             '<b>📡 دنابان | وضعیت دنا</b>',
@@ -176,25 +136,12 @@ final readonly class AdminCommandCenterUi
             '🤝 نمایندگان: '.self::format($resellers),
             '👤 کاربران جدید امروز: '.self::format(self::number($todayKpis, 'newUsers')),
             'اشتراک‌های فعال: '.self::format(self::number($stats, 'subscriptionsActive')),
-            'آنلاین پنل: '.self::format(self::number($stats, 'online')),
-            '',
-            '<b>⚠️ نیازمند رسیدگی</b>',
-            $summary,
-            '🧾 رسیدهای خرید: '.self::format(self::number($stats, 'receiptsPending')),
-            '💳 رسیدهای شارژ: '.self::format($pendingTopups),
-            '📦 عملیات اشتراک: '.self::format(self::number($stats, 'provisioningReview')),
-            '🔧 بررسی سفارش‌ها: '.self::format(self::number($stats, 'fulfillmentReview')),
-            '⏳ فعال‌سازی‌های معوق: '.self::format(self::number($stats, 'fulfillmentOverdue')),
-            '⚙️ کارهای ناموفق: '.self::format(self::number($stats, 'failedJobs')),
-            '🔔 اعلان‌های ناموفق: '.self::format(self::number($stats, 'notificationIssues')),
             '',
             '<b>🖥️ وضعیت سرورها</b>',
-            'نودهای متصل: '.self::format(self::number($stats, 'connected'))
-                .' از '.self::format(self::number($stats, 'nodes')),
-            'هاست‌ها: '.self::format(self::number($stats, 'hosts')),
-            ...self::nodeLines($stats),
+            'مجموع آنلاین نودها: '.self::format(self::number($stats, 'nodesOnline')),
+            'آخرین دریافت آمار پنل: '.self::providerTime($stats),
             '',
-            '<blockquote>واریزی‌ها فقط پرداخت‌های ثبت و تأییدشده‌اند؛ نه موجودی بانک یا سود خالص. خرید با کیف پول، واریزی جدید نیست. مقایسه روزانه تا ساعت یکسان تهران است. اتصال نود نیز تضمین دسترسی کاربران نیست. «نامشخص» به معنی صفر نیست.</blockquote>',
+            '<blockquote>واریزی‌ها فقط پرداخت‌های ثبت و تأییدشده‌اند؛ نه موجودی بانک یا سود خالص. خرید با کیف پول، واریزی جدید نیست. مقایسه روزانه تا ساعت یکسان تهران است. مجموع آنلاین نودها، تعداد کاربران یکتا نیست. «نامشخص» به معنی صفر نیست.</blockquote>',
             '🔄 آخرین بررسی: '.PersianCalendar::localDateTime($snapshot['receivedAt']).' (تهران)',
         ];
 
@@ -215,32 +162,6 @@ final readonly class AdminCommandCenterUi
         $todayKpis = $snapshot['todayKpis'];
         $resellers = $snapshot['resellers'];
         $stats = $snapshot['stats'];
-        $pendingTopups = $snapshot['pendingTopups'];
-
-        $items = [
-            $pendingTopups,
-            self::number($stats, 'receiptsPending'),
-            self::number($stats, 'provisioningReview'),
-            self::number($stats, 'fulfillmentReview'),
-            self::number($stats, 'fulfillmentOverdue'),
-            self::number($stats, 'failedJobs'),
-            self::number($stats, 'notificationIssues'),
-        ];
-        $known = array_filter($items, static fn (?int $n): bool => $n !== null);
-        $incomplete = count($known) !== count($items)
-            || $cash === null || $todayCash === null || $yesterdayCash === null || $todayKpis === null
-            || $resellers === null || self::number($stats, 'nodes') === null;
-        $todo = array_sum($known);
-        $summary = $todo > 0
-            ? number_format($todo).' مورد برای پیگیری ثبت شده؛ جزئیات را بررسی کنید.'
-            : ($incomplete
-                ? 'وضعیت بخش‌های در دسترس بررسی شد؛ بعضی اطلاعات کامل نیست.'
-                : 'در بخش‌های بررسی‌شده موردی برای پیگیری ثبت نشده.');
-
-        $nodes = implode('', array_map(
-            static fn (string $line): string => '<p>'.$line.'</p>',
-            self::nodeLines($stats),
-        ));
 
         return '<h2>📡 دنابان | وضعیت دنا</h2>'
             .'<h3>💰 وضعیت مالی</h3>'
@@ -260,29 +181,15 @@ final readonly class AdminCommandCenterUi
                 ['🤝 نمایندگان', self::format($resellers)],
                 ['👤 کاربران جدید امروز', self::format(self::number($todayKpis, 'newUsers'))],
                 ['اشتراک‌های فعال', self::format(self::number($stats, 'subscriptionsActive'))],
-                ['آنلاین پنل', self::format(self::number($stats, 'online'))],
-            ])
-            .'<h3>⚠️ نیازمند رسیدگی</h3>'
-            .'<p>'.TelegramUi::escape($summary).'</p>'
-            .self::richTable([
-                ['🧾 رسیدهای خرید', self::format(self::number($stats, 'receiptsPending'))],
-                ['💳 رسیدهای شارژ', self::format($pendingTopups)],
-                ['📦 عملیات اشتراک', self::format(self::number($stats, 'provisioningReview'))],
-                ['🔧 بررسی سفارش‌ها', self::format(self::number($stats, 'fulfillmentReview'))],
-                ['⏳ فعال‌سازی‌های معوق', self::format(self::number($stats, 'fulfillmentOverdue'))],
-                ['⚙️ کارهای ناموفق', self::format(self::number($stats, 'failedJobs'))],
-                ['🔔 اعلان‌های ناموفق', self::format(self::number($stats, 'notificationIssues'))],
             ])
             .'<h3>🖥️ وضعیت سرورها</h3>'
             .self::richTable([
-                ['نودهای متصل', self::format(self::number($stats, 'connected'))
-                    .' از '.self::format(self::number($stats, 'nodes'))],
-                ['هاست‌ها', self::format(self::number($stats, 'hosts'))],
+                ['مجموع آنلاین نودها', self::format(self::number($stats, 'nodesOnline'))],
             ])
-            .'<details><summary>جزئیات نودها</summary>'.$nodes.'</details>'
+            .'<p>آخرین دریافت آمار پنل: '.TelegramUi::escape(self::providerTime($stats)).'</p>'
             .'<details><summary>توضیحات آمار</summary><p>'
             .'واریزی‌ها فقط پرداخت‌های ثبت و تأییدشده‌اند؛ نه موجودی بانک یا سود خالص. '
-            .'خرید با اعتبار کیف پول، واریزی جدید نیست. مقایسه روزانه تا ساعت یکسان تهران است. اتصال نود نیز تضمین دسترسی کاربران نیست. '
+            .'خرید با اعتبار کیف پول، واریزی جدید نیست. مقایسه روزانه تا ساعت یکسان تهران است. مجموع آنلاین نودها، تعداد کاربران یکتا نیست. '
             .'«نامشخص» به معنی صفر نیست.</p></details>'
             .'<footer>🔄 آخرین بررسی: '.TelegramUi::escape(PersianCalendar::localDateTime($snapshot['receivedAt']))
             .' (تهران)</footer>';
@@ -298,95 +205,6 @@ final readonly class AdminCommandCenterUi
         }
 
         return $html.'</table>';
-    }
-
-    /**
-     * Only the already-read /api/nodes inventory is used. Never show raw
-     * node addresses, private network metadata or provider credentials.
-     *
-     * @param  array<string,mixed>|null  $stats
-     * @return list<string>
-     */
-    private static function nodeLines(?array $stats): array
-    {
-        $nodes = $stats['nodeSummaries'] ?? null;
-        if (! is_array($nodes)) {
-            return ['جزئیات نودها: نامشخص'];
-        }
-
-        if ($nodes === []) {
-            return ['هنوز نودی ثبت نشده است.'];
-        }
-
-        if (count($nodes) > 500) {
-            return ['جزئیات نودها: نامشخص'];
-        }
-
-        foreach ($nodes as $node) {
-            if (! is_array($node)
-                || ! is_string($node['name'] ?? null)
-                || ! is_bool($node['connected'] ?? null)
-                || ! is_bool($node['disabled'] ?? null)) {
-                return ['جزئیات نودها: نامشخص'];
-            }
-        }
-
-        // Only safe Application data enters Telegram; prioritize problematic nodes.
-        usort($nodes, static function (array $a, array $b): int {
-            $priority = static fn (array $node): int => $node['disabled']
-                ? 3 : ($node['connected'] ? 2 : (($node['connecting'] ?? null) === true ? 1 : 0));
-
-            return ($priority($a) <=> $priority($b)) ?: strcmp($a['name'], $b['name']);
-        });
-
-        $lines = ['<b>جزئیات نودها (گزارش RW)</b>'];
-        foreach (array_slice($nodes, 0, 5) as $node) {
-            $status = $node['disabled'] ? '⏸️ غیرفعال'
-                : ($node['connected'] ? '🟢 متصل'
-                    : (($node['connecting'] ?? null) === true ? '🟠 در حال اتصال' : '🔴 قطع'));
-            $name = TelegramUi::escape(mb_substr(
-                (string) preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $node['name']), 0, 50,
-            ));
-            $lines[] = $status.' · '.$name;
-            $lines[] = '👥 آنلاین این نود: '.self::format(self::number($node, 'usersOnline'));
-            $lines[] = '📡 دریافت: '.self::rate(self::number($node, 'rxBytesPerSec'))
-                .' | ارسال: '.self::rate(self::number($node, 'txBytesPerSec'));
-
-            if (! $node['connected'] && ! $node['disabled']) {
-                $lines[] = '🕒 آخرین تغییر وضعیت: '.(! is_string($node['lastStatusChange'] ?? null)
-                    ? 'نامشخص' : PersianCalendar::utcDateTime($node['lastStatusChange']));
-            }
-
-            if (($node['trafficTrackingActive'] ?? null) === true
-                && ($limit = self::number($node, 'trafficLimitBytes')) !== null && $limit > 0
-                && ($used = self::number($node, 'trafficUsedBytes')) !== null) {
-                $percent = $used / $limit * 100;
-                $lines[] = '📊 مصرف از سقف نود: '.number_format($percent, 1).'٪';
-            }
-        }
-
-        if (count($nodes) > 5) {
-            $lines[] = 'برای سایر نودها، مدیریت سرورها را باز کنید.';
-        }
-
-        return $lines;
-    }
-
-    private static function rate(?int $bytesPerSecond): string
-    {
-        if ($bytesPerSecond === null) {
-            return 'نامشخص';
-        }
-
-        if ($bytesPerSecond < 1024) {
-            return number_format($bytesPerSecond).' B/s';
-        }
-
-        if ($bytesPerSecond < 1048576) {
-            return number_format($bytesPerSecond / 1024, 1).' KiB/s';
-        }
-
-        return number_format($bytesPerSecond / 1048576, 2).' MiB/s';
     }
 
     /**
@@ -428,6 +246,14 @@ final readonly class AdminCommandCenterUi
     private static function number(?array $data, string $key): ?int
     {
         return is_int($data[$key] ?? null) ? $data[$key] : null;
+    }
+
+    /** @param array<string,mixed>|null $stats */
+    private static function providerTime(?array $stats): string
+    {
+        $timestamp = self::number($stats, 'providerObservedAt');
+
+        return $timestamp === null ? 'نامشخص' : PersianCalendar::utcDateTime(gmdate('Y-m-d H:i:s', $timestamp));
     }
 
     private static function format(?int $value): string

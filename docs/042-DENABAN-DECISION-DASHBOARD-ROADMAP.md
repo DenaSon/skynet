@@ -182,3 +182,60 @@ The operator authorized both review fixes and merge after successful verificatio
 - Display yesterday's verified cash amount and signed one-decimal percent change: `(today - yesterday) / yesterday * 100`; positive `📈 +`, negative `📉 −`, unchanged `➖`. Use Persian numeric digits and decimal separator. When yesterday has zero verified cash, show `بدون مبنا` even when both periods are zero. On failed partial reads show `نامشخص`, never a fabricated zero; continue rendering independently available sections.
 - The comparison reflects **recorded and approved** bank inflows rather than live bank balance or net profit. A later receipt approval may change this historical comparison; no new reconciliation is implied.
 - Verify local-time boundary inclusion/exclusion, bank plus top-up parity, wallet exclusion, corrected and voided records, positive/negative/zero/flat percent, native RTL Rich/HTML parity, RBAC and no payment/provider writes. Source CI PHP 8.4, PHPStan, Pint and disposable MySQL/Redis gates must pass before merge; device/production acceptance is separate. Rollback is this source PR revert; no schema/settings changes.
+
+## DENABAN-UX-01 — compact home (operator-approved 2026-11-24)
+
+Both private root views retain all eight financial metrics, four people /
+subscription metrics, existing finance and gated receipt shortcuts, server /
+Health navigation, refresh, back and Rich/native switching. The home no
+longer renders the attention section or its conditional buttons, host counts,
+connected-node counts, panel online metric or per-node details. Notification
+investigation and fulfillment follow-up remain reachable in Health, including
+their original callbacks; other Admin reports and routes are unchanged.
+
+The compact Action uses only the local user/sales counts and two bounded
+provider read paths: nodes and subscription list (at most two pages).
+No health, host or system-stat GET and no attention counts are needed for
+this home. Node online is the sum of reported usersOnline across all
+returned nodes, not a count of unique people. Empty verified inventory is
+zero; duplicate nodes, missing/invalid counts, overflow, oversized lists or
+read errors are unknown. Financial rules and local authorization are preserved.
+The full STAT-01 report and existing full snapshot contract remain available
+to existing callers; no provider/financial writes, migration or dependency.
+
+PERF-01 remains independent: cache safe provider projections, bound the
+dashboard-only transport, eliminate unused KPI work, and benchmark.
+No measured latency or live deployment is claimed by source tests.
+
+## DENABAN-PERF-01 — bounded compact reads (operator-approved 2026-11-24)
+
+Only the compact home caches two verified provider counts and the original
+observation timestamp for 30 seconds in the configured existing cache
+(Redis in Production). Root and server authorization are rechecked on
+every access, including cache hits. No raw provider data, user identities,
+financial values, credentials or permissions are cached. Malformed, stale,
+future or incomplete cache records are not served as current values; partial
+provider results are not written into the cache. Cache failure falls back
+to a bounded live read. No locks, workers, scheduler or new dependency.
+
+The dedicated compact GETs cap the existing configured timeout at 2 seconds
+per request (two ordinary calls, three with subscription pagination), without
+changing other transport callers or write operations. The UI shows the
+provider observation time separately from the report generation time.
+The canonical three cash windows and verified ledger balance are unchanged;
+the compact KPI path reads today's totals only, and native HTML is built
+only for the simple or fallback view.
+
+Source performance regression: a verified cold compact read performs two
+GETs on a one-page fixture, the warm read performs zero, after 30 seconds
+it refreshes, local counts remain fresh and revoked roles cannot read
+cached data. Incomplete provider snapshots do not become healthy zeroes.
+This is a request-count test, not a real latency benchmark.
+
+Live acceptance: before/after deployment measure a representative series
+of private root opens, reporting cold and warm elapsed times separately
+and measuring database/provider time without logging tokens, URLs, financial
+values or customer data. Targets are <1s warm and 1–3s ordinary cold;
+actual end-to-end time includes Telegram transport and database time.
+A timeout may produce explicit unknown fields, never fabricated zeros.
+No real deployment or measured speedup is claimed until operator testing.

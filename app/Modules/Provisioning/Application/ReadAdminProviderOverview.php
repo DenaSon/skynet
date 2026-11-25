@@ -32,6 +32,35 @@ final readonly class ReadAdminProviderOverview
         return $this->read($actorUserId, true);
     }
 
+    /** Panel-reported per-node counts, not a deduplicated number of people. */
+    public function denabanOnline(int $actorUserId): ?int
+    {
+        $this->access->require($actorUserId, 'servers.view');
+
+        try {
+            $nodes = (new RemnawaveReadApi($this->factory->make(2)))->nodes();
+            if (count($nodes) > 500) {
+                return null;
+            }
+
+            $seen = [];
+            $total = 0;
+            foreach ($nodes as $node) {
+                if ($node->uuid === '' || isset($seen[$node->uuid])
+                    || $node->usersOnline === null || $node->usersOnline < 0
+                    || $node->usersOnline > PHP_INT_MAX - $total) {
+                    return null;
+                }
+                $seen[$node->uuid] = true;
+                $total += $node->usersOnline;
+            }
+
+            return $total;
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
     private function read(int $actorUserId, bool $dashboardOnly): AdminProviderOverview
     {
         $this->access->require($actorUserId, 'servers.view');

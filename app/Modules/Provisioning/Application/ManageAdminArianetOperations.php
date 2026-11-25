@@ -132,12 +132,21 @@ final readonly class ManageAdminArianetOperations
     /** Check the Cloud journal pointer when entering a Node workflow. */
     public static function assertNoHostOperation(string $ip): void
     {
-        $serverId = Cache::get('ari9:host:'.$ip);
-        if (is_int($serverId)) {
-            self::assertNoActive($serverId);
+        if (Schema::hasTable(self::TABLE)) {
+            // Reuse the database cache, not the short-lived workflow cache.
+            // The exact journal row, rather than the pointer's age, determines protection.
+            $operationId = Cache::store('database')->get('ari9:host:'.$ip);
+            if (is_int($operationId) && DB::table(self::TABLE)->where('id', $operationId)
+                ->whereNotNull('active_server_id')->where('status', '!=', 'prepared')->exists()) {
+                throw new RuntimeException('A Cloud server operation is awaiting review.');
+            }
         }
-        $ipv4Server = Cache::get('ari5:host:'.$ip);
-        if (is_int($ipv4Server) && DB::table('arianet_cloud_ipv4_changes')->where('active_server_id', $ipv4Server)->exists()) {
+        if (Schema::hasTable('arianet_cloud_ipv4_changes')
+            && DB::table('arianet_cloud_ipv4_changes')->whereNotNull('active_server_id')
+                ->where('status', '!=', 'prepared')
+                ->where(function (Builder $query) use ($ip): void {
+                    $query->where('old_ipv4', $ip)->orWhere('new_ipv4', $ip);
+                })->exists()) {
             throw new RuntimeException('A Cloud IPv4 change is awaiting review.');
         }
     }
@@ -217,43 +226,68 @@ final readonly class ManageAdminArianetOperations
 
         Cache::lock('arianet:ipv4:'.$serverId, 600)->block(2, function () use ($actor, $serverId, $token): void {
             $row = $this->prepared($actor, $serverId, $token);
-            if (now()->greaterThan($row->expires_at)) {
-                $this->finish((int) $row->id, 'expired');
+            if (now()->greaterThanOrEqualTo($row->expires_at)) {
+                $this->expirePrepared((int) $row->id);
                 throw new RuntimeException('Cloud operation confirmation expired.');
             }
             try {
-                $snapshot = $this->snapshot($actor, $serverId, $row->operation, $row->target ?? '');
+                // This read only locates the IP lock; it does not authorize a write.
+                $server = $this->read->server($serverId)['data'];
+                $ip = $server['ipv4'] ?? null;
+                if (($server['id'] ?? null) !== $serverId || ! is_string($ip)
+                    || filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false) {
+                    throw new RuntimeException('Cloud server address cannot be verified.');
+                }
             } catch (Throwable) {
-                // No dispatch occurred. Consume the stale preview, not the server.
-                $this->finish((int) $row->id, 'expired');
+                $this->expirePrepared((int) $row->id);
                 throw new RuntimeException('Cloud preflight changed; review a fresh request.');
             }
-            if ($row->snapshot_hash !== self::fingerprint($snapshot)) {
-                $this->finish((int) $row->id, 'expired');
-                throw new RuntimeException('Cloud operation confirmation expired or changed.');
-            }
-            Cache::lock(self::hostLock($snapshot['ipv4']), 90)->block(2, function () use ($actor, $serverId, $row, $snapshot): void {
-                self::assertHostAvailable($snapshot['ipv4']);
-                $this->dispatchConfirmed($actor, $serverId, $row, $snapshot['ipv4']);
+
+            Cache::lock(self::hostLock($ip), 600)->block(2, function () use ($actor, $serverId, $row, $ip): void {
+                try {
+                    // Recheck the complete dependency snapshot after acquiring the IP lock.
+                    $snapshot = $this->snapshot($actor, $serverId, $row->operation, $row->target ?? '');
+                    self::assertNoHostOperation($ip);
+                } catch (Throwable) {
+                    $this->expirePrepared((int) $row->id);
+                    throw new RuntimeException('Cloud preflight changed; review a fresh request.');
+                }
+                if ($snapshot['ipv4'] !== $ip || $row->snapshot_hash !== self::fingerprint($snapshot)) {
+                    $this->expirePrepared((int) $row->id);
+                    throw new RuntimeException('Cloud operation confirmation expired or changed.');
+                }
+
+                $this->dispatchConfirmed($actor, $serverId, $row, $ip);
             });
         });
+    }
+
+    private function expirePrepared(int $id): void
+    {
+        DB::table(self::TABLE)->where('id', $id)->where('status', 'prepared')->update([
+            'status' => 'expired', 'active_server_id' => null, 'updated_at' => now(),
+        ]);
     }
 
     private function dispatchConfirmed(int $actor, int $serverId, object $row, string $ip): void
     {
         $this->access->handle($actor);
         $this->guard();
-        if (now()->greaterThan($row->expires_at)) {
-            $this->finish((int) $row->id, 'expired');
+        if (now()->greaterThanOrEqualTo($row->expires_at)) {
+            $this->expirePrepared((int) $row->id);
             throw new RuntimeException('Cloud operation confirmation expired.');
         }
-        if (DB::table(self::TABLE)->where('id', $row->id)->where('status', 'prepared')
-            ->update(['status' => 'reserved', 'updated_at' => now()]) !== 1) {
-            throw new RuntimeException('Confirmation already consumed.');
-        }
+        DB::transaction(function () use ($row, $ip): void {
+            if (DB::table(self::TABLE)->where('id', $row->id)->where('status', 'prepared')
+                ->update(['status' => 'reserved', 'updated_at' => now()]) !== 1) {
+                throw new RuntimeException('Confirmation already consumed.');
+            }
+            // A durable pointer is written before dispatch; terminal journal rows never block.
+            if (! Cache::store('database')->forever('ari9:host:'.$ip, (int) $row->id)) {
+                throw new RuntimeException('Cloud operation address protection could not be recorded.');
+            }
+        });
 
-        // The pointer is a bounded bridge to the existing durable journal.
-        Cache::put('ari9:host:'.$ip, $serverId, now()->addHours(3));
         try {
             $receipt = in_array($row->operation, ['rebuild', 'change_plan', 'delete'], true)
                 ? $this->write->maintenanceAction($serverId, $row->operation, $row->target ?? '')

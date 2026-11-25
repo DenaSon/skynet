@@ -171,6 +171,25 @@ function sb05WalletOrder(): array
     return $data;
 }
 
+/** @return array{order:int,reviewer:User} */
+function sb05DelegatedBankOrder(): array
+{
+    $data = sb05Order(pay: false);
+    $reviewer = User::factory()->create();
+    TelegramAccount::query()->create(['user_id' => $reviewer->id, 'telegram_user_id' => 975010]);
+    $reviewer->givePermissionTo(['purchases.view', 'purchases.review']);
+    config()->set('sales.manual_bank_review_enabled', true);
+    $bank = app(ManualBankPayments::class);
+    $claim = $bank->submit(SubscriptionViewer::telegram(975099), $data['order'],
+        'delegated-receipt', 'delegated-unique', 9010, 'sales');
+    // No initial enqueue. The real review still commits both the payment and the intent.
+    $bank->review($reviewer->id, $claim, true, 'DELEGATEDBANK9010', sb05VerifiedRials($claim));
+    config()->set('sales.auto_fulfillment_enabled', true);
+    config()->set('services.remnawave.writes_enabled', true);
+
+    return ['order' => $data['order'], 'reviewer' => $reviewer];
+}
+
 /** @return array<string,mixed> */
 function sb05TelegramPayload(NutgramRequest $request): array
 {
@@ -1022,6 +1041,61 @@ it('recovers an approved pending bank order using the same guarded queue and no 
     Http::assertNothingSent();
 });
 
+it('recovers an untouched delegated bank approval exactly once without posting money again', function (): void {
+    Queue::fake();
+    $data = sb05DelegatedBankOrder();
+    $orderId = $data['order'];
+    $journals = DB::table('billing_journals')->orderBy('id')->get()->all();
+    $postings = DB::table('billing_postings')->orderBy('id')->get()->all();
+    Queue::assertNotPushed(FulfillPaidPlanOrderJob::class);
+
+    $this->artisan('sales:fulfillment:dispatch')->assertSuccessful();
+    $job = Queue::pushed(FulfillPaidPlanOrderJob::class)->sole();
+    expect($job->orderId)->toBe($orderId)
+        ->and($job->actorId)->toBe(FulfillPaidPlanOrderJob::VERIFIED_BANK_REVIEW);
+    Http::assertNothingSent();
+
+    sb05FakeCreate($orderId);
+    app()->call([$job, 'handle']);
+    app(UniqueLock::class)->release($job);
+    app()->call([$job, 'handle']);
+    Queue::fake();
+    $this->artisan('sales:fulfillment:dispatch')->assertSuccessful();
+    Queue::assertNotPushed(FulfillPaidPlanOrderJob::class);
+    expect(DB::table('sales_orders')->where('id', $orderId)->value('status'))->toBe('fulfilled')
+        ->and(DB::table('provisioning_order_links')->where('sales_order_id', $orderId)->count())->toBe(1)
+        ->and(DB::table('sales_bank_settlements')->where('sales_order_id', $orderId)->count())->toBe(1)
+        ->and(DB::table('billing_journals')->orderBy('id')->get()->all())->toEqual($journals)
+        ->and(DB::table('billing_postings')->orderBy('id')->get()->all())->toEqual($postings);
+    Http::assertSentCount(1);
+});
+
+it('keeps a delegated bank order pending when its review authority or settlement proof no longer holds', function (string $change): void {
+    Queue::fake();
+    $data = sb05DelegatedBankOrder();
+    $this->artisan('sales:fulfillment:dispatch')->assertSuccessful();
+    $job = Queue::pushed(FulfillPaidPlanOrderJob::class)->sole();
+
+    match ($change) {
+        'permission' => $data['reviewer']->revokePermissionTo('purchases.review'),
+        'binding' => $data['reviewer']->telegramAccount()->delete(),
+        'verifier' => DB::table('sales_bank_settlements')->where('sales_order_id', $data['order'])
+            ->update(['verified_by' => DB::table('sales_orders')->where('id', $data['order'])->value('buyer_user_id')]),
+        'amount' => DB::table('billing_postings')->where('account_code', 'order_liability')->update(['amount_rials' => 1]),
+    };
+    app()->call([$job, 'handle']);
+    expect(DB::table('sales_fulfillment_outbox')->where('sales_order_id', $data['order'])->value('attempts'))->toBe(0)
+        ->and(DB::table('sales_orders')->where('id', $data['order'])->value('status'))->toBe('paid')
+        ->and(DB::table('provisioning_operations')->count())->toBe(0);
+    if ($change !== 'amount') {
+        app(UniqueLock::class)->release($job);
+        Queue::fake();
+        $this->artisan('sales:fulfillment:dispatch')->assertSuccessful();
+        Queue::assertNotPushed(FulfillPaidPlanOrderJob::class);
+    }
+    Http::assertNothingSent();
+})->with(['permission', 'binding', 'verifier', 'amount']);
+
 it('recovers a lost wallet enqueue without another debit or duplicate provider create', function (): void {
     $data = sb05WalletOrder();
     // Discard the post-commit queue fake to model loss before enqueue. Durable
@@ -1460,8 +1534,18 @@ it('keeps old paid review cases reachable across pages and flags only genuinely 
             $html = sb05TelegramRich($payload);
             $buttons = json_encode($payload['reply_markup'] ?? null, JSON_THROW_ON_ERROR);
 
-            return str_contains($html, 'فعال‌سازی‌های معوق')
-                && str_contains($buttons, 'full:attention:1');
+            return ! str_contains($html, 'فعال‌سازی‌های معوق')
+                && ! str_contains($buttons, 'full:attention:1')
+                && str_contains($buttons, 'denaban:health');
+        }, index: 1);
+
+    // The compact home moves follow-up to Health without removing the workflow.
+    $bot->hearCallbackQueryData('denaban:health')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $payload = sb05TelegramPayload($request);
+            $buttons = json_encode($payload['reply_markup'] ?? null, JSON_THROW_ON_ERROR);
+
+            return str_contains($buttons, 'full:attention:1');
         }, index: 1);
 
     expect(DB::table('sales_fulfillment_outbox')->count())->toBe(27);

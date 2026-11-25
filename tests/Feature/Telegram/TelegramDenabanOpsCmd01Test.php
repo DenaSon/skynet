@@ -167,8 +167,8 @@ it('shows canonical verified inflows and sales independently of unavailable RW',
             && str_contains($p['text'], 'تعداد واریزی امروز: 1')
             && str_contains($p['text'], 'نمایندگان: 0')
             && str_contains($p['text'], 'کاربران جدید امروز: 1')
-            && str_contains($p['text'], 'نودهای متصل: نامشخص از نامشخص')
-            && str_contains($p['text'], 'بعضی اطلاعات کامل نیست')
+            && str_contains($p['text'], 'مجموع آنلاین نودها: نامشخص')
+            && ! str_contains($p['text'], 'نیازمند رسیدگی')
             && ! str_contains($p['text'], 'صبح بخیر')
             && ($p['parse_mode'] ?? null) === 'HTML';
     }, index: 1);
@@ -311,7 +311,7 @@ it('rejects unauthorized, revoked and group callbacks without RW calls', functio
     Http::assertNothingSent();
 });
 
-it('shows only safe per-node RW telemetry using the existing inventory GET without duplicate requests', function (): void {
+it('sums all node online counts and reads only the required provider endpoints', function (): void {
     denabanRoot();
     Http::fake(static function (Request $request) {
         $payload = match (parse_url($request->url(), PHP_URL_PATH)) {
@@ -345,7 +345,7 @@ it('shows only safe per-node RW telemetry using the existing inventory GET witho
                 ],
                 [
                     'uuid' => '123e4567-e89b-12d3-a456-426614174003',
-                    'name' => 'DE-standby', 'isConnected' => false, 'isDisabled' => true,
+                    'name' => 'DE-standby', 'isConnected' => false, 'isDisabled' => true, 'usersOnline' => 3,
                 ],
             ],
             '/api/hosts' => [['uuid' => '1']],
@@ -365,23 +365,19 @@ it('shows only safe per-node RW telemetry using the existing inventory GET witho
             $payload = denabanPayload($request);
             $text = $payload['text'];
 
-            return str_contains($text, 'نودهای متصل: 1 از 3')
-                && str_contains($text, '🟠 در حال اتصال · UAE-01')
-                && str_contains($text, '🕒 آخرین تغییر وضعیت: ۱۴۰۵/')
-                && str_contains($text, '⏸️ غیرفعال · DE-standby')
-                && str_contains($text, '🟢 متصل · EU&lt;internal&gt;&amp;')
-                && str_contains($text, '📡 دریافت: 2.0 KiB/s | ارسال: 1.00 MiB/s')
-                && str_contains($text, '📊 مصرف از سقف نود: 25.0٪')
-                && str_contains($text, '📡 دریافت: نامشخص | ارسال: نامشخص')
+            return str_contains($text, 'مجموع آنلاین نودها: 5')
+                && ! str_contains($text, 'نودهای متصل')
+                && ! str_contains($text, 'آنلاین پنل')
+                && ! str_contains($text, 'جزئیات نودها')
+                && ! str_contains($text, 'DE-standby')
                 && ! str_contains($text, 'super-secret.private.example')
                 && ! str_contains($text, 'EU<internal>');
         }, index: 1);
 
-    // The command center does not duplicate the GET /api/nodes already made by STAT-01.
-    Http::assertSentCount(5);
+    // No health, hosts, system stats or full inventory read is needed.
+    Http::assertSentCount(2);
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
-    Http::assertNotSent(static fn (Request $request): bool => str_ends_with($request->url(), '/api/internal-squads')
-        || str_ends_with($request->url(), '/api/config-profiles'));
+    Http::assertNotSent(static fn (Request $request): bool => ! in_array(parse_url($request->url(), PHP_URL_PATH), ['/api/nodes', '/api/users'], true));
     expect(Http::recorded(static fn (Request $request): bool => str_ends_with($request->url(), '/api/nodes')))->toHaveCount(1);
 });
 
@@ -392,7 +388,7 @@ it('keeps Denaban financial/local stats readable when the RW node inventory fail
         ->assertRaw(static function (NutgramRequest $request): bool {
             $payload = denabanPayload($request);
 
-            return str_contains($payload['text'], 'جزئیات نودها: نامشخص')
+            return str_contains($payload['text'], 'مجموع آنلاین نودها: نامشخص')
                 && str_contains($payload['text'], '<b>💰 وضعیت مالی</b>')
                 && str_contains($payload['text'], '<b>👥 کاربران و اشتراک‌ها</b>');
         }, index: 1);
@@ -414,11 +410,10 @@ it('renders a bounded RTL rich executive dashboard and retains navigation and si
 
             return ($rich['is_rtl'] ?? null) === true
                 && str_contains($html, '<h2>📡 دنابان')
-                && substr_count($html, '<table bordered striped compact>') === 4
+                && substr_count($html, '<table bordered striped compact>') === 3
                 && denabanSectionsInOrder($html, [
                     '<h3>💰 وضعیت مالی</h3>',
                     '<h3>👥 کاربران و اشتراک‌ها</h3>',
-                    '<h3>⚠️ نیازمند رسیدگی</h3>',
                     '<h3>🖥️ وضعیت سرورها</h3>',
                 ])
                 && str_contains($html, '<tr><td>💵 کل واریزی امروز</td>')
@@ -430,17 +425,18 @@ it('renders a bounded RTL rich executive dashboard and retains navigation and si
                 && str_contains($html, '<tr><td>🤝 نمایندگان</td>')
                 && str_contains($html, '<tr><td>👤 کاربران جدید امروز</td>')
                 && str_contains($html, '<tr><td>💼 مانده اعتبار</td>')
-                && str_contains($html, 'فعال‌سازی‌های معوق')
-                && str_contains($html, '<tr><td>نودهای متصل</td>')
+                && ! str_contains($html, 'فعال‌سازی‌های معوق')
+                && ! str_contains($html, 'نیازمند رسیدگی')
+                && str_contains($html, '<tr><td>مجموع آنلاین نودها</td>')
                 && str_contains($html, 'آخرین بررسی:')
                 && str_contains($html, '(تهران)')
                 && ! str_contains($html, 'نرخ رشد')
-                && str_contains($html, '<details><summary>جزئیات نودها</summary>')
+                && ! str_contains($html, 'جزئیات نودها')
                 && str_contains($html, 'نامشخص')
                 && str_contains($html, '<tr><td>کل کاربران</td>')
                 && str_contains($html, '<tr><td>اشتراک‌های فعال</td>')
-                && str_contains($html, '<tr><td>آنلاین پنل</td>')
-                && str_contains($html, '<tr><td>🔧 بررسی سفارش‌ها</td>')
+                && ! str_contains($html, 'آنلاین پنل')
+                && ! str_contains($html, 'بررسی سفارش‌ها')
                 && ! str_contains($html, 'دریافتی تأییدشده از ابتدا')
                 && ! str_contains($html, '<td>سفارش‌های نیازمند بررسی</td>')
                 && str_contains($html, 'فروش امروز')
@@ -464,7 +460,6 @@ it('renders a bounded RTL rich executive dashboard and retains navigation and si
                 && denabanSectionsInOrder($payload['text'], [
                     '<b>💰 وضعیت مالی</b>',
                     '<b>👥 کاربران و اشتراک‌ها</b>',
-                    '<b>⚠️ نیازمند رسیدگی</b>',
                     '<b>🖥️ وضعیت سرورها</b>',
                 ])
                 && str_contains($payload['text'], 'کل واریزی امروز:')
@@ -478,10 +473,12 @@ it('renders a bounded RTL rich executive dashboard and retains navigation and si
                 && str_contains($payload['text'], 'مانده اعتبار:')
                 && str_contains($payload['text'], 'کل کاربران:')
                 && str_contains($payload['text'], 'اشتراک‌های فعال:')
-                && str_contains($payload['text'], 'آنلاین پنل:')
-                && str_contains($payload['text'], 'بررسی سفارش‌ها:')
+                && str_contains($payload['text'], 'مجموع آنلاین نودها:')
+                && ! str_contains($payload['text'], 'آنلاین پنل:')
+                && ! str_contains($payload['text'], 'بررسی سفارش‌ها:')
                 && ! str_contains($payload['text'], 'دریافتی‌های تأییدشده از ابتدا')
-                && str_contains($payload['text'], 'فعال‌سازی‌های معوق')
+                && ! str_contains($payload['text'], 'فعال‌سازی‌های معوق')
+                && ! str_contains($payload['text'], 'نیازمند رسیدگی')
                 && str_contains($payload['text'], 'آخرین بررسی:')
                 && str_contains($payload['text'], '(تهران)')
                 && ($payload['reply_markup']['inline_keyboard'][0][0]['callback_data'] ?? null) === 'menu:admin:finance'
@@ -543,4 +540,93 @@ it('keeps denied and revoked users out of both Denaban render modes', function (
     denabanBot(991201)->hearCallbackQueryData('denaban:show')->reply()
         ->assertCalled('answerCallbackQuery');
     Http::assertNothingSent();
+});
+
+it('keeps the compact node online total unknown on missing or duplicate observations', function (bool $duplicate): void {
+    $root = denabanRoot();
+    $node = [
+        'uuid' => '123e4567-e89b-12d3-a456-426614174001',
+        'name' => 'Node', 'isConnected' => true, 'isDisabled' => false,
+        'usersOnline' => 4,
+    ];
+    $missing = [...$node, 'uuid' => '123e4567-e89b-12d3-a456-426614174002', 'usersOnline' => null];
+    Http::fake([
+        'https://denaban.test/api/nodes' => Http::response(['response' => [$node, $duplicate ? $node : $missing]]),
+        'https://denaban.test/api/users*' => Http::response(['response' => ['users' => [], 'total' => 0]]),
+    ]);
+
+    $snapshot = app(ReadAdminCommandCenter::class)->handle($root->id, compact: true);
+    expect($snapshot['stats']['nodesOnline'])->toBeNull()
+        ->and($snapshot['stats']['subscriptionsActive'])->toBe(0)
+        ->and($snapshot['pendingTopups'])->toBeNull()
+        ->and(array_key_exists('notificationIssues', $snapshot['stats']))->toBeFalse();
+})->with(['missing count' => false, 'duplicate node' => true]);
+
+it('reuses only verified provider totals for thirty seconds and keeps local totals fresh', function (): void {
+    $root = denabanRoot();
+    config()->set('cache.default', 'array');
+    $this->travelTo(Carbon::parse('2026-11-24 12:30:00', 'Asia/Tehran')->utc());
+    Http::fake([
+        'https://denaban.test/api/nodes' => Http::response(['response' => [[
+            'uuid' => '123e4567-e89b-12d3-a456-426614174001',
+            'name' => 'Node', 'isConnected' => true, 'isDisabled' => false, 'usersOnline' => 7,
+        ]]]),
+        'https://denaban.test/api/users*' => Http::response(['response' => ['users' => [], 'total' => 0]]),
+    ]);
+
+    $center = app(ReadAdminCommandCenter::class);
+    $first = $center->handle($root->id, compact: true);
+    expect($first['stats']['nodesOnline'])->toBe(7)
+        ->and($first['stats']['subscriptionsActive'])->toBe(0)
+        ->and($first['stats']['providerObservedAt'])->toBe(now()->timestamp);
+    Http::assertSentCount(2);
+
+    User::factory()->create();
+    $this->travel(10)->seconds();
+    $warm = $center->handle($root->id, compact: true);
+    expect($warm['stats']['nodesOnline'])->toBe(7)
+        ->and($warm['stats']['providerObservedAt'])->toBe($first['stats']['providerObservedAt'])
+        ->and($warm['stats']['localUsers'])->toBe($first['stats']['localUsers'] + 1);
+    Http::assertSentCount(2);
+
+    denabanBot(991201)->hearCallbackQueryData('denaban:simple')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $payload = denabanPayload($request);
+
+            return str_contains($payload['text'], 'مجموع آنلاین نودها: 7')
+                && str_contains($payload['text'], 'آخرین دریافت آمار پنل:');
+        }, index: 1);
+    Http::assertSentCount(2);
+
+    $this->travel(21)->seconds();
+    $refreshed = $center->handle($root->id, compact: true);
+    expect($refreshed['stats']['providerObservedAt'])->toBe(now()->timestamp);
+    Http::assertSentCount(4);
+
+    $root->syncRoles(['member']);
+    expect(fn () => $center->handle($root->id, compact: true))->toThrow(AuthorizationException::class);
+    Http::assertSentCount(4);
+});
+
+it('does not cache incomplete provider observations as verified totals', function (): void {
+    $root = denabanRoot();
+    config()->set('cache.default', 'array');
+    Http::fake([
+        'https://denaban.test/api/nodes' => Http::sequence()
+            ->push([], 503)
+            ->push(['response' => []]),
+        'https://denaban.test/api/users*' => Http::response(['response' => ['users' => [], 'total' => 0]]),
+    ]);
+
+    $center = app(ReadAdminCommandCenter::class);
+    $first = $center->handle($root->id, compact: true);
+    expect($first['stats']['nodesOnline'])->toBeNull()
+        ->and($first['stats']['subscriptionsActive'])->toBe(0);
+
+    $second = $center->handle($root->id, compact: true);
+    expect($second['stats']['nodesOnline'])->toBe(0);
+    Http::assertSentCount(4);
+
+    $center->handle($root->id, compact: true);
+    Http::assertSentCount(4);
 });

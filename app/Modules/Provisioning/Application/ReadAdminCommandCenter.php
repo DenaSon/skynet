@@ -27,7 +27,7 @@ final readonly class ReadAdminCommandCenter
     ) {}
 
     /** @return array{cash:array<string,mixed>|null,todayCash:array<string,mixed>|null,yesterdayCash:array<string,mixed>|null,todayKpis:array<string,mixed>|null,resellers:?int,stats:array<string,mixed>|null,pendingTopups:int|null,receivedAt:string} */
-    public function handle(int $actorId): array
+    public function handle(int $actorId, bool $compact = false): array
     {
         // Authorization is mandatory and must not be swallowed as a read failure.
         $this->access->handle($actorId);
@@ -62,7 +62,9 @@ final readonly class ReadAdminCommandCenter
 
         $todayKpis = null;
         try {
-            $todayKpis = $this->management->handle($actorId, 'day')['current'];
+            $todayKpis = $compact
+                ? $this->management->currentDay($actorId)
+                : $this->management->handle($actorId, 'day')['current'];
         } catch (AuthorizationException $exception) {
             throw $exception;
         } catch (Throwable) {
@@ -81,7 +83,7 @@ final readonly class ReadAdminCommandCenter
 
         $stats = null;
         try {
-            $stats = $this->dashboard->handle($actorId);
+            $stats = $compact ? $this->dashboard->denaban($actorId) : $this->dashboard->handle($actorId);
         } catch (AuthorizationException $exception) {
             throw $exception;
         } catch (Throwable) {
@@ -89,11 +91,13 @@ final readonly class ReadAdminCommandCenter
         }
 
         $pendingTopups = null;
-        try {
-            // Canonical submitted-state filter from ReadAdminWalletSummary.
-            $pendingTopups = (int) DB::table('billing_topups')->where('status', 'submitted')->count();
-        } catch (Throwable) {
-            // Unknown must not be reported as zero.
+        if (! $compact) {
+            try {
+                // Preserve the existing full snapshot for non-compact callers.
+                $pendingTopups = (int) DB::table('billing_topups')->where('status', 'submitted')->count();
+            } catch (Throwable) {
+                // Unknown must not be reported as zero.
+            }
         }
 
         return [

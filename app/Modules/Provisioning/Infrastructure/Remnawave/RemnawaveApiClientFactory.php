@@ -12,7 +12,7 @@ use RuntimeException;
  */
 final class RemnawaveApiClientFactory
 {
-    public function make(): RemnawaveApiClient
+    public function make(?int $timeoutCap = null): RemnawaveApiClient
     {
         $url = config('services.remnawave.url');
         $token = config('services.remnawave.token');
@@ -27,6 +27,10 @@ final class RemnawaveApiClientFactory
             throw new RuntimeException('Invalid Remnawave API timeout.');
         }
 
-        return new RemnawaveApiClient($url, $token, $timeout);
+        if ($timeoutCap !== null && ($timeoutCap < 1 || $timeoutCap > 120)) {
+            throw new RuntimeException('Invalid Remnawave API timeout cap.');
+        }
+
+        return new RemnawaveApiClient($url, $token, min($timeout, $timeoutCap ?? $timeout));
     }
 }

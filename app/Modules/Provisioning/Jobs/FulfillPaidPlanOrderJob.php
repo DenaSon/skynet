@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace App\Modules\Provisioning\Jobs;
 
 use App\Modules\Billing\Application\VerifyWalletOrderDebit;
+use App\Modules\Identity\Application\AdminCapabilityAccess;
+use App\Modules\Identity\Application\AssertBillingAccess;
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
+use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Application\FulfillPaidPlanOrder;
 use App\Modules\Provisioning\Application\FulfillPaidRenewalOrder;
 use Illuminate\Bus\Queueable;
@@ -37,6 +40,19 @@ final class FulfillPaidPlanOrderJob implements ShouldBeUnique, ShouldQueue
         $this->onConnection(ProviderQueueConnection::name());
     }
 
+    /** Shared by post-commit bank approval and the untouched-intent recovery scan. */
+    public static function bankReviewActorId(int $reviewerId): ?int
+    {
+        $reviewer = User::query()->with('telegramAccount')->find($reviewerId);
+        if ($reviewer === null || $reviewer->telegramAccount === null
+            || ! app(AdminCapabilityAccess::class)->allowed($reviewer, 'purchases.review')) {
+            return null;
+        }
+
+        // The capability check above also verifies root trust for super-admins.
+        return $reviewer->hasRole('super-admin') ? $reviewerId : self::VERIFIED_BANK_REVIEW;
+    }
+
     public function uniqueId(): string
     {
         return 'parsa:fulfillment:'.$this->orderId;
@@ -51,10 +67,16 @@ final class FulfillPaidPlanOrderJob implements ShouldBeUnique, ShouldQueue
                 // A delegated bank approval is NOT a root identity. Prove the
                 // entire committed bank claim, ledger and immutable settlement
                 // before permitting the existing guarded provider worker.
-                if (! DB::table('sales_bank_settlements')
-                    ->where('sales_order_id', $this->orderId)->exists()) {
+                $reviewerId = DB::table('sales_bank_settlements as bank')
+                    ->join('sales_bank_payment_claims as claim', 'claim.id', '=', 'bank.payment_claim_id')
+                    ->where('bank.sales_order_id', $this->orderId)
+                    ->whereColumn('claim.sales_order_id', 'bank.sales_order_id')
+                    ->whereColumn('claim.reviewed_by', 'bank.verified_by')
+                    ->where('claim.status', 'approved')->value('bank.verified_by');
+                if ($reviewerId === null) {
                     return;
                 }
+                app(AssertBillingAccess::class)->purchaseReviewer((int) $reviewerId);
                 $order = DB::table('sales_orders')->where('id', $this->orderId)
                     ->where('status', 'paid')->first();
                 if ($order === null) {
