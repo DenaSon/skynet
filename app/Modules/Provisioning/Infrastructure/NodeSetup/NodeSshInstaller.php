@@ -37,7 +37,7 @@ class NodeSshInstaller
         // SSH transports the script via stdin; it never appears in argv or output.
         $secretEnv = base64_encode('SECRET_KEY='.$secret."\nNODE_PORT=2222\n");
         $compose = "services:\n  remnanode:\n    container_name: remnanode\n    hostname: remnanode\n"
-            ."    image: ".self::NODE_IMAGE."\n    restart: always\n    network_mode: host\n"
+            .'    image: '.self::NODE_IMAGE."\n    restart: always\n    network_mode: host\n"
             ."    cap_add:\n      - NET_ADMIN\n    env_file:\n      - .env\n";
         $payload = "set -eu\numask 077\n"
             ."[ \"$(id -u)\" -eq 0 ]\n"
