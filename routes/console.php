@@ -287,6 +287,7 @@ Artisan::command('sales:fulfillment:dispatch', function (): int {
         ->join('sales_bank_settlements as bank', 'bank.sales_order_id', '=', 'orders.id')
         ->join('sales_bank_payment_claims as claim', 'claim.id', '=', 'bank.payment_claim_id')
         ->whereColumn('claim.sales_order_id', 'orders.id')
+        ->whereColumn('claim.reviewed_by', 'bank.verified_by')
         ->whereColumn('bank.amount_rials', 'orders.total_price_rials')
         ->where('claim.status', 'approved')->whereNotNull('claim.reviewed_by')
         ->where('claim.reviewed_by', '>', 0)
@@ -320,8 +321,13 @@ Artisan::command('sales:fulfillment:dispatch', function (): int {
                     ->where('reference', 'sales-order:'.$orderId)->exists())) {
                 continue;
             }
-            $actorId = (int) ($row->reviewed_by ?? 0);
-            if ($actorId === 0 && ! app(VerifyWalletOrderDebit::class)->handle(
+            $actorId = 0;
+            if (isset($row->reviewed_by)) {
+                $actorId = FulfillPaidPlanOrderJob::bankReviewActorId((int) $row->reviewed_by);
+                if ($actorId === null) {
+                    continue;
+                }
+            } elseif (! app(VerifyWalletOrderDebit::class)->handle(
                 (int) $row->buyer_user_id, $orderId, (int) $row->billing_journal_id, (int) $row->total_price_rials,
             )) {
                 continue;
