@@ -59,6 +59,15 @@ function nw02Fixture(): array
     ];
 }
 
+it('NW-02 pins future installations to the approved Remnawave Node image', function (): void {
+    $source = file_get_contents(base_path('app/Modules/Provisioning/Infrastructure/NodeSetup/NodeSshInstaller.php'));
+
+    expect($source)
+        ->toContain("private const NODE_IMAGE = 'remnawave/node:3.4.6';")
+        ->toContain('."    image: ".self::NODE_IMAGE.')
+        ->not->toContain('remnawave/node:3.4.2');
+});
+
 it('NW-02 defaults off, queues opaque identifier only, and reserves a VPS once', function (): void {
     $fixture = nw02Fixture();
     Queue::fake();
