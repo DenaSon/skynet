@@ -64,7 +64,7 @@ it('NW-02 pins future installations to the approved Remnawave Node image', funct
 
     expect($source)
         ->toContain("private const NODE_IMAGE = 'remnawave/node:3.4.6';")
-        ->toContain('."    image: ".self::NODE_IMAGE.')
+        ->toContain(".'    image: '.self::NODE_IMAGE.")
         ->not->toContain('remnawave/node:3.4.2');
 });
 
