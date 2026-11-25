@@ -99,7 +99,7 @@ final readonly class ChangeAdminArianetIpv4
             throw new RuntimeException('Invalid IPv4 confirmation.');
         }
 
-        return Cache::lock('arianet:ipv4:'.$serverId, 90)->block(2, function () use ($actorId, $serverId, $token): array {
+        return Cache::lock('arianet:ipv4:'.$serverId, 600)->block(2, function () use ($actorId, $serverId, $token): array {
             ManageAdminArianetOperations::assertNoActive($serverId);
             $row = DB::table(self::TABLE)->where('cloud_server_id', $serverId)
                 ->where('actor_user_id', $actorId)
@@ -117,42 +117,59 @@ final readonly class ChangeAdminArianetIpv4
                 throw new RuntimeException('IPv4 confirmation expired; start again.');
             }
 
-            // Re-read the complete remote view before reserving the write.
-            // Any new fee, quota, IP, Node mapping or DNS address invalidates it.
-            $fresh = $this->verifiedPreview($actorId, $serverId);
-            if ($row->old_ipv4 !== $fresh['ipv4'] || $row->snapshot_hash !== self::fingerprint($fresh)
-                || (int) $row->fee_rials !== self::fee($fresh)) {
-                DB::table(self::TABLE)->where('id', $row->id)->where('status', 'prepared')->update([
-                    'status' => 'expired', 'active_server_id' => null, 'updated_at' => now(),
-                ]);
-                throw new RuntimeException('Cloud or related records changed; review a new preview.');
-            }
+            return Cache::lock(ManageAdminArianetOperations::hostLock($row->old_ipv4), 600)->block(2, function () use ($actorId, $serverId, $row): array {
+                ManageAdminArianetOperations::assertHostAvailable($row->old_ipv4);
+                ManageAdminArianetOperations::assertNoHostOperation($row->old_ipv4);
 
-            $this->access->handle($actorId);
-            $reserved = DB::table(self::TABLE)->where('id', $row->id)
-                ->where('status', 'prepared')->where('active_server_id', $serverId)
-                ->update(['status' => 'reserved', 'confirmed_at' => now(), 'updated_at' => now()]);
-            if ($reserved !== 1) {
-                throw new RuntimeException('IPv4 confirmation was already consumed.');
-            }
+                // Re-read the complete dependency view under the IP lock.
+                $fresh = $this->verifiedPreview($actorId, $serverId);
+                if ($row->old_ipv4 !== $fresh['ipv4'] || $row->snapshot_hash !== self::fingerprint($fresh)
+                    || (int) $row->fee_rials !== self::fee($fresh)) {
+                    DB::table(self::TABLE)->where('id', $row->id)->where('status', 'prepared')->update([
+                        'status' => 'expired', 'active_server_id' => null, 'updated_at' => now(),
+                    ]);
+                    throw new RuntimeException('Cloud or related records changed; review a new preview.');
+                }
 
-            try {
-                $receipt = $this->write->changeIpv4($serverId, (int) $row->free_left === 0);
-                $this->updateStatus((int) $row->id, 'accepted', $receipt['action_id']);
-
-                return ['status' => 'accepted', 'actionId' => $receipt['action_id']];
-            } catch (ArianetCloudWriteUncertain) {
-                $this->updateStatus((int) $row->id, 'uncertain');
-
-                return ['status' => 'uncertain', 'actionId' => null];
-            } catch (Throwable) {
-                // Fail closed after reservation. Even a definite rejection is
-                // kept for operator review; no automated attempt is allowed.
-                $this->updateStatus((int) $row->id, 'needs_review');
-
-                return ['status' => 'needs_review', 'actionId' => null];
-            }
+                return $this->dispatchConfirmed($actorId, $serverId, $row);
+            });
         });
+    }
+
+    /** @return array{status:string,actionId:int|null} */
+    private function dispatchConfirmed(int $actorId, int $serverId, object $row): array
+    {
+        $this->access->handle($actorId);
+        $this->assertEnabled();
+        if (now()->greaterThanOrEqualTo($row->expires_at)) {
+            DB::table(self::TABLE)->where('id', $row->id)->where('status', 'prepared')->update([
+                'status' => 'expired', 'active_server_id' => null, 'updated_at' => now(),
+            ]);
+            throw new RuntimeException('IPv4 confirmation expired; start again.');
+        }
+        $reserved = DB::table(self::TABLE)->where('id', $row->id)
+            ->where('status', 'prepared')->where('active_server_id', $serverId)
+            ->update(['status' => 'reserved', 'confirmed_at' => now(), 'updated_at' => now()]);
+        if ($reserved !== 1) {
+            throw new RuntimeException('IPv4 confirmation was already consumed.');
+        }
+
+        try {
+            $receipt = $this->write->changeIpv4($serverId, (int) $row->free_left === 0);
+            $this->updateStatus((int) $row->id, 'accepted', $receipt['action_id']);
+
+            return ['status' => 'accepted', 'actionId' => $receipt['action_id']];
+        } catch (ArianetCloudWriteUncertain) {
+            $this->updateStatus((int) $row->id, 'uncertain');
+
+            return ['status' => 'uncertain', 'actionId' => null];
+        } catch (Throwable) {
+            // Fail closed after reservation. Even a definite rejection is
+            // kept for operator review; no automated attempt is allowed.
+            $this->updateStatus((int) $row->id, 'needs_review');
+
+            return ['status' => 'needs_review', 'actionId' => null];
+        }
     }
 
     /**

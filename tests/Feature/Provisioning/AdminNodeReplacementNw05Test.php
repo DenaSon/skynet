@@ -8,6 +8,7 @@ use App\Interfaces\Telegram\Support\AdminNodeSetupUi;
 use App\Jobs\InstallRemnawaveNode;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
+use App\Modules\Provisioning\Application\ManageAdminArianetOperations;
 use App\Modules\Provisioning\Application\ManageNodeInstallation;
 use App\Modules\Provisioning\Application\ReplaceAdminNode;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -964,4 +965,18 @@ it('ARI-04C carries the verified purchase to NW-02 and refuses stale queued dest
     expect(Cache::get('nw02:status:'.$id)['state'])->toBe('uncertain');
     Http::assertNotSent(static fn (Request $r): bool => str_contains($r->url(), '/api/keygen'));
     expect(nw05MutationCount())->toBe(0);
+});
+
+it('ARI-06 protects both replacement VPS addresses until the real client test is accepted', function (): void {
+    $ready = nw05ReplacementReady();
+    nw05ReplacementApi();
+    $action = app(ReplaceAdminNode::class);
+    $review = $action->preview($ready['actor']->id, $ready['id']);
+    $action->apply($ready['actor']->id, $ready['id'], $review);
+    expect(fn () => ManageAdminArianetOperations::assertHostAvailable(NW05_OLD_IP))->toThrow(RuntimeException::class);
+    expect(fn () => ManageAdminArianetOperations::assertHostAvailable(NW05_NEW_IP))->toThrow(RuntimeException::class);
+    ManageAdminArianetOperations::assertHostAvailable('9.9.9.9');
+    $action->acceptClientTest($ready['actor']->id, $ready['id']);
+    ManageAdminArianetOperations::assertHostAvailable(NW05_OLD_IP);
+    ManageAdminArianetOperations::assertHostAvailable(NW05_NEW_IP);
 });

@@ -7,6 +7,7 @@ use App\Interfaces\Telegram\Support\AdminNodeSetupUi;
 use App\Jobs\InstallRemnawaveNode;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
+use App\Modules\Provisioning\Application\ManageAdminArianetOperations;
 use App\Modules\Provisioning\Application\ManageNodeInstallation;
 use App\Modules\Provisioning\Infrastructure\NodeSetup\NodeSshInstaller;
 use App\Modules\Provisioning\Infrastructure\NodeSetup\NodeSshPreflight;
@@ -111,7 +112,10 @@ it('NW-02 expires only the per-IP admission reservation after five minutes', fun
         Carbon::setTestNow($now->copy()->addMinutes(5)->addSecond());
         expect(Cache::get($reservation))->toBeNull()
             ->and(Cache::get('nw02:status:'.$identifier)['state'])->toBe('queued')
-            ->and(Cache::get('nw02:last:'.$fixture['actor']->id))->toBe($identifier);
+            ->and(Cache::get('nw02:last:'.$fixture['actor']->id))->toBe($identifier)
+            ->and(Cache::get('nw02:active-host:'.$fixture['ready']['ip']))->toBe($identifier);
+        expect(fn () => ManageAdminArianetOperations::assertHostAvailable($fixture['ready']['ip']))->toThrow(RuntimeException::class);
+        ManageAdminArianetOperations::assertHostAvailable('194.5.192.134');
     } finally {
         Carbon::setTestNow();
     }

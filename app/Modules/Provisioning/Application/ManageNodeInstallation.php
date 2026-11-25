@@ -139,6 +139,24 @@ final readonly class ManageNodeInstallation
             throw new RuntimeException('A DNS record cannot be selected without its zone and hostname.');
         }
 
+        return Cache::lock(ManageAdminArianetOperations::hostLock($ip), 90)->block(2, function () use ($actorId, $ready, $ip, $authMode, $replacement, $cloudPurchaseId, $dnsMetadata): string {
+            ManageAdminArianetOperations::assertNoHostOperation($ip);
+            ManageAdminArianetOperations::assertHostAvailable($ip);
+            if ($cloudPurchaseId !== null) {
+                $this->purchases->assertReadyTarget($actorId, $cloudPurchaseId, $ip);
+            }
+
+            return $this->reserve($actorId, $ready, $ip, $authMode, $replacement, $cloudPurchaseId, $dnsMetadata);
+        });
+    }
+
+    /**
+     * @param  array<string,mixed>  $ready
+     * @param  array<string,mixed>|null  $replacement
+     * @param  array<string,mixed>  $dnsMetadata
+     */
+    private function reserve(int $actorId, array $ready, string $ip, string $authMode, ?array $replacement, ?int $cloudPurchaseId, array $dnsMetadata): string
+    {
         $identifier = bin2hex(random_bytes(16));
         $reservation = 'nw02:host:'.$ip;
         // Short admission lease only; the remote bootstrap atomically serializes
@@ -176,13 +194,14 @@ final readonly class ManageNodeInstallation
                 $status['profileUuid'] = $ready['profile']['uuid'];
                 $status['inboundUuid'] = $ready['inbound']['uuid'];
             }
-            Cache::put('nw02:status:'.$identifier, $status, now()->addHours(3));
+            $this->persist($identifier, $status);
             InstallRemnawaveNode::dispatch($identifier);
             // Non-secret pointer for returning to the latest setup from Node management.
             Cache::put('nw02:last:'.$actorId, $identifier, now()->addHours(3));
         } catch (Throwable) {
             Cache::forget('nw02:access:'.$identifier);
             Cache::forget('nw02:status:'.$identifier);
+            Cache::forget('nw02:active-host:'.$ip);
             Cache::forget($reservation);
             throw new RuntimeException('Could not enqueue Node setup.');
         }
@@ -201,6 +220,7 @@ final readonly class ManageNodeInstallation
             $this->guard();
             $access = $this->credentials($identifier);
             $this->access->handle($state['owner']);
+            ManageAdminArianetOperations::assertNoHostOperation($access['ip']);
             if (isset($state['cloudPurchaseId'])) {
                 $this->purchases->assertReadyTarget($state['owner'], $state['cloudPurchaseId'], $access['ip']);
             }
@@ -481,7 +501,19 @@ final readonly class ManageNodeInstallation
     /** @param array<string,mixed> $state */
     private function persist(string $id, array $state): void
     {
-        Cache::put('nw02:status:'.$id, $state, now()->addHours(3));
+        $expires = now()->addHours(3);
+        Cache::put('nw02:status:'.$id, $state, $expires);
+        // Preserve the original five-minute admission lease. This separate
+        // pointer protects Cloud operations while the existing setup is active.
+        $key = 'nw02:active-host:'.$state['ip'];
+        $owner = Cache::get($key);
+        if (in_array($state['state'], ['queued', 'launching', 'started', 'installing', 'starting', 'pending', 'uncertain'], true)) {
+            if ($owner === $id || ($owner === null && Cache::get('nw02:host:'.$state['ip']) === $id)) {
+                Cache::put($key, $id, $expires);
+            }
+        } elseif ($owner === $id) {
+            Cache::forget($key);
+        }
     }
 
     private function guard(): void
