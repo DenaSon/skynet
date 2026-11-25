@@ -18,6 +18,8 @@ class NodeSshInstaller
 
     private const WEB_KEY = '/run/secrets/denagate-node-ssh';
 
+    private const NODE_IMAGE = 'remnawave/node:3.4.6';
+
     public function __construct(private NodeSshPreflight $preflight) {}
 
     public function start(string $ip, int $port, string $user, string $password, string $knownHost, string $secret, string $identifier, string $authMode = 'password'): void
@@ -35,7 +37,7 @@ class NodeSshInstaller
         // SSH transports the script via stdin; it never appears in argv or output.
         $secretEnv = base64_encode('SECRET_KEY='.$secret."\nNODE_PORT=2222\n");
         $compose = "services:\n  remnanode:\n    container_name: remnanode\n    hostname: remnanode\n"
-            ."    image: remnawave/node:3.4.2\n    restart: always\n    network_mode: host\n"
+            .'    image: '.self::NODE_IMAGE."\n    restart: always\n    network_mode: host\n"
             ."    cap_add:\n      - NET_ADMIN\n    env_file:\n      - .env\n";
         $payload = "set -eu\numask 077\n"
             ."[ \"$(id -u)\" -eq 0 ]\n"
