@@ -23,6 +23,7 @@ use App\Modules\Identity\Application\TelegramRecipient;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Application\GetSubscriptionLink;
 use App\Modules\Sales\Application\AdminPendingReceiptFollowup;
+use App\Modules\Sales\Application\AdminSubscriptionLinkResend;
 use App\Modules\Sales\Application\ManualBankPayments;
 use App\Modules\Sales\Application\ReviewSalesPanelRequest;
 use App\Modules\Sales\Application\SalesPanelRequests;
@@ -45,7 +46,7 @@ final readonly class TelegramNotificationSender
         private ManualBankPayments $payments,
     ) {}
 
-    public function send(object $delivery): void
+    public function send(object $delivery): ?string
     {
         $userId = (int) $delivery->recipient_user_id;
         $bot = (string) $delivery->bot_key;
@@ -75,7 +76,7 @@ final readonly class TelegramNotificationSender
             }
             $this->text('admin', $groupChat, $message, null, 'HTML', false);
 
-            return;
+            return null;
         }
 
         $chat = $this->recipients->forActiveUser($userId);
@@ -126,7 +127,7 @@ final readonly class TelegramNotificationSender
                 ."\n\n<b>".TelegramUi::escape((string) $notice->title).'</b>'
                 ."\n\n".TelegramUi::escape((string) $notice->body), null, 'HTML', false);
 
-            return;
+            return null;
         }
 
         if ($delivery->event_type === 'ReferralRewardCredited') {
@@ -153,7 +154,7 @@ final readonly class TelegramNotificationSender
                     ."\n\nاین پاداش پس از اولین خرید و فعال‌سازی موفق دوست معرفی‌شده ثبت شده است.",
                 $keyboard, 'HTML');
 
-            return;
+            return null;
         }
 
         if ($delivery->event_type === 'TrialEnded') {
@@ -182,7 +183,7 @@ final readonly class TelegramNotificationSender
                 throw new NotificationUnavailable('trial_delivery_uncertain');
             }
 
-            return;
+            return null;
         }
 
         if (in_array($delivery->event_type, [TrialWarningNotifications::LOW_TRAFFIC, TrialWarningNotifications::EXPIRING], true)) {
@@ -198,7 +199,7 @@ final readonly class TelegramNotificationSender
                 [['text' => '📋 مشاهده پلن‌ها', 'callback_data' => 'menu:plan-catalog']],
             ]], JSON_THROW_ON_ERROR), 'HTML');
 
-            return;
+            return null;
         }
 
         if ($delivery->event_type === 'TrialActivated') {
@@ -214,7 +215,7 @@ final readonly class TelegramNotificationSender
             $this->text($bot, $chat, "<b>✅ تست رایگان شما فعال شد</b>\n\nحجم: <b>۲۵۰ مگابایت</b> · اعتبار: <b>۲ ساعت</b>\nاز بخش تست رایگان، لینک اتصال را دریافت کنید. برای نصب برنامه، از بخش «💬 پشتیبانی» گزینه «📚 آموزش اتصال و خرید» را انتخاب کنید.",
                 $this->trialMenu($userId, $chat), 'HTML');
 
-            return;
+            return null;
         }
 
         if ($delivery->event_type === 'SalesPanelSubmitted') {
@@ -246,7 +247,7 @@ final readonly class TelegramNotificationSender
                 $keyboard, 'HTML',
             );
 
-            return;
+            return null;
         }
 
         if (in_array($delivery->event_type, ['SalesPanelApproved', 'SalesPanelRejected'], true)) {
@@ -284,7 +285,7 @@ final readonly class TelegramNotificationSender
                     ."\nبرای راهنمایی بیشتر با پشتیبانی گفتگو کنید.";
             $this->text($bot, $chat, $message, $keyboard, 'HTML');
 
-            return;
+            return null;
         }
 
         if ($delivery->event_type === 'WalletTopupSubmitted') {
@@ -336,7 +337,7 @@ final readonly class TelegramNotificationSender
                 // reached Telegram and the photo is available in Admin finance.
             }
 
-            return;
+            return null;
         }
 
         if (in_array($delivery->event_type, ['WalletTopupApproved', 'WalletTopupRejected'], true)) {
@@ -389,7 +390,7 @@ final readonly class TelegramNotificationSender
             $keyboard = json_encode(['inline_keyboard' => $buttons], JSON_THROW_ON_ERROR);
             $this->text($bot, $chat, $message, $keyboard, 'HTML');
 
-            return;
+            return null;
         }
 
         if ($delivery->event_type === 'WalletPurchaseSettled') {
@@ -428,7 +429,7 @@ final readonly class TelegramNotificationSender
             ]]], JSON_THROW_ON_ERROR);
             $this->text($bot, $chat, $message, $keyboard, 'HTML');
 
-            return;
+            return null;
         }
 
         if ($delivery->event_type === 'FulfillmentPlanBlocked') {
@@ -455,7 +456,7 @@ final readonly class TelegramNotificationSender
                 $keyboard, 'HTML',
             );
 
-            return;
+            return null;
         }
 
         if ($delivery->event_type === AdminPendingReceiptFollowup::EVENT) {
@@ -486,7 +487,7 @@ final readonly class TelegramNotificationSender
                 throw new NotificationUnavailable('delivery_uncertain');
             }
 
-            return;
+            return null;
         }
 
         if ($delivery->event_type === 'ReceiptReviewReminder') {
@@ -527,7 +528,7 @@ final readonly class TelegramNotificationSender
             $keyboard = json_encode(['inline_keyboard' => $rows], JSON_THROW_ON_ERROR);
             $this->text($bot, $chat, implode("\n", $lines), $keyboard, 'HTML');
 
-            return;
+            return null;
         }
 
         if ($delivery->event_type === 'ReceiptSubmitted') {
@@ -558,7 +559,7 @@ final readonly class TelegramNotificationSender
             try {
                 $this->photo($bot, $chat, $row->photoFileId, (string) $row->sourceBotKey, $caption, $buttons);
 
-                return;
+                return null;
             } catch (NotificationUnavailable $e) {
                 if ($e->category === 'blocked' || $e->category === 'invalid_bot') {
                     throw $e;
@@ -576,7 +577,7 @@ final readonly class TelegramNotificationSender
 
             $this->text($bot, $chat, $caption."\n\nتصویر فعلاً قابل ارسال نیست؛ برای بررسی از /payments استفاده کنید.");
 
-            return;
+            return null;
         }
 
         if ($delivery->event_type === 'PaymentReviewed') {
@@ -614,7 +615,7 @@ final readonly class TelegramNotificationSender
             // A buyer's payment result is not an Admin reviewer notification.
             $this->text($bot, $chat, $text, notification: false);
 
-            return;
+            return null;
         }
 
         if (in_array($delivery->event_type, ['SubscriptionExpiry24h', 'SubscriptionExpiry1h', 'SubscriptionLowTraffic'], true)) {
@@ -635,7 +636,7 @@ final readonly class TelegramNotificationSender
             ]]], JSON_THROW_ON_ERROR);
             $this->text($bot, $chat, $message, $keyboard, 'HTML');
 
-            return;
+            return null;
         }
 
         if ($delivery->event_type === 'SubscriptionRenewed') {
@@ -663,30 +664,36 @@ final readonly class TelegramNotificationSender
                 "<b>✅ اشتراک شما تمدید شد</b>\n\nسفارش تمدید #{$orderId}\nاعتبار و حجم سرویس قبلی شما به‌روزرسانی شد.",
                 $keyboard, 'HTML');
 
-            return;
+            return null;
         }
 
-        if ($delivery->event_type === 'SubscriptionActivated') {
+        if (in_array($delivery->event_type, ['SubscriptionActivated', AdminSubscriptionLinkResend::EVENT], true)) {
+            $isResend = $delivery->event_type === AdminSubscriptionLinkResend::EVENT;
             $orderId = (int) $delivery->order_id;
             if ($bot !== 'sales' || $orderId < 1) {
                 throw new NotificationUnavailable('invalid_recipient');
             }
 
-            $complete = DB::table('sales_orders as orders')
-                ->join('sales_fulfillment_outbox as outbox', 'outbox.sales_order_id', '=', 'orders.id')
-                ->join('provisioning_order_links as links', 'links.sales_order_id', '=', 'orders.id')
-                ->join('provisioning_subscriptions as service', 'service.id', '=', 'links.provisioning_subscription_id')
-                ->where('orders.id', $orderId)->where('orders.buyer_user_id', $userId)
-                ->where('orders.status', 'fulfilled')->where('outbox.state', 'completed')
-                ->where('service.state', 'active')->exists();
+            if ($isResend) {
+                if (! app(AdminSubscriptionLinkResend::class)->canDeliver($delivery)) {
+                    throw new NotificationUnavailable('obsolete_subscription_link_resend');
+                }
+            } else {
+                $complete = DB::table('sales_orders as orders')
+                    ->join('sales_fulfillment_outbox as outbox', 'outbox.sales_order_id', '=', 'orders.id')
+                    ->join('provisioning_order_links as links', 'links.sales_order_id', '=', 'orders.id')
+                    ->join('provisioning_subscriptions as service', 'service.id', '=', 'links.provisioning_subscription_id')
+                    ->where('orders.id', $orderId)->where('orders.buyer_user_id', $userId)
+                    ->where('orders.status', 'fulfilled')->where('outbox.state', 'completed')
+                    ->where('service.state', 'active')->exists();
 
-            if (! $complete) {
-                throw new NotificationUnavailable('not_active');
+                if (! $complete) {
+                    throw new NotificationUnavailable('not_active');
+                }
             }
 
             // Reuse the existing authenticated owner+provider GET Action.
-            // A temporary RW read failure never hides a verified activation.
-            // Credential data is sent only to this started private Sales chat:
+            // Credential data is sent only to the started private Sales chat:
             // never store it in the outbox, logs or callback data.
             $url = null;
             try {
@@ -694,11 +701,11 @@ final readonly class TelegramNotificationSender
                     ->handle(SubscriptionViewer::telegram($chat), $orderId)->subscriptionUrl;
                 if (strlen($candidate) <= 2048 && filter_var($candidate, FILTER_VALIDATE_URL)
                     && parse_url($candidate, PHP_URL_SCHEME) === 'https'
-                    && preg_match('/[\\x00-\\x20\\x7F]/', $candidate) !== 1) {
+                    && preg_match('/[\x00-\x20\x7F]/', $candidate) !== 1) {
                     $url = $candidate;
                 }
             } catch (Throwable) {
-                // Original connection/QR callback remains available.
+                // The existing customer QR callback remains available as a safe fallback.
             }
 
             $canCopy = $url !== null && mb_strlen($url) <= 256;
@@ -721,11 +728,19 @@ final readonly class TelegramNotificationSender
                 'callback_data' => 'sales:help:apps',
             ]];
 
-            $message = "<b>✅ سرویس شما فعال شد! 🎉</b>\n\nپرداخت سفارش #{$orderId} تأیید شد و سرویس شما آماده استفاده است.";
-            $message .= $url === null
-                ? "\n\nبرای دریافت لینک اتصال یا مشاهده راهنمای نصب از دکمه‌های زیر استفاده کنید."
-                : "\n\n🔗 <b>لینک اتصال اختصاصی</b>\n".TelegramUi::code($url)
+            if ($isResend) {
+                $message = $url === null
+                    ? "<b>⚠️ لینک اتصال فعلاً در دسترس نیست</b>\n\nبرای اشتراک سفارش #{$orderId} لینک مستقیم دریافت نشد. برای تلاش مجدد، دکمه «نمایش QR کد» را انتخاب کنید."
+                    : "<b>🔗 لینک اتصال اشتراک شما</b>\n\nاطلاعات اتصال سفارش #{$orderId} مجدداً ارسال شده است.";
+            } else {
+                $message = "<b>✅ سرویس شما فعال شد! 🎉</b>\n\nپرداخت سفارش #{$orderId} تأیید شد و سرویس شما آماده استفاده است.";
+            }
+            if ($url !== null) {
+                $message .= "\n\n🔗 <b>لینک اتصال اختصاصی</b>\n".TelegramUi::code($url)
                     .($canCopy ? '' : "\nلینک برای دکمه کپی تلگرام بیش از حد طولانی است.");
+            } elseif (! $isResend) {
+                $message .= "\n\nبرای دریافت لینک اتصال یا مشاهده راهنمای نصب از دکمه‌های زیر استفاده کنید.";
+            }
 
             // Telegram's media-caption limit is 1,024 UTF-16 units. Keep a
             // conservative ceiling; one shareable photo holds both QR and URL.
@@ -734,7 +749,7 @@ final readonly class TelegramNotificationSender
             if ($url !== null && mb_strlen($message) <= 800) {
                 $keyboard = json_encode(['inline_keyboard' => $rows], JSON_THROW_ON_ERROR);
                 if ($this->activationQrPhoto($chat, $url, $message, $keyboard)) {
-                    return;
+                    return $isResend ? 'link_included' : null;
                 }
             }
 
@@ -747,7 +762,7 @@ final readonly class TelegramNotificationSender
             $keyboard = json_encode(['inline_keyboard' => $rows], JSON_THROW_ON_ERROR);
             $this->text($bot, $chat, $message, $keyboard, 'HTML', protectContent: $url === null);
 
-            return;
+            return $isResend ? ($url === null ? 'fallback' : 'link_included') : null;
         }
 
         throw new NotificationUnavailable('unsupported_event');

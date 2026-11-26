@@ -6,6 +6,7 @@ namespace App\Interfaces\Telegram\Console;
 
 use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
 use App\Modules\Sales\Application\AdminPendingReceiptFollowup;
+use App\Modules\Sales\Application\AdminSubscriptionLinkResend;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -35,7 +36,7 @@ final class DispatchPendingNotifications extends Command
             // delivered. Operator retries cannot bypass its at-most-once fence.
             $reset = DB::table('telegram_notification_deliveries')
                 ->where('id', (int) $retry)
-                ->whereNotIn('event_type', [AdminPendingReceiptFollowup::EVENT, 'ResellerAnnouncement'])
+                ->whereNotIn('event_type', [AdminPendingReceiptFollowup::EVENT, AdminSubscriptionLinkResend::EVENT, 'ResellerAnnouncement'])
                 ->whereIn('state', ['dead', 'unavailable'])
                 ->update([
                     'state' => 'pending', 'attempts' => 0,
