@@ -1302,7 +1302,7 @@ $bot->onCallbackQueryData('full:service:check:{id}', function (Nutgram $bot, str
     app(AdminSubscriptionStatusUi::class)->check($bot, $id);
 });
 
-$bot->onCallbackQueryData('full:service:resend:apply:{token}', function (Nutgram $bot, string $token): void {
+$bot->onCallbackQueryData('full:service:resend-confirm:{token}', function (Nutgram $bot, string $token): void {
     app(AdminSubscriptionStatusUi::class)->applyResend($bot, $token);
 });
 
