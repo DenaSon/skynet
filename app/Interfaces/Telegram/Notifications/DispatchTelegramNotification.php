@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Telegram\Notifications;
 
+use App\Modules\Sales\Application\AdminSubscriptionLinkResend;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -54,7 +55,8 @@ final class DispatchTelegramNotification implements ShouldQueue
 
         // Broadcasts are one-shot: once a transport attempt starts, an
         // uncertain response or worker crash must never replay a mass message.
-        $state = $row->event_type === 'ResellerAnnouncement' ? 'sending' : 'processing';
+        $state = in_array($row->event_type, ['ResellerAnnouncement', AdminSubscriptionLinkResend::EVENT], true)
+            ? 'sending' : 'processing';
         if ($state === 'sending' && DB::table('telegram_notification_deliveries')
             ->where('id', $this->deliveryId)->where('state', 'processing')
             ->update(['state' => 'sending', 'leased_until' => null, 'updated_at' => now()]) !== 1) {
@@ -62,16 +64,20 @@ final class DispatchTelegramNotification implements ShouldQueue
         }
 
         try {
-            $sender->send($row);
+            $deliveryMode = $sender->send($row);
+            $updates = [
+                'state' => 'sent',
+                'sent_at' => now(),
+                'leased_until' => null,
+                'last_failure' => null,
+                'updated_at' => now(),
+            ];
+            if ($deliveryMode !== null) {
+                $updates['subscription_delivery_mode'] = $deliveryMode;
+            }
 
             DB::table('telegram_notification_deliveries')
-                ->where('id', $this->deliveryId)->where('state', $state)->update([
-                    'state' => 'sent',
-                    'sent_at' => now(),
-                    'leased_until' => null,
-                    'last_failure' => null,
-                    'updated_at' => now(),
-                ]);
+                ->where('id', $this->deliveryId)->where('state', $state)->update($updates);
         } catch (NotificationUnavailable $e) {
             DB::table('telegram_notification_deliveries')
                 ->where('id', $this->deliveryId)->where('state', $state)->update([

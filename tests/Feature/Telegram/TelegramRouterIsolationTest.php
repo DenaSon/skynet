@@ -101,6 +101,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     // ADMIN service history and reason selection remain private Admin routes.
     $expected['ADMIN'][] = 'callback:full:service:history:{id}:{page}';
     $expected['ADMIN'][] = 'callback:full:service:reason:{token}:{reason}';
+    $expected['ADMIN'][] = 'callback:full:service:resend:{id}';
+    $expected['ADMIN'][] = 'callback:full:service:resend:apply:{token}';
     // Root-only manual follow-up of unclaimed direct Sales orders.
     $expected['ADMIN'][] = 'callback:receipt:followup:list:{page}';
     $expected['ADMIN'][] = 'callback:receipt:followup:user:{user}:{page}';
@@ -452,8 +454,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(403)
-        ->and(count(array_unique($legacy)))->toBe(403);
+        ->and(count($legacy))->toBe(405)
+        ->and(count(array_unique($legacy)))->toBe(405);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {

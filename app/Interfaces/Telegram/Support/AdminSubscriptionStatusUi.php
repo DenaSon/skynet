@@ -4,14 +4,17 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Telegram\Support;
 
+use App\Interfaces\Telegram\Notifications\DispatchTelegramNotification;
 use App\Modules\Identity\Application\ResolveTelegramActor;
 use App\Modules\Provisioning\Application\ManageFulfilledSubscriptionStatus;
 use App\Modules\Provisioning\Jobs\ChangeFulfilledSubscriptionStatusJob;
+use App\Modules\Sales\Application\AdminSubscriptionLinkResend;
 use App\Support\PersianCalendar;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
+use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
@@ -24,6 +27,7 @@ final readonly class AdminSubscriptionStatusUi
         private PrivateTelegramUser $private,
         private ResolveTelegramActor $actors,
         private ManageFulfilledSubscriptionStatus $statuses,
+        private AdminSubscriptionLinkResend $resends,
         private MenuRenderer $menus,
     ) {}
 
@@ -77,6 +81,11 @@ final readonly class AdminSubscriptionStatusUi
 
         if ($state === 'unavailable') {
             $message .= "\n\nبرای مشاهده وضعیت دوباره تلاش کنید.";
+        }
+        if ($state === 'active') {
+            $buttons->addRow(InlineKeyboardButton::make(
+                '📨 ارسال مجدد لینک اتصال', callback_data: 'full:service:resend:'.$order,
+            ));
         }
 
         $buttons->addRow(InlineKeyboardButton::make(
@@ -362,6 +371,99 @@ final readonly class AdminSubscriptionStatusUi
         }
     }
 
+    public function prepareResend(Nutgram $bot, string $id): void
+    {
+        $root = $this->root($bot);
+        if ($root === null) {
+            return;
+        }
+        $order = $this->id($id);
+        if ($order === null) {
+            $this->render($bot, 'سفارش معتبر نیست.', $this->back(0));
+
+            return;
+        }
+        try {
+            if (! $this->resends->canRequest($root, $order)) {
+                throw new \RuntimeException('Subscription link resend is unavailable.');
+            }
+        } catch (Throwable) {
+            $this->render($bot,
+                'ارسال مجدد در حال حاضر ممکن نیست؛ وضعیت سرویس و ارتباط مشتری با بات فروش را بررسی کنید.',
+                $this->back($order),
+            );
+
+            return;
+        }
+
+        $token = bin2hex(random_bytes(16));
+        Cache::put($this->resendKey($root, $token), $order, now()->addMinutes(3));
+        $this->render($bot,
+            '⚠️ تأیید ارسال مجدد لینک اتصال'."\n\n"
+                .'لینک اشتراک سفارش #'.$order.' از طریق بات فروش برای مشتری ارسال می‌شود.'
+                ."\n\nآیا تأیید می‌کنید؟",
+            InlineKeyboardMarkup::make()
+                ->addRow(InlineKeyboardButton::make(
+                    '✅ تأیید و ارسال',
+                    callback_data: 'full:service:resend:apply:'.$token,
+                    style: ButtonStyle::SUCCESS,
+                ))
+                ->addRow(InlineKeyboardButton::make(
+                    '◀️ انصراف', callback_data: 'full:service:view:'.$order,
+                )),
+        );
+    }
+
+    public function applyResend(Nutgram $bot, string $token): void
+    {
+        $root = $this->root($bot);
+        if ($root === null) {
+            return;
+        }
+        if (preg_match('/\\A[a-f0-9]{32}\\z/D', $token) !== 1) {
+            $this->render($bot, 'تأیید معتبر نیست.', $this->back(0));
+
+            return;
+        }
+
+        $key = $this->resendKey($root, $token);
+        $cachedOrder = Cache::lock($key.':lock', 10)->block(2, static function () use ($key): mixed {
+            return Cache::pull($key);
+        });
+        $order = match (true) {
+            is_int($cachedOrder) => $cachedOrder,
+            is_string($cachedOrder) && preg_match('/\\A[1-9][0-9]{0,14}\\z/D', $cachedOrder) === 1 => (int) $cachedOrder,
+            default => null,
+        };
+        if ($order === null || $order < 1) {
+            $this->render($bot, 'این تأیید قبلاً استفاده شده یا منقضی شده است.', $this->back(0));
+
+            return;
+        }
+
+        try {
+            if ($this->statuses->status($root, $order) !== 'active') {
+                throw new \RuntimeException('Subscription is no longer active.');
+            }
+            $deliveryId = $this->resends->enqueue($root, $order, $token);
+        } catch (Throwable) {
+            $this->render($bot,
+                'ارسال مجدد انجام نشد؛ وضعیت اشتراک و ارتباط مشتری با بات فروش را دوباره بررسی کنید.',
+                $this->back($order),
+            );
+
+            return;
+        }
+
+        try {
+            DispatchTelegramNotification::dispatch($deliveryId);
+        } catch (Throwable) {
+            // The durable outbox remains pending and the existing dispatcher recovers it.
+        }
+
+        $this->render($bot, '✅ درخواست ارسال مجدد لینک اتصال برای مشتری ثبت شد.', $this->back($order));
+    }
+
     private function root(Nutgram $bot): ?int
     {
         $telegramId = $this->private->id($bot);
@@ -381,6 +483,11 @@ final readonly class AdminSubscriptionStatusUi
     private function id(string $value): ?int
     {
         return preg_match('/\A[1-9][0-9]{0,14}\z/D', $value) === 1 ? (int) $value : null;
+    }
+
+    private function resendKey(int $root, string $token): string
+    {
+        return 'mvp04:subscription-link-resend:'.$root.':'.$token;
     }
 
     private function key(int $root, string $token): string

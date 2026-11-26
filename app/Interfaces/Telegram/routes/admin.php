@@ -1302,6 +1302,14 @@ $bot->onCallbackQueryData('full:service:check:{id}', function (Nutgram $bot, str
     app(AdminSubscriptionStatusUi::class)->check($bot, $id);
 });
 
+$bot->onCallbackQueryData('full:service:resend:apply:{token}', function (Nutgram $bot, string $token): void {
+    app(AdminSubscriptionStatusUi::class)->applyResend($bot, $token);
+});
+
+$bot->onCallbackQueryData('full:service:resend:{id}', function (Nutgram $bot, string $id): void {
+    app(AdminSubscriptionStatusUi::class)->prepareResend($bot, $id);
+});
+
 // RW-BACKUP-01: trusted private root-only backup administration.
 $bot->onCallbackQueryData('admin:rwbackup:list:{page}', function (Nutgram $bot, string $page): void {
     app(AdminRwBackupUi::class)->listing($bot, $page);

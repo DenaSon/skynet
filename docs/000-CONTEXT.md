@@ -1,3 +1,11 @@
+## Admin subscription link resend — Super Admin source implementation (2026-11-26)
+
+- The existing private Super Admin «مدیریت اشتراک» screen exposes «ارسال مجدد لینک اتصال» only when the linked subscription is remotely active.
+- A short-lived actor-bound confirmation creates a durable SubscriptionLinkResent delivery in the existing telegram_notification_deliveries outbox. Delivery is sent only to the buyer's matching reachable private Sales Bot chat.
+- Send-time checks revalidate the trusted requester, fulfilled order, completed fulfillment, active local subscription mapping and Sales Bot destination. The existing owner-verified GetSubscriptionLink action rechecks provider identity, active status, expiry and quota before returning a URL.
+- The existing activation QR/photo, copy button, Subscription Page and help callbacks are reused. The outbox stores no subscription URL; an additive migration records the requester and whether a successful message included the URL or used the QR retrieval fallback.
+- A resend becomes one-shot once Telegram transport starts; an uncertain result cannot be automatically or manually replayed through the generic retry command. No payment, wallet, order status or Remnawave write behavior changes. Source CI and fake Telegram/RW tests do not prove live delivery or client rendering.
+
 ## NW-02 — به‌روزرسانی نسخه نصب‌کننده نود (2026-11-25)
 
 - نصب نودهای جدید با تصویر رسمی `remnawave/node:3.4.6` انجام می‌شود.
