@@ -102,7 +102,7 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:full:service:history:{id}:{page}';
     $expected['ADMIN'][] = 'callback:full:service:reason:{token}:{reason}';
     $expected['ADMIN'][] = 'callback:full:service:resend:{id}';
-    $expected['ADMIN'][] = 'callback:full:service:resend:apply:{token}';
+    $expected['ADMIN'][] = 'callback:full:service:resend-confirm:{token}';
     // Root-only manual follow-up of unclaimed direct Sales orders.
     $expected['ADMIN'][] = 'callback:receipt:followup:list:{page}';
     $expected['ADMIN'][] = 'callback:receipt:followup:user:{user}:{page}';
