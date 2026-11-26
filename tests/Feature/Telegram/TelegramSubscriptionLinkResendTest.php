@@ -227,7 +227,7 @@ it('uses an actor-bound one-time confirmation and queues one durable resend inte
         ->assertRaw(static function (NutgramRequest $request) use (&$token): bool {
             $payload = linkResendPayload($request);
             $buttons = json_encode($payload['reply_markup'], JSON_THROW_ON_ERROR);
-            if (preg_match('/full:service:resend:apply:([a-f0-9]{32})/', $buttons, $matches) !== 1) {
+            if (preg_match('/full:service:resend-confirm:([a-f0-9]{32})/', $buttons, $matches) !== 1) {
                 return false;
             }
             $token = $matches[1];
@@ -242,7 +242,7 @@ it('uses an actor-bound one-time confirmation and queues one durable resend inte
     Http::fake(function (Request $request) use ($order) {
         return Http::response(['response' => linkResendRemote($order)], 200);
     });
-    $bot->hearCallbackQueryData('full:service:resend:apply:'.$token)->reply();
+    $bot->hearCallbackQueryData('full:service:resend-confirm:'.$token)->reply();
 
     $delivery = DB::table('telegram_notification_deliveries')
         ->where('event_type', AdminSubscriptionLinkResend::EVENT)->first();
@@ -255,7 +255,7 @@ it('uses an actor-bound one-time confirmation and queues one durable resend inte
         ->and($delivery->event_key)->toContain('actor:'.$root->id.':'.$token);
     Queue::assertPushed(DispatchTelegramNotification::class, 1);
 
-    $bot->hearCallbackQueryData('full:service:resend:apply:'.$token)->reply();
+    $bot->hearCallbackQueryData('full:service:resend-confirm:'.$token)->reply();
     expect(DB::table('telegram_notification_deliveries')
         ->where('event_type', AdminSubscriptionLinkResend::EVENT)->count())->toBe(1);
     Queue::assertPushed(DispatchTelegramNotification::class, 1);
