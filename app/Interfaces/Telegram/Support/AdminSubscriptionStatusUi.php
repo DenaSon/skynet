@@ -405,7 +405,7 @@ final readonly class AdminSubscriptionStatusUi
             InlineKeyboardMarkup::make()
                 ->addRow(InlineKeyboardButton::make(
                     '✅ تأیید و ارسال',
-                    callback_data: 'full:service:resend:apply:'.$token,
+                    callback_data: 'full:service:resend-confirm:'.$token,
                     style: ButtonStyle::SUCCESS,
                 ))
                 ->addRow(InlineKeyboardButton::make(
