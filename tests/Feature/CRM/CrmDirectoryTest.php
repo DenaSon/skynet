@@ -259,7 +259,40 @@ it('rejects profile snapshot tampering and rechecks the trusted root on updates'
     $url = 'https://crm.denagate.ir'.app(HandleRequests::class)->getUpdateUri();
     $payload = ['components' => [['snapshot' => $snapshot, 'updates' => ['tab' => 'orders'], 'calls' => []]]];
     $this->postJson($url, $payload, ['X-Livewire' => 'true'])->assertOk();
+    config()->set('app.debug', false);
+    $tampered = json_decode($snapshot, true, flags: JSON_THROW_ON_ERROR);
+    $tampered['data']['subjectId'] = $root->id;
+    $this->postJson($url, ['components' => [['snapshot' => json_encode($tampered, JSON_THROW_ON_ERROR), 'updates' => [], 'calls' => []]]], ['X-Livewire' => 'true'])->assertStatus(419);
     config()->set('super_admin.telegram_ids', ['997102', '997103']);
     $this->postJson($url, $payload, ['X-Livewire' => 'true'])->assertForbidden();
+    Http::assertNothingSent();
+});
+
+
+it('returns only local linked services for the selected customer and never calls the provider', function (): void {
+    $root = crm01bUser('super-admin');
+    $member = crm01bUser('member');
+    $other = crm01bUser('member');
+    $own = crm01bOrder($member, 'direct', 100_000);
+    $foreign = crm01bOrder($other, 'direct', 200_000);
+    foreach ([$own, $foreign] as $order) {
+        $subscription = DB::table('provisioning_subscriptions')->insertGetId([
+            'reference' => 'crm-local-'.$order,
+            'remote_username' => 'crm-local-'.$order,
+            'state' => 'active',
+            'last_operation_key' => 'crm-local-'.$order,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('provisioning_order_links')->insert([
+            'sales_order_id' => $order,
+            'provisioning_subscription_id' => $subscription,
+        ]);
+    }
+    $rows = app(ReadCrmProfile::class)->handle($root->id, $member->id, false, crm01cFilters(['tab' => 'services']))['rows'];
+    expect($rows->total())->toBe(1)
+        ->and((int) $rows->items()[0]->id)->toBe($own)
+        ->and($rows->items()[0]->state)->toBe('active')
+        ->and((array) $rows->items()[0])->not->toHaveKey('remote_username');
     Http::assertNothingSent();
 });
