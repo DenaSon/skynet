@@ -1178,6 +1178,51 @@ it('NW-05 creates a credential-free checkpoint for a preinstalled Node and reuse
     expect(nw05MutationCount())->toBe(0);
 });
 
+it('uses the same IPv4 cutover for a verified preinstalled VPS', function (): void {
+    $ready = nw05ReplacementReady();
+    $api = nw05ReplacementApi();
+    Queue::fake();
+    $existing = Cache::get('nw02:status:'.$ready['id']);
+    $identifier = app(ManageNodeInstallation::class)->prepareReadyReplacement($ready['actor']->id, [
+        'name' => $existing['replacement']['name'],
+        'ip' => NW05_NEW_IP,
+        'port' => 22,
+        'username' => 'root',
+        'host' => ['knownHost' => NW05_NEW_IP.' ssh-ed25519 '.base64_encode(str_repeat('x', 32))],
+        'replacement' => $existing['replacement'],
+    ]);
+    $action = app(ReplaceAdminNode::class);
+    $review = $action->preview($ready['actor']->id, $identifier);
+    $action->apply($ready['actor']->id, $identifier, $review);
+    $action->acceptClientTest($ready['actor']->id, $identifier);
+
+    expect($api->node['address'])->toBe(NW05_NEW_IP)
+        ->and($api->hosts[0]['address'])->toBe('fr.coreflare.ir')
+        ->and($action->progress($ready['actor']->id, $identifier)['stage'])->toBe('completed')
+        ->and(nw05MutationCount())->toBe(3);
+    Queue::assertNothingPushed();
+});
+
+it('uses the verified purchased VPS IPv4 for cutover and acceptance', function (): void {
+    $ready = nw05ReplacementReady();
+    $cloud = nw05CloudPurchase($ready['actor']);
+    $api = nw05ReplacementApi();
+    $key = 'nw02:status:'.$ready['id'];
+    $state = Cache::get($key);
+    $state['cloudPurchaseId'] = $cloud['purchase'];
+    Cache::put($key, $state, now()->addHours(3));
+
+    $action = app(ReplaceAdminNode::class);
+    $review = $action->preview($ready['actor']->id, $ready['id']);
+    $action->apply($ready['actor']->id, $ready['id'], $review);
+    $action->acceptClientTest($ready['actor']->id, $ready['id']);
+
+    expect($api->node['address'])->toBe($cloud['server']->ipv4)
+        ->and($api->hosts[0]['address'])->toBe('fr.coreflare.ir')
+        ->and($action->progress($ready['actor']->id, $ready['id'])['stage'])->toBe('completed')
+        ->and(nw05MutationCount())->toBe(3);
+});
+
 it('NW-05 rejects malformed SSH identity and a stale Node snapshot before preparing a ready replacement', function (): void {
     $ready = nw05ReplacementReady();
     nw05ReplacementApi();
