@@ -651,20 +651,37 @@ $bot->onCallbackQueryData('ari7:status:{id}:{page}', function (Nutgram $bot, str
 $bot->onCallbackQueryData('ari7:prepare:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
     app(AdminArianetIpv4CoordinationUi::class)->act($bot, 'prepare', $id, $page);
 });
+$bot->onCallbackQueryData('ari7:plan:{id}:{page}:{operationId}:{version}', function (Nutgram $bot, string $id, string $page, string $operationId, string $version): void {
+    app(AdminArianetIpv4CoordinationUi::class)->act($bot, 'plan', $id, $page, null, $operationId, $version);
+});
+$bot->onCallbackQueryData('ari7:continue:{id}:{page}:{operationId}:{version}', function (Nutgram $bot, string $id, string $page, string $operationId, string $version): void {
+    app(AdminArianetIpv4CoordinationUi::class)->act($bot, 'continue', $id, $page, null, $operationId, $version);
+});
+$bot->onCallbackQueryData('ari7:step:{id}:{page}:{index}:{operationId}:{version}', function (Nutgram $bot, string $id, string $page, string $index, string $operationId, string $version): void {
+    app(AdminArianetIpv4CoordinationUi::class)->act($bot, 'step', $id, $page, $index, $operationId, $version);
+});
+$bot->onCallbackQueryData('ari7:reconcile:{id}:{page}:{operationId}:{version}', function (Nutgram $bot, string $id, string $page, string $operationId, string $version): void {
+    app(AdminArianetIpv4CoordinationUi::class)->act($bot, 'reconcile', $id, $page, null, $operationId, $version);
+});
+$bot->onCallbackQueryData('ari7:accept:{id}:{page}:{operationId}:{version}', function (Nutgram $bot, string $id, string $page, string $operationId, string $version): void {
+    app(AdminArianetIpv4CoordinationUi::class)->act($bot, 'accept', $id, $page, null, $operationId, $version);
+});
+
+// Legacy callbacks are intentionally read-only and cannot target a later journal.
 $bot->onCallbackQueryData('ari7:plan:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
-    app(AdminArianetIpv4CoordinationUi::class)->act($bot, 'plan', $id, $page);
+    app(AdminArianetIpv4CoordinationUi::class)->act($bot, 'prepare', $id, $page);
 });
 $bot->onCallbackQueryData('ari7:continue:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
-    app(AdminArianetIpv4CoordinationUi::class)->act($bot, 'continue', $id, $page);
+    app(AdminArianetIpv4CoordinationUi::class)->act($bot, 'prepare', $id, $page);
 });
 $bot->onCallbackQueryData('ari7:step:{id}:{page}:{index}', function (Nutgram $bot, string $id, string $page, string $index): void {
-    app(AdminArianetIpv4CoordinationUi::class)->act($bot, 'step', $id, $page, $index);
+    app(AdminArianetIpv4CoordinationUi::class)->act($bot, 'prepare', $id, $page);
 });
 $bot->onCallbackQueryData('ari7:reconcile:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
-    app(AdminArianetIpv4CoordinationUi::class)->act($bot, 'reconcile', $id, $page);
+    app(AdminArianetIpv4CoordinationUi::class)->act($bot, 'prepare', $id, $page);
 });
 $bot->onCallbackQueryData('ari7:accept:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
-    app(AdminArianetIpv4CoordinationUi::class)->act($bot, 'accept', $id, $page);
+    app(AdminArianetIpv4CoordinationUi::class)->act($bot, 'prepare', $id, $page);
 });
 
 // ARI-03C: root-only GET impact audit of related Nodes, Hosts and DNS.

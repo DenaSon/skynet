@@ -53,7 +53,7 @@ final readonly class AdminArianetIpv4CoordinationUi
                         ->addRow(InlineKeyboardButton::make('◀️ بررسی اتصال‌ها',
                             callback_data: 'ari6:impact:'.$id.':'.$page))
                         ->addRow(InlineKeyboardButton::make('📋 ساخت برنامه بدون اعمال تغییر',
-                            callback_data: 'ari7:plan:'.$id.':'.$page));
+                            callback_data: 'ari7:plan:'.$id.':'.$page.':'.$operation['id'].':2'));
                 }
             } else {
                 $message .= "\nابتدا نتیجه تغییر IP باید در آریاسرویس تأیید شود.";
@@ -100,13 +100,13 @@ final readonly class AdminArianetIpv4CoordinationUi
             if ($index !== null && $state['steps'][$index]['state'] === 'ready') {
                 $buttons->addRow(InlineKeyboardButton::make(
                     $state['version'] === 1 ? '🔄 ادامه هماهنگی DNS' : '🔴 تأیید و اجرای هماهنگی دامنه‌ها و نود',
-                    callback_data: 'ari7:continue:'.$id.':'.$page));
+                    callback_data: 'ari7:continue:'.$id.':'.$page.':'.$state['operationId'].':'.$state['version']));
             } elseif ($index !== null && $state['steps'][$index]['state'] === 'uncertain') {
                 $buttons->addRow(InlineKeyboardButton::make('🔎 بررسی نتیجه با GET (بدون تکرار)',
-                    callback_data: 'ari7:reconcile:'.$id.':'.$page));
+                    callback_data: 'ari7:reconcile:'.$id.':'.$page.':'.$state['operationId'].':'.$state['version']));
             } elseif ($state['stage'] === 'awaiting_client_test') {
                 $buttons->addRow(InlineKeyboardButton::make('✅ تست واقعی اتصال کاربران انجام شد',
-                    callback_data: 'ari7:accept:'.$id.':'.$page));
+                    callback_data: 'ari7:accept:'.$id.':'.$page.':'.$state['operationId'].':'.$state['version']));
             }
         }
         $buttons->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی وضعیت',
@@ -125,25 +125,46 @@ final readonly class AdminArianetIpv4CoordinationUi
         $this->render($bot, $plain."\n\n🔒 ".TelegramUi::escape($notice), $buttons, $rich);
     }
 
-    public function act(Nutgram $bot, string $action, string $rawId, string $rawPage, ?string $rawStep = null): void
+    public function act(
+        Nutgram $bot,
+        string $action,
+        string $rawId,
+        string $rawPage,
+        ?string $rawStep = null,
+        ?string $rawOperationId = null,
+        ?string $rawVersion = null,
+    ): void
     {
         $resolved = $this->actorAndIds($bot, $rawId, $rawPage);
         if ($resolved === null) {
             return;
         }
         [$actor, $id, $page] = $resolved;
+        $operationId = self::positive($rawOperationId ?? '', PHP_INT_MAX);
+        $version = self::version($rawVersion);
+        if (in_array($action, ['plan', 'continue', 'step', 'reconcile', 'accept'], true)
+            && ($operationId === null || $version === null)) {
+            $this->render($bot, 'این دکمه قدیمی یا نامعتبر است؛ وضعیت عملیات را تازه‌سازی کنید.',
+                InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make(
+                    '🔄 تازه‌سازی وضعیت', callback_data: 'ari7:status:'.$id.':'.$page)));
+
+            return;
+        }
         try {
             match ($action) {
-                // Old DNS-only buttons may not authorize a new Node write.
+                // Old callbacks deliberately become read-only; they cannot authorize a new journal.
                 'prepare' => null,
-                'plan' => $this->coordination->prepare($actor, $id),
-                'continue' => $this->coordination->continueDns($actor, $id),
-                'step' => ($this->coordination->status($actor, $id)['version'] ?? null) === 1
+                'plan' => $version === 2
+                    ? $this->coordination->prepare($actor, $id, $operationId)
+                    : throw new \RuntimeException('Invalid plan version.'),
+                'continue' => $this->coordination->continueDns($actor, $id, $operationId, $version),
+                'step' => $version === 1
                     ? $this->coordination->executeNext($actor, $id,
-                        self::step($rawStep) ?? throw new \RuntimeException('Invalid step index.'))
+                        self::step($rawStep) ?? throw new \RuntimeException('Invalid step index.'),
+                        $operationId, $version)
                     : null,
-                'reconcile' => $this->coordination->reconcile($actor, $id),
-                'accept' => $this->coordination->acceptClientTest($actor, $id),
+                'reconcile' => $this->coordination->reconcile($actor, $id, $operationId, $version),
+                'accept' => $this->coordination->acceptClientTest($actor, $id, $operationId, $version),
                 default => throw new \RuntimeException('Invalid action.'),
             };
         } catch (Throwable) {
@@ -196,6 +217,11 @@ final readonly class AdminArianetIpv4CoordinationUi
         $value = filter_var($raw, FILTER_VALIDATE_INT);
 
         return is_int($value) && $value <= $max ? $value : null;
+    }
+
+    private static function version(?string $raw): ?int
+    {
+        return in_array($raw, ['1', '2'], true) ? (int) $raw : null;
     }
 
     private static function step(?string $raw): ?int
