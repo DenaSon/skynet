@@ -485,9 +485,49 @@ it('blocks new coordination without Remnawave writes enabled', function (): void
 it('stale DNS-only callback cannot authorize the Node write', function (): void {
     ari8Ready();
     $api = ari8Provider();
-    ari8Bot()->hearCallbackQueryData('ari7:prepare:'.ARI8_SERVER.':1')->reply();
+    ari8Bot()->hearCallbackQueryData('ari7:continue:'.ARI8_SERVER.':1')->reply();
     expect($api->mutations)->toBe([])
         ->and(DB::table('arianet_cloud_ipv4_changes')->value('coordination_state'))->toBeNull();
+});
+
+it('rejects an old v1 callback after a newer IPv4 operation becomes active', function (): void {
+    $root = ari8Ready();
+    $api = ari8Provider();
+    $service = app(CoordinateAdminArianetIpv4::class);
+    $service->prepare($root['user']->id, ARI8_SERVER);
+    $oldId = $service->status($root['user']->id, ARI8_SERVER)['operationId'];
+    $oldRow = DB::table('arianet_cloud_ipv4_changes')->where('id', $oldId)->first();
+    $oldState = json_decode((string) $oldRow->coordination_state, true, flags: JSON_THROW_ON_ERROR);
+    $oldState['version'] = 1;
+    array_pop($oldState['steps']);
+
+    DB::table('arianet_cloud_ipv4_changes')->where('id', $oldId)->update([
+        'status' => 'completed',
+        'active_server_id' => null,
+        'coordination_state' => json_encode($oldState, JSON_THROW_ON_ERROR),
+    ]);
+
+    $newRow = (array) $oldRow;
+    unset($newRow['id']);
+    $newRow['status'] = 'awaiting_coordination';
+    $newRow['active_server_id'] = ARI8_SERVER;
+    $newRow['coordination_state'] = null;
+    $newRow['token_hash'] = hash('sha256', 'ari8-next-operation');
+    $newRow['old_ipv4'] = ARI8_NEW;
+    $newRow['new_ipv4'] = '130.94.2.8';
+    $newRow['action_id'] = 89;
+    $newRow['created_at'] = now();
+    $newRow['updated_at'] = now();
+    $newRow['expires_at'] = now()->addMinutes(10);
+    $newId = DB::table('arianet_cloud_ipv4_changes')->insertGetId($newRow);
+
+    ari8Bot()->hearCallbackQueryData(
+        'ari7:continue:'.ARI8_SERVER.':1:'.$oldId.':1',
+    )->reply();
+
+    expect($newId)->not->toBe($oldId)
+        ->and(DB::table('arianet_cloud_ipv4_changes')->where('id', $newId)->value('coordination_state'))->toBeNull()
+        ->and($api->mutations)->toBe([]);
 });
 
 it('denies non-root and altered actor access to coordination records', function (): void {
@@ -533,6 +573,7 @@ it('shows a single DNS continuation action in private Rich RTL status', function
     ari8Provider();
     $service = app(CoordinateAdminArianetIpv4::class);
     $service->prepare($root['user']->id, ARI8_SERVER);
+    $operationId = $service->status($root['user']->id, ARI8_SERVER)['operationId'];
 
     ari8Bot()->hearCallbackQueryData('ari7:status:'.ARI8_SERVER.':1')->reply()
         ->assertRaw(static function (NutgramRequest $request): bool {
@@ -545,7 +586,7 @@ it('shows a single DNS continuation action in private Rich RTL status', function
             return ($rich['is_rtl'] ?? false) === true
                 && str_contains((string) ($rich['html'] ?? ''), 'هماهنگی اتصال‌ها')
                 && str_contains((string) ($rich['html'] ?? ''), 'fr.coreflare.ir')
-                && str_contains($buttons, 'ari7:continue:'.ARI8_SERVER.':1')
+                && str_contains($buttons, 'ari7:continue:'.ARI8_SERVER.':1:'.$operationId.':2')
                 && str_contains($buttons, 'ari6:impact:'.ARI8_SERVER.':1')
                 && ! str_contains($buttons, 'ari7:step:'.ARI8_SERVER.':1:1');
         }, index: 1);
@@ -556,8 +597,9 @@ it('shows a single DNS continuation action in private Rich RTL status', function
 it('shows the complete read-only plan before the explicit provider-write confirmation', function (): void {
     $root = ari8Ready();
     $api = ari8Provider();
+    $operationId = DB::table('arianet_cloud_ipv4_changes')->where('cloud_server_id', ARI8_SERVER)->value('id');
 
-    ari8Bot()->hearCallbackQueryData('ari7:plan:'.ARI8_SERVER.':1')->reply()
+    ari8Bot()->hearCallbackQueryData('ari7:plan:'.ARI8_SERVER.':1:'.$operationId.':2')->reply()
         ->assertRaw(static function (NutgramRequest $request): bool {
             $data = ari8Payload($request);
             $rich = is_string($data['rich_message'] ?? null)
@@ -569,13 +611,14 @@ it('shows the complete read-only plan before the explicit provider-write confirm
             return str_contains($html, 'fr.coreflare.ir')
                 && str_contains($html, 'IP مدیریتی')
                 && str_contains($html, 'GermanyOVH')
-                && str_contains($buttons, 'ari7:continue:'.ARI8_SERVER.':1');
+                && str_contains($buttons, 'ari7:continue:'.ARI8_SERVER.':1:'.$operationId.':2');
         }, index: 1);
 
     expect($api->mutations)->toBe([])
         ->and(app(CoordinateAdminArianetIpv4::class)->status($root['user']->id, ARI8_SERVER)['stage'])->toBe('ready');
 
-    ari8Bot()->hearCallbackQueryData('ari7:continue:'.ARI8_SERVER.':1')->reply();
+    $state = app(CoordinateAdminArianetIpv4::class)->status($root['user']->id, ARI8_SERVER);
+    ari8Bot()->hearCallbackQueryData('ari7:continue:'.ARI8_SERVER.':1:'.$state['operationId'].':'.$state['version'])->reply();
     expect($api->mutations)->toBe(['dns:fr.coreflare.ir', 'node:'.ARI8_NODE])
         ->and(app(CoordinateAdminArianetIpv4::class)->status($root['user']->id, ARI8_SERVER)['stage'])
         ->toBe('awaiting_client_test');
@@ -588,6 +631,7 @@ it('keeps GET-only reconciliation and client acceptance available when Node writ
     $api->nodeWriteApplied = true;
     $service = app(CoordinateAdminArianetIpv4::class);
     $service->prepare($root['user']->id, ARI8_SERVER);
+    $operation = $service->status($root['user']->id, ARI8_SERVER);
 
     expect(fn () => $service->continueDns($root['user']->id, ARI8_SERVER))
         ->toThrow(RuntimeException::class, 'reconciliation');
@@ -598,10 +642,10 @@ it('keeps GET-only reconciliation and client acceptance available when Node writ
         ->assertRaw(static function (NutgramRequest $request): bool {
             $buttons = json_encode(ari8Payload($request)['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
 
-            return str_contains($buttons, 'ari7:reconcile:'.ARI8_SERVER.':1');
+            return str_contains($buttons, 'ari7:reconcile:'.ARI8_SERVER.':1:'.$operation['operationId'].':2');
         }, index: 1);
 
-    ari8Bot()->hearCallbackQueryData('ari7:reconcile:'.ARI8_SERVER.':1')->reply();
+    ari8Bot()->hearCallbackQueryData('ari7:reconcile:'.ARI8_SERVER.':1:'.$operation['operationId'].':2')->reply();
     expect($service->status($root['user']->id, ARI8_SERVER)['stage'])->toBe('awaiting_client_test')
         ->and($api->mutations)->toBe(['dns:fr.coreflare.ir', 'node:'.ARI8_NODE]);
 
@@ -609,10 +653,10 @@ it('keeps GET-only reconciliation and client acceptance available when Node writ
         ->assertRaw(static function (NutgramRequest $request): bool {
             $buttons = json_encode(ari8Payload($request)['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
 
-            return str_contains($buttons, 'ari7:accept:'.ARI8_SERVER.':1');
+            return str_contains($buttons, 'ari7:accept:'.ARI8_SERVER.':1:'.$operation['operationId'].':2');
         }, index: 1);
 
-    ari8Bot()->hearCallbackQueryData('ari7:accept:'.ARI8_SERVER.':1')->reply();
+    ari8Bot()->hearCallbackQueryData('ari7:accept:'.ARI8_SERVER.':1:'.$operation['operationId'].':2')->reply();
     expect($service->status($root['user']->id, ARI8_SERVER)['stage'])->toBe('completed')
         ->and($api->mutations)->toHaveCount(2);
 });
@@ -620,22 +664,24 @@ it('keeps GET-only reconciliation and client acceptance available when Node writ
 it('denies root-only staged operations in group chats and to non-trusted users', function (): void {
     ari8Ready(false);
     Http::fake();
-    ari8Bot()->hearCallbackQueryData('ari7:plan:'.ARI8_SERVER.':1')->reply()
+    $operationId = DB::table('arianet_cloud_ipv4_changes')->where('cloud_server_id', ARI8_SERVER)->value('id');
+    ari8Bot()->hearCallbackQueryData('ari7:plan:'.ARI8_SERVER.':1:'.$operationId.':2')->reply()
         ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.']);
-    ari8Bot(private: false)->hearCallbackQueryData('ari7:plan:'.ARI8_SERVER.':1')->reply();
+    ari8Bot(private: false)->hearCallbackQueryData('ari7:plan:'.ARI8_SERVER.':1:'.$operationId.':2')->reply();
     Http::assertNothingSent();
 });
 
 it('keeps DNS continuation visible on Production only for an active changed IP', function (): void {
     ari8Ready();
     Http::fake();
+    $operationId = DB::table('arianet_cloud_ipv4_changes')->where('cloud_server_id', ARI8_SERVER)->value('id');
     app()->detectEnvironment(static fn (): string => 'production');
     try {
         ari8Bot()->hearCallbackQueryData('ari7:status:'.ARI8_SERVER.':1')->reply()
             ->assertRaw(static function (NutgramRequest $request): bool {
                 $buttons = json_encode(ari8Payload($request)['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
 
-                return str_contains($buttons, 'ari7:plan:'.ARI8_SERVER.':1')
+                return str_contains($buttons, 'ari7:plan:'.ARI8_SERVER.':1:'.$operationId.':2')
                     && ! str_contains($buttons, 'ari7:step:')
                     && str_contains($buttons, 'ari6:impact:'.ARI8_SERVER.':1');
             }, index: 1);

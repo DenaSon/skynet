@@ -392,9 +392,13 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:ari8:r:{id}:{uuid}';
     // ARI-03C2: Admin-only staged coordination, one step per confirmation.
     foreach ([
-        'status:{id}:{page}', 'plan:{id}:{page}', 'prepare:{id}:{page}',
-        'continue:{id}:{page}', 'step:{id}:{page}:{index}', 'reconcile:{id}:{page}',
-        'accept:{id}:{page}',
+        'status:{id}:{page}',
+        'plan:{id}:{page}:{operationId}:{version}', 'plan:{id}:{page}',
+        'prepare:{id}:{page}',
+        'continue:{id}:{page}:{operationId}:{version}', 'continue:{id}:{page}',
+        'step:{id}:{page}:{index}:{operationId}:{version}', 'step:{id}:{page}:{index}',
+        'reconcile:{id}:{page}:{operationId}:{version}', 'reconcile:{id}:{page}',
+        'accept:{id}:{page}:{operationId}:{version}', 'accept:{id}:{page}',
     ] as $name) {
         $expected['ADMIN'][] = 'callback:ari7:'.$name;
     }
@@ -457,8 +461,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(410)
-        ->and(count(array_unique($legacy)))->toBe(410);
+        ->and(count($legacy))->toBe(415)
+        ->and(count(array_unique($legacy)))->toBe(415);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {
