@@ -1570,3 +1570,77 @@ it('sorts reseller contacts by order ID and date in grouped and ungrouped profil
     expect(strpos($rendered, 'Newer date'))->toBeLessThan(strpos($rendered, 'Older date'));
     Http::assertNothingSent();
 });
+
+it('loads the selected preset name without applying it and clears stale or foreign selections', function (): void {
+    $root = crm01bUser('super-admin');
+    $otherRoot = User::factory()->create();
+    $otherRoot->syncRoles(['super-admin']);
+    TelegramAccount::query()->create(['user_id' => $otherRoot->id, 'telegram_user_id' => 997102]);
+    $buyer = crm01bUser('member');
+    crm01bUser('member');
+    crm01bUser('member');
+    crm01bOrder($buyer, 'direct', 100_000);
+
+    $manager = app(ManageCrmSavedFilters::class);
+    $criteria = crm01bFilters(['segment' => 'off', 'advancedMode' => 'and', 'advancedConditions' => []]);
+    $firstId = $manager->save($root->id, 'Preset A', [...$criteria, 'purchase' => 'yes']);
+    $secondId = $manager->save($root->id, 'Preset B', [...$criteria, 'purchase' => 'no']);
+    $foreignId = $manager->save($otherRoot->id, 'Private preset', $criteria);
+
+    $html = $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm/customers')
+        ->assertOk()->getContent() ?: '';
+    expect(preg_match('/wire:snapshot="([^"]+)"/', $html, $matches))->toBe(1);
+    $snapshot = htmlspecialchars_decode($matches[1], ENT_QUOTES);
+    $url = 'https://crm.denagate.ir'.app(HandleRequests::class)->getUpdateUri();
+    $send = function (string $state, array $updates = [], array $calls = []) use ($url) {
+        return $this->postJson($url, ['components' => [[
+            'snapshot' => $state,
+            'updates' => $updates,
+            'calls' => $calls,
+        ]]], ['X-Livewire' => 'true'])->assertOk();
+    };
+
+    $selectedFirst = $send($snapshot, ['savedFilterId' => (string) $firstId]);
+    $firstState = json_decode($selectedFirst->json('components.0.snapshot'), true, flags: JSON_THROW_ON_ERROR);
+    expect($firstState['data']['savedFilterName'])->toBe('Preset A');
+
+    $appliedFirst = $send($selectedFirst->json('components.0.snapshot'), [], [
+        ['path' => '', 'method' => 'applySavedFilter', 'params' => []],
+    ]);
+    $appliedHtml = $appliedFirst->json('components.0.effects.html');
+    expect($appliedHtml)->toContain('فیلتر اعمال شد.', 'تعداد نتایج: ۱');
+
+    $selectedSecond = $send($appliedFirst->json('components.0.snapshot'), ['savedFilterId' => (string) $secondId]);
+    $secondState = json_decode($selectedSecond->json('components.0.snapshot'), true, flags: JSON_THROW_ON_ERROR);
+    $selectedHtml = $selectedSecond->json('components.0.effects.html');
+    expect($secondState['data']['savedFilterName'])->toBe('Preset B')
+        ->and($selectedHtml)->not->toContain('فیلتر اعمال شد.')
+        ->and($selectedHtml)->toContain('تعداد نتایج: ۱', 'فیلتر «Preset B»');
+
+    $updatedSecond = $send($selectedSecond->json('components.0.snapshot'), ['savedFilterName' => 'Preset B renamed'], [
+        ['path' => '', 'method' => 'updateSavedFilter', 'params' => []],
+    ]);
+    expect($updatedSecond->json('components.0.effects.html'))->toContain('فیلتر ذخیره شد.');
+    $savedSecond = $manager->load($root->id, $secondId);
+    expect($savedSecond['name'])->toBe('Preset B renamed')
+        ->and($savedSecond['criteria']['purchase'])->toBe('yes');
+
+    $foreignSelection = $send($updatedSecond->json('components.0.snapshot'), ['savedFilterId' => (string) $foreignId]);
+    $foreignState = json_decode($foreignSelection->json('components.0.snapshot'), true, flags: JSON_THROW_ON_ERROR);
+    $foreignHtml = $foreignSelection->json('components.0.effects.html');
+    expect($foreignState['data']['savedFilterId'])->toBe('')
+        ->and($foreignState['data']['savedFilterName'])->toBe('')
+        ->and($foreignHtml)->toContain('فیلتر انتخاب‌شده یافت نشد.')
+        ->and($foreignHtml)->not->toContain('Private preset');
+
+    $selectedAgain = $send($foreignSelection->json('components.0.snapshot'), ['savedFilterId' => (string) $secondId]);
+    $manager->delete($root->id, $secondId);
+    $staleAction = $send($selectedAgain->json('components.0.snapshot'), [], [
+        ['path' => '', 'method' => 'applySavedFilter', 'params' => []],
+    ]);
+    $staleState = json_decode($staleAction->json('components.0.snapshot'), true, flags: JSON_THROW_ON_ERROR);
+    expect($staleState['data']['savedFilterId'])->toBe('')
+        ->and($staleState['data']['savedFilterName'])->toBe('')
+        ->and($staleAction->json('components.0.effects.html'))->toContain('فیلتر انتخاب‌شده یافت نشد.');
+    Http::assertNothingSent();
+});
