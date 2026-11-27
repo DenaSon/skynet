@@ -21,7 +21,9 @@ final readonly class EnsureCrmAccess
         $actorUserId = Auth::guard('web')->id();
 
         if (! is_numeric($actorUserId) || (int) $actorUserId < 1) {
-            return redirect()->guest(route('login'));
+            session()->put('url.intended', route('crm.dashboard'));
+
+            return redirect()->route('login');
         }
 
         // Re-load the actor and re-check the full SuperAdminTrust contract on every request.

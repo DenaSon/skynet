@@ -42,9 +42,11 @@ it('redirects the CRM host root to the private dashboard', function (): void {
         ->assertHeader('Cache-Control', 'no-store, private');
 });
 
-it('redirects guests to the existing login route over HTTPS', function (): void {
-    $this->get('https://crm.denagate.ir/admin/crm')
-        ->assertRedirect('https://crm.denagate.ir/login');
+it('redirects guests to the existing login route and stores an HTTPS intended URL', function (): void {
+    $this->withHeader('X-Forwarded-Proto', 'https')
+        ->get('http://crm.denagate.ir/admin/crm')
+        ->assertRedirect('https://crm.denagate.ir/login')
+        ->assertSessionHas('url.intended', 'https://crm.denagate.ir/admin/crm');
 });
 
 it('renders the isolated Mary UI shell for a trusted Super Admin', function (): void {
