@@ -330,7 +330,7 @@ final readonly class ManageAdminNodes
     public function validateRegistrationIdentity(int $actorId, string $name, string $address): void
     {
         $this->validateIdentity($actorId, $name, $address);
-        if (filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_GLOBAL_RANGE) === false
+        if (filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_GLOBAL_RANGE) !== $address
             || (int) explode('.', $address)[0] >= 224) {
             throw ValidationException::withMessages(['node' => 'A public unicast IPv4 address is required.']);
         }
