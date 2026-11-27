@@ -1573,8 +1573,9 @@ it('sorts reseller contacts by order ID and date in grouped and ungrouped profil
 
 it('loads the selected preset name without applying it and clears stale or foreign selections', function (): void {
     $root = crm01bUser('super-admin');
-    $otherRoot = crm01bUser('super-admin');
-    TelegramAccount::query()->where('user_id', $otherRoot->id)->update(['telegram_user_id' => 997102]);
+    $otherRoot = User::factory()->create();
+    $otherRoot->syncRoles(['super-admin']);
+    TelegramAccount::query()->create(['user_id' => $otherRoot->id, 'telegram_user_id' => 997102]);
     $buyer = crm01bUser('member');
     crm01bUser('member');
     crm01bUser('member');
