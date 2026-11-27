@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Modules\Identity\Application\ReadCrmDirectory;
+use App\Modules\Identity\Application\ReadCrmProfile;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Sales\Application\ReadAdminBusinessReport;
@@ -14,6 +15,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
 use Livewire\Mechanisms\HandleRequests\HandleRequests;
 use Spatie\Permission\Models\Role;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 uses(RefreshDatabase::class);
 
@@ -184,4 +186,123 @@ it('rechecks authority on real Livewire requests from all three new directories'
         $this->postJson($updateUrl, $payload, ['X-Livewire' => 'true'])->assertForbidden();
         config()->set('super_admin.telegram_ids', ['997101', '997102']);
     }
+});
+
+/** @return array<string, mixed> */
+function crm01cFilters(array $overrides = []): array
+{
+    return array_replace([
+        'tab' => 'overview',
+        'period' => 'all',
+        'status' => 'all',
+        'search' => '',
+        'phone' => 'all',
+        'purchase' => 'all',
+        'groupContacts' => false,
+        'page' => 1,
+    ], $overrides);
+}
+
+it('scopes CRM profiles, canonical settlement history and contacts to their account', function (): void {
+    $root = crm01bUser('super-admin');
+    $member = crm01bUser('member');
+    $reseller = crm01bUser('reseller');
+    $other = crm01bUser('reseller');
+    $order = crm01bOrder($reseller, 'reseller', 200_000);
+    $unknown = crm01bOrder($reseller, null, 100_000);
+    $pending = crm01bOrder($reseller, 'reseller', 900_000, 'pending_payment', false);
+    $foreign = crm01bOrder($other, 'reseller', 500_000);
+    foreach ([$order, $pending, $foreign] as $id) {
+        DB::table('sales_service_customer_labels')->insert(['sales_order_id' => $id, 'label' => 'Fixture', 'phone' => '+989121234567']);
+    }
+    $reader = app(ReadCrmProfile::class);
+    $overview = $reader->handle($root->id, $reseller->id, true, crm01cFilters());
+    expect($overview['summary']['reseller'])->toBe(200_000)
+        ->and($overview['summary']['unknown'])->toBe(100_000)
+        ->and($overview['summary']['noContact'])->toBe(1)
+        ->and($overview['summary']['phones'])->toBe(1)
+        ->and($overview['walletState'])->toBe('available');
+    $orders = $reader->handle($root->id, $reseller->id, true, crm01cFilters(['tab' => 'orders', 'status' => 'pending_payment']))['rows'];
+    expect($orders->total())->toBe(1)->and((int) $orders->items()[0]->id)->toBe($pending);
+    $payments = $reader->handle($root->id, $reseller->id, true, crm01cFilters(['tab' => 'payments']))['rows'];
+    expect($payments->total())->toBe(2)
+        ->and(collect($payments->items())->pluck('order_id')->map(fn ($id) => (int) $id)->all())->toContain($order, $unknown);
+    $contacts = $reader->handle($root->id, $reseller->id, true, crm01cFilters(['tab' => 'contacts', 'groupContacts' => true]))['rows'];
+    expect($contacts->total())->toBe(1)->and((int) $contacts->items()[0]->records_count)->toBe(2);
+    expect(fn () => $reader->handle($root->id, $reseller->id, false, crm01cFilters()))->toThrow(NotFoundHttpException::class);
+    expect(fn () => $reader->handle($member->id, $reseller->id, true, crm01cFilters()))->toThrow(AuthorizationException::class);
+    Http::assertNothingSent();
+});
+
+it('renders CRM account profiles only for trusted roots and rejects incorrect cohorts', function (): void {
+    $root = crm01bUser('super-admin');
+    $member = crm01bUser('member');
+    $reseller = crm01bUser('reseller');
+    $base = 'https://crm.denagate.ir/admin/crm';
+    $this->actingAs($member, 'web')->get($base.'/customers/'.$member->id)->assertForbidden();
+    $this->actingAs($root, 'web')->get($base.'/customers/'.$member->id)->assertOk()->assertSee('پرونده مشتری');
+    $this->get($base.'/resellers/'.$reseller->id)->assertOk()->assertSee('پرونده نماینده');
+    $this->get($base.'/customers/'.$reseller->id)->assertNotFound();
+    $this->get($base.'/resellers/'.$member->id)->assertNotFound();
+    $this->get($base.'/customers/'.$root->id)->assertNotFound();
+    $this->get($base.'/customers/99999999')->assertNotFound();
+    Http::assertNothingSent();
+});
+
+it('rejects profile snapshot tampering and rechecks the trusted root on updates', function (): void {
+    $root = crm01bUser('super-admin');
+    $member = crm01bUser('member');
+    $page = $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm/customers/'.$member->id)->assertOk();
+    $html = $page->getContent() ?: '';
+    expect(preg_match('/wire:snapshot="([^"]+)"/', $html, $matches))->toBe(1);
+    $snapshot = htmlspecialchars_decode($matches[1], ENT_QUOTES);
+    $url = 'https://crm.denagate.ir'.app(HandleRequests::class)->getUpdateUri();
+    $payload = ['components' => [['snapshot' => $snapshot, 'updates' => ['tab' => 'orders'], 'calls' => []]]];
+    $this->postJson($url, $payload, ['X-Livewire' => 'true'])->assertOk();
+    config()->set('app.debug', false);
+    $tampered = json_decode($snapshot, true, flags: JSON_THROW_ON_ERROR);
+    $tampered['data']['subjectId'] = $root->id;
+    $this->postJson($url, ['components' => [['snapshot' => json_encode($tampered, JSON_THROW_ON_ERROR), 'updates' => [], 'calls' => []]]], ['X-Livewire' => 'true'])->assertStatus(419);
+    config()->set('super_admin.telegram_ids', ['997102', '997103']);
+    $this->postJson($url, $payload, ['X-Livewire' => 'true'])->assertForbidden();
+    Http::assertNothingSent();
+});
+
+it('returns only local linked services for the selected customer and never calls the provider', function (): void {
+    $root = crm01bUser('super-admin');
+    $member = crm01bUser('member');
+    $other = crm01bUser('member');
+    $own = crm01bOrder($member, 'direct', 100_000);
+    $foreign = crm01bOrder($other, 'direct', 200_000);
+    foreach ([$own, $foreign] as $order) {
+        $subscription = DB::table('provisioning_subscriptions')->insertGetId([
+            'reference' => 'crm-local-'.$order,
+            'remote_username' => 'crm-local-'.$order,
+            'state' => 'active',
+            'last_operation_key' => 'crm-local-'.$order,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('provisioning_order_links')->insert([
+            'sales_order_id' => $order,
+            'provisioning_subscription_id' => $subscription,
+        ]);
+    }
+    $rows = app(ReadCrmProfile::class)->handle($root->id, $member->id, false, crm01cFilters(['tab' => 'services']))['rows'];
+    expect($rows->total())->toBe(1)
+        ->and((int) $rows->items()[0]->id)->toBe($own)
+        ->and($rows->items()[0]->state)->toBe('active')
+        ->and((array) $rows->items()[0])->not->toHaveKey('remote_username');
+    Http::assertNothingSent();
+});
+
+it('renders real profile links for populated directories and dashboard', function (): void {
+    $root = crm01bUser('super-admin');
+    $member = crm01bUser('member');
+    $reseller = crm01bUser('reseller');
+    crm01bOrder($reseller, 'reseller', 100_000);
+    $base = 'https://crm.denagate.ir/admin/crm';
+    $this->actingAs($root, 'web')->get($base.'/customers')->assertOk()->assertSee($base.'/customers/'.$member->id, false);
+    $this->get($base.'/resellers')->assertOk()->assertSee($base.'/resellers/'.$reseller->id, false);
+    $this->get($base)->assertOk()->assertSee($base.'/resellers/'.$reseller->id, false);
 });

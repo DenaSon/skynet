@@ -17,6 +17,9 @@
 </x-card>
 <x-card title="نمایندگان برتر" subtitle="بر اساس خرید تسویه‌شده نزد دناگیت، نه فروش خرده‌فروشی نماینده" class="border border-base-300">
     <x-table :headers="[['key' => 'name', 'label' => 'نماینده'], ['key' => 'revenue_rials', 'label' => 'مبلغ'], ['key' => 'transactions', 'label' => 'تراکنش'], ['key' => 'phones', 'label' => 'شماره یکتا']]" :rows="$data['top']">
+        @scope('cell_name', $row)
+            <x-button :label="$row->name" :link="route('crm.resellers.show', ['id' => $row->id])" class="btn-ghost btn-sm text-primary" />
+        @endscope
         @scope('cell_revenue_rials', $row)
             {{ number_format($row->revenue_rials / 10, $row->revenue_rials % 10 === 0 ? 0 : 1) }} تومان
         @endscope
