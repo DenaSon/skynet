@@ -61,6 +61,40 @@ final class Shell extends Component
 
     public string $orderStatus = 'all';
 
+    public string $advancedMode = 'and';
+
+    /** @var list<array{field:string,operator:string,value:string}> */
+    public array $advancedConditions = [];
+
+    public function addAdvancedCondition(): void
+    {
+        if ($this->section === 'customers' && count($this->advancedConditions) < 5) {
+            $this->advancedConditions[] = ['field' => 'orders', 'operator' => 'gte', 'value' => '1'];
+            $this->resetPage();
+        }
+    }
+
+    public function removeAdvancedCondition(int $index): void
+    {
+        if ($this->section === 'customers' && isset($this->advancedConditions[$index])) {
+            array_splice($this->advancedConditions, $index, 1);
+            $this->resetPage();
+        }
+    }
+
+    public function updatedAdvancedConditions(mixed $value, ?string $key = null): void
+    {
+        if ($key === null || ! preg_match('/^(\\d+)\\.field$/', $key, $matches)) {
+            return;
+        }
+        $index = (int) $matches[1];
+        if (! isset($this->advancedConditions[$index])) {
+            return;
+        }
+        $this->advancedConditions[$index]['operator'] = 'eq';
+        $this->advancedConditions[$index]['value'] = $value === 'last_seen' ? '' : '1';
+    }
+
     /** @var array<string, string> */
     public array $sortBy = ['column' => 'id', 'direction' => 'desc'];
 
@@ -97,7 +131,7 @@ final class Shell extends Component
 
     public function resetFilters(): void
     {
-        $this->reset(['from', 'until', 'registeredFrom', 'registeredUntil', 'search', 'status', 'telegram', 'purchase', 'phone', 'groupContacts', 'reseller', 'product', 'orderStatus']);
+        $this->reset(['from', 'until', 'registeredFrom', 'registeredUntil', 'search', 'status', 'telegram', 'purchase', 'phone', 'groupContacts', 'reseller', 'product', 'orderStatus', 'advancedMode', 'advancedConditions']);
         $this->period = $this->section === 'dashboard' ? '30' : 'all';
         $this->sortBy = match ($this->section) {
             'resellers' => ['column' => 'revenue_rials', 'direction' => 'desc'],
@@ -127,6 +161,8 @@ final class Shell extends Component
                 'reseller' => $this->reseller ?: null,
                 'product' => $this->product,
                 'orderStatus' => $this->orderStatus,
+                'advancedMode' => $this->advancedMode,
+                'advancedConditions' => $this->advancedConditions,
                 'sort' => $this->sortBy['column'] ?? '',
                 'direction' => $this->sortBy['direction'] ?? '',
                 'page' => $this->getPage(),
