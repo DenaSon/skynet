@@ -86,6 +86,15 @@ final readonly class ReadCrmProfile
                     $data['summary'] = $this->history->summary($actorId, $subjectId, $from, $until, $reseller);
                     $data['interactions'] = $this->interactions->handle($actorId, $subjectId);
                     $data['trial'] = $this->trials->handle($actorId, $subjectId);
+                    if ($reseller) {
+                        $performance = $this->directory->resellerPerformance($actorId);
+                        $data['performance'] = $performance === null ? null : [
+                            'start' => $performance['start'],
+                            'end' => $performance['end'],
+                            'eligibleCount' => $performance['eligibleCount'],
+                            'row' => $performance['rows'][$subjectId] ?? null,
+                        ];
+                    }
                     $data['wallet'] = null;
                     $data['walletState'] = 'denied';
                     try {

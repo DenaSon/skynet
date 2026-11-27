@@ -8,7 +8,10 @@
         ['key' => 'revenue_rials', 'label' => 'خرید تسویه‌شده'],
     ];
     if ($resellers) {
-        array_unshift($headers, ['key' => 'sales_rank', 'label' => 'رتبه فروش', 'sortable' => false]);
+        array_unshift($headers, ['key' => 'sales_rank', 'label' => 'رتبه فروش', 'sortable' => false],
+            ['key' => 'performance_rank', 'label' => 'رتبه عملکرد'],
+            ['key' => 'performance_score', 'label' => 'امتیاز', 'sortable' => false],
+            ['key' => 'performance_tier', 'label' => 'سطح', 'sortable' => false]);
         $headers[] = ['key' => 'phones', 'label' => 'شماره یکتا'];
         $headers[] = ['key' => 'purchased_phones', 'label' => 'شماره دارای خرید', 'sortable' => false];
         $headers[] = ['key' => 'name_only', 'label' => 'نام بدون شماره'];
@@ -19,7 +22,7 @@
 @endphp
 <x-card class="border border-base-300">
     @if ($resellers)
-        <p class="mb-4 text-sm text-base-content/60">مبلغ خرید نماینده نزد دناگیت بر اساس کانال ثبت‌شده سفارش است. سفارش‌های تاریخی با کانال نامشخص در این مبلغ لحاظ نمی‌شوند. رتبه بر اساس مبلغ خرید در نتایج فیلترشده است.</p>
+        <p class="mb-4 text-sm text-base-content/60">مبلغ خرید نماینده نزد دناگیت بر اساس کانال ثبت‌شده سفارش است. سفارش‌های تاریخی با کانال نامشخص در این مبلغ لحاظ نمی‌شوند. رتبه فروش بر اساس مبلغ خرید در نتایج فیلترشده است. رتبه عملکرد بر اساس ۳۰ روز کامل اخیر تهران، مستقل از فیلتر و در میان تمام نمایندگان واجد شرایط محاسبه می‌شود.</p>
     @endif
     <p class="mb-3 text-sm font-medium text-primary">تعداد نتایج: {{ \App\Support\PersianCalendar::number(number_format($rows->total())) }}</p>
     <x-table :headers="$headers" :rows="$rows" :sort-by="$sortBy" with-pagination>
@@ -43,6 +46,21 @@
         @endscope
         @scope('cell_sales_rank', $row)
             {{ \App\Support\PersianCalendar::number(number_format($row->sales_rank)) }}
+        @endscope
+        @scope('cell_performance_rank', $row)
+            {{ isset($row->performance['rank']) ? \App\Support\PersianCalendar::number(number_format($row->performance['rank'])) : '—' }}
+        @endscope
+        @scope('cell_performance_score', $row)
+            {{ isset($row->performance['score']) ? \App\Support\PersianCalendar::number(number_format($row->performance['score'], 2)) : '—' }}
+        @endscope
+        @scope('cell_performance_tier', $row)
+            @php
+                $state = $row->performance['state'] ?? 'unknown';
+                $tier = $row->performance['tier'] ?? null;
+                $labels = ['diamond' => 'الماس', 'gold' => 'طلایی', 'silver' => 'نقره‌ای', 'bronze' => 'برنزی', 'ordinary' => 'عادی'];
+                $colors = ['diamond' => 'badge-info badge-soft', 'gold' => 'badge-warning badge-soft', 'silver' => 'badge-neutral badge-soft', 'bronze' => 'badge-warning badge-soft', 'ordinary' => 'badge-ghost'];
+            @endphp
+            <x-badge :value="$labels[$tier] ?? match ($state) { 'inactive' => 'غیرفعال', 'evaluating' => 'در حال ارزیابی', default => 'نامشخص' }" :class="$colors[$tier] ?? 'badge-ghost'" />
         @endscope
         @scope('cell_phones', $row)
             {{ \App\Support\PersianCalendar::number(number_format($row->phones)) }}

@@ -47,6 +47,7 @@ final readonly class ReadWalletDailyAverage
             ->selectRaw("SUM(($net) * ($weight)) as balance_days, SUM($net) as closing_rials", $bindings);
         $rows = DB::table('billing_wallets as wallets')
             ->whereIntegerInRaw('wallets.user_id', $userIds)
+            ->where('wallets.created_at', '<', $end->copy()->utc())
             ->leftJoinSub($postings, 'balances', 'balances.wallet_id', '=', 'wallets.id')
             ->select('wallets.user_id', 'balances.balance_days', 'balances.closing_rials')->get();
 

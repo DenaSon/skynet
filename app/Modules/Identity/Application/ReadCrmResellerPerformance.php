@@ -30,7 +30,7 @@ final readonly class ReadCrmResellerPerformance
 
         return DB::transaction(function () use ($actorId, $end, $start): array {
             $cohort = $this->directory->commercialAccounts($actorId, true);
-            $accounts = $cohort->get();
+            $accounts = $cohort->orderBy('users.id')->get();
             $events = DB::table('identity_audit_events as audit')
                 ->joinSub($this->directory->commercialAccounts($actorId, true), 'accounts', 'accounts.id', '=', 'audit.subject_id')
                 ->where('audit.subject_type', 'user')

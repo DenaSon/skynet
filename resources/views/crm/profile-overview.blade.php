@@ -27,6 +27,10 @@
     <p class="mt-2 text-sm text-base-content/60">خرید نماینده نزد دناگیت معادل سود یا فروش خرده‌فروشی او نیست. شماره یکتا نیز لزوماً به معنی شخص یکتا نیست.</p>
 @endif
 
+@if ($reseller)
+    @include('crm.reseller-performance')
+@endif
+
 <div class="mt-6 border-t border-base-300 pt-5">
     <x-header title="رفتار و سابقه مشتری" subtitle="اطلاعات ثبت‌شده؛ نه میزان استفاده از سرویس" />
     <div class="crm-metric-grid grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
