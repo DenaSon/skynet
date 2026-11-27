@@ -524,6 +524,34 @@ it('shows a single DNS continuation action in private Rich RTL status', function
     Http::assertNotSent(static fn (Request $req): bool => $req->method() !== 'GET');
 });
 
+it('shows the complete read-only plan before the explicit provider-write confirmation', function (): void {
+    $root = ari8Ready();
+    $api = ari8Provider();
+
+    ari8Bot()->hearCallbackQueryData('ari7:plan:'.ARI8_SERVER.':1')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $data = ari8Payload($request);
+            $rich = is_string($data['rich_message'] ?? null)
+                ? json_decode($data['rich_message'], true, flags: JSON_THROW_ON_ERROR)
+                : ($data['rich_message'] ?? []);
+            $buttons = json_encode($data['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
+            $html = (string) ($rich['html'] ?? '');
+
+            return str_contains($html, 'fr.coreflare.ir')
+                && str_contains($html, 'IP مدیریتی')
+                && str_contains($html, 'GermanyOVH')
+                && str_contains($buttons, 'ari7:continue:'.ARI8_SERVER.':1');
+        }, index: 1);
+
+    expect($api->mutations)->toBe([])
+        ->and(app(CoordinateAdminArianetIpv4::class)->status($root['user']->id, ARI8_SERVER)['stage'])->toBe('ready');
+
+    ari8Bot()->hearCallbackQueryData('ari7:continue:'.ARI8_SERVER.':1')->reply();
+    expect($api->mutations)->toBe(['dns:fr.coreflare.ir', 'node:'.ARI8_NODE])
+        ->and(app(CoordinateAdminArianetIpv4::class)->status($root['user']->id, ARI8_SERVER)['stage'])
+        ->toBe('awaiting_client_test');
+});
+
 it('denies root-only staged operations in group chats and to non-trusted users', function (): void {
     ari8Ready(false);
     Http::fake();

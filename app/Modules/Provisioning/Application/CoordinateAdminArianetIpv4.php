@@ -233,14 +233,13 @@ final readonly class CoordinateAdminArianetIpv4
     {
         $this->access->handle($actorId);
         $this->assertEnabled();
-        $state = $this->status($actorId, $serverId);
-        if ($state === null || ! in_array($state['stage'], ['ready', 'applying'], true)) {
+        [, $state] = $this->load($serverId, $actorId);
+        if (! in_array($state['stage'], ['ready', 'applying'], true)) {
             throw new RuntimeException('Prepare and review the coordination plan before execution.');
         }
-        while ($state['next'] !== null && $state['steps'][$state['next']]['state'] === 'ready') {
-            $this->executeNext($actorId, $serverId, $state['next']);
-            $state = $this->status($actorId, $serverId)
-                ?? throw new RuntimeException('DNS operation state is missing.');
+        while (($index = $this->next($state)) !== null && $state['steps'][$index]['state'] === 'ready') {
+            $this->executeNext($actorId, $serverId, $index);
+            [, $state] = $this->load($serverId, $actorId);
         }
     }
 
