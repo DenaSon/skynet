@@ -305,7 +305,8 @@ it('scopes CRM profiles, canonical settlement history and contacts to their acco
         ->and($overview['summary']['unknown'])->toBe(100_000)
         ->and($overview['summary']['noContact'])->toBe(1)
         ->and($overview['summary']['phones'])->toBe(1)
-        ->and($overview['walletState'])->toBe('available');
+        ->and($overview['walletState'])->toBe('missing')
+        ->and($overview['wallet'])->toBeNull();
     $orders = $reader->handle($root->id, $reseller->id, true, crm01cFilters(['tab' => 'orders', 'status' => 'pending_payment']))['rows'];
     expect($orders->total())->toBe(1)->and((int) $orders->items()[0]->id)->toBe($pending);
     $payments = $reader->handle($root->id, $reseller->id, true, crm01cFilters(['tab' => 'payments']))['rows'];
@@ -1434,5 +1435,76 @@ it('returns actual Livewire file download with current directory filters', funct
     $payload = json_decode(base64_decode($download['content']), true, flags: JSON_THROW_ON_ERROR);
     expect(array_column($payload['rows'], 'id'))->toBe([$buyer->id]);
     $this->get('https://crm.denagate.ir/admin/crm')->assertOk()->assertDontSee('خروجی نتایج فیلترشده');
+    Http::assertNothingSent();
+});
+
+it('distinguishes a missing wallet from recorded zero and reconciles profile with advanced filters', function (): void {
+    $root = crm01bUser('super-admin');
+    $missing = crm01bUser('member');
+    $zero = crm01bUser('member');
+    $positive = crm01bUser('member');
+    $negative = crm01bUser('member');
+    foreach ([$zero, $positive, $negative] as $user) {
+        $wallet = DB::table('billing_wallets')->insertGetId([
+            'user_id' => $user->id, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        if ($user->id === $zero->id) {
+            continue;
+        }
+        $journal = DB::table('billing_journals')->insertGetId([
+            'wallet_id' => $wallet, 'kind' => 'fixture', 'idempotency_key' => 'crm-review-wallet-'.$user->id, 'created_at' => now(),
+        ]);
+        DB::table('billing_postings')->insert([
+            'journal_id' => $journal, 'wallet_id' => $wallet, 'account_code' => 'wallet_liability',
+            'side' => $user->id === $positive->id ? 'credit' : 'debit', 'amount_rials' => 100_000,
+        ]);
+    }
+    $profile = app(ReadCrmProfile::class);
+    foreach ([[$missing, null], [$zero, 0], [$positive, 100_000], [$negative, -100_000]] as [$user, $expected]) {
+        $data = $profile->handle($root->id, $user->id, false, crm01cFilters());
+        expect($data['wallet'])->toBe($expected)
+            ->and($data['walletState'])->toBe($expected === null ? 'missing' : 'available');
+    }
+    $directory = app(ReadCrmDirectory::class);
+    $rows = $directory->handle($root->id, 'customers', crm01bFilters([
+        'advancedConditions' => [['field' => 'wallet', 'operator' => 'eq', 'value' => '0']],
+    ]))['rows'];
+    expect(array_map(static fn ($row): int => (int) $row->id, $rows->items()))->toBe([$zero->id]);
+    $rows = $directory->handle($root->id, 'customers', crm01bFilters([
+        'advancedConditions' => [['field' => 'wallet_known', 'operator' => 'eq', 'value' => '0']],
+    ]))['rows'];
+    expect(array_map(static fn ($row): int => (int) $row->id, $rows->items()))->toBe([$missing->id]);
+    expect(app(\App\Modules\Billing\Application\BrowseCustomerWallets::class)->balanceForUser($root->id, $missing->id))->toBe(0);
+    $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm/customers/'.$missing->id)
+        ->assertOk()->assertSee('کیف پول ثبت نشده است');
+    Http::assertNothingSent();
+});
+
+it('keeps global reseller sales rank across search status filters and exports with ties', function (): void {
+    $root = crm01bUser('super-admin');
+    $first = crm01bUser('reseller', ['name' => 'Rank Leader']);
+    $second = crm01bUser('reseller', ['name' => 'Rank Second']);
+    $tie = crm01bUser('reseller', ['name' => 'Rank Tie']);
+    $third = crm01bUser('reseller', ['name' => 'Rank Third']);
+    $tie->forceFill(['is_active' => false])->save();
+    crm01bOrder($first, 'reseller', 900_000);
+    crm01bOrder($second, 'reseller', 500_000);
+    crm01bOrder($tie, 'reseller', 500_000);
+    crm01bOrder($third, 'reseller', 100_000);
+    crm01bOrder($third, null, 2_000_000);
+    $directory = app(ReadCrmDirectory::class);
+    $rows = $directory->handle($root->id, 'resellers', crm01bFilters())['rows'];
+    expect(array_map(static fn ($row): int => (int) $row->sales_rank, $rows->items()))->toBe([1, 2, 2, 3]);
+    foreach ([
+        ['search' => 'Rank Second'],
+        ['status' => 'inactive'],
+    ] as $overrides) {
+        $filters = crm01bFilters($overrides);
+        $rows = $directory->handle($root->id, 'resellers', $filters)['rows'];
+        expect($rows->total())->toBe(1)->and((int) $rows->items()[0]->sales_rank)->toBe(2);
+        $file = app(ExportCrmDirectory::class)->handle($root->id, 'resellers', $filters, 'json');
+        $export = json_decode($file['content'], true, flags: JSON_THROW_ON_ERROR)['rows'];
+        expect($export[0]['sales_rank'])->toBe(2);
+    }
     Http::assertNothingSent();
 });
