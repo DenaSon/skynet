@@ -439,7 +439,7 @@ The operator explicitly approved replacing the **Sales-only** permanent four-but
 - Use Telegram HTML with escaped dynamic values: bold headings/prices, optional short blockquote for one useful instruction, sparse functional emoji, blank lines between groups. Avoid walls of text or all-bold screens. Existing unmodified finance/service templates are completed in later UXR phases.
 - Primary labels/Home/Cancel take precedence over pending free text and clear only this bot's UI input draft. Unknown text/buttons offer a safe way home and never fall through to Admin handlers. Recheck active/private identity and reseller role on each action.
 - Acknowledge before a slow remote read; a best-effort `typing` indicator is optional feedback, never proof of business success and never a reason to retry a write. Keep shared Telegram transport helpers.
-- In Admin Node management, «افزودن سرور جدید» is for an unprepared VPS; «ثبت نود آماده» registers a preinstalled node. Explain that users choose one route. Do not change ports or installation behavior in a naming change.
+- In Admin Node management, «افزودن سرور جدید» remains for an unprepared VPS and «ثبت نود آماده» remains a separate registration path. In NW-05 replacement, show an explicit choice between an already-installed Remnawave Node and automatic installation on a blank VPS. Do not conflate registration and replacement.
 
 ## Input, clipboard, confirmation
 
@@ -491,6 +491,14 @@ Review this standard before every future Telegram UI feature.
 - In pending/failed/uncertain states, say what to check without inventing success, requiring blind retries or revealing debug logs/credentials.
 - For a server setup begun in another menu session, the same status screen must be recoverable; no new install, Node, Host or Squad write is triggered by refresh or return. Preserve current Node/Host/Profile menus and separate Host enable confirmation.
 
+
+## NW-05 — Replacement with a preinstalled Node
+
+- In the replacement wizard, offer two explicit paths: «استفاده از Node آماده» and «نصب خودکار روی سرور خالی». The purchased Cloud VPS handoff continues to use automatic installation.
+- The prepared path requires private root SSH and explicit approval of the displayed host fingerprint. Its read-only baseline checks only Linux, Docker availability, the running remnanode container and the official remnawave/node image.
+- Do not probe Node management/client ports, Inbound reachability on the new VPS or real-client connectivity before activation. Existing Inbound UUIDs are read only from the current panel inventory to preserve the existing Node configuration.
+- The prepared path must not generate a key, queue an installer, write over SSH or mutate the VPS/provider. After a separate one-use handoff confirmation, reuse the existing NW-05 preview, DNS/Host/Node transfer, reconciliation and client-acceptance flow.
+- Keep the old VPS online until a real client test is accepted. Refresh/status screens must not imply that a prepared checkpoint is a live panel connection.
 
 ## UXR-03 Sales/Admin payment-to-connection message contract
 

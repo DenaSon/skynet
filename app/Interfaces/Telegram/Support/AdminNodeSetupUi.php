@@ -57,25 +57,94 @@ final readonly class AdminNodeSetupUi
             Cache::forget(TelegramBotContext::current()->cacheKey($prefix.$id));
         }
         Cache::forget('nw02:ready:'.$id);
+        Cache::forget('nw05:ready:confirm:'.$id);
         Cache::forget('nw03:hostDraft:'.$id);
         Cache::forget('nw03:confirm:'.$id);
         $this->save($id, ['stage' => 'name']);
         $this->render($bot, "🖥️ راه‌اندازی سرور — گام ۱\n\n<b>نام سرور</b> را ارسال کنید.\nمثال: Germany-02", $this->cancelButton(false), true);
     }
 
-    /** Begin an existing-Node replacement without creating or deleting a Node. */
+    /** Present the supported replacement paths for an existing Node. */
     public function beginReplacement(Nutgram $bot, string $uuid, ?int $purchaseId = null): void
+    {
+        if ($purchaseId !== null) {
+            $this->startReplacement($bot, $uuid, $purchaseId, preparedNode: false);
+
+            return;
+        }
+
+        $root = $this->root($bot);
+        if ($root === null) {
+            return;
+        }
+        if (! $this->replacementEnabled()) {
+            $this->render($bot, 'جایگزینی سرور فعلاً غیرفعال است.', $this->back());
+
+            return;
+        }
+        Cache::forget('nw02:ready:'.$root);
+        Cache::forget('nw05:confirm:'.$root);
+        Cache::forget('nw05:ready:confirm:'.$root);
+        Cache::forget($this->key($root));
+
+        try {
+            $target = $this->nodes->replacementSnapshot($root, $uuid);
+            if ($target['disabled']) {
+                throw new \RuntimeException('Disabled Node cannot be replaced.');
+            }
+        } catch (Throwable) {
+            $this->render($bot, 'مشخصات نود فعلی قابل بررسی نیست. ابتدا وضعیت نود را بررسی کنید.', $this->back());
+
+            return;
+        }
+
+        $this->render(
+            $bot,
+            "🔁 نوع سرور جایگزین\n\nاگر Remnawave Node از قبل روی سرور جدید نصب و اجرا شده، گزینه اول را انتخاب کنید.\nاگر سرور خالی است، نصب خودکار را انتخاب کنید.\n\nبرای بررسی سرور آماده، ورود SSH با کاربر root لازم است.",
+            InlineKeyboardMarkup::make()
+                ->addRow(InlineKeyboardButton::make('🟢 استفاده از Node آماده', callback_data: 'nw5:ready:'.$uuid, style: ButtonStyle::PRIMARY))
+                ->addRow(InlineKeyboardButton::make('🧩 نصب خودکار روی سرور خالی', callback_data: 'nw5:install:'.$uuid))
+                ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'node1:view:'.$uuid)),
+        );
+    }
+
+    public function beginInstallReplacement(Nutgram $bot, string $uuid): void
+    {
+        $this->startReplacement($bot, $uuid, null, preparedNode: false);
+    }
+
+    public function beginReadyReplacement(Nutgram $bot, string $uuid): void
+    {
+        $this->startReplacement($bot, $uuid, null, preparedNode: true);
+    }
+
+    /** Explicit Cloud handoff continues to use the existing automatic installer. */
+    public function beginPurchasedReplacement(Nutgram $bot, string $rawId, string $uuid): void
+    {
+        $id = filter_var($rawId, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if ($id === false) {
+            if ($this->root($bot) !== null) {
+                $this->expired($bot);
+            }
+
+            return;
+        }
+
+        $this->startReplacement($bot, $uuid, $id, preparedNode: false);
+    }
+
+    private function startReplacement(Nutgram $bot, string $uuid, ?int $purchaseId, bool $preparedNode): void
     {
         $id = $this->root($bot);
         if ($id === null) {
             return;
         }
-        if (! $this->enabled() || config('services.remnawave.node_ssh_install_enabled') !== true
-            || config('services.remnawave.writes_enabled') !== true) {
+        if (! $this->replacementEnabled()) {
             $this->render($bot, 'جایگزینی سرور فعلاً غیرفعال است.', $this->back());
 
             return;
         }
+
         try {
             $cloud = $purchaseId === null ? null : $this->purchases->readiness($id, $purchaseId);
             if ($cloud !== null && $this->cloudLinks->linked($id, $cloud['serverId']) !== null) {
@@ -90,8 +159,10 @@ final readonly class AdminNodeSetupUi
                 throw new \RuntimeException('Current profile is unavailable.');
             }
             $inbounds = $this->nodes->inbounds($id, $target['profileUuid']);
-            $active = array_values(array_filter($inbounds,
-                static fn (array $inbound): bool => in_array($inbound['uuid'], $target['inboundUuids'], true)));
+            $active = array_values(array_filter(
+                $inbounds,
+                static fn (array $inbound): bool => in_array($inbound['uuid'], $target['inboundUuids'], true),
+            ));
             if (count($active) !== count($target['inboundUuids']) || $active === []) {
                 throw new \RuntimeException('Current active inbounds are unavailable.');
             }
@@ -108,6 +179,7 @@ final readonly class AdminNodeSetupUi
 
             return;
         }
+
         foreach (['node01:draft:', 'node02:draft:', 'node03:draft:', 'host01:draft:', 'host02:draft:', 'cfg02:draft:'] as $prefix) {
             Cache::forget(TelegramBotContext::current()->cacheKey($prefix.$id));
         }
@@ -115,8 +187,20 @@ final readonly class AdminNodeSetupUi
         Cache::forget('nw03:hostDraft:'.$id);
         Cache::forget('nw03:confirm:'.$id);
         Cache::forget('nw05:confirm:'.$id);
-        $draft = ['stage' => 'ip', 'name' => $target['name'], 'replacement' => $target,
-            'profile' => $profile, 'inbounds' => $inbounds, 'activeInbounds' => $active];
+        Cache::forget('nw05:ready:confirm:'.$id);
+
+        $draft = [
+            'stage' => 'ip',
+            'name' => $target['name'],
+            'replacement' => $target,
+            'profile' => $profile,
+            'inbounds' => $inbounds,
+            'activeInbounds' => $active,
+        ];
+        if ($preparedNode) {
+            $draft['preparedNode'] = true;
+        }
+
         if ($cloud !== null) {
             $draft['cloudPurchaseId'] = $cloud['purchaseId'];
             $draft['ip'] = $cloud['ipv4'];
@@ -130,24 +214,14 @@ final readonly class AdminNodeSetupUi
 
             return;
         }
+
         $this->save($id, $draft);
+        $mode = $preparedNode
+            ? "\n\nNode از قبل روی سرور نصب شده است؛ نصب مجدد انجام نمی‌شود."
+            : "\n\nدر مسیر نصب خودکار، فقط روی سرور خالی نصب انجام خواهد شد.";
         $this->render($bot, "🔁 جایگزینی سرور — گام ۱\n\n<b>IP عمومی سرور جدید</b> را ارسال کنید.\n"
             .'نود فعلی: '.$target['name']."\nآدرس فعلی نود: ".$target['address']
-            ."\n\nشناسه نود، پروفایل و ورودی‌های فعلی حفظ می‌شوند.", $this->cancelButton(false), true);
-    }
-
-    /** Explicit Cloud handoff; the operator still confirms the SSH host and installation. */
-    public function beginPurchasedReplacement(Nutgram $bot, string $rawId, string $uuid): void
-    {
-        $id = filter_var($rawId, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
-        if ($id === false) {
-            if ($this->root($bot) !== null) {
-                $this->expired($bot);
-            }
-
-            return;
-        }
-        $this->beginReplacement($bot, $uuid, $id);
+            ."\n\nشناسه نود، پروفایل و ورودی‌های فعلی حفظ می‌شوند.".$mode, $this->cancelButton(false), true);
     }
 
     public function text(Nutgram $bot, string $value): bool
@@ -773,8 +847,74 @@ final readonly class AdminNodeSetupUi
                 throw new \RuntimeException('Unsupported SSH authentication.');
             }
             $password = $authMode === 'key' ? '' : Crypt::decryptString($draft['secret']);
-            $os = $this->ssh->check($id, $draft['ip'], $draft['port'], $draft['username'], $password, $draft['host']['knownHost'], $authMode);
-            unset($password);
+            try {
+                $inspection = null;
+                if (($draft['preparedNode'] ?? false) === true) {
+                    if (config('services.remnawave.writes_enabled') !== true
+                        || config('services.remnawave.node_ssh_install_enabled') !== true) {
+                        throw new \RuntimeException('Prepared Node replacement is disabled.');
+                    }
+                    // A running container is the relevant baseline; do not require
+                    // Ubuntu/Debian labels or probe ports that activate later.
+                    $inspection = $this->ssh->inspectReadyNode(
+                        $id,
+                        $draft['ip'],
+                        $draft['port'],
+                        $draft['username'],
+                        $password,
+                        $draft['host']['knownHost'],
+                        $authMode,
+                    );
+                    $os = $inspection['os'];
+                } else {
+                    $os = $this->ssh->check(
+                        $id,
+                        $draft['ip'],
+                        $draft['port'],
+                        $draft['username'],
+                        $password,
+                        $draft['host']['knownHost'],
+                        $authMode,
+                    );
+                }
+            } finally {
+                unset($password);
+            }
+
+            if (($draft['preparedNode'] ?? false) === true) {
+                if ($inspection === null) {
+                    throw new \RuntimeException('Prepared Remnawave Node inspection is incomplete.');
+                }
+                $readyToken = bin2hex(random_bytes(16));
+                Cache::put('nw05:ready:confirm:'.$id, [
+                    'owner' => $id,
+                    'token' => $readyToken,
+                    'ip' => $draft['ip'],
+                    'name' => $draft['name'],
+                    'port' => $draft['port'],
+                    'knownHost' => $draft['host']['knownHost'],
+                    'replacement' => $draft['replacement'],
+                    'image' => $inspection['image'],
+                    'os' => $os,
+                ], now()->addMinutes(10));
+
+                $this->render(
+                    $bot,
+                    "✅ سرور آماده بررسی شد.\n\nنام: ".$draft['name']
+                    ."\nسیستم‌عامل: ".$os
+                    ."\nوضعیت کانتینر: Running"
+                    ."\nتصویر: ".TelegramUi::code($inspection['image'])
+                    ."\n\nبررسی اولیه فقط Docker و کانتینر Remnawave Node را تأیید می‌کند. پورت‌های ارتباط کاربران در این مرحله آزمایش نمی‌شوند و پس از فعال‌سازی نود بررسی خواهند شد."
+                    ."\n\nهیچ نصب یا تغییری روی سرور انجام نشده است.",
+                    InlineKeyboardMarkup::make()
+                        ->addRow(InlineKeyboardButton::make('➡️ ادامه با سرور آماده', callback_data: 'nw5:ready:confirm:'.$readyToken, style: ButtonStyle::PRIMARY))
+                        ->addRow(InlineKeyboardButton::make('◀️ بازگشت به نود', callback_data: 'node1:view:'.$draft['replacement']['uuid'])),
+                    true,
+                );
+
+                return;
+            }
+
             if (config('services.remnawave.node_ssh_install_enabled') === true) {
                 $setupToken = bin2hex(random_bytes(16));
                 $draft['installToken'] = $setupToken;
@@ -790,7 +930,55 @@ final readonly class AdminNodeSetupUi
                     ."\nسیستم‌عامل: ".$os."\n\nدر این مرحله هیچ نرم‌افزاری نصب نشده است.", $this->back());
             }
         } catch (Throwable) {
-            $this->render($bot, 'بررسی SSH موفق نبود؛ برای تلاش بعدی دوباره شروع کنید.', $this->back());
+            $message = ($draft['preparedNode'] ?? false) === true
+                ? 'بررسی پایه سرور موفق نبود. دسترسی SSH با کاربر root، فعال بودن Docker و اجرای Remnawave Node را بررسی کنید.'
+                : 'بررسی SSH موفق نبود؛ برای تلاش بعدی دوباره شروع کنید.';
+            $this->render($bot, $message, $this->back());
+        }
+    }
+
+    /** Confirm the read-only prepared Node check and create the existing NW-05 checkpoint. */
+    public function confirmReadyReplacement(Nutgram $bot, string $token): void
+    {
+        $root = $this->root($bot);
+        if ($root === null) {
+            return;
+        }
+        if (preg_match('/\A[a-f0-9]{32}\z/D', $token) !== 1) {
+            $this->expired($bot);
+
+            return;
+        }
+
+        $key = 'nw05:ready:confirm:'.$root;
+        try {
+            $ready = Cache::lock($key.':lock', 15)->block(1, static function () use ($key, $root, $token): mixed {
+                $state = Cache::get($key);
+                if (! is_array($state) || ($state['owner'] ?? null) !== $root
+                    || ! is_string($state['token'] ?? null) || ! hash_equals($state['token'], $token)) {
+                    return null;
+                }
+                Cache::forget($key);
+
+                return $state;
+            });
+            if (! is_array($ready)) {
+                $this->expired($bot);
+
+                return;
+            }
+
+            $identifier = $this->installer->prepareReadyReplacement($root, [
+                'ip' => $ready['ip'],
+                'name' => $ready['name'],
+                'port' => $ready['port'],
+                'username' => 'root',
+                'host' => ['knownHost' => $ready['knownHost']],
+                'replacement' => $ready['replacement'],
+            ]);
+            $this->replacementOverview($bot, $identifier);
+        } catch (Throwable) {
+            $this->render($bot, 'ثبت مسیر سرور آماده ممکن نشد. هیچ تغییری روی VPS یا پنل انجام نشده است؛ وضعیت سرور و نود را دوباره بررسی کنید.', $this->back());
         }
     }
 
@@ -871,11 +1059,18 @@ final readonly class AdminNodeSetupUi
         }
         $replacementTarget = $this->installer->replacementTarget($root, $identifier);
         if ($status['state'] === 'running' && $replacementTarget !== null) {
-            $this->render($bot, "🖥️ آماده‌سازی سرور جایگزین\n\nنصب روی سرور جدید کامل شده است. برای حفظ نود فعلی و انتقال دامنه‌ها ادامه دهید.",
-                InlineKeyboardMarkup::make()
-                    ->addRow(InlineKeyboardButton::make('➡️ ادامه جایگزینی سرور', callback_data: 'nw5:resume:'.$identifier, style: ButtonStyle::SUCCESS))
-                    ->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی وضعیت نصب', callback_data: 'nw2:status:'.$identifier))
-                    ->addRow(InlineKeyboardButton::make('◀️ مدیریت نودها', callback_data: 'node1:list:1')));
+            $context = $this->installer->context($root, $identifier);
+            $preparedNode = ($context['preparedNode'] ?? false) === true;
+            $description = $preparedNode
+                ? 'Node از قبل روی سرور نصب شده و بررسی پایه آن موفق بوده است.'
+                : 'نصب روی سرور جدید کامل شده است.';
+            $keyboard = InlineKeyboardMarkup::make()
+                ->addRow(InlineKeyboardButton::make('➡️ ادامه جایگزینی سرور', callback_data: 'nw5:resume:'.$identifier, style: ButtonStyle::PRIMARY));
+            if (! $preparedNode) {
+                $keyboard->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی وضعیت نصب', callback_data: 'nw2:status:'.$identifier));
+            }
+            $keyboard->addRow(InlineKeyboardButton::make('◀️ مدیریت نودها', callback_data: 'node1:list:1'));
+            $this->render($bot, "🖥️ آماده‌سازی سرور جایگزین\n\n".$description.' برای حفظ نود فعلی و انتقال دامنه‌ها ادامه دهید.', $keyboard);
 
             return;
         }
@@ -1056,17 +1251,21 @@ final readonly class AdminNodeSetupUi
         }
         try {
             $review = $this->replacement->preview($root, $identifier);
+            $setup = $this->installer->context($root, $identifier);
+            $preparationMode = ($setup['preparedNode'] ?? false) === true ? 'Node از قبل نصب‌شده' : 'نصب خودکار';
             $token = bin2hex(random_bytes(16));
             Cache::put('nw05:confirm:'.$root, ['id' => $identifier, 'token' => $token, 'expected' => $review], now()->addMinutes(10));
 
             $message = "⚠️ تأیید نهایی جایگزینی\n\n"
                 .'نود: '.TelegramUi::escape($review['node']['name'])."\nUUID: ".TelegramUi::code($review['node']['uuid'])."\n"
                 .'IP فعلی: '.TelegramUi::code($review['oldIp'])."\nIP جدید: ".TelegramUi::code($review['newIp'])."\n"
+                .'روش آماده‌سازی: '.$preparationMode."\n"
                 .'حالت آدرس Node: '.($review['nodeAddressMode'] === 'domain' ? 'حفظ دامنه فعلی' : 'تغییر IP مستقیم')."\n\n"
                 .'Hostهای حفظ‌شده: '.count($review['hosts'])."\n"
                 .'دامنه‌های قابل انتقال: '.count($review['dnsRecords'])."\n";
 
             $rows = $this->replacementRichRow('نود', $review['node']['name'])
+                .$this->replacementRichRow('روش آماده‌سازی', $preparationMode)
                 .$this->replacementRichRow('UUID', $review['node']['uuid'])
                 .$this->replacementRichRow('IP فعلی', $review['oldIp'])
                 .$this->replacementRichRow('IP جدید', $review['newIp'])
@@ -1383,6 +1582,7 @@ final readonly class AdminNodeSetupUi
         }
         Cache::forget($this->key($id));
         Cache::forget('nw02:ready:'.$id);
+        Cache::forget('nw05:ready:confirm:'.$id);
         Cache::forget('nw03:hostDraft:'.$id);
         Cache::forget('nw03:confirm:'.$id);
         Cache::forget('nw05:confirm:'.$id);
@@ -1608,7 +1808,10 @@ final readonly class AdminNodeSetupUi
                 .'روش ورود: '.(($draft['authMode'] ?? 'password') === 'key' ? 'کلید SSH' : 'رمز عبور')."\n"
                 .'پروفایل فعلی: '.TelegramUi::escape($draft['profile']['name'])."\n"
                 .'ورودی‌های فعال حفظ‌شده: '.count($target['inboundUuids'])
-                ."\n\nUUID نود، پروفایل، ورودی‌ها و Hostهای فعلی حذف یا بازسازی نمی‌شوند. پس از نصب، رکوردهای DNS مرتبط به IP جدید منتقل خواهند شد.";
+                .(($draft['preparedNode'] ?? false) === true
+                    ? "\n\nNode از قبل روی سرور نصب شده است؛ در این مسیر نصب مجدد انجام نمی‌شود."
+                    : "\n\nپس از تأیید، نصب خودکار روی سرور خالی انجام خواهد شد.")
+                ."\n\nUUID نود، پروفایل، ورودی‌ها و Hostهای فعلی حذف یا بازسازی نمی‌شوند. پس از آماده‌سازی، رکوردهای DNS مرتبط به IP جدید منتقل خواهند شد.";
             $rows = $this->replacementRichRow('نود', $draft['name'])
                 .$this->replacementRichRow('UUID', $target['uuid'])
                 .$this->replacementRichRow('آدرس فعلی', $target['address'])
@@ -1670,6 +1873,13 @@ final readonly class AdminNodeSetupUi
     private function enabled(): bool
     {
         return config('services.remnawave.node_ssh_setup_enabled') === true;
+    }
+
+    private function replacementEnabled(): bool
+    {
+        return $this->enabled()
+            && config('services.remnawave.node_ssh_install_enabled') === true
+            && config('services.remnawave.writes_enabled') === true;
     }
 
     private function root(Nutgram $bot, bool $deny = true): ?int

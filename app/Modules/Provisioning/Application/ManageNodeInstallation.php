@@ -25,6 +25,7 @@ final readonly class ManageNodeInstallation
     public function __construct(
         private AssertCatalogManagementAccess $access,
         private RemnawaveApiClientFactory $factory,
+        private ManageAdminNodes $nodes,
         private NodeSshInstaller $installer,
         private PurchaseAdminArianetCloud $purchases,
     ) {}
@@ -207,6 +208,78 @@ final readonly class ManageNodeInstallation
         }
 
         return $identifier;
+    }
+
+    /**
+     * Create a credential-free checkpoint for an already-installed Remnawave Node.
+     * This path performs no queue dispatch, key generation, SSH write or VPS mutation.
+     *
+     * @param  array<string,mixed>  $ready
+     */
+    public function prepareReadyReplacement(int $actorId, array $ready): string
+    {
+        $this->access->handle($actorId);
+        $this->guard();
+        if (config('services.remnawave.writes_enabled') !== true) {
+            throw new RuntimeException('Node replacement writes are disabled.');
+        }
+
+        $ip = $ready['ip'] ?? null;
+        $name = $ready['name'] ?? null;
+        $port = $ready['port'] ?? null;
+        $username = $ready['username'] ?? null;
+        $host = $ready['host'] ?? null;
+        $knownHost = is_array($host) ? ($host['knownHost'] ?? null) : null;
+        $replacement = $ready['replacement'] ?? null;
+
+        if (! is_string($ip)
+            || filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false
+            || ! is_string($name) || trim($name) === '' || strlen($name) > 64
+            || ! is_int($port) || $port < 1 || $port > 65535
+            || $username !== 'root'
+            || ! is_string($knownHost) || strlen($knownHost) > 1024
+            || preg_match('/[\r\n]/', $knownHost) === 1
+            || ! is_array($replacement) || ! is_string($replacement['uuid'] ?? null)) {
+            throw new RuntimeException('Invalid prepared Node replacement checkpoint.');
+        }
+
+        $knownHostPrefix = ($port === 22 ? $ip : '['.$ip.']:'.$port).' ssh-ed25519 ';
+        if (! str_starts_with($knownHost, $knownHostPrefix)
+            || preg_match('/\A[A-Za-z0-9+\/=]{32,8192}\z/D', substr($knownHost, strlen($knownHostPrefix))) !== 1) {
+            throw new RuntimeException('The verified SSH host identity does not match the replacement target.');
+        }
+
+        $current = $this->nodes->replacementSnapshot($actorId, $replacement['uuid']);
+        $inboundUuid = $current['inboundUuids'][0] ?? null;
+        if ($this->replacementIdentity($current) !== $this->replacementIdentity($replacement)
+            || $current['name'] !== $name
+            || $current['disabled']
+            || ! is_string($inboundUuid)) {
+            throw new RuntimeException('The existing Node changed before prepared-server handoff.');
+        }
+
+        return Cache::lock(ManageAdminArianetOperations::hostLock($ip), 90)->block(2, function () use (
+            $actorId, $ip, $name, $current, $inboundUuid,
+        ): string {
+            ManageAdminArianetOperations::assertNoHostOperation($ip);
+            ManageAdminArianetOperations::assertHostAvailable($ip);
+
+            $identifier = bin2hex(random_bytes(16));
+            $status = [
+                'owner' => $actorId,
+                'ip' => $ip,
+                'name' => $name,
+                'state' => 'running',
+                'preparedNode' => true,
+                'replacement' => $current,
+                'profileUuid' => $current['profileUuid'],
+                'inboundUuid' => $inboundUuid,
+            ];
+            $this->persist($identifier, $status);
+            Cache::put('nw02:last:'.$actorId, $identifier, now()->addHours(3));
+
+            return $identifier;
+        });
     }
 
     /** Called once by a single-attempt queue job. Never retry uncertain remote starts. */
@@ -449,6 +522,22 @@ final readonly class ManageNodeInstallation
             $state[$key] = $value;
         }
         $this->persist($identifier, $state);
+    }
+
+    /** @param array<string,mixed> $node
+     * @return array<string,mixed>
+     */
+    private function replacementIdentity(array $node): array
+    {
+        return [
+            'uuid' => $node['uuid'] ?? null,
+            'name' => $node['name'] ?? null,
+            'address' => $node['address'] ?? null,
+            'port' => $node['port'] ?? null,
+            'disabled' => $node['disabled'] ?? null,
+            'profileUuid' => $node['profileUuid'] ?? null,
+            'inboundUuids' => $node['inboundUuids'] ?? null,
+        ];
     }
 
     /** @return array<string,mixed> */

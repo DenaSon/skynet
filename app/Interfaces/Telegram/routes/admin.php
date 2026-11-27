@@ -389,6 +389,15 @@ $bot->onCallbackQueryData('nw1:trust:{token}', function (Nutgram $bot, string $t
 $bot->onCallbackQueryData('nw5:begin:{uuid}', function (Nutgram $bot, string $uuid): void {
     app(AdminNodeSetupUi::class)->beginReplacement($bot, $uuid);
 });
+$bot->onCallbackQueryData('nw5:install:{uuid}', function (Nutgram $bot, string $uuid): void {
+    app(AdminNodeSetupUi::class)->beginInstallReplacement($bot, $uuid);
+});
+$bot->onCallbackQueryData('nw5:ready:confirm:{token}', function (Nutgram $bot, string $token): void {
+    app(AdminNodeSetupUi::class)->confirmReadyReplacement($bot, $token);
+});
+$bot->onCallbackQueryData('nw5:ready:{uuid}', function (Nutgram $bot, string $uuid): void {
+    app(AdminNodeSetupUi::class)->beginReadyReplacement($bot, $uuid);
+});
 $bot->onCallbackQueryData('nw5:resume:{identifier}', function (Nutgram $bot, string $identifier): void {
     app(AdminNodeSetupUi::class)->replacementOverview($bot, $identifier);
 });

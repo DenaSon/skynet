@@ -6,6 +6,7 @@ namespace App\Modules\Provisioning\Infrastructure\NodeSetup;
 
 use RuntimeException;
 use Symfony\Component\Process\Process;
+use Throwable;
 
 /**
  * NW-01: SSH identity and password preflight only. No mutation on the VPS.
@@ -70,23 +71,103 @@ final class NodeSshPreflight
         string $knownHost,
         string $authMode = 'password',
     ): string {
+        $output = $this->runSsh(
+            $ip,
+            $port,
+            $username,
+            $password,
+            $knownHost,
+            $authMode,
+            'uname -s; . /etc/os-release; printf "ID=%s\n" "$ID"',
+            12,
+        );
+        if (! str_contains($output, 'Linux') || ! preg_match('/\bID=(ubuntu|debian)\b/', $output)) {
+            throw new RuntimeException('Unsupported VPS OS.');
+        }
+
+        return str_contains($output, 'ID=ubuntu') ? 'Ubuntu' : 'Debian';
+    }
+
+    /**
+     * Basic, read-only inspection for a preinstalled Remnawave Node.
+     * Deliberately does not probe management or client-facing ports: those
+     * become available as part of the panel activation/cutover sequence.
+     *
+     * @return array{status:string,image:string,os:string}
+     */
+    public function inspectReadyNode(
+        string $ip,
+        int $port,
+        string $username,
+        string $password,
+        string $knownHost,
+        string $authMode = 'password',
+    ): array {
+        if ($username !== 'root') {
+            throw new RuntimeException('Root SSH access is required to inspect the Node container.');
+        }
+
+        $output = $this->runSsh(
+            $ip,
+            $port,
+            $username,
+            $password,
+            $knownHost,
+            $authMode,
+            <<<'SH'
+set -eu
+[ "$(uname -s)" = "Linux" ] || exit 12
+command -v docker >/dev/null 2>&1 || exit 10
+docker info >/dev/null 2>&1 || exit 11
+printf '%s|' "$(uname -s)"
+docker inspect --format '{{.State.Status}}|{{.State.Running}}|{{.Config.Image}}' remnanode
+SH,
+            15,
+        );
+
+        $parts = explode('|', trim($output), 4);
+        if (count($parts) !== 4
+            || $parts[0] !== 'Linux'
+            || $parts[1] !== 'running'
+            || $parts[2] !== 'true'
+            || preg_match('/\Aremnawave\/node(?::[A-Za-z0-9._-]+)?\z/D', $parts[3]) !== 1) {
+            throw new RuntimeException('A running Remnawave Node container was not verified.');
+        }
+
+        return ['status' => 'running', 'image' => $parts[3], 'os' => $parts[0]];
+    }
+
+    private function runSsh(
+        string $ip,
+        int $port,
+        string $username,
+        string $password,
+        string $knownHost,
+        string $authMode,
+        string $command,
+        int $timeout,
+    ): string {
         $this->validateTarget($ip, $port);
         if (preg_match('/\A[a-z_][a-z0-9_-]{0,31}\z/iD', $username) !== 1
             || ! str_starts_with($knownHost, ($port === 22 ? $ip : '['.$ip.']:'.$port).' ssh-ed25519 ')
+            || preg_match('/[\r\n]/', $knownHost) === 1
             || ! in_array($authMode, ['password', 'key'], true)
             || ($authMode === 'password' && ($password === '' || strlen($password) > 256))
             || ($authMode === 'key' && ($username !== 'root' || $password !== '' || ! $this->keyAvailable()))) {
             throw new RuntimeException('Invalid SSH configuration.');
         }
+
         $knownHostsPath = tempnam(sys_get_temp_dir(), 'nw01-');
         if ($knownHostsPath === false) {
             throw new RuntimeException('Host verification unavailable.');
         }
+
         try {
             chmod($knownHostsPath, 0600);
             if (file_put_contents($knownHostsPath, $knownHost."\n") === false) {
                 throw new RuntimeException('Host verification unavailable.');
             }
+
             $method = $authMode === 'key'
                 ? [
                     '-o', 'PreferredAuthentications=publickey',
@@ -121,19 +202,19 @@ final class NodeSshPreflight
                 '-o', 'LogLevel=ERROR',
                 '-p', (string) $port,
                 $username.'@'.$ip,
-                'uname -s; . /etc/os-release; printf "ID=%s\n" "$ID"',
+                'sh -s',
             ], base_path(), $environment);
-            $process->setTimeout(12);
+            $process->setInput($command."\n");
+            $process->setTimeout($timeout);
             $process->run();
-            if (! $process->isSuccessful()) {
+            if (! $process->isSuccessful() || strlen($process->getOutput()) > 2048) {
                 throw new RuntimeException('SSH preflight failed.');
             }
-            $output = $process->getOutput();
-            if (! str_contains($output, 'Linux') || ! preg_match('/\bID=(ubuntu|debian)\b/', $output)) {
-                throw new RuntimeException('Unsupported VPS OS.');
-            }
 
-            return str_contains($output, 'ID=ubuntu') ? 'Ubuntu' : 'Debian';
+            return $process->getOutput();
+        } catch (Throwable) {
+            // Do not expose remote stderr or output; it may contain credentials.
+            throw new RuntimeException('SSH preflight failed.');
         } finally {
             @unlink($knownHostsPath);
         }
