@@ -288,6 +288,9 @@ jobs:
       - name: Verify CRM directory queries on disposable MySQL
         run: vendor/bin/pest tests/Feature/CRM/CrmDirectoryTest.php
 
+      - name: Measure CRM query plans and p95 on disposable MySQL
+        run: vendor/bin/pest tests/Feature/CRM/CrmPerformanceTest.php
+
       - name: Migrate disposable MySQL database
         run: php artisan migrate --force
 
