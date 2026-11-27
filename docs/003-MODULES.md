@@ -13,7 +13,7 @@ This section reflects the modules present in the current `master` baseline. Date
 | `Administration` | Planned Admin UI composition and read-model orchestration; no ownership of other modules' domain data |
 | `Interfaces/Telegram` | Admin/Sales Bot transports, UI, contact/notification delivery |
 | `Interfaces/Web/Live` | Existing reseller Mini App presentation using shared Application actions |
-| `Interfaces/Web/CRM` (planned) | Trusted-root read-only Admin CRM presenter for direct customers, reseller accounts and reseller-linked customer records; Super Admin only |
+| `Interfaces/Web/CRM` (planned) | Trusted-root read-only Admin CRM presenter for direct customers, reseller accounts and reseller-linked customer records; Super Admin only | CRM-01A foundation implemented on an unmerged PR branch |
 
 ## Current dependency policy
 

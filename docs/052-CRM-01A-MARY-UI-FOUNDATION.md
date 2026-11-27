@@ -1,6 +1,6 @@
 # CRM-01A — فعال‌سازی کنترل‌شده Mary UI و پوسته امن CRM
 
-**وضعیت:** برنامه اجرایی مستند شده؛ شروع کدنویسی نیازمند تأیید صریح است
+**وضعیت:** پیاده‌سازی روی شاخه مستقل انجام شده؛ CI و Review در انتظار است؛ هنوز Merge نشده
 **تاریخ:** ۱۴۰۵/۰۹/۰۶ — ۲۰۲۶-۱۱-۲۷
 **شاخه مبنا:** `master`
 **دامنه:** فقط پایه رابط وب و دسترسی Super Admin؛ بدون داده تجاری
@@ -9,9 +9,9 @@
 
 ## ۱. هدف
 
-فعال‌سازی کنترل‌شده Mary UI در برنامه Laravel فعلی و ایجاد پوسته مستقل وب برای CRM، با استفاده از Livewire 4 و بدون اثر جانبی روی DenaGate Live.
+فعال‌سازی دستی Mary UI در برنامه Laravel فعلی و ایجاد پوسته مستقل وب CRM روی دامنه `crm.denagate.ir`، با استفاده از Livewire 4 و بدون اثر جانبی روی DenaGate Live.
 
-خروجی این مرحله فقط یک صفحه پوسته/آزمایشی است که Super Admin مورد اعتماد می‌تواند باز کند. هیچ فهرست مشتری، نماینده، سفارش، گزارش فروش یا اطلاعات مالی در این مرحله خوانده یا نمایش داده نمی‌شود.
+خروجی این مرحله یک پوسته فارسی و راست‌چین در `https://crm.denagate.ir/admin/crm` است که Super Admin مورد اعتماد می‌تواند باز کند. هیچ فهرست مشتری، نماینده، سفارش، گزارش فروش یا اطلاعات مالی در این مرحله خوانده یا نمایش داده نمی‌شود.
 
 ## ۲. مبنای فنی تأییدشده
 
@@ -21,12 +21,12 @@
 | Livewire | 4.4.8 در Composer Lock |
 | Tailwind CSS | 4.x |
 | Vite | 8.x |
-| DaisyUI | نصب نیست |
-| Mary UI | نصب نیست |
+| DaisyUI | 5.8.3؛ وابستگی توسعه‌ای npm |
+| Mary UI | 2.9.11؛ وابستگی Composer |
 | npm lockfile | در مخزن فعلی وجود ندارد |
 | npm config | `.npmrc` با `ignore-scripts=true` و `audit=true` |
 
-آخرین نسخه منتشرشده Mary UI در زمان بررسی **2.9.11** است. Composer همین نسخه، `illuminate/support ^13.0` را پشتیبانی می‌کند و Laravel Service Provider را از طریق Composer Package Discovery معرفی می‌کند. نسخه نهایی باید در زمان اجرای PR دوباره بررسی و در `composer.lock` قفل شود.
+Mary UI نسخه `2.9.11` و DaisyUI نسخه `5.8.3` در وابستگی‌ها ثبت شده‌اند. Composer برای Mary UI هفت بسته جدید را در Lockfile ثبت کرده و نسخه بسته‌های قبلی را تغییر نداده است. Laravel Service Provider از طریق Composer Package Discovery فعال می‌شود؛ ثبت دستی Provider لازم نیست.
 
 ## ۳. ممنوعیت نصب‌کننده خودکار
 
@@ -52,7 +52,7 @@
 
 ### ۴.۲. وابستگی فرانت‌اند
 
-- افزودن DaisyUI به‌عنوان وابستگی توسعه‌ای (devDependency) با نسخه سازگار با Tailwind CSS 4.
+- افزودن DaisyUI نسخه `5.8.3` به‌عنوان وابستگی توسعه‌ای (devDependency).
 - نسخه‌های موجود `tailwindcss`، `@tailwindcss/vite` و `vite` حفظ شوند؛ نصب مجدد یا ارتقای کلی آن‌ها مجاز نیست.
 - هیچ Alpine.js یا Livewire دیگری نصب نشود؛ Livewire فعلی مسئول Runtime موجود است.
 - تنظیمات `.npmrc` تغییر نکند. سیاست Lockfile همان سیاست فعلی مخزن باقی بماند؛ فایل Lock جدید بدون نیاز CI یا تصمیم مستقل اضافه نشود.
@@ -62,7 +62,7 @@
 فایل جدید `resources/css/crm.css` ایجاد شود. این فایل باید:
 - Tailwind را برای ورودی CRM فعال کند.
 - DaisyUI را به‌صورت Plugin فعال کند.
-- فقط منابع لازم Mary UI و View/Componentهای CRM را اسکن کند.
+- منابع Mary UI و View/Componentهای CRM را اسکن کند.
 - Theme روشن را به‌عنوان Theme پیش‌فرض CRM تعریف کند.
 - فونت فارسی موجود Vazirmatn را از Asset فعلی به‌صورت محدود به پوسته CRM معرفی کند.
 - کلاس‌ها و توکن‌های CRM را زیر ریشه‌ای مانند `.denagate-crm` محدود کند.
@@ -78,14 +78,15 @@
 
 @source "../../vendor/robsontenorio/mary/src/View/Components/**/*.php";
 @source "../views/crm/**/*.blade.php";
-@source "../../app/Interfaces/Web/CRM/**/*.php";
+@source "../views/layouts/crm.blade.php";
 ```
 
 این قطعه الگوی طراحی است و در PR باید با نسخه واقعی DaisyUI/Mary، مسیرهای نهایی View و خروجی Vite اعتبارسنجی شود. هیچ‌یک از خطوط Mary یا DaisyUI به `resources/css/app.css` منتقل نشود.
 
 ### ۴.۴. Vite و Layout مستقل
 
-- فقط ورودی `resources/css/crm.css` به آرایه ورودی Vite اضافه شود؛ ورودی‌های فعلی `app.css`، `app.js` و `live.js` حذف یا جابه‌جا نشوند.
+- ورودی‌های مستقل `resources/css/crm.css` و `resources/js/crm.js` به Vite اضافه شوند؛ ورودی‌های فعلی `app.css`، `app.js` و `live.js` حذف یا جابه‌جا نشوند.
+- `crm.js` فقط Runtime موجود Livewire را راه‌اندازی کند و از `live.js` استفاده نکند؛ ورودی Live دارای Interceptor اختصاصی بازیابی Mini App است.
 - Layout مستقل CRM در `resources/views/layouts/crm.blade.php` ایجاد شود.
 - Layout شامل `lang="fa"`، `dir="rtl"`، منابع CSS مختص CRM و Directives رسمی Livewire باشد.
 - Alpine یا اسکریپت Livewire دوباره بارگذاری نشود.
@@ -95,12 +96,14 @@
 ### ۴.۵. مسیر و دسترسی
 
 - مسیرهای CRM در فایل افزایشی `routes/crm.php` تعریف شوند و این فایل به‌صورت کنترل‌شده از `routes/web.php` فراخوانی شود.
-- مسیر نمونه `/admin/crm` زیر Guard وب Laravel و میان‌افزار فعال بودن حساب ثبت شود.
-- کنترل Super Admin با Action موجود `AssertCatalogManagementAccess` یا مسیر معادل مورد تأیید انجام شود؛ نقش عمومی admin یا مجوز `users.manage` کافی نیست.
+- مسیرهای CRM روی Host `crm.denagate.ir` ثبت شوند؛ ریشه Host به `/admin/crm` هدایت شود.
+- ورود موجود `/login` و خروج `/logout` بازاستفاده شوند؛ سامانه ورود جداگانه ساخته نشود.
+- میان‌افزار `EnsureCrmAccess` مهمان را به Login هدایت کند و با `AssertCatalogManagementAccess`، `SuperAdminTrust` را در هر درخواست بررسی کند؛ نقش عمومی admin یا مجوز `users.manage` کافی نیست.
+- `EnsureCrmScheme` فقط برای Host CRM HTTPS، HSTS و کوکی نشست Secure/Host-only را اعمال کند؛ `APP_URL` و `TrustProxies` سراسری تغییر نکنند.
 - اگر برای Route به Middleware نیاز است، Middleware کوچک و اختصاصی CRM در لایه Interface ساخته شود و فقط به Action مالک Identity متکی باشد.
-- Middleware مربوط به CRM باید در درخواست‌های بعدی Livewire نیز پایدار بماند. ثبت آن در Persistent Middleware نباید رفتار `EnsureLiveEnabled` و `EnsureLiveReseller` را تغییر دهد.
+- `EnsureCrmAccess` به Persistent Middleware Livewire اضافه شود تا دسترسی در درخواست‌های بعدی نیز بررسی شود؛ رفتار `EnsureLiveEnabled` و `EnsureLiveReseller` تغییر نکند.
 - هیچ مسیر CRM به `routes/live.php` یا دامنه Mini App اضافه نشود.
-- صفحه فقط یک پیام «پوسته CRM آماده است» و اجزای آزمایشی Mary UI را نمایش دهد؛ هیچ داده مشتری یا نماینده از DB خوانده نشود.
+- صفحه پوسته فقط وضعیت آماده بودن محیط را نشان دهد؛ هیچ داده مشتری یا نماینده از DB خوانده نشود.
 
 ## ۵. فایل‌های مورد انتظار
 
@@ -108,8 +111,12 @@
 |---|---|
 | `composer.json` و `composer.lock` | افزودن Mary UI |
 | `package.json` | افزودن DaisyUI با نسخه سازگار |
-| `vite.config.js` | افزودن ورودی CSS CRM |
+| `vite.config.js` | افزودن ورودی CSS و JS CRM |
+| `config/denagate_crm.php` | Host پنل |
+| `bootstrap/app.php` | Middleware محدود Host برای HTTPS و نشست |
+| `resources/js/crm.js` | Runtime مستقل Livewire |
 | `resources/css/crm.css` | فایل جدید |
+| `resources/js/crm.js` | فایل جدید |
 | `resources/views/layouts/crm.blade.php` | Layout جدید |
 | `resources/views/crm/shell.blade.php` | پوسته آزمایشی جدید |
 | `routes/crm.php` | مسیرهای مستقل CRM |
@@ -123,6 +130,8 @@
 ## ۶. موارد صریحاً ممنوع در CRM-01A
 
 - اجرای `php artisan mary:install` با هر گزینه.
+- تغییر سراسری `APP_URL` یا فعال‌سازی سراسری `TrustProxies`.
+- تغییر رفتار HTTPS، نشست، CSS یا JS سایر Hostها.
 - تغییر یا بازنویسی `routes/live.php`.
 - تغییر رفتاری احراز هویت، نشست یا دامنه DenaGate Live.
 - تغییر CSS یا JS موجود Mini App.
@@ -140,11 +149,18 @@
 - [ ] نسخه Mary UI و DaisyUI در فایل‌های وابستگی ثبت شوند.
 - [ ] `npm run build` موفق باشد.
 - [ ] خروجی CRM CSS مستقل تولید شود.
+- [ ] ورودی‌های `resources/css/crm.css` و `resources/js/crm.js` در Vite Manifest ثبت شوند.
+- [ ] Bundle مستقل Livewire CRM تولید شود؛ Bundle موجود Live بدون تغییر بماند.
 - [ ] صفحات موجود DenaGate Live همچنان از ورودی‌های قبلی استفاده کنند.
 - [ ] هیچ CSS Mary/DaisyUI به `app.css` اضافه نشده باشد.
 
-### دسترسی
+### دامنه و دسترسی
 
+- [ ] ریشه `crm.denagate.ir` به `https://crm.denagate.ir/admin/crm` هدایت شود.
+- [ ] فرم ورود و URLهای Vite/Livewire با HTTPS تولید شوند.
+- [ ] کوکی نشست CRM Secure و Host-only باشد.
+- [ ] درخواست HTTP با هدر صریح `X-Forwarded-Proto: http` به HTTPS هدایت شود.
+- [ ] سیاست HTTPS CRM روی Hostهای دیگر و DenaGate Live اثر نگذارد.
 - [ ] Super Admin واجد شرایط وارد `/admin/crm` شود.
 - [ ] مهمان به مسیر CRM دسترسی نداشته باشد.
 - [ ] عضو عادی، نماینده، مدیر تفویض‌شده و حساب غیرفعال پاسخ غیرمجاز دریافت کنند.
@@ -175,4 +191,4 @@
 - تست‌های دسترسی، Livewire update و Vite build سبز.
 - هیچ داده تجاری هنوز به CRM متصل نشده باشد.
 
-**وضعیت نهایی این سند:** برنامه CRM-01A آماده بررسی است. تأیید آن فقط مجوز اجرای همین فاز خواهد بود؛ CRM-01B و اتصال داده‌های مشتری/نماینده نیازمند تأیید جداگانه هستند.
+**وضعیت نهایی این سند:** پیاده‌سازی CRM-01A روی شاخه مستقل انجام شده است؛ CI و Review باید سبز شوند. Merge و انتشار به تأیید جداگانه نیاز دارند؛ CRM-01B و اتصال داده‌های مشتری/نماینده در این فاز انجام نشده‌اند.

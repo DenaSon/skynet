@@ -1,17 +1,17 @@
 ## CRM-01 — Root-only read-only customer CRM (2026-11-27; scope corrected)
 
-**Status:** Product scope and documentation approved. Implementation is separately gated.
+**Status:** Product scope approved; CRM-01A foundation implemented on `feat/crm-01a-foundation-20261127`; PR/CI review pending, not merged.
 
-- The CRM is a web interface in the existing Laravel application, accessible only to Super Admin users accepted by `SuperAdminTrust`.
+- The CRM is a web interface in the existing Laravel application on `crm.denagate.ir`, accessible only to Super Admin users accepted by `SuperAdminTrust`. The host root redirects to `/admin/crm`.
 - Read-only data scope includes direct member accounts, all reseller accounts and downstream customer contact records attached to reseller orders. Resellers and members have no CRM access; their records are visible to Super Admin.
 - The existing DenaGate Live reseller Mini App, its routes, authentication, UI, assets and operational flows remain unchanged.
 - Reseller customer records currently live in `sales_service_customer_labels` per order; distinct normalized phone numbers are counted per reseller, while name-only records are shown separately. No independent customer identity or deduplication is invented.
 - Reseller ranking uses immutable `buyer_category = reseller` order snapshots and canonical settled bank/wallet purchases. Historical NULL categories remain unknown. The metric represents purchases settled by the reseller with DenaGate, not downstream retail turnover or reseller profit.
 - CRM-01 is read-only: no account/contact/role/financial/provider mutations, messages, campaigns, public API, new Provider calls, migrations or data backfill.
-- Use Laravel 13 + existing Livewire 4 + Mary UI. Manually add Mary and the compatible DaisyUI dependency; never run `php artisan mary:install`, which can overwrite `routes/web.php`, reinstall existing packages and alter shared `resources/css/app.css`.
+- Use Laravel 13 + existing Livewire 4 + Mary UI 2.9.11 + DaisyUI 5.8.3. CRM HTTPS/session policy is host-scoped; global `APP_URL` and proxy trust remain unchanged. Manually install Mary and use separate `crm.css`/`crm.js`; never run `php artisan mary:install`, which can overwrite `routes/web.php`, reinstall existing packages and alter shared `resources/css/app.css`.
 - Full contract: [docs/051-CRM-01.md](051-CRM-01.md). First implementation phase: [CRM-01A — Mary UI foundation](052-CRM-01A-MARY-UI-FOUNDATION.md).
 
-**Delivery phases:** CRM-01A secure Mary UI shell; CRM-01B dashboard and filtered directories; CRM-01C read-only profiles/history; CRM-01D hardening and acceptance. Each phase needs explicit scope approval, an independent reviewed PR and green CI. No implementation is authorized merely by this roadmap entry.
+**Delivery phases:** CRM-01A secure Mary UI shell (implementation in progress, not merged); CRM-01B dashboard and filtered directories; CRM-01C read-only profiles/history; CRM-01D hardening and acceptance. Each phase needs explicit scope approval, an independent reviewed PR and green CI.
 
 
 
