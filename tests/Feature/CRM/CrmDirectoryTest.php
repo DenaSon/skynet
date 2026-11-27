@@ -268,7 +268,6 @@ it('rejects profile snapshot tampering and rechecks the trusted root on updates'
     Http::assertNothingSent();
 });
 
-
 it('returns only local linked services for the selected customer and never calls the provider', function (): void {
     $root = crm01bUser('super-admin');
     $member = crm01bUser('member');
@@ -295,4 +294,15 @@ it('returns only local linked services for the selected customer and never calls
         ->and($rows->items()[0]->state)->toBe('active')
         ->and((array) $rows->items()[0])->not->toHaveKey('remote_username');
     Http::assertNothingSent();
+});
+
+it('renders real profile links for populated directories and dashboard', function (): void {
+    $root = crm01bUser('super-admin');
+    $member = crm01bUser('member');
+    $reseller = crm01bUser('reseller');
+    crm01bOrder($reseller, 'reseller', 100_000);
+    $base = 'https://crm.denagate.ir/admin/crm';
+    $this->actingAs($root, 'web')->get($base.'/customers')->assertOk()->assertSee($base.'/customers/'.$member->id, false);
+    $this->get($base.'/resellers')->assertOk()->assertSee($base.'/resellers/'.$reseller->id, false);
+    $this->get($base)->assertOk()->assertSee($base.'/resellers/'.$reseller->id, false);
 });
