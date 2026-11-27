@@ -39,6 +39,7 @@ const NW05_ZONE = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const NW05_RECORD_NODE = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 const NW05_RECORD_XHTTP = 'cccccccccccccccccccccccccccccccc';
 const NW05_RECORD_PEER = 'dddddddddddddddddddddddddddddddd';
+const NW05_RECORD_PEER_HOST = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
 const NW05_OLD_IP = '8.8.4.4';
 const NW05_NEW_IP = '1.1.1.1';
 
@@ -96,6 +97,8 @@ function nw05ReplacementApi(
     bool $nodeConnected = true,
     bool $sharedNodeManagementHostname = false,
     bool $peerNodeLegacyHost = false,
+    bool $peerNodeDirectIpLegacyHost = false,
+    bool $peerNodeDifferentHostnameLegacyHost = false,
 ): object {
     $node = [
         'uuid' => NW05_NODE,
@@ -151,11 +154,11 @@ function nw05ReplacementApi(
             'nodes' => [NW05_OTHER_NODE],
         ];
     }
-    if ($peerNodeLegacyHost) {
+    if ($peerNodeLegacyHost || $peerNodeDirectIpLegacyHost || $peerNodeDifferentHostnameLegacyHost) {
         $hosts[] = [
             'uuid' => NW05_HOST_PEER,
             'remark' => 'AMTURK-SS',
-            'address' => 'nl01.coreflare.ir',
+            'address' => $peerNodeDifferentHostnameLegacyHost ? 'peer-host.coreflare.ir' : 'nl01.coreflare.ir',
             'port' => 1234,
             'isDisabled' => false,
             'inbound' => ['configProfileUuid' => NW05_PROFILE, 'configProfileInboundUuid' => NW05_INBOUND],
@@ -176,20 +179,29 @@ function nw05ReplacementApi(
             'modified_on' => '2026-11-17T08:00:00.000Z',
         ],
     ];
-    if ($peerNodeLegacyHost) {
+    if ($peerNodeLegacyHost || $peerNodeDirectIpLegacyHost || $peerNodeDifferentHostnameLegacyHost) {
+        $peerNodeHostname = 'nl01.coreflare.ir';
+        $peerHostAddress = $peerNodeDifferentHostnameLegacyHost ? 'peer-host.coreflare.ir' : 'nl01.coreflare.ir';
         $records[NW05_RECORD_PEER] = [
-            'id' => NW05_RECORD_PEER, 'name' => 'nl01.coreflare.ir', 'type' => 'A',
+            'id' => NW05_RECORD_PEER, 'name' => $peerNodeDifferentHostnameLegacyHost ? $peerNodeHostname : $peerHostAddress, 'type' => 'A',
             'content' => '130.94.2.7', 'proxied' => false, 'proxiable' => true,
             'modified_on' => '2026-11-17T08:00:00.000Z',
         ];
+        if ($peerNodeDifferentHostnameLegacyHost) {
+            $records[NW05_RECORD_PEER_HOST] = [
+                'id' => NW05_RECORD_PEER_HOST, 'name' => $peerHostAddress, 'type' => 'A',
+                'content' => '130.94.2.7', 'proxied' => false, 'proxiable' => true,
+                'modified_on' => '2026-11-17T08:00:00.000Z',
+            ];
+        }
     }
 
     $nodes = [$node];
-    if ($peerNodeLegacyHost) {
+    if ($peerNodeLegacyHost || $peerNodeDirectIpLegacyHost || $peerNodeDifferentHostnameLegacyHost) {
         $nodes[] = [
             'uuid' => NW05_OTHER_NODE,
             'name' => 'AMTURK',
-            'address' => 'nl01.coreflare.ir',
+            'address' => $peerNodeDirectIpLegacyHost ? '130.94.2.7' : 'nl01.coreflare.ir',
             'port' => 2222,
             'isConnected' => true,
             'isDisabled' => false,
@@ -492,6 +504,57 @@ it('excludes a legacy Host whose hostname is another Node management endpoint', 
         ])
         ->and($api->records[NW05_RECORD_PEER]['content'])->toBe('130.94.2.7')
         ->and(nw05MutationCount())->toBe(0);
+});
+
+it('excludes a legacy Host whose DNS resolves to another Node direct management IP', function (): void {
+    $ready = nw05ReplacementReady();
+    $api = nw05ReplacementApi(emptyMembership: true, peerNodeDirectIpLegacyHost: true);
+
+    $review = app(ReplaceAdminNode::class)->preview($ready['actor']->id, $ready['id']);
+
+    expect(array_column($review['hosts'], 'uuid'))->toBe([NW05_HOST_REALITY, NW05_HOST_XHTTP])
+        ->and(array_column($review['dnsRecords'], 'hostname'))->toBe([
+            'fr.coreflare.ir',
+            'xhttp.coreflare.ir',
+        ])
+        ->and($api->records[NW05_RECORD_PEER]['content'])->toBe('130.94.2.7')
+        ->and(nw05MutationCount())->toBe(0);
+});
+
+it('excludes a legacy Host when different Cloudflare hostnames resolve to the same peer Node IP', function (): void {
+    $ready = nw05ReplacementReady();
+    $api = nw05ReplacementApi(emptyMembership: true, peerNodeDifferentHostnameLegacyHost: true);
+
+    $review = app(ReplaceAdminNode::class)->preview($ready['actor']->id, $ready['id']);
+
+    expect(array_column($review['hosts'], 'uuid'))->toBe([NW05_HOST_REALITY, NW05_HOST_XHTTP])
+        ->and(array_column($review['dnsRecords'], 'hostname'))->toBe([
+            'fr.coreflare.ir',
+            'xhttp.coreflare.ir',
+        ])
+        ->and($api->records[NW05_RECORD_PEER]['content'])->toBe('130.94.2.7')
+        ->and($api->records[NW05_RECORD_PEER_HOST]['content'])->toBe('130.94.2.7')
+        ->and(nw05MutationCount())->toBe(0);
+});
+
+it('fails closed when a peer Node management hostname cannot be verified', function (): void {
+    $ready = nw05ReplacementReady();
+    $api = nw05ReplacementApi(emptyMembership: true, peerNodeLegacyHost: true);
+    unset($api->records[NW05_RECORD_PEER]);
+
+    expect(fn () => app(ReplaceAdminNode::class)->preview($ready['actor']->id, $ready['id']))
+        ->toThrow(RuntimeException::class);
+    expect(nw05MutationCount())->toBe(0);
+});
+
+it('rejects a replacement IP already used by another Node DNS hostname', function (): void {
+    $ready = nw05ReplacementReady();
+    $api = nw05ReplacementApi(emptyMembership: true, peerNodeLegacyHost: true);
+    $api->records[NW05_RECORD_PEER]['content'] = NW05_NEW_IP;
+
+    expect(fn () => app(ReplaceAdminNode::class)->preview($ready['actor']->id, $ready['id']))
+        ->toThrow(RuntimeException::class);
+    expect(nw05MutationCount())->toBe(0);
 });
 
 it('fails closed when a legacy Host matches the active profile and inbound but its DNS target differs', function (): void {
