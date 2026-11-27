@@ -2,6 +2,21 @@
 
 DenaGate's normal Remnawave Node and Host endpoints are **predefined Cloudflare-managed hostnames**, not direct IPs. When implementing an Arianet Cloud IPv4 change, update only the verified, unique Cloudflare A records for the selected Node; keep Node UUID, Node/Host addresses, and unrelated-Node resources unchanged. Direct-IP or unverified/shared target ownership must stop rather than introduce a new remediation architecture. Reuse the existing Cloud and DNS Actions and durable operation journal. Prefer one clear Rich RTL paid confirmation and resumable GET-only status; avoid staged/demo paths, per-record confirmation clicks, extra services/jobs/migrations or broad Provider authorization. Cloud VPS purchasing and Node replacement are separate ARI-04 scopes. Before any new abstraction, privilege widening, extra workflow or expanded scope, obtain explicit operator approval; source CI, merge/deploy, live Write and client traffic acceptance are separate evidence gates. See [docs/050](docs/050-ARIANET-CLOUD-ROADMAP.md#ari-03d--domain-first-production-ipv4-change-2026-11-23).
 
+## CRM-01 — root-only read-only Admin CRM (2026-11-27)
+
+[The authoritative scope is `docs/051-CRM-01.md`; the first implementation phase is specified in `docs/052-CRM-01A-MARY-UI-FOUNDATION.md`.](docs/051-CRM-01.md)
+
+- CRM data includes direct member accounts, reseller accounts and downstream customer contact records attached to reseller orders. Resellers are excluded from CRM access, not from the data visible to Super Admin.
+- Only users accepted by `SuperAdminTrust` may access CRM. Delegated admins, resellers and members are denied. Recheck access on every Livewire request and in every CRM Application Action.
+- CRM-01 is read-only: no account, role, customer-contact, order, financial, wallet or subscription writes; no messages, campaigns, public API, new Provider calls, migration or data backfill.
+- The existing DenaGate Live reseller Mini App, its routes, authentication, UI, assets, sales and provider workflows must remain unchanged.
+- Reseller downstream customers are currently order-linked records in `sales_service_customer_labels`, not independent customer accounts. Count distinct normalized phones per reseller; show name-only records separately and never claim exact person-level deduplication.
+- Attribute reseller sales only from immutable `sales_orders.buyer_category = reseller` snapshots and canonical settled purchase rows. Historical NULL categories remain unknown; never infer them from current roles or discounts. Label the metric as reseller purchases settled with DenaGate, not retail turnover or reseller profit.
+- Reuse owning modules' Application Actions and canonical settlement rules. Keep queries, financial rules and authorization out of Livewire/Blade.
+- The CRM host is `crm.denagate.ir`; root-only access uses the existing web login and `SuperAdminTrust`. CRM HTTPS/session policy is host-scoped and uses a dedicated host-only session cookie; do not change global `APP_URL` or proxy trust.
+- Mary UI is integrated manually with independent `crm.css` and `crm.js` assets. Never run `php artisan mary:install`: it can overwrite `routes/web.php`, reinstall existing dependencies and modify shared `resources/css/app.css`.
+- CRM-01A source review and full PHP 8.4/8.5 CI passed in PR #584 (run 45993151960). The CRM shell also rechecks trusted access and the current host on Livewire hydration. Future CRM presenters must preserve this boundary and authorize every data Action. Real deployment and browser acceptance are separate gates.
+
 ## Product delivery strategy — normative for DenaGate (2026-11-12)
 
 **Feedback-Driven, Evidence-Based, Incremental Development** is the default **product-improvement strategy**, not an authorization to expand a phase. Start with a concrete customer/operator problem or observed incident; verify the underlying state against current `master`, trusted records and the applicable approved Roadmap. Implement the **smallest independently testable, reversible solution**, reuse existing Application Actions and infrastructure, keep RBAC, financial/provider safety and old behavior, and require PR review and green CI before any authorized merge. After release, distinguish **source tests**, **verified deployment**, **real customer observation** and **aggregated outcome metrics**; capture factual findings and iterate only when the next scope is explicitly approved. Do not build speculative features, dashboards, analytics, background outreach, parallel systems or new dependencies merely to follow this strategy.
@@ -118,7 +133,7 @@ Read [docs/017-TELEGRAM-UX-IDENTITY.md](docs/017-TELEGRAM-UX-IDENTITY.md) BEFORE
 - Telegram handlers live in `app/Interfaces/Telegram` and may call approved Identity/Application actions; never import Identity/Infrastructure models or bypass role checks.
 - Only the documented webhook route can run Nutgram in HTTP; verify its independent secret before processing any update.
 - Private Telegram ID and single-use link tokens are the only approved identity join in F4.
-- Livewire/Mary UI and public REST APIs remain deferred. Shared Application Actions are the intended integration contract; do not introduce provider/network actions in Telegram handlers.
+- Livewire 4 + Mary UI for the root-only read-only Admin CRM is specified under [CRM-01](docs/051-CRM-01.md); CRM-01A foundation is implemented and source-validated in PR #584. Reseller accounts and their downstream customer records are visible to Super Admin only; the reseller Mini App stays isolated and unchanged. Public REST APIs remain deferred.
 - See ADR 0004 and `docs/006-TELEGRAM-OPERATIONS.md` before Telegram changes.
 
 ## Fixed boundaries

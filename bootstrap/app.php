@@ -1,5 +1,6 @@
 <?php
 
+use App\Interfaces\Web\CRM\EnsureCrmScheme;
 use App\Modules\Identity\Presentation\Middleware\EnsureActiveUser;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -14,6 +15,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Apply HTTPS and secure-session policy only to the dedicated CRM host.
+        $middleware->prependToGroup('web', EnsureCrmScheme::class);
         $middleware->alias(['identity.active' => EnsureActiveUser::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

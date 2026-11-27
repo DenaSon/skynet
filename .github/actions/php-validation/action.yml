@@ -89,7 +89,7 @@ runs:
         restore-keys: |
           ${{ runner.os }}-npm-node22-
 
-    - name: Verify Livewire production JavaScript bundle
+    - name: Verify Livewire and CRM production assets
       if: ${{ inputs.run-frontend == 'true' }}
       run: |
         npm install --prefer-offline --ignore-scripts --no-fund --no-audit --package-lock=false
@@ -99,12 +99,35 @@ runs:
         const fs = require('node:fs');
         const manifest = JSON.parse(fs.readFileSync('public/build/manifest.json', 'utf8'));
         const live = manifest['resources/js/live.js'];
+        const crmJs = manifest['resources/js/crm.js'];
         if (!live || !live.isEntry || !live.file || !live.file.endsWith('.js')) {
-          throw new Error('Livewire Vite entry missing from production manifest');
+          throw new Error('Livewire Live Vite entry missing from production manifest');
         }
-        const filename = 'public/build/' + live.file;
-        if (!fs.existsSync(filename) || fs.statSync(filename).size < 30000) {
-          throw new Error('Livewire runtime JavaScript bundle missing or unexpectedly empty');
+        if (!crmJs || !crmJs.isEntry || !crmJs.file || !crmJs.file.endsWith('.js')) {
+          throw new Error('CRM Livewire Vite entry missing from production manifest');
+        }
+        function collectJavaScriptFiles(entry, seen = new Set()) {
+          if (!entry?.file || seen.has(entry.file)) return seen;
+          seen.add(entry.file);
+          for (const key of [...(entry.imports || []), ...(entry.dynamicImports || [])]) {
+            const dependency = manifest[key];
+            if (dependency?.file?.endsWith('.js')) collectJavaScriptFiles(dependency, seen);
+          }
+          return seen;
+        }
+        for (const [label, entry] of [['Live', live], ['CRM', crmJs]]) {
+          const entryFile = 'public/build/' + entry.file;
+          if (!fs.existsSync(entryFile) || fs.statSync(entryFile).size === 0) {
+            throw new Error(label + ' Livewire Vite entry file is missing or empty: ' + entryFile);
+          }
+          const runtime = [...collectJavaScriptFiles(entry)].find(file => {
+            const basename = file.split('/').pop() || '';
+            return basename.startsWith('livewire.esm-') || basename === 'livewire.esm.js';
+          });
+          const runtimeFile = runtime ? 'public/build/' + runtime : null;
+          if (!runtimeFile || !fs.existsSync(runtimeFile) || fs.statSync(runtimeFile).size < 30000) {
+            throw new Error(label + ' Livewire dependency graph is missing its production runtime bundle');
+          }
         }
         // P0 contract: the ten unused-yet component primitives must survive production CSS generation.
         const style = manifest['resources/css/app.css'];
@@ -117,6 +140,16 @@ runs:
         for (const primitive of primitives) {
           if (!css.includes('.denagate-live .' + primitive)) {
             throw new Error('Missing scoped P0 primitive in compiled CSS: ' + primitive);
+          }
+        }
+        const crmStyle = manifest['resources/css/crm.css'];
+        if (!crmStyle || !crmStyle.isEntry || !crmStyle.file || !crmStyle.file.endsWith('.css')) {
+          throw new Error('CRM stylesheet missing from production manifest');
+        }
+        const crmCss = fs.readFileSync('public/build/' + crmStyle.file, 'utf8');
+        for (const selector of ['.denagate-crm', '.btn', '.card']) {
+          if (!crmCss.includes(selector)) {
+            throw new Error('Missing CRM/Mary UI production CSS selector: ' + selector);
           }
         }
         NODE

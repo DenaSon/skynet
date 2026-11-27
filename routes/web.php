@@ -4,6 +4,7 @@ use App\Interfaces\Telegram\Http\RwBackupDownloadController;
 use Illuminate\Support\Facades\Route;
 
 require __DIR__.'/live.php';
+require __DIR__.'/crm.php';
 
 // One-use private Super Admin archive links. Authorization is repeated in controller.
 Route::get('/internal/rw-backups/{token}', RwBackupDownloadController::class)

@@ -1,3 +1,16 @@
+## CRM-01 — پنل وب مدیریت مشتریان (2026-11-27; scope corrected)
+
+- CRM فقط برای Super Admin واجد شرایط `SuperAdminTrust` است و در نسخه اول کاملاً Read-only می‌ماند.
+- دامنه داده شامل مشتریان مستقیم، حساب‌های نمایندگی و مشتریان ثبت‌شده روی سفارش‌های نمایندگان است. حدود ۸۰۰ مشتری مستقیم و ۲۵ نماینده اعداد برنامه‌ریزی فعلی‌اند، نه ثابت‌های سیستم.
+- نمایندگان و مشتریان عادی به CRM دسترسی ندارند؛ نمایندگان از داده CRM حذف نشده‌اند. Super Admin باید حساب نماینده، عملکرد، سفارش‌ها و اطلاعات مشتریان ثبت‌شده زیرمجموعه او را ببیند.
+- مشتریان نمایندگان فعلاً رکوردهای سفارش‌محور در `sales_service_customer_labels` هستند؛ شماره‌های نرمال‌شده متمایز و نام‌های بدون شماره باید جدا گزارش شوند. این داده‌ها پرونده مستقل و تضمین‌شده اشخاص نیستند.
+- رتبه‌بندی مالی نمایندگان فقط بر اساس Snapshot `buyer_category = reseller` و تسویه معتبر است. دسته‌های تاریخی NULL نامشخص می‌مانند و مبلغ خرید نماینده از دناگیت با فروش خرده‌فروشی یا سود نماینده اشتباه نمی‌شود.
+- مینی‌اپ فعلی DenaGate Live نمایندگان، مسیرها، نشست، CSS/JS و عملیات آن بدون تغییر باقی می‌ماند.
+- دامنه پنل `crm.denagate.ir` است؛ ریشه به `/admin/crm` می‌رود و ورود وب موجود با کنترل مجدد `SuperAdminTrust` استفاده می‌شود.
+- Mary UI نسخه 2.9.11 و DaisyUI نسخه 5.8.3 به‌صورت دستی فعال شده‌اند؛ `crm.css` و `crm.js` مستقل‌اند و اجرای `php artisan mary:install` ممنوع است.
+- HTTPS، HSTS و کوکی مستقل `denagate_crm_session` با پرچم Secure و Host-only فقط روی Host CRM اعمال می‌شود؛ `APP_URL` و تنظیمات سراسری Proxy تغییر نمی‌کنند. پیاده‌سازی CRM-01A در PR #584 قرار دارد؛ CI هر دو نسخه PHP 8.4 و 8.5، PHPStan، Pint، MySQL و Vite موفق است (اجرای 45993151960). بررسی عملی پس از استقرار باقی است.
+- قرارداد کامل در [docs/051-CRM-01.md](051-CRM-01.md) و برنامه مرحله اول در [docs/052-CRM-01A-MARY-UI-FOUNDATION.md](052-CRM-01A-MARY-UI-FOUNDATION.md) است.
+
 ## NW-05 — جایگزینی با Node از قبل نصب‌شده (2026-11-27; merged PR #582, commit d67a2a2d)
 
 - در مسیر دستی جایگزینی نود، مدیر می‌تواند بین «استفاده از Node آماده» و «نصب خودکار روی سرور خالی» انتخاب کند. مسیر خرید VPS ابری همچنان از نصب خودکار فعلی استفاده می‌کند.
@@ -928,7 +941,7 @@ UXR-05 source scope explicitly approved. Use official RW Subscription Page for t
 
 ## 1. Product and chosen architecture
 
-- **ParsaGate** is a clean Laravel successor to the Python NVL project, **not a port** of the old bot. Telegram is the first presenter; future web UI is intended to use **Livewire 4 + Mary UI** over shared Application actions. Public REST is optional, not a prerequisite.
+- **ParsaGate** is a clean Laravel successor to the Python NVL project, **not a port** of the old bot. Telegram remains the primary bot presenter; the existing reseller DenaGate Live Mini App is a separate Livewire 4 interface. The root-only read-only Admin CRM is specified under [CRM-01](051-CRM-01.md): Super Admin can inspect direct customers, reseller accounts and reseller-linked customer records, while resellers have no CRM access. The Mary UI 2.9.11 / DaisyUI 5.8.3 foundation and host-scoped HTTPS setup are implemented on `feat/crm-01a-foundation-20261127`; source review and PHP 8.4/8.5 CI passed; live deployment acceptance remains separate. Public REST is optional, not a prerequisite.
 - **Laravel 13**, **PHP >=8.4.1**, modular monolith, explicit module providers, one application/deployment and primary DB; Pest 5, Larastan 3/PHPStan and Laravel Pint. CI matrix: PHP **8.4 and 8.5**.
 - Modules own business rules. `app/Interfaces/Telegram` and eventual Livewire presenters are **thin adapters**. Do not call provider infrastructure or cross-module Eloquent models directly from a presenter.
 - **Remnawave** is the selected external subscription **panel/provider API** (OpenAPI **v3.4.4** pinned). This is **not** a decision that ParsaGate's own network layer uses a particular SSH/WireGuard/Core/Edge implementation; those integration designs are separate/deferred.

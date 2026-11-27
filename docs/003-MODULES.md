@@ -1,4 +1,4 @@
-# Module boundaries — current snapshot (2026-11-09)
+# Module boundaries — current snapshot (2026-11-27)
 
 This section reflects the modules present in the current `master` baseline. Dated phase notes below describe historical implementation checkpoints and should not be read as current feature or rollout status.
 
@@ -10,9 +10,10 @@ This section reflects the modules present in the current `master` baseline. Date
 | `Provisioning` | Remnawave adapter, managed subscriptions, provider lifecycle and reconciliation |
 | `Filtering` | Node/regional evidence, incidents, alerts and bounded retention |
 | `Referral`, `Onboarding`, `Trial` | Referral attribution/reward, signup composition and time-limited trial |
-| `Administration` | Lightweight administration module registration |
+| `Administration` | Planned Admin UI composition and read-model orchestration; no ownership of other modules' domain data |
 | `Interfaces/Telegram` | Admin/Sales Bot transports, UI, contact/notification delivery |
-| `Interfaces/Web/Live` | Livewire Mini App presentation using shared Application actions |
+| `Interfaces/Web/Live` | Existing reseller Mini App presentation using shared Application actions |
+| `Interfaces/Web/CRM` | Trusted-root read-only Admin CRM presenter; CRM-01A shell source-validated; direct customer and reseller data remain planned |
 
 ## Current dependency policy
 
@@ -48,7 +49,7 @@ Trial owns one-time HMAC identity claims, SQL daily reservation quota and guarde
 | Provisioning | Remnawave transport, node/user DTOs and durable provider operation state | F10-A/B/C/D implemented internally; no actor-authorized sales integration or live panel E2E |
 | Administration | Future admin UI composition | Registered shell only |
 | Telegram (interface) | Private chatbot navigation and feature presenters | Identity/RBAC/onboarding/wallet/shop/orders/subscriptions; F11-A2 receipt-photo + Super Admin approve/reject UX (OFF by default) |
-| Web UI | Planned shared Application consumer | Livewire 4 + Mary UI deferred |
+| `Interfaces/Web/CRM` (planned) | Trusted-root read-only Admin CRM Livewire presentation | CRM-01A shell source-validated; direct customer and reseller reads remain planned |
 
 ## Identity layout
 ```text
@@ -81,7 +82,7 @@ app/Modules/Identity/
 - Public registration is intentionally absent. Bootstrap: `php artisan identity:bootstrap-admin`.
 
 ## Deferred / not yet operational
-Livewire/Mary UI presentation, customer subscription reads via F10-E, paid-order transition, wallet purchase debit, provisioning outbox, provider write calls from a trusted business action, user preferences storage, password reset/email verification/2FA, live E2E and independent SSH/WireGuard transport design. **F06-B/C Telegram admin workflows are implemented**, not deferred.
+CRM-01 read-only Admin CRM implementation (planning approved; code not yet implemented), customer subscription reads via F10-E, paid-order transition, wallet purchase debit, provisioning outbox, provider write calls from a trusted business action, user preferences storage, password reset/email verification/2FA, live E2E and independent SSH/WireGuard transport design. **F06-B/C Telegram admin workflows are implemented**, not deferred.
 
 ## Telegram interface, not a business module (F4)
 `app/Interfaces/Telegram/` contains webhook controller, Nutgram handlers, inline-menu renderer, retry receipts, and operator commands. It only imports `App\Modules\Identity\Application\*` for account linking and actor resolution. Transport data does not become a domain model. `routes/telegram.php` registers Nutgram handlers.
