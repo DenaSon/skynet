@@ -18,7 +18,7 @@ uses(RefreshDatabase::class);
 beforeEach(function (): void {
     $this->travelTo(Carbon::parse('2026-11-27 12:00:00', 'Asia/Tehran')->utc());
     config()->set('denagate_crm.host', 'crm.denagate.ir');
-    config()->set('super_admin.telegram_ids', ['997101']);
+    config()->set('super_admin.telegram_ids', ['997101', '997102']);
     foreach (['member', 'reseller', 'admin', 'super-admin'] as $role) {
         Role::findOrCreate($role, 'web');
     }
