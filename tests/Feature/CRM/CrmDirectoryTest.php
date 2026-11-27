@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Interfaces\Telegram\Processing\ProcessSalesTelegramUpdate;
 use App\Interfaces\Telegram\Processing\ProcessTelegramUpdate;
+use App\Modules\Billing\Application\BrowseCustomerWallets;
 use App\Modules\Billing\Application\CreditVerifiedAdminBankTopup;
 use App\Modules\Billing\Application\ReadAdminCashReceipts;
 use App\Modules\Billing\Application\ReadAdminWalletSummary;
@@ -1474,7 +1475,7 @@ it('distinguishes a missing wallet from recorded zero and reconciles profile wit
         'advancedConditions' => [['field' => 'wallet_known', 'operator' => 'eq', 'value' => '0']],
     ]))['rows'];
     expect(array_map(static fn ($row): int => (int) $row->id, $rows->items()))->toBe([$missing->id]);
-    expect(app(\App\Modules\Billing\Application\BrowseCustomerWallets::class)->balanceForUser($root->id, $missing->id))->toBe(0);
+    expect(app(BrowseCustomerWallets::class)->balanceForUser($root->id, $missing->id))->toBe(0);
     $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm/customers/'.$missing->id)
         ->assertOk()->assertSee('کیف پول ثبت نشده است');
     Http::assertNothingSent();
