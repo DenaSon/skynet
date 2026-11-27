@@ -106,15 +106,7 @@ final readonly class ReadCrmAnalytics
                 COUNT(CASE WHEN cohort = 'reseller' THEN 1 END) as reseller_count", $accountBindings)
                 ->groupBy('bucket')->get()->keyBy('bucket');
 
-            $selected = clone $sales;
-            if ($channel === 'unknown') {
-                $selected->where(static fn (Builder $query) => $query->whereNull('buyer_category')->orWhereNotIn('buyer_category', ['direct', 'reseller']));
-            } elseif ($channel !== 'all') {
-                $selected->where('buyer_category', $channel);
-            }
-            if ($resellerId !== null) {
-                $selected->where('buyer_category', 'reseller')->where('buyer_id', $resellerId);
-            }
+            $selected = $this->filterPurchases(clone $sales, $channel, $resellerId);
             $selectedTrend = (clone $selected)->selectRaw("$salesCase as bucket,
                 COALESCE(SUM(amount_rials), 0) as revenue,
                 COUNT(DISTINCT buyer_id) as buyers", $salesBindings)->groupBy('bucket')->get()->keyBy('bucket');
@@ -124,12 +116,16 @@ final readonly class ReadCrmAnalytics
             $cashTrend = null;
             $priorCash = null;
             $previous = null;
+            $previousSelected = null;
             $previousFrom = null;
             $previousUntil = null;
             if ($filters['period'] !== 'all') {
                 $previousFrom = $start->copy()->subDays($days)->utc();
                 $previousUntil = $end->copy()->subDays($days)->utc();
                 $previous = $this->business->settledTotalsBetween($actorId, $previousFrom, $previousUntil)['revenueRials'];
+                $previousSelected = $channel === 'all' && $resellerId === null
+                    ? $previous
+                    : (int) $this->filterPurchases(DB::query()->fromSub($this->business->crmSettledRows($actorId, $previousFrom, $previousUntil), 'settled'), $channel, $resellerId)->sum('amount_rials');
             }
             if ($cashRows !== null) {
                 try {
@@ -187,6 +183,7 @@ final readonly class ReadCrmAnalytics
                 'cashRials' => $cashRials,
                 'previousSalesRials' => $previous,
                 'previousCashRials' => $priorCash,
+                'previousSelectedRials' => $previousSelected,
                 'selectedRials' => (int) ($totals->revenue ?? 0),
                 'buyers' => (int) ($totals->buyers ?? 0),
                 'newPurchases' => (int) ($totals->orders_count ?? 0) - $renewals,
@@ -198,6 +195,20 @@ final readonly class ReadCrmAnalytics
                 'end' => $end->copy()->subSecond()->format('Y-m-d'),
             ];
         });
+    }
+
+    private function filterPurchases(Builder $query, string $channel, ?int $resellerId): Builder
+    {
+        if ($channel === 'unknown') {
+            $query->where(static fn (Builder $nested) => $nested->whereNull('settled.buyer_category')->orWhereNotIn('settled.buyer_category', ['direct', 'reseller']));
+        } elseif ($channel !== 'all') {
+            $query->where('settled.buyer_category', $channel);
+        }
+        if ($resellerId !== null) {
+            $query->where('settled.buyer_category', 'reseller')->where('settled.buyer_id', $resellerId);
+        }
+
+        return $query;
     }
 
     /** @return list<array{start:Carbon,end:Carbon}> */

@@ -95,7 +95,7 @@
 
                 <h2 class="text-base font-semibold">خریدهای انتخاب‌شده</h2>
                 <div class="crm-metric-grid grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                    <x-card class="border border-base-300"><x-stat title="مبلغ خرید" :value="$money($data['selectedRials'])" icon="o-banknotes" /></x-card>
+                    <x-card class="border border-base-300"><x-stat title="مبلغ خرید" :value="$money($data['selectedRials'])" :description="$period === 'all' ? 'از ابتدا؛ بدون مقایسه' : $comparison($data['selectedRials'], $data['previousSelectedRials'])" icon="o-banknotes" /></x-card>
                     <x-card class="border border-base-300"><x-stat title="خریداران یکتای کل بازه" :value="$number($data['buyers'])" icon="o-users" /></x-card>
                     <x-card class="border border-base-300"><x-stat title="خرید جدید" :value="$number($data['newPurchases'])" icon="o-shopping-bag" /></x-card>
                     <x-card class="border border-base-300"><x-stat title="تمدید" :value="$number($data['renewals'])" icon="o-arrow-path" /></x-card>
