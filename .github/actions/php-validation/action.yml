@@ -106,10 +106,27 @@ runs:
         if (!crmJs || !crmJs.isEntry || !crmJs.file || !crmJs.file.endsWith('.js')) {
           throw new Error('CRM Livewire Vite entry missing from production manifest');
         }
-        for (const entry of [live, crmJs]) {
-          const filename = 'public/build/' + entry.file;
-          if (!fs.existsSync(filename) || fs.statSync(filename).size < 30000) {
-            throw new Error('Livewire runtime JavaScript bundle missing or unexpectedly empty: ' + filename);
+        function collectJavaScriptFiles(entry, seen = new Set()) {
+          if (!entry?.file || seen.has(entry.file)) return seen;
+          seen.add(entry.file);
+          for (const key of [...(entry.imports || []), ...(entry.dynamicImports || [])]) {
+            const dependency = manifest[key];
+            if (dependency?.file?.endsWith('.js')) collectJavaScriptFiles(dependency, seen);
+          }
+          return seen;
+        }
+        for (const [label, entry] of [['Live', live], ['CRM', crmJs]]) {
+          const entryFile = 'public/build/' + entry.file;
+          if (!fs.existsSync(entryFile) || fs.statSync(entryFile).size === 0) {
+            throw new Error(label + ' Livewire Vite entry file is missing or empty: ' + entryFile);
+          }
+          const runtime = [...collectJavaScriptFiles(entry)].find(file => {
+            const basename = file.split('/').pop() || '';
+            return basename.startsWith('livewire.esm-') || basename === 'livewire.esm.js';
+          });
+          const runtimeFile = runtime ? 'public/build/' + runtime : null;
+          if (!runtimeFile || !fs.existsSync(runtimeFile) || fs.statSync(runtimeFile).size < 30000) {
+            throw new Error(label + ' Livewire dependency graph is missing its production runtime bundle');
           }
         }
         // P0 contract: the ten unused-yet component primitives must survive production CSS generation.

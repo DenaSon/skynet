@@ -86,7 +86,8 @@ Mary UI نسخه `2.9.11` و DaisyUI نسخه `5.8.3` در وابستگی‌ها
 ### ۴.۴. Vite و Layout مستقل
 
 - ورودی‌های مستقل `resources/css/crm.css` و `resources/js/crm.js` به Vite اضافه شوند؛ ورودی‌های فعلی `app.css`، `app.js` و `live.js` حذف یا جابه‌جا نشوند.
-- `crm.js` فقط Runtime موجود Livewire را راه‌اندازی کند و از `live.js` استفاده نکند؛ ورودی Live دارای Interceptor اختصاصی بازیابی Mini App است.
+- `crm.js` فقط Runtime موجود Livewire را راه‌اندازی کند؛ Vite ممکن است Runtime مشترک را بین دو Entry در یک Chunk مستقل قرار دهد و CI گراف وابستگی هر دو را بررسی می‌کند.
+- `crm.js` از `live.js` استفاده نمی‌کند؛ ورودی Live دارای Interceptor اختصاصی بازیابی Mini App است.
 - Layout مستقل CRM در `resources/views/layouts/crm.blade.php` ایجاد شود.
 - Layout شامل `lang="fa"`، `dir="rtl"`، منابع CSS مختص CRM و Directives رسمی Livewire باشد.
 - Alpine یا اسکریپت Livewire دوباره بارگذاری نشود.
