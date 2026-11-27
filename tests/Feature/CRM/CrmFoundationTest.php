@@ -88,7 +88,7 @@ it('fails closed for inactive roots and incomplete trusted-root allowlists', fun
     $inactive->syncRoles(['super-admin']);
     TelegramAccount::query()->create([
         'user_id' => $inactive->id,
-        'telegram_user_id' => 997001,
+        'telegram_user_id' => 997002,
     ]);
 
     $this->actingAs($inactive, 'web')
