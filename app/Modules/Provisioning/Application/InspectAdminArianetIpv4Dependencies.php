@@ -196,6 +196,21 @@ final readonly class InspectAdminArianetIpv4Dependencies
             ];
         }
 
+        if ($dns !== []) {
+            try {
+                $this->dns->assertOnlyIpReferences($actorId, $oldIp, array_column($dns, 'recordId'));
+            } catch (Throwable) {
+                $issues[] = 'رکورد DNS دیگری در دامنه‌های مدیریت‌شده به IPv4 قبلی اشاره می‌کند؛ بررسی دستی لازم است.';
+            }
+            if ($newIp !== null) {
+                try {
+                    $this->dns->assertNoIpReferences($actorId, $newIp);
+                } catch (Throwable) {
+                    $issues[] = 'IPv4 جدید در یک رکورد DNS مدیریت‌شده دیگر استفاده شده است.';
+                }
+            }
+        }
+
         // Never assume an unassigned Host or another Node belongs to this server.
         // Report collisions with known target endpoints instead of modifying them.
         foreach ($allNodes as $other) {
@@ -285,6 +300,7 @@ final readonly class InspectAdminArianetIpv4Dependencies
                 $issues[] = 'رکورد مدیریت نود باید در حالت DNS Only باشد.';
             }
             $dns[$key] = [
+                'recordId' => $record['id'],
                 'hostname' => $record['name'],
                 'ipv4' => $record['content'],
                 'proxied' => $record['proxied'],

@@ -150,6 +150,9 @@ final readonly class CoordinateAdminArianetIpv4
             if ($steps === [] || count($steps) > 10) {
                 throw new RuntimeException('No bounded DNS coordination steps are available.');
             }
+            $targetRecordIds = array_column(array_column($steps, 'record'), 'id');
+            $this->dns->assertOnlyIpReferences($actorId, $old, $targetRecordIds);
+            $this->dns->assertNoIpReferences($actorId, $new);
             $steps[] = ['kind' => 'node', 'name' => $node['name'], 'state' => 'ready'];
 
             $state = [
@@ -194,15 +197,6 @@ final readonly class CoordinateAdminArianetIpv4
             }
             $this->assertCloudAndInventory($actorId, $serverId, $state);
             $this->assertCurrentStep($actorId, $state, $index);
-            if ($kind === 'node') {
-                // All earlier DNS records must still point to the confirmed new IP.
-                foreach (array_keys($state['steps']) as $previous) {
-                    if ($previous >= $index) {
-                        break;
-                    }
-                    $this->assertStepAtNewIp($actorId, $state, $previous);
-                }
-            }
             // Checkpoint BEFORE sending any external write. Even if PHP exits
             // or an upstream timeout occurs, the step cannot be sent again.
             $state['stage'] = 'applying';
@@ -326,6 +320,25 @@ final readonly class CoordinateAdminArianetIpv4
             throw new RuntimeException('Node identity changed during coordination.');
         }
         if ($state['version'] === 2) {
+            $dnsSteps = [];
+            $verifiedDnsIds = [];
+            $next = $this->next($state);
+            foreach ($state['steps'] as $index => $step) {
+                if ($step['kind'] !== 'dns') {
+                    continue;
+                }
+                $dnsSteps[] = $step['record']['id'];
+                if ($step['state'] === 'verified'
+                    || ($reconciling && $index === $next && $step['state'] === 'uncertain')) {
+                    $verifiedDnsIds[] = $step['record']['id'];
+                }
+                if ($step['state'] === 'verified') {
+                    $this->assertStepAtNewIp($actorId, $state, $index);
+                }
+            }
+            $this->dns->assertOnlyIpReferences($actorId, $state['oldIp'], $dnsSteps);
+            $this->dns->assertOnlyIpReferences($actorId, $state['newIp'], $verifiedDnsIds);
+
             // Freeze the bounded ownership inventory until the complete new
             // plan is verified. New or reassigned Hosts require manual review.
             if ($this->hosts->replacementInventory($actorId) !== $state['inventory']) {

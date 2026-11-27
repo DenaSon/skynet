@@ -119,7 +119,8 @@ function ari8Provider(bool $shared = false, bool $legacy = false, bool $peerColl
     ];
     $shared = (object) [
         'node' => $node, 'hosts' => $hosts, 'record' => $record, 'mutations' => [],
-        'failDns' => false, 'failNode' => false, 'nodeWriteApplied' => false, 'peerCollision' => $peerCollision,
+        'failDns' => false, 'failNode' => false, 'nodeWriteApplied' => false,
+        'extraDnsRecords' => [], 'peerCollision' => $peerCollision,
     ];
 
     Http::fake(static function (Request $req) use ($shared) {
@@ -188,6 +189,14 @@ function ari8Provider(bool $shared = false, bool $legacy = false, bool $peerColl
         }
         if ($method === 'GET' && str_contains($url, '/dns_records?')) {
             parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
+            if (isset($query['content.exact'])) {
+                $records = [$shared->record, ...$shared->extraDnsRecords];
+
+                return Http::response(['success' => true, 'result' => array_values(array_filter(
+                    $records,
+                    static fn (array $record): bool => $record['content'] === $query['content.exact'],
+                ))]);
+            }
             $record = match ($query['name'] ?? null) {
                 'fr.coreflare.ir' => [$shared->record],
                 'nl01.coreflare.ir' => [[...$shared->record, 'id' => str_repeat('c', 32), 'name' => 'nl01.coreflare.ir', 'content' => '130.94.2.7']],
@@ -270,6 +279,26 @@ it('supports a direct-IP Node with verified domain Hosts including a legacy unas
         ->and($api->hosts[1]['address'])->toBe('fr.coreflare.ir')
         ->and($api->hosts[1]['nodes'])->toBe([])
         ->and($api->mutations)->toBe(['dns:fr.coreflare.ir', 'node:'.ARI8_NODE]);
+});
+
+it('blocks unowned managed DNS references to the old or new IPv4 before creating a plan', function (): void {
+    foreach ([ARI8_OLD, ARI8_NEW] as $referencedIp) {
+        $root = ari8Ready();
+        $api = ari8Provider();
+        $api->extraDnsRecords[] = [
+            'id' => str_repeat('d', 32), 'name' => 'unrelated.coreflare.ir',
+            'type' => 'A', 'content' => $referencedIp, 'proxied' => false,
+            'proxiable' => true, 'modified_on' => '2026-11-23T15:00:00Z',
+        ];
+        expect(fn () => app(CoordinateAdminArianetIpv4::class)->prepare($root['user']->id, ARI8_SERVER))
+            ->toThrow(RuntimeException::class);
+        expect($api->mutations)->toBe([])
+            ->and(DB::table('arianet_cloud_ipv4_changes')->value('coordination_state'))->toBeNull();
+
+        DB::table('arianet_cloud_ipv4_changes')->delete();
+        DB::table('arianet_cloud_node_links')->delete();
+        TelegramAccount::query()->where('user_id', $root['user']->id)->delete();
+    }
 });
 
 it('rejects a mismatched direct-IP Node or a direct-IP Host', function (): void {
