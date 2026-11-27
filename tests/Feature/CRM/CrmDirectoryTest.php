@@ -1509,3 +1509,64 @@ it('keeps global reseller sales rank across search status filters and exports wi
     }
     Http::assertNothingSent();
 });
+
+it('sorts reseller contacts by order ID and date in grouped and ungrouped profile tables', function (): void {
+    $root = crm01bUser('super-admin');
+    $reseller = crm01bUser('reseller');
+    $lowerIdNewerDate = crm01bOrder($reseller, 'reseller', 100_000);
+    $higherIdOlderDate = crm01bOrder($reseller, 'reseller', 200_000);
+    DB::table('sales_orders')->where('id', $lowerIdNewerDate)->update(['created_at' => '2026-11-25 10:00:00']);
+    DB::table('sales_orders')->where('id', $higherIdOlderDate)->update(['created_at' => '2026-11-20 10:00:00']);
+    DB::table('sales_service_customer_labels')->insert([
+        ['sales_order_id' => $lowerIdNewerDate, 'label' => 'Newer date', 'phone' => '+989121111111'],
+        ['sales_order_id' => $higherIdOlderDate, 'label' => 'Older date', 'phone' => '+989122222222'],
+    ]);
+
+    $reader = app(ReadCrmProfile::class);
+    $read = static fn (bool $grouped, string $sort, string $direction) => $reader->handle(
+        $root->id,
+        $reseller->id,
+        true,
+        crm01cFilters(['tab' => 'contacts', 'groupContacts' => $grouped, 'sort' => $sort, 'direction' => $direction]),
+    )['rows']->items();
+    expect(array_map(static fn ($row): string => (string) $row->label, $read(false, 'created_at', 'asc')))
+        ->toBe(['Older date', 'Newer date'])
+        ->and(array_map(static fn ($row): string => (string) $row->label, $read(false, 'created_at', 'desc')))
+        ->toBe(['Newer date', 'Older date'])
+        ->and(array_map(static fn ($row): int => (int) $row->order_id, $read(false, 'order_id', 'asc')))
+        ->toBe([$lowerIdNewerDate, $higherIdOlderDate])
+        ->and(array_map(static fn ($row): int => (int) $row->order_id, $read(false, 'order_id', 'desc')))
+        ->toBe([$higherIdOlderDate, $lowerIdNewerDate])
+        ->and(array_map(static fn ($row): string => (string) $row->label, $read(true, 'created_at', 'asc')))
+        ->toBe(['Older date', 'Newer date'])
+        ->and(array_map(static fn ($row): string => (string) $row->label, $read(true, 'created_at', 'desc')))
+        ->toBe(['Newer date', 'Older date']);
+
+    $html = $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm/resellers/'.$reseller->id)
+        ->assertOk()->getContent() ?: '';
+    expect(preg_match('/wire:snapshot="([^"]+)"/', $html, $matches))->toBe(1);
+    $snapshot = htmlspecialchars_decode($matches[1], ENT_QUOTES);
+    $url = 'https://crm.denagate.ir'.app(HandleRequests::class)->getUpdateUri();
+    $tabResponse = $this->postJson($url, ['components' => [[
+        'snapshot' => $snapshot, 'updates' => ['tab' => 'contacts'], 'calls' => [],
+    ]]], ['X-Livewire' => 'true'])->assertOk();
+    $sortResponse = $this->postJson($url, ['components' => [[
+        'snapshot' => $tabResponse->json('components.0.snapshot'),
+        'updates' => ['sortBy' => ['column' => 'created_at', 'direction' => 'asc']],
+        'calls' => [],
+    ]]], ['X-Livewire' => 'true'])->assertOk();
+    $rendered = $sortResponse->json('components.0.effects.html');
+    expect(strpos($rendered, 'Older date'))->toBeLessThan(strpos($rendered, 'Newer date'));
+
+    $groupedResponse = $this->postJson($url, ['components' => [[
+        'snapshot' => $sortResponse->json('components.0.snapshot'),
+        'updates' => [
+            'groupContacts' => true,
+            'sortBy' => ['column' => 'created_at', 'direction' => 'desc'],
+        ],
+        'calls' => [],
+    ]]], ['X-Livewire' => 'true'])->assertOk();
+    $rendered = $groupedResponse->json('components.0.effects.html');
+    expect(strpos($rendered, 'Newer date'))->toBeLessThan(strpos($rendered, 'Older date'));
+    Http::assertNothingSent();
+});

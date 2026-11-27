@@ -46,7 +46,7 @@ final class Profile extends Component
     public bool $groupContacts = false;
 
     /** @var array<string, string> */
-    public array $sortBy = [];
+    public array $sortBy = ['column' => 'order_id', 'direction' => 'desc'];
 
     public function mount(int $id): void
     {
@@ -74,6 +74,7 @@ final class Profile extends Component
         $this->phone = 'all';
         $this->purchase = 'all';
         $this->groupContacts = false;
+        $this->sortBy = ['column' => 'order_id', 'direction' => 'desc'];
     }
 
     public function resetFilters(): void
@@ -97,6 +98,8 @@ final class Profile extends Component
                 'phone' => $this->phone,
                 'purchase' => $this->purchase,
                 'groupContacts' => $this->groupContacts,
+                'sort' => $this->sortBy['column'] ?? 'order_id',
+                'direction' => $this->sortBy['direction'] ?? 'desc',
                 'page' => $this->getPage(),
             ]);
         } catch (ValidationException) {
