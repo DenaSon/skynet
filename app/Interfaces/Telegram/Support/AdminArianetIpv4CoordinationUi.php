@@ -25,8 +25,7 @@ final readonly class AdminArianetIpv4CoordinationUi
         private MenuRenderer $menus,
     ) {}
 
-    public function show(Nutgram $bot, string $rawId, string $rawPage): void
-    {
+    public function show(Nutgram $bot, string $rawId, string $rawPage): void {
         $resolved = $this->actorAndIds($bot, $rawId, $rawPage);
         if ($resolved === null) {
             return;
@@ -133,8 +132,7 @@ final readonly class AdminArianetIpv4CoordinationUi
         ?string $rawStep = null,
         ?string $rawOperationId = null,
         ?string $rawVersion = null,
-    ): void
-    {
+    ): void {
         $resolved = $this->actorAndIds($bot, $rawId, $rawPage);
         if ($resolved === null) {
             return;
@@ -246,8 +244,7 @@ final readonly class AdminArianetIpv4CoordinationUi
             .TelegramUi::escape($value).'</b></td></tr>';
     }
 
-    private function render(Nutgram $bot, string $fallback, InlineKeyboardMarkup $buttons, ?string $rich = null): void
-    {
+    private function render(Nutgram $bot, string $fallback, InlineKeyboardMarkup $buttons, ?string $rich = null): void {
         if ($bot->isCallbackQuery()) {
             TelegramUi::answerCallback($bot);
         }
