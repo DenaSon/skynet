@@ -24,7 +24,7 @@ Generic Node lifecycle mutations are not exposed as unrestricted HTTP or Telegra
 
 Approved registration scope: manual NODE-01 and installer-backed NW-03 use a literal public unicast IPv4 for Node management, never a hostname. Validate at input/preview and the shared create Action, and reject duplicate literal IP addresses across management ports under the existing Node mutation lock. Existing legacy hostname Nodes remain readable/manageable; this does not resolve legacy DNS aliases for collision inference or modify existing Nodes. Selected DNS remains independent for user-facing Hosts, including the existing explicitly selected no-domain fallback. Manual registration preview uses the existing native Rich RTL table with an equivalent escaped HTML fallback and unchanged confirmation callbacks. No new migration, dependency, provider permission or live write.
 
-Phase 2 below is separately approved; phase 3 (ARI-03 cloud IP coordination) remains outside scope and unchanged until separately approved and released. CI and real Telegram/Remnawave acceptance are separate gates.
+Phase 2 below and phase 3 (ARI-03 cloud IP coordination, see docs/050) are separately approved. CI and real Telegram/Remnawave acceptance are separate gates.
 
 ## NW-05 — existing Node server replacement
 

@@ -66,7 +66,7 @@ final readonly class AdminArianetIpv4DependenciesUi
             ['اتصال‌های متعلق/مبهم', self::digits($report['affectedHostCount'])],
             ['انتساب قطعی به نود', self::digits($report['affectedHostCount']
                 - $report['ambiguousHostCount'] - $report['domainMatchedHostCount'])],
-            ['بدون انتساب، هم‌دامنه با نود', self::digits($report['domainMatchedHostCount'])],
+            ['بدون انتساب، دامنه تأییدشده', self::digits($report['domainMatchedHostCount'])],
             ['اتصال‌های مشترک بین نودها', self::digits($report['sharedHostCount'])],
             ['بدون انتساب، نیازمند بررسی', self::digits($report['ambiguousHostCount'])],
             ['متعلق به سایر نودها', self::digits($report['otherNodeHostCount'])],
@@ -106,7 +106,7 @@ final readonly class AdminArianetIpv4DependenciesUi
 
         $notice = 'Hostهای سایر نودها هدف تغییر نیستند. Hostهای بدون انتساب با نشانی متفاوت نیز '
             .'به‌صورت خودکار تغییر نمی‌کنند. '
-            .'Host بدون انتساب روی دامنه دقیق مدیریت نود، تنها با DNS معتبر و بدون تعارض قابل پذیرش است. '
+            .'اتصال بدون انتساب فقط با دامنه مدیریت نود یا شواهد معتبر پروفایل، ورودی و DNS و بدون تعارض قابل پذیرش است. '
             .'این گزارش فقط وابستگی‌های قابل شناسایی را نشان می‌دهد. '
             .'تطبیق رکوردها، سلامت واقعی اتصال کاربران یا آمادگی قطعی برای تعویض IP را تضمین نمی‌کند. '
             .'هیچ تنظیمی در آریاسرویس، Cloudflare یا Remnawave تغییر نکرده است.';

@@ -21,12 +21,16 @@ final readonly class ManageCloudflareDns
         private CloudflareDnsService $api,
     ) {}
 
-    public function wizardEnabled(): bool
+    public function readEnabled(): bool
     {
-        return config('services.cloudflare.dns_writes_enabled') === true
-            && is_string(config('services.cloudflare.token'))
+        return is_string(config('services.cloudflare.token'))
             && trim(config('services.cloudflare.token')) !== ''
             && $this->allowedZones() !== [];
+    }
+
+    public function wizardEnabled(): bool
+    {
+        return config('services.cloudflare.dns_writes_enabled') === true && $this->readEnabled();
     }
 
     /** @return list<array{id:string,name:string}> */
@@ -43,6 +47,44 @@ final readonly class ManageCloudflareDns
         }
 
         return $zones;
+    }
+
+    /**
+     * Ensure every managed DNS record pointing to an IP is explicitly owned
+     * by the selected operation. Unrelated aliases must never be left behind.
+     *
+     * @param  list<string>  $allowedRecordIds
+     */
+    public function assertOnlyIpReferences(int $actorId, string $ip, array $allowedRecordIds): void
+    {
+        $this->access->handle($actorId);
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false
+            || $this->allowedZones() === [] || count($allowedRecordIds) > 10) {
+            throw new RuntimeException('Managed DNS scope or IPv4 is unverified.');
+        }
+
+        $allowed = [];
+        foreach ($allowedRecordIds as $recordId) {
+            if (! self::zoneId($recordId)) {
+                throw new RuntimeException('Managed DNS record identity is invalid.');
+            }
+            $allowed[$recordId] = true;
+        }
+
+        foreach ($this->allowedZones() as $name) {
+            $remote = $this->api->zonesByName($name);
+            if (count($remote) !== 1 || ($remote[0]['name'] ?? null) !== $name
+                || ! self::zoneId($remote[0]['id'] ?? null)) {
+                throw new RuntimeException('Managed DNS zone cannot be verified.');
+            }
+
+            foreach ($this->api->recordsByIp($remote[0]['id'], $ip) as $record) {
+                $recordId = $record['id'] ?? null;
+                if (! is_string($recordId) || ! isset($allowed[$recordId])) {
+                    throw new RuntimeException('An unrelated managed DNS record references this IPv4.');
+                }
+            }
+        }
     }
 
     /** Reject any direct A/AAAA reference in every configured managed zone. */

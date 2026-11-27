@@ -6,6 +6,7 @@ namespace App\Modules\Provisioning\Application;
 
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use RuntimeException;
 use Throwable;
 
@@ -85,11 +86,19 @@ final readonly class InspectAdminArianetIpv4Dependencies
         if ($node['port'] !== 2222) {
             $issues[] = 'درگاه مدیریت نود با تنظیم مورد انتظار مطابقت ندارد.';
         }
+        try {
+            $this->nodes->validateRegistrationIdentity($actorId, $nodeName, $oldIp);
+        } catch (ValidationException) {
+            $issues[] = 'نام نود یا IPv4 عمومی سرور معتبر نیست.';
+        }
 
         $dns = [];
         $addresses = [];
-        if (filter_var($nodeAddress, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false) {
-            $issues[] = 'آدرس نود باید دامنه مدیریت‌شده در Cloudflare باشد.';
+        $directNode = filter_var($nodeAddress, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false;
+        if ($directNode) {
+            if ($nodeAddress !== $oldIp) {
+                $issues[] = 'IP مدیریتی نود با IPv4 قبلی سرور مطابقت ندارد.';
+            }
         } else {
             $this->addDns($actorId, $nodeAddress, $oldIp, $dns, $issues, management: true);
         }
@@ -103,6 +112,12 @@ final readonly class InspectAdminArianetIpv4Dependencies
         $ambiguous = 0;
         $shared = 0;
         $domainMatched = 0;
+        $peerAddresses = [];
+        foreach ($allNodes as $peer) {
+            if ($peer['uuid'] !== $uuid) {
+                $peerAddresses[strtolower($peer['address'])] = true;
+            }
+        }
         foreach ($allHosts as $host) {
             $members = $host['nodes'];
             $assigned = in_array($uuid, $members, true);
@@ -115,9 +130,26 @@ final readonly class InspectAdminArianetIpv4Dependencies
             // A Host without explicit Node membership may still use the
             // exact, managed Node hostname. It needs no Remnawave mutation.
             // Peer-Node/Host collisions and DNS mismatches are checked below.
-            $sameNodeDomain = $members === []
-                && strtolower($host['address']) === strtolower($nodeAddress)
-                && filter_var($nodeAddress, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false;
+            $sameNodeDomain = $members === [] && ! $directNode
+                && strtolower($host['address']) === strtolower($nodeAddress);
+
+            // A direct-IP Node has no management hostname to compare against.
+            // For a legacy unassigned Host, require both active configuration
+            // membership and independent managed-DNS evidence of the old IP.
+            if ($directNode && $members === [] && ! $possibleLegacy
+                && ! isset($peerAddresses[strtolower($host['address'])])
+                && $host['profileUuid'] === $node['profileUuid']
+                && in_array($host['inboundUuid'], $node['inboundUuids'], true)
+                && filter_var($host['address'], FILTER_VALIDATE_IP) === false) {
+                try {
+                    $candidate = $this->dns->replacementRecord($actorId, $host['address']);
+                    if ($candidate['record']['content'] === $oldIp) {
+                        $possibleLegacy = $sameNodeDomain = true;
+                    }
+                } catch (Throwable) {
+                    $issues[] = 'مالکیت یکی از دامنه‌های بدون انتساب قابل تأیید نیست.';
+                }
+            }
 
             if (! $assigned && ! $possibleLegacy) {
                 if ($members === []) {
@@ -164,15 +196,38 @@ final readonly class InspectAdminArianetIpv4Dependencies
             ];
         }
 
+        if ($dns !== []) {
+            try {
+                $this->dns->assertOnlyIpReferences($actorId, $oldIp, array_column($dns, 'recordId'));
+            } catch (Throwable) {
+                $issues[] = 'رکورد DNS دیگری در دامنه‌های مدیریت‌شده به IPv4 قبلی اشاره می‌کند؛ بررسی دستی لازم است.';
+            }
+            if ($newIp !== null) {
+                try {
+                    $this->dns->assertNoIpReferences($actorId, $newIp);
+                } catch (Throwable) {
+                    $issues[] = 'IPv4 جدید در یک رکورد DNS مدیریت‌شده دیگر استفاده شده است.';
+                }
+            }
+        }
+
         // Never assume an unassigned Host or another Node belongs to this server.
         // Report collisions with known target endpoints instead of modifying them.
         foreach ($allNodes as $other) {
             if ($other['uuid'] === $uuid) {
                 continue;
             }
-            if ($other['address'] === $oldIp
+            $peerIp = $other['address'];
+            if (filter_var($peerIp, FILTER_VALIDATE_IP) === false) {
+                try {
+                    $peerIp = $this->dns->replacementRecord($actorId, $peerIp)['record']['content'];
+                } catch (Throwable) {
+                    $issues[] = 'IP مدیریتی یکی از نودهای دیگر قابل تأیید نیست.';
+                }
+            }
+            if ($peerIp === $oldIp
                 || isset($addresses[strtolower($other['address'])])
-                || ($newIp !== null && $other['address'] === $newIp)) {
+                || ($newIp !== null && $peerIp === $newIp)) {
                 $issues[] = 'یک نود دیگر از آدرس وابسته به این سرور استفاده می‌کند.';
             }
         }
@@ -189,7 +244,7 @@ final readonly class InspectAdminArianetIpv4Dependencies
         if (count($hosts) > 10 || count($dns) > 10 || $direct > 10) {
             $issues[] = 'تعداد وابستگی‌ها از محدوده بررسی امن فراتر است.';
         }
-        if ($hosts === []) {
+        if ($hosts === [] || $dns === []) {
             $issues[] = 'دامنه اتصال مرتبط با این نود شناسایی نشد؛ عضویت و تنظیمات را بررسی کنید.';
         }
 
@@ -199,6 +254,9 @@ final readonly class InspectAdminArianetIpv4Dependencies
             'newIp' => $newIp,
             'nodeName' => $nodeName,
             'nodeAddress' => $nodeAddress,
+            'nodeSnapshot' => $node,
+            'hostInventory' => $allHosts,
+            'peerInventory' => $allNodes,
             'hosts' => array_slice($hosts, 0, 10),
             'dns' => array_values(array_slice($dns, 0, 10)),
             'issues' => array_values(array_unique($issues)),
@@ -242,6 +300,7 @@ final readonly class InspectAdminArianetIpv4Dependencies
                 $issues[] = 'رکورد مدیریت نود باید در حالت DNS Only باشد.';
             }
             $dns[$key] = [
+                'recordId' => $record['id'],
                 'hostname' => $record['name'],
                 'ipv4' => $record['content'],
                 'proxied' => $record['proxied'],

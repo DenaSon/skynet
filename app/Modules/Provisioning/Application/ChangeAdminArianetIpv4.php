@@ -15,7 +15,7 @@ use Throwable;
 
 /**
  * ARI-03D: one-shot confirmed IPv4 change. DNS coordination follows only after
- * the Cloud action succeeds; no Remnawave writes or blind request retries.
+ * the Cloud action succeeds; confirmed coordination includes the Node IP.
  */
 final readonly class ChangeAdminArianetIpv4
 {
@@ -35,6 +35,7 @@ final readonly class ChangeAdminArianetIpv4
         $token = config('services.arianet_cloud.read_token');
 
         return config('services.arianet_cloud.writes_enabled') === true
+            && config('services.remnawave.writes_enabled') === true
             && is_string($token) && trim($token) !== '';
     }
 
@@ -251,6 +252,8 @@ final readonly class ChangeAdminArianetIpv4
                 $newIp = is_array($new) && ($new['id'] ?? null) === $serverId
                     ? ($new['ipv4'] ?? null) : null;
                 if (! is_string($newIp) || filter_var($newIp, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false
+                    || filter_var($newIp, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_GLOBAL_RANGE) !== $newIp
+                    || (int) explode('.', $newIp)[0] >= 224
                     || $newIp === $freshRow->old_ipv4) {
                     throw new RuntimeException('New IPv4 is not independently verified.');
                 }
@@ -274,14 +277,16 @@ final readonly class ChangeAdminArianetIpv4
         $preview = $this->previews->handle($actorId, $serverId);
         $ip = $preview['ipv4'];
         if ($preview['status'] !== 'running' || ! is_string($ip)
-            || filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false
+            || filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_GLOBAL_RANGE) !== $ip
+            || (int) explode('.', $ip)[0] >= 224
             || $preview['changeAllowed'] !== true || $preview['pending'] !== false
             || ! is_int($preview['freeLeft']) || $preview['freeLeft'] < 0
             || ($preview['freeLeft'] === 0 && (! is_int($preview['feeRials']) || $preview['feeRials'] < 1))
             || ! is_string($preview['nodeUuid'])
-            || $preview['nodeState'] !== 'hostname'
-            || $preview['dns']['state'] !== 'match'
-            || $preview['dns']['proxied'] !== false
+            || ($preview['nodeState'] !== 'ip_match'
+                && ! ($preview['nodeState'] === 'hostname'
+                    && $preview['dns']['state'] === 'match'
+                    && $preview['dns']['proxied'] === false))
             || ! $this->dns->wizardEnabled()) {
             throw new RuntimeException('Cloud/Node/DNS or price readiness could not be verified.');
         }
@@ -297,6 +302,7 @@ final readonly class ChangeAdminArianetIpv4
         }
         $preview['dnsTargets'] = $impact['dns'];
         $preview['affectedHosts'] = $impact['hosts'];
+        $preview['nodeIdentity'] = array_diff_key($impact['nodeSnapshot'], ['connected' => true]);
 
         return $preview;
     }
@@ -318,11 +324,13 @@ final readonly class ChangeAdminArianetIpv4
     private static function fingerprint(array $preview): string
     {
         $snapshot = [
+            'node-ipv4-v2', // Older paid previews did not authorize a Node address change.
             $preview['serverId'], $preview['ipv4'], $preview['status'],
             $preview['changeAllowed'], $preview['pending'], $preview['freeLeft'],
             $preview['changeUsed'], $preview['feeRials'], $preview['nodeUuid'],
             $preview['node']['address'] ?? null, $preview['nodeState'], $preview['dns'],
             $preview['dnsTargets'] ?? [], $preview['affectedHosts'] ?? [],
+            $preview['nodeIdentity'] ?? [],
         ];
 
         return hash('sha256', json_encode($snapshot, JSON_THROW_ON_ERROR));

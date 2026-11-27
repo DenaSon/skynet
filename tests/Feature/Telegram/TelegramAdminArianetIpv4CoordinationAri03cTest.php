@@ -186,13 +186,15 @@ function ari6Fake(array &$state): void
         }
         if ($path === '/client/v4/zones/'.ARI6_ZONE_ID.'/dns_records') {
             $name = $request->data()['name'] ?? null;
-            $found = in_array($name, ['fr.coreflare.ir', 'sub.coreflare.ir'], true);
+            $found = in_array($name, ['fr.coreflare.ir', 'sub.coreflare.ir', 'other.coreflare.ir'], true);
             $record = $found ? [[
-                'id' => $name === 'fr.coreflare.ir'
-                    ? 'ab010101010101010101010101010101'
-                    : 'ab020202020202020202020202020202',
+                'id' => match ($name) {
+                    'fr.coreflare.ir' => 'ab010101010101010101010101010101',
+                    'sub.coreflare.ir' => 'ab020202020202020202020202020202',
+                    default => 'ab030303030303030303030303030303',
+                },
                 'name' => $name, 'type' => 'A',
-                'content' => $state['recordIp'],
+                'content' => $name === 'other.coreflare.ir' ? '130.94.2.7' : $state['recordIp'],
                 'proxied' => $name === 'sub.coreflare.ir',
                 'proxiable' => true,
                 'modified_on' => '2026-11-23T15:00:00Z',
@@ -399,6 +401,7 @@ it('accepts two unassigned Frankfurt Hosts on the exact Node domain and excludes
         ->and(array_column($report['hosts'], 'domainMatched'))->toBe([true, true]);
 
     config()->set('services.arianet_cloud.writes_enabled', true);
+    config()->set('services.remnawave.writes_enabled', true);
     config()->set('services.cloudflare.dns_writes_enabled', true);
     ari6Bot()->hearCallbackQueryData('ari4:preview:'.ARI6_SERVER.':1')->reply()
         ->assertRaw(static function (NutgramRequest $req): bool {
@@ -412,7 +415,7 @@ it('accepts two unassigned Frankfurt Hosts on the exact Node domain and excludes
         ->assertRaw(static function (NutgramRequest $req): bool {
             $rich = ari6Rich($req);
 
-            return str_contains($rich, 'بدون انتساب، هم‌دامنه با نود')
+            return str_contains($rich, 'بدون انتساب، دامنه تأییدشده')
                 && str_contains($rich, 'بدون تعارض شناخته‌شده');
         }, index: 1);
     ari6OnlyReads();

@@ -14,7 +14,7 @@ use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 use Throwable;
 
-/** Root-only real DNS coordination, continuing the original IPv4 confirmation. */
+/** Root-only DNS and Node IP coordination after explicit confirmation. */
 final readonly class AdminArianetIpv4CoordinationUi
 {
     public function __construct(
@@ -43,14 +43,19 @@ final readonly class AdminArianetIpv4CoordinationUi
         }
 
         if ($state === null) {
-            $message = 'هنوز هماهنگی DNS برای این سرور ثبت نشده است.';
-            if ($this->coordination->enabled() && ($operation['status'] ?? null) === 'awaiting_coordination') {
-                $buttons = InlineKeyboardMarkup::make()
-                    ->addRow(InlineKeyboardButton::make('🌐 تکمیل DNS',
-                        callback_data: 'ari7:prepare:'.$id.':'.$page))
-                    ->addRow(InlineKeyboardButton::make('◀️ بررسی اتصال‌ها',
-                        callback_data: 'ari6:impact:'.$id.':'.$page));
-            } elseif (($operation['status'] ?? null) !== 'awaiting_coordination') {
+            $message = 'برنامه هماهنگی هنوز آماده نشده است.';
+            if (($operation['status'] ?? null) === 'awaiting_coordination') {
+                $message .= "\nIPv4 قبلی: ".TelegramUi::escape((string) $operation['oldIpv4'])
+                    ."\nIPv4 جدید: ".TelegramUi::escape((string) $operation['newIpv4'])
+                    ."\nابتدا وابستگی‌ها را بررسی کنید؛ سپس برنامه را بسازید. این مرحله هیچ تغییری در سرویس‌دهنده‌ها ایجاد نمی‌کند.";
+                if ($this->coordination->enabled()) {
+                    $buttons = InlineKeyboardMarkup::make()
+                        ->addRow(InlineKeyboardButton::make('◀️ بررسی اتصال‌ها',
+                            callback_data: 'ari6:impact:'.$id.':'.$page))
+                        ->addRow(InlineKeyboardButton::make('📋 ساخت برنامه بدون اعمال تغییر',
+                            callback_data: 'ari7:plan:'.$id.':'.$page.':'.$operation['id'].':2'));
+                }
+            } else {
                 $message .= "\nابتدا نتیجه تغییر IP باید در آریاسرویس تأیید شود.";
             }
             $this->render($bot, $message, $buttons);
@@ -59,8 +64,8 @@ final readonly class AdminArianetIpv4CoordinationUi
         }
 
         $stages = [
-            'ready' => 'آماده هماهنگی DNS',
-            'applying' => 'در حال هماهنگی DNS',
+            'ready' => 'آماده هماهنگی اتصال‌ها',
+            'applying' => 'در حال هماهنگی اتصال‌ها',
             'awaiting_client_test' => 'در انتظار تست اتصال واقعی کاربران',
             'completed' => '✅ تأییدشده توسط مدیر پس از تست اتصال',
         ];
@@ -74,7 +79,7 @@ final readonly class AdminArianetIpv4CoordinationUi
             ."\nIP قبلی: ".TelegramUi::escape($state['oldIp'])
             ."\nIP جدید: ".TelegramUi::escape($state['newIp']);
         foreach ($state['steps'] as $index => $step) {
-            $kind = '🌐 DNS';
+            $kind = $step['kind'] === 'node' ? '🖥 IP مدیریتی' : '🌐 DNS';
             $status = match ($step['state']) {
                 'verified' => '✅ تأییدشده',
                 'uncertain' => '⚠️ نیازمند بررسی نتیجه',
@@ -85,17 +90,23 @@ final readonly class AdminArianetIpv4CoordinationUi
         }
 
         $buttons = InlineKeyboardMarkup::make();
-        if ($this->coordination->enabled() && $state['owner']) {
-            $index = $state['next'];
+        $index = $state['next'];
+        $readOnlyAction = ($index !== null && $state['steps'][$index]['state'] === 'uncertain')
+            || $state['stage'] === 'awaiting_client_test';
+        $actionEnabled = $readOnlyAction
+            ? $this->coordination->readEnabled()
+            : $this->coordination->enabled(legacy: $state['version'] === 1);
+        if ($actionEnabled && $state['owner']) {
             if ($index !== null && $state['steps'][$index]['state'] === 'ready') {
-                $buttons->addRow(InlineKeyboardButton::make('🔄 ادامه هماهنگی DNS',
-                    callback_data: 'ari7:prepare:'.$id.':'.$page));
+                $buttons->addRow(InlineKeyboardButton::make(
+                    $state['version'] === 1 ? '🔄 ادامه هماهنگی DNS' : '🔴 تأیید و اجرای هماهنگی دامنه‌ها و نود',
+                    callback_data: 'ari7:continue:'.$id.':'.$page.':'.$state['operationId'].':'.$state['version']));
             } elseif ($index !== null && $state['steps'][$index]['state'] === 'uncertain') {
                 $buttons->addRow(InlineKeyboardButton::make('🔎 بررسی نتیجه با GET (بدون تکرار)',
-                    callback_data: 'ari7:reconcile:'.$id.':'.$page));
+                    callback_data: 'ari7:reconcile:'.$id.':'.$page.':'.$state['operationId'].':'.$state['version']));
             } elseif ($state['stage'] === 'awaiting_client_test') {
                 $buttons->addRow(InlineKeyboardButton::make('✅ تست واقعی اتصال کاربران انجام شد',
-                    callback_data: 'ari7:accept:'.$id.':'.$page));
+                    callback_data: 'ari7:accept:'.$id.':'.$page.':'.$state['operationId'].':'.$state['version']));
             }
         }
         $buttons->addRow(InlineKeyboardButton::make('🔄 تازه‌سازی وضعیت',
@@ -103,7 +114,9 @@ final readonly class AdminArianetIpv4CoordinationUi
             ->addRow(InlineKeyboardButton::make('◀️ بررسی اتصال‌ها',
                 callback_data: 'ari6:impact:'.$id.':'.$page));
 
-        $notice = 'رکوردهای DNS مرتبط پس از تأیید اولیه IP هماهنگ می‌شوند؛ '
+        $notice = ($state['version'] === 1
+            ? 'طبق تأیید قبلی، فقط دامنه‌های مرتبط هماهنگ می‌شوند؛ '
+            : 'دامنه‌های مرتبط و IP مدیریتی نود طبق مراحل ثبت‌شده هماهنگ می‌شوند؛ ')
             .'در نتیجه نامشخص، تغییر تکرار نمی‌شود. '
             .'تأیید نهایی فقط پس از تست واقعی اتصال کاربران است.';
         $rich = '<h2>⚙️ هماهنگی اتصال‌ها</h2>'
@@ -112,20 +125,45 @@ final readonly class AdminArianetIpv4CoordinationUi
         $this->render($bot, $plain."\n\n🔒 ".TelegramUi::escape($notice), $buttons, $rich);
     }
 
-    public function act(Nutgram $bot, string $action, string $rawId, string $rawPage, ?string $rawStep = null): void
-    {
+    public function act(
+        Nutgram $bot,
+        string $action,
+        string $rawId,
+        string $rawPage,
+        ?string $rawStep = null,
+        ?string $rawOperationId = null,
+        ?string $rawVersion = null,
+    ): void {
         $resolved = $this->actorAndIds($bot, $rawId, $rawPage);
         if ($resolved === null) {
             return;
         }
         [$actor, $id, $page] = $resolved;
+        $operationId = self::positive($rawOperationId ?? '', PHP_INT_MAX);
+        $version = self::version($rawVersion);
+        if (in_array($action, ['plan', 'continue', 'step', 'reconcile', 'accept'], true)
+            && ($operationId === null || $version === null)) {
+            $this->render($bot, 'این دکمه قدیمی یا نامعتبر است؛ وضعیت عملیات را تازه‌سازی کنید.',
+                InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make(
+                    '🔄 تازه‌سازی وضعیت', callback_data: 'ari7:status:'.$id.':'.$page)));
+
+            return;
+        }
         try {
             match ($action) {
-                'prepare' => $this->coordination->continueDns($actor, $id),
-                'step' => $this->coordination->executeNext($actor, $id,
-                    self::step($rawStep) ?? throw new \RuntimeException('Invalid step index.')),
-                'reconcile' => $this->coordination->reconcile($actor, $id),
-                'accept' => $this->coordination->acceptClientTest($actor, $id),
+                // Old callbacks deliberately become read-only; they cannot authorize a new journal.
+                'prepare' => null,
+                'plan' => $version === 2
+                    ? $this->coordination->prepare($actor, $id, $operationId)
+                    : throw new \RuntimeException('Invalid plan version.'),
+                'continue' => $this->coordination->continueDns($actor, $id, $operationId, $version),
+                'step' => $version === 1
+                    ? $this->coordination->executeNext($actor, $id,
+                        self::step($rawStep) ?? throw new \RuntimeException('Invalid step index.'),
+                        $operationId, $version)
+                    : null,
+                'reconcile' => $this->coordination->reconcile($actor, $id, $operationId, $version),
+                'accept' => $this->coordination->acceptClientTest($actor, $id, $operationId, $version),
                 default => throw new \RuntimeException('Invalid action.'),
             };
         } catch (Throwable) {
@@ -178,6 +216,11 @@ final readonly class AdminArianetIpv4CoordinationUi
         $value = filter_var($raw, FILTER_VALIDATE_INT);
 
         return is_int($value) && $value <= $max ? $value : null;
+    }
+
+    private static function version(?string $raw): ?int
+    {
+        return in_array($raw, ['1', '2'], true) ? (int) $raw : null;
     }
 
     private static function step(?string $raw): ?int

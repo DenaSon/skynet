@@ -14,7 +14,7 @@ use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 use Throwable;
 
 /**
- * ARI-03D: confirmed single real IPv4 change, followed by DNS-only coordination.
+ * ARI-03D: confirmed single real IPv4 change, followed by DNS and management IP coordination.
  */
 final readonly class AdminArianetIpv4WriteUi
 {
@@ -67,7 +67,7 @@ final readonly class AdminArianetIpv4WriteUi
         }
 
         $warning = 'این تغییر واقعی است و ممکن است هزینه و قطع موقت اتصال داشته باشد. '
-            .'پس از تأیید IP جدید، رکوردهای DNS مرتبط در Cloudflare هماهنگ می‌شوند. '
+            .'پس از تأیید IP جدید، دامنه‌های مرتبط و IP مدیریتی نود هماهنگ می‌شوند. '
             .'درخواست نامشخص هرگز خودکار تکرار نمی‌شود.';
         $buttons = InlineKeyboardMarkup::make()
             ->addRow(InlineKeyboardButton::make('🔴 تأیید تعویض IP و هزینه',
@@ -170,7 +170,7 @@ final readonly class AdminArianetIpv4WriteUi
         }
         if ($row['status'] === 'awaiting_coordination') {
             $buttons = InlineKeyboardMarkup::make()
-                ->addRow(InlineKeyboardButton::make('🌐 تکمیل DNS', callback_data: 'ari7:prepare:'.$id.':'.$page))
+                ->addRow(InlineKeyboardButton::make('🌐 هماهنگی دامنه‌ها و نود', callback_data: 'ari7:status:'.$id.':'.$page))
                 ->addRow(InlineKeyboardButton::make('◀️ پیش‌نمایش', callback_data: 'ari4:preview:'.$id.':'.$page));
         }
         $state = match ($row['status']) {
@@ -192,8 +192,8 @@ final readonly class AdminArianetIpv4WriteUi
             ."\nIPv4 قبلی: ".TelegramUi::escape($row['oldIpv4'])
             ."\nIPv4 جدید: ".TelegramUi::escape($row['newIpv4'] ?? 'هنوز تأیید نشده')
             ."\nهزینه مبنا: ".TelegramUi::tomanPersian($row['feeRials']).' تومان';
-        $footer = 'پس از تأیید IP جدید، هماهنگی DNS را از همین صفحه ادامه دهید. '
-            .'Remnawave تغییر نمی‌کند؛ اتصال واقعی کاربران جداگانه تست می‌شود.';
+        $footer = 'مراحل هماهنگی اتصال‌ها در بخش مربوط به همین عملیات نمایش داده می‌شود؛ '
+            .'اتصال واقعی کاربران جداگانه تست می‌شود.';
         $rich = '<h2>📋 وضعیت تعویض IPv4</h2><table bordered striped compact>'.$rows.'</table>'
             .'<footer>'.TelegramUi::escape($footer).'</footer>';
         $this->render($bot, $simple."\n\n".TelegramUi::escape($footer), $buttons, $rich);
