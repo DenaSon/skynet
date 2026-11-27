@@ -12,6 +12,7 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
@@ -133,6 +134,9 @@ it('NW-03 only allows confirmed NW-02 running state, authorized root and existin
 it('NW-03 creates Node once on installer port 2222 and verifies live Connected', function (): void {
     $ready = nw03Ready();
     nw03Api();
+    $state = Cache::get('nw02:status:'.$ready['id']);
+    $state['dnsName'] = 'client.example.com';
+    Cache::put('nw02:status:'.$ready['id'], $state, now()->addHour());
     $action = app(CompleteNodeSetup::class);
     expect($action->previewNode($ready['actor']->id, $ready['id'])['address'])->toBe('194.5.192.133')
         ->and($action->previewNode($ready['actor']->id, $ready['id'])['port'])->toBe(2222)
@@ -148,6 +152,23 @@ it('NW-03 creates Node once on installer port 2222 and verifies live Connected',
         && $r['port'] === 2222
         && $r['configProfile']['activeConfigProfileUuid'] === NW03_PROFILE
         && $r['configProfile']['activeInbounds'] === [NW03_INBOUND]);
+});
+
+it('NW-03 rejects a domain in the installer IP checkpoint before registration or provider calls', function (): void {
+    $ready = nw03Ready();
+    nw03Api();
+    $key = 'nw02:status:'.$ready['id'];
+    $state = Cache::get($key);
+    $state['ip'] = 'node.example.com';
+    Cache::put($key, $state, now()->addHour());
+    $action = app(CompleteNodeSetup::class);
+
+    expect(fn () => $action->previewNode($ready['actor']->id, $ready['id']))
+        ->toThrow(ValidationException::class);
+    expect(fn () => $action->registerNode($ready['actor']->id, $ready['id']))
+        ->toThrow(ValidationException::class);
+    expect(Cache::get($key)['nodeStage'] ?? null)->toBeNull();
+    Http::assertNothingSent();
 });
 
 it('NW-03 only creates a disabled Host after confirmed live Node connection', function (): void {

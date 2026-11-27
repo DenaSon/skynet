@@ -20,6 +20,12 @@ Request shapes follow the pinned OpenAPI contract, including mandatory \`forceRe
 Generic Node lifecycle mutations are not exposed as unrestricted HTTP or Telegram controls. NW-05 is a narrowly-scoped, trusted Super Admin Telegram replacement flow built on Provisioning Application actions, provider write gates, one-use confirmation, per-operation checkpoints and GET-only reconciliation. It does not add general Node create/delete/restart controls. Any additional provider mutation requires its own approved scope, authorization, one-use confirmation and after-timeout reconciliation. Do not implicitly retry any mutation; a response indicating HTTP 202 is only acknowledgement, not confirmation of a node restart.
 
 
+## Node management IPv4 — phase 1 (2026-11-27)
+
+Approved registration scope: manual NODE-01 and installer-backed NW-03 use a literal public unicast IPv4 for Node management, never a hostname. Validate at input/preview and the shared create Action, and reject duplicate literal IP addresses across management ports under the existing Node mutation lock. Existing legacy hostname Nodes remain readable/manageable; this does not resolve legacy DNS aliases for collision inference or modify existing Nodes. Selected DNS remains independent for user-facing Hosts, including the existing explicitly selected no-domain fallback. Manual registration preview uses the existing native Rich RTL table with an equivalent escaped HTML fallback and unchanged confirmation callbacks. No new migration, dependency, provider permission or live write.
+
+Phase 2 will separately change NW-05 replacement to always set the new management IPv4; phase 3 will separately coordinate ARI-03 cloud IP changes with the Node address. The historical NW-05/ARI-03 behavior remains in effect until those phases are approved and released. CI and real Telegram/Remnawave acceptance are separate gates.
+
 ## NW-05 — existing Node server replacement
 
 The Telegram replacement flow reuses the NW-01/NW-02 SSH installer but does **not** call Node create or delete for an existing Node. It snapshots the existing Node UUID, management address/port, Config Profile and complete active Inbound UUID set before install.

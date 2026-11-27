@@ -28,6 +28,7 @@ final readonly class CompleteNodeSetup
         if (($state['nodeStage'] ?? null) !== null) {
             throw new RuntimeException('Node registration already attempted.');
         }
+        $this->nodes->validateRegistrationIdentity($actorId, $state['name'], $state['ip']);
         $this->checkSelections($actorId, $state);
         $this->checkNodeUnique($actorId, $state['name']);
 
@@ -53,6 +54,7 @@ final readonly class CompleteNodeSetup
             if (($state['nodeStage'] ?? null) !== null) {
                 throw new RuntimeException('Registration already attempted.');
             }
+            $this->nodes->validateRegistrationIdentity($actorId, $state['name'], $state['ip']);
             $this->checkSelections($actorId, $state);
             $this->checkNodeUnique($actorId, $state['name']);
             // Mark before POST: never repeat a request with uncertain outcome.
