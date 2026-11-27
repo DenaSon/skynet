@@ -306,3 +306,101 @@ it('renders real profile links for populated directories and dashboard', functio
     $this->get($base.'/resellers')->assertOk()->assertSee($base.'/resellers/'.$reseller->id, false);
     $this->get($base)->assertOk()->assertSee($base.'/resellers/'.$reseller->id, false);
 });
+
+it('keeps local services available when the reporting period on another tab is incomplete', function (): void {
+    $root = crm01bUser('super-admin');
+    $member = crm01bUser('member');
+    $reader = app(ReadCrmProfile::class);
+    $filters = crm01cFilters(['period' => 'custom', 'from' => '2026-11-27', 'until' => null]);
+    expect(fn () => $reader->handle($root->id, $member->id, false, $filters))->toThrow(ValidationException::class);
+    $data = $reader->handle($root->id, $member->id, false, array_replace($filters, ['tab' => 'services']));
+    expect($data['rows']->total())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('matches canonical bank and wallet purchases and excludes voided claims across Tehran date boundaries', function (): void {
+    $root = crm01bUser('super-admin');
+    $member = crm01bUser('member');
+    $reseller = crm01bUser('reseller');
+    $bank = crm01bOrder($reseller, 'reseller', 200_000, settle: false);
+    $voided = crm01bOrder($reseller, 'reseller', 900_000, settle: false);
+    foreach ([$bank, $voided] as $id) {
+        $journal = DB::table('billing_journals')->insertGetId([
+            'kind' => 'purchase',
+            'idempotency_key' => 'crm-bank-'.$id,
+            'created_at' => now(),
+        ]);
+        $claim = DB::table('sales_bank_payment_claims')->insertGetId([
+            'sales_order_id' => $id,
+            'buyer_user_id' => $reseller->id,
+            'photo_encrypted' => 'fixture',
+            'photo_fingerprint' => hash('sha256', 'crm-bank-'.$id),
+            'telegram_message_key' => 'crm-bank-'.$id,
+            'status' => $id === $voided ? 'voided' : 'approved',
+            'reviewed_by' => $root->id,
+            'reviewed_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('sales_bank_settlements')->insert([
+            'sales_order_id' => $id,
+            'payment_claim_id' => $claim,
+            'billing_journal_id' => $journal,
+            'verified_by' => $root->id,
+            'payment_reference' => 'CRMBANK'.$id,
+            'amount_rials' => $id === $voided ? 900_000 : 200_000,
+            'settled_at' => now(),
+        ]);
+    }
+    crm01bOrder($member, 'direct', 100_000);
+    $previous = crm01bOrder($member, 'direct', 400_000);
+    DB::table('sales_order_settlements')->where('sales_order_id', $previous)
+        ->update(['settled_at' => Carbon::parse('2026-11-26 23:59:59', 'Asia/Tehran')->utc()]);
+    crm01bOrder($reseller, 'reseller', 300_000, 'refunded');
+
+    $reader = app(ReadCrmDirectory::class);
+    $current = $reader->handle($root->id, 'dashboard', crm01bFilters(['period' => 'today']));
+    $yesterday = $reader->handle($root->id, 'dashboard', crm01bFilters(['period' => 'yesterday']));
+    expect($current['totalRials'])->toBe(300_000)
+        ->and($current['channels']['reseller']['revenueRials'])->toBe(200_000)
+        ->and($yesterday['totalRials'])->toBe(400_000);
+    $rows = app(ReadCrmProfile::class)->handle($root->id, $reseller->id, true, crm01cFilters(['tab' => 'payments']))['rows'];
+    expect($rows->total())->toBe(1)
+        ->and((int) $rows->items()[0]->order_id)->toBe($bank)
+        ->and($rows->items()[0]->payment_method)->toBe('bank');
+    Http::assertNothingSent();
+});
+
+it('keeps directory queries bounded as accounts grow and performs no business writes', function (): void {
+    $root = crm01bUser('super-admin');
+    crm01bUser('member');
+    $reader = app(ReadCrmDirectory::class);
+    $filters = crm01bFilters();
+    $measure = static function () use ($reader, $root, $filters): array {
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        try {
+            $result = $reader->handle($root->id, 'customers', $filters)['rows'];
+            $queries = DB::getQueryLog();
+
+            return [$result, $queries];
+        } finally {
+            DB::disableQueryLog();
+            DB::flushQueryLog();
+        }
+    };
+    [$small, $before] = $measure();
+    foreach (range(1, 30) as $index) {
+        crm01bUser('member', ['name' => 'Growth '.$index]);
+    }
+    [$large, $after] = $measure();
+    expect($small->total())->toBe(1)
+        ->and($large->total())->toBe(31)
+        ->and($large->count())->toBe(25)
+        ->and(count($after))->toBeLessThanOrEqual(count($before) + 2)
+        ->and(count($after))->toBeLessThan(25);
+    foreach ($after as $query) {
+        expect(preg_match('/^\s*(select|with)\b/i', $query['query']))->toBe(1);
+    }
+    Http::assertNothingSent();
+});

@@ -33,6 +33,13 @@ final readonly class ReadCrmProfile
     public function handle(int $actorId, int $subjectId, bool $reseller, array $filters): array
     {
         $this->access->handle($actorId);
+        // Local service status has no reporting-period semantics.
+        if (($filters['tab'] ?? null) === 'services') {
+            $filters['period'] = 'all';
+            $filters['from'] = null;
+            $filters['until'] = null;
+        }
+
         $filters = Validator::make($filters, [
             'tab' => ['required', Rule::in($reseller ? ['overview', 'orders', 'payments', 'contacts', 'services'] : ['overview', 'orders', 'payments', 'services'])],
             'period' => ['required', Rule::in(['today', 'yesterday', '7', '30', 'all', 'custom'])],
