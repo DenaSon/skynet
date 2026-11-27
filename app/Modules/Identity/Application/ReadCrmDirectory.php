@@ -183,11 +183,11 @@ final readonly class ReadCrmDirectory
     }
 
     /** @return array<string, mixed>|null */
-    public function resellerPerformance(int $actorId): ?array
+    public function resellerPerformance(int $actorId, bool $includePreviousRank = true): ?array
     {
         $this->access->handle($actorId);
         try {
-            return app(ReadCrmResellerPerformance::class)->handle($actorId);
+            return app(ReadCrmResellerPerformance::class)->handle($actorId, $includePreviousRank);
         } catch (AuthorizationException|QueryException) {
             Log::warning('CRM reseller performance unavailable');
 
@@ -376,7 +376,8 @@ final readonly class ReadCrmDirectory
             $sorts += ['phones' => 'phones', 'name_only' => 'name_only'];
         }
 
-        $performance = $resellers ? $this->resellerPerformance($actorId) : null;
+        // Lists and exports show current rank only; the profile retains the previous period.
+        $performance = $resellers ? $this->resellerPerformance($actorId, includePreviousRank: false) : null;
         if ($resellers && $filters['sort'] === 'performance_rank') {
             $ranks = [];
             foreach ($performance['rows'] ?? [] as $id => $row) {

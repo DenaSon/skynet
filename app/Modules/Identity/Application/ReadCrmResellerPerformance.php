@@ -21,14 +21,14 @@ final readonly class ReadCrmResellerPerformance
     ) {}
 
     /** @return array<string, mixed> */
-    public function handle(int $actorId): array
+    public function handle(int $actorId, bool $includePreviousRank = true): array
     {
         $this->access->handle($actorId);
         $this->billingAccess->financeViewer($actorId);
         $end = Carbon::now('Asia/Tehran')->startOfDay();
         $start = $end->copy()->subDays(30);
 
-        return DB::transaction(function () use ($actorId, $end, $start): array {
+        return DB::transaction(function () use ($actorId, $end, $start, $includePreviousRank): array {
             $cohort = $this->directory->commercialAccounts($actorId, true);
             $accounts = $cohort->orderBy('users.id')->get();
             $events = DB::table('identity_audit_events as audit')
@@ -86,7 +86,7 @@ final readonly class ReadCrmResellerPerformance
             // Compare only the identical current cohort, with an entire prior
             // evaluation window for every member; never claim persisted ranks.
             $previous = [];
-            if ($eligible !== [] && count(array_filter($eligible, static fn (string $since): bool => Carbon::parse($since, 'UTC')->lessThanOrEqualTo($start->copy()->subDays(30)))) === count($eligible)) {
+            if ($includePreviousRank && $eligible !== [] && count(array_filter($eligible, static fn (string $since): bool => Carbon::parse($since, 'UTC')->lessThanOrEqualTo($start->copy()->subDays(30)))) === count($eligible)) {
                 $previous = $this->scores($actorId, $eligible, $start);
             }
             foreach ($current as $id => $score) {
