@@ -18,8 +18,11 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
+use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 use SergiX44\Nutgram\Testing\FakeNutgram;
 
@@ -219,6 +222,59 @@ it('guides Admin name/address, profile, inbound, preview and a one-use provider 
         ]);
     expect(collect(Http::recorded())->filter(static fn ($pair): bool => $pair[0]->method() === 'POST'))->toHaveCount(1);
 });
+
+it('renders registration preview Rich RTL and preserves escaped data and callbacks in fallback', function (bool $callback, bool $fallback): void {
+    $actors = node01Actors();
+    config()->set('services.remnawave.writes_enabled', true);
+    node01FakeProvider();
+    $key = TelegramBotContext::current()->cacheKey('node01:draft:'.$actors['root']->id);
+    Cache::put($key, [
+        'stage' => 'inbounds', 'name' => 'New & Node', 'address' => '194.5.192.133',
+        'port' => 2222, 'profile' => ['uuid' => NODE01_PROFILE, 'name' => 'Main <Test>'],
+        'selected' => [NODE01_INBOUND],
+    ], now()->addMinutes(3));
+
+    $bot = Mockery::mock(Nutgram::class);
+    $bot->shouldReceive('chat')->andReturn(Chat::make(951111, ChatType::PRIVATE));
+    $bot->shouldReceive('user')->andReturn(TelegramUser::make(951111, false, 'Operator'));
+    $bot->shouldReceive('isCallbackQuery')->andReturn($callback);
+    if ($callback) {
+        $bot->shouldReceive('callbackQuery')->andReturnNull();
+        $bot->shouldReceive('answerCallbackQuery')->once()->andReturnNull();
+    }
+    $richKeyboard = null;
+    $bot->shouldReceive($callback ? 'editMessageText' : 'sendRichMessage')->once()
+        ->andReturnUsing(function (...$arguments) use ($fallback, &$richKeyboard, $key): null {
+            $rich = collect($arguments)->first(static fn ($arg): bool => $arg instanceof InputRichMessage);
+            $richKeyboard = collect($arguments)->first(static fn ($arg): bool => $arg instanceof InlineKeyboardMarkup);
+            expect($rich)->toBeInstanceOf(InputRichMessage::class)
+                ->and($rich->is_rtl)->toBeTrue()
+                ->and($rich->html)->toContain('<table bordered striped compact>', '<footer>', 'New &amp; Node', 'Main &lt;Test&gt;', '194.5.192.133', '2222', 'ورودی‌های انتخاب‌شده')
+                ->not->toContain('Main <Test>');
+            expect($richKeyboard)->toBeInstanceOf(InlineKeyboardMarkup::class)
+                ->and(json_encode($richKeyboard, JSON_THROW_ON_ERROR))->toContain('node1:apply:'.Cache::get($key)['token'], 'node1:cancel');
+            if ($fallback) {
+                throw new TelegramException('Bad Request: rich messages unavailable', 400);
+            }
+
+            return null;
+        });
+    if ($fallback) {
+        $bot->shouldReceive($callback ? 'editMessageText' : 'sendMessage')->once()
+            ->andReturnUsing(function (...$arguments) use (&$richKeyboard): null {
+                $keyboard = collect($arguments)->first(static fn ($arg): bool => $arg instanceof InlineKeyboardMarkup);
+                expect($arguments[0])->toContain('New &amp; Node', 'Main &lt;Test&gt;', '194.5.192.133', '2222', 'ورودی‌های انتخاب‌شده')
+                    ->not->toContain('Main <Test>');
+                expect($keyboard)->toBe($richKeyboard)
+                    ->and(in_array('HTML', $arguments, true))->toBeTrue();
+
+                return null;
+            });
+    }
+    app(AdminNodesUi::class)->preview($bot);
+    expect(Cache::get($key)['stage'])->toBe('preview');
+    Http::assertNothingSent();
+})->with([[true, false], [true, true], [false, false], [false, true]]);
 
 it('requires an explicit valid Node management port for a ready server', function (): void {
     $actors = node01Actors();

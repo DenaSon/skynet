@@ -12,9 +12,11 @@ use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 use Throwable;
 
 /** NODE-01: private Super Admin Node read and one-time guided CREATE. */
@@ -196,7 +198,7 @@ final readonly class AdminNodesUi
         $this->render($bot,
             "➕ ثبت نود آماده — گام ۱ از ۴\n\nاین مسیر برای سروری است که نود روی آن نصب شده است.\nنام و IP عمومی سرور را در یک پیام بفرستید:\n\n"
             .TelegramUi::code('Germany-01 | 194.5.192.133')."\n\nفقط IPv4 عمومی سرور؛ بدون دامنه و پورت.",
-            $this->cancelKeyboard());
+            $this->cancelKeyboard(), 'HTML');
     }
 
     /** Consume only a pending NODE-01 name/address input; preserve all original text handlers otherwise. */
@@ -342,18 +344,28 @@ final readonly class AdminNodesUi
         $state['stage'] = 'preview';
         $state['token'] = $token;
         $this->save($root, $state);
-        $this->render($bot,
-            "➕ ثبت نود آماده — گام ۴ از ۴\n\n"
-            .'نام: '.$this->safe($state['name'])."\n"
-            .'IP مدیریتی: '.$this->safe($state['address'])."\n"
-            .'پورت ارتباط نود: '.$state['port']."\n"
-            .'پروفایل: '.$this->safe($state['profile']['name'])."\n"
-            .'ورودی‌های انتخاب‌شده: '.count($state['selected'])."\n\n"
-            .'با تأیید، درخواست ساخت نود ارسال می‌شود. از تأیید دوباره خودداری کنید.',
-            InlineKeyboardMarkup::make()
-                ->addRow(InlineKeyboardButton::make('✅ تأیید ساخت', callback_data: 'node1:apply:'.$token))
-                ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'node1:cancel')),
-        );
+        $title = '➕ ثبت نود آماده — گام ۴ از ۴';
+        $notice = 'با تأیید، درخواست ساخت نود ارسال می‌شود. از تأیید دوباره خودداری کنید.';
+        $fields = [
+            'نام' => $this->safe($state['name']),
+            'IP مدیریتی' => $this->safe($state['address']),
+            'پورت ارتباط نود' => (string) $state['port'],
+            'پروفایل' => $this->safe($state['profile']['name']),
+            'ورودی‌های انتخاب‌شده' => (string) count($state['selected']),
+        ];
+        $rows = '';
+        $fallback = '<b>'.$title."</b>\n\n";
+        foreach ($fields as $label => $value) {
+            $escaped = TelegramUi::escape($value);
+            $rows .= '<tr><td>'.$label.'</td><td><b>'.$escaped.'</b></td></tr>';
+            $fallback .= $label.': '.$escaped."\n";
+        }
+        $fallback .= "\n".$notice;
+        $rich = '<h2>'.$title.'</h2><table bordered striped compact>'.$rows.'</table><footer>'.$notice.'</footer>';
+        $keyboard = InlineKeyboardMarkup::make()
+            ->addRow(InlineKeyboardButton::make('✅ تأیید ساخت', callback_data: 'node1:apply:'.$token, style: ButtonStyle::SUCCESS))
+            ->addRow(InlineKeyboardButton::make('❌ انصراف', callback_data: 'node1:cancel'));
+        $this->renderPreview($bot, $rich, $fallback, $keyboard);
     }
 
     public function apply(Nutgram $bot, string $token): void
@@ -517,14 +529,35 @@ final readonly class AdminNodesUi
         ));
     }
 
-    private function render(Nutgram $bot, string $message, InlineKeyboardMarkup $keyboard): void
+    private function renderPreview(Nutgram $bot, string $rich, string $fallback, InlineKeyboardMarkup $keyboard): void
     {
+        TelegramUi::answerCallback($bot);
+        try {
+            TelegramUi::editRichText($bot, new InputRichMessage(html: $rich, is_rtl: true), $keyboard);
+
+            return;
+        } catch (TelegramException $exception) {
+            // Only fall back after an explicit Telegram rejection, not an ambiguous transport failure.
+            if ($exception->getCode() < 400 || $exception->getCode() >= 500) {
+                throw $exception;
+            }
+        }
         if ($bot->isCallbackQuery()) {
-            TelegramUi::answerCallback($bot);
-            TelegramUi::editText($bot, $message, $keyboard);
+            TelegramUi::editText($bot, $fallback, $keyboard, 'HTML');
 
             return;
         }
-        $bot->sendMessage(text: $message, reply_markup: $keyboard);
+        $bot->sendMessage(text: $fallback, reply_markup: $keyboard, parse_mode: 'HTML');
+    }
+
+    private function render(Nutgram $bot, string $message, InlineKeyboardMarkup $keyboard, ?string $parseMode = null): void
+    {
+        if ($bot->isCallbackQuery()) {
+            TelegramUi::answerCallback($bot);
+            TelegramUi::editText($bot, $message, $keyboard, $parseMode);
+
+            return;
+        }
+        $bot->sendMessage(text: $message, reply_markup: $keyboard, parse_mode: $parseMode);
     }
 }
