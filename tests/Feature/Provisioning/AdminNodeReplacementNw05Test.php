@@ -144,6 +144,8 @@ function nw05ReplacementApi(
     bool $peerNodeDirectIpLegacyHost = false,
     bool $peerNodeDifferentHostnameLegacyHost = false,
     ?Closure $beforeMutation = null,
+    bool $failNodeWrite = false,
+    bool $applyFailedNodeWrite = false,
 ): object {
     $node = [
         'uuid' => NW05_NODE,
@@ -264,7 +266,7 @@ function nw05ReplacementApi(
     }
     $shared = (object) ['node' => $node, 'nodes' => $nodes, 'hosts' => $hosts, 'records' => $records];
 
-    Http::fake(static function (Request $request) use ($shared, $failDnsWrite, $beforeMutation) {
+    Http::fake(static function (Request $request) use ($shared, $failDnsWrite, $beforeMutation, $failNodeWrite, $applyFailedNodeWrite) {
         $url = $request->url();
         $method = $request->method();
         if ($method !== 'GET' && $beforeMutation !== null) {
@@ -289,9 +291,14 @@ function nw05ReplacementApi(
             ]], 200);
         }
         if ($method === 'PATCH' && $url === $rw.'nodes') {
-            $shared->node['address'] = $request['address'];
+            if (! $failNodeWrite || $applyFailedNodeWrite) {
+                $shared->node['address'] = $request['address'];
+                $shared->nodes[0]['address'] = $request['address'];
+            }
 
-            return Http::response(['response' => ['uuid' => NW05_NODE]], 200);
+            return $failNodeWrite
+                ? Http::response(['error' => 'uncertain Node update'], 503)
+                : Http::response(['response' => ['uuid' => NW05_NODE]], 200);
         }
         if ($method === 'GET' && $url === $rw.'hosts') {
             return Http::response(['response' => $shared->hosts], 200);
@@ -377,6 +384,7 @@ it('previews the existing Node and all unique Host domains without mutating prov
 
     expect($review['node']['uuid'])->toBe(NW05_NODE)
         ->and($review['nodeAddressMode'])->toBe('domain')
+        ->and($review['nodeAddressTarget'])->toBe(NW05_NEW_IP)
         ->and($review['oldIp'])->toBe(NW05_OLD_IP)
         ->and($review['newIp'])->toBe(NW05_NEW_IP)
         ->and(array_column($review['dnsRecords'], 'hostname'))->toBe([
@@ -388,7 +396,7 @@ it('previews the existing Node and all unique Host domains without mutating prov
         ->and(nw05MutationCount())->toBe(0);
 });
 
-it('moves all associated A records and preserves Node identity, Host identity and Proxy state', function (): void {
+it('moves associated A records and converts the legacy Node address to IPv4 without changing identity', function (): void {
     $ready = nw05ReplacementReady();
     $api = nw05ReplacementApi();
     $action = app(ReplaceAdminNode::class);
@@ -409,21 +417,107 @@ it('moves all associated A records and preserves Node identity, Host identity an
         ->and(Cache::get('nw02:status:'.$ready['id'])['state'])->toBe('running')
         ->and(Cache::get('nw05:state:'.$ready['id'])['stage'])->toBe('completed')
         ->and($api->node['uuid'])->toBe(NW05_NODE)
-        ->and($api->node['address'])->toBe('fr.coreflare.ir')
+        ->and($api->node['address'])->toBe(NW05_NEW_IP)
+        ->and($api->node['configProfile']['activeConfigProfileUuid'])->toBe(NW05_PROFILE)
+        ->and($api->hosts[0]['address'])->toBe('fr.coreflare.ir')
+        ->and($api->hosts[1]['address'])->toBe('xhttp.coreflare.ir')
         ->and($api->records[NW05_RECORD_NODE]['content'])->toBe(NW05_NEW_IP)
         ->and($api->records[NW05_RECORD_NODE]['proxied'])->toBeFalse()
         ->and($api->records[NW05_RECORD_XHTTP]['content'])->toBe(NW05_NEW_IP)
         ->and($api->records[NW05_RECORD_XHTTP]['proxied'])->toBeTrue()
-        ->and(nw05MutationCount())->toBe(2);
+        ->and(nw05MutationCount())->toBe(3);
 
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'PATCH'
         && str_contains($request->url(), '/dns_records/'.NW05_RECORD_NODE));
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'PATCH'
         && str_contains($request->url(), '/dns_records/'.NW05_RECORD_XHTTP));
-    Http::assertNotSent(static fn (Request $request): bool => $request->method() !== 'GET'
-        && str_contains($request->url(), 'rw.nw05.test/api/nodes'));
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'PATCH'
+        && $request->url() === 'https://rw.nw05.test/api/nodes'
+        && $request->data() === ['uuid' => NW05_NODE, 'address' => NW05_NEW_IP]);
+    $writes = collect(Http::recorded())->filter(static fn (array $pair): bool => $pair[0]->method() !== 'GET')->values();
+    expect($writes->last()[0]->url())->toBe('https://rw.nw05.test/api/nodes');
     Http::assertNotSent(static fn (Request $request): bool => $request->method() !== 'GET'
         && str_contains($request->url(), 'rw.nw05.test/api/hosts'));
+});
+
+it('requires a new confirmation after the registration-only release', function (): void {
+    $ready = nw05ReplacementReady();
+    nw05ReplacementApi();
+    $action = app(ReplaceAdminNode::class);
+    $review = $action->preview($ready['actor']->id, $ready['id']);
+    unset($review['nodeAddressTarget']);
+
+    expect(fn () => $action->apply($ready['actor']->id, $ready['id'], $review))
+        ->toThrow(RuntimeException::class, 'inventory changed');
+    expect(nw05MutationCount())->toBe(0);
+});
+
+it('reconciles an uncertain legacy-domain Node PATCH with GET only and never retries it', function (bool $applied): void {
+    $ready = nw05ReplacementReady();
+    $api = nw05ReplacementApi(failNodeWrite: true, applyFailedNodeWrite: $applied);
+    $action = app(ReplaceAdminNode::class);
+    $review = $action->preview($ready['actor']->id, $ready['id']);
+
+    expect(fn () => $action->apply($ready['actor']->id, $ready['id'], $review))
+        ->toThrow(RuntimeException::class);
+    expect($action->progress($ready['actor']->id, $ready['id']))->toMatchArray([
+        'stage' => 'applying', 'nodeAddressStage' => 'uncertain',
+        'nodeAddress' => $applied ? NW05_NEW_IP : 'fr.coreflare.ir',
+    ]);
+    expect(fn () => $action->apply($ready['actor']->id, $ready['id'], $review))
+        ->toThrow(RuntimeException::class);
+
+    if ($applied) {
+        $action->reconcile($ready['actor']->id, $ready['id']);
+        expect($action->progress($ready['actor']->id, $ready['id']))->toMatchArray([
+            'stage' => 'awaiting_client_test', 'nodeAddressStage' => 'verified',
+            'nodeAddress' => NW05_NEW_IP,
+        ]);
+        $action->acceptClientTest($ready['actor']->id, $ready['id']);
+    } else {
+        expect(fn () => $action->reconcile($ready['actor']->id, $ready['id']))
+            ->toThrow(RuntimeException::class);
+        expect(fn () => $action->acceptClientTest($ready['actor']->id, $ready['id']))
+            ->toThrow(RuntimeException::class);
+        expect($api->node['address'])->toBe('fr.coreflare.ir');
+    }
+    expect(nw05MutationCount())->toBe(3);
+})->with([true, false]);
+
+it('retains the original confirmation policy for already-started domain-only operations without new writes', function (): void {
+    $ready = nw05ReplacementReady();
+    $api = nw05ReplacementApi();
+    $action = app(ReplaceAdminNode::class);
+    $review = $action->preview($ready['actor']->id, $ready['id']);
+    $action->apply($ready['actor']->id, $ready['id'], $review);
+    $key = 'nw05:state:'.$ready['id'];
+    $state = Cache::get($key);
+    unset($state['nodeAddressTarget']);
+    $state['nodeAddressStage'] = 'skipped';
+    $state['stage'] = 'applying';
+    $api->node['address'] = 'fr.coreflare.ir';
+    $api->nodes[0]['address'] = 'fr.coreflare.ir';
+    Cache::put($key, $state, now()->addHours(3));
+
+    $before = nw05MutationCount();
+    $action->reconcile($ready['actor']->id, $ready['id']);
+    $action->acceptClientTest($ready['actor']->id, $ready['id']);
+    expect($action->progress($ready['actor']->id, $ready['id'])['stage'])->toBe('completed')
+        ->and($api->node['address'])->toBe('fr.coreflare.ir')
+        ->and(nw05MutationCount())->toBe($before);
+});
+
+it('rejects acceptance when the management address no longer matches the replacement IP', function (): void {
+    $ready = nw05ReplacementReady();
+    $api = nw05ReplacementApi();
+    $action = app(ReplaceAdminNode::class);
+    $action->apply($ready['actor']->id, $ready['id'], $action->preview($ready['actor']->id, $ready['id']));
+    $api->node['address'] = 'fr.coreflare.ir';
+
+    expect(fn () => $action->acceptClientTest($ready['actor']->id, $ready['id']))
+        ->toThrow(RuntimeException::class);
+    expect(Cache::get('nw05:state:'.$ready['id'])['stage'])->toBe('awaiting_client_test')
+        ->and(nw05MutationCount())->toBe(3);
 });
 
 it('does not accept the client test if a transferred DNS record no longer points to the new VPS', function (): void {
@@ -736,7 +830,7 @@ it('renders the replacement confirmation Rich-first and keeps an equivalent esca
             if ($argument instanceof InputRichMessage) {
                 expect($argument->is_rtl)->toBeTrue()
                     ->and($argument->html)->toContain('<table bordered striped compact>')
-                    ->toContain('fr.coreflare.ir', 'DNS Only', 'Hostهای حفظ‌شده', 'Germany-REALITY', 'fr.coreflare.ir:443', 'Germany-XHTTP', 'xhttp.coreflare.ir:8443');
+                    ->toContain('fr.coreflare.ir', 'آدرس مدیریتی جدید', '1.1.1.1', 'DNS Only', 'Hostهای حفظ‌شده', 'Germany-REALITY', 'fr.coreflare.ir:443', 'Germany-XHTTP', 'xhttp.coreflare.ir:8443');
             }
             if ($argument instanceof InlineKeyboardMarkup) {
                 $keyboard = $argument;
@@ -848,7 +942,7 @@ it('acknowledges replacement callbacks before provider writes and isolates final
         ->and($action->progress($ready['actor']->id, $ready['id'])['stage'])->toBe('awaiting_client_test')
         ->and($api->records[NW05_RECORD_NODE]['content'])->toBe(NW05_NEW_IP)
         ->and($api->records[NW05_RECORD_XHTTP]['content'])->toBe(NW05_NEW_IP)
-        ->and(nw05MutationCount())->toBe(2)
+        ->and(nw05MutationCount())->toBe(3)
         ->and(Cache::get('nw05:confirm:'.$ready['actor']->id))->toBeNull()
         ->and($sentText)->toContain('جایگزینی سرور')
         ->and($sentText)->not->toContain('نتیجه انتقال مشخص نیست');
@@ -920,7 +1014,7 @@ it('renders the pre-install replacement review Rich-first with preserved fallbac
         ->and(json_encode($keyboard, JSON_THROW_ON_ERROR))->toContain('nw1:scan:aabbccdd');
 });
 
-it('canonicalizes DNS checkpoint hostnames while preserving the original Node address', function (): void {
+it('canonicalizes legacy DNS checkpoint hostnames and preserves the Host domain during IPv4 cutover', function (): void {
     $ready = nw05ReplacementReady();
     $status = Cache::get('nw02:status:'.$ready['id']);
     $status['replacement']['address'] = 'FR.coreflare.ir';
@@ -937,7 +1031,8 @@ it('canonicalizes DNS checkpoint hostnames while preserving the original Node ad
 
     $action->apply($ready['actor']->id, $ready['id'], $review);
 
-    expect($api->node['address'])->toBe('FR.coreflare.ir')
+    expect($api->node['address'])->toBe(NW05_NEW_IP)
+        ->and($api->hosts[0]['address'])->toBe('FR.coreflare.ir')
         ->and($api->records[NW05_RECORD_NODE]['name'])->toBe('fr.coreflare.ir')
         ->and($api->records[NW05_RECORD_NODE]['content'])->toBe(NW05_NEW_IP)
         ->and($api->records[NW05_RECORD_XHTTP]['content'])->toBe(NW05_NEW_IP);

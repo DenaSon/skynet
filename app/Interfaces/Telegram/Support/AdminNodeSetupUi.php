@@ -1209,10 +1209,19 @@ final readonly class AdminNodeSetupUi
 
             $keyboard = InlineKeyboardMarkup::make();
             $message = '🔁 جایگزینی سرور «'.TelegramUi::escape($target['name'])."\n\n"
-                .'IP قبلی: '.TelegramUi::code($progress['oldIp'])."\nIP جدید: ".TelegramUi::code($progress['newIp'])."\n";
+                .'IP قبلی: '.TelegramUi::code($progress['oldIp'])."\nIP جدید: ".TelegramUi::code($progress['newIp'])."\n"
+                .'آدرس فعلی نود: '.TelegramUi::code($progress['nodeAddress'])."\n";
             $rows = $this->replacementRichRow('نود', $target['name'])
                 .$this->replacementRichRow('IP قبلی', $progress['oldIp'])
-                .$this->replacementRichRow('IP جدید', $progress['newIp']);
+                .$this->replacementRichRow('IP جدید', $progress['newIp'])
+                .$this->replacementRichRow('آدرس فعلی نود', $progress['nodeAddress']);
+            $addressStatus = match ($progress['nodeAddressStage']) {
+                'verified' => 'IP جدید تأیید شد',
+                'skipped' => 'طبق تأیید قبلی',
+                default => 'در انتظار بررسی',
+            };
+            $message .= 'وضعیت آدرس نود: '.$addressStatus."\n";
+            $rows .= $this->replacementRichRow('وضعیت آدرس نود', $addressStatus);
 
             foreach ($progress['dnsRecords'] as $record) {
                 $status = $record['stage'] === 'verified' ? 'منتقل شد' : 'در انتظار بررسی';
@@ -1270,7 +1279,8 @@ final readonly class AdminNodeSetupUi
                 .'نود: '.TelegramUi::escape($review['node']['name'])."\nUUID: ".TelegramUi::code($review['node']['uuid'])."\n"
                 .'IP فعلی: '.TelegramUi::code($review['oldIp'])."\nIP جدید: ".TelegramUi::code($review['newIp'])."\n"
                 .'روش آماده‌سازی: '.$preparationMode."\n"
-                .'حالت آدرس Node: '.($review['nodeAddressMode'] === 'domain' ? 'حفظ دامنه فعلی' : 'تغییر IP مستقیم')."\n\n"
+                .'آدرس فعلی نود: '.TelegramUi::code($review['node']['address'])."\n"
+                .'آدرس مدیریتی جدید: '.TelegramUi::code($review['nodeAddressTarget'])."\n\n"
                 .'Hostهای حفظ‌شده: '.count($review['hosts'])."\n"
                 .'دامنه‌های قابل انتقال: '.count($review['dnsRecords'])."\n";
 
@@ -1279,7 +1289,8 @@ final readonly class AdminNodeSetupUi
                 .$this->replacementRichRow('UUID', $review['node']['uuid'])
                 .$this->replacementRichRow('IP فعلی', $review['oldIp'])
                 .$this->replacementRichRow('IP جدید', $review['newIp'])
-                .$this->replacementRichRow('آدرس Node', $review['nodeAddressMode'] === 'domain' ? 'حفظ دامنه فعلی' : 'IP مستقیم')
+                .$this->replacementRichRow('آدرس فعلی نود', $review['node']['address'])
+                .$this->replacementRichRow('آدرس مدیریتی جدید', $review['nodeAddressTarget'])
                 .$this->replacementRichRow('Hostهای حفظ‌شده', (string) count($review['hosts']));
 
             foreach ($review['hosts'] as $host) {
@@ -1294,9 +1305,9 @@ final readonly class AdminNodeSetupUi
                 $rows .= $this->replacementRichRow($record['hostname'], $proxy);
             }
 
-            $message .= "\n\nUUID، پروفایل، Inboundها و Hostها حذف نمی‌شوند. فقط رکوردهای A موجود به IP جدید منتقل می‌شوند و وضعیت Proxy حفظ خواهد شد. پس از تأیید، درخواست‌ها تکرارپذیر نیستند.";
+            $message .= "\n\nشناسه نود، پروفایل و تنظیمات اتصال حفظ می‌شوند. دامنه‌ها و آدرس مدیریتی نود به IP جدید منتقل می‌شوند. پس از تأیید، درخواست‌ها تکرارپذیر نیستند.";
             $rich = '<h2>⚠️ بازبینی نهایی جایگزینی</h2><table bordered striped compact>'.$rows.'</table>'
-                .'<footer>هیچ Node یا Hostی حذف یا بازسازی نمی‌شود. پس از انتقال، تست واقعی اتصال کاربران الزامی است.</footer>';
+                .'<footer>آدرس مدیریتی نود به IP جدید تغییر می‌کند؛ دامنه‌های اتصال حفظ می‌شوند. پس از انتقال، تست واقعی اتصال کاربران الزامی است.</footer>';
             $this->renderReplacementRich($bot, $rich, $message,
                 InlineKeyboardMarkup::make()
                     ->addRow(InlineKeyboardButton::make('✅ تأیید انتقال سرور و دامنه‌ها', callback_data: 'nw5:apply:'.$token, style: ButtonStyle::SUCCESS))
@@ -1853,11 +1864,11 @@ final readonly class AdminNodeSetupUi
                 .(($draft['preparedNode'] ?? false) === true
                     ? "\n\nNode از قبل روی سرور نصب شده است؛ در این مسیر نصب مجدد انجام نمی‌شود."
                     : "\n\nپس از تأیید، نصب خودکار روی سرور خالی انجام خواهد شد.")
-                ."\n\nUUID نود، پروفایل، ورودی‌ها و Hostهای فعلی حذف یا بازسازی نمی‌شوند. پس از آماده‌سازی، رکوردهای DNS مرتبط به IP جدید منتقل خواهند شد.";
+                ."\n\nشناسه نود، پروفایل و تنظیمات اتصال حفظ می‌شوند. پس از آماده‌سازی، دامنه‌های مرتبط و آدرس مدیریتی نود به IP جدید منتقل می‌شوند.";
             $rows = $this->replacementRichRow('نود', $draft['name'])
                 .$this->replacementRichRow('UUID', $target['uuid'])
                 .$this->replacementRichRow('آدرس فعلی', $target['address'])
-                .$this->replacementRichRow('IP سرور جدید', $draft['ip'])
+                .$this->replacementRichRow('IP مدیریتی جدید', $draft['ip'])
                 .$this->replacementRichRow('پورت SSH', (string) $draft['port'])
                 .$this->replacementRichRow('روش ورود', ($draft['authMode'] ?? 'password') === 'key' ? 'کلید SSH' : 'رمز عبور')
                 .$this->replacementRichRow('پروفایل فعلی', $draft['profile']['name'])

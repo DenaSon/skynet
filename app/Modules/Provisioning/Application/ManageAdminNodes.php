@@ -184,8 +184,8 @@ final readonly class ManageAdminNodes
     }
 
     /**
-     * Update only a direct-IP Node address. Domain addresses are intentionally
-     * preserved and moved through their Cloudflare A records instead.
+     * Set the management IPv4 of the selected existing Node after its caller
+     * verifies the replacement target and DNS ownership.
      *
      * @param  array{uuid:string,name:string,address:string,port:int,connected:bool,disabled:bool,profileUuid:string,inboundUuids:list<string>}  $expected
      * @return array{uuid:string,name:string,address:string,port:int,connected:bool,disabled:bool,profileUuid:string,inboundUuids:list<string>}
@@ -194,11 +194,7 @@ final readonly class ManageAdminNodes
     {
         $this->access->handle($actorId);
         $this->authorizeWrite($actorId);
-        if (filter_var($expected['address'], FILTER_VALIDATE_IP) === false
-            || filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
-            throw ValidationException::withMessages(['node' => 'Only a direct-IP Node can change its address in this operation.']);
-        }
-        $this->validateIdentity($actorId, $expected['name'], $address);
+        $this->validateRegistrationIdentity($actorId, $expected['name'], $address);
 
         return Cache::lock('nodes:mutation', 60)->block(1, function () use ($actorId, $expected, $address): array {
             $current = $this->replacementSnapshot($actorId, self::uuid($expected['uuid']));

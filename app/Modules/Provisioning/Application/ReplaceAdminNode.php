@@ -10,8 +10,8 @@ use RuntimeException;
 /**
  * NW-05: replace the VPS behind an existing Remnawave Node.
  *
- * The Node UUID, profile, inbounds and Host objects are preserved. Domain
- * addresses move only through their existing Cloudflare A records.
+ * The Node UUID, profile, inbounds and Host objects are preserved. The Node
+ * management address becomes the new public IPv4; Host domains stay unchanged.
  */
 final readonly class ReplaceAdminNode
 {
@@ -63,9 +63,7 @@ final readonly class ReplaceAdminNode
             throw new RuntimeException('Enable the existing Node before replacing its server.');
         }
 
-        if (filter_var($newIp, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
-            throw new RuntimeException('The new server IP is invalid.');
-        }
+        $this->nodes->validateRegistrationIdentity($actorId, $current['name'], $newIp);
 
         $nodeAddressIsIp = filter_var($current['address'], FILTER_VALIDATE_IP) !== false;
         $nodeDns = null;
@@ -294,6 +292,8 @@ final readonly class ReplaceAdminNode
             'oldIp' => $oldIp,
             'newIp' => $newIp,
             'nodeAddressMode' => $nodeAddressIsIp ? 'ip' : 'domain',
+            // Bind the new policy to confirmation; pre-release previews cannot authorize this PATCH.
+            'nodeAddressTarget' => $newIp,
             'dnsRecords' => $dnsRecords,
             'hosts' => $hostRows,
             'hostInventory' => $hostInventory,
@@ -331,7 +331,8 @@ final readonly class ReplaceAdminNode
                 'newIp' => $current['newIp'],
                 'cloudPurchaseId' => $this->installations->context($actorId, $identifier)['cloudPurchaseId'] ?? null,
                 'nodeAddressMode' => $current['nodeAddressMode'],
-                'nodeAddressStage' => $current['nodeAddressMode'] === 'ip' ? 'ready' : 'skipped',
+                'nodeAddressTarget' => $current['nodeAddressTarget'],
+                'nodeAddressStage' => 'ready',
                 'dnsRecords' => array_map(static fn (array $record): array => [...$record, 'stage' => 'ready'], $current['dnsRecords']),
                 'hosts' => $current['hosts'],
                 'hostInventory' => $current['hostInventory'],
@@ -375,20 +376,18 @@ final readonly class ReplaceAdminNode
                 $this->save($identifier, $state);
             }
 
-            if ($state['nodeAddressMode'] === 'ip') {
-                $this->assertNodeSnapshot($actorId, $state['node'] ?? null);
-                $this->assertHostInventory($actorId, $state['hostInventory'] ?? null);
-                $this->assertDnsRecordsAtNewIp($actorId, $state['dnsRecords'] ?? null, $state['newIp'] ?? null);
-                $state['nodeAddressStage'] = 'uncertain';
-                $this->save($identifier, $state);
-                $updated = $this->nodes->updateReplacementAddress($actorId, $state['node'], $state['newIp']);
-                if ($updated['address'] !== $state['newIp']
-                    || $this->nodeIdentity($updated, includeAddress: false) !== $this->nodeIdentity($state['node'], includeAddress: false)) {
-                    throw new RuntimeException('Node address update could not be verified.');
-                }
-                $state['nodeAddressStage'] = 'verified';
-                $this->save($identifier, $state);
+            $this->assertNodeSnapshot($actorId, $state['node'] ?? null);
+            $this->assertHostInventory($actorId, $state['hostInventory'] ?? null);
+            $this->assertDnsRecordsAtNewIp($actorId, $state['dnsRecords'] ?? null, $state['newIp'] ?? null);
+            $state['nodeAddressStage'] = 'uncertain';
+            $this->save($identifier, $state);
+            $updated = $this->nodes->updateReplacementAddress($actorId, $state['node'], $state['newIp']);
+            if ($updated['address'] !== $state['newIp']
+                || $this->nodeIdentity($updated, includeAddress: false) !== $this->nodeIdentity($state['node'], includeAddress: false)) {
+                throw new RuntimeException('Node address update could not be verified.');
             }
+            $state['nodeAddressStage'] = 'verified';
+            $this->save($identifier, $state);
 
             $state['stage'] = 'awaiting_client_test';
             $this->save($identifier, $state);
@@ -404,12 +403,10 @@ final readonly class ReplaceAdminNode
         }
         $state = $this->state($actorId, $identifier);
         $node = $this->nodes->replacementSnapshot($actorId, $state['node']['uuid']);
-        $expectedAddresses = [$state['nodeAddressMode'] === 'ip' ? $state['newIp'] : $state['node']['address']];
-        if ($state['stage'] === 'applying' && $state['nodeAddressMode'] === 'ip'
-            && $state['nodeAddressStage'] === 'ready') {
+        $expectedAddresses = [$this->expectedNodeAddress($state)];
+        if ($state['stage'] === 'applying' && $state['nodeAddressStage'] === 'ready') {
             $expectedAddresses = [$state['node']['address']];
-        } elseif ($state['stage'] === 'applying' && $state['nodeAddressMode'] === 'ip'
-            && $state['nodeAddressStage'] === 'uncertain') {
+        } elseif ($state['stage'] === 'applying' && $state['nodeAddressStage'] === 'uncertain') {
             $expectedAddresses[] = $state['node']['address'];
         }
         if (! in_array($node['address'], $expectedAddresses, true)
@@ -424,6 +421,8 @@ final readonly class ReplaceAdminNode
             'oldIp' => $state['oldIp'],
             'newIp' => $state['newIp'],
             'nodeName' => $node['name'],
+            'nodeAddress' => $node['address'],
+            'nodeAddressStage' => $state['nodeAddressStage'],
             'dnsRecords' => array_map(static fn (array $item): array => [
                 'hostname' => $item['hostname'],
                 'stage' => $item['stage'],
@@ -447,8 +446,9 @@ final readonly class ReplaceAdminNode
                 $this->purchases->assertReadyTarget($actorId, $state['cloudPurchaseId'], $state['newIp']);
             }
             $node = $this->nodes->replacementSnapshot($actorId, $state['node']['uuid']);
-            $expectedAddress = $state['nodeAddressMode'] === 'ip' ? $state['newIp'] : $state['node']['address'];
-            if (! $node['connected'] || $node['disabled'] || $node['address'] !== $expectedAddress
+            $expectedAddress = $this->expectedNodeAddress($state);
+            if (! $this->nodeAddressVerified($state)
+                || ! $node['connected'] || $node['disabled'] || $node['address'] !== $expectedAddress
                 || $this->nodeIdentity($node, includeAddress: false) !== $this->nodeIdentity($state['node'], includeAddress: false)) {
                 throw new RuntimeException('Node connection or identity changed before client-test acceptance.');
             }
@@ -544,20 +544,47 @@ final readonly class ReplaceAdminNode
 
             $this->assertHostInventory($actorId, $state['hostInventory'] ?? null);
 
-            if (($state['nodeAddressMode'] === 'ip' && $state['nodeAddressStage'] !== 'verified')
-                || $state['nodeAddressStage'] === 'uncertain'
+            if (! $this->nodeAddressVerified($state)
                 || collect($state['dnsRecords'])->contains(static fn (array $item): bool => $item['stage'] !== 'verified')
                 || collect($state['directHosts'])->contains(static fn (array $item): bool => $item['stage'] !== 'verified')) {
                 throw new RuntimeException('Some replacement operations remain unresolved.');
             }
+
+            $node = $this->nodes->replacementSnapshot($actorId, $state['node']['uuid']);
+            if ($node['address'] !== $this->expectedNodeAddress($state)
+                || $this->nodeIdentity($node, includeAddress: false) !== $this->nodeIdentity($state['node'], includeAddress: false)) {
+                throw new RuntimeException('Node address or identity is not verified.');
+            }
+            $this->assertDnsRecordsAtNewIp($actorId, $state['dnsRecords'] ?? null, $state['newIp'] ?? null);
 
             $state['stage'] = 'awaiting_client_test';
             $this->save($identifier, $state);
         });
     }
 
+    /** @param array<string,mixed> $state */
+    private function expectedNodeAddress(array $state): string
+    {
+        // Old confirmed domain-only operations must remain readable and must not
+        // gain a new Node write during rollout or GET-only reconciliation.
+        if (! array_key_exists('nodeAddressTarget', $state) && $state['nodeAddressMode'] === 'domain'
+            && $state['nodeAddressStage'] === 'skipped') {
+            return $state['node']['address'];
+        }
+
+        return $state['newIp'];
+    }
+
+    /** @param array<string,mixed> $state */
+    private function nodeAddressVerified(array $state): bool
+    {
+        return $state['nodeAddressStage'] === 'verified'
+            || (! array_key_exists('nodeAddressTarget', $state) && $state['nodeAddressMode'] === 'domain'
+                && $state['nodeAddressStage'] === 'skipped');
+    }
+
     /**
-     * Re-read every transferred DNS record before changing a direct-IP Node address.
+     * Re-read every transferred DNS record before changing the Node management address.
      * This keeps a stale/changed DNS target from being followed by a Node PATCH.
      */
     private function assertDnsRecordsAtNewIp(int $actorId, mixed $entries, mixed $newIp): void
