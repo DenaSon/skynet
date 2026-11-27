@@ -132,7 +132,7 @@ final readonly class ReadCrmAnalytics
                     [$cashCase, $cashBindings] = $this->bucketCase('occurred_at', $buckets);
                     $cashTrend = $cashRows->selectRaw("$cashCase as bucket, COALESCE(SUM(amount_rials), 0) as amount", $cashBindings)
                         ->groupBy('bucket')->get()->keyBy('bucket');
-                    if ($previousFrom !== null && $previousUntil !== null) {
+                    if ($previousFrom !== null) {
                         $priorCash = $this->cash->incomingTotalsBetween($actorId, $previousFrom, $previousUntil)['cashInRials'];
                     }
                 } catch (AuthorizationException|QueryException) {
