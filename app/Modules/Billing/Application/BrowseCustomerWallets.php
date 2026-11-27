@@ -153,13 +153,19 @@ final readonly class BrowseCustomerWallets
     /** Finance-gated balance-only read; the support profile needs no receipt history. */
     public function balanceForUser(int $rootId, int $userId): int
     {
+        return $this->recordedBalanceForUser($rootId, $userId) ?? 0;
+    }
+
+    /** Preserve missing wallet evidence separately from an existing zero balance. */
+    public function recordedBalanceForUser(int $rootId, int $userId): ?int
+    {
         $this->access->financeViewer($rootId);
         if ($userId < 1) {
             throw ValidationException::withMessages(['wallet' => 'Invalid customer.']);
         }
         $walletId = DB::table('billing_wallets')->where('user_id', $userId)->value('id');
 
-        return $walletId === null ? 0 : $this->balance((int) $walletId);
+        return $walletId === null ? null : $this->balance((int) $walletId);
     }
 
     private function balance(int $walletId): int

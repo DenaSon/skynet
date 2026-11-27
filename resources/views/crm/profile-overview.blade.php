@@ -13,6 +13,8 @@
     <x-stat title="کانال تاریخی نامشخص" :value="$money($summary['unknown'])" />
     @if ($data['walletState'] === 'available')
         <x-stat title="موجودی فعلی کیف پول" :value="$money($data['wallet'])" description="مستقل از بازه گزارش" icon="o-wallet" class="crm-tone-green" />
+    @elseif ($data['walletState'] === 'missing')
+        <x-stat title="موجودی فعلی کیف پول" value="نامشخص" description="کیف پول ثبت نشده است" icon="o-wallet" />
     @elseif ($data['walletState'] === 'unavailable')
         <x-alert class="alert-warning">موجودی کیف پول نامشخص است.</x-alert>
     @endif

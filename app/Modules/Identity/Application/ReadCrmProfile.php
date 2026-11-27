@@ -99,8 +99,8 @@ final readonly class ReadCrmProfile
                     $data['walletState'] = 'denied';
                     try {
                         $this->billingAccess->financeViewer($actorId);
-                        $data['wallet'] = $this->wallets->balanceForUser($actorId, $subjectId);
-                        $data['walletState'] = 'available';
+                        $data['wallet'] = $this->wallets->recordedBalanceForUser($actorId, $subjectId);
+                        $data['walletState'] = $data['wallet'] === null ? 'missing' : 'available';
                     } catch (AuthorizationException) {
                         // Independent financial read permission.
                     } catch (QueryException) {

@@ -321,6 +321,11 @@ final readonly class ReadCrmDirectory
     private function accountPage(int $actorId, bool $resellers, array $filters, Carbon $from, Carbon $until, ?Builder $segments, int $perPage): LengthAwarePaginator
     {
         $query = $this->rankedAccounts($actorId, $resellers, $from, $until);
+        if ($resellers) {
+            // Rank the complete cohort before the outer search/status filters.
+            $query->selectRaw('DENSE_RANK() OVER (ORDER BY COALESCE(purchases.revenue_rials, 0) DESC) as sales_rank');
+            $query = DB::query()->fromSub($query, 'accounts');
+        }
         if ($segments !== null) {
             $query->joinSub($segments, 'customer_segment', 'customer_segment.id', '=', 'accounts.id')
                 ->addSelect('customer_segment.r_score', 'customer_segment.f_score', 'customer_segment.m_score', 'customer_segment.lifetime_orders', 'customer_segment.lifetime_rials', 'customer_segment.last_purchase_at');
@@ -369,10 +374,6 @@ final readonly class ReadCrmDirectory
         $sorts = ['id' => 'accounts.id', 'name' => 'accounts.name', 'created_at' => 'accounts.created_at', 'is_active' => 'accounts.is_active', 'transactions' => 'transactions', 'revenue_rials' => 'revenue_rials'];
         if ($resellers) {
             $sorts += ['phones' => 'phones', 'name_only' => 'name_only'];
-        }
-
-        if ($resellers) {
-            $query->selectRaw('DENSE_RANK() OVER (ORDER BY COALESCE(purchases.revenue_rials, 0) DESC) as sales_rank');
         }
 
         $performance = $resellers ? $this->resellerPerformance($actorId) : null;
