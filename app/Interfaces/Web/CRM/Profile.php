@@ -76,6 +76,12 @@ final class Profile extends Component
         $this->groupContacts = false;
     }
 
+    public function resetFilters(): void
+    {
+        $this->reset(['period', 'from', 'until', 'search', 'status', 'phone', 'purchase', 'groupContacts', 'sortBy']);
+        $this->resetPage();
+    }
+
     public function render(): View
     {
         $data = null;

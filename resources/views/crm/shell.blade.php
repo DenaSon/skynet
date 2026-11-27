@@ -5,7 +5,7 @@
         $periods = ['today' => 'امروز', 'yesterday' => 'دیروز', '7' => '۷ روز اخیر', '30' => '۳۰ روز اخیر', 'all' => 'از ابتدا', 'custom' => 'بازه دلخواه'];
         $options = static fn (array $items) => collect($items)->map(fn ($name, $id) => ['id' => (string) $id, 'name' => $name])->values()->all();
         $yesNo = $options(['all' => 'همه', 'yes' => 'دارد', 'no' => 'ندارد']);
-        $money = static fn ($rials) => number_format($rials / 10, $rials % 10 === 0 ? 0 : 1).' تومان';
+        $money = static fn ($rials) => \App\Support\PersianCalendar::number(number_format($rials / 10, $rials % 10 === 0 ? 0 : 1)).' تومان';
     @endphp
 
     @include('crm.topbar')
@@ -17,11 +17,25 @@
             <x-header :title="$titles[$section]" subtitle="پنل مدیریت مشتریان" separator />
 
             <x-card class="border border-base-300">
+                <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <h2 class="text-sm font-semibold text-dg-navy">فیلترهای گزارش</h2>
+                    <x-button label="پاک‌کردن فیلترها" icon="o-arrow-path" wire:click="resetFilters" class="btn-ghost btn-sm text-primary" />
+                </div>
                 <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                     <x-select label="{{ $section === 'contacts' ? 'بازه تاریخ سفارش' : 'بازه گزارش' }}" :options="$options($periods)" wire:model.live="period" />
                     @if ($period === 'custom')
-                        <x-datetime label="از تاریخ" wire:model.live="from" />
-                        <x-datetime label="تا تاریخ" wire:model.live="until" />
+                        <div>
+                            <x-datetime label="از تاریخ (میلادی)" wire:model.live="from" />
+                            @if ($from !== '')
+                                <p class="mt-1 text-xs text-base-content/70" dir="rtl">شمسی: <bdi dir="ltr">{{ \App\Support\PersianCalendar::date($from) }}</bdi></p>
+                            @endif
+                        </div>
+                        <div>
+                            <x-datetime label="تا تاریخ (میلادی)" wire:model.live="until" />
+                            @if ($until !== '')
+                                <p class="mt-1 text-xs text-base-content/70" dir="rtl">شمسی: <bdi dir="ltr">{{ \App\Support\PersianCalendar::date($until) }}</bdi></p>
+                            @endif
+                        </div>
                     @endif
                     @if ($section !== 'dashboard')
                         <x-input label="جست‌وجو" icon="o-magnifying-glass" wire:model.live.debounce.400ms="search" maxlength="80" clearable />
@@ -32,8 +46,18 @@
                     @if ($section === 'customers')
                         <x-select label="اتصال تلگرام" :options="$options(['all' => 'همه', 'linked' => 'متصل', 'unlinked' => 'متصل نیست'])" wire:model.live="telegram" />
                         <x-select label="سابقه خرید معتبر" :options="$yesNo" wire:model.live="purchase" />
-                        <x-datetime label="عضویت از تاریخ" wire:model.live="registeredFrom" />
-                        <x-datetime label="عضویت تا تاریخ" wire:model.live="registeredUntil" />
+                        <div>
+                            <x-datetime label="عضویت از تاریخ (میلادی)" wire:model.live="registeredFrom" />
+                            @if ($registeredFrom !== '')
+                                <p class="mt-1 text-xs text-base-content/70" dir="rtl">شمسی: <bdi dir="ltr">{{ \App\Support\PersianCalendar::date($registeredFrom) }}</bdi></p>
+                            @endif
+                        </div>
+                        <div>
+                            <x-datetime label="عضویت تا تاریخ (میلادی)" wire:model.live="registeredUntil" />
+                            @if ($registeredUntil !== '')
+                                <p class="mt-1 text-xs text-base-content/70" dir="rtl">شمسی: <bdi dir="ltr">{{ \App\Support\PersianCalendar::date($registeredUntil) }}</bdi></p>
+                            @endif
+                        </div>
                     @elseif ($section === 'contacts')
                         <x-input label="شناسه نماینده" type="number" min="1" wire:model.live.debounce.400ms="reseller" />
                         <x-input label="محصول" wire:model.live.debounce.400ms="product" maxlength="80" />

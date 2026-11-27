@@ -86,6 +86,18 @@ final class Shell extends Component
         }
     }
 
+    public function resetFilters(): void
+    {
+        $this->reset(['from', 'until', 'registeredFrom', 'registeredUntil', 'search', 'status', 'telegram', 'purchase', 'phone', 'groupContacts', 'reseller', 'product', 'orderStatus']);
+        $this->period = $this->section === 'dashboard' ? '30' : 'all';
+        $this->sortBy = match ($this->section) {
+            'resellers' => ['column' => 'revenue_rials', 'direction' => 'desc'],
+            'contacts' => ['column' => 'order_id', 'direction' => 'desc'],
+            default => ['column' => 'id', 'direction' => 'desc'],
+        };
+        $this->resetPage();
+    }
+
     public function render(): View
     {
         try {

@@ -501,3 +501,45 @@ it('distinguishes valid purchase orders from settlement transactions and trial r
     expect($reader->handle($root->id, $member->id, false, crm01cFilters())['trial']['activatedAt'])->not->toBeNull();
     Http::assertNothingSent();
 });
+
+it('renders Persian dates and numbers and resets directory filters without changing the cohort', function (): void {
+    $root = crm01bUser('super-admin');
+    $member = crm01bUser('member');
+    crm01bUser('reseller');
+    crm01bOrder($member, 'direct', 123_450);
+    $base = 'https://crm.denagate.ir/admin/crm';
+    $this->actingAs($root, 'web')->get($base.'/customers/'.$member->id)
+        ->assertOk()->assertSee('۱۴۰۵/۰۹/۰۶')->assertSee('۱۲٬۳۴۵ تومان');
+    $html = $this->get($base.'/customers')->assertOk()->assertSee('پاک‌کردن فیلترها')->assertSee('تعداد نتایج: ۱')->getContent() ?: '';
+    expect(preg_match('/wire:snapshot="([^"]+)"/', $html, $matches))->toBe(1);
+    $response = $this->postJson('https://crm.denagate.ir'.app(HandleRequests::class)->getUpdateUri(), [
+        'components' => [[
+            'snapshot' => htmlspecialchars_decode($matches[1], ENT_QUOTES),
+            'updates' => ['search' => 'Not a real customer', 'purchase' => 'no', 'period' => '7'],
+            'calls' => [['path' => '', 'method' => 'resetFilters', 'params' => []]],
+        ]],
+    ], ['X-Livewire' => 'true'])->assertOk();
+    $state = json_decode($response->json('components.0.snapshot'), true, flags: JSON_THROW_ON_ERROR)['data'];
+    expect($state['section'])->toBe('customers')
+        ->and($state['period'])->toBe('all')
+        ->and($state['search'])->toBe('')
+        ->and($state['purchase'])->toBe('all');
+    Http::assertNothingSent();
+});
+
+it('charts only the selected recent Tehran days using canonical settlements and commercial account cohorts', function (): void {
+    $root = crm01bUser('super-admin');
+    $member = crm01bUser('member');
+    $reseller = crm01bUser('reseller');
+    $reseller->assignRole('member');
+    crm01bOrder($member, 'direct', 100_000);
+    crm01bOrder($reseller, 'reseller', 200_000);
+    crm01bOrder($member, 'direct', 800_000, 'refunded');
+    crm01bOrder($member, 'direct', 500_000, 'pending_payment', false);
+    $reader = app(ReadCrmDirectory::class);
+    $data = $reader->handle($root->id, 'dashboard', crm01bFilters(['period' => 'today']));
+    expect($data['trend'])->toBe([['date' => '2026-11-27', 'revenueRials' => 300_000, 'registrations' => 2]])
+        ->and($data['totalRials'])->toBe(300_000);
+    expect($reader->handle($root->id, 'dashboard', crm01bFilters())['trend'])->toHaveCount(7);
+    Http::assertNothingSent();
+});
