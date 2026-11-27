@@ -23,7 +23,7 @@ final readonly class ReadCrmSales
             $rows->where('buyer_category', 'reseller');
         }
 
-        return $rows->selectRaw('buyer_id, COUNT(*) as transactions, SUM(amount_rials) as revenue_rials')
+        return $rows->selectRaw('buyer_id, COUNT(*) as transactions, COUNT(DISTINCT order_id) as order_count, SUM(amount_rials) as revenue_rials')
             ->groupBy('buyer_id');
     }
 
