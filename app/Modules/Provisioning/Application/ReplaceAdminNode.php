@@ -85,6 +85,7 @@ final readonly class ReplaceAdminNode
         $nodeAddresses = $this->nodes->replacementAddresses($actorId);
         $peerManagementAddresses = [];
         $peerManagementIps = [];
+        $peerManagementDnsAddresses = [];
         foreach ($nodeAddresses as $peerNode) {
             if ($peerNode['uuid'] === $current['uuid']) {
                 continue;
@@ -99,8 +100,12 @@ final readonly class ReplaceAdminNode
                 continue;
             }
 
+            $peerManagementDnsAddresses[$peerAddress] = $peerNode['address'];
+        }
+
+        foreach ($peerManagementDnsAddresses as $peerAddress) {
             try {
-                $peerDns = $this->dns->replacementRecord($actorId, $peerNode['address']);
+                $peerDns = $this->dns->replacementRecord($actorId, $peerAddress);
             } catch (\Throwable $exception) {
                 throw new RuntimeException(
                     'A peer Node management hostname cannot be verified; manual review required.',
