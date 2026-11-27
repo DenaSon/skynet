@@ -235,27 +235,27 @@ final class Shell extends Component
     private function directoryFilters(): array
     {
         return [
-        'period' => $this->period,
-        'from' => $this->period === 'custom' ? ($this->from ?: null) : null,
-        'until' => $this->period === 'custom' ? ($this->until ?: null) : null,
-        'registeredFrom' => $this->registeredFrom ?: null,
-        'registeredUntil' => $this->registeredUntil ?: null,
-        'search' => $this->search,
-        'status' => $this->status,
-        'telegram' => $this->telegram,
-        'purchase' => $this->purchase,
-        'phone' => $this->phone,
-        'groupContacts' => $this->groupContacts,
-        'reseller' => $this->reseller ?: null,
-        'product' => $this->product,
-        'orderStatus' => $this->orderStatus,
-        'segment' => $this->segment,
-        'advancedMode' => $this->advancedMode,
-        'advancedConditions' => $this->advancedConditions,
-        'sort' => $this->sortBy['column'] ?? '',
-        'direction' => $this->sortBy['direction'] ?? '',
-        'page' => $this->getPage(),
-    ];
+            'period' => $this->period,
+            'from' => $this->period === 'custom' ? ($this->from ?: null) : null,
+            'until' => $this->period === 'custom' ? ($this->until ?: null) : null,
+            'registeredFrom' => $this->registeredFrom ?: null,
+            'registeredUntil' => $this->registeredUntil ?: null,
+            'search' => $this->search,
+            'status' => $this->status,
+            'telegram' => $this->telegram,
+            'purchase' => $this->purchase,
+            'phone' => $this->phone,
+            'groupContacts' => $this->groupContacts,
+            'reseller' => $this->reseller ?: null,
+            'product' => $this->product,
+            'orderStatus' => $this->orderStatus,
+            'segment' => $this->segment,
+            'advancedMode' => $this->advancedMode,
+            'advancedConditions' => $this->advancedConditions,
+            'sort' => $this->sortBy['column'] ?? '',
+            'direction' => $this->sortBy['direction'] ?? '',
+            'page' => $this->getPage(),
+        ];
     }
 
     public function render(): View
