@@ -1576,8 +1576,8 @@ it('loads the selected preset name without applying it and clears stale or forei
     $otherRoot = crm01bUser('super-admin');
     TelegramAccount::query()->where('user_id', $otherRoot->id)->update(['telegram_user_id' => 997102]);
     $buyer = crm01bUser('member');
-    $nonBuyerOne = crm01bUser('member');
-    $nonBuyerTwo = crm01bUser('member');
+    crm01bUser('member');
+    crm01bUser('member');
     crm01bOrder($buyer, 'direct', 100_000);
 
     $manager = app(ManageCrmSavedFilters::class);

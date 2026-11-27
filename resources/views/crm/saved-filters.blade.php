@@ -16,8 +16,8 @@
         <div class="mt-3 flex flex-wrap gap-2">
             <x-button label="اعمال فیلتر" icon="o-funnel" wire:click="applySavedFilter" :disabled="! $hasSelectedSavedFilter" class="btn-primary btn-sm" />
             <x-button label="ذخیره فیلتر جدید" icon="o-plus" wire:click="createSavedFilter" :disabled="count($savedFilters) >= 30" class="btn-outline btn-sm" />
-            <x-button label="به‌روزرسانی" icon="o-pencil-square" wire:click="updateSavedFilter" wire:confirm="نام و معیارهای فیلتر انتخاب‌شده با مقادیر فعلی جایگزین شوند؟" :disabled="! $hasSelectedSavedFilter" wire:confirm="نام و معیارهای فعلی برای فیلتر «{{ $selectedSavedFilterName ?? 'انتخاب‌شده' }}» جایگزین شوند؟" class="btn-ghost btn-sm" />
-            <x-button label="حذف" icon="o-trash" wire:click="deleteSavedFilter" wire:confirm="این فیلتر ذخیره‌شده حذف شود؟" :disabled="! $hasSelectedSavedFilter" wire:confirm="فیلتر «{{ $selectedSavedFilterName ?? 'انتخاب‌شده' }}» حذف شود؟" class="btn-ghost btn-sm text-error" />
+            <x-button label="به‌روزرسانی" icon="o-pencil-square" wire:click="updateSavedFilter" :disabled="! $hasSelectedSavedFilter" wire:confirm="نام و معیارهای فعلی برای فیلتر «{{ $selectedSavedFilterName ?? 'انتخاب‌شده' }}» جایگزین شوند؟" class="btn-ghost btn-sm" />
+            <x-button label="حذف" icon="o-trash" wire:click="deleteSavedFilter" :disabled="! $hasSelectedSavedFilter" wire:confirm="فیلتر «{{ $selectedSavedFilterName ?? 'انتخاب‌شده' }}» حذف شود؟" class="btn-ghost btn-sm text-error" />
         </div>
         <p class="mt-2 text-xs text-base-content/70">{{ \App\Support\PersianCalendar::number((string) count($savedFilters)) }} از ۳۰ فیلتر شخصی</p>
         @if ($savedFilterMessage !== '')
