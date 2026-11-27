@@ -35,7 +35,10 @@ function crm01aRootUser(): User
     return $user;
 }
 
-it('redirects the CRM host root to the private dashboard', function (): void {
+it('redirects the CRM host root to the private HTTPS dashboard', function (): void {
+    $this->get('http://crm.denagate.ir/')
+        ->assertRedirect('https://crm.denagate.ir/admin/crm');
+
     $this->get('https://crm.denagate.ir/')
         ->assertRedirect('https://crm.denagate.ir/admin/crm')
         ->assertHeader('Strict-Transport-Security', 'max-age=31536000')
