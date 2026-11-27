@@ -552,6 +552,41 @@ it('shows the complete read-only plan before the explicit provider-write confirm
         ->toBe('awaiting_client_test');
 });
 
+it('keeps GET-only reconciliation and client acceptance available when Node writes are disabled', function (): void {
+    $root = ari8Ready();
+    $api = ari8Provider();
+    $api->failNode = true;
+    $api->nodeWriteApplied = true;
+    $service = app(CoordinateAdminArianetIpv4::class);
+    $service->prepare($root['user']->id, ARI8_SERVER);
+
+    expect(fn () => $service->continueDns($root['user']->id, ARI8_SERVER))
+        ->toThrow(RuntimeException::class, 'reconciliation');
+    config()->set('services.remnawave.writes_enabled', false);
+
+    ari8Bot()->hearCallbackQueryData('ari7:status:'.ARI8_SERVER.':1')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $buttons = json_encode(ari8Payload($request)['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
+
+            return str_contains($buttons, 'ari7:reconcile:'.ARI8_SERVER.':1');
+        }, index: 1);
+
+    ari8Bot()->hearCallbackQueryData('ari7:reconcile:'.ARI8_SERVER.':1')->reply();
+    expect($service->status($root['user']->id, ARI8_SERVER)['stage'])->toBe('awaiting_client_test')
+        ->and($api->mutations)->toBe(['dns:fr.coreflare.ir', 'node:'.ARI8_NODE]);
+
+    ari8Bot()->hearCallbackQueryData('ari7:status:'.ARI8_SERVER.':1')->reply()
+        ->assertRaw(static function (NutgramRequest $request): bool {
+            $buttons = json_encode(ari8Payload($request)['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
+
+            return str_contains($buttons, 'ari7:accept:'.ARI8_SERVER.':1');
+        }, index: 1);
+
+    ari8Bot()->hearCallbackQueryData('ari7:accept:'.ARI8_SERVER.':1')->reply();
+    expect($service->status($root['user']->id, ARI8_SERVER)['stage'])->toBe('completed')
+        ->and($api->mutations)->toHaveCount(2);
+});
+
 it('denies root-only staged operations in group chats and to non-trusted users', function (): void {
     ari8Ready(false);
     Http::fake();
