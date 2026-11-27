@@ -6,6 +6,8 @@ use App\Interfaces\Web\CRM\Shell;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Testing\TestResponse;
+use Livewire\Mechanisms\HandleRequests\HandleRequests;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
@@ -169,4 +171,58 @@ it('uses only CRM frontend assets and does not reuse Live recovery behavior', fu
 
     expect($runtime)->toContain('Livewire.start()')
         ->not->toContain('interceptRequest');
+});
+
+function crm01aSnapshot(TestResponse $response): string
+{
+    $html = $response->getContent() ?: '';
+    $matched = preg_match('/wire:snapshot="([^"]+)"/', $html, $matches);
+    expect($matched)->toBe(1);
+
+    return htmlspecialchars_decode($matches[1], ENT_QUOTES);
+}
+
+it('rechecks trusted access on real Livewire update requests after allowlist revocation', function (): void {
+    $root = crm01aRootUser();
+    $page = $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm')->assertOk();
+    $snapshot = crm01aSnapshot($page);
+    $url = 'https://crm.denagate.ir'.app(HandleRequests::class)->getUpdateUri();
+    $payload = ['components' => [['snapshot' => $snapshot, 'updates' => [], 'calls' => []]]];
+
+    $this->postJson($url, $payload, ['X-Livewire' => 'true'])->assertOk();
+
+    config()->set('super_admin.telegram_ids', ['997002', '997003']);
+    $this->postJson($url, $payload, ['X-Livewire' => 'true'])->assertForbidden();
+});
+
+it('rechecks the role on real Livewire updates', function (): void {
+    $root = crm01aRootUser();
+    $page = $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm')->assertOk();
+    $snapshot = crm01aSnapshot($page);
+    $root->syncRoles(['reseller']);
+
+    $this->postJson('https://crm.denagate.ir'.app(HandleRequests::class)->getUpdateUri(), [
+        'components' => [['snapshot' => $snapshot, 'updates' => [], 'calls' => []]],
+    ], ['X-Livewire' => 'true'])->assertForbidden();
+});
+
+it('rejects a valid CRM snapshot replayed against a different host', function (): void {
+    $root = crm01aRootUser();
+    $page = $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm')->assertOk();
+
+    $this->postJson('https://example.test'.app(HandleRequests::class)->getUpdateUri(), [
+        'components' => [['snapshot' => crm01aSnapshot($page), 'updates' => [], 'calls' => []]],
+    ], ['X-Livewire' => 'true'])->assertNotFound();
+});
+
+it('rejects a forged CRM Livewire snapshot', function (): void {
+    config()->set('app.debug', false);
+    $root = crm01aRootUser();
+    $page = $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm')->assertOk();
+    $snapshot = json_decode(crm01aSnapshot($page), true, flags: JSON_THROW_ON_ERROR);
+    $snapshot['memo']['path'] = 'account';
+
+    $this->postJson('https://crm.denagate.ir'.app(HandleRequests::class)->getUpdateUri(), [
+        'components' => [['snapshot' => json_encode($snapshot, JSON_THROW_ON_ERROR), 'updates' => [], 'calls' => []]],
+    ], ['X-Livewire' => 'true'])->assertStatus(419);
 });

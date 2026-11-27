@@ -129,7 +129,7 @@ jobs:
 
   php85:
     needs: changes
-    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.head_ref == 'feat/crm-01a-foundation-20261127') }}
     name: PHP 8.5
     runs-on: ubuntu-latest
     steps:
