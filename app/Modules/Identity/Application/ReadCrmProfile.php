@@ -7,6 +7,7 @@ namespace App\Modules\Identity\Application;
 use App\Modules\Billing\Application\BrowseCustomerWallets;
 use App\Modules\Provisioning\Application\ReadCrmLocalServices;
 use App\Modules\Sales\Application\ReadCrmAccountHistory;
+use App\Modules\Trial\Application\ReadCrmTrialEvidence;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
@@ -24,6 +25,8 @@ final readonly class ReadCrmProfile
         private ReadCrmLocalServices $services,
         private AssertBillingAccess $billingAccess,
         private BrowseCustomerWallets $wallets,
+        private ReadCrmInteractions $interactions,
+        private ReadCrmTrialEvidence $trials,
     ) {}
 
     /**
@@ -81,6 +84,8 @@ final readonly class ReadCrmProfile
             switch ($filters['tab']) {
                 case 'overview':
                     $data['summary'] = $this->history->summary($actorId, $subjectId, $from, $until, $reseller);
+                    $data['interactions'] = $this->interactions->handle($actorId, $subjectId);
+                    $data['trial'] = $this->trials->handle($actorId, $subjectId);
                     $data['wallet'] = null;
                     $data['walletState'] = 'denied';
                     try {

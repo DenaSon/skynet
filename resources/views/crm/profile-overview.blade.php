@@ -21,3 +21,24 @@
 @if ($reseller)
     <p class="mt-2 text-sm text-base-content/60">خرید نماینده نزد دناگیت معادل سود یا فروش خرده‌فروشی او نیست. شماره یکتا نیز لزوماً به معنی شخص یکتا نیست.</p>
 @endif
+
+
+@php
+    $interaction = $data['interactions'];
+    $trial = $data['trial'];
+    $date = static fn ($value) => $value === null ? 'نامشخص' : \Illuminate\Support\Carbon::parse($value, 'UTC')->timezone('Asia/Tehran')->format('Y-m-d H:i');
+@endphp
+<div class="mt-6 border-t border-base-300 pt-5">
+    <x-header title="رفتار و سابقه مشتری" subtitle="اطلاعات ثبت‌شده؛ نه میزان استفاده از سرویس" />
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <x-stat title="آخرین تعامل با بات فروش" :value="$date($interaction['lastSeenAt'])" description="مستقل از بازه گزارش" icon="o-clock" />
+        <x-stat title="تعاملات ثبت‌شده" :value="$interaction['recordedCount'] === null ? 'نامشخص' : number_format($interaction['recordedCount'])" description="فقط از آغاز ثبت رویدادها" icon="o-chat-bubble-left-right" />
+        <x-stat title="خریدهای معتبر در بازه" :value="number_format($summary['purchases'])" :description="'تمدید: '.number_format($summary['renewals'])" icon="o-shopping-bag" />
+        <x-stat title="اولین خرید معتبر در بازه" :value="$date($summary['firstPurchaseAt'])" />
+        <x-stat title="آخرین خرید معتبر در بازه" :value="$date($summary['lastPurchaseAt'])" />
+        @if (! $reseller)
+            <x-stat title="تست رایگان" :value="$trial['activatedAt'] !== null ? 'فعال‌سازی ثبت‌شده' : ($trial['claimed'] ? 'درخواست ثبت‌شده' : 'بدون درخواست ثبت‌شده')" />
+        @endif
+    </div>
+    <p class="mt-4 text-sm text-base-content/60">اولین رویداد ثبت‌شده در سیستم: {{ $date($interaction['firstObservedAt']) }}. این زمان تضمین پوشش کامل تاریخچه نیست. تعداد تعاملات ثبت‌شده، تعداد کل تعاملات گذشته کاربر محسوب نمی‌شود.</p>
+</div>
