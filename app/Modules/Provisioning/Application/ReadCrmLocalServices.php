@@ -25,6 +25,6 @@ final readonly class ReadCrmLocalServices
             ->where('orders.buyer_user_id', $subjectId)
             ->whereIn('orders.status', ['paid', 'fulfilled'])
             ->select('orders.id', 'orders.product_name', 'subscriptions.state', 'orders.created_at')
-            ->orderByDesc('orders.id')->paginate(25, page: $page);
+            ->orderByDesc('orders.id')->paginate(50, page: $page);
     }
 }

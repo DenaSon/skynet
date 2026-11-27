@@ -255,7 +255,7 @@ final readonly class ReadCrmDirectory
         }
 
         return $query->orderBy($sorts[$filters['sort']] ?? 'accounts.id', $filters['direction'])
-            ->orderBy('accounts.id')->paginate(25, page: (int) $filters['page']);
+            ->orderBy('accounts.id')->paginate(50, page: (int) $filters['page']);
     }
 
     /** @param array<string, mixed> $filters
@@ -302,12 +302,12 @@ final readonly class ReadCrmDirectory
                 ->groupByRaw("NULLIF(phone, ''), CASE WHEN NULLIF(phone, '') IS NULL THEN order_id ELSE NULL END");
             $sort = ['order_id' => 'order_id', 'created_at' => 'created_at'][$filters['sort']] ?? 'order_id';
 
-            return $group->orderBy($sort, $filters['direction'])->orderBy('order_id')->paginate(25, page: (int) $filters['page']);
+            return $group->orderBy($sort, $filters['direction'])->orderBy('order_id')->paginate(50, page: (int) $filters['page']);
         }
 
         $sort = ['order_id' => 'orders.id', 'created_at' => 'orders.created_at', 'name' => 'labels.label'][$filters['sort']] ?? 'orders.id';
 
-        return $query->orderBy($sort, $filters['direction'])->orderBy('orders.id')->paginate(25, page: (int) $filters['page']);
+        return $query->orderBy($sort, $filters['direction'])->orderBy('orders.id')->paginate(50, page: (int) $filters['page']);
     }
 
     private function literalLike(string $value): string
