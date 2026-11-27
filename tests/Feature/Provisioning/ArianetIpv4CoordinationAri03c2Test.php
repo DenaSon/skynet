@@ -592,6 +592,7 @@ it('keeps GET-only reconciliation and client acceptance available when Node writ
     expect(fn () => $service->continueDns($root['user']->id, ARI8_SERVER))
         ->toThrow(RuntimeException::class, 'reconciliation');
     config()->set('services.remnawave.writes_enabled', false);
+    config()->set('services.cloudflare.dns_writes_enabled', false);
 
     ari8Bot()->hearCallbackQueryData('ari7:status:'.ARI8_SERVER.':1')->reply()
         ->assertRaw(static function (NutgramRequest $request): bool {

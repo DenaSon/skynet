@@ -91,10 +91,12 @@ final readonly class AdminArianetIpv4CoordinationUi
 
         $buttons = InlineKeyboardMarkup::make();
         $index = $state['next'];
-        $readOnlyAction = $state['version'] === 1
-            || ($index !== null && $state['steps'][$index]['state'] === 'uncertain')
+        $readOnlyAction = ($index !== null && $state['steps'][$index]['state'] === 'uncertain')
             || $state['stage'] === 'awaiting_client_test';
-        if ($this->coordination->enabled(legacy: $readOnlyAction) && $state['owner']) {
+        $actionEnabled = $readOnlyAction
+            ? $this->coordination->readEnabled()
+            : $this->coordination->enabled(legacy: $state['version'] === 1);
+        if ($actionEnabled && $state['owner']) {
             if ($index !== null && $state['steps'][$index]['state'] === 'ready') {
                 $buttons->addRow(InlineKeyboardButton::make(
                     $state['version'] === 1 ? '🔄 ادامه هماهنگی DNS' : '🔴 تأیید و اجرای هماهنگی دامنه‌ها و نود',

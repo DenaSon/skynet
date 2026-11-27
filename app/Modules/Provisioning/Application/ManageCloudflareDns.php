@@ -21,12 +21,16 @@ final readonly class ManageCloudflareDns
         private CloudflareDnsService $api,
     ) {}
 
-    public function wizardEnabled(): bool
+    public function readEnabled(): bool
     {
-        return config('services.cloudflare.dns_writes_enabled') === true
-            && is_string(config('services.cloudflare.token'))
+        return is_string(config('services.cloudflare.token'))
             && trim(config('services.cloudflare.token')) !== ''
             && $this->allowedZones() !== [];
+    }
+
+    public function wizardEnabled(): bool
+    {
+        return config('services.cloudflare.dns_writes_enabled') === true && $this->readEnabled();
     }
 
     /** @return list<array{id:string,name:string}> */

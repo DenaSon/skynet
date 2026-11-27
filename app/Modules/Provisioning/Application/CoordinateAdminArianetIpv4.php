@@ -35,6 +35,11 @@ final readonly class CoordinateAdminArianetIpv4
             && ($legacy || config('services.remnawave.writes_enabled') === true);
     }
 
+    public function readEnabled(): bool
+    {
+        return $this->dns->readEnabled();
+    }
+
     /**
      * Read-only status. Does not disclose raw provider snapshots or credentials.
      *
@@ -244,7 +249,7 @@ final readonly class CoordinateAdminArianetIpv4
     public function reconcile(int $actorId, int $serverId): void
     {
         $this->access->handle($actorId);
-        $this->assertEnabled();
+        $this->assertReadEnabled();
 
         $this->lock($serverId, function () use ($actorId, $serverId): void {
             $this->access->handle($actorId);
@@ -278,7 +283,7 @@ final readonly class CoordinateAdminArianetIpv4
     public function acceptClientTest(int $actorId, int $serverId): void
     {
         $this->access->handle($actorId);
-        $this->assertEnabled();
+        $this->assertReadEnabled();
 
         $this->lock($serverId, function () use ($actorId, $serverId): void {
             $this->access->handle($actorId);
@@ -491,6 +496,13 @@ final readonly class CoordinateAdminArianetIpv4
     {
         if (! $this->enabled(legacy: true)) {
             throw new RuntimeException('Cloud coordination writes are disabled in this environment.');
+        }
+    }
+
+    private function assertReadEnabled(): void
+    {
+        if (! $this->readEnabled()) {
+            throw new RuntimeException('Cloud coordination reads are unavailable in this environment.');
         }
     }
 
