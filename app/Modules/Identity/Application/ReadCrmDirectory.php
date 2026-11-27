@@ -56,11 +56,11 @@ final readonly class ReadCrmDirectory
             'sort' => ['required', Rule::in(['id', 'name', 'created_at', 'is_active', 'transactions', 'revenue_rials', 'phones', 'name_only', 'order_id', 'performance_rank'])],
             'direction' => ['required', Rule::in(['asc', 'desc'])],
             'page' => ['required', 'integer', 'min:1', 'max:100000'],
-            'advancedMode' => ['sometimes', Rule::in(['and', 'or'])],
+            'advancedMode' => ['sometimes', 'string', Rule::in(['and', 'or'])],
             'advancedConditions' => ['sometimes', 'array', 'list', 'max:5'],
             'advancedConditions.*' => ['required', 'array:field,operator,value'],
-            'advancedConditions.*.field' => ['required', Rule::in(['active', 'telegram', 'orders', 'transactions', 'revenue', 'wallet', 'wallet_known', 'trial', 'seen', 'last_seen'])],
-            'advancedConditions.*.operator' => ['required', Rule::in(['eq', 'gte', 'lte'])],
+            'advancedConditions.*.field' => ['required', 'string', Rule::in(['active', 'telegram', 'orders', 'transactions', 'revenue', 'wallet', 'wallet_known', 'trial', 'seen', 'last_seen'])],
+            'advancedConditions.*.operator' => ['required', 'string', Rule::in(['eq', 'gte', 'lte'])],
             'advancedConditions.*.value' => ['required'],
         ])->validate();
 
@@ -441,7 +441,7 @@ final readonly class ReadCrmDirectory
                             'transactions' => 'COALESCE(purchases.transactions, 0)',
                             'revenue' => 'COALESCE(purchases.revenue_rials, 0)',
                             'wallet' => 'advanced_wallet.balance_rials',
-                            default => throw new \\LogicException('Unexpected CRM filter field.'),
+                            default => throw new \LogicException('Unexpected CRM filter field.'),
                         };
                         $item->whereRaw("$column $operator ?", [in_array($field, ['revenue', 'wallet'], true) ? $value * 10 : $value]);
                     }
