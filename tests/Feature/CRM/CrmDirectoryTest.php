@@ -616,9 +616,28 @@ it('charts only the selected recent Tehran days using canonical settlements and 
     crm01bOrder($member, 'direct', 500_000, 'pending_payment', false);
     $reader = app(ReadCrmDirectory::class);
     $data = $reader->handle($root->id, 'dashboard', crm01bFilters(['period' => 'today']));
-    expect($data['trend'])->toBe([['date' => '2026-11-27', 'revenueRials' => 300_000, 'registrations' => 2]])
+    expect($data['trend'])->toBe([['date' => '2026-11-27', 'revenueRials' => 300_000, 'registrations' => 2, 'directRegistrations' => 1, 'resellerRegistrations' => 1]])
         ->and($data['totalRials'])->toBe(300_000);
-    expect($reader->handle($root->id, 'dashboard', crm01bFilters())['trend'])->toHaveCount(7);
+    $seven = $reader->handle($root->id, 'dashboard', crm01bFilters())['trend'];
+    expect($seven)->toHaveCount(7)
+        ->and(array_sum(array_column($seven, 'directRegistrations')))->toBe(1)
+        ->and(array_sum(array_column($seven, 'resellerRegistrations')))->toBe(1);
+    expect($reader->handle($root->id, 'dashboard', crm01bFilters(['period' => 'custom', 'from' => '2026-11-28', 'until' => '2026-11-30']))['trend'])->toBe([]);
+    $html = $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm')
+        ->assertOk()->assertSee('crm-chart-cleanup', false)->assertSee('خریدهای تسویه‌شده (تومان)')
+        ->assertDontSee('<progress', false)->getContent() ?: '';
+    expect(preg_match('/wire:snapshot="([^"]+)"/', $html, $matches))->toBe(1);
+    $response = $this->postJson('https://crm.denagate.ir'.app(HandleRequests::class)->getUpdateUri(), [
+        'components' => [[
+            'snapshot' => htmlspecialchars_decode($matches[1], ENT_QUOTES),
+            'updates' => ['period' => 'today'],
+            'calls' => [],
+        ]],
+    ], ['X-Livewire' => 'true'])->assertOk();
+    $state = json_decode($response->json('components.0.snapshot'), true, flags: JSON_THROW_ON_ERROR)['data'];
+    expect($state['period'])->toBe('today')
+        ->and($response->json('components.0.effects.html'))->toContain('۱۴۰۵/۰۹/۰۶')
+        ->and($response->json('components.0.effects.html'))->toContain('crm-chart-cleanup');
     Http::assertNothingSent();
 });
 

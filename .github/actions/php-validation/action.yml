@@ -94,7 +94,7 @@ runs:
       run: |
         npm install --prefer-offline --ignore-scripts --no-fund --no-audit --package-lock=false
         npm run build
-        node --test tests/JavaScript/live-recovery.test.mjs
+        node --test tests/JavaScript/live-recovery.test.mjs tests/JavaScript/crm-charts.test.mjs
         node - <<'NODE'
         const fs = require('node:fs');
         const manifest = JSON.parse(fs.readFileSync('public/build/manifest.json', 'utf8'));

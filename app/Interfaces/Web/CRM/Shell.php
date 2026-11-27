@@ -6,6 +6,7 @@ namespace App\Interfaces\Web\CRM;
 
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
 use App\Modules\Identity\Application\ReadCrmDirectory;
+use App\Support\PersianCalendar;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -23,6 +24,14 @@ final class Shell extends Component
 
     #[Locked]
     public string $section = 'dashboard';
+
+    /** @var array<string, mixed> */
+    #[Locked]
+    public array $salesChart = [];
+
+    /** @var array<string, mixed> */
+    #[Locked]
+    public array $registrationsChart = [];
 
     public string $period = '30';
 
@@ -100,6 +109,8 @@ final class Shell extends Component
 
     public function render(): View
     {
+        $this->salesChart = [];
+        $this->registrationsChart = [];
         try {
             $data = app(ReadCrmDirectory::class)->handle((int) Auth::guard('web')->id(), $this->section, [
                 'period' => $this->period,
@@ -129,6 +140,67 @@ final class Shell extends Component
             return view('crm.shell', ['data' => null, 'readFailed' => true]);
         }
 
+        if ($this->section === 'dashboard') {
+            $this->setTrendCharts($data['trend']);
+        }
+
         return view('crm.shell', ['data' => $data]);
+    }
+
+    /** @param  list<array{date:string,revenueRials:int,registrations:int,directRegistrations:int,resellerRegistrations:int}> $trend */
+    private function setTrendCharts(array $trend): void
+    {
+        if ($trend === []) {
+            return;
+        }
+
+        $labels = array_map(static fn (array $point): string => PersianCalendar::date($point['date']), $trend);
+        $options = [
+            'responsive' => true,
+            'maintainAspectRatio' => false,
+            'animation' => false,
+            'interaction' => ['mode' => 'index', 'intersect' => false],
+            'plugins' => [
+                'legend' => ['rtl' => true, 'textDirection' => 'rtl', 'position' => 'bottom'],
+                'tooltip' => ['rtl' => true, 'textDirection' => 'rtl'],
+            ],
+            'scales' => [
+                'x' => ['grid' => ['display' => false], 'ticks' => ['maxRotation' => 0, 'autoSkip' => true]],
+                'y' => ['beginAtZero' => true, 'position' => 'right', 'grid' => ['color' => '#E5EAF0']],
+            ],
+        ];
+
+        $salesOptions = $options;
+        $salesOptions['plugins']['legend']['display'] = false;
+        $this->salesChart = [
+            'type' => 'line',
+            'data' => [
+                'labels' => $labels,
+                'datasets' => [[
+                    'label' => 'خرید تسویه‌شده (تومان)',
+                    'data' => array_map(static fn (array $point): float => $point['revenueRials'] / 10, $trend),
+                    'borderColor' => '#0F766E',
+                    'backgroundColor' => 'rgba(20, 184, 166, 0.14)',
+                    'fill' => true,
+                    'borderWidth' => 2,
+                    'pointRadius' => 3,
+                    'tension' => 0.25,
+                ]],
+            ],
+            'options' => $salesOptions,
+        ];
+
+        $options['scales']['y']['ticks'] = ['precision' => 0];
+        $this->registrationsChart = [
+            'type' => 'bar',
+            'data' => [
+                'labels' => $labels,
+                'datasets' => [
+                    ['label' => 'مشتریان مستقیم', 'data' => array_column($trend, 'directRegistrations'), 'backgroundColor' => '#60A5FA', 'borderRadius' => 4],
+                    ['label' => 'نمایندگان', 'data' => array_column($trend, 'resellerRegistrations'), 'backgroundColor' => '#A78BFA', 'borderRadius' => 4],
+                ],
+            ],
+            'options' => $options,
+        ];
     }
 }
