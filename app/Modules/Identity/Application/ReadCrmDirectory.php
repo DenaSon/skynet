@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 /** CRM-01B: root-only composition of existing identity and Sales read models. */
 final readonly class ReadCrmDirectory
@@ -56,7 +57,32 @@ final readonly class ReadCrmDirectory
             'sort' => ['required', Rule::in(['id', 'name', 'created_at', 'is_active', 'transactions', 'revenue_rials', 'phones', 'name_only', 'order_id', 'performance_rank'])],
             'direction' => ['required', Rule::in(['asc', 'desc'])],
             'page' => ['required', 'integer', 'min:1', 'max:100000'],
+            'advancedMode' => ['sometimes', 'string', Rule::in(['and', 'or'])],
+            'advancedConditions' => ['sometimes', 'array', 'list', 'max:5'],
+            'advancedConditions.*' => ['required', 'array:field,operator,value'],
+            'advancedConditions.*.field' => ['required', 'string', Rule::in(['active', 'telegram', 'orders', 'transactions', 'revenue', 'wallet', 'wallet_known', 'trial', 'seen', 'last_seen'])],
+            'advancedConditions.*.operator' => ['required', 'string', Rule::in(['eq', 'gte', 'lte'])],
+            'advancedConditions.*.value' => ['required'],
         ])->validate();
+
+        $conditions = $filters['advancedConditions'] ?? [];
+        if ($conditions !== [] && $section !== 'customers') {
+            throw ValidationException::withMessages(['advancedConditions' => 'Invalid customer filter scope.']);
+        }
+        foreach ($conditions as $condition) {
+            $binary = in_array($condition['field'], ['active', 'telegram', 'wallet_known', 'trial', 'seen'], true);
+            $rules = match ($condition['field']) {
+                'active', 'telegram', 'wallet_known', 'trial', 'seen' => ['required', 'integer', 'min:0', 'max:1'],
+                'last_seen' => ['required', 'date_format:Y-m-d'],
+                'wallet' => ['required', 'integer', 'min:-1000000000000', 'max:1000000000000'],
+                'revenue' => ['required', 'integer', 'min:0', 'max:1000000000000'],
+                default => ['required', 'integer', 'min:0', 'max:1000000000'],
+            };
+            Validator::make($condition, [
+                'value' => $rules,
+                'operator' => [$binary ? Rule::in(['eq']) : Rule::in(['eq', 'gte', 'lte'])],
+            ])->validate();
+        }
 
         $today = Carbon::now('Asia/Tehran')->startOfDay();
         $from = match ($filters['period']) {
@@ -133,7 +159,7 @@ final readonly class ReadCrmDirectory
             ->leftJoinSub($this->sales->purchases($actorId, $from, $until, $resellers), 'purchases', 'purchases.buyer_id', '=', 'accounts.id')
             ->leftJoin('telegram_accounts as telegram', 'telegram.user_id', '=', 'accounts.id')
             ->select('accounts.*')
-            ->selectRaw('CASE WHEN telegram.user_id IS NULL THEN 0 ELSE 1 END as telegram_linked, COALESCE(purchases.transactions, 0) as transactions, COALESCE(purchases.revenue_rials, 0) as revenue_rials');
+            ->selectRaw('CASE WHEN telegram.user_id IS NULL THEN 0 ELSE 1 END as telegram_linked, COALESCE(purchases.transactions, 0) as transactions, COALESCE(purchases.order_count, 0) as order_count, COALESCE(purchases.revenue_rials, 0) as revenue_rials');
 
         if ($resellers) {
             $query->leftJoinSub($this->sales->contactCounts($actorId, $from, $until), 'contacts', 'contacts.buyer_id', '=', 'accounts.id')
@@ -269,6 +295,10 @@ final readonly class ReadCrmDirectory
                 $query->where('accounts.created_at', '<', Carbon::parse($filters['registeredUntil'], 'Asia/Tehran')->startOfDay()->addDay()->utc());
             }
         }
+        if (! $resellers && ($filters['advancedConditions'] ?? []) !== []) {
+            $this->applyAdvancedConditions($query, $filters);
+        }
+
         $sorts = ['id' => 'accounts.id', 'name' => 'accounts.name', 'created_at' => 'accounts.created_at', 'is_active' => 'accounts.is_active', 'transactions' => 'transactions', 'revenue_rials' => 'revenue_rials'];
         if ($resellers) {
             $sorts += ['phones' => 'phones', 'name_only' => 'name_only'];
@@ -360,6 +390,70 @@ final readonly class ReadCrmDirectory
         $sort = ['order_id' => 'orders.id', 'created_at' => 'orders.created_at', 'name' => 'labels.label'][$filters['sort']] ?? 'orders.id';
 
         return $query->orderBy($sort, $filters['direction'])->orderBy('orders.id')->paginate(50, page: (int) $filters['page']);
+    }
+
+    /** @param array<string, mixed> $filters */
+    private function applyAdvancedConditions(Builder $query, array $filters): void
+    {
+        $conditions = $filters['advancedConditions'];
+        if (array_intersect(array_column($conditions, 'field'), ['wallet', 'wallet_known']) !== []) {
+            $query->leftJoinSub(ReadAdminWalletSummary::walletRankingsQuery(), 'advanced_wallet', 'advanced_wallet.user_id', '=', 'accounts.id');
+        }
+
+        // Keep every OR inside this group; existing cohort and basic filters are mandatory.
+        $query->where(static function (Builder $group) use ($conditions, $filters): void {
+            foreach ($conditions as $index => $condition) {
+                $apply = static function (Builder $item) use ($condition): void {
+                    $field = $condition['field'];
+                    $operator = match ($condition['operator']) {
+                        'gte' => '>=',
+                        'lte' => '<=',
+                        default => '=',
+                    };
+                    $value = (int) $condition['value'];
+
+                    if ($field === 'active') {
+                        $item->where('accounts.is_active', $value === 1);
+                    } elseif ($field === 'telegram' || $field === 'wallet_known') {
+                        $column = $field === 'telegram' ? 'telegram.user_id' : 'advanced_wallet.user_id';
+                        $value === 1 ? $item->whereNotNull($column) : $item->whereNull($column);
+                    } elseif ($field === 'trial') {
+                        $item->whereExists(static fn (Builder $trial) => $trial->selectRaw('1')
+                            ->from('trial_claims')->whereColumn('trial_claims.user_id', 'accounts.id')
+                            ->whereNotNull('activated_at'), 'and', $value === 0);
+                    } elseif ($field === 'seen' || $field === 'last_seen') {
+                        $item->whereExists(static function (Builder $contact) use ($field, $condition): void {
+                            $contact->selectRaw('1')->from('telegram_bot_contacts')
+                                ->whereColumn('telegram_bot_contacts.user_id', 'accounts.id')
+                                ->where('bot_key', 'sales')->whereNotNull('last_seen_at');
+                            if ($field === 'last_seen') {
+                                $day = Carbon::parse((string) $condition['value'], 'Asia/Tehran')->startOfDay();
+                                if ($condition['operator'] !== 'lte') {
+                                    $contact->where('last_seen_at', '>=', $day->copy()->utc());
+                                }
+                                if ($condition['operator'] !== 'gte') {
+                                    $contact->where('last_seen_at', '<', $day->copy()->addDay()->utc());
+                                }
+                            }
+                        }, 'and', $field === 'seen' && $value === 0);
+                    } else {
+                        $column = match ($field) {
+                            'orders' => 'COALESCE(purchases.order_count, 0)',
+                            'transactions' => 'COALESCE(purchases.transactions, 0)',
+                            'revenue' => 'COALESCE(purchases.revenue_rials, 0)',
+                            'wallet' => 'advanced_wallet.balance_rials',
+                            default => throw new \LogicException('Unexpected CRM filter field.'),
+                        };
+                        $item->whereRaw("$column $operator ?", [in_array($field, ['revenue', 'wallet'], true) ? $value * 10 : $value]);
+                    }
+                };
+                if ($index > 0 && ($filters['advancedMode'] ?? 'and') === 'or') {
+                    $group->orWhere($apply);
+                } else {
+                    $group->where($apply);
+                }
+            }
+        });
     }
 
     private function literalLike(string $value): string
