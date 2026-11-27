@@ -191,6 +191,34 @@ final class Shell extends Component
         $this->savePreset(true);
     }
 
+
+    public function updatedSavedFilterId(string $value): void
+    {
+        $this->savedFilterMessage = '';
+        $this->savedFilterName = '';
+        $this->resetErrorBag('savedFilter');
+
+        if ($value === '') {
+            return;
+        }
+
+        try {
+            $preset = app(ManageCrmSavedFilters::class)->load(
+                (int) Auth::guard('web')->id(),
+                $this->selectedPresetId(),
+            );
+            // Selecting a preset loads its name only; applying its criteria is explicit.
+            $this->savedFilterName = $preset['name'];
+        } catch (ValidationException $exception) {
+            $this->savedFilterId = '';
+            $this->addError('savedFilter', $exception->errors()['preset'][0] ?? 'فیلتر انتخاب‌شده معتبر نیست.');
+        } catch (QueryException|\JsonException) {
+            $this->savedFilterId = '';
+            Log::warning('CRM saved filter selection unavailable');
+            $this->addError('savedFilter', 'بارگذاری فیلتر انتخاب‌شده ممکن نشد؛ دوباره تلاش کنید.');
+        }
+    }
+
     private function savePreset(bool $update): void
     {
         $this->runPresetAction(function (ManageCrmSavedFilters $manager, int $actorId) use ($update): void {
@@ -243,6 +271,22 @@ final class Shell extends Component
         return (int) $this->savedFilterId;
     }
 
+
+    private function clearStalePresetSelection(int $actorId): void
+    {
+        if ($this->savedFilterId === '') {
+            return;
+        }
+
+        try {
+            app(ManageCrmSavedFilters::class)->load($actorId, $this->selectedPresetId());
+        } catch (ValidationException) {
+            $this->reset(['savedFilterId', 'savedFilterName']);
+        } catch (QueryException|\JsonException) {
+            // Keep the selection when its current state cannot be verified.
+        }
+    }
+
     private function runPresetAction(callable $action): void
     {
         abort_unless($this->section === 'customers', 404);
@@ -252,6 +296,7 @@ final class Shell extends Component
         try {
             $action(app(ManageCrmSavedFilters::class), $actorId);
         } catch (ValidationException $exception) {
+            $this->clearStalePresetSelection($actorId);
             $this->addError('savedFilter', $exception->errors()['preset'][0] ?? 'نام یا معیارهای فیلتر معتبر نیست.');
         } catch (QueryException|\JsonException) {
             Log::warning('CRM saved filter action unavailable');
