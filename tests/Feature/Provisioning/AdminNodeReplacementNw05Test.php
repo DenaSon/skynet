@@ -537,6 +537,16 @@ it('excludes a legacy Host when different Cloudflare hostnames resolve to the sa
         ->and(nw05MutationCount())->toBe(0);
 });
 
+it('fails closed when a peer Node management hostname cannot be verified', function (): void {
+    $ready = nw05ReplacementReady();
+    $api = nw05ReplacementApi(emptyMembership: true, peerNodeLegacyHost: true);
+    unset($api->records[NW05_RECORD_PEER]);
+
+    expect(fn () => app(ReplaceAdminNode::class)->preview($ready['actor']->id, $ready['id']))
+        ->toThrow(RuntimeException::class);
+    expect(nw05MutationCount())->toBe(0);
+});
+
 it('rejects a replacement IP already used by another Node DNS hostname', function (): void {
     $ready = nw05ReplacementReady();
     $api = nw05ReplacementApi(emptyMembership: true, peerNodeLegacyHost: true);
