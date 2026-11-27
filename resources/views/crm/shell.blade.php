@@ -1,69 +1,83 @@
 <div class="min-h-dvh">
-    <header class="border-b border-base-300 bg-base-100">
-        <div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
-            <a href="{{ route('crm.dashboard') }}" class="flex items-center gap-3 no-underline">
-                <span class="grid size-11 place-items-center rounded-2xl bg-dg-navy text-lg font-black text-dg-teal">D</span>
-                <span class="leading-tight">
-                    <span class="block text-base font-bold text-base-content">DenaGate</span>
-                    <span class="block text-xs tracking-wide text-base-content/60">CRM</span>
-                </span>
-            </a>
+    @php
+        $titles = ['dashboard' => 'داشبورد', 'customers' => 'مشتریان مستقیم', 'resellers' => 'نمایندگان', 'contacts' => 'مشتریان نمایندگان'];
+        $icons = ['dashboard' => 'o-squares-2x2', 'customers' => 'o-users', 'resellers' => 'o-user-group', 'contacts' => 'o-identification'];
+        $periods = ['today' => 'امروز', 'yesterday' => 'دیروز', '7' => '۷ روز اخیر', '30' => '۳۰ روز اخیر', 'all' => 'از ابتدا', 'custom' => 'بازه دلخواه'];
+        $options = static fn (array $items) => collect($items)->map(fn ($name, $id) => ['id' => (string) $id, 'name' => $name])->values()->all();
+        $yesNo = $options(['all' => 'همه', 'yes' => 'دارد', 'no' => 'ندارد']);
+        $money = static fn ($rials) => number_format($rials / 10, $rials % 10 === 0 ? 0 : 1).' تومان';
+    @endphp
 
+    <div class="border-b border-base-300 bg-base-100">
+        <div class="mx-auto flex max-w-screen-2xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
+            <a href="{{ route('crm.dashboard') }}" class="flex items-center gap-3">
+                <span class="grid size-10 place-items-center rounded-xl bg-dg-navy font-black text-dg-teal">D</span>
+                <span class="font-bold">DenaGate CRM</span>
+            </a>
             <div class="flex items-center gap-3">
-                <span class="badge badge-success badge-outline hidden sm:inline-flex">دسترسی تأیید شده</span>
+                <x-badge value="دسترسی امن" class="badge-success badge-soft hidden sm:inline-flex" />
                 <form method="POST" action="{{ route('logout') }}">
                     @csrf
-                    <x-button type="submit" label="خروج" class="btn-ghost btn-sm" />
+                    <x-button type="submit" label="خروج" icon="o-arrow-right-on-rectangle" class="btn-ghost btn-sm" />
                 </form>
             </div>
         </div>
-    </header>
+    </div>
 
-    <main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:py-12">
-        <div class="mb-8 max-w-3xl space-y-3">
-            <p class="text-sm font-semibold text-primary">DenaGate</p>
-            <h1 class="text-2xl font-bold tracking-tight text-base-content sm:text-3xl">پنل مدیریت مشتریان</h1>
-            <p class="text-sm leading-7 text-base-content/65 sm:text-base">
-                محیط مدیریتی آماده است. اطلاعات مشتریان و نمایندگان پس از تکمیل بخش‌های مربوط، در همین پنل نمایش داده می‌شوند.
-            </p>
-        </div>
+    <div class="mx-auto grid max-w-screen-2xl gap-5 px-4 py-6 sm:px-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
+        <aside>
+            <x-card class="border border-base-300">
+                <x-menu activate-by-route>
+                    @foreach ($titles as $key => $title)
+                        <x-menu-item :title="$title" :icon="$icons[$key]" :link="route('crm.'.$key)" />
+                    @endforeach
+                </x-menu>
+                <div class="mt-4 text-xs text-base-content/60">حالت فقط مشاهده</div>
+            </x-card>
+        </aside>
 
-        <div class="grid gap-5 lg:grid-cols-3">
-            <x-card class="border border-base-300 bg-base-100 shadow-sm">
-                <div class="flex items-start gap-3">
-                    <div class="grid size-10 shrink-0 place-items-center rounded-xl bg-success/10 text-success">
-                        <x-icon name="o-shield-check" class="size-5" />
-                    </div>
-                    <div class="space-y-1">
-                        <h2 class="font-semibold text-base-content">دسترسی امن</h2>
-                        <p class="text-sm leading-6 text-base-content/65">ورود فقط برای مدیر کل تأییدشده مجاز است.</p>
-                    </div>
+        <main class="min-w-0 space-y-5">
+            <x-header :title="$titles[$section]" subtitle="پنل مدیریت مشتریان" separator />
+
+            <x-card class="border border-base-300">
+                <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    <x-select label="{{ $section === 'contacts' ? 'بازه تاریخ سفارش' : 'بازه گزارش' }}" :options="$options($periods)" wire:model.live="period" />
+                    @if ($period === 'custom')
+                        <x-datetime label="از تاریخ" wire:model.live="from" />
+                        <x-datetime label="تا تاریخ" wire:model.live="until" />
+                    @endif
+                    @if ($section !== 'dashboard')
+                        <x-input label="جست‌وجو" icon="o-magnifying-glass" wire:model.live.debounce.400ms="search" maxlength="80" clearable />
+                    @endif
+                    @if (in_array($section, ['customers', 'resellers']))
+                        <x-select label="وضعیت حساب" :options="$options(['all' => 'همه', 'active' => 'فعال', 'inactive' => 'غیرفعال'])" wire:model.live="status" />
+                    @endif
+                    @if ($section === 'customers')
+                        <x-select label="اتصال تلگرام" :options="$options(['all' => 'همه', 'linked' => 'متصل', 'unlinked' => 'متصل نیست'])" wire:model.live="telegram" />
+                        <x-select label="سابقه خرید معتبر" :options="$yesNo" wire:model.live="purchase" />
+                        <x-datetime label="عضویت از تاریخ" wire:model.live="registeredFrom" />
+                        <x-datetime label="عضویت تا تاریخ" wire:model.live="registeredUntil" />
+                    @elseif ($section === 'contacts')
+                        <x-input label="شناسه نماینده" type="number" min="1" wire:model.live.debounce.400ms="reseller" />
+                        <x-input label="محصول" wire:model.live.debounce.400ms="product" maxlength="80" />
+                        <x-checkbox label="گروه‌بندی بر اساس شماره تماس هر نماینده" wire:model.live="groupContacts" />
+                        <x-select label="شماره تماس" :options="$yesNo" wire:model.live="phone" />
+                        <x-select label="خرید تسویه‌شده" :options="$yesNo" wire:model.live="purchase" />
+                        <x-select label="وضعیت سفارش" :options="$options(['all' => 'همه', 'pending_payment' => 'در انتظار پرداخت', 'paid' => 'پرداخت‌شده', 'fulfilled' => 'تکمیل‌شده', 'refunded' => 'برگشت‌خورده', 'cancelled' => 'لغوشده'])" wire:model.live="orderStatus" />
+                    @endif
                 </div>
+                <div wire:loading.delay class="mt-3 text-sm text-base-content/60" role="status">در حال دریافت اطلاعات...</div>
             </x-card>
 
-            <x-card class="border border-base-300 bg-base-100 shadow-sm">
-                <div class="flex items-start gap-3">
-                    <div class="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
-                        <x-icon name="o-eye" class="size-5" />
-                    </div>
-                    <div class="space-y-1">
-                        <h2 class="font-semibold text-base-content">حالت فقط مشاهده</h2>
-                        <p class="text-sm leading-6 text-base-content/65">در این نسخه هیچ تغییری در حساب‌ها، اطلاعات تماس یا سوابق ثبت نمی‌شود.</p>
-                    </div>
-                </div>
-            </x-card>
-
-            <x-card class="border border-base-300 bg-base-100 shadow-sm">
-                <div class="flex items-start gap-3">
-                    <div class="grid size-10 shrink-0 place-items-center rounded-xl bg-base-200 text-base-content">
-                        <x-icon name="o-squares-2x2" class="size-5" />
-                    </div>
-                    <div class="space-y-1">
-                        <h2 class="font-semibold text-base-content">ساختار پنل</h2>
-                        <p class="text-sm leading-6 text-base-content/65">بخش‌های مشتریان، نمایندگان و گزارش‌ها به‌تدریج به همین محیط اضافه می‌شوند.</p>
-                    </div>
-                </div>
-            </x-card>
-        </div>
-    </main>
+            @if ($data === null)
+                <x-alert icon="o-exclamation-triangle" class="alert-warning">{{ ($readFailed ?? false) ? 'دریافت اطلاعات ممکن نشد؛ دوباره تلاش کنید.' : 'بازه زمانی یا فیلتر انتخاب‌شده معتبر نیست.' }}</x-alert>
+            @elseif ($section === 'dashboard')
+                @include('crm.overview', ['data' => $data, 'money' => $money])
+            @elseif ($section === 'contacts')
+                @include($groupContacts ? 'crm.grouped-contacts' : 'crm.contacts', ['rows' => $data['rows']])
+            @else
+                @include('crm.accounts', ['rows' => $data['rows'], 'money' => $money, 'resellers' => $section === 'resellers'])
+            @endif
+        </main>
+    </div>
 </div>

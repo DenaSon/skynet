@@ -285,6 +285,9 @@ jobs:
           cp .env.example .env
           php artisan key:generate
 
+      - name: Verify CRM directory queries on disposable MySQL
+        run: vendor/bin/pest tests/Feature/CRM/CrmDirectoryTest.php
+
       - name: Migrate disposable MySQL database
         run: php artisan migrate --force
 
