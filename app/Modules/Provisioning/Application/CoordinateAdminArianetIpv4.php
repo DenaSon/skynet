@@ -55,6 +55,7 @@ final readonly class CoordinateAdminArianetIpv4
         }
 
         return [
+            'operationId' => (int) $operation->id,
             'version' => $state['version'],
             'stage' => $state['stage'],
             'oldIp' => $state['oldIp'],
@@ -71,17 +72,18 @@ final readonly class CoordinateAdminArianetIpv4
     }
 
     /** @return array<string,mixed> */
-    public function prepare(int $actorId, int $serverId): array
+    public function prepare(int $actorId, int $serverId, ?int $expectedOperationId = null): array
     {
         $this->access->handle($actorId);
         if (! $this->enabled()) {
             throw new RuntimeException('Cloud DNS/Node coordination writes are disabled.');
         }
 
-        return $this->lock($serverId, function () use ($actorId, $serverId): array {
+        return $this->lock($serverId, function () use ($actorId, $serverId, $expectedOperationId): array {
             $this->access->handle($actorId);
             $row = $this->active($serverId);
-            if ((int) $row->actor_user_id !== $actorId
+            if (($expectedOperationId !== null && (int) $row->id !== $expectedOperationId)
+                || (int) $row->actor_user_id !== $actorId
                 || $row->status !== 'awaiting_coordination' || $row->coordination_state !== null) {
                 throw new RuntimeException('IPv4 coordination is unavailable or already registered.');
             }
@@ -180,14 +182,21 @@ final readonly class CoordinateAdminArianetIpv4
     }
 
     /** One explicit operator-confirmed, non-repeatable provider mutation. */
-    public function executeNext(int $actorId, int $serverId, int $index): void
+    public function executeNext(
+        int $actorId,
+        int $serverId,
+        int $index,
+        ?int $expectedOperationId = null,
+        ?int $expectedVersion = null,
+    ): void
     {
         $this->access->handle($actorId);
         $this->assertEnabled();
 
-        $this->lock($serverId, function () use ($actorId, $serverId, $index): void {
+        $this->lock($serverId, function () use ($actorId, $serverId, $index, $expectedOperationId, $expectedVersion): void {
             $this->access->handle($actorId);
             [$row, $state] = $this->load($serverId, $actorId);
+            $this->assertExpectedOperation($row, $state, $expectedOperationId, $expectedVersion);
             if (! in_array($state['stage'], ['ready', 'applying'], true)
                 || $this->next($state) !== $index || ($state['steps'][$index]['state'] ?? null) !== 'ready') {
                 throw new RuntimeException('This coordination confirmation was already used or is not next.');
@@ -228,18 +237,25 @@ final readonly class CoordinateAdminArianetIpv4
     }
 
     /** Continue the explicitly confirmed plan, without replaying uncertain steps. */
-    public function continueDns(int $actorId, int $serverId): void
+    public function continueDns(
+        int $actorId,
+        int $serverId,
+        ?int $expectedOperationId = null,
+        ?int $expectedVersion = null,
+    ): void
     {
         $this->access->handle($actorId);
         $this->assertEnabled();
         $row = $this->active($serverId);
-        if ((int) $row->actor_user_id !== $actorId) {
+        if ((int) $row->actor_user_id !== $actorId
+            || ($expectedOperationId !== null && (int) $row->id !== $expectedOperationId)) {
             throw new RuntimeException('Operation belongs to another actor or has changed.');
         }
         if ($row->coordination_state === null) {
             throw new RuntimeException('Prepare and review the coordination plan before execution.');
         }
-        [, $state] = $this->load($serverId, $actorId);
+        [$row, $state] = $this->load($serverId, $actorId);
+        $this->assertExpectedOperation($row, $state, $expectedOperationId, $expectedVersion);
         if ($state['stage'] === 'awaiting_client_test' && $this->next($state) === null) {
             return;
         }
@@ -247,20 +263,27 @@ final readonly class CoordinateAdminArianetIpv4
             throw new RuntimeException('Prepare and review the coordination plan before execution.');
         }
         while (($index = $this->next($state)) !== null && $state['steps'][$index]['state'] === 'ready') {
-            $this->executeNext($actorId, $serverId, $index);
-            [, $state] = $this->load($serverId, $actorId);
+            $this->executeNext($actorId, $serverId, $index, $expectedOperationId, $expectedVersion);
+            [$row, $state] = $this->load($serverId, $actorId);
+            $this->assertExpectedOperation($row, $state, $expectedOperationId, $expectedVersion);
         }
     }
 
     /** Read-only provider reconciliation; may update only the local journal. */
-    public function reconcile(int $actorId, int $serverId): void
+    public function reconcile(
+        int $actorId,
+        int $serverId,
+        ?int $expectedOperationId = null,
+        ?int $expectedVersion = null,
+    ): void
     {
         $this->access->handle($actorId);
         $this->assertReadEnabled();
 
-        $this->lock($serverId, function () use ($actorId, $serverId): void {
+        $this->lock($serverId, function () use ($actorId, $serverId, $expectedOperationId, $expectedVersion): void {
             $this->access->handle($actorId);
             [$row, $state] = $this->load($serverId, $actorId);
+            $this->assertExpectedOperation($row, $state, $expectedOperationId, $expectedVersion);
             $index = $this->next($state);
             if ($state['stage'] !== 'applying' || $index === null
                 || ($state['steps'][$index]['state'] ?? null) !== 'uncertain') {
@@ -287,14 +310,20 @@ final readonly class CoordinateAdminArianetIpv4
      * An independent human must test real client connectivity. A green Node
      * flag alone is not considered proof; all endpoints are re-read first.
      */
-    public function acceptClientTest(int $actorId, int $serverId): void
+    public function acceptClientTest(
+        int $actorId,
+        int $serverId,
+        ?int $expectedOperationId = null,
+        ?int $expectedVersion = null,
+    ): void
     {
         $this->access->handle($actorId);
         $this->assertReadEnabled();
 
-        $this->lock($serverId, function () use ($actorId, $serverId): void {
+        $this->lock($serverId, function () use ($actorId, $serverId, $expectedOperationId, $expectedVersion): void {
             $this->access->handle($actorId);
             [$row, $state] = $this->load($serverId, $actorId);
+            $this->assertExpectedOperation($row, $state, $expectedOperationId, $expectedVersion);
             if ($state['stage'] !== 'awaiting_client_test' || $this->next($state) !== null) {
                 throw new RuntimeException('Coordination still has unverified steps.');
             }
@@ -530,6 +559,19 @@ final readonly class CoordinateAdminArianetIpv4
         }
 
         return $row;
+    }
+
+    /** @param array<string,mixed> $state */
+    private function assertExpectedOperation(
+        object $row,
+        array $state,
+        ?int $expectedOperationId,
+        ?int $expectedVersion,
+    ): void {
+        if (($expectedOperationId !== null && (int) $row->id !== $expectedOperationId)
+            || ($expectedVersion !== null && $state['version'] !== $expectedVersion)) {
+            throw new RuntimeException('This confirmation belongs to another operation or version.');
+        }
     }
 
     /** @return array{0:object,1:array<string,mixed>} */
