@@ -39,6 +39,59 @@ final readonly class ReadCrmDirectory
      */
     public function handle(int $actorId, string $section, array $filters): array
     {
+        $filters = $this->validateFilters($actorId, $section, $filters);
+
+        $today = Carbon::now('Asia/Tehran')->startOfDay();
+        $from = match ($filters['period']) {
+            'today' => $today->copy(),
+            'yesterday' => $today->copy()->subDay(),
+            '7' => $today->copy()->subDays(6),
+            '30' => $today->copy()->subDays(29),
+            'custom' => Carbon::parse($filters['from'], 'Asia/Tehran')->startOfDay(),
+            default => Carbon::parse('1970-01-01', 'Asia/Tehran'),
+        };
+        $until = match ($filters['period']) {
+            'yesterday' => $today->copy(),
+            'custom' => Carbon::parse($filters['until'], 'Asia/Tehran')->startOfDay()->addDay(),
+            default => $today->copy()->addDay(),
+        };
+        $from = $from->utc();
+        $until = $until->utc();
+
+        return DB::transaction(function () use ($actorId, $section, $filters, $from, $until): array {
+            if ($section === 'dashboard') {
+                return $this->overview($actorId, $from, $until);
+            }
+            if ($section === 'contacts') {
+                return ['rows' => $this->contactPage($actorId, $filters, $from, $until)];
+            }
+
+            $segments = null;
+            $counts = null;
+            if ($section === 'customers' && ($filters['segment'] ?? 'off') !== 'off') {
+                $segments = $this->customerSegments($actorId);
+                $summary = DB::query()->fromSub(clone $segments, 'segment_counts')->selectRaw('COUNT(*) as total');
+                foreach (self::CUSTOMER_SEGMENTS as $key) {
+                    $summary->selectRaw("COALESCE(SUM($key), 0) as $key");
+                }
+                $counts = (array) $summary->first();
+            }
+
+            return [
+                'rows' => $this->accountPage($actorId, $section === 'resellers', $filters, $from, $until, $segments),
+                'segments' => $counts,
+            ];
+        });
+    }
+
+    /**
+     * Shared validation for directory reads and saved customer criteria.
+     *
+     * @param  array<string, mixed>  $filters
+     * @return array<string, mixed>
+     */
+    public function validateFilters(int $actorId, string $section, array $filters): array
+    {
         $this->access->handle($actorId);
         $filters = Validator::make([...$filters, 'section' => $section], [
             'section' => ['required', Rule::in(['dashboard', 'customers', 'resellers', 'contacts'])],
@@ -87,47 +140,7 @@ final readonly class ReadCrmDirectory
             ])->validate();
         }
 
-        $today = Carbon::now('Asia/Tehran')->startOfDay();
-        $from = match ($filters['period']) {
-            'today' => $today->copy(),
-            'yesterday' => $today->copy()->subDay(),
-            '7' => $today->copy()->subDays(6),
-            '30' => $today->copy()->subDays(29),
-            'custom' => Carbon::parse($filters['from'], 'Asia/Tehran')->startOfDay(),
-            default => Carbon::parse('1970-01-01', 'Asia/Tehran'),
-        };
-        $until = match ($filters['period']) {
-            'yesterday' => $today->copy(),
-            'custom' => Carbon::parse($filters['until'], 'Asia/Tehran')->startOfDay()->addDay(),
-            default => $today->copy()->addDay(),
-        };
-        $from = $from->utc();
-        $until = $until->utc();
-
-        return DB::transaction(function () use ($actorId, $section, $filters, $from, $until): array {
-            if ($section === 'dashboard') {
-                return $this->overview($actorId, $from, $until);
-            }
-            if ($section === 'contacts') {
-                return ['rows' => $this->contactPage($actorId, $filters, $from, $until)];
-            }
-
-            $segments = null;
-            $counts = null;
-            if ($section === 'customers' && ($filters['segment'] ?? 'off') !== 'off') {
-                $segments = $this->customerSegments($actorId);
-                $summary = DB::query()->fromSub(clone $segments, 'segment_counts')->selectRaw('COUNT(*) as total');
-                foreach (self::CUSTOMER_SEGMENTS as $key) {
-                    $summary->selectRaw("COALESCE(SUM($key), 0) as $key");
-                }
-                $counts = (array) $summary->first();
-            }
-
-            return [
-                'rows' => $this->accountPage($actorId, $section === 'resellers', $filters, $from, $until, $segments),
-                'segments' => $counts,
-            ];
-        });
+        return $filters;
     }
 
     /** The profile and directory must classify accounts identically. */

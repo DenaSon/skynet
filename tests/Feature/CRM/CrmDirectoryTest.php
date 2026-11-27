@@ -8,6 +8,7 @@ use App\Modules\Billing\Application\CreditVerifiedAdminBankTopup;
 use App\Modules\Billing\Application\ReadAdminCashReceipts;
 use App\Modules\Billing\Application\ReadAdminWalletSummary;
 use App\Modules\Billing\Application\ReadWalletDailyAverage;
+use App\Modules\Identity\Application\ManageCrmSavedFilters;
 use App\Modules\Identity\Application\ReadCrmAnalytics;
 use App\Modules\Identity\Application\ReadCrmDirectory;
 use App\Modules\Identity\Application\ReadCrmInteractions;
@@ -1233,5 +1234,103 @@ it('renders optional customer segmentation and selects groups using real Livewir
     ]]], ['X-Livewire' => 'true'])->assertOk();
     expect($response->json('components.0.effects.html'))->toContain('تعداد نتایج: ۰');
     $this->get('https://crm.denagate.ir/admin/crm/resellers')->assertOk()->assertDontSee('نمایش گروه‌ها');
+    Http::assertNothingSent();
+});
+
+it('stores personal validated filter criteria without search text or result snapshots and denies foreign preset IDs', function (): void {
+    $root = crm01bUser('super-admin');
+    $other = User::factory()->create();
+    $other->syncRoles(['super-admin']);
+    TelegramAccount::query()->create(['user_id' => $other->id, 'telegram_user_id' => 997102]);
+    $member = crm01bUser('member');
+    $manager = app(ManageCrmSavedFilters::class);
+    $criteria = crm01bFilters([
+        'period' => '7', 'search' => 'private-search', 'segment' => 'wallet_positive',
+        'advancedMode' => 'or',
+        'advancedConditions' => [['field' => 'wallet', 'operator' => 'gte', 'value' => '10000']],
+        'page' => 4, 'from' => '2026-11-01', 'until' => '2026-11-05',
+    ]);
+    $id = $manager->save($root->id, 'اعتبار مشتریان', $criteria);
+    $saved = $manager->load($root->id, $id);
+    expect($manager->list($root->id))->toBe([['id' => (string) $id, 'name' => 'اعتبار مشتریان']])
+        ->and($manager->list($other->id))->toBe([])
+        ->and($saved['criteria']['period'])->toBe('7')
+        ->and($saved['criteria']['from'])->toBeNull()
+        ->and($saved['criteria']['until'])->toBeNull()
+        ->and($saved['criteria']['advancedConditions'])->toBe($criteria['advancedConditions'])
+        ->and($saved['criteria']['segment'])->toBe('wallet_positive')
+        ->and($saved['criteria'])->not->toHaveKeys(['search', 'page', 'phone', 'orderStatus']);
+    expect((string) DB::table('crm_saved_filters')->where('id', $id)->value('criteria'))->not->toContain('private-search');
+    expect(fn () => $manager->load($other->id, $id))->toThrow(ValidationException::class);
+    expect(fn () => $manager->save($other->id, 'foreign', $criteria, $id))->toThrow(ValidationException::class);
+    expect(fn () => $manager->delete($other->id, $id))->toThrow(ValidationException::class);
+    expect(fn () => $manager->list($member->id))->toThrow(AuthorizationException::class);
+    expect(fn () => $manager->load($member->id, $id))->toThrow(AuthorizationException::class);
+    expect(fn () => $manager->save($member->id, 'denied', $criteria))->toThrow(AuthorizationException::class);
+    expect(fn () => $manager->delete($member->id, $id))->toThrow(AuthorizationException::class);
+    expect(fn () => $manager->save($root->id, 'اعتبار مشتریان', $criteria))->toThrow(ValidationException::class);
+    expect(fn () => $manager->save($root->id, 'invalid', [...$criteria, 'segment' => 'unknown']))->toThrow(ValidationException::class);
+    expect(fn () => $manager->save($root->id, 'invalid', [...$criteria, 'advancedConditions' => [['field' => 'wallet', 'operator' => 'gte', 'value' => 'bad']]]))->toThrow(ValidationException::class);
+    expect($manager->save($root->id, 'نام جدید', [...$criteria, 'period' => 'custom', 'from' => '2026-11-01', 'until' => '2026-11-05'], $id))->toBe($id);
+    expect($manager->load($root->id, $id)['criteria']['from'])->toBe('2026-11-01');
+    expect($manager->list($root->id))->toBe([['id' => (string) $id, 'name' => 'نام جدید']]);
+    DB::table('crm_saved_filters')->where('id', $id)->update(['criteria' => json_encode(['period' => 'invalid'], JSON_THROW_ON_ERROR)]);
+    expect(fn () => $manager->load($root->id, $id))->toThrow(ValidationException::class);
+    $manager->delete($root->id, $id);
+    expect($manager->list($root->id))->toBe([]);
+    expect(DB::table('crm_saved_filters')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('bounds saved filter count per owner and permits editing an existing filter at capacity', function (): void {
+    $root = crm01bUser('super-admin');
+    $manager = app(ManageCrmSavedFilters::class);
+    $criteria = crm01bFilters(['segment' => 'off', 'advancedMode' => 'and', 'advancedConditions' => []]);
+    $ids = [];
+    for ($i = 1; $i <= 30; $i++) {
+        $ids[] = $manager->save($root->id, 'Filter '.$i, $criteria);
+    }
+    expect($manager->list($root->id))->toHaveCount(30);
+    expect(fn () => $manager->save($root->id, 'Overflow', $criteria))->toThrow(ValidationException::class);
+    expect($manager->save($root->id, 'Renamed', $criteria, $ids[0]))->toBe($ids[0]);
+    $manager->delete($root->id, $ids[0]);
+    expect($manager->save($root->id, 'Replacement', $criteria))->toBeGreaterThan(0);
+    expect($manager->list($root->id))->toHaveCount(30);
+});
+
+it('saves applies updates and deletes customer presets through real Livewire requests', function (): void {
+    $root = crm01bUser('super-admin');
+    $buyer = crm01bUser('member');
+    crm01bOrder($buyer, 'direct', 100_000);
+    crm01bUser('member');
+    $html = $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm/customers')->assertOk()
+        ->assertSee('فیلترهای ذخیره‌شده')->getContent() ?: '';
+    expect(preg_match('/wire:snapshot="([^"]+)"/', $html, $matches))->toBe(1);
+    $snapshot = htmlspecialchars_decode($matches[1], ENT_QUOTES);
+    $url = 'https://crm.denagate.ir'.app(HandleRequests::class)->getUpdateUri();
+    $response = $this->postJson($url, ['components' => [[
+        'snapshot' => $snapshot, 'updates' => ['purchase' => 'yes', 'savedFilterName' => 'خریداران'],
+        'calls' => [['path' => '', 'method' => 'createSavedFilter', 'params' => []]],
+    ]]], ['X-Livewire' => 'true'])->assertOk();
+    expect($response->json('components.0.effects.html'))->toContain('فیلتر ذخیره شد.', 'تعداد نتایج: ۱');
+    $id = (string) DB::table('crm_saved_filters')->where('owner_user_id', $root->id)->value('id');
+    $response = $this->postJson($url, ['components' => [[
+        'snapshot' => $response->json('components.0.snapshot'), 'updates' => ['purchase' => 'all', 'search' => 'no-match', 'savedFilterId' => $id],
+        'calls' => [['path' => '', 'method' => 'applySavedFilter', 'params' => []]],
+    ]]], ['X-Livewire' => 'true'])->assertOk();
+    expect($response->json('components.0.effects.html'))->toContain('فیلتر اعمال شد.', 'تعداد نتایج: ۱');
+    $response = $this->postJson($url, ['components' => [[
+        'snapshot' => $response->json('components.0.snapshot'), 'updates' => ['purchase' => 'all', 'savedFilterName' => 'همه مشتریان'],
+        'calls' => [['path' => '', 'method' => 'updateSavedFilter', 'params' => []]],
+    ]]], ['X-Livewire' => 'true'])->assertOk();
+    expect($response->json('components.0.effects.html'))->toContain('فیلتر ذخیره شد.', 'تعداد نتایج: ۲');
+    expect(app(ManageCrmSavedFilters::class)->load($root->id, (int) $id)['criteria']['purchase'])->toBe('all');
+    $response = $this->postJson($url, ['components' => [[
+        'snapshot' => $response->json('components.0.snapshot'), 'updates' => [],
+        'calls' => [['path' => '', 'method' => 'deleteSavedFilter', 'params' => []]],
+    ]]], ['X-Livewire' => 'true'])->assertOk();
+    expect($response->json('components.0.effects.html'))->toContain('فیلتر ذخیره‌شده حذف شد.');
+    expect(DB::table('crm_saved_filters')->count())->toBe(0);
+    $this->get('https://crm.denagate.ir/admin/crm/resellers')->assertOk()->assertDontSee('فیلترهای ذخیره‌شده');
     Http::assertNothingSent();
 });

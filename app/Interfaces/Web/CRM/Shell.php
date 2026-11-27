@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Interfaces\Web\CRM;
 
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
+use App\Modules\Identity\Application\ManageCrmSavedFilters;
 use App\Modules\Identity\Application\ReadCrmDirectory;
 use App\Support\PersianCalendar;
 use Illuminate\Database\QueryException;
@@ -60,6 +61,13 @@ final class Shell extends Component
     public string $product = '';
 
     public string $orderStatus = 'all';
+
+    public string $savedFilterId = '';
+
+    public string $savedFilterName = '';
+
+    #[Locked]
+    public string $savedFilterMessage = '';
 
     public string $segment = 'off';
 
@@ -140,50 +148,144 @@ final class Shell extends Component
             'contacts' => ['column' => 'order_id', 'direction' => 'desc'],
             default => ['column' => 'id', 'direction' => 'desc'],
         };
+        $this->reset(['savedFilterId', 'savedFilterName', 'savedFilterMessage']);
+        $this->resetErrorBag('savedFilter');
         $this->resetPage();
+    }
+
+    public function createSavedFilter(): void
+    {
+        $this->savePreset(false);
+    }
+
+    public function updateSavedFilter(): void
+    {
+        $this->savePreset(true);
+    }
+
+    private function savePreset(bool $update): void
+    {
+        $this->runPresetAction(function (ManageCrmSavedFilters $manager, int $actorId) use ($update): void {
+            $id = $manager->save($actorId, $this->savedFilterName, $this->directoryFilters(), $update ? $this->selectedPresetId() : null);
+            $this->savedFilterId = (string) $id;
+            $this->savedFilterName = trim($this->savedFilterName);
+            $this->savedFilterMessage = 'فیلتر ذخیره شد.';
+        });
+    }
+
+    public function applySavedFilter(): void
+    {
+        $this->runPresetAction(function (ManageCrmSavedFilters $manager, int $actorId): void {
+            $preset = $manager->load($actorId, $this->selectedPresetId());
+            $criteria = $preset['criteria'];
+            $this->period = (string) $criteria['period'];
+            $this->from = (string) ($criteria['from'] ?? '');
+            $this->until = (string) ($criteria['until'] ?? '');
+            $this->registeredFrom = (string) ($criteria['registeredFrom'] ?? '');
+            $this->registeredUntil = (string) ($criteria['registeredUntil'] ?? '');
+            $this->status = (string) $criteria['status'];
+            $this->telegram = (string) $criteria['telegram'];
+            $this->purchase = (string) $criteria['purchase'];
+            $this->segment = (string) $criteria['segment'];
+            $this->advancedMode = (string) $criteria['advancedMode'];
+            $this->advancedConditions = $criteria['advancedConditions'];
+            $this->sortBy = ['column' => (string) $criteria['sort'], 'direction' => (string) $criteria['direction']];
+            $this->search = '';
+            $this->savedFilterName = $preset['name'];
+            $this->savedFilterMessage = 'فیلتر اعمال شد.';
+            $this->resetPage();
+        });
+    }
+
+    public function deleteSavedFilter(): void
+    {
+        $this->runPresetAction(function (ManageCrmSavedFilters $manager, int $actorId): void {
+            $manager->delete($actorId, $this->selectedPresetId());
+            $this->reset(['savedFilterId', 'savedFilterName']);
+            $this->savedFilterMessage = 'فیلتر ذخیره‌شده حذف شد.';
+        });
+    }
+
+    private function selectedPresetId(): int
+    {
+        if (! ctype_digit($this->savedFilterId) || strlen($this->savedFilterId) > 18 || (int) $this->savedFilterId < 1) {
+            throw ValidationException::withMessages(['preset' => 'ابتدا یک فیلتر انتخاب کنید.']);
+        }
+
+        return (int) $this->savedFilterId;
+    }
+
+    private function runPresetAction(callable $action): void
+    {
+        abort_unless($this->section === 'customers', 404);
+        $actorId = (int) Auth::guard('web')->id();
+        $this->savedFilterMessage = '';
+        $this->resetErrorBag('savedFilter');
+        try {
+            $action(app(ManageCrmSavedFilters::class), $actorId);
+        } catch (ValidationException $exception) {
+            $this->addError('savedFilter', $exception->errors()['preset'][0] ?? 'نام یا معیارهای فیلتر معتبر نیست.');
+        } catch (QueryException|\JsonException) {
+            Log::warning('CRM saved filter action unavailable');
+            $this->addError('savedFilter', 'عملیات انجام نشد؛ دوباره تلاش کنید.');
+        }
+    }
+
+    /** @return array<string, mixed> */
+    private function directoryFilters(): array
+    {
+        return [
+            'period' => $this->period,
+            'from' => $this->period === 'custom' ? ($this->from ?: null) : null,
+            'until' => $this->period === 'custom' ? ($this->until ?: null) : null,
+            'registeredFrom' => $this->registeredFrom ?: null,
+            'registeredUntil' => $this->registeredUntil ?: null,
+            'search' => $this->search,
+            'status' => $this->status,
+            'telegram' => $this->telegram,
+            'purchase' => $this->purchase,
+            'phone' => $this->phone,
+            'groupContacts' => $this->groupContacts,
+            'reseller' => $this->reseller ?: null,
+            'product' => $this->product,
+            'orderStatus' => $this->orderStatus,
+            'segment' => $this->segment,
+            'advancedMode' => $this->advancedMode,
+            'advancedConditions' => $this->advancedConditions,
+            'sort' => $this->sortBy['column'] ?? '',
+            'direction' => $this->sortBy['direction'] ?? '',
+            'page' => $this->getPage(),
+        ];
     }
 
     public function render(): View
     {
         $this->salesChart = [];
         $this->registrationsChart = [];
+        $savedFilters = null;
+        if ($this->section === 'customers') {
+            try {
+                $savedFilters = app(ManageCrmSavedFilters::class)->list((int) Auth::guard('web')->id());
+            } catch (QueryException) {
+                Log::warning('CRM saved filter list unavailable');
+            }
+        }
         try {
-            $data = app(ReadCrmDirectory::class)->handle((int) Auth::guard('web')->id(), $this->section, [
-                'period' => $this->period,
-                'from' => $this->period === 'custom' ? ($this->from ?: null) : null,
-                'until' => $this->period === 'custom' ? ($this->until ?: null) : null,
-                'registeredFrom' => $this->registeredFrom ?: null,
-                'registeredUntil' => $this->registeredUntil ?: null,
-                'search' => $this->search,
-                'status' => $this->status,
-                'telegram' => $this->telegram,
-                'purchase' => $this->purchase,
-                'phone' => $this->phone,
-                'groupContacts' => $this->groupContacts,
-                'reseller' => $this->reseller ?: null,
-                'product' => $this->product,
-                'orderStatus' => $this->orderStatus,
-                'segment' => $this->segment,
-                'advancedMode' => $this->advancedMode,
-                'advancedConditions' => $this->advancedConditions,
-                'sort' => $this->sortBy['column'] ?? '',
-                'direction' => $this->sortBy['direction'] ?? '',
-                'page' => $this->getPage(),
-            ]);
+            $data = app(ReadCrmDirectory::class)->handle((int) Auth::guard('web')->id(), $this->section, $this->directoryFilters());
         } catch (ValidationException) {
-            return view('crm.shell', ['data' => null, 'readFailed' => false]);
+            return view('crm.shell', ['data' => null, 'readFailed' => false, 'savedFilters' => $savedFilters]);
         } catch (QueryException) {
             // Do not log SQL bindings containing customer search terms or contacts.
             Log::warning('CRM read failed', ['section' => $this->section]);
 
-            return view('crm.shell', ['data' => null, 'readFailed' => true]);
+            return view('crm.shell', ['data' => null, 'readFailed' => true, 'savedFilters' => $savedFilters]);
         }
 
         if ($this->section === 'dashboard') {
             $this->setTrendCharts($data['trend']);
         }
 
-        return view('crm.shell', ['data' => $data]);
+        return view('crm.shell', ['data' => $data, 'savedFilters' => $savedFilters]);
     }
 
     /** @param  list<array{date:string,revenueRials:int,registrations:int,directRegistrations:int,resellerRegistrations:int}> $trend */
