@@ -84,10 +84,39 @@ final readonly class ReplaceAdminNode
 
         $nodeAddresses = $this->nodes->replacementAddresses($actorId);
         $peerManagementAddresses = [];
+        $peerManagementIps = [];
         foreach ($nodeAddresses as $peerNode) {
-            if ($peerNode['uuid'] !== $current['uuid']) {
-                $peerManagementAddresses[strtolower($peerNode['address'])] = true;
+            if ($peerNode['uuid'] === $current['uuid']) {
+                continue;
             }
+
+            $peerAddress = strtolower($peerNode['address']);
+            $peerManagementAddresses[$peerAddress] = true;
+
+            if (filter_var($peerNode['address'], FILTER_VALIDATE_IP) !== false) {
+                $peerManagementIps[$peerNode['address']] = true;
+
+                continue;
+            }
+
+            try {
+                $peerDns = $this->dns->replacementRecord($actorId, $peerNode['address']);
+            } catch (\\Throwable $exception) {
+                throw new RuntimeException(
+                    'A peer Node management hostname cannot be verified; manual review required.',
+                    0,
+                    $exception,
+                );
+            }
+
+            $peerManagementIps[$peerDns['record']['content']] = true;
+        }
+
+        if (isset($peerManagementIps[$oldIp])) {
+            throw new RuntimeException('The current Node IP is also assigned to another Node; manual review required.');
+        }
+        if (isset($peerManagementIps[$newIp])) {
+            throw new RuntimeException('The replacement IP is already assigned to another Node; choose an unused public IP.');
         }
 
         $hostInventory = $this->hosts->replacementInventory($actorId);
@@ -127,6 +156,9 @@ final readonly class ReplaceAdminNode
             }
 
             if (filter_var($host['address'], FILTER_VALIDATE_IP) !== false) {
+                if (isset($peerManagementIps[$host['address']])) {
+                    continue;
+                }
                 if ($host['address'] !== $oldIp) {
                     throw new RuntimeException('A Host with empty Node membership does not match the current server IP; manual review required.');
                 }
@@ -146,6 +178,10 @@ final readonly class ReplaceAdminNode
                     0,
                     $exception,
                 );
+            }
+
+            if (isset($peerManagementIps[$resolved['record']['content']])) {
+                continue;
             }
 
             if ($resolved['record']['content'] !== $oldIp) {
@@ -190,11 +226,6 @@ final readonly class ReplaceAdminNode
         foreach ($nodeAddresses as $peerNode) {
             if ($peerNode['uuid'] === $current['uuid']) {
                 continue;
-            }
-
-            if (filter_var($peerNode['address'], FILTER_VALIDATE_IP) !== false
-                && $peerNode['address'] === $newIp) {
-                throw new RuntimeException('The replacement IP is already assigned to another Node; choose an unused public IP.');
             }
 
             if (isset($targetHostnames[strtolower($peerNode['address'])])) {
