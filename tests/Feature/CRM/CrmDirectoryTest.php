@@ -8,6 +8,7 @@ use App\Modules\Billing\Application\CreditVerifiedAdminBankTopup;
 use App\Modules\Billing\Application\ReadAdminCashReceipts;
 use App\Modules\Billing\Application\ReadAdminWalletSummary;
 use App\Modules\Billing\Application\ReadWalletDailyAverage;
+use App\Modules\Identity\Application\ExportCrmDirectory;
 use App\Modules\Identity\Application\ManageCrmSavedFilters;
 use App\Modules\Identity\Application\ReadCrmAnalytics;
 use App\Modules\Identity\Application\ReadCrmDirectory;
@@ -1332,5 +1333,106 @@ it('saves applies updates and deletes customer presets through real Livewire req
     expect($response->json('components.0.effects.html'))->toContain('فیلتر ذخیره‌شده حذف شد.');
     expect(DB::table('crm_saved_filters')->count())->toBe(0);
     $this->get('https://crm.denagate.ir/admin/crm/resellers')->assertOk()->assertDontSee('فیلترهای ذخیره‌شده');
+    Http::assertNothingSent();
+});
+
+it('exports all matching customer rows with canonical values and safe encodings regardless of current page', function (): void {
+    $root = crm01bUser('super-admin');
+    $buyer = crm01bUser('member', ['name' => '=1+1']);
+    $markup = crm01bUser('member', ['name' => '<img src=x>|[link](https://example.test)']);
+    $excluded = crm01bUser('member');
+    $reseller = crm01bUser('reseller');
+    $reseller->assignRole('member');
+    crm01bOrder($buyer, 'direct', 100_000);
+    crm01bOrder($buyer, 'direct', 900_000, 'refunded');
+    crm01bOrder($markup, 'direct', 200_000);
+    crm01bOrder($excluded, 'direct', 900_000, 'pending_payment', false);
+    crm01bOrder($reseller, 'reseller', 900_000);
+    $filters = crm01bFilters([
+        'page' => 999, 'segment' => 'all',
+        'advancedConditions' => [['field' => 'orders', 'operator' => 'gte', 'value' => '1']],
+    ]);
+    $export = app(ExportCrmDirectory::class);
+    $json = $export->handle($root->id, 'customers', $filters, 'json');
+    $payload = json_decode($json['content'], true, flags: JSON_THROW_ON_ERROR);
+    expect(array_column($payload['rows'], 'id'))->toBe([$markup->id, $buyer->id])
+        ->and(array_column($payload['rows'], 'revenue_rials'))->toBe([200_000, 100_000])
+        ->and($payload['rows'][1]['name'])->toBe('=1+1')
+        ->and($payload['rows'][1]['r_score'])->toBe(5)
+        ->and($payload['rows'][1])->not->toHaveKeys(['email', 'password', 'telegram_user_id']);
+    $csv = $export->handle($root->id, 'customers', $filters, 'csv')['content'];
+    expect($csv)->toStartWith("\xEF\xBB\xBF")->toContain("'=1+1");
+    $markdown = $export->handle($root->id, 'customers', $filters, 'md')['content'];
+    expect($markdown)->toContain('&lt;img', '&#124;', '&#91;link&#93;')->not->toContain('<img');
+    $empty = $export->handle($root->id, 'customers', [...$filters, 'search' => 'no matching account'], 'json');
+    expect(json_decode($empty['content'], true, flags: JSON_THROW_ON_ERROR)['rows'])->toBe([]);
+    expect(fn () => $export->handle($buyer->id, 'customers', $filters, 'csv'))->toThrow(AuthorizationException::class);
+    expect(fn () => $export->handle($root->id, 'dashboard', $filters, 'csv'))->toThrow(ValidationException::class);
+    expect(fn () => $export->handle($root->id, 'customers', $filters, 'exe'))->toThrow(ValidationException::class);
+    expect(fn () => $export->handle($root->id, 'customers', [...$filters, 'segment' => 'unknown'], 'json'))->toThrow(ValidationException::class);
+    Http::assertNothingSent();
+});
+
+it('exports reseller and grouped contact reports without raw downstream contact identifiers', function (): void {
+    $root = crm01bUser('super-admin');
+    $reseller = crm01bUser('reseller');
+    $first = crm01bOrder($reseller, 'reseller', 100_000);
+    $second = crm01bOrder($reseller, 'reseller', 200_000);
+    foreach ([$first, $second] as $order) {
+        DB::table('sales_service_customer_labels')->insert([
+            'sales_order_id' => $order, 'phone' => '+989121234567', 'label' => 'private contact name',
+        ]);
+    }
+    $export = app(ExportCrmDirectory::class);
+    $filters = crm01bFilters(['sort' => 'order_id', 'phone' => 'yes']);
+    $file = $export->handle($root->id, 'contacts', $filters, 'json');
+    expect($file['content'])->not->toContain('+989121234567', 'private contact name');
+    $rows = json_decode($file['content'], true, flags: JSON_THROW_ON_ERROR)['rows'];
+    expect($rows)->toHaveCount(2)->and($rows[0]['phone_present'])->toBeTrue();
+    $file = $export->handle($root->id, 'contacts', [...$filters, 'groupContacts' => true], 'json');
+    $rows = json_decode($file['content'], true, flags: JSON_THROW_ON_ERROR)['rows'];
+    expect($rows)->toHaveCount(1)
+        ->and($rows[0]['records_count'])->toBe(2)
+        ->and($rows[0]['purchased_count'])->toBe(2);
+    $file = $export->handle($root->id, 'resellers', crm01bFilters(), 'json');
+    $rows = json_decode($file['content'], true, flags: JSON_THROW_ON_ERROR)['rows'];
+    expect($rows)->toHaveCount(1)->and($rows[0]['revenue_rials'])->toBe(300_000);
+    Http::assertNothingSent();
+});
+
+it('rejects oversized directory exports rather than silently truncating', function (): void {
+    $root = crm01bUser('super-admin');
+    $role = Role::findByName('member', 'web');
+    $modelType = $root->getMorphClass();
+    for ($i = 0; $i <= ReadCrmDirectory::EXPORT_LIMIT; $i++) {
+        $id = DB::table('users')->insertGetId([
+            'name' => 'Export fixture', 'email' => 'crm-export-'.$i.'@example.test',
+            'password' => 'fixture', 'is_active' => true, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        DB::table('model_has_roles')->insert(['role_id' => $role->id, 'model_type' => $modelType, 'model_id' => $id]);
+    }
+    $export = app(ExportCrmDirectory::class);
+    expect(fn () => $export->handle($root->id, 'customers', crm01bFilters(), 'json'))->toThrow(ValidationException::class);
+});
+
+it('returns actual Livewire file download with current directory filters', function (): void {
+    $root = crm01bUser('super-admin');
+    $buyer = crm01bUser('member');
+    crm01bOrder($buyer, 'direct', 100_000);
+    crm01bUser('member');
+    $html = $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm/customers')->assertOk()
+        ->assertSee('خروجی نتایج فیلترشده')->getContent() ?: '';
+    expect(preg_match('/wire:snapshot="([^"]+)"/', $html, $matches))->toBe(1);
+    $snapshot = htmlspecialchars_decode($matches[1], ENT_QUOTES);
+    $url = 'https://crm.denagate.ir'.app(HandleRequests::class)->getUpdateUri();
+    $response = $this->postJson($url, ['components' => [[
+        'snapshot' => $snapshot, 'updates' => ['purchase' => 'yes'],
+        'calls' => [['path' => '', 'method' => 'exportDirectory', 'params' => ['json']]],
+    ]]], ['X-Livewire' => 'true'])->assertOk();
+    $download = $response->json('components.0.effects.download');
+    expect($download['name'])->toEndWith('.json');
+    $payload = json_decode(base64_decode($download['content']), true, flags: JSON_THROW_ON_ERROR);
+    expect(array_column($payload['rows'], 'id'))->toBe([$buyer->id]);
+    $this->get('https://crm.denagate.ir/admin/crm')->assertOk()->assertDontSee('خروجی نتایج فیلترشده');
     Http::assertNothingSent();
 });

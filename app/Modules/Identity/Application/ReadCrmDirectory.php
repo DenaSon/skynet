@@ -23,6 +23,8 @@ use Illuminate\Validation\ValidationException;
 /** CRM-01B: root-only composition of existing identity and Sales read models. */
 final readonly class ReadCrmDirectory
 {
+    public const int EXPORT_LIMIT = 2000;
+
     private const array CUSTOMER_SEGMENTS = ['valuable', 'loyal', 'new_customer', 'trial_only', 'wallet_positive', 'at_risk', 'old_interaction', 'unknown_interaction'];
 
     public function __construct(
@@ -38,6 +40,33 @@ final readonly class ReadCrmDirectory
      * @return array<string, mixed>
      */
     public function handle(int $actorId, string $section, array $filters): array
+    {
+        return $this->read($actorId, $section, $filters, 50);
+    }
+
+    /**
+     * @param  array<string, mixed>  $filters
+     * @return LengthAwarePaginator<int, \stdClass>
+     */
+    public function exportRows(int $actorId, string $section, array $filters): LengthAwarePaginator
+    {
+        $this->access->handle($actorId);
+        if (! in_array($section, ['customers', 'resellers', 'contacts'], true)) {
+            throw ValidationException::withMessages(['export' => 'این گزارش قابل دریافت نیست.']);
+        }
+        $rows = $this->read($actorId, $section, [...$filters, 'page' => 1], self::EXPORT_LIMIT + 1)['rows'];
+        if ($rows->total() > self::EXPORT_LIMIT || count($rows->items()) > self::EXPORT_LIMIT) {
+            throw ValidationException::withMessages(['export' => 'تعداد نتایج بیش از ۲۰۰۰ است؛ فیلترها را محدودتر کنید.']);
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param  array<string, mixed>  $filters
+     * @return array<string, mixed>
+     */
+    private function read(int $actorId, string $section, array $filters, int $perPage): array
     {
         $filters = $this->validateFilters($actorId, $section, $filters);
 
@@ -58,12 +87,12 @@ final readonly class ReadCrmDirectory
         $from = $from->utc();
         $until = $until->utc();
 
-        return DB::transaction(function () use ($actorId, $section, $filters, $from, $until): array {
+        return DB::transaction(function () use ($actorId, $section, $filters, $from, $until, $perPage): array {
             if ($section === 'dashboard') {
                 return $this->overview($actorId, $from, $until);
             }
             if ($section === 'contacts') {
-                return ['rows' => $this->contactPage($actorId, $filters, $from, $until)];
+                return ['rows' => $this->contactPage($actorId, $filters, $from, $until, $perPage)];
             }
 
             $segments = null;
@@ -78,7 +107,7 @@ final readonly class ReadCrmDirectory
             }
 
             return [
-                'rows' => $this->accountPage($actorId, $section === 'resellers', $filters, $from, $until, $segments),
+                'rows' => $this->accountPage($actorId, $section === 'resellers', $filters, $from, $until, $segments, $perPage),
                 'segments' => $counts,
             ];
         });
@@ -289,7 +318,7 @@ final readonly class ReadCrmDirectory
     /** @param array<string, mixed> $filters
      * @return LengthAwarePaginator<int, \stdClass>
      */
-    private function accountPage(int $actorId, bool $resellers, array $filters, Carbon $from, Carbon $until, ?Builder $segments = null): LengthAwarePaginator
+    private function accountPage(int $actorId, bool $resellers, array $filters, Carbon $from, Carbon $until, ?Builder $segments, int $perPage): LengthAwarePaginator
     {
         $query = $this->rankedAccounts($actorId, $resellers, $from, $until);
         if ($segments !== null) {
@@ -368,7 +397,7 @@ final readonly class ReadCrmDirectory
         } else {
             $query->orderBy($sorts[$filters['sort']] ?? 'accounts.id', $filters['direction']);
         }
-        $page = $query->orderBy('accounts.id')->paginate(50, page: (int) $filters['page']);
+        $page = $query->orderBy('accounts.id')->paginate($perPage, page: (int) $filters['page']);
         if ($resellers) {
             foreach ($page->items() as $row) {
                 $row->performance = $performance['rows'][(int) $row->id] ?? null;
@@ -381,7 +410,7 @@ final readonly class ReadCrmDirectory
     /** @param array<string, mixed> $filters
      * @return LengthAwarePaginator<int, \stdClass>
      */
-    private function contactPage(int $actorId, array $filters, Carbon $from, Carbon $until): LengthAwarePaginator
+    private function contactPage(int $actorId, array $filters, Carbon $from, Carbon $until, int $perPage): LengthAwarePaginator
     {
         $query = $this->sales->contacts($actorId, $from, $until)
             ->joinSub($this->accounts(true), 'resellers', 'resellers.id', '=', 'orders.buyer_user_id')
@@ -422,12 +451,12 @@ final readonly class ReadCrmDirectory
                 ->groupByRaw("NULLIF(phone, ''), CASE WHEN NULLIF(phone, '') IS NULL THEN order_id ELSE NULL END");
             $sort = ['order_id' => 'order_id', 'created_at' => 'created_at'][$filters['sort']] ?? 'order_id';
 
-            return $group->orderBy($sort, $filters['direction'])->orderBy('order_id')->paginate(50, page: (int) $filters['page']);
+            return $group->orderBy($sort, $filters['direction'])->orderBy('order_id')->paginate($perPage, page: (int) $filters['page']);
         }
 
         $sort = ['order_id' => 'orders.id', 'created_at' => 'orders.created_at', 'name' => 'labels.label'][$filters['sort']] ?? 'orders.id';
 
-        return $query->orderBy($sort, $filters['direction'])->orderBy('orders.id')->paginate(50, page: (int) $filters['page']);
+        return $query->orderBy($sort, $filters['direction'])->orderBy('orders.id')->paginate($perPage, page: (int) $filters['page']);
     }
 
     /**

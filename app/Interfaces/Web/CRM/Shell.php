@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Interfaces\Web\CRM;
 
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
+use App\Modules\Identity\Application\ExportCrmDirectory;
 use App\Modules\Identity\Application\ManageCrmSavedFilters;
 use App\Modules\Identity\Application\ReadCrmDirectory;
 use App\Support\PersianCalendar;
@@ -17,6 +18,7 @@ use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 #[Layout('layouts.crm')]
 final class Shell extends Component
@@ -151,6 +153,32 @@ final class Shell extends Component
         $this->reset(['savedFilterId', 'savedFilterName', 'savedFilterMessage']);
         $this->resetErrorBag('savedFilter');
         $this->resetPage();
+    }
+
+    public function exportDirectory(string $format): ?StreamedResponse
+    {
+        abort_unless(in_array($this->section, ['customers', 'resellers', 'contacts'], true), 404);
+        $this->resetErrorBag('export');
+        try {
+            $file = app(ExportCrmDirectory::class)->handle((int) Auth::guard('web')->id(), $this->section, $this->directoryFilters(), $format);
+        } catch (ValidationException $exception) {
+            $this->addError('export', $exception->errors()['export'][0] ?? 'نوع خروجی یا معیارهای گزارش معتبر نیست.');
+
+            return null;
+        } catch (QueryException|\JsonException) {
+            Log::warning('CRM export unavailable', ['section' => $this->section]);
+            $this->addError('export', 'دریافت خروجی ممکن نشد؛ دوباره تلاش کنید.');
+
+            return null;
+        }
+
+        return response()->streamDownload(static function () use ($file): void {
+            echo $file['content'];
+        }, $file['filename'], [
+            'Content-Type' => $file['mime'],
+            'Cache-Control' => 'private, no-store',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     public function createSavedFilter(): void
