@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 use App\Interfaces\Telegram\Processing\ProcessSalesTelegramUpdate;
 use App\Interfaces\Telegram\Processing\ProcessTelegramUpdate;
+use App\Modules\Billing\Application\CreditVerifiedAdminBankTopup;
+use App\Modules\Billing\Application\ReadAdminCashReceipts;
+use App\Modules\Billing\Application\ReadAdminWalletSummary;
 use App\Modules\Identity\Application\ReadCrmDirectory;
 use App\Modules\Identity\Application\ReadCrmInteractions;
 use App\Modules\Identity\Application\ReadCrmProfile;
@@ -96,6 +99,70 @@ function crm01bOrder(User $buyer, ?string $category, int $rials, string $status 
 
     return $order;
 }
+
+it('shows verified cash separately from sales and current ledger balances across CRM date filters', function (): void {
+    config()->set('billing.topups_enabled', true);
+    $root = crm01bUser('super-admin');
+    $member = crm01bUser('member');
+    $reseller = crm01bUser('reseller');
+    $reseller->assignRole('member');
+    $credit = app(CreditVerifiedAdminBankTopup::class);
+    $topup = $credit->handle($root->id, $member->id, 1_000_000, 'CRMFINMEMBER', 'Fixture verified credit');
+    $this->travelTo(Carbon::parse('2026-11-26 23:59:59', 'Asia/Tehran')->utc());
+    $credit->handle($root->id, $reseller->id, 2_000_000, 'CRMFINRESELLER', 'Fixture verified credit');
+    $this->travelTo(Carbon::parse('2026-11-27 12:00:00', 'Asia/Tehran')->utc());
+    $reseller->forceFill(['is_active' => false])->save();
+
+    $wallet = (int) DB::table('billing_wallets')->where('user_id', $member->id)->value('id');
+    $correction = DB::table('billing_journals')->insertGetId([
+        'wallet_id' => $wallet, 'kind' => 'topup_amount_correction',
+        'idempotency_key' => 'topup_amount_correction:'.$topup, 'created_at' => now(),
+    ]);
+    DB::table('billing_postings')->insert([
+        ['journal_id' => $correction, 'wallet_id' => $wallet, 'account_code' => 'wallet_liability', 'side' => 'debit', 'amount_rials' => 100_000],
+        ['journal_id' => $correction, 'wallet_id' => null, 'account_code' => 'cash_clearing', 'side' => 'credit', 'amount_rials' => 100_000],
+    ]);
+    DB::table('billing_topup_amount_corrections')->insert([
+        'topup_id' => $topup, 'billing_journal_id' => $correction,
+        'verified_amount_rials' => 900_000, 'adjustment_amount_rials' => 100_000,
+        'corrected_by' => $root->id, 'reason' => 'Fixture correction', 'created_at' => now(),
+    ]);
+    $order = crm01bOrder($member, 'direct', 300_000);
+    $journal = DB::table('sales_order_settlements')->where('sales_order_id', $order)->value('billing_journal_id');
+    DB::table('billing_postings')->insert([
+        ['journal_id' => $journal, 'wallet_id' => $wallet, 'account_code' => 'wallet_liability', 'side' => 'debit', 'amount_rials' => 300_000],
+        ['journal_id' => $journal, 'wallet_id' => null, 'account_code' => 'order_liability', 'side' => 'credit', 'amount_rials' => 300_000],
+    ]);
+    DB::table('billing_topups')->insert([
+        'wallet_id' => $wallet, 'request_key' => 'crm-fin-pending', 'amount_rials' => 500_000,
+        'status' => 'submitted', 'created_at' => now(), 'updated_at' => now(),
+    ]);
+
+    $reader = app(ReadCrmDirectory::class);
+    $today = $reader->handle($root->id, 'dashboard', crm01bFilters(['period' => 'today']));
+    $yesterday = $reader->handle($root->id, 'dashboard', crm01bFilters(['period' => 'yesterday']));
+    $custom = $reader->handle($root->id, 'dashboard', crm01bFilters(['period' => 'custom', 'from' => '2026-11-26', 'until' => '2026-11-27']));
+    $legacy = app(ReadAdminCashReceipts::class)->handle($root->id, '7');
+    expect($today['cash']['cashInRials'])->toBe(900_000)
+        ->and($today['cash']['topupsRials'])->toBe(900_000)
+        ->and($today['totalRials'])->toBe(300_000)
+        ->and($yesterday['cash']['cashInRials'])->toBe(2_000_000)
+        ->and($yesterday['totalRials'])->toBe(0)
+        ->and($custom['cash']['cashInRials'])->toBe(2_900_000)
+        ->and($custom['cash']['cashInRials'])->toBe($legacy['cashInRials'])
+        ->and($custom['totalRials'])->toBe($legacy['salesRials'])
+        ->and($today['wallets']['balanceRials'])->toBe(2_600_000)
+        ->and($today['wallets']['memberBalanceRials'])->toBe(600_000)
+        ->and($today['wallets']['resellerBalanceRials'])->toBe(2_000_000)
+        ->and($today['wallets'])->toBe($yesterday['wallets'])
+        ->and($today['wallets'])->toBe(app(ReadAdminWalletSummary::class)->handle($root->id));
+    $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm')
+        ->assertOk()->assertSee('مجموع واریزی‌های تأییدشده')
+        ->assertSee('۲۹۰٬۰۰۰ تومان')->assertSee('۲۶۰٬۰۰۰ تومان')->assertSee('اعتبار نمایندگان');
+    expect(fn () => app(ReadAdminCashReceipts::class)->incomingTotalsBetween($member->id, now()->subDay(), now()))
+        ->toThrow(AuthorizationException::class);
+    Http::assertNothingSent();
+});
 
 it('separates commercial account cohorts, canonical sales and downstream contact counts', function (): void {
     $root = crm01bUser('super-admin');
@@ -374,7 +441,10 @@ it('matches canonical bank and wallet purchases and excludes voided claims acros
     $yesterday = $reader->handle($root->id, 'dashboard', crm01bFilters(['period' => 'yesterday']));
     expect($current['totalRials'])->toBe(300_000)
         ->and($current['channels']['reseller']['revenueRials'])->toBe(200_000)
-        ->and($yesterday['totalRials'])->toBe(400_000);
+        ->and($yesterday['totalRials'])->toBe(400_000)
+        ->and($current['cash']['bankSalesRials'])->toBe(200_000)
+        ->and($current['cash']['cashInRials'])->toBe(200_000)
+        ->and($yesterday['cash']['cashInRials'])->toBe(0);
     $rows = app(ReadCrmProfile::class)->handle($root->id, $reseller->id, true, crm01cFilters(['tab' => 'payments']))['rows'];
     expect($rows->total())->toBe(1)
         ->and((int) $rows->items()[0]->order_id)->toBe($bank)
