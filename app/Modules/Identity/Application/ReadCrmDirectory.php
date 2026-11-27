@@ -135,11 +135,53 @@ final readonly class ReadCrmDirectory
             'purchasedPhones' => (int) ($counts->purchased_phones ?? 0),
             'purchasedNameOnly' => (int) ($counts->purchased_name_only ?? 0),
             'channels' => $channels,
+            'trend' => $this->recentTrend($actorId, $from, $until),
             'totalRials' => array_sum(array_column($channels, 'revenueRials')),
             'top' => $this->rankedAccounts($actorId, true, $from, $until)->where('purchases.transactions', '>', 0)
                 ->orderByDesc('revenue_rials')->orderBy('accounts.id')->limit(10)->get(),
             'generatedAt' => Carbon::now('Asia/Tehran')->format('Y-m-d H:i'),
         ];
+    }
+
+    /**
+     * At most seven Tehran civil days inside the selected window, no full ledger materialization.
+     *
+     * @return list<array{date:string,revenueRials:int,registrations:int}>
+     */
+    private function recentTrend(int $actorId, Carbon $from, Carbon $until): array
+    {
+        $end = $until->copy()->min(Carbon::now('Asia/Tehran')->startOfDay()->addDay()->utc());
+        $start = $from->copy()->max($end->copy()->subDays(7));
+        if ($start->greaterThanOrEqualTo($end)) {
+            return [];
+        }
+
+        $sales = DB::query()->fromSub($this->business->crmSettledRows($actorId, $start, $end), 'settled');
+        $accounts = $this->accounts(false)->select('users.created_at')
+            ->unionAll($this->accounts(true)->select('users.created_at'));
+        $registrations = DB::query()->fromSub($accounts, 'commercial')
+            ->where('created_at', '>=', $start)->where('created_at', '<', $end);
+        $dates = [];
+        for ($day = $start->copy(); $day->lessThan($end); $day->addDay()) {
+            $next = $day->copy()->addDay();
+            $key = 'day_'.count($dates);
+            $dates[$key] = $day->copy()->timezone('Asia/Tehran')->format('Y-m-d');
+            $sales->selectRaw("COALESCE(SUM(CASE WHEN settled_at >= ? AND settled_at < ? THEN amount_rials ELSE 0 END), 0) as {$key}", [$day->copy(), $next]);
+            $registrations->selectRaw("COUNT(CASE WHEN created_at >= ? AND created_at < ? THEN 1 END) as {$key}", [$day->copy(), $next]);
+        }
+
+        $revenue = $sales->first();
+        $newAccounts = $registrations->first();
+        $rows = [];
+        foreach ($dates as $key => $date) {
+            $rows[] = [
+                'date' => $date,
+                'revenueRials' => (int) ($revenue->{$key} ?? 0),
+                'registrations' => (int) ($newAccounts->{$key} ?? 0),
+            ];
+        }
+
+        return $rows;
     }
 
     /** @param array<string, mixed> $filters

@@ -41,3 +41,51 @@ html {
 
     font-family: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif;
 }
+
+/* Presentation only; scoped to CRM assets. */
+.denagate-crm {
+    --color-primary: #0F766E;
+    --color-primary-content: #FFFFFF;
+    --color-base-200: #F4F7FA;
+    --color-success: #15803D;
+    --color-success-content: #FFFFFF;
+}
+
+.denagate-crm .crm-metric-grid .stat {
+    padding: 0.75rem 0.5rem;
+    min-width: 0;
+}
+
+.denagate-crm .crm-metric-grid .stat-value {
+    font-size: clamp(1rem, 1.5vw, 1.35rem);
+    white-space: normal;
+    overflow-wrap: anywhere;
+    font-weight: 700;
+    color: #17283D;
+}
+
+.denagate-crm .crm-metric-grid .stat-title,
+.denagate-crm .crm-metric-grid .stat-desc {
+    white-space: normal;
+    color: #526477;
+}
+
+.denagate-crm .crm-metric-grid .stat-figure {
+    color: #0F766E;
+}
+
+.denagate-crm .crm-tone-blue .stat-figure {
+    color: #2563EB;
+}
+
+.denagate-crm .crm-tone-green .stat-figure {
+    color: #15803D;
+}
+
+.denagate-crm .crm-tone-amber .stat-figure {
+    color: #B45309;
+}
+
+.denagate-crm .crm-tone-violet .stat-figure {
+    color: #7C3AED;
+}

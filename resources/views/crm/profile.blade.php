@@ -3,7 +3,7 @@
         $titles = ['dashboard' => 'داشبورد', 'customers' => 'مشتریان مستقیم', 'resellers' => 'نمایندگان', 'contacts' => 'مشتریان نمایندگان'];
         $icons = ['dashboard' => 'o-squares-2x2', 'customers' => 'o-users', 'resellers' => 'o-user-group', 'contacts' => 'o-identification'];
         $options = static fn (array $items) => collect($items)->map(fn ($name, $id) => ['id' => (string) $id, 'name' => $name])->values()->all();
-        $money = static fn ($rials) => number_format($rials / 10, $rials % 10 === 0 ? 0 : 1).' تومان';
+        $money = static fn ($rials) => \App\Support\PersianCalendar::number(number_format($rials / 10, $rials % 10 === 0 ? 0 : 1)).' تومان';
         $tabs = ['overview' => 'نمای کلی', 'orders' => 'سفارش‌ها', 'payments' => 'تسویه‌ها', 'services' => 'سرویس‌ها'];
         if ($reseller) {
             $tabs['contacts'] = 'مشتریان ثبت‌شده';
@@ -23,7 +23,7 @@
                         <x-badge :value="$data['account']->is_active ? 'فعال' : 'غیرفعال'" :class="$data['account']->is_active ? 'badge-success badge-soft' : 'badge-error badge-soft'" />
                         <span class="text-sm">شناسه: {{ $data['account']->id }}</span>
                         <span class="text-sm">تلگرام: <span dir="ltr">{{ $data['account']->telegram_user_id ?? '—' }}</span></span>
-                        <span class="text-sm">عضویت: {{ \Illuminate\Support\Carbon::parse($data['account']->created_at, 'UTC')->timezone('Asia/Tehran')->format('Y-m-d') }}</span>
+                        <span class="text-sm">عضویت: {{ \App\Support\PersianCalendar::date(\Illuminate\Support\Carbon::parse($data['account']->created_at, 'UTC')->timezone('Asia/Tehran')->format('Y-m-d')) }}</span>
                     </div>
                 </x-card>
             @endif
@@ -34,11 +34,24 @@
                         <x-tab :name="$key" :label="$label">
                             @if ($tab === $key)
                                 @if ($tab !== 'services')
-                                    <div class="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                                    <div class="mb-3 flex justify-end">
+                                        <x-button label="پاک‌کردن فیلترها" icon="o-arrow-path" wire:click="resetFilters" class="btn-ghost btn-sm text-primary" />
+                                    </div>
+                                    <div class="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                                         <x-select label="{{ $tab === 'payments' ? 'تاریخ تسویه' : 'بازه گزارش' }}" :options="$options(['today' => 'امروز', 'yesterday' => 'دیروز', '7' => '۷ روز اخیر', '30' => '۳۰ روز اخیر', 'all' => 'از ابتدا', 'custom' => 'بازه دلخواه'])" wire:model.live="period" />
                                         @if ($period === 'custom')
-                                            <x-datetime label="از تاریخ" wire:model.live="from" />
-                                            <x-datetime label="تا تاریخ" wire:model.live="until" />
+                                            <div>
+                            <x-datetime label="از تاریخ (میلادی)" wire:model.live="from" />
+                            @if ($from !== '')
+                                <p class="mt-1 text-xs text-base-content/70" dir="rtl">شمسی: <bdi dir="ltr">{{ \App\Support\PersianCalendar::date($from) }}</bdi></p>
+                            @endif
+                        </div>
+                                            <div>
+                            <x-datetime label="تا تاریخ (میلادی)" wire:model.live="until" />
+                            @if ($until !== '')
+                                <p class="mt-1 text-xs text-base-content/70" dir="rtl">شمسی: <bdi dir="ltr">{{ \App\Support\PersianCalendar::date($until) }}</bdi></p>
+                            @endif
+                        </div>
                                         @endif
                                         @if (in_array($tab, ['orders', 'contacts']))
                                             <x-input label="جست‌وجو" icon="o-magnifying-glass" wire:model.live.debounce.400ms="search" maxlength="80" clearable />

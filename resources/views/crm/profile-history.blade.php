@@ -29,6 +29,7 @@
 @if ($tab === 'services')
     <x-alert icon="o-information-circle" class="alert-info mb-4">این وضعیت از اطلاعات محلی ثبت‌شده خوانده می‌شود و وضعیت زنده اتصال یا انقضا نیست.</x-alert>
 @endif
+<p class="mb-3 text-sm font-medium text-primary">تعداد نتایج: {{ \App\Support\PersianCalendar::number(number_format($rows->total())) }}</p>
 <x-table :headers="$headers" :rows="$rows" with-pagination show-empty-text empty-text="موردی یافت نشد.">
     @scope('cell_status', $row)
         <x-badge :value="['pending_payment' => 'در انتظار پرداخت', 'paid' => 'پرداخت‌شده', 'fulfilled' => 'تکمیل‌شده', 'refunded' => 'برگشت‌خورده', 'cancelled' => 'لغوشده'][$row->status] ?? 'نامشخص'" class="badge-ghost" />
@@ -46,16 +47,15 @@
         <x-badge :value="['active' => 'فعال محلی', 'needs_review' => 'نیازمند بررسی', 'pending' => 'در انتظار', 'failed' => 'ناموفق', 'reserved' => 'رزروشده'][$row->state] ?? 'نامشخص'" class="badge-ghost" />
     @endscope
     @scope('cell_total_price_rials', $row)
-        {{ number_format($row->total_price_rials / 10, $row->total_price_rials % 10 === 0 ? 0 : 1) }} تومان
+        {{ \App\Support\PersianCalendar::number(number_format($row->total_price_rials / 10, $row->total_price_rials % 10 === 0 ? 0 : 1)) }} تومان
     @endscope
     @scope('cell_amount_rials', $row)
-        {{ number_format($row->amount_rials / 10, $row->amount_rials % 10 === 0 ? 0 : 1) }} تومان
+        {{ \App\Support\PersianCalendar::number(number_format($row->amount_rials / 10, $row->amount_rials % 10 === 0 ? 0 : 1)) }} تومان
     @endscope
     @scope('cell_created_at', $row)
-        {{ \Illuminate\Support\Carbon::parse($row->created_at, 'UTC')->timezone('Asia/Tehran')->format('Y-m-d H:i') }}
+        {{ \App\Support\PersianCalendar::utcDateTime((string) $row->created_at) }}
     @endscope
     @scope('cell_settled_at', $row)
-        {{ \Illuminate\Support\Carbon::parse($row->settled_at, 'UTC')->timezone('Asia/Tehran')->format('Y-m-d H:i') }}
+        {{ \App\Support\PersianCalendar::utcDateTime((string) $row->settled_at) }}
     @endscope
 </x-table>
-<p class="mt-3 text-xs text-base-content/60">تعداد نتایج: {{ number_format($rows->total()) }}</p>
