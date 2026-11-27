@@ -962,3 +962,40 @@ it('ranks the same complete commercial cohort across filters and records missing
     expect(fn () => $reader->handle($b->id))->toThrow(AuthorizationException::class);
     Http::assertNothingSent();
 });
+
+it('shows evaluation only for current active resellers with valid recent role evidence', function (): void {
+    $root = crm01bUser('super-admin');
+    $unknown = crm01bUser('reseller');
+    $recent = crm01bUser('reseller');
+    $inactive = crm01bUser('reseller');
+    $former = crm01bUser('member');
+    $staff = crm01bUser('reseller');
+    $staff->assignRole('admin');
+    $future = crm01bUser('reseller');
+    $audit = app(RecordIdentityAudit::class);
+    foreach ([$recent, $inactive, $former, $staff, $future] as $user) {
+        $audit->handle($root, 'identity.roles.assigned', 'user', $user->id, ['before' => ['member'], 'after' => ['reseller']]);
+    }
+    $inactive->forceFill(['is_active' => false])->save();
+    DB::table('identity_audit_events')->where('subject_type', 'user')->where('subject_id', $future->id)
+        ->update(['created_at' => now()->addDay()]);
+
+    $rows = app(ReadCrmResellerPerformance::class)->handle($root->id)['rows'];
+    expect($rows[$recent->id]['state'])->toBe('evaluating')
+        ->and($rows[$recent->id]['rank'])->toBeNull()
+        ->and($rows[$unknown->id]['state'])->toBe('unknown')
+        ->and($rows[$inactive->id]['state'])->toBe('inactive')
+        ->and($rows[$future->id]['state'])->toBe('unknown')
+        ->and($rows)->not->toHaveKey($former->id)
+        ->and($rows)->not->toHaveKey($staff->id);
+
+    $page = $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm/resellers')
+        ->assertOk()->assertSee('در حال ارزیابی')->assertSee('تعداد نتایج')
+        ->assertDontSee('مبلغ خرید نماینده نزد دناگیت بر اساس کانال ثبت‌شده سفارش است.');
+    $html = $page->getContent() ?: '';
+    expect(substr_count($html, 'در حال ارزیابی'))->toBe(1);
+    $this->get('https://crm.denagate.ir/admin/crm/customers')
+        ->assertOk()->assertDontSee('در حال ارزیابی');
+    $this->get('https://crm.denagate.ir/admin/crm/resellers/'.$former->id)->assertNotFound();
+    Http::assertNothingSent();
+});

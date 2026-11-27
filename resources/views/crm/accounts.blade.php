@@ -21,9 +21,6 @@
     }
 @endphp
 <x-card class="border border-base-300">
-    @if ($resellers)
-        <p class="mb-4 text-sm text-base-content/60">مبلغ خرید نماینده نزد دناگیت بر اساس کانال ثبت‌شده سفارش است. سفارش‌های تاریخی با کانال نامشخص در این مبلغ لحاظ نمی‌شوند. رتبه فروش بر اساس مبلغ خرید در نتایج فیلترشده است. رتبه عملکرد بر اساس ۳۰ روز کامل اخیر تهران، مستقل از فیلتر و در میان تمام نمایندگان واجد شرایط محاسبه می‌شود.</p>
-    @endif
     <p class="mb-3 text-sm font-medium text-primary">تعداد نتایج: {{ \App\Support\PersianCalendar::number(number_format($rows->total())) }}</p>
     <x-table :headers="$headers" :rows="$rows" :sort-by="$sortBy" with-pagination>
         @scope('cell_name', $row, $resellers)
@@ -60,7 +57,13 @@
                 $labels = ['diamond' => 'الماس', 'gold' => 'طلایی', 'silver' => 'نقره‌ای', 'bronze' => 'برنزی', 'ordinary' => 'عادی'];
                 $colors = ['diamond' => 'badge-info badge-soft', 'gold' => 'badge-warning badge-soft', 'silver' => 'badge-neutral badge-soft', 'bronze' => 'badge-warning badge-soft', 'ordinary' => 'badge-ghost'];
             @endphp
-            <x-badge :value="$labels[$tier] ?? match ($state) { 'inactive' => 'غیرفعال', 'evaluating' => 'در حال ارزیابی', default => 'نامشخص' }" :class="$colors[$tier] ?? 'badge-ghost'" />
+            @if ($state === 'ranked' && isset($labels[$tier]))
+                <x-badge :value="$labels[$tier]" :class="$colors[$tier].' whitespace-nowrap w-auto'" />
+            @elseif ($state === 'evaluating' && $row->is_active && isset($row->performance['since']))
+                <x-badge value="در حال ارزیابی" class="badge-ghost whitespace-nowrap w-auto" />
+            @else
+                —
+            @endif
         @endscope
         @scope('cell_phones', $row)
             {{ \App\Support\PersianCalendar::number(number_format($row->phones)) }}
