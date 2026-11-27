@@ -30,7 +30,7 @@ final class EnsureCrmScheme
 
         try {
             $forwardedProtoHeader = (string) $request->headers->get('X-Forwarded-Proto', '');
-            $forwardedProto = strtolower(trim(explode(',', $forwardedProtoHeader)[0] ?? ''));
+            $forwardedProto = strtolower(trim(explode(',', $forwardedProtoHeader)[0]));
 
             if ($forwardedProto === 'http' && ! $request->isSecure()) {
                 $response = redirect()->secure(
