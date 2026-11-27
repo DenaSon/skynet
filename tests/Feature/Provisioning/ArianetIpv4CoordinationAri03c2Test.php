@@ -576,7 +576,7 @@ it('shows a single DNS continuation action in private Rich RTL status', function
     $operationId = $service->status($root['user']->id, ARI8_SERVER)['operationId'];
 
     ari8Bot()->hearCallbackQueryData('ari7:status:'.ARI8_SERVER.':1')->reply()
-        ->assertRaw(static function (NutgramRequest $request): bool {
+        ->assertRaw(static function (NutgramRequest $request) use ($operationId): bool {
             $data = ari8Payload($request);
             $rich = is_string($data['rich_message'] ?? null)
                 ? json_decode($data['rich_message'], true, flags: JSON_THROW_ON_ERROR)
@@ -600,7 +600,7 @@ it('shows the complete read-only plan before the explicit provider-write confirm
     $operationId = DB::table('arianet_cloud_ipv4_changes')->where('cloud_server_id', ARI8_SERVER)->value('id');
 
     ari8Bot()->hearCallbackQueryData('ari7:plan:'.ARI8_SERVER.':1:'.$operationId.':2')->reply()
-        ->assertRaw(static function (NutgramRequest $request): bool {
+        ->assertRaw(static function (NutgramRequest $request) use ($operationId): bool {
             $data = ari8Payload($request);
             $rich = is_string($data['rich_message'] ?? null)
                 ? json_decode($data['rich_message'], true, flags: JSON_THROW_ON_ERROR)
@@ -639,7 +639,7 @@ it('keeps GET-only reconciliation and client acceptance available when Node writ
     config()->set('services.cloudflare.dns_writes_enabled', false);
 
     ari8Bot()->hearCallbackQueryData('ari7:status:'.ARI8_SERVER.':1')->reply()
-        ->assertRaw(static function (NutgramRequest $request): bool {
+        ->assertRaw(static function (NutgramRequest $request) use ($operation): bool {
             $buttons = json_encode(ari8Payload($request)['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
 
             return str_contains($buttons, 'ari7:reconcile:'.ARI8_SERVER.':1:'.$operation['operationId'].':2');
@@ -650,7 +650,7 @@ it('keeps GET-only reconciliation and client acceptance available when Node writ
         ->and($api->mutations)->toBe(['dns:fr.coreflare.ir', 'node:'.ARI8_NODE]);
 
     ari8Bot()->hearCallbackQueryData('ari7:status:'.ARI8_SERVER.':1')->reply()
-        ->assertRaw(static function (NutgramRequest $request): bool {
+        ->assertRaw(static function (NutgramRequest $request) use ($operation): bool {
             $buttons = json_encode(ari8Payload($request)['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
 
             return str_contains($buttons, 'ari7:accept:'.ARI8_SERVER.':1:'.$operation['operationId'].':2');
@@ -678,7 +678,7 @@ it('keeps DNS continuation visible on Production only for an active changed IP',
     app()->detectEnvironment(static fn (): string => 'production');
     try {
         ari8Bot()->hearCallbackQueryData('ari7:status:'.ARI8_SERVER.':1')->reply()
-            ->assertRaw(static function (NutgramRequest $request): bool {
+            ->assertRaw(static function (NutgramRequest $request) use ($operationId): bool {
                 $buttons = json_encode(ari8Payload($request)['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
 
                 return str_contains($buttons, 'ari7:plan:'.ARI8_SERVER.':1:'.$operationId.':2')
