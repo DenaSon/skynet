@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace App\Modules\Identity\Application;
 
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 final readonly class ExportCrmDirectory
@@ -19,7 +17,9 @@ final readonly class ExportCrmDirectory
     public function handle(int $actorId, string $section, array $filters, string $format): array
     {
         $this->access->handle($actorId);
-        Validator::make(['format' => $format], ['format' => ['required', Rule::in(['csv', 'json', 'md'])]])->validate();
+        if (! in_array($format, ['csv', 'json', 'md'], true)) {
+            throw ValidationException::withMessages(['export' => 'نوع خروجی معتبر نیست.']);
+        }
         $page = $this->directory->exportRows($actorId, $section, $filters);
         $grouped = $section === 'contacts' && (bool) ($filters['groupContacts'] ?? false);
         $rfm = $section === 'customers' && ($filters['segment'] ?? 'off') !== 'off';
