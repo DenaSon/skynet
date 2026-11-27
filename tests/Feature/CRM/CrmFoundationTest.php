@@ -157,8 +157,8 @@ it('keeps HTTPS policy isolated from the default web host and DenaGate Live', fu
 });
 
 it('uses only CRM frontend assets and does not reuse Live recovery behavior', function (): void {
-    $layout = file_get_contents(resource_path('views/layouts/crm.blade.php'));
-    $runtime = file_get_contents(resource_path('js/crm.js'));
+    $layout = file_get_contents(resource_path('views/layouts/crm.blade.php')) ?: '';
+    $runtime = file_get_contents(resource_path('js/crm.js')) ?: '';
 
     expect($layout)->toContain('resources/css/crm.css')
         ->toContain('resources/js/crm.js')

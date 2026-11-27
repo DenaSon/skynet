@@ -133,7 +133,7 @@ Read [docs/017-TELEGRAM-UX-IDENTITY.md](docs/017-TELEGRAM-UX-IDENTITY.md) BEFORE
 - Telegram handlers live in `app/Interfaces/Telegram` and may call approved Identity/Application actions; never import Identity/Infrastructure models or bypass role checks.
 - Only the documented webhook route can run Nutgram in HTTP; verify its independent secret before processing any update.
 - Private Telegram ID and single-use link tokens are the only approved identity join in F4.
-- Livewire 4 + Mary UI for the root-only read-only Admin CRM is planned under [CRM-01](docs/051-CRM-01.md); its first phase is specified in [CRM-01A](docs/052-CRM-01A-MARY-UI-FOUNDATION.md). Reseller accounts and their downstream customer records are visible to Super Admin only; the reseller Mini App stays isolated and unchanged. Public REST APIs remain deferred.
+- Livewire 4 + Mary UI for the root-only read-only Admin CRM is specified under [CRM-01](docs/051-CRM-01.md); CRM-01A foundation is implemented on an unmerged PR branch. Reseller accounts and their downstream customer records are visible to Super Admin only; the reseller Mini App stays isolated and unchanged. Public REST APIs remain deferred.
 - See ADR 0004 and `docs/006-TELEGRAM-OPERATIONS.md` before Telegram changes.
 
 ## Fixed boundaries

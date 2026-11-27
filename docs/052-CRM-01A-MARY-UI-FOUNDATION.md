@@ -110,20 +110,21 @@ Mary UI نسخه `2.9.11` و DaisyUI نسخه `5.8.3` در وابستگی‌ها
 | مسیر | نوع تغییر |
 |---|---|
 | `composer.json` و `composer.lock` | افزودن Mary UI |
-| `package.json` | افزودن DaisyUI با نسخه سازگار |
+| `package.json` | افزودن DaisyUI نسخه `5.8.3` |
 | `vite.config.js` | افزودن ورودی CSS و JS CRM |
 | `config/denagate_crm.php` | Host پنل |
 | `bootstrap/app.php` | Middleware محدود Host برای HTTPS و نشست |
+| `resources/css/crm.css` | CSS مستقل |
 | `resources/js/crm.js` | Runtime مستقل Livewire |
-| `resources/css/crm.css` | فایل جدید |
-| `resources/js/crm.js` | فایل جدید |
 | `resources/views/layouts/crm.blade.php` | Layout جدید |
 | `resources/views/crm/shell.blade.php` | پوسته آزمایشی جدید |
 | `routes/crm.php` | مسیرهای مستقل CRM |
 | `routes/web.php` | فقط ثبت افزایشی مسیر CRM |
 | `app/Interfaces/Web/CRM/` | Presenter و Middleware محدود CRM |
 | `app/Providers/AppServiceProvider.php` | ثبت افزایشی Persistent Middleware CRM، در صورت نیاز |
-| `tests/Feature/CRM/` | تست دسترسی و رندر پوسته |
+| `.env.example` | مستندسازی Host پنل |
+| `.github/actions/php-validation/action.yml` | اعتبارسنجی Assetهای CRM در CI |
+| `tests/Feature/CRM/CrmFoundationTest.php` | تست دسترسی، Host، HTTPS، نشست و جداسازی |
 
 فهرست نهایی فایل‌ها در زمان پیاده‌سازی با ساختار واقعی پروژه تطبیق داده شود؛ ایجاد فایل غیرضروری مجاز نیست.
 
