@@ -350,7 +350,8 @@ final readonly class CoordinateAdminArianetIpv4
     }
 
     /** @param array<string,mixed> $state */
-    private function assertCloudAndInventory(int $actorId, int $serverId, array $state, bool $reconciling = false): void {
+    private function assertCloudAndInventory(int $actorId, int $serverId, array $state, bool $reconciling = false): void
+    {
         $this->assertCloud($actorId, $serverId, $state);
         $node = $this->nodes->replacementSnapshot($actorId, $state['node']['uuid']);
         if (self::nodeIdentity($node) !== self::nodeIdentity($this->expectedNode($state, $reconciling))) {
