@@ -18,6 +18,9 @@
         $headers[] = ['key' => 'purchased_name_only', 'label' => 'نام بدون شماره دارای خرید', 'sortable' => false];
     } else {
         $headers[] = ['key' => 'telegram_linked', 'label' => 'تلگرام', 'sortable' => false];
+        if (($segment ?? 'off') !== 'off') {
+            $headers[] = ['key' => 'rfm', 'label' => 'امتیاز RFM (کل سابقه)', 'sortable' => false];
+        }
     }
 @endphp
 <x-card class="border border-base-300">
@@ -40,6 +43,15 @@
         @endscope
         @scope('cell_transactions', $row)
             {{ \App\Support\PersianCalendar::number(number_format($row->transactions)) }}
+        @endscope
+        @scope('cell_rfm', $row)
+            @if (isset($row->r_score, $row->f_score, $row->m_score))
+                <div class="whitespace-nowrap text-sm" dir="ltr">R {{ \App\Support\PersianCalendar::number($row->r_score) }} · F {{ \App\Support\PersianCalendar::number($row->f_score) }} · M {{ \App\Support\PersianCalendar::number($row->m_score) }}</div>
+                <div class="mt-1 whitespace-nowrap text-xs text-base-content/70">{{ \App\Support\PersianCalendar::number($row->lifetime_orders) }} خرید · {{ \App\Support\PersianCalendar::number(number_format($row->lifetime_rials / 10, $row->lifetime_rials % 10 === 0 ? 0 : 1)) }} تومان</div>
+                <div class="mt-1 text-xs text-base-content/70">آخرین خرید: {{ \App\Support\PersianCalendar::date(\Illuminate\Support\Carbon::parse($row->last_purchase_at, 'UTC')->timezone('Asia/Tehran')->format('Y-m-d')) }}</div>
+            @else
+                <span class="text-xs text-base-content/60">بدون خرید معتبر</span>
+            @endif
         @endscope
         @scope('cell_sales_rank', $row)
             {{ \App\Support\PersianCalendar::number(number_format($row->sales_rank)) }}
