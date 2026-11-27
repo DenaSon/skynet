@@ -17,6 +17,7 @@
             <x-header :title="$titles[$section]" subtitle="پنل مدیریت مشتریان" separator />
 
             @if ($section === 'customers')
+                @include('crm.saved-filters')
                 @include('crm.customer-segments')
             @endif
 
