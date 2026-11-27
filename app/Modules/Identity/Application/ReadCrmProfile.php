@@ -43,6 +43,7 @@ final readonly class ReadCrmProfile
             $filters['until'] = null;
         }
 
+        $filters = array_replace(['sort' => 'order_id', 'direction' => 'desc'], $filters);
         $filters = Validator::make($filters, [
             'tab' => ['required', Rule::in($reseller ? ['overview', 'orders', 'payments', 'contacts', 'services'] : ['overview', 'orders', 'payments', 'services'])],
             'period' => ['required', Rule::in(['today', 'yesterday', '7', '30', 'all', 'custom'])],
@@ -53,6 +54,8 @@ final readonly class ReadCrmProfile
             'phone' => ['required', Rule::in(['all', 'yes', 'no'])],
             'purchase' => ['required', Rule::in(['all', 'yes', 'no'])],
             'groupContacts' => ['required', 'boolean'],
+            'sort' => ['required', 'string', Rule::in(['order_id', 'created_at'])],
+            'direction' => ['required', 'string', Rule::in(['asc', 'desc'])],
             'page' => ['required', 'integer', 'min:1', 'max:100000'],
         ])->validate();
 
@@ -130,8 +133,8 @@ final readonly class ReadCrmProfile
                         'groupContacts' => $filters['groupContacts'],
                         'reseller' => $subjectId,
                         'orderStatus' => $filters['status'],
-                        'sort' => 'order_id',
-                        'direction' => 'desc',
+                        'sort' => $filters['sort'],
+                        'direction' => $filters['direction'],
                         'page' => $page,
                     ])['rows'];
                     break;
