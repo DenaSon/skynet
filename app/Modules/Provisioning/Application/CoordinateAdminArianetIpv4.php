@@ -232,6 +232,13 @@ final readonly class CoordinateAdminArianetIpv4
     {
         $this->access->handle($actorId);
         $this->assertEnabled();
+        $row = $this->active($serverId);
+        if ((int) $row->actor_user_id !== $actorId) {
+            throw new RuntimeException('Operation belongs to another actor or has changed.');
+        }
+        if ($row->coordination_state === null) {
+            throw new RuntimeException('Prepare and review the coordination plan before execution.');
+        }
         [, $state] = $this->load($serverId, $actorId);
         if ($state['stage'] === 'awaiting_client_test' && $this->next($state) === null) {
             return;

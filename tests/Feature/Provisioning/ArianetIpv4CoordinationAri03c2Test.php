@@ -189,12 +189,12 @@ function ari8Provider(bool $shared = false, bool $legacy = false, bool $peerColl
         }
         if ($method === 'GET' && str_contains($url, '/dns_records?')) {
             parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
-            if (isset($query['content.exact'])) {
+            if (isset($query['content_exact'])) {
                 $records = [$shared->record, ...$shared->extraDnsRecords];
 
                 return Http::response(['success' => true, 'result' => array_values(array_filter(
                     $records,
-                    static fn (array $record): bool => $record['content'] === $query['content.exact'],
+                    static fn (array $record): bool => $record['content'] === $query['content_exact'],
                 ))]);
             }
             $record = match ($query['name'] ?? null) {
