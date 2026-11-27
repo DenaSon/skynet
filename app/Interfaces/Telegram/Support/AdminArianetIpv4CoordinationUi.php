@@ -90,8 +90,11 @@ final readonly class AdminArianetIpv4CoordinationUi
         }
 
         $buttons = InlineKeyboardMarkup::make();
-        if ($this->coordination->enabled(legacy: $state['version'] === 1) && $state['owner']) {
-            $index = $state['next'];
+        $index = $state['next'];
+        $readOnlyAction = $state['version'] === 1
+            || ($index !== null && $state['steps'][$index]['state'] === 'uncertain')
+            || $state['stage'] === 'awaiting_client_test';
+        if ($this->coordination->enabled(legacy: $readOnlyAction) && $state['owner']) {
             if ($index !== null && $state['steps'][$index]['state'] === 'ready') {
                 $buttons->addRow(InlineKeyboardButton::make(
                     $state['version'] === 1 ? '🔄 ادامه هماهنگی DNS' : '🔴 تأیید و اجرای هماهنگی دامنه‌ها و نود',
