@@ -385,7 +385,7 @@ it('permits confirmed DNS and Node continuation in Production with both write ga
         $service = app(CoordinateAdminArianetIpv4::class);
         expect($service->enabled())->toBeTrue();
         $service->prepare($root['user']->id, ARI8_SERVER);
-    $service->continueDns($root['user']->id, ARI8_SERVER);
+        $service->continueDns($root['user']->id, ARI8_SERVER);
         expect($service->status($root['user']->id, ARI8_SERVER)['stage'])->toBe('awaiting_client_test');
     } finally {
         app()->detectEnvironment(static fn (): string => 'testing');

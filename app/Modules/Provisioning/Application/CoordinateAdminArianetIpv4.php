@@ -234,6 +234,9 @@ final readonly class CoordinateAdminArianetIpv4
         $this->access->handle($actorId);
         $this->assertEnabled();
         [, $state] = $this->load($serverId, $actorId);
+        if ($state['stage'] === 'awaiting_client_test' && $this->next($state) === null) {
+            return;
+        }
         if (! in_array($state['stage'], ['ready', 'applying'], true)) {
             throw new RuntimeException('Prepare and review the coordination plan before execution.');
         }
