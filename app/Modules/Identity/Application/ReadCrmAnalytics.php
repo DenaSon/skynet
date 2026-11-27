@@ -27,7 +27,7 @@ final readonly class ReadCrmAnalytics
         private AssertBillingAccess $billingAccess,
     ) {}
 
-    /** @param array<string, mixed> $filters
+    /** @param  array<string, mixed> $filters
      * @return array<string, mixed>
      */
     public function handle(int $actorId, array $filters): array
@@ -92,7 +92,7 @@ final readonly class ReadCrmAnalytics
                 }
                 $first = array_values(array_filter($first, 'is_string'));
                 $start = $first === []
-                    ? $end->copy()->startOfDay()
+                    ? $end->copy()->subSecond()->startOfDay()
                     : Carbon::parse(min($first), 'UTC')->timezone('Asia/Tehran')->startOfDay()->max($start);
             }
 
@@ -124,6 +124,8 @@ final readonly class ReadCrmAnalytics
             $cashTrend = null;
             $priorCash = null;
             $previous = null;
+            $previousFrom = null;
+            $previousUntil = null;
             if ($filters['period'] !== 'all') {
                 $previousFrom = $start->copy()->subDays($days)->utc();
                 $previousUntil = $end->copy()->subDays($days)->utc();
@@ -134,7 +136,7 @@ final readonly class ReadCrmAnalytics
                     [$cashCase, $cashBindings] = $this->bucketCase('occurred_at', $buckets);
                     $cashTrend = $cashRows->selectRaw("$cashCase as bucket, COALESCE(SUM(amount_rials), 0) as amount", $cashBindings)
                         ->groupBy('bucket')->get()->keyBy('bucket');
-                    if ($filters['period'] !== 'all') {
+                    if ($previousFrom !== null && $previousUntil !== null) {
                         $priorCash = $this->cash->incomingTotalsBetween($actorId, $previousFrom, $previousUntil)['cashInRials'];
                     }
                 } catch (AuthorizationException|QueryException) {
@@ -211,14 +213,14 @@ final readonly class ReadCrmAnalytics
                 $days <= 420 => $cursor->copy()->addWeek(),
                 default => $cursor->copy()->addMonthsNoOverflow($monthStep),
             };
-            $next = $next->min($end);
+            $next = count($buckets) === 59 ? $end->copy() : $next->min($end);
             $buckets[] = ['start' => $cursor->copy(), 'end' => $next->copy()];
         }
 
         return $buckets;
     }
 
-    /** @param list<array{start:Carbon,end:Carbon}> $buckets
+    /** @param  list<array{start:Carbon,end:Carbon}> $buckets
      * @return array{string,list<Carbon>}
      */
     private function bucketCase(string $column, array $buckets): array
