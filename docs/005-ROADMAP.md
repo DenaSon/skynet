@@ -1,3 +1,7 @@
+## CRM-02A — رفتار مشتری و شواهد تحلیلی (2026-11-27)
+
+مالک پروژه CRM-01 را برای ادامه توسعه پذیرفت. CRM-02A تأیید شده است: ثبت حداقلی تعاملات بات فروش از زمان فعال‌شدن، شاخص‌های رفتار خرید، تست و شواهد محلی. [دامنه و معیار پذیرش](053-CRM-02A-BEHAVIOR.md). مراحل بعدی فیلترساز، ذخیره فیلترها، خروجی داده، کمپین و دنیز پیشنهادی و نیازمند تصویب مستقل هستند. هیچ ارسال پیام یا Provider call در 02A انجام نمی‌شود.
+
 ## CRM-01 — Root-only read-only customer CRM (2026-11-27; scope corrected)
 
 **Status:** Product scope approved; CRM-01A implemented in PR #584. Source review and PHP 8.4/8.5, PHPStan, Pint, MySQL and Vite checks passed in run 45993151960. Live deployment/browser acceptance pending.

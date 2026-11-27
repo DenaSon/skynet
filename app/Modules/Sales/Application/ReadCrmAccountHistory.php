@@ -32,11 +32,11 @@ final readonly class ReadCrmAccountHistory
             ->where('orders.created_at', '>=', $from)->where('orders.created_at', '<', $until);
     }
 
-    /** @return array<string, int> */
+    /** @return array<string, int|string|null> */
     public function summary(int $actorId, int $subjectId, Carbon $from, Carbon $until, bool $reseller): array
     {
         $groups = $this->settlements($actorId, $subjectId, $from, $until)
-            ->selectRaw("CASE WHEN buyer_category IN ('direct', 'reseller') THEN buyer_category ELSE 'unknown' END as category, COUNT(*) as transactions, SUM(amount_rials) as rials")
+            ->selectRaw("CASE WHEN buyer_category IN ('direct', 'reseller') THEN buyer_category ELSE 'unknown' END as category, COUNT(*) as transactions, SUM(amount_rials) as rials, COUNT(DISTINCT order_id) as purchases, COUNT(DISTINCT CASE WHEN renewed = 1 THEN order_id END) as renewals, MIN(settled_at) as first_purchase_at, MAX(settled_at) as last_purchase_at")
             ->groupByRaw("CASE WHEN buyer_category IN ('direct', 'reseller') THEN buyer_category ELSE 'unknown' END")
             ->get()->keyBy('category');
         $orders = $this->orders($actorId, $subjectId, $from, $until);
@@ -45,6 +45,10 @@ final readonly class ReadCrmAccountHistory
             'reseller' => (int) ($groups->get('reseller')->rials ?? 0),
             'unknown' => (int) ($groups->get('unknown')->rials ?? 0),
             'transactions' => (int) $groups->sum('transactions'),
+            'purchases' => (int) $groups->sum('purchases'),
+            'renewals' => (int) $groups->sum('renewals'),
+            'firstPurchaseAt' => $groups->isEmpty() ? null : (string) $groups->min('first_purchase_at'),
+            'lastPurchaseAt' => $groups->isEmpty() ? null : (string) $groups->max('last_purchase_at'),
             'orders' => (clone $orders)->count(),
             'pending' => (clone $orders)->where('orders.status', 'pending_payment')->count(),
         ];

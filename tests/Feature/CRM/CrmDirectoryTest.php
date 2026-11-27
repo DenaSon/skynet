@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
+use App\Interfaces\Telegram\Processing\ProcessSalesTelegramUpdate;
+use App\Interfaces\Telegram\Processing\ProcessTelegramUpdate;
 use App\Modules\Identity\Application\ReadCrmDirectory;
+use App\Modules\Identity\Application\ReadCrmInteractions;
 use App\Modules\Identity\Application\ReadCrmProfile;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
@@ -402,5 +405,99 @@ it('keeps directory queries bounded as accounts grow and performs no business wr
     foreach ($after as $query) {
         expect(preg_match('/^\s*(select|with)\b/i', $query['query']))->toBe(1);
     }
+    Http::assertNothingSent();
+});
+
+it('records only verified commercial private Sales Bot interactions without retaining payloads', function (): void {
+    config()->set('telegram.sales.enabled', true);
+    config()->set('telegram.sales.token', '12345678:crm-sales');
+    config()->set('telegram.sales.webhook_secret', 'crm-sales-secret');
+    config()->set('telegram.webhook_secret', 'crm-admin-secret');
+    config()->set('nutgram.token', '87654321:crm-admin');
+    $this->app->instance(ProcessSalesTelegramUpdate::class, new class implements ProcessSalesTelegramUpdate
+    {
+        public function handle(): void {}
+    });
+    $this->app->instance(ProcessTelegramUpdate::class, new class implements ProcessTelegramUpdate
+    {
+        public function handle(): void {}
+    });
+
+    $root = crm01bUser('super-admin');
+    $member = crm01bUser('member');
+    $other = crm01bUser('member');
+    TelegramAccount::query()->create(['user_id' => $member->id, 'telegram_user_id' => 997110]);
+    $headers = ['X-Telegram-Bot-Api-Secret-Token' => 'crm-sales-secret'];
+    $url = '/api/telegram/sales/webhook';
+    $message = ['update_id' => 60201, 'message' => [
+        'from' => ['id' => 997110],
+        'chat' => ['id' => 997110, 'type' => 'private'],
+        'text' => 'PRIVATE-CONTENT',
+    ]];
+
+    $this->postJson($url, $message)->assertForbidden();
+    $this->postJson('/api/telegram/admin/webhook', $message, ['X-Telegram-Bot-Api-Secret-Token' => 'crm-admin-secret'])->assertNoContent();
+    expect(DB::table('sales_bot_interactions')->count())->toBe(0);
+    $reader = app(ReadCrmInteractions::class);
+    expect($reader->handle($root->id, $member->id)['recordedCount'])->toBeNull();
+
+    $this->postJson($url, $message, $headers)->assertNoContent();
+    $this->postJson($url, $message, $headers)->assertNoContent();
+    $first = DB::table('sales_bot_interactions')->first();
+    $this->travel(8)->days();
+    $this->artisan('telegram:prune-updates')->assertSuccessful();
+    $this->postJson($url, $message, $headers)->assertNoContent();
+    expect(DB::table('sales_bot_interactions')->count())->toBe(1)
+        ->and(DB::table('sales_bot_interactions')->value('recorded_at'))->toBe($first->recorded_at);
+
+    $callback = ['update_id' => 60202, 'callback_query' => [
+        'from' => ['id' => 997110],
+        'message' => ['chat' => ['id' => 997110, 'type' => 'private']],
+        'data' => 'PRIVATE-CALLBACK',
+    ]];
+    $this->postJson($url, $callback, $headers)->assertNoContent();
+    $group = $message;
+    $group['update_id'] = 60203;
+    $group['message']['chat']['type'] = 'group';
+    $this->postJson($url, $group, $headers)->assertNoContent();
+    $member->forceFill(['is_active' => false])->save();
+    $message['update_id'] = 60204;
+    $this->postJson($url, $message, $headers)->assertNoContent();
+    expect(DB::table('sales_bot_interactions')->count())->toBe(2)
+        ->and(DB::table('sales_bot_interactions')->orderBy('id')->pluck('kind')->all())->toBe(['message', 'callback']);
+    $data = $reader->handle($root->id, $member->id);
+    expect($data['recordedCount'])->toBe(2)
+        ->and($data['firstObservedAt'])->toBe($first->recorded_at)
+        ->and($reader->handle($root->id, $other->id)['recordedCount'])->toBe(0)
+        ->and($reader->handle($root->id, $other->id)['lastSeenAt'])->toBeNull();
+    expect(fn () => $reader->handle($other->id, $member->id))->toThrow(AuthorizationException::class);
+    expect(json_encode(DB::table('sales_bot_interactions')->get(), JSON_THROW_ON_ERROR))->not->toContain('PRIVATE');
+    Http::assertNothingSent();
+});
+
+it('distinguishes valid purchase orders from settlement transactions and trial requests from activation', function (): void {
+    $root = crm01bUser('super-admin');
+    $member = crm01bUser('member');
+    crm01bOrder($member, 'direct', 100_000);
+    crm01bOrder($member, 'direct', 300_000, 'pending_payment', false);
+    crm01bOrder($member, 'direct', 200_000, 'refunded');
+    DB::table('trial_claims')->insert([
+        'user_id' => $member->id,
+        'telegram_user_id' => 997111,
+        'phone_fingerprint' => hash('sha256', 'crm-trial-fixture'),
+        'state' => 'reserved',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+    $reader = app(ReadCrmProfile::class);
+    $data = $reader->handle($root->id, $member->id, false, crm01cFilters());
+    expect($data['summary']['purchases'])->toBe(1)
+        ->and($data['summary']['renewals'])->toBe(0)
+        ->and($data['summary']['firstPurchaseAt'])->not->toBeNull()
+        ->and($data['summary']['lastPurchaseAt'])->toBe($data['summary']['firstPurchaseAt'])
+        ->and($data['trial']['claimed'])->toBeTrue()
+        ->and($data['trial']['activatedAt'])->toBeNull();
+    DB::table('trial_claims')->where('user_id', $member->id)->update(['activated_at' => now(), 'state' => 'active']);
+    expect($reader->handle($root->id, $member->id, false, crm01cFilters())['trial']['activatedAt'])->not->toBeNull();
     Http::assertNothingSent();
 });
