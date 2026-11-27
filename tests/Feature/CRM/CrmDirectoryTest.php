@@ -7,10 +7,13 @@ use App\Interfaces\Telegram\Processing\ProcessTelegramUpdate;
 use App\Modules\Billing\Application\CreditVerifiedAdminBankTopup;
 use App\Modules\Billing\Application\ReadAdminCashReceipts;
 use App\Modules\Billing\Application\ReadAdminWalletSummary;
+use App\Modules\Billing\Application\ReadWalletDailyAverage;
 use App\Modules\Identity\Application\ReadCrmAnalytics;
 use App\Modules\Identity\Application\ReadCrmDirectory;
 use App\Modules\Identity\Application\ReadCrmInteractions;
 use App\Modules\Identity\Application\ReadCrmProfile;
+use App\Modules\Identity\Application\ReadCrmResellerPerformance;
+use App\Modules\Identity\Application\RecordIdentityAudit;
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Sales\Application\ReadAdminBusinessReport;
@@ -826,5 +829,136 @@ it('renders analytics and resets filters through Livewire while rechecking host 
     $this->postJson('https://example.test'.$update, $payload, ['X-Livewire' => 'true'])->assertNotFound();
     config()->set('super_admin.telegram_ids', ['997102', '997103']);
     $this->postJson('https://crm.denagate.ir'.$update, $payload, ['X-Livewire' => 'true'])->assertForbidden();
+    Http::assertNothingSent();
+});
+
+it('calculates daily wallet balances from opening postings and compensating journals without writes', function (): void {
+    $root = crm01bUser('super-admin');
+    $member = crm01bUser('member');
+    $empty = crm01bUser('member');
+    $negative = crm01bUser('reseller');
+    $absent = crm01bUser('reseller');
+    $opening = Carbon::parse('2026-10-27 23:59:59', 'Asia/Tehran')->utc();
+    $wallet = DB::table('billing_wallets')->insertGetId(['user_id' => $member->id, 'created_at' => $opening, 'updated_at' => $opening]);
+    $negativeWallet = DB::table('billing_wallets')->insertGetId(['user_id' => $negative->id, 'created_at' => $opening, 'updated_at' => $opening]);
+    DB::table('billing_wallets')->insert(['user_id' => $empty->id, 'created_at' => $opening, 'updated_at' => $opening]);
+    $post = static function (int $walletId, string $kind, string $side, int $amount, Carbon $at): void {
+        $journal = DB::table('billing_journals')->insertGetId([
+            'wallet_id' => $walletId, 'kind' => $kind, 'idempotency_key' => bin2hex(random_bytes(16)), 'created_at' => $at,
+        ]);
+        DB::table('billing_postings')->insert([
+            'journal_id' => $journal, 'wallet_id' => $walletId,
+            'account_code' => 'wallet_liability', 'side' => $side, 'amount_rials' => $amount,
+        ]);
+    };
+    $post($wallet, 'topup', 'credit', 900_000, $opening);
+    $post($wallet, 'purchase', 'debit', 300_000, Carbon::parse('2026-10-28 00:00:00', 'Asia/Tehran')->utc());
+    $post($wallet, 'referral_reward', 'credit', 60_000, Carbon::parse('2026-11-25 12:00:00', 'Asia/Tehran')->utc());
+    $post($wallet, 'topup_amount_correction', 'debit', 30_000, Carbon::parse('2026-11-26 12:00:00', 'Asia/Tehran')->utc());
+    $post($wallet, 'topup_reversal', 'debit', 30_000, Carbon::parse('2026-11-26 23:59:59', 'Asia/Tehran')->utc());
+    $post($negativeWallet, 'purchase', 'debit', 30_000, $opening);
+    $reader = app(ReadWalletDailyAverage::class);
+    $cutoff = Carbon::parse('2026-11-27 00:00:00', 'Asia/Tehran');
+    $ids = [$member->id, $empty->id, $negative->id, $absent->id];
+
+    $rows = $reader->handle($root->id, $ids, $cutoff);
+    expect($rows[$member->id]['averageRials'])->toBe(602_000.0)
+        ->and($rows[$member->id]['closingRials'])->toBe(600_000)
+        ->and($rows[$empty->id]['averageRials'])->toBe(0.0)
+        ->and($rows[$negative->id]['averageRials'])->toBe(-30_000.0)
+        ->and($rows)->not->toHaveKey($absent->id);
+    expect($rows[$member->id]['closingRials'])->toBe((int) ReadAdminWalletSummary::walletBalancesQuery()->where('w.user_id', $member->id)->first()->balance_rials);
+    $post($wallet, 'topup', 'credit', 100_000, $cutoff->copy()->utc());
+    DB::enableQueryLog();
+    DB::flushQueryLog();
+    try {
+        expect($reader->handle($root->id, $ids, $cutoff))->toBe($rows);
+        $queries = DB::getQueryLog();
+    } finally {
+        DB::disableQueryLog();
+        DB::flushQueryLog();
+    }
+    foreach ($queries as $query) {
+        expect(preg_match('/^\s*(select|with)\b/i', $query['query']))->toBe(1);
+    }
+    expect(fn () => $reader->handle($member->id, $ids, $cutoff))->toThrow(AuthorizationException::class);
+    Http::assertNothingSent();
+});
+
+it('ranks the same complete commercial cohort across filters and records missing role evidence honestly', function (): void {
+    config()->set('billing.topups_enabled', true);
+    $this->travelTo(Carbon::parse('2026-09-01 10:00:00', 'Asia/Tehran')->utc());
+    $root = crm01bUser('super-admin');
+    $a = crm01bUser('reseller', ['name' => 'Rank A']);
+    $b = crm01bUser('reseller', ['name' => 'Rank B']);
+    $c = crm01bUser('reseller', ['name' => 'Rank C']);
+    $inactive = crm01bUser('reseller');
+    $staff = crm01bUser('reseller');
+    $staff->assignRole('admin');
+    $a->assignRole('member');
+    $audit = app(RecordIdentityAudit::class);
+    foreach ([$a, $b, $c, $inactive, $staff] as $user) {
+        $audit->handle($root, 'identity.roles.assigned', 'user', $user->id, ['before' => ['member'], 'after' => ['reseller']]);
+    }
+    $unknown = crm01bUser('reseller');
+    $recent = crm01bUser('reseller');
+
+    $this->travelTo(Carbon::parse('2026-10-10 10:00:00', 'Asia/Tehran')->utc());
+    crm01bOrder($a, 'reseller', 200_000);
+    $this->travelTo(Carbon::parse('2026-10-27 23:59:59', 'Asia/Tehran')->utc());
+    app(CreditVerifiedAdminBankTopup::class)->handle($root->id, $a->id, 1_000_000, 'CRM-RANK-A', 'Fixture verified credit');
+    app(CreditVerifiedAdminBankTopup::class)->handle($root->id, $b->id, 2_000_000, 'CRM-RANK-B', 'Fixture verified credit');
+
+    $this->travelTo(Carbon::parse('2026-11-15 10:00:00', 'Asia/Tehran')->utc());
+    $audit->handle($root, 'identity.roles.assigned', 'user', $recent->id, ['before' => ['reseller'], 'after' => ['member']]);
+    $audit->handle($root, 'identity.roles.assigned', 'user', $recent->id, ['before' => ['member'], 'after' => ['reseller']]);
+    $audit->handle($root, 'identity.roles.assigned', 'user', $a->id, ['before' => ['reseller'], 'after' => ['reseller', 'member']]);
+    crm01bOrder($a, 'reseller', 200_000);
+    $this->travelTo(Carbon::parse('2026-11-26 23:59:59', 'Asia/Tehran')->utc());
+    crm01bOrder($a, 'reseller', 300_000);
+    crm01bOrder($a, null, 900_000);
+    crm01bOrder($a, 'reseller', 800_000, 'refunded');
+    crm01bOrder($b, 'reseller', 700_000, 'pending_payment', false);
+    $this->travelTo(Carbon::parse('2026-11-27 12:00:00', 'Asia/Tehran')->utc());
+    crm01bOrder($a, 'reseller', 1_000_000);
+    $inactive->forceFill(['is_active' => false])->save();
+
+    $reader = app(ReadCrmResellerPerformance::class);
+    $result = $reader->handle($root->id);
+    $rows = $result['rows'];
+    expect($result['eligibleCount'])->toBe(3)
+        ->and($result['start'])->toBe('2026-10-28')
+        ->and($result['end'])->toBe('2026-11-26')
+        ->and($rows[$a->id]['rank'])->toBe(1)
+        ->and($rows[$a->id]['score'])->toBe(81.0)
+        ->and($rows[$a->id]['tier'])->toBe('gold')
+        ->and($rows[$a->id]['revenueRials'])->toBe(500_000)
+        ->and($rows[$a->id]['purchases'])->toBe(2)
+        ->and($rows[$a->id]['purchaseDays'])->toBe(2)
+        ->and($rows[$a->id]['growthPercent'])->toBe(150.0)
+        ->and($rows[$a->id]['points']['wallet'])->toBe(5.0)
+        ->and($rows[$a->id]['previousRank'])->toBe(1)
+        ->and($rows[$b->id]['score'])->toBe(0.0)
+        ->and($rows[$c->id]['averageWalletRials'])->toBeNull()
+        ->and($rows[$b->id]['rank'])->toBe($rows[$c->id]['rank'])
+        ->and($rows[$inactive->id]['state'])->toBe('inactive')
+        ->and($rows[$unknown->id]['state'])->toBe('unknown')
+        ->and($rows[$recent->id]['state'])->toBe('evaluating')
+        ->and($rows)->not->toHaveKey($staff->id);
+
+    $directory = app(ReadCrmDirectory::class);
+    $ranked = $directory->handle($root->id, 'resellers', crm01bFilters(['sort' => 'performance_rank', 'direction' => 'asc']))['rows'];
+    expect((int) $ranked->items()[0]->id)->toBe($a->id)
+        ->and($ranked->items()[0]->performance['rank'])->toBe(1);
+    $filtered = $directory->handle($root->id, 'resellers', crm01bFilters(['search' => 'Rank B', 'period' => 'today', 'sort' => 'performance_rank']))['rows'];
+    expect($filtered->total())->toBe(1)
+        ->and($filtered->items()[0]->performance['rank'])->toBe($rows[$b->id]['rank']);
+    $profile = app(ReadCrmProfile::class)->handle($root->id, $a->id, true, crm01cFilters(['tab' => 'overview', 'period' => 'today']));
+    expect($profile['performance']['row']['score'])->toBe($rows[$a->id]['score']);
+    $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm/resellers')
+        ->assertOk()->assertSee('رتبه عملکرد');
+    $this->get('https://crm.denagate.ir/admin/crm/resellers/'.$a->id)
+        ->assertOk()->assertSee('میانگین مانده پایان روز کیف پول')->assertSee('طلایی');
+    expect(fn () => $reader->handle($b->id))->toThrow(AuthorizationException::class);
     Http::assertNothingSent();
 });
