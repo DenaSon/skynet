@@ -15,6 +15,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
@@ -52,7 +53,7 @@ final readonly class ReadCrmDirectory
             'reseller' => ['nullable', 'integer', 'min:1'],
             'product' => ['nullable', 'string', 'max:80'],
             'orderStatus' => ['required', Rule::in(['all', 'pending_payment', 'paid', 'fulfilled', 'refunded', 'cancelled'])],
-            'sort' => ['required', Rule::in(['id', 'name', 'created_at', 'is_active', 'transactions', 'revenue_rials', 'phones', 'name_only', 'order_id'])],
+            'sort' => ['required', Rule::in(['id', 'name', 'created_at', 'is_active', 'transactions', 'revenue_rials', 'phones', 'name_only', 'order_id', 'performance_rank'])],
             'direction' => ['required', Rule::in(['asc', 'desc'])],
             'page' => ['required', 'integer', 'min:1', 'max:100000'],
         ])->validate();
@@ -94,6 +95,19 @@ final readonly class ReadCrmDirectory
         return $this->accounts($reseller)
             ->leftJoin('telegram_accounts as telegram', 'telegram.user_id', '=', 'users.id')
             ->addSelect('telegram.telegram_user_id')->where('users.id', $subjectId)->first();
+    }
+
+    /** @return array<string, mixed>|null */
+    public function resellerPerformance(int $actorId): ?array
+    {
+        $this->access->handle($actorId);
+        try {
+            return app(ReadCrmResellerPerformance::class)->handle($actorId);
+        } catch (AuthorizationException|QueryException) {
+            Log::warning('CRM reseller performance unavailable');
+
+            return null;
+        }
     }
 
     /** Authorized shared commercial cohort for CRM aggregate reports. */
@@ -264,8 +278,36 @@ final readonly class ReadCrmDirectory
             $query->selectRaw('DENSE_RANK() OVER (ORDER BY COALESCE(purchases.revenue_rials, 0) DESC) as sales_rank');
         }
 
-        return $query->orderBy($sorts[$filters['sort']] ?? 'accounts.id', $filters['direction'])
-            ->orderBy('accounts.id')->paginate(50, page: (int) $filters['page']);
+        $performance = $resellers ? $this->resellerPerformance($actorId) : null;
+        if ($resellers && $filters['sort'] === 'performance_rank') {
+            $ranks = [];
+            foreach ($performance['rows'] ?? [] as $id => $row) {
+                if ($row['rank'] !== null) {
+                    $ranks[(int) $id] = (int) $row['rank'];
+                }
+            }
+            if ($ranks !== []) {
+                // Both values originate from the authorized server-side cohort,
+                // never the browser. Keep unranked accounts last in either direction.
+                $case = 'CASE accounts.id';
+                foreach ($ranks as $id => $rank) {
+                    $case .= " WHEN $id THEN $rank";
+                }
+                $case .= ' ELSE NULL END';
+                $direction = $filters['direction'] === 'desc' ? 'DESC' : 'ASC';
+                $query->orderByRaw("($case) IS NULL")->orderByRaw("($case) $direction");
+            }
+        } else {
+            $query->orderBy($sorts[$filters['sort']] ?? 'accounts.id', $filters['direction']);
+        }
+        $page = $query->orderBy('accounts.id')->paginate(50, page: (int) $filters['page']);
+        if ($resellers) {
+            foreach ($page->items() as $row) {
+                $row->performance = $performance['rows'][(int) $row->id] ?? null;
+            }
+        }
+
+        return $page;
     }
 
     /** @param array<string, mixed> $filters
