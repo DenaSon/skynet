@@ -14,6 +14,7 @@ use App\Modules\Provisioning\Application\ReplaceAdminNode;
 use Closure;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
@@ -459,7 +460,7 @@ it('reconciles an uncertain legacy-domain Node PATCH with GET only and never ret
     $review = $action->preview($ready['actor']->id, $ready['id']);
 
     expect(fn () => $action->apply($ready['actor']->id, $ready['id'], $review))
-        ->toThrow(RuntimeException::class);
+        ->toThrow(RequestException::class);
     expect($action->progress($ready['actor']->id, $ready['id']))->toMatchArray([
         'stage' => 'applying', 'nodeAddressStage' => 'uncertain',
         'nodeAddress' => $applied ? NW05_NEW_IP : 'fr.coreflare.ir',
