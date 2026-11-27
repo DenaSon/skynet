@@ -408,7 +408,6 @@ it('keeps directory queries bounded as accounts grow and performs no business wr
     Http::assertNothingSent();
 });
 
-
 it('records only verified commercial private Sales Bot interactions without retaining payloads', function (): void {
     config()->set('telegram.sales.enabled', true);
     config()->set('telegram.sales.token', '12345678:crm-sales');
@@ -461,7 +460,7 @@ it('records only verified commercial private Sales Bot interactions without reta
     $group['update_id'] = 60203;
     $group['message']['chat']['type'] = 'group';
     $this->postJson($url, $group, $headers)->assertNoContent();
-    $member->update(['is_active' => false]);
+    $member->forceFill(['is_active' => false])->save();
     $message['update_id'] = 60204;
     $this->postJson($url, $message, $headers)->assertNoContent();
     expect(DB::table('sales_bot_interactions')->count())->toBe(2)

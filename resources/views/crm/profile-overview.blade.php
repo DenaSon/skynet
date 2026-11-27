@@ -1,4 +1,9 @@
-@php($summary = $data['summary'])
+@php
+    $summary = $data['summary'];
+    $interaction = $data['interactions'];
+    $trial = $data['trial'];
+    $date = static fn ($value) => $value === null ? 'نامشخص' : \Illuminate\Support\Carbon::parse($value, 'UTC')->timezone('Asia/Tehran')->format('Y-m-d H:i');
+@endphp
 <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
     <x-stat title="تعداد سفارش‌ها" :value="number_format($summary['orders'])" :description="'در انتظار پرداخت: '.number_format($summary['pending'])" icon="o-shopping-bag" />
     <x-stat title="تراکنش‌های تسویه‌شده" :value="number_format($summary['transactions'])" icon="o-banknotes" />
@@ -22,12 +27,6 @@
     <p class="mt-2 text-sm text-base-content/60">خرید نماینده نزد دناگیت معادل سود یا فروش خرده‌فروشی او نیست. شماره یکتا نیز لزوماً به معنی شخص یکتا نیست.</p>
 @endif
 
-
-@php
-    $interaction = $data['interactions'];
-    $trial = $data['trial'];
-    $date = static fn ($value) => $value === null ? 'نامشخص' : \Illuminate\Support\Carbon::parse($value, 'UTC')->timezone('Asia/Tehran')->format('Y-m-d H:i');
-@endphp
 <div class="mt-6 border-t border-base-300 pt-5">
     <x-header title="رفتار و سابقه مشتری" subtitle="اطلاعات ثبت‌شده؛ نه میزان استفاده از سرویس" />
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
