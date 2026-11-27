@@ -15,7 +15,7 @@ DenaGate's normal Remnawave Node and Host endpoints are **predefined Cloudflare-
 - Reuse owning modules' Application Actions and canonical settlement rules. Keep queries, financial rules and authorization out of Livewire/Blade.
 - The CRM host is `crm.denagate.ir`; root-only access uses the existing web login and `SuperAdminTrust`. CRM HTTPS/session policy is host-scoped and uses a dedicated host-only session cookie; do not change global `APP_URL` or proxy trust.
 - Mary UI is integrated manually with independent `crm.css` and `crm.js` assets. Never run `php artisan mary:install`: it can overwrite `routes/web.php`, reinstall existing dependencies and modify shared `resources/css/app.css`.
-- The first foundation is implemented in PR #584; PHP 8.4 CI, PHPStan, Pint, MySQL and Vite checks are green, while PHP 8.5 was skipped. Do not merge/deploy until review and the remaining acceptance checks are complete.
+- CRM-01A source review and full PHP 8.4/8.5 CI passed in PR #584 (run 45993151960). The CRM shell also rechecks trusted access and the current host on Livewire hydration. Future CRM presenters must preserve this boundary and authorize every data Action. Real deployment and browser acceptance are separate gates.
 
 ## Product delivery strategy — normative for DenaGate (2026-11-12)
 
@@ -133,7 +133,7 @@ Read [docs/017-TELEGRAM-UX-IDENTITY.md](docs/017-TELEGRAM-UX-IDENTITY.md) BEFORE
 - Telegram handlers live in `app/Interfaces/Telegram` and may call approved Identity/Application actions; never import Identity/Infrastructure models or bypass role checks.
 - Only the documented webhook route can run Nutgram in HTTP; verify its independent secret before processing any update.
 - Private Telegram ID and single-use link tokens are the only approved identity join in F4.
-- Livewire 4 + Mary UI for the root-only read-only Admin CRM is specified under [CRM-01](docs/051-CRM-01.md); CRM-01A foundation is implemented on an unmerged PR branch. Reseller accounts and their downstream customer records are visible to Super Admin only; the reseller Mini App stays isolated and unchanged. Public REST APIs remain deferred.
+- Livewire 4 + Mary UI for the root-only read-only Admin CRM is specified under [CRM-01](docs/051-CRM-01.md); CRM-01A foundation is implemented and source-validated in PR #584. Reseller accounts and their downstream customer records are visible to Super Admin only; the reseller Mini App stays isolated and unchanged. Public REST APIs remain deferred.
 - See ADR 0004 and `docs/006-TELEGRAM-OPERATIONS.md` before Telegram changes.
 
 ## Fixed boundaries

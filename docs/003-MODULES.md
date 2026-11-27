@@ -13,7 +13,7 @@ This section reflects the modules present in the current `master` baseline. Date
 | `Administration` | Planned Admin UI composition and read-model orchestration; no ownership of other modules' domain data |
 | `Interfaces/Telegram` | Admin/Sales Bot transports, UI, contact/notification delivery |
 | `Interfaces/Web/Live` | Existing reseller Mini App presentation using shared Application actions |
-| `Interfaces/Web/CRM` (planned) | Trusted-root read-only Admin CRM presenter for direct customers, reseller accounts and reseller-linked customer records; Super Admin only | CRM-01A foundation implemented on an unmerged PR branch |
+| `Interfaces/Web/CRM` | Trusted-root read-only Admin CRM presenter; CRM-01A shell source-validated; direct customer and reseller data remain planned |
 
 ## Current dependency policy
 
@@ -49,7 +49,7 @@ Trial owns one-time HMAC identity claims, SQL daily reservation quota and guarde
 | Provisioning | Remnawave transport, node/user DTOs and durable provider operation state | F10-A/B/C/D implemented internally; no actor-authorized sales integration or live panel E2E |
 | Administration | Future admin UI composition | Registered shell only |
 | Telegram (interface) | Private chatbot navigation and feature presenters | Identity/RBAC/onboarding/wallet/shop/orders/subscriptions; F11-A2 receipt-photo + Super Admin approve/reject UX (OFF by default) |
-| `Interfaces/Web/CRM` (planned) | Trusted-root read-only Admin CRM Livewire presentation | CRM-01/01A documented; Super Admin sees direct customers, resellers and reseller customer records; implementation not started |
+| `Interfaces/Web/CRM` (planned) | Trusted-root read-only Admin CRM Livewire presentation | CRM-01A shell source-validated; direct customer and reseller reads remain planned |
 
 ## Identity layout
 ```text
