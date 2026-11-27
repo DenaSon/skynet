@@ -1,9 +1,9 @@
 <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
     <x-card class="border border-base-300"><x-stat title="مشتریان مستقیم" :value="number_format($data['customers'])" description="ثبت‌نام در بازه" icon="o-users" /></x-card>
     <x-card class="border border-base-300"><x-stat title="نمایندگان" :value="number_format($data['resellers'])" description="ثبت‌نام در بازه" icon="o-user-group" /></x-card>
-    <x-card class="border border-base-300"><x-stat title="حساب‌های فعال" :value="number_format($data['active'])" :description="'غیرفعال: '.number_format($data['inactive'])" icon="o-check-circle" /></x-card>
-    <x-card class="border border-base-300"><x-stat title="خرید تسویه‌شده" :value="$money($data['totalRials'])" icon="o-banknotes" /></x-card>
-    <x-card class="border border-base-300"><x-stat title="شماره‌های تماس یکتا" :value="number_format($data['phones'])"  :description="'دارای خرید: '.number_format($data['purchasedPhones'])" icon="o-phone" /></x-card>
+    <x-card class="border border-base-300"><x-stat title="حساب‌های فعال ثبت‌نام‌شده در بازه" :value="number_format($data['active'])" :description="'غیرفعال: '.number_format($data['inactive'])" icon="o-check-circle" /></x-card>
+    <x-card class="border border-base-300"><x-stat title="کل خرید تسویه‌شده" :value="$money($data['totalRials'])" icon="o-banknotes" /></x-card>
+    <x-card class="border border-base-300"><x-stat title="شماره‌های تماس یکتا" :value="number_format($data['phones'])" :description="'دارای خرید: '.number_format($data['purchasedPhones'])" icon="o-phone" /></x-card>
     <x-card class="border border-base-300"><x-stat title="نام‌های بدون شماره" :value="number_format($data['nameOnly'])"  :description="'دارای خرید: '.number_format($data['purchasedNameOnly'])" icon="o-identification" /></x-card>
 </div>
 <p class="text-xs text-base-content/60">شماره‌ها در محدوده هر نماینده یکتا هستند؛ نام‌های بدون شماره هویت یکتای قطعی ندارند.</p>
