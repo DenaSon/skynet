@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use App\Interfaces\Telegram\Processing\ProcessSalesTelegramUpdate;
 use App\Interfaces\Telegram\Processing\ProcessTelegramUpdate;
-use App\Interfaces\Web\CRM\Profile;
 use App\Modules\Billing\Application\BrowseCustomerWallets;
 use App\Modules\Billing\Application\CreditVerifiedAdminBankTopup;
 use App\Modules\Billing\Application\ReadAdminCashReceipts;
