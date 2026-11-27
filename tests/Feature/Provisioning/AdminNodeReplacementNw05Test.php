@@ -859,6 +859,8 @@ it('does not send a duplicate native page after an ambiguous Rich transport fail
     nw05ReplacementApi();
 
     $bot = Mockery::mock(Nutgram::class);
+    $bot->shouldReceive('chat')->andReturn(Chat::make(985501, ChatType::PRIVATE));
+    $bot->shouldReceive('user')->andReturn(TelegramUser::make(985501, false, 'Operator'));
     $bot->shouldReceive('isCallbackQuery')->andReturn(false);
     $bot->shouldReceive('sendRichMessage')->once()->andThrow(
         new TelegramException('Internal Server Error: temporary Telegram failure', 500),
