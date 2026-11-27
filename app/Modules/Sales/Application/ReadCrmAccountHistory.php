@@ -92,7 +92,7 @@ final readonly class ReadCrmAccountHistory
             });
         }
 
-        return $query->orderByDesc('orders.id')->paginate(25, page: $page);
+        return $query->orderByDesc('orders.id')->paginate(50, page: $page);
     }
 
     /** @return LengthAwarePaginator<int, \stdClass> */
@@ -101,6 +101,6 @@ final readonly class ReadCrmAccountHistory
         return $this->settlements($actorId, $subjectId, $from, $until)
             ->select('order_id as id', 'order_id', 'buyer_category', 'order_status', 'amount_rials', 'settled_at', 'payment_method', 'renewed')
             ->orderByDesc('settled_at')->orderByDesc('order_id')->orderBy('payment_method')
-            ->paginate(25, page: $page);
+            ->paginate(50, page: $page);
     }
 }
