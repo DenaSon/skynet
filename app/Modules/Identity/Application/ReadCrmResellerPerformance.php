@@ -65,6 +65,11 @@ final readonly class ReadCrmResellerPerformance
             foreach ($accounts as $account) {
                 $id = (int) $account->id;
                 $since = $starts[$id] ?? null;
+                // Future or pre-account role evidence cannot establish tenure.
+                if ($since !== null && (Carbon::parse($since, 'UTC')->greaterThan(Carbon::now('UTC'))
+                    || Carbon::parse($since, 'UTC')->lessThan(Carbon::parse((string) $account->created_at, 'UTC')))) {
+                    $since = null;
+                }
                 $state = match (true) {
                     ! $account->is_active => 'inactive',
                     $since === null => 'unknown',
