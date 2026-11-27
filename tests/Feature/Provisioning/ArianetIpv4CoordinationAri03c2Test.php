@@ -236,6 +236,7 @@ it('coordinates DNS then the Node management IP and requires real client accepta
     $api = ari8Provider();
     $service = app(CoordinateAdminArianetIpv4::class);
 
+    $service->prepare($root['user']->id, ARI8_SERVER);
     $service->continueDns($root['user']->id, ARI8_SERVER);
     $status = $service->status($root['user']->id, ARI8_SERVER);
     expect($status['stage'])->toBe('awaiting_client_test')
@@ -322,6 +323,7 @@ it('preserves a domain-matched unassigned Host while moving DNS and the Node IP'
     $api = ari8Provider(legacy: true);
     $service = app(CoordinateAdminArianetIpv4::class);
 
+    $service->prepare($root['user']->id, ARI8_SERVER);
     $service->continueDns($root['user']->id, ARI8_SERVER);
     $status = $service->status($root['user']->id, ARI8_SERVER);
     expect($status['stage'])->toBe('awaiting_client_test')
@@ -382,7 +384,8 @@ it('permits confirmed DNS and Node continuation in Production with both write ga
     try {
         $service = app(CoordinateAdminArianetIpv4::class);
         expect($service->enabled())->toBeTrue();
-        $service->continueDns($root['user']->id, ARI8_SERVER);
+        $service->prepare($root['user']->id, ARI8_SERVER);
+    $service->continueDns($root['user']->id, ARI8_SERVER);
         expect($service->status($root['user']->id, ARI8_SERVER)['stage'])->toBe('awaiting_client_test');
     } finally {
         app()->detectEnvironment(static fn (): string => 'testing');
@@ -396,6 +399,7 @@ it('does not repeat uncertain Node writes and reconciles only after GET proves t
     $api->nodeWriteApplied = $applied;
     $service = app(CoordinateAdminArianetIpv4::class);
     $actor = $root['user']->id;
+    $service->prepare($root['user']->id, ARI8_SERVER);
     expect(fn () => $service->continueDns($actor, ARI8_SERVER))->toThrow(RuntimeException::class, 'reconciliation');
     expect($service->status($actor, ARI8_SERVER)['steps'][1]['state'])->toBe('uncertain')
         ->and($api->mutations)->toBe(['dns:fr.coreflare.ir', 'node:'.ARI8_NODE]);
@@ -429,11 +433,21 @@ it('preserves already journaled version-one operations without appending a new N
         ->and($api->node['address'])->toBe('fr.coreflare.ir');
 });
 
+it('requires a reviewed plan before any provider mutation', function (): void {
+    $root = ari8Ready();
+    $api = ari8Provider();
+    $service = app(CoordinateAdminArianetIpv4::class);
+    expect(fn () => $service->continueDns($root['user']->id, ARI8_SERVER))
+        ->toThrow(RuntimeException::class, 'Prepare and review');
+    expect($api->mutations)->toBe([])
+        ->and(DB::table('arianet_cloud_ipv4_changes')->value('coordination_state'))->toBeNull();
+});
+
 it('blocks new coordination without Remnawave writes enabled', function (): void {
     $root = ari8Ready();
     $api = ari8Provider();
     config()->set('services.remnawave.writes_enabled', false);
-    expect(fn () => app(CoordinateAdminArianetIpv4::class)->continueDns($root['user']->id, ARI8_SERVER))
+    expect(fn () => app(CoordinateAdminArianetIpv4::class)->prepare($root['user']->id, ARI8_SERVER))
         ->toThrow(RuntimeException::class);
     expect($api->mutations)->toBe([])
         ->and(DB::table('arianet_cloud_ipv4_changes')->value('coordination_state'))->toBeNull();
@@ -513,9 +527,9 @@ it('shows a single DNS continuation action in private Rich RTL status', function
 it('denies root-only staged operations in group chats and to non-trusted users', function (): void {
     ari8Ready(false);
     Http::fake();
-    ari8Bot()->hearCallbackQueryData('ari7:continue:'.ARI8_SERVER.':1')->reply()
+    ari8Bot()->hearCallbackQueryData('ari7:plan:'.ARI8_SERVER.':1')->reply()
         ->assertReply('answerCallbackQuery', ['text' => 'دسترسی مجاز نیست.']);
-    ari8Bot(private: false)->hearCallbackQueryData('ari7:continue:'.ARI8_SERVER.':1')->reply();
+    ari8Bot(private: false)->hearCallbackQueryData('ari7:plan:'.ARI8_SERVER.':1')->reply();
     Http::assertNothingSent();
 });
 
@@ -528,7 +542,7 @@ it('keeps DNS continuation visible on Production only for an active changed IP',
             ->assertRaw(static function (NutgramRequest $request): bool {
                 $buttons = json_encode(ari8Payload($request)['reply_markup'] ?? [], JSON_THROW_ON_ERROR);
 
-                return str_contains($buttons, 'ari7:continue:'.ARI8_SERVER.':1')
+                return str_contains($buttons, 'ari7:plan:'.ARI8_SERVER.':1')
                     && ! str_contains($buttons, 'ari7:step:')
                     && str_contains($buttons, 'ari6:impact:'.ARI8_SERVER.':1');
             }, index: 1);
