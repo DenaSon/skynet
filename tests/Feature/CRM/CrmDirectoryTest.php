@@ -164,13 +164,21 @@ it('requires a freshly trusted root for every CRM read and every page', function
 
 it('applies bounded server-side search and pagination to direct accounts', function (): void {
     $root = crm01bUser('super-admin');
-    foreach (range(1, 26) as $index) {
+    foreach (range(1, 51) as $index) {
         crm01bUser('member', ['name' => 'Fixture '.$index]);
     }
     crm01bUser('member', ['name' => 'Different', 'is_active' => false]);
     $reader = app(ReadCrmDirectory::class);
-    $page = $reader->handle($root->id, 'customers', crm01bFilters(['search' => 'Fixture', 'status' => 'active', 'sort' => 'id', 'page' => 2]))['rows'];
-    expect($page->total())->toBe(26)->and($page->count())->toBe(1);
+    $filters = crm01bFilters(['search' => 'Fixture', 'status' => 'active', 'sort' => 'id']);
+    $first = $reader->handle($root->id, 'customers', $filters)['rows'];
+    $second = $reader->handle($root->id, 'customers', [...$filters, 'page' => 2])['rows'];
+    expect($first->total())->toBe(51)
+        ->and($first->perPage())->toBe(50)
+        ->and($first->count())->toBe(50)
+        ->and($first->lastPage())->toBe(2)
+        ->and($second->count())->toBe(1)
+        ->and(collect($first->items())->pluck('id')->intersect(collect($second->items())->pluck('id'))->isEmpty())->toBeTrue();
+    expect($reader->handle($root->id, 'customers', [...$filters, 'search' => 'No matching account'])['rows']->total())->toBe(0);
     expect(fn () => $reader->handle($root->id, 'customers', crm01bFilters(['sort' => 'invalid'])))
         ->toThrow(ValidationException::class);
 });
@@ -393,13 +401,13 @@ it('keeps directory queries bounded as accounts grow and performs no business wr
         }
     };
     [$small, $before] = $measure();
-    foreach (range(1, 30) as $index) {
+    foreach (range(1, 60) as $index) {
         crm01bUser('member', ['name' => 'Growth '.$index]);
     }
     [$large, $after] = $measure();
     expect($small->total())->toBe(1)
-        ->and($large->total())->toBe(31)
-        ->and($large->count())->toBe(25)
+        ->and($large->total())->toBe(61)
+        ->and($large->count())->toBe(50)
         ->and(count($after))->toBeLessThanOrEqual(count($before) + 2)
         ->and(count($after))->toBeLessThan(25);
     foreach ($after as $query) {
@@ -541,5 +549,56 @@ it('charts only the selected recent Tehran days using canonical settlements and 
     expect($data['trend'])->toBe([['date' => '2026-11-27', 'revenueRials' => 300_000, 'registrations' => 2]])
         ->and($data['totalRials'])->toBe(300_000);
     expect($reader->handle($root->id, 'dashboard', crm01bFilters())['trend'])->toHaveCount(7);
+    Http::assertNothingSent();
+});
+
+it('paginates reseller accounts and all CRM contact and profile tables at fifty rows', function (): void {
+    $root = crm01bUser('super-admin');
+    $reseller = crm01bUser('reseller');
+    foreach (range(1, 50) as $index) {
+        crm01bUser('reseller', ['name' => 'Reseller '.$index]);
+    }
+    foreach (range(1, 51) as $index) {
+        $order = crm01bOrder($reseller, 'reseller', 100_000);
+        DB::table('sales_service_customer_labels')->insert([
+            'sales_order_id' => $order,
+            'phone' => null,
+            'label' => 'Customer '.$index,
+        ]);
+        $subscription = DB::table('provisioning_subscriptions')->insertGetId([
+            'reference' => 'crm-page-'.$order,
+            'remote_username' => 'crm-page-'.$order,
+            'state' => 'active',
+            'last_operation_key' => 'crm-page-'.$order,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('provisioning_order_links')->insert([
+            'sales_order_id' => $order,
+            'provisioning_subscription_id' => $subscription,
+        ]);
+    }
+
+    $directory = app(ReadCrmDirectory::class);
+    $profile = app(ReadCrmProfile::class);
+    $assertPages = static function (callable $read): void {
+        $first = $read(1);
+        $second = $read(2);
+        expect($first->perPage())->toBe(50)
+            ->and($first->total())->toBe(51)
+            ->and($first->lastPage())->toBe(2)
+            ->and($first->count())->toBe(50)
+            ->and($second->count())->toBe(1)
+            ->and(collect($first->items())->pluck('id')->intersect(collect($second->items())->pluck('id'))->isEmpty())->toBeTrue();
+    };
+
+    $assertPages(fn (int $page) => $directory->handle($root->id, 'resellers', crm01bFilters(['page' => $page]))['rows']);
+    foreach ([false, true] as $grouped) {
+        $assertPages(fn (int $page) => $directory->handle($root->id, 'contacts', crm01bFilters(['groupContacts' => $grouped, 'page' => $page]))['rows']);
+        $assertPages(fn (int $page) => $profile->handle($root->id, $reseller->id, true, crm01cFilters(['tab' => 'contacts', 'groupContacts' => $grouped, 'page' => $page]))['rows']);
+    }
+    foreach (['orders', 'payments', 'services'] as $tab) {
+        $assertPages(fn (int $page) => $profile->handle($root->id, $reseller->id, true, crm01cFilters(['tab' => $tab, 'page' => $page]))['rows']);
+    }
     Http::assertNothingSent();
 });
