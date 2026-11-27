@@ -1,12 +1,10 @@
+@include('crm.financial-overview')
+<h2 class="text-base font-semibold text-dg-navy">وضعیت مشتریان و نمایندگان</h2>
 <div class="crm-metric-grid grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
     <x-card class="border border-base-300 crm-tone-blue"><x-stat title="مشتریان مستقیم" :value="\App\Support\PersianCalendar::number(number_format($data['customers']))" description="ثبت‌نام در بازه" icon="o-users" /></x-card>
     <x-card class="border border-base-300 crm-tone-violet"><x-stat title="نمایندگان" :value="\App\Support\PersianCalendar::number(number_format($data['resellers']))" description="ثبت‌نام در بازه" icon="o-user-group" /></x-card>
     <x-card class="border border-base-300 crm-tone-green"><x-stat title="حساب‌های فعال ثبت‌نام‌شده در بازه" :value="\App\Support\PersianCalendar::number(number_format($data['active']))" :description="'غیرفعال: '.\App\Support\PersianCalendar::number(number_format($data['inactive']))" icon="o-check-circle" /></x-card>
-    <x-card class="border border-base-300 crm-tone-green"><x-stat title="کل خرید تسویه‌شده" :value="$money($data['totalRials'])" icon="o-banknotes" /></x-card>
-    <x-card class="border border-base-300 crm-tone-blue"><x-stat title="شماره‌های تماس یکتا" :value="\App\Support\PersianCalendar::number(number_format($data['phones']))" :description="'دارای خرید: '.\App\Support\PersianCalendar::number(number_format($data['purchasedPhones']))" icon="o-phone" /></x-card>
-    <x-card class="border border-base-300 crm-tone-amber"><x-stat title="نام‌های بدون شماره" :value="\App\Support\PersianCalendar::number(number_format($data['nameOnly']))"  :description="'دارای خرید: '.\App\Support\PersianCalendar::number(number_format($data['purchasedNameOnly']))" icon="o-identification" /></x-card>
 </div>
-<p class="text-xs text-base-content/60">شماره‌ها در محدوده هر نماینده یکتا هستند؛ نام‌های بدون شماره هویت یکتای قطعی ندارند.</p>
 <x-card title="تفکیک خریدهای تسویه‌شده" class="border border-base-300">
     <div class="crm-metric-grid grid gap-3 md:grid-cols-3">
         @foreach (['direct' => 'کانال مستقیم', 'reseller' => 'کانال نمایندگی', 'unknown' => 'کانال تاریخی نامشخص'] as $key => $name)
@@ -34,5 +32,12 @@
     @if ($data['top']->isEmpty())
         <p class="py-4 text-sm text-base-content/60">در این بازه خرید تسویه‌شده‌ای برای رتبه‌بندی وجود ندارد.</p>
     @endif
+</x-card>
+<x-card title="اطلاعات مشتریان نمایندگان" class="border border-base-300">
+    <div class="crm-metric-grid grid gap-3 sm:grid-cols-2">
+    <x-stat title="شماره‌های تماس یکتا" :value="\App\Support\PersianCalendar::number(number_format($data['phones']))" :description="'دارای خرید: '.\App\Support\PersianCalendar::number(number_format($data['purchasedPhones']))" icon="o-phone" />
+    <x-stat title="نام‌های بدون شماره" :value="\App\Support\PersianCalendar::number(number_format($data['nameOnly']))"  :description="'دارای خرید: '.\App\Support\PersianCalendar::number(number_format($data['purchasedNameOnly']))" icon="o-identification" />
+    </div>
+    <p class="mt-3 text-xs text-base-content/60">شماره‌ها در محدوده هر نماینده یکتا هستند؛ نام‌های بدون شماره هویت یکتای قطعی ندارند.</p>
 </x-card>
 <p class="text-xs text-base-content/60">زمان محاسبه به وقت تهران: <bdi dir="ltr">{{ \App\Support\PersianCalendar::localDateTime($data['generatedAt']) }}</bdi></p>

@@ -56,6 +56,56 @@ final readonly class ReadAdminCashReceipts
             default => $today->copy()->addDay()->utc(),
         };
 
+        $incoming = $this->incomingTotals($from, $until);
+
+        // Wallet order settlement is sales activity, not another deposit.
+        $wallet = DB::table('sales_order_settlements as payment')
+            ->join('sales_orders as orders', 'orders.id', '=', 'payment.sales_order_id')
+            ->where('orders.status', '!=', 'refunded')
+            ->whereIn('payment.method', ['wallet', 'customer_wallet', 'reseller_wallet'])
+            ->where('payment.settled_at', '<', $until);
+        if ($from !== null) {
+            $wallet->where('payment.settled_at', '>=', $from);
+        }
+        $walletTotals = $wallet->selectRaw('COUNT(*) as receipts_count, COALESCE(SUM(payment.amount_rials), 0) as amount_rials')->first();
+
+        $walletRials = (int) ($walletTotals->amount_rials ?? 0);
+
+        return [
+            'period' => $period,
+            'start' => $start?->format('Y-m-d'),
+            'end' => $period === 'yesterday_same_time'
+                ? $start->format('Y-m-d') : $today->format('Y-m-d'),
+            ...$incoming,
+            'walletSalesRials' => $walletRials,
+            'walletSalesCount' => (int) ($walletTotals->receipts_count ?? 0),
+            'salesRials' => $incoming['bankSalesRials'] + $walletRials,
+            // Current snapshot; intentionally not restricted to the period.
+            'currentWalletBalanceRials' => $knownWalletBalanceRials ?? $this->wallets->handle($actorId)['balanceRials'],
+            'generatedAt' => Carbon::now('Asia/Tehran')->format('Y-m-d H:i'),
+        ];
+    }
+
+    /**
+     * Verified recorded bank inflows for the caller's exact half-open UTC window.
+     * The legacy cash report keeps its original period and cutoff semantics.
+     *
+     * @return array{topupsRials:int,topupsCount:int,customerTopupsRials:int,customerTopupsCount:int,adminTopupsRials:int,adminTopupsCount:int,bankSalesRials:int,bankSalesCount:int,cashInRials:int}
+     */
+    public function incomingTotalsBetween(int $actorId, Carbon $from, Carbon $until): array
+    {
+        $this->access->reviewer($actorId);
+        $this->access->financeViewer($actorId);
+        if ($until->lessThanOrEqualTo($from)) {
+            throw ValidationException::withMessages(['period' => 'Invalid cash report interval.']);
+        }
+
+        return $this->incomingTotals($from, $until);
+    }
+
+    /** @return array{topupsRials:int,topupsCount:int,customerTopupsRials:int,customerTopupsCount:int,adminTopupsRials:int,adminTopupsCount:int,bankSalesRials:int,bankSalesCount:int,cashInRials:int} */
+    private function incomingTotals(?Carbon $from, Carbon $until): array
+    {
         // The unique verified receipt is the final accepted bank proof for
         // each approved top-up. Pending/rejected requests and wallet spending
         // never count again as bank inflows.
@@ -85,28 +135,12 @@ final readonly class ReadAdminCashReceipts
         }
         $bankTotals = $bank->selectRaw('COUNT(*) as receipts_count, COALESCE(SUM(amount_rials), 0) as amount_rials')->first();
 
-        // Wallet order settlement is sales activity, not another deposit.
-        $wallet = DB::table('sales_order_settlements as payment')
-            ->join('sales_orders as orders', 'orders.id', '=', 'payment.sales_order_id')
-            ->where('orders.status', '!=', 'refunded')
-            ->whereIn('payment.method', ['wallet', 'customer_wallet', 'reseller_wallet'])
-            ->where('payment.settled_at', '<', $until);
-        if ($from !== null) {
-            $wallet->where('payment.settled_at', '>=', $from);
-        }
-        $walletTotals = $wallet->selectRaw('COUNT(*) as receipts_count, COALESCE(SUM(payment.amount_rials), 0) as amount_rials')->first();
-
         $topupRials = (int) ($topupTotals->amount_rials ?? 0);
         $adminTopupRials = (int) ($topupTotals->admin_amount_rials ?? 0);
         $adminTopupCount = (int) ($topupTotals->admin_count ?? 0);
         $bankRials = (int) ($bankTotals->amount_rials ?? 0);
-        $walletRials = (int) ($walletTotals->amount_rials ?? 0);
 
         return [
-            'period' => $period,
-            'start' => $start?->format('Y-m-d'),
-            'end' => $period === 'yesterday_same_time'
-                ? $start->format('Y-m-d') : $today->format('Y-m-d'),
             'topupsRials' => $topupRials,
             'topupsCount' => (int) ($topupTotals->receipts_count ?? 0),
             'customerTopupsRials' => $topupRials - $adminTopupRials,
@@ -116,12 +150,6 @@ final readonly class ReadAdminCashReceipts
             'bankSalesRials' => $bankRials,
             'bankSalesCount' => (int) ($bankTotals->receipts_count ?? 0),
             'cashInRials' => $topupRials + $bankRials,
-            'walletSalesRials' => $walletRials,
-            'walletSalesCount' => (int) ($walletTotals->receipts_count ?? 0),
-            'salesRials' => $bankRials + $walletRials,
-            // Current snapshot; intentionally not restricted to the period.
-            'currentWalletBalanceRials' => $knownWalletBalanceRials ?? $this->wallets->handle($actorId)['balanceRials'],
-            'generatedAt' => Carbon::now('Asia/Tehran')->format('Y-m-d H:i'),
         ];
     }
 }

@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace App\Modules\Identity\Application;
 
+use App\Modules\Billing\Application\ReadAdminCashReceipts;
+use App\Modules\Billing\Application\ReadAdminWalletSummary;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Sales\Application\ReadAdminBusinessReport;
 use App\Modules\Sales\Application\ReadCrmSales;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Database\QueryException;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -21,6 +25,8 @@ final readonly class ReadCrmDirectory
         private AssertCatalogManagementAccess $access,
         private ReadCrmSales $sales,
         private ReadAdminBusinessReport $business,
+        private ReadAdminCashReceipts $cashReceipts,
+        private ReadAdminWalletSummary $wallets,
     ) {}
 
     /**
@@ -125,7 +131,23 @@ final readonly class ReadCrmDirectory
             ->selectRaw('COALESCE(SUM(counts.phones), 0) as phones, COALESCE(SUM(counts.name_only), 0) as name_only, COALESCE(SUM(counts.purchased_phones), 0) as purchased_phones, COALESCE(SUM(counts.purchased_name_only), 0) as purchased_name_only')->first();
         $channels = $this->business->settledChannelBreakdownBetween($actorId, $from, $until)['channels'];
 
+        // The two financial reads are independently authorized and may fail independently.
+        $cash = null;
+        $wallets = null;
+        try {
+            $cash = $this->cashReceipts->incomingTotalsBetween($actorId, $from, $until);
+        } catch (AuthorizationException|QueryException) {
+            // Unknown is not a recorded zero.
+        }
+        try {
+            $wallets = $this->wallets->handle($actorId);
+        } catch (AuthorizationException|QueryException) {
+            // Preserve the rest of the dashboard if this financial read fails.
+        }
+
         return [
+            'cash' => $cash,
+            'wallets' => $wallets,
             'customers' => (clone $direct)->count(),
             'resellers' => (clone $resellers)->count(),
             'active' => (clone $direct)->where('users.is_active', true)->count() + (clone $resellers)->where('users.is_active', true)->count(),
