@@ -78,6 +78,25 @@
                 <div wire:loading.delay class="mt-3 text-sm text-base-content/60" role="status">در حال دریافت اطلاعات...</div>
             </x-card>
 
+            @if (in_array($section, ['customers', 'resellers', 'contacts'], true))
+                <x-card class="border border-base-300">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <h2 class="text-sm font-semibold text-dg-navy">خروجی نتایج فیلترشده</h2>
+                            <p class="mt-1 text-xs text-base-content/70">تمام نتایج تا ۲٬۰۰۰ ردیف؛ شماره تماس و نام مشتریان نمایندگان در فایل قرار نمی‌گیرد.</p>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            @foreach (['csv' => 'CSV', 'json' => 'JSON', 'md' => 'Markdown'] as $format => $label)
+                                <x-button :label="$label" icon="o-arrow-down-tray" wire:click="exportDirectory('{{ $format }}')" wire:loading.attr="disabled" :disabled="$data === null" class="btn-outline btn-sm" />
+                            @endforeach
+                        </div>
+                    </div>
+                    @error('export')
+                        <p class="mt-2 text-sm text-error" role="alert">{{ $message }}</p>
+                    @enderror
+                </x-card>
+            @endif
+
             @if ($data === null)
                 <x-alert icon="o-exclamation-triangle" class="alert-warning">{{ ($readFailed ?? false) ? 'دریافت اطلاعات ممکن نشد؛ دوباره تلاش کنید.' : 'بازه زمانی یا فیلتر انتخاب‌شده معتبر نیست.' }}</x-alert>
             @elseif ($section === 'dashboard')
