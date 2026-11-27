@@ -60,6 +60,48 @@ function nw02Fixture(): array
     ];
 }
 
+/** @param callable(string):mixed $callback */
+function nw02WithFakeSsh(string $output, callable $callback): mixed
+{
+    $directory = sys_get_temp_dir().'/nw02-fake-ssh-'.bin2hex(random_bytes(6));
+    if (! mkdir($directory, 0700, true)) {
+        throw new RuntimeException('Could not create fake SSH directory.');
+    }
+    $capture = $directory.'/stdin';
+    $binary = $directory.'/ssh';
+    $script = "#!/bin/sh\n/bin/cat > ".escapeshellarg($capture)."\nprintf '%s\\n' ".escapeshellarg($output)."\n";
+    if (file_put_contents($binary, $script) === false || ! chmod($binary, 0700)) {
+        throw new RuntimeException('Could not create fake SSH executable.');
+    }
+
+    $originalPath = getenv('PATH') ?: '/usr/bin:/bin';
+    $serverPath = $_SERVER['PATH'] ?? null;
+    $envPath = $_ENV['PATH'] ?? null;
+    $path = $directory.PATH_SEPARATOR.$originalPath;
+    putenv('PATH='.$path);
+    $_SERVER['PATH'] = $path;
+    $_ENV['PATH'] = $path;
+
+    try {
+        return $callback($capture);
+    } finally {
+        putenv('PATH='.$originalPath);
+        if ($serverPath === null) {
+            unset($_SERVER['PATH']);
+        } else {
+            $_SERVER['PATH'] = $serverPath;
+        }
+        if ($envPath === null) {
+            unset($_ENV['PATH']);
+        } else {
+            $_ENV['PATH'] = $envPath;
+        }
+        @unlink($capture);
+        @unlink($binary);
+        @rmdir($directory);
+    }
+}
+
 it('NW-02 pins future installations to the approved Remnawave Node image', function (): void {
     $source = file_get_contents(base_path('app/Modules/Provisioning/Infrastructure/NodeSetup/NodeSshInstaller.php'));
 
@@ -516,6 +558,41 @@ it('NW-SSH-KEY-02 launches only one key-mode job and keeps the remote identifier
     app()->instance(NodeSshInstaller::class, $statusFake);
     expect(app(ManageNodeInstallation::class)->status($fixture['actor']->id, $identifier)['state'])->toBe('running')
         ->and(Cache::get('nw02:access:'.$identifier))->toBeNull();
+});
+
+it('NW-05 checks a prepared Node through Docker without probing management or client ports', function (): void {
+    $ip = '194.5.192.133';
+    $knownHost = $ip.' ssh-ed25519 '.base64_encode(str_repeat('x', 32));
+
+    nw02WithFakeSsh('Linux|running|true|remnawave/node:3.4.6', function (string $capture) use ($ip, $knownHost): void {
+        $result = app(NodeSshPreflight::class)->inspectReadyNode($ip, 22, 'root', 'test-password', $knownHost);
+
+        $command = file_get_contents($capture);
+        expect($result)->toBe(['status' => 'running', 'image' => 'remnawave/node:3.4.6', 'os' => 'Linux'])
+            ->and($command)->toContain('docker info')
+            ->toContain('docker inspect')
+            ->not->toContain('nc ')
+            ->not->toContain('ss -')
+            ->not->toContain('curl ')
+            ->not->toContain('2222')
+            ->not->toContain('443')
+            ->not->toContain('8443');
+    });
+});
+
+it('NW-05 refuses a stopped or non-Remnawave container in the basic prepared Node check', function (): void {
+    $ip = '194.5.192.133';
+    $knownHost = $ip.' ssh-ed25519 '.base64_encode(str_repeat('x', 32));
+
+    nw02WithFakeSsh('Linux|exited|false|remnawave/node:3.4.6', function () use ($ip, $knownHost): void {
+        expect(fn () => app(NodeSshPreflight::class)->inspectReadyNode($ip, 22, 'root', 'test-password', $knownHost))
+            ->toThrow(RuntimeException::class);
+    });
+
+    nw02WithFakeSsh('Linux|running|true|alpine:latest', function () use ($ip, $knownHost): void {
+        expect(fn () => app(NodeSshPreflight::class)->inspectReadyNode($ip, 22, 'root', 'test-password', $knownHost))
+            ->toThrow(RuntimeException::class);
+    });
 });
 
 it('NW-SSH-KEY-02 fails closed on unavailable key and unsupported authentication', function (): void {

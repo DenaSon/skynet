@@ -244,6 +244,9 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:nw4:close:{identifier}';
     // NW-05 adds root-only existing Node replacement and client-test acceptance.
     $expected['ADMIN'][] = 'callback:nw5:begin:{uuid}';
+    $expected['ADMIN'][] = 'callback:nw5:install:{uuid}';
+    $expected['ADMIN'][] = 'callback:nw5:ready:confirm:{token}';
+    $expected['ADMIN'][] = 'callback:nw5:ready:{uuid}';
     $expected['ADMIN'][] = 'callback:nw5:resume:{identifier}';
     $expected['ADMIN'][] = 'callback:nw5:apply:{token}';
     $expected['ADMIN'][] = 'callback:nw5:accept:{identifier}';
@@ -454,8 +457,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     sort($all);
 
     expect($legacy)->toBe($all)
-        ->and(count($legacy))->toBe(405)
-        ->and(count(array_unique($legacy)))->toBe(405);
+        ->and(count($legacy))->toBe(408)
+        ->and(count(array_unique($legacy)))->toBe(408);
 });
 
 it('keeps Sales identity, navigation and buyer routes isolated from Admin callbacks', function (): void {

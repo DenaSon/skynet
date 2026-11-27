@@ -42,4 +42,19 @@ final readonly class NodeSetupReadiness
 
         return $this->ssh->check($ip, $port, $username, $password, $knownHost, $authMode);
     }
+
+    /** @return array{status:string,image:string,os:string} */
+    public function inspectReadyNode(
+        int $actorId,
+        string $ip,
+        int $port,
+        string $username,
+        string $password,
+        string $knownHost,
+        string $authMode = 'password',
+    ): array {
+        $this->access->handle($actorId);
+
+        return $this->ssh->inspectReadyNode($ip, $port, $username, $password, $knownHost, $authMode);
+    }
 }

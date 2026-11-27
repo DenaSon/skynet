@@ -14,6 +14,7 @@ use App\Modules\Provisioning\Application\ReplaceAdminNode;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -26,6 +27,48 @@ use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 use SergiX44\Nutgram\Telegram\Types\User\User as TelegramUser;
 
 uses(RefreshDatabase::class);
+
+/** @param callable(string):mixed $callback */
+function nw05WithFakeSsh(string $output, callable $callback): mixed
+{
+    $directory = sys_get_temp_dir().'/nw05-fake-ssh-'.bin2hex(random_bytes(6));
+    if (! mkdir($directory, 0700, true)) {
+        throw new RuntimeException('Could not create fake SSH directory.');
+    }
+    $capture = $directory.'/stdin';
+    $binary = $directory.'/ssh';
+    $script = "#!/bin/sh\n/bin/cat > ".escapeshellarg($capture)."\nprintf '%s\\n' ".escapeshellarg($output)."\n";
+    if (file_put_contents($binary, $script) === false || ! chmod($binary, 0700)) {
+        throw new RuntimeException('Could not create fake SSH executable.');
+    }
+
+    $originalPath = getenv('PATH') ?: '/usr/bin:/bin';
+    $serverPath = $_SERVER['PATH'] ?? null;
+    $envPath = $_ENV['PATH'] ?? null;
+    $path = $directory.PATH_SEPARATOR.$originalPath;
+    putenv('PATH='.$path);
+    $_SERVER['PATH'] = $path;
+    $_ENV['PATH'] = $path;
+
+    try {
+        return $callback($capture);
+    } finally {
+        putenv('PATH='.$originalPath);
+        if ($serverPath === null) {
+            unset($_SERVER['PATH']);
+        } else {
+            $_SERVER['PATH'] = $serverPath;
+        }
+        if ($envPath === null) {
+            unset($_ENV['PATH']);
+        } else {
+            $_ENV['PATH'] = $envPath;
+        }
+        @unlink($capture);
+        @unlink($binary);
+        @rmdir($directory);
+    }
+}
 
 const NW05_NODE = '550e8400-e29b-41d4-a716-446655440051';
 const NW05_OTHER_NODE = '550e8400-e29b-41d4-a716-446655440052';
@@ -839,6 +882,7 @@ it('accepts an IP-only replacement for an existing Node name containing a pipe',
     $ui = app(AdminNodeSetupUi::class);
     $key = TelegramBotContext::current()->cacheKey('nw01:draft:'.$ready['actor']->id);
     $ui->beginReplacement($bot, NW05_NODE);
+    $ui->beginInstallReplacement($bot, NW05_NODE);
 
     $initial = Cache::get($key);
     expect($initial)->toBeArray()
@@ -926,6 +970,146 @@ function nw05CloudPurchase(User $actor): array
 
     return ['purchase' => (int) $purchase, 'server' => $server];
 }
+
+it('NW-05 creates a credential-free checkpoint for a preinstalled Node and reuses the normal replacement preview', function (): void {
+    $ready = nw05ReplacementReady();
+    nw05ReplacementApi();
+    Queue::fake();
+
+    $existing = Cache::get('nw02:status:'.$ready['id']);
+    $name = $existing['replacement']['name'];
+    $identifier = app(ManageNodeInstallation::class)->prepareReadyReplacement($ready['actor']->id, [
+        'name' => $name,
+        'ip' => NW05_NEW_IP,
+        'port' => 22,
+        'username' => 'root',
+        'host' => ['knownHost' => NW05_NEW_IP.' ssh-ed25519 '.base64_encode(str_repeat('x', 32))],
+        'replacement' => $existing['replacement'],
+    ]);
+
+    $checkpoint = Cache::get('nw02:status:'.$identifier);
+    expect($checkpoint)->toMatchArray([
+        'owner' => $ready['actor']->id,
+        'ip' => NW05_NEW_IP,
+        'name' => $name,
+        'state' => 'running',
+        'preparedNode' => true,
+        'replacement' => $existing['replacement'],
+    ])->and(Cache::get('nw02:access:'.$identifier))->toBeNull()
+        ->and(Cache::get('nw02:last:'.$ready['actor']->id))->toBe($identifier);
+
+    $review = app(ReplaceAdminNode::class)->preview($ready['actor']->id, $identifier);
+    expect($review['newIp'])->toBe(NW05_NEW_IP)
+        ->and($review['node']['uuid'])->toBe(NW05_NODE);
+
+    Queue::assertNothingPushed();
+    Http::assertNotSent(static fn (Request $request): bool => str_contains($request->url(), '/api/keygen'));
+    expect(nw05MutationCount())->toBe(0);
+});
+
+it('NW-05 rejects malformed SSH identity and a stale Node snapshot before preparing a ready replacement', function (): void {
+    $ready = nw05ReplacementReady();
+    nw05ReplacementApi();
+    $existing = Cache::get('nw02:status:'.$ready['id']);
+    $payload = [
+        'name' => $existing['replacement']['name'],
+        'ip' => NW05_NEW_IP,
+        'port' => 22,
+        'username' => 'root',
+        'host' => ['knownHost' => '8.8.8.8 ssh-ed25519 '.base64_encode(str_repeat('x', 32))],
+        'replacement' => $existing['replacement'],
+    ];
+    $manager = app(ManageNodeInstallation::class);
+
+    expect(fn () => $manager->prepareReadyReplacement($ready['actor']->id, $payload))
+        ->toThrow(RuntimeException::class);
+
+    $payload['host']['knownHost'] = NW05_NEW_IP.' ssh-ed25519 '.base64_encode(str_repeat('x', 32));
+    $payload['replacement']['name'] = 'Changed Node';
+    expect(fn () => $manager->prepareReadyReplacement($ready['actor']->id, $payload))
+        ->toThrow(RuntimeException::class);
+
+    expect(Cache::get('nw02:last:'.$ready['actor']->id))->toBe($ready['id'])
+        ->and(Cache::get('nw02:status:'.$ready['id']))->not->toBeNull()
+        ->and(nw05MutationCount())->toBe(0);
+});
+
+it('NW-05 offers prepared and automatic replacement paths and keeps their checkpoints distinct', function (): void {
+    $ready = nw05ReplacementReady();
+    nw05ReplacementApi();
+
+    $bot = Mockery::mock(Nutgram::class);
+    $bot->shouldReceive('chat')->andReturn(Chat::make(985501, ChatType::PRIVATE));
+    $bot->shouldReceive('user')->andReturn(TelegramUser::make(985501, false, 'Operator'));
+    $bot->shouldReceive('isCallbackQuery')->andReturn(false);
+    $bot->shouldReceive('sendMessage')->andReturnNull();
+
+    $key = TelegramBotContext::current()->cacheKey('nw01:draft:'.$ready['actor']->id);
+    Cache::put($key, ['stage' => 'secret', 'secret' => 'stale-encrypted-value'], now()->addMinutes(10));
+    Cache::put('nw02:ready:'.$ready['actor']->id, ['installToken' => str_repeat('a', 32)], now()->addMinutes(10));
+    Cache::put('nw05:confirm:'.$ready['actor']->id, ['token' => str_repeat('b', 32)], now()->addMinutes(10));
+    Cache::put('nw05:ready:confirm:'.$ready['actor']->id, ['token' => str_repeat('c', 32)], now()->addMinutes(10));
+    $ui = app(AdminNodeSetupUi::class);
+    $ui->beginReplacement($bot, NW05_NODE);
+    expect(Cache::get($key))->toBeNull()
+        ->and(Cache::get('nw02:ready:'.$ready['actor']->id))->toBeNull()
+        ->and(Cache::get('nw05:confirm:'.$ready['actor']->id))->toBeNull()
+        ->and(Cache::get('nw05:ready:confirm:'.$ready['actor']->id))->toBeNull();
+
+    $ui->beginReadyReplacement($bot, NW05_NODE);
+    expect(Cache::get($key)['preparedNode'])->toBeTrue();
+
+    $ui->beginInstallReplacement($bot, NW05_NODE);
+    expect(Cache::get($key)['preparedNode'] ?? false)->toBeFalse();
+});
+
+it('NW-05 verifies a prepared Node without queuing installation or retaining the SSH password', function (): void {
+    $ready = nw05ReplacementReady();
+    nw05ReplacementApi();
+    Queue::fake();
+
+    $state = Cache::get('nw02:status:'.$ready['id']);
+    $token = str_repeat('e', 32);
+    $key = TelegramBotContext::current()->cacheKey('nw01:draft:'.$ready['actor']->id);
+    $knownHost = NW05_NEW_IP.' ssh-ed25519 '.base64_encode(str_repeat('x', 32));
+    Cache::put($key, [
+        'stage' => 'trust',
+        'token' => $token,
+        'name' => $state['replacement']['name'],
+        'ip' => NW05_NEW_IP,
+        'port' => 22,
+        'username' => 'root',
+        'authMode' => 'password',
+        'secret' => Crypt::encryptString('prepared-node-test-password'),
+        'host' => ['fingerprint' => 'SHA256:test', 'knownHost' => $knownHost],
+        'replacement' => $state['replacement'],
+        'preparedNode' => true,
+    ], now()->addMinutes(10));
+
+    $bot = Mockery::mock(Nutgram::class);
+    $bot->shouldReceive('chat')->andReturn(Chat::make(985501, ChatType::PRIVATE));
+    $bot->shouldReceive('user')->andReturn(TelegramUser::make(985501, false, 'Operator'));
+    $bot->shouldReceive('isCallbackQuery')->andReturn(false);
+    $bot->shouldReceive('sendMessage')->andReturnNull();
+
+    nw05WithFakeSsh('Linux|running|true|remnawave/node:3.4.6', function () use ($bot, $token): void {
+        app(AdminNodeSetupUi::class)->trust($bot, $token);
+    });
+
+    $confirmation = Cache::get('nw05:ready:confirm:'.$ready['actor']->id);
+    expect($confirmation)->toMatchArray([
+        'owner' => $ready['actor']->id,
+        'ip' => NW05_NEW_IP,
+        'name' => $state['replacement']['name'],
+        'image' => 'remnawave/node:3.4.6',
+        'os' => 'Linux',
+    ])->and(is_array($confirmation) && ! array_key_exists('secret', $confirmation))->toBeTrue()
+        ->and(Cache::get($key))->toBeNull()
+        ->and(Cache::get('nw02:ready:'.$ready['actor']->id))->toBeNull();
+
+    Queue::assertNothingPushed();
+    expect(nw05MutationCount())->toBe(0);
+});
 
 it('ARI-04C selects an existing Node and prefills the normal NW-05 preview without SSH or provider mutations', function (): void {
     $ready = nw05ReplacementReady();
