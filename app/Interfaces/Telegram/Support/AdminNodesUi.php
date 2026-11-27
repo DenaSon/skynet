@@ -194,8 +194,8 @@ final readonly class AdminNodesUi
         Cache::forget(TelegramBotContext::current()->cacheKey('node03:draft:'.$root));
         $this->save($root, ['stage' => 'info']);
         $this->render($bot,
-            "➕ ثبت نود آماده — گام ۱ از ۴\n\nاین مسیر برای سروری است که نود روی آن نصب شده است.\nنام و آدرس سرور را در یک پیام بفرستید:\n\n"
-            ."Germany-01 | node.example.com\n\nآدرس باید IP یا نام دامنه باشد؛ بدون http و پورت.",
+            "➕ ثبت نود آماده — گام ۱ از ۴\n\nاین مسیر برای سروری است که نود روی آن نصب شده است.\nنام و IP عمومی سرور را در یک پیام بفرستید:\n\n"
+            .TelegramUi::code('Germany-01 | 194.5.192.133')."\n\nفقط IPv4 عمومی سرور؛ بدون دامنه و پورت.",
             $this->cancelKeyboard());
     }
 
@@ -241,16 +241,16 @@ final readonly class AdminNodesUi
 
         $parts = explode('|', $input);
         if (count($parts) !== 2 || strlen($input) > 330) {
-            $this->render($bot, 'نام و آدرس را با یک | جدا کنید. نمونه: Germany-01 | node.example.com', $this->cancelKeyboard());
+            $this->render($bot, 'نام و IP را با یک | جدا کنید. نمونه: Germany-01 | 194.5.192.133', $this->cancelKeyboard());
 
             return true;
         }
         $name = trim($parts[0]);
         $address = trim($parts[1]);
         try {
-            $this->nodes->validateIdentity($root, $name, $address);
+            $this->nodes->validateRegistrationIdentity($root, $name, $address);
         } catch (Throwable) {
-            $this->render($bot, 'نام یا آدرس معتبر نیست. دوباره بررسی کنید.', $this->cancelKeyboard());
+            $this->render($bot, 'نام یا IP عمومی سرور معتبر نیست. دامنه پذیرفته نمی‌شود.', $this->cancelKeyboard());
 
             return true;
         }
@@ -331,6 +331,13 @@ final readonly class AdminNodesUi
 
             return;
         }
+        try {
+            $this->nodes->validateRegistrationIdentity($root, $state['name'], $state['address']);
+        } catch (ValidationException) {
+            $this->render($bot, 'IP عمومی سرور معتبر نیست. ثبت را از ابتدا آغاز کنید.', $this->cancelKeyboard());
+
+            return;
+        }
         $token = bin2hex(random_bytes(16));
         $state['stage'] = 'preview';
         $state['token'] = $token;
@@ -338,7 +345,7 @@ final readonly class AdminNodesUi
         $this->render($bot,
             "➕ ثبت نود آماده — گام ۴ از ۴\n\n"
             .'نام: '.$this->safe($state['name'])."\n"
-            .'آدرس: '.$this->safe($state['address'])."\n"
+            .'IP مدیریتی: '.$this->safe($state['address'])."\n"
             .'پورت ارتباط نود: '.$state['port']."\n"
             .'پروفایل: '.$this->safe($state['profile']['name'])."\n"
             .'ورودی‌های انتخاب‌شده: '.count($state['selected'])."\n\n"

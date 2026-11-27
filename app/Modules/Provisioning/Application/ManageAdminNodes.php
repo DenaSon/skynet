@@ -326,6 +326,16 @@ final readonly class ManageAdminNodes
         }
     }
 
+    /** Validate new registrations without restricting reads of legacy domain-based Nodes. */
+    public function validateRegistrationIdentity(int $actorId, string $name, string $address): void
+    {
+        $this->validateIdentity($actorId, $name, $address);
+        if (filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_GLOBAL_RANGE) === false
+            || (int) explode('.', $address)[0] >= 224) {
+            throw ValidationException::withMessages(['node' => 'A public unicast IPv4 address is required.']);
+        }
+    }
+
     /**
      * Explicit one-shot operator action; caller consumes its one-use token before calling.
      * An uncertain POST is never retried automatically. Operator must recheck the list.
@@ -334,7 +344,7 @@ final readonly class ManageAdminNodes
      */
     public function create(int $actorId, string $name, string $address, string $profileUuid, array $inboundUuids, int $port): string
     {
-        $this->validateIdentity($actorId, $name, $address);
+        $this->validateRegistrationIdentity($actorId, $name, $address);
         $this->authorizeWrite($actorId);
         if ($port < 1 || $port > 65535) {
             throw ValidationException::withMessages(['node' => 'Invalid Node management port.']);
@@ -370,8 +380,7 @@ final readonly class ManageAdminNodes
             foreach ($api->all() as $existing) {
                 if ((is_string($existing['name'] ?? null)
                         && mb_strtolower($existing['name']) === mb_strtolower($name))
-                    || (($existing['address'] ?? null) === $address
-                        && ($existing['port'] ?? null) === $port)) {
+                    || ($existing['address'] ?? null) === $address) {
                     throw ValidationException::withMessages(['node' => 'Node is already registered.']);
                 }
             }

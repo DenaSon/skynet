@@ -59,13 +59,13 @@ function node01Bot(int $telegramId = 951111, bool $private = true): Nutgram
     return $bot;
 }
 
-function node01FakeProvider(bool $postFail = false, bool $includeExisting = true): void
+function node01FakeProvider(bool $postFail = false, bool $includeExisting = true, string $existingAddress = 'node.example.com'): void
 {
-    Http::fake(static function (Request $r) use ($postFail, $includeExisting) {
+    Http::fake(static function (Request $r) use ($postFail, $includeExisting, $existingAddress) {
         if ($r->url() === 'https://remna.node01.test/api/nodes' && $r->method() === 'GET') {
             return Http::response(['response' => $includeExisting ? [[
                 'uuid' => NODE01_UUID, 'name' => 'Germany-01',
-                'address' => 'node.example.com', 'port' => 2222,
+                'address' => $existingAddress, 'port' => 2222,
                 'isConnected' => true, 'isDisabled' => false,
             ]] : []], 200);
         }
@@ -148,6 +148,41 @@ it('keeps Node creation disabled by default and rejects invalid input before POS
     Http::assertNothingSent();
 });
 
+it('rejects non-public IPv4 registration in the application and Telegram before provider calls', function (): void {
+    $actors = node01Actors();
+    config()->set('services.remnawave.writes_enabled', true);
+    node01FakeProvider();
+    $nodes = app(ManageAdminNodes::class);
+    $bot = node01Bot();
+    $key = TelegramBotContext::current()->cacheKey('node01:draft:'.$actors['root']->id);
+    $bot->hearCallbackQueryData('node1:begin')->reply();
+
+    foreach (['node.example.com', '127.0.0.1', '10.0.0.1', '100.64.0.1', '169.254.1.1', '192.0.2.1', '224.0.0.1', '::1', '2001:4860:4860::8888', '194.5.192.133:2222'] as $invalid) {
+        expect(fn () => $nodes->create($actors['root']->id, 'New-01', $invalid, NODE01_PROFILE, [NODE01_INBOUND], 2222))
+            ->toThrow(ValidationException::class);
+        $bot->hearText('New-01 | '.$invalid)->reply();
+        expect(Cache::get($key)['stage'])->toBe('info');
+    }
+    Http::assertNothingSent();
+});
+
+it('rejects an already confirmed legacy domain registration without a provider write', function (): void {
+    $actors = node01Actors();
+    config()->set('services.remnawave.writes_enabled', true);
+    node01FakeProvider();
+    $key = TelegramBotContext::current()->cacheKey('node01:draft:'.$actors['root']->id);
+    $token = bin2hex(random_bytes(16));
+    Cache::put($key, [
+        'stage' => 'preview', 'name' => 'Legacy-01', 'address' => 'node.example.com',
+        'port' => 2222, 'profile' => ['uuid' => NODE01_PROFILE, 'name' => 'Main'],
+        'selected' => [NODE01_INBOUND], 'token' => $token,
+    ], now()->addMinutes(3));
+
+    node01Bot()->hearCallbackQueryData('node1:apply:'.$token)->reply();
+    expect(Cache::get($key))->toBeNull();
+    Http::assertNothingSent();
+});
+
 it('guides Admin name/address, profile, inbound, preview and a one-use provider POST', function (): void {
     $actors = node01Actors();
     config()->set('services.remnawave.writes_enabled', true);
@@ -156,7 +191,7 @@ it('guides Admin name/address, profile, inbound, preview and a one-use provider 
     $ui = app(AdminNodesUi::class);
 
     $bot->hearCallbackQueryData('node1:begin')->reply()->assertCalled('editMessageText');
-    $bot->hearText('Germany-01 | node.example.com')->reply()->assertCalled('sendMessage');
+    $bot->hearText('Germany-01 | 194.5.192.133')->reply()->assertCalled('sendMessage');
     $key = TelegramBotContext::current()->cacheKey('node01:draft:'.$actors['root']->id);
     expect(Cache::get($key)['stage'])->toBe('node_port');
     $bot->hearText('2222')->reply()->assertCalled('sendMessage');
@@ -176,7 +211,7 @@ it('guides Admin name/address, profile, inbound, preview and a one-use provider 
     Http::assertSent(static fn (Request $r): bool => $r->method() === 'POST'
         && $r->url() === 'https://remna.node01.test/api/nodes'
         && $r['name'] === 'Germany-01'
-        && $r['address'] === 'node.example.com'
+        && $r['address'] === '194.5.192.133'
         && $r['port'] === 2222
         && $r['configProfile'] === [
             'activeConfigProfileUuid' => NODE01_PROFILE,
@@ -193,7 +228,7 @@ it('requires an explicit valid Node management port for a ready server', functio
     $key = TelegramBotContext::current()->cacheKey('node01:draft:'.$actors['root']->id);
 
     $bot->hearCallbackQueryData('node1:begin')->reply();
-    $bot->hearText('Sydney-01 | node.example.com')->reply();
+    $bot->hearText('Sydney-01 | 194.5.192.133')->reply();
     foreach (['0', '65536', '-1', '2222x'] as $invalid) {
         $bot->hearText($invalid)->reply();
         expect(Cache::get($key)['stage'])->toBe('node_port');
@@ -239,7 +274,7 @@ it('rejects out-of-range management ports in the shared Node create action', fun
 
     foreach ([0, 65536] as $invalid) {
         expect(fn () => $nodes->create(
-            $actors['root']->id, 'Sydney-01', 'node.example.com',
+            $actors['root']->id, 'Sydney-01', '194.5.192.133',
             NODE01_PROFILE, [NODE01_INBOUND], $invalid
         ))->toThrow(ValidationException::class);
     }
@@ -254,7 +289,7 @@ it('consumes confirmation even if provider response is uncertain and never retri
     $bot = node01Bot();
 
     $bot->hearCallbackQueryData('node1:begin')->reply();
-    $bot->hearText('Germany-01 | node.example.com')->reply();
+    $bot->hearText('Germany-01 | 194.5.192.133')->reply();
     $bot->hearText('2222')->reply();
     $bot->hearCallbackQueryData('node1:profile:0')->reply();
     $bot->hearCallbackQueryData('node1:inbound:0')->reply();
@@ -274,12 +309,12 @@ it('revalidates chosen profile/inbounds and current root authority immediately b
     config()->set('services.remnawave.writes_enabled', true);
     $nodes = app(ManageAdminNodes::class);
 
-    expect(fn () => $nodes->create($actors['root']->id, 'Germany', 'node.example.com', NODE01_PROFILE, [NODE01_UUID], 2222))
+    expect(fn () => $nodes->create($actors['root']->id, 'Germany', '194.5.192.133', NODE01_PROFILE, [NODE01_UUID], 2222))
         ->toThrow(ValidationException::class);
     expect(collect(Http::recorded())->filter(static fn ($pair): bool => $pair[0]->method() === 'POST'))->toBeEmpty();
 
     $actors['root']->syncRoles(['member']);
-    expect(fn () => $nodes->create($actors['root']->id, 'Germany', 'node.example.com', NODE01_PROFILE, [NODE01_INBOUND], 2222))
+    expect(fn () => $nodes->create($actors['root']->id, 'Germany', '194.5.192.133', NODE01_PROFILE, [NODE01_INBOUND], 2222))
         ->toThrow(AuthorizationException::class);
     expect(collect(Http::recorded())->filter(static fn ($pair): bool => $pair[0]->method() === 'POST'))->toBeEmpty();
 });
@@ -417,7 +452,7 @@ it('NW-01 yields to a newer legacy Node wizard instead of intercepting its text'
     $bot->hearCallbackQueryData('nw1:begin')->reply();
     expect(Cache::get($key)['stage'])->toBe('name');
     $bot->hearCallbackQueryData('node1:begin')->reply();
-    $bot->hearText('Legacy-01 | node.example.com')->reply();
+    $bot->hearText('Legacy-01 | 194.5.192.133')->reply();
     expect(Cache::get($key))->toBeNull();
     expect(Cache::get(TelegramBotContext::current()->cacheKey('node01:draft:'.$actors['root']->id))['stage'])->toBe('node_port');
 });
@@ -597,17 +632,17 @@ it('still accepts an active legacy combined name/IP draft during rollout', funct
     Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET');
 });
 
-it('rejects duplicate ready Nodes by name or exact management endpoint before POST', function (): void {
+it('rejects duplicate ready Nodes by name or management IP even on another port', function (): void {
     $actors = node01Actors();
-    node01FakeProvider();
+    node01FakeProvider(existingAddress: '194.5.192.133');
     config()->set('services.remnawave.writes_enabled', true);
     $action = app(ManageAdminNodes::class);
 
     expect(fn () => $action->create(
-        $actors['root']->id, 'Germany-01', 'another.example.com', NODE01_PROFILE, [NODE01_INBOUND], 2222
+        $actors['root']->id, 'Germany-01', '185.194.188.191', NODE01_PROFILE, [NODE01_INBOUND], 2222
     ))->toThrow(ValidationException::class);
     expect(fn () => $action->create(
-        $actors['root']->id, 'Sydney-02', 'node.example.com', NODE01_PROFILE, [NODE01_INBOUND], 2222
+        $actors['root']->id, 'Sydney-02', '194.5.192.133', NODE01_PROFILE, [NODE01_INBOUND], 2456
     ))->toThrow(ValidationException::class);
     expect(collect(Http::recorded())->filter(static fn (array $pair): bool => $pair[0]->method() === 'POST'))->toBeEmpty();
 });
