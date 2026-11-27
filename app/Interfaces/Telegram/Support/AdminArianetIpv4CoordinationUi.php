@@ -88,7 +88,8 @@ final readonly class AdminArianetIpv4CoordinationUi
         if ($this->coordination->enabled(legacy: $state['version'] === 1) && $state['owner']) {
             $index = $state['next'];
             if ($index !== null && $state['steps'][$index]['state'] === 'ready') {
-                $buttons->addRow(InlineKeyboardButton::make('🔄 ادامه هماهنگی دامنه‌ها و نود',
+                $buttons->addRow(InlineKeyboardButton::make(
+                    $state['version'] === 1 ? '🔄 ادامه هماهنگی DNS' : '🔄 ادامه هماهنگی دامنه‌ها و نود',
                     callback_data: 'ari7:continue:'.$id.':'.$page));
             } elseif ($index !== null && $state['steps'][$index]['state'] === 'uncertain') {
                 $buttons->addRow(InlineKeyboardButton::make('🔎 بررسی نتیجه با GET (بدون تکرار)',
@@ -103,7 +104,9 @@ final readonly class AdminArianetIpv4CoordinationUi
             ->addRow(InlineKeyboardButton::make('◀️ بررسی اتصال‌ها',
                 callback_data: 'ari6:impact:'.$id.':'.$page));
 
-        $notice = 'دامنه‌های مرتبط و IP مدیریتی نود طبق مراحل ثبت‌شده هماهنگ می‌شوند؛ '
+        $notice = ($state['version'] === 1
+            ? 'طبق تأیید قبلی، فقط دامنه‌های مرتبط هماهنگ می‌شوند؛ '
+            : 'دامنه‌های مرتبط و IP مدیریتی نود طبق مراحل ثبت‌شده هماهنگ می‌شوند؛ ')
             .'در نتیجه نامشخص، تغییر تکرار نمی‌شود. '
             .'تأیید نهایی فقط پس از تست واقعی اتصال کاربران است.';
         $rich = '<h2>⚙️ هماهنگی اتصال‌ها</h2>'

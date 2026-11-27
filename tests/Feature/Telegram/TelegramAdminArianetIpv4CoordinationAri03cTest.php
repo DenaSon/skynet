@@ -186,13 +186,15 @@ function ari6Fake(array &$state): void
         }
         if ($path === '/client/v4/zones/'.ARI6_ZONE_ID.'/dns_records') {
             $name = $request->data()['name'] ?? null;
-            $found = in_array($name, ['fr.coreflare.ir', 'sub.coreflare.ir'], true);
+            $found = in_array($name, ['fr.coreflare.ir', 'sub.coreflare.ir', 'other.coreflare.ir'], true);
             $record = $found ? [[
-                'id' => $name === 'fr.coreflare.ir'
-                    ? 'ab010101010101010101010101010101'
-                    : 'ab020202020202020202020202020202',
+                'id' => match ($name) {
+                    'fr.coreflare.ir' => 'ab010101010101010101010101010101',
+                    'sub.coreflare.ir' => 'ab020202020202020202020202020202',
+                    default => 'ab030303030303030303030303030303',
+                },
                 'name' => $name, 'type' => 'A',
-                'content' => $state['recordIp'],
+                'content' => $name === 'other.coreflare.ir' ? '130.94.2.7' : $state['recordIp'],
                 'proxied' => $name === 'sub.coreflare.ir',
                 'proxiable' => true,
                 'modified_on' => '2026-11-23T15:00:00Z',

@@ -85,6 +85,11 @@ final readonly class InspectAdminArianetIpv4Dependencies
         if ($node['port'] !== 2222) {
             $issues[] = 'درگاه مدیریت نود با تنظیم مورد انتظار مطابقت ندارد.';
         }
+        try {
+            $this->nodes->validateRegistrationIdentity($actorId, $nodeName, $oldIp);
+        } catch (\Illuminate\Validation\ValidationException) {
+            $issues[] = 'نام نود یا IPv4 عمومی سرور معتبر نیست.';
+        }
 
         $dns = [];
         $addresses = [];
@@ -197,7 +202,7 @@ final readonly class InspectAdminArianetIpv4Dependencies
                 continue;
             }
             $peerIp = $other['address'];
-            if ($directNode && filter_var($peerIp, FILTER_VALIDATE_IP) === false) {
+            if (filter_var($peerIp, FILTER_VALIDATE_IP) === false) {
                 try {
                     $peerIp = $this->dns->replacementRecord($actorId, $peerIp)['record']['content'];
                 } catch (Throwable) {
@@ -233,6 +238,9 @@ final readonly class InspectAdminArianetIpv4Dependencies
             'newIp' => $newIp,
             'nodeName' => $nodeName,
             'nodeAddress' => $nodeAddress,
+            'nodeSnapshot' => $node,
+            'hostInventory' => $allHosts,
+            'peerInventory' => $allNodes,
             'hosts' => array_slice($hosts, 0, 10),
             'dns' => array_values(array_slice($dns, 0, 10)),
             'issues' => array_values(array_unique($issues)),

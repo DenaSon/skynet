@@ -302,6 +302,7 @@ final readonly class ChangeAdminArianetIpv4
         }
         $preview['dnsTargets'] = $impact['dns'];
         $preview['affectedHosts'] = $impact['hosts'];
+        $preview['nodeIdentity'] = array_diff_key($impact['nodeSnapshot'], ['connected' => true]);
 
         return $preview;
     }
@@ -329,6 +330,7 @@ final readonly class ChangeAdminArianetIpv4
             $preview['changeUsed'], $preview['feeRials'], $preview['nodeUuid'],
             $preview['node']['address'] ?? null, $preview['nodeState'], $preview['dns'],
             $preview['dnsTargets'] ?? [], $preview['affectedHosts'] ?? [],
+            $preview['nodeIdentity'] ?? [],
         ];
 
         return hash('sha256', json_encode($snapshot, JSON_THROW_ON_ERROR));

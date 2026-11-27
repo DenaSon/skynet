@@ -109,6 +109,10 @@ final readonly class CoordinateAdminArianetIpv4
             $this->nodes->validateRegistrationIdentity($actorId, $node['name'], $new);
             $inventory = $this->hosts->replacementInventory($actorId);
             $peers = $this->nodes->replacementAddresses($actorId);
+            if (self::nodeIdentity($node) !== self::nodeIdentity($report['nodeSnapshot'])
+                || $inventory !== $report['hostInventory'] || $peers !== $report['peerInventory']) {
+                throw new RuntimeException('Node or dependency inventory changed after ownership audit.');
+            }
             $hostIndex = array_column($inventory, null, 'uuid');
             $steps = [];
 
@@ -328,7 +332,7 @@ final readonly class CoordinateAdminArianetIpv4
                     continue;
                 }
                 $peerIp = $peer['address'];
-                if ($state['node']['address'] === $state['oldIp'] && filter_var($peerIp, FILTER_VALIDATE_IP) === false) {
+                if (filter_var($peerIp, FILTER_VALIDATE_IP) === false) {
                     $peerIp = $this->dns->replacementRecord($actorId, $peerIp)['record']['content'];
                 }
                 if (in_array($peerIp, [$state['oldIp'], $state['newIp']], true)
