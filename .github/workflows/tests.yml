@@ -129,7 +129,7 @@ jobs:
 
   php85:
     needs: changes
-    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.head_ref == 'feat/crm-01b-readonly-dashboard-20261127' }}
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
     name: PHP 8.5
     runs-on: ubuntu-latest
     steps:
