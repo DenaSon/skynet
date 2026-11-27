@@ -106,6 +106,7 @@ it('fails closed for inactive roots and incomplete trusted-root allowlists', fun
 it('forces HTTPS form assets and host-only secure session cookies on the CRM host', function (): void {
     config()->set('session.secure', false);
     config()->set('session.domain', '.denagate.ir');
+    $originalCookie = config('session.cookie');
     $originalSecure = config('session.secure');
     $originalDomain = config('session.domain');
 
@@ -120,12 +121,13 @@ it('forces HTTPS form assets and host-only secure session cookies on the CRM hos
         ->assertHeader('Cache-Control', 'no-store, private');
 
     $sessionCookie = collect($response->headers->getCookies())->first(
-        fn ($cookie): bool => $cookie->getName() === config('session.cookie'),
+        fn ($cookie): bool => $cookie->getName() === 'denagate_crm_session',
     );
 
     expect($sessionCookie)->not->toBeNull()
         ->and($sessionCookie?->isSecure())->toBeTrue()
         ->and($sessionCookie?->getDomain())->toBeNull()
+        ->and(config('session.cookie'))->toBe($originalCookie)
         ->and(config('session.secure'))->toBe($originalSecure)
         ->and(config('session.domain'))->toBe($originalDomain);
 });

@@ -13,7 +13,7 @@ DenaGate's normal Remnawave Node and Host endpoints are **predefined Cloudflare-
 - Reseller downstream customers are currently order-linked records in `sales_service_customer_labels`, not independent customer accounts. Count distinct normalized phones per reseller; show name-only records separately and never claim exact person-level deduplication.
 - Attribute reseller sales only from immutable `sales_orders.buyer_category = reseller` snapshots and canonical settled purchase rows. Historical NULL categories remain unknown; never infer them from current roles or discounts. Label the metric as reseller purchases settled with DenaGate, not retail turnover or reseller profit.
 - Reuse owning modules' Application Actions and canonical settlement rules. Keep queries, financial rules and authorization out of Livewire/Blade.
-- The CRM host is `crm.denagate.ir`; root-only access uses the existing web login and `SuperAdminTrust`. CRM HTTPS/session policy is host-scoped; do not change global `APP_URL` or proxy trust.
+- The CRM host is `crm.denagate.ir`; root-only access uses the existing web login and `SuperAdminTrust`. CRM HTTPS/session policy is host-scoped and uses a dedicated host-only session cookie; do not change global `APP_URL` or proxy trust.
 - Mary UI is integrated manually with independent `crm.css` and `crm.js` assets. Never run `php artisan mary:install`: it can overwrite `routes/web.php`, reinstall existing dependencies and modify shared `resources/css/app.css`.
 - The first foundation is implemented on `feat/crm-01a-foundation-20261127`; do not merge/deploy until PR review and full CI pass.
 

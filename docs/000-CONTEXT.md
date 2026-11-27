@@ -8,7 +8,7 @@
 - مینی‌اپ فعلی DenaGate Live نمایندگان، مسیرها، نشست، CSS/JS و عملیات آن بدون تغییر باقی می‌ماند.
 - دامنه پنل `crm.denagate.ir` است؛ ریشه به `/admin/crm` می‌رود و ورود وب موجود با کنترل مجدد `SuperAdminTrust` استفاده می‌شود.
 - Mary UI نسخه 2.9.11 و DaisyUI نسخه 5.8.3 به‌صورت دستی فعال شده‌اند؛ `crm.css` و `crm.js` مستقل‌اند و اجرای `php artisan mary:install` ممنوع است.
-- HTTPS، HSTS و کوکی Secure/Host-only فقط روی Host CRM اعمال می‌شوند؛ `APP_URL` و تنظیمات سراسری Proxy تغییر نمی‌کنند. پیاده‌سازی CRM-01A در شاخه `feat/crm-01a-foundation-20261127` قرار دارد و هنوز Merge نشده است.
+- HTTPS، HSTS و کوکی مستقل `denagate_crm_session` با پرچم Secure و Host-only فقط روی Host CRM اعمال می‌شود؛ `APP_URL` و تنظیمات سراسری Proxy تغییر نمی‌کنند. پیاده‌سازی CRM-01A در شاخه `feat/crm-01a-foundation-20261127` قرار دارد و هنوز Merge نشده است.
 - قرارداد کامل در [docs/051-CRM-01.md](051-CRM-01.md) و برنامه مرحله اول در [docs/052-CRM-01A-MARY-UI-FOUNDATION.md](052-CRM-01A-MARY-UI-FOUNDATION.md) است.
 
 ## NW-05 — جایگزینی با Node از قبل نصب‌شده (2026-11-27; merged PR #582, commit d67a2a2d)

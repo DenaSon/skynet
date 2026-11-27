@@ -17,12 +17,14 @@ final class EnsureCrmScheme
             return $next($request);
         }
 
+        $previousSessionCookie = config('session.cookie');
         $previousSessionSecure = config('session.secure');
         $previousSessionDomain = config('session.domain');
 
         // Runflare terminates public TLS before forwarding to Laravel.
         // Keep this policy host-scoped; do not change APP_URL or global proxy trust.
         config([
+            'session.cookie' => 'denagate_crm_session',
             'session.secure' => true,
             'session.domain' => null,
         ]);
@@ -54,6 +56,7 @@ final class EnsureCrmScheme
             // Prevent URL/session configuration leaking to another host or request.
             URL::forceScheme(null);
             config([
+                'session.cookie' => $previousSessionCookie,
                 'session.secure' => $previousSessionSecure,
                 'session.domain' => $previousSessionDomain,
             ]);

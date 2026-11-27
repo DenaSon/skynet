@@ -160,7 +160,7 @@ Mary UI نسخه `2.9.11` و DaisyUI نسخه `5.8.3` در وابستگی‌ها
 
 - [ ] ریشه `crm.denagate.ir` به `https://crm.denagate.ir/admin/crm` هدایت شود.
 - [ ] فرم ورود و URLهای Vite/Livewire با HTTPS تولید شوند.
-- [ ] کوکی نشست CRM Secure و Host-only باشد.
+- [ ] کوکی نشست CRM با نام مستقل `denagate_crm_session`، Secure و Host-only باشد.
 - [ ] درخواست HTTP با هدر صریح `X-Forwarded-Proto: http` به HTTPS هدایت شود.
 - [ ] سیاست HTTPS CRM روی Hostهای دیگر و DenaGate Live اثر نگذارد.
 - [ ] Super Admin واجد شرایط وارد `/admin/crm` شود.
