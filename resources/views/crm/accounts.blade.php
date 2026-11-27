@@ -21,7 +21,7 @@
     @if ($resellers)
         <p class="mb-4 text-sm text-base-content/60">مبلغ خرید نماینده نزد دناگیت بر اساس کانال ثبت‌شده سفارش است. سفارش‌های تاریخی با کانال نامشخص در این مبلغ لحاظ نمی‌شوند. رتبه بر اساس مبلغ خرید در نتایج فیلترشده است.</p>
     @endif
-    <x-table :headers="$headers" :rows="$rows" :sort-by="$sortBy" with-pagination>
+    <x-table :headers="$headers" :rows="$rows" :sort-by="$sortBy" with-pagination :link="route($resellers ? 'crm.resellers.show' : 'crm.customers.show', ['id' => '{id}'])">
         @scope('cell_is_active', $row)
             <x-badge :value="$row->is_active ? 'فعال' : 'غیرفعال'" :class="$row->is_active ? 'badge-success badge-soft' : 'badge-error badge-soft'" />
         @endscope

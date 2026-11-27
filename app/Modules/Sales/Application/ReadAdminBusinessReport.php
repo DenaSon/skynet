@@ -185,7 +185,7 @@ final readonly class ReadAdminBusinessReport
             ->leftJoin('sales_renewal_orders as renewal', 'renewal.sales_order_id', '=', 'orders.id')
             ->where('payment.settled_at', '>=', $from)
             ->where('payment.settled_at', '<', $until)
-            ->selectRaw('orders.id as order_id, orders.buyer_user_id as buyer_id, orders.buyer_category as buyer_category, orders.status as order_status, payment.amount_rials as amount_rials, CASE WHEN renewal.sales_order_id IS NULL THEN 0 ELSE 1 END as renewed');
+            ->selectRaw('orders.id as order_id, orders.buyer_user_id as buyer_id, orders.buyer_category as buyer_category, orders.status as order_status, payment.amount_rials as amount_rials, payment.settled_at as settled_at, \'bank\' as payment_method, CASE WHEN renewal.sales_order_id IS NULL THEN 0 ELSE 1 END as renewed');
 
         $wallet = DB::table('sales_order_settlements as payment')
             ->join('sales_orders as orders', 'orders.id', '=', 'payment.sales_order_id')
@@ -193,7 +193,7 @@ final readonly class ReadAdminBusinessReport
             ->where('orders.status', '!=', 'refunded')
             ->where('payment.settled_at', '>=', $from)
             ->where('payment.settled_at', '<', $until)
-            ->selectRaw('orders.id as order_id, orders.buyer_user_id as buyer_id, orders.buyer_category as buyer_category, orders.status as order_status, payment.amount_rials as amount_rials, CASE WHEN renewal.sales_order_id IS NULL THEN 0 ELSE 1 END as renewed');
+            ->selectRaw('orders.id as order_id, orders.buyer_user_id as buyer_id, orders.buyer_category as buyer_category, orders.status as order_status, payment.amount_rials as amount_rials, payment.settled_at as settled_at, \'wallet\' as payment_method, CASE WHEN renewal.sales_order_id IS NULL THEN 0 ELSE 1 END as renewed');
 
         // Same canonical UNION ALL; no wallet top-ups or pending orders.
         return $bank->unionAll($wallet);

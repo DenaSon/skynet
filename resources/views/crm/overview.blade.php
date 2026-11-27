@@ -16,7 +16,7 @@
     <p class="mt-3 text-sm text-base-content/60">کانال نامشخص از نقش فعلی حساب استنباط نشده است.</p>
 </x-card>
 <x-card title="نمایندگان برتر" subtitle="بر اساس خرید تسویه‌شده نزد دناگیت، نه فروش خرده‌فروشی نماینده" class="border border-base-300">
-    <x-table :headers="[['key' => 'name', 'label' => 'نماینده'], ['key' => 'revenue_rials', 'label' => 'مبلغ'], ['key' => 'transactions', 'label' => 'تراکنش'], ['key' => 'phones', 'label' => 'شماره یکتا']]" :rows="$data['top']">
+    <x-table :headers="[['key' => 'name', 'label' => 'نماینده'], ['key' => 'revenue_rials', 'label' => 'مبلغ'], ['key' => 'transactions', 'label' => 'تراکنش'], ['key' => 'phones', 'label' => 'شماره یکتا']]" :rows="$data['top']" :link="route('crm.resellers.show', ['id' => '{id}'])">
         @scope('cell_revenue_rials', $row)
             {{ number_format($row->revenue_rials / 10, $row->revenue_rials % 10 === 0 ? 0 : 1) }} تومان
         @endscope

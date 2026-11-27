@@ -80,6 +80,16 @@ final readonly class ReadCrmDirectory
         });
     }
 
+    /** The profile and directory must classify accounts identically. */
+    public function profileAccount(int $actorId, int $subjectId, bool $reseller): ?object
+    {
+        $this->access->handle($actorId);
+
+        return $this->accounts($reseller)
+            ->leftJoin('telegram_accounts as telegram', 'telegram.user_id', '=', 'users.id')
+            ->addSelect('telegram.telegram_user_id')->where('users.id', $subjectId)->first();
+    }
+
     private function accounts(bool $resellers): Builder
     {
         $query = User::query()
