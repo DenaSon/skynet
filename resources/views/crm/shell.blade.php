@@ -60,6 +60,7 @@
                     @elseif ($section === 'contacts')
                         <x-input label="شناسه نماینده" type="number" min="1" wire:model.live.debounce.400ms="reseller" />
                         <x-input label="محصول" wire:model.live.debounce.400ms="product" maxlength="80" />
+                        <x-checkbox label="گروه‌بندی بر اساس شماره تماس هر نماینده" wire:model.live="groupContacts" />
                         <x-select label="شماره تماس" :options="$yesNo" wire:model.live="phone" />
                         <x-select label="خرید تسویه‌شده" :options="$yesNo" wire:model.live="purchase" />
                         <x-select label="وضعیت سفارش" :options="$options(['all' => 'همه', 'pending_payment' => 'در انتظار پرداخت', 'paid' => 'پرداخت‌شده', 'fulfilled' => 'تکمیل‌شده', 'refunded' => 'برگشت‌خورده', 'cancelled' => 'لغوشده'])" wire:model.live="orderStatus" />
@@ -69,11 +70,11 @@
             </x-card>
 
             @if ($data === null)
-                <x-alert icon="o-exclamation-triangle" class="alert-warning">بازه زمانی یا فیلتر انتخاب‌شده معتبر نیست.</x-alert>
+                <x-alert icon="o-exclamation-triangle" class="alert-warning">{{ ($readFailed ?? false) ? 'دریافت اطلاعات ممکن نشد؛ دوباره تلاش کنید.' : 'بازه زمانی یا فیلتر انتخاب‌شده معتبر نیست.' }}</x-alert>
             @elseif ($section === 'dashboard')
                 @include('crm.overview', ['data' => $data, 'money' => $money])
             @elseif ($section === 'contacts')
-                @include('crm.contacts', ['rows' => $data['rows']])
+                @include($groupContacts ? 'crm.grouped-contacts' : 'crm.contacts', ['rows' => $data['rows']])
             @else
                 @include('crm.accounts', ['rows' => $data['rows'], 'money' => $money, 'resellers' => $section === 'resellers'])
             @endif

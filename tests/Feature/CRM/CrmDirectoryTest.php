@@ -116,6 +116,8 @@ it('separates commercial account cohorts, canonical sales and downstream contact
         ->and($dashboard['resellers'])->toBe(2)
         ->and($dashboard['phones'])->toBe(2)
         ->and($dashboard['nameOnly'])->toBe(1)
+        ->and($dashboard['purchasedPhones'])->toBe(2)
+        ->and($dashboard['purchasedNameOnly'])->toBe(0)
         ->and($dashboard['totalRials'])->toBe(1_500_000)
         ->and($dashboard['channels']['unknown']['revenueRials'])->toBe(900_000)
         ->and((int) $dashboard['top']->first()->revenue_rials)->toBe(500_000);
@@ -131,6 +133,11 @@ it('separates commercial account cohorts, canonical sales and downstream contact
         ->and((int) $rank->items()[1]->revenue_rials)->toBe(0);
     $contacts = $reader->handle($root->id, 'contacts', crm01bFilters(['reseller' => $reseller->id, 'purchase' => 'no']))['rows'];
     expect($contacts->total())->toBe(1)->and((int) $contacts->items()[0]->order_id)->toBe($pending);
+    $grouped = $reader->handle($root->id, 'contacts', crm01bFilters(['groupContacts' => true]))['rows'];
+    expect($grouped->total())->toBe(3)
+        ->and((int) collect($grouped->items())->firstWhere('reseller_id', $reseller->id)->reseller_id)->toBe($reseller->id);
+    expect(collect($grouped->items())->filter(fn ($row) => $row->phone === '+989121234567')->count())->toBe(2)
+        ->and((int) collect($grouped->items())->max('records_count'))->toBe(2);
     Http::assertNothingSent();
 });
 
@@ -159,4 +166,20 @@ it('applies bounded server-side search and pagination to direct accounts', funct
     expect($page->total())->toBe(26)->and($page->count())->toBe(1);
     expect(fn () => $reader->handle($root->id, 'customers', crm01bFilters(['sort' => 'invalid'])))
         ->toThrow(\Illuminate\Validation\ValidationException::class);
+});
+
+it('rechecks authority on real Livewire requests from all three new directories', function (): void {
+    $root = crm01bUser('super-admin');
+    $this->actingAs($root, 'web');
+    $updateUrl = 'https://crm.denagate.ir'.app(\Livewire\Mechanisms\HandleRequests\HandleRequests::class)->getUpdateUri();
+    foreach (['customers', 'resellers', 'reseller-customers'] as $path) {
+        $html = $this->get('https://crm.denagate.ir/admin/crm/'.$path)->assertOk()->getContent() ?: '';
+        expect(preg_match('/wire:snapshot="([^"]+)"/', $html, $matches))->toBe(1);
+        $snapshot = htmlspecialchars_decode($matches[1], ENT_QUOTES);
+        $payload = ['components' => [['snapshot' => $snapshot, 'updates' => ['search' => 'Fixture'], 'calls' => []]]];
+        $this->postJson($updateUrl, $payload, ['X-Livewire' => 'true'])->assertOk();
+        config()->set('super_admin.telegram_ids', ['997102', '997103']);
+        $this->postJson($updateUrl, $payload, ['X-Livewire' => 'true'])->assertForbidden();
+        config()->set('super_admin.telegram_ids', ['997101', '997102']);
+    }
 });

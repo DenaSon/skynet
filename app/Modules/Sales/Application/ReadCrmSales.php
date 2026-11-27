@@ -46,7 +46,10 @@ final readonly class ReadCrmSales
     public function contactCounts(int $actorId, Carbon $from, Carbon $until): Builder
     {
         return $this->contacts($actorId, $from, $until)
-            ->selectRaw("orders.buyer_user_id as buyer_id, COUNT(DISTINCT NULLIF(labels.phone, '')) as phones, SUM(CASE WHEN NULLIF(labels.phone, '') IS NULL AND NULLIF(labels.label, '') IS NOT NULL THEN 1 ELSE 0 END) as name_only")
+            ->leftJoinSub($this->settledOrderIds($actorId, Carbon::parse('1970-01-01', 'UTC'), Carbon::now('UTC')->addDay()), 'valid_purchase', 'valid_purchase.order_id', '=', 'orders.id')
+            ->selectRaw("orders.buyer_user_id as buyer_id, COUNT(DISTINCT NULLIF(labels.phone, '')) as phones, SUM(CASE WHEN NULLIF(labels.phone, '') IS NULL AND NULLIF(labels.label, '') IS NOT NULL THEN 1 ELSE 0 END) as name_only,
+                COUNT(DISTINCT CASE WHEN valid_purchase.order_id IS NOT NULL THEN NULLIF(labels.phone, '') END) as purchased_phones,
+                SUM(CASE WHEN valid_purchase.order_id IS NOT NULL AND NULLIF(labels.phone, '') IS NULL AND NULLIF(labels.label, '') IS NOT NULL THEN 1 ELSE 0 END) as purchased_name_only")
             ->groupBy('orders.buyer_user_id');
     }
 

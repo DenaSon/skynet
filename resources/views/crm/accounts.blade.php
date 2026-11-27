@@ -10,7 +10,9 @@
     if ($resellers) {
         array_unshift($headers, ['key' => 'sales_rank', 'label' => 'رتبه فروش', 'sortable' => false]);
         $headers[] = ['key' => 'phones', 'label' => 'شماره یکتا'];
+        $headers[] = ['key' => 'purchased_phones', 'label' => 'شماره دارای خرید', 'sortable' => false];
         $headers[] = ['key' => 'name_only', 'label' => 'نام بدون شماره'];
+        $headers[] = ['key' => 'purchased_name_only', 'label' => 'نام بدون شماره دارای خرید', 'sortable' => false];
     } else {
         $headers[] = ['key' => 'telegram_linked', 'label' => 'تلگرام', 'sortable' => false];
     }

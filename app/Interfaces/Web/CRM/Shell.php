@@ -6,7 +6,9 @@ namespace App\Interfaces\Web\CRM;
 
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
 use App\Modules\Identity\Application\ReadCrmDirectory;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Livewire\Attributes\Layout;
@@ -41,6 +43,8 @@ final class Shell extends Component
     public string $purchase = 'all';
 
     public string $phone = 'all';
+
+    public bool $groupContacts = false;
 
     public string $reseller = '';
 
@@ -96,6 +100,7 @@ final class Shell extends Component
                 'telegram' => $this->telegram,
                 'purchase' => $this->purchase,
                 'phone' => $this->phone,
+                'groupContacts' => $this->groupContacts,
                 'reseller' => $this->reseller ?: null,
                 'product' => $this->product,
                 'orderStatus' => $this->orderStatus,
@@ -104,7 +109,12 @@ final class Shell extends Component
                 'page' => $this->getPage(),
             ]);
         } catch (ValidationException) {
-            return view('crm.shell', ['data' => null]);
+            return view('crm.shell', ['data' => null, 'readFailed' => false]);
+        } catch (QueryException) {
+            // Do not log SQL bindings containing customer search terms or contacts.
+            Log::warning('CRM read failed', ['section' => $this->section]);
+
+            return view('crm.shell', ['data' => null, 'readFailed' => true]);
         }
 
         return view('crm.shell', ['data' => $data]);

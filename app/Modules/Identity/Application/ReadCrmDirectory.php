@@ -41,6 +41,7 @@ final readonly class ReadCrmDirectory
             'telegram' => ['required', Rule::in(['all', 'linked', 'unlinked'])],
             'purchase' => ['required', Rule::in(['all', 'yes', 'no'])],
             'phone' => ['required', Rule::in(['all', 'yes', 'no'])],
+            'groupContacts' => ['sometimes', 'boolean'],
             'reseller' => ['nullable', 'integer', 'min:1'],
             'product' => ['nullable', 'string', 'max:80'],
             'orderStatus' => ['required', Rule::in(['all', 'pending_payment', 'paid', 'fulfilled', 'refunded', 'cancelled'])],
@@ -97,7 +98,7 @@ final readonly class ReadCrmDirectory
 
         if ($resellers) {
             $query->leftJoinSub($this->sales->contactCounts($actorId, $from, $until), 'contacts', 'contacts.buyer_id', '=', 'accounts.id')
-                ->selectRaw('COALESCE(contacts.phones, 0) as phones, COALESCE(contacts.name_only, 0) as name_only');
+                ->selectRaw('COALESCE(contacts.phones, 0) as phones, COALESCE(contacts.name_only, 0) as name_only, COALESCE(contacts.purchased_phones, 0) as purchased_phones, COALESCE(contacts.purchased_name_only, 0) as purchased_name_only');
         }
 
         return $query;
@@ -110,7 +111,7 @@ final readonly class ReadCrmDirectory
         $resellers = $this->accounts(true)->where('users.created_at', '>=', $from)->where('users.created_at', '<', $until);
         $counts = DB::query()->fromSub($this->sales->contactCounts($actorId, $from, $until), 'counts')
             ->joinSub($this->accounts(true), 'resellers', 'resellers.id', '=', 'counts.buyer_id')
-            ->selectRaw('COALESCE(SUM(counts.phones), 0) as phones, COALESCE(SUM(counts.name_only), 0) as name_only')->first();
+            ->selectRaw('COALESCE(SUM(counts.phones), 0) as phones, COALESCE(SUM(counts.name_only), 0) as name_only, COALESCE(SUM(counts.purchased_phones), 0) as purchased_phones, COALESCE(SUM(counts.purchased_name_only), 0) as purchased_name_only')->first();
         $channels = $this->business->settledChannelBreakdownBetween($actorId, $from, $until)['channels'];
 
         return [
@@ -120,6 +121,8 @@ final readonly class ReadCrmDirectory
             'inactive' => (clone $direct)->where('users.is_active', false)->count() + (clone $resellers)->where('users.is_active', false)->count(),
             'phones' => (int) ($counts->phones ?? 0),
             'nameOnly' => (int) ($counts->name_only ?? 0),
+            'purchasedPhones' => (int) ($counts->purchased_phones ?? 0),
+            'purchasedNameOnly' => (int) ($counts->purchased_name_only ?? 0),
             'channels' => $channels,
             'totalRials' => array_sum(array_column($channels, 'revenueRials')),
             'top' => $this->rankedAccounts($actorId, true, $from, $until)->where('purchases.transactions', '>', 0)
@@ -188,7 +191,7 @@ final readonly class ReadCrmDirectory
         $query = $this->sales->contacts($actorId, $from, $until)
             ->joinSub($this->accounts(true), 'resellers', 'resellers.id', '=', 'orders.buyer_user_id')
             ->leftJoinSub($this->sales->settledOrderIds($actorId, Carbon::parse('1970-01-01', 'UTC'), Carbon::now('UTC')->addDay()), 'settled', 'settled.order_id', '=', 'orders.id')
-            ->select('orders.id as order_id', 'orders.id as id', 'orders.product_name', 'orders.status', 'orders.created_at', 'resellers.name as reseller_name', 'labels.label', 'labels.phone')
+            ->select('orders.id as order_id', 'orders.id as id', 'orders.product_name', 'orders.status', 'orders.created_at', 'resellers.name as reseller_name', 'resellers.id as reseller_id', 'labels.label', 'labels.phone')
             ->selectRaw('CASE WHEN settled.order_id IS NULL THEN 0 ELSE 1 END as purchased');
         $search = trim((string) ($filters['search'] ?? ''));
         if ($search !== '') {
@@ -212,6 +215,21 @@ final readonly class ReadCrmDirectory
         if ($filters['purchase'] !== 'all') {
             $filters['purchase'] === 'yes' ? $query->whereNotNull('settled.order_id') : $query->whereNull('settled.order_id');
         }
+        if ($filters['groupContacts'] ?? false) {
+            // A normalized phone is only unique within its owning reseller.
+            // A record with no phone remains independent, keyed by order.
+            $group = DB::query()->fromSub($query, 'records')
+                ->select('reseller_id', 'reseller_name')
+                ->selectRaw("NULLIF(phone, '') as phone, MAX(order_id) as id, MAX(order_id) as order_id, MAX(created_at) as created_at,
+                    COUNT(*) as records_count, SUM(purchased) as purchased_count,
+                    CASE WHEN COUNT(*) = 1 THEN MIN(label) ELSE NULL END as label")
+                ->groupBy('reseller_id', 'reseller_name')
+                ->groupByRaw("NULLIF(phone, ''), CASE WHEN NULLIF(phone, '') IS NULL THEN order_id ELSE NULL END");
+            $sort = ['order_id' => 'order_id', 'created_at' => 'created_at'][$filters['sort']] ?? 'order_id';
+
+            return $group->orderBy($sort, $filters['direction'])->orderBy('order_id')->paginate(25, page: (int) $filters['page']);
+        }
+
         $sort = ['order_id' => 'orders.id', 'created_at' => 'orders.created_at', 'name' => 'labels.label'][$filters['sort']] ?? 'orders.id';
 
         return $query->orderBy($sort, $filters['direction'])->orderBy('orders.id')->paginate(25, page: (int) $filters['page']);
