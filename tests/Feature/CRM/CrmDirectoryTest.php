@@ -999,3 +999,91 @@ it('shows evaluation only for current active resellers with valid recent role ev
     $this->get('https://crm.denagate.ir/admin/crm/resellers/'.$former->id)->assertNotFound();
     Http::assertNothingSent();
 });
+
+it('combines advanced filters within the direct account cohort and preserves basic filters', function (): void {
+    $root = crm01bUser('super-admin');
+    $buyer = crm01bUser('member');
+    $inactive = crm01bUser('member', ['is_active' => false]);
+    $empty = crm01bUser('member');
+    $reseller = crm01bUser('reseller');
+    $reseller->assignRole('member');
+    $staff = crm01bUser('admin');
+    $staff->assignRole('member');
+    crm01bOrder($buyer, 'direct', 100_000);
+    crm01bOrder($buyer, 'direct', 500_000, 'refunded');
+    crm01bOrder($inactive, 'direct', 200_000);
+    crm01bOrder($reseller, 'reseller', 300_000);
+    crm01bOrder($staff, 'direct', 400_000);
+
+    $reader = app(ReadCrmDirectory::class);
+    $conditions = [
+        ['field' => 'orders', 'operator' => 'gte', 'value' => '1'],
+        ['field' => 'active', 'operator' => 'eq', 'value' => '0'],
+    ];
+    $filters = crm01bFilters(['advancedConditions' => $conditions, 'advancedMode' => 'and']);
+    expect($reader->handle($root->id, 'customers', $filters)['rows']->total())->toBe(1)
+        ->and((int) $reader->handle($root->id, 'customers', $filters)['rows']->items()[0]->id)->toBe($inactive->id);
+    $filters['advancedMode'] = 'or';
+    expect($reader->handle($root->id, 'customers', $filters)['rows']->total())->toBe(2);
+    $filters['status'] = 'active';
+    expect((int) $reader->handle($root->id, 'customers', $filters)['rows']->items()[0]->id)->toBe($buyer->id)
+        ->and($reader->handle($root->id, 'customers', $filters)['rows']->total())->toBe(1);
+    $filters = crm01bFilters(['advancedConditions' => [['field' => 'revenue', 'operator' => 'eq', 'value' => '10000']]]);
+    expect((int) $reader->handle($root->id, 'customers', $filters)['rows']->items()[0]->id)->toBe($buyer->id)
+        ->and($reader->handle($root->id, 'customers', [...$filters, 'period' => 'yesterday'])['rows']->total())->toBe(0);
+    expect($reader->handle($root->id, 'customers', crm01bFilters())['rows']->total())->toBe(3);
+    expect(fn () => $reader->handle($empty->id, 'customers', $filters))->toThrow(AuthorizationException::class);
+    expect(fn () => $reader->handle($root->id, 'resellers', $filters))->toThrow(ValidationException::class);
+    Http::assertNothingSent();
+});
+
+it('rejects malformed advanced conditions instead of falling back to an unfiltered list', function (): void {
+    $root = crm01bUser('super-admin');
+    $reader = app(ReadCrmDirectory::class);
+    $valid = ['field' => 'orders', 'operator' => 'gte', 'value' => '1'];
+    foreach ([
+        ['advancedMode' => 'xor'],
+        ['advancedConditions' => array_fill(0, 6, $valid)],
+        ['advancedConditions' => [['field' => 'users.password', 'operator' => 'eq', 'value' => '1']]],
+        ['advancedConditions' => [[...$valid, 'operator' => 'OR 1=1']]],
+        ['advancedConditions' => [[...$valid, 'value' => ['1']]]],
+        ['advancedConditions' => [[...$valid, 'value' => '1 OR 1=1']]],
+        ['advancedConditions' => [['field' => 'trial', 'operator' => 'gte', 'value' => '1']]],
+        ['advancedConditions' => [['field' => 'last_seen', 'operator' => 'eq', 'value' => '2026-02-30']]],
+    ] as $invalid) {
+        expect(fn () => $reader->handle($root->id, 'customers', crm01bFilters($invalid)))->toThrow(ValidationException::class);
+    }
+});
+
+it('distinguishes missing wallet and trial evidence from recorded values in advanced filters', function (): void {
+    config()->set('billing.topups_enabled', true);
+    $root = crm01bUser('super-admin');
+    $buyer = crm01bUser('member');
+    $unknown = crm01bUser('member');
+    app(CreditVerifiedAdminBankTopup::class)->handle($root->id, $buyer->id, 100_000, 'CRMADVANCEWALLET', 'Fixture credit');
+    DB::table('trial_claims')->insert([
+        'user_id' => $buyer->id,
+        'telegram_user_id' => 997112,
+        'phone_fingerprint' => hash('sha256', 'crm-advanced-trial'),
+        'state' => 'active',
+        'activated_at' => now(),
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $reader = app(ReadCrmDirectory::class);
+    $conditions = [
+        ['field' => 'wallet', 'operator' => 'gte', 'value' => '10000'],
+        ['field' => 'trial', 'operator' => 'eq', 'value' => '1'],
+    ];
+    $filters = crm01bFilters(['advancedConditions' => $conditions]);
+    expect($reader->handle($root->id, 'customers', $filters)['rows']->total())->toBe(1)
+        ->and((int) $reader->handle($root->id, 'customers', $filters)['rows']->items()[0]->id)->toBe($buyer->id);
+    $filters = crm01bFilters(['advancedConditions' => [['field' => 'wallet', 'operator' => 'eq', 'value' => '0']]]);
+    expect($reader->handle($root->id, 'customers', $filters)['rows']->total())->toBe(0);
+    $filters = crm01bFilters(['advancedConditions' => [['field' => 'wallet_known', 'operator' => 'eq', 'value' => '0']]]);
+    expect((int) $reader->handle($root->id, 'customers', $filters)['rows']->items()[0]->id)->toBe($unknown->id);
+    $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm/customers')->assertOk()->assertSee('فیلتر پیشرفته')->assertSee('افزودن شرط');
+    $this->get('https://crm.denagate.ir/admin/crm/resellers')->assertOk()->assertDontSee('افزودن شرط');
+    Http::assertNothingSent();
+});
