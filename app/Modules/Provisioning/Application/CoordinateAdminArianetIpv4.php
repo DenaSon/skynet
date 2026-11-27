@@ -192,7 +192,10 @@ final readonly class CoordinateAdminArianetIpv4
             $this->assertCurrentStep($actorId, $state, $index);
             if ($kind === 'node') {
                 // All earlier DNS records must still point to the confirmed new IP.
-                foreach (range(0, $index - 1) as $previous) {
+                foreach (array_keys($state['steps']) as $previous) {
+                    if ($previous >= $index) {
+                        break;
+                    }
                     $this->assertStepAtNewIp($actorId, $state, $previous);
                 }
             }
@@ -514,6 +517,14 @@ final readonly class CoordinateAdminArianetIpv4
             || ! is_array($state['inventory'] ?? null) || ! is_array($state['peers'] ?? null)
             || ! is_string($state['stage'] ?? null)) {
             throw new RuntimeException('Coordination checkpoint is invalid.');
+        }
+
+        if ($state['version'] === 2) {
+            $kinds = array_column($state['steps'], 'kind');
+            if (count($kinds) < 2 || count($kinds) > 11
+                || $kinds !== [...array_fill(0, count($kinds) - 1, 'dns'), 'node']) {
+                throw new RuntimeException('Coordination checkpoint has invalid Node/DNS steps.');
+            }
         }
 
         return $state;

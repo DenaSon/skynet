@@ -399,6 +399,7 @@ it('accepts two unassigned Frankfurt Hosts on the exact Node domain and excludes
         ->and(array_column($report['hosts'], 'domainMatched'))->toBe([true, true]);
 
     config()->set('services.arianet_cloud.writes_enabled', true);
+    config()->set('services.remnawave.writes_enabled', true);
     config()->set('services.cloudflare.dns_writes_enabled', true);
     ari6Bot()->hearCallbackQueryData('ari4:preview:'.ARI6_SERVER.':1')->reply()
         ->assertRaw(static function (NutgramRequest $req): bool {
@@ -412,7 +413,7 @@ it('accepts two unassigned Frankfurt Hosts on the exact Node domain and excludes
         ->assertRaw(static function (NutgramRequest $req): bool {
             $rich = ari6Rich($req);
 
-            return str_contains($rich, 'بدون انتساب، هم‌دامنه با نود')
+            return str_contains($rich, 'بدون انتساب، دامنه تأییدشده')
                 && str_contains($rich, 'بدون تعارض شناخته‌شده');
         }, index: 1);
     ari6OnlyReads();

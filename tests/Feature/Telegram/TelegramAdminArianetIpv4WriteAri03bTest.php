@@ -33,7 +33,7 @@ beforeEach(function (): void {
     config()->set('services.arianet_cloud.writes_enabled', true);
     config()->set('services.remnawave.url', 'https://rw.ari5.test');
     config()->set('services.remnawave.token', 'ari5-rw-token');
-    config()->set('services.remnawave.writes_enabled', false);
+    config()->set('services.remnawave.writes_enabled', true);
     config()->set('services.cloudflare.token', 'ari5-dns-token');
     config()->set('services.cloudflare.allowed_zones', 'coreflare.ir');
     config()->set('services.cloudflare.dns_writes_enabled', true);
@@ -230,6 +230,24 @@ it('supports a single confirmed Production IPv4 request without enabling VPS pur
     }
 
     expect($state['posts'])->toBe(1);
+    ari5OnlyCloudPost(1);
+});
+
+it('accepts a verified direct-IP Node and rejects a paid request when Node writes are disabled', function (): void {
+    $user = ari5Root();
+    ari5Link($user);
+    $state = ari5State();
+    $state['nodeAddress'] = $state['ipv4'];
+    ari5Fake($state);
+    $changes = app(ChangeAdminArianetIpv4::class);
+    config()->set('services.remnawave.writes_enabled', false);
+    expect(fn () => $changes->prepare($user->id, ARI5_SERVER))->toThrow(RuntimeException::class);
+    expect($state['posts'])->toBe(0);
+    config()->set('services.remnawave.writes_enabled', true);
+    $prepared = $changes->prepare($user->id, ARI5_SERVER);
+    expect($prepared['preview']['nodeState'])->toBe('ip_match')
+        ->and($prepared['preview']['dnsTargets'])->toHaveCount(1);
+    $changes->apply($user->id, ARI5_SERVER, $prepared['token']);
     ari5OnlyCloudPost(1);
 });
 
