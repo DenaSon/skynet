@@ -1087,3 +1087,53 @@ it('distinguishes missing wallet and trial evidence from recorded values in adva
     $this->get('https://crm.denagate.ir/admin/crm/resellers')->assertOk()->assertDontSee('افزودن شرط');
     Http::assertNothingSent();
 });
+
+it('filters only observed Sales Bot dates at Tehran day boundaries and excludes unknown dates', function (): void {
+    $root = crm01bUser('super-admin');
+    $seen = crm01bUser('member');
+    $adminOnly = crm01bUser('member');
+    $unknown = crm01bUser('member');
+    foreach ([[$seen, 'sales', 997113], [$adminOnly, 'admin', 997114]] as [$user, $bot, $chat]) {
+        DB::table('telegram_bot_contacts')->insert([
+            'user_id' => $user->id,
+            'bot_key' => $bot,
+            'chat_id' => $chat,
+            'delivery_status' => 'reachable',
+            'last_seen_at' => Carbon::parse('2026-11-27 00:00:00', 'Asia/Tehran')->utc(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+    $reader = app(ReadCrmDirectory::class);
+    $filters = crm01bFilters(['advancedConditions' => [['field' => 'last_seen', 'operator' => 'eq', 'value' => '2026-11-27']]]);
+    expect($reader->handle($root->id, 'customers', $filters)['rows']->total())->toBe(1)
+        ->and((int) $reader->handle($root->id, 'customers', $filters)['rows']->items()[0]->id)->toBe($seen->id);
+    $filters = crm01bFilters(['advancedConditions' => [['field' => 'last_seen', 'operator' => 'lte', 'value' => '2026-11-26']]]);
+    expect($reader->handle($root->id, 'customers', $filters)['rows']->total())->toBe(0);
+    $filters = crm01bFilters(['advancedConditions' => [['field' => 'seen', 'operator' => 'eq', 'value' => '0']]]);
+    $ids = collect($reader->handle($root->id, 'customers', $filters)['rows']->items())->pluck('id')->map(fn ($id) => (int) $id);
+    expect($ids->all())->toContain($adminOnly->id, $unknown->id)->not->toContain($seen->id);
+    Http::assertNothingSent();
+});
+
+it('adds and removes advanced conditions through real Livewire requests', function (): void {
+    $root = crm01bUser('super-admin');
+    $member = crm01bUser('member');
+    crm01bOrder($member, 'direct', 100_000);
+    crm01bUser('member');
+    $html = $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm/customers')->assertOk()->getContent() ?: '';
+    expect(preg_match('/wire:snapshot="([^"]+)"/', $html, $matches))->toBe(1);
+    $snapshot = htmlspecialchars_decode($matches[1], ENT_QUOTES);
+    $url = 'https://crm.denagate.ir'.app(HandleRequests::class)->getUpdateUri();
+    $response = $this->postJson($url, ['components' => [[
+        'snapshot' => $snapshot, 'updates' => [],
+        'calls' => [['path' => '', 'method' => 'addAdvancedCondition', 'params' => []]],
+    ]]], ['X-Livewire' => 'true'])->assertOk();
+    expect($response->json('components.0.effects.html'))->toContain('حذف شرط', 'تعداد نتایج: ۱');
+    $response = $this->postJson($url, ['components' => [[
+        'snapshot' => $response->json('components.0.snapshot'), 'updates' => [],
+        'calls' => [['path' => '', 'method' => 'removeAdvancedCondition', 'params' => [0]]],
+    ]]], ['X-Livewire' => 'true'])->assertOk();
+    expect($response->json('components.0.effects.html'))->toContain('تعداد نتایج: ۲')->not->toContain('حذف شرط');
+    Http::assertNothingSent();
+});
