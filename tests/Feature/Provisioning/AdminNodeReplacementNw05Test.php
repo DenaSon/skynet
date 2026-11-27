@@ -11,6 +11,7 @@ use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Provisioning\Application\ManageAdminArianetOperations;
 use App\Modules\Provisioning\Application\ManageNodeInstallation;
 use App\Modules\Provisioning\Application\ReplaceAdminNode;
+use Closure;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
@@ -142,6 +143,7 @@ function nw05ReplacementApi(
     bool $peerNodeLegacyHost = false,
     bool $peerNodeDirectIpLegacyHost = false,
     bool $peerNodeDifferentHostnameLegacyHost = false,
+    ?Closure $beforeMutation = null,
 ): object {
     $node = [
         'uuid' => NW05_NODE,
@@ -262,9 +264,12 @@ function nw05ReplacementApi(
     }
     $shared = (object) ['node' => $node, 'nodes' => $nodes, 'hosts' => $hosts, 'records' => $records];
 
-    Http::fake(static function (Request $request) use ($shared, $failDnsWrite) {
+    Http::fake(static function (Request $request) use ($shared, $failDnsWrite, $beforeMutation) {
         $url = $request->url();
         $method = $request->method();
+        if ($method !== 'GET' && $beforeMutation !== null) {
+            $beforeMutation($request);
+        }
         $rw = 'https://rw.nw05.test/api/';
 
         if ($method === 'GET' && $url === $rw.'nodes') {
@@ -796,6 +801,74 @@ it('renders replacement progress as an RTL Rich screen and labels the panel conn
     });
 
     app(AdminNodeSetupUi::class)->replacementOverview($bot, $ready['id']);
+});
+
+it('acknowledges replacement callbacks before provider writes and isolates final Telegram delivery failures', function (): void {
+    $ready = nw05ReplacementReady();
+    $acknowledged = false;
+    $api = nw05ReplacementApi(beforeMutation: static function (Request $request) use (&$acknowledged): void {
+        expect($acknowledged)->toBeTrue();
+    });
+    $action = app(ReplaceAdminNode::class);
+    $review = $action->preview($ready['actor']->id, $ready['id']);
+    $token = str_repeat('f', 32);
+    Cache::put('nw05:confirm:'.$ready['actor']->id, [
+        'id' => $ready['id'],
+        'token' => $token,
+        'expected' => $review,
+    ], now()->addMinutes(10));
+
+    $sentText = '';
+    $bot = Mockery::mock(Nutgram::class);
+    $bot->shouldReceive('chat')->andReturn(Chat::make(985501, ChatType::PRIVATE));
+    $bot->shouldReceive('user')->andReturn(TelegramUser::make(985501, false, 'Operator'));
+    $bot->shouldReceive('isCallbackQuery')->andReturn(true);
+    $bot->shouldReceive('answerCallbackQuery')->once()->andReturnUsing(static function () use (&$acknowledged): null {
+        $acknowledged = true;
+
+        return null;
+    });
+    $bot->shouldReceive('callbackQuery')->andReturn(null);
+    $bot->shouldReceive('editMessageText')->twice()->andReturnUsing(static function (...$arguments): never {
+        $rich = collect($arguments)->contains(static fn (mixed $argument): bool => $argument instanceof InputRichMessage);
+
+        throw new TelegramException(
+            $rich ? 'Bad Request: rich messages unavailable' : 'Bad Request: message to edit not found',
+            400,
+        );
+    });
+    $bot->shouldReceive('sendMessage')->once()->andReturnUsing(static function (...$arguments) use (&$sentText): never {
+        $sentText = (string) ($arguments[0] ?? '');
+        throw new TelegramException('Forbidden: bot was blocked by the user', 403);
+    });
+
+    app(AdminNodeSetupUi::class)->applyReplacement($bot, $token);
+
+    expect($acknowledged)->toBeTrue()
+        ->and($action->progress($ready['actor']->id, $ready['id'])['stage'])->toBe('awaiting_client_test')
+        ->and($api->records[NW05_RECORD_NODE]['content'])->toBe(NW05_NEW_IP)
+        ->and($api->records[NW05_RECORD_XHTTP]['content'])->toBe(NW05_NEW_IP)
+        ->and(nw05MutationCount())->toBe(2)
+        ->and(Cache::get('nw05:confirm:'.$ready['actor']->id))->toBeNull()
+        ->and($sentText)->toContain('جایگزینی سرور')
+        ->and($sentText)->not->toContain('نتیجه انتقال مشخص نیست');
+});
+
+it('does not send a duplicate native page after an ambiguous Rich transport failure', function (): void {
+    $ready = nw05ReplacementReady();
+    nw05ReplacementApi();
+
+    $bot = Mockery::mock(Nutgram::class);
+    $bot->shouldReceive('isCallbackQuery')->andReturn(false);
+    $bot->shouldReceive('sendRichMessage')->once()->andThrow(
+        new TelegramException('Internal Server Error: temporary Telegram failure', 500),
+    );
+    $bot->shouldNotReceive('sendMessage');
+
+    app(AdminNodeSetupUi::class)->prepareReplacement($bot, $ready['id']);
+
+    expect(Cache::get('nw05:confirm:'.$ready['actor']->id))->toBeArray()
+        ->and(nw05MutationCount())->toBe(0);
 });
 
 it('rejects a management hostname already used by another Node even without a matching Host', function (): void {

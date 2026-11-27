@@ -32,6 +32,8 @@ Host association prefers the provider's explicit Host.nodes UUID membership; a H
 
 Writes are sequential and individually checkpointed as uncertain before dispatch. An ambiguous outcome is reconciled with GET only; never blindly retry. The Remnawave connected flag is informational and is not proof that client traffic reaches the new VPS. The flow remains in an explicit client-test stage until a trusted operator tests a real client from a user network and confirms it. Keep the old VPS available until that test succeeds; it is never disabled or shut down automatically. The implementation's HTTP-fake tests do not establish live provider behavior.
 
+**NW-05 Telegram completion handling (2026-11-27):** Acknowledge replacement callbacks before provider reads/writes. Keep provider-operation failures separate from subsequent status-screen delivery. A rejected Rich payload may use the existing native-text fallback; if the callback's edit target is unavailable, send a new text message. Ambiguous Telegram transport/server failures are logged without issuing duplicate UI sends or repeating provider operations. Logs contain only exception type/code, never raw Telegram or provider messages.
+
 ## Node metrics, read-only
 
 \`RemnawaveNodeTelemetry\` reads:

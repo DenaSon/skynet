@@ -16,6 +16,7 @@ use App\Modules\Provisioning\Application\PurchaseAdminArianetCloud;
 use App\Modules\Provisioning\Application\ReplaceAdminNode;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Log;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Properties\ButtonStyle;
@@ -1184,12 +1185,16 @@ final readonly class AdminNodeSetupUi
         }
     }
 
-    public function replacementOverview(Nutgram $bot, string $identifier): void
+    public function replacementOverview(Nutgram $bot, string $identifier, bool $acknowledgeCallback = true): void
     {
         $root = $this->root($bot);
         if ($root === null) {
             return;
         }
+        if ($acknowledgeCallback) {
+            $this->acknowledgeCallback($bot);
+        }
+
         try {
             $target = $this->installer->replacementTarget($root, $identifier);
             if ($target === null) {
@@ -1197,7 +1202,7 @@ final readonly class AdminNodeSetupUi
             }
             $progress = $this->replacement->progress($root, $identifier);
             if ($progress['stage'] === 'ready') {
-                $this->prepareReplacement($bot, $identifier);
+                $this->prepareReplacement($bot, $identifier, false);
 
                 return;
             }
@@ -1237,18 +1242,23 @@ final readonly class AdminNodeSetupUi
             $keyboard->addRow(InlineKeyboardButton::make('◀️ مدیریت نودها', callback_data: 'node1:list:1'));
             $rich = '<h2>🔁 وضعیت جایگزینی سرور</h2><table bordered striped compact>'.$rows.'</table>'
                 .'<footer>ابتدا تغییر DNS به IP جدید و اتصال واقعی کلاینت را بررسی کنید؛ تا پیش از تأیید، سرور قبلی را نگه دارید.</footer>';
-            $this->renderRich($bot, $rich, $message, $keyboard);
-        } catch (Throwable) {
-            $this->render($bot, 'بررسی جایگزینی ممکن نشد. وضعیت نود و رکوردهای DNS را دستی بررسی کنید؛ عملیات را دوباره اجرا نکنید.', $this->back());
+            $this->renderRich($bot, $rich, $message, $keyboard, false);
+        } catch (Throwable $exception) {
+            $this->logSafeFailure('NW-05 replacement overview could not be prepared', $exception);
+            $this->render($bot, 'بررسی جایگزینی ممکن نشد. وضعیت نود و رکوردهای DNS را دستی بررسی کنید؛ عملیات را دوباره اجرا نکنید.', $this->back(), false, false);
         }
     }
 
-    public function prepareReplacement(Nutgram $bot, string $identifier): void
+    public function prepareReplacement(Nutgram $bot, string $identifier, bool $acknowledgeCallback = true): void
     {
         $root = $this->root($bot);
         if ($root === null) {
             return;
         }
+        if ($acknowledgeCallback) {
+            $this->acknowledgeCallback($bot);
+        }
+
         try {
             $review = $this->replacement->preview($root, $identifier);
             $setup = $this->installer->context($root, $identifier);
@@ -1290,9 +1300,10 @@ final readonly class AdminNodeSetupUi
             $this->renderRich($bot, $rich, $message,
                 InlineKeyboardMarkup::make()
                     ->addRow(InlineKeyboardButton::make('✅ تأیید انتقال سرور و دامنه‌ها', callback_data: 'nw5:apply:'.$token, style: ButtonStyle::SUCCESS))
-                    ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'nw5:resume:'.$identifier)));
-        } catch (Throwable) {
-            $this->render($bot, 'اطلاعات Node یا Hostها کامل نیست، دامنه‌ای خارج از Cloudflare وجود دارد یا رکورد DNS با IP فعلی تطبیق ندارد. هیچ تغییری انجام نشد.', $this->back());
+                    ->addRow(InlineKeyboardButton::make('◀️ بازگشت', callback_data: 'nw5:resume:'.$identifier)), false);
+        } catch (Throwable $exception) {
+            $this->logSafeFailure('NW-05 replacement preview could not be prepared', $exception);
+            $this->render($bot, 'اطلاعات Node یا Hostها کامل نیست، دامنه‌ای خارج از Cloudflare وجود دارد یا رکورد DNS با IP فعلی تطبیق ندارد. هیچ تغییری انجام نشد.', $this->back(), false, false);
         }
     }
 
@@ -1302,11 +1313,14 @@ final readonly class AdminNodeSetupUi
         if ($root === null) {
             return;
         }
+        $this->acknowledgeCallback($bot);
+
         if (preg_match('/\A[a-f0-9]{32}\z/D', $token) !== 1) {
-            $this->expired($bot);
+            $this->expired($bot, false);
 
             return;
         }
+
         $key = 'nw05:confirm:'.$root;
         try {
             $confirmation = Cache::lock($key.':lock', 15)->block(1, static function () use ($key, $token): mixed {
@@ -1318,16 +1332,32 @@ final readonly class AdminNodeSetupUi
 
                 return $data;
             });
-            if (! is_array($confirmation) || ! is_string($confirmation['id'] ?? null) || ! is_array($confirmation['expected'] ?? null)) {
-                $this->expired($bot);
+        } catch (Throwable $exception) {
+            $this->logSafeFailure('NW-05 replacement confirmation could not be loaded', $exception);
+            $this->render($bot, 'تأیید نهایی در دسترس نیست. از بخش مدیریت نودها وضعیت جایگزینی را بررسی کنید.', $this->back(), false, false);
 
-                return;
-            }
-            $this->replacement->apply($root, $confirmation['id'], $confirmation['expected']);
-            $this->replacementOverview($bot, $confirmation['id']);
-        } catch (Throwable) {
-            $this->render($bot, 'نتیجه انتقال مشخص نیست. از گزینه بررسی وضعیت استفاده کنید و عملیات را دوباره تأیید نکنید.', $this->back());
+            return;
         }
+
+        if (! is_array($confirmation) || ! is_string($confirmation['id'] ?? null) || ! is_array($confirmation['expected'] ?? null)) {
+            $this->expired($bot, false);
+
+            return;
+        }
+
+        try {
+            $this->replacement->apply($root, $confirmation['id'], $confirmation['expected']);
+        } catch (Throwable $exception) {
+            $this->logSafeFailure('NW-05 replacement application failed', $exception);
+            $this->render($bot, 'نتیجه انتقال مشخص نیست. از گزینه بررسی وضعیت استفاده کنید و عملیات را دوباره تأیید نکنید.', $this->back(), false, false);
+
+            return;
+        }
+
+        // A successful Provider write is final even if the following Telegram
+        // status screen cannot be delivered. Never classify a UI error as an
+        // uncertain replacement or retry the one-time operation.
+        $this->replacementOverview($bot, $confirmation['id'], false);
     }
 
     public function acceptReplacement(Nutgram $bot, string $identifier): void
@@ -1336,12 +1366,18 @@ final readonly class AdminNodeSetupUi
         if ($root === null) {
             return;
         }
+        $this->acknowledgeCallback($bot);
+
         try {
             $this->replacement->acceptClientTest($root, $identifier);
-            $this->replacementOverview($bot, $identifier);
-        } catch (Throwable) {
-            $this->render($bot, 'تأیید انجام نشد. ابتدا اتصال واقعی کلاینت و وضعیت Node را بررسی کنید.', $this->back());
+        } catch (Throwable $exception) {
+            $this->logSafeFailure('NW-05 client test acceptance failed', $exception);
+            $this->render($bot, 'تأیید انجام نشد. ابتدا اتصال واقعی کلاینت و وضعیت Node را بررسی کنید.', $this->back(), false, false);
+
+            return;
         }
+
+        $this->replacementOverview($bot, $identifier, false);
     }
 
     public function reconcileReplacement(Nutgram $bot, string $identifier): void
@@ -1350,12 +1386,18 @@ final readonly class AdminNodeSetupUi
         if ($root === null) {
             return;
         }
+        $this->acknowledgeCallback($bot);
+
         try {
             $this->replacement->reconcile($root, $identifier);
-            $this->replacementOverview($bot, $identifier);
-        } catch (Throwable) {
-            $this->render($bot, 'همه تغییرات قابل تأیید نیستند. بدون تکرار عملیات، وضعیت Node و رکوردهای Cloudflare را دستی بررسی کنید.', $this->back());
+        } catch (Throwable $exception) {
+            $this->logSafeFailure('NW-05 replacement reconciliation failed', $exception);
+            $this->render($bot, 'همه تغییرات قابل تأیید نیستند. بدون تکرار عملیات، وضعیت Node و رکوردهای Cloudflare را دستی بررسی کنید.', $this->back(), false, false);
+
+            return;
         }
+
+        $this->replacementOverview($bot, $identifier, false);
     }
 
     /** @param array<string,mixed> $expected @param array<string,mixed> $actual */
@@ -1979,9 +2021,9 @@ final readonly class AdminNodeSetupUi
         return InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make('◀️ مدیریت نودها', callback_data: 'node1:list:1'));
     }
 
-    private function expired(Nutgram $bot): void
+    private function expired(Nutgram $bot, bool $acknowledgeCallback = true): void
     {
-        $this->render($bot, 'این مرحله منقضی شده یا تمام شده است.', $this->back());
+        $this->render($bot, 'این مرحله منقضی شده یا تمام شده است.', $this->back(), false, $acknowledgeCallback);
     }
 
     private function replacementRichRow(string $label, string $value): string
@@ -1994,9 +2036,10 @@ final readonly class AdminNodeSetupUi
         string $richHtml,
         string $fallback,
         InlineKeyboardMarkup $keyboard,
+        bool $acknowledgeCallback = true,
     ): void {
-        if ($bot->isCallbackQuery()) {
-            TelegramUi::answerCallback($bot);
+        if ($acknowledgeCallback) {
+            $this->acknowledgeCallback($bot);
         }
 
         try {
@@ -2007,27 +2050,90 @@ final readonly class AdminNodeSetupUi
             );
 
             return;
-        } catch (TelegramException $exception) {
-            report($exception);
+        } catch (Throwable $exception) {
+            $this->logSafeFailure('Telegram Rich UI delivery failed', $exception);
+
+            // A transport/server failure has an ambiguous delivery outcome.
+            // Do not send a second message unless Telegram explicitly rejected
+            // the Rich payload with a client-side API response.
+            if (! $exception instanceof TelegramException
+                || $exception->getCode() < 400
+                || $exception->getCode() >= 500) {
+                return;
+            }
         }
 
-        if ($bot->isCallbackQuery()) {
-            TelegramUi::editText($bot, $fallback, $keyboard, 'HTML');
-
-            return;
-        }
-
-        $bot->sendMessage(text: $fallback, reply_markup: $keyboard, parse_mode: 'HTML');
+        $this->deliverText($bot, $fallback, $keyboard, 'HTML');
     }
 
-    private function render(Nutgram $bot, string $message, InlineKeyboardMarkup $keyboard, bool $html = false): void
-    {
-        if ($bot->isCallbackQuery()) {
-            TelegramUi::answerCallback($bot);
-            TelegramUi::editText($bot, $message, $keyboard, $html ? 'HTML' : null);
-
-            return;
+    private function render(
+        Nutgram $bot,
+        string $message,
+        InlineKeyboardMarkup $keyboard,
+        bool $html = false,
+        bool $acknowledgeCallback = true,
+    ): void {
+        if ($acknowledgeCallback) {
+            $this->acknowledgeCallback($bot);
         }
-        $bot->sendMessage(text: $message, reply_markup: $keyboard, parse_mode: $html ? 'HTML' : null);
+
+        $this->deliverText($bot, $message, $keyboard, $html ? 'HTML' : null);
+    }
+
+    private function acknowledgeCallback(Nutgram $bot): void
+    {
+        try {
+            TelegramUi::answerCallback($bot);
+        } catch (Throwable $exception) {
+            $this->logSafeFailure('Telegram callback acknowledgement failed', $exception);
+        }
+    }
+
+    private function deliverText(
+        Nutgram $bot,
+        string $message,
+        InlineKeyboardMarkup $keyboard,
+        ?string $parseMode,
+    ): void {
+        if ($bot->isCallbackQuery()) {
+            try {
+                TelegramUi::editText($bot, $message, $keyboard, $parseMode);
+
+                return;
+            } catch (Throwable $exception) {
+                $this->logSafeFailure('Telegram native message edit failed', $exception);
+
+                if (! $this->isUnavailableEditTarget($exception)) {
+                    return;
+                }
+            }
+        }
+
+        try {
+            $bot->sendMessage(text: $message, reply_markup: $keyboard, parse_mode: $parseMode);
+        } catch (Throwable $exception) {
+            $this->logSafeFailure('Telegram message delivery failed', $exception);
+        }
+    }
+
+    private function isUnavailableEditTarget(Throwable $exception): bool
+    {
+        if (! $exception instanceof TelegramException || $exception->getCode() !== 400) {
+            return false;
+        }
+
+        $description = strtolower($exception->getMessage());
+
+        return str_contains($description, 'message to edit not found')
+            || str_contains($description, "message can't be edited")
+            || str_contains($description, 'message identifier is not specified');
+    }
+
+    private function logSafeFailure(string $event, Throwable $exception): void
+    {
+        Log::warning($event, [
+            'exception_type' => $exception::class,
+            'exception_code' => $exception->getCode(),
+        ]);
     }
 }
