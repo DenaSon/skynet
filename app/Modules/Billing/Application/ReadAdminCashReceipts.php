@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Billing\Application;
 
 use App\Modules\Identity\Application\AssertBillingAccess;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -106,33 +107,13 @@ final readonly class ReadAdminCashReceipts
     /** @return array{topupsRials:int,topupsCount:int,customerTopupsRials:int,customerTopupsCount:int,adminTopupsRials:int,adminTopupsCount:int,bankSalesRials:int,bankSalesCount:int,cashInRials:int} */
     private function incomingTotals(?Carbon $from, Carbon $until): array
     {
-        // The unique verified receipt is the final accepted bank proof for
-        // each approved top-up. Pending/rejected requests and wallet spending
-        // never count again as bank inflows.
-        $topups = DB::table('billing_verified_receipts as receipt')
-            ->join('billing_topups as topup', 'topup.id', '=', 'receipt.topup_id')
-            ->where('topup.status', 'approved')
-            ->where('receipt.verified_at', '<', $until);
-        if ($from !== null) {
-            $topups->where('receipt.verified_at', '>=', $from);
-        }
-        // A bank-attested partial correction changes the confirmed cash amount,
-        // not the immutable original receipt or the number of incoming transfers.
-        $netTopup = 'topup.amount_rials';
-        if (Schema::hasTable('billing_topup_amount_corrections')) {
-            $topups->leftJoin('billing_topup_amount_corrections as correction', 'correction.topup_id', '=', 'topup.id');
-            $netTopup = 'topup.amount_rials - COALESCE(correction.adjustment_amount_rials, 0)';
-        }
-        $topupTotals = $topups->selectRaw("COUNT(*) as receipts_count,
-                COALESCE(SUM($netTopup), 0) as amount_rials,
-                COALESCE(SUM(CASE WHEN topup.origin = 'admin_verified_bank' THEN $netTopup ELSE 0 END), 0) as admin_amount_rials,
-                COALESCE(SUM(CASE WHEN topup.origin = 'admin_verified_bank' THEN 1 ELSE 0 END), 0) as admin_count")->first();
+        $topups = $this->topupRows($from, $until);
+        $topupTotals = DB::query()->fromSub($topups, 'receipts')->selectRaw("COUNT(*) as receipts_count,
+                COALESCE(SUM(amount_rials), 0) as amount_rials,
+                COALESCE(SUM(CASE WHEN origin = 'admin_verified_bank' THEN amount_rials ELSE 0 END), 0) as admin_amount_rials,
+                COALESCE(SUM(CASE WHEN origin = 'admin_verified_bank' THEN 1 ELSE 0 END), 0) as admin_count")->first();
 
-        // Direct bank settlements represent genuinely new recorded inflows.
-        $bank = ValidBankSettlements::query()->where('settled_at', '<', $until);
-        if ($from !== null) {
-            $bank->where('settled_at', '>=', $from);
-        }
+        $bank = $this->bankRows($from, $until);
         $bankTotals = $bank->selectRaw('COUNT(*) as receipts_count, COALESCE(SUM(amount_rials), 0) as amount_rials')->first();
 
         $topupRials = (int) ($topupTotals->amount_rials ?? 0);
@@ -151,5 +132,54 @@ final readonly class ReadAdminCashReceipts
             'bankSalesCount' => (int) ($bankTotals->receipts_count ?? 0),
             'cashInRials' => $topupRials + $bankRials,
         ];
+    }
+
+    /** Authorized aggregate source, no receipt references or customer identifiers. */
+    public function incomingRowsBetween(int $actorId, Carbon $from, Carbon $until): Builder
+    {
+        $this->access->reviewer($actorId);
+        $this->access->financeViewer($actorId);
+        if ($until->lessThanOrEqualTo($from)) {
+            throw ValidationException::withMessages(['period' => 'Invalid cash report interval.']);
+        }
+
+        return DB::query()->fromSub($this->topupRows($from, $until), 'receipts')
+            ->select('occurred_at', 'amount_rials')
+            ->unionAll($this->bankRows($from, $until)->selectRaw('settled_at as occurred_at, amount_rials'));
+    }
+
+    private function topupRows(?Carbon $from, Carbon $until): Builder
+    {
+        // The unique verified receipt is the final accepted bank proof for
+        // each approved top-up. Pending/rejected requests and wallet spending
+        // never count again as bank inflows.
+        $topups = DB::table('billing_verified_receipts as receipt')
+            ->join('billing_topups as topup', 'topup.id', '=', 'receipt.topup_id')
+            ->where('topup.status', 'approved')
+            ->where('receipt.verified_at', '<', $until);
+        if ($from !== null) {
+            $topups->where('receipt.verified_at', '>=', $from);
+        }
+        // A bank-attested partial correction changes the confirmed cash amount,
+        // not the immutable original receipt or the number of incoming transfers.
+        $netTopup = 'topup.amount_rials';
+        if (Schema::hasTable('billing_topup_amount_corrections')) {
+            $topups->leftJoin('billing_topup_amount_corrections as correction', 'correction.topup_id', '=', 'topup.id');
+            $netTopup = 'topup.amount_rials - COALESCE(correction.adjustment_amount_rials, 0)';
+        }
+
+        return $topups->select('receipt.verified_at as occurred_at', 'topup.origin')
+            ->selectRaw("$netTopup as amount_rials");
+    }
+
+    private function bankRows(?Carbon $from, Carbon $until): Builder
+    {
+        // Direct bank settlements represent genuinely new recorded inflows.
+        $bank = ValidBankSettlements::query()->where('settled_at', '<', $until);
+        if ($from !== null) {
+            $bank->where('settled_at', '>=', $from);
+        }
+
+        return $bank;
     }
 }

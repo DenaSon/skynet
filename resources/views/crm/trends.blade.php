@@ -29,4 +29,7 @@
             </tbody>
         </table>
     @endif
+    <div class="mt-4 flex justify-end">
+        <x-button label="مشاهده تحلیل کامل" icon="o-chart-bar" :link="route('crm.analytics')" class="btn-ghost btn-sm text-primary" />
+    </div>
 </x-card>

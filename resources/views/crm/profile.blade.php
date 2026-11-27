@@ -1,7 +1,7 @@
 <div class="min-h-dvh">
     @php
-        $titles = ['dashboard' => 'داشبورد', 'customers' => 'مشتریان مستقیم', 'resellers' => 'نمایندگان', 'contacts' => 'مشتریان نمایندگان'];
-        $icons = ['dashboard' => 'o-squares-2x2', 'customers' => 'o-users', 'resellers' => 'o-user-group', 'contacts' => 'o-identification'];
+        $titles = ['dashboard' => 'داشبورد', 'analytics' => 'تحلیل و آمار', 'customers' => 'مشتریان مستقیم', 'resellers' => 'نمایندگان', 'contacts' => 'مشتریان نمایندگان'];
+        $icons = ['dashboard' => 'o-squares-2x2', 'analytics' => 'o-chart-bar', 'customers' => 'o-users', 'resellers' => 'o-user-group', 'contacts' => 'o-identification'];
         $options = static fn (array $items) => collect($items)->map(fn ($name, $id) => ['id' => (string) $id, 'name' => $name])->values()->all();
         $money = static fn ($rials) => \App\Support\PersianCalendar::number(number_format($rials / 10, $rials % 10 === 0 ? 0 : 1)).' تومان';
         $tabs = ['overview' => 'نمای کلی', 'orders' => 'سفارش‌ها', 'payments' => 'تسویه‌ها', 'services' => 'سرویس‌ها'];

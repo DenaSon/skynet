@@ -1,7 +1,7 @@
 <div class="min-h-dvh">
     @php
-        $titles = ['dashboard' => 'داشبورد', 'customers' => 'مشتریان مستقیم', 'resellers' => 'نمایندگان', 'contacts' => 'مشتریان نمایندگان'];
-        $icons = ['dashboard' => 'o-squares-2x2', 'customers' => 'o-users', 'resellers' => 'o-user-group', 'contacts' => 'o-identification'];
+        $titles = ['dashboard' => 'داشبورد', 'analytics' => 'تحلیل و آمار', 'customers' => 'مشتریان مستقیم', 'resellers' => 'نمایندگان', 'contacts' => 'مشتریان نمایندگان'];
+        $icons = ['dashboard' => 'o-squares-2x2', 'analytics' => 'o-chart-bar', 'customers' => 'o-users', 'resellers' => 'o-user-group', 'contacts' => 'o-identification'];
         $periods = ['today' => 'امروز', 'yesterday' => 'دیروز', '7' => '۷ روز اخیر', '30' => '۳۰ روز اخیر', 'all' => 'از ابتدا', 'custom' => 'بازه دلخواه'];
         $options = static fn (array $items) => collect($items)->map(fn ($name, $id) => ['id' => (string) $id, 'name' => $name])->values()->all();
         $yesNo = $options(['all' => 'همه', 'yes' => 'دارد', 'no' => 'ندارد']);

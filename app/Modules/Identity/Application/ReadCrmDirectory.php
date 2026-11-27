@@ -96,6 +96,14 @@ final readonly class ReadCrmDirectory
             ->addSelect('telegram.telegram_user_id')->where('users.id', $subjectId)->first();
     }
 
+    /** Authorized shared commercial cohort for CRM aggregate reports. */
+    public function commercialAccounts(int $actorId, bool $resellers): Builder
+    {
+        $this->access->handle($actorId);
+
+        return $this->accounts($resellers);
+    }
+
     private function accounts(bool $resellers): Builder
     {
         $query = User::query()
