@@ -39,6 +39,7 @@ const NW05_ZONE = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const NW05_RECORD_NODE = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 const NW05_RECORD_XHTTP = 'cccccccccccccccccccccccccccccccc';
 const NW05_RECORD_PEER = 'dddddddddddddddddddddddddddddddd';
+const NW05_RECORD_PEER_HOST = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
 const NW05_OLD_IP = '8.8.4.4';
 const NW05_NEW_IP = '1.1.1.1';
 
@@ -179,7 +180,7 @@ function nw05ReplacementApi(
         ],
     ];
     if ($peerNodeLegacyHost || $peerNodeDirectIpLegacyHost || $peerNodeDifferentHostnameLegacyHost) {
-        $peerNodeHostname = $peerNodeDifferentHostnameLegacyHost ? 'nl01.coreflare.ir' : 'nl01.coreflare.ir';
+        $peerNodeHostname = 'nl01.coreflare.ir';
         $peerHostAddress = $peerNodeDifferentHostnameLegacyHost ? 'peer-host.coreflare.ir' : 'nl01.coreflare.ir';
         $records[NW05_RECORD_PEER] = [
             'id' => NW05_RECORD_PEER, 'name' => $peerNodeDifferentHostnameLegacyHost ? $peerNodeHostname : $peerHostAddress, 'type' => 'A',
