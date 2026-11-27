@@ -23,6 +23,8 @@ use Illuminate\Validation\ValidationException;
 /** CRM-01B: root-only composition of existing identity and Sales read models. */
 final readonly class ReadCrmDirectory
 {
+    private const array CUSTOMER_SEGMENTS = ['valuable', 'loyal', 'new_customer', 'trial_only', 'wallet_positive', 'at_risk', 'old_interaction', 'unknown_interaction'];
+
     public function __construct(
         private AssertCatalogManagementAccess $access,
         private ReadCrmSales $sales,
@@ -57,6 +59,7 @@ final readonly class ReadCrmDirectory
             'sort' => ['required', Rule::in(['id', 'name', 'created_at', 'is_active', 'transactions', 'revenue_rials', 'phones', 'name_only', 'order_id', 'performance_rank'])],
             'direction' => ['required', Rule::in(['asc', 'desc'])],
             'page' => ['required', 'integer', 'min:1', 'max:100000'],
+            'segment' => ['sometimes', 'string', Rule::in(['off', 'all', ...self::CUSTOMER_SEGMENTS])],
             'advancedMode' => ['sometimes', 'string', Rule::in(['and', 'or'])],
             'advancedConditions' => ['sometimes', 'array', 'list', 'max:5'],
             'advancedConditions.*' => ['required', 'array:field,operator,value'],
@@ -66,7 +69,7 @@ final readonly class ReadCrmDirectory
         ])->validate();
 
         $conditions = $filters['advancedConditions'] ?? [];
-        if ($conditions !== [] && $section !== 'customers') {
+        if (($conditions !== [] || ($filters['segment'] ?? 'off') !== 'off') && $section !== 'customers') {
             throw ValidationException::withMessages(['advancedConditions' => 'Invalid customer filter scope.']);
         }
         foreach ($conditions as $condition) {
@@ -109,7 +112,21 @@ final readonly class ReadCrmDirectory
                 return ['rows' => $this->contactPage($actorId, $filters, $from, $until)];
             }
 
-            return ['rows' => $this->accountPage($actorId, $section === 'resellers', $filters, $from, $until)];
+            $segments = null;
+            $counts = null;
+            if ($section === 'customers' && ($filters['segment'] ?? 'off') !== 'off') {
+                $segments = $this->customerSegments($actorId);
+                $summary = DB::query()->fromSub(clone $segments, 'segment_counts')->selectRaw('COUNT(*) as total');
+                foreach (self::CUSTOMER_SEGMENTS as $key) {
+                    $summary->selectRaw("COALESCE(SUM($key), 0) as $key");
+                }
+                $counts = (array) $summary->first();
+            }
+
+            return [
+                'rows' => $this->accountPage($actorId, $section === 'resellers', $filters, $from, $until, $segments),
+                'segments' => $counts,
+            ];
         });
     }
 
@@ -259,9 +276,17 @@ final readonly class ReadCrmDirectory
     /** @param array<string, mixed> $filters
      * @return LengthAwarePaginator<int, \stdClass>
      */
-    private function accountPage(int $actorId, bool $resellers, array $filters, Carbon $from, Carbon $until): LengthAwarePaginator
+    private function accountPage(int $actorId, bool $resellers, array $filters, Carbon $from, Carbon $until, ?Builder $segments = null): LengthAwarePaginator
     {
         $query = $this->rankedAccounts($actorId, $resellers, $from, $until);
+        if ($segments !== null) {
+            $query->joinSub($segments, 'customer_segment', 'customer_segment.id', '=', 'accounts.id')
+                ->addSelect('customer_segment.r_score', 'customer_segment.f_score', 'customer_segment.m_score', 'customer_segment.lifetime_orders', 'customer_segment.lifetime_rials', 'customer_segment.last_purchase_at');
+            $segment = $filters['segment'] ?? 'all';
+            if (in_array($segment, self::CUSTOMER_SEGMENTS, true)) {
+                $query->where('customer_segment.'.$segment, 1);
+            }
+        }
         $search = trim((string) ($filters['search'] ?? ''));
         if ($search !== '') {
             $like = $this->literalLike($search);
@@ -390,6 +415,40 @@ final readonly class ReadCrmDirectory
         $sort = ['order_id' => 'orders.id', 'created_at' => 'orders.created_at', 'name' => 'labels.label'][$filters['sort']] ?? 'orders.id';
 
         return $query->orderBy($sort, $filters['direction'])->orderBy('orders.id')->paginate(50, page: (int) $filters['page']);
+    }
+
+    /**
+     * All-time canonical purchase evidence for the current direct cohort.
+     * Opportunity flags overlap and require an active account; no score without a purchase.
+     */
+    private function customerSegments(int $actorId): Builder
+    {
+        $today = Carbon::now('Asia/Tehran')->startOfDay();
+        $now = Carbon::now('UTC');
+        $cutoff = static fn (int $days): Carbon => $today->copy()->subDays($days - 1)->utc();
+        $history = $this->sales->purchases($actorId, Carbon::parse('1970-01-01', 'UTC'), $now->copy()->addSecond());
+        $metrics = DB::query()->fromSub($this->accounts(false), 'cohort')
+            ->leftJoinSub($history, 'lifetime', 'lifetime.buyer_id', '=', 'cohort.id')
+            ->leftJoinSub(ReadAdminWalletSummary::walletRankingsQuery(), 'segment_wallet', 'segment_wallet.user_id', '=', 'cohort.id')
+            ->leftJoin('telegram_bot_contacts as sales_contact', static function ($join): void {
+                $join->on('sales_contact.user_id', '=', 'cohort.id')->where('sales_contact.bot_key', 'sales');
+            })
+            ->select('cohort.id', 'cohort.is_active', 'cohort.created_at', 'lifetime.last_purchase_at', 'sales_contact.last_seen_at', 'segment_wallet.balance_rials')
+            ->selectRaw('COALESCE(lifetime.order_count, 0) as lifetime_orders, COALESCE(lifetime.revenue_rials, 0) as lifetime_rials')
+            ->selectRaw('CASE WHEN EXISTS (SELECT 1 FROM trial_claims WHERE trial_claims.user_id = cohort.id AND trial_claims.activated_at IS NOT NULL) THEN 1 ELSE 0 END as trial_activated')
+            ->selectRaw('CASE WHEN lifetime.last_purchase_at IS NULL THEN NULL WHEN lifetime.last_purchase_at >= ? THEN 5 WHEN lifetime.last_purchase_at >= ? THEN 4 WHEN lifetime.last_purchase_at >= ? THEN 3 WHEN lifetime.last_purchase_at >= ? THEN 2 ELSE 1 END as r_score', [$cutoff(7), $cutoff(14), $cutoff(30), $cutoff(60)])
+            ->selectRaw('CASE WHEN lifetime.order_count IS NULL THEN NULL WHEN lifetime.order_count >= 5 THEN 5 ELSE lifetime.order_count END as f_score')
+            ->selectRaw('CASE WHEN lifetime.order_count IS NULL THEN NULL WHEN lifetime.revenue_rials >= 10000000 THEN 5 WHEN lifetime.revenue_rials >= 6000000 THEN 4 WHEN lifetime.revenue_rials >= 3000000 THEN 3 WHEN lifetime.revenue_rials >= 1000000 THEN 2 ELSE 1 END as m_score');
+
+        return DB::query()->fromSub($metrics, 'metrics')->select('metrics.*')
+            ->selectRaw('CASE WHEN is_active = 1 AND r_score >= 3 AND f_score >= 3 AND m_score >= 4 THEN 1 ELSE 0 END as valuable')
+            ->selectRaw('CASE WHEN is_active = 1 AND lifetime_orders >= 3 THEN 1 ELSE 0 END as loyal')
+            ->selectRaw('CASE WHEN is_active = 1 AND created_at >= ? AND created_at <= ? THEN 1 ELSE 0 END as new_customer', [$cutoff(7), $now])
+            ->selectRaw('CASE WHEN is_active = 1 AND trial_activated = 1 AND lifetime_orders = 0 THEN 1 ELSE 0 END as trial_only')
+            ->selectRaw('CASE WHEN is_active = 1 AND balance_rials > 0 THEN 1 ELSE 0 END as wallet_positive')
+            ->selectRaw('CASE WHEN is_active = 1 AND last_purchase_at < ? THEN 1 ELSE 0 END as at_risk', [$cutoff(30)])
+            ->selectRaw('CASE WHEN is_active = 1 AND last_seen_at < ? THEN 1 ELSE 0 END as old_interaction', [$cutoff(30)])
+            ->selectRaw('CASE WHEN is_active = 1 AND last_seen_at IS NULL THEN 1 ELSE 0 END as unknown_interaction');
     }
 
     /** @param array<string, mixed> $filters */

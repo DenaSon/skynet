@@ -16,6 +16,10 @@
         <main class="min-w-0 space-y-5">
             <x-header :title="$titles[$section]" subtitle="پنل مدیریت مشتریان" separator />
 
+            @if ($section === 'customers')
+                @include('crm.customer-segments')
+            @endif
+
             <x-card class="border border-base-300">
                 <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
                     <h2 class="text-sm font-semibold text-dg-navy">فیلترهای گزارش</h2>

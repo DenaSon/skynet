@@ -61,6 +61,8 @@ final class Shell extends Component
 
     public string $orderStatus = 'all';
 
+    public string $segment = 'off';
+
     public string $advancedMode = 'and';
 
     /** @var list<array{field:string,operator:string,value:string}> */
@@ -131,7 +133,7 @@ final class Shell extends Component
 
     public function resetFilters(): void
     {
-        $this->reset(['from', 'until', 'registeredFrom', 'registeredUntil', 'search', 'status', 'telegram', 'purchase', 'phone', 'groupContacts', 'reseller', 'product', 'orderStatus', 'advancedMode', 'advancedConditions']);
+        $this->reset(['from', 'until', 'registeredFrom', 'registeredUntil', 'search', 'status', 'telegram', 'purchase', 'phone', 'groupContacts', 'reseller', 'product', 'orderStatus', 'advancedMode', 'advancedConditions', 'segment']);
         $this->period = $this->section === 'dashboard' ? '30' : 'all';
         $this->sortBy = match ($this->section) {
             'resellers' => ['column' => 'revenue_rials', 'direction' => 'desc'],
@@ -161,6 +163,7 @@ final class Shell extends Component
                 'reseller' => $this->reseller ?: null,
                 'product' => $this->product,
                 'orderStatus' => $this->orderStatus,
+                'segment' => $this->segment,
                 'advancedMode' => $this->advancedMode,
                 'advancedConditions' => $this->advancedConditions,
                 'sort' => $this->sortBy['column'] ?? '',

@@ -1137,3 +1137,101 @@ it('adds and removes advanced conditions through real Livewire requests', functi
     expect($response->json('components.0.effects.html'))->toContain('تعداد نتایج: ۲')->not->toContain('حذف شرط');
     Http::assertNothingSent();
 });
+
+it('scores canonical lifetime purchases and groups only active direct customers independently of report filters', function (): void {
+    config()->set('billing.topups_enabled', true);
+    $root = crm01bUser('super-admin');
+    $valuable = crm01bUser('member');
+    $old = crm01bUser('member', ['created_at' => now()->subMonths(3)]);
+    $boundary = crm01bUser('member');
+    $trial = crm01bUser('member');
+    $unknown = crm01bUser('member');
+    $inactive = crm01bUser('member', ['is_active' => false]);
+    $reseller = crm01bUser('reseller');
+    $reseller->assignRole('member');
+    $staff = crm01bUser('admin');
+    $staff->assignRole('member');
+
+    foreach ([$valuable, $inactive, $reseller, $staff] as $user) {
+        foreach (range(1, 3) as $index) {
+            crm01bOrder($user, 'direct', 2_000_000);
+        }
+    }
+    crm01bOrder($valuable, 'direct', 9_000_000, 'refunded');
+    crm01bOrder($trial, 'direct', 9_000_000, 'pending_payment', false);
+    $this->travelTo(Carbon::parse('2026-10-28 23:59:59', 'Asia/Tehran')->utc());
+    crm01bOrder($old, 'direct', 1_000_000);
+    $this->travelTo(Carbon::parse('2026-10-29 00:00:00', 'Asia/Tehran')->utc());
+    crm01bOrder($boundary, null, 3_000_000);
+    $this->travelTo(Carbon::parse('2026-11-27 12:00:00', 'Asia/Tehran')->utc());
+    app(CreditVerifiedAdminBankTopup::class)->handle($root->id, $trial->id, 100_000, 'CRMSEGMENTWALLET', 'Fixture credit');
+    DB::table('trial_claims')->insert([
+        'user_id' => $trial->id, 'telegram_user_id' => 997115,
+        'phone_fingerprint' => hash('sha256', 'crm-segment-trial'),
+        'state' => 'active', 'activated_at' => now(), 'created_at' => now(), 'updated_at' => now(),
+    ]);
+    foreach ([[$old, 'sales', 997116], [$unknown, 'admin', 997117]] as [$user, $bot, $chat]) {
+        DB::table('telegram_bot_contacts')->insert([
+            'user_id' => $user->id, 'bot_key' => $bot, 'chat_id' => $chat,
+            'delivery_status' => 'reachable', 'last_seen_at' => now()->subDays(31),
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+    }
+
+    $reader = app(ReadCrmDirectory::class);
+    $data = $reader->handle($root->id, 'customers', crm01bFilters(['segment' => 'all', 'period' => 'yesterday']));
+    $counts = array_map('intval', $data['segments']);
+    expect($counts)->toBe([
+        'total' => 6, 'valuable' => 1, 'loyal' => 1, 'new_customer' => 4,
+        'trial_only' => 1, 'wallet_positive' => 1, 'at_risk' => 1,
+        'old_interaction' => 1, 'unknown_interaction' => 4,
+    ]);
+    $rows = collect($data['rows']->items())->keyBy('id');
+    $v = $rows[$valuable->id];
+    expect([(int) $v->r_score, (int) $v->f_score, (int) $v->m_score, (int) $v->lifetime_orders, (int) $v->lifetime_rials])
+        ->toBe([5, 3, 4, 3, 6_000_000])
+        ->and((int) $v->revenue_rials)->toBe(0)
+        ->and((int) $rows[$old->id]->r_score)->toBe(2)
+        ->and((int) $rows[$boundary->id]->r_score)->toBe(3)
+        ->and($rows[$trial->id]->r_score)->toBeNull()
+        ->and($rows[$trial->id]->f_score)->toBeNull()
+        ->and($rows[$trial->id]->m_score)->toBeNull();
+    foreach (['valuable' => $valuable, 'loyal' => $valuable, 'trial_only' => $trial, 'wallet_positive' => $trial, 'at_risk' => $old, 'old_interaction' => $old] as $key => $user) {
+        $selected = $reader->handle($root->id, 'customers', crm01bFilters(['segment' => $key]));
+        expect($selected['rows']->total())->toBe(1)
+            ->and((int) $selected['rows']->items()[0]->id)->toBe($user->id);
+    }
+    $filtered = $reader->handle($root->id, 'customers', crm01bFilters([
+        'segment' => 'valuable',
+        'advancedConditions' => [['field' => 'orders', 'operator' => 'eq', 'value' => '0']],
+    ]));
+    expect($filtered['rows']->total())->toBe(0)
+        ->and((int) $filtered['segments']['valuable'])->toBe(1);
+    expect($reader->handle($root->id, 'customers', crm01bFilters())['segments'])->toBeNull();
+    expect(fn () => $reader->handle($trial->id, 'customers', crm01bFilters(['segment' => 'all'])))->toThrow(AuthorizationException::class);
+    expect(fn () => $reader->handle($root->id, 'resellers', crm01bFilters(['segment' => 'all'])))->toThrow(ValidationException::class);
+    expect(fn () => $reader->handle($root->id, 'customers', crm01bFilters(['segment' => 'invalid'])))->toThrow(ValidationException::class);
+    Http::assertNothingSent();
+});
+
+it('renders optional customer segmentation and selects groups using real Livewire updates', function (): void {
+    $root = crm01bUser('super-admin');
+    $member = crm01bUser('member');
+    crm01bOrder($member, 'direct', 100_000);
+    crm01bUser('member');
+    $html = $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm/customers')->assertOk()
+        ->assertSee('نمایش گروه‌ها')->assertDontSee('امتیاز RFM (کل سابقه)')->getContent() ?: '';
+    expect(preg_match('/wire:snapshot="([^"]+)"/', $html, $matches))->toBe(1);
+    $snapshot = htmlspecialchars_decode($matches[1], ENT_QUOTES);
+    $url = 'https://crm.denagate.ir'.app(HandleRequests::class)->getUpdateUri();
+    $response = $this->postJson($url, ['components' => [[
+        'snapshot' => $snapshot, 'updates' => ['segment' => 'all'], 'calls' => [],
+    ]]], ['X-Livewire' => 'true'])->assertOk();
+    expect($response->json('components.0.effects.html'))->toContain('امتیاز RFM (کل سابقه)', 'بدون خرید معتبر', 'تعداد نتایج: ۲');
+    $response = $this->postJson($url, ['components' => [[
+        'snapshot' => $response->json('components.0.snapshot'), 'updates' => ['segment' => 'loyal'], 'calls' => [],
+    ]]], ['X-Livewire' => 'true'])->assertOk();
+    expect($response->json('components.0.effects.html'))->toContain('تعداد نتایج: ۰');
+    $this->get('https://crm.denagate.ir/admin/crm/resellers')->assertOk()->assertDontSee('نمایش گروه‌ها');
+    Http::assertNothingSent();
+});
