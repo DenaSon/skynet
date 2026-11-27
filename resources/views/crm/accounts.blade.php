@@ -8,6 +8,7 @@
         ['key' => 'revenue_rials', 'label' => 'خرید تسویه‌شده'],
     ];
     if ($resellers) {
+        array_unshift($headers, ['key' => 'sales_rank', 'label' => 'رتبه فروش', 'sortable' => false]);
         $headers[] = ['key' => 'phones', 'label' => 'شماره یکتا'];
         $headers[] = ['key' => 'name_only', 'label' => 'نام بدون شماره'];
     } else {
@@ -16,7 +17,7 @@
 @endphp
 <x-card class="border border-base-300">
     @if ($resellers)
-        <p class="mb-4 text-sm text-base-content/60">مبلغ خرید نماینده نزد دناگیت بر اساس کانال ثبت‌شده سفارش است. سفارش‌های تاریخی با کانال نامشخص در این مبلغ لحاظ نمی‌شوند.</p>
+        <p class="mb-4 text-sm text-base-content/60">مبلغ خرید نماینده نزد دناگیت بر اساس کانال ثبت‌شده سفارش است. سفارش‌های تاریخی با کانال نامشخص در این مبلغ لحاظ نمی‌شوند. رتبه بر اساس مبلغ خرید در نتایج فیلترشده است.</p>
     @endif
     <x-table :headers="$headers" :rows="$rows" :sort-by="$sortBy" with-pagination>
         @scope('cell_is_active', $row)

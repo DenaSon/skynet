@@ -35,7 +35,7 @@ final readonly class ReadCrmDirectory
             'from' => ['nullable', 'date_format:Y-m-d', 'required_if:period,custom'],
             'until' => ['nullable', 'date_format:Y-m-d', 'required_if:period,custom', 'after_or_equal:from'],
             'registeredFrom' => ['nullable', 'date_format:Y-m-d'],
-            'registeredUntil' => ['nullable', 'date_format:Y-m-d'],
+            'registeredUntil' => ['nullable', 'date_format:Y-m-d', ...(! empty($filters['registeredFrom']) ? ['after_or_equal:registeredFrom'] : [])],
             'search' => ['nullable', 'string', 'max:80'],
             'status' => ['required', Rule::in(['all', 'active', 'inactive'])],
             'telegram' => ['required', Rule::in(['all', 'linked', 'unlinked'])],
@@ -172,6 +172,10 @@ final readonly class ReadCrmDirectory
             $sorts += ['phones' => 'phones', 'name_only' => 'name_only'];
         }
 
+        if ($resellers) {
+            $query->selectRaw('DENSE_RANK() OVER (ORDER BY COALESCE(purchases.revenue_rials, 0) DESC) as sales_rank');
+        }
+
         return $query->orderBy($sorts[$filters['sort']] ?? 'accounts.id', $filters['direction'])
             ->orderBy('accounts.id')->paginate(25, page: (int) $filters['page']);
     }
@@ -184,7 +188,7 @@ final readonly class ReadCrmDirectory
         $query = $this->sales->contacts($actorId, $from, $until)
             ->joinSub($this->accounts(true), 'resellers', 'resellers.id', '=', 'orders.buyer_user_id')
             ->leftJoinSub($this->sales->settledOrderIds($actorId, Carbon::parse('1970-01-01', 'UTC'), Carbon::now('UTC')->addDay()), 'settled', 'settled.order_id', '=', 'orders.id')
-            ->select('orders.id as order_id', 'orders.product_name', 'orders.status', 'orders.created_at', 'resellers.name as reseller_name', 'labels.label', 'labels.phone')
+            ->select('orders.id as order_id', 'orders.id as id', 'orders.product_name', 'orders.status', 'orders.created_at', 'resellers.name as reseller_name', 'labels.label', 'labels.phone')
             ->selectRaw('CASE WHEN settled.order_id IS NULL THEN 0 ELSE 1 END as purchased');
         $search = trim((string) ($filters['search'] ?? ''));
         if ($search !== '') {
