@@ -91,8 +91,8 @@ final class Shell extends Component
         try {
             $data = app(ReadCrmDirectory::class)->handle((int) Auth::guard('web')->id(), $this->section, [
                 'period' => $this->period,
-                'from' => $this->from ?: null,
-                'until' => $this->until ?: null,
+                'from' => $this->period === 'custom' ? ($this->from ?: null) : null,
+                'until' => $this->period === 'custom' ? ($this->until ?: null) : null,
                 'registeredFrom' => $this->registeredFrom ?: null,
                 'registeredUntil' => $this->registeredUntil ?: null,
                 'search' => $this->search,

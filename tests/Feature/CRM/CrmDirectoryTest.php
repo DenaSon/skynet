@@ -11,6 +11,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Validation\ValidationException;
+use Livewire\Mechanisms\HandleRequests\HandleRequests;
 use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
@@ -165,13 +167,13 @@ it('applies bounded server-side search and pagination to direct accounts', funct
     $page = $reader->handle($root->id, 'customers', crm01bFilters(['search' => 'Fixture', 'status' => 'active', 'sort' => 'id', 'page' => 2]))['rows'];
     expect($page->total())->toBe(26)->and($page->count())->toBe(1);
     expect(fn () => $reader->handle($root->id, 'customers', crm01bFilters(['sort' => 'invalid'])))
-        ->toThrow(\Illuminate\Validation\ValidationException::class);
+        ->toThrow(ValidationException::class);
 });
 
 it('rechecks authority on real Livewire requests from all three new directories', function (): void {
     $root = crm01bUser('super-admin');
     $this->actingAs($root, 'web');
-    $updateUrl = 'https://crm.denagate.ir'.app(\Livewire\Mechanisms\HandleRequests\HandleRequests::class)->getUpdateUri();
+    $updateUrl = 'https://crm.denagate.ir'.app(HandleRequests::class)->getUpdateUri();
     foreach (['customers', 'resellers', 'reseller-customers'] as $path) {
         $html = $this->get('https://crm.denagate.ir/admin/crm/'.$path)->assertOk()->getContent() ?: '';
         expect(preg_match('/wire:snapshot="([^"]+)"/', $html, $matches))->toBe(1);

@@ -8,6 +8,7 @@ use App\Modules\Identity\Infrastructure\Models\User;
 use App\Modules\Sales\Application\ReadAdminBusinessReport;
 use App\Modules\Sales\Application\ReadCrmSales;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -23,7 +24,7 @@ final readonly class ReadCrmDirectory
     ) {}
 
     /**
-     * @param array<string, mixed> $filters
+     * @param  array<string, mixed>  $filters
      * @return array<string, mixed>
      */
     public function handle(int $actorId, string $section, array $filters): array
@@ -132,9 +133,9 @@ final readonly class ReadCrmDirectory
     }
 
     /** @param array<string, mixed> $filters
-     * @return \Illuminate\Pagination\LengthAwarePaginator<int, \stdClass>
+     * @return LengthAwarePaginator<int, \stdClass>
      */
-    private function accountPage(int $actorId, bool $resellers, array $filters, Carbon $from, Carbon $until): \Illuminate\Pagination\LengthAwarePaginator
+    private function accountPage(int $actorId, bool $resellers, array $filters, Carbon $from, Carbon $until): LengthAwarePaginator
     {
         $query = $this->rankedAccounts($actorId, $resellers, $from, $until);
         $search = trim((string) ($filters['search'] ?? ''));
@@ -184,9 +185,9 @@ final readonly class ReadCrmDirectory
     }
 
     /** @param array<string, mixed> $filters
-     * @return \Illuminate\Pagination\LengthAwarePaginator<int, \stdClass>
+     * @return LengthAwarePaginator<int, \stdClass>
      */
-    private function contactPage(int $actorId, array $filters, Carbon $from, Carbon $until): \Illuminate\Pagination\LengthAwarePaginator
+    private function contactPage(int $actorId, array $filters, Carbon $from, Carbon $until): LengthAwarePaginator
     {
         $query = $this->sales->contacts($actorId, $from, $until)
             ->joinSub($this->accounts(true), 'resellers', 'resellers.id', '=', 'orders.buyer_user_id')
