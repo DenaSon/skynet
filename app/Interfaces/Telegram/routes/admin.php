@@ -644,12 +644,15 @@ $bot->onCommand('servers', function (Nutgram $bot): void {
     app(AdminProviderOverviewUi::class)->show($bot);
 });
 
-// ARI-03C2: staging-only, one explicit step at a time; never writes in Production.
+// ARI-03: explicit coordination of verified DNS records and Node management IP.
 $bot->onCallbackQueryData('ari7:status:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
     app(AdminArianetIpv4CoordinationUi::class)->show($bot, $id, $page);
 });
 $bot->onCallbackQueryData('ari7:prepare:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
     app(AdminArianetIpv4CoordinationUi::class)->act($bot, 'prepare', $id, $page);
+});
+$bot->onCallbackQueryData('ari7:continue:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
+    app(AdminArianetIpv4CoordinationUi::class)->act($bot, 'continue', $id, $page);
 });
 $bot->onCallbackQueryData('ari7:step:{id}:{page}:{index}', function (Nutgram $bot, string $id, string $page, string $index): void {
     app(AdminArianetIpv4CoordinationUi::class)->act($bot, 'step', $id, $page, $index);

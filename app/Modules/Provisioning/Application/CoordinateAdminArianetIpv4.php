@@ -11,7 +11,7 @@ use RuntimeException;
 use Throwable;
 
 /**
- * ARI-03D: DNS-only continuation after a confirmed Cloud IPv4 change.
+ * ARI-03: verified DNS and Node-IP continuation after a confirmed Cloud IPv4 change.
  * Each PATCH is journaled first; ambiguous outcomes use GET-only recovery.
  */
 final readonly class CoordinateAdminArianetIpv4
@@ -29,9 +29,10 @@ final readonly class CoordinateAdminArianetIpv4
         private ManageCloudflareDns $dns,
     ) {}
 
-    public function enabled(): bool
+    public function enabled(bool $legacy = false): bool
     {
-        return $this->dns->wizardEnabled();
+        return $this->dns->wizardEnabled()
+            && ($legacy || config('services.remnawave.writes_enabled') === true);
     }
 
     /**
@@ -49,6 +50,7 @@ final readonly class CoordinateAdminArianetIpv4
         }
 
         return [
+            'version' => $state['version'],
             'stage' => $state['stage'],
             'oldIp' => $state['oldIp'],
             'newIp' => $state['newIp'],
@@ -67,7 +69,9 @@ final readonly class CoordinateAdminArianetIpv4
     public function prepare(int $actorId, int $serverId): array
     {
         $this->access->handle($actorId);
-        $this->assertEnabled();
+        if (! $this->enabled()) {
+            throw new RuntimeException('Cloud DNS/Node coordination writes are disabled.');
+        }
 
         return $this->lock($serverId, function () use ($actorId, $serverId): array {
             $this->access->handle($actorId);
@@ -99,6 +103,10 @@ final readonly class CoordinateAdminArianetIpv4
             }
 
             $node = $this->nodes->replacementSnapshot($actorId, $identity['nodeUuid']);
+            if ($node['address'] !== $report['nodeAddress'] || $node['disabled'] || $node['port'] !== 2222) {
+                throw new RuntimeException('Node changed after dependency review.');
+            }
+            $this->nodes->validateRegistrationIdentity($actorId, $node['name'], $new);
             $inventory = $this->hosts->replacementInventory($actorId);
             $peers = $this->nodes->replacementAddresses($actorId);
             $hostIndex = array_column($inventory, null, 'uuid');
@@ -124,20 +132,24 @@ final readonly class CoordinateAdminArianetIpv4
                 $explicit = $current !== null && $current['nodes'] === [$node['uuid']];
                 $sameNodeDomain = $current !== null && $current['nodes'] === []
                     && ($host['domainMatched'] ?? false) === true
-                    && strtolower($current['address']) === strtolower($node['address']);
+                    && (strtolower($current['address']) === strtolower($node['address'])
+                        || ($node['address'] === $old
+                            && $current['profileUuid'] === $node['profileUuid']
+                            && in_array($current['inboundUuid'], $node['inboundUuids'], true)
+                            && in_array(strtolower($current['address']), array_column($report['dns'], 'hostname'), true)));
                 if ((! $explicit && ! $sameNodeDomain)
                     || $host['shared'] || $host['unverified'] || $host['type'] !== 'hostname'
                     || $current['address'] !== $host['address']) {
                     throw new RuntimeException('Host ownership changed after dependency review.');
                 }
             }
-            // Existing Node/Host domains and UUIDs are never modified.
             if ($steps === [] || count($steps) > 10) {
                 throw new RuntimeException('No bounded DNS coordination steps are available.');
             }
+            $steps[] = ['kind' => 'node', 'name' => $node['name'], 'state' => 'ready'];
 
             $state = [
-                'version' => 1, 'stage' => 'ready', 'owner' => $actorId,
+                'version' => 2, 'stage' => 'ready', 'owner' => $actorId,
                 'oldIp' => $old, 'newIp' => $new, 'serverId' => $serverId,
                 'node' => $node, 'inventory' => $inventory, 'peers' => $peers,
                 'steps' => $steps,
@@ -168,12 +180,22 @@ final readonly class CoordinateAdminArianetIpv4
                 || $this->next($state) !== $index || ($state['steps'][$index]['state'] ?? null) !== 'ready') {
                 throw new RuntimeException('This coordination confirmation was already used or is not next.');
             }
-            // Reject historical direct-IP steps before reserving a write.
-            if ($state['steps'][$index]['kind'] !== 'dns') {
-                throw new RuntimeException('This operation requires manual review; only DNS steps are supported.');
+            $kind = $state['steps'][$index]['kind'];
+            if ($kind !== 'dns' && ! ($state['version'] === 2 && $kind === 'node'
+                && $index === count($state['steps']) - 1)) {
+                throw new RuntimeException('This operation requires manual review; unsupported step.');
+            }
+            if ($state['version'] === 2 && ! $this->enabled()) {
+                throw new RuntimeException('Cloud DNS/Node coordination writes are disabled.');
             }
             $this->assertCloudAndInventory($actorId, $serverId, $state);
             $this->assertCurrentStep($actorId, $state, $index);
+            if ($kind === 'node') {
+                // All earlier DNS records must still point to the confirmed new IP.
+                foreach (range(0, $index - 1) as $previous) {
+                    $this->assertStepAtNewIp($actorId, $state, $previous);
+                }
+            }
             // Checkpoint BEFORE sending any external write. Even if PHP exits
             // or an upstream timeout occurs, the step cannot be sent again.
             $state['stage'] = 'applying';
@@ -182,9 +204,13 @@ final readonly class CoordinateAdminArianetIpv4
 
             try {
                 $step = $state['steps'][$index];
-                $this->dns->changeA($actorId, $step['zoneId'], $step['zone'],
-                    $step['record'], $state['newIp'], $step['record']['proxied'],
-                    requireUniqueHostname: true);
+                if ($kind === 'node') {
+                    $this->nodes->updateReplacementAddress($actorId, $state['node'], $state['newIp']);
+                } else {
+                    $this->dns->changeA($actorId, $step['zoneId'], $step['zone'],
+                        $step['record'], $state['newIp'], $step['record']['proxied'],
+                        requireUniqueHostname: true);
+                }
                 $this->assertStepAtNewIp($actorId, $state, $index);
                 $this->completeStep($row->id, $state, $index);
             } catch (Throwable) {
@@ -195,7 +221,7 @@ final readonly class CoordinateAdminArianetIpv4
         });
     }
 
-    /** Continue verified DNS steps without any additional approval. */
+    /** Continue the explicitly confirmed plan, without replaying uncertain steps. */
     public function continueDns(int $actorId, int $serverId): void
     {
         $this->access->handle($actorId);
@@ -223,7 +249,17 @@ final readonly class CoordinateAdminArianetIpv4
                 throw new RuntimeException('No ambiguous step is awaiting GET reconciliation.');
             }
 
-            $this->assertCloud($actorId, $serverId, $state);
+            if ($state['version'] === 2) {
+                $this->assertCloudAndInventory($actorId, $serverId, $state, reconciling: true);
+                foreach (array_keys($state['steps']) as $previous) {
+                    if ($previous >= $index) {
+                        break;
+                    }
+                    $this->assertStepAtNewIp($actorId, $state, $previous);
+                }
+            } else {
+                $this->assertCloud($actorId, $serverId, $state);
+            }
             $this->assertStepAtNewIp($actorId, $state, $index);
             $this->completeStep($row->id, $state, $index);
         });
@@ -247,7 +283,7 @@ final readonly class CoordinateAdminArianetIpv4
             $this->assertCloudAndInventory($actorId, $serverId, $state);
             $node = $this->nodes->replacementSnapshot($actorId, $state['node']['uuid']);
             if ($node['disabled'] || ! $node['connected']
-                || self::nodeIdentity($node) !== self::nodeIdentity($state['node'])) {
+                || self::nodeIdentity($node) !== self::nodeIdentity($this->expectedNode($state))) {
                 throw new RuntimeException('Node is disconnected or changed; client test cannot be accepted.');
             }
             foreach (array_keys($state['steps']) as $index) {
@@ -270,12 +306,36 @@ final readonly class CoordinateAdminArianetIpv4
     }
 
     /** @param array<string,mixed> $state */
-    private function assertCloudAndInventory(int $actorId, int $serverId, array $state): void
+    private function assertCloudAndInventory(int $actorId, int $serverId, array $state, bool $reconciling = false): void
     {
         $this->assertCloud($actorId, $serverId, $state);
         $node = $this->nodes->replacementSnapshot($actorId, $state['node']['uuid']);
-        if (self::nodeIdentity($node) !== self::nodeIdentity($state['node'])) {
-            throw new RuntimeException('Node identity changed during DNS coordination.');
+        if (self::nodeIdentity($node) !== self::nodeIdentity($this->expectedNode($state, $reconciling))) {
+            throw new RuntimeException('Node identity changed during coordination.');
+        }
+        if ($state['version'] === 2) {
+            // Freeze the bounded ownership inventory until the complete new
+            // plan is verified. New or reassigned Hosts require manual review.
+            if ($this->hosts->replacementInventory($actorId) !== $state['inventory']) {
+                throw new RuntimeException('Host inventory changed during coordination.');
+            }
+            $targetNames = array_column(array_filter($state['steps'], static fn (array $step): bool => $step['kind'] === 'dns'), 'name');
+            foreach ($this->nodes->replacementAddresses($actorId) as $peer) {
+                if ($peer['uuid'] === $state['node']['uuid']) {
+                    continue;
+                }
+                $peerIp = $peer['address'];
+                if ($state['node']['address'] === $state['oldIp'] && filter_var($peerIp, FILTER_VALIDATE_IP) === false) {
+                    $peerIp = $this->dns->replacementRecord($actorId, $peerIp)['record']['content'];
+                }
+                if (in_array($peerIp, [$state['oldIp'], $state['newIp']], true)
+                    || in_array(strtolower($peer['address']), $targetNames, true)
+                    || strcasecmp($peer['address'], $state['node']['address']) === 0) {
+                    throw new RuntimeException('A peer Node shares this Cloud endpoint.');
+                }
+            }
+
+            return;
         }
         // Unrelated Hosts can change without interrupting the selected Node.
         $relevant = static fn (array $items): array => array_values(array_filter(
@@ -292,6 +352,24 @@ final readonly class CoordinateAdminArianetIpv4
                 throw new RuntimeException('A peer Node shares this Cloud endpoint.');
             }
         }
+    }
+
+    /** @param array<string,mixed> $state
+     * @return array<string,mixed>
+     */
+    private function expectedNode(array $state, bool $reconciling = false): array
+    {
+        $node = $state['node'];
+        if ($state['version'] === 2) {
+            foreach ($state['steps'] as $step) {
+                if ($step['kind'] === 'node' && ($step['state'] === 'verified'
+                    || ($reconciling && $step['state'] === 'uncertain'))) {
+                    $node['address'] = $state['newIp'];
+                }
+            }
+        }
+
+        return $node;
     }
 
     /** @param array<string,mixed> $state */
@@ -313,6 +391,10 @@ final readonly class CoordinateAdminArianetIpv4
     private function assertCurrentStep(int $actorId, array $state, int $index): void
     {
         $step = $state['steps'][$index];
+        if ($state['version'] === 2 && $step['kind'] === 'node') {
+            // assertCloudAndInventory already verified the full old identity.
+            return;
+        }
         if ($step['kind'] !== 'dns') {
             throw new RuntimeException('Only managed DNS A records may be coordinated.');
         }
@@ -326,6 +408,16 @@ final readonly class CoordinateAdminArianetIpv4
     private function assertStepAtNewIp(int $actorId, array $state, int $index): void
     {
         $step = $state['steps'][$index];
+        if ($state['version'] === 2 && $step['kind'] === 'node') {
+            $node = $this->nodes->replacementSnapshot($actorId, $state['node']['uuid']);
+            $expected = $state['node'];
+            $expected['address'] = $state['newIp'];
+            if (self::nodeIdentity($node) !== self::nodeIdentity($expected)) {
+                throw new RuntimeException('Node address update has not been verified.');
+            }
+
+            return;
+        }
         if ($step['kind'] !== 'dns') {
             throw new RuntimeException('Only managed DNS A records may be coordinated.');
         }
@@ -372,7 +464,7 @@ final readonly class CoordinateAdminArianetIpv4
 
     private function assertEnabled(): void
     {
-        if (! $this->enabled()) {
+        if (! $this->enabled(legacy: true)) {
             throw new RuntimeException('Cloud coordination writes are disabled in this environment.');
         }
     }
@@ -417,7 +509,7 @@ final readonly class CoordinateAdminArianetIpv4
             return null;
         }
         $state = json_decode($json, true, flags: JSON_THROW_ON_ERROR);
-        if (! is_array($state) || ($state['version'] ?? null) !== 1
+        if (! is_array($state) || ! in_array($state['version'] ?? null, [1, 2], true)
             || ! is_array($state['steps'] ?? null) || ! is_array($state['node'] ?? null)
             || ! is_array($state['inventory'] ?? null) || ! is_array($state['peers'] ?? null)
             || ! is_string($state['stage'] ?? null)) {
@@ -444,7 +536,8 @@ final readonly class CoordinateAdminArianetIpv4
     private static function publicIp(mixed $ip): bool
     {
         return is_string($ip) && filter_var($ip, FILTER_VALIDATE_IP,
-            FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false;
+            FILTER_FLAG_IPV4 | FILTER_FLAG_GLOBAL_RANGE) === $ip
+            && (int) explode('.', $ip)[0] < 224;
     }
 
     /** @template T

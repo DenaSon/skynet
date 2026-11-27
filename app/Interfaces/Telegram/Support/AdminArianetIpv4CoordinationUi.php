@@ -14,7 +14,7 @@ use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 use SergiX44\Nutgram\Telegram\Types\RichMessage\InputRichMessage;
 use Throwable;
 
-/** Root-only real DNS coordination, continuing the original IPv4 confirmation. */
+/** Root-only DNS and Node IP coordination after explicit confirmation. */
 final readonly class AdminArianetIpv4CoordinationUi
 {
     public function __construct(
@@ -43,11 +43,11 @@ final readonly class AdminArianetIpv4CoordinationUi
         }
 
         if ($state === null) {
-            $message = 'هنوز هماهنگی DNS برای این سرور ثبت نشده است.';
+            $message = 'هنوز هماهنگی دامنه‌ها و IP مدیریتی نود ثبت نشده است.';
             if ($this->coordination->enabled() && ($operation['status'] ?? null) === 'awaiting_coordination') {
                 $buttons = InlineKeyboardMarkup::make()
-                    ->addRow(InlineKeyboardButton::make('🌐 تکمیل DNS',
-                        callback_data: 'ari7:prepare:'.$id.':'.$page))
+                    ->addRow(InlineKeyboardButton::make('🌐 تأیید هماهنگی دامنه‌ها و نود',
+                        callback_data: 'ari7:continue:'.$id.':'.$page))
                     ->addRow(InlineKeyboardButton::make('◀️ بررسی اتصال‌ها',
                         callback_data: 'ari6:impact:'.$id.':'.$page));
             } elseif (($operation['status'] ?? null) !== 'awaiting_coordination') {
@@ -59,8 +59,8 @@ final readonly class AdminArianetIpv4CoordinationUi
         }
 
         $stages = [
-            'ready' => 'آماده هماهنگی DNS',
-            'applying' => 'در حال هماهنگی DNS',
+            'ready' => 'آماده هماهنگی اتصال‌ها',
+            'applying' => 'در حال هماهنگی اتصال‌ها',
             'awaiting_client_test' => 'در انتظار تست اتصال واقعی کاربران',
             'completed' => '✅ تأییدشده توسط مدیر پس از تست اتصال',
         ];
@@ -74,7 +74,7 @@ final readonly class AdminArianetIpv4CoordinationUi
             ."\nIP قبلی: ".TelegramUi::escape($state['oldIp'])
             ."\nIP جدید: ".TelegramUi::escape($state['newIp']);
         foreach ($state['steps'] as $index => $step) {
-            $kind = '🌐 DNS';
+            $kind = $step['kind'] === 'node' ? '🖥 IP مدیریتی' : '🌐 DNS';
             $status = match ($step['state']) {
                 'verified' => '✅ تأییدشده',
                 'uncertain' => '⚠️ نیازمند بررسی نتیجه',
@@ -85,11 +85,11 @@ final readonly class AdminArianetIpv4CoordinationUi
         }
 
         $buttons = InlineKeyboardMarkup::make();
-        if ($this->coordination->enabled() && $state['owner']) {
+        if ($this->coordination->enabled(legacy: $state['version'] === 1) && $state['owner']) {
             $index = $state['next'];
             if ($index !== null && $state['steps'][$index]['state'] === 'ready') {
-                $buttons->addRow(InlineKeyboardButton::make('🔄 ادامه هماهنگی DNS',
-                    callback_data: 'ari7:prepare:'.$id.':'.$page));
+                $buttons->addRow(InlineKeyboardButton::make('🔄 ادامه هماهنگی دامنه‌ها و نود',
+                    callback_data: 'ari7:continue:'.$id.':'.$page));
             } elseif ($index !== null && $state['steps'][$index]['state'] === 'uncertain') {
                 $buttons->addRow(InlineKeyboardButton::make('🔎 بررسی نتیجه با GET (بدون تکرار)',
                     callback_data: 'ari7:reconcile:'.$id.':'.$page));
@@ -103,7 +103,7 @@ final readonly class AdminArianetIpv4CoordinationUi
             ->addRow(InlineKeyboardButton::make('◀️ بررسی اتصال‌ها',
                 callback_data: 'ari6:impact:'.$id.':'.$page));
 
-        $notice = 'رکوردهای DNS مرتبط پس از تأیید اولیه IP هماهنگ می‌شوند؛ '
+        $notice = 'دامنه‌های مرتبط و IP مدیریتی نود طبق مراحل ثبت‌شده هماهنگ می‌شوند؛ '
             .'در نتیجه نامشخص، تغییر تکرار نمی‌شود. '
             .'تأیید نهایی فقط پس از تست واقعی اتصال کاربران است.';
         $rich = '<h2>⚙️ هماهنگی اتصال‌ها</h2>'
@@ -121,9 +121,13 @@ final readonly class AdminArianetIpv4CoordinationUi
         [$actor, $id, $page] = $resolved;
         try {
             match ($action) {
-                'prepare' => $this->coordination->continueDns($actor, $id),
-                'step' => $this->coordination->executeNext($actor, $id,
-                    self::step($rawStep) ?? throw new \RuntimeException('Invalid step index.')),
+                // Old DNS-only buttons may not authorize a new Node write.
+                'prepare' => null,
+                'continue' => $this->coordination->continueDns($actor, $id),
+                'step' => ($this->coordination->status($actor, $id)['version'] ?? null) === 1
+                    ? $this->coordination->executeNext($actor, $id,
+                        self::step($rawStep) ?? throw new \RuntimeException('Invalid step index.'))
+                    : null,
                 'reconcile' => $this->coordination->reconcile($actor, $id),
                 'accept' => $this->coordination->acceptClientTest($actor, $id),
                 default => throw new \RuntimeException('Invalid action.'),
