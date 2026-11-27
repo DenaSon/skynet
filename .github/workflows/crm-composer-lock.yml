@@ -1,0 +1,44 @@
+name: Temporary CRM Composer Lock Generation
+
+on:
+  push:
+    branches:
+      - feat/crm-01a-foundation-20261127
+
+permissions:
+  contents: write
+
+jobs:
+  resolve:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: true
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.4'
+          extensions: dom, curl, libxml, mbstring, zip
+          coverage: none
+
+      - name: Resolve Mary UI and its direct dependencies
+        run: composer update robsontenorio/mary --with-dependencies --no-scripts --no-interaction --no-progress
+
+      - name: Validate lock and commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          composer validate --no-check-publish
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add composer.lock
+          if git diff --cached --quiet; then
+            echo "Composer lock is already current."
+            exit 0
+          fi
+          git commit -m "build: resolve Mary UI Composer dependencies"
+          git push origin "HEAD:\${GITHUB_REF_NAME}"
