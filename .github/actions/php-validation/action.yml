@@ -89,7 +89,7 @@ runs:
         restore-keys: |
           ${{ runner.os }}-npm-node22-
 
-    - name: Verify Livewire production JavaScript bundle
+    - name: Verify Livewire and CRM production assets
       if: ${{ inputs.run-frontend == 'true' }}
       run: |
         npm install --prefer-offline --ignore-scripts --no-fund --no-audit --package-lock=false
@@ -99,12 +99,18 @@ runs:
         const fs = require('node:fs');
         const manifest = JSON.parse(fs.readFileSync('public/build/manifest.json', 'utf8'));
         const live = manifest['resources/js/live.js'];
+        const crmJs = manifest['resources/js/crm.js'];
         if (!live || !live.isEntry || !live.file || !live.file.endsWith('.js')) {
-          throw new Error('Livewire Vite entry missing from production manifest');
+          throw new Error('Livewire Live Vite entry missing from production manifest');
         }
-        const filename = 'public/build/' + live.file;
-        if (!fs.existsSync(filename) || fs.statSync(filename).size < 30000) {
-          throw new Error('Livewire runtime JavaScript bundle missing or unexpectedly empty');
+        if (!crmJs || !crmJs.isEntry || !crmJs.file || !crmJs.file.endsWith('.js')) {
+          throw new Error('CRM Livewire Vite entry missing from production manifest');
+        }
+        for (const entry of [live, crmJs]) {
+          const filename = 'public/build/' + entry.file;
+          if (!fs.existsSync(filename) || fs.statSync(filename).size < 30000) {
+            throw new Error('Livewire runtime JavaScript bundle missing or unexpectedly empty: ' + filename);
+          }
         }
         // P0 contract: the ten unused-yet component primitives must survive production CSS generation.
         const style = manifest['resources/css/app.css'];
@@ -117,6 +123,16 @@ runs:
         for (const primitive of primitives) {
           if (!css.includes('.denagate-live .' + primitive)) {
             throw new Error('Missing scoped P0 primitive in compiled CSS: ' + primitive);
+          }
+        }
+        const crmStyle = manifest['resources/css/crm.css'];
+        if (!crmStyle || !crmStyle.isEntry || !crmStyle.file || !crmStyle.file.endsWith('.css')) {
+          throw new Error('CRM stylesheet missing from production manifest');
+        }
+        const crmCss = fs.readFileSync('public/build/' + crmStyle.file, 'utf8');
+        for (const selector of ['.denagate-crm', '.btn', '.card']) {
+          if (!crmCss.includes(selector)) {
+            throw new Error('Missing CRM/Mary UI production CSS selector: ' + selector);
           }
         }
         NODE

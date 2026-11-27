@@ -1,0 +1,43 @@
+@import 'tailwindcss';
+
+@plugin "daisyui" {
+    themes: light --default;
+}
+
+@source "../../vendor/robsontenorio/mary/src/View/Components/**/*.php";
+@source "../views/crm/**/*.blade.php";
+@source "../views/layouts/crm.blade.php";
+
+@theme {
+    --font-sans: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif;
+    --color-dg-navy: #0B1220;
+    --color-dg-teal: #14B8A6;
+}
+
+@font-face {
+    font-family: 'Vazirmatn';
+    src: url('/fonts/vazirmatn-variable.woff2') format('woff2');
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+}
+
+html {
+    color-scheme: light;
+}
+
+.denagate-crm {
+    --color-primary: #14B8A6;
+    --color-primary-content: #0B1220;
+    --color-base-100: #FFFFFF;
+    --color-base-200: #F6F8FA;
+    --color-base-300: #E5EAF0;
+    --color-base-content: #0B1220;
+    --color-neutral: #0B1220;
+    --color-neutral-content: #FFFFFF;
+    --radius-box: 1rem;
+    --radius-field: 0.75rem;
+    --radius-selector: 0.75rem;
+
+    font-family: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif;
+}

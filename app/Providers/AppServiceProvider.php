@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Interfaces\Web\CRM\EnsureCrmAccess;
 use App\Interfaces\Web\Live\EnsureLiveEnabled;
 use App\Interfaces\Web\Live\EnsureLiveReseller;
 use App\Support\Health\DenaGateOperationalCheck;
@@ -27,7 +28,11 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         // Keep the existing Live Mini App feature and reseller guards on Livewire update requests.
-        Livewire::addPersistentMiddleware([EnsureLiveEnabled::class, EnsureLiveReseller::class]);
+        Livewire::addPersistentMiddleware([
+            EnsureLiveEnabled::class,
+            EnsureLiveReseller::class,
+            EnsureCrmAccess::class,
+        ]);
 
         $checks = [
             DatabaseCheck::new(),
