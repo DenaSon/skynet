@@ -193,7 +193,7 @@ final readonly class AdminArianetIpv4WriteUi
             ."\nIPv4 جدید: ".TelegramUi::escape($row['newIpv4'] ?? 'هنوز تأیید نشده')
             ."\nهزینه مبنا: ".TelegramUi::tomanPersian($row['feeRials']).' تومان';
         $footer = 'پس از تأیید IP جدید، هماهنگی دامنه‌ها و نود را از همین صفحه ادامه دهید. '
-            .'Remnawave تغییر نمی‌کند؛ اتصال واقعی کاربران جداگانه تست می‌شود.';
+            .'آدرس مدیریتی نود نیز طبق برنامه هماهنگی به‌روزرسانی می‌شود؛ اتصال واقعی کاربران جداگانه تست می‌شود.';
         $rich = '<h2>📋 وضعیت تعویض IPv4</h2><table bordered striped compact>'.$rows.'</table>'
             .'<footer>'.TelegramUi::escape($footer).'</footer>';
         $this->render($bot, $simple."\n\n".TelegramUi::escape($footer), $buttons, $rich);

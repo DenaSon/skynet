@@ -43,14 +43,19 @@ final readonly class AdminArianetIpv4CoordinationUi
         }
 
         if ($state === null) {
-            $message = 'هنوز هماهنگی دامنه‌ها و IP مدیریتی نود ثبت نشده است.';
-            if ($this->coordination->enabled() && ($operation['status'] ?? null) === 'awaiting_coordination') {
-                $buttons = InlineKeyboardMarkup::make()
-                    ->addRow(InlineKeyboardButton::make('🌐 تأیید هماهنگی دامنه‌ها و نود',
-                        callback_data: 'ari7:continue:'.$id.':'.$page))
-                    ->addRow(InlineKeyboardButton::make('◀️ بررسی اتصال‌ها',
-                        callback_data: 'ari6:impact:'.$id.':'.$page));
-            } elseif (($operation['status'] ?? null) !== 'awaiting_coordination') {
+            $message = 'برنامه هماهنگی هنوز آماده نشده است.';
+            if (($operation['status'] ?? null) === 'awaiting_coordination') {
+                $message .= "\nIPv4 قبلی: ".TelegramUi::escape((string) $operation['oldIpv4'])
+                    ."\nIPv4 جدید: ".TelegramUi::escape((string) $operation['newIpv4'])
+                    ."\nابتدا وابستگی‌ها را بررسی کنید؛ سپس برنامه را بسازید. این مرحله هیچ تغییری در سرویس‌دهنده‌ها ایجاد نمی‌کند.";
+                if ($this->coordination->enabled()) {
+                    $buttons = InlineKeyboardMarkup::make()
+                        ->addRow(InlineKeyboardButton::make('◀️ بررسی اتصال‌ها',
+                            callback_data: 'ari6:impact:'.$id.':'.$page))
+                        ->addRow(InlineKeyboardButton::make('📋 ساخت برنامه بدون اعمال تغییر',
+                            callback_data: 'ari7:plan:'.$id.':'.$page));
+                }
+            } else {
                 $message .= "\nابتدا نتیجه تغییر IP باید در آریاسرویس تأیید شود.";
             }
             $this->render($bot, $message, $buttons);
@@ -89,7 +94,7 @@ final readonly class AdminArianetIpv4CoordinationUi
             $index = $state['next'];
             if ($index !== null && $state['steps'][$index]['state'] === 'ready') {
                 $buttons->addRow(InlineKeyboardButton::make(
-                    $state['version'] === 1 ? '🔄 ادامه هماهنگی DNS' : '🔄 ادامه هماهنگی دامنه‌ها و نود',
+                    $state['version'] === 1 ? '🔄 ادامه هماهنگی DNS' : '🔴 تأیید و اجرای هماهنگی دامنه‌ها و نود',
                     callback_data: 'ari7:continue:'.$id.':'.$page));
             } elseif ($index !== null && $state['steps'][$index]['state'] === 'uncertain') {
                 $buttons->addRow(InlineKeyboardButton::make('🔎 بررسی نتیجه با GET (بدون تکرار)',
@@ -126,6 +131,7 @@ final readonly class AdminArianetIpv4CoordinationUi
             match ($action) {
                 // Old DNS-only buttons may not authorize a new Node write.
                 'prepare' => null,
+                'plan' => $this->coordination->prepare($actor, $id),
                 'continue' => $this->coordination->continueDns($actor, $id),
                 'step' => ($this->coordination->status($actor, $id)['version'] ?? null) === 1
                     ? $this->coordination->executeNext($actor, $id,

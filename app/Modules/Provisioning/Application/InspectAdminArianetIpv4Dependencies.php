@@ -6,6 +6,7 @@ namespace App\Modules\Provisioning\Application;
 
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use RuntimeException;
 use Throwable;
 
@@ -87,7 +88,7 @@ final readonly class InspectAdminArianetIpv4Dependencies
         }
         try {
             $this->nodes->validateRegistrationIdentity($actorId, $nodeName, $oldIp);
-        } catch (\Illuminate\Validation\ValidationException) {
+        } catch (ValidationException) {
             $issues[] = 'نام نود یا IPv4 عمومی سرور معتبر نیست.';
         }
 

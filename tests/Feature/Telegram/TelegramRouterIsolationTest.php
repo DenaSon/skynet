@@ -392,8 +392,8 @@ it('registers exactly the audited MB-01 routes in distinct Admin, legacy Sales a
     $expected['ADMIN'][] = 'callback:ari8:r:{id}:{uuid}';
     // ARI-03C2: Admin-only staged coordination, one step per confirmation.
     foreach ([
-        'status:{id}:{page}', 'prepare:{id}:{page}',
-        'step:{id}:{page}:{index}', 'reconcile:{id}:{page}',
+        'status:{id}:{page}', 'plan:{id}:{page}', 'prepare:{id}:{page}',
+        'continue:{id}:{page}', 'step:{id}:{page}:{index}', 'reconcile:{id}:{page}',
         'accept:{id}:{page}',
     ] as $name) {
         $expected['ADMIN'][] = 'callback:ari7:'.$name;

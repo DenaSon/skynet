@@ -651,6 +651,9 @@ $bot->onCallbackQueryData('ari7:status:{id}:{page}', function (Nutgram $bot, str
 $bot->onCallbackQueryData('ari7:prepare:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
     app(AdminArianetIpv4CoordinationUi::class)->act($bot, 'prepare', $id, $page);
 });
+$bot->onCallbackQueryData('ari7:plan:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
+    app(AdminArianetIpv4CoordinationUi::class)->act($bot, 'plan', $id, $page);
+});
 $bot->onCallbackQueryData('ari7:continue:{id}:{page}', function (Nutgram $bot, string $id, string $page): void {
     app(AdminArianetIpv4CoordinationUi::class)->act($bot, 'continue', $id, $page);
 });
