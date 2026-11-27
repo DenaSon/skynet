@@ -1,6 +1,6 @@
 # CRM-01A — فعال‌سازی کنترل‌شده Mary UI و پوسته امن CRM
 
-**وضعیت:** پیاده‌سازی روی شاخه مستقل انجام شده؛ CI و Review در انتظار است؛ هنوز Merge نشده
+**وضعیت:** پیاده‌سازی انجام شده؛ CI PHP 8.4، PHPStan، Pint، MySQL و Vite سبز؛ PHP 8.5 در اجرای PR اجرا نشده؛ Review نهایی در انتظار است؛ هنوز Merge نشده
 **تاریخ:** ۱۴۰۵/۰۹/۰۶ — ۲۰۲۶-۱۱-۲۷
 **شاخه مبنا:** `master`
 **دامنه:** فقط پایه رابط وب و دسترسی Super Admin؛ بدون داده تجاری
@@ -147,34 +147,36 @@ Mary UI نسخه `2.9.11` و DaisyUI نسخه `5.8.3` در وابستگی‌ها
 
 ### وابستگی و فرانت‌اند
 
-- [ ] Composer dependency resolution بدون ارتقای ناخواسته Laravel/Livewire موفق باشد.
-- [ ] نسخه Mary UI و DaisyUI در فایل‌های وابستگی ثبت شوند.
-- [ ] `npm run build` موفق باشد.
-- [ ] خروجی CRM CSS مستقل تولید شود.
-- [ ] ورودی‌های `resources/css/crm.css` و `resources/js/crm.js` در Vite Manifest ثبت شوند.
-- [ ] Bundle مستقل Livewire CRM تولید شود؛ Bundle موجود Live بدون تغییر بماند.
-- [ ] صفحات موجود DenaGate Live همچنان از ورودی‌های قبلی استفاده کنند.
-- [ ] هیچ CSS Mary/DaisyUI به `app.css` اضافه نشده باشد.
+- [x] Composer dependency resolution بدون ارتقای ناخواسته Laravel/Livewire موفق باشد.
+- [x] نسخه Mary UI `2.9.11` و DaisyUI `5.8.3` در فایل‌های وابستگی ثبت شده‌اند.
+- [x] `npm run build` موفق است.
+- [x] خروجی CRM CSS مستقل تولید شده و کلاس‌های Mary/DaisyUI در آن وجود دارند.
+- [x] ورودی‌های `resources/css/crm.css` و `resources/js/crm.js` در Vite Manifest ثبت شده‌اند.
+- [x] Entryهای CRM و Live مستقل‌اند و Runtime مشترک Livewire در گراف وابستگی هر دو تأیید شده است.
+- [x] تست‌های موجود DenaGate Live بدون Regression موفق‌اند.
+- [x] هیچ CSS Mary/DaisyUI به `app.css` اضافه نشده است.
+- [x] npm lockfile جدیدی اضافه نشده است.
 
 ### دامنه و دسترسی
 
-- [ ] ریشه `crm.denagate.ir` به `https://crm.denagate.ir/admin/crm` هدایت شود.
-- [ ] فرم ورود و URLهای Vite/Livewire با HTTPS تولید شوند.
-- [ ] کوکی نشست CRM با نام مستقل `denagate_crm_session`، Secure و Host-only باشد.
-- [ ] درخواست HTTP با هدر صریح `X-Forwarded-Proto: http` به HTTPS هدایت شود.
-- [ ] سیاست HTTPS CRM روی Hostهای دیگر و DenaGate Live اثر نگذارد.
-- [ ] Super Admin واجد شرایط وارد `/admin/crm` شود.
-- [ ] مهمان به مسیر CRM دسترسی نداشته باشد.
-- [ ] عضو عادی، نماینده، مدیر تفویض‌شده و حساب غیرفعال پاسخ غیرمجاز دریافت کنند.
+- [x] درخواست HTTP به ریشه `crm.denagate.ir` به `https://crm.denagate.ir/admin/crm` هدایت می‌شود.
+- [ ] فرم ورود و URLهای Vite/Livewire با HTTPS در مرورگر واقعی و پس از Deploy بازبینی شوند.
+- [x] کوکی نشست CRM با نام مستقل `denagate_crm_session`، Secure و Host-only صادر می‌شود.
+- [x] درخواست HTTP با هدر صریح `X-Forwarded-Proto: http` به HTTPS هدایت می‌شود.
+- [x] سیاست HTTPS CRM روی Hostهای دیگر و DenaGate Live اثر نمی‌گذارد.
+- [x] Super Admin واجد شرایط وارد `/admin/crm` می‌شود.
+- [x] مهمان به مسیر CRM دسترسی ندارد.
+- [x] عضو عادی، نماینده، مدیر تفویض‌شده و حساب غیرفعال پاسخ غیرمجاز دریافت می‌کنند.
 - [ ] تغییر نقش یا Allowlist در درخواست بعدی Livewire دسترسی را متوقف کند.
 - [ ] درخواست Update جعلی Livewire نتواند Guard را دور بزند.
-- [ ] تست‌های موجود DenaGate Live بدون تغییر موفق بمانند.
+- [x] تست‌های موجود DenaGate Live بدون تغییر موفق مانده‌اند.
 
 ### کیفیت
 
-- [ ] تست‌های Feature جدید با Pest موفق باشند.
-- [ ] PHPStan و Pint موفق باشند.
-- [ ] CI کامل PHP 8.4 و 8.5 سبز باشد.
+- [x] تست‌های Feature و Regression با Pest موفق‌اند: ۲٬۲۵۹ تست و ۱۶٬۴۷۸ Assertion.
+- [x] PHPStan و Pint موفق‌اند.
+- [x] CI PHP 8.4، MySQL migration/rollback و ساخت Production فرانت‌اند سبز است.
+- [ ] PHP 8.5 در اجرای PR اجرا نشده و باید از مسیر CI زمان‌بندی‌شده یا دستی بررسی شود.
 - [ ] رندر RTL و فونت فارسی در مرورگر واقعی بازبینی شود.
 - [ ] هیچ Query تجاری یا درخواست Provider در پوسته اجرا نشود.
 

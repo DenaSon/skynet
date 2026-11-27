@@ -15,7 +15,7 @@ DenaGate's normal Remnawave Node and Host endpoints are **predefined Cloudflare-
 - Reuse owning modules' Application Actions and canonical settlement rules. Keep queries, financial rules and authorization out of Livewire/Blade.
 - The CRM host is `crm.denagate.ir`; root-only access uses the existing web login and `SuperAdminTrust`. CRM HTTPS/session policy is host-scoped and uses a dedicated host-only session cookie; do not change global `APP_URL` or proxy trust.
 - Mary UI is integrated manually with independent `crm.css` and `crm.js` assets. Never run `php artisan mary:install`: it can overwrite `routes/web.php`, reinstall existing dependencies and modify shared `resources/css/app.css`.
-- The first foundation is implemented on `feat/crm-01a-foundation-20261127`; do not merge/deploy until PR review and full CI pass.
+- The first foundation is implemented in PR #584; PHP 8.4 CI, PHPStan, Pint, MySQL and Vite checks are green, while PHP 8.5 was skipped. Do not merge/deploy until review and the remaining acceptance checks are complete.
 
 ## Product delivery strategy — normative for DenaGate (2026-11-12)
 

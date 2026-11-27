@@ -1,6 +1,6 @@
 ## CRM-01 — Root-only read-only customer CRM (2026-11-27; scope corrected)
 
-**Status:** Product scope approved; CRM-01A foundation implemented on `feat/crm-01a-foundation-20261127`; PR/CI review pending, not merged.
+**Status:** Product scope approved; CRM-01A implemented in PR #584. PHP 8.4, PHPStan, Pint, MySQL and Vite checks are green; PHP 8.5 was skipped by the PR workflow; review/merge pending.
 
 - The CRM is a web interface in the existing Laravel application on `crm.denagate.ir`, accessible only to Super Admin users accepted by `SuperAdminTrust`. The host root redirects to `/admin/crm`.
 - Read-only data scope includes direct member accounts, all reseller accounts and downstream customer contact records attached to reseller orders. Resellers and members have no CRM access; their records are visible to Super Admin.
@@ -11,7 +11,7 @@
 - Use Laravel 13 + existing Livewire 4 + Mary UI 2.9.11 + DaisyUI 5.8.3. CRM HTTPS/session policy is host-scoped; global `APP_URL` and proxy trust remain unchanged. Manually install Mary and use separate `crm.css`/`crm.js`; never run `php artisan mary:install`, which can overwrite `routes/web.php`, reinstall existing packages and alter shared `resources/css/app.css`.
 - Full contract: [docs/051-CRM-01.md](051-CRM-01.md). First implementation phase: [CRM-01A — Mary UI foundation](052-CRM-01A-MARY-UI-FOUNDATION.md).
 
-**Delivery phases:** CRM-01A secure Mary UI shell (implementation in progress, not merged); CRM-01B dashboard and filtered directories; CRM-01C read-only profiles/history; CRM-01D hardening and acceptance. Each phase needs explicit scope approval, an independent reviewed PR and green CI.
+**Delivery phases:** CRM-01A secure Mary UI shell (implementation complete; PHP 8.4 CI green; PHP 8.5 pending; not merged); CRM-01B dashboard and filtered directories; CRM-01C read-only profiles/history; CRM-01D hardening and acceptance. Each phase needs explicit scope approval, an independent reviewed PR and green CI.
 
 
 
