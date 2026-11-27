@@ -7,6 +7,7 @@ use App\Interfaces\Telegram\Processing\ProcessTelegramUpdate;
 use App\Modules\Billing\Application\CreditVerifiedAdminBankTopup;
 use App\Modules\Billing\Application\ReadAdminCashReceipts;
 use App\Modules\Billing\Application\ReadAdminWalletSummary;
+use App\Modules\Identity\Application\ReadCrmAnalytics;
 use App\Modules\Identity\Application\ReadCrmDirectory;
 use App\Modules\Identity\Application\ReadCrmInteractions;
 use App\Modules\Identity\Application\ReadCrmProfile;
@@ -439,6 +440,10 @@ it('matches canonical bank and wallet purchases and excludes voided claims acros
     $reader = app(ReadCrmDirectory::class);
     $current = $reader->handle($root->id, 'dashboard', crm01bFilters(['period' => 'today']));
     $yesterday = $reader->handle($root->id, 'dashboard', crm01bFilters(['period' => 'yesterday']));
+    $analytics = app(ReadCrmAnalytics::class)->handle($root->id, ['period' => 'today', 'channel' => 'all']);
+    expect($analytics['salesRials'])->toBe(300_000)
+        ->and($analytics['cashRials'])->toBe(200_000)
+        ->and($analytics['previousSalesRials'])->toBe(0);
     expect($current['totalRials'])->toBe(300_000)
         ->and($current['channels']['reseller']['revenueRials'])->toBe(200_000)
         ->and($yesterday['totalRials'])->toBe(400_000)
@@ -689,5 +694,137 @@ it('paginates reseller accounts and all CRM contact and profile tables at fifty 
     foreach (['orders', 'payments', 'services'] as $tab) {
         $assertPages(fn (int $page) => $profile->handle($root->id, $reseller->id, true, crm01cFilters(['tab' => $tab, 'page' => $page]))['rows']);
     }
+    Http::assertNothingSent();
+});
+
+it('aggregates bounded analytics with independent cash, distinct buyers, historical channels and reseller filters', function (): void {
+    config()->set('billing.topups_enabled', true);
+    $root = crm01bUser('super-admin');
+    $member = crm01bUser('member');
+    $reseller = crm01bUser('reseller');
+    $reseller->assignRole('member');
+    $other = crm01bUser('reseller');
+
+    $this->travelTo(Carbon::parse('2026-11-26 10:00:00', 'Asia/Tehran')->utc());
+    $previous = crm01bOrder($member, 'direct', 400_000);
+    app(CreditVerifiedAdminBankTopup::class)->handle($root->id, $reseller->id, 1_000_000, 'CRM-ANALYTICS-PREV', 'Fixture verified credit');
+    $this->travelTo(Carbon::parse('2026-11-26 19:00:00', 'Asia/Tehran')->utc());
+    crm01bOrder($member, 'direct', 900_000);
+    $this->travelTo(Carbon::parse('2026-11-27 12:00:00', 'Asia/Tehran')->utc());
+    $topup = app(CreditVerifiedAdminBankTopup::class)->handle($root->id, $member->id, 2_000_000, 'CRM-ANALYTICS-NOW', 'Fixture verified credit');
+    $journal = DB::table('billing_journals')->insertGetId([
+        'kind' => 'topup_amount_correction',
+        'idempotency_key' => 'topup_amount_correction:'.$topup,
+        'created_at' => now(),
+    ]);
+    DB::table('billing_topup_amount_corrections')->insert([
+        'topup_id' => $topup, 'billing_journal_id' => $journal,
+        'verified_amount_rials' => 1_800_000, 'adjustment_amount_rials' => 200_000,
+        'corrected_by' => $root->id, 'reason' => 'Fixture correction', 'created_at' => now(),
+    ]);
+
+    crm01bOrder($member, 'direct', 100_000);
+    crm01bOrder($member, 'direct', 200_000);
+    $renewal = crm01bOrder($member, 'direct', 300_000);
+    crm01bOrder($reseller, 'reseller', 500_000);
+    crm01bOrder($other, 'reseller', 200_000);
+    crm01bOrder($reseller, null, 700_000);
+    crm01bOrder($member, 'direct', 900_000, 'refunded');
+    crm01bOrder($member, 'direct', 800_000, 'pending_payment', false);
+    $subscription = DB::table('provisioning_subscriptions')->insertGetId([
+        'reference' => 'crm-analytics-renewal',
+        'remote_username' => 'crm-analytics-renewal',
+        'state' => 'active',
+        'last_operation_key' => 'crm-analytics-renewal',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+    DB::table('sales_renewal_orders')->insert([
+        'sales_order_id' => $renewal, 'source_order_id' => $previous,
+        'provisioning_subscription_id' => $subscription, 'created_at' => now(), 'updated_at' => now(),
+    ]);
+
+    $reader = app(ReadCrmAnalytics::class);
+    $filters = ['period' => 'today', 'channel' => 'all'];
+    $all = $reader->handle($root->id, $filters);
+    expect($all['salesRials'])->toBe(2_000_000)
+        ->and($all['cashRials'])->toBe(1_800_000)
+        ->and($all['previousSalesRials'])->toBe(400_000)
+        ->and($all['previousCashRials'])->toBe(1_000_000)
+        ->and($all['buyers'])->toBe(3)
+        ->and($all['newPurchases'])->toBe(5)
+        ->and($all['renewals'])->toBe(1)
+        ->and($all['channels'])->toBe(['direct' => 600_000, 'reseller' => 700_000, 'unknown' => 700_000])
+        ->and($all['trend'])->toHaveCount(1)
+        ->and($all['trend'][0]['directRegistrations'])->toBe(1)
+        ->and($all['trend'][0]['resellerRegistrations'])->toBe(2)
+        ->and((int) $all['products']->first()->purchases)->toBe(6)
+        ->and((int) $all['top']->first()->id)->toBe($reseller->id);
+    $filtered = $reader->handle($root->id, [...$filters, 'channel' => 'reseller', 'reseller' => $reseller->id]);
+    expect($filtered['selectedRials'])->toBe(500_000)
+        ->and($filtered['buyers'])->toBe(1)
+        ->and($filtered['newPurchases'])->toBe(1)
+        ->and($filtered['cashRials'])->toBe($all['cashRials'])
+        ->and($filtered['salesRials'])->toBe($all['salesRials'])
+        ->and($filtered['channels'])->toBe($all['channels'])
+        ->and($filtered['trend'][0]['resellerRegistrations'])->toBe(2)
+        ->and((int) $filtered['products']->first()->purchases)->toBe(1);
+    $unknown = $reader->handle($root->id, [...$filters, 'channel' => 'unknown']);
+    expect($unknown['selectedRials'])->toBe(700_000)
+        ->and($unknown['buyers'])->toBe(1);
+    $custom = $reader->handle($root->id, ['period' => 'custom', 'from' => '2026-11-26', 'until' => '2026-11-27', 'channel' => 'all']);
+    expect($custom['salesRials'])->toBe(3_300_000)
+        ->and($custom['cashRials'])->toBe(2_800_000)
+        ->and($custom['buyers'])->toBe(3)
+        ->and(array_sum(array_column($custom['trend'], 'buyers')))->toBe(4)
+        ->and($custom['trend'])->toHaveCount(2);
+    $ninety = $reader->handle($root->id, ['period' => '90', 'channel' => 'all']);
+    expect(count($ninety['trend']))->toBeLessThanOrEqual(60)
+        ->and($ninety['salesRials'])->toBe($custom['salesRials']);
+    $history = $reader->handle($root->id, ['period' => 'all', 'channel' => 'all']);
+    expect($history['salesRials'])->toBe($custom['salesRials'])
+        ->and($history['previousSalesRials'])->toBeNull()
+        ->and($history['start'])->toBe('2026-11-26');
+    expect(fn () => $reader->handle($member->id, $filters))->toThrow(AuthorizationException::class);
+    expect(fn () => $reader->handle($root->id, [...$filters, 'reseller' => $member->id]))->toThrow(ValidationException::class);
+    expect(fn () => $reader->handle($root->id, [...$filters, 'channel' => 'direct', 'reseller' => $reseller->id]))->toThrow(ValidationException::class);
+    Http::assertNothingSent();
+});
+
+it('renders analytics and resets filters through Livewire while rechecking host and root access', function (): void {
+    $root = crm01bUser('super-admin');
+    $member = crm01bUser('member');
+    $reseller = crm01bUser('reseller');
+    crm01bOrder($member, 'direct', 100_000);
+    crm01bOrder($reseller, 'reseller', 200_000);
+
+    $url = 'https://crm.denagate.ir/admin/crm/analytics';
+    $this->get($url)->assertRedirect('https://crm.denagate.ir/login');
+    $this->actingAs($member, 'web')->get($url)->assertForbidden();
+    $html = $this->actingAs($root, 'web')->get($url)->assertOk()
+        ->assertSee('تحلیل و آمار')->assertSee('خریداران یکتای کل بازه')
+        ->assertSee('analytics-financial', false)->assertSee('analytics-products', false)
+        ->getContent() ?: '';
+    expect(preg_match('/wire:snapshot="([^"]+)"/', $html, $matches))->toBe(1);
+    $payload = ['components' => [[
+        'snapshot' => htmlspecialchars_decode($matches[1], ENT_QUOTES),
+        'updates' => ['period' => 'today', 'channel' => 'reseller', 'reseller' => (string) $reseller->id],
+        'calls' => [],
+    ]]];
+    $update = app(HandleRequests::class)->getUpdateUri();
+    $response = $this->postJson('https://crm.denagate.ir'.$update, $payload, ['X-Livewire' => 'true'])->assertOk();
+    expect($response->json('components.0.effects.html'))->toContain('۲۰٬۰۰۰ تومان');
+    $snapshot = $response->json('components.0.snapshot');
+    $payload = ['components' => [[
+        'snapshot' => $snapshot,
+        'updates' => [],
+        'calls' => [['path' => '', 'method' => 'resetFilters', 'params' => []]],
+    ]]];
+    $reset = $this->postJson('https://crm.denagate.ir'.$update, $payload, ['X-Livewire' => 'true'])->assertOk();
+    $state = json_decode($reset->json('components.0.snapshot'), true, flags: JSON_THROW_ON_ERROR)['data'];
+    expect($state['period'])->toBe('30')->and($state['channel'])->toBe('all')->and($state['reseller'])->toBe('');
+    $this->postJson('https://example.test'.$update, $payload, ['X-Livewire' => 'true'])->assertNotFound();
+    config()->set('super_admin.telegram_ids', ['997102', '997103']);
+    $this->postJson('https://crm.denagate.ir'.$update, $payload, ['X-Livewire' => 'true'])->assertForbidden();
     Http::assertNothingSent();
 });
