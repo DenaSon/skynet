@@ -168,7 +168,7 @@ final readonly class ReadCrmDirectory
     /**
      * At most seven Tehran civil days inside the selected window, no full ledger materialization.
      *
-     * @return list<array{date:string,revenueRials:int,registrations:int}>
+     * @return list<array{date:string,revenueRials:int,registrations:int,directRegistrations:int,resellerRegistrations:int}>
      */
     private function recentTrend(int $actorId, Carbon $from, Carbon $until): array
     {
@@ -179,8 +179,8 @@ final readonly class ReadCrmDirectory
         }
 
         $sales = DB::query()->fromSub($this->business->crmSettledRows($actorId, $start, $end), 'settled');
-        $accounts = $this->accounts(false)->select('users.created_at')
-            ->unionAll($this->accounts(true)->select('users.created_at'));
+        $accounts = $this->accounts(false)->select('users.created_at')->selectRaw("'direct' as cohort")
+            ->unionAll($this->accounts(true)->select('users.created_at')->selectRaw("'reseller' as cohort"));
         $registrations = DB::query()->fromSub($accounts, 'commercial')
             ->where('created_at', '>=', $start)->where('created_at', '<', $end);
         $dates = [];
@@ -189,7 +189,7 @@ final readonly class ReadCrmDirectory
             $key = 'day_'.count($dates);
             $dates[$key] = $day->copy()->timezone('Asia/Tehran')->format('Y-m-d');
             $sales->selectRaw("COALESCE(SUM(CASE WHEN settled_at >= ? AND settled_at < ? THEN amount_rials ELSE 0 END), 0) as {$key}", [$day->copy(), $next]);
-            $registrations->selectRaw("COUNT(CASE WHEN created_at >= ? AND created_at < ? THEN 1 END) as {$key}", [$day->copy(), $next]);
+            $registrations->selectRaw("COUNT(CASE WHEN cohort = 'direct' AND created_at >= ? AND created_at < ? THEN 1 END) as direct_{$key}, COUNT(CASE WHEN cohort = 'reseller' AND created_at >= ? AND created_at < ? THEN 1 END) as reseller_{$key}", [$day->copy(), $next, $day->copy(), $next]);
         }
 
         $revenue = $sales->first();
@@ -199,7 +199,9 @@ final readonly class ReadCrmDirectory
             $rows[] = [
                 'date' => $date,
                 'revenueRials' => (int) ($revenue->{$key} ?? 0),
-                'registrations' => (int) ($newAccounts->{$key} ?? 0),
+                'registrations' => (int) ($newAccounts->{"direct_{$key}"} ?? 0) + (int) ($newAccounts->{"reseller_{$key}"} ?? 0),
+                'directRegistrations' => (int) ($newAccounts->{"direct_{$key}"} ?? 0),
+                'resellerRegistrations' => (int) ($newAccounts->{"reseller_{$key}"} ?? 0),
             ];
         }
 
