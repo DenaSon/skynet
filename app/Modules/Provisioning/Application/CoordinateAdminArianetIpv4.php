@@ -48,7 +48,8 @@ final readonly class CoordinateAdminArianetIpv4
     public function status(int $actorId, int $serverId): ?array
     {
         $this->access->handle($actorId);
-        $operation = $this->operation($serverId);
+        $operation = DB::table(self::TABLE)->where('active_server_id', $serverId)->first()
+            ?? $this->operation($serverId);
         $state = $operation === null ? null : $this->decode($operation->coordination_state);
         if ($state === null) {
             return null;
