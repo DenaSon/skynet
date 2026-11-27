@@ -191,7 +191,6 @@ final class Shell extends Component
         $this->savePreset(true);
     }
 
-
     public function updatedSavedFilterId(string $value): void
     {
         $this->savedFilterMessage = '';
@@ -270,7 +269,6 @@ final class Shell extends Component
 
         return (int) $this->savedFilterId;
     }
-
 
     private function clearStalePresetSelection(int $actorId): void
     {
