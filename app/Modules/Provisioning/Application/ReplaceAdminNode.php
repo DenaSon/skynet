@@ -101,7 +101,7 @@ final readonly class ReplaceAdminNode
 
             try {
                 $peerDns = $this->dns->replacementRecord($actorId, $peerNode['address']);
-            } catch (\\Throwable $exception) {
+            } catch (\Throwable $exception) {
                 throw new RuntimeException(
                     'A peer Node management hostname cannot be verified; manual review required.',
                     0,
