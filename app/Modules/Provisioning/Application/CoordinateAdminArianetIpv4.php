@@ -436,7 +436,8 @@ final readonly class CoordinateAdminArianetIpv4
     }
 
     /** @param array<string,mixed> $state */
-    private function assertCloud(int $actorId, int $serverId, array $state): void {
+    private function assertCloud(int $actorId, int $serverId, array $state): void
+    {
         $detail = $this->cloud->detail($actorId, $serverId);
         if ($detail['ipv4'] !== $state['newIp']
             || ! self::publicIp($detail['ipv4'])
@@ -450,7 +451,8 @@ final readonly class CoordinateAdminArianetIpv4
     }
 
     /** @param array<string,mixed> $state */
-    private function assertCurrentStep(int $actorId, array $state, int $index): void {
+    private function assertCurrentStep(int $actorId, array $state, int $index): void
+    {
         $step = $state['steps'][$index];
         if ($state['version'] === 2 && $step['kind'] === 'node') {
             // assertCloudAndInventory already verified the full old identity.
@@ -466,7 +468,8 @@ final readonly class CoordinateAdminArianetIpv4
     }
 
     /** @param array<string,mixed> $state */
-    private function assertStepAtNewIp(int $actorId, array $state, int $index): void {
+    private function assertStepAtNewIp(int $actorId, array $state, int $index): void
+    {
         $step = $state['steps'][$index];
         if ($state['version'] === 2 && $step['kind'] === 'node') {
             $node = $this->nodes->replacementSnapshot($actorId, $state['node']['uuid']);
@@ -490,7 +493,8 @@ final readonly class CoordinateAdminArianetIpv4
     }
 
     /** @param array<string,mixed> $state */
-    private function completeStep(int $rowId, array $state, int $index): void {
+    private function completeStep(int $rowId, array $state, int $index): void
+    {
         $state['steps'][$index]['state'] = 'verified';
         $state['stage'] = $this->next($state) === null ? 'awaiting_client_test' : 'applying';
         $this->save($rowId, $state);
@@ -521,13 +525,15 @@ final readonly class CoordinateAdminArianetIpv4
         ]));
     }
 
-    private function assertEnabled(): void {
+    private function assertEnabled(): void
+    {
         if (! $this->enabled(legacy: true)) {
             throw new RuntimeException('Cloud coordination writes are disabled in this environment.');
         }
     }
 
-    private function assertReadEnabled(): void {
+    private function assertReadEnabled(): void
+    {
         if (! $this->readEnabled()) {
             throw new RuntimeException('Cloud coordination reads are unavailable in this environment.');
         }
@@ -605,7 +611,8 @@ final readonly class CoordinateAdminArianetIpv4
     }
 
     /** @param array<string,mixed> $state */
-    private function save(int $rowId, array $state): void {
+    private function save(int $rowId, array $state): void
+    {
         DB::table(self::TABLE)->where('id', $rowId)->update([
             'coordination_state' => self::encode($state), 'updated_at' => now(),
         ]);
