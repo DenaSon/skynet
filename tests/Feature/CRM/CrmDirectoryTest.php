@@ -928,8 +928,28 @@ it('ranks the same complete commercial cohort across filters and records missing
     $inactive->forceFill(['is_active' => false])->save();
 
     $reader = app(ReadCrmResellerPerformance::class);
-    $result = $reader->handle($root->id);
+    $measure = static function (bool $includePreviousRank) use ($reader, $root): array {
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        try {
+            $result = $reader->handle($root->id, $includePreviousRank);
+
+            return [$result, count(DB::getQueryLog())];
+        } finally {
+            DB::disableQueryLog();
+            DB::flushQueryLog();
+        }
+    };
+    [$result, $fullQueries] = $measure(true);
+    [$currentOnly, $currentQueries] = $measure(false);
     $rows = $result['rows'];
+    $expectedCurrent = $result;
+    foreach ($expectedCurrent['rows'] as &$row) {
+        $row['previousRank'] = null;
+    }
+    unset($row);
+    expect($currentOnly)->toBe($expectedCurrent)
+        ->and($currentQueries)->toBeLessThan($fullQueries);
     expect($result['eligibleCount'])->toBe(3)
         ->and($result['start'])->toBe('2026-10-28')
         ->and($result['end'])->toBe('2026-11-26')
@@ -953,17 +973,20 @@ it('ranks the same complete commercial cohort across filters and records missing
     $directory = app(ReadCrmDirectory::class);
     $ranked = $directory->handle($root->id, 'resellers', crm01bFilters(['sort' => 'performance_rank', 'direction' => 'asc']))['rows'];
     expect((int) $ranked->items()[0]->id)->toBe($a->id)
-        ->and($ranked->items()[0]->performance['rank'])->toBe(1);
+        ->and($ranked->items()[0]->performance['rank'])->toBe(1)
+        ->and($ranked->items()[0]->performance['previousRank'])->toBeNull();
     $filtered = $directory->handle($root->id, 'resellers', crm01bFilters(['search' => 'Rank B', 'period' => 'today', 'sort' => 'performance_rank']))['rows'];
     expect($filtered->total())->toBe(1)
         ->and($filtered->items()[0]->performance['rank'])->toBe($rows[$b->id]['rank']);
     $profile = app(ReadCrmProfile::class)->handle($root->id, $a->id, true, crm01cFilters(['tab' => 'overview', 'period' => 'today']));
-    expect($profile['performance']['row']['score'])->toBe($rows[$a->id]['score']);
+    expect($profile['performance']['row']['score'])->toBe($rows[$a->id]['score'])
+        ->and($profile['performance']['row']['previousRank'])->toBe(1);
     $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm/resellers')
         ->assertOk()->assertSee('رتبه عملکرد');
     $this->get('https://crm.denagate.ir/admin/crm/resellers/'.$a->id)
         ->assertOk()->assertSee('میانگین مانده پایان روز کیف پول')->assertSee('طلایی');
     expect(fn () => $reader->handle($b->id))->toThrow(AuthorizationException::class);
+    expect(fn () => $reader->handle($b->id, includePreviousRank: false))->toThrow(AuthorizationException::class);
     Http::assertNothingSent();
 });
 
