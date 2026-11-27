@@ -94,9 +94,12 @@ final readonly class ManageCrmSavedFilters
     public function delete(int $actorId, int $id): void
     {
         $this->assertAvailable($actorId);
-        if ($this->owned($actorId)->where('id', $id)->delete() !== 1) {
-            throw ValidationException::withMessages(['preset' => 'فیلتر انتخاب‌شده یافت نشد.']);
-        }
+        DB::transaction(function () use ($actorId, $id): void {
+            DB::table('users')->where('id', $actorId)->lockForUpdate()->first();
+            if ($this->owned($actorId)->where('id', $id)->delete() !== 1) {
+                throw ValidationException::withMessages(['preset' => 'فیلتر انتخاب‌شده یافت نشد.']);
+            }
+        });
     }
 
     private function assertAvailable(int $actorId): void
