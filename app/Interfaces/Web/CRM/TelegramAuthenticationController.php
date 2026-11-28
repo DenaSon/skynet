@@ -43,8 +43,8 @@ final readonly class TelegramAuthenticationController
         $redirectUri = route('crm.telegram.callback');
         $authorization = $this->telegramOidcAuthentication->begin(
             $request->session(),
-            (int) $actor->getKey(),
             $redirectUri,
+            (int) $actor->getKey(),
         );
 
         return redirect()->away($authorization->authorizationUrl);

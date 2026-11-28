@@ -20,12 +20,14 @@ final readonly class TelegramOidcAuthentication
         private TelegramIdTokenVerifier $verifier,
     ) {}
 
-    public function begin(Session $session, int $userId, string $redirectUri): TelegramOidcAuthorization
+    public function begin(Session $session, string $redirectUri, ?int $userId = null): TelegramOidcAuthorization
     {
         $state = bin2hex(random_bytes(32));
         $nonce = bin2hex(random_bytes(32));
         $codeVerifier = $this->base64UrlEncode(random_bytes(32));
         $codeChallenge = $this->base64UrlEncode(hash('sha256', $codeVerifier, true));
+
+        $authorizationUrl = $this->client->authorizationUrl($redirectUri, $state, $nonce, $codeChallenge);
 
         $session->put(self::TRANSACTION_KEY, [
             'state' => $state,
@@ -36,14 +38,12 @@ final readonly class TelegramOidcAuthentication
             'created_at' => now()->timestamp,
         ]);
 
-        return new TelegramOidcAuthorization(
-            $this->client->authorizationUrl($redirectUri, $state, $nonce, $codeChallenge),
-        );
+        return new TelegramOidcAuthorization($authorizationUrl);
     }
 
     public function complete(
         Session $session,
-        int $userId,
+        ?int $userId,
         ?string $state,
         ?string $code,
         string $redirectUri,
@@ -54,6 +54,7 @@ final readonly class TelegramOidcAuthentication
             || ! is_string($state)
             || ! is_string($transaction['state'] ?? null)
             || ! hash_equals($transaction['state'], $state)
+            || ! array_key_exists('user_id', $transaction)
             || ($transaction['user_id'] ?? null) !== $userId
             || ($transaction['redirect_uri'] ?? null) !== $redirectUri
             || ! is_int($transaction['created_at'] ?? null)
