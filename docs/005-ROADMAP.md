@@ -1,3 +1,14 @@
+## DenaGate Identity — Telegram OIDC foundation (2026-11-28)
+
+Approved scope: implement one reusable Telegram OIDC authentication connector inside the existing Identity module; CRM is its first consumer.
+
+- **ID-00 — technical proof:** complete. Official Telegram OIDC endpoints, Authorization Code + PKCE, Basic-authenticated token exchange, no UserInfo endpoint, JWKS and signed ID-token claims verified. Existing `telegram_accounts` is sufficient; no migration.
+- **ID-01 — shared Identity connector:** implemented in [PR #622](https://github.com/DenaSon/skynet/pull/622). State/nonce/PKCE, token exchange, RS256/JWKS signature validation, OIDC claim checks and a verified Telegram identity result are centralized in the existing Identity module. The flow supports both a user-bound second factor and future direct login without a pre-authenticated user.
+- **ID-02 — CRM second factor:** implemented in PR #622. Existing password login on non-CRM hosts remains unchanged; CRM requires password plus the already-linked Telegram account. `SuperAdminTrust` and the session factor bound to the exact Telegram ID are rechecked on CRM and Livewire requests.
+- **ID-03 — reuse contract:** implemented and feature-tested. Future web consumers can reuse the same begin/complete flow; account resolution, registration, account linking UX and role assignment remain application policy and are not built here.
+- No new identity table, account creation, Telegram Bot API token change, webhook change or Mini App change. The only approved dependency is `firebase/php-jwt` for JWK/JWT signature verification.
+- **Status:** [PR #622](https://github.com/DenaSon/skynet/pull/622) is open and unmerged. Required CI (PHP 8.4, PHPStan, Pint, MySQL migration/rollback and CRM query checks) is green. Do not merge until the existing Admin Bot's BotFather OIDC redirect is configured, Runflare secrets are set and a real browser login is accepted.
+
 ## CRM — توقف توسعه قابلیت جدید و بازبینی (2026-11-27)
 
 به دستور مالک، CRM-02D آخرین فاز قابلیت جدید پیش از بازبینی است. پس از آن فقط بازبینی امنیت، صحت داده، کارایی، UX، پذیرش عملی و رفع Issueهای شناسایی‌شده مجاز است. CRM-03 و مراحل بعدی تا تأیید صریح مجدد مالک متوقف‌اند.

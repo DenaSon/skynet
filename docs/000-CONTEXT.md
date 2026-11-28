@@ -1,3 +1,7 @@
+## DenaGate Identity — Telegram OIDC for CRM (2026-11-28)
+
+The reusable Telegram OIDC connector is implemented inside the existing Identity module; CRM is the first consumer. CRM login requires the existing password plus OIDC verification of the already-linked Telegram account. The signed token's numeric `id` claim is matched against `telegram_accounts.telegram_user_id`; `sub` is not used as the Telegram account ID. No new identity table or migration is needed. OIDC Client ID/Secret are separate from the existing Bot API token. Bot webhooks, Nutgram, reseller bot authentication and DenaGate Live Mini App authentication are out of scope and unchanged. See [docs/058-IDENTITY-TELEGRAM-OIDC.md](058-IDENTITY-TELEGRAM-OIDC.md). Source PR is under review; production activation requires BotFather callback registration and Runflare secrets before merge.
+
 ## CRM-01 — پنل وب مدیریت مشتریان (2026-11-27; scope corrected)
 
 - CRM فقط برای Super Admin واجد شرایط `SuperAdminTrust` است و در نسخه اول کاملاً Read-only می‌ماند.

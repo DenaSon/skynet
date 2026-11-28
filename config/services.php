@@ -14,6 +14,11 @@ return [
     |
     */
 
+    'telegram_oidc' => [
+        'client_id' => env('TELEGRAM_OIDC_CLIENT_ID'),
+        'client_secret' => env('TELEGRAM_OIDC_CLIENT_SECRET'),
+    ],
+
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],

@@ -4,7 +4,7 @@ This section reflects the modules present in the current `master` baseline. Date
 
 | Boundary | Responsibility today |
 | --- | --- |
-| `Identity` | Users, identity resolution, RBAC, authorized actor and audit |
+| `Identity` | Users, identity resolution, Telegram OIDC authentication, RBAC, authorized actor and audit |
 | `Billing` | Wallets, verified bank references and unified financial journal |
 | `Sales` | Plans, catalog, prices, orders, bank review and fulfillment intent |
 | `Provisioning` | Remnawave adapter, managed subscriptions, provider lifecycle and reconciliation |
@@ -23,6 +23,10 @@ This section reflects the modules present in the current `master` baseline. Date
 - Preserve all existing idempotency, payment attestation, RBAC, notification delivery, retries and provider reconciliation. No automatic refactor or new dependency is authorized by this document.
 
 ---
+
+## Telegram OIDC identity boundary (2026-11-28)
+
+Identity owns the reusable Telegram OpenID Connect connector, verified Telegram identity DTO, and session-bound second-factor state. CRM is the first consumer. Match the signed token's numeric `id` claim to the existing `telegram_accounts.telegram_user_id`; never use `sub` as the Telegram account ID and never create or link accounts during login. Use the existing BotFather bot's separate OIDC Client ID/Secret, not its Bot API token. Bot webhooks, Nutgram, reseller authentication and DenaGate Live Mini App authentication remain unchanged. The only new runtime dependency is the approved `firebase/php-jwt` JWK/JWT verifier; no new database table or migration is required.
 
 ## REF-02 delivery boundary
 

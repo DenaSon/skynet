@@ -55,6 +55,18 @@ function crm01bUser(string $role, array $attributes = []): User
 }
 
 /** @return array<string, mixed> */
+function crm01bSecondFactor(User $user): array
+{
+    return [
+        'identity.telegram_second_factor' => [
+            'user_id' => $user->id,
+            'telegram_user_id' => '997101',
+            'method' => 'telegram_oidc',
+            'verified_at' => now()->timestamp,
+        ],
+    ];
+}
+
 function crm01bFilters(array $overrides = []): array
 {
     return array_replace([
@@ -163,7 +175,7 @@ it('shows verified cash separately from sales and current ledger balances across
         ->and($today['wallets']['resellerBalanceRials'])->toBe(2_000_000)
         ->and($today['wallets'])->toBe($yesterday['wallets'])
         ->and($today['wallets'])->toBe(app(ReadAdminWalletSummary::class)->handle($root->id));
-    $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm')
+    $this->actingAs($root, 'web')->withSession(crm01bSecondFactor($root))->get('https://crm.denagate.ir/admin/crm')
         ->assertOk()->assertSee('مجموع واریزی‌های تأییدشده')
         ->assertSee('۲۹۰٬۰۰۰ تومان')->assertSee('۲۶۰٬۰۰۰ تومان')->assertSee('اعتبار نمایندگان');
     expect(fn () => app(ReadAdminCashReceipts::class)->incomingTotalsBetween($member->id, now()->subDay(), now()))
@@ -228,7 +240,7 @@ it('requires a freshly trusted root for every CRM read and every page', function
     foreach (['', '/customers', '/resellers', '/reseller-customers'] as $path) {
         $url = 'https://crm.denagate.ir/admin/crm'.$path;
         $this->actingAs($member, 'web')->get($url)->assertForbidden();
-        $this->actingAs($root, 'web')->get($url)->assertOk();
+        $this->actingAs($root, 'web')->withSession(crm01bSecondFactor($root))->get($url)->assertOk();
     }
 
     $root->syncRoles(['reseller']);
@@ -259,7 +271,7 @@ it('applies bounded server-side search and pagination to direct accounts', funct
 
 it('rechecks authority on real Livewire requests from all three new directories', function (): void {
     $root = crm01bUser('super-admin');
-    $this->actingAs($root, 'web');
+    $this->actingAs($root, 'web')->withSession(crm01bSecondFactor($root));
     $updateUrl = 'https://crm.denagate.ir'.app(HandleRequests::class)->getUpdateUri();
     foreach (['customers', 'resellers', 'reseller-customers'] as $path) {
         $html = $this->get('https://crm.denagate.ir/admin/crm/'.$path)->assertOk()->getContent() ?: '';
@@ -326,7 +338,7 @@ it('renders CRM account profiles only for trusted roots and rejects incorrect co
     $reseller = crm01bUser('reseller');
     $base = 'https://crm.denagate.ir/admin/crm';
     $this->actingAs($member, 'web')->get($base.'/customers/'.$member->id)->assertForbidden();
-    $this->actingAs($root, 'web')->get($base.'/customers/'.$member->id)->assertOk()->assertSee('پرونده مشتری');
+    $this->actingAs($root, 'web')->withSession(crm01bSecondFactor($root))->get($base.'/customers/'.$member->id)->assertOk()->assertSee('پرونده مشتری');
     $this->get($base.'/resellers/'.$reseller->id)->assertOk()->assertSee('پرونده نماینده');
     $this->get($base.'/customers/'.$reseller->id)->assertNotFound();
     $this->get($base.'/resellers/'.$member->id)->assertNotFound();
@@ -338,7 +350,7 @@ it('renders CRM account profiles only for trusted roots and rejects incorrect co
 it('rejects profile snapshot tampering and rechecks the trusted root on updates', function (): void {
     $root = crm01bUser('super-admin');
     $member = crm01bUser('member');
-    $page = $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm/customers/'.$member->id)->assertOk();
+    $page = $this->actingAs($root, 'web')->withSession(crm01bSecondFactor($root))->get('https://crm.denagate.ir/admin/crm/customers/'.$member->id)->assertOk();
     $html = $page->getContent() ?: '';
     expect(preg_match('/wire:snapshot="([^"]+)"/', $html, $matches))->toBe(1);
     $snapshot = htmlspecialchars_decode($matches[1], ENT_QUOTES);
@@ -388,7 +400,7 @@ it('renders real profile links for populated directories and dashboard', functio
     $reseller = crm01bUser('reseller');
     crm01bOrder($reseller, 'reseller', 100_000);
     $base = 'https://crm.denagate.ir/admin/crm';
-    $this->actingAs($root, 'web')->get($base.'/customers')->assertOk()->assertSee($base.'/customers/'.$member->id, false);
+    $this->actingAs($root, 'web')->withSession(crm01bSecondFactor($root))->get($base.'/customers')->assertOk()->assertSee($base.'/customers/'.$member->id, false);
     $this->get($base.'/resellers')->assertOk()->assertSee($base.'/resellers/'.$reseller->id, false);
     $this->get($base)->assertOk()->assertSee($base.'/resellers/'.$reseller->id, false);
 });
@@ -598,7 +610,7 @@ it('renders Persian dates and numbers and resets directory filters without chang
     crm01bUser('reseller');
     crm01bOrder($member, 'direct', 123_450);
     $base = 'https://crm.denagate.ir/admin/crm';
-    $this->actingAs($root, 'web')->get($base.'/customers/'.$member->id)
+    $this->actingAs($root, 'web')->withSession(crm01bSecondFactor($root))->get($base.'/customers/'.$member->id)
         ->assertOk()->assertSee('۱۴۰۵/۰۹/۰۶')->assertSee('۱۲٬۳۴۵ تومان');
     $html = $this->get($base.'/customers')->assertOk()->assertSee('پاک‌کردن فیلترها')->assertSee('تعداد نتایج: ۱')->getContent() ?: '';
     expect(preg_match('/wire:snapshot="([^"]+)"/', $html, $matches))->toBe(1);
@@ -635,7 +647,7 @@ it('charts only the selected recent Tehran days using canonical settlements and 
         ->and(array_sum(array_column($seven, 'directRegistrations')))->toBe(1)
         ->and(array_sum(array_column($seven, 'resellerRegistrations')))->toBe(1);
     expect($reader->handle($root->id, 'dashboard', crm01bFilters(['period' => 'custom', 'from' => '2026-11-28', 'until' => '2026-11-30']))['trend'])->toBe([]);
-    $html = $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm')
+    $html = $this->actingAs($root, 'web')->withSession(crm01bSecondFactor($root))->get('https://crm.denagate.ir/admin/crm')
         ->assertOk()->assertSee('crm-chart-cleanup', false)->assertSee('خریدهای تسویه‌شده (تومان)')
         ->assertDontSee('<progress', false)->getContent() ?: '';
     expect(preg_match('/wire:snapshot="([^"]+)"/', $html, $matches))->toBe(1);
@@ -808,7 +820,7 @@ it('renders analytics and resets filters through Livewire while rechecking host 
     $url = 'https://crm.denagate.ir/admin/crm/analytics';
     $this->get($url)->assertRedirect('https://crm.denagate.ir/login');
     $this->actingAs($member, 'web')->get($url)->assertForbidden();
-    $html = $this->actingAs($root, 'web')->get($url)->assertOk()
+    $html = $this->actingAs($root, 'web')->withSession(crm01bSecondFactor($root))->get($url)->assertOk()
         ->assertSee('تحلیل و آمار')->assertSee('خریداران یکتای کل بازه')
         ->assertSee('analytics-financial', false)->assertSee('analytics-products', false)
         ->getContent() ?: '';
@@ -981,7 +993,7 @@ it('ranks the same complete commercial cohort across filters and records missing
     $profile = app(ReadCrmProfile::class)->handle($root->id, $a->id, true, crm01cFilters(['tab' => 'overview', 'period' => 'today']));
     expect($profile['performance']['row']['score'])->toBe($rows[$a->id]['score'])
         ->and($profile['performance']['row']['previousRank'])->toBe(1);
-    $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm/resellers')
+    $this->actingAs($root, 'web')->withSession(crm01bSecondFactor($root))->get('https://crm.denagate.ir/admin/crm/resellers')
         ->assertOk()->assertSee('رتبه عملکرد');
     $this->get('https://crm.denagate.ir/admin/crm/resellers/'.$a->id)
         ->assertOk()->assertSee('میانگین مانده پایان روز کیف پول')->assertSee('طلایی');
@@ -1016,7 +1028,7 @@ it('shows evaluation only for current active resellers with valid recent role ev
         ->and($rows)->not->toHaveKey($former->id)
         ->and($rows)->not->toHaveKey($staff->id);
 
-    $page = $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm/resellers')
+    $page = $this->actingAs($root, 'web')->withSession(crm01bSecondFactor($root))->get('https://crm.denagate.ir/admin/crm/resellers')
         ->assertOk()->assertSee('در حال ارزیابی')->assertSee('تعداد نتایج')
         ->assertDontSee('مبلغ خرید نماینده نزد دناگیت بر اساس کانال ثبت‌شده سفارش است.');
     $html = $page->getContent() ?: '';
@@ -1110,7 +1122,7 @@ it('distinguishes missing wallet and trial evidence from recorded values in adva
     expect($reader->handle($root->id, 'customers', $filters)['rows']->total())->toBe(0);
     $filters = crm01bFilters(['advancedConditions' => [['field' => 'wallet_known', 'operator' => 'eq', 'value' => '0']]]);
     expect((int) $reader->handle($root->id, 'customers', $filters)['rows']->items()[0]->id)->toBe($unknown->id);
-    $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm/customers')->assertOk()->assertSee('فیلتر پیشرفته')->assertSee('افزودن شرط');
+    $this->actingAs($root, 'web')->withSession(crm01bSecondFactor($root))->get('https://crm.denagate.ir/admin/crm/customers')->assertOk()->assertSee('فیلتر پیشرفته')->assertSee('افزودن شرط');
     $this->get('https://crm.denagate.ir/admin/crm/resellers')->assertOk()->assertDontSee('افزودن شرط');
     Http::assertNothingSent();
 });
@@ -1148,7 +1160,7 @@ it('adds and removes advanced conditions through real Livewire requests', functi
     $member = crm01bUser('member');
     crm01bOrder($member, 'direct', 100_000);
     crm01bUser('member');
-    $html = $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm/customers')->assertOk()->getContent() ?: '';
+    $html = $this->actingAs($root, 'web')->withSession(crm01bSecondFactor($root))->get('https://crm.denagate.ir/admin/crm/customers')->assertOk()->getContent() ?: '';
     expect(preg_match('/wire:snapshot="([^"]+)"/', $html, $matches))->toBe(1);
     $snapshot = htmlspecialchars_decode($matches[1], ENT_QUOTES);
     $url = 'https://crm.denagate.ir'.app(HandleRequests::class)->getUpdateUri();
@@ -1246,7 +1258,7 @@ it('renders optional customer segmentation and selects groups using real Livewir
     $member = crm01bUser('member');
     crm01bOrder($member, 'direct', 100_000);
     crm01bUser('member');
-    $html = $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm/customers')->assertOk()
+    $html = $this->actingAs($root, 'web')->withSession(crm01bSecondFactor($root))->get('https://crm.denagate.ir/admin/crm/customers')->assertOk()
         ->assertSee('نمایش گروه‌ها')->assertDontSee('امتیاز RFM (کل سابقه)')->getContent() ?: '';
     expect(preg_match('/wire:snapshot="([^"]+)"/', $html, $matches))->toBe(1);
     $snapshot = htmlspecialchars_decode($matches[1], ENT_QUOTES);
@@ -1329,7 +1341,7 @@ it('saves applies updates and deletes customer presets through real Livewire req
     $buyer = crm01bUser('member');
     crm01bOrder($buyer, 'direct', 100_000);
     crm01bUser('member');
-    $html = $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm/customers')->assertOk()
+    $html = $this->actingAs($root, 'web')->withSession(crm01bSecondFactor($root))->get('https://crm.denagate.ir/admin/crm/customers')->assertOk()
         ->assertSee('فیلترهای ذخیره‌شده')->getContent() ?: '';
     expect(preg_match('/wire:snapshot="([^"]+)"/', $html, $matches))->toBe(1);
     $snapshot = htmlspecialchars_decode($matches[1], ENT_QUOTES);
@@ -1445,7 +1457,7 @@ it('returns actual Livewire file download with current directory filters', funct
     $buyer = crm01bUser('member');
     crm01bOrder($buyer, 'direct', 100_000);
     crm01bUser('member');
-    $html = $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm/customers')->assertOk()
+    $html = $this->actingAs($root, 'web')->withSession(crm01bSecondFactor($root))->get('https://crm.denagate.ir/admin/crm/customers')->assertOk()
         ->assertSee('خروجی نتایج فیلترشده')->getContent() ?: '';
     expect(preg_match('/wire:snapshot="([^"]+)"/', $html, $matches))->toBe(1);
     $snapshot = htmlspecialchars_decode($matches[1], ENT_QUOTES);
@@ -1499,7 +1511,7 @@ it('distinguishes a missing wallet from recorded zero and reconciles profile wit
     ]))['rows'];
     expect(array_map(static fn ($row): int => (int) $row->id, $rows->items()))->toBe([$missing->id]);
     expect(app(BrowseCustomerWallets::class)->balanceForUser($root->id, $missing->id))->toBe(0);
-    $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm/customers/'.$missing->id)
+    $this->actingAs($root, 'web')->withSession(crm01bSecondFactor($root))->get('https://crm.denagate.ir/admin/crm/customers/'.$missing->id)
         ->assertOk()->assertSee('کیف پول ثبت نشده است');
     Http::assertNothingSent();
 });
@@ -1565,7 +1577,7 @@ it('sorts reseller contacts by order ID and date in grouped and ungrouped profil
         ->and(array_map(static fn ($row): string => (string) $row->label, $read(true, 'created_at', 'desc')))
         ->toBe(['Newer date', 'Older date']);
 
-    $html = $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm/resellers/'.$reseller->id)
+    $html = $this->actingAs($root, 'web')->withSession(crm01bSecondFactor($root))->get('https://crm.denagate.ir/admin/crm/resellers/'.$reseller->id)
         ->assertOk()->getContent() ?: '';
     expect(preg_match('/wire:snapshot="([^"]+)"/', $html, $matches))->toBe(1);
     $snapshot = htmlspecialchars_decode($matches[1], ENT_QUOTES);
@@ -1610,7 +1622,7 @@ it('loads the selected preset name without applying it and clears stale or forei
     $secondId = $manager->save($root->id, 'Preset B', [...$criteria, 'purchase' => 'no']);
     $foreignId = $manager->save($otherRoot->id, 'Private preset', $criteria);
 
-    $html = $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm/customers')
+    $html = $this->actingAs($root, 'web')->withSession(crm01bSecondFactor($root))->get('https://crm.denagate.ir/admin/crm/customers')
         ->assertOk()->getContent() ?: '';
     expect(preg_match('/wire:snapshot="([^"]+)"/', $html, $matches))->toBe(1);
     $snapshot = htmlspecialchars_decode($matches[1], ENT_QUOTES);
