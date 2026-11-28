@@ -37,6 +37,17 @@ function crm01aRootUser(): User
     return $user;
 }
 
+function crm01aSecondFactor(User $user): array
+{
+    return [
+        'identity.telegram_second_factor' => [
+            'user_id' => $user->id,
+            'method' => 'telegram_oidc',
+            'verified_at' => now()->timestamp,
+        ],
+    ];
+}
+
 it('redirects the CRM host root to the private HTTPS dashboard', function (): void {
     $this->get('http://crm.denagate.ir/')
         ->assertRedirect('https://crm.denagate.ir/admin/crm');
@@ -54,10 +65,18 @@ it('redirects guests to the existing login route and stores an HTTPS intended UR
         ->assertSessionHas('url.intended', 'https://crm.denagate.ir/admin/crm');
 });
 
-it('renders the isolated Mary UI shell for a trusted Super Admin', function (): void {
+it('requires Telegram second-factor verification before CRM access', function (): void {
     $root = crm01aRootUser();
 
     $this->actingAs($root, 'web')
+        ->get('https://crm.denagate.ir/admin/crm')
+        ->assertRedirect('https://crm.denagate.ir/auth/telegram');
+});
+
+it('renders the isolated Mary UI shell for a trusted Super Admin', function (): void {
+    $root = crm01aRootUser();
+
+    $this->actingAs($root, 'web')->withSession(crm01aSecondFactor($root))
         ->get('https://crm.denagate.ir/admin/crm')
         ->assertOk()
         ->assertSeeLivewire(Shell::class)
@@ -100,7 +119,7 @@ it('fails closed for inactive roots and incomplete trusted-root allowlists', fun
     config()->set('super_admin.telegram_ids', ['997001']);
     $root = crm01aRootUser();
 
-    $this->actingAs($root, 'web')
+    $this->actingAs($root, 'web')->withSession(crm01aSecondFactor($root))
         ->get('https://crm.denagate.ir/admin/crm')
         ->assertForbidden();
 });
@@ -182,9 +201,24 @@ function crm01aSnapshot(TestResponse $response): string
     return htmlspecialchars_decode($matches[1], ENT_QUOTES);
 }
 
+it('rechecks Telegram second-factor verification on real Livewire update requests', function (): void {
+    $root = crm01aRootUser();
+    $page = $this->actingAs($root, 'web')
+        ->withSession(crm01aSecondFactor($root))
+        ->get('https://crm.denagate.ir/admin/crm')
+        ->assertOk();
+    $snapshot = crm01aSnapshot($page);
+
+    session()->forget('identity.telegram_second_factor');
+
+    $this->postJson('https://crm.denagate.ir'.app(HandleRequests::class)->getUpdateUri(), [
+        'components' => [['snapshot' => $snapshot, 'updates' => [], 'calls' => []]],
+    ], ['X-Livewire' => 'true'])->assertRedirect('https://crm.denagate.ir/auth/telegram');
+});
+
 it('rechecks trusted access on real Livewire update requests after allowlist revocation', function (): void {
     $root = crm01aRootUser();
-    $page = $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm')->assertOk();
+    $page = $this->actingAs($root, 'web')->withSession(crm01aSecondFactor($root))->get('https://crm.denagate.ir/admin/crm')->assertOk();
     $snapshot = crm01aSnapshot($page);
     $url = 'https://crm.denagate.ir'.app(HandleRequests::class)->getUpdateUri();
     $payload = ['components' => [['snapshot' => $snapshot, 'updates' => [], 'calls' => []]]];
@@ -197,7 +231,7 @@ it('rechecks trusted access on real Livewire update requests after allowlist rev
 
 it('rechecks the role on real Livewire updates', function (): void {
     $root = crm01aRootUser();
-    $page = $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm')->assertOk();
+    $page = $this->actingAs($root, 'web')->withSession(crm01aSecondFactor($root))->get('https://crm.denagate.ir/admin/crm')->assertOk();
     $snapshot = crm01aSnapshot($page);
     $root->syncRoles(['reseller']);
 
@@ -208,7 +242,7 @@ it('rechecks the role on real Livewire updates', function (): void {
 
 it('rejects a valid CRM snapshot replayed against a different host', function (): void {
     $root = crm01aRootUser();
-    $page = $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm')->assertOk();
+    $page = $this->actingAs($root, 'web')->withSession(crm01aSecondFactor($root))->get('https://crm.denagate.ir/admin/crm')->assertOk();
 
     $this->postJson('https://example.test'.app(HandleRequests::class)->getUpdateUri(), [
         'components' => [['snapshot' => crm01aSnapshot($page), 'updates' => [], 'calls' => []]],
@@ -218,7 +252,7 @@ it('rejects a valid CRM snapshot replayed against a different host', function ()
 it('rejects a forged CRM Livewire snapshot', function (): void {
     config()->set('app.debug', false);
     $root = crm01aRootUser();
-    $page = $this->actingAs($root, 'web')->get('https://crm.denagate.ir/admin/crm')->assertOk();
+    $page = $this->actingAs($root, 'web')->withSession(crm01aSecondFactor($root))->get('https://crm.denagate.ir/admin/crm')->assertOk();
     $snapshot = json_decode(crm01aSnapshot($page), true, flags: JSON_THROW_ON_ERROR);
     $snapshot['memo']['path'] = 'account';
 

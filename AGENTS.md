@@ -138,6 +138,16 @@ Read [docs/017-TELEGRAM-UX-IDENTITY.md](docs/017-TELEGRAM-UX-IDENTITY.md) BEFORE
 - See `docs/003-MODULES.md` and ADR 0003 before modifying user roles, access checks, or auth routes.
 - Preserve last-active-admin and active-user session guards in tests.
 
+## Telegram OIDC identity boundary (2026-11-28)
+
+- Reuse the existing Identity module and `telegram_accounts`; do not create a parallel user/identity store or registration flow.
+- CRM is the first consumer. Enforce Telegram OIDC only on the CRM host and preserve ordinary web login on other hosts.
+- Use Telegram Authorization Code + PKCE, one-time state, nonce, server-side token exchange, JWKS signature verification, and explicit issuer/audience/expiry checks.
+- Match the verified Telegram profile `id` claim to the existing `telegram_accounts.telegram_user_id`; do not use `sub` for that mapping.
+- OIDC Client ID/Secret are separate from the Bot API token. Do not change bot tokens, webhooks, Nutgram, reseller bot auth, or Live Mini App `initData` validation.
+- Never grant roles or create/link accounts from an OIDC login. Preserve `SuperAdminTrust` and recheck CRM access on every Livewire request.
+- No new database migration. Keep the approved `firebase/php-jwt` dependency limited to JWK/JWT verification.
+
 ## Telegram-first presenter (F4)
 - Telegram handlers live in `app/Interfaces/Telegram` and may call approved Identity/Application actions; never import Identity/Infrastructure models or bypass role checks.
 - Only the documented webhook route can run Nutgram in HTTP; verify its independent secret before processing any update.

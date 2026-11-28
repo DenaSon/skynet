@@ -37,6 +37,15 @@ final class IdentityServiceProvider extends ServiceProvider
         Gate::define('identity.manage-users', fn (User $user): bool => app(SuperAdminTrust::class)->canManageUsers($user));
         Gate::define('identity.manage-roles', fn (User $user): bool => app(SuperAdminTrust::class)->eligible($user));
 
+        RateLimiter::for('identity-telegram-oidc', function (Request $request): array {
+            $userId = (string) ($request->user()?->getAuthIdentifier() ?? 'guest');
+
+            return [
+                Limit::perMinute(6)->by('user|'.$userId.'|'.$request->ip()),
+                Limit::perMinute(20)->by('ip|'.$request->ip()),
+            ];
+        });
+
         RateLimiter::for('identity-login', function (Request $request): array {
             $email = mb_strtolower((string) $request->input('email', ''));
 

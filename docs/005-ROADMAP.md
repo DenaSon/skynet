@@ -1,3 +1,14 @@
+## DenaGate Identity — Telegram OIDC foundation (2026-11-28)
+
+Approved scope: implement one reusable Telegram OIDC authentication connector inside the existing Identity module; CRM is its first consumer.
+
+- **ID-00 — technical proof:** complete. Official Telegram OIDC endpoints, Authorization Code + PKCE, Basic-authenticated token exchange, no UserInfo endpoint, JWKS and signed ID-token claims verified. Existing `telegram_accounts` is sufficient; no migration.
+- **ID-01 — shared Identity connector:** implement state/nonce/PKCE, token exchange, RS256/JWKS signature validation, issuer/audience/expiry/nonce checks and a verified Telegram identity result.
+- **ID-02 — CRM second factor:** preserve the existing password login on non-CRM hosts; require password plus the already-linked Telegram account on `crm.denagate.ir`. Recheck `SuperAdminTrust` and second-factor session state on every CRM and Livewire request.
+- **ID-03 — reuse contract:** document how future web consumers use the same Identity actions. Do not build customer/reseller web panels, registration, account linking UX or alter Mini App / Bot authentication in this work.
+- No new identity table, account creation, Telegram Bot API token change, webhook change or Mini App change. The only approved dependency is `firebase/php-jwt` for JWK/JWT signature verification.
+- Source implementation is under review in PR; do not merge until the real BotFather redirect URI and Runflare secrets are configured and the required CI checks pass.
+
 ## CRM — توقف توسعه قابلیت جدید و بازبینی (2026-11-27)
 
 به دستور مالک، CRM-02D آخرین فاز قابلیت جدید پیش از بازبینی است. پس از آن فقط بازبینی امنیت، صحت داده، کارایی، UX، پذیرش عملی و رفع Issueهای شناسایی‌شده مجاز است. CRM-03 و مراحل بعدی تا تأیید صریح مجدد مالک متوقف‌اند.
