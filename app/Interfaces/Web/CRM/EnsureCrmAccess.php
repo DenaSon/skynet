@@ -38,7 +38,7 @@ final readonly class EnsureCrmAccess
             abort(403);
         }
 
-        $user->loadMissing('telegramAccount');
+        $user->load('telegramAccount');
         $telegramUserId = $user->telegramAccount?->telegram_user_id;
 
         if (! is_numeric($telegramUserId)
