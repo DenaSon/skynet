@@ -1,6 +1,6 @@
 # DenaGate Identity — Telegram OpenID Connect
 
-**Status:** Source implementation prepared in an independent PR; not merged or deployed.
+**Status:** Source implementation in [PR #622](https://github.com/DenaSon/skynet/pull/622); required CI is green. Not merged or deployed; BotFather configuration, Runflare secrets and real browser acceptance remain.
 **Date:** 2026-11-28
 **First consumer:** Root-only CRM at `crm.denagate.ir`
 
