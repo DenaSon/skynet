@@ -263,7 +263,27 @@ it('rejects an ID token from an unexpected issuer', function (): void {
     expect(session()->get('identity.telegram_second_factor'))->toBeNull();
 });
 
-it('rejects an ID token with an invalid nonce or audience', function (): void {
+it('rejects an ID token issued for a different client audience', function (): void {
+    $user = telegramOidcRootUser();
+    $keyPair = telegramOidcKeyPair();
+
+    $this->actingAs($user, 'web')
+        ->post('https://crm.denagate.ir/auth/telegram')
+        ->assertRedirect();
+
+    $transaction = telegramOidcTransaction();
+    $token = telegramOidcToken($keyPair, $transaction['nonce'], [
+        'aud' => 'another-client',
+    ]);
+    telegramOidcFakeProvider($token, $keyPair['jwk']);
+
+    $this->get('https://crm.denagate.ir/auth/telegram/callback?code=one-time-code&state='.$transaction['state'])
+        ->assertRedirect('https://crm.denagate.ir/auth/telegram');
+
+    expect(session()->get('identity.telegram_second_factor'))->toBeNull();
+});
+
+it('rejects an ID token with an invalid nonce', function (): void {
     $user = telegramOidcRootUser();
     $keyPair = telegramOidcKeyPair();
 
@@ -272,7 +292,7 @@ it('rejects an ID token with an invalid nonce or audience', function (): void {
         ->assertRedirect();
 
     $transaction = telegramOidcTransaction();
-    $token = telegramOidcToken($keyPair, 'different-nonce', ['aud' => 'another-client']);
+    $token = telegramOidcToken($keyPair, 'different-nonce', []);
     telegramOidcFakeProvider($token, $keyPair['jwk']);
 
     $this->get('https://crm.denagate.ir/auth/telegram/callback?code=one-time-code&state='.$transaction['state'])
@@ -318,6 +338,29 @@ it('rejects an ID token whose signature does not match the published key', funct
         ->assertRedirect('https://crm.denagate.ir/auth/telegram');
 
     expect(session()->get('identity.telegram_second_factor'))->toBeNull();
+});
+
+it('does not consume a pending OIDC transaction when the callback state is invalid', function (): void {
+    $user = telegramOidcRootUser();
+    $keyPair = telegramOidcKeyPair();
+
+    $this->actingAs($user, 'web')
+        ->post('https://crm.denagate.ir/auth/telegram')
+        ->assertRedirect();
+
+    $transaction = telegramOidcTransaction();
+
+    $this->get('https://crm.denagate.ir/auth/telegram/callback?code=wrong-code&state=invalid-state')
+        ->assertRedirect('https://crm.denagate.ir/auth/telegram');
+
+    expect(session()->get('identity.telegram_oidc_transaction.state'))->toBe($transaction['state']);
+
+    $token = telegramOidcToken($keyPair, $transaction['nonce']);
+    telegramOidcFakeProvider($token, $keyPair['jwk']);
+
+    $this->get('https://crm.denagate.ir/auth/telegram/callback?code=one-time-code&state='.$transaction['state'])
+        ->assertRedirect('https://crm.denagate.ir/admin/crm')
+        ->assertSessionHas('identity.telegram_second_factor.telegram_user_id', '997001');
 });
 
 it('consumes the OIDC state once and rejects callback replay', function (): void {
