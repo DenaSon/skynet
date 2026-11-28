@@ -52,7 +52,7 @@ function telegramOidcKeyPair(): array
 
     $details = openssl_pkey_get_details($privateKey);
 
-    if (! is_array($details) || ! is_array($details['rsa'] ?? null)) {
+    if (! is_array($details) || ! is_array($details['rsa'] ?? null) || ! is_string($details['rsa']['n'] ?? null) || ! is_string($details['rsa']['e'] ?? null)) {
         throw new RuntimeException('Unable to read test signing key.');
     }
 
@@ -154,7 +154,7 @@ it('fails closed on the CRM host when Telegram OIDC credentials are missing', fu
     $this->post('https://crm.denagate.ir/login', [
         'email' => $user->email,
         'password' => 'strong-password',
-    ])->assertServiceUnavailable();
+    ])->assertStatus(503);
 
     $this->assertGuest('web');
 });
@@ -170,7 +170,7 @@ it('starts the standard Telegram authorization-code flow with state nonce and PK
     $location = (string) $response->headers->get('Location');
     parse_str((string) parse_url($location, PHP_URL_QUERY), $query);
 
-    $transaction = $response->getSession()->get('identity.telegram_oidc_transaction');
+    $transaction = telegramOidcTransaction();
 
     expect($location)->toStartWith('https://oauth.telegram.org/auth?')
         ->and($query['client_id'] ?? null)->toBe('123456789')
@@ -193,7 +193,7 @@ it('verifies a real RSA-signed ID token and completes the CRM second factor', fu
         ->post('https://crm.denagate.ir/auth/telegram')
         ->assertRedirect();
 
-    $transaction = $start->getSession()->get('identity.telegram_oidc_transaction');
+    $transaction = telegramOidcTransaction();
     $token = telegramOidcToken($keyPair, $transaction['nonce']);
     telegramOidcFakeProvider($token, $keyPair['jwk']);
 
@@ -232,7 +232,7 @@ it('rejects a valid Telegram identity that does not match the existing linked ac
         ->post('https://crm.denagate.ir/auth/telegram')
         ->assertRedirect();
 
-    $transaction = $start->getSession()->get('identity.telegram_oidc_transaction');
+    $transaction = telegramOidcTransaction();
     $token = telegramOidcToken($keyPair, $transaction['nonce'], ['id' => '997002']);
     telegramOidcFakeProvider($token, $keyPair['jwk']);
 
@@ -271,8 +271,28 @@ it('rejects an ID token with an invalid nonce or audience', function (): void {
         ->post('https://crm.denagate.ir/auth/telegram')
         ->assertRedirect();
 
-    $transaction = $start->getSession()->get('identity.telegram_oidc_transaction');
+    $transaction = telegramOidcTransaction();
     $token = telegramOidcToken($keyPair, 'different-nonce', ['aud' => 'another-client']);
+    telegramOidcFakeProvider($token, $keyPair['jwk']);
+
+    $this->get('https://crm.denagate.ir/auth/telegram/callback?code=one-time-code&state='.$transaction['state'])
+        ->assertRedirect('https://crm.denagate.ir/auth/telegram');
+
+    expect(session()->get('identity.telegram_second_factor'))->toBeNull();
+});
+
+it('rejects an expired Telegram ID token', function (): void {
+    $user = telegramOidcRootUser();
+    $keyPair = telegramOidcKeyPair();
+
+    $this->actingAs($user, 'web')
+        ->post('https://crm.denagate.ir/auth/telegram')
+        ->assertRedirect();
+
+    $transaction = telegramOidcTransaction();
+    $token = telegramOidcToken($keyPair, $transaction['nonce'], [
+        'exp' => now()->subMinute()->timestamp,
+    ]);
     telegramOidcFakeProvider($token, $keyPair['jwk']);
 
     $this->get('https://crm.denagate.ir/auth/telegram/callback?code=one-time-code&state='.$transaction['state'])
@@ -290,7 +310,7 @@ it('rejects an ID token whose signature does not match the published key', funct
         ->post('https://crm.denagate.ir/auth/telegram')
         ->assertRedirect();
 
-    $transaction = $start->getSession()->get('identity.telegram_oidc_transaction');
+    $transaction = telegramOidcTransaction();
     $token = telegramOidcToken($signingKey, $transaction['nonce']);
     telegramOidcFakeProvider($token, $publishedKey['jwk']);
 
@@ -308,7 +328,7 @@ it('consumes the OIDC state once and rejects callback replay', function (): void
         ->post('https://crm.denagate.ir/auth/telegram')
         ->assertRedirect();
 
-    $transaction = $start->getSession()->get('identity.telegram_oidc_transaction');
+    $transaction = telegramOidcTransaction();
     $token = telegramOidcToken($keyPair, $transaction['nonce']);
     telegramOidcFakeProvider($token, $keyPair['jwk']);
 

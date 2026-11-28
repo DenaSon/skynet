@@ -55,7 +55,7 @@ final readonly class TelegramIdTokenVerifier
 
         return new VerifiedTelegramIdentity(
             telegramUserId: $this->normalizeTelegramId($claims->id ?? null),
-            subject: $claims->sub,
+            subject: (string) $claims->sub,
             name: $this->optionalString($claims->name ?? null),
             username: $this->optionalString($claims->preferred_username ?? null),
             picture: $this->optionalString($claims->picture ?? null),
@@ -218,7 +218,7 @@ final readonly class TelegramIdTokenVerifier
             return (string) $telegramId;
         }
 
-        if (! is_string($telegramId) || preg_match('/^[1-9][0-9]*$/D', $telegramId) !== 1) {
+        if (! is_string($telegramId) || strlen($telegramId) > 20 || preg_match('/^[1-9][0-9]*$/D', $telegramId) !== 1) {
             throw new RuntimeException('Telegram account identifier is invalid.');
         }
 

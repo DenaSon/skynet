@@ -72,7 +72,7 @@ final class TelegramOidcClient
 
         $response = Http::acceptJson()
             ->asForm()
-            ->withBasicAuth($clientId, $clientSecret)
+            ->withBasicAuth($clientId, trim($clientSecret))
             ->timeout(10)
             ->connectTimeout(3)
             ->withoutRedirecting()

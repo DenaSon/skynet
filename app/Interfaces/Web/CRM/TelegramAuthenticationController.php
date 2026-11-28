@@ -62,7 +62,7 @@ final readonly class TelegramAuthenticationController
 
     public function callback(Request $request): RedirectResponse
     {
-        $actor = $this->trustedActor($request);
+        $actor = $this->trustedActor();
         $transaction = $request->session()->pull(self::TRANSACTION_KEY);
         $state = $request->query('state');
         $redirectUri = route('crm.telegram.callback');
