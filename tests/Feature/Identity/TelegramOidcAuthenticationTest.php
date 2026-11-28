@@ -107,7 +107,7 @@ function telegramOidcToken(array $keyPair, string $nonce, array $overrides = [])
  */
 function telegramOidcTransaction(): array
 {
-    $transaction = session()->get('identity.telegram_oidc_transaction');
+    $transaction = app('session.store')->get('identity.telegram_oidc_transaction');
 
     if (! is_array($transaction)
         || ! is_string($transaction['state'] ?? null)
@@ -143,9 +143,10 @@ function telegramOidcFakeProvider(string $idToken, array $jwk): void
 it('supports direct Telegram login through the shared Identity flow without a pre-existing user session', function (): void {
     $keyPair = telegramOidcKeyPair();
     $flow = app(TelegramOidcAuthentication::class);
+    $session = app('session.store');
     $redirectUri = 'https://portal.denagate.ir/auth/telegram/callback';
 
-    $authorization = $flow->begin(session(), $redirectUri);
+    $authorization = $flow->begin($session, $redirectUri);
     $transaction = telegramOidcTransaction();
 
     expect($transaction['user_id'])->toBeNull()
@@ -155,7 +156,7 @@ it('supports direct Telegram login through the shared Identity flow without a pr
     telegramOidcFakeProvider($token, $keyPair['jwk']);
 
     $identity = $flow->complete(
-        session(),
+        $session,
         null,
         $transaction['state'],
         'one-time-code',
