@@ -183,6 +183,7 @@ final readonly class TelegramIdTokenVerifier
             || trim($claims->sub) === ''
             || ! is_numeric($claims->iat ?? null)
             || ! is_numeric($claims->exp ?? null)
+            || (int) $claims->exp <= (int) $claims->iat
             || ! is_string($claims->nonce ?? null)
             || ! hash_equals($expectedNonce, $claims->nonce)) {
             throw new RuntimeException('Telegram ID token claims are invalid.');

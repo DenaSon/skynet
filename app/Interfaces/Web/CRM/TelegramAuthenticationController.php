@@ -30,9 +30,9 @@ final readonly class TelegramAuthenticationController
         private RecordIdentityAudit $recordIdentityAudit,
     ) {}
 
-    public function challenge(Request $request): View
+    public function challenge(): View
     {
-        $this->trustedActor($request);
+        $this->trustedActor();
 
         abort_unless($this->telegramOidcClient->isConfigured(), 503);
 
@@ -41,7 +41,7 @@ final readonly class TelegramAuthenticationController
 
     public function start(Request $request): RedirectResponse
     {
-        $actor = $this->trustedActor($request);
+        $actor = $this->trustedActor();
 
         abort_unless($this->telegramOidcClient->isConfigured(), 503);
 
@@ -140,7 +140,7 @@ final readonly class TelegramAuthenticationController
         return redirect()->intended(route('crm.dashboard'));
     }
 
-    private function trustedActor(Request $request): User
+    private function trustedActor(): User
     {
         $actorUserId = Auth::guard('web')->id();
 

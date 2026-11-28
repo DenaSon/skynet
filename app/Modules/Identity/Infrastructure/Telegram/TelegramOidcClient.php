@@ -45,6 +45,10 @@ final class TelegramOidcClient
         string $nonce,
         string $codeChallenge,
     ): string {
+        if (! $this->isConfigured()) {
+            throw new RuntimeException('Telegram OIDC client is not configured.');
+        }
+
         return self::AUTHORIZATION_ENDPOINT.'?'.http_build_query([
             'client_id' => $this->clientId(),
             'redirect_uri' => $redirectUri,
