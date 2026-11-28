@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
+use App\Interfaces\Web\Live\LiveAuthController;
 use App\Modules\Identity\Application\TelegramOidcAuthentication;
 use App\Modules\Identity\Application\VerifiedTelegramIdentity;
+use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
-use App\Interfaces\Web\Live\LiveAuthController;
 use Firebase\JWT\JWT;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request as HttpRequest;
