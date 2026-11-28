@@ -4,16 +4,21 @@ declare(strict_types=1);
 
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
 use App\Modules\Identity\Infrastructure\Models\User;
+use App\Interfaces\Web\Live\LiveAuthController;
 use Firebase\JWT\JWT;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request as HttpRequest;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Route;
 use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
+    $this->withoutVite();
+    Http::preventStrayRequests();
+
     config()->set('denagate_crm.host', 'crm.denagate.ir');
     config()->set('super_admin.telegram_ids', ['997001', '997002']);
     config()->set('services.telegram_oidc.client_id', '123456789');
@@ -385,7 +390,11 @@ it('consumes the OIDC state once and rejects callback replay', function (): void
     expect(session()->get('identity.telegram_second_factor'))->toBeNull();
 });
 
-it('keeps Telegram OIDC routes unavailable outside the CRM host', function (): void {
+it('keeps Telegram OIDC scoped to CRM and preserves Live Mini App authentication', function (): void {
     $this->get('https://example.test/auth/telegram')->assertNotFound();
-    $this->get('https://live.denagate.ir/auth/telegram')->assertNotFound();
+
+    $liveTelegramRoute = Route::getRoutes()->getByName('denagate-live.telegram.login');
+
+    expect($liveTelegramRoute)->not->toBeNull()
+        ->and($liveTelegramRoute->getActionName())->toBe(LiveAuthController::class.'@login');
 });

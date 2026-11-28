@@ -55,7 +55,7 @@ final readonly class TelegramIdTokenVerifier
 
         return new VerifiedTelegramIdentity(
             telegramUserId: $this->normalizeTelegramId($claims->id ?? null),
-            subject: (string) $claims->sub,
+            oidcSubject: (string) $claims->sub,
             name: $this->optionalString($claims->name ?? null),
             username: $this->optionalString($claims->preferred_username ?? null),
             picture: $this->optionalString($claims->picture ?? null),
