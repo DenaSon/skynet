@@ -57,7 +57,7 @@ The verified Telegram identity is separate from application authorization. The c
 5. The callback validates one-time state, transaction age, session user and exact redirect URI.
 6. The verified token's `id` must match the Telegram account already linked to the same internal user.
 7. The current `SuperAdminTrust` check is repeated after the external redirect.
-8. Identity audit records the successful second factor; the session ID is regenerated and a user-bound factor marker is stored in the session.
+8. Identity audit records the successful second factor; the session ID is regenerated and a factor marker bound to the internal user and the exact linked Telegram ID is stored in the session. Every CRM request compares that ID with the current account link.
 9. `EnsureCrmAccess` requires both trusted-root authorization and the factor marker on every CRM request, including Livewire updates.
 
 Logout invalidates the session. A missing OIDC configuration fails closed; password-only access is not an allowed fallback on the CRM host.

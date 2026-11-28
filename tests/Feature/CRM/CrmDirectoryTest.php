@@ -60,6 +60,7 @@ function crm01bSecondFactor(User $user): array
     return [
         'identity.telegram_second_factor' => [
             'user_id' => $user->id,
+            'telegram_user_id' => '997101',
             'method' => 'telegram_oidc',
             'verified_at' => now()->timestamp,
         ],

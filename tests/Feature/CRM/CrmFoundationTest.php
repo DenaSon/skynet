@@ -42,6 +42,7 @@ function crm01aSecondFactor(User $user): array
     return [
         'identity.telegram_second_factor' => [
             'user_id' => $user->id,
+            'telegram_user_id' => '997001',
             'method' => 'telegram_oidc',
             'verified_at' => now()->timestamp,
         ],
@@ -70,6 +71,20 @@ it('requires Telegram second-factor verification before CRM access', function ()
 
     $this->actingAs($root, 'web')
         ->get('https://crm.denagate.ir/admin/crm')
+        ->assertRedirect('https://crm.denagate.ir/auth/telegram');
+});
+
+it('requires Telegram re-verification when the linked Telegram account changes', function (): void {
+    $root = crm01aRootUser();
+
+    $this->actingAs($root, 'web')
+        ->withSession(crm01aSecondFactor($root))
+        ->get('https://crm.denagate.ir/admin/crm')
+        ->assertOk();
+
+    $root->telegramAccount()->update(['telegram_user_id' => 997002]);
+
+    $this->get('https://crm.denagate.ir/admin/crm')
         ->assertRedirect('https://crm.denagate.ir/auth/telegram');
 });
 

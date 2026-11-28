@@ -6,6 +6,7 @@ namespace App\Interfaces\Web\CRM;
 
 use App\Modules\Identity\Application\AssertCatalogManagementAccess;
 use App\Modules\Identity\Application\TelegramSecondFactor;
+use App\Modules\Identity\Infrastructure\Models\User;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -31,7 +32,17 @@ final readonly class EnsureCrmAccess
         // Re-load the actor and re-check the full SuperAdminTrust contract on every request.
         $this->assertCatalogManagementAccess->handle((int) $actorUserId);
 
-        if (! $this->telegramSecondFactor->isVerifiedFor($request->session(), (int) $actorUserId)) {
+        $user = Auth::guard('web')->user();
+
+        if (! $user instanceof User) {
+            abort(403);
+        }
+
+        $user->loadMissing('telegramAccount');
+        $telegramUserId = $user->telegramAccount?->telegram_user_id;
+
+        if (! is_numeric($telegramUserId)
+            || ! $this->telegramSecondFactor->isVerifiedFor($request->session(), (int) $actorUserId, (string) $telegramUserId)) {
             return redirect()->route('crm.telegram.challenge');
         }
 

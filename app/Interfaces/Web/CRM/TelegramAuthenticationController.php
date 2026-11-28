@@ -135,7 +135,7 @@ final readonly class TelegramAuthenticationController
         );
 
         $request->session()->regenerate();
-        $this->telegramSecondFactor->markVerifiedFor($request->session(), (int) $freshActor->getKey());
+        $this->telegramSecondFactor->markVerifiedFor($request->session(), (int) $freshActor->getKey(), $identity->telegramUserId);
 
         return redirect()->intended(route('crm.dashboard'));
     }
