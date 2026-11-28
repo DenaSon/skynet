@@ -44,7 +44,7 @@ The reusable Application service:
 - Explicitly checks issuer, audience/authorized party, expiry, issued-at, subject and nonce.
 - Returns a verified identity value containing the numeric Telegram ID and optional profile claims.
 
-The JWKS response is cached for one hour and refreshed once when the token references an unknown key ID. The authorization transaction is held in the caller's session; no ID token, access token or authorization code is persisted.
+The JWKS response is cached for one hour and refreshed once when the token references an unknown key ID. The authorization transaction is held in the caller's session; no ID token, access token or authorization code is persisted. The shared flow accepts an optional expected internal user ID: CRM binds the transaction to its already-authenticated manager, while a future direct-login consumer can leave it null and resolve the account only after token verification.
 
 The verified Telegram identity is separate from application authorization. The connector never creates users, links accounts or grants roles.
 
