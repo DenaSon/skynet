@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use App\Modules\Identity\Infrastructure\Models\TelegramAccount;
+use App\Modules\Identity\Application\TelegramOidcAuthentication;
+use App\Modules\Identity\Application\VerifiedTelegramIdentity;
 use App\Modules\Identity\Infrastructure\Models\User;
 use App\Interfaces\Web\Live\LiveAuthController;
 use Firebase\JWT\JWT;
@@ -101,7 +103,7 @@ function telegramOidcToken(array $keyPair, string $nonce, array $overrides = [])
 }
 
 /**
- * @return array{state: string, nonce: string, code_verifier: string, redirect_uri: string, user_id: int, created_at: int}
+ * @return array{state: string, nonce: string, code_verifier: string, redirect_uri: string, user_id: ?int, created_at: int}
  */
 function telegramOidcTransaction(): array
 {
@@ -112,7 +114,8 @@ function telegramOidcTransaction(): array
         || ! is_string($transaction['nonce'] ?? null)
         || ! is_string($transaction['code_verifier'] ?? null)
         || ! is_string($transaction['redirect_uri'] ?? null)
-        || ! is_int($transaction['user_id'] ?? null)
+        || ! array_key_exists('user_id', $transaction)
+        || ($transaction['user_id'] !== null && ! is_int($transaction['user_id']))
         || ! is_int($transaction['created_at'] ?? null)) {
         throw new RuntimeException('OIDC transaction was not stored in the session.');
     }
@@ -136,6 +139,33 @@ function telegramOidcFakeProvider(string $idToken, array $jwk): void
         ]),
     ]);
 }
+
+it('supports direct Telegram login through the shared Identity flow without a pre-existing user session', function (): void {
+    $keyPair = telegramOidcKeyPair();
+    $flow = app(TelegramOidcAuthentication::class);
+    $redirectUri = 'https://portal.denagate.ir/auth/telegram/callback';
+
+    $authorization = $flow->begin(session(), $redirectUri);
+    $transaction = telegramOidcTransaction();
+
+    expect($transaction['user_id'])->toBeNull()
+        ->and($authorization->authorizationUrl)->toStartWith('https://oauth.telegram.org/auth?');
+
+    $token = telegramOidcToken($keyPair, $transaction['nonce']);
+    telegramOidcFakeProvider($token, $keyPair['jwk']);
+
+    $identity = $flow->complete(
+        session(),
+        null,
+        $transaction['state'],
+        'one-time-code',
+        $redirectUri,
+    );
+
+    expect($identity)->toBeInstanceOf(VerifiedTelegramIdentity::class)
+        ->and($identity?->telegramUserId)->toBe('997001')
+        ->and($identity?->oidcSubject)->toBe('subject-specific-to-this-oidc-client');
+});
 
 it('routes trusted CRM password login to the Telegram second factor', function (): void {
     $user = telegramOidcRootUser();
